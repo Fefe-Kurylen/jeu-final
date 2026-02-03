@@ -110,6 +110,20 @@ app.use(express.static(path.join(__dirname, '../frontend'), {
   lastModified: true
 }));
 
+// Portal static files (login, register, dashboard, premium)
+app.use('/portal', express.static(path.join(__dirname, '../portal'), {
+  maxAge: IS_PRODUCTION ? '1d' : 0,
+  etag: true,
+  lastModified: true
+}));
+
+// Game wrapper static files
+app.use('/game', express.static(path.join(__dirname, '../game'), {
+  maxAge: IS_PRODUCTION ? '1d' : 0,
+  etag: true,
+  lastModified: true
+}));
+
 // Headers de cache pour les réponses API
 const cacheControl = (duration) => (req, res, next) => {
   if (IS_PRODUCTION && duration > 0) {

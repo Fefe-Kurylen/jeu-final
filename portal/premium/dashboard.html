@@ -29,9 +29,10 @@
                 <div class="profile-details">
                     <h2 id="username">Chargement...</h2>
                     <p id="userEmail">Chargement...</p>
+                    <p id="userFaction" style="color: #D4AF37; margin-top: 5px;"></p>
                     <div class="profile-badges">
                         <span class="badge" id="premiumBadge">GRATUIT</span>
-                        <span class="badge" id="levelBadge">NIVEAU 1</span>
+                        <span class="badge" id="populationBadge">POP: 0</span>
                     </div>
                 </div>
             </div>
@@ -39,20 +40,24 @@
             <div class="dashboard-stats">
                 <div class="stat">
                     <i class="fas fa-trophy"></i>
-                    <span>Batailles : <strong id="battles">0</strong></span>
+                    <span>Attaques gagnées : <strong id="attacksWon">0</strong></span>
                 </div>
                 <div class="stat">
-                    <i class="fas fa-crown"></i>
-                    <span>Victoires : <strong id="victories">0</strong></span>
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Défenses gagnées : <strong id="defensesWon">0</strong></span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-city"></i>
+                    <span>Villes : <strong id="citiesCount">0</strong></span>
                 </div>
                 <div class="stat">
                     <i class="fas fa-calendar"></i>
-                    <span>Membre depuis : <strong id="memberSince">Aujourd'hui</strong></span>
+                    <span>Membre depuis : <strong id="memberSince">-</strong></span>
                 </div>
             </div>
 
             <div class="dashboard-actions">
-                <a href="/portal/premium/subscribe.html" class="btn-premium">
+                <a href="/portal/premium/subscribe.html" class="btn-premium" id="premiumBtn">
                     <i class="fas fa-gem"></i> PASSER À L'OR - 3,99€/mois
                 </a>
                 <a href="/" class="btn-play">
@@ -64,21 +69,51 @@
 
     <script src="../auth.js"></script>
     <script>
-        // Chargera les données utilisateur
-        document.addEventListener('DOMContentLoaded', function() {
-            const user = JSON.parse(localStorage.getItem('imperium_user') || '{}');
-            if (user.username) {
-                document.getElementById('username').textContent = user.username;
-                document.getElementById('userEmail').textContent = user.email;
-                if (user.premium) {
-                    document.getElementById('premiumBadge').innerHTML = '👑 EMPEREUR OR';
-                    document.getElementById('premiumBadge').style.background = 'linear-gradient(135deg, #D4AF37, #CD7F32)';
-                }
+        // Charge les données utilisateur depuis l'API
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Vérifie si connecté
+            if (!window.auth.isLoggedIn()) {
+                window.location.href = '/portal/premium/login.html';
+                return;
             }
 
+            const user = window.auth.currentUser;
+
+            // Affiche les infos de base
+            document.getElementById('username').textContent = user.username || 'Joueur';
+            document.getElementById('userEmail').textContent = user.email || '';
+            document.getElementById('userFaction').textContent = '⚔️ Faction: ' + (user.faction || 'ROME');
+
+            if (user.premium) {
+                document.getElementById('premiumBadge').innerHTML = '👑 EMPEREUR OR';
+                document.getElementById('premiumBadge').style.background = 'linear-gradient(135deg, #D4AF37, #CD7F32)';
+                document.getElementById('premiumBtn').style.display = 'none';
+            }
+
+            // Charge les stats depuis l'API
+            try {
+                const stats = await window.auth.getPlayerStats();
+                if (stats) {
+                    document.getElementById('populationBadge').textContent = 'POP: ' + (stats.population || 0);
+                    document.getElementById('citiesCount').textContent = stats.cities?.length || 0;
+
+                    if (stats.stats) {
+                        document.getElementById('attacksWon').textContent = stats.stats.attacksWon || 0;
+                        document.getElementById('defensesWon').textContent = stats.stats.defensesWon || 0;
+                    }
+
+                    if (stats.createdAt) {
+                        const date = new Date(stats.createdAt);
+                        document.getElementById('memberSince').textContent = date.toLocaleDateString('fr-FR');
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur chargement stats:', error);
+            }
+
+            // Bouton déconnexion
             document.getElementById('logoutBtn').addEventListener('click', function() {
-                localStorage.removeItem('imperium_user');
-                window.location.href = '/portal/';
+                window.auth.logout();
             });
         });
     </script>
