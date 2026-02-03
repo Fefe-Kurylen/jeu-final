@@ -1,0 +1,118 @@
+/* Variables */
+:root {
+    --gold: #D4AF37;
+    --marble: #F5F5F5;
+    --navy: #1E3A5F;
+}
+
+/* Reset */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: var(--navy);
+    color: var(--marble);
+}
+
+/* Navigation */
+.navbar {
+    background: rgba(0,0,0,0.8);
+    padding: 15px;
+    border-bottom: 2px solid var(--gold);
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    color: var(--gold);
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.nav-links a {
+    color: var(--marble);
+    margin-left: 20px;
+    text-decoration: none;
+}
+
+/* Conteneurs génériques */
+.login-container, .register-container, .dashboard-container {
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 20px;
+}
+
+.login-card, .register-card, .dashboard-card {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    padding: 30px;
+    text-align: center;
+}
+
+/* Formulaires */
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--gold);
+    border-radius: 5px;
+    color: white;
+}
+
+button {
+    background: var(--gold);
+    color: black;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 15px;
+}
+
+/* Premium */
+.premium-container {
+    max-width: 800px;
+    margin: 50px auto;
+    padding: 20px;
+}
+
+.premium-hero {
+    text-align: center;
+    background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(30,58,95,0.8));
+    border: 2px solid var(--gold);
+    border-radius: 15px;
+    padding: 40px;
+}
+
+.premium-price {
+    font-size: 2.5rem;
+    color: var(--gold);
+    margin: 20px 0;
+}
+
+.btn-subscribe {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--gold), #CD7F32);
+    color: black;
+    padding: 15px 40px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    margin: 20px 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav-container { flex-direction: column; }
+    .nav-links { margin-top: 15px; }
+}

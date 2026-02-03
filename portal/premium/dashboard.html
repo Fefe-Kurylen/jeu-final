@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon Compte - Imperium Antiquitas</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/portal/" class="logo">MON COMPTE</a>
+            <div class="nav-links">
+                <a href="/"><i class="fas fa-gamepad"></i> Jouer</a>
+                <a href="/portal/premium/subscribe.html"><i class="fas fa-crown"></i> Premium</a>
+                <button id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="dashboard-card">
+            <h1><i class="fas fa-user-crown"></i> VOTRE PROFIL</h1>
+
+            <div class="profile-info">
+                <div class="profile-avatar">
+                    <i class="fas fa-chess-king"></i>
+                </div>
+                <div class="profile-details">
+                    <h2 id="username">Chargement...</h2>
+                    <p id="userEmail">Chargement...</p>
+                    <div class="profile-badges">
+                        <span class="badge" id="premiumBadge">GRATUIT</span>
+                        <span class="badge" id="levelBadge">NIVEAU 1</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-stats">
+                <div class="stat">
+                    <i class="fas fa-trophy"></i>
+                    <span>Batailles : <strong id="battles">0</strong></span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-crown"></i>
+                    <span>Victoires : <strong id="victories">0</strong></span>
+                </div>
+                <div class="stat">
+                    <i class="fas fa-calendar"></i>
+                    <span>Membre depuis : <strong id="memberSince">Aujourd'hui</strong></span>
+                </div>
+            </div>
+
+            <div class="dashboard-actions">
+                <a href="/portal/premium/subscribe.html" class="btn-premium">
+                    <i class="fas fa-gem"></i> PASSER À L'OR - 3,99€/mois
+                </a>
+                <a href="/" class="btn-play">
+                    <i class="fas fa-play"></i> CONTINUER À JOUER
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../auth.js"></script>
+    <script>
+        // Chargera les données utilisateur
+        document.addEventListener('DOMContentLoaded', function() {
+            const user = JSON.parse(localStorage.getItem('imperium_user') || '{}');
+            if (user.username) {
+                document.getElementById('username').textContent = user.username;
+                document.getElementById('userEmail').textContent = user.email;
+                if (user.premium) {
+                    document.getElementById('premiumBadge').innerHTML = '👑 EMPEREUR OR';
+                    document.getElementById('premiumBadge').style.background = 'linear-gradient(135deg, #D4AF37, #CD7F32)';
+                }
+            }
+
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                localStorage.removeItem('imperium_user');
+                window.location.href = '/portal/';
+            });
+        });
+    </script>
+</body>
+</html>

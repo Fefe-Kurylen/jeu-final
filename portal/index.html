@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Portail - Imperium Antiquitas</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/portal/" class="logo">
+                <i class="fas fa-chess-king"></i> IMPERIUM ANTIQUITAS
+            </a>
+            <div class="nav-links">
+                <a href="/" class="btn-play">
+                    <i class="fas fa-gamepad"></i> Jouer
+                </a>
+                <a href="/portal/login.html" id="loginLink">
+                    <i class="fas fa-sign-in-alt"></i> Connexion
+                </a>
+                <a href="/portal/register.html" id="registerLink">
+                    <i class="fas fa-user-plus"></i> Inscription
+                </a>
+                <a href="/portal/dashboard.html" id="dashboardLink" style="display:none;">
+                    <i class="fas fa-user"></i> Mon compte
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="premium-container">
+        <div class="premium-hero">
+            <h1><i class="fas fa-crown"></i> PORTAL EMPEREUR</h1>
+            <p>Gérez votre compte et accédez à des fonctionnalités exclusives</p>
+
+            <div class="portal-actions">
+                <a href="/portal/login.html" class="btn-subscribe">
+                    <i class="fas fa-sign-in-alt"></i> Se connecter
+                </a>
+                <a href="/portal/register.html" class="btn-subscribe">
+                    <i class="fas fa-user-plus"></i> Créer un compte
+                </a>
+                <a href="/portal/premium/subscribe.html" class="btn-subscribe" style="background:linear-gradient(135deg, #D4AF37, #CD7F32);">
+                    <i class="fas fa-gem"></i> Abonnement Or - 3,99€/mois
+                </a>
+            </div>
+
+            <div class="premium-features">
+                <h3><i class="fas fa-check-circle"></i> Avec l'abonnement Or :</h3>
+                <p>+200 or par jour • File construction + • Badge exclusif</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+</body>
+</html>
