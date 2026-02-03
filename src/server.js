@@ -18,13 +18,89 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'monjeu-secret-change-this';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
+// Warn if using default JWT secret in production
+if (IS_PRODUCTION && JWT_SECRET === 'monjeu-secret-change-this') {
+  console.error('⚠️  WARNING: Using default JWT secret in production! Set JWT_SECRET environment variable.');
+}
+
 // Trust proxy pour Railway
 app.set('trust proxy', 1);
 
-// CORS - autorise tout pour simplifier
-app.use(cors());
+// CORS - configuration sécurisée
+const corsOptions = {
+  origin: IS_PRODUCTION
+    ? (process.env.CORS_ORIGIN || true) // En prod, utiliser CORS_ORIGIN ou accepter tout si non défini
+    : true, // En dev, accepter tout
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '1mb' }));
+
+// ========== RATE LIMITING (simple in-memory) ==========
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_AUTH = 10; // 10 tentatives de login par minute
+const RATE_LIMIT_MAX_API = 100; // 100 requêtes API par minute
+
+const rateLimit = (maxRequests, keyPrefix = 'api') => (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const key = `${keyPrefix}:${ip}`;
+  const now = Date.now();
+
+  const record = rateLimitMap.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+
+  if (now > record.resetAt) {
+    record.count = 0;
+    record.resetAt = now + RATE_LIMIT_WINDOW;
+  }
+
+  record.count++;
+  rateLimitMap.set(key, record);
+
+  // Cleanup old entries periodically
+  if (Math.random() < 0.01) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (now > v.resetAt) rateLimitMap.delete(k);
+    }
+  }
+
+  if (record.count > maxRequests) {
+    return res.status(429).json({ error: 'Trop de requêtes, réessayez plus tard' });
+  }
+
+  next();
+};
+
+// ========== INPUT VALIDATION HELPERS ==========
+const validateEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+};
+
+const validatePassword = (password) => {
+  if (!password || typeof password !== 'string') return false;
+  return password.length >= 6 && password.length <= 100;
+};
+
+const validateName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const nameRegex = /^[a-zA-Z0-9_-]+$/;
+  return nameRegex.test(name) && name.length >= 3 && name.length <= 20;
+};
+
+const validateFaction = (faction) => {
+  const validFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+  return validFactions.includes(faction?.toUpperCase());
+};
+
+const validateCoordinates = (x, y) => {
+  return Number.isInteger(x) && Number.isInteger(y) &&
+         x >= 0 && x <= 500 && y >= 0 && y <= 500;
+};
 
 // ========== CACHE HEADERS MIDDLEWARE ==========
 // Cache pour fichiers statiques
@@ -111,14 +187,32 @@ app.get('/api/data/buildings', cacheControl(300), (req, res) => res.json(buildin
 
 // ========== AUTH ==========
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (req, res) => {
   try {
     const { email, password, name, faction } = req.body;
+
+    // Validation des entrées
     if (!email || !password || !name || !faction) {
       return res.status(400).json({ error: 'Tous les champs sont requis' });
     }
 
-    const exists = await prisma.account.findUnique({ where: { email } });
+    if (!validateEmail(email)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
+
+    if (!validatePassword(password)) {
+      return res.status(400).json({ error: 'Mot de passe: 6-100 caractères requis' });
+    }
+
+    if (!validateName(name)) {
+      return res.status(400).json({ error: 'Pseudo: 3-20 caractères alphanumériques' });
+    }
+
+    if (!validateFaction(faction)) {
+      return res.status(400).json({ error: 'Faction invalide' });
+    }
+
+    const exists = await prisma.account.findUnique({ where: { email: email.toLowerCase() } });
     if (exists) return res.status(400).json({ error: 'Email deja utilise' });
 
     const nameExists = await prisma.player.findUnique({ where: { name } });
@@ -166,14 +260,22 @@ app.post('/api/auth/register', async (req, res) => {
     res.json({ token, player: { id: player.id, name, faction } });
   } catch (e) {
     console.error('Register error:', e);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: IS_PRODUCTION ? 'Erreur serveur' : e.message });
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (req, res) => {
   try {
     const { email, password } = req.body;
-    const account = await prisma.account.findUnique({ where: { email }, include: { player: true } });
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    }
+
+    const account = await prisma.account.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { player: true }
+    });
     if (!account || !account.player) return res.status(401).json({ error: 'Identifiants invalides' });
 
     const valid = await bcrypt.compare(password, account.passwordHash);
@@ -890,6 +992,11 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
   try {
     const { x, y } = req.body;
     if (x === undefined || y === undefined) return res.status(400).json({ error: 'Destination requise' });
+
+    // Validate coordinates
+    if (!validateCoordinates(parseInt(x), parseInt(y))) {
+      return res.status(400).json({ error: 'Coordonnées invalides (0-500)' });
+    }
     
     const army = await prisma.army.findFirst({
       where: { id: req.params.id, ownerId: req.user.playerId },
@@ -1806,20 +1913,20 @@ setInterval(async () => {
   const TICK_HOURS = 30 / 3600;
   
   try {
-    // Production
+    // Production - Optimized with batch updates
     const cities = await prisma.city.findMany({ where: { isSieged: false }, include: { buildings: true } });
-    for (const city of cities) {
-      let wood = 0, stone = 0, iron = 0, food = 0;
+
+    // Prepare all updates
+    const cityUpdates = cities.map(city => {
+      let wood = 5, stone = 5, iron = 5, food = 10; // Base production
       for (const b of city.buildings) {
         if (b.key === 'LUMBER') wood += b.level * 30;
-        if (b.key === 'QUARRY') stone += b.level * 30;
-        if (b.key === 'IRON_MINE') iron += b.level * 30;
-        if (b.key === 'FARM') food += b.level * 40;
+        else if (b.key === 'QUARRY') stone += b.level * 30;
+        else if (b.key === 'IRON_MINE') iron += b.level * 30;
+        else if (b.key === 'FARM') food += b.level * 40;
       }
-      // Base production even without buildings
-      wood += 5; stone += 5; iron += 5; food += 10;
-      
-      await prisma.city.update({
+
+      return prisma.city.update({
         where: { id: city.id },
         data: {
           wood: Math.min(city.wood + wood * TICK_HOURS, city.maxStorage),
@@ -1828,7 +1935,10 @@ setInterval(async () => {
           food: Math.min(city.food + food * TICK_HOURS, city.maxFoodStorage)
         }
       });
-    }
+    });
+
+    // Execute all updates in parallel (batch)
+    await Promise.all(cityUpdates);
 
     // ========== UPKEEP: Consommation de céréales par les troupes ==========
     const allArmies = await prisma.army.findMany({
@@ -1859,9 +1969,9 @@ setInterval(async () => {
             where: { id: city.id },
             data: { food: newFood }
           });
-          
+
           // Si plus de nourriture, les troupes meurent de faim (10% par tick sans food)
-          if (city.food <= 0) {
+          if (newFood <= 0) {
             for (const unit of army.units) {
               const losses = Math.ceil(unit.count * 0.1);
               if (losses > 0) {
