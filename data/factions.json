@@ -1,0 +1,10 @@
+{
+  "factions": {
+    "ROME": { "name": "Rome", "bonus": "+10% Defense Infanterie" },
+    "GAUL": { "name": "Gaule", "bonus": "+10% Vitesse Cavalerie" },
+    "GREEK": { "name": "Grece", "bonus": "+15% Murs" },
+    "EGYPT": { "name": "Egypte", "bonus": "+10% Production" },
+    "HUN": { "name": "Huns", "bonus": "+15% Vitesse Armee" },
+    "SULTAN": { "name": "Sultanat", "bonus": "+15% Siege" }
+  }
+}

@@ -1,0 +1,268 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  player       Player?
+}
+
+model Player {
+  id         String   @id @default(uuid())
+  accountId  String   @unique
+  name       String   @unique
+  faction    String
+  gold       Int      @default(0)
+  population Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  account      Account         @relation(fields: [accountId], references: [id])
+  cities       City[]
+  armies       Army[]
+  hero         Hero?
+  sentReports  BattleReport[]  @relation("Attacker")
+  recvReports  BattleReport[]  @relation("Defender")
+  spyReports   SpyReport[]
+  marketOffers MarketOffer[]
+  alliance     AllianceMember?
+}
+
+model City {
+  id        String   @id @default(uuid())
+  playerId  String
+  name      String
+  x         Int
+  y         Int
+  isCapital Boolean  @default(false)
+
+  wood    Int @default(500)
+  stone   Int @default(500)
+  iron    Int @default(500)
+  food    Int @default(500)
+
+  maxStorage     Int @default(1000)
+  maxFoodStorage Int @default(1000)
+
+  wallHp       Int @default(1000)
+  wallMaxHp    Int @default(1000)
+  isSieged     Boolean @default(false)
+  siegeStarted DateTime?
+
+  createdAt DateTime @default(now())
+
+  player     Player           @relation(fields: [playerId], references: [id])
+  buildings  CityBuilding[]
+  buildQueue BuildQueueItem[]
+  armies     Army[]
+
+  @@unique([x, y])
+}
+
+model CityBuilding {
+  id         String @id @default(uuid())
+  cityId     String
+  slot       Int
+  key        String
+  level      Int    @default(1)
+  category   String @default("BASE")
+  prodPerHour Int   @default(0)
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, slot])
+}
+
+model BuildQueueItem {
+  id          String   @id @default(uuid())
+  cityId      String
+  slot        Int
+  buildingKey String
+  targetLevel Int
+  startedAt   DateTime
+  endsAt      DateTime
+  status      String   @default("BUILDING")
+
+  city City @relation(fields: [cityId], references: [id])
+}
+
+model Army {
+  id       String  @id @default(uuid())
+  ownerId  String
+  cityId   String?
+  name     String
+  slot     Int     @default(0)
+  x        Int
+  y        Int
+  status   String  @default("IDLE")
+  heroId   String? @unique
+  isGarrison Boolean @default(false)
+
+  targetX   Int?
+  targetY   Int?
+  arrivesAt DateTime?
+  returnsAt DateTime?
+
+  mission       String?
+  carryWood     Int     @default(0)
+  carryStone    Int     @default(0)
+  carryIron     Int     @default(0)
+  carryFood     Int     @default(0)
+
+  owner   Player     @relation(fields: [ownerId], references: [id])
+  city    City?      @relation(fields: [cityId], references: [id])
+  hero    Hero?      @relation(fields: [heroId], references: [id])
+  units   ArmyUnit[]
+}
+
+model ArmyUnit {
+  id      String @id @default(uuid())
+  armyId  String
+  unitKey String
+  tier    String @default("base")
+  count   Int
+
+  army Army @relation(fields: [armyId], references: [id])
+
+  @@unique([armyId, unitKey])
+}
+
+model Hero {
+  id       String @id @default(uuid())
+  playerId String @unique
+  name     String
+  level    Int    @default(1)
+  xp       Int    @default(0)
+
+  attack    Int @default(5)
+  defense   Int @default(5)
+  logistics Int @default(5)
+  speed     Int @default(5)
+
+  freePoints Int @default(0)
+
+  player Player @relation(fields: [playerId], references: [id])
+  army   Army?
+}
+
+model WoundedUnit {
+  id        String   @id @default(uuid())
+  cityId    String
+  unitKey   String
+  count     Int
+  healsAt   DateTime
+
+  @@unique([cityId, unitKey])
+}
+
+model BattleReport {
+  id           String   @id @default(uuid())
+  attackerId   String
+  defenderId   String?
+  x            Int
+  y            Int
+  result       String
+  attackerLost Json
+  defenderLost Json
+  loot         Json?
+  rounds       Json?
+  createdAt    DateTime @default(now())
+
+  attacker Player  @relation("Attacker", fields: [attackerId], references: [id])
+  defender Player? @relation("Defender", fields: [defenderId], references: [id])
+}
+
+model SpyReport {
+  id         String   @id @default(uuid())
+  playerId   String
+  targetType String
+  targetX    Int
+  targetY    Int
+  targetName String?
+  success    Boolean
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+}
+
+model ResourceNode {
+  id           String   @id @default(uuid())
+  x            Int
+  y            Int
+  resourceType String
+  amount       Int      @default(1000)
+  maxAmount    Int      @default(1000)
+  regenRate    Int      @default(10)
+  lastRegen    DateTime @default(now())
+
+  @@unique([x, y])
+}
+
+model MarketOffer {
+  id           String   @id @default(uuid())
+  playerId     String
+  sellResource String
+  sellAmount   Int
+  buyResource  String
+  buyAmount    Int
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
+}
+
+model Alliance {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  tag         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  members   AllianceMember[]
+  diplomacy AllianceDiplomacy[] @relation("AllianceSource")
+  targetOf  AllianceDiplomacy[] @relation("AllianceTarget")
+}
+
+model AllianceMember {
+  id         String   @id @default(uuid())
+  allianceId String
+  playerId   String   @unique
+  role       String   @default("MEMBER")
+  joinedAt   DateTime @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id])
+  player   Player   @relation(fields: [playerId], references: [id])
+}
+
+model AllianceDiplomacy {
+  id               String   @id @default(uuid())
+  allianceId       String
+  targetAllianceId String
+  status           String   @default("NEUTRAL")
+  changedAt        DateTime @default(now())
+
+  alliance       Alliance @relation("AllianceSource", fields: [allianceId], references: [id])
+  targetAlliance Alliance @relation("AllianceTarget", fields: [targetAllianceId], references: [id])
+
+  @@unique([allianceId, targetAllianceId])
+}
+
+model Expedition {
+  id          String   @id @default(uuid())
+  playerId    String
+  difficulty  Int
+  enemyPower  Int
+  rewards     Json
+  expiresAt   DateTime
+  status      String   @default("AVAILABLE")
+  createdAt   DateTime @default(now())
+}

@@ -1,0 +1,18 @@
+# Configuration Nixpacks pour Railway
+[phases.setup]
+nixPkgs = ["nodejs_18", "openssl_3"]
+
+[phases.install]
+cmds = ["npm ci || npm install"]
+
+[phases.build]
+cmds = [
+  "npx prisma generate",
+  "npx prisma db push --accept-data-loss || echo 'DB push will run at start'"
+]
+
+[start]
+cmd = "node src/server.js"
+
+[variables]
+PRISMA_CLI_BINARY_TARGETS = "linux-musl-openssl-3.0.x"

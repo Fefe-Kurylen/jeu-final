@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: monjeu-db
+    environment:
+      POSTGRES_USER: monjeu
+      POSTGRES_PASSWORD: monjeu123
+      POSTGRES_DB: monjeu
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

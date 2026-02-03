@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonJeu v0.6 - Stratégie MMO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=MedievalSharp&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen" class="screen">
+        <div class="auth-bg"></div>
+        <div class="auth-box">
+            <div class="auth-logo">
+                <svg viewBox="0 0 100 100" width="80" height="80">
+                    <defs>
+                        <linearGradient id="swordGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ffd700"/>
+                            <stop offset="50%" style="stop-color:#d4a84b"/>
+                            <stop offset="100%" style="stop-color:#8b6914"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M50 10 L55 45 L65 50 L55 55 L50 90 L45 55 L35 50 L45 45 Z" fill="url(#swordGrad)" stroke="#5a4010" stroke-width="2"/>
+                    <circle cx="50" cy="50" r="8" fill="#c44" stroke="#8b6914" stroke-width="2"/>
+                    <path d="M30 30 L35 35 M70 30 L65 35 M30 70 L35 65 M70 70 L65 65" stroke="#d4a84b" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h1>MonJeu</h1>
+            <p class="auth-subtitle">Empire &amp; Conquête</p>
+            
+            <div id="login-form">
+                <input type="email" id="login-email" placeholder="Adresse email">
+                <input type="password" id="login-password" placeholder="Mot de passe">
+                <button onclick="login()">Entrer dans l'arène</button>
+                <p class="auth-link"><a href="#" onclick="showRegister(); return false;">Créer un empire</a></p>
+            </div>
+            
+            <div id="register-form" style="display:none">
+                <input type="email" id="reg-email" placeholder="Adresse email">
+                <input type="text" id="reg-name" placeholder="Nom de votre empire">
+                <input type="password" id="reg-password" placeholder="Mot de passe">
+                <select id="reg-faction">
+                    <option value="">-- Choisissez votre Faction --</option>
+                    <option value="ROME">🏛️ Rome - Légions disciplinées</option>
+                    <option value="GAUL">🌲 Gaule - Cavalerie redoutable</option>
+                    <option value="GREEK">🏺 Grèce - Défenses imprenables</option>
+                    <option value="EGYPT">🏜️ Égypte - Richesses infinies</option>
+                    <option value="HUN">🐎 Huns - Hordes rapides</option>
+                    <option value="SULTAN">🌙 Sultanat - Sièges dévastateurs</option>
+                </select>
+                <button onclick="register()">Fonder mon Empire</button>
+                <p class="auth-link"><a href="#" onclick="showLogin(); return false;">J'ai déjà un empire</a></p>
+            </div>
+            
+            <div id="auth-error"></div>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="screen">
+        <header>
+            <div class="header-left">
+                <div class="game-logo">
+                    <span class="logo-icon">⚔️</span>
+                    <span class="logo-text">MonJeu</span>
+                </div>
+            </div>
+            <div class="resources">
+                <div class="res-item" title="Bois">
+                    <div class="res-icon wood"></div>
+                    <span id="res-wood">0</span>
+                </div>
+                <div class="res-item" title="Pierre">
+                    <div class="res-icon stone"></div>
+                    <span id="res-stone">0</span>
+                </div>
+                <div class="res-item" title="Fer">
+                    <div class="res-icon iron"></div>
+                    <span id="res-iron">0</span>
+                </div>
+                <div class="res-item" title="Nourriture">
+                    <div class="res-icon food"></div>
+                    <span id="res-food">0</span>
+                </div>
+                <div class="res-item gold" title="Or">
+                    <div class="res-icon gold-icon"></div>
+                    <span id="res-gold">0</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="player-info">
+                    <span id="player-name" class="player-name"></span>
+                    <span id="player-faction" class="player-faction"></span>
+                </div>
+                <div class="pop-badge" title="Population">
+                    <span class="pop-icon">👥</span>
+                    <span id="player-pop">0</span>
+                </div>
+                <button onclick="logout()" class="btn-logout" title="Déconnexion">⏻</button>
+            </div>
+        </header>
+        
+        <!-- QUICKLINKS BAR (Travian Style) -->
+        <div class="quicklinks-bar">
+            <div class="quicklink" onclick="showTab('fields')" title="Champs (1)">🌾<span class="quicklink-key">1</span></div>
+            <div class="quicklink" onclick="showTab('city')" title="Ville (2)">🏰<span class="quicklink-key">2</span></div>
+            <div class="quicklink" onclick="showTab('map')" title="Carte (3)">🗺️<span class="quicklink-key">3</span></div>
+            <div class="quicklink" onclick="showTab('ranking')" title="Classement (4)">📊<span class="quicklink-key">4</span></div>
+            <div class="quicklink" onclick="showTab('reports')" title="Rapports (5)">📜<span class="quicklink-key">5</span></div>
+            <div class="quicklink" onclick="showTab('alliance')" title="Alliance (6)">⚔️<span class="quicklink-key">6</span></div>
+            <div class="quicklink" onclick="showTab('army')" title="Armée (7)">🗡️<span class="quicklink-key">7</span></div>
+            <div class="quicklink" onclick="showTab('hero')" title="Héros (8)">🦸<span class="quicklink-key">8</span></div>
+            <div class="quicklink" onclick="showTab('market')" title="Marché (9)">🏪<span class="quicklink-key">9</span></div>
+            <span class="quicklinks-divider"></span>
+            <div class="city-selector-enhanced">
+                <button class="city-nav-btn" onclick="switchToPreviousCity()" title="Ville précédente (B)">◀</button>
+                <div class="city-name-display">
+                    <span id="city-name-quick">-</span>
+                    <div class="city-coords" id="city-coords-quick">-</div>
+                </div>
+                <button class="city-nav-btn" onclick="switchToNextCity()" title="Ville suivante (N)">▶</button>
+            </div>
+            <span class="quicklinks-divider"></span>
+            <div class="quicklink" onclick="toggleHelpOverlay()" title="Aide (?)">❓</div>
+        </div>
+        
+        <main>
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-title">Gestion</div>
+                    <button onclick="showTab('city')" class="nav-btn active" data-tab="city">
+                        <span class="nav-icon">🏰</span>
+                        <span class="nav-text">Ma Ville</span>
+                    </button>
+                    <button onclick="showTab('buildings')" class="nav-btn" data-tab="buildings">
+                        <span class="nav-icon">🏗️</span>
+                        <span class="nav-text">Bâtiments</span>
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-title">Militaire</div>
+                    <button onclick="showTab('army')" class="nav-btn" data-tab="army">
+                        <span class="nav-icon">⚔️</span>
+                        <span class="nav-text">Armée</span>
+                    </button>
+                    <button onclick="showTab('hero')" class="nav-btn" data-tab="hero">
+                        <span class="nav-icon">👤</span>
+                        <span class="nav-text">Héros</span>
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-title">Monde</div>
+                    <button onclick="showTab('expeditions')" class="nav-btn" data-tab="expeditions">
+                        <span class="nav-icon">🗺️</span>
+                        <span class="nav-text">Expéditions</span>
+                    </button>
+                    <button onclick="showTab('map')" class="nav-btn" data-tab="map">
+                        <span class="nav-icon">🌍</span>
+                        <span class="nav-text">Carte</span>
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-title">Social</div>
+                    <button onclick="showTab('alliance')" class="nav-btn" data-tab="alliance">
+                        <span class="nav-icon">🤝</span>
+                        <span class="nav-text">Alliance</span>
+                    </button>
+                    <button onclick="showTab('market')" class="nav-btn" data-tab="market">
+                        <span class="nav-icon">🏪</span>
+                        <span class="nav-text">Marché</span>
+                    </button>
+                    <button onclick="showTab('ranking')" class="nav-btn" data-tab="ranking">
+                        <span class="nav-icon">🏆</span>
+                        <span class="nav-text">Classement</span>
+                    </button>
+                    <button onclick="showTab('reports')" class="nav-btn" data-tab="reports">
+                        <span class="nav-icon">📜</span>
+                        <span class="nav-text">Rapports</span>
+                    </button>
+                </div>
+            </nav>
+            
+            <div id="content">
+                <!-- TAB CITY - Vue circulaire 2.5D style Travian -->
+                <div id="tab-city" class="tab active">
+                    <div class="tab-header">
+                        <h2>Ma Ville</h2>
+                        <div class="city-view-toggle">
+                            <button class="view-btn active" id="btn-view-city" onclick="switchCityView('city')">
+                                🏰 Ville
+                            </button>
+                            <button class="view-btn" id="btn-view-fields" onclick="switchCityView('fields')">
+                                🌾 Champs
+                            </button>
+                        </div>
+                        <div class="city-selector">
+                            <select id="city-select" onchange="selectCity(this.value)"></select>
+                        </div>
+                    </div>
+                    
+                    <!-- Vue ville 2.5D circulaire -->
+                    <div class="city-view-2d">
+                        <div class="city-canvas-container">
+                            <canvas id="city-canvas" width="800" height="600"></canvas>
+                            
+                            <!-- Overlay pour les tooltips -->
+                            <div class="city-tooltip" id="city-tooltip" style="display:none"></div>
+                            
+                            <!-- Indicateur de vue courante -->
+                            <div class="view-indicator" id="view-indicator">
+                                <span class="view-label">🏰 Vue Ville</span>
+                                <span class="view-slots">20 emplacements</span>
+                            </div>
+                            
+                            <!-- Barre de mur en bas -->
+                            <div class="city-wall-bar">
+                                <div class="wall-icon">🏰</div>
+                                <div class="wall-progress">
+                                    <div class="wall-fill" id="wall-fill"></div>
+                                </div>
+                                <span class="wall-text" id="wall-hp">1000/1000</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Panneau latéral d'info -->
+                        <div class="city-sidebar">
+                            <div class="sidebar-section">
+                                <h3>📊 Production /h</h3>
+                                <div class="prod-list">
+                                    <div class="prod-row"><span class="prod-icon wood">🪵</span><span id="prod-wood">+0</span></div>
+                                    <div class="prod-row"><span class="prod-icon stone">🪨</span><span id="prod-stone">+0</span></div>
+                                    <div class="prod-row"><span class="prod-icon iron">⛏️</span><span id="prod-iron">+0</span></div>
+                                    <div class="prod-row"><span class="prod-icon food">🌾</span><span id="prod-food">+0</span></div>
+                                </div>
+                            </div>
+                            
+                            <div class="sidebar-section">
+                                <h3>🏗️ Construction</h3>
+                                <div id="build-queue" class="queue-list"></div>
+                            </div>
+                            
+                            <div class="sidebar-section">
+                                <h3>⚔️ Recrutement</h3>
+                                <div id="recruit-queue" class="queue-list"></div>
+                            </div>
+                            
+                            <div class="sidebar-section">
+                                <h3>🚀 Armées</h3>
+                                <div id="moving-armies" class="queue-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Panel de construction (s'affiche au clic sur slot) -->
+                    <div class="build-panel" id="build-panel" style="display:none">
+                        <div class="build-panel-header">
+                            <h3 id="build-panel-title">Construire</h3>
+                            <button class="panel-close" onclick="closeBuildPanel()">×</button>
+                        </div>
+                        <div class="build-panel-content" id="build-panel-content"></div>
+                    </div>
+                </div>
+                
+                <!-- TAB BUILDINGS -->
+                <div id="tab-buildings" class="tab">
+                    <h2>Construire</h2>
+                    <div class="building-categories">
+                        <button class="cat-btn active" onclick="filterBuildings('all')">Tous</button>
+                        <button class="cat-btn" onclick="filterBuildings('BASE')">Production</button>
+                        <button class="cat-btn" onclick="filterBuildings('INTERMEDIATE')">Militaire</button>
+                        <button class="cat-btn" onclick="filterBuildings('ADVANCED')">Avancé</button>
+                    </div>
+                    <div class="grid" id="buildings-grid"></div>
+                </div>
+                
+                <!-- TAB ARMY - Gestion des 3 armées -->
+                <div id="tab-army" class="tab">
+                    <div class="army-tab-header">
+                        <h2>⚔️ Mes Armées</h2>
+                        <div class="garrison-summary" id="garrison-summary"></div>
+                    </div>
+                    <div class="armies-management" id="armies-management"></div>
+                </div>
+                
+                <!-- TAB RECRUIT (supprimé - recrutement via bâtiments) -->
+                <div id="tab-recruit" class="tab" style="display:none"></div>
+                
+                <!-- TAB HERO -->
+                <div id="tab-hero" class="tab">
+                    <h2>Mon Héros</h2>
+                    <div class="hero-container" id="hero-panel"></div>
+                </div>
+                
+                <!-- TAB EXPEDITIONS -->
+                <div id="tab-expeditions" class="tab">
+                    <h2>Expéditions</h2>
+                    <div class="expeditions-container">
+                        <div class="exp-available">
+                            <h3>Disponibles</h3>
+                            <div class="grid" id="expeditions-available"></div>
+                        </div>
+                        <div class="exp-history">
+                            <h3>Historique</h3>
+                            <div id="expeditions-history"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TAB MAP - Style Rise of Kingdoms -->
+                <div id="tab-map" class="tab">
+                    <div class="map-header">
+                        <h2>Carte du Monde</h2>
+                        <div class="map-toolbar">
+                            <div class="zoom-controls">
+                                <button onclick="mapZoom(-0.2)" class="map-btn">−</button>
+                                <span class="zoom-level" id="zoom-level">100%</span>
+                                <button onclick="mapZoom(0.2)" class="map-btn">+</button>
+                            </div>
+                            <button onclick="centerOnCapital()" class="map-btn home" title="Ma capitale">🏠</button>
+                            <span class="map-coords">
+                                <span id="map-x">0</span>, <span id="map-y">0</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="map-wrapper">
+                        <canvas id="world-canvas" width="1200" height="700"></canvas>
+                        <div class="minimap-container">
+                            <canvas id="minimap-canvas" width="150" height="150"></canvas>
+                            <div class="minimap-viewport" id="minimap-viewport"></div>
+                        </div>
+                    </div>
+                    <div class="map-legend">
+                        <span class="legend-item"><span class="legend-color my-city"></span> Ma ville</span>
+                        <span class="legend-item"><span class="legend-color enemy-city"></span> Ville ennemie</span>
+                        <span class="legend-item"><span class="legend-color ally-city"></span> Allié</span>
+                        <span class="legend-item"><span class="legend-color wood-res"></span> Forêt</span>
+                        <span class="legend-item"><span class="legend-color stone-res"></span> Carrière</span>
+                        <span class="legend-item"><span class="legend-color iron-res"></span> Mine</span>
+                        <span class="legend-item"><span class="legend-color food-res"></span> Oasis</span>
+                        <span class="legend-item keyboard-hint" title="Raccourcis clavier">
+                            ⌨️ +/- zoom • 0 reset • H home • ↑↓←→ déplacer
+                        </span>
+                    </div>
+                    <div class="map-info-panel" id="map-info-panel" style="display:none">
+                        <button class="panel-close" onclick="closeMapPanel()">×</button>
+                        <div id="map-panel-content"></div>
+                    </div>
+                </div>
+                
+                <!-- TAB ALLIANCE -->
+                <div id="tab-alliance" class="tab">
+                    <h2>Alliance</h2>
+                    <div id="alliance-content"></div>
+                </div>
+                
+                <!-- TAB RANKING -->
+                <div id="tab-ranking" class="tab">
+                    <h2>Classement</h2>
+                    <div class="ranking-tabs">
+                        <button class="rank-tab active" onclick="showRanking('players')">Joueurs</button>
+                        <button class="rank-tab" onclick="showRanking('alliances')">Alliances</button>
+                    </div>
+                    <div id="ranking-content"></div>
+                </div>
+                
+                <!-- TAB MARKET -->
+                <div id="tab-market" class="tab">
+                    <h2>🏪 Marché</h2>
+                    <div class="market-container">
+                        <div class="market-section">
+                            <h3>📤 Créer une offre</h3>
+                            <div class="market-form">
+                                <div class="market-row">
+                                    <label>Je vends:</label>
+                                    <select id="market-sell-resource">
+                                        <option value="wood">🪵 Bois</option>
+                                        <option value="stone">🪨 Pierre</option>
+                                        <option value="iron">⛏️ Fer</option>
+                                        <option value="food">🌾 Nourriture</option>
+                                    </select>
+                                    <input type="number" id="market-sell-amount" placeholder="Quantité" min="1">
+                                </div>
+                                <div class="market-row">
+                                    <label>Je veux:</label>
+                                    <select id="market-buy-resource">
+                                        <option value="wood">🪵 Bois</option>
+                                        <option value="stone">🪨 Pierre</option>
+                                        <option value="iron">⛏️ Fer</option>
+                                        <option value="food">🌾 Nourriture</option>
+                                    </select>
+                                    <input type="number" id="market-buy-amount" placeholder="Quantité" min="1">
+                                </div>
+                                <button onclick="createMarketOffer()" class="btn btn-primary">Créer l'offre</button>
+                            </div>
+                        </div>
+                        <div class="market-section">
+                            <h3>📥 Offres disponibles</h3>
+                            <div id="market-offers"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TAB REPORTS -->
+                <div id="tab-reports" class="tab">
+                    <h2>📜 Rapports</h2>
+                    <div class="reports-tabs">
+                        <button class="report-tab active" onclick="showReportsTab('battles')">⚔️ Batailles</button>
+                        <button class="report-tab" onclick="showReportsTab('spy')">🔍 Espionnage</button>
+                    </div>
+                    <div id="reports-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal" class="modal" style="display:none">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "monjeu",
+  "version": "0.6.0",
+  "description": "Jeu de strategie MMO style Travian",
+  "main": "src/server.js",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "build": "prisma generate && prisma db push --accept-data-loss"
+  },
+  "dependencies": {
+    "@prisma/client": "5.19.1",
+    "prisma": "5.19.1",
+    "bcrypt": "5.1.1",
+    "cors": "2.8.5",
+    "dotenv": "16.4.5",
+    "express": "4.21.0",
+    "jsonwebtoken": "9.0.2"
+  }
+}

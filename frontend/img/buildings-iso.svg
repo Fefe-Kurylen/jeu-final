@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" id="buildings-sprites">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="roofRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c44"/>
+      <stop offset="100%" style="stop-color:#822"/>
+    </linearGradient>
+    <linearGradient id="roofBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4488cc"/>
+      <stop offset="100%" style="stop-color:#225588"/>
+    </linearGradient>
+    <linearGradient id="roofGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a8844"/>
+      <stop offset="100%" style="stop-color:#2a5522"/>
+    </linearGradient>
+    <linearGradient id="wallLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4c4a4"/>
+      <stop offset="100%" style="stop-color:#a49474"/>
+    </linearGradient>
+    <linearGradient id="wallDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a49474"/>
+      <stop offset="100%" style="stop-color:#746444"/>
+    </linearGradient>
+    <linearGradient id="wallStone" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9a9a9a"/>
+      <stop offset="100%" style="stop-color:#6a6a6a"/>
+    </linearGradient>
+    <linearGradient id="woodLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a07030"/>
+      <stop offset="100%" style="stop-color:#705020"/>
+    </linearGradient>
+    <linearGradient id="woodDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#705020"/>
+      <stop offset="100%" style="stop-color:#402010"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700"/>
+      <stop offset="50%" style="stop-color:#d4a84b"/>
+      <stop offset="100%" style="stop-color:#8b6914"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5a8a4a"/>
+      <stop offset="100%" style="stop-color:#3a6a2a"/>
+    </linearGradient>
+    
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="4" stdDeviation="2" flood-opacity="0.3"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- MAIN_HALL - Grand bâtiment central isométrique -->
+  <g id="building-MAIN_HALL">
+    <!-- Base sol -->
+    <polygon points="50,70 100,45 150,70 100,95" fill="url(#grass)" opacity="0.5"/>
+    <!-- Mur gauche -->
+    <polygon points="50,70 50,25 100,0 100,45" fill="url(#wallLight)"/>
+    <!-- Mur droit -->
+    <polygon points="100,45 100,0 150,25 150,70" fill="url(#wallDark)"/>
+    <!-- Toit principal -->
+    <polygon points="100,0 50,25 100,50 150,25" fill="url(#roofRed)"/>
+    <!-- Tour gauche -->
+    <polygon points="45,35 45,5 60,0 60,30" fill="url(#wallLight)"/>
+    <polygon points="60,30 60,0 75,5 75,35" fill="url(#wallDark)"/>
+    <polygon points="60,0 45,5 60,10 75,5" fill="url(#roofRed)"/>
+    <!-- Tour droite -->
+    <polygon points="125,35 125,5 140,0 140,30" fill="url(#wallLight)"/>
+    <polygon points="140,30 140,0 155,5 155,35" fill="url(#wallDark)"/>
+    <polygon points="140,0 125,5 140,10 155,5" fill="url(#roofRed)"/>
+    <!-- Porte -->
+    <ellipse cx="100" cy="58" rx="12" ry="8" fill="#3a2a1a"/>
+    <rect x="88" y="50" width="24" height="20" fill="#4a3a2a"/>
+    <!-- Bannière -->
+    <rect x="98" y="-15" width="4" height="20" fill="#5a4010"/>
+    <polygon points="102,-15 102,0 118,-8" fill="url(#gold)"/>
+  </g>
+
+  <!-- BARRACKS - Caserne -->
+  <g id="building-BARRACKS" transform="translate(200, 0)">
+    <polygon points="40,60 80,40 120,60 80,80" fill="url(#grass)" opacity="0.5"/>
+    <polygon points="40,60 40,30 80,10 80,40" fill="url(#wallLight)"/>
+    <polygon points="80,40 80,10 120,30 120,60" fill="url(#wallDark)"/>
+    <polygon points="80,10 40,30 80,50 120,30" fill="url(#roofRed)"/>
+    <!-- Boucliers -->
+    <circle cx="55" cy="42" r="8" fill="#c44" stroke="#8b6914" stroke-width="2"/>
+    <circle cx="105" cy="42" r="8" fill="#c44" stroke="#8b6914" stroke-width="2"/>
+    <!-- Épées croisées -->
+    <line x1="75" y1="55" x2="85" y2="45" stroke="#aaa" stroke-width="3"/>
+    <line x1="85" y1="55" x2="75" y2="45" stroke="#aaa" stroke-width="3"/>
+  </g>
+
+  <!-- FARM - Ferme avec moulin -->
+  <g id="building-FARM" transform="translate(400, 0)">
+    <polygon points="30,70 80,45 130,70 80,95" fill="#7a9a5a"/>
+    <!-- Grange -->
+    <polygon points="40,65 40,40 70,25 70,50" fill="url(#woodLight)"/>
+    <polygon points="70,50 70,25 100,40 100,65" fill="url(#woodDark)"/>
+    <polygon points="70,25 40,40 70,55 100,40" fill="url(#roofRed)"/>
+    <!-- Moulin -->
+    <rect x="105" y="30" width="15" height="35" fill="url(#wallStone)"/>
+    <polygon points="112,10 105,30 120,30" fill="url(#roofRed)"/>
+    <!-- Pales du moulin -->
+    <line x1="112" y1="20" x2="112" y2="5" stroke="#5a4010" stroke-width="3"/>
+    <line x1="112" y1="20" x2="125" y2="15" stroke="#5a4010" stroke-width="3"/>
+    <line x1="112" y1="20" x2="100" y2="15" stroke="#5a4010" stroke-width="3"/>
+    <line x1="112" y1="20" x2="112" y2="35" stroke="#5a4010" stroke-width="3"/>
+    <!-- Blé -->
+    <line x1="45" y1="75" x2="45" y2="60" stroke="#daa520" stroke-width="2"/>
+    <line x1="55" y1="78" x2="55" y2="63" stroke="#daa520" stroke-width="2"/>
+    <line x1="65" y1="80" x2="65" y2="65" stroke="#daa520" stroke-width="2"/>
+  </g>
+
+  <!-- LUMBER - Scierie -->
+  <g id="building-LUMBER" transform="translate(600, 0)">
+    <polygon points="30,70 80,45 130,70 80,95" fill="#5a7a4a"/>
+    <polygon points="40,65 40,35 75,18 75,48" fill="url(#woodLight)"/>
+    <polygon points="75,48 75,18 110,35 110,65" fill="url(#woodDark)"/>
+    <polygon points="75,18 40,35 75,52 110,35" fill="#5a4010"/>
+    <!-- Bûches empilées -->
+    <ellipse cx="50" cy="78" rx="12" ry="5" fill="#6b4423"/>
+    <ellipse cx="55" cy="74" rx="12" ry="5" fill="#8b5a2b"/>
+    <ellipse cx="52" cy="70" rx="12" ry="5" fill="#5a3a1a"/>
+    <!-- Scie -->
+    <circle cx="95" cy="55" r="10" fill="#888" stroke="#666" stroke-width="2"/>
+    <line x1="95" y1="45" x2="95" y2="65" stroke="#aaa" stroke-width="1"/>
+    <line x1="85" y1="55" x2="105" y2="55" stroke="#aaa" stroke-width="1"/>
+  </g>
+
+  <!-- QUARRY - Carrière -->
+  <g id="building-QUARRY" transform="translate(0, 120)">
+    <polygon points="30,70 80,45 130,70 80,95" fill="#6a6a6a"/>
+    <!-- Rochers -->
+    <polygon points="35,65 55,50 75,65 55,75" fill="#8a8a8a"/>
+    <polygon points="55,55 80,40 105,55 80,65" fill="#7a7a7a"/>
+    <polygon points="85,65 110,50 130,65 105,75" fill="#9a9a9a"/>
+    <!-- Cabane -->
+    <polygon points="70,60 70,45 90,35 90,50" fill="url(#woodLight)"/>
+    <polygon points="90,50 90,35 110,45 110,60" fill="url(#woodDark)"/>
+    <polygon points="90,35 70,45 90,55 110,45" fill="#5a4010"/>
+    <!-- Pioche -->
+    <line x1="50" y1="80" x2="50" y2="60" stroke="#5a4010" stroke-width="3"/>
+    <polygon points="45,62 50,55 55,62" fill="#666"/>
+  </g>
+
+  <!-- IRON_MINE - Mine de fer -->
+  <g id="building-IRON_MINE" transform="translate(200, 120)">
+    <!-- Montagne -->
+    <polygon points="80,30 30,70 130,70" fill="#5a4a3a"/>
+    <polygon points="80,30 45,65 80,80 115,65" fill="#4a3a2a"/>
+    <!-- Entrée mine -->
+    <rect x="60" y="55" width="40" height="25" fill="#1a1a1a"/>
+    <polygon points="60,55 80,40 100,55" fill="#5a4010"/>
+    <!-- Rails -->
+    <line x1="70" y1="80" x2="70" y2="95" stroke="#666" stroke-width="3"/>
+    <line x1="90" y1="80" x2="90" y2="95" stroke="#666" stroke-width="3"/>
+    <line x1="65" y1="88" x2="95" y2="88" stroke="#888" stroke-width="2"/>
+    <!-- Chariot -->
+    <rect x="68" y="70" width="24" height="10" fill="#444"/>
+    <circle cx="72" cy="80" r="3" fill="#666"/>
+    <circle cx="88" cy="80" r="3" fill="#666"/>
+    <!-- Minerai -->
+    <circle cx="75" cy="68" r="4" fill="#8b4513"/>
+    <circle cx="82" cy="66" r="4" fill="#a0522d"/>
+    <circle cx="89" cy="68" r="4" fill="#8b4513"/>
+  </g>
+
+  <!-- WAREHOUSE - Entrepôt -->
+  <g id="building-WAREHOUSE" transform="translate(400, 120)">
+    <polygon points="30,70 80,45 130,70 80,95" fill="url(#grass)" opacity="0.5"/>
+    <polygon points="30,70 30,35 80,10 80,45" fill="url(#wallLight)"/>
+    <polygon points="80,45 80,10 130,35 130,70" fill="url(#wallDark)"/>
+    <polygon points="80,10 30,35 80,60 130,35" fill="#5a4a3a"/>
+    <!-- Portes multiples -->
+    <rect x="40" y="50" width="18" height="20" fill="#3a2a1a"/>
+    <rect x="65" y="50" width="18" height="20" fill="#2a1a0a"/>
+    <rect x="90" y="50" width="18" height="20" fill="#3a2a1a"/>
+    <!-- Caisses -->
+    <rect x="50" y="75" width="15" height="12" fill="#8b6914"/>
+    <rect x="70" y="73" width="18" height="14" fill="#6b4f10"/>
+  </g>
+
+  <!-- SILO - Silo cylindrique -->
+  <g id="building-SILO" transform="translate(600, 120)">
+    <ellipse cx="80" cy="85" rx="35" ry="15" fill="url(#grass)" opacity="0.5"/>
+    <!-- Corps cylindrique -->
+    <ellipse cx="80" cy="75" rx="30" ry="12" fill="#d4b494"/>
+    <rect x="50" y="35" width="60" height="40" fill="#c4a484"/>
+    <ellipse cx="80" cy="35" rx="30" ry="12" fill="#d4b494"/>
+    <!-- Toit conique -->
+    <polygon points="80,5 50,35 110,35" fill="url(#roofRed)"/>
+    <!-- Échelle -->
+    <rect x="105" y="30" width="5" height="50" fill="#5a4010"/>
+    <line x1="105" y1="40" x2="110" y2="40" stroke="#8b6914" stroke-width="2"/>
+    <line x1="105" y1="50" x2="110" y2="50" stroke="#8b6914" stroke-width="2"/>
+    <line x1="105" y1="60" x2="110" y2="60" stroke="#8b6914" stroke-width="2"/>
+    <line x1="105" y1="70" x2="110" y2="70" stroke="#8b6914" stroke-width="2"/>
+  </g>
+
+  <!-- MARKET - Marché avec étals -->
+  <g id="building-MARKET" transform="translate(0, 240)">
+    <polygon points="30,75 80,50 130,75 80,100" fill="#8a7a6a"/>
+    <!-- Étals avec toiles -->
+    <rect x="35" y="60" width="30" height="20" fill="url(#woodLight)"/>
+    <polygon points="35,60 50,45 65,60" fill="#c44"/>
+    <rect x="75" y="60" width="30" height="20" fill="url(#woodDark)"/>
+    <polygon points="75,60 90,45 105,60" fill="url(#roofBlue)"/>
+    <!-- Marchandises -->
+    <circle cx="45" cy="70" r="4" fill="#f00"/>
+    <circle cx="52" cy="70" r="4" fill="#ff0"/>
+    <circle cx="59" cy="70" r="4" fill="#0f0"/>
+    <rect x="80" y="65" width="10" height="10" fill="#8b4513"/>
+    <rect x="92" y="65" width="10" height="10" fill="#daa520"/>
+    <!-- Balance -->
+    <line x1="80" y1="40" x2="80" y2="55" stroke="url(#gold)" stroke-width="3"/>
+    <line x1="65" y1="45" x2="95" y2="45" stroke="url(#gold)" stroke-width="2"/>
+    <circle cx="65" cy="50" r="5" fill="url(#gold)"/>
+    <circle cx="95" cy="48" r="5" fill="url(#gold)"/>
+  </g>
+
+  <!-- ACADEMY - Académie avec colonnes -->
+  <g id="building-ACADEMY" transform="translate(200, 240)">
+    <polygon points="30,75 80,50 130,75 80,100" fill="url(#grass)" opacity="0.5"/>
+    <!-- Colonnes -->
+    <rect x="42" y="35" width="8" height="40" fill="#e0d0c0"/>
+    <rect x="58" y="35" width="8" height="40" fill="#d0c0b0"/>
+    <rect x="94" y="35" width="8" height="40" fill="#d0c0b0"/>
+    <rect x="110" y="35" width="8" height="40" fill="#c0b0a0"/>
+    <!-- Fronton -->
+    <polygon points="80,15 30,40 130,40" fill="#e0d0c0"/>
+    <polygon points="80,20 40,40 120,40" fill="url(#roofBlue)"/>
+    <!-- Base -->
+    <polygon points="30,75 30,70 130,70 130,75" fill="#b0a090"/>
+    <!-- Livre -->
+    <rect x="70" y="55" width="20" height="15" fill="#f4e4bc"/>
+    <line x1="80" y1="55" x2="80" y2="70" stroke="#8b6914" stroke-width="1"/>
+  </g>
+
+  <!-- FORGE - Forge avec cheminée -->
+  <g id="building-FORGE" transform="translate(400, 240)">
+    <polygon points="30,75 80,50 130,75 80,100" fill="#4a3a2a"/>
+    <polygon points="35,75 35,40 75,20 75,55" fill="#5a4a3a"/>
+    <polygon points="75,55 75,20 115,40 115,75" fill="#4a3a2a"/>
+    <polygon points="75,20 35,40 75,60 115,40" fill="#3a2a1a"/>
+    <!-- Cheminée -->
+    <rect x="95" y="5" width="15" height="35" fill="#4a4a4a"/>
+    <!-- Fumée -->
+    <ellipse cx="102" cy="0" rx="8" ry="5" fill="#888" opacity="0.6"/>
+    <ellipse cx="105" cy="-8" rx="6" ry="4" fill="#888" opacity="0.4"/>
+    <!-- Enclume -->
+    <polygon points="50" y="65" fill="#333"/>
+    <path d="M45,70 L40,75 L50,75 L55,70 L55,65 L45,65 Z" fill="#444"/>
+    <!-- Feu -->
+    <ellipse cx="80" cy="60" rx="12" ry="8" fill="#f80"/>
+    <ellipse cx="80" cy="58" rx="8" ry="5" fill="#ff0"/>
+    <!-- Marteau -->
+    <rect x="62" y="55" width="4" height="18" fill="#5a4010"/>
+    <rect x="58" y="52" width="12" height="6" fill="#666"/>
+  </g>
+
+  <!-- STABLE - Écurie -->
+  <g id="building-STABLE" transform="translate(600, 240)">
+    <polygon points="30,75 80,50 130,75 80,100" fill="#5a4a3a"/>
+    <polygon points="30,75 30,40 80,15 80,50" fill="url(#woodLight)"/>
+    <polygon points="80,50 80,15 130,40 130,75" fill="url(#woodDark)"/>
+    <polygon points="80,15 30,40 80,65 130,40" fill="#5a4010"/>
+    <!-- Boxes -->
+    <rect x="38" y="50" width="18" height="25" fill="#3a2a1a"/>
+    <rect x="62" y="50" width="18" height="25" fill="#2a1a0a"/>
+    <rect x="86" y="50" width="18" height="25" fill="#3a2a1a"/>
+    <!-- Cheval silhouette -->
+    <ellipse cx="47" cy="62" rx="6" ry="10" fill="#4a3a2a"/>
+    <circle cx="47" cy="54" r="4" fill="#4a3a2a"/>
+    <!-- Fer à cheval -->
+    <path d="M 110,30 Q 118,25 126,30 L 124,38 Q 118,34 112,38 Z" fill="#888"/>
+  </g>
+
+  <!-- WALL - Section de mur -->
+  <g id="building-WALL" transform="translate(0, 360)">
+    <!-- Mur en perspective -->
+    <polygon points="0,60 0,30 40,15 40,45" fill="#8a8a8a"/>
+    <polygon points="40,45 40,15 80,30 80,60" fill="#7a7a7a"/>
+    <polygon points="80,60 80,30 120,15 120,45" fill="#8a8a8a"/>
+    <polygon points="120,45 120,15 160,30 160,60" fill="#7a7a7a"/>
+    <!-- Créneaux -->
+    <rect x="10" y="10" width="12" height="18" fill="#9a9a9a"/>
+    <rect x="50" y="10" width="12" height="18" fill="#8a8a8a"/>
+    <rect x="90" y="10" width="12" height="18" fill="#9a9a9a"/>
+    <rect x="130" y="10" width="12" height="18" fill="#8a8a8a"/>
+    <!-- Torches -->
+    <rect x="32" y="25" width="4" height="15" fill="#5a4010"/>
+    <ellipse cx="34" cy="22" rx="5" ry="8" fill="#f80"/>
+    <rect x="112" y="25" width="4" height="15" fill="#5a4010"/>
+    <ellipse cx="114" cy="22" rx="5" ry="8" fill="#f80"/>
+  </g>
+
+  <!-- HEALING_TENT - Tente de soins -->
+  <g id="building-HEALING_TENT" transform="translate(200, 360)">
+    <ellipse cx="80" cy="85" rx="45" ry="20" fill="#4a5a4a"/>
+    <!-- Tente -->
+    <polygon points="80,15 30,70 130,70" fill="#f0f0e0"/>
+    <polygon points="80,15 40,65 80,85 120,65" fill="#e0e0d0"/>
+    <!-- Croix rouge -->
+    <rect x="72" y="30" width="16" height="45" fill="#c00"/>
+    <rect x="57" y="45" width="46" height="16" fill="#c00"/>
+    <!-- Entrée -->
+    <polygon points="70,70 80,55 90,70" fill="#d0d0c0"/>
+  </g>
+
+  <!-- RALLY_POINT - Point de ralliement -->
+  <g id="building-RALLY_POINT" transform="translate(400, 360)">
+    <ellipse cx="80" cy="75" rx="50" ry="25" fill="#5a5a4a"/>
+    <ellipse cx="80" cy="75" rx="35" ry="18" fill="#6a6a5a"/>
+    <!-- Mât central -->
+    <rect x="77" y="20" width="6" height="55" fill="#5a4010"/>
+    <!-- Bannière principale -->
+    <polygon points="83,20 83,45 110,32" fill="url(#gold)"/>
+    <!-- Drapeaux secondaires -->
+    <rect x="45" y="45" width="4" height="30" fill="#5a4010"/>
+    <polygon points="49,45 49,60 65,52" fill="#c44"/>
+    <rect x="111" y="45" width="4" height="30" fill="#5a4010"/>
+    <polygon points="115,45 115,60 131,52" fill="url(#roofBlue)"/>
+    <!-- Torches -->
+    <rect x="55" y="60" width="3" height="12" fill="#5a4010"/>
+    <ellipse cx="56" cy="58" rx="4" ry="6" fill="#f80"/>
+    <rect x="102" y="60" width="3" height="12" fill="#5a4010"/>
+    <ellipse cx="103" cy="58" rx="4" ry="6" fill="#f80"/>
+  </g>
+
+  <!-- WORKSHOP - Atelier de siège -->
+  <g id="building-WORKSHOP" transform="translate(600, 360)">
+    <polygon points="30,75 80,50 130,75 80,100" fill="#4a4a4a"/>
+    <polygon points="30,75 30,35 80,10 80,50" fill="#6a5a4a"/>
+    <polygon points="80,50 80,10 130,35 130,75" fill="#5a4a3a"/>
+    <polygon points="80,10 30,35 80,60 130,35" fill="#3a3a3a"/>
+    <!-- Grande roue/engrenage -->
+    <circle cx="105" cy="45" r="18" fill="none" stroke="#666" stroke-width="4"/>
+    <circle cx="105" cy="45" r="6" fill="#666"/>
+    <!-- Catapulte miniature -->
+    <rect x="40" y="60" width="30" height="8" fill="#5a4010"/>
+    <line x1="55" y1="60" x2="55" y2="45" stroke="#5a4010" stroke-width="4"/>
+    <line x1="45" y1="48" x2="65" y2="48" stroke="#5a4010" stroke-width="3"/>
+    <!-- Bélier -->
+    <rect x="42" y="75" width="35" height="10" fill="#5a4010"/>
+    <polygon points="77,80 90,80 85,75 85,85" fill="#666"/>
+  </g>
+
+  <!-- HIDEOUT - Cachette souterraine -->
+  <g id="building-HIDEOUT" transform="translate(0, 480)">
+    <ellipse cx="80" cy="80" rx="55" ry="25" fill="#5a4a3a"/>
+    <ellipse cx="80" cy="75" rx="50" ry="22" fill="#6a5a4a"/>
+    <!-- Entrée cachée -->
+    <ellipse cx="80" cy="65" rx="20" ry="12" fill="#2a2a2a"/>
+    <!-- Buissons -->
+    <ellipse cx="45" cy="55" rx="18" ry="12" fill="#3a5a3a"/>
+    <ellipse cx="115" cy="55" rx="18" ry="12" fill="#4a6a4a"/>
+    <ellipse cx="80" cy="45" rx="15" ry="10" fill="#3a5a3a"/>
+    <!-- Coffre caché -->
+    <rect x="68" y="68" width="24" height="15" fill="#6b4f10"/>
+    <rect x="68" y="68" width="24" height="5" fill="#8b6914"/>
+    <rect x="77" y="72" width="6" height="6" fill="url(#gold)"/>
+  </g>
+
+  <!-- MOAT - Douves -->
+  <g id="building-MOAT" transform="translate(200, 480)">
+    <!-- Eau -->
+    <ellipse cx="80" cy="75" rx="60" ry="30" fill="#4682b4"/>
+    <ellipse cx="80" cy="75" rx="45" ry="22" fill="#5a9aca"/>
+    <!-- Île centrale -->
+    <ellipse cx="80" cy="75" rx="25" ry="12" fill="#5a4a3a"/>
+    <!-- Pont -->
+    <rect x="72" y="45" width="16" height="60" fill="#5a4010"/>
+    <rect x="68" y="45" width="24" height="5" fill="#8b6914"/>
+    <rect x="68" y="100" width="24" height="5" fill="#8b6914"/>
+    <!-- Reflets eau -->
+    <ellipse cx="50" cy="65" rx="12" ry="5" fill="#6ab4d4" opacity="0.5"/>
+    <ellipse cx="110" cy="85" rx="12" ry="5" fill="#6ab4d4" opacity="0.5"/>
+  </g>
+
+  <!-- EMPTY_SLOT - Emplacement vide -->
+  <g id="building-EMPTY">
+    <polygon points="80,30 30,55 80,80 130,55" fill="none" stroke="#6a8a6a" stroke-width="3" stroke-dasharray="8,4"/>
+    <text x="80" y="60" text-anchor="middle" fill="#8aaa8a" font-size="24" font-family="Arial">+</text>
+  </g>
+</svg>
