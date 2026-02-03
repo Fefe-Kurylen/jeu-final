@@ -25,15 +25,29 @@ model Player {
   population Int      @default(0)
   createdAt  DateTime @default(now())
 
-  account      Account         @relation(fields: [accountId], references: [id])
+  account      Account          @relation(fields: [accountId], references: [id])
   cities       City[]
   armies       Army[]
   hero         Hero?
-  sentReports  BattleReport[]  @relation("Attacker")
-  recvReports  BattleReport[]  @relation("Defender")
+  stats        PlayerStats?
+  sentReports  BattleReport[]   @relation("Attacker")
+  recvReports  BattleReport[]   @relation("Defender")
   spyReports   SpyReport[]
   marketOffers MarketOffer[]
   alliance     AllianceMember?
+  expeditions  Expedition[]
+}
+
+model PlayerStats {
+  id           String @id @default(uuid())
+  playerId     String @unique
+  attacksWon   Int    @default(0)
+  defensesWon  Int    @default(0)
+  unitsKilled  Int    @default(0)
+  unitsLost    Int    @default(0)
+  raidsWon     Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id])
 }
 
 model City {
@@ -44,41 +58,44 @@ model City {
   y         Int
   isCapital Boolean  @default(false)
 
-  wood    Int @default(500)
-  stone   Int @default(500)
-  iron    Int @default(500)
-  food    Int @default(500)
+  wood  Float @default(500)
+  stone Float @default(500)
+  iron  Float @default(500)
+  food  Float @default(500)
 
   maxStorage     Int @default(1000)
   maxFoodStorage Int @default(1000)
 
-  wallHp       Int @default(1000)
-  wallMaxHp    Int @default(1000)
-  isSieged     Boolean @default(false)
+  wallHp       Int      @default(1000)
+  wallMaxHp    Int      @default(1000)
+  isSieged     Boolean  @default(false)
   siegeStarted DateTime?
 
   createdAt DateTime @default(now())
 
-  player     Player           @relation(fields: [playerId], references: [id])
-  buildings  CityBuilding[]
-  buildQueue BuildQueueItem[]
-  armies     Army[]
+  player       Player             @relation(fields: [playerId], references: [id])
+  buildings    CityBuilding[]
+  buildQueue   BuildQueueItem[]
+  recruitQueue RecruitQueueItem[]
+  armies       Army[]
 
   @@unique([x, y])
+  @@map("City")
 }
 
 model CityBuilding {
-  id         String @id @default(uuid())
-  cityId     String
-  slot       Int
-  key        String
-  level      Int    @default(1)
-  category   String @default("BASE")
-  prodPerHour Int   @default(0)
+  id          String @id @default(uuid())
+  cityId      String
+  slot        Int
+  key         String
+  level       Int    @default(1)
+  category    String @default("BASE")
+  prodPerHour Int    @default(0)
 
   city City @relation(fields: [cityId], references: [id])
 
   @@unique([cityId, slot])
+  @@unique([cityId, key])
 }
 
 model BuildQueueItem {
@@ -89,38 +106,55 @@ model BuildQueueItem {
   targetLevel Int
   startedAt   DateTime
   endsAt      DateTime
-  status      String   @default("BUILDING")
+  status      String   @default("QUEUED")
+
+  city City @relation(fields: [cityId], references: [id])
+}
+
+model RecruitQueueItem {
+  id          String   @id @default(uuid())
+  cityId      String
+  unitKey     String
+  count       Int
+  buildingKey String
+  startedAt   DateTime
+  endsAt      DateTime
+  status      String   @default("RUNNING")
 
   city City @relation(fields: [cityId], references: [id])
 }
 
 model Army {
-  id       String  @id @default(uuid())
-  ownerId  String
-  cityId   String?
-  name     String
-  slot     Int     @default(0)
-  x        Int
-  y        Int
-  status   String  @default("IDLE")
-  heroId   String? @unique
+  id         String  @id @default(uuid())
+  ownerId    String
+  playerId   String?
+  cityId     String?
+  name       String
+  slot       Int     @default(0)
+  x          Int
+  y          Int
+  status     String  @default("IDLE")
+  heroId     String? @unique
   isGarrison Boolean @default(false)
 
-  targetX   Int?
-  targetY   Int?
-  arrivesAt DateTime?
-  returnsAt DateTime?
+  targetX      Int?
+  targetY      Int?
+  targetCityId String?
+  arrivesAt    DateTime?
+  arrivalAt    DateTime?
+  returnsAt    DateTime?
 
-  mission       String?
-  carryWood     Int     @default(0)
-  carryStone    Int     @default(0)
-  carryIron     Int     @default(0)
-  carryFood     Int     @default(0)
+  mission     String?
+  missionType String?
+  carryWood   Int     @default(0)
+  carryStone  Int     @default(0)
+  carryIron   Int     @default(0)
+  carryFood   Int     @default(0)
 
-  owner   Player     @relation(fields: [ownerId], references: [id])
-  city    City?      @relation(fields: [cityId], references: [id])
-  hero    Hero?      @relation(fields: [heroId], references: [id])
-  units   ArmyUnit[]
+  owner Player     @relation(fields: [ownerId], references: [id])
+  city  City?      @relation(fields: [cityId], references: [id])
+  hero  Hero?      @relation(fields: [heroId], references: [id])
+  units ArmyUnit[]
 }
 
 model ArmyUnit {
@@ -138,58 +172,89 @@ model ArmyUnit {
 model Hero {
   id       String @id @default(uuid())
   playerId String @unique
+  ownerId  String?
   name     String
   level    Int    @default(1)
   xp       Int    @default(0)
+  xpToNextLevel Int @default(100)
 
   attack    Int @default(5)
   defense   Int @default(5)
   logistics Int @default(5)
   speed     Int @default(5)
 
+  atkPoints  Int @default(0)
+  defPoints  Int @default(0)
+  spdPoints  Int @default(0)
+  logPoints  Int @default(0)
+  statPoints Int @default(5)
   freePoints Int @default(0)
 
   player Player @relation(fields: [playerId], references: [id])
   army   Army?
+  items  HeroItem[]
+}
+
+model HeroItem {
+  id       String @id @default(uuid())
+  heroId   String
+  itemKey  String
+  slot     String
+  stats    Json?
+
+  hero Hero @relation(fields: [heroId], references: [id])
 }
 
 model WoundedUnit {
-  id        String   @id @default(uuid())
-  cityId    String
-  unitKey   String
-  count     Int
-  healsAt   DateTime
+  id      String   @id @default(uuid())
+  cityId  String
+  unitKey String
+  count   Int
+  healsAt DateTime
 
   @@unique([cityId, unitKey])
 }
 
 model BattleReport {
-  id           String   @id @default(uuid())
-  attackerId   String
-  defenderId   String?
-  x            Int
-  y            Int
-  result       String
-  attackerLost Json
-  defenderLost Json
-  loot         Json?
-  rounds       Json?
-  createdAt    DateTime @default(now())
+  id             String   @id @default(uuid())
+  playerId       String?
+  attackerId     String?
+  defenderId     String?
+  x              Int
+  y              Int
+  result         String?
+  winner         String?
+  attackerUnits  Json?
+  defenderUnits  Json?
+  attackerLosses Json?
+  defenderLosses Json?
+  attackerLost   Json?
+  defenderLost   Json?
+  loot           Json?
+  rounds         Json?
+  createdAt      DateTime @default(now())
 
-  attacker Player  @relation("Attacker", fields: [attackerId], references: [id])
+  attacker Player? @relation("Attacker", fields: [attackerId], references: [id])
   defender Player? @relation("Defender", fields: [defenderId], references: [id])
 }
 
 model SpyReport {
-  id         String   @id @default(uuid())
-  playerId   String
-  targetType String
-  targetX    Int
-  targetY    Int
-  targetName String?
-  success    Boolean
-  data       Json?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(uuid())
+  playerId       String
+  ownerId        String?
+  targetPlayerId String?
+  targetCityId   String?
+  targetType     String?
+  targetX        Int
+  targetY        Int
+  targetName     String?
+  cityName       String?
+  success        Boolean
+  buildings      Json?
+  armies         Json?
+  resources      Json?
+  data           Json?
+  createdAt      DateTime @default(now())
 
   player Player @relation(fields: [playerId], references: [id])
 }
@@ -209,7 +274,10 @@ model ResourceNode {
 
 model MarketOffer {
   id           String   @id @default(uuid())
-  playerId     String
+  playerId     String?
+  sellerId     String?
+  buyerId      String?
+  cityId       String?
   sellResource String
   sellAmount   Int
   buyResource  String
@@ -217,7 +285,7 @@ model MarketOffer {
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player? @relation(fields: [playerId], references: [id])
 }
 
 model Alliance {
@@ -225,6 +293,7 @@ model Alliance {
   name        String   @unique
   tag         String   @unique
   description String?
+  leaderId    String?
   createdAt   DateTime @default(now())
 
   members   AllianceMember[]
@@ -236,6 +305,7 @@ model AllianceMember {
   id         String   @id @default(uuid())
   allianceId String
   playerId   String   @unique
+  ownerId    String?
   role       String   @default("MEMBER")
   joinedAt   DateTime @default(now())
 
@@ -257,12 +327,23 @@ model AllianceDiplomacy {
 }
 
 model Expedition {
-  id          String   @id @default(uuid())
-  playerId    String
-  difficulty  Int
-  enemyPower  Int
-  rewards     Json
-  expiresAt   DateTime
-  status      String   @default("AVAILABLE")
-  createdAt   DateTime @default(now())
+  id         String    @id @default(uuid())
+  playerId   String
+  ownerId    String?
+  armyId     String?
+  difficulty Int
+  enemyPower Int
+  duration   Int       @default(1800)
+  lootTier   String    @default("COMMON")
+  rewards    Json?
+  expiresAt  DateTime
+  startedAt  DateTime?
+  endsAt     DateTime?
+  status     String    @default("AVAILABLE")
+  won        Boolean?
+  xpGained   Int?
+  lootGained Json?
+  createdAt  DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id])
 }

@@ -379,8 +379,8 @@ app.post('/api/city/:id/recruit', auth, async (req, res) => {
       data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
     });
 
-    const baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : 180;
-    if (unit.class === 'CAVALRY') baseTime * 1.25;
+    let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : 180;
+    if (unit.class === 'CAVALRY') baseTime = baseTime * 1.25;
     const totalTime = baseTime * count;
     const now = new Date();
     const endsAt = new Date(now.getTime() + totalTime * 1000);
