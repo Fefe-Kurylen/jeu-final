@@ -108,7 +108,7 @@ const BUILDING_ICONS = {
   FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
   WAREHOUSE: '📦', SILO: '🏺', MARKET: '🏪', ACADEMY: '📚',
   FORGE: '🔨', WALL: '🏰', MOAT: '💧', HEALING_TENT: '⛺',
-  RALLY_POINT: '🚩', HIDEOUT: '🕳️'
+  RALLY_POINT: '🚩', HIDEOUT: '🕳️', HERO_HOME: '👤'
 };
 
 const UNIT_ICONS = {
@@ -2428,10 +2428,16 @@ function openBuildPanel(slotNum) {
     
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
     const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key);
-    
+
     if (isMilitaryBuilding) {
       // Open recruitment panel for this building
       openRecruitmentPanel(key, level, slotNum);
+      return;
+    }
+
+    // ===== HERO HOME - HERO MANAGEMENT PANEL =====
+    if (key === 'HERO_HOME') {
+      openHeroManagementPanel(level, slotNum);
       return;
     }
     
@@ -4118,7 +4124,7 @@ function renderArmies() {
                 const unit = unitsData.find(ud => ud.key === u.unitKey);
                 const tierColor = TIER_COLORS[unit?.tier] || '#888';
                 return `
-                  <div class="garrison-unit-compact" title="${unit?.name || u.unitKey}">
+                  <div class="garrison-unit-compact" title="${unit?.name || u.unitKey}" onclick="showUnitInfoModal('${u.unitKey}')">
                     <span class="g-unit-icon" style="border-color: ${tierColor}">${UNIT_ICONS[unit?.class] || '⚔️'}</span>
                     <span class="g-unit-count">×${u.count}</span>
                   </div>
@@ -5091,6 +5097,199 @@ async function assignPoint(stat) {
   }
 }
 
+// ========== HERO MANAGEMENT PANEL (Domus du héros) ==========
+async function openHeroManagementPanel(buildingLevel, slotNum) {
+  const panel = document.getElementById('build-panel');
+  const content = document.getElementById('build-panel-content');
+  const title = document.getElementById('build-panel-title');
+
+  // Fetch hero data
+  let hero = null;
+  try {
+    const res = await fetch(`${API}/api/hero`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      hero = await res.json();
+    }
+  } catch (e) {
+    console.error('Error loading hero:', e);
+  }
+
+  // Calculate bonuses from building level
+  const xpBonus = buildingLevel * 2;
+  const statBonus = buildingLevel * 1;
+
+  title.innerHTML = `<span class="building-detail-icon">🏛️</span> Domus du héros`;
+
+  if (!hero) {
+    content.innerHTML = `
+      <div class="hero-management-panel">
+        <div class="hero-empty-state">
+          <div class="hero-empty-icon">👤</div>
+          <h3>Aucun héros</h3>
+          <p>Votre héros n'a pas encore été créé.</p>
+          <button class="btn btn-primary" onclick="createHero()">Créer un héros</button>
+        </div>
+        <div class="building-bonus-section">
+          <h4>📊 Bonus du bâtiment (Niv.${buildingLevel})</h4>
+          <div class="bonus-grid">
+            <div class="bonus-item"><span>⚡ XP Bonus:</span><span>+${xpBonus}%</span></div>
+            <div class="bonus-item"><span>💪 Stats Bonus:</span><span>+${statBonus}%</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    const xpPct = (hero.xp / hero.xpToNextLevel) * 100;
+    const canAssignPoints = hero.statPoints > 0;
+
+    content.innerHTML = `
+      <div class="hero-management-panel">
+        <!-- Hero Profile Section -->
+        <div class="hero-profile-section">
+          <div class="hero-avatar-large">⚔️</div>
+          <div class="hero-profile-info">
+            <h3 class="hero-name-large">${hero.name}</h3>
+            <div class="hero-level-badge">Niveau ${hero.level}</div>
+            <div class="hero-xp-bar-container">
+              <div class="hero-xp-bar">
+                <div class="hero-xp-fill" style="width:${xpPct}%"></div>
+              </div>
+              <div class="hero-xp-text">${hero.xp} / ${hero.xpToNextLevel} XP</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="hero-stats-section">
+          <h4>📊 Statistiques</h4>
+          <div class="hero-stats-grid">
+            <div class="hero-stat-card">
+              <span class="stat-icon">⚔️</span>
+              <span class="stat-name">Attaque</span>
+              <span class="stat-value">${hero.atkPoints}</span>
+              ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('atk')">+</button>` : ''}
+            </div>
+            <div class="hero-stat-card">
+              <span class="stat-icon">🛡️</span>
+              <span class="stat-name">Défense</span>
+              <span class="stat-value">${hero.defPoints}</span>
+              ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('def')">+</button>` : ''}
+            </div>
+            <div class="hero-stat-card">
+              <span class="stat-icon">🏃</span>
+              <span class="stat-name">Vitesse</span>
+              <span class="stat-value">${hero.spdPoints}</span>
+              ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('spd')">+</button>` : ''}
+            </div>
+            <div class="hero-stat-card">
+              <span class="stat-icon">📦</span>
+              <span class="stat-name">Logistique</span>
+              <span class="stat-value">${hero.logPoints}</span>
+              ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('log')">+</button>` : ''}
+            </div>
+          </div>
+          ${canAssignPoints ? `<div class="points-available-banner">🎯 ${hero.statPoints} points à distribuer</div>` : ''}
+        </div>
+
+        <!-- Building Bonus Section -->
+        <div class="building-bonus-section">
+          <h4>🏛️ Bonus du Domus (Niv.${buildingLevel})</h4>
+          <div class="bonus-grid">
+            <div class="bonus-item"><span>⚡ XP Bonus:</span><span class="bonus-value">+${xpBonus}%</span></div>
+            <div class="bonus-item"><span>💪 Stats Bonus:</span><span class="bonus-value">+${statBonus}%</span></div>
+          </div>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="hero-actions-section">
+          <button class="btn btn-secondary" onclick="renameHero()">✏️ Renommer</button>
+          <button class="btn btn-info" onclick="showHeroEquipment()">🎒 Équipement</button>
+          <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();">📜 Expéditions</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Show panel
+  let overlay = document.querySelector('.build-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'build-panel-overlay';
+    overlay.onclick = closeBuildPanel;
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'block';
+  overlay.classList.add('fade-in');
+
+  panel.classList.add('open');
+}
+
+// Assign point from hero panel and refresh
+async function assignPointFromPanel(stat) {
+  await assignPoint(stat);
+  // Refresh the panel
+  const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+  if (heroHomeBuilding) {
+    openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
+  }
+}
+
+// Create hero (placeholder)
+async function createHero() {
+  const name = prompt('Nom de votre héros:');
+  if (!name) return;
+
+  try {
+    const res = await fetch(`${API}/api/hero/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name })
+    });
+
+    if (res.ok) {
+      showToast('Héros créé!', 'success');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+      if (heroHomeBuilding) {
+        openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
+      }
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur lors de la création', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur de connexion', 'error');
+  }
+}
+
+// Rename hero
+async function renameHero() {
+  const newName = prompt('Nouveau nom du héros:');
+  if (!newName) return;
+
+  try {
+    const res = await fetch(`${API}/api/hero/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: newName })
+    });
+
+    if (res.ok) {
+      showToast('Héros renommé!', 'success');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+      if (heroHomeBuilding) {
+        openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
+      }
+    }
+  } catch (e) {
+    showToast('Erreur', 'error');
+  }
+}
+
+// Show hero equipment (placeholder)
+function showHeroEquipment() {
+  showToast('Équipement bientôt disponible!', 'info');
+}
+
 // ========== EXPEDITIONS ==========
 async function loadExpeditions() {
   const res = await fetch(`${API}/api/expeditions`, { headers: { Authorization: `Bearer ${token}` } });
@@ -5155,6 +5354,7 @@ let mapDragStart = { x: 0, y: 0 };
 let mapHoveredTile = null;
 let mapSelectedTile = null;
 const TILE_SIZE = 40;
+const BASE_TILE_SIZE = 48; // Base tile size for zoom calculations (average of ISO_TILE_WIDTH/HEIGHT)
 
 // ========== WORLD COORDINATE SYSTEM ==========
 // Map uses centered coordinates: -187 to +186 (374x374)
@@ -5267,41 +5467,159 @@ function seededRandom(x, y, seed = 12345) {
   return n - Math.floor(n);
 }
 
-// Get biome based on angle from center (pie/camembert style - 3 equal parts)
-// Each biome takes 1/3 of the map (120 degrees)
+// Get biome based on DISTANCE from center (concentric rings)
+// Center = Forest (rich), Middle ring = Desert, Outer ring = Snow (harsh)
 function getBiome(x, y) {
   const dx = x - WORLD_CENTER;
   const dy = y - WORLD_CENTER;
+  const distance = Math.sqrt(dx * dx + dy * dy);
 
-  // Use angle to determine biome (like a pie chart)
-  const angle = Math.atan2(dy, dx); // -PI to PI
-  const normalized = (angle + Math.PI) / (2 * Math.PI); // 0 to 1
+  // Max distance is ~265 (corner of 374x374 map from center)
+  const maxDist = WORLD_SIZE / 2 * 1.4; // ~262
+  const normalizedDist = distance / maxDist;
 
-  // 3 equal slices of the pie
-  if (normalized < 0.33) return 'forest';
-  if (normalized < 0.66) return 'desert';
+  // Concentric rings: Forest (0-35%), Desert (35-70%), Snow (70-100%)
+  if (normalizedDist < 0.35) return 'forest';
+  if (normalizedDist < 0.70) return 'desert';
   return 'snow';
 }
 
-// Check if tile has features based on noise and biome
+// ========== MULTI-TILE TERRAIN GENERATION ==========
+// Rivers, lakes, and mountain ranges that span multiple tiles (max 30 length)
+
+// Cache for multi-tile terrain to avoid recalculating
+const multiTileTerrainCache = new Map();
+
+// Generate river paths (sinuous lines across the map)
+function isOnRiver(x, y) {
+  // Multiple river sources spread across the map
+  const riverSeeds = [
+    { sx: -100, sy: -50, dir: 0.3, length: 30 },
+    { sx: 50, sy: -120, dir: -0.2, length: 25 },
+    { sx: -80, sy: 80, dir: 0.4, length: 28 },
+    { sx: 120, sy: 30, dir: -0.35, length: 22 },
+    { sx: -30, sy: 100, dir: 0.25, length: 20 }
+  ];
+
+  for (const river of riverSeeds) {
+    let rx = river.sx;
+    let ry = river.sy;
+    let dir = river.dir;
+
+    for (let i = 0; i < river.length; i++) {
+      // River width of 1-2 tiles
+      if (Math.abs(x - Math.round(rx)) <= 1 && Math.abs(y - Math.round(ry)) <= 1) {
+        const dist = Math.sqrt((x - rx) ** 2 + (y - ry) ** 2);
+        if (dist < 1.2) return true;
+      }
+
+      // Move river forward with some meandering
+      rx += Math.cos(dir * Math.PI) * 2;
+      ry += Math.sin(dir * Math.PI) * 2;
+      dir += (seededRandom(Math.floor(rx), Math.floor(ry), 11111) - 0.5) * 0.3;
+    }
+  }
+  return false;
+}
+
+// Generate lake clusters (circular formations)
+function isOnLake(x, y) {
+  // Lake centers
+  const lakeSeeds = [
+    { cx: -60, cy: -30, radius: 8 },
+    { cx: 80, cy: -70, radius: 6 },
+    { cx: -90, cy: 60, radius: 10 },
+    { cx: 40, cy: 90, radius: 7 },
+    { cx: 100, cy: -20, radius: 5 },
+    { cx: -20, cy: -100, radius: 9 }
+  ];
+
+  for (const lake of lakeSeeds) {
+    const dist = Math.sqrt((x - lake.cx) ** 2 + (y - lake.cy) ** 2);
+    // Irregular lake shape using noise
+    const irregularity = seededRandom(x, y, 22222) * 3;
+    if (dist < lake.radius + irregularity - 2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Generate mountain ranges (linear chains with branches)
+function isOnMountainRange(x, y) {
+  // Mountain range spines
+  const mountainRanges = [
+    { sx: -150, sy: 0, ex: -50, ey: -80, width: 4 },
+    { sx: 50, sy: -150, ex: 100, ey: -50, width: 3 },
+    { sx: -100, sy: 100, ex: 0, ey: 150, width: 5 },
+    { sx: 80, sy: 50, ex: 150, ey: 100, width: 4 }
+  ];
+
+  for (const range of mountainRanges) {
+    // Calculate distance to line segment
+    const dx = range.ex - range.sx;
+    const dy = range.ey - range.sy;
+    const len = Math.sqrt(dx * dx + dy * dy);
+
+    const t = Math.max(0, Math.min(1,
+      ((x - range.sx) * dx + (y - range.sy) * dy) / (len * len)
+    ));
+
+    const nearX = range.sx + t * dx;
+    const nearY = range.sy + t * dy;
+    const dist = Math.sqrt((x - nearX) ** 2 + (y - nearY) ** 2);
+
+    // Add some width variation using noise
+    const widthVar = seededRandom(x, y, 33333) * 2;
+    if (dist < range.width + widthVar) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Check if tile has features based on noise, biome, and multi-tile formations
 function getTerrainType(x, y) {
   const biome = getBiome(x, y);
   const noise = seededRandom(x, y);
   const noise2 = seededRandom(x * 2, y * 2, 54321);
 
+  // Check multi-tile terrain first (rivers, lakes, mountains)
+  // These override normal terrain generation
+
+  // Rivers in forest and desert biomes
+  if ((biome === 'forest' || biome === 'desert') && isOnRiver(x, y)) {
+    return { biome, feature: biome === 'desert' ? 'oasis' : 'water', isMultiTile: true };
+  }
+
+  // Lakes - different types per biome
+  if (isOnLake(x, y)) {
+    if (biome === 'snow') return { biome, feature: 'frozen', isMultiTile: true };
+    if (biome === 'desert') return { biome, feature: 'oasis', isMultiTile: true };
+    return { biome, feature: 'water', isMultiTile: true };
+  }
+
+  // Mountain ranges
+  if (isOnMountainRange(x, y)) {
+    if (biome === 'snow') return { biome, feature: 'icemountain', isMultiTile: true };
+    if (biome === 'desert') return { biome, feature: 'rocks', isMultiTile: true };
+    return { biome, feature: 'mountain', isMultiTile: true };
+  }
+
+  // Normal terrain generation (scattered features)
   if (biome === 'forest') {
-    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'mountain' };
-    if (noise > 0.60 && noise2 > 0.3) return { biome, feature: 'tree' };
-    if (noise < 0.03 && noise2 < 0.5) return { biome, feature: 'water' };
+    if (noise > 0.94 && noise2 > 0.6) return { biome, feature: 'mountain' };
+    if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
+    if (noise < 0.02) return { biome, feature: 'water' };
   } else if (biome === 'desert') {
-    if (noise > 0.93) return { biome, feature: 'ruins' };
-    if (noise > 0.85 && noise2 > 0.5) return { biome, feature: 'rocks' };
-    if (noise > 0.70 && noise2 > 0.6) return { biome, feature: 'dunes' };
-    if (noise < 0.05 && noise2 < 0.4) return { biome, feature: 'oasis' };
+    if (noise > 0.95) return { biome, feature: 'ruins' };
+    if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
+    if (noise > 0.72 && noise2 > 0.6) return { biome, feature: 'dunes' };
+    if (noise < 0.03) return { biome, feature: 'oasis' };
   } else if (biome === 'snow') {
-    if (noise > 0.90 && noise2 > 0.4) return { biome, feature: 'icemountain' };
-    if (noise > 0.55 && noise2 > 0.3) return { biome, feature: 'snowtree' };
-    if (noise < 0.04 && noise2 < 0.5) return { biome, feature: 'frozen' };
+    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'icemountain' };
+    if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
+    if (noise < 0.03) return { biome, feature: 'frozen' };
   }
 
   return { biome, feature: null };
@@ -5669,6 +5987,10 @@ async function loadMap() {
       // Add cities
       if (data.cities) {
         data.cities.forEach(c => {
+          // Get wall level from buildings if available
+          const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
+          const wallLevel = wallBuilding?.level || 0;
+
           mapData.push({
             x: c.x,
             y: c.y,
@@ -5676,7 +5998,10 @@ async function loadMap() {
             playerId: c.playerId || c.player?.id,
             name: c.name,
             isCapital: c.isCapital,
-            allianceId: c.player?.allianceId
+            allianceId: c.player?.allianceId,
+            faction: c.player?.faction || 'ROME',
+            wallLevel: wallLevel,
+            population: c.player?.population || 0
           });
         });
       }
@@ -5696,13 +6021,20 @@ async function loadMap() {
       // Always include player's cities even if not in viewport
       cities.forEach(c => {
         if (!mapData.find(d => d.x === c.x && d.y === c.y)) {
+          // Get wall level from buildings if available
+          const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
+          const wallLevel = wallBuilding?.level || 0;
+
           mapData.push({
             x: c.x,
             y: c.y,
             type: 'CITY',
             playerId: player?.id,
             name: c.name,
-            isCapital: c.isCapital
+            isCapital: c.isCapital,
+            faction: player?.faction || 'ROME',
+            wallLevel: wallLevel,
+            population: player?.population || 0
           });
         }
       });
@@ -6263,11 +6595,62 @@ function drawIsoHighlight(x, y, tw, th, color, lineWidth) {
   mapCtx.stroke();
 }
 
-// Draw isometric city (Rise of Kingdoms style)
+// Culture-specific city styles
+const CULTURE_STYLES = {
+  ROME: {
+    wallColor: '#8B7355',      // Brown stone
+    wallDark: '#5C4033',
+    roofColor: '#8B0000',      // Red tiles
+    buildingColor: '#D4A574',  // Terracotta
+    accent: '#FFD700'          // Gold
+  },
+  GAUL: {
+    wallColor: '#6B8E23',      // Olive/wood
+    wallDark: '#4A5D16',
+    roofColor: '#8B4513',      // Brown thatch
+    buildingColor: '#DEB887',  // Burlywood
+    accent: '#228B22'          // Forest green
+  },
+  GREEK: {
+    wallColor: '#E8E8E8',      // White marble
+    wallDark: '#B8B8B8',
+    roofColor: '#4682B4',      // Blue tiles
+    buildingColor: '#F5F5DC',  // Beige
+    accent: '#4169E1'          // Royal blue
+  },
+  EGYPT: {
+    wallColor: '#D2B48C',      // Tan sandstone
+    wallDark: '#A0826D',
+    roofColor: '#DAA520',      // Goldenrod
+    buildingColor: '#F4E4BC',  // Light sand
+    accent: '#1E90FF'          // Dodger blue
+  },
+  HUN: {
+    wallColor: '#4A3728',      // Dark wood
+    wallDark: '#2F1F14',
+    roofColor: '#696969',      // Gray felt
+    buildingColor: '#8B7355',  // Brown
+    accent: '#FF4500'          // Orange red
+  },
+  SULTAN: {
+    wallColor: '#CD853F',      // Peru (clay)
+    wallDark: '#8B5A2B',
+    roofColor: '#20B2AA',      // Light sea green (domes)
+    buildingColor: '#F5DEB3',  // Wheat
+    accent: '#FF6347'          // Tomato red
+  }
+};
+
+// Draw isometric city with culture-specific style and walls
 function drawIsoCity(x, y, tw, th, tile) {
   const isMyCity = tile.playerId === player?.id;
   const isAlly = tile.allianceId && tile.allianceId === player?.allianceId;
-  const colors = isMyCity ? TILE_COLORS.myCity : isAlly ? TILE_COLORS.allyCity : TILE_COLORS.enemyCity;
+  const faction = tile.faction || 'ROME';
+  const wallLevel = tile.wallLevel || 0;
+  const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
+
+  // Determine wall tier (0=none, 1-7=tier1, 8-14=tier2, 15-20=tier3)
+  const wallTier = wallLevel === 0 ? 0 : wallLevel <= 7 ? 1 : wallLevel <= 14 ? 2 : 3;
 
   const citySize = Math.min(tw, th * 2) * 0.8;
 
@@ -6277,61 +6660,25 @@ function drawIsoCity(x, y, tw, th, tile) {
   mapCtx.ellipse(x + 3, y + 5, citySize * 0.5, citySize * 0.25, 0, 0, Math.PI * 2);
   mapCtx.fill();
 
-  // City base (circular wall)
-  mapCtx.fillStyle = '#5a4a3a';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, citySize * 0.45, citySize * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Inner ground
-  mapCtx.fillStyle = isMyCity ? '#c4a060' : isAlly ? '#70a080' : '#a07060';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y - 2, citySize * 0.38, citySize * 0.2, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Main building
-  const bh = citySize * 0.6;
-  const bw = citySize * 0.3;
-
-  // Building shadow side
-  mapCtx.fillStyle = shadeColor(colors.fill, -30);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + bw / 2, y - 5);
-  mapCtx.lineTo(x + bw / 2, y - 5 - bh);
-  mapCtx.lineTo(x, y - 5 - bh - bw * 0.3);
-  mapCtx.lineTo(x, y - 5 - bw * 0.15);
-  mapCtx.closePath();
-  mapCtx.fill();
-
-  // Building light side
-  mapCtx.fillStyle = colors.fill;
-  mapCtx.beginPath();
-  mapCtx.moveTo(x - bw / 2, y - 5);
-  mapCtx.lineTo(x - bw / 2, y - 5 - bh);
-  mapCtx.lineTo(x, y - 5 - bh - bw * 0.3);
-  mapCtx.lineTo(x, y - 5 - bw * 0.15);
-  mapCtx.closePath();
-  mapCtx.fill();
-
-  // Roof
-  mapCtx.fillStyle = colors.stroke;
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - 5 - bh - bw * 0.5);
-  mapCtx.lineTo(x + bw / 2 + 3, y - 5 - bh + 3);
-  mapCtx.lineTo(x, y - 5 - bh + bw * 0.15);
-  mapCtx.lineTo(x - bw / 2 - 3, y - 5 - bh + 3);
-  mapCtx.closePath();
-  mapCtx.fill();
-
-  // Side towers
-  if (mapZoomLevel > 0.7) {
-    drawMiniTower(x - citySize * 0.3, y + 3, citySize * 0.15);
-    drawMiniTower(x + citySize * 0.3, y + 3, citySize * 0.15);
+  // Draw walls based on tier (only if wallLevel > 0)
+  if (wallTier > 0) {
+    drawCityWalls(x, y, citySize, wallTier, cultureStyle);
   }
 
-  // Banner/flag on top
-  const flagY = y - 5 - bh - bw * 0.5 - 8;
-  mapCtx.fillStyle = colors.banner;
+  // City base ground
+  mapCtx.fillStyle = isMyCity ? '#c4a060' : isAlly ? '#70a080' : '#a07060';
+  mapCtx.beginPath();
+  const groundSize = wallTier > 0 ? 0.35 : 0.42;
+  mapCtx.ellipse(x, y - (wallTier > 0 ? 3 : 0), citySize * groundSize, citySize * groundSize * 0.55, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Draw culture-specific buildings (no central tower)
+  drawCultureBuildings(x, y, citySize, faction, cultureStyle, isMyCity, isAlly, tile.isCapital);
+
+  // Banner/flag on main building
+  const flagY = y - citySize * 0.55;
+  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
+  mapCtx.fillStyle = bannerColor;
   mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
   mapCtx.beginPath();
   mapCtx.moveTo(x + 1, flagY - 12);
@@ -6341,21 +6688,21 @@ function drawIsoCity(x, y, tw, th, tile) {
   mapCtx.fill();
 
   // City name label
-  if (mapZoomLevel > 0.6 && tile.name) {
+  if (mapZoomLevel > 0.5 && tile.name) {
     mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
     mapCtx.textAlign = 'center';
     mapCtx.textBaseline = 'top';
     mapCtx.fillStyle = '#fff';
     mapCtx.shadowColor = '#000';
     mapCtx.shadowBlur = 3;
-    mapCtx.fillText(tile.name, x, y + citySize * 0.3);
+    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
     mapCtx.shadowBlur = 0;
   }
 
   // Power level badge
-  if (mapZoomLevel > 0.8 && tile.population) {
-    const badgeX = x + citySize * 0.35;
-    const badgeY = y - citySize * 0.4;
+  if (mapZoomLevel > 0.7 && tile.population) {
+    const badgeX = x + citySize * 0.4;
+    const badgeY = y - citySize * 0.5;
     mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
     mapCtx.beginPath();
     mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
@@ -6366,6 +6713,347 @@ function drawIsoCity(x, y, tw, th, tile) {
     mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
   }
+}
+
+// Draw city walls with 3 visual tiers
+function drawCityWalls(x, y, size, tier, style) {
+  const wallHeight = size * (0.08 + tier * 0.04); // Taller walls for higher tiers
+  const wallRadius = size * 0.45;
+  const wallRadiusY = size * 0.25;
+
+  // Wall base (outer)
+  mapCtx.fillStyle = style.wallDark;
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y + 2, wallRadius, wallRadiusY, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Wall top
+  mapCtx.fillStyle = style.wallColor;
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y - wallHeight, wallRadius, wallRadiusY, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Wall sides (visible part)
+  mapCtx.fillStyle = style.wallDark;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - wallRadius, y + 2);
+  mapCtx.lineTo(x - wallRadius, y - wallHeight);
+  mapCtx.ellipse(x, y - wallHeight, wallRadius, wallRadiusY, 0, Math.PI, 0, true);
+  mapCtx.lineTo(x + wallRadius, y + 2);
+  mapCtx.ellipse(x, y + 2, wallRadius, wallRadiusY, 0, 0, Math.PI, true);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Light side of wall
+  mapCtx.fillStyle = style.wallColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - wallRadius, y - wallHeight);
+  mapCtx.lineTo(x - wallRadius, y + 2);
+  mapCtx.ellipse(x, y + 2, wallRadius, wallRadiusY, 0, Math.PI, Math.PI * 0.5, true);
+  mapCtx.lineTo(x, y - wallHeight - wallRadiusY);
+  mapCtx.ellipse(x, y - wallHeight, wallRadius, wallRadiusY, 0, Math.PI * 1.5, Math.PI, true);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Crenellations for tier 2+
+  if (tier >= 2 && mapZoomLevel > 0.5) {
+    const crenelCount = 8 + tier * 2;
+    mapCtx.fillStyle = style.wallColor;
+    for (let i = 0; i < crenelCount; i++) {
+      const angle = (i / crenelCount) * Math.PI * 2;
+      const cx = x + Math.cos(angle) * wallRadius * 0.95;
+      const cy = y - wallHeight + Math.sin(angle) * wallRadiusY * 0.95 - 2;
+      mapCtx.fillRect(cx - 2, cy - 4, 4, 4);
+    }
+  }
+
+  // Towers for tier 3
+  if (tier >= 3 && mapZoomLevel > 0.4) {
+    const towerPositions = [
+      { angle: Math.PI * 0.25 },
+      { angle: Math.PI * 0.75 },
+      { angle: Math.PI * 1.25 },
+      { angle: Math.PI * 1.75 }
+    ];
+    towerPositions.forEach(pos => {
+      const tx = x + Math.cos(pos.angle) * wallRadius;
+      const ty = y - wallHeight + Math.sin(pos.angle) * wallRadiusY;
+      drawWallTower(tx, ty, size * 0.12, style);
+    });
+  }
+}
+
+// Draw wall tower
+function drawWallTower(x, y, size, style) {
+  // Tower body
+  mapCtx.fillStyle = style.wallDark;
+  mapCtx.fillRect(x - size / 2, y - size * 2, size, size * 2);
+
+  // Tower light side
+  mapCtx.fillStyle = style.wallColor;
+  mapCtx.fillRect(x - size / 2, y - size * 2, size / 2, size * 2);
+
+  // Tower top
+  mapCtx.fillStyle = style.wallColor;
+  mapCtx.beginPath();
+  mapCtx.arc(x, y - size * 2, size / 2, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Tower roof
+  mapCtx.fillStyle = style.wallDark;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - size * 2.8);
+  mapCtx.lineTo(x + size * 0.6, y - size * 2);
+  mapCtx.lineTo(x - size * 0.6, y - size * 2);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Draw culture-specific buildings (no central tower)
+function drawCultureBuildings(x, y, size, faction, style, isMyCity, isAlly, isCapital) {
+  const bh = size * 0.4;
+  const bw = size * 0.25;
+
+  // Main hall (culture-specific shape)
+  if (faction === 'ROME' || faction === 'GREEK') {
+    // Classical temple style - rectangular with columns
+    drawClassicalBuilding(x, y - 5, bw, bh, style, isCapital);
+  } else if (faction === 'EGYPT') {
+    // Pyramid/obelisk style
+    drawEgyptianBuilding(x, y - 5, bw, bh, style, isCapital);
+  } else if (faction === 'SULTAN') {
+    // Dome style
+    drawIslamicBuilding(x, y - 5, bw, bh, style, isCapital);
+  } else if (faction === 'HUN') {
+    // Tent/yurt style
+    drawNomadBuilding(x, y - 5, bw, bh, style, isCapital);
+  } else {
+    // GAUL - Wooden hall
+    drawCelticBuilding(x, y - 5, bw, bh, style, isCapital);
+  }
+
+  // Side buildings (smaller, culture-appropriate)
+  if (mapZoomLevel > 0.6) {
+    drawSmallBuilding(x - size * 0.25, y + 2, size * 0.1, style);
+    drawSmallBuilding(x + size * 0.25, y + 2, size * 0.1, style);
+  }
+}
+
+// Classical building (Rome, Greek)
+function drawClassicalBuilding(x, y, w, h, style, isCapital) {
+  // Base
+  mapCtx.fillStyle = style.buildingColor;
+  mapCtx.fillRect(x - w, y - h, w * 2, h);
+
+  // Columns effect (stripes)
+  mapCtx.fillStyle = shadeColor(style.buildingColor, -15);
+  for (let i = 0; i < 4; i++) {
+    mapCtx.fillRect(x - w + i * w * 0.5 + 2, y - h, 3, h);
+  }
+
+  // Triangular roof (pediment)
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h - w * 0.6);
+  mapCtx.lineTo(x + w + 3, y - h);
+  mapCtx.lineTo(x - w - 3, y - h);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Capital crown
+  if (isCapital) {
+    mapCtx.fillStyle = style.accent;
+    mapCtx.beginPath();
+    mapCtx.arc(x, y - h - w * 0.6 - 5, 4, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
+}
+
+// Egyptian building
+function drawEgyptianBuilding(x, y, w, h, style, isCapital) {
+  // Pyramid shape
+  mapCtx.fillStyle = style.buildingColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.3);
+  mapCtx.lineTo(x + w, y);
+  mapCtx.lineTo(x - w, y);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Shadow side
+  mapCtx.fillStyle = shadeColor(style.buildingColor, -20);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.3);
+  mapCtx.lineTo(x + w, y);
+  mapCtx.lineTo(x, y - h * 0.3);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Gold cap
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.3 - 3);
+  mapCtx.lineTo(x + w * 0.15, y - h * 1.1);
+  mapCtx.lineTo(x - w * 0.15, y - h * 1.1);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Obelisk for capital
+  if (isCapital) {
+    mapCtx.fillStyle = style.accent;
+    mapCtx.fillRect(x + w * 0.6, y - h * 0.8, 3, h * 0.6);
+    mapCtx.beginPath();
+    mapCtx.moveTo(x + w * 0.6 + 1.5, y - h * 0.9);
+    mapCtx.lineTo(x + w * 0.6 + 4, y - h * 0.8);
+    mapCtx.lineTo(x + w * 0.6 - 1, y - h * 0.8);
+    mapCtx.closePath();
+    mapCtx.fill();
+  }
+}
+
+// Islamic building (Sultan)
+function drawIslamicBuilding(x, y, w, h, style, isCapital) {
+  // Base building
+  mapCtx.fillStyle = style.buildingColor;
+  mapCtx.fillRect(x - w, y - h * 0.7, w * 2, h * 0.7);
+
+  // Dome
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.arc(x, y - h * 0.7, w * 0.8, Math.PI, 0, false);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Dome highlight
+  mapCtx.fillStyle = shadeColor(style.roofColor, 20);
+  mapCtx.beginPath();
+  mapCtx.arc(x - w * 0.2, y - h * 0.9, w * 0.25, Math.PI, 0, false);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Crescent on top
+  mapCtx.fillStyle = style.accent;
+  mapCtx.beginPath();
+  mapCtx.arc(x, y - h * 1.2, 4, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Minarets for capital
+  if (isCapital) {
+    mapCtx.fillStyle = style.buildingColor;
+    mapCtx.fillRect(x - w * 1.2, y - h * 1.1, 4, h * 1.1);
+    mapCtx.fillRect(x + w * 1.2 - 4, y - h * 1.1, 4, h * 1.1);
+    mapCtx.fillStyle = style.roofColor;
+    mapCtx.beginPath();
+    mapCtx.arc(x - w * 1.2 + 2, y - h * 1.1, 4, 0, Math.PI * 2);
+    mapCtx.arc(x + w * 1.2 - 2, y - h * 1.1, 4, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
+}
+
+// Nomad building (Hun)
+function drawNomadBuilding(x, y, w, h, style, isCapital) {
+  // Yurt/tent shape
+  mapCtx.fillStyle = style.buildingColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.1);
+  mapCtx.quadraticCurveTo(x + w * 1.2, y - h * 0.5, x + w, y);
+  mapCtx.lineTo(x - w, y);
+  mapCtx.quadraticCurveTo(x - w * 1.2, y - h * 0.5, x, y - h * 1.1);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Dark side
+  mapCtx.fillStyle = shadeColor(style.buildingColor, -25);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.1);
+  mapCtx.quadraticCurveTo(x + w * 1.2, y - h * 0.5, x + w, y);
+  mapCtx.lineTo(x, y);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Roof ring
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y - h * 1.1, w * 0.3, w * 0.15, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Smoke hole
+  mapCtx.fillStyle = '#333';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y - h * 1.1, w * 0.15, w * 0.08, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // War banner for capital
+  if (isCapital) {
+    mapCtx.fillStyle = style.accent;
+    mapCtx.fillRect(x + w * 0.8, y - h * 1.3, 2, h * 0.8);
+    // Skull/horse tail decoration
+    mapCtx.beginPath();
+    mapCtx.arc(x + w * 0.8 + 1, y - h * 1.35, 4, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
+}
+
+// Celtic building (Gaul)
+function drawCelticBuilding(x, y, w, h, style, isCapital) {
+  // Wooden hall base
+  mapCtx.fillStyle = style.buildingColor;
+  mapCtx.fillRect(x - w, y - h * 0.6, w * 2, h * 0.6);
+
+  // Log texture
+  mapCtx.strokeStyle = shadeColor(style.buildingColor, -30);
+  mapCtx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    mapCtx.beginPath();
+    mapCtx.moveTo(x - w, y - h * 0.1 - i * h * 0.15);
+    mapCtx.lineTo(x + w, y - h * 0.1 - i * h * 0.15);
+    mapCtx.stroke();
+  }
+
+  // Thatched roof
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h * 1.2);
+  mapCtx.lineTo(x + w * 1.3, y - h * 0.6);
+  mapCtx.lineTo(x - w * 1.3, y - h * 0.6);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Roof texture
+  mapCtx.strokeStyle = shadeColor(style.roofColor, -20);
+  for (let i = 0; i < 3; i++) {
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, y - h * 1.2 + i * h * 0.15);
+    mapCtx.lineTo(x + w * (1.3 - i * 0.15), y - h * 0.6);
+    mapCtx.stroke();
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, y - h * 1.2 + i * h * 0.15);
+    mapCtx.lineTo(x - w * (1.3 - i * 0.15), y - h * 0.6);
+    mapCtx.stroke();
+  }
+
+  // Druid stone for capital
+  if (isCapital) {
+    mapCtx.fillStyle = '#666';
+    mapCtx.fillRect(x + w * 0.9, y - h * 0.3, 6, h * 0.3);
+    mapCtx.fillStyle = style.accent;
+    mapCtx.beginPath();
+    mapCtx.arc(x + w * 0.9 + 3, y - h * 0.35, 4, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
+}
+
+// Small side building
+function drawSmallBuilding(x, y, size, style) {
+  mapCtx.fillStyle = shadeColor(style.buildingColor, -10);
+  mapCtx.fillRect(x - size, y - size * 1.5, size * 2, size * 1.5);
+  mapCtx.fillStyle = style.roofColor;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - size * 2.2);
+  mapCtx.lineTo(x + size * 1.2, y - size * 1.5);
+  mapCtx.lineTo(x - size * 1.2, y - size * 1.5);
+  mapCtx.closePath();
+  mapCtx.fill();
 }
 
 // Mini tower for city decoration
@@ -6848,24 +7536,32 @@ function onMapMouseMove(e) {
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
-  
+
+  // Use isometric tile dimensions
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+
   if (mapDragging) {
-    const dx = (e.clientX - mapDragStart.x) / (TILE_SIZE * mapZoomLevel);
-    const dy = (e.clientY - mapDragStart.y) / (TILE_SIZE * mapZoomLevel);
-    
-    mapOffsetX -= dx;
-    mapOffsetY -= dy;
-    
+    // Dragging uses simpler offset (not isometric conversion)
+    const dx = (e.clientX - mapDragStart.x) / (tileW * 0.5);
+    const dy = (e.clientY - mapDragStart.y) / (tileH);
+
+    mapOffsetX -= (dx + dy) * 0.5;
+    mapOffsetY -= (dy - dx) * 0.5;
+
     mapDragStart = { x: e.clientX, y: e.clientY };
     renderMap();
     renderMinimap();
     updateMapUI();
   } else {
-    // Update hovered tile
-    const tileSize = TILE_SIZE * mapZoomLevel;
-    const tileX = Math.floor(mapOffsetX + (mouseX - mapCanvas.width / 2) / tileSize);
-    const tileY = Math.floor(mapOffsetY + (mouseY - mapCanvas.height / 2) / tileSize);
-    
+    // Update hovered tile using isometric conversion
+    const centerX = mapCanvas.width / 2;
+    const centerY = mapCanvas.height / 2;
+    const dx = mouseX - centerX;
+    const dy = mouseY - centerY;
+    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
+    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
+
     mapHoveredTile = { x: tileX, y: tileY };
     renderMap();
   }
@@ -6878,18 +7574,26 @@ function onMapMouseUp() {
 
 function onMapClick(e) {
   if (mapDragging) return;
-  
+
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
-  
-  const tileSize = TILE_SIZE * mapZoomLevel;
-  const tileX = Math.floor(mapOffsetX + (mouseX - mapCanvas.width / 2) / tileSize);
-  const tileY = Math.floor(mapOffsetY + (mouseY - mapCanvas.height / 2) / tileSize);
-  
+
+  // Use isometric coordinate conversion
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  const centerX = mapCanvas.width / 2;
+  const centerY = mapCanvas.height / 2;
+
+  // Screen to isometric world coordinates
+  const dx = mouseX - centerX;
+  const dy = mouseY - centerY;
+  const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
+  const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
+
   // Find what's at this tile
   const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-  
+
   mapSelectedTile = { x: tileX, y: tileY };
   showMapInfoPanel(tileX, tileY, tile);
   renderMap();
@@ -6917,25 +7621,28 @@ function onMapTouchStart(e) {
 
 function onMapTouchMove(e) {
   e.preventDefault();
-  
+
   if (e.touches.length === 2) {
     // Pinch zoom
     const dist = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
       e.touches[0].clientY - e.touches[1].clientY
     );
-    
-    mapZoomLevel = Math.max(0.3, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+
+    mapZoomLevel = Math.max(0.15, Math.min(3, touchStartZoom * (dist / touchStartDist)));
     renderMap();
     renderMinimap();
     updateMapUI();
   } else if (e.touches.length === 1 && mapDragging) {
-    const dx = (e.touches[0].clientX - mapDragStart.x) / (TILE_SIZE * mapZoomLevel);
-    const dy = (e.touches[0].clientY - mapDragStart.y) / (TILE_SIZE * mapZoomLevel);
-    
-    mapOffsetX -= dx;
-    mapOffsetY -= dy;
-    
+    // Use isometric tile dimensions
+    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+    const dx = (e.touches[0].clientX - mapDragStart.x) / (tileW * 0.5);
+    const dy = (e.touches[0].clientY - mapDragStart.y) / (tileH);
+
+    mapOffsetX -= (dx + dy) * 0.5;
+    mapOffsetY -= (dy - dx) * 0.5;
+
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     renderMap();
     renderMinimap();
@@ -6969,7 +7676,7 @@ function onMapWheel(e) {
   // Appliquer le zoom (plus fluide)
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
   const oldZoom = mapZoomLevel;
-  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
   
   // Recalculer pour garder le point sous le curseur fixe
   const newTileSize = BASE_TILE_SIZE * mapZoomLevel;
@@ -6992,7 +7699,7 @@ function onMapWheel(e) {
 // Zoom buttons
 function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
-  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
   renderMap();
   renderMinimap();
   updateMapUI();
@@ -7984,6 +8691,223 @@ function getBuildingName(key) {
 
 function showBuildingInfo(key, level) {
   showToast(`${getBuildingName(key)} niveau ${level}`, 'info');
+}
+
+// ========== UNIT INFO MODAL ==========
+function showUnitInfoModal(unitKey) {
+  const unit = unitsData.find(u => u.key === unitKey);
+  if (!unit) {
+    showToast('Unité non trouvée', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.getElementById('modal-title');
+
+  const tierColor = TIER_COLORS[unit.tier] || '#888';
+  const tierName = unit.tier === 'base' ? 'Base' : unit.tier === 'intermediate' ? 'Intermédiaire' : unit.tier === 'elite' ? 'Élite' : 'Siège';
+
+  modalTitle.textContent = unit.name;
+  modalBody.innerHTML = `
+    <div class="unit-info-modal">
+      <!-- Header avec icône et tier -->
+      <div class="unit-info-header">
+        <div class="unit-info-icon" style="border-color: ${tierColor}">
+          ${UNIT_ICONS[unit.class] || '⚔️'}
+        </div>
+        <div class="unit-info-title">
+          <h3>${unit.name}</h3>
+          <span class="unit-tier-badge" style="background: ${tierColor}">${tierName}</span>
+          <span class="unit-class-badge">${unit.class}</span>
+        </div>
+      </div>
+
+      <!-- Stats de combat -->
+      <div class="unit-stats-section">
+        <h4>⚔️ Statistiques de combat</h4>
+        <div class="unit-stats-grid">
+          <div class="unit-stat-item">
+            <span class="stat-label">Attaque</span>
+            <span class="stat-value">${unit.attack || 0}</span>
+          </div>
+          <div class="unit-stat-item">
+            <span class="stat-label">Défense</span>
+            <span class="stat-value">${unit.defense || 0}</span>
+          </div>
+          <div class="unit-stat-item">
+            <span class="stat-label">Endurance</span>
+            <span class="stat-value">${unit.endurance || unit.hp || 0}</span>
+          </div>
+          <div class="unit-stat-item">
+            <span class="stat-label">Vitesse</span>
+            <span class="stat-value">${unit.speed || 0}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Capacités -->
+      <div class="unit-capacity-section">
+        <h4>📦 Capacités</h4>
+        <div class="unit-capacity-grid">
+          <div class="capacity-item">
+            <span class="capacity-icon">🎒</span>
+            <span class="capacity-label">Transport</span>
+            <span class="capacity-value">${unit.transport || unit.carryCapacity || 0}</span>
+          </div>
+          <div class="capacity-item">
+            <span class="capacity-icon">🍖</span>
+            <span class="capacity-label">Nourriture/h</span>
+            <span class="capacity-value">${unit.foodCost || unit.foodConsumption || 1}</span>
+          </div>
+          ${unit.buildingDamage ? `
+          <div class="capacity-item">
+            <span class="capacity-icon">🏰</span>
+            <span class="capacity-label">Dégâts bâtiment</span>
+            <span class="capacity-value">${unit.buildingDamage}</span>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Coût de recrutement -->
+      <div class="unit-cost-section">
+        <h4>💰 Coût de recrutement</h4>
+        <div class="unit-cost-grid">
+          <div class="cost-item"><span class="cost-icon">🪵</span><span>${unit.cost?.wood || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🪨</span><span>${unit.cost?.stone || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">⛏️</span><span>${unit.cost?.iron || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🌾</span><span>${unit.cost?.food || 0}</span></div>
+        </div>
+        <div class="train-time">
+          <span>⏱️ Temps: ${formatDuration(unit.trainTime || 60)}</span>
+        </div>
+      </div>
+
+      <!-- Bâtiment requis -->
+      <div class="unit-building-section">
+        <h4>🏗️ Formation</h4>
+        <p>Entraîné dans: <strong>${getBuildingName(unit.building) || 'Caserne'}</strong></p>
+      </div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+}
+
+// ========== BUILDING INFO MODAL ==========
+function showBuildingInfoModal(buildingKey) {
+  const building = buildingsData.find(b => b.key === buildingKey);
+  if (!building) {
+    showToast('Bâtiment non trouvé', 'error');
+    return;
+  }
+
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.getElementById('modal-title');
+
+  modalTitle.textContent = building.name;
+  modalBody.innerHTML = `
+    <div class="building-info-modal">
+      <!-- Header -->
+      <div class="building-info-header">
+        <div class="building-info-icon">${BUILDING_ICONS[buildingKey] || '🏠'}</div>
+        <div class="building-info-title">
+          <h3>${building.name}</h3>
+          <span class="building-category-badge">${building.category}</span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="building-desc-section">
+        <p>${getBuildingDescription(buildingKey)}</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="building-stats-section">
+        <h4>📊 Informations</h4>
+        <div class="building-info-grid">
+          <div class="info-item">
+            <span class="info-label">Niveau max</span>
+            <span class="info-value">${building.maxLevel}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Catégorie</span>
+            <span class="info-value">${building.category}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coût niveau 1 -->
+      <div class="building-cost-section">
+        <h4>💰 Coût niveau 1</h4>
+        <div class="building-cost-grid">
+          <div class="cost-item"><span class="cost-icon">🪵</span><span>${building.costL1?.wood || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🪨</span><span>${building.costL1?.stone || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">⛏️</span><span>${building.costL1?.iron || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🌾</span><span>${building.costL1?.food || 0}</span></div>
+        </div>
+        <div class="build-time">
+          <span>⏱️ Temps: ${formatDuration(building.timeL1Sec || 60)}</span>
+        </div>
+      </div>
+
+      <!-- Prérequis -->
+      ${building.prereq && building.prereq.length > 0 ? `
+        <div class="building-prereq-section">
+          <h4>📋 Prérequis</h4>
+          <div class="prereq-list">
+            ${building.prereq.map(p => `
+              <div class="prereq-item">
+                <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
+                <span>${getBuildingName(p.key)} Niv.${p.level}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Effets -->
+      ${building.effects ? `
+        <div class="building-effects-section">
+          <h4>✨ Effets</h4>
+          <div class="effects-list">
+            ${Object.entries(building.effects).map(([key, value]) => `
+              <div class="effect-item">
+                <span class="effect-name">${formatEffectName(key)}</span>
+                <span class="effect-value">${typeof value === 'object' ? JSON.stringify(value) : value}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+}
+
+// Format effect name for display
+function formatEffectName(key) {
+  const names = {
+    'buildTimeReductionPctPerLevel': 'Réduction temps construction/niv',
+    'trainTimeReductionPctPerLevel': 'Réduction temps entraînement/niv',
+    'foodProdL1': 'Production nourriture Niv.1',
+    'woodProdL1': 'Production bois Niv.1',
+    'stoneProdL1': 'Production pierre Niv.1',
+    'ironProdL1': 'Production fer Niv.1',
+    'storageL1': 'Stockage Niv.1',
+    'foodStorageL1': 'Stockage nourriture Niv.1',
+    'maxArmies': 'Armées max',
+    'hiddenPctMax': 'Ressources cachées max %',
+    'healCapacityPerLevel': 'Capacité soins/niv',
+    'wallRegenBonusPctPerLevel': 'Régén murs/niv',
+    'defenderDefenseBonusPctPerLevel': 'Bonus défense/niv',
+    'heroXpBonusPctPerLevel': 'Bonus XP héros/niv',
+    'heroStatBonusPctPerLevel': 'Bonus stats héros/niv'
+  };
+  return names[key] || key;
 }
 
 function closeModal() {

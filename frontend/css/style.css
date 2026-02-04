@@ -1008,3 +1008,423 @@ html, body {
   .village-selector { display: none; }
   .player-info-box { display: none; }
 }
+
+/* ========== HERO MANAGEMENT PANEL ========== */
+.hero-management-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px;
+}
+
+.hero-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--brown-dark), var(--bg-dark));
+  border-radius: 8px;
+  border: 1px solid var(--gold-dark);
+}
+
+.hero-avatar-large {
+  width: 64px;
+  height: 64px;
+  background: var(--bg-medium);
+  border: 3px solid var(--gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.hero-profile-info {
+  flex: 1;
+}
+
+.hero-name-large {
+  font-family: 'Cinzel', serif;
+  color: var(--gold-light);
+  margin-bottom: 4px;
+}
+
+.hero-level-badge {
+  display: inline-block;
+  background: var(--gold-dark);
+  color: var(--text-white);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.hero-xp-bar-container {
+  width: 100%;
+}
+
+.hero-xp-bar {
+  height: 8px;
+  background: var(--bg-dark);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hero-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold-light));
+  transition: width 0.3s ease;
+}
+
+.hero-xp-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.hero-stats-section h4,
+.building-bonus-section h4,
+.hero-actions-section h4 {
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.hero-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.hero-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-medium);
+  border-radius: 6px;
+  border: 1px solid var(--border-dark);
+}
+
+.hero-stat-card .stat-icon {
+  font-size: 18px;
+}
+
+.hero-stat-card .stat-name {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hero-stat-card .stat-value {
+  font-weight: bold;
+  color: var(--text-white);
+  font-size: 16px;
+}
+
+.stat-plus-btn {
+  width: 24px;
+  height: 24px;
+  background: var(--green);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.stat-plus-btn:hover {
+  background: var(--green-light);
+}
+
+.points-available-banner {
+  background: linear-gradient(90deg, var(--gold-dark), transparent);
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: var(--gold-light);
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.bonus-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bonus-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-medium);
+  border-radius: 4px;
+}
+
+.bonus-item .bonus-value {
+  color: var(--green-light);
+  font-weight: bold;
+}
+
+.hero-actions-section {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hero-actions-section .btn {
+  flex: 1;
+  min-width: 100px;
+}
+
+.hero-empty-state {
+  text-align: center;
+  padding: 32px;
+}
+
+.hero-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+/* ========== UNIT INFO MODAL ========== */
+.unit-info-modal,
+.building-info-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.unit-info-header,
+.building-info-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-medium);
+  border-radius: 8px;
+}
+
+.unit-info-icon {
+  width: 56px;
+  height: 56px;
+  border: 3px solid;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: var(--bg-dark);
+}
+
+.building-info-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+}
+
+.unit-info-title h3,
+.building-info-title h3 {
+  color: var(--text-white);
+  margin-bottom: 8px;
+}
+
+.unit-tier-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: white;
+  margin-right: 8px;
+}
+
+.unit-class-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--bg-light);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.building-category-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--blue);
+  border-radius: 4px;
+  font-size: 11px;
+  color: white;
+}
+
+.unit-stats-section h4,
+.unit-capacity-section h4,
+.unit-cost-section h4,
+.unit-building-section h4,
+.building-stats-section h4,
+.building-cost-section h4,
+.building-prereq-section h4,
+.building-effects-section h4,
+.building-desc-section h4 {
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.unit-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.unit-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-medium);
+  border-radius: 6px;
+}
+
+.unit-stat-item .stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.unit-stat-item .stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--text-white);
+}
+
+.unit-capacity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.capacity-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  background: var(--bg-medium);
+  border-radius: 6px;
+}
+
+.capacity-item .capacity-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.capacity-item .capacity-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.capacity-item .capacity-value {
+  font-weight: bold;
+  color: var(--text-white);
+}
+
+.unit-cost-grid,
+.building-cost-grid {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.unit-cost-grid .cost-item,
+.building-cost-grid .cost-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-medium);
+  border-radius: 4px;
+}
+
+.train-time,
+.build-time {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.building-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-medium);
+  border-radius: 4px;
+}
+
+.info-item .info-label {
+  color: var(--text-muted);
+}
+
+.info-item .info-value {
+  color: var(--text-white);
+  font-weight: bold;
+}
+
+.prereq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prereq-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-medium);
+  border-radius: 4px;
+}
+
+.effects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.effect-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-medium);
+  border-radius: 4px;
+}
+
+.effect-item .effect-name {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.effect-item .effect-value {
+  color: var(--green-light);
+  font-weight: bold;
+}
+
+/* Clickable garrison units */
+.garrison-unit-compact {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.garrison-unit-compact:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(201, 162, 39, 0.5);
+}
