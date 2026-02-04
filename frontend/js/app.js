@@ -323,21 +323,53 @@ function updateQuicklinksCity() {
 
 function renderCity() {
   if (!currentCity) return;
-  
+
   // Update quicklinks city name
   updateQuicklinksCity();
-  
+
   // Update resources header
   document.getElementById('res-wood').textContent = formatNum(currentCity.wood);
   document.getElementById('res-stone').textContent = formatNum(currentCity.stone);
   document.getElementById('res-iron').textContent = formatNum(currentCity.iron);
   document.getElementById('res-food').textContent = formatNum(currentCity.food);
-  
-  // Wall HP
+
+  // Calculate max storage
+  const warehouse = currentCity.buildings?.find(b => b.key === 'WAREHOUSE');
+  const silo = currentCity.buildings?.find(b => b.key === 'SILO');
+  const maxRes = 800 + ((warehouse?.level || 0) * 400);
+  const maxFood = 800 + ((silo?.level || 0) * 400);
+
+  // Update max displays
+  const maxWoodEl = document.getElementById('max-wood');
+  const maxStoneEl = document.getElementById('max-stone');
+  const maxIronEl = document.getElementById('max-iron');
+  const maxFoodEl = document.getElementById('max-food');
+  if (maxWoodEl) maxWoodEl.textContent = formatNum(maxRes);
+  if (maxStoneEl) maxStoneEl.textContent = formatNum(maxRes);
+  if (maxIronEl) maxIronEl.textContent = formatNum(maxRes);
+  if (maxFoodEl) maxFoodEl.textContent = formatNum(maxFood);
+
+  // Update resource progress bars
+  const woodPct = Math.min(100, (currentCity.wood / maxRes) * 100);
+  const stonePct = Math.min(100, (currentCity.stone / maxRes) * 100);
+  const ironPct = Math.min(100, (currentCity.iron / maxRes) * 100);
+  const foodPct = Math.min(100, (currentCity.food / maxFood) * 100);
+
+  const woodBar = document.getElementById('wood-bar');
+  const clayBar = document.getElementById('clay-bar');
+  const ironBar = document.getElementById('iron-bar');
+  const foodBar = document.getElementById('food-bar');
+  if (woodBar) woodBar.style.width = `${woodPct}%`;
+  if (clayBar) clayBar.style.width = `${stonePct}%`;
+  if (ironBar) ironBar.style.width = `${ironPct}%`;
+  if (foodBar) foodBar.style.width = `${foodPct}%`;
+
+  // Wall HP (if element exists)
   const wallPct = (currentCity.wallHp / currentCity.wallMaxHp) * 100;
   const wallFill = document.getElementById('wall-fill');
   if (wallFill) wallFill.style.width = `${wallPct}%`;
-  document.getElementById('wall-hp').textContent = `${Math.floor(currentCity.wallHp)}/${currentCity.wallMaxHp}`;
+  const wallHpEl = document.getElementById('wall-hp');
+  if (wallHpEl) wallHpEl.textContent = `${Math.floor(currentCity.wallHp)}/${currentCity.wallMaxHp}`;
   
   // Calculate production
   let woodProd = 5, stoneProd = 5, ironProd = 5, foodProd = 10;
@@ -3341,74 +3373,107 @@ function renderBuildingSlots() {
 }
 
 function renderBuildQueue() {
-  const el = document.getElementById('build-queue');
   const queue = currentCity.buildQueue || [];
-  
   const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
   const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
-  
-  let html = '';
-  
-  // Header avec slots
-  html += `<div class="build-slots-header">
-    <span>🔨 En cours: ${running.length}/2</span>
-    <span>⏳ En attente: ${queued.length}/2</span>
-  </div>`;
-  
-  if (queue.length === 0) {
-    html += '<p style="padding:10px;color:var(--text-muted);font-size:12px;text-align:center;">Aucune construction</p>';
-  } else {
-    // Running items (green)
-    running.forEach(q => {
-      html += `
-        <div class="queue-item queue-running">
-          <span class="queue-status-icon">🔨</span>
-          <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-          <span class="queue-time">${formatTime(q.endsAt)}</span>
-        </div>
+
+  // Update activity bar
+  const activityEl = document.getElementById('build-activity');
+  if (activityEl) {
+    if (running.length > 0) {
+      const first = running[0];
+      activityEl.classList.add('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">🏗️</span>
+        <span class="activity-text">${BUILDING_ICONS[first.buildingKey] || '🏠'} ${getBuildingName(first.buildingKey)} Niv.${first.targetLevel}</span>
+        <span class="activity-timer">${formatTime(first.endsAt)}</span>
+        ${running.length > 1 ? `<span class="activity-more">+${running.length - 1}</span>` : ''}
       `;
-    });
-    
-    // Queued items (orange)
-    queued.forEach(q => {
-      html += `
-        <div class="queue-item queue-waiting">
-          <span class="queue-status-icon">⏳</span>
-          <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-          <span class="queue-time">En attente</span>
-        </div>
+    } else {
+      activityEl.classList.remove('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">🏗️</span>
+        <span class="activity-text">Aucune construction</span>
       `;
-    });
+    }
   }
-  
-  el.innerHTML = html;
+
+  // Also update legacy build-queue element if it exists
+  const legacyEl = document.getElementById('build-queue');
+  if (legacyEl) {
+    let html = `<div class="build-slots-header">
+      <span>🔨 En cours: ${running.length}/2</span>
+      <span>⏳ En attente: ${queued.length}/2</span>
+    </div>`;
+
+    if (queue.length === 0) {
+      html += '<p style="padding:10px;color:var(--text-muted);font-size:12px;text-align:center;">Aucune construction</p>';
+    } else {
+      running.forEach(q => {
+        html += `
+          <div class="queue-item queue-running">
+            <span class="queue-status-icon">🔨</span>
+            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="queue-time">${formatTime(q.endsAt)}</span>
+          </div>
+        `;
+      });
+      queued.forEach(q => {
+        html += `
+          <div class="queue-item queue-waiting">
+            <span class="queue-status-icon">⏳</span>
+            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="queue-time">En attente</span>
+          </div>
+        `;
+      });
+    }
+    legacyEl.innerHTML = html;
+  }
 }
 
 function renderRecruitQueue() {
-  const el = document.getElementById('recruit-queue');
-  if (!currentCity.recruitQueue || currentCity.recruitQueue.length === 0) {
-    el.innerHTML = '<p style="padding:10px;color:var(--text-muted);font-size:12px;">Aucun recrutement</p>';
-    return;
+  const queue = currentCity.recruitQueue || [];
+
+  // Update activity bar
+  const activityEl = document.getElementById('recruit-activity');
+  if (activityEl) {
+    if (queue.length > 0) {
+      const first = queue[0];
+      activityEl.classList.add('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">⚔️</span>
+        <span class="activity-text">${first.count}x ${getUnitName(first.unitKey)}</span>
+        <span class="activity-timer">${formatTime(first.endsAt)}</span>
+        ${queue.length > 1 ? `<span class="activity-more">+${queue.length - 1}</span>` : ''}
+      `;
+    } else {
+      activityEl.classList.remove('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">⚔️</span>
+        <span class="activity-text">Aucun recrutement</span>
+      `;
+    }
   }
-  
-  el.innerHTML = currentCity.recruitQueue.map(q => `
-    <div class="queue-item">
-      <span class="queue-name">${q.count}x ${q.unitKey}</span>
-      <span class="queue-time">${formatTime(q.endsAt)}</span>
-    </div>
-  `).join('');
+
+  // Also update legacy recruit-queue element if it exists
+  const legacyEl = document.getElementById('recruit-queue');
+  if (legacyEl) {
+    if (queue.length === 0) {
+      legacyEl.innerHTML = '<p style="padding:10px;color:var(--text-muted);font-size:12px;">Aucun recrutement</p>';
+    } else {
+      legacyEl.innerHTML = queue.map(q => `
+        <div class="queue-item">
+          <span class="queue-name">${q.count}x ${getUnitName(q.unitKey)}</span>
+          <span class="queue-time">${formatTime(q.endsAt)}</span>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 function renderMovingArmies() {
-  const el = document.getElementById('movement-queue') || document.getElementById('moving-armies');
-  if (!el) return;
-
   const moving = armies.filter(a => a.status !== 'IDLE');
-
-  if (moving.length === 0) {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:11px;text-align:center;">Aucun mouvement</p>';
-    return;
-  }
 
   const missionIcons = {
     'ATTACK': '⚔️',
@@ -3420,15 +3485,45 @@ function renderMovingArmies() {
     'MOVING': '🚶'
   };
 
-  el.innerHTML = moving.map(a => `
-    <div class="queue-item">
-      <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '🚶'}</span>
-      <div class="queue-info">
-        <span class="queue-name">${a.name || 'Armée'}</span>
-        <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
-      </div>
-    </div>
-  `).join('');
+  // Update activity bar
+  const activityEl = document.getElementById('movement-activity');
+  if (activityEl) {
+    if (moving.length > 0) {
+      const first = moving[0];
+      const icon = missionIcons[first.missionType] || missionIcons[first.status] || '🚶';
+      activityEl.classList.add('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">${icon}</span>
+        <span class="activity-text">${first.name || 'Armée'}</span>
+        <span class="activity-timer">${first.arrivalAt ? formatTime(first.arrivalAt) : '-'}</span>
+        ${moving.length > 1 ? `<span class="activity-more">+${moving.length - 1}</span>` : ''}
+      `;
+    } else {
+      activityEl.classList.remove('active');
+      activityEl.innerHTML = `
+        <span class="activity-icon">🚶</span>
+        <span class="activity-text">Aucun mouvement</span>
+      `;
+    }
+  }
+
+  // Also update legacy moving-armies element if it exists
+  const legacyEl = document.getElementById('movement-queue') || document.getElementById('moving-armies');
+  if (legacyEl) {
+    if (moving.length === 0) {
+      legacyEl.innerHTML = '<p style="color:var(--text-muted);font-size:11px;text-align:center;">Aucun mouvement</p>';
+    } else {
+      legacyEl.innerHTML = moving.map(a => `
+        <div class="queue-item">
+          <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '🚶'}</span>
+          <div class="queue-info">
+            <span class="queue-name">${a.name || 'Armée'}</span>
+            <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 // ========== WOUNDED UNITS ==========
@@ -3536,9 +3631,12 @@ function updateCityStats() {
 // ========== TABS ==========
 function showTab(tabName) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  
-  document.getElementById(`tab-${tabName}`).classList.add('active');
+
+  const tabEl = document.getElementById(`tab-${tabName}`);
+  if (tabEl) tabEl.classList.add('active');
+  document.querySelector(`.nav-tab[data-tab="${tabName}"]`)?.classList.add('active');
   document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
   
   // Start/stop animations based on tab
@@ -8210,6 +8308,228 @@ function getUnitName(key) {
   const unit = window.unitsData?.find(u => u.key === key);
   return unit?.name || key;
 }
+
+// ========== VILLAGE LIST MODAL ==========
+function openVillageList() {
+  if (!cities || cities.length === 0) {
+    showToast('Aucune ville', 'warning');
+    return;
+  }
+
+  let html = '<div class="village-list">';
+  cities.forEach(city => {
+    const isActive = city.id === currentCity?.id;
+    html += `
+      <div class="village-list-item ${isActive ? 'active' : ''}" onclick="selectCity('${city.id}'); closeModal();">
+        <span class="village-icon">${city.isCapital ? '👑' : '🏘️'}</span>
+        <div class="village-details">
+          <span class="village-name">${city.name}</span>
+          <span class="village-coords">(${city.x}|${city.y})</span>
+        </div>
+        <span class="village-pop">Pop: ${city.population || 0}</span>
+      </div>
+    `;
+  });
+  html += '</div>';
+
+  showModal('Vos villages', html);
+}
+
+// ========== TAB SUB-TABS ==========
+function showArmyTab(subTab) {
+  document.querySelectorAll('#tab-army .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+
+  const container = document.getElementById('armies-management');
+  if (!container) return;
+
+  switch (subTab) {
+    case 'overview':
+      renderArmies();
+      break;
+    case 'train':
+      loadUnits();
+      break;
+    case 'send':
+      renderSendTroopsForm();
+      break;
+    default:
+      renderArmies();
+  }
+}
+
+function showAllianceTab(subTab) {
+  document.querySelectorAll('#tab-alliance .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+  loadAlliance(subTab);
+}
+
+function showMarketTab(subTab) {
+  document.querySelectorAll('#tab-market .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+
+  const sendSection = document.querySelector('.market-send');
+  const offersSection = document.getElementById('market-offers');
+
+  if (sendSection) sendSection.style.display = subTab === 'send' ? 'block' : 'none';
+  if (offersSection) offersSection.style.display = subTab === 'offers' ? 'block' : 'none';
+
+  if (subTab === 'npc') {
+    showNpcMerchant();
+  }
+}
+
+function showReportsTab(subTab) {
+  document.querySelectorAll('#tab-reports .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+  loadReports(subTab);
+}
+
+function filterBuildings(category) {
+  document.querySelectorAll('#tab-buildings .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+  renderBuildings(category);
+}
+
+// ========== SEND RESOURCES ==========
+async function sendResources() {
+  const target = document.getElementById('send-target')?.value;
+  const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
+  const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
+  const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
+  const food = parseInt(document.getElementById('send-food')?.value) || 0;
+
+  if (!target) {
+    showToast('Entrez une destination', 'error');
+    return;
+  }
+
+  if (wood + stone + iron + food === 0) {
+    showToast('Entrez des ressources à envoyer', 'error');
+    return;
+  }
+
+  // Parse coordinates (format: "x|y" or "x,y")
+  let targetX, targetY;
+  const coordMatch = target.match(/(-?\d+)[|,](-?\d+)/);
+  if (coordMatch) {
+    targetX = parseInt(coordMatch[1]);
+    targetY = parseInt(coordMatch[2]);
+  } else {
+    showToast('Format invalide. Utilisez x|y', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/trade/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fromCityId: currentCity.id,
+        targetX,
+        targetY,
+        resources: { wood, stone, iron, food }
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Ressources envoyées!', 'success');
+      loadCities();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+}
+
+function renderSendTroopsForm() {
+  const container = document.getElementById('armies-management');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="send-troops-form">
+      <h3>Envoyer des troupes</h3>
+      <div class="form-row">
+        <label>Destination</label>
+        <input type="text" id="troops-target" placeholder="x|y">
+      </div>
+      <div class="form-row">
+        <label>Mission</label>
+        <select id="troops-mission">
+          <option value="ATTACK">⚔️ Attaque</option>
+          <option value="RAID">💰 Raid</option>
+          <option value="SUPPORT">🛡️ Renfort</option>
+          <option value="SPY">🔍 Espionnage</option>
+        </select>
+      </div>
+      <div id="troops-selection" class="troops-selection">
+        <p style="color:var(--text-muted)">Chargement des troupes...</p>
+      </div>
+      <button class="btn-primary" onclick="sendTroops()">Envoyer</button>
+    </div>
+  `;
+
+  loadTroopsForSending();
+}
+
+async function loadTroopsForSending() {
+  const cityArmy = armies.find(a => a.cityId === currentCity?.id && a.status === 'IDLE');
+  const container = document.getElementById('troops-selection');
+  if (!container) return;
+
+  if (!cityArmy || !cityArmy.units || cityArmy.units.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted)">Aucune troupe disponible</p>';
+    return;
+  }
+
+  container.innerHTML = cityArmy.units.map(u => `
+    <div class="troop-row">
+      <span class="troop-name">${getUnitName(u.unitKey)}</span>
+      <span class="troop-available">Dispo: ${u.count}</span>
+      <input type="number" id="send-${u.unitKey}" min="0" max="${u.count}" value="0">
+    </div>
+  `).join('');
+}
+
+function showNpcMerchant() {
+  const container = document.getElementById('market-content');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="npc-merchant">
+      <h3>🏪 Marchand NPC</h3>
+      <p style="color:var(--text-muted)">Échangez vos ressources instantanément contre de l'or.</p>
+      <div class="npc-rates">
+        <p>Taux: 100 ressources = 1 or</p>
+      </div>
+      <p style="color:var(--text-muted);font-style:italic;">Fonctionnalité à venir...</p>
+    </div>
+  `;
+}
+
+// ========== KEYBOARD SHORTCUTS ==========
+document.addEventListener('keydown', (e) => {
+  // Ignore if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case '1': showTab('fields'); break;
+    case '2': showTab('city'); break;
+    case '3': showTab('map'); break;
+    case '4': showTab('ranking'); break;
+    case '5': showTab('reports'); break;
+    case '6': showTab('alliance'); break;
+    case '7': showTab('army'); break;
+    case '8': showTab('hero'); break;
+    case '9': showTab('market'); break;
+    case 'Escape': closeModal(); closeBuildPanel(); break;
+  }
+});
 
 // ========== INIT ==========
 window.onload = () => {
