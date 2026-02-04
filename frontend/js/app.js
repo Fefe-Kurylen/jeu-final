@@ -1321,12 +1321,68 @@ function drawPaths(w, h, centerX, centerY, nightMode = false) {
 function drawCityWall(centerX, centerY, radius) {
   const wallRadius = radius - 3;
   const nightMode = isNightMode();
+  const faction = player?.faction || 'ROME';
 
-  // Travian-style colors
-  const stoneColor = nightMode ? '#4a4038' : '#c9b896';
-  const stoneDark = nightMode ? '#3a3028' : '#a08060';
-  const stoneLight = nightMode ? '#5a5048' : '#e4d4b0';
-  const roofColor = nightMode ? '#5a2a1a' : '#c45a20';
+  // ========== FACTION-SPECIFIC WALL THEMES ==========
+  const WALL_THEMES = {
+    ROME: {
+      // Pierre beige classique, toits tuiles rouges
+      stone: nightMode ? '#4a4038' : '#c9b896',
+      stoneDark: nightMode ? '#3a3028' : '#a08060',
+      stoneLight: nightMode ? '#5a5048' : '#e4d4b0',
+      roof: nightMode ? '#5a2a1a' : '#c45a20',
+      pattern: 'brick',
+      towerStyle: 'pointed'
+    },
+    GAUL: {
+      // Palissade en bois, tours en bois
+      stone: nightMode ? '#3a3020' : '#8b7355',
+      stoneDark: nightMode ? '#2a2010' : '#6a5a40',
+      stoneLight: nightMode ? '#4a4030' : '#a89070',
+      roof: nightMode ? '#2a4020' : '#4a7a30',
+      pattern: 'wood',
+      towerStyle: 'wooden'
+    },
+    GREEK: {
+      // Marbre blanc, toits bleus
+      stone: nightMode ? '#6a6a70' : '#e8e4e0',
+      stoneDark: nightMode ? '#4a4a50' : '#c8c4c0',
+      stoneLight: nightMode ? '#8a8a90' : '#f8f4f0',
+      roof: nightMode ? '#2a4060' : '#4a7ab0',
+      pattern: 'marble',
+      towerStyle: 'column'
+    },
+    EGYPT: {
+      // Grès doré, tours plates
+      stone: nightMode ? '#5a4a30' : '#d4b896',
+      stoneDark: nightMode ? '#4a3a20' : '#b49876',
+      stoneLight: nightMode ? '#6a5a40' : '#e4c8a6',
+      roof: nightMode ? '#4a6060' : '#6a9a9a',
+      pattern: 'sandstone',
+      towerStyle: 'flat'
+    },
+    HUN: {
+      // Terre et bois, style nomade
+      stone: nightMode ? '#3a3028' : '#7a6a5a',
+      stoneDark: nightMode ? '#2a2018' : '#5a4a3a',
+      stoneLight: nightMode ? '#4a4038' : '#9a8a7a',
+      roof: nightMode ? '#4a3020' : '#8a5030',
+      pattern: 'earth',
+      towerStyle: 'tent'
+    },
+    SULTAN: {
+      // Briques ocre, dômes
+      stone: nightMode ? '#5a4a38' : '#c4a080',
+      stoneDark: nightMode ? '#4a3a28' : '#a48060',
+      stoneLight: nightMode ? '#6a5a48' : '#e4c0a0',
+      roof: nightMode ? '#2a5050' : '#4a8a7a',
+      pattern: 'brick',
+      towerStyle: 'dome'
+    }
+  };
+
+  const theme = WALL_THEMES[faction] || WALL_THEMES.ROME;
+  const { stone: stoneColor, stoneDark, stoneLight, roof: roofColor, pattern, towerStyle } = theme;
 
   // Wall base shadow
   cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -1334,61 +1390,262 @@ function drawCityWall(centerX, centerY, radius) {
   cityCtx.ellipse(centerX + 5, centerY + 8, wallRadius + 5, (wallRadius + 5) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // Stone wall base (Travian beige)
-  cityCtx.strokeStyle = stoneColor;
-  cityCtx.lineWidth = 22;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall inner edge (darker)
-  cityCtx.strokeStyle = stoneDark;
-  cityCtx.lineWidth = 4;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius - 10, (wallRadius - 10) * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall outer edge (lighter highlight)
-  cityCtx.strokeStyle = stoneLight;
-  cityCtx.lineWidth = 3;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius + 8, (wallRadius + 8) * 0.5, 0, Math.PI, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall brick pattern
-  cityCtx.strokeStyle = stoneDark;
-  cityCtx.lineWidth = 1;
-  for (let angle = 0; angle < 360; angle += 12) {
-    const rad = angle * Math.PI / 180;
-    const x1 = centerX + Math.cos(rad) * (wallRadius - 10);
-    const y1 = centerY + Math.sin(rad) * (wallRadius - 10) * 0.5;
-    const x2 = centerX + Math.cos(rad) * (wallRadius + 10);
-    const y2 = centerY + Math.sin(rad) * (wallRadius + 10) * 0.5;
+  // Wall base - style depends on faction
+  if (pattern === 'wood') {
+    // Wooden palisade for Gaul
+    drawWoodenWall(centerX, centerY, wallRadius, stoneColor, stoneDark, stoneLight);
+  } else if (pattern === 'earth') {
+    // Earthen wall for Huns
+    drawEarthenWall(centerX, centerY, wallRadius, stoneColor, stoneDark, stoneLight);
+  } else {
+    // Stone wall (Rome, Greek, Egypt, Sultan)
+    cityCtx.strokeStyle = stoneColor;
+    cityCtx.lineWidth = 22;
     cityCtx.beginPath();
-    cityCtx.moveTo(x1, y1);
-    cityCtx.lineTo(x2, y2);
+    cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
     cityCtx.stroke();
+
+    // Wall inner edge (darker)
+    cityCtx.strokeStyle = stoneDark;
+    cityCtx.lineWidth = 4;
+    cityCtx.beginPath();
+    cityCtx.ellipse(centerX, centerY, wallRadius - 10, (wallRadius - 10) * 0.5, 0, 0, Math.PI * 2);
+    cityCtx.stroke();
+
+    // Wall outer edge (lighter highlight)
+    cityCtx.strokeStyle = stoneLight;
+    cityCtx.lineWidth = 3;
+    cityCtx.beginPath();
+    cityCtx.ellipse(centerX, centerY, wallRadius + 8, (wallRadius + 8) * 0.5, 0, Math.PI, Math.PI * 2);
+    cityCtx.stroke();
+
+    // Wall pattern
+    cityCtx.strokeStyle = stoneDark;
+    cityCtx.lineWidth = 1;
+    const patternSpacing = pattern === 'marble' ? 18 : 12;
+    for (let angle = 0; angle < 360; angle += patternSpacing) {
+      const rad = angle * Math.PI / 180;
+      const x1 = centerX + Math.cos(rad) * (wallRadius - 10);
+      const y1 = centerY + Math.sin(rad) * (wallRadius - 10) * 0.5;
+      const x2 = centerX + Math.cos(rad) * (wallRadius + 10);
+      const y2 = centerY + Math.sin(rad) * (wallRadius + 10) * 0.5;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x1, y1);
+      cityCtx.lineTo(x2, y2);
+      cityCtx.stroke();
+    }
   }
 
-  // 4 Gates with arches (N, E, S, W) - Travian style
+  // 4 Gates (N, E, S, W)
   const gateAngles = [0, 90, 180, 270];
   gateAngles.forEach((angle, idx) => {
     const rad = angle * Math.PI / 180;
     const gx = centerX + Math.cos(rad) * wallRadius;
     const gy = centerY + Math.sin(rad) * wallRadius * 0.5;
-    drawTravianGate(gx, gy, 28, angle, stoneColor, stoneDark, roofColor);
+    drawFactionGate(gx, gy, 28, angle, stoneColor, stoneDark, roofColor, towerStyle);
   });
 
-  // Towers between gates (8 towers total)
+  // Towers between gates
   const towerAngles = [45, 135, 225, 315, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5];
   towerAngles.forEach((angle, idx) => {
     const rad = angle * Math.PI / 180;
     const tx = centerX + Math.cos(rad) * wallRadius;
     const ty = centerY + Math.sin(rad) * wallRadius * 0.5;
-    // Alternate tower sizes
     const towerSize = idx < 4 ? 16 : 12;
-    drawTravianTower(tx, ty, towerSize, stoneColor, stoneDark, stoneLight, roofColor);
+    drawFactionTower(tx, ty, towerSize, stoneColor, stoneDark, stoneLight, roofColor, towerStyle);
   });
+}
+
+// ========== WOODEN WALL (Gaul) ==========
+function drawWoodenWall(centerX, centerY, wallRadius, woodColor, woodDark, woodLight) {
+  // Wooden palisade effect
+  for (let angle = 0; angle < 360; angle += 6) {
+    const rad = angle * Math.PI / 180;
+    const x = centerX + Math.cos(rad) * wallRadius;
+    const y = centerY + Math.sin(rad) * wallRadius * 0.5;
+
+    // Wooden post
+    cityCtx.fillStyle = woodColor;
+    cityCtx.fillRect(x - 4, y - 15, 8, 18);
+
+    // Post top (pointed)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - 5, y - 15);
+    cityCtx.lineTo(x, y - 22);
+    cityCtx.lineTo(x + 5, y - 15);
+    cityCtx.closePath();
+    cityCtx.fill();
+
+    // Wood grain
+    cityCtx.strokeStyle = woodDark;
+    cityCtx.lineWidth = 1;
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - 15);
+    cityCtx.lineTo(x, y + 3);
+    cityCtx.stroke();
+  }
+}
+
+// ========== EARTHEN WALL (Huns) ==========
+function drawEarthenWall(centerX, centerY, wallRadius, earthColor, earthDark, earthLight) {
+  // Low earthen rampart
+  cityCtx.strokeStyle = earthColor;
+  cityCtx.lineWidth = 18;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Darker base
+  cityCtx.strokeStyle = earthDark;
+  cityCtx.lineWidth = 6;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, wallRadius - 6, (wallRadius - 6) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Grass/earth texture spots
+  for (let i = 0; i < 30; i++) {
+    const angle = (i * 12) * Math.PI / 180;
+    const x = centerX + Math.cos(angle) * wallRadius;
+    const y = centerY + Math.sin(angle) * wallRadius * 0.5;
+    cityCtx.fillStyle = i % 3 === 0 ? '#5a7040' : earthLight;
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - 5, 3, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+// ========== FACTION-SPECIFIC TOWER ==========
+function drawFactionTower(x, y, size, stoneColor, stoneDark, stoneLight, roofColor, style) {
+  const nightMode = isNightMode();
+
+  // Tower shadow
+  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 3, y + 4, size * 0.8, size * 0.4, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Tower base
+  cityCtx.fillStyle = stoneDark;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, size, size * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Tower body
+  const bodyGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  bodyGrad.addColorStop(0, stoneLight);
+  bodyGrad.addColorStop(0.4, stoneColor);
+  bodyGrad.addColorStop(1, stoneDark);
+  cityCtx.fillStyle = bodyGrad;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size, y);
+  cityCtx.lineTo(x - size * 0.9, y - size * 1.8);
+  cityCtx.lineTo(x + size * 0.9, y - size * 1.8);
+  cityCtx.lineTo(x + size, y);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Tower top platform
+  cityCtx.fillStyle = stoneColor;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y - size * 1.8, size * 0.95, size * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Roof based on style
+  const roofGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  roofGrad.addColorStop(0, roofColor);
+  roofGrad.addColorStop(0.5, nightMode ? shadeColor(roofColor, 20) : shadeColor(roofColor, 15));
+  roofGrad.addColorStop(1, nightMode ? shadeColor(roofColor, -20) : shadeColor(roofColor, -15));
+  cityCtx.fillStyle = roofGrad;
+
+  if (style === 'pointed' || style === 'wooden') {
+    // Pointed roof (Rome, Gaul)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 3);
+    cityCtx.lineTo(x - size * 1.1, y - size * 1.7);
+    cityCtx.lineTo(x + size * 1.1, y - size * 1.7);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'dome') {
+    // Dome roof (Sultan)
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - size * 2.2, size * 0.9, Math.PI, 0);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'flat') {
+    // Flat roof (Egypt)
+    cityCtx.fillRect(x - size * 0.9, y - size * 2.2, size * 1.8, size * 0.4);
+  } else if (style === 'column') {
+    // Greek column style
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2.8);
+    cityCtx.lineTo(x - size * 1.2, y - size * 1.9);
+    cityCtx.lineTo(x + size * 1.2, y - size * 1.9);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'tent') {
+    // Tent style (Huns)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2.8);
+    cityCtx.quadraticCurveTo(x - size * 0.5, y - size * 2, x - size * 1.1, y - size * 1.7);
+    cityCtx.lineTo(x + size * 1.1, y - size * 1.7);
+    cityCtx.quadraticCurveTo(x + size * 0.5, y - size * 2, x, y - size * 2.8);
+    cityCtx.fill();
+  }
+}
+
+// ========== FACTION-SPECIFIC GATE ==========
+function drawFactionGate(x, y, size, angle, stoneColor, stoneDark, roofColor, style) {
+  // Gate base
+  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 4, y + 5, size * 0.9, size * 0.45, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  cityCtx.fillStyle = stoneDark;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, size * 0.85, size * 0.42, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Gate house
+  const gateGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  gateGrad.addColorStop(0, stoneColor);
+  gateGrad.addColorStop(1, stoneDark);
+  cityCtx.fillStyle = gateGrad;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size * 0.8, y);
+  cityCtx.lineTo(x - size * 0.7, y - size * 1.5);
+  cityCtx.lineTo(x + size * 0.7, y - size * 1.5);
+  cityCtx.lineTo(x + size * 0.8, y);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Gate arch (dark opening)
+  cityCtx.fillStyle = '#1a1008';
+  cityCtx.beginPath();
+  cityCtx.arc(x, y - size * 0.3, size * 0.4, Math.PI, 0);
+  cityCtx.lineTo(x + size * 0.4, y + size * 0.1);
+  cityCtx.lineTo(x - size * 0.4, y + size * 0.1);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Small roof on gate based on style
+  cityCtx.fillStyle = roofColor;
+  if (style === 'dome') {
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - size * 1.7, size * 0.6, Math.PI, 0);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'flat') {
+    cityCtx.fillRect(x - size * 0.75, y - size * 1.7, size * 1.5, size * 0.25);
+  } else {
+    // Pointed (default)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2);
+    cityCtx.lineTo(x - size * 0.8, y - size * 1.5);
+    cityCtx.lineTo(x + size * 0.8, y - size * 1.5);
+    cityCtx.closePath();
+    cityCtx.fill();
+  }
 }
 
 // ========== TRAVIAN-STYLE TOWER ==========
