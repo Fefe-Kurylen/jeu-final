@@ -127,6 +127,50 @@ const BUILDING_ICONS = {
   HERO_HOME: '👤'
 };
 
+// ========== PRODUCTION INTERPOLATION (L1 → L10 → L20) ==========
+function lerpExp(a, b, t) {
+  if (a <= 0 || b <= 0) return a + (b - a) * t;
+  return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
+}
+
+function getProductionAtLevel(buildingKey, level) {
+  if (!window.buildingsData) return level * 30; // Fallback
+  const def = window.buildingsData.find(b => b.key === buildingKey);
+  if (!def || !def.effects) return level * 30;
+
+  // Find the production key
+  const prodKeys = {
+    'FARM': 'foodProd',
+    'LUMBER': 'woodProd',
+    'QUARRY': 'stoneProd',
+    'IRON_MINE': 'ironProd'
+  };
+  const prodKey = prodKeys[buildingKey];
+  if (!prodKey) return level * 30;
+
+  const L1 = def.effects[prodKey + 'L1'] || 10;
+  const L10 = def.effects[prodKey + 'L10'];
+  const L20 = def.effects[prodKey + 'L20'] || 4500;
+
+  if (level <= 1) return L1;
+  if (level >= 20) return L20;
+
+  if (L10) {
+    // Piecewise interpolation: L1→L10 then L10→L20
+    if (level <= 10) {
+      const t = (level - 1) / 9;
+      return Math.round(lerpExp(L1, L10, t));
+    } else {
+      const t = (level - 10) / 10;
+      return Math.round(lerpExp(L10, L20, t));
+    }
+  } else {
+    // Simple interpolation: L1→L20
+    const t = (level - 1) / 19;
+    return Math.round(lerpExp(L1, L20, t));
+  }
+}
+
 // Building sprites cache (will be loaded when images are available)
 const buildingSprites = {};
 const SPRITE_BASE_PATH = 'assets/images/buildings';
@@ -431,10 +475,10 @@ function renderCity() {
   let woodProd = 5, stoneProd = 5, ironProd = 5, foodProd = 10;
   if (currentCity.buildings) {
     currentCity.buildings.forEach(b => {
-      if (b.key === 'LUMBER') woodProd += b.level * 30;
-      if (b.key === 'QUARRY') stoneProd += b.level * 30;
-      if (b.key === 'IRON_MINE') ironProd += b.level * 30;
-      if (b.key === 'FARM') foodProd += b.level * 40;
+      if (b.key === 'LUMBER') woodProd += getProductionAtLevel('LUMBER', b.level);
+      if (b.key === 'QUARRY') stoneProd += getProductionAtLevel('QUARRY', b.level);
+      if (b.key === 'IRON_MINE') ironProd += getProductionAtLevel('IRON_MINE', b.level);
+      if (b.key === 'FARM') foodProd += getProductionAtLevel('FARM', b.level);
     });
   }
   
@@ -4416,10 +4460,10 @@ function getBuildingBonus(key, level) {
     MARKET: `Réduction taxe marché: -${level}%, Capacité transport: +${level * 5}%`,
     WAREHOUSE: `Stockage ressources: ${formatNum(1200 + level * 8000)}`,
     SILO: `Stockage nourriture: ${formatNum(1200 + level * 8000)}`,
-    FARM: `Production nourriture: +${formatNum(20 + level * 60)}/h`,
-    LUMBER: `Production bois: +${formatNum(20 + level * 60)}/h`,
-    QUARRY: `Production pierre: +${formatNum(20 + level * 60)}/h`,
-    IRON_MINE: `Production fer: +${formatNum(20 + level * 60)}/h`,
+    FARM: `Production nourriture: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
+    LUMBER: `Production bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
+    QUARRY: `Production pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
+    IRON_MINE: `Production fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
     WALL: `Bonus défense: +${level}%, Régénération mur: +${level}%`,
     MOAT: `Bonus ATK/DEF défenseur: +${(level * 0.5).toFixed(1)}%`,
     HEALING_TENT: `Capacité de soins: ${level * 3} blessés`,
@@ -4486,14 +4530,14 @@ function openFieldBuildPanel(slotNum) {
         <h4>${fieldNames[fieldType]}</h4>
         <span class="level-badge">Niveau ${level}</span>
         <p style="margin-top:10px;font-size:12px;color:#666">
-          Production: +${level * 30}/h
+          Production: +${getProductionAtLevel(fieldType, level)}/h
         </p>
       </div>
       ${canUpgrade ? `
         <div class="upgrade-info">
           <h5>Améliorer au niveau ${level + 1}</h5>
           <p style="font-size:12px;color:#666;margin-bottom:10px">
-            Production: +${(level + 1) * 30}/h (+30/h)
+            Production: +${getProductionAtLevel(fieldType, level + 1)}/h (+${getProductionAtLevel(fieldType, level + 1) - getProductionAtLevel(fieldType, level)}/h)
           </p>
           <div class="upgrade-cost">
             <span>🪵 ${formatNum((def?.costL1?.wood || 50) * (level + 1))}</span>
@@ -4515,7 +4559,7 @@ function openFieldBuildPanel(slotNum) {
         <div class="build-option-info">
           <h4>${fieldNames[fieldType]}</h4>
           <p>Production de ${fieldType === 'FARM' ? 'nourriture' : fieldType === 'LUMBER' ? 'bois' : fieldType === 'QUARRY' ? 'pierre' : 'fer'}</p>
-          <p style="font-size:11px;color:#888">+30/h au niveau 1</p>
+          <p style="font-size:11px;color:#888">+${getProductionAtLevel(fieldType, 1)}/h au niveau 1</p>
           <div class="build-option-cost">
             <span>🪵 ${def?.costL1?.wood || 50}</span>
             <span>🪨 ${def?.costL1?.stone || 50}</span>
