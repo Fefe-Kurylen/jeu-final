@@ -2619,6 +2619,19 @@ async function startServer() {
       
       console.log('✅ Connexion à la base de données réussie!');
       connected = true;
+
+      // Exécuter prisma db push pour s'assurer que les tables existent
+      console.log('📦 Synchronisation du schéma de base de données...');
+      try {
+        execSync('npx prisma db push --accept-data-loss --skip-generate', {
+          stdio: 'inherit',
+          env: { ...process.env }
+        });
+        console.log('✅ Schéma de base de données synchronisé!');
+      } catch (dbPushError) {
+        console.error('⚠️ Erreur lors de la synchronisation du schéma:', dbPushError.message);
+      }
+
       break;
     } catch (e) {
       console.log(`   Erreur: ${e.message.substring(0, 100)}`);
