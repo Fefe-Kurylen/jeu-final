@@ -289,8 +289,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "foodProdL1": 20,
-        "foodProdL20": 340250
+        "foodProdL1": 10,
+        "foodProdL20": 4500
       }
     },
     {
@@ -319,8 +319,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "woodProdL1": 20,
-        "woodProdL20": 1193195
+        "woodProdL1": 10,
+        "woodProdL20": 4500
       }
     },
     {
@@ -349,8 +349,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "stoneProdL1": 20,
-        "stoneProdL20": 1193195
+        "stoneProdL1": 10,
+        "stoneProdL20": 4500
       }
     },
     {
@@ -379,8 +379,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "ironProdL1": 20,
-        "ironProdL20": 1193195
+        "ironProdL1": 10,
+        "ironProdL20": 4500
       }
     },
     {
