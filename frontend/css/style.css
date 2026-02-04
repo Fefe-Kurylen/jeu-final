@@ -474,87 +474,180 @@ html, body {
 
 .resources-container {
   display: flex;
-  gap: 8px;
+  gap: 2px;
+  align-items: stretch;
 }
 
+/* ========== TRAVIAN-STYLE RESOURCE BOX ========== */
 .resource-box {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  min-width: 100px;
-  padding: 8px 12px 6px;
-  background: linear-gradient(180deg, #3a3228 0%, #2a2418 100%);
-  border-radius: 6px;
-  border: 1px solid #5a4a3a;
+  gap: 8px;
+  min-width: 90px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg,
+    #4a4a4a 0%,
+    #3a3a3a 50%,
+    #2a2a2a 100%);
+  border: 1px solid #1a1a1a;
+  border-radius: 3px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 2px 4px rgba(0,0,0,0.3);
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0 2px 3px rgba(0,0,0,0.5);
   position: relative;
-  overflow: hidden;
 }
 
-/* Subtle shine effect */
-.resource-box::before {
+/* Separator line between boxes */
+.resource-box::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
-  pointer-events: none;
+  right: -1px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, #5a5a5a, transparent);
+}
+
+.resource-box:last-child::after {
+  display: none;
 }
 
 .res-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 3px;
+  flex-shrink: 0;
 }
-.res-icon { font-size: 14px; }
-.res-name { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+
+.res-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+}
+
+.res-name {
+  display: none;
+}
+
+.res-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
 
 .res-bar {
   width: 100%;
-  height: 6px;
-  background: var(--bg-darkest);
-  border-radius: 3px;
+  height: 4px;
+  background: #1a1a1a;
+  border-radius: 2px;
   overflow: hidden;
-  margin: 2px 0;
+  margin-top: 4px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
 }
+
 .res-bar-fill {
   height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s;
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
-.wood-fill { background: linear-gradient(90deg, var(--wood), #5a9c4a); width: 50%; }
-.clay-fill { background: linear-gradient(90deg, var(--clay), #c87b4a); width: 50%; }
-.iron-fill { background: linear-gradient(90deg, var(--iron), #7a8a9a); width: 50%; }
-.food-fill { background: linear-gradient(90deg, var(--crop), #d4b040); width: 50%; }
+
+/* Travian resource bar colors */
+.wood-fill {
+  background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
+}
+.clay-fill {
+  background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
+}
+.iron-fill {
+  background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
+}
+.food-fill {
+  background: linear-gradient(180deg, #e8c040 0%, #c4a030 100%);
+}
+.food-fill.low {
+  background: linear-gradient(180deg, #e05040 0%, #c03030 100%);
+}
 
 .res-numbers {
   display: flex;
   align-items: baseline;
-  gap: 2px;
-  font-size: 12px;
+  gap: 0;
 }
-.res-current { color: var(--text-white); font-weight: 600; }
-.res-max { color: var(--text-dark); font-size: 10px; }
+
+.res-current {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: Arial, sans-serif;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.res-max {
+  display: none; /* Hide max in Travian style */
+}
 
 .res-prod {
-  font-size: 10px;
-  color: var(--green-light);
-  margin-top: 2px;
+  display: none; /* Production shown separately for food */
 }
 
-.gold-box {
-  background: rgba(201, 162, 39, 0.1);
-  border-color: var(--gold-dark);
+/* ========== FOOD PRODUCTION BOX (separate) ========== */
+.resource-box.food-prod-box {
+  min-width: 70px;
+  background: linear-gradient(180deg,
+    #4a4a4a 0%,
+    #3a3a3a 50%,
+    #2a2a2a 100%);
 }
+
+.food-prod-box .res-icon {
+  position: relative;
+}
+
+.food-prod-box .res-icon::after {
+  content: '✓';
+  position: absolute;
+  bottom: -2px;
+  right: -4px;
+  font-size: 12px;
+  color: #7cb442;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.8);
+}
+
+/* ========== GOLD BOX - MEDALLION STYLE ========== */
+.gold-box {
+  background: linear-gradient(180deg,
+    #8b6914 0%,
+    #6a5010 50%,
+    #4a3808 100%);
+  border: 2px solid #c9a227;
+  border-radius: 50%;
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,0.2),
+    inset 0 -2px 4px rgba(0,0,0,0.4),
+    0 2px 4px rgba(0,0,0,0.5);
+}
+
+.gold-box::after {
+  display: none;
+}
+
+.gold-box .res-header {
+  display: none;
+}
+
 .gold-value {
-  font-size: 16px;
-  color: var(--gold);
-  font-weight: 600;
+  font-size: 18px;
+  color: #ffd700;
+  font-weight: 900;
+  font-family: 'Cinzel', serif;
+  text-shadow:
+    0 1px 0 #4a3808,
+    0 2px 3px rgba(0,0,0,0.5);
 }
 
 /* ========== DAY/NIGHT INDICATOR (Travian style) ========== */
