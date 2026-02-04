@@ -4914,16 +4914,37 @@ const TILE_SIZE = 40;
 const WORLD_SIZE = 200; // 200x200 world
 
 // ========== ISOMETRIC MAP SYSTEM - Rise of Kingdoms Style ==========
+// ========== 3 BIOMES: FOREST (center), DESERT (middle ring), SNOW (outer ring) ==========
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
+const WORLD_CENTER = 250; // Center of the 500x500 map
 
-// Terrain types with procedural generation
-const TERRAIN_COLORS = {
-  grass: ['#5a8c3a', '#4e7a32', '#62943e', '#568838', '#4a7230'],
-  grassDark: ['#4a7830', '#3e6a28', '#527e34', '#466c2c', '#3a6224'],
-  forest: '#2d5a1e',
-  mountain: '#8a8a8a',
-  water: '#3a6a9a'
+// BIOME CONFIGURATION
+const BIOMES = {
+  // TIER 1: Forest/Grassland (center, radius 0-120)
+  forest: {
+    ground: ['#5a8c3a', '#4e7a32', '#62943e', '#568838', '#4a7230'],
+    groundDark: ['#4a7830', '#3e6a28', '#527e34', '#466c2c', '#3a6224'],
+    features: ['tree', 'mountain', 'water'],
+    skyTop: '#87CEEB',
+    skyBottom: '#5a8c3a'
+  },
+  // TIER 2: Desert (middle ring, radius 120-200)
+  desert: {
+    ground: ['#d4c4a0', '#c9b896', '#ddd0aa', '#c4b48a', '#d9c99e'],
+    groundDark: ['#c4b490', '#b9a886', '#cdc09a', '#b4a47a', '#c9b98e'],
+    features: ['ruins', 'oasis', 'dunes', 'rocks'],
+    skyTop: '#f4e8d0',
+    skyBottom: '#d4c4a0'
+  },
+  // TIER 3: Snow/Tundra (outer ring, radius 200+)
+  snow: {
+    ground: ['#e8e8e8', '#dcdcdc', '#f0f0f0', '#d8d8d8', '#eaeaea'],
+    groundDark: ['#c8c8c8', '#bcbcbc', '#d0d0d0', '#b8b8b8', '#cacaca'],
+    features: ['snowtree', 'icemountain', 'frozen'],
+    skyTop: '#b8c8d8',
+    skyBottom: '#8898a8'
+  }
 };
 
 const TILE_COLORS = {
@@ -4934,8 +4955,52 @@ const TILE_COLORS = {
   wood: { fill: '#2d5a1e', stroke: '#1e4a12' },
   stone: { fill: '#7a7a7a', stroke: '#5a5a5a' },
   iron: { fill: '#5a6a7a', stroke: '#4a5a6a' },
-  food: { fill: '#8aaa40', stroke: '#6a8a20' }
+  food: { fill: '#8aaa40', stroke: '#6a8a20' },
+  gold: { fill: '#ffd700', stroke: '#b8860b' }
 };
+
+// ========== TERRAIN MOVEMENT SYSTEM ==========
+// Multiplicateurs de temps de trajet pour les armées/héros
+// terrain infranchissable = Infinity
+const TERRAIN_MOVEMENT = {
+  // Terrains de base
+  grass: 1.0,        // Normal
+  tree: 1.3,         // Forêt ralentit légèrement
+  mountain: Infinity, // Infranchissable
+  water: Infinity,    // Infranchissable (lac/rivière)
+  // Désert
+  sand: 1.2,         // Sable ralentit un peu
+  dunes: 1.5,        // Dunes difficiles
+  oasis: 1.0,        // Oasis = terrain facile
+  ruins: 1.1,        // Ruines légèrement difficiles
+  rocks: 1.4,        // Rochers
+  // Neige
+  snow: 1.4,         // Neige ralentit
+  ice: 1.6,          // Glace très lente
+  frozen: Infinity,   // Lac gelé infranchissable
+  icemountain: Infinity, // Montagne de glace infranchissable
+  snowtree: 1.3      // Sapin enneigé
+};
+
+// Vérifie si une case est traversable
+function isTerrainPassable(x, y) {
+  const terrain = getTerrainType(x, y);
+  if (!terrain.feature) return true;
+  const mult = TERRAIN_MOVEMENT[terrain.feature];
+  return mult !== Infinity;
+}
+
+// Calcule le multiplicateur de temps pour une case
+function getTerrainMovementMultiplier(x, y) {
+  const terrain = getTerrainType(x, y);
+  if (!terrain.feature) {
+    // Terrain de base selon le biome
+    if (terrain.biome === 'desert') return TERRAIN_MOVEMENT.sand;
+    if (terrain.biome === 'snow') return TERRAIN_MOVEMENT.snow;
+    return TERRAIN_MOVEMENT.grass;
+  }
+  return TERRAIN_MOVEMENT[terrain.feature] || 1.0;
+}
 
 // Pseudo-random based on coordinates for consistent terrain
 function seededRandom(x, y, seed = 12345) {
@@ -4943,19 +5008,39 @@ function seededRandom(x, y, seed = 12345) {
   return n - Math.floor(n);
 }
 
-// Check if tile has forest/mountain based on noise
+// Get biome based on distance from center
+function getBiome(x, y) {
+  const dx = x - WORLD_CENTER;
+  const dy = y - WORLD_CENTER;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 120) return 'forest';
+  if (dist < 200) return 'desert';
+  return 'snow';
+}
+
+// Check if tile has features based on noise and biome
 function getTerrainType(x, y) {
+  const biome = getBiome(x, y);
   const noise = seededRandom(x, y);
   const noise2 = seededRandom(x * 2, y * 2, 54321);
 
-  // Mountains (rare)
-  if (noise > 0.92 && noise2 > 0.5) return 'mountain';
-  // Forest clusters
-  if (noise > 0.65 && noise2 > 0.3) return 'forest';
-  // Water (rare)
-  if (noise < 0.03 && noise2 < 0.5) return 'water';
+  if (biome === 'forest') {
+    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'mountain' };
+    if (noise > 0.60 && noise2 > 0.3) return { biome, feature: 'tree' };
+    if (noise < 0.03 && noise2 < 0.5) return { biome, feature: 'water' };
+  } else if (biome === 'desert') {
+    if (noise > 0.93) return { biome, feature: 'ruins' };
+    if (noise > 0.85 && noise2 > 0.5) return { biome, feature: 'rocks' };
+    if (noise > 0.70 && noise2 > 0.6) return { biome, feature: 'dunes' };
+    if (noise < 0.05 && noise2 < 0.4) return { biome, feature: 'oasis' };
+  } else if (biome === 'snow') {
+    if (noise > 0.90 && noise2 > 0.4) return { biome, feature: 'icemountain' };
+    if (noise > 0.55 && noise2 > 0.3) return { biome, feature: 'snowtree' };
+    if (noise < 0.04 && noise2 < 0.5) return { biome, feature: 'frozen' };
+  }
 
-  return 'grass';
+  return { biome, feature: null };
 }
 
 function initMapCanvas() {
@@ -5404,10 +5489,14 @@ function renderMap() {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
-  // Clear canvas with sky gradient
+  // Get current biome for sky gradient (based on center of view)
+  const centerBiome = getBiome(Math.floor(mapOffsetX), Math.floor(mapOffsetY));
+  const biomeColors = BIOMES[centerBiome];
+
+  // Clear canvas with sky gradient based on biome
   const gradient = mapCtx.createLinearGradient(0, 0, 0, h);
-  gradient.addColorStop(0, '#87CEEB');
-  gradient.addColorStop(1, '#5a8c3a');
+  gradient.addColorStop(0, biomeColors.skyTop);
+  gradient.addColorStop(1, biomeColors.skyBottom);
   mapCtx.fillStyle = gradient;
   mapCtx.fillRect(0, 0, w, h);
 
@@ -5509,12 +5598,15 @@ function renderMap() {
   }
 }
 
-// Draw a single isometric tile
+// Draw a single isometric tile with biome support
 function drawIsoTile(x, y, tw, th, wx, wy) {
   const terrain = getTerrainType(wx, wy);
+  const biome = terrain.biome;
+  const feature = terrain.feature;
   const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
+  const biomeColors = BIOMES[biome];
 
-  // Draw diamond shape
+  // Draw diamond shape (base tile)
   mapCtx.beginPath();
   mapCtx.moveTo(x, y - th / 2);        // Top
   mapCtx.lineTo(x + tw / 2, y);        // Right
@@ -5522,32 +5614,50 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   mapCtx.lineTo(x - tw / 2, y);        // Left
   mapCtx.closePath();
 
-  // Fill based on terrain
-  if (terrain === 'grass') {
-    mapCtx.fillStyle = TERRAIN_COLORS.grass[colorVariant];
-  } else if (terrain === 'forest') {
-    mapCtx.fillStyle = TERRAIN_COLORS.grassDark[colorVariant];
-  } else if (terrain === 'mountain') {
-    mapCtx.fillStyle = '#6a7a6a';
-  } else if (terrain === 'water') {
-    mapCtx.fillStyle = TERRAIN_COLORS.water;
+  // Fill based on biome and feature
+  if (feature === 'water' || feature === 'frozen') {
+    mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
+  } else if (feature === 'oasis') {
+    mapCtx.fillStyle = '#4a9a6a';
   } else {
-    mapCtx.fillStyle = TERRAIN_COLORS.grass[colorVariant];
+    mapCtx.fillStyle = biomeColors.ground[colorVariant];
   }
   mapCtx.fill();
 
   // Subtle grid lines
-  if (mapZoomLevel > 0.5) {
+  if (mapZoomLevel > 0.5 && showMapGrid) {
     mapCtx.strokeStyle = 'rgba(0,0,0,0.1)';
     mapCtx.lineWidth = 0.5;
     mapCtx.stroke();
   }
 
-  // Draw terrain features
-  if (terrain === 'forest') {
-    drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
-  } else if (terrain === 'mountain') {
-    drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
+  // Draw terrain features based on biome
+  if (biome === 'forest') {
+    if (feature === 'tree') {
+      drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+    } else if (feature === 'mountain') {
+      drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
+    } else if (feature === 'water') {
+      drawIsoWater(x, y, tw, th);
+    }
+  } else if (biome === 'desert') {
+    if (feature === 'dunes') {
+      drawDesertDunes(x, y, tw, th);
+    } else if (feature === 'ruins') {
+      drawDesertRuins(x, y - th * 0.3, tw * 0.5, th * 0.8);
+    } else if (feature === 'oasis') {
+      drawDesertOasis(x, y, tw, th);
+    } else if (feature === 'rocks') {
+      drawDesertRocks(x, y - th * 0.2, tw * 0.4, th * 0.6);
+    }
+  } else if (biome === 'snow') {
+    if (feature === 'snowtree') {
+      drawSnowTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+    } else if (feature === 'icemountain') {
+      drawIceMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
+    } else if (feature === 'frozen') {
+      drawFrozenLake(x, y, tw, th);
+    }
   }
 }
 
@@ -5613,6 +5723,266 @@ function drawIsoMountain(x, y, w, h) {
   mapCtx.lineTo(x + w * 0.15, y - h * 0.7);
   mapCtx.lineTo(x - w * 0.15, y - h * 0.7);
   mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// ========== WATER/LAKE ==========
+function drawIsoWater(x, y, tw, th) {
+  // Water ripples effect
+  mapCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+  mapCtx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const offset = (Date.now() / 1000 + i * 0.3) % 1;
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, tw * 0.2 * (1 + offset * 0.3), th * 0.1 * (1 + offset * 0.3), 0, 0, Math.PI * 2);
+    mapCtx.stroke();
+  }
+}
+
+// ========== DESERT BIOME FEATURES ==========
+// Desert sand dunes
+function drawDesertDunes(x, y, tw, th) {
+  const duneH = th * 0.4;
+
+  // Back dune
+  mapCtx.fillStyle = '#c9b896';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - tw * 0.3, y);
+  mapCtx.quadraticCurveTo(x - tw * 0.15, y - duneH * 0.6, x, y - duneH * 0.3);
+  mapCtx.quadraticCurveTo(x + tw * 0.15, y, x + tw * 0.3, y);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Front dune (lighter)
+  mapCtx.fillStyle = '#ddd0aa';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - tw * 0.2, y + th * 0.1);
+  mapCtx.quadraticCurveTo(x, y - duneH * 0.4, x + tw * 0.25, y);
+  mapCtx.lineTo(x - tw * 0.2, y + th * 0.1);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Desert ancient ruins
+function drawDesertRuins(x, y, w, h) {
+  const pillarH = h * 0.8;
+  const pillarW = w * 0.15;
+
+  // Broken pillars
+  mapCtx.fillStyle = '#a89880';
+
+  // Left pillar (broken)
+  mapCtx.fillRect(x - w * 0.3, y, pillarW, -pillarH * 0.6);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - w * 0.3, y - pillarH * 0.6);
+  mapCtx.lineTo(x - w * 0.3 + pillarW * 0.3, y - pillarH * 0.7);
+  mapCtx.lineTo(x - w * 0.3 + pillarW, y - pillarH * 0.55);
+  mapCtx.lineTo(x - w * 0.3 + pillarW, y - pillarH * 0.6);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Middle pillar (tallest)
+  mapCtx.fillStyle = '#b8a890';
+  mapCtx.fillRect(x - pillarW / 2, y, pillarW, -pillarH);
+
+  // Capital on top
+  mapCtx.fillStyle = '#c8b8a0';
+  mapCtx.fillRect(x - pillarW * 0.7, y - pillarH, pillarW * 1.4, pillarH * 0.15);
+
+  // Right pillar (fallen pieces)
+  mapCtx.fillStyle = '#a89880';
+  mapCtx.fillRect(x + w * 0.15, y, pillarW, -pillarH * 0.3);
+
+  // Fallen stone blocks
+  mapCtx.fillStyle = '#9a8870';
+  mapCtx.fillRect(x + w * 0.2, y + h * 0.1, w * 0.2, h * 0.1);
+  mapCtx.fillRect(x - w * 0.1, y + h * 0.15, w * 0.15, h * 0.08);
+}
+
+// Desert oasis with palm trees
+function drawDesertOasis(x, y, tw, th) {
+  // Water pool
+  mapCtx.fillStyle = '#4a8a9a';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y, tw * 0.3, th * 0.15, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Water shine
+  mapCtx.fillStyle = 'rgba(255,255,255,0.3)';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x - tw * 0.1, y - th * 0.02, tw * 0.08, th * 0.03, -0.3, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Palm trees around oasis
+  drawPalmTree(x - tw * 0.25, y - th * 0.15, tw * 0.15, th * 0.5);
+  drawPalmTree(x + tw * 0.2, y - th * 0.1, tw * 0.12, th * 0.4);
+}
+
+// Palm tree for oasis
+function drawPalmTree(x, y, w, h) {
+  const trunkH = h * 0.6;
+
+  // Curved trunk
+  mapCtx.strokeStyle = '#6a5040';
+  mapCtx.lineWidth = w * 0.25;
+  mapCtx.lineCap = 'round';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y);
+  mapCtx.quadraticCurveTo(x + w * 0.2, y - trunkH * 0.5, x + w * 0.1, y - trunkH);
+  mapCtx.stroke();
+
+  // Palm fronds
+  const frondColors = ['#3a7a30', '#4a8a40', '#2a6a20'];
+  const frondX = x + w * 0.1;
+  const frondY = y - trunkH;
+
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const frondLen = h * 0.5;
+    mapCtx.strokeStyle = frondColors[i % 3];
+    mapCtx.lineWidth = w * 0.15;
+    mapCtx.beginPath();
+    mapCtx.moveTo(frondX, frondY);
+    mapCtx.quadraticCurveTo(
+      frondX + Math.cos(angle) * frondLen * 0.5,
+      frondY + Math.sin(angle) * frondLen * 0.3 - frondLen * 0.2,
+      frondX + Math.cos(angle) * frondLen,
+      frondY + Math.sin(angle) * frondLen * 0.4
+    );
+    mapCtx.stroke();
+  }
+}
+
+// Desert rocks
+function drawDesertRocks(x, y, w, h) {
+  // Large rock
+  mapCtx.fillStyle = '#8a7a6a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x + w * 0.4, y - h * 0.3);
+  mapCtx.lineTo(x + w * 0.3, y);
+  mapCtx.lineTo(x - w * 0.3, y);
+  mapCtx.lineTo(x - w * 0.4, y - h * 0.4);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Light side
+  mapCtx.fillStyle = '#a89a8a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x - w * 0.4, y - h * 0.4);
+  mapCtx.lineTo(x - w * 0.1, y - h * 0.6);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Small rocks nearby
+  mapCtx.fillStyle = '#7a6a5a';
+  mapCtx.beginPath();
+  mapCtx.arc(x + w * 0.35, y - h * 0.1, w * 0.15, 0, Math.PI * 2);
+  mapCtx.fill();
+}
+
+// ========== SNOW BIOME FEATURES ==========
+// Snow-covered pine tree
+function drawSnowTree(x, y, w, h) {
+  const treeH = h * (0.8 + seededRandom(x, y) * 0.4);
+
+  // Trunk
+  mapCtx.fillStyle = '#4a3a30';
+  mapCtx.fillRect(x - w * 0.05, y, w * 0.1, treeH * 0.3);
+
+  // Foliage layers with snow
+  for (let i = 0; i < 3; i++) {
+    const layerY = y - treeH * 0.2 * i;
+    const layerW = w * (0.8 - i * 0.15);
+
+    // Dark green base
+    mapCtx.fillStyle = '#1a3a12';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, layerY - treeH * 0.35);
+    mapCtx.lineTo(x + layerW / 2, layerY);
+    mapCtx.lineTo(x - layerW / 2, layerY);
+    mapCtx.closePath();
+    mapCtx.fill();
+
+    // Snow on top
+    mapCtx.fillStyle = '#e8f0f8';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, layerY - treeH * 0.35);
+    mapCtx.lineTo(x + layerW * 0.35, layerY - treeH * 0.15);
+    mapCtx.lineTo(x - layerW * 0.35, layerY - treeH * 0.15);
+    mapCtx.closePath();
+    mapCtx.fill();
+  }
+}
+
+// Ice mountain
+function drawIceMountain(x, y, w, h) {
+  // Base (dark ice)
+  mapCtx.fillStyle = '#8a9aaa';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x + w / 2, y);
+  mapCtx.lineTo(x - w / 2, y);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Light side (ice blue)
+  mapCtx.fillStyle = '#a8c8d8';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x - w / 2, y);
+  mapCtx.lineTo(x - w * 0.1, y - h * 0.3);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Snow/ice cap (white-blue)
+  mapCtx.fillStyle = '#e8f4ff';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x + w * 0.2, y - h * 0.6);
+  mapCtx.lineTo(x - w * 0.2, y - h * 0.6);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Ice crystals shine
+  mapCtx.fillStyle = 'rgba(255,255,255,0.6)';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - w * 0.1, y - h * 0.8);
+  mapCtx.lineTo(x - w * 0.05, y - h * 0.7);
+  mapCtx.lineTo(x - w * 0.15, y - h * 0.7);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Frozen lake
+function drawFrozenLake(x, y, tw, th) {
+  // Ice cracks
+  mapCtx.strokeStyle = 'rgba(100,140,160,0.5)';
+  mapCtx.lineWidth = 1;
+
+  // Random crack pattern
+  const cracks = [
+    [[0, 0], [0.2, -0.1], [0.3, 0.05]],
+    [[0, 0], [-0.15, 0.1], [-0.25, -0.05]],
+    [[0.1, 0.05], [0.2, 0.15], [0.1, 0.2]]
+  ];
+
+  cracks.forEach(crack => {
+    mapCtx.beginPath();
+    crack.forEach((point, i) => {
+      const px = x + point[0] * tw;
+      const py = y + point[1] * th;
+      if (i === 0) mapCtx.moveTo(px, py);
+      else mapCtx.lineTo(px, py);
+    });
+    mapCtx.stroke();
+  });
+
+  // Shine spots
+  mapCtx.fillStyle = 'rgba(255,255,255,0.4)';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x - tw * 0.1, y - th * 0.05, tw * 0.1, th * 0.04, 0, 0, Math.PI * 2);
   mapCtx.fill();
 }
 
@@ -5817,6 +6187,55 @@ function drawIsoResource(x, y, tw, th, tile) {
     mapCtx.lineTo(x + size * 0.2, y - size * 0.35);
     mapCtx.lineTo(x - size * 0.2, y - size * 0.35);
     mapCtx.closePath();
+    mapCtx.fill();
+
+  } else if (resType === 'gold') {
+    // Gold mine with treasure
+    mapCtx.fillStyle = '#6a5a3a';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Mine entrance (cave)
+    mapCtx.fillStyle = '#3a3020';
+    mapCtx.beginPath();
+    mapCtx.arc(x, y - size * 0.1, size * 0.2, Math.PI, 0);
+    mapCtx.fill();
+
+    // Gold veins/sparkles around
+    mapCtx.fillStyle = '#ffd700';
+    const sparkles = [
+      [-0.25, -0.15], [0.2, -0.1], [-0.1, 0.1], [0.15, 0.05], [0, -0.25]
+    ];
+    sparkles.forEach(([ox, oy]) => {
+      mapCtx.beginPath();
+      mapCtx.arc(x + size * ox, y + size * oy, size * 0.05, 0, Math.PI * 2);
+      mapCtx.fill();
+    });
+
+    // Gold pile at entrance
+    mapCtx.fillStyle = '#ffd700';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x - size * 0.15, y + size * 0.1);
+    mapCtx.lineTo(x, y - size * 0.05);
+    mapCtx.lineTo(x + size * 0.15, y + size * 0.1);
+    mapCtx.closePath();
+    mapCtx.fill();
+
+    // Gold coins
+    mapCtx.fillStyle = '#b8860b';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x - size * 0.05, y + size * 0.05, size * 0.08, size * 0.04, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.fillStyle = '#ffd700';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x + size * 0.05, y + size * 0.02, size * 0.07, size * 0.035, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Shine effect
+    mapCtx.fillStyle = 'rgba(255,255,200,0.6)';
+    mapCtx.beginPath();
+    mapCtx.arc(x, y - size * 0.02, size * 0.03, 0, Math.PI * 2);
     mapCtx.fill();
   }
 
