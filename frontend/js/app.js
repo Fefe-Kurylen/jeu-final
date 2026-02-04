@@ -5039,20 +5039,19 @@ function seededRandom(x, y, seed = 12345) {
   return n - Math.floor(n);
 }
 
-// Get biome based on distance from center (dynamic based on world size)
-// Biomes are proportional: Forest 32%, Desert 24%, Snow 44% (outer ring)
+// Get biome based on angle from center (pie/camembert style - 3 equal parts)
+// Each biome takes 1/3 of the map (120 degrees)
 function getBiome(x, y) {
   const dx = x - WORLD_CENTER;
   const dy = y - WORLD_CENTER;
-  const dist = Math.sqrt(dx * dx + dy * dy);
 
-  // Dynamic radii based on world size
-  const forestRadius = WORLD_CENTER * 0.32;  // Inner 32%
-  const desertRadius = WORLD_CENTER * 0.56;  // Middle ring (32-56%)
-  // Snow is everything beyond 56%
+  // Use angle to determine biome (like a pie chart)
+  const angle = Math.atan2(dy, dx); // -PI to PI
+  const normalized = (angle + Math.PI) / (2 * Math.PI); // 0 to 1
 
-  if (dist < forestRadius) return 'forest';
-  if (dist < desertRadius) return 'desert';
+  // 3 equal slices of the pie
+  if (normalized < 0.33) return 'forest';
+  if (normalized < 0.66) return 'desert';
   return 'snow';
 }
 

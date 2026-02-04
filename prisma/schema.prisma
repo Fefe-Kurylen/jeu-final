@@ -264,10 +264,19 @@ model ResourceNode {
   x            Int
   y            Int
   resourceType String
+  level        Int      @default(1)  // 1, 2, 3 (3 = richest, near center)
   amount       Int      @default(1000)
   maxAmount    Int      @default(1000)
   regenRate    Int      @default(10)
   lastRegen    DateTime @default(now())
+  biome        String   @default("forest") // forest, desert, snow
+
+  // Tribus locales défenseurs
+  hasDefenders    Boolean @default(true)
+  defenderPower   Int     @default(100)    // Puissance totale des défenseurs
+  defenderUnits   Json?                     // Ex: {"warrior": 20, "archer": 10}
+  lastDefeat      DateTime?                 // Dernière défaite (respawn après X temps)
+  respawnMinutes  Int     @default(60)      // Temps de respawn des défenseurs
 
   @@unique([x, y])
 }
