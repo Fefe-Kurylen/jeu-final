@@ -1,0 +1,217 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+enum Faction { ROME GAUL GREEK EGYPT HUN SULTAN }
+enum CityType { CAPITAL OUTPOST }
+enum OrderType { MOVE ATTACK RAID SPY REINFORCE }
+enum ArmyStatus { IDLE MOVING RETURNING IN_CITY SIEGING GARRISONED }
+enum BattleType { FIELD CITY_ATTACK CITY_DEFENSE RAID }
+enum BattleWinner { ATTACKER DEFENDER DRAW }
+enum BuildingCategory { BASE INTERMEDIATE ADVANCED FACTION }
+enum TerrainType { PLAIN FOREST HILL ROCKY DESERT SNOW MOUNTAIN LAKE RIVER }
+
+model Account {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  passHash  String
+  createdAt DateTime @default(now())
+  resetToken String? @unique
+  resetTokenExp DateTime?
+  player    Player?
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  accountId String   @unique
+  name      String   @unique
+  faction   Faction
+  createdAt DateTime @default(now())
+  population Int @default(0)
+
+  account Account @relation(fields: [accountId], references: [id])
+  cities  City[]
+  armies  Army[]
+  hero    Hero?
+}
+
+model City {
+  id        String   @id @default(uuid())
+  ownerId   String
+  type      CityType
+  x         Int
+  y         Int
+  name      String
+  createdAt DateTime @default(now())
+
+  wood      Float @default(0)
+  stone     Float @default(0)
+  iron      Float @default(0)
+  food      Float @default(0)
+
+  maxStorage     Float @default(160000)
+  maxFoodStorage Float @default(160000)
+
+  wallHp    Float @default(1.0) // 0..1
+  isSieged  Boolean @default(false)
+  siegeStartedAt DateTime?
+
+  buildingSlots Int @default(20)
+
+  owner Player @relation(fields: [ownerId], references: [id])
+  buildings CityBuilding[]
+  buildQueue BuildQueueItem[]
+  wounded WoundedUnit[]
+
+  @@index([x,y])
+}
+
+model CityBuilding {
+  id      String @id @default(uuid())
+  cityId  String
+  key     String
+  level   Int
+  category BuildingCategory
+  prodPerHour Float @default(0)
+
+  city City @relation(fields: [cityId], references: [id])
+  @@unique([cityId, key])
+}
+
+model BuildQueueItem {
+  id       String @id @default(uuid())
+  cityId   String
+  slot     Int
+  buildingKey String
+  targetLevel Int
+  startedAt DateTime
+  endsAt    DateTime
+  status    String @default("RUNNING")
+
+  city City @relation(fields: [cityId], references: [id])
+}
+
+model Army {
+  id        String   @id @default(uuid())
+  ownerId   String
+  cityId    String?
+  x         Int
+  y         Int
+
+  status    ArmyStatus @default(IDLE)
+
+  originCityId String
+  targetX   Int?
+  targetY   Int?
+  arrivalAt DateTime?
+
+  orderType OrderType?
+  orderPayload Json?
+
+  heroId    String?
+  actionPointsCost Int @default(0)
+
+  owner Player @relation(fields: [ownerId], references: [id])
+  units ArmyUnit[]
+}
+
+model ArmyUnit {
+  id      String @id @default(uuid())
+  armyId  String
+  unitKey String
+  tier    String
+  count   Int
+
+  army Army @relation(fields: [armyId], references: [id])
+  @@unique([armyId, unitKey])
+}
+
+model Hero {
+  id        String @id @default(uuid())
+  ownerId   String @unique
+  level     Int @default(1)
+  xp        Int @default(0)
+
+  atkPoints Int @default(0)
+  defPoints Int @default(0)
+  logPoints Int @default(0)
+  spdPoints Int @default(0)
+
+  hpPct     Float @default(1.0)
+  actionPct Float @default(1.0)
+
+  lossReductionPct Float @default(0.0)
+
+  owner Player @relation(fields: [ownerId], references: [id])
+}
+
+model WoundedUnit {
+  id      String @id @default(uuid())
+  cityId  String
+  unitKey String
+  count   Int
+
+  city City @relation(fields: [cityId], references: [id])
+  @@unique([cityId, unitKey])
+}
+
+model BattleReport {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+
+  type          BattleType
+  winner        BattleWinner
+
+  attackerId     String
+  defenderId     String
+  attackerArmyId String
+  defenderArmyId String
+
+  rounds        Int
+  payload       Json
+
+  visibleToAttacker Boolean @default(true)
+  visibleToDefender Boolean @default(true)
+}
+
+model SpyReport {
+  id        String @id @default(uuid())
+  createdAt DateTime @default(now())
+  attackerId String
+  targetType String
+  targetX    Int
+  targetY    Int
+  payload    Json
+}
+
+model ResourceNode {
+  id        String @id @default(uuid())
+  x         Int
+  y         Int
+  kind      String // wood|stone|iron|food|gold
+  level     Int
+  filledPct Float  @default(1.0)
+  lastUpdateAt DateTime @default(now())
+
+  baseTribePower Int @default(100)
+  tribePower     Int @default(100)
+
+  @@unique([x,y])
+}
+
+model WorldState {
+  id String @id
+  minX Int
+  maxX Int
+  minY Int
+  maxY Int
+  maxPlayers Int
+  joinDeadline DateTime
+}
+
+model WorldTile {
+  x Int
+  y Int
+  terrain TerrainType
+  passable Boolean
+  @@id([x,y])
+}

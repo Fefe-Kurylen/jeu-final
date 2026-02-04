@@ -1,0 +1,70 @@
+{
+  "factions": [
+    {
+      "key": "ROME",
+      "name": "Empire Romain",
+      "description": "Légions disciplinées, excellentes défenses",
+      "bonuses": {
+        "defenseBonus": 5,
+        "infantryBonus": 10,
+        "wallBonus": 10
+      },
+      "startingUnits": ["ROM_INF_MILICIEN", "ROM_INF_HASTATI"]
+    },
+    {
+      "key": "GAUL",
+      "name": "Tribus Gauloises",
+      "description": "Guerriers féroces, raids rapides",
+      "bonuses": {
+        "attackBonus": 8,
+        "speedBonus": 5,
+        "raidBonus": 15
+      },
+      "startingUnits": ["GAU_INF_LEVY", "GAU_CAV_SCOUT"]
+    },
+    {
+      "key": "GREEK",
+      "name": "Cités Grecques",
+      "description": "Phalanges puissantes, archers d'élite",
+      "bonuses": {
+        "archerBonus": 10,
+        "defenseBonus": 8,
+        "researchBonus": 10
+      },
+      "startingUnits": ["GRK_INF_PELTAST", "GRK_ARCH_TOXOTES"]
+    },
+    {
+      "key": "EGYPT",
+      "name": "Royaume d'Égypte",
+      "description": "Richesses du Nil, chars de guerre",
+      "bonuses": {
+        "resourceBonus": 15,
+        "tradeBonus": 10,
+        "siegeBonus": 5
+      },
+      "startingUnits": ["EGY_INF_CONSCRIPT", "EGY_ARCH_BOWMAN"]
+    },
+    {
+      "key": "HUN",
+      "name": "Hordes Huniques",
+      "description": "Cavalerie nomade, mobilité extrême",
+      "bonuses": {
+        "cavalryBonus": 15,
+        "speedBonus": 10,
+        "raidBonus": 10
+      },
+      "startingUnits": ["HUN_CAV_RAIDER", "HUN_ARCH_HORSE"]
+    },
+    {
+      "key": "SULTAN",
+      "name": "Sultanat",
+      "description": "Armées diverses, commerce prospère",
+      "bonuses": {
+        "tradeBonus": 15,
+        "defenseBonus": 5,
+        "siegeBonus": 10
+      },
+      "startingUnits": ["SUL_INF_GHAZI", "SUL_ARCH_CROSSBOW"]
+    }
+  ]
+}

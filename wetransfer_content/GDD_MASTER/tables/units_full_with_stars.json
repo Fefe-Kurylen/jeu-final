@@ -1,0 +1,1264 @@
+{
+  "units": [
+    {
+      "key": "ROM_INF_MILICIEN",
+      "name": "Milicien romain",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 2,
+        "defense": 3,
+        "endurance": 3,
+        "speed": 5,
+        "carry": 7
+      },
+      "real_stats": {
+        "attack": 30,
+        "defense": 40,
+        "endurance": 40,
+        "speed": 50,
+        "transport": 70
+      }
+    },
+    {
+      "key": "ROM_INF_TRIARII",
+      "name": "Triarii",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 6,
+        "endurance": 5,
+        "speed": 4,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 45,
+        "defense": 70,
+        "endurance": 60,
+        "speed": 45,
+        "transport": 60
+      }
+    },
+    {
+      "key": "ROM_INF_LEGIONNAIRE",
+      "name": "Légionnaire romain",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 5,
+        "defense": 7,
+        "endurance": 7,
+        "speed": 4,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 65,
+        "defense": 90,
+        "endurance": 85,
+        "speed": 40,
+        "transport": 50
+      }
+    },
+    {
+      "key": "ROM_ARC_MILICIEN",
+      "name": "Archer milicien",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 35,
+        "defense": 30,
+        "endurance": 40,
+        "speed": 60,
+        "transport": 60
+      }
+    },
+    {
+      "key": "ROM_ARC_VETERAN",
+      "name": "Archer vétéran",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 45,
+        "endurance": 55,
+        "speed": 55,
+        "transport": 50
+      }
+    },
+    {
+      "key": "ROM_ARC_ELITE",
+      "name": "Archer d’élite romain",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 6,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 75,
+        "defense": 60,
+        "endurance": 70,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "ROM_CAV_AUXILIAIRE",
+      "name": "Cavalerie auxiliaire",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 3,
+        "defense": 3,
+        "endurance": 4,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 35,
+        "endurance": 45,
+        "speed": 75,
+        "transport": 65
+      }
+    },
+    {
+      "key": "ROM_CAV_EQUITES",
+      "name": "Equites",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 7,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 55,
+        "endurance": 60,
+        "speed": 70,
+        "transport": 55
+      }
+    },
+    {
+      "key": "ROM_CAV_LOURDE",
+      "name": "Cavalerie lourde romaine",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 6,
+        "defense": 6,
+        "endurance": 6,
+        "speed": 6,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 75,
+        "endurance": 80,
+        "speed": 65,
+        "transport": 45
+      }
+    },
+    {
+      "key": "ROM_SIEGE_CATAPULTE",
+      "name": "Catapulte romaine",
+      "faction": "ROME",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 2,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 90,
+        "defense": 30,
+        "endurance": 60,
+        "speed": 20,
+        "transport": 30
+      }
+    },
+    {
+      "key": "GAU_INF_GUERRIER",
+      "name": "Guerrier gaulois",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 35,
+        "defense": 25,
+        "endurance": 40,
+        "speed": 55,
+        "transport": 65
+      }
+    },
+    {
+      "key": "GAU_INF_TRIARII",
+      "name": "Triarii gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 5,
+        "endurance": 4,
+        "speed": 5,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 45,
+        "defense": 60,
+        "endurance": 55,
+        "speed": 50,
+        "transport": 55
+      }
+    },
+    {
+      "key": "GAU_INF_CHAMPION",
+      "name": "Champion gaulois",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 7,
+        "defense": 6,
+        "endurance": 6,
+        "speed": 4,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 85,
+        "defense": 70,
+        "endurance": 75,
+        "speed": 45,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GAU_ARC_CHASSEUR",
+      "name": "Chasseur gaulois",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 2,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 30,
+        "defense": 25,
+        "endurance": 40,
+        "speed": 60,
+        "transport": 60
+      }
+    },
+    {
+      "key": "GAU_ARC_GAULOIS",
+      "name": "Archer gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 45,
+        "endurance": 50,
+        "speed": 55,
+        "transport": 50
+      }
+    },
+    {
+      "key": "GAU_ARC_NOBLE",
+      "name": "Archer noble",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 75,
+        "defense": 60,
+        "endurance": 65,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GAU_CAV_CHASSEUR",
+      "name": "Chasseur monté",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 30,
+        "endurance": 50,
+        "speed": 80,
+        "transport": 65
+      }
+    },
+    {
+      "key": "GAU_CAV_GAULOIS",
+      "name": "Cavalier gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 65,
+        "defense": 50,
+        "endurance": 60,
+        "speed": 75,
+        "transport": 55
+      }
+    },
+    {
+      "key": "GAU_CAV_NOBLE",
+      "name": "Cavalier noble",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 6,
+        "speed": 7,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 65,
+        "endurance": 75,
+        "speed": 70,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GAU_SIEGE_BELIER",
+      "name": "Bélier gaulois",
+      "faction": "GAUL",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 3,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 85,
+        "defense": 35,
+        "endurance": 65,
+        "speed": 20,
+        "transport": 30
+      }
+    },
+    {
+      "key": "GRE_INF_JEUNE",
+      "name": "Jeune guerrier",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 3,
+        "defense": 3,
+        "endurance": 3,
+        "speed": 5,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 32,
+        "defense": 38,
+        "endurance": 42,
+        "speed": 50,
+        "transport": 55
+      }
+    },
+    {
+      "key": "GRE_INF_HOPLITE",
+      "name": "Hoplite",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 6,
+        "endurance": 5,
+        "speed": 4,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 48,
+        "defense": 70,
+        "endurance": 60,
+        "speed": 45,
+        "transport": 50
+      }
+    },
+    {
+      "key": "GRE_INF_SPARTIATE",
+      "name": "Spartiate",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 6,
+        "defense": 6,
+        "endurance": 7,
+        "speed": 4,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 70,
+        "defense": 78,
+        "endurance": 90,
+        "speed": 40,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GRE_ARC_PAYSAN",
+      "name": "Archer paysan",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 2,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 30,
+        "defense": 30,
+        "endurance": 40,
+        "speed": 60,
+        "transport": 60
+      }
+    },
+    {
+      "key": "GRE_ARC_TOXOTE",
+      "name": "Toxote",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 45,
+        "endurance": 50,
+        "speed": 55,
+        "transport": 50
+      }
+    },
+    {
+      "key": "GRE_ARC_ELITE",
+      "name": "Archer d’élite grec",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 75,
+        "defense": 60,
+        "endurance": 65,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GRE_CAV_ECLAIREUR",
+      "name": "Éclaireur",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 3,
+        "defense": 3,
+        "endurance": 4,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 38,
+        "defense": 32,
+        "endurance": 45,
+        "speed": 85,
+        "transport": 65
+      }
+    },
+    {
+      "key": "GRE_CAV_GREC",
+      "name": "Cavalier grec",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 50,
+        "endurance": 60,
+        "speed": 75,
+        "transport": 55
+      }
+    },
+    {
+      "key": "GRE_CAV_ELITE",
+      "name": "Cavalerie d’élite grecque",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 6,
+        "speed": 8,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 65,
+        "endurance": 75,
+        "speed": 80,
+        "transport": 45
+      }
+    },
+    {
+      "key": "GRE_SIEGE_CATAPULTE",
+      "name": "Catapulte grecque",
+      "faction": "GREEK",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 2,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 90,
+        "defense": 30,
+        "endurance": 60,
+        "speed": 20,
+        "transport": 30
+      }
+    },
+    {
+      "key": "EGY_INF_ESCLAVE",
+      "name": "Esclave égyptien",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 2,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 7
+      },
+      "real_stats": {
+        "attack": 28,
+        "defense": 30,
+        "endurance": 45,
+        "speed": 55,
+        "transport": 70
+      }
+    },
+    {
+      "key": "EGY_INF_NIL",
+      "name": "Fantassin du Nil",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 55,
+        "endurance": 60,
+        "speed": 50,
+        "transport": 55
+      }
+    },
+    {
+      "key": "EGY_INF_TEMPLE",
+      "name": "Guerrier du temple",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 6,
+        "defense": 6,
+        "endurance": 6,
+        "speed": 4,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 70,
+        "endurance": 80,
+        "speed": 45,
+        "transport": 45
+      }
+    },
+    {
+      "key": "EGY_ARC_NIL",
+      "name": "Archer du Nil",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 30,
+        "endurance": 40,
+        "speed": 60,
+        "transport": 60
+      }
+    },
+    {
+      "key": "EGY_ARC_DESERT",
+      "name": "Archer du désert",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 45,
+        "endurance": 55,
+        "speed": 55,
+        "transport": 50
+      }
+    },
+    {
+      "key": "EGY_ARC_PHARAON",
+      "name": "Archer du pharaon",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 55,
+        "endurance": 65,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "EGY_CAV_DESERT",
+      "name": "Cavalier du désert",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 30,
+        "endurance": 50,
+        "speed": 85,
+        "transport": 65
+      }
+    },
+    {
+      "key": "EGY_CAV_PHARAON",
+      "name": "Cavalerie du pharaon",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 50,
+        "endurance": 65,
+        "speed": 80,
+        "transport": 55
+      }
+    },
+    {
+      "key": "EGY_CAV_CHAR_LOURD",
+      "name": "Char lourd",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 6,
+        "defense": 5,
+        "endurance": 7,
+        "speed": 7,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 75,
+        "defense": 65,
+        "endurance": 85,
+        "speed": 70,
+        "transport": 45
+      }
+    },
+    {
+      "key": "EGY_SIEGE_MANGONNEAU",
+      "name": "Mangonneau égyptien",
+      "faction": "EGYPT",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 3,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 90,
+        "defense": 35,
+        "endurance": 65,
+        "speed": 20,
+        "transport": 30
+      }
+    },
+    {
+      "key": "HUN_INF_NOMADE",
+      "name": "Guerrier nomade",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 35,
+        "defense": 25,
+        "endurance": 40,
+        "speed": 60,
+        "transport": 65
+      }
+    },
+    {
+      "key": "HUN_INF_GARDE",
+      "name": "Garde tribale",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 45,
+        "endurance": 55,
+        "speed": 55,
+        "transport": 55
+      }
+    },
+    {
+      "key": "HUN_INF_VETERAN",
+      "name": "Nomade vétéran",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 6,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 70,
+        "defense": 55,
+        "endurance": 65,
+        "speed": 50,
+        "transport": 50
+      }
+    },
+    {
+      "key": "HUN_ARC_NOMADE",
+      "name": "Archer nomade",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 3,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 25,
+        "endurance": 40,
+        "speed": 65,
+        "transport": 60
+      }
+    },
+    {
+      "key": "HUN_ARC_CAMP",
+      "name": "Archer du camp",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 5,
+        "defense": 3,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 40,
+        "endurance": 50,
+        "speed": 60,
+        "transport": 50
+      }
+    },
+    {
+      "key": "HUN_ARC_ELITE",
+      "name": "Archer d’élite hun",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 6,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 45,
+        "endurance": 60,
+        "speed": 55,
+        "transport": 45
+      }
+    },
+    {
+      "key": "HUN_CAV_PILLARD",
+      "name": "Cavalier pillard",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 4,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 9,
+        "carry": 7
+      },
+      "real_stats": {
+        "attack": 45,
+        "defense": 30,
+        "endurance": 50,
+        "speed": 90,
+        "transport": 70
+      }
+    },
+    {
+      "key": "HUN_CAV_INTER",
+      "name": "Cavalier hun",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 65,
+        "defense": 45,
+        "endurance": 60,
+        "speed": 85,
+        "transport": 60
+      }
+    },
+    {
+      "key": "HUN_CAV_ELITE",
+      "name": "Horde d’Attila",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 7,
+        "defense": 4,
+        "endurance": 6,
+        "speed": 8,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 85,
+        "defense": 55,
+        "endurance": 75,
+        "speed": 80,
+        "transport": 50
+      }
+    },
+    {
+      "key": "HUN_SIEGE_SAPEUR",
+      "name": "Sapeurs huns",
+      "faction": "HUN",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 2,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 85,
+        "defense": 30,
+        "endurance": 60,
+        "speed": 25,
+        "transport": 30
+      }
+    },
+    {
+      "key": "SUL_INF_DESERT",
+      "name": "Guerrier du désert",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "INF",
+      "stars": {
+        "attack": 2,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 7
+      },
+      "real_stats": {
+        "attack": 30,
+        "defense": 25,
+        "endurance": 45,
+        "speed": 60,
+        "transport": 70
+      }
+    },
+    {
+      "key": "SUL_INF_CROISSANT",
+      "name": "Guerrier du croissant",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "INF",
+      "stars": {
+        "attack": 4,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 55,
+        "defense": 50,
+        "endurance": 55,
+        "speed": 55,
+        "transport": 55
+      }
+    },
+    {
+      "key": "SUL_INF_PALAIS",
+      "name": "Défenseur du palais",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "INF",
+      "stars": {
+        "attack": 6,
+        "defense": 6,
+        "endurance": 6,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 70,
+        "defense": 75,
+        "endurance": 70,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "SUL_ARC_DESERT",
+      "name": "Archer du désert",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 40,
+        "defense": 30,
+        "endurance": 45,
+        "speed": 60,
+        "transport": 60
+      }
+    },
+    {
+      "key": "SUL_ARC_TIREUR",
+      "name": "Tireur du désert",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "ARCH",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 4,
+        "speed": 6,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 45,
+        "endurance": 55,
+        "speed": 55,
+        "transport": 50
+      }
+    },
+    {
+      "key": "SUL_ARC_PERSE",
+      "name": "Archer perse",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "stars": {
+        "attack": 6,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 5,
+        "carry": 4
+      },
+      "real_stats": {
+        "attack": 80,
+        "defense": 55,
+        "endurance": 60,
+        "speed": 50,
+        "transport": 45
+      }
+    },
+    {
+      "key": "SUL_CAV_BEDOUIN",
+      "name": "Cavalier bédouin",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "CAV",
+      "stars": {
+        "attack": 3,
+        "defense": 2,
+        "endurance": 4,
+        "speed": 9,
+        "carry": 7
+      },
+      "real_stats": {
+        "attack": 35,
+        "defense": 25,
+        "endurance": 50,
+        "speed": 90,
+        "transport": 70
+      }
+    },
+    {
+      "key": "SUL_CAV_DESERT",
+      "name": "Cavalier du désert",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "CAV",
+      "stars": {
+        "attack": 5,
+        "defense": 4,
+        "endurance": 5,
+        "speed": 8,
+        "carry": 6
+      },
+      "real_stats": {
+        "attack": 60,
+        "defense": 45,
+        "endurance": 60,
+        "speed": 85,
+        "transport": 60
+      }
+    },
+    {
+      "key": "SUL_CAV_MAMELOUK",
+      "name": "Mamelouk du palais",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "CAV",
+      "stars": {
+        "attack": 7,
+        "defense": 5,
+        "endurance": 6,
+        "speed": 8,
+        "carry": 5
+      },
+      "real_stats": {
+        "attack": 85,
+        "defense": 60,
+        "endurance": 70,
+        "speed": 80,
+        "transport": 50
+      }
+    },
+    {
+      "key": "SUL_SIEGE_MANGONNEAU",
+      "name": "Mangonneau oriental",
+      "faction": "SULTAN",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "stars": {
+        "attack": 7,
+        "defense": 2,
+        "endurance": 5,
+        "speed": 2,
+        "carry": 3
+      },
+      "real_stats": {
+        "attack": 90,
+        "defense": 30,
+        "endurance": 60,
+        "speed": 20,
+        "transport": 30
+      }
+    }
+  ]
+}

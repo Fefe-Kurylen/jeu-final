@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MonJeu - Conquête Épique</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/game.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <div class="loading-content">
+        <div class="loading-logo">⚔️</div>
+        <h1>MONJEU</h1>
+        <p>Conquête Épique</p>
+        <div class="loading-bar">
+          <div class="loading-progress"></div>
+        </div>
+        <span class="loading-text">Chargement...</span>
+      </div>
+    </div>
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="hidden">
+      <div class="auth-bg"></div>
+      <div class="auth-container">
+        <div class="auth-box">
+          <div class="auth-header">
+            <div class="auth-logo">⚔️</div>
+            <h1>MONJEU</h1>
+            <p>Conquête Épique</p>
+          </div>
+          
+          <!-- Login Form -->
+          <form id="login-form" class="auth-form">
+            <h2>Connexion</h2>
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" required placeholder="votre@email.com">
+            </div>
+            <div class="form-group">
+              <label for="login-password">Mot de passe</label>
+              <input type="password" id="login-password" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">
+              <span>⚔️ Entrer dans le jeu</span>
+            </button>
+            <p class="auth-switch">
+              Pas encore de compte ? 
+              <a href="#" id="show-register">Créer un empire</a>
+            </p>
+          </form>
+
+          <!-- Register Form -->
+          <form id="register-form" class="auth-form hidden">
+            <h2>Créer un Empire</h2>
+            <div class="form-group">
+              <label for="reg-name">Nom du Seigneur</label>
+              <input type="text" id="reg-name" required placeholder="Votre nom de guerre">
+            </div>
+            <div class="form-group">
+              <label for="reg-email">Email</label>
+              <input type="email" id="reg-email" required placeholder="votre@email.com">
+            </div>
+            <div class="form-group">
+              <label for="reg-password">Mot de passe</label>
+              <input type="password" id="reg-password" required minlength="6" placeholder="6 caractères minimum">
+            </div>
+            <div class="form-group">
+              <label for="reg-faction">Faction</label>
+              <select id="reg-faction" required>
+                <option value="">Choisissez votre destin...</option>
+                <option value="ROME">🏛️ Rome - Discipline et Légions</option>
+                <option value="GAUL">🌲 Gaule - Courage et Cavalerie</option>
+                <option value="GREEK">🏺 Grèce - Stratégie et Hoplites</option>
+                <option value="EGYPT">🏜️ Égypte - Mystère et Archers</option>
+                <option value="HUN">🐎 Huns - Vitesse et Raids</option>
+                <option value="SULTAN">🌙 Sultanat - Commerce et Tactique</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">
+              <span>🏰 Fonder mon Empire</span>
+            </button>
+            <p class="auth-switch">
+              Déjà un compte ? 
+              <a href="#" id="show-login">Se connecter</a>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Game Interface -->
+    <div id="game-screen" class="hidden">
+      <!-- Top Bar (Resources) -->
+      <header id="top-bar">
+        <div class="resource-bar">
+          <div class="resource" data-resource="wood">
+            <span class="res-icon">🪵</span>
+            <span class="res-value" id="res-wood">0</span>
+            <span class="res-prod" id="prod-wood">+0/h</span>
+          </div>
+          <div class="resource" data-resource="stone">
+            <span class="res-icon">🪨</span>
+            <span class="res-value" id="res-stone">0</span>
+            <span class="res-prod" id="prod-stone">+0/h</span>
+          </div>
+          <div class="resource" data-resource="iron">
+            <span class="res-icon">⛏️</span>
+            <span class="res-value" id="res-iron">0</span>
+            <span class="res-prod" id="prod-iron">+0/h</span>
+          </div>
+          <div class="resource" data-resource="food">
+            <span class="res-icon">🌾</span>
+            <span class="res-value" id="res-food">0</span>
+            <span class="res-prod" id="prod-food">+0/h</span>
+          </div>
+        </div>
+        <div class="player-info">
+          <span class="player-name" id="player-name">Seigneur</span>
+          <span class="player-pop">👥 <span id="player-pop">0</span></span>
+          <button class="btn-icon" id="btn-settings" title="Paramètres">⚙️</button>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <main id="main-content">
+        <!-- City View (default) -->
+        <section id="view-city" class="game-view active">
+          <div class="city-header">
+            <h2 id="city-name">Ma Capitale</h2>
+            <div class="city-coords">📍 <span id="city-coords">0, 0</span></div>
+          </div>
+          
+          <div class="city-content">
+            <!-- Buildings Grid -->
+            <div class="buildings-section">
+              <h3>🏗️ Bâtiments</h3>
+              <div id="buildings-grid" class="buildings-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Build Queue -->
+            <div class="queue-section">
+              <h3>⏳ File de construction</h3>
+              <div id="build-queue" class="queue-list">
+                <p class="empty-queue">Aucune construction en cours</p>
+              </div>
+            </div>
+
+            <!-- Army Overview -->
+            <div class="army-section">
+              <h3>⚔️ Armée en garnison</h3>
+              <div id="garrison-units" class="units-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Recruitment Queue -->
+            <div class="queue-section">
+              <h3>👥 File de recrutement</h3>
+              <div id="recruit-queue" class="queue-list">
+                <p class="empty-queue">Aucun recrutement en cours</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Map View -->
+        <section id="view-map" class="game-view">
+          <div class="map-header">
+            <h2>🗺️ Carte du Monde</h2>
+            <div class="map-controls">
+              <input type="number" id="map-goto-x" placeholder="X" min="0">
+              <input type="number" id="map-goto-y" placeholder="Y" min="0">
+              <button class="btn btn-small" id="map-goto-btn">Aller</button>
+            </div>
+          </div>
+          <div id="world-map" class="world-map">
+            <canvas id="map-canvas"></canvas>
+            <div id="map-tooltip" class="map-tooltip hidden"></div>
+          </div>
+          <div class="map-legend">
+            <span class="legend-item"><span class="legend-color city"></span> Ville</span>
+            <span class="legend-item"><span class="legend-color ally"></span> Allié</span>
+            <span class="legend-item"><span class="legend-color enemy"></span> Ennemi</span>
+            <span class="legend-item"><span class="legend-color resource"></span> Ressource</span>
+          </div>
+        </section>
+
+        <!-- Army View -->
+        <section id="view-army" class="game-view">
+          <div class="army-header">
+            <h2>⚔️ Mes Armées</h2>
+          </div>
+          <div id="armies-list" class="armies-container">
+            <!-- Populated by JS -->
+          </div>
+          <div class="recruit-section">
+            <h3>🛡️ Recruter des troupes</h3>
+            <div id="recruit-panel" class="recruit-panel">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- Market View -->
+        <section id="view-market" class="game-view">
+          <div class="market-header">
+            <h2>🏪 Marché</h2>
+            <div class="market-tabs">
+              <button class="tab-btn active" data-tab="offers">Offres P2P</button>
+              <button class="tab-btn" data-tab="server">Marché Serveur</button>
+              <button class="tab-btn" data-tab="routes">Routes Auto</button>
+            </div>
+          </div>
+          
+          <div id="market-offers" class="market-content active">
+            <div class="market-filters">
+              <select id="filter-offer">
+                <option value="">Tous types offerts</option>
+                <option value="wood">🪵 Bois</option>
+                <option value="stone">🪨 Pierre</option>
+                <option value="iron">⛏️ Fer</option>
+                <option value="food">🌾 Nourriture</option>
+              </select>
+              <select id="filter-want">
+                <option value="">Tous types demandés</option>
+                <option value="wood">🪵 Bois</option>
+                <option value="stone">🪨 Pierre</option>
+                <option value="iron">⛏️ Fer</option>
+                <option value="food">🌾 Nourriture</option>
+              </select>
+              <button class="btn btn-primary" id="btn-create-offer">+ Créer offre</button>
+            </div>
+            <div id="offers-list" class="offers-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <div id="market-server" class="market-content">
+            <div class="server-exchange">
+              <h3>💱 Échange instantané (avec taxe)</h3>
+              <div class="exchange-form">
+                <div class="exchange-input">
+                  <label>Je vends</label>
+                  <input type="number" id="sell-amount" min="100" placeholder="Quantité">
+                  <select id="sell-type">
+                    <option value="wood">🪵 Bois</option>
+                    <option value="stone">🪨 Pierre</option>
+                    <option value="iron">⛏️ Fer</option>
+                    <option value="food">🌾 Nourriture</option>
+                  </select>
+                </div>
+                <div class="exchange-arrow">➡️</div>
+                <div class="exchange-output">
+                  <label>Je reçois</label>
+                  <span id="receive-amount">0</span>
+                  <select id="buy-type">
+                    <option value="stone">🪨 Pierre</option>
+                    <option value="wood">🪵 Bois</option>
+                    <option value="iron">⛏️ Fer</option>
+                    <option value="food">🌾 Nourriture</option>
+                  </select>
+                </div>
+              </div>
+              <div class="tax-info">
+                Taxe: <span id="tax-percent">30</span>% (Marché niv. <span id="market-level">0</span>)
+              </div>
+              <button class="btn btn-primary" id="btn-exchange">Échanger</button>
+            </div>
+          </div>
+
+          <div id="market-routes" class="market-content">
+            <h3>🛤️ Routes commerciales automatiques</h3>
+            <div id="routes-list" class="routes-list">
+              <!-- Populated by JS -->
+            </div>
+            <button class="btn btn-primary" id="btn-create-route">+ Nouvelle route</button>
+          </div>
+        </section>
+
+        <!-- Alliance View -->
+        <section id="view-alliance" class="game-view">
+          <div class="alliance-header">
+            <h2>🤝 Alliance</h2>
+          </div>
+          
+          <div id="no-alliance" class="alliance-content">
+            <div class="no-alliance-msg">
+              <p>Vous n'êtes membre d'aucune alliance.</p>
+              <button class="btn btn-primary" id="btn-create-alliance">🏰 Créer une Alliance</button>
+              <button class="btn btn-secondary" id="btn-join-alliance">🔍 Chercher une Alliance</button>
+            </div>
+          </div>
+
+          <div id="alliance-panel" class="alliance-content hidden">
+            <div class="alliance-info-card">
+              <h3 id="alliance-name">[TAG] Nom Alliance</h3>
+              <p id="alliance-desc">Description de l'alliance</p>
+              <div class="alliance-stats">
+                <span>👥 <span id="alliance-members">0</span> membres</span>
+                <span>📊 <span id="alliance-pop">0</span> pop totale</span>
+              </div>
+            </div>
+            
+            <div class="alliance-tabs">
+              <button class="tab-btn active" data-tab="members">Membres</button>
+              <button class="tab-btn" data-tab="diplomacy">Diplomatie</button>
+              <button class="tab-btn" data-tab="bastion">Bastion</button>
+              <button class="tab-btn" data-tab="chat">Chat</button>
+            </div>
+
+            <div id="alliance-members" class="alliance-tab-content active">
+              <div id="members-list" class="members-list">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <div id="alliance-diplomacy" class="alliance-tab-content">
+              <div id="diplomacy-list" class="diplomacy-list">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <div id="alliance-bastion" class="alliance-tab-content">
+              <div id="bastion-panel">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <div id="alliance-chat" class="alliance-tab-content">
+              <div id="chat-messages" class="chat-messages">
+                <!-- Populated by JS -->
+              </div>
+              <div class="chat-input">
+                <input type="text" id="chat-text" placeholder="Écrire un message...">
+                <button class="btn btn-primary" id="btn-send-chat">Envoyer</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Expedition View -->
+        <section id="view-expedition" class="game-view">
+          <div class="expedition-header">
+            <h2>🗺️ Expéditions</h2>
+            <div class="expedition-stats">
+              <span>Disponibles: <span id="exp-available">0</span>/15</span>
+              <span>En cours: <span id="exp-active">0</span></span>
+            </div>
+          </div>
+          
+          <div class="expedition-content">
+            <div class="expedition-list-section">
+              <h3>📜 Expéditions disponibles</h3>
+              <div id="expeditions-available" class="expeditions-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <div class="expedition-list-section">
+              <h3>⏳ En cours</h3>
+              <div id="expeditions-active" class="expeditions-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <div class="expedition-list-section">
+              <h3>✅ Historique récent</h3>
+              <div id="expeditions-completed" class="expeditions-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Reports View -->
+        <section id="view-reports" class="game-view">
+          <div class="reports-header">
+            <h2>📜 Rapports</h2>
+            <div class="reports-tabs">
+              <button class="tab-btn active" data-tab="battles">⚔️ Batailles</button>
+              <button class="tab-btn" data-tab="spy">🕵️ Espionnage</button>
+            </div>
+          </div>
+          <div id="reports-list" class="reports-list">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- Quests View -->
+        <section id="view-quests" class="game-view">
+          <div class="view-header">
+            <h2>📋 Quêtes</h2>
+          </div>
+          <div id="quests-content" class="quests-content">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- Messages View -->
+        <section id="view-messages" class="game-view">
+          <div class="view-header">
+            <h2>✉️ Messages</h2>
+          </div>
+          <div id="messages-content" class="messages-content">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- Inventory/Hero View -->
+        <section id="view-inventory" class="game-view">
+          <div class="view-header">
+            <h2>🎒 Inventaire & Héros</h2>
+          </div>
+          <div id="inventory-content" class="inventory-content">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+      </main>
+
+      <!-- Bottom Navigation -->
+      <nav id="bottom-nav">
+        <button class="nav-btn active" data-view="city" title="Ville">
+          <span class="nav-icon">🏰</span>
+          <span class="nav-label">Ville</span>
+        </button>
+        <button class="nav-btn" data-view="map" title="Carte">
+          <span class="nav-icon">🗺️</span>
+          <span class="nav-label">Carte</span>
+        </button>
+        <button class="nav-btn" data-view="army" title="Armée">
+          <span class="nav-icon">⚔️</span>
+          <span class="nav-label">Armée</span>
+        </button>
+        <button class="nav-btn" data-view="market" title="Marché">
+          <span class="nav-icon">🏪</span>
+          <span class="nav-label">Marché</span>
+        </button>
+        <button class="nav-btn" data-view="alliance" title="Alliance">
+          <span class="nav-icon">🤝</span>
+          <span class="nav-label">Alliance</span>
+        </button>
+        <button class="nav-btn" data-view="expedition" title="Expéditions">
+          <span class="nav-icon">🧭</span>
+          <span class="nav-label">Expéditions</span>
+        </button>
+        <button class="nav-btn" data-view="quests" title="Quêtes">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">Quêtes</span>
+        </button>
+        <button class="nav-btn" data-view="messages" title="Messages">
+          <span class="nav-icon">✉️</span>
+          <span class="nav-label">Messages</span>
+        </button>
+        <button class="nav-btn" data-view="inventory" title="Héros">
+          <span class="nav-icon">🦸</span>
+          <span class="nav-label">Héros</span>
+        </button>
+        <button class="nav-btn" data-view="reports" title="Rapports">
+          <span class="nav-icon">📜</span>
+          <span class="nav-label">Rapports</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal-container" class="hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="modal-title">Modal</h3>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+          <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer" id="modal-footer">
+          <!-- Dynamic buttons -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/views.js"></script>
+  <script src="/js/map.js"></script>
+  <script src="/js/modals.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+{
+  "version": "v4-alliance",
+  "generatedAt": "2026-01-31T19:12:37.515698",
+  "ui": {
+    "noSharedVisionTab": true,
+    "sharedVisionAuto": true,
+    "allianceButtonInBottomBar": true
+  },
+  "membership": {
+    "memberListFields": [
+      "last_connection",
+      "population",
+      "time_in_alliance",
+      "role"
+    ]
+  },
+  "diplomacy": {
+    "statuses": {
+      "enemy": "red",
+      "neutral": "gray",
+      "ally": "light_blue"
+    },
+    "maxAllies": 3,
+    "actionsVisibleTo": [
+      "leader",
+      "officer"
+    ],
+    "othersSee": "status_only"
+  },
+  "helpSystem": {
+    "enabled": true,
+    "reducesConstructionTimePct": "small_scaling_with_embassy_level"
+  },
+  "bastion": {
+    "minMembersToUnlockTech": 30,
+    "construction": {
+      "resourcesDeliveredByPlayers": true,
+      "buildTimeDaysAfterResourcesComplete": 3,
+      "placementBy": [
+        "leader",
+        "officer"
+      ]
+    },
+    "cooldownDaysAfterDestruction": 7,
+    "wallStrengthMultiplierVsCityWall20": 50,
+    "bonuses": {
+      "resourceProductionPct": 10,
+      "armySpeedPct": 5,
+      "transportTaxBetweenMembersRemoved": true,
+      "unitCarryBonus": 10
+    },
+    "garrison": {
+      "allowed": true,
+      "defenseBonusPct": 10,
+      "siegeOpenToAllWithVision": true
+    },
+    "visual": "bastion"
+  },
+  "alliedGarrisonRule": {
+    "canStoreInMemberCityIfArmyAdjacent": true
+  }
+}

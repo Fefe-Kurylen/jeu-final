@@ -1,0 +1,142 @@
+{
+  "version": "v3.2-resource-points",
+  "generatedAt": "2026-01-31T19:07:25.551167",
+  "resourcePointSystem": {
+    "types": [
+      "WOOD",
+      "STONE",
+      "IRON",
+      "FOOD",
+      "GOLD"
+    ],
+    "nodeLevels": [
+      1,
+      2,
+      3
+    ],
+    "limitsPerWorld": {
+      "nonGoldMax": 30000,
+      "goldMax": 4000
+    },
+    "distribution": {
+      "procedural": true,
+      "proportionalToWorldSize": true,
+      "centerBias": {
+        "enabled": true,
+        "shape": "circle",
+        "preferLevel3": true,
+        "goal": "bring_conflict_to_center"
+      },
+      "biomes": {
+        "north": "snow",
+        "south": "desert",
+        "east": "hills",
+        "west": "rocky"
+      },
+      "blockedTiles": [
+        "mountain",
+        "lake",
+        "river"
+      ],
+      "spawnRules": {
+        "citiesCannotSpawnOnBlockedTiles": true,
+        "resourceNodesCanSpawnOnBlockedTiles": false
+      }
+    },
+    "regen": {
+      "resourceFillTo100PctHours": 4,
+      "regenModel": "linear",
+      "visibility": {
+        "showFillBar": false,
+        "requiresSpyToKnowExactState": true
+      }
+    },
+    "harvestActions": {
+      "modes": [
+        "PILLAGE_NODE",
+        "FOUND_SECONDARY_CITY"
+      ],
+      "pillageNode": {
+        "allowed": true,
+        "multipleAlliesSimultaneous": true,
+        "restriction": "no_neutral_army_merging",
+        "gold": {
+          "allowed": true,
+          "rule": "see gold section"
+        },
+        "travelTimeApplies": true
+      },
+      "foundSecondaryCity": {
+        "allowed": true,
+        "requirements": {
+          "residenceInCapital": true,
+          "colonItemRequired": true,
+          "transportResources": {
+            "wood": 3000,
+            "stone": 3000,
+            "iron": 3000,
+            "food": 3000
+          }
+        },
+        "whileCityBuiltOnNode": {
+          "tribeDespawns": true,
+          "nodeNotAvailable": true
+        },
+        "onDestruction": {
+          "nodeRespawns": true
+        }
+      }
+    },
+    "tribeLocalDefense": {
+      "name": "Tribu locale",
+      "presentOnAllNodes": true,
+      "composition": "random_by_type",
+      "starsRangeByNodeLevel": {
+        "1": {
+          "min": 1,
+          "max": 4
+        },
+        "2": {
+          "min": 2,
+          "max": 6
+        },
+        "3": {
+          "min": 2,
+          "max": 7
+        }
+      },
+      "budgetScaling": {
+        "baseline": 1.0,
+        "notes": [
+          "Budget augmenté x10 puis réduit de 30% → facteur final 7.0 par rapport au baseline initial."
+        ],
+        "finalMultiplier": 7.0
+      },
+      "respawn": {
+        "linkedToResourceRegen": true,
+        "whenCityBuiltOnNode": "disabled"
+      }
+    },
+    "gold": {
+      "isSpecialResourceNode": true,
+      "levels": {
+        "1": {
+          "lootAmount": 10,
+          "intervalHours": 12
+        },
+        "2": {
+          "lootAmount": 20,
+          "intervalHours": 12
+        },
+        "3": {
+          "lootAmount": 30,
+          "intervalHours": 12
+        }
+      },
+      "availability": {
+        "rarerThanNormal": true,
+        "distributionProportional": true
+      }
+    }
+  }
+}

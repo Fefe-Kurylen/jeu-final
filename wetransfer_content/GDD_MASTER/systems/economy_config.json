@@ -1,0 +1,43 @@
+{
+  "version": "v4-economy",
+  "generatedAt": "2026-01-31T19:12:37.515870",
+  "resources": [
+    "wood",
+    "stone",
+    "iron",
+    "food",
+    "gold"
+  ],
+  "market": {
+    "playerToPlayer": {
+      "requiresTransportArmy": true,
+      "travelTimeUsesArmySpeed": true
+    },
+    "serverMarket": {
+      "taxPctBase": 30,
+      "taxReductionPctPerMarketLevel": 1
+    },
+    "internalRoutesBetweenOwnCities": {
+      "basePctStoragePer12h": 30,
+      "autoSendEvery2hPct": 5
+    }
+  },
+  "upkeep": {
+    "foodPerHourByTier": {
+      "BASE": 5,
+      "INTER": 10,
+      "ELITE": 15,
+      "SIEGE": 15
+    },
+    "siegeModifiersPct": {
+      "attacker": 10,
+      "defender": -10
+    }
+  },
+  "treasureChamber": {
+    "capitalOnly": true,
+    "goldPerHourLevels5to20": 1,
+    "taxReductionPctPerLevel": 0.25,
+    "taxBasePct": 10
+  }
+}

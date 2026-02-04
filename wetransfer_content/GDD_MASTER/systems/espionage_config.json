@@ -1,0 +1,30 @@
+{
+  "version": "v4-espionage",
+  "generatedAt": "2026-01-31T19:12:37.515552",
+  "spies": {
+    "max": 2,
+    "unlock": {
+      "firstSpyWatchtowerLevel": 5,
+      "secondSpyWatchtowerLevel": 10,
+      "costGold": {
+        "first": 20,
+        "second": 200
+      },
+      "recruitment": "instant"
+    }
+  },
+  "watchtower": {
+    "visionTiles": {
+      "unitsAndHeroes": 100,
+      "armiesOnWorldMap": 100
+    },
+    "noFailScouting": true,
+    "alertToDefender": "possible_based_on_watchtower_level",
+    "noCounterEspionage": true
+  },
+  "intelRules": {
+    "resourceNodeStateRequiresSpy": true,
+    "wallHpVisibleInSpyReport": true,
+    "noWorldBarVisual": true
+  }
+}

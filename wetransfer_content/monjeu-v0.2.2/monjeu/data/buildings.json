@@ -289,9 +289,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "foodProdL1": 10,
-        "foodProdL10": 350,
-        "foodProdL20": 4500
+        "foodProdL1": 20,
+        "foodProdL20": 1193195
       }
     },
     {
@@ -320,9 +319,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "woodProdL1": 10,
-        "woodProdL10": 350,
-        "woodProdL20": 4500
+        "woodProdL1": 20,
+        "woodProdL20": 1193195
       }
     },
     {
@@ -351,9 +349,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "stoneProdL1": 10,
-        "stoneProdL10": 350,
-        "stoneProdL20": 4500
+        "stoneProdL1": 20,
+        "stoneProdL20": 1193195
       }
     },
     {
@@ -382,9 +379,8 @@
       "timeL1Sec": 150,
       "timeL20Sec": 2278800,
       "effects": {
-        "ironProdL1": 10,
-        "ironProdL10": 350,
-        "ironProdL20": 4500
+        "ironProdL1": 20,
+        "ironProdL20": 1193195
       }
     },
     {
@@ -582,8 +578,8 @@
       "timeL1Sec": 1800,
       "timeL5Sec": 19020,
       "effects": {
-        "foodProdBonusPctL1": 5,
-        "foodProdBonusPctL5": 25
+        "foodProdBonusPctL1": 4,
+        "foodProdBonusPctL5": 20
       },
       "description": "Augmente la production de céréales de toutes les fermes."
     },
@@ -602,10 +598,10 @@
       "timeL1Sec": 4620,
       "timeL5Sec": 28380,
       "effects": {
-        "foodProdBonusPctL1": 5,
-        "foodProdBonusPctL5": 25
+        "foodProdBonusPctL1": 4,
+        "foodProdBonusPctL5": 20
       },
-      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +50% total."
+      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +40% total."
     },
     {
       "key": "GREAT_SILO",

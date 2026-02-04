@@ -1,0 +1,4944 @@
+{
+  "buildings": [
+    {
+      "key": "MAIN_HALL",
+      "name": "Bâtiment principal",
+      "category": "BASE",
+      "maxLevel": 30,
+      "prereq": [],
+      "effectsStatic": {
+        "buildTimeReductionPctPerLevel": 2.5
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 200,
+            "stone": 200,
+            "iron": 150,
+            "food": 50
+          },
+          "timeSec": 180,
+          "prod_storage": {},
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 329,
+            "stone": 329,
+            "iron": 250,
+            "food": 86
+          },
+          "timeSec": 298,
+          "prod_storage": {},
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 540,
+            "stone": 542,
+            "iron": 416,
+            "food": 147
+          },
+          "timeSec": 492,
+          "prod_storage": {},
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 887,
+            "stone": 892,
+            "iron": 692,
+            "food": 252
+          },
+          "timeSec": 813,
+          "prod_storage": {},
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 1457,
+            "stone": 1469,
+            "iron": 1151,
+            "food": 432
+          },
+          "timeSec": 1343,
+          "prod_storage": {},
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 2394,
+            "stone": 2419,
+            "iron": 1916,
+            "food": 740
+          },
+          "timeSec": 2220,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 3934,
+            "stone": 3983,
+            "iron": 3189,
+            "food": 1269
+          },
+          "timeSec": 3669,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 6463,
+            "stone": 6557,
+            "iron": 5309,
+            "food": 2175
+          },
+          "timeSec": 6064,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 10618,
+            "stone": 10795,
+            "iron": 8836,
+            "food": 3728
+          },
+          "timeSec": 10023,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 17445,
+            "stone": 17772,
+            "iron": 14707,
+            "food": 6390
+          },
+          "timeSec": 16566,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 28661,
+            "stone": 29259,
+            "iron": 24479,
+            "food": 10954
+          },
+          "timeSec": 27381,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 47090,
+            "stone": 48171,
+            "iron": 40743,
+            "food": 18778
+          },
+          "timeSec": 45255,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 77366,
+            "stone": 79307,
+            "iron": 67815,
+            "food": 32189
+          },
+          "timeSec": 74796,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 127110,
+            "stone": 130567,
+            "iron": 112874,
+            "food": 55178
+          },
+          "timeSec": 123622,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 208836,
+            "stone": 214960,
+            "iron": 187873,
+            "food": 94585
+          },
+          "timeSec": 204322,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 343109,
+            "stone": 353900,
+            "iron": 312704,
+            "food": 162138
+          },
+          "timeSec": 337700,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 563715,
+            "stone": 582644,
+            "iron": 520479,
+            "food": 277936
+          },
+          "timeSec": 558147,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 926161,
+            "stone": 959239,
+            "iron": 866308,
+            "food": 476438
+          },
+          "timeSec": 922499,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 1521644,
+            "stone": 1579247,
+            "iron": 1441922,
+            "food": 816709
+          },
+          "timeSec": 1524696,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 2500000,
+            "stone": 2600000,
+            "iron": 2400000,
+            "food": 1400000
+          },
+          "timeSec": 2520000,
+          "prod_storage": {},
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "RALLY_POINT",
+      "name": "Place de rassemblement",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "maxArmies": {
+          "l1": 1,
+          "l10": 3
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 120,
+            "stone": 100,
+            "iron": 80,
+            "food": 40
+          },
+          "timeSec": 900,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 159,
+            "stone": 133,
+            "iron": 109,
+            "food": 55
+          },
+          "timeSec": 1127,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 211,
+            "stone": 176,
+            "iron": 148,
+            "food": 76
+          },
+          "timeSec": 1412,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 279,
+            "stone": 234,
+            "iron": 202,
+            "food": 105
+          },
+          "timeSec": 1768,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 369,
+            "stone": 311,
+            "iron": 275,
+            "food": 145
+          },
+          "timeSec": 2214,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 489,
+            "stone": 413,
+            "iron": 374,
+            "food": 200
+          },
+          "timeSec": 2773,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 648,
+            "stone": 549,
+            "iron": 509,
+            "food": 275
+          },
+          "timeSec": 3474,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 858,
+            "stone": 729,
+            "iron": 692,
+            "food": 380
+          },
+          "timeSec": 4350,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1136,
+            "stone": 969,
+            "iron": 942,
+            "food": 524
+          },
+          "timeSec": 5449,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1505,
+            "stone": 1287,
+            "iron": 1283,
+            "food": 723
+          },
+          "timeSec": 6824,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 1993,
+            "stone": 1709,
+            "iron": 1746,
+            "food": 997
+          },
+          "timeSec": 8546,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 2640,
+            "stone": 2271,
+            "iron": 2377,
+            "food": 1374
+          },
+          "timeSec": 10704,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 3497,
+            "stone": 3016,
+            "iron": 3235,
+            "food": 1896
+          },
+          "timeSec": 13406,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 4631,
+            "stone": 4006,
+            "iron": 4403,
+            "food": 2615
+          },
+          "timeSec": 16790,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 6134,
+            "stone": 5321,
+            "iron": 5993,
+            "food": 3606
+          },
+          "timeSec": 21028,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 8124,
+            "stone": 7068,
+            "iron": 8158,
+            "food": 4974
+          },
+          "timeSec": 26336,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 10760,
+            "stone": 9388,
+            "iron": 11104,
+            "food": 6860
+          },
+          "timeSec": 32985,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 14251,
+            "stone": 12470,
+            "iron": 15113,
+            "food": 9462
+          },
+          "timeSec": 41311,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 18876,
+            "stone": 16563,
+            "iron": 20571,
+            "food": 13051
+          },
+          "timeSec": 51739,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 25000,
+            "stone": 22000,
+            "iron": 28000,
+            "food": 18000
+          },
+          "timeSec": 64800,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "MARKET",
+      "name": "Place du marché",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 3
+        },
+        {
+          "key": "SILO",
+          "level": 1
+        },
+        {
+          "key": "WAREHOUSE",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "serverMarketTaxPctBase": 30,
+        "serverMarketTaxReductionPctPerLevel": 1.0,
+        "playerTransportBonusPctPerLevel": 5.0
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 80,
+            "stone": 70,
+            "iron": 120,
+            "food": 70
+          },
+          "timeSec": 1200,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 102,
+            "stone": 90,
+            "iron": 154,
+            "food": 90
+          },
+          "timeSec": 1503,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 131,
+            "stone": 115,
+            "iron": 197,
+            "food": 115
+          },
+          "timeSec": 1882,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 168,
+            "stone": 147,
+            "iron": 252,
+            "food": 147
+          },
+          "timeSec": 2357,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 215,
+            "stone": 188,
+            "iron": 323,
+            "food": 188
+          },
+          "timeSec": 2953,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 275,
+            "stone": 240,
+            "iron": 413,
+            "food": 240
+          },
+          "timeSec": 3698,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 352,
+            "stone": 308,
+            "iron": 529,
+            "food": 308
+          },
+          "timeSec": 4631,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 450,
+            "stone": 394,
+            "iron": 678,
+            "food": 394
+          },
+          "timeSec": 5800,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 576,
+            "stone": 504,
+            "iron": 868,
+            "food": 504
+          },
+          "timeSec": 7265,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 737,
+            "stone": 645,
+            "iron": 1112,
+            "food": 645
+          },
+          "timeSec": 9099,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 944,
+            "stone": 825,
+            "iron": 1424,
+            "food": 825
+          },
+          "timeSec": 11395,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 1208,
+            "stone": 1056,
+            "iron": 1824,
+            "food": 1056
+          },
+          "timeSec": 14272,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 1546,
+            "stone": 1351,
+            "iron": 2336,
+            "food": 1351
+          },
+          "timeSec": 17874,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 1979,
+            "stone": 1730,
+            "iron": 2992,
+            "food": 1730
+          },
+          "timeSec": 22387,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 2533,
+            "stone": 2214,
+            "iron": 3831,
+            "food": 2214
+          },
+          "timeSec": 28038,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 3242,
+            "stone": 2833,
+            "iron": 4907,
+            "food": 2833
+          },
+          "timeSec": 35115,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 4149,
+            "stone": 3626,
+            "iron": 6284,
+            "food": 3626
+          },
+          "timeSec": 43980,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 5311,
+            "stone": 4640,
+            "iron": 8048,
+            "food": 4640
+          },
+          "timeSec": 55081,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 6797,
+            "stone": 5938,
+            "iron": 10307,
+            "food": 5938
+          },
+          "timeSec": 68986,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 8700,
+            "stone": 7600,
+            "iron": 13200,
+            "food": 7600
+          },
+          "timeSec": 86400,
+          "prod_storage": {},
+          "population": 7
+        }
+      ]
+    },
+    {
+      "key": "BARRACKS",
+      "name": "Caserne",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "RALLY_POINT",
+          "level": 1
+        },
+        {
+          "key": "MAIN_HALL",
+          "level": 3
+        }
+      ],
+      "effectsStatic": {
+        "trainTimeReductionPctPerLevel": 0.5
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 210,
+            "stone": 140,
+            "iron": 260,
+            "food": 120
+          },
+          "timeSec": 1980,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 269,
+            "stone": 179,
+            "iron": 333,
+            "food": 154
+          },
+          "timeSec": 2379,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 344,
+            "stone": 229,
+            "iron": 425,
+            "food": 197
+          },
+          "timeSec": 2858,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 441,
+            "stone": 293,
+            "iron": 544,
+            "food": 251
+          },
+          "timeSec": 3434,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 564,
+            "stone": 375,
+            "iron": 696,
+            "food": 322
+          },
+          "timeSec": 4127,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 723,
+            "stone": 479,
+            "iron": 891,
+            "food": 412
+          },
+          "timeSec": 4958,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 925,
+            "stone": 613,
+            "iron": 1140,
+            "food": 527
+          },
+          "timeSec": 5957,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1185,
+            "stone": 783,
+            "iron": 1458,
+            "food": 674
+          },
+          "timeSec": 7158,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1517,
+            "stone": 1002,
+            "iron": 1865,
+            "food": 863
+          },
+          "timeSec": 8600,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1942,
+            "stone": 1281,
+            "iron": 2386,
+            "food": 1104
+          },
+          "timeSec": 10334,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 2487,
+            "stone": 1639,
+            "iron": 3052,
+            "food": 1413
+          },
+          "timeSec": 12416,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 3184,
+            "stone": 2096,
+            "iron": 3904,
+            "food": 1808
+          },
+          "timeSec": 14918,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 4077,
+            "stone": 2680,
+            "iron": 4994,
+            "food": 2314
+          },
+          "timeSec": 17925,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 5220,
+            "stone": 3428,
+            "iron": 6389,
+            "food": 2961
+          },
+          "timeSec": 21537,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 6684,
+            "stone": 4384,
+            "iron": 8173,
+            "food": 3789
+          },
+          "timeSec": 25877,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 8558,
+            "stone": 5607,
+            "iron": 10455,
+            "food": 4848
+          },
+          "timeSec": 31092,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 10957,
+            "stone": 7171,
+            "iron": 13375,
+            "food": 6204
+          },
+          "timeSec": 37358,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 14030,
+            "stone": 9171,
+            "iron": 17110,
+            "food": 7939
+          },
+          "timeSec": 44886,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 17963,
+            "stone": 11729,
+            "iron": 21888,
+            "food": 10159
+          },
+          "timeSec": 53932,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 23000,
+            "stone": 15000,
+            "iron": 28000,
+            "food": 13000
+          },
+          "timeSec": 64800,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "STABLE",
+      "name": "Écurie",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "FORGE",
+          "level": 3
+        },
+        {
+          "key": "ACADEMY",
+          "level": 5
+        }
+      ],
+      "effectsStatic": {
+        "trainTimeReductionPctPerLevel": 0.5
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 210,
+            "stone": 140,
+            "iron": 260,
+            "food": 120
+          },
+          "timeSec": 1980,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 269,
+            "stone": 179,
+            "iron": 333,
+            "food": 154
+          },
+          "timeSec": 2379,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 344,
+            "stone": 229,
+            "iron": 425,
+            "food": 197
+          },
+          "timeSec": 2858,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 441,
+            "stone": 293,
+            "iron": 544,
+            "food": 251
+          },
+          "timeSec": 3434,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 564,
+            "stone": 375,
+            "iron": 696,
+            "food": 322
+          },
+          "timeSec": 4127,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 723,
+            "stone": 479,
+            "iron": 891,
+            "food": 412
+          },
+          "timeSec": 4958,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 925,
+            "stone": 613,
+            "iron": 1140,
+            "food": 527
+          },
+          "timeSec": 5957,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1185,
+            "stone": 783,
+            "iron": 1458,
+            "food": 674
+          },
+          "timeSec": 7158,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1517,
+            "stone": 1002,
+            "iron": 1865,
+            "food": 863
+          },
+          "timeSec": 8600,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1942,
+            "stone": 1281,
+            "iron": 2386,
+            "food": 1104
+          },
+          "timeSec": 10334,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 2487,
+            "stone": 1639,
+            "iron": 3052,
+            "food": 1413
+          },
+          "timeSec": 12416,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 3184,
+            "stone": 2096,
+            "iron": 3904,
+            "food": 1808
+          },
+          "timeSec": 14918,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 4077,
+            "stone": 2680,
+            "iron": 4994,
+            "food": 2314
+          },
+          "timeSec": 17925,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 5220,
+            "stone": 3428,
+            "iron": 6389,
+            "food": 2961
+          },
+          "timeSec": 21537,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 6684,
+            "stone": 4384,
+            "iron": 8173,
+            "food": 3789
+          },
+          "timeSec": 25877,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 8558,
+            "stone": 5607,
+            "iron": 10455,
+            "food": 4848
+          },
+          "timeSec": 31092,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 10957,
+            "stone": 7171,
+            "iron": 13375,
+            "food": 6204
+          },
+          "timeSec": 37358,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 14030,
+            "stone": 9171,
+            "iron": 17110,
+            "food": 7939
+          },
+          "timeSec": 44886,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 17963,
+            "stone": 11729,
+            "iron": 21888,
+            "food": 10159
+          },
+          "timeSec": 53932,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 23000,
+            "stone": 15000,
+            "iron": 28000,
+            "food": 13000
+          },
+          "timeSec": 64800,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "WORKSHOP",
+      "name": "Atelier",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "ACADEMY",
+          "level": 10
+        },
+        {
+          "key": "MAIN_HALL",
+          "level": 5
+        }
+      ],
+      "effectsStatic": {
+        "trainTimeReductionPctPerLevel": 4.0
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 600,
+            "stone": 500,
+            "iron": 700,
+            "food": 400
+          },
+          "timeSec": 3600,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 765,
+            "stone": 638,
+            "iron": 895,
+            "food": 510
+          },
+          "timeSec": 4306,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 974,
+            "stone": 815,
+            "iron": 1143,
+            "food": 650
+          },
+          "timeSec": 5150,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 1241,
+            "stone": 1041,
+            "iron": 1461,
+            "food": 828
+          },
+          "timeSec": 6159,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 1582,
+            "stone": 1329,
+            "iron": 1867,
+            "food": 1055
+          },
+          "timeSec": 7367,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 2016,
+            "stone": 1697,
+            "iron": 2387,
+            "food": 1344
+          },
+          "timeSec": 8811,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 2569,
+            "stone": 2167,
+            "iron": 3050,
+            "food": 1713
+          },
+          "timeSec": 10538,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 3273,
+            "stone": 2767,
+            "iron": 3898,
+            "food": 2182
+          },
+          "timeSec": 12604,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 4171,
+            "stone": 3534,
+            "iron": 4982,
+            "food": 2781
+          },
+          "timeSec": 15075,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 5315,
+            "stone": 4512,
+            "iron": 6366,
+            "food": 3543
+          },
+          "timeSec": 18030,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 6773,
+            "stone": 5762,
+            "iron": 8136,
+            "food": 4515
+          },
+          "timeSec": 21564,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 8631,
+            "stone": 7357,
+            "iron": 10398,
+            "food": 5754
+          },
+          "timeSec": 25792,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 10998,
+            "stone": 9395,
+            "iron": 13289,
+            "food": 7332
+          },
+          "timeSec": 30848,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 14014,
+            "stone": 11996,
+            "iron": 16984,
+            "food": 9343
+          },
+          "timeSec": 36895,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 17858,
+            "stone": 15318,
+            "iron": 21705,
+            "food": 11905
+          },
+          "timeSec": 44127,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 22756,
+            "stone": 19560,
+            "iron": 27739,
+            "food": 15171
+          },
+          "timeSec": 52778,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 28998,
+            "stone": 24976,
+            "iron": 35451,
+            "food": 19332
+          },
+          "timeSec": 63124,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 36951,
+            "stone": 31892,
+            "iron": 45307,
+            "food": 24634
+          },
+          "timeSec": 75498,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 47086,
+            "stone": 40723,
+            "iron": 57903,
+            "food": 31390
+          },
+          "timeSec": 90298,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 60000,
+            "stone": 52000,
+            "iron": 74000,
+            "food": 40000
+          },
+          "timeSec": 108000,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "ACADEMY",
+      "name": "Académie",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 3
+        }
+      ],
+      "effectsStatic": {
+        "researchTimeReductionPctPerLevel": 1.0,
+        "buildTimeReductionPctPerLevel": 1.0
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 220,
+            "stone": 200,
+            "iron": 180,
+            "food": 100
+          },
+          "timeSec": 1800,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 277,
+            "stone": 252,
+            "iron": 227,
+            "food": 127
+          },
+          "timeSec": 2186,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 350,
+            "stone": 318,
+            "iron": 287,
+            "food": 161
+          },
+          "timeSec": 2654,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 441,
+            "stone": 401,
+            "iron": 362,
+            "food": 204
+          },
+          "timeSec": 3223,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 556,
+            "stone": 506,
+            "iron": 457,
+            "food": 258
+          },
+          "timeSec": 3913,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 701,
+            "stone": 639,
+            "iron": 576,
+            "food": 327
+          },
+          "timeSec": 4752,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 884,
+            "stone": 806,
+            "iron": 728,
+            "food": 414
+          },
+          "timeSec": 5770,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1115,
+            "stone": 1016,
+            "iron": 918,
+            "food": 525
+          },
+          "timeSec": 7007,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1406,
+            "stone": 1282,
+            "iron": 1159,
+            "food": 665
+          },
+          "timeSec": 8508,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1772,
+            "stone": 1617,
+            "iron": 1463,
+            "food": 843
+          },
+          "timeSec": 10331,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 2235,
+            "stone": 2040,
+            "iron": 1846,
+            "food": 1068
+          },
+          "timeSec": 12545,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 2817,
+            "stone": 2574,
+            "iron": 2330,
+            "food": 1353
+          },
+          "timeSec": 15233,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 3553,
+            "stone": 3247,
+            "iron": 2941,
+            "food": 1715
+          },
+          "timeSec": 18497,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 4479,
+            "stone": 4095,
+            "iron": 3711,
+            "food": 2173
+          },
+          "timeSec": 22460,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 5648,
+            "stone": 5166,
+            "iron": 4684,
+            "food": 2754
+          },
+          "timeSec": 27273,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 7121,
+            "stone": 6517,
+            "iron": 5912,
+            "food": 3490
+          },
+          "timeSec": 33117,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 8979,
+            "stone": 8220,
+            "iron": 7461,
+            "food": 4423
+          },
+          "timeSec": 40214,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 11322,
+            "stone": 10369,
+            "iron": 9417,
+            "food": 5604
+          },
+          "timeSec": 48831,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 14276,
+            "stone": 13080,
+            "iron": 11885,
+            "food": 7102
+          },
+          "timeSec": 59294,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 18000,
+            "stone": 16500,
+            "iron": 15000,
+            "food": 9000
+          },
+          "timeSec": 72000,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "FORGE",
+      "name": "Forge",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 5
+        }
+      ],
+      "effectsStatic": {
+        "globalDefenseBonusPctPerLevel": 0.5,
+        "capitalOnly": true
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 300,
+            "stone": 250,
+            "iron": 400,
+            "food": 120
+          },
+          "timeSec": 2400,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 379,
+            "stone": 316,
+            "iron": 505,
+            "food": 154
+          },
+          "timeSec": 2898,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 480,
+            "stone": 401,
+            "iron": 638,
+            "food": 198
+          },
+          "timeSec": 3500,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 607,
+            "stone": 507,
+            "iron": 807,
+            "food": 254
+          },
+          "timeSec": 4226,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 768,
+            "stone": 642,
+            "iron": 1019,
+            "food": 327
+          },
+          "timeSec": 5103,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 971,
+            "stone": 812,
+            "iron": 1288,
+            "food": 420
+          },
+          "timeSec": 6163,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 1228,
+            "stone": 1028,
+            "iron": 1627,
+            "food": 539
+          },
+          "timeSec": 7442,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1553,
+            "stone": 1301,
+            "iron": 2055,
+            "food": 693
+          },
+          "timeSec": 8986,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1964,
+            "stone": 1647,
+            "iron": 2597,
+            "food": 890
+          },
+          "timeSec": 10852,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 2483,
+            "stone": 2085,
+            "iron": 3281,
+            "food": 1144
+          },
+          "timeSec": 13104,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 3141,
+            "stone": 2638,
+            "iron": 4145,
+            "food": 1469
+          },
+          "timeSec": 15824,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 3972,
+            "stone": 3340,
+            "iron": 5237,
+            "food": 1887
+          },
+          "timeSec": 19109,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 5024,
+            "stone": 4227,
+            "iron": 6617,
+            "food": 2424
+          },
+          "timeSec": 23075,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 6354,
+            "stone": 5350,
+            "iron": 8360,
+            "food": 3115
+          },
+          "timeSec": 27864,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 8035,
+            "stone": 6772,
+            "iron": 10562,
+            "food": 4001
+          },
+          "timeSec": 33648,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 10163,
+            "stone": 8572,
+            "iron": 13344,
+            "food": 5140
+          },
+          "timeSec": 40632,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 12853,
+            "stone": 10849,
+            "iron": 16859,
+            "food": 6603
+          },
+          "timeSec": 49066,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 16255,
+            "stone": 13732,
+            "iron": 21300,
+            "food": 8483
+          },
+          "timeSec": 59251,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 20558,
+            "stone": 17381,
+            "iron": 26911,
+            "food": 10898
+          },
+          "timeSec": 71549,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 26000,
+            "stone": 22000,
+            "iron": 34000,
+            "food": 14000
+          },
+          "timeSec": 86400,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "FARM",
+      "name": "Ferme",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "foodProdL1": 20,
+        "foodProdL20": 1193195
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 75,
+            "stone": 90,
+            "iron": 85,
+            "food": 0
+          },
+          "timeSec": 150,
+          "prod_storage": {
+            "foodProdPerHour": 20
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 125,
+            "stone": 150,
+            "iron": 142,
+            "food": 0
+          },
+          "timeSec": 249,
+          "prod_storage": {
+            "foodProdPerHour": 36
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 209,
+            "stone": 251,
+            "iron": 237,
+            "food": 0
+          },
+          "timeSec": 413,
+          "prod_storage": {
+            "foodProdPerHour": 64
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 349,
+            "stone": 419,
+            "iron": 396,
+            "food": 0
+          },
+          "timeSec": 686,
+          "prod_storage": {
+            "foodProdPerHour": 114
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 583,
+            "stone": 700,
+            "iron": 661,
+            "food": 0
+          },
+          "timeSec": 1139,
+          "prod_storage": {
+            "foodProdPerHour": 203
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 974,
+            "stone": 1169,
+            "iron": 1104,
+            "food": 0
+          },
+          "timeSec": 1890,
+          "prod_storage": {
+            "foodProdPerHour": 361
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 1627,
+            "stone": 1952,
+            "iron": 1844,
+            "food": 0
+          },
+          "timeSec": 3138,
+          "prod_storage": {
+            "foodProdPerHour": 644
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 2717,
+            "stone": 3260,
+            "iron": 3079,
+            "food": 0
+          },
+          "timeSec": 5208,
+          "prod_storage": {
+            "foodProdPerHour": 1149
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 4537,
+            "stone": 5445,
+            "iron": 5142,
+            "food": 0
+          },
+          "timeSec": 8645,
+          "prod_storage": {
+            "foodProdPerHour": 2050
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 7577,
+            "stone": 9093,
+            "iron": 8588,
+            "food": 0
+          },
+          "timeSec": 14350,
+          "prod_storage": {
+            "foodProdPerHour": 3658
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 12654,
+            "stone": 15185,
+            "iron": 14341,
+            "food": 0
+          },
+          "timeSec": 23820,
+          "prod_storage": {
+            "foodProdPerHour": 6524
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 21132,
+            "stone": 25358,
+            "iron": 23950,
+            "food": 0
+          },
+          "timeSec": 39539,
+          "prod_storage": {
+            "foodProdPerHour": 11639
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 35291,
+            "stone": 42349,
+            "iron": 39996,
+            "food": 0
+          },
+          "timeSec": 65631,
+          "prod_storage": {
+            "foodProdPerHour": 20761
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 58935,
+            "stone": 70722,
+            "iron": 66793,
+            "food": 0
+          },
+          "timeSec": 108942,
+          "prod_storage": {
+            "foodProdPerHour": 37034
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 98422,
+            "stone": 118106,
+            "iron": 111545,
+            "food": 0
+          },
+          "timeSec": 180834,
+          "prod_storage": {
+            "foodProdPerHour": 66062
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 164364,
+            "stone": 197237,
+            "iron": 186280,
+            "food": 0
+          },
+          "timeSec": 300169,
+          "prod_storage": {
+            "foodProdPerHour": 117843
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 274489,
+            "stone": 329386,
+            "iron": 311088,
+            "food": 0
+          },
+          "timeSec": 498254,
+          "prod_storage": {
+            "foodProdPerHour": 210211
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 458396,
+            "stone": 550075,
+            "iron": 519517,
+            "food": 0
+          },
+          "timeSec": 827058,
+          "prod_storage": {
+            "foodProdPerHour": 374980
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 765521,
+            "stone": 918626,
+            "iron": 867593,
+            "food": 0
+          },
+          "timeSec": 1372844,
+          "prod_storage": {
+            "foodProdPerHour": 668898
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 1278420,
+            "stone": 1534105,
+            "iron": 1448880,
+            "food": 0
+          },
+          "timeSec": 2278800,
+          "prod_storage": {
+            "foodProdPerHour": 1193195
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "LUMBER",
+      "name": "Bûcheron",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "woodProdL1": 20,
+        "woodProdL20": 1193195
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 40,
+            "stone": 100,
+            "iron": 50,
+            "food": 50
+          },
+          "timeSec": 150,
+          "prod_storage": {
+            "woodProdPerHour": 20
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 67,
+            "stone": 167,
+            "iron": 83,
+            "food": 83
+          },
+          "timeSec": 249,
+          "prod_storage": {
+            "woodProdPerHour": 36
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 112,
+            "stone": 279,
+            "iron": 139,
+            "food": 139
+          },
+          "timeSec": 413,
+          "prod_storage": {
+            "woodProdPerHour": 64
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 186,
+            "stone": 466,
+            "iron": 233,
+            "food": 233
+          },
+          "timeSec": 686,
+          "prod_storage": {
+            "woodProdPerHour": 114
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 311,
+            "stone": 778,
+            "iron": 389,
+            "food": 389
+          },
+          "timeSec": 1139,
+          "prod_storage": {
+            "woodProdPerHour": 203
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 520,
+            "stone": 1299,
+            "iron": 649,
+            "food": 649
+          },
+          "timeSec": 1890,
+          "prod_storage": {
+            "woodProdPerHour": 361
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 868,
+            "stone": 2169,
+            "iron": 1085,
+            "food": 1085
+          },
+          "timeSec": 3138,
+          "prod_storage": {
+            "woodProdPerHour": 644
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1449,
+            "stone": 3623,
+            "iron": 1811,
+            "food": 1811
+          },
+          "timeSec": 5208,
+          "prod_storage": {
+            "woodProdPerHour": 1149
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 2420,
+            "stone": 6050,
+            "iron": 3025,
+            "food": 3025
+          },
+          "timeSec": 8645,
+          "prod_storage": {
+            "woodProdPerHour": 2050
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 4041,
+            "stone": 10103,
+            "iron": 5051,
+            "food": 5051
+          },
+          "timeSec": 14350,
+          "prod_storage": {
+            "woodProdPerHour": 3658
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 6749,
+            "stone": 16872,
+            "iron": 8436,
+            "food": 8436
+          },
+          "timeSec": 23820,
+          "prod_storage": {
+            "woodProdPerHour": 6524
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 11270,
+            "stone": 28176,
+            "iron": 14088,
+            "food": 14088
+          },
+          "timeSec": 39539,
+          "prod_storage": {
+            "woodProdPerHour": 11639
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 18822,
+            "stone": 47054,
+            "iron": 23527,
+            "food": 23527
+          },
+          "timeSec": 65631,
+          "prod_storage": {
+            "woodProdPerHour": 20761
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 31432,
+            "stone": 78580,
+            "iron": 39290,
+            "food": 39290
+          },
+          "timeSec": 108942,
+          "prod_storage": {
+            "woodProdPerHour": 37034
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 52492,
+            "stone": 131229,
+            "iron": 65615,
+            "food": 65615
+          },
+          "timeSec": 180834,
+          "prod_storage": {
+            "woodProdPerHour": 66062
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 87661,
+            "stone": 219153,
+            "iron": 109576,
+            "food": 109576
+          },
+          "timeSec": 300169,
+          "prod_storage": {
+            "woodProdPerHour": 117843
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 146394,
+            "stone": 365986,
+            "iron": 182992,
+            "food": 182992
+          },
+          "timeSec": 498254,
+          "prod_storage": {
+            "woodProdPerHour": 210211
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 244478,
+            "stone": 611196,
+            "iron": 305597,
+            "food": 305597
+          },
+          "timeSec": 827058,
+          "prod_storage": {
+            "woodProdPerHour": 374980
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 408278,
+            "stone": 1020698,
+            "iron": 510347,
+            "food": 510347
+          },
+          "timeSec": 1372844,
+          "prod_storage": {
+            "woodProdPerHour": 668898
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 681825,
+            "stone": 1704565,
+            "iron": 852280,
+            "food": 852280
+          },
+          "timeSec": 2278800,
+          "prod_storage": {
+            "woodProdPerHour": 1193195
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "QUARRY",
+      "name": "Carrière de pierre",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "stoneProdL1": 20,
+        "stoneProdL20": 1193195
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 80,
+            "stone": 40,
+            "iron": 80,
+            "food": 50
+          },
+          "timeSec": 150,
+          "prod_storage": {
+            "stoneProdPerHour": 20
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 134,
+            "stone": 67,
+            "iron": 134,
+            "food": 83
+          },
+          "timeSec": 249,
+          "prod_storage": {
+            "stoneProdPerHour": 36
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 223,
+            "stone": 112,
+            "iron": 223,
+            "food": 139
+          },
+          "timeSec": 413,
+          "prod_storage": {
+            "stoneProdPerHour": 64
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 373,
+            "stone": 186,
+            "iron": 373,
+            "food": 233
+          },
+          "timeSec": 686,
+          "prod_storage": {
+            "stoneProdPerHour": 114
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 622,
+            "stone": 311,
+            "iron": 622,
+            "food": 389
+          },
+          "timeSec": 1139,
+          "prod_storage": {
+            "stoneProdPerHour": 203
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 1039,
+            "stone": 520,
+            "iron": 1039,
+            "food": 649
+          },
+          "timeSec": 1890,
+          "prod_storage": {
+            "stoneProdPerHour": 361
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 1735,
+            "stone": 868,
+            "iron": 1735,
+            "food": 1085
+          },
+          "timeSec": 3138,
+          "prod_storage": {
+            "stoneProdPerHour": 644
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 2898,
+            "stone": 1449,
+            "iron": 2898,
+            "food": 1811
+          },
+          "timeSec": 5208,
+          "prod_storage": {
+            "stoneProdPerHour": 1149
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 4840,
+            "stone": 2420,
+            "iron": 4840,
+            "food": 3025
+          },
+          "timeSec": 8645,
+          "prod_storage": {
+            "stoneProdPerHour": 2050
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 8082,
+            "stone": 4041,
+            "iron": 8082,
+            "food": 5051
+          },
+          "timeSec": 14350,
+          "prod_storage": {
+            "stoneProdPerHour": 3658
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 13498,
+            "stone": 6749,
+            "iron": 13498,
+            "food": 8436
+          },
+          "timeSec": 23820,
+          "prod_storage": {
+            "stoneProdPerHour": 6524
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 22541,
+            "stone": 11270,
+            "iron": 22541,
+            "food": 14088
+          },
+          "timeSec": 39539,
+          "prod_storage": {
+            "stoneProdPerHour": 11639
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 37643,
+            "stone": 18822,
+            "iron": 37643,
+            "food": 23527
+          },
+          "timeSec": 65631,
+          "prod_storage": {
+            "stoneProdPerHour": 20761
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 62864,
+            "stone": 31432,
+            "iron": 62864,
+            "food": 39290
+          },
+          "timeSec": 108942,
+          "prod_storage": {
+            "stoneProdPerHour": 37034
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 104983,
+            "stone": 52492,
+            "iron": 104983,
+            "food": 65615
+          },
+          "timeSec": 180834,
+          "prod_storage": {
+            "stoneProdPerHour": 66062
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 175322,
+            "stone": 87661,
+            "iron": 175322,
+            "food": 109576
+          },
+          "timeSec": 300169,
+          "prod_storage": {
+            "stoneProdPerHour": 117843
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 292788,
+            "stone": 146394,
+            "iron": 292788,
+            "food": 182992
+          },
+          "timeSec": 498254,
+          "prod_storage": {
+            "stoneProdPerHour": 210211
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 488956,
+            "stone": 244478,
+            "iron": 488956,
+            "food": 305597
+          },
+          "timeSec": 827058,
+          "prod_storage": {
+            "stoneProdPerHour": 374980
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 816557,
+            "stone": 408278,
+            "iron": 816557,
+            "food": 510347
+          },
+          "timeSec": 1372844,
+          "prod_storage": {
+            "stoneProdPerHour": 668898
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 1363650,
+            "stone": 681825,
+            "iron": 1363650,
+            "food": 852280
+          },
+          "timeSec": 2278800,
+          "prod_storage": {
+            "stoneProdPerHour": 1193195
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "IRON_MINE",
+      "name": "Mine de fer",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "ironProdL1": 20,
+        "ironProdL20": 1193195
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 100,
+            "stone": 80,
+            "iron": 30,
+            "food": 60
+          },
+          "timeSec": 150,
+          "prod_storage": {
+            "ironProdPerHour": 20
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 167,
+            "stone": 134,
+            "iron": 50,
+            "food": 100
+          },
+          "timeSec": 249,
+          "prod_storage": {
+            "ironProdPerHour": 36
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 279,
+            "stone": 223,
+            "iron": 84,
+            "food": 167
+          },
+          "timeSec": 413,
+          "prod_storage": {
+            "ironProdPerHour": 64
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 466,
+            "stone": 373,
+            "iron": 140,
+            "food": 279
+          },
+          "timeSec": 686,
+          "prod_storage": {
+            "ironProdPerHour": 114
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 778,
+            "stone": 622,
+            "iron": 233,
+            "food": 467
+          },
+          "timeSec": 1139,
+          "prod_storage": {
+            "ironProdPerHour": 203
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 1299,
+            "stone": 1039,
+            "iron": 390,
+            "food": 779
+          },
+          "timeSec": 1890,
+          "prod_storage": {
+            "ironProdPerHour": 361
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 2169,
+            "stone": 1735,
+            "iron": 651,
+            "food": 1302
+          },
+          "timeSec": 3138,
+          "prod_storage": {
+            "ironProdPerHour": 644
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 3623,
+            "stone": 2898,
+            "iron": 1087,
+            "food": 2174
+          },
+          "timeSec": 5208,
+          "prod_storage": {
+            "ironProdPerHour": 1149
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 6050,
+            "stone": 4840,
+            "iron": 1815,
+            "food": 3630
+          },
+          "timeSec": 8645,
+          "prod_storage": {
+            "ironProdPerHour": 2050
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 10103,
+            "stone": 8082,
+            "iron": 3031,
+            "food": 6062
+          },
+          "timeSec": 14350,
+          "prod_storage": {
+            "ironProdPerHour": 3658
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 16872,
+            "stone": 13498,
+            "iron": 5062,
+            "food": 10123
+          },
+          "timeSec": 23820,
+          "prod_storage": {
+            "ironProdPerHour": 6524
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 28176,
+            "stone": 22541,
+            "iron": 8453,
+            "food": 16906
+          },
+          "timeSec": 39539,
+          "prod_storage": {
+            "ironProdPerHour": 11639
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 47054,
+            "stone": 37643,
+            "iron": 14116,
+            "food": 28233
+          },
+          "timeSec": 65631,
+          "prod_storage": {
+            "ironProdPerHour": 20761
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 78580,
+            "stone": 62864,
+            "iron": 23574,
+            "food": 47148
+          },
+          "timeSec": 108942,
+          "prod_storage": {
+            "ironProdPerHour": 37034
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 131229,
+            "stone": 104983,
+            "iron": 39369,
+            "food": 78738
+          },
+          "timeSec": 180834,
+          "prod_storage": {
+            "ironProdPerHour": 66062
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 219153,
+            "stone": 175322,
+            "iron": 65746,
+            "food": 131492
+          },
+          "timeSec": 300169,
+          "prod_storage": {
+            "ironProdPerHour": 117843
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 365986,
+            "stone": 292788,
+            "iron": 109796,
+            "food": 219592
+          },
+          "timeSec": 498254,
+          "prod_storage": {
+            "ironProdPerHour": 210211
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 611196,
+            "stone": 488956,
+            "iron": 183359,
+            "food": 366718
+          },
+          "timeSec": 827058,
+          "prod_storage": {
+            "ironProdPerHour": 374980
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 1020698,
+            "stone": 816557,
+            "iron": 306210,
+            "food": 612419
+          },
+          "timeSec": 1372844,
+          "prod_storage": {
+            "ironProdPerHour": 668898
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 1704565,
+            "stone": 1363650,
+            "iron": 511370,
+            "food": 1022740
+          },
+          "timeSec": 2278800,
+          "prod_storage": {
+            "ironProdPerHour": 1193195
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "SILO",
+      "name": "Silo à céréales",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "foodStorageL1": 1200,
+        "foodStorageL20": 160000
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 80,
+            "stone": 100,
+            "iron": 70,
+            "food": 20
+          },
+          "timeSec": 1560,
+          "prod_storage": {
+            "foodStorage": 1200
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 112,
+            "stone": 139,
+            "iron": 98,
+            "food": 28
+          },
+          "timeSec": 2003,
+          "prod_storage": {
+            "foodStorage": 1552
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 155,
+            "stone": 194,
+            "iron": 137,
+            "food": 39
+          },
+          "timeSec": 2572,
+          "prod_storage": {
+            "foodStorage": 2008
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 217,
+            "stone": 271,
+            "iron": 191,
+            "food": 54
+          },
+          "timeSec": 3302,
+          "prod_storage": {
+            "foodStorage": 2598
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 302,
+            "stone": 378,
+            "iron": 266,
+            "food": 76
+          },
+          "timeSec": 4239,
+          "prod_storage": {
+            "foodStorage": 3362
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 421,
+            "stone": 526,
+            "iron": 372,
+            "food": 105
+          },
+          "timeSec": 5442,
+          "prod_storage": {
+            "foodStorage": 4349
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 587,
+            "stone": 733,
+            "iron": 520,
+            "food": 147
+          },
+          "timeSec": 6988,
+          "prod_storage": {
+            "foodStorage": 5626
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 818,
+            "stone": 1022,
+            "iron": 726,
+            "food": 204
+          },
+          "timeSec": 8971,
+          "prod_storage": {
+            "foodStorage": 7279
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1140,
+            "stone": 1425,
+            "iron": 1014,
+            "food": 285
+          },
+          "timeSec": 11519,
+          "prod_storage": {
+            "foodStorage": 9417
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1589,
+            "stone": 1986,
+            "iron": 1416,
+            "food": 397
+          },
+          "timeSec": 14789,
+          "prod_storage": {
+            "foodStorage": 12182
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 2215,
+            "stone": 2769,
+            "iron": 1978,
+            "food": 554
+          },
+          "timeSec": 18987,
+          "prod_storage": {
+            "foodStorage": 15761
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 3088,
+            "stone": 3859,
+            "iron": 2762,
+            "food": 772
+          },
+          "timeSec": 24378,
+          "prod_storage": {
+            "foodStorage": 20390
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 4304,
+            "stone": 5380,
+            "iron": 3858,
+            "food": 1076
+          },
+          "timeSec": 31299,
+          "prod_storage": {
+            "foodStorage": 26378
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 5999,
+            "stone": 7499,
+            "iron": 5388,
+            "food": 1500
+          },
+          "timeSec": 40185,
+          "prod_storage": {
+            "foodStorage": 34126
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 8362,
+            "stone": 10452,
+            "iron": 7526,
+            "food": 2090
+          },
+          "timeSec": 51594,
+          "prod_storage": {
+            "foodStorage": 44149
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 11656,
+            "stone": 14569,
+            "iron": 10511,
+            "food": 2914
+          },
+          "timeSec": 66242,
+          "prod_storage": {
+            "foodStorage": 57117
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 16247,
+            "stone": 20308,
+            "iron": 14681,
+            "food": 4062
+          },
+          "timeSec": 85049,
+          "prod_storage": {
+            "foodStorage": 73893
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 22646,
+            "stone": 28308,
+            "iron": 20505,
+            "food": 5662
+          },
+          "timeSec": 109195,
+          "prod_storage": {
+            "foodStorage": 95597
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 31566,
+            "stone": 39458,
+            "iron": 28639,
+            "food": 7892
+          },
+          "timeSec": 140197,
+          "prod_storage": {
+            "foodStorage": 123675
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 44000,
+            "stone": 55000,
+            "iron": 40000,
+            "food": 11000
+          },
+          "timeSec": 180000,
+          "prod_storage": {
+            "foodStorage": 160000
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "WAREHOUSE",
+      "name": "Dépôt de ressources",
+      "category": "BASE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "storageL1": 1200,
+        "storageL20": 160000
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 130,
+            "stone": 160,
+            "iron": 90,
+            "food": 40
+          },
+          "timeSec": 1980,
+          "prod_storage": {
+            "resourceStorage": 1200
+          },
+          "population": 1
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 181,
+            "stone": 223,
+            "iron": 125,
+            "food": 56
+          },
+          "timeSec": 2510,
+          "prod_storage": {
+            "resourceStorage": 1552
+          },
+          "population": 1
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 252,
+            "stone": 310,
+            "iron": 175,
+            "food": 77
+          },
+          "timeSec": 3183,
+          "prod_storage": {
+            "resourceStorage": 2008
+          },
+          "population": 1
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 352,
+            "stone": 433,
+            "iron": 243,
+            "food": 108
+          },
+          "timeSec": 4036,
+          "prod_storage": {
+            "resourceStorage": 2598
+          },
+          "population": 1
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 490,
+            "stone": 603,
+            "iron": 339,
+            "food": 150
+          },
+          "timeSec": 5117,
+          "prod_storage": {
+            "resourceStorage": 3362
+          },
+          "population": 1
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 683,
+            "stone": 839,
+            "iron": 472,
+            "food": 208
+          },
+          "timeSec": 6488,
+          "prod_storage": {
+            "resourceStorage": 4349
+          },
+          "population": 2
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 951,
+            "stone": 1169,
+            "iron": 658,
+            "food": 289
+          },
+          "timeSec": 8226,
+          "prod_storage": {
+            "resourceStorage": 5626
+          },
+          "population": 2
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1326,
+            "stone": 1629,
+            "iron": 917,
+            "food": 402
+          },
+          "timeSec": 10429,
+          "prod_storage": {
+            "resourceStorage": 7279
+          },
+          "population": 2
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1847,
+            "stone": 2269,
+            "iron": 1277,
+            "food": 559
+          },
+          "timeSec": 13223,
+          "prod_storage": {
+            "resourceStorage": 9417
+          },
+          "population": 2
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 2574,
+            "stone": 3161,
+            "iron": 1779,
+            "food": 777
+          },
+          "timeSec": 16766,
+          "prod_storage": {
+            "resourceStorage": 12182
+          },
+          "population": 2
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 3586,
+            "stone": 4404,
+            "iron": 2479,
+            "food": 1081
+          },
+          "timeSec": 21257,
+          "prod_storage": {
+            "resourceStorage": 15761
+          },
+          "population": 2
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 4997,
+            "stone": 6134,
+            "iron": 3453,
+            "food": 1503
+          },
+          "timeSec": 26952,
+          "prod_storage": {
+            "resourceStorage": 20390
+          },
+          "population": 2
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 6963,
+            "stone": 8546,
+            "iron": 4811,
+            "food": 2090
+          },
+          "timeSec": 34173,
+          "prod_storage": {
+            "resourceStorage": 26378
+          },
+          "population": 2
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 9702,
+            "stone": 11904,
+            "iron": 6702,
+            "food": 2906
+          },
+          "timeSec": 43328,
+          "prod_storage": {
+            "resourceStorage": 34126
+          },
+          "population": 2
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 13518,
+            "stone": 16584,
+            "iron": 9337,
+            "food": 4040
+          },
+          "timeSec": 54935,
+          "prod_storage": {
+            "resourceStorage": 44149
+          },
+          "population": 2
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 18836,
+            "stone": 23102,
+            "iron": 13008,
+            "food": 5618
+          },
+          "timeSec": 69652,
+          "prod_storage": {
+            "resourceStorage": 57117
+          },
+          "population": 3
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 26245,
+            "stone": 32182,
+            "iron": 18122,
+            "food": 7811
+          },
+          "timeSec": 88312,
+          "prod_storage": {
+            "resourceStorage": 73893
+          },
+          "population": 3
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 36570,
+            "stone": 44831,
+            "iron": 25246,
+            "food": 10861
+          },
+          "timeSec": 111970,
+          "prod_storage": {
+            "resourceStorage": 95597
+          },
+          "population": 3
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 50955,
+            "stone": 62453,
+            "iron": 35172,
+            "food": 15103
+          },
+          "timeSec": 141967,
+          "prod_storage": {
+            "resourceStorage": 123675
+          },
+          "population": 3
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 71000,
+            "stone": 87000,
+            "iron": 49000,
+            "food": 21000
+          },
+          "timeSec": 180000,
+          "prod_storage": {
+            "resourceStorage": 160000
+          },
+          "population": 3
+        }
+      ]
+    },
+    {
+      "key": "HIDEOUT",
+      "name": "Cachette",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "hiddenPctMax": 20.0
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 100,
+            "stone": 150,
+            "iron": 120,
+            "food": 50
+          },
+          "timeSec": 180,
+          "prod_storage": {
+            "hiddenPct": 1.0
+          },
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 144,
+            "stone": 216,
+            "iron": 173,
+            "food": 72
+          },
+          "timeSec": 249,
+          "prod_storage": {
+            "hiddenPct": 2.0
+          },
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 207,
+            "stone": 310,
+            "iron": 248,
+            "food": 103
+          },
+          "timeSec": 345,
+          "prod_storage": {
+            "hiddenPct": 3.0
+          },
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 298,
+            "stone": 446,
+            "iron": 357,
+            "food": 149
+          },
+          "timeSec": 477,
+          "prod_storage": {
+            "hiddenPct": 4.0
+          },
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 428,
+            "stone": 642,
+            "iron": 514,
+            "food": 214
+          },
+          "timeSec": 660,
+          "prod_storage": {
+            "hiddenPct": 5.0
+          },
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 616,
+            "stone": 924,
+            "iron": 739,
+            "food": 308
+          },
+          "timeSec": 914,
+          "prod_storage": {
+            "hiddenPct": 6.0
+          },
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 886,
+            "stone": 1329,
+            "iron": 1063,
+            "food": 443
+          },
+          "timeSec": 1265,
+          "prod_storage": {
+            "hiddenPct": 7.0
+          },
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1274,
+            "stone": 1911,
+            "iron": 1529,
+            "food": 637
+          },
+          "timeSec": 1750,
+          "prod_storage": {
+            "hiddenPct": 8.0
+          },
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1833,
+            "stone": 2749,
+            "iron": 2200,
+            "food": 916
+          },
+          "timeSec": 2422,
+          "prod_storage": {
+            "hiddenPct": 9.0
+          },
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 2637,
+            "stone": 3955,
+            "iron": 3164,
+            "food": 1318
+          },
+          "timeSec": 3352,
+          "prod_storage": {
+            "hiddenPct": 10.0
+          },
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 3793,
+            "stone": 5689,
+            "iron": 4551,
+            "food": 1896
+          },
+          "timeSec": 4639,
+          "prod_storage": {
+            "hiddenPct": 11.0
+          },
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 5456,
+            "stone": 8183,
+            "iron": 6547,
+            "food": 2728
+          },
+          "timeSec": 6421,
+          "prod_storage": {
+            "hiddenPct": 12.0
+          },
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 7848,
+            "stone": 11771,
+            "iron": 9417,
+            "food": 3924
+          },
+          "timeSec": 8886,
+          "prod_storage": {
+            "hiddenPct": 13.0
+          },
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 11288,
+            "stone": 16933,
+            "iron": 13546,
+            "food": 5644
+          },
+          "timeSec": 12297,
+          "prod_storage": {
+            "hiddenPct": 14.0
+          },
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 16238,
+            "stone": 24357,
+            "iron": 19485,
+            "food": 8119
+          },
+          "timeSec": 17019,
+          "prod_storage": {
+            "hiddenPct": 15.0
+          },
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 23357,
+            "stone": 35036,
+            "iron": 28029,
+            "food": 11679
+          },
+          "timeSec": 23553,
+          "prod_storage": {
+            "hiddenPct": 16.0
+          },
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 33598,
+            "stone": 50397,
+            "iron": 40318,
+            "food": 16799
+          },
+          "timeSec": 32596,
+          "prod_storage": {
+            "hiddenPct": 17.0
+          },
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 48329,
+            "stone": 72494,
+            "iron": 57995,
+            "food": 24165
+          },
+          "timeSec": 45111,
+          "prod_storage": {
+            "hiddenPct": 18.0
+          },
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 69519,
+            "stone": 104279,
+            "iron": 83423,
+            "food": 34760
+          },
+          "timeSec": 62430,
+          "prod_storage": {
+            "hiddenPct": 19.0
+          },
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 100000,
+            "stone": 150000,
+            "iron": 120000,
+            "food": 50000
+          },
+          "timeSec": 86400,
+          "prod_storage": {
+            "hiddenPct": 20.0
+          },
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "HEALING_TENT",
+      "name": "Tente de soins",
+      "category": "INTERMEDIATE",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 1
+        }
+      ],
+      "effectsStatic": {
+        "healCapacityPerLevel": 3
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 220,
+            "stone": 180,
+            "iron": 160,
+            "food": 120
+          },
+          "timeSec": 1200,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 280,
+            "stone": 229,
+            "iron": 204,
+            "food": 153
+          },
+          "timeSec": 1503,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 357,
+            "stone": 292,
+            "iron": 260,
+            "food": 195
+          },
+          "timeSec": 1882,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 455,
+            "stone": 372,
+            "iron": 331,
+            "food": 248
+          },
+          "timeSec": 2357,
+          "prod_storage": {},
+          "population": 2
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 580,
+            "stone": 475,
+            "iron": 422,
+            "food": 316
+          },
+          "timeSec": 2953,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 739,
+            "stone": 605,
+            "iron": 538,
+            "food": 403
+          },
+          "timeSec": 3698,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 942,
+            "stone": 771,
+            "iron": 685,
+            "food": 514
+          },
+          "timeSec": 4631,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 1200,
+            "stone": 982,
+            "iron": 873,
+            "food": 655
+          },
+          "timeSec": 5800,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 1529,
+            "stone": 1251,
+            "iron": 1112,
+            "food": 834
+          },
+          "timeSec": 7265,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 1949,
+            "stone": 1595,
+            "iron": 1417,
+            "food": 1063
+          },
+          "timeSec": 9099,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 2483,
+            "stone": 2032,
+            "iron": 1806,
+            "food": 1355
+          },
+          "timeSec": 11395,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 3165,
+            "stone": 2589,
+            "iron": 2302,
+            "food": 1726
+          },
+          "timeSec": 14272,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 4033,
+            "stone": 3299,
+            "iron": 2933,
+            "food": 2200
+          },
+          "timeSec": 17874,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 5139,
+            "stone": 4204,
+            "iron": 3737,
+            "food": 2803
+          },
+          "timeSec": 22387,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 6548,
+            "stone": 5357,
+            "iron": 4762,
+            "food": 3572
+          },
+          "timeSec": 28038,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 8344,
+            "stone": 6827,
+            "iron": 6068,
+            "food": 4551
+          },
+          "timeSec": 35115,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 10632,
+            "stone": 8699,
+            "iron": 7733,
+            "food": 5800
+          },
+          "timeSec": 43980,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 13549,
+            "stone": 11085,
+            "iron": 9854,
+            "food": 7390
+          },
+          "timeSec": 55081,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 17265,
+            "stone": 14126,
+            "iron": 12556,
+            "food": 9417
+          },
+          "timeSec": 68986,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 22000,
+            "stone": 18000,
+            "iron": 16000,
+            "food": 12000
+          },
+          "timeSec": 86400,
+          "prod_storage": {},
+          "population": 5
+        }
+      ]
+    },
+    {
+      "key": "WALL",
+      "name": "Mur",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 3
+        }
+      ],
+      "effectsStatic": {
+        "wallRegenBonusPctPerLevel": 1.0,
+        "defenderDefenseBonusPctPerLevel": 1.0
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 70,
+            "stone": 90,
+            "iron": 170,
+            "food": 70
+          },
+          "timeSec": 1800,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 90,
+            "stone": 122,
+            "iron": 209,
+            "food": 88
+          },
+          "timeSec": 2289,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 115,
+            "stone": 164,
+            "iron": 258,
+            "food": 110
+          },
+          "timeSec": 2910,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 148,
+            "stone": 222,
+            "iron": 318,
+            "food": 138
+          },
+          "timeSec": 3701,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 190,
+            "stone": 301,
+            "iron": 392,
+            "food": 173
+          },
+          "timeSec": 4705,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 244,
+            "stone": 406,
+            "iron": 483,
+            "food": 216
+          },
+          "timeSec": 5983,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 313,
+            "stone": 549,
+            "iron": 595,
+            "food": 271
+          },
+          "timeSec": 7608,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 401,
+            "stone": 742,
+            "iron": 734,
+            "food": 339
+          },
+          "timeSec": 9673,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 515,
+            "stone": 1003,
+            "iron": 904,
+            "food": 425
+          },
+          "timeSec": 12300,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 661,
+            "stone": 1356,
+            "iron": 1114,
+            "food": 533
+          },
+          "timeSec": 15640,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 848,
+            "stone": 1834,
+            "iron": 1373,
+            "food": 668
+          },
+          "timeSec": 19887,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 1088,
+            "stone": 2479,
+            "iron": 1692,
+            "food": 837
+          },
+          "timeSec": 25287,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 1396,
+            "stone": 3351,
+            "iron": 2085,
+            "food": 1049
+          },
+          "timeSec": 32154,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 1791,
+            "stone": 4529,
+            "iron": 2570,
+            "food": 1314
+          },
+          "timeSec": 40885,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 2299,
+            "stone": 6123,
+            "iron": 3167,
+            "food": 1647
+          },
+          "timeSec": 51987,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 2950,
+            "stone": 8277,
+            "iron": 3902,
+            "food": 2063
+          },
+          "timeSec": 66103,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 3786,
+            "stone": 11188,
+            "iron": 4809,
+            "food": 2585
+          },
+          "timeSec": 84053,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 4858,
+            "stone": 15124,
+            "iron": 5926,
+            "food": 3239
+          },
+          "timeSec": 106877,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 6234,
+            "stone": 20445,
+            "iron": 7303,
+            "food": 4059
+          },
+          "timeSec": 135898,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 8000,
+            "stone": 27637,
+            "iron": 9000,
+            "food": 5086
+          },
+          "timeSec": 172800,
+          "prod_storage": {},
+          "population": 7
+        }
+      ]
+    },
+    {
+      "key": "MOAT",
+      "name": "Douves",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 10
+        },
+        {
+          "key": "WALL",
+          "level": 5
+        }
+      ],
+      "effectsStatic": {
+        "defenderAtkBonusPctPerLevel": 0.5,
+        "defenderDefBonusPctPerLevel": 0.5
+      },
+      "levels": [
+        {
+          "level": 1,
+          "cost": {
+            "wood": 600,
+            "stone": 800,
+            "iron": 900,
+            "food": 300
+          },
+          "timeSec": 14400,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 2,
+          "cost": {
+            "wood": 793,
+            "stone": 1057,
+            "iron": 1189,
+            "food": 396
+          },
+          "timeSec": 17223,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 3,
+          "cost": {
+            "wood": 1048,
+            "stone": 1397,
+            "iron": 1572,
+            "food": 524
+          },
+          "timeSec": 20599,
+          "prod_storage": {},
+          "population": 3
+        },
+        {
+          "level": 4,
+          "cost": {
+            "wood": 1385,
+            "stone": 1847,
+            "iron": 2078,
+            "food": 693
+          },
+          "timeSec": 24637,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 5,
+          "cost": {
+            "wood": 1831,
+            "stone": 2441,
+            "iron": 2746,
+            "food": 915
+          },
+          "timeSec": 29467,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 6,
+          "cost": {
+            "wood": 2419,
+            "stone": 3226,
+            "iron": 3629,
+            "food": 1210
+          },
+          "timeSec": 35243,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 7,
+          "cost": {
+            "wood": 3197,
+            "stone": 4263,
+            "iron": 4796,
+            "food": 1599
+          },
+          "timeSec": 42152,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 8,
+          "cost": {
+            "wood": 4226,
+            "stone": 5634,
+            "iron": 6339,
+            "food": 2113
+          },
+          "timeSec": 50416,
+          "prod_storage": {},
+          "population": 4
+        },
+        {
+          "level": 9,
+          "cost": {
+            "wood": 5585,
+            "stone": 7446,
+            "iron": 8377,
+            "food": 2792
+          },
+          "timeSec": 60299,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 10,
+          "cost": {
+            "wood": 7381,
+            "stone": 9841,
+            "iron": 11071,
+            "food": 3690
+          },
+          "timeSec": 72119,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 11,
+          "cost": {
+            "wood": 9755,
+            "stone": 13006,
+            "iron": 14632,
+            "food": 4877
+          },
+          "timeSec": 86257,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 12,
+          "cost": {
+            "wood": 12892,
+            "stone": 17190,
+            "iron": 19338,
+            "food": 6446
+          },
+          "timeSec": 103166,
+          "prod_storage": {},
+          "population": 5
+        },
+        {
+          "level": 13,
+          "cost": {
+            "wood": 17039,
+            "stone": 22718,
+            "iron": 25558,
+            "food": 8519
+          },
+          "timeSec": 123390,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 14,
+          "cost": {
+            "wood": 22519,
+            "stone": 30025,
+            "iron": 33778,
+            "food": 11259
+          },
+          "timeSec": 147579,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 15,
+          "cost": {
+            "wood": 29761,
+            "stone": 39681,
+            "iron": 44641,
+            "food": 14880
+          },
+          "timeSec": 176509,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 16,
+          "cost": {
+            "wood": 39333,
+            "stone": 52444,
+            "iron": 58999,
+            "food": 19666
+          },
+          "timeSec": 211111,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 17,
+          "cost": {
+            "wood": 51983,
+            "stone": 69311,
+            "iron": 77974,
+            "food": 25991
+          },
+          "timeSec": 252496,
+          "prod_storage": {},
+          "population": 6
+        },
+        {
+          "level": 18,
+          "cost": {
+            "wood": 68702,
+            "stone": 91602,
+            "iron": 103053,
+            "food": 34351
+          },
+          "timeSec": 301993,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 19,
+          "cost": {
+            "wood": 90798,
+            "stone": 121063,
+            "iron": 136196,
+            "food": 45399
+          },
+          "timeSec": 361194,
+          "prod_storage": {},
+          "population": 7
+        },
+        {
+          "level": 20,
+          "cost": {
+            "wood": 120000,
+            "stone": 160000,
+            "iron": 180000,
+            "food": 60000
+          },
+          "timeSec": 432000,
+          "prod_storage": {},
+          "population": 7
+        }
+      ]
+    }
+  ]
+}
