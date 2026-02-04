@@ -646,7 +646,14 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
 
     // Calculate duration
     const baseTime = buildingDef?.timeL1Sec || 60;
-    const durationSec = Math.floor(baseTime * Math.pow(1.8, targetLevel - 1));
+    let durationSec = Math.floor(baseTime * Math.pow(1.8, targetLevel - 1));
+
+    // Greek faction bonus: -10% build time
+    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
+    const buildTimeBonus = getFactionBonus(player?.faction, 'buildTimeReduction');
+    if (buildTimeBonus > 0) {
+      durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
+    }
     
     const now = new Date();
     let startAt = now;
@@ -816,10 +823,19 @@ app.post('/api/hero/assign-points', auth, async (req, res) => {
 // ========== ARMY MOVEMENT & COMBAT ==========
 
 // Calculate travel time based on distance and army speed
-function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50) {
+function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null) {
   const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
   // Base: 1 tile per 30 seconds at speed 50
-  const timePerTile = 30 * (50 / armySpeed);
+  let timePerTile = 30 * (50 / armySpeed);
+
+  // Hun faction bonus: +15% army speed (= -15% travel time)
+  if (faction) {
+    const speedBonus = getFactionBonus(faction, 'armySpeed');
+    if (speedBonus > 0) {
+      timePerTile = timePerTile / (1 + speedBonus / 100);
+    }
+  }
+
   return Math.ceil(distance * timePerTile);
 }
 
@@ -2715,7 +2731,7 @@ setInterval(async () => {
 
             // Calculate carry capacity and steal resources if won
             let carryWood = 0, carryStone = 0, carryIron = 0, carryFood = 0;
-            
+
             if (result.attackerWon) {
               // Calculate total carry capacity
               let totalCarry = 0;
@@ -2726,12 +2742,29 @@ setInterval(async () => {
                 }
               }
 
-              // Steal up to 50% of resources or carry capacity
+              // ========== HIDEOUT SYSTEM ==========
+              // Hideout protects resources from being stolen
+              const hideout = targetCity.buildings.find(b => b.key === 'HIDEOUT');
+              const hideoutLevel = hideout?.level || 0;
+              // Base protection: 5% per hideout level (max 20 levels = 100%)
+              let hideoutProtection = hideoutLevel * 0.05;
+              // Gaul faction bonus: +10% hideout capacity
+              const gaulBonus = getFactionBonus(targetCity.player.faction, 'hideoutCapacity');
+              hideoutProtection *= (1 + gaulBonus / 100);
+              hideoutProtection = Math.min(hideoutProtection, 1.0); // Cap at 100%
+
+              // Calculate stealable resources (after hideout protection)
+              const stealableWood = Math.max(0, targetCity.wood * (1 - hideoutProtection));
+              const stealableStone = Math.max(0, targetCity.stone * (1 - hideoutProtection));
+              const stealableIron = Math.max(0, targetCity.iron * (1 - hideoutProtection));
+              const stealableFood = Math.max(0, targetCity.food * (1 - hideoutProtection));
+
+              // Steal up to 50% of stealable resources or carry capacity
               const stealRate = 0.5;
-              const availableWood = Math.min(targetCity.wood * stealRate, totalCarry * 0.25);
-              const availableStone = Math.min(targetCity.stone * stealRate, totalCarry * 0.25);
-              const availableIron = Math.min(targetCity.iron * stealRate, totalCarry * 0.25);
-              const availableFood = Math.min(targetCity.food * stealRate, totalCarry * 0.25);
+              const availableWood = Math.min(stealableWood * stealRate, totalCarry * 0.25);
+              const availableStone = Math.min(stealableStone * stealRate, totalCarry * 0.25);
+              const availableIron = Math.min(stealableIron * stealRate, totalCarry * 0.25);
+              const availableFood = Math.min(stealableFood * stealRate, totalCarry * 0.25);
 
               carryWood = Math.floor(availableWood);
               carryStone = Math.floor(availableStone);
@@ -2749,7 +2782,7 @@ setInterval(async () => {
                 }
               });
 
-              console.log(`[RAID] ${army.player.name} raided ${targetCity.player.name}: ${carryWood}W ${carryStone}S ${carryIron}I ${carryFood}F`);
+              console.log(`[RAID] ${army.player.name} raided ${targetCity.player.name}: ${carryWood}W ${carryStone}S ${carryIron}I ${carryFood}F (hideout protected ${Math.floor(hideoutProtection*100)}%)`);
             }
 
             // Create battle report
