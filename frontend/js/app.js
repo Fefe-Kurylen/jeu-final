@@ -1875,125 +1875,388 @@ function drawVillageCenter(slot, isHovered) {
   }
 }
 
+// ========== TRAVIAN-STYLE RESOURCE FIELD ==========
 function drawFieldSlot(slot, building, isHovered, isBuilding) {
   const { x, y, size, fieldType } = slot;
   const level = building?.level || 0;
-  
-  // Field colors by type
+  const time = Date.now() / 1000;
+
+  // Travian-style field definitions
   const fieldStyles = {
-    FARM: { bg: '#c4a030', detail: '#a48020', icon: '🌾', name: 'Ferme' },
-    LUMBER: { bg: '#4a6a3a', detail: '#3a5a2a', icon: '🌲', name: 'Bûcheron' },
-    QUARRY: { bg: '#8a8a8a', detail: '#6a6a6a', icon: '⛰️', name: 'Carrière' },
-    IRON_MINE: { bg: '#6a6a7a', detail: '#5a5a6a', icon: '⛏️', name: 'Mine' }
+    FARM: {
+      bgOuter: '#8a9a4a', bgInner: '#c4a030', accent: '#daa520',
+      icon: '🌾', name: 'Ferme', productIcon: '🌾'
+    },
+    LUMBER: {
+      bgOuter: '#3a5a2a', bgInner: '#4a6a3a', accent: '#2a4a1a',
+      icon: '🪵', name: 'Bûcheron', productIcon: '🌲'
+    },
+    QUARRY: {
+      bgOuter: '#6a6a6a', bgInner: '#8a8a8a', accent: '#5a5a5a',
+      icon: '🪨', name: 'Carrière', productIcon: '⛰️'
+    },
+    IRON_MINE: {
+      bgOuter: '#4a4a5a', bgInner: '#6a6a7a', accent: '#3a3a4a',
+      icon: '⛏️', name: 'Mine', productIcon: '⚒️'
+    }
   };
-  
+
   const style = fieldStyles[fieldType] || fieldStyles.FARM;
-  
-  // Shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x + 3, y + 5, size * 0.7, size * 0.35, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  
-  // Hover glow
+
+  // ========== HOVER GLOW (Travian-style) ==========
   if (isHovered) {
-    cityCtx.shadowColor = '#ffd700';
-    cityCtx.shadowBlur = 20;
+    cityCtx.fillStyle = 'rgba(255,215,0,0.2)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y, size * 0.85, size * 0.45, 0, 0, Math.PI * 2);
+    cityCtx.fill();
   }
-  
-  // Field base
-  cityCtx.fillStyle = style.bg;
+
+  // ========== SHADOW ==========
+  cityCtx.fillStyle = 'rgba(0,0,0,0.35)';
   cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.65, size * 0.35, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(x + 4, y + 6, size * 0.72, size * 0.38, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
-  // Field detail (inner)
-  cityCtx.fillStyle = style.detail;
+
+  // ========== OUTER FIELD (terrain) ==========
+  const outerGrad = cityCtx.createRadialGradient(x, y, 0, x, y, size * 0.7);
+  outerGrad.addColorStop(0, style.bgInner);
+  outerGrad.addColorStop(0.7, style.bgOuter);
+  outerGrad.addColorStop(1, shadeColor(style.bgOuter, -20));
+  cityCtx.fillStyle = outerGrad;
   cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(x, y, size * 0.7, size * 0.38, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
-  cityCtx.shadowBlur = 0;
-  
-  // Border
-  cityCtx.strokeStyle = isHovered ? '#ffd700' : style.detail;
-  cityCtx.lineWidth = isHovered ? 3 : 2;
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.65, size * 0.35, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
-  
+
+  // ========== HOVER BORDER ==========
+  if (isHovered) {
+    cityCtx.strokeStyle = '#ffd700';
+    cityCtx.lineWidth = 3;
+    cityCtx.shadowColor = '#ffd700';
+    cityCtx.shadowBlur = 15;
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y, size * 0.7, size * 0.38, 0, 0, Math.PI * 2);
+    cityCtx.stroke();
+    cityCtx.shadowBlur = 0;
+  }
+
+  // ========== FIELD-SPECIFIC GRAPHICS ==========
   if (level > 0) {
-    // Draw field-specific elements based on type
-    if (fieldType === 'FARM') {
-      // Wheat rows
-      cityCtx.strokeStyle = '#8a7020';
-      cityCtx.lineWidth = 2;
-      for (let i = -2; i <= 2; i++) {
-        cityCtx.beginPath();
-        cityCtx.moveTo(x - size * 0.35, y + i * 6);
-        cityCtx.lineTo(x + size * 0.35, y + i * 6);
-        cityCtx.stroke();
-      }
-    } else if (fieldType === 'LUMBER') {
-      // Mini trees
-      for (let i = -1; i <= 1; i++) {
-        drawMiniTree(x + i * size * 0.25, y - 5, size * 0.2);
-      }
-    } else if (fieldType === 'QUARRY') {
-      // Rock piles
-      cityCtx.fillStyle = '#9a9a9a';
+    drawFieldDetails(x, y, size, fieldType, level, time);
+  }
+
+  // ========== FIELD DECORATION BASED ON TYPE ==========
+  if (fieldType === 'FARM' && level > 0) {
+    drawFarmField(x, y, size, level, time);
+  } else if (fieldType === 'LUMBER' && level > 0) {
+    drawLumberField(x, y, size, level);
+  } else if (fieldType === 'QUARRY' && level > 0) {
+    drawQuarryField(x, y, size, level);
+  } else if (fieldType === 'IRON_MINE' && level > 0) {
+    drawMineField(x, y, size, level, time);
+  }
+
+  // ========== PRODUCTION INDICATOR (animated) ==========
+  if (level > 0 && !isBuilding) {
+    const prodY = y - size * 0.5 + Math.sin(time * 2) * 3;
+    cityCtx.globalAlpha = 0.7 + Math.sin(time * 3) * 0.2;
+    cityCtx.font = '16px Arial';
+    cityCtx.textAlign = 'center';
+    cityCtx.fillText(style.productIcon, x, prodY);
+    cityCtx.globalAlpha = 1;
+  }
+
+  // ========== EMPTY SLOT INDICATOR ==========
+  if (level === 0) {
+    // Dashed border for empty
+    cityCtx.strokeStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.4)';
+    cityCtx.lineWidth = 2;
+    cityCtx.setLineDash([5, 5]);
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y, size * 0.5, size * 0.28, 0, 0, Math.PI * 2);
+    cityCtx.stroke();
+    cityCtx.setLineDash([]);
+
+    // Plus sign
+    cityCtx.fillStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.6)';
+    cityCtx.font = `bold ${size * 0.4}px Arial`;
+    cityCtx.textAlign = 'center';
+    cityCtx.textBaseline = 'middle';
+    cityCtx.fillText('+', x, y);
+  }
+
+  // ========== LEVEL BADGE (Travian-style) ==========
+  if (level > 0) {
+    const badgeX = x + size * 0.55;
+    const badgeY = y - size * 0.2;
+
+    // Badge shadow
+    cityCtx.fillStyle = 'rgba(0,0,0,0.5)';
+    cityCtx.beginPath();
+    cityCtx.arc(badgeX + 2, badgeY + 2, 13, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Badge background
+    cityCtx.fillStyle = isHovered ? '#2a2a2a' : '#1a1a1a';
+    cityCtx.beginPath();
+    cityCtx.arc(badgeX, badgeY, 13, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Gold ring
+    cityCtx.strokeStyle = isHovered ? '#ffd700' : '#c9a227';
+    cityCtx.lineWidth = isHovered ? 3 : 2;
+    cityCtx.stroke();
+
+    // Level number
+    cityCtx.fillStyle = isHovered ? '#ffd700' : '#e8c547';
+    cityCtx.font = 'bold 11px Cinzel, serif';
+    cityCtx.textAlign = 'center';
+    cityCtx.textBaseline = 'middle';
+    cityCtx.fillText(level.toString(), badgeX, badgeY + 1);
+  }
+
+  // ========== CONSTRUCTION INDICATOR ==========
+  if (isBuilding) {
+    cityCtx.globalAlpha = 0.6 + Math.sin(time * 5) * 0.2;
+
+    // Hammer animation
+    const hammerY = y - size * 0.55 + Math.sin(time * 8) * 3;
+    cityCtx.fillStyle = '#ffa500';
+    cityCtx.font = 'bold 20px Arial';
+    cityCtx.textAlign = 'center';
+    cityCtx.fillText('⚒️', x, hammerY);
+
+    // Progress ring
+    const progress = (time % 2) / 2;
+    cityCtx.strokeStyle = '#ffa500';
+    cityCtx.lineWidth = 3;
+    cityCtx.beginPath();
+    cityCtx.arc(x, y, size * 0.4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    cityCtx.stroke();
+
+    cityCtx.globalAlpha = 1;
+  }
+}
+
+// ========== FARM FIELD DETAILS ==========
+function drawFarmField(x, y, size, level, time) {
+  // Wheat rows (animated)
+  const rows = Math.min(5, 2 + Math.floor(level / 5));
+
+  for (let i = 0; i < rows; i++) {
+    const rowY = y - size * 0.15 + i * (size * 0.12);
+    const wave = Math.sin(time * 2 + i * 0.5) * 2;
+
+    // Wheat stalks
+    cityCtx.strokeStyle = '#c9a227';
+    cityCtx.lineWidth = 1.5;
+    for (let j = 0; j < 6; j++) {
+      const stalkX = x - size * 0.35 + j * (size * 0.14);
+      const stalkWave = Math.sin(time * 3 + j * 0.3) * 2;
       cityCtx.beginPath();
-      cityCtx.arc(x - size * 0.15, y, size * 0.12, 0, Math.PI * 2);
-      cityCtx.arc(x + size * 0.15, y, size * 0.1, 0, Math.PI * 2);
-      cityCtx.arc(x, y - size * 0.08, size * 0.08, 0, Math.PI * 2);
+      cityCtx.moveTo(stalkX, rowY + 5);
+      cityCtx.quadraticCurveTo(stalkX + stalkWave, rowY - 3, stalkX + stalkWave * 1.5, rowY - 8);
+      cityCtx.stroke();
+
+      // Wheat head
+      cityCtx.fillStyle = '#daa520';
+      cityCtx.beginPath();
+      cityCtx.ellipse(stalkX + stalkWave * 1.5, rowY - 10, 2, 4, stalkWave * 0.1, 0, Math.PI * 2);
       cityCtx.fill();
-    } else if (fieldType === 'IRON_MINE') {
-      // Mine entrance
-      cityCtx.fillStyle = '#2a2a2a';
+    }
+  }
+
+  // Scarecrow for higher levels
+  if (level >= 10) {
+    const scX = x + size * 0.3;
+    const scY = y - size * 0.1;
+    cityCtx.strokeStyle = '#5a4030';
+    cityCtx.lineWidth = 2;
+    cityCtx.beginPath();
+    cityCtx.moveTo(scX, scY + 8);
+    cityCtx.lineTo(scX, scY - 15);
+    cityCtx.moveTo(scX - 8, scY - 8);
+    cityCtx.lineTo(scX + 8, scY - 8);
+    cityCtx.stroke();
+    cityCtx.fillStyle = '#c4a030';
+    cityCtx.beginPath();
+    cityCtx.arc(scX, scY - 18, 4, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+// ========== LUMBER FIELD DETAILS ==========
+function drawLumberField(x, y, size, level) {
+  // Trees based on level
+  const treeCount = Math.min(5, 2 + Math.floor(level / 4));
+  const treePositions = [
+    { dx: 0, dy: -5, s: 1.2 },
+    { dx: -0.25, dy: 0, s: 0.9 },
+    { dx: 0.25, dy: 0, s: 1.0 },
+    { dx: -0.15, dy: 8, s: 0.8 },
+    { dx: 0.15, dy: 8, s: 0.85 }
+  ];
+
+  for (let i = 0; i < treeCount; i++) {
+    const pos = treePositions[i];
+    const treeX = x + pos.dx * size;
+    const treeY = y + pos.dy;
+    const treeSize = size * 0.18 * pos.s;
+
+    // Tree shadow
+    cityCtx.fillStyle = 'rgba(0,0,0,0.2)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(treeX + 2, treeY + treeSize * 0.8, treeSize * 0.6, treeSize * 0.2, 0, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Trunk
+    cityCtx.fillStyle = '#5a4030';
+    cityCtx.fillRect(treeX - treeSize * 0.12, treeY, treeSize * 0.24, treeSize * 0.6);
+
+    // Foliage (layers)
+    cityCtx.fillStyle = '#2a5a1a';
+    for (let layer = 0; layer < 3; layer++) {
+      const layerY = treeY - layer * treeSize * 0.35;
+      const layerW = treeSize * (1 - layer * 0.2);
       cityCtx.beginPath();
-      cityCtx.arc(x, y, size * 0.15, Math.PI, 0);
-      cityCtx.lineTo(x + size * 0.15, y + size * 0.1);
-      cityCtx.lineTo(x - size * 0.15, y + size * 0.1);
+      cityCtx.moveTo(treeX, layerY - treeSize * 0.5);
+      cityCtx.lineTo(treeX - layerW * 0.6, layerY);
+      cityCtx.lineTo(treeX + layerW * 0.6, layerY);
       cityCtx.closePath();
       cityCtx.fill();
     }
   }
-  
-  // Icon
-  cityCtx.font = `${size * 0.5}px Arial`;
-  cityCtx.textAlign = 'center';
-  cityCtx.textBaseline = 'middle';
-  cityCtx.fillText(style.icon, x, y - size * 0.1);
-  
-  // Level badge
-  if (level > 0) {
-    const badgeX = x + size * 0.5;
-    const badgeY = y - size * 0.15;
-    
-    cityCtx.fillStyle = 'rgba(0,0,0,0.8)';
-    cityCtx.beginPath();
-    cityCtx.arc(badgeX, badgeY, 14, 0, Math.PI * 2);
-    cityCtx.fill();
-    
-    cityCtx.strokeStyle = '#ffd700';
-    cityCtx.lineWidth = 2;
-    cityCtx.stroke();
-    
-    cityCtx.fillStyle = '#ffd700';
-    cityCtx.font = 'bold 12px Cinzel, serif';
-    cityCtx.fillText(level, badgeX, badgeY + 1);
-  } else {
-    // Empty slot indicator
-    cityCtx.fillStyle = 'rgba(255,255,255,0.5)';
-    cityCtx.font = `bold ${size * 0.3}px Arial`;
-    cityCtx.fillText('+', x, y + size * 0.15);
+
+  // Logs pile for higher levels
+  if (level >= 8) {
+    cityCtx.fillStyle = '#6a5040';
+    cityCtx.fillRect(x + size * 0.35, y + 3, 12, 5);
+    cityCtx.fillRect(x + size * 0.35 + 2, y - 2, 10, 5);
   }
-  
-  // Construction indicator
-  if (isBuilding) {
-    cityCtx.fillStyle = 'rgba(255,165,0,0.9)';
-    cityCtx.font = '18px Arial';
-    cityCtx.fillText('🔨', x, y - size * 0.4);
+}
+
+// ========== QUARRY FIELD DETAILS ==========
+function drawQuarryField(x, y, size, level) {
+  // Rock formations
+  const rockCount = Math.min(4, 1 + Math.floor(level / 5));
+  const rockPositions = [
+    { dx: 0, dy: -3, s: 1.2 },
+    { dx: -0.2, dy: 3, s: 0.9 },
+    { dx: 0.2, dy: 5, s: 1.0 },
+    { dx: 0, dy: 8, s: 0.7 }
+  ];
+
+  for (let i = 0; i < rockCount; i++) {
+    const pos = rockPositions[i];
+    const rockX = x + pos.dx * size;
+    const rockY = y + pos.dy;
+    const rockSize = size * 0.12 * pos.s;
+
+    // Rock shadow
+    cityCtx.fillStyle = 'rgba(0,0,0,0.25)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(rockX + 2, rockY + rockSize * 0.3, rockSize * 1.1, rockSize * 0.4, 0, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Rock body
+    const rockGrad = cityCtx.createLinearGradient(rockX - rockSize, rockY, rockX + rockSize, rockY);
+    rockGrad.addColorStop(0, '#a0a0a0');
+    rockGrad.addColorStop(0.5, '#c0c0c0');
+    rockGrad.addColorStop(1, '#808080');
+    cityCtx.fillStyle = rockGrad;
+    cityCtx.beginPath();
+    cityCtx.moveTo(rockX - rockSize, rockY);
+    cityCtx.lineTo(rockX - rockSize * 0.7, rockY - rockSize * 1.2);
+    cityCtx.lineTo(rockX + rockSize * 0.3, rockY - rockSize * 1.5);
+    cityCtx.lineTo(rockX + rockSize, rockY - rockSize * 0.5);
+    cityCtx.lineTo(rockX + rockSize * 0.8, rockY);
+    cityCtx.closePath();
+    cityCtx.fill();
+  }
+
+  // Stone blocks for higher levels
+  if (level >= 10) {
+    cityCtx.fillStyle = '#9a9a9a';
+    cityCtx.fillRect(x - size * 0.4, y + 5, 10, 6);
+    cityCtx.fillStyle = '#8a8a8a';
+    cityCtx.fillRect(x - size * 0.35, y + 1, 8, 5);
+  }
+}
+
+// ========== MINE FIELD DETAILS ==========
+function drawMineField(x, y, size, level, time) {
+  // Mine entrance
+  cityCtx.fillStyle = '#3a3a3a';
+  cityCtx.beginPath();
+  cityCtx.arc(x, y - 2, size * 0.2, Math.PI, 0);
+  cityCtx.lineTo(x + size * 0.2, y + 5);
+  cityCtx.lineTo(x - size * 0.2, y + 5);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Dark interior
+  cityCtx.fillStyle = '#1a1a1a';
+  cityCtx.beginPath();
+  cityCtx.arc(x, y, size * 0.14, Math.PI, 0);
+  cityCtx.lineTo(x + size * 0.14, y + 3);
+  cityCtx.lineTo(x - size * 0.14, y + 3);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Wooden frame
+  cityCtx.strokeStyle = '#5a4030';
+  cityCtx.lineWidth = 3;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size * 0.18, y + 5);
+  cityCtx.lineTo(x - size * 0.18, y - size * 0.15);
+  cityCtx.arc(x, y - size * 0.15, size * 0.18, Math.PI, 0);
+  cityCtx.lineTo(x + size * 0.18, y + 5);
+  cityCtx.stroke();
+
+  // Mine cart for higher levels
+  if (level >= 5) {
+    const cartX = x + size * 0.3;
+    const cartY = y + 3;
+
+    // Cart body
+    cityCtx.fillStyle = '#6a5a4a';
+    cityCtx.fillRect(cartX - 6, cartY - 4, 12, 6);
+
+    // Ore in cart
+    cityCtx.fillStyle = '#4a5a6a';
+    cityCtx.beginPath();
+    cityCtx.arc(cartX - 2, cartY - 5, 3, 0, Math.PI * 2);
+    cityCtx.arc(cartX + 2, cartY - 6, 2.5, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Wheels
+    cityCtx.fillStyle = '#3a3a3a';
+    cityCtx.beginPath();
+    cityCtx.arc(cartX - 4, cartY + 2, 2, 0, Math.PI * 2);
+    cityCtx.arc(cartX + 4, cartY + 2, 2, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+
+  // Torch flame for high levels
+  if (level >= 12) {
+    const flameY = y - size * 0.25 + Math.sin(time * 10) * 2;
+    cityCtx.fillStyle = `rgba(255,${150 + Math.sin(time * 15) * 50},0,0.8)`;
+    cityCtx.beginPath();
+    cityCtx.arc(x, flameY, 4 + Math.sin(time * 8), 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+// Helper for field details
+function drawFieldDetails(x, y, size, fieldType, level, time) {
+  // Add subtle ground texture
+  cityCtx.strokeStyle = 'rgba(0,0,0,0.1)';
+  cityCtx.lineWidth = 0.5;
+  for (let i = 0; i < 3; i++) {
+    const rowY = y - size * 0.1 + i * size * 0.15;
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - size * 0.5, rowY);
+    cityCtx.lineTo(x + size * 0.5, rowY);
+    cityCtx.stroke();
   }
 }
 
@@ -2150,115 +2413,739 @@ function drawBuildingSlot(slot, building, isHovered, isBuilding) {
   }
 }
 
+// ========== TRAVIAN-STYLE BUILDING GRAPHICS ==========
 function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
+  // Detailed Travian-style building definitions
   const buildingStyles = {
-    MAIN_HALL: { base: '#c4a060', roof: '#8b4513', height: 1.8, icon: '🏛️' },
-    BARRACKS: { base: '#8b7355', roof: '#c44', height: 1.3, icon: '⚔️' },
-    STABLE: { base: '#a08060', roof: '#6b4423', height: 1.2, icon: '🐎' },
-    WORKSHOP: { base: '#6a5a4a', roof: '#444', height: 1.4, icon: '⚙️' },
-    ACADEMY: { base: '#d4c4b4', roof: '#4682B4', height: 1.5, icon: '📚' },
-    FORGE: { base: '#5a4a3a', roof: '#333', height: 1.3, icon: '🔨' },
-    MARKET: { base: '#c4a484', roof: '#c44', height: 1.0, icon: '🏪' },
-    WAREHOUSE: { base: '#8b7355', roof: '#5a4a3a', height: 1.3, icon: '📦' },
-    SILO: { base: '#c4a484', roof: '#c44', height: 1.6, icon: '🏺' },
-    WALL: { base: '#7a7a7a', roof: '#5a5a5a', height: 1.2, icon: '🏰' },
-    HEALING_TENT: { base: '#f0f0e0', roof: '#fff', height: 1.0, icon: '⛺' },
-    RALLY_POINT: { base: '#6a5a4a', roof: '#c44', height: 0.8, icon: '🚩' },
-    HIDEOUT: { base: '#5a4a3a', roof: '#3a3a2a', height: 0.6, icon: '🕳️' },
-    MOAT: { base: '#4682B4', roof: '#4682B4', height: 0.3, icon: '💧' }
+    MAIN_HALL: {
+      base: '#c9a86c', roof: '#8b4513', roofType: 'dome',
+      height: 2.0, windows: 4, hasColumns: true, hasFlag: true,
+      wallColor: '#d4b896', trimColor: '#8b6914'
+    },
+    BARRACKS: {
+      base: '#8b7355', roof: '#7a2020', roofType: 'pointed',
+      height: 1.5, windows: 2, hasBanner: true, hasWeaponRack: true,
+      wallColor: '#9a8365', trimColor: '#6a3030'
+    },
+    STABLE: {
+      base: '#a08060', roof: '#6b4423', roofType: 'barn',
+      height: 1.3, windows: 1, hasHorseshoe: true, hasDoors: true,
+      wallColor: '#b09070', trimColor: '#5a3413'
+    },
+    WORKSHOP: {
+      base: '#6a5a4a', roof: '#444444', roofType: 'flat',
+      height: 1.5, windows: 2, hasChimney: true, hasGears: true,
+      wallColor: '#7a6a5a', trimColor: '#333333'
+    },
+    ACADEMY: {
+      base: '#e8e0d0', roof: '#4a6a8a', roofType: 'temple',
+      height: 1.7, windows: 3, hasColumns: true, hasScrolls: true,
+      wallColor: '#f0e8e0', trimColor: '#3a5a7a'
+    },
+    FORGE: {
+      base: '#5a4a3a', roof: '#2a2a2a', roofType: 'pointed',
+      height: 1.4, windows: 1, hasChimney: true, hasAnvil: true,
+      wallColor: '#6a5a4a', trimColor: '#1a1a1a'
+    },
+    MARKET: {
+      base: '#d4b484', roof: '#c44444', roofType: 'tent',
+      height: 1.1, windows: 0, hasAwning: true, hasCrates: true,
+      wallColor: '#e4c494', trimColor: '#b33333'
+    },
+    WAREHOUSE: {
+      base: '#8b7355', roof: '#5a4a3a', roofType: 'barn',
+      height: 1.4, windows: 1, hasDoors: true, hasCrates: true,
+      wallColor: '#9b8365', trimColor: '#4a3a2a'
+    },
+    SILO: {
+      base: '#c4a060', roof: '#8b4513', roofType: 'cone',
+      height: 1.8, windows: 0, isRound: true, hasWheat: true,
+      wallColor: '#d4b070', trimColor: '#7b3503'
+    },
+    WALL: {
+      base: '#8a8a8a', roof: '#6a6a6a', roofType: 'crenelated',
+      height: 1.3, windows: 0, hasTorches: true, isWall: true,
+      wallColor: '#9a9a9a', trimColor: '#5a5a5a'
+    },
+    HEALING_TENT: {
+      base: '#f5f5e5', roof: '#ffffff', roofType: 'tent',
+      height: 1.0, windows: 0, hasCross: true, isTent: true,
+      wallColor: '#ffffff', trimColor: '#cc0000'
+    },
+    RALLY_POINT: {
+      base: '#7a6a5a', roof: '#aa2020', roofType: 'flag',
+      height: 0.9, windows: 0, hasFlag: true, hasTorch: true,
+      wallColor: '#8a7a6a', trimColor: '#8a1010'
+    },
+    HIDEOUT: {
+      base: '#5a4a3a', roof: '#3a3a2a', roofType: 'underground',
+      height: 0.5, windows: 0, isUnderground: true,
+      wallColor: '#6a5a4a', trimColor: '#2a2a1a'
+    },
+    MOAT: {
+      base: '#4a7a9a', roof: '#3a6a8a', roofType: 'water',
+      height: 0.2, windows: 0, isWater: true,
+      wallColor: '#5a8aaa', trimColor: '#2a5a7a'
+    },
+    HERO_HOME: {
+      base: '#d4c4a4', roof: '#6a4a8a', roofType: 'temple',
+      height: 1.6, windows: 2, hasColumns: true, hasStatue: true,
+      wallColor: '#e4d4b4', trimColor: '#5a3a7a'
+    }
   };
-  
-  const style = buildingStyles[key] || { base: '#a08060', roof: '#6b4423', height: 1.2, icon: '🏠' };
-  const buildingHeight = size * style.height;
-  
-  // Hover glow
+
+  const style = buildingStyles[key] || {
+    base: '#a08060', roof: '#6b4423', roofType: 'pointed',
+    height: 1.2, windows: 1, wallColor: '#b09070', trimColor: '#5b3413'
+  };
+
+  const bh = size * style.height;
+  const bw = size * 0.55;
+
+  // ========== HOVER EFFECT (Travian-style golden glow) ==========
   if (isHovered) {
+    // Outer glow
     cityCtx.shadowColor = '#ffd700';
-    cityCtx.shadowBlur = 25;
+    cityCtx.shadowBlur = 30;
+    cityCtx.fillStyle = 'rgba(255,215,0,0.15)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y, bw + 10, (bw + 10) * 0.55, 0, 0, Math.PI * 2);
+    cityCtx.fill();
+    cityCtx.shadowBlur = 0;
   }
-  
-  // Building animation for construction
+
+  // ========== CONSTRUCTION ANIMATION ==========
   if (isBuilding) {
-    cityCtx.globalAlpha = 0.5 + Math.sin(Date.now() / 200) * 0.3;
+    cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;
   }
-  
-  // Base (ellipse)
+
+  // ========== SHADOW ==========
+  cityCtx.fillStyle = 'rgba(0,0,0,0.4)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 5, y + 8, bw * 0.9, bw * 0.45, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // ========== BASE PLATFORM ==========
+  cityCtx.fillStyle = '#6a5a4a';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y + 3, bw + 5, (bw + 5) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Draw building based on type
+  if (style.isWater) {
+    drawWaterBuilding(x, y, bw, style);
+  } else if (style.isUnderground) {
+    drawUndergroundBuilding(x, y, bw, style);
+  } else if (style.isTent) {
+    drawTentBuilding(x, y, bw, bh, style);
+  } else if (style.isRound) {
+    drawRoundBuilding(x, y, bw, bh, style, level);
+  } else if (style.isWall) {
+    drawWallBuilding(x, y, bw, bh, style, level);
+  } else {
+    drawStandardBuilding(x, y, bw, bh, style, key, level);
+  }
+
+  cityCtx.globalAlpha = 1;
+
+  // ========== LEVEL BADGE (Travian-style) ==========
+  if (level > 0) {
+    drawTravianLevelBadge(x, y, bw, bh, level, isHovered);
+  }
+
+  // ========== CONSTRUCTION INDICATOR ==========
+  if (isBuilding) {
+    const hammerY = y - bh - 15;
+    cityCtx.fillStyle = '#ffa500';
+    cityCtx.font = 'bold 18px Arial';
+    cityCtx.textAlign = 'center';
+    cityCtx.fillText('⚒️', x, hammerY + Math.sin(Date.now() / 200) * 3);
+  }
+}
+
+// ========== TRAVIAN-STYLE STANDARD BUILDING ==========
+function drawStandardBuilding(x, y, bw, bh, style, key, level) {
+  // Foundation
   cityCtx.fillStyle = style.base;
   cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.55, size * 0.3, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(x, y, bw, bw * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
-  // Walls (left side)
-  cityCtx.fillStyle = shadeColor(style.base, -20);
+
+  // Left wall (lit side)
+  const wallGrad = cityCtx.createLinearGradient(x - bw, y, x, y);
+  wallGrad.addColorStop(0, style.wallColor);
+  wallGrad.addColorStop(1, shadeColor(style.wallColor, -15));
+  cityCtx.fillStyle = wallGrad;
   cityCtx.beginPath();
-  cityCtx.moveTo(x - size * 0.55, y);
-  cityCtx.lineTo(x - size * 0.55, y - buildingHeight);
-  cityCtx.lineTo(x, y - buildingHeight - size * 0.15);
-  cityCtx.lineTo(x, y - size * 0.3);
+  cityCtx.moveTo(x - bw, y);
+  cityCtx.lineTo(x - bw * 0.9, y - bh);
+  cityCtx.lineTo(x, y - bh - bw * 0.2);
+  cityCtx.lineTo(x, y - bw * 0.5);
   cityCtx.closePath();
   cityCtx.fill();
-  
-  // Walls (right side)
-  cityCtx.fillStyle = shadeColor(style.base, -40);
+
+  // Right wall (shadow side)
+  cityCtx.fillStyle = shadeColor(style.wallColor, -30);
   cityCtx.beginPath();
-  cityCtx.moveTo(x + size * 0.55, y);
-  cityCtx.lineTo(x + size * 0.55, y - buildingHeight);
-  cityCtx.lineTo(x, y - buildingHeight - size * 0.15);
-  cityCtx.lineTo(x, y - size * 0.3);
+  cityCtx.moveTo(x + bw, y);
+  cityCtx.lineTo(x + bw * 0.9, y - bh);
+  cityCtx.lineTo(x, y - bh - bw * 0.2);
+  cityCtx.lineTo(x, y - bw * 0.5);
   cityCtx.closePath();
   cityCtx.fill();
-  
-  // Roof
+
+  // Wall details (stones/bricks pattern)
+  drawWallPattern(x, y, bw, bh, style);
+
+  // Windows
+  if (style.windows > 0) {
+    drawWindows(x, y, bw, bh, style.windows);
+  }
+
+  // Door
+  drawDoor(x, y, bw);
+
+  // Roof based on type
+  drawRoof(x, y, bw, bh, style);
+
+  // Columns for temple/academy
+  if (style.hasColumns) {
+    drawColumns(x, y, bw, bh);
+  }
+
+  // Chimney
+  if (style.hasChimney) {
+    drawChimney(x, y, bw, bh);
+  }
+
+  // Flag
+  if (style.hasFlag) {
+    drawBuildingFlag(x, y, bw, bh, key);
+  }
+
+  // Decorative elements
+  if (style.hasAnvil) drawAnvil(x, y, bw);
+  if (style.hasGears) drawGears(x, y, bw, bh);
+  if (style.hasWeaponRack) drawWeaponRack(x, y, bw);
+  if (style.hasCrates) drawCrates(x, y, bw);
+  if (style.hasStatue) drawStatue(x, y, bw, bh);
+}
+
+// ========== WALL PATTERN ==========
+function drawWallPattern(x, y, bw, bh, style) {
+  cityCtx.strokeStyle = shadeColor(style.wallColor, -20);
+  cityCtx.lineWidth = 0.5;
+
+  // Horizontal lines (brick rows)
+  for (let i = 1; i < 5; i++) {
+    const rowY = y - (bh * i / 5);
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - bw * 0.85 + (i * 2), rowY);
+    cityCtx.lineTo(x, rowY - bw * 0.1);
+    cityCtx.stroke();
+  }
+}
+
+// ========== WINDOWS ==========
+function drawWindows(x, y, bw, bh, count) {
+  const winW = bw * 0.15;
+  const winH = bh * 0.12;
+
+  for (let i = 0; i < count; i++) {
+    const winX = x - bw * 0.4 + (i % 2) * bw * 0.3;
+    const winY = y - bh * 0.5 - Math.floor(i / 2) * bh * 0.25;
+
+    // Window frame
+    cityCtx.fillStyle = '#3a2a1a';
+    cityCtx.fillRect(winX - winW / 2 - 1, winY - winH / 2 - 1, winW + 2, winH + 2);
+
+    // Window glass
+    const glassGrad = cityCtx.createLinearGradient(winX, winY - winH / 2, winX, winY + winH / 2);
+    glassGrad.addColorStop(0, '#87ceeb');
+    glassGrad.addColorStop(0.5, '#ffd700');
+    glassGrad.addColorStop(1, '#4682b4');
+    cityCtx.fillStyle = glassGrad;
+    cityCtx.fillRect(winX - winW / 2, winY - winH / 2, winW, winH);
+
+    // Window cross
+    cityCtx.strokeStyle = '#2a1a0a';
+    cityCtx.lineWidth = 1;
+    cityCtx.beginPath();
+    cityCtx.moveTo(winX, winY - winH / 2);
+    cityCtx.lineTo(winX, winY + winH / 2);
+    cityCtx.moveTo(winX - winW / 2, winY);
+    cityCtx.lineTo(winX + winW / 2, winY);
+    cityCtx.stroke();
+  }
+}
+
+// ========== DOOR ==========
+function drawDoor(x, y, bw) {
+  const doorW = bw * 0.25;
+  const doorH = bw * 0.35;
+  const doorX = x;
+  const doorY = y - bw * 0.3;
+
+  // Door frame
+  cityCtx.fillStyle = '#3a2a1a';
+  cityCtx.beginPath();
+  cityCtx.moveTo(doorX - doorW / 2 - 2, doorY + 2);
+  cityCtx.lineTo(doorX - doorW / 2 - 2, doorY - doorH);
+  cityCtx.arc(doorX, doorY - doorH, doorW / 2 + 2, Math.PI, 0, false);
+  cityCtx.lineTo(doorX + doorW / 2 + 2, doorY + 2);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Door wood
+  cityCtx.fillStyle = '#6b4423';
+  cityCtx.beginPath();
+  cityCtx.moveTo(doorX - doorW / 2, doorY);
+  cityCtx.lineTo(doorX - doorW / 2, doorY - doorH);
+  cityCtx.arc(doorX, doorY - doorH, doorW / 2, Math.PI, 0, false);
+  cityCtx.lineTo(doorX + doorW / 2, doorY);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Door handle
+  cityCtx.fillStyle = '#ffd700';
+  cityCtx.beginPath();
+  cityCtx.arc(doorX + doorW * 0.25, doorY - doorH * 0.4, 2, 0, Math.PI * 2);
+  cityCtx.fill();
+}
+
+// ========== ROOF TYPES ==========
+function drawRoof(x, y, bw, bh, style) {
+  const roofY = y - bh;
+
+  switch (style.roofType) {
+    case 'pointed':
+      // Triangular roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.6);
+      cityCtx.lineTo(x - bw * 1.1, roofY + bw * 0.15);
+      cityCtx.lineTo(x + bw * 1.1, roofY + bw * 0.15);
+      cityCtx.closePath();
+      cityCtx.fill();
+
+      // Roof shadow
+      cityCtx.fillStyle = shadeColor(style.roof, -25);
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.6);
+      cityCtx.lineTo(x + bw * 1.1, roofY + bw * 0.15);
+      cityCtx.lineTo(x, roofY + bw * 0.05);
+      cityCtx.closePath();
+      cityCtx.fill();
+      break;
+
+    case 'dome':
+      // Domed roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.ellipse(x, roofY, bw, bw * 0.5, 0, 0, Math.PI * 2);
+      cityCtx.fill();
+
+      cityCtx.fillStyle = shadeColor(style.roof, 15);
+      cityCtx.beginPath();
+      cityCtx.arc(x, roofY - bw * 0.2, bw * 0.6, Math.PI, 0, false);
+      cityCtx.closePath();
+      cityCtx.fill();
+
+      // Dome pinnacle
+      cityCtx.fillStyle = '#ffd700';
+      cityCtx.beginPath();
+      cityCtx.arc(x, roofY - bw * 0.5, 4, 0, Math.PI * 2);
+      cityCtx.fill();
+      break;
+
+    case 'temple':
+      // Greek temple roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.5);
+      cityCtx.lineTo(x - bw * 1.2, roofY + bw * 0.1);
+      cityCtx.lineTo(x + bw * 1.2, roofY + bw * 0.1);
+      cityCtx.closePath();
+      cityCtx.fill();
+
+      // Pediment (triangular facade)
+      cityCtx.fillStyle = '#f5f0e5';
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.35);
+      cityCtx.lineTo(x - bw * 0.8, roofY + bw * 0.05);
+      cityCtx.lineTo(x + bw * 0.8, roofY + bw * 0.05);
+      cityCtx.closePath();
+      cityCtx.fill();
+      break;
+
+    case 'barn':
+      // Gambrel/barn roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.4);
+      cityCtx.lineTo(x - bw * 0.6, roofY);
+      cityCtx.lineTo(x - bw * 1.0, roofY + bw * 0.2);
+      cityCtx.lineTo(x + bw * 1.0, roofY + bw * 0.2);
+      cityCtx.lineTo(x + bw * 0.6, roofY);
+      cityCtx.closePath();
+      cityCtx.fill();
+      break;
+
+    case 'flat':
+      // Flat roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.ellipse(x, roofY, bw * 1.05, bw * 0.55, 0, 0, Math.PI * 2);
+      cityCtx.fill();
+      break;
+
+    case 'tent':
+      // Tent/awning roof
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.5);
+      cityCtx.quadraticCurveTo(x - bw * 0.5, roofY - bw * 0.2, x - bw * 1.2, roofY + bw * 0.2);
+      cityCtx.lineTo(x + bw * 1.2, roofY + bw * 0.2);
+      cityCtx.quadraticCurveTo(x + bw * 0.5, roofY - bw * 0.2, x, roofY - bw * 0.5);
+      cityCtx.closePath();
+      cityCtx.fill();
+
+      // Stripes
+      cityCtx.strokeStyle = shadeColor(style.roof, -30);
+      cityCtx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        cityCtx.beginPath();
+        const sx = x - bw * 0.8 + i * bw * 0.4;
+        cityCtx.moveTo(sx, roofY + bw * 0.15);
+        cityCtx.lineTo(x, roofY - bw * 0.45);
+        cityCtx.stroke();
+      }
+      break;
+
+    case 'cone':
+      // Conical roof (silo)
+      cityCtx.fillStyle = style.roof;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x, roofY - bw * 0.7);
+      cityCtx.lineTo(x - bw * 0.7, roofY + bw * 0.1);
+      cityCtx.arc(x, roofY + bw * 0.1, bw * 0.7, Math.PI, 0, false);
+      cityCtx.closePath();
+      cityCtx.fill();
+      break;
+
+    case 'crenelated':
+      // Castle wall crenelations
+      cityCtx.fillStyle = style.roof;
+      for (let i = 0; i < 5; i++) {
+        const cx = x - bw * 0.8 + i * bw * 0.4;
+        cityCtx.fillRect(cx - 4, roofY - 8, 8, 12);
+      }
+      break;
+  }
+}
+
+// ========== COLUMNS ==========
+function drawColumns(x, y, bw, bh) {
+  const colW = bw * 0.08;
+  const positions = [-0.6, -0.3, 0.3, 0.6];
+
+  positions.forEach(pos => {
+    const colX = x + bw * pos;
+
+    // Column base
+    cityCtx.fillStyle = '#d4c4b4';
+    cityCtx.fillRect(colX - colW * 1.2, y - bw * 0.35, colW * 2.4, 6);
+
+    // Column shaft
+    const colGrad = cityCtx.createLinearGradient(colX - colW, 0, colX + colW, 0);
+    colGrad.addColorStop(0, '#f0e8e0');
+    colGrad.addColorStop(0.5, '#ffffff');
+    colGrad.addColorStop(1, '#d4c4b4');
+    cityCtx.fillStyle = colGrad;
+    cityCtx.fillRect(colX - colW, y - bh * 0.85, colW * 2, bh * 0.55);
+
+    // Column capital
+    cityCtx.fillStyle = '#d4c4b4';
+    cityCtx.fillRect(colX - colW * 1.3, y - bh * 0.85 - 4, colW * 2.6, 6);
+  });
+}
+
+// ========== CHIMNEY ==========
+function drawChimney(x, y, bw, bh) {
+  const chimX = x + bw * 0.3;
+  const chimY = y - bh - bw * 0.2;
+
+  // Chimney body
+  cityCtx.fillStyle = '#6a5a4a';
+  cityCtx.fillRect(chimX - 6, chimY - 20, 12, 25);
+
+  // Chimney top
+  cityCtx.fillStyle = '#5a4a3a';
+  cityCtx.fillRect(chimX - 8, chimY - 22, 16, 5);
+
+  // Smoke
+  const time = Date.now() / 1000;
+  cityCtx.fillStyle = 'rgba(150,150,150,0.5)';
+  for (let i = 0; i < 3; i++) {
+    const smokeY = chimY - 30 - i * 12 - Math.sin(time * 2 + i) * 5;
+    const smokeX = chimX + Math.sin(time * 1.5 + i * 2) * 8;
+    cityCtx.beginPath();
+    cityCtx.arc(smokeX, smokeY, 5 + i * 2, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+// ========== BUILDING FLAG ==========
+function drawBuildingFlag(x, y, bw, bh, key) {
+  const flagX = x;
+  const flagY = y - bh - bw * 0.5;
+
+  // Pole
+  cityCtx.strokeStyle = '#4a3a2a';
+  cityCtx.lineWidth = 3;
+  cityCtx.beginPath();
+  cityCtx.moveTo(flagX, flagY + 15);
+  cityCtx.lineTo(flagX, flagY - 15);
+  cityCtx.stroke();
+
+  // Flag
+  const time = Date.now() / 1000;
+  const wave = Math.sin(time * 3) * 2;
+  cityCtx.fillStyle = key === 'MAIN_HALL' ? '#ffd700' : '#c44';
+  cityCtx.beginPath();
+  cityCtx.moveTo(flagX, flagY - 15);
+  cityCtx.quadraticCurveTo(flagX + 10 + wave, flagY - 10, flagX + 15, flagY - 8 + wave);
+  cityCtx.quadraticCurveTo(flagX + 10 + wave, flagY - 3, flagX, flagY - 3);
+  cityCtx.closePath();
+  cityCtx.fill();
+}
+
+// ========== DECORATIVE ELEMENTS ==========
+function drawAnvil(x, y, bw) {
+  cityCtx.fillStyle = '#333';
+  cityCtx.fillRect(x + bw * 0.5, y - 8, 15, 8);
+  cityCtx.fillRect(x + bw * 0.5 - 3, y - 12, 21, 5);
+}
+
+function drawGears(x, y, bw, bh) {
+  const time = Date.now() / 1000;
+  cityCtx.save();
+  cityCtx.translate(x - bw * 0.7, y - bh * 0.6);
+  cityCtx.rotate(time);
+  cityCtx.fillStyle = '#666';
+  for (let i = 0; i < 6; i++) {
+    cityCtx.fillRect(-8, -2, 16, 4);
+    cityCtx.rotate(Math.PI / 3);
+  }
+  cityCtx.beginPath();
+  cityCtx.arc(0, 0, 5, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.restore();
+}
+
+function drawWeaponRack(x, y, bw) {
+  // Swords
+  cityCtx.strokeStyle = '#888';
+  cityCtx.lineWidth = 2;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x + bw * 0.6, y - 5);
+  cityCtx.lineTo(x + bw * 0.6, y - 20);
+  cityCtx.moveTo(x + bw * 0.75, y - 5);
+  cityCtx.lineTo(x + bw * 0.75, y - 18);
+  cityCtx.stroke();
+}
+
+function drawCrates(x, y, bw) {
+  cityCtx.fillStyle = '#8b7355';
+  cityCtx.fillRect(x + bw * 0.5, y - 10, 12, 10);
+  cityCtx.fillStyle = '#7a6345';
+  cityCtx.fillRect(x + bw * 0.6, y - 18, 10, 8);
+}
+
+function drawStatue(x, y, bw, bh) {
+  // Small hero statue
+  cityCtx.fillStyle = '#c9a86c';
+  cityCtx.fillRect(x - bw * 0.7 - 5, y - 8, 10, 8);
+  cityCtx.fillStyle = '#d4b896';
+  cityCtx.beginPath();
+  cityCtx.arc(x - bw * 0.7, y - 20, 6, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.fillRect(x - bw * 0.7 - 4, y - 16, 8, 12);
+}
+
+// ========== SPECIAL BUILDING TYPES ==========
+function drawRoundBuilding(x, y, bw, bh, style, level) {
+  // Silo-style round building
+  cityCtx.fillStyle = style.base;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, bw * 0.8, bw * 0.4, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Cylindrical body
+  const bodyGrad = cityCtx.createLinearGradient(x - bw * 0.8, 0, x + bw * 0.8, 0);
+  bodyGrad.addColorStop(0, style.wallColor);
+  bodyGrad.addColorStop(0.3, shadeColor(style.wallColor, 20));
+  bodyGrad.addColorStop(0.7, shadeColor(style.wallColor, -10));
+  bodyGrad.addColorStop(1, shadeColor(style.wallColor, -30));
+  cityCtx.fillStyle = bodyGrad;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - bw * 0.8, y);
+  cityCtx.lineTo(x - bw * 0.8, y - bh);
+  cityCtx.ellipse(x, y - bh, bw * 0.8, bw * 0.4, 0, Math.PI, 0, true);
+  cityCtx.lineTo(x + bw * 0.8, y);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Conical roof
   cityCtx.fillStyle = style.roof;
   cityCtx.beginPath();
-  cityCtx.ellipse(x, y - buildingHeight, size * 0.55, size * 0.3, 0, 0, Math.PI * 2);
+  cityCtx.moveTo(x, y - bh - bw * 0.8);
+  cityCtx.lineTo(x - bw * 0.9, y - bh + bw * 0.1);
+  cityCtx.ellipse(x, y - bh, bw * 0.9, bw * 0.45, 0, Math.PI, 0, false);
+  cityCtx.closePath();
   cityCtx.fill();
-  
-  // Roof top (pointed)
-  if (style.height > 0.5) {
-    cityCtx.fillStyle = shadeColor(style.roof, -20);
-    cityCtx.beginPath();
-    cityCtx.moveTo(x, y - buildingHeight - size * 0.5);
-    cityCtx.lineTo(x - size * 0.4, y - buildingHeight + size * 0.1);
-    cityCtx.lineTo(x + size * 0.4, y - buildingHeight + size * 0.1);
-    cityCtx.closePath();
-    cityCtx.fill();
+
+  // Wheat decoration
+  if (style.hasWheat) {
+    cityCtx.fillStyle = '#daa520';
+    cityCtx.font = '14px Arial';
+    cityCtx.fillText('🌾', x, y - bh * 0.5);
   }
-  
-  cityCtx.shadowBlur = 0;
-  cityCtx.globalAlpha = 1;
-  
-  // Icon on front
-  cityCtx.font = `${size * 0.4}px Arial`;
+}
+
+function drawWallBuilding(x, y, bw, bh, style, level) {
+  // Wall segment
+  cityCtx.fillStyle = style.wallColor;
+  cityCtx.fillRect(x - bw * 0.8, y - bh, bw * 1.6, bh);
+
+  // Stone texture
+  cityCtx.strokeStyle = shadeColor(style.wallColor, -15);
+  cityCtx.lineWidth = 1;
+  for (let row = 0; row < 4; row++) {
+    const rowY = y - row * (bh / 4);
+    for (let col = 0; col < 3; col++) {
+      const stoneX = x - bw * 0.7 + col * bw * 0.5 + (row % 2) * bw * 0.25;
+      cityCtx.strokeRect(stoneX, rowY - bh / 4, bw * 0.45, bh / 4.5);
+    }
+  }
+
+  // Crenellations
+  for (let i = 0; i < 5; i++) {
+    const cx = x - bw * 0.6 + i * bw * 0.3;
+    cityCtx.fillStyle = style.wallColor;
+    cityCtx.fillRect(cx - 5, y - bh - 10, 10, 12);
+  }
+
+  // Torches
+  if (style.hasTorches && level >= 5) {
+    const time = Date.now() / 1000;
+    [-0.5, 0.5].forEach(pos => {
+      const tx = x + bw * pos;
+      cityCtx.fillStyle = '#4a3a2a';
+      cityCtx.fillRect(tx - 2, y - bh * 0.7, 4, 15);
+      cityCtx.fillStyle = `rgba(255,${150 + Math.sin(time * 10) * 50},0,0.8)`;
+      cityCtx.beginPath();
+      cityCtx.arc(tx, y - bh * 0.75, 5 + Math.sin(time * 8) * 2, 0, Math.PI * 2);
+      cityCtx.fill();
+    });
+  }
+}
+
+function drawTentBuilding(x, y, bw, bh, style) {
+  // Tent fabric
+  cityCtx.fillStyle = style.wallColor;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x, y - bh - bw * 0.3);
+  cityCtx.quadraticCurveTo(x - bw * 0.5, y - bh * 0.3, x - bw, y);
+  cityCtx.lineTo(x + bw, y);
+  cityCtx.quadraticCurveTo(x + bw * 0.5, y - bh * 0.3, x, y - bh - bw * 0.3);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Tent pole
+  cityCtx.strokeStyle = '#5a4a3a';
+  cityCtx.lineWidth = 4;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x, y);
+  cityCtx.lineTo(x, y - bh - bw * 0.3);
+  cityCtx.stroke();
+
+  // Cross (healing tent)
+  if (style.hasCross) {
+    cityCtx.fillStyle = '#cc0000';
+    cityCtx.fillRect(x - 8, y - bh * 0.6 - 3, 16, 6);
+    cityCtx.fillRect(x - 3, y - bh * 0.6 - 8, 6, 16);
+  }
+}
+
+function drawUndergroundBuilding(x, y, bw, style) {
+  // Trapdoor/underground entrance
+  cityCtx.fillStyle = '#3a3a2a';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, bw * 0.6, bw * 0.35, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Dark hole
+  cityCtx.fillStyle = '#1a1a1a';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y - 3, bw * 0.45, bw * 0.25, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Wooden trapdoor edge
+  cityCtx.strokeStyle = '#5a4a3a';
+  cityCtx.lineWidth = 3;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, bw * 0.6, bw * 0.35, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+}
+
+function drawWaterBuilding(x, y, bw, style) {
+  // Moat/water feature
+  const time = Date.now() / 1000;
+  cityCtx.fillStyle = style.wallColor;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, bw * 0.8, bw * 0.45, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Water shine
+  cityCtx.fillStyle = 'rgba(255,255,255,0.3)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x - bw * 0.2, y - bw * 0.1, bw * 0.2, bw * 0.1, -0.3, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Ripples
+  cityCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+  cityCtx.lineWidth = 1;
+  for (let i = 0; i < 2; i++) {
+    const rippleSize = (time * 0.5 + i * 0.5) % 1;
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y, bw * 0.3 * (1 + rippleSize), bw * 0.15 * (1 + rippleSize), 0, 0, Math.PI * 2);
+    cityCtx.stroke();
+  }
+}
+
+// ========== TRAVIAN-STYLE LEVEL BADGE ==========
+function drawTravianLevelBadge(x, y, bw, bh, level, isHovered) {
+  const badgeX = x + bw * 0.6;
+  const badgeY = y - bh - bw * 0.15;
+
+  // Badge background with gold border
+  cityCtx.fillStyle = isHovered ? '#2a2a2a' : '#1a1a1a';
+  cityCtx.beginPath();
+  cityCtx.arc(badgeX, badgeY, 14, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Gold ring
+  cityCtx.strokeStyle = isHovered ? '#ffd700' : '#c9a227';
+  cityCtx.lineWidth = isHovered ? 3 : 2;
+  cityCtx.stroke();
+
+  // Level number
+  cityCtx.fillStyle = isHovered ? '#ffd700' : '#e8c547';
+  cityCtx.font = 'bold 12px Cinzel, serif';
   cityCtx.textAlign = 'center';
   cityCtx.textBaseline = 'middle';
-  cityCtx.fillText(style.icon, x, y - buildingHeight / 2);
-  
-  // Level badge
-  if (level > 0) {
-    const badgeX = x + size * 0.4;
-    const badgeY = y - buildingHeight - size * 0.3;
-    
-    cityCtx.fillStyle = 'rgba(0,0,0,0.8)';
-    cityCtx.beginPath();
-    cityCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
-    cityCtx.fill();
-    
-    cityCtx.strokeStyle = '#ffd700';
-    cityCtx.lineWidth = 2;
-    cityCtx.stroke();
-    
-    cityCtx.fillStyle = '#ffd700';
-    cityCtx.font = 'bold 11px Cinzel, serif';
-    cityCtx.fillText(level, badgeX, badgeY + 1);
-  }
-  
-  // Construction indicator
-  if (isBuilding) {
-    cityCtx.fillStyle = 'rgba(255,165,0,0.8)';
-    cityCtx.font = '16px Arial';
-    cityCtx.fillText('🔨', x, y - buildingHeight - size * 0.6);
-  }
+  cityCtx.fillText(level.toString(), badgeX, badgeY + 1);
 }
 
 function shadeColor(color, percent) {
@@ -2298,17 +3185,51 @@ function onCityMouseMove(e) {
   if (foundSlot !== cityHoveredSlot) {
     cityHoveredSlot = foundSlot;
     renderCityCanvas();
-    
+
+    // Curseur pointer dynamique
+    cityCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'default';
+
     if (foundSlot !== null) {
       showCityTooltip(e.clientX, e.clientY, foundSlot);
     } else {
       hideCityTooltip();
     }
+  } else if (foundSlot !== null) {
+    // Mettre à jour la position du tooltip même si le slot n'a pas changé
+    const tooltip = document.getElementById('city-tooltip');
+    if (tooltip && tooltip.style.display !== 'none') {
+      const canvasRect = cityCanvas.parentElement.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      let left = e.clientX - canvasRect.left + 10;
+      let top = e.clientY - canvasRect.top + 20;
+      if (left + tooltipRect.width > canvasRect.width - 10) {
+        left = e.clientX - canvasRect.left - tooltipRect.width - 10;
+      }
+      if (top + tooltipRect.height > canvasRect.height - 10) {
+        top = e.clientY - canvasRect.top - tooltipRect.height - 20;
+      }
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
   }
+}
+
+// Animation de clic (ripple effect)
+function showClickRipple(x, y) {
+  const ripple = document.createElement('div');
+  ripple.className = 'click-ripple';
+  ripple.style.left = `${x}px`;
+  ripple.style.top = `${y}px`;
+  cityCanvas.parentElement.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 500);
 }
 
 function onCityClick(e) {
   if (cityHoveredSlot !== null) {
+    // Feedback visuel de clic
+    const canvasRect = cityCanvas.getBoundingClientRect();
+    showClickRipple(e.clientX - canvasRect.left, e.clientY - canvasRect.top);
+
     if (currentCityView === 'fields') {
       // Vue champs
       if (cityHoveredSlot === -1) {
@@ -2328,65 +3249,119 @@ function onCityClick(e) {
 function showCityTooltip(mouseX, mouseY, slotNum) {
   const tooltip = document.getElementById('city-tooltip');
   if (!tooltip) return;
-  
+
   const slot = citySlots.find(s => s.slot === slotNum);
-  
+
   let html = '';
-  
+
   if (currentCityView === 'fields') {
-    // Vue champs
+    // Vue champs - style Travian
     if (slot?.isVillageCenter) {
       html = `
-        <h4>🏰 Centre du Village</h4>
+        <h4><span class="tt-icon">🏰</span> Centre du Village</h4>
         <p class="tt-hint">Cliquez pour voir les bâtiments</p>
       `;
     } else if (slot?.isField) {
-      const fieldNames = { 
-        FARM: 'Champ de blé', 
-        LUMBER: 'Forêt', 
-        QUARRY: 'Carrière de pierre', 
-        IRON_MINE: 'Mine de fer' 
+      const fieldIcons = {
+        FARM: '🌾',
+        LUMBER: '🪵',
+        QUARRY: '🪨',
+        IRON_MINE: '⛏️'
+      };
+      const fieldNames = {
+        FARM: 'Champ de blé',
+        LUMBER: 'Scierie',
+        QUARRY: 'Carrière de pierre',
+        IRON_MINE: 'Mine de fer'
       };
       const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
       const level = building?.level || 0;
-      
+      const production = building?.prodPerHour || 0;
+
       html = `
-        <h4>${fieldNames[slot.fieldType] || 'Ressource'}</h4>
-        <p class="tt-level">Niveau ${level}</p>
+        <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+        <p class="tt-level">Niveau ${level}/20</p>
+        ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
         <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : 'Cliquez pour améliorer'}</p>
       `;
     }
   } else {
-    // Vue ville
+    // Vue ville - style Travian
     const building = getBuildingAtSlot(slotNum);
-    
+
     if (building) {
+      const def = buildingsData?.find(b => b.key === building.key);
+      const maxLevel = def?.maxLevel || 20;
+      const production = building.prodPerHour || 0;
+      const effect = getBuildingEffect(building.key, building.level);
+
       html = `
-        <h4>${BUILDING_ICONS[building.key] || '🏠'} ${getBuildingName(building.key)}</h4>
-        <p class="tt-level">Niveau ${building.level}</p>
-        <p class="tt-hint">Cliquez pour améliorer</p>
+        <h4><span class="tt-icon">${BUILDING_ICONS[building.key] || '🏠'}</span> ${getBuildingName(building.key)}</h4>
+        <p class="tt-level">Niveau ${building.level}/${maxLevel}</p>
+        ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
+        ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
+        <p class="tt-hint">${building.level < maxLevel ? 'Cliquez pour améliorer' : 'Niveau maximum atteint'}</p>
       `;
     } else if (slot?.fixed) {
       const mainHall = getBuildingAtSlot(0);
+      const level = mainHall?.level || 1;
       html = `
-        <h4>🏛️ Hôtel de Ville</h4>
-        <p class="tt-level">Niveau ${mainHall?.level || 1}</p>
+        <h4><span class="tt-icon">🏛️</span> Hôtel de Ville</h4>
+        <p class="tt-level">Niveau ${level}/30</p>
+        <div class="tt-stats">
+          <span class="tt-stat">Réduction construction: <span class="tt-stat-value">${(level * 2.5).toFixed(1)}%</span></span>
+        </div>
         <p class="tt-hint">Bâtiment principal</p>
       `;
     } else {
       html = `
-        <h4>Emplacement vide</h4>
-        <p class="tt-hint">Cliquez pour construire</p>
+        <h4><span class="tt-icon">🔨</span> Emplacement libre</h4>
+        <p class="tt-hint">Cliquez pour construire un bâtiment</p>
       `;
     }
   }
-  
+
   tooltip.innerHTML = html;
   tooltip.style.display = 'block';
-  
+
+  // Positionner le tooltip sous le curseur avec animation
   const canvasRect = cityCanvas.parentElement.getBoundingClientRect();
-  tooltip.style.left = `${mouseX - canvasRect.left + 15}px`;
-  tooltip.style.top = `${mouseY - canvasRect.top - 10}px`;
+  const tooltipRect = tooltip.getBoundingClientRect();
+
+  let left = mouseX - canvasRect.left + 10;
+  let top = mouseY - canvasRect.top + 20;
+
+  // Éviter que le tooltip sorte de l'écran
+  if (left + tooltipRect.width > canvasRect.width - 10) {
+    left = mouseX - canvasRect.left - tooltipRect.width - 10;
+  }
+  if (top + tooltipRect.height > canvasRect.height - 10) {
+    top = mouseY - canvasRect.top - tooltipRect.height - 20;
+  }
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+// Helper pour obtenir l'effet d'un bâtiment
+function getBuildingEffect(key, level) {
+  const effects = {
+    'BARRACKS': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
+    'STABLE': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
+    'WORKSHOP': `Réduction entraînement: ${(level * 4).toFixed(1)}%`,
+    'ACADEMY': `Réduction recherche: ${(level * 1).toFixed(1)}%`,
+    'FORGE': `Bonus défense global: ${(level * 0.5).toFixed(1)}%`,
+    'WALL': `Bonus défense: ${(level * 1).toFixed(1)}%`,
+    'MOAT': `Bonus ATK/DEF: ${(level * 0.5).toFixed(1)}%`,
+    'HIDEOUT': `Ressources cachées: ${Math.min(level * 1, 20)}%`,
+    'HEALING_TENT': `Capacité soins: ${level * 3} unités`,
+    'HERO_HOME': `Bonus XP héros: ${(level * 2).toFixed(0)}%`,
+    'MARKET': `Taxe réduite: ${(30 - level).toFixed(0)}%`,
+    'RALLY_POINT': `Armées max: ${Math.min(1 + Math.floor(level / 5), 3)}`,
+    'WAREHOUSE': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`,
+    'SILO': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`
+  };
+  return effects[key] || null;
 }
 
 function hideCityTooltip() {
