@@ -8124,7 +8124,9 @@ async function loadMap() {
             x: c.x,
             y: c.y,
             type: 'CITY',
+            id: c.id,
             playerId: c.playerId || c.player?.id,
+            playerName: c.player?.name || c.playerName || 'Inconnu',
             name: c.name,
             isCapital: c.isCapital,
             allianceId: c.player?.allianceId,
@@ -8158,7 +8160,9 @@ async function loadMap() {
             x: c.x,
             y: c.y,
             type: 'CITY',
+            id: c.id,
             playerId: player?.id,
+            playerName: player?.name || 'Vous',
             name: c.name,
             isCapital: c.isCapital,
             faction: player?.faction || 'ROME',
@@ -8181,26 +8185,59 @@ async function loadMap() {
 
 function generateFakeMapData(startX, startY, size) {
   const data = [];
-  const seed = 12345;
-  
-  // Add player cities
+  const fakePlayerNames = ['Marcus', 'Julia', 'Gaius', 'Livia', 'Brutus', 'Helena', 'Nero', 'Octavia', 'Titus', 'Cornelia'];
+  const fakeFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+
+  // Add player cities with full data
   cities.forEach(c => {
-    data.push({ x: c.x, y: c.y, type: 'CITY', playerId: player?.id, name: c.name, isCapital: c.isCapital });
+    const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
+    data.push({
+      x: c.x,
+      y: c.y,
+      type: 'CITY',
+      id: c.id,
+      playerId: player?.id,
+      playerName: player?.name || 'Vous',
+      name: c.name,
+      isCapital: c.isCapital,
+      faction: player?.faction || 'ROME',
+      wallLevel: wallBuilding?.level || 0,
+      population: player?.population || 100
+    });
   });
-  
+
   // Add some random resources and enemy cities
   for (let i = 0; i < 50; i++) {
     const x = startX + Math.floor(Math.random() * size);
     const y = startY + Math.floor(Math.random() * size);
     const types = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-    
-    if (Math.random() < 0.1) {
-      data.push({ x, y, type: 'CITY', playerId: 'enemy', name: `Ville ${i}` });
+
+    // Avoid collision with player cities
+    if (data.find(d => d.x === x && d.y === y)) continue;
+
+    if (Math.random() < 0.15) {
+      // Enemy city with proper data
+      const fakePlayerId = `fake-player-${i}`;
+      const fakePlayerName = fakePlayerNames[i % fakePlayerNames.length];
+      const fakeFaction = fakeFactions[Math.floor(Math.random() * fakeFactions.length)];
+      data.push({
+        x,
+        y,
+        type: 'CITY',
+        id: `fake-city-${i}`,
+        playerId: fakePlayerId,
+        playerName: fakePlayerName,
+        name: `${fakePlayerName}'s Village`,
+        isCapital: Math.random() < 0.3,
+        faction: fakeFaction,
+        wallLevel: Math.floor(Math.random() * 10),
+        population: Math.floor(Math.random() * 1000) + 50
+      });
     } else {
       data.push({ x, y, type: 'RESOURCE', resourceType: types[Math.floor(Math.random() * 4)] });
     }
   }
-  
+
   return data;
 }
 
@@ -9700,8 +9737,11 @@ function updateMapUI() {
 }
 
 // Mouse handlers
+let mapDragDistance = 0; // Track total drag distance to distinguish click vs drag
+
 function onMapMouseDown(e) {
   mapDragging = true;
+  mapDragDistance = 0; // Reset drag distance
   mapDragStart = { x: e.clientX, y: e.clientY };
   mapCanvas.style.cursor = 'grabbing';
 }
@@ -9716,9 +9756,14 @@ function onMapMouseMove(e) {
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
   if (mapDragging) {
+    // Track drag distance for click vs drag detection
+    const pixelDx = e.clientX - mapDragStart.x;
+    const pixelDy = e.clientY - mapDragStart.y;
+    mapDragDistance += Math.abs(pixelDx) + Math.abs(pixelDy);
+
     // Dragging uses simpler offset (not isometric conversion)
-    const dx = (e.clientX - mapDragStart.x) / (tileW * 0.5);
-    const dy = (e.clientY - mapDragStart.y) / (tileH);
+    const dx = pixelDx / (tileW * 0.5);
+    const dy = pixelDy / (tileH);
 
     mapOffsetX -= (dx + dy) * 0.5;
     mapOffsetY -= (dy - dx) * 0.5;
@@ -9747,7 +9792,8 @@ function onMapMouseUp() {
 }
 
 function onMapClick(e) {
-  if (mapDragging) return;
+  // Prevent click if user dragged the map (threshold: 5 pixels)
+  if (mapDragDistance > 5) return;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
