@@ -3032,6 +3032,113 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
       base: culture.stoneLight, roof: culture.roof, roofType: 'temple',
       height: 1.6, windows: 2, hasColumns: true, hasStatue: true,
       wallColor: culture.stoneLight, trimColor: culture.trim
+    },
+    // ===== NOUVEAUX BÂTIMENTS (21) =====
+    MILL: {
+      base: culture.wood, roof: culture.roofDark, roofType: 'pointed',
+      height: 1.8, windows: 1, hasWindmill: true,
+      wallColor: culture.stone, trimColor: culture.wood
+    },
+    BAKERY: {
+      base: culture.stone, roof: culture.roof, roofType: 'pointed',
+      height: 1.3, windows: 2, hasChimney: true,
+      wallColor: culture.stoneLight, trimColor: culture.trim
+    },
+    SAWMILL: {
+      base: culture.wood, roof: culture.roofDark, roofType: 'barn',
+      height: 1.2, windows: 1, hasDoors: true,
+      wallColor: '#8B4513', trimColor: culture.wood
+    },
+    STONEMASON: {
+      base: culture.stoneDark, roof: culture.roofDark, roofType: 'flat',
+      height: 1.3, windows: 1, hasAnvil: true,
+      wallColor: culture.stone, trimColor: '#555555'
+    },
+    FOUNDRY: {
+      base: '#3a2a1a', roof: '#1a1a1a', roofType: 'pointed',
+      height: 1.5, windows: 1, hasChimney: true, hasAnvil: true,
+      wallColor: '#4a3a2a', trimColor: '#ff4400'
+    },
+    GREAT_SILO: {
+      base: culture.stone, roof: culture.roof, roofType: 'dome',
+      height: 2.0, windows: 0, isRound: true,
+      wallColor: culture.stoneLight, trimColor: culture.trim
+    },
+    GREAT_WAREHOUSE: {
+      base: culture.stoneDark, roof: culture.roofDark, roofType: 'barn',
+      height: 1.6, windows: 2, hasDoors: true, hasCrates: true,
+      wallColor: culture.stone, trimColor: culture.wood
+    },
+    GREAT_BARRACKS: {
+      base: culture.stoneDark, roof: culture.accent, roofType: 'pointed',
+      height: 1.7, windows: 3, hasBanner: true, hasWeaponRack: true,
+      wallColor: culture.stone, trimColor: culture.accent
+    },
+    GREAT_STABLE: {
+      base: culture.wood, roof: culture.roofDark, roofType: 'barn',
+      height: 1.5, windows: 2, hasHorseshoe: true, hasDoors: true,
+      wallColor: culture.stone, trimColor: culture.wood
+    },
+    WATCHTOWER: {
+      base: culture.stoneDark, roof: culture.roof, roofType: 'pointed',
+      height: 2.2, windows: 4, hasTorches: true, hasFlag: true,
+      wallColor: culture.stone, trimColor: culture.trim
+    },
+    EMBASSY: {
+      base: culture.stoneLight, roof: culture.accent, roofType: 'dome',
+      height: 1.6, windows: 3, hasColumns: true, hasFlag: true,
+      wallColor: culture.stoneLight, trimColor: culture.accent
+    },
+    TREASURE_CHAMBER: {
+      base: '#4a3a1a', roof: '#ffd700', roofType: 'dome',
+      height: 1.4, windows: 1, hasColumns: true,
+      wallColor: '#5a4a2a', trimColor: '#ffd700'
+    },
+    HERO_MANSION: {
+      base: culture.stoneLight, roof: culture.roof, roofType: 'temple',
+      height: 1.8, windows: 3, hasColumns: true, hasStatue: true,
+      wallColor: culture.stoneLight, trimColor: culture.trim
+    },
+    RESIDENCE: {
+      base: culture.stone, roof: culture.roof, roofType: 'pointed',
+      height: 1.5, windows: 3, hasColumns: true,
+      wallColor: culture.stoneLight, trimColor: culture.trim
+    },
+    TRADE_OFFICE: {
+      base: culture.stone, roof: culture.accent, roofType: 'tent',
+      height: 1.3, windows: 2, hasAwning: true, hasCrates: true,
+      wallColor: culture.stoneLight, trimColor: culture.accent
+    },
+    // Faction buildings
+    ROMAN_THERMAE: {
+      base: '#e8e0d0', roof: '#b8a090', roofType: 'dome',
+      height: 1.4, windows: 2, hasColumns: true, isWater: true,
+      wallColor: '#f0e8e0', trimColor: '#8b7355'
+    },
+    GALLIC_BREWERY: {
+      base: culture.wood, roof: '#8B4513', roofType: 'barn',
+      height: 1.4, windows: 1, hasChimney: true, hasDoors: true,
+      wallColor: '#a08060', trimColor: culture.wood
+    },
+    GREEK_TEMPLE: {
+      base: '#f5f5f5', roof: '#e0d8c8', roofType: 'temple',
+      height: 1.8, windows: 0, hasColumns: true,
+      wallColor: '#ffffff', trimColor: '#d4af37'
+    },
+    EGYPTIAN_IRRIGATION: {
+      base: '#c9b896', roof: '#a08b6e', roofType: 'flat',
+      height: 1.0, windows: 0, isWater: true,
+      wallColor: '#d4c4a8', trimColor: '#8b7355'
+    },
+    HUN_WAR_TENT: {
+      base: '#8b7355', roof: '#6b5344', roofType: 'tent',
+      height: 1.2, windows: 0, isTent: true, hasFlag: true,
+      wallColor: '#9b8365', trimColor: '#5b4334'
+    },
+    SULTAN_DESERT_OUTPOST: {
+      base: '#d4b896', roof: '#c4a886', roofType: 'dome',
+      height: 1.4, windows: 2, hasFlag: true,
+      wallColor: '#e4c8a6', trimColor: '#8b7355'
     }
   };
 
@@ -3936,9 +4043,11 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
   tooltip.style.top = `${top}px`;
 }
 
-// Helper pour obtenir l'effet d'un bâtiment
+// Helper pour obtenir l'effet d'un bâtiment (39 bâtiments)
 function getBuildingEffect(key, level) {
   const effects = {
+    // Base & Intermediate
+    'MAIN_HALL': `Réduction construction: ${(level * 2.5).toFixed(1)}%`,
     'BARRACKS': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'STABLE': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'WORKSHOP': `Réduction entraînement: ${(level * 4).toFixed(1)}%`,
@@ -3949,10 +4058,36 @@ function getBuildingEffect(key, level) {
     'HIDEOUT': `Ressources cachées: ${Math.min(level * 1, 20)}%`,
     'HEALING_TENT': `Capacité soins: ${level * 3} unités`,
     'HERO_HOME': `Bonus XP héros: ${(level * 2).toFixed(0)}%`,
+    'HERO_MANSION': `Résurrection: -${(level * 2).toFixed(0)}% temps`,
     'MARKET': `Taxe réduite: ${(30 - level).toFixed(0)}%`,
     'RALLY_POINT': `Armées max: ${Math.min(1 + Math.floor(level / 5), 3)}`,
     'WAREHOUSE': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`,
-    'SILO': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`
+    'SILO': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`,
+    // Production bonus
+    'MILL': `Bonus céréales: +${(4 + (level - 1) * 4).toFixed(0)}%`,
+    'BAKERY': `Bonus céréales: +${(4 + (level - 1) * 4).toFixed(0)}%`,
+    'SAWMILL': `Bonus bois: +${(5 * level).toFixed(0)}%`,
+    'STONEMASON': `Bonus pierre: +${(5 * level).toFixed(0)}%`,
+    'FOUNDRY': `Bonus fer: +${(5 * level).toFixed(0)}%`,
+    // Protected storage
+    'GREAT_SILO': `Protégé: ${formatNum(3600 + (600000 - 3600) * (level - 1) / 19)}`,
+    'GREAT_WAREHOUSE': `Protégé: ${formatNum(3600 + (600000 - 3600) * (level - 1) / 19)}`,
+    // Military advanced
+    'GREAT_BARRACKS': `Réduction: -${(level * 4).toFixed(0)}% temps`,
+    'GREAT_STABLE': `Réduction: -${(level * 4).toFixed(0)}% temps`,
+    'WATCHTOWER': `Vision: ${5 + level * 6} cases`,
+    // Special buildings
+    'EMBASSY': `Aide alliance: ${Math.min(level, 20)} max`,
+    'TREASURE_CHAMBER': `Or/jour: ${10 + (level - 1) * 10}`,
+    'RESIDENCE': `Colons: ${level >= 20 ? 3 : level >= 15 ? 2 : level >= 10 ? 1 : 0}`,
+    'TRADE_OFFICE': `Taxe P2P: -${level}%`,
+    // Faction buildings
+    'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% temps`,
+    'GALLIC_BREWERY': `Défense siège: +${level}%`,
+    'GREEK_TEMPLE': `Recherche: -${level}%`,
+    'EGYPTIAN_IRRIGATION': `Production: +${level}%`,
+    'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}%`,
+    'SULTAN_DESERT_OUTPOST': `Taxe inter-villes: -${(level * 0.5).toFixed(1)}%`
   };
   return effects[key] || null;
 }
@@ -4004,7 +4139,7 @@ function openBuildPanel(slotNum) {
     }
 
     // ===== HERO HOME - HERO MANAGEMENT PANEL =====
-    if (key === 'HERO_HOME') {
+    if (key === 'HERO_HOME' || key === 'HERO_MANSION') {
       openHeroManagementPanel(level, slotNum);
       return;
     }
@@ -4904,8 +5039,13 @@ async function upgradeBuilding(buildingKey, slot) {
 }
 
 function getBuildingDescription(key) {
+  // Chercher dans buildingsData d'abord (contient les descriptions des 39 bâtiments)
+  const building = window.buildingsData?.find(b => b.key === key);
+  if (building?.description) return building.description;
+
   const descriptions = {
-    BARRACKS: 'Entraîne l\'infanterie',
+    MAIN_HALL: 'Réduit le temps de construction',
+    BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
     WORKSHOP: 'Construit des machines de siège',
     ACADEMY: 'Recherche et formation',
@@ -4917,7 +5057,33 @@ function getBuildingDescription(key) {
     HEALING_TENT: 'Soigne les blessés',
     RALLY_POINT: 'Rassemblement des armées',
     HIDEOUT: 'Cache des ressources',
-    MOAT: 'Douves défensives'
+    MOAT: 'Douves défensives',
+    FARM: 'Produit de la nourriture',
+    LUMBER: 'Produit du bois',
+    QUARRY: 'Produit de la pierre',
+    IRON_MINE: 'Produit du fer',
+    MILL: 'Augmente production céréales',
+    BAKERY: 'Augmente production céréales',
+    SAWMILL: 'Augmente production bois',
+    STONEMASON: 'Augmente production pierre',
+    FOUNDRY: 'Augmente production fer',
+    GREAT_SILO: 'Stockage protégé nourriture',
+    GREAT_WAREHOUSE: 'Stockage protégé ressources',
+    GREAT_BARRACKS: 'Recrutement hors capitale',
+    GREAT_STABLE: 'Cavalerie hors capitale',
+    WATCHTOWER: 'Détection et espionnage',
+    EMBASSY: 'Gestion des alliances',
+    TREASURE_CHAMBER: 'Produit de l\'or',
+    HERO_MANSION: 'Gestion du héros',
+    RESIDENCE: 'Formation de colons',
+    TRADE_OFFICE: 'Bonus commerce',
+    ROMAN_THERMAE: 'Soins rapides (Rome)',
+    GALLIC_BREWERY: 'Défense siège (Gaule)',
+    GREEK_TEMPLE: 'Recherche bonus (Grèce)',
+    EGYPTIAN_IRRIGATION: 'Production bonus (Égypte)',
+    HUN_WAR_TENT: 'Entretien réduit (Huns)',
+    SULTAN_DESERT_OUTPOST: 'Commerce bonus (Sultanat)',
+    HERO_HOME: 'Gestion du héros'
   };
   return descriptions[key] || 'Bâtiment';
 }
@@ -5252,34 +5418,31 @@ function showTab(tabName) {
 
 // ========== BUILDINGS ==========
 let buildingsData = [];
+window.buildingsData = buildingsData; // Rendre accessible globalement
 
 async function loadBuildings() {
   // Utiliser le cache si disponible
   const cached = cache.get('buildings');
   if (cached) {
     buildingsData = cached;
+    window.buildingsData = buildingsData;
     renderBuildings('all');
     return;
   }
-  
+
   try {
-    const res = await requestManager.fetchWithRetry(`${API}/api/buildings`, { 
-      headers: { Authorization: `Bearer ${token}` } 
+    const res = await requestManager.fetchWithRetry(`${API}/api/buildings`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
       buildingsData = await res.json();
+      window.buildingsData = buildingsData;
       cache.set('buildings', buildingsData);
     }
   } catch (e) {
     console.warn('loadBuildings error:', e);
   }
   renderBuildings('all');
-}
-
-function filterBuildings(category) {
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  renderBuildings(category);
 }
 
 function renderBuildings(filter) {
@@ -6805,7 +6968,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
 async function assignPointFromPanel(stat) {
   await assignPoint(stat);
   // Refresh the panel
-  const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+  const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
   if (heroHomeBuilding) {
     openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
   }
@@ -6825,7 +6988,7 @@ async function createHero() {
 
     if (res.ok) {
       showToast('Héros créé!', 'success');
-      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
@@ -6852,7 +7015,7 @@ async function renameHero() {
 
     if (res.ok) {
       showToast('Héros renommé!', 'success');
-      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
@@ -10314,17 +10477,6 @@ function formatTime(dateStr) {
   return `${secs}s`;
 }
 
-function getBuildingName(key) {
-  const names = {
-    MAIN_HALL: 'Hôtel de ville', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
-    FARM: 'Ferme', LUMBER: 'Scierie', QUARRY: 'Carrière', IRON_MINE: 'Mine',
-    WAREHOUSE: 'Entrepôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
-    FORGE: 'Forge', WALL: 'Mur', MOAT: 'Douves', HEALING_TENT: 'Infirmerie',
-    RALLY_POINT: 'Point de ralliement', HIDEOUT: 'Cachette'
-  };
-  return names[key] || key;
-}
-
 function showBuildingInfo(key, level) {
   showToast(`${getBuildingName(key)} niveau ${level}`, 'info');
 }
@@ -10956,14 +11108,26 @@ function renderSpyReports() {
 }
 
 function getBuildingName(key) {
-  const names = {
-    MAIN_HALL: 'Hôtel de ville', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
-    WAREHOUSE: 'Entrepôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
+  // Chercher dans buildingsData d'abord (contient les 39 bâtiments)
+  const building = window.buildingsData?.find(b => b.key === key);
+  if (building?.name) return building.name;
+
+  // Fallback pour les cas où buildingsData n'est pas encore chargé
+  const fallbackNames = {
+    MAIN_HALL: 'Bâtiment principal', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
+    WAREHOUSE: 'Dépôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
     FARM: 'Ferme', LUMBER: 'Bûcheron', QUARRY: 'Carrière', IRON_MINE: 'Mine de fer',
-    WALL: 'Muraille', MOAT: 'Douves', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',
-    RALLY_POINT: 'Point de ralliement', FORGE: 'Forge'
+    WALL: 'Mur', MOAT: 'Douves', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',
+    RALLY_POINT: 'Place de rassemblement', FORGE: 'Forge', HERO_MANSION: 'Domus du Héros',
+    MILL: 'Moulin', BAKERY: 'Boulangerie', SAWMILL: 'Scierie', STONEMASON: 'Tailleur de Pierre',
+    FOUNDRY: 'Fonderie', GREAT_SILO: 'Grand Silo', GREAT_WAREHOUSE: 'Grand Dépôt',
+    GREAT_BARRACKS: 'Grande Caserne', GREAT_STABLE: 'Grande Écurie', WATCHTOWER: 'Tour de Guet',
+    EMBASSY: 'Ambassade', TREASURE_CHAMBER: 'Chambre au Trésor', RESIDENCE: 'Résidence',
+    TRADE_OFFICE: 'Comptoir de Commerce', ROMAN_THERMAE: 'Thermes', GALLIC_BREWERY: 'Brasserie',
+    GREEK_TEMPLE: 'Temple', EGYPTIAN_IRRIGATION: 'Poste d\'Irrigation', HUN_WAR_TENT: 'Tente de Guerre',
+    SULTAN_DESERT_OUTPOST: 'Poste du Désert', HERO_HOME: 'Domus du Héros'
   };
-  return names[key] || key;
+  return fallbackNames[key] || key;
 }
 
 function getUnitName(key) {
