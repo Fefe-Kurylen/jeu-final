@@ -387,10 +387,15 @@ function renderCity() {
   
   // Render 2.5D city canvas
   renderCityCanvas();
-  
-  // Render queues
+
+  // Render queues (sidebar)
   renderBuildQueue();
   renderRecruitQueue();
+  renderMovingArmies();
+
+  // Update sidebar stats
+  updateCityStats();
+  loadWounded();
   renderMovingArmies();
 }
 
@@ -3395,20 +3400,137 @@ function renderRecruitQueue() {
 }
 
 function renderMovingArmies() {
-  const el = document.getElementById('moving-armies');
+  const el = document.getElementById('movement-queue') || document.getElementById('moving-armies');
+  if (!el) return;
+
   const moving = armies.filter(a => a.status !== 'IDLE');
-  
+
   if (moving.length === 0) {
-    el.innerHTML = '<p style="padding:10px;color:var(--text-muted);font-size:12px;">Aucune armée en mouvement</p>';
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:11px;text-align:center;">Aucun mouvement</p>';
     return;
   }
-  
+
+  const missionIcons = {
+    'ATTACK': '⚔️',
+    'RAID': '💰',
+    'SUPPORT': '🛡️',
+    'SPY': '🔍',
+    'TRANSPORT': '📦',
+    'RETURNING': '🏠',
+    'MOVING': '🚶'
+  };
+
   el.innerHTML = moving.map(a => `
     <div class="queue-item">
-      <span class="queue-name">${a.name} (${a.status})</span>
-      <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
+      <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '🚶'}</span>
+      <div class="queue-info">
+        <span class="queue-name">${a.name || 'Armée'}</span>
+        <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
+      </div>
     </div>
   `).join('');
+}
+
+// ========== WOUNDED UNITS ==========
+async function loadWounded() {
+  if (!currentCity) return;
+
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/wounded`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const wounded = await res.json();
+      renderWounded(wounded);
+    }
+  } catch (e) {
+    console.warn('Could not load wounded:', e);
+  }
+}
+
+function renderWounded(wounded) {
+  const el = document.getElementById('wounded-list');
+  if (!el) return;
+
+  if (!wounded || wounded.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:11px;text-align:center;">Aucun blessé</p>';
+    return;
+  }
+
+  el.innerHTML = wounded.map(w => {
+    const timeLeft = Math.max(0, w.timeToHeal);
+    const minutes = Math.floor(timeLeft / 60000);
+    const seconds = Math.floor((timeLeft % 60000) / 1000);
+
+    return `
+      <div class="wounded-item">
+        <span class="wounded-icon">🩹</span>
+        <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}</span>
+        <span class="wounded-time">${minutes}:${seconds.toString().padStart(2, '0')}</span>
+        <button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner (${w.count} or)">💰</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function healWounded(unitKey) {
+  if (!currentCity) return;
+
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/wounded/heal`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ unitKey })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`${data.healed} unités soignées! (-${data.goldSpent} or)`, 'success');
+      loadWounded();
+      loadPlayer(); // Refresh gold
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+}
+
+// ========== CITY STATS SIDEBAR ==========
+function updateCityStats() {
+  if (!currentCity) return;
+
+  // Get building levels
+  const warehouse = currentCity.buildings?.find(b => b.key === 'WAREHOUSE');
+  const silo = currentCity.buildings?.find(b => b.key === 'SILO');
+  const wall = currentCity.buildings?.find(b => b.key === 'WALL');
+
+  // Calculate storage (base 1000 + 500 per warehouse level)
+  const storageLevel = warehouse?.level || 0;
+  const maxStorage = 1000 + (storageLevel * 500);
+  const currentStorage = Math.floor((currentCity.wood || 0) + (currentCity.stone || 0) + (currentCity.iron || 0));
+
+  // Calculate silo (base 1000 + 500 per silo level)
+  const siloLevel = silo?.level || 0;
+  const maxSilo = 1000 + (siloLevel * 500);
+  const currentSilo = Math.floor(currentCity.food || 0);
+
+  // Wall HP
+  const wallLevel = wall?.level || 0;
+  const maxWallHp = wallLevel * 100;
+  const currentWallHp = currentCity.wallHp || maxWallHp;
+
+  // Update display
+  const storageEl = document.getElementById('city-storage');
+  const siloEl = document.getElementById('city-silo');
+  const wallsEl = document.getElementById('city-walls');
+
+  if (storageEl) storageEl.textContent = `${formatNumber(currentStorage)}/${formatNumber(maxStorage)}`;
+  if (siloEl) siloEl.textContent = `${formatNumber(currentSilo)}/${formatNumber(maxSilo)}`;
+  if (wallsEl) wallsEl.textContent = wallLevel > 0 ? `${currentWallHp}/${maxWallHp}` : 'Pas de mur';
 }
 
 // ========== TABS ==========
@@ -6788,6 +6910,44 @@ function centerOnCapital() {
     mapOffsetY = WORLD_SIZE / 2;
   }
   loadMap();
+}
+
+// Go to specific coordinates on map
+function gotoCoords() {
+  const xInput = document.getElementById('goto-x');
+  const yInput = document.getElementById('goto-y');
+  const x = parseInt(xInput?.value);
+  const y = parseInt(yInput?.value);
+
+  if (!isNaN(x) && !isNaN(y)) {
+    mapOffsetX = x;
+    mapOffsetY = y;
+    renderMap();
+    renderMinimap();
+    updateMapUI();
+    showToast(`Position: (${x}, ${y})`, 'info');
+  } else {
+    showToast('Coordonnées invalides', 'error');
+  }
+}
+
+// Open recruit modal
+function openRecruitModal() {
+  if (!currentCity) {
+    showToast('Sélectionnez une ville', 'error');
+    return;
+  }
+
+  // Check if city has barracks
+  const barracks = currentCity.buildings?.find(b => b.key === 'BARRACKS');
+  if (!barracks) {
+    showToast('Construisez une caserne d\'abord', 'warning');
+    return;
+  }
+
+  // Show recruit tab or modal
+  showTab('army');
+  showToast('Utilisez la section armée pour recruter', 'info');
 }
 
 function showMapInfoPanel(x, y, tile) {
