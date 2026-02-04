@@ -914,29 +914,103 @@ function renderCityView() {
   cityCtx.ellipse(centerX, centerY, cityRadius + 15, (cityRadius + 15) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // City ground (dirt/cobblestone) - darker at night
-  const dirtGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, cityRadius);
+  // ========== TRAVIAN-STYLE: 4 GRASS QUADRANTS + CROSS PATHS ==========
+  const innerRadius = cityRadius - 5;
+  const pathWidth = 18; // Width of dirt cross paths
+
+  // Step 1: Draw grass background (bright green like Travian)
+  const grassGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, innerRadius);
   if (nightMode) {
-    dirtGrad.addColorStop(0, '#6a5846');
-    dirtGrad.addColorStop(0.4, '#5a4836');
-    dirtGrad.addColorStop(0.8, '#4a3826');
-    dirtGrad.addColorStop(1, '#3a2818');
+    grassGrad.addColorStop(0, '#3a5030');
+    grassGrad.addColorStop(0.5, '#2a4020');
+    grassGrad.addColorStop(1, '#1a3015');
   } else {
-    dirtGrad.addColorStop(0, '#d4b896');
-    dirtGrad.addColorStop(0.4, '#c4a876');
-    dirtGrad.addColorStop(0.8, '#a48856');
-    dirtGrad.addColorStop(1, '#846838');
+    // Travian bright green
+    grassGrad.addColorStop(0, '#7cb442');
+    grassGrad.addColorStop(0.3, '#6aa835');
+    grassGrad.addColorStop(0.7, '#5a9828');
+    grassGrad.addColorStop(1, '#4a8820');
   }
-  cityCtx.fillStyle = dirtGrad;
+  cityCtx.fillStyle = grassGrad;
   cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, cityRadius - 5, (cityRadius - 5) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(centerX, centerY, innerRadius, innerRadius * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
+
+  // Step 2: Add grass texture spots (lighter patches)
+  if (!nightMode) {
+    cityCtx.fillStyle = 'rgba(150, 200, 100, 0.3)';
+    for (let i = 0; i < 20; i++) {
+      const angle = (i * 18 + 5) * Math.PI / 180;
+      const dist = innerRadius * (0.3 + (i % 3) * 0.2);
+      const spotX = centerX + Math.cos(angle) * dist;
+      const spotY = centerY + Math.sin(angle) * dist * 0.5;
+      const spotSize = 15 + (i % 4) * 8;
+      cityCtx.beginPath();
+      cityCtx.ellipse(spotX, spotY, spotSize, spotSize * 0.5, 0, 0, Math.PI * 2);
+      cityCtx.fill();
+    }
+  }
+
+  // Step 3: Draw cross dirt paths (Travian style)
+  const pathColor = nightMode ? '#4a3828' : '#c4a060';
+  const pathDark = nightMode ? '#3a2818' : '#a08040';
+  const pathLight = nightMode ? '#5a4838' : '#d4b880';
+
+  cityCtx.save();
+  // Clip to city ellipse
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, innerRadius - 2, (innerRadius - 2) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.clip();
+
+  // Vertical path (N-S)
+  const vPathGrad = cityCtx.createLinearGradient(centerX - pathWidth, 0, centerX + pathWidth, 0);
+  vPathGrad.addColorStop(0, pathDark);
+  vPathGrad.addColorStop(0.3, pathColor);
+  vPathGrad.addColorStop(0.7, pathColor);
+  vPathGrad.addColorStop(1, pathDark);
+  cityCtx.fillStyle = vPathGrad;
+  cityCtx.fillRect(centerX - pathWidth / 2, centerY - innerRadius, pathWidth, innerRadius * 2);
+
+  // Horizontal path (E-W) - wider for perspective
+  const hPathGrad = cityCtx.createLinearGradient(0, centerY - pathWidth * 0.4, 0, centerY + pathWidth * 0.4);
+  hPathGrad.addColorStop(0, pathDark);
+  hPathGrad.addColorStop(0.3, pathColor);
+  hPathGrad.addColorStop(0.7, pathColor);
+  hPathGrad.addColorStop(1, pathDark);
+  cityCtx.fillStyle = hPathGrad;
+  cityCtx.fillRect(centerX - innerRadius, centerY - pathWidth * 0.35, innerRadius * 2, pathWidth * 0.7);
+
+  // Center plaza (circular)
+  cityCtx.fillStyle = pathLight;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, pathWidth * 1.5, pathWidth * 0.8, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.strokeStyle = pathDark;
+  cityCtx.lineWidth = 2;
+  cityCtx.stroke();
+
+  cityCtx.restore();
+
+  // Step 4: Path edge borders
+  cityCtx.strokeStyle = pathDark;
+  cityCtx.lineWidth = 1.5;
+  cityCtx.setLineDash([4, 4]);
+  // Vertical path edges
+  cityCtx.beginPath();
+  cityCtx.moveTo(centerX - pathWidth / 2 - 1, centerY - innerRadius * 0.5 + 15);
+  cityCtx.lineTo(centerX - pathWidth / 2 - 1, centerY + innerRadius * 0.5 - 15);
+  cityCtx.stroke();
+  cityCtx.beginPath();
+  cityCtx.moveTo(centerX + pathWidth / 2 + 1, centerY - innerRadius * 0.5 + 15);
+  cityCtx.lineTo(centerX + pathWidth / 2 + 1, centerY + innerRadius * 0.5 - 15);
+  cityCtx.stroke();
+  cityCtx.setLineDash([]);
+
   // Stone wall ring
   drawCityWall(centerX, centerY, cityRadius);
-  
-  // Draw roads inside city
-  drawCityRoads(centerX, centerY);
+
+  // Roads are now integrated in the grass quadrants above
+  // drawCityRoads(centerX, centerY); // Disabled - using new cross paths
   
   // ========== RESOURCE FIELDS (4 coins) ==========
   citySlots.filter(s => s.isField).forEach(slot => {
