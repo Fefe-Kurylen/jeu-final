@@ -122,12 +122,21 @@ const TIER_COLORS = {
 // ========== AUTH ==========
 function showRegister() {
   document.getElementById('login-form').style.display = 'none';
-  document.getElementById('register-form').style.display = 'block';
+  document.getElementById('register-form').style.display = 'flex';
 }
 
 function showLogin() {
   document.getElementById('register-form').style.display = 'none';
-  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('login-form').style.display = 'flex';
+}
+
+function selectFaction(faction) {
+  // Remove selected from all
+  document.querySelectorAll('.faction-option').forEach(el => el.classList.remove('selected'));
+  // Add selected to clicked one
+  document.querySelector(`.faction-option[data-faction="${faction}"]`)?.classList.add('selected');
+  // Set hidden input value
+  document.getElementById('reg-faction').value = faction;
 }
 
 async function login() {
