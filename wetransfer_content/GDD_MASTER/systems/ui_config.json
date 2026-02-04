@@ -1,0 +1,31 @@
+{
+  "version": "v4-ui",
+  "generatedAt": "2026-01-31T19:12:37.515974",
+  "bottomBar": [
+    "Ville",
+    "Carte",
+    "Armée",
+    "Alliance",
+    "Messages"
+  ],
+  "cityViews": [
+    "city_main",
+    "resources_map",
+    "world_map"
+  ],
+  "unitCard": {
+    "visibleFromArmyMenu": true,
+    "visibleFromRecruitment": true,
+    "starsDeveloperOnly": true,
+    "playerSeesNumericStats": true
+  },
+  "worldMap": {
+    "showsInRealTime": [
+      "villages",
+      "armies",
+      "resource_points",
+      "alliance_bastions"
+    ],
+    "zoomLevels": 3
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "version": "v4-social",
+  "generatedAt": "2026-01-31T19:12:37.515769",
+  "chat": {
+    "channels": [
+      "global",
+      "alliance",
+      "private",
+      "friends"
+    ],
+    "autoTranslate": true,
+    "sharePayloads": [
+      "battle_report",
+      "map_position"
+    ],
+    "blockUsers": true
+  },
+  "friends": {
+    "addRemove": true
+  },
+  "accounts": {
+    "emailPassword": true,
+    "passwordReset": true,
+    "playerNameShownOnMap": true
+  }
+}

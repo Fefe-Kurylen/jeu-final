@@ -1,0 +1,76 @@
+{
+  "stars_to_real_stats": {
+    "attack_defense_endurance_max": 125,
+    "speed_max": 100,
+    "carry_max": 100,
+    "formula": "value = (stars/10) * max",
+    "stars_derivation_from_real": "stars = round(value/max*10)"
+  },
+  "building_level_curves": {
+    "cost_time": "exponential interpolation between L1 and L20 (or L30 for MAIN_HALL)",
+    "production_storage": "exponential interpolation between effects *L1 and *L20"
+  },
+  "population": {
+    "base": {
+      "lvl1": 1,
+      "lvl20": 3
+    },
+    "intermediate": {
+      "lvl1": 2,
+      "lvl20": 5
+    },
+    "advanced": {
+      "lvl1": 3,
+      "lvl20": 7
+    }
+  },
+  "unit_recruitment_costs": {
+    "base_costs": {
+      "INF": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "ARCH": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "CAV": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "SIEGE": {
+        "wood": 140,
+        "stone": 160,
+        "iron": 180,
+        "food": 60
+      }
+    },
+    "tier_multiplier": {
+      "BASE": 1.0,
+      "INTER": 1.8,
+      "ELITE": 3.2,
+      "SIEGE": 4.0
+    }
+  },
+  "unit_training_times": {
+    "base_time_sec": {
+      "INF": 360,
+      "ARCH": 360,
+      "CAV": 432,
+      "SIEGE": 1200
+    },
+    "tier_multiplier": {
+      "BASE": 1.0,
+      "INTER": 1.6,
+      "ELITE": 2.7,
+      "SIEGE": 3.0
+    },
+    "cavalry_malus_vs_infantry": 1.2
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "technologies": [
+    {
+      "key": "TECH_CIVIL",
+      "name": "Ingénierie civile",
+      "category": "CIVIL",
+      "maxLevel": 20,
+      "prereq": {
+        "building": "ACADEMY",
+        "minLevel": 1
+      },
+      "costL1": { "wood": 100, "stone": 100, "iron": 100, "food": 100 },
+      "costL20": { "wood": 20000, "stone": 20000, "iron": 20000, "food": 20000 },
+      "timeL1Sec": 3600,
+      "timeL20Sec": 604800,
+      "effects": {
+        "buildCostReductionPctPerLevel": 1.0,
+        "buildTimeReductionPctPerLevel": 0.5
+      },
+      "description": "Réduit le coût de construction de 1% et le temps de construction de 0.5% par niveau."
+    },
+    {
+      "key": "TECH_MILITARY",
+      "name": "Tactiques militaires",
+      "category": "MILITARY",
+      "maxLevel": 20,
+      "prereq": {
+        "building": "ACADEMY",
+        "minLevel": 1
+      },
+      "costL1": { "wood": 100, "stone": 100, "iron": 100, "food": 100 },
+      "costL20": { "wood": 20000, "stone": 20000, "iron": 20000, "food": 20000 },
+      "timeL1Sec": 3600,
+      "timeL20Sec": 604800,
+      "effects": {
+        "recruitCostReductionPctPerLevel": 1.5
+      },
+      "description": "Réduit le coût de recrutement de 1.5% par niveau."
+    }
+  ],
+  "rules": {
+    "researchBuilding": "ACADEMY",
+    "maxConcurrentResearch": 1,
+    "techLevelCannotExceedBuildingLevel": true
+  }
+}

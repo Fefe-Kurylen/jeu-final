@@ -1,0 +1,49 @@
+{
+  "version": "v4-world",
+  "generatedAt": "2026-01-31T19:12:37.515272",
+  "server": {
+    "tickSeconds": 30,
+    "maxPlayers": 5000,
+    "joinWindowDays": 7,
+    "lifecycleMonths": 6,
+    "proceduralWorld": true,
+    "rankings": [
+      "population",
+      "attack",
+      "defense",
+      "alliance"
+    ]
+  },
+  "map": {
+    "initialTiles": 140000,
+    "expandPerNewPlayer": {
+      "width": 10,
+      "height": 10
+    },
+    "spawn": "edge_random",
+    "biomes": {
+      "north": "snow",
+      "south": "desert",
+      "east": "hills",
+      "west": "rocky"
+    },
+    "obstacles": {
+      "mountainsPassable": false,
+      "lakesPassable": false,
+      "riversPassable": false
+    },
+    "forests": {
+      "movementSpeedModifierPct": -10,
+      "exceptionFaction": "Gaulois"
+    },
+    "visibility": {
+      "zoomLevels": 3,
+      "uiCommands": [
+        "zoom",
+        "filters",
+        "go_to_coords",
+        "go_to_village"
+      ]
+    }
+  }
+}

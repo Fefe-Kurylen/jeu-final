@@ -1,0 +1,69 @@
+{
+  "version": "v4-combat",
+  "generatedAt": "2026-01-31T19:12:37.515457",
+  "unitStarsMapping": {
+    "atk_def_end_max": 125,
+    "speed_max": 100,
+    "carry_max": 100,
+    "starsVisualOnly": true,
+    "formula": "value = (stars/10)*max"
+  },
+  "triangle": {
+    "INF_vs_CAV_atk_bonus_pct": 20,
+    "CAV_vs_ARCH_atk_bonus_pct": 20,
+    "ARCH_vs_INF_atk_bonus_pct": 20
+  },
+  "targetingPriority": [
+    "ELITE",
+    "INTER",
+    "BASE",
+    "SIEGE_LAST"
+  ],
+  "battleTypes": {
+    "FIELD": {
+      "fullIntelToParticipants": true
+    },
+    "CITY_DEFENSE": {
+      "fullIntelToParticipants": true
+    },
+    "RAID": {
+      "stopWhenOneArmyBelowPct": 70,
+      "lootPctOfCarry": 30,
+      "cityRaidCooldownHours": 24
+    }
+  },
+  "siege": {
+    "isState": true,
+    "wallHpPercent": true,
+    "onlySiegeEnginesDamageWall": true,
+    "minDestroyMinutesReference": {
+      "buildingDamageStars10": 30
+    },
+    "wallRegenHoursFull": 24,
+    "blockedActionsDuringSiege": [
+      "recruit",
+      "create_army",
+      "receive_reinforcements",
+      "healing"
+    ],
+    "foodUpkeepModifierPct": {
+      "attackerArmy": 10,
+      "defenderCityAndArmy": -10
+    },
+    "visuals": {
+      "worldMap": "siege_engines_and_barricades",
+      "damagedCitySmoke": true,
+      "timerVisibleToVision": true
+    }
+  },
+  "retreat": {
+    "autoOnDefeat": true,
+    "returnsToOwnerCapital": true
+  },
+  "woundedSystem": {
+    "enabled": true,
+    "healableInHealingTent": true,
+    "defenderHealingBlockedDuringSiege": true,
+    "overflowQueue": true
+  }
+}

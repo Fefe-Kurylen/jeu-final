@@ -1,0 +1,498 @@
+{
+  "rules": {
+    "base_time_sec": {
+      "INF": 360,
+      "ARCH": 360,
+      "CAV": 432,
+      "SIEGE": 1200
+    },
+    "tier_multiplier": {
+      "BASE": 1.0,
+      "INTER": 1.6,
+      "ELITE": 2.7,
+      "SIEGE": 3.0
+    }
+  },
+  "times": [
+    {
+      "unitKey": "ROM_INF_MILICIEN",
+      "name": "Milicien romain",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "ROM_INF_TRIARII",
+      "name": "Triarii",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "ROM_INF_LEGIONNAIRE",
+      "name": "Légionnaire romain",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "ROM_ARC_MILICIEN",
+      "name": "Archer milicien",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "ROM_ARC_VETERAN",
+      "name": "Archer vétéran",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "ROM_ARC_ELITE",
+      "name": "Archer d’élite romain",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "ROM_CAV_AUXILIAIRE",
+      "name": "Cavalerie auxiliaire",
+      "faction": "ROME",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "ROM_CAV_EQUITES",
+      "name": "Equites",
+      "faction": "ROME",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "ROM_CAV_LOURDE",
+      "name": "Cavalerie lourde romaine",
+      "faction": "ROME",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "ROM_SIEGE_CATAPULTE",
+      "name": "Catapulte romaine",
+      "faction": "ROME",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    },
+    {
+      "unitKey": "GAU_INF_GUERRIER",
+      "name": "Guerrier gaulois",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "GAU_INF_TRIARII",
+      "name": "Triarii gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "GAU_INF_CHAMPION",
+      "name": "Champion gaulois",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "GAU_ARC_CHASSEUR",
+      "name": "Chasseur gaulois",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "GAU_ARC_GAULOIS",
+      "name": "Archer gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "GAU_ARC_NOBLE",
+      "name": "Archer noble",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "GAU_CAV_CHASSEUR",
+      "name": "Chasseur monté",
+      "faction": "GAUL",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "GAU_CAV_GAULOIS",
+      "name": "Cavalier gaulois",
+      "faction": "GAUL",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "GAU_CAV_NOBLE",
+      "name": "Cavalier noble",
+      "faction": "GAUL",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "GAU_SIEGE_BELIER",
+      "name": "Bélier gaulois",
+      "faction": "GAUL",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    },
+    {
+      "unitKey": "GRE_INF_JEUNE",
+      "name": "Jeune guerrier",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "GRE_INF_HOPLITE",
+      "name": "Hoplite",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "GRE_INF_SPARTIATE",
+      "name": "Spartiate",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "GRE_ARC_PAYSAN",
+      "name": "Archer paysan",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "GRE_ARC_TOXOTE",
+      "name": "Toxote",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "GRE_ARC_ELITE",
+      "name": "Archer d’élite grec",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "GRE_CAV_ECLAIREUR",
+      "name": "Éclaireur",
+      "faction": "GREEK",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "GRE_CAV_GREC",
+      "name": "Cavalier grec",
+      "faction": "GREEK",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "GRE_CAV_ELITE",
+      "name": "Cavalerie d’élite grecque",
+      "faction": "GREEK",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "GRE_SIEGE_CATAPULTE",
+      "name": "Catapulte grecque",
+      "faction": "GREEK",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    },
+    {
+      "unitKey": "EGY_INF_ESCLAVE",
+      "name": "Esclave égyptien",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "EGY_INF_NIL",
+      "name": "Fantassin du Nil",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "EGY_INF_TEMPLE",
+      "name": "Guerrier du temple",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "EGY_ARC_NIL",
+      "name": "Archer du Nil",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "EGY_ARC_DESERT",
+      "name": "Archer du désert",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "EGY_ARC_PHARAON",
+      "name": "Archer du pharaon",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "EGY_CAV_DESERT",
+      "name": "Cavalier du désert",
+      "faction": "EGYPT",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "EGY_CAV_PHARAON",
+      "name": "Cavalerie du pharaon",
+      "faction": "EGYPT",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "EGY_CAV_CHAR_LOURD",
+      "name": "Char lourd",
+      "faction": "EGYPT",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "EGY_SIEGE_MANGONNEAU",
+      "name": "Mangonneau égyptien",
+      "faction": "EGYPT",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    },
+    {
+      "unitKey": "HUN_INF_NOMADE",
+      "name": "Guerrier nomade",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "HUN_INF_GARDE",
+      "name": "Garde tribale",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "HUN_INF_VETERAN",
+      "name": "Nomade vétéran",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "HUN_ARC_NOMADE",
+      "name": "Archer nomade",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "HUN_ARC_CAMP",
+      "name": "Archer du camp",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "HUN_ARC_ELITE",
+      "name": "Archer d’élite hun",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "HUN_CAV_PILLARD",
+      "name": "Cavalier pillard",
+      "faction": "HUN",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "HUN_CAV_INTER",
+      "name": "Cavalier hun",
+      "faction": "HUN",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "HUN_CAV_ELITE",
+      "name": "Horde d’Attila",
+      "faction": "HUN",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "HUN_SIEGE_SAPEUR",
+      "name": "Sapeurs huns",
+      "faction": "HUN",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    },
+    {
+      "unitKey": "SUL_INF_DESERT",
+      "name": "Guerrier du désert",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "INF",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "SUL_INF_CROISSANT",
+      "name": "Guerrier du croissant",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "INF",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "SUL_INF_PALAIS",
+      "name": "Défenseur du palais",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "INF",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "SUL_ARC_DESERT",
+      "name": "Archer du désert",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "ARCH",
+      "timeSec": 360
+    },
+    {
+      "unitKey": "SUL_ARC_TIREUR",
+      "name": "Tireur du désert",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "ARCH",
+      "timeSec": 576
+    },
+    {
+      "unitKey": "SUL_ARC_PERSE",
+      "name": "Archer perse",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "ARCH",
+      "timeSec": 972
+    },
+    {
+      "unitKey": "SUL_CAV_BEDOUIN",
+      "name": "Cavalier bédouin",
+      "faction": "SULTAN",
+      "tier": "BASE",
+      "type": "CAV",
+      "timeSec": 432
+    },
+    {
+      "unitKey": "SUL_CAV_DESERT",
+      "name": "Cavalier du désert",
+      "faction": "SULTAN",
+      "tier": "INTER",
+      "type": "CAV",
+      "timeSec": 691
+    },
+    {
+      "unitKey": "SUL_CAV_MAMELOUK",
+      "name": "Mamelouk du palais",
+      "faction": "SULTAN",
+      "tier": "ELITE",
+      "type": "CAV",
+      "timeSec": 1166
+    },
+    {
+      "unitKey": "SUL_SIEGE_MANGONNEAU",
+      "name": "Mangonneau oriental",
+      "faction": "SULTAN",
+      "tier": "SIEGE",
+      "type": "SIEGE",
+      "timeSec": 3600
+    }
+  ]
+}

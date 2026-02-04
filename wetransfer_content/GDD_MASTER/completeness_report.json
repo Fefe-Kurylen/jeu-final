@@ -1,0 +1,17 @@
+{
+  "version": "v4-completeness",
+  "generatedAt": "2026-01-31T19:12:37.516029",
+  "guaranteedComplete": [
+    "Unit list with stars derived from numeric stats in project",
+    "Building level 1-20 curves for cost/time derived from project endpoints",
+    "Resource node rules & tribe defense (as specified in conversation)"
+  ],
+  "needsUserSourceOfTruthIfDifferent": [
+    "Exact per-building production curves if not present in buildings.json effects (*ProdL1/*ProdL20)",
+    "Exact training time and recruitment cost tables if you later change the rule set (these are rule-based exports)",
+    "Any faction passive bonuses table (not re-derived from code here)"
+  ],
+  "notes": [
+    "V4 export rassemble tous les GDD en JSON. Certaines tables sont calculées (interp exponentielle) pour obtenir les niveaux 1-20."
+  ]
+}

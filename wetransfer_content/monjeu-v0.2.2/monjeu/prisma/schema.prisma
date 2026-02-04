@@ -1,0 +1,635 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+enum Faction { ROME GAUL GREEK EGYPT HUN SULTAN }
+enum CityType { CAPITAL OUTPOST }
+enum OrderType { MOVE ATTACK RAID SPY REINFORCE }
+enum ArmyStatus { IDLE MOVING RETURNING IN_CITY SIEGING GARRISONED }
+enum BattleType { FIELD CITY_ATTACK CITY_DEFENSE RAID }
+enum BattleWinner { ATTACKER DEFENDER DRAW }
+enum BuildingCategory { BASE INTERMEDIATE ADVANCED FACTION }
+enum TerrainType { PLAIN FOREST HILL ROCKY DESERT SNOW MOUNTAIN LAKE RIVER }
+
+model Account {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  passHash  String
+  createdAt DateTime @default(now())
+  resetToken String? @unique
+  resetTokenExp DateTime?
+  player    Player?
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  accountId String   @unique
+  name      String   @unique
+  faction   Faction
+  createdAt DateTime @default(now())
+  population Int @default(0)
+
+  account Account @relation(fields: [accountId], references: [id])
+  cities  City[]
+  armies  Army[]
+  hero    Hero?
+  allianceMembership AllianceMember?
+  sentMessages     PlayerMessage[] @relation("SentMessages")
+  receivedMessages PlayerMessage[] @relation("ReceivedMessages")
+  technologies     PlayerTechnology[]
+  researchQueue    ResearchQueueItem[]
+}
+
+model City {
+  id        String   @id @default(uuid())
+  ownerId   String
+  type      CityType
+  x         Int
+  y         Int
+  name      String
+  createdAt DateTime @default(now())
+
+  wood      Float @default(0)
+  stone     Float @default(0)
+  iron      Float @default(0)
+  food      Float @default(0)
+
+  maxStorage     Float @default(160000)
+  maxFoodStorage Float @default(160000)
+
+  wallHp    Float @default(1.0) // 0..1
+  isSieged  Boolean @default(false)
+  siegeStartedAt DateTime?
+
+  buildingSlots Int @default(20)
+
+  owner Player @relation(fields: [ownerId], references: [id])
+  buildings CityBuilding[]
+  buildQueue BuildQueueItem[]
+  recruitQueue RecruitmentQueueItem[]
+  wounded WoundedUnit[]
+
+  @@index([x,y])
+}
+
+model CityBuilding {
+  id      String @id @default(uuid())
+  cityId  String
+  key     String
+  level   Int
+  category BuildingCategory
+  prodPerHour Float @default(0)
+
+  city City @relation(fields: [cityId], references: [id])
+  @@unique([cityId, key])
+}
+
+model BuildQueueItem {
+  id       String @id @default(uuid())
+  cityId   String
+  slot     Int
+  buildingKey String
+  targetLevel Int
+  startedAt DateTime
+  endsAt    DateTime
+  status    String @default("RUNNING")
+
+  city City @relation(fields: [cityId], references: [id])
+}
+
+model RecruitmentQueueItem {
+  id          String   @id @default(uuid())
+  cityId      String
+  buildingKey String   // BARRACKS, STABLE, WORKSHOP, etc.
+  unitKey     String
+  count       Int
+  startedAt   DateTime @default(now())
+  endsAt      DateTime?
+  status      String   @default("QUEUED") // QUEUED, RUNNING, DONE
+
+  city City @relation(fields: [cityId], references: [id])
+  
+  @@index([cityId, status])
+}
+
+model Army {
+  id        String   @id @default(uuid())
+  ownerId   String
+  cityId    String?
+  x         Int
+  y         Int
+
+  status    ArmyStatus @default(IDLE)
+
+  originCityId String
+  targetX   Int?
+  targetY   Int?
+  arrivalAt DateTime?
+
+  orderType OrderType?
+  orderPayload Json?
+
+  heroId    String?
+  actionPointsCost Int @default(0)
+
+  owner Player @relation(fields: [ownerId], references: [id])
+  units ArmyUnit[]
+}
+
+model ArmyUnit {
+  id      String @id @default(uuid())
+  armyId  String
+  unitKey String
+  tier    String
+  count   Int
+
+  army Army @relation(fields: [armyId], references: [id])
+  @@unique([armyId, unitKey])
+}
+
+model Hero {
+  id        String @id @default(uuid())
+  ownerId   String @unique
+  name      String @default("Héros")
+  level     Int @default(1)
+  xp        Int @default(0)
+
+  // Base stats
+  attack    Int @default(10)
+  defense   Int @default(10)
+  speed     Int @default(10)
+  logistics Int @default(10)
+
+  // Stat points (from leveling)
+  atkPoints Int @default(0)
+  defPoints Int @default(0)
+  logPoints Int @default(0)
+  spdPoints Int @default(0)
+
+  hpPct     Float @default(1.0)
+  actionPct Float @default(1.0)
+
+  lossReductionPct Float @default(0.0)
+
+  // Equipment slots (references to Item.id)
+  weaponId    String?
+  armorId     String?
+  bootsId     String?
+  mountId     String?
+  accessoryId String?
+
+  owner Player @relation(fields: [ownerId], references: [id])
+}
+
+model WoundedUnit {
+  id      String @id @default(uuid())
+  cityId  String
+  unitKey String
+  count   Int
+
+  city City @relation(fields: [cityId], references: [id])
+  @@unique([cityId, unitKey])
+}
+
+model BattleReport {
+  id            String   @id @default(uuid())
+  createdAt     DateTime @default(now())
+
+  type          BattleType
+  winner        BattleWinner
+
+  attackerId     String
+  defenderId     String
+  attackerArmyId String
+  defenderArmyId String
+
+  rounds        Int
+  payload       Json
+
+  visibleToAttacker Boolean @default(true)
+  visibleToDefender Boolean @default(true)
+}
+
+model SpyReport {
+  id        String @id @default(uuid())
+  createdAt DateTime @default(now())
+  attackerId String
+  targetType String
+  targetX    Int
+  targetY    Int
+  payload    Json
+}
+
+model ResourceNode {
+  id        String @id @default(uuid())
+  x         Int
+  y         Int
+  kind      String // wood|stone|iron|food|gold
+  level     Int
+  filledPct Float  @default(1.0)
+  lastUpdateAt DateTime @default(now())
+
+  baseTribePower Int @default(100)
+  tribePower     Int @default(100)
+
+  @@unique([x,y])
+}
+
+model WorldState {
+  id String @id
+  minX Int
+  maxX Int
+  minY Int
+  maxY Int
+  maxPlayers Int
+  joinDeadline DateTime
+}
+
+model WorldTile {
+  x Int
+  y Int
+  terrain TerrainType
+  passable Boolean
+  @@id([x,y])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME D'ALLIANCES
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum AllianceRole { LEADER OFFICER MEMBER }
+enum DiplomacyStatus { ALLY NEUTRAL ENEMY NAP }
+
+model Alliance {
+  id          String   @id @default(uuid())
+  tag         String   @unique // [TAG] 3-5 chars
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  
+  // Settings
+  isOpen      Boolean  @default(false)
+  minPopulation Int    @default(0)
+  
+  // Stats
+  totalPopulation Int  @default(0)
+  totalMembers    Int  @default(0)
+  
+  members     AllianceMember[]
+  diplomacy   AllianceDiplomacy[] @relation("AllianceFrom")
+  diplomacyTo AllianceDiplomacy[] @relation("AllianceTo")
+  invites     AllianceInvite[]
+  messages    AllianceMessage[]
+}
+
+model AllianceMember {
+  id         String       @id @default(uuid())
+  allianceId String
+  playerId   String       @unique
+  role       AllianceRole @default(MEMBER)
+  joinedAt   DateTime     @default(now())
+  
+  alliance Alliance @relation(fields: [allianceId], references: [id])
+  player   Player   @relation(fields: [playerId], references: [id])
+}
+
+model AllianceDiplomacy {
+  id            String          @id @default(uuid())
+  allianceFromId String
+  allianceToId   String
+  status        DiplomacyStatus @default(NEUTRAL)
+  createdAt     DateTime        @default(now())
+  
+  allianceFrom Alliance @relation("AllianceFrom", fields: [allianceFromId], references: [id])
+  allianceTo   Alliance @relation("AllianceTo", fields: [allianceToId], references: [id])
+  
+  @@unique([allianceFromId, allianceToId])
+}
+
+model AllianceInvite {
+  id         String   @id @default(uuid())
+  allianceId String
+  playerId   String
+  invitedBy  String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  
+  alliance Alliance @relation(fields: [allianceId], references: [id])
+  
+  @@unique([allianceId, playerId])
+}
+
+model AllianceMessage {
+  id         String   @id @default(uuid())
+  allianceId String
+  senderId   String
+  content    String
+  createdAt  DateTime @default(now())
+  
+  alliance Alliance @relation(fields: [allianceId], references: [id])
+  
+  @@index([allianceId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME DE MARCHÉ
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum TradeStatus { OPEN COMPLETED CANCELLED }
+
+model MarketOffer {
+  id          String      @id @default(uuid())
+  sellerId    String
+  sellerCityId String
+  
+  offerType   String      // wood, stone, iron, food
+  offerAmount Int
+  
+  wantType    String      // wood, stone, iron, food
+  wantAmount  Int
+  
+  status      TradeStatus @default(OPEN)
+  createdAt   DateTime    @default(now())
+  expiresAt   DateTime?
+  
+  @@index([status, offerType])
+}
+
+model TradeHistory {
+  id          String   @id @default(uuid())
+  offerId     String
+  sellerId    String
+  buyerId     String
+  
+  offerType   String
+  offerAmount Int
+  wantType    String
+  wantAmount  Int
+  
+  completedAt DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME DE QUÊTES
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum QuestStatus { AVAILABLE IN_PROGRESS COMPLETED CLAIMED }
+
+model Quest {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String
+  category    String   // tutorial, daily, achievement
+  
+  // Requirements
+  requirements Json    // { type: 'BUILD', building: 'FARM', level: 5 }
+  
+  // Rewards
+  rewards     Json     // { wood: 1000, food: 500, xp: 100 }
+  
+  // Order (for tutorials)
+  sortOrder   Int      @default(0)
+  prerequisite String? // previous quest key
+}
+
+model PlayerQuest {
+  id          String      @id @default(uuid())
+  playerId    String
+  questId     String
+  status      QuestStatus @default(AVAILABLE)
+  progress    Int         @default(0)
+  target      Int         @default(1)
+  startedAt   DateTime?
+  completedAt DateTime?
+  claimedAt   DateTime?
+  
+  @@unique([playerId, questId])
+  @@index([playerId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME DE MESSAGES
+// ═══════════════════════════════════════════════════════════════════════════
+
+model PlayerMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  subject    String
+  content    String
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+  
+  sender     Player   @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   Player   @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  
+  @@index([receiverId, readAt, createdAt])
+  @@index([senderId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME DE BASTION D'ALLIANCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum BastionStatus { PLANNING BUILDING ACTIVE DESTROYED COOLDOWN }
+
+model Bastion {
+  id              String        @id @default(uuid())
+  allianceId      String        @unique
+  x               Int
+  y               Int
+  status          BastionStatus @default(PLANNING)
+  
+  // Resources contributed
+  woodContributed   Float       @default(0)
+  stoneContributed  Float       @default(0)
+  ironContributed   Float       @default(0)
+  foodContributed   Float       @default(0)
+  
+  // Requirements (can be adjusted)
+  woodRequired      Float       @default(500000)
+  stoneRequired     Float       @default(500000)
+  ironRequired      Float       @default(500000)
+  foodRequired      Float       @default(250000)
+  
+  // Timers
+  buildingStartedAt DateTime?
+  completedAt       DateTime?
+  destroyedAt       DateTime?
+  cooldownEndsAt    DateTime?
+  
+  // Defense
+  wallHp            Float       @default(1.0) // 0..1
+  
+  createdAt         DateTime    @default(now())
+  
+  contributions     BastionContribution[]
+  garrison          BastionGarrison[]
+  
+  @@index([x, y])
+}
+
+model BastionContribution {
+  id          String   @id @default(uuid())
+  bastionId   String
+  playerId    String
+  wood        Float    @default(0)
+  stone       Float    @default(0)
+  iron        Float    @default(0)
+  food        Float    @default(0)
+  createdAt   DateTime @default(now())
+  
+  bastion     Bastion  @relation(fields: [bastionId], references: [id])
+  
+  @@index([bastionId])
+}
+
+model BastionGarrison {
+  id          String   @id @default(uuid())
+  bastionId   String
+  armyId      String   @unique
+  playerId    String
+  arrivedAt   DateTime @default(now())
+  
+  bastion     Bastion  @relation(fields: [bastionId], references: [id])
+  
+  @@index([bastionId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME D'EXPÉDITIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ExpeditionStatus { AVAILABLE IN_PROGRESS COMPLETED EXPIRED }
+enum ExpeditionDifficulty { EASY NORMAL HARD NIGHTMARE }
+
+model Expedition {
+  id          String              @id @default(uuid())
+  playerId    String
+  difficulty  ExpeditionDifficulty
+  
+  // Enemy composition
+  enemyPower  Int
+  enemyComp   Json                // { infantry: 50, archers: 30, cavalry: 20 }
+  
+  // Duration & timing
+  durationSec Int                 // Time to complete
+  createdAt   DateTime            @default(now())
+  expiresAt   DateTime            // Auto-expires after 24h
+  
+  // Rewards (potential)
+  lootTier    String              // COMMON, RARE, EPIC, LEGENDARY
+  xpReward    Int
+  resourceReward Json             // { wood: 1000, stone: 500, ... }
+  
+  status      ExpeditionStatus    @default(AVAILABLE)
+  
+  instances   ExpeditionInstance[]
+  
+  @@index([playerId, status])
+  @@index([expiresAt])
+}
+
+model ExpeditionInstance {
+  id           String   @id @default(uuid())
+  expeditionId String
+  armyId       String
+  playerId     String
+  
+  startedAt    DateTime @default(now())
+  endsAt       DateTime
+  
+  // Results (filled after completion)
+  won          Boolean?
+  xpGained     Int      @default(0)
+  lootGained   Json?    // Items/resources gained
+  unitsLost    Json?    // { unitKey: count }
+  
+  status       String   @default("TRAVELING") // TRAVELING, COMPLETED
+  
+  expedition   Expedition @relation(fields: [expeditionId], references: [id])
+  
+  @@index([status, endsAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUTES COMMERCIALES AUTO
+// ═══════════════════════════════════════════════════════════════════════════
+
+model TradeRoute {
+  id            String   @id @default(uuid())
+  playerId      String
+  fromCityId    String
+  toCityId      String
+  
+  // What to transfer
+  resourceType  String   // wood, stone, iron, food
+  percentage    Int      @default(5) // % of storage to transfer
+  
+  // Timing
+  intervalHours Int      @default(2)
+  lastTransferAt DateTime?
+  
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  
+  @@unique([fromCityId, toCityId, resourceType])
+  @@index([playerId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTÈME D'INVENTAIRE (pour loot expéditions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Item {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  rarity      String     // COMMON, RARE, EPIC, LEGENDARY
+  slot        String     // WEAPON, ARMOR, BOOTS, MOUNT, ACCESSORY
+  
+  // Stat bonuses stored as JSON
+  stats       Json       @default("{}") // { attackBonus: 5, defenseBonus: 3, ... }
+  
+  playerItems PlayerItem[]
+  
+  @@index([rarity, slot])
+}
+
+model PlayerItem {
+  id        String   @id @default(uuid())
+  playerId  String
+  itemId    String
+  equipped  Boolean  @default(false)
+  acquiredAt DateTime @default(now())
+  
+  item      Item     @relation(fields: [itemId], references: [id])
+  
+  @@index([playerId, equipped])
+}
+
+// ============== TECHNOLOGIES ==============
+
+model PlayerTechnology {
+  id        String   @id @default(uuid())
+  playerId  String
+  techKey   String   // TECH_CIVIL, TECH_MILITARY
+  level     Int      @default(0)
+  
+  player    Player   @relation(fields: [playerId], references: [id])
+  
+  @@unique([playerId, techKey])
+}
+
+model ResearchQueueItem {
+  id        String   @id @default(uuid())
+  playerId  String
+  techKey   String
+  targetLevel Int
+  startedAt DateTime
+  endsAt    DateTime
+  status    String   @default("RUNNING") // RUNNING, QUEUED, COMPLETED
+  
+  player    Player   @relation(fields: [playerId], references: [id])
+}
+
