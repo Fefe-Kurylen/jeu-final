@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
 :root {
-  /* Travian color palette */
+  /* Travian color palette - DAY MODE (default) */
   --bg-darkest: #1a1a1a;
   --bg-dark: #252525;
   --bg-medium: #333333;
@@ -36,6 +36,40 @@
   --clay: #b86b3a;
   --iron: #6a7a8a;
   --crop: #c4a030;
+
+  /* Day/Night transition */
+  --transition-theme: 1s ease;
+}
+
+/* ========== NIGHT MODE THEME ========== */
+body.night-mode {
+  --bg-darkest: #0d0d12;
+  --bg-dark: #141420;
+  --bg-medium: #1e1e2a;
+  --bg-light: #2a2a3a;
+  --bg-lighter: #3a3a4a;
+
+  --brown-dark: #2a2030;
+  --brown-medium: #3a3040;
+  --brown-light: #5a5070;
+
+  --gold: #8090c0;
+  --gold-dark: #5a6a90;
+  --gold-light: #a0b0e0;
+
+  --green: #3a6050;
+  --green-light: #4a7a60;
+  --red: #6a3040;
+  --red-light: #904050;
+  --blue: #3a5080;
+
+  --text-white: #d0d0e0;
+  --text-light: #a0a0b0;
+  --text-muted: #707080;
+  --text-dark: #505060;
+
+  --border-dark: #2a2a3a;
+  --border-light: #4a4a5a;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -702,82 +702,126 @@ function renderCityView() {
   const h = cityCanvas.height;
   const centerX = w / 2;
   const centerY = h / 2 + 20;
-  
+  const nightMode = isNightMode();
+
   // Clear
   cityCtx.clearRect(0, 0, w, h);
-  
-  // ========== SKY ==========
+
+  // ========== SKY (Day/Night) ==========
   const skyGrad = cityCtx.createLinearGradient(0, 0, 0, h * 0.5);
-  skyGrad.addColorStop(0, '#4a90c2');
-  skyGrad.addColorStop(0.5, '#7bb8e0');
-  skyGrad.addColorStop(1, '#a8d4f0');
+  if (nightMode) {
+    // Night sky - deep blue/purple
+    skyGrad.addColorStop(0, '#0a1020');
+    skyGrad.addColorStop(0.3, '#152040');
+    skyGrad.addColorStop(0.7, '#203050');
+    skyGrad.addColorStop(1, '#304060');
+  } else {
+    // Day sky - bright blue
+    skyGrad.addColorStop(0, '#4a90c2');
+    skyGrad.addColorStop(0.5, '#7bb8e0');
+    skyGrad.addColorStop(1, '#a8d4f0');
+  }
   cityCtx.fillStyle = skyGrad;
   cityCtx.fillRect(0, 0, w, h * 0.5);
-  
-  // Sun with rays
-  drawSun(w - 100, 70, 35);
-  
-  // Clouds
-  drawCloud(cityCtx, 80, 45, 45);
-  drawCloud(cityCtx, 250, 75, 35);
-  drawCloud(cityCtx, w - 250, 55, 40);
-  drawCloud(cityCtx, w / 2, 40, 50);
+
+  // Sun/Moon with rays
+  if (nightMode) {
+    drawMoon(w - 100, 70, 30);
+    drawStars(w, h * 0.45);
+  } else {
+    drawSun(w - 100, 70, 35);
+  }
+
+  // Clouds (darker at night)
+  if (!nightMode) {
+    drawCloud(cityCtx, 80, 45, 45);
+    drawCloud(cityCtx, 250, 75, 35);
+    drawCloud(cityCtx, w - 250, 55, 40);
+    drawCloud(cityCtx, w / 2, 40, 50);
+  } else {
+    // Night clouds - darker, more subtle
+    drawNightCloud(cityCtx, 80, 45, 45);
+    drawNightCloud(cityCtx, 250, 75, 35);
+    drawNightCloud(cityCtx, w - 250, 55, 40);
+  }
   
   // ========== DISTANT MOUNTAINS ==========
-  drawMountains(w, h);
-  
+  drawMountains(w, h, nightMode);
+
   // ========== PLAINS / GROUND ==========
   const groundY = h * 0.45;
-  
-  // Far grass (lighter)
+
+  // Far grass (Day/Night colors)
   const farGrassGrad = cityCtx.createLinearGradient(0, groundY, 0, h);
-  farGrassGrad.addColorStop(0, '#6a9a4a');
-  farGrassGrad.addColorStop(0.3, '#5a8a3a');
-  farGrassGrad.addColorStop(0.7, '#4a7a2a');
-  farGrassGrad.addColorStop(1, '#3a6a1a');
+  if (nightMode) {
+    // Night grass - darker, blue-tinted
+    farGrassGrad.addColorStop(0, '#2a4030');
+    farGrassGrad.addColorStop(0.3, '#1a3020');
+    farGrassGrad.addColorStop(0.7, '#152818');
+    farGrassGrad.addColorStop(1, '#102010');
+  } else {
+    // Day grass - vibrant green
+    farGrassGrad.addColorStop(0, '#6a9a4a');
+    farGrassGrad.addColorStop(0.3, '#5a8a3a');
+    farGrassGrad.addColorStop(0.7, '#4a7a2a');
+    farGrassGrad.addColorStop(1, '#3a6a1a');
+  }
   cityCtx.fillStyle = farGrassGrad;
   cityCtx.fillRect(0, groundY, w, h - groundY);
-  
+
   // ========== DISTANT TREES (forest line) ==========
-  drawForestLine(w, groundY);
-  
+  drawForestLine(w, groundY, nightMode);
+
   // ========== RIVER ==========
-  drawRiver(w, h, groundY);
-  
+  drawRiver(w, h, groundY, nightMode);
+
   // ========== SCATTERED TREES ==========
-  drawScatteredTrees(w, h, groundY, centerX, centerY);
-  
+  drawScatteredTrees(w, h, groundY, centerX, centerY, nightMode);
+
   // ========== FIELDS / CROPS around city ==========
-  drawCropFields(w, h, centerX, centerY);
-  
+  drawCropFields(w, h, centerX, centerY, nightMode);
+
   // ========== PATHS leading to city ==========
-  drawPaths(w, h, centerX, centerY);
-  
+  drawPaths(w, h, centerX, centerY, nightMode);
+
   // ========== CITY CIRCLE ==========
   const cityRadius = Math.min(w, h) * 0.32;
-  
+
   // Outer wall shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.35)';
+  cityCtx.fillStyle = nightMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.35)';
   cityCtx.beginPath();
   cityCtx.ellipse(centerX + 8, centerY + 12, cityRadius + 15, (cityRadius + 15) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
-  // Moat (water around city)
+
+  // Moat (water around city) - darker at night
   const moatGrad = cityCtx.createRadialGradient(centerX, centerY, cityRadius - 5, centerX, centerY, cityRadius + 20);
-  moatGrad.addColorStop(0, '#4a8ab0');
-  moatGrad.addColorStop(0.5, '#3a7aa0');
-  moatGrad.addColorStop(1, '#5a9ac0');
+  if (nightMode) {
+    moatGrad.addColorStop(0, '#203050');
+    moatGrad.addColorStop(0.5, '#1a2840');
+    moatGrad.addColorStop(1, '#253858');
+  } else {
+    moatGrad.addColorStop(0, '#4a8ab0');
+    moatGrad.addColorStop(0.5, '#3a7aa0');
+    moatGrad.addColorStop(1, '#5a9ac0');
+  }
   cityCtx.fillStyle = moatGrad;
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, cityRadius + 15, (cityRadius + 15) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
-  // City ground (dirt/cobblestone)
+
+  // City ground (dirt/cobblestone) - darker at night
   const dirtGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, cityRadius);
-  dirtGrad.addColorStop(0, '#d4b896');
-  dirtGrad.addColorStop(0.4, '#c4a876');
-  dirtGrad.addColorStop(0.8, '#a48856');
-  dirtGrad.addColorStop(1, '#846838');
+  if (nightMode) {
+    dirtGrad.addColorStop(0, '#6a5846');
+    dirtGrad.addColorStop(0.4, '#5a4836');
+    dirtGrad.addColorStop(0.8, '#4a3826');
+    dirtGrad.addColorStop(1, '#3a2818');
+  } else {
+    dirtGrad.addColorStop(0, '#d4b896');
+    dirtGrad.addColorStop(0.4, '#c4a876');
+    dirtGrad.addColorStop(0.8, '#a48856');
+    dirtGrad.addColorStop(1, '#846838');
+  }
   cityCtx.fillStyle = dirtGrad;
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, cityRadius - 5, (cityRadius - 5) * 0.5, 0, 0, Math.PI * 2);
@@ -820,7 +864,7 @@ function drawSun(x, y, radius) {
   cityCtx.beginPath();
   cityCtx.arc(x, y, radius * 2.5, 0, Math.PI * 2);
   cityCtx.fill();
-  
+
   // Sun rays
   cityCtx.strokeStyle = 'rgba(255,240,150,0.4)';
   cityCtx.lineWidth = 2;
@@ -831,7 +875,7 @@ function drawSun(x, y, radius) {
     cityCtx.lineTo(x + Math.cos(angle) * radius * 2, y + Math.sin(angle) * radius * 2);
     cityCtx.stroke();
   }
-  
+
   // Sun disc
   cityCtx.fillStyle = '#fff8dc';
   cityCtx.shadowColor = '#ffd700';
@@ -842,11 +886,79 @@ function drawSun(x, y, radius) {
   cityCtx.shadowBlur = 0;
 }
 
-function drawMountains(w, h) {
+// ========== NIGHT MODE DRAWING FUNCTIONS ==========
+function drawMoon(x, y, radius) {
+  // Moon glow
+  const glowGrad = cityCtx.createRadialGradient(x, y, 0, x, y, radius * 3);
+  glowGrad.addColorStop(0, 'rgba(200,220,255,0.4)');
+  glowGrad.addColorStop(0.4, 'rgba(150,180,220,0.2)');
+  glowGrad.addColorStop(1, 'rgba(100,140,180,0)');
+  cityCtx.fillStyle = glowGrad;
+  cityCtx.beginPath();
+  cityCtx.arc(x, y, radius * 3, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Moon disc
+  cityCtx.fillStyle = '#e8e8f0';
+  cityCtx.shadowColor = '#a0c0e0';
+  cityCtx.shadowBlur = 20;
+  cityCtx.beginPath();
+  cityCtx.arc(x, y, radius, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.shadowBlur = 0;
+
+  // Moon craters (subtle)
+  cityCtx.fillStyle = 'rgba(180,180,200,0.3)';
+  cityCtx.beginPath();
+  cityCtx.arc(x - radius * 0.3, y - radius * 0.2, radius * 0.15, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.beginPath();
+  cityCtx.arc(x + radius * 0.2, y + radius * 0.3, radius * 0.1, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.beginPath();
+  cityCtx.arc(x + radius * 0.4, y - radius * 0.1, radius * 0.08, 0, Math.PI * 2);
+  cityCtx.fill();
+}
+
+function drawStars(w, h) {
+  // Use seeded random for consistent star positions
+  const seed = 12345;
+  const random = (i) => {
+    const x = Math.sin(seed + i) * 10000;
+    return x - Math.floor(x);
+  };
+
+  for (let i = 0; i < 80; i++) {
+    const x = random(i) * w;
+    const y = random(i + 100) * h;
+    const size = random(i + 200) * 2 + 0.5;
+    const brightness = random(i + 300) * 0.5 + 0.5;
+
+    // Twinkling effect
+    const twinkle = Math.sin(Date.now() / 500 + i) * 0.3 + 0.7;
+
+    cityCtx.fillStyle = `rgba(255, 255, 255, ${brightness * twinkle})`;
+    cityCtx.beginPath();
+    cityCtx.arc(x, y, size, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+function drawNightCloud(ctx, x, y, size) {
+  ctx.fillStyle = 'rgba(30, 40, 60, 0.4)';
+  ctx.beginPath();
+  ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
+  ctx.arc(x + size * 0.4, y - size * 0.1, size * 0.4, 0, Math.PI * 2);
+  ctx.arc(x + size * 0.8, y, size * 0.45, 0, Math.PI * 2);
+  ctx.arc(x + size * 0.3, y + size * 0.15, size * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMountains(w, h, nightMode = false) {
   const mountainY = h * 0.45;
-  
-  // Far mountains (blue/purple)
-  cityCtx.fillStyle = '#8090a8';
+
+  // Far mountains (blue/purple - darker at night)
+  cityCtx.fillStyle = nightMode ? '#2a3040' : '#8090a8';
   cityCtx.beginPath();
   cityCtx.moveTo(0, mountainY);
   cityCtx.lineTo(w * 0.15, mountainY - 60);
@@ -878,13 +990,13 @@ function drawMountains(w, h) {
   cityCtx.fill();
 }
 
-function drawForestLine(w, groundY) {
-  cityCtx.fillStyle = '#3a5a2a';
-  
+function drawForestLine(w, groundY, nightMode = false) {
+  cityCtx.fillStyle = nightMode ? '#1a2a15' : '#3a5a2a';
+
   for (let x = 0; x < w; x += 25) {
     const treeH = 15 + Math.sin(x * 0.1) * 8;
     const treeY = groundY + 5 + Math.sin(x * 0.05) * 3;
-    
+
     cityCtx.beginPath();
     cityCtx.moveTo(x, treeY);
     cityCtx.lineTo(x + 12, treeY);
@@ -894,18 +1006,18 @@ function drawForestLine(w, groundY) {
   }
 }
 
-function drawRiver(w, h, groundY) {
-  cityCtx.strokeStyle = '#5090c0';
+function drawRiver(w, h, groundY, nightMode = false) {
+  cityCtx.strokeStyle = nightMode ? '#203858' : '#5090c0';
   cityCtx.lineWidth = 20;
   cityCtx.lineCap = 'round';
-  
+
   cityCtx.beginPath();
   cityCtx.moveTo(-20, groundY + 30);
   cityCtx.bezierCurveTo(w * 0.2, groundY + 60, w * 0.15, h * 0.65, w * 0.08, h + 20);
   cityCtx.stroke();
-  
-  // River highlight
-  cityCtx.strokeStyle = 'rgba(150,200,230,0.5)';
+
+  // River highlight (moonlight reflection at night)
+  cityCtx.strokeStyle = nightMode ? 'rgba(100,140,180,0.3)' : 'rgba(150,200,230,0.5)';
   cityCtx.lineWidth = 8;
   cityCtx.beginPath();
   cityCtx.moveTo(-15, groundY + 28);
@@ -913,7 +1025,7 @@ function drawRiver(w, h, groundY) {
   cityCtx.stroke();
 }
 
-function drawScatteredTrees(w, h, groundY, centerX, centerY) {
+function drawScatteredTrees(w, h, groundY, centerX, centerY, nightMode = false) {
   const trees = [
     { x: 60, y: groundY + 80, size: 35 },
     { x: 120, y: groundY + 120, size: 40 },
@@ -924,31 +1036,33 @@ function drawScatteredTrees(w, h, groundY, centerX, centerY) {
     { x: w / 2 - 200, y: groundY + 60, size: 32 },
     { x: w / 2 + 200, y: groundY + 70, size: 36 }
   ];
-  
+
   trees.forEach(tree => {
     // Skip if too close to city
     const dx = tree.x - centerX;
     const dy = tree.y - centerY;
     if (Math.sqrt(dx*dx + dy*dy) < 200) return;
-    
-    drawTree(tree.x, tree.y, tree.size);
+
+    drawTree(tree.x, tree.y, tree.size, nightMode);
   });
 }
 
-function drawTree(x, y, size) {
+function drawTree(x, y, size, nightMode = false) {
   // Shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.2)';
+  cityCtx.fillStyle = nightMode ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.2)';
   cityCtx.beginPath();
   cityCtx.ellipse(x + 3, y + 5, size * 0.4, size * 0.15, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
+
   // Trunk
-  cityCtx.fillStyle = '#5a4030';
+  cityCtx.fillStyle = nightMode ? '#2a2018' : '#5a4030';
   cityCtx.fillRect(x - size * 0.08, y - size * 0.3, size * 0.16, size * 0.35);
-  
-  // Foliage layers
-  const colors = ['#2a5a1a', '#3a6a2a', '#4a7a3a'];
-  
+
+  // Foliage layers (darker at night)
+  const colors = nightMode
+    ? ['#0a2008', '#152810', '#1a3015']
+    : ['#2a5a1a', '#3a6a2a', '#4a7a3a'];
+
   for (let i = 0; i < 3; i++) {
     cityCtx.fillStyle = colors[i];
     cityCtx.beginPath();
@@ -960,18 +1074,21 @@ function drawTree(x, y, size) {
   }
 }
 
-function drawCropFields(w, h, centerX, centerY) {
-  // Wheat fields (golden rectangles around city)
+function drawCropFields(w, h, centerX, centerY, nightMode = false) {
+  // Wheat fields (golden rectangles around city - darker at night)
+  const dayColors = ['#c4a030', '#d4b040', '#b49020', '#c4a030'];
+  const nightColors = ['#4a4020', '#5a4828', '#3a3018', '#4a4020'];
+
   const fields = [
-    { x: 50, y: h * 0.55, w: 80, h: 50, color: '#c4a030' },
-    { x: w - 130, y: h * 0.58, w: 90, h: 45, color: '#d4b040' },
-    { x: 30, y: h - 120, w: 70, h: 40, color: '#b49020' },
-    { x: w - 100, y: h - 110, w: 60, h: 35, color: '#c4a030' }
+    { x: 50, y: h * 0.55, w: 80, h: 50, colorIdx: 0 },
+    { x: w - 130, y: h * 0.58, w: 90, h: 45, colorIdx: 1 },
+    { x: 30, y: h - 120, w: 70, h: 40, colorIdx: 2 },
+    { x: w - 100, y: h - 110, w: 60, h: 35, colorIdx: 3 }
   ];
-  
+
   fields.forEach(field => {
     // Field base
-    cityCtx.fillStyle = field.color;
+    cityCtx.fillStyle = nightMode ? nightColors[field.colorIdx] : dayColors[field.colorIdx];
     cityCtx.beginPath();
     cityCtx.moveTo(field.x, field.y + field.h * 0.3);
     cityCtx.lineTo(field.x + field.w * 0.1, field.y);
@@ -981,9 +1098,9 @@ function drawCropFields(w, h, centerX, centerY) {
     cityCtx.lineTo(field.x, field.y + field.h);
     cityCtx.closePath();
     cityCtx.fill();
-    
+
     // Crop lines
-    cityCtx.strokeStyle = 'rgba(0,0,0,0.15)';
+    cityCtx.strokeStyle = nightMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.15)';
     cityCtx.lineWidth = 1;
     for (let i = 0; i < 5; i++) {
       const lineY = field.y + field.h * 0.3 + (field.h * 0.7 / 5) * i;
@@ -995,27 +1112,27 @@ function drawCropFields(w, h, centerX, centerY) {
   });
 }
 
-function drawPaths(w, h, centerX, centerY) {
-  cityCtx.strokeStyle = '#a08050';
+function drawPaths(w, h, centerX, centerY, nightMode = false) {
+  cityCtx.strokeStyle = nightMode ? '#3a3028' : '#a08050';
   cityCtx.lineWidth = 12;
   cityCtx.lineCap = 'round';
-  
+
   // Main road from bottom
   cityCtx.beginPath();
   cityCtx.moveTo(w / 2 + 30, h + 10);
   cityCtx.quadraticCurveTo(w / 2, h * 0.8, centerX, centerY + 100);
   cityCtx.stroke();
-  
+
   // Road from right
   cityCtx.beginPath();
   cityCtx.moveTo(w + 10, h * 0.6);
   cityCtx.quadraticCurveTo(w * 0.8, h * 0.55, centerX + 120, centerY + 30);
   cityCtx.stroke();
-  
-  // Road highlight
-  cityCtx.strokeStyle = '#c0a070';
+
+  // Road highlight (torchlight at night)
+  cityCtx.strokeStyle = nightMode ? '#504030' : '#c0a070';
   cityCtx.lineWidth = 4;
-  
+
   cityCtx.beginPath();
   cityCtx.moveTo(w / 2 + 32, h + 10);
   cityCtx.quadraticCurveTo(w / 2 + 2, h * 0.8, centerX + 2, centerY + 100);
@@ -1143,16 +1260,23 @@ function drawGate(x, y) {
 
 function drawDecorations(w, h, centerX, centerY) {
   const time = Date.now() / 1000;
-  
-  // ========== ANIMATED BIRDS ==========
-  drawAnimatedBirds(w, h, time);
-  
+  const nightMode = isNightMode();
+
+  // ========== ANIMATED BIRDS (day only) / FIREFLIES (night) ==========
+  if (nightMode) {
+    drawFireflies(w, h, time);
+  } else {
+    drawAnimatedBirds(w, h, time);
+  }
+
   // ========== ANIMATED WATER (moat reflections) ==========
   drawWaterAnimation(centerX, centerY, time);
-  
-  // ========== ANIMATED VILLAGERS ==========
-  drawAnimatedVillagers(centerX, centerY, time);
-  
+
+  // ========== ANIMATED VILLAGERS (fewer at night) ==========
+  if (!nightMode || Math.random() > 0.7) {
+    drawAnimatedVillagers(centerX, centerY, time);
+  }
+
   // ========== ANIMATED SMOKE from buildings ==========
   const smokeBuildings = ['FORGE', 'BARRACKS', 'WORKSHOP'];
   smokeBuildings.forEach(key => {
@@ -1164,12 +1288,128 @@ function drawDecorations(w, h, centerX, centerY) {
       }
     }
   });
-  
+
   // ========== ANIMATED FLAGS ==========
   drawAnimatedFlags(centerX, centerY, time);
-  
-  // ========== PARTICLE EFFECTS (leaves, dust) ==========
+
+  // ========== PARTICLE EFFECTS (leaves day, embers night) ==========
   drawParticleEffects(w, h, time);
+
+  // ========== TORCHES at night ==========
+  if (nightMode) {
+    drawTorches(centerX, centerY, time);
+  }
+
+  // ========== NIGHT AMBIENT OVERLAY ==========
+  if (nightMode) {
+    cityCtx.fillStyle = 'rgba(10, 15, 30, 0.15)';
+    cityCtx.fillRect(0, 0, w, h);
+  }
+}
+
+// ========== FIREFLIES (night) ==========
+let firefliesState = [];
+function initFireflies(w, h) {
+  firefliesState = [];
+  for (let i = 0; i < 20; i++) {
+    firefliesState.push({
+      x: Math.random() * w,
+      y: h * 0.4 + Math.random() * h * 0.5,
+      phase: Math.random() * Math.PI * 2,
+      brightness: Math.random()
+    });
+  }
+}
+
+function drawFireflies(w, h, time) {
+  if (firefliesState.length === 0) initFireflies(w, h);
+
+  firefliesState.forEach((ff, i) => {
+    // Gentle floating movement
+    ff.x += Math.sin(time * 0.5 + ff.phase) * 0.3;
+    ff.y += Math.cos(time * 0.7 + ff.phase) * 0.2;
+
+    // Wrap around
+    if (ff.x > w) ff.x = 0;
+    if (ff.x < 0) ff.x = w;
+    if (ff.y > h) ff.y = h * 0.4;
+    if (ff.y < h * 0.3) ff.y = h * 0.4;
+
+    // Pulsing glow
+    const pulse = Math.sin(time * 3 + ff.phase * 2) * 0.5 + 0.5;
+    const alpha = ff.brightness * pulse;
+
+    // Glow
+    const glowGrad = cityCtx.createRadialGradient(ff.x, ff.y, 0, ff.x, ff.y, 8);
+    glowGrad.addColorStop(0, `rgba(200, 255, 100, ${alpha * 0.8})`);
+    glowGrad.addColorStop(0.5, `rgba(150, 255, 80, ${alpha * 0.3})`);
+    glowGrad.addColorStop(1, 'rgba(100, 200, 50, 0)');
+    cityCtx.fillStyle = glowGrad;
+    cityCtx.beginPath();
+    cityCtx.arc(ff.x, ff.y, 8, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Core
+    cityCtx.fillStyle = `rgba(255, 255, 150, ${alpha})`;
+    cityCtx.beginPath();
+    cityCtx.arc(ff.x, ff.y, 2, 0, Math.PI * 2);
+    cityCtx.fill();
+  });
+}
+
+// ========== TORCHES at night ==========
+function drawTorches(centerX, centerY, time) {
+  // Torch positions around city wall
+  const torchPositions = [
+    { angle: 0, dist: 150 },
+    { angle: 60, dist: 150 },
+    { angle: 120, dist: 150 },
+    { angle: 180, dist: 150 },
+    { angle: 240, dist: 150 },
+    { angle: 300, dist: 150 }
+  ];
+
+  torchPositions.forEach((pos, i) => {
+    const rad = pos.angle * Math.PI / 180;
+    const x = centerX + Math.cos(rad) * pos.dist;
+    const y = centerY + Math.sin(rad) * pos.dist * 0.5; // Isometric
+
+    // Torch pole
+    cityCtx.fillStyle = '#3a2a1a';
+    cityCtx.fillRect(x - 2, y - 20, 4, 20);
+
+    // Flame flicker
+    const flicker = Math.sin(time * 8 + i) * 3;
+    const flicker2 = Math.cos(time * 12 + i * 0.5) * 2;
+
+    // Flame glow
+    const glowGrad = cityCtx.createRadialGradient(x, y - 25, 0, x, y - 25, 30);
+    glowGrad.addColorStop(0, 'rgba(255, 200, 50, 0.6)');
+    glowGrad.addColorStop(0.3, 'rgba(255, 150, 30, 0.3)');
+    glowGrad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+    cityCtx.fillStyle = glowGrad;
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - 25, 30, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Flame
+    cityCtx.fillStyle = '#ff6600';
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - 4, y - 18);
+    cityCtx.quadraticCurveTo(x + flicker, y - 35 + flicker2, x, y - 40);
+    cityCtx.quadraticCurveTo(x + flicker2, y - 35 + flicker, x + 4, y - 18);
+    cityCtx.closePath();
+    cityCtx.fill();
+
+    // Inner flame
+    cityCtx.fillStyle = '#ffcc00';
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - 2, y - 18);
+    cityCtx.quadraticCurveTo(x + flicker * 0.5, y - 30 + flicker2 * 0.5, x, y - 32);
+    cityCtx.quadraticCurveTo(x + flicker2 * 0.5, y - 30 + flicker * 0.5, x + 2, y - 18);
+    cityCtx.closePath();
+    cityCtx.fill();
+  });
 }
 
 // ========== ANIMATED BIRDS ==========
@@ -2650,25 +2890,48 @@ function drawWallPattern(x, y, bw, bh, style) {
 function drawWindows(x, y, bw, bh, count) {
   const winW = bw * 0.15;
   const winH = bh * 0.12;
+  const nightMode = isNightMode();
 
   for (let i = 0; i < count; i++) {
     const winX = x - bw * 0.4 + (i % 2) * bw * 0.3;
     const winY = y - bh * 0.5 - Math.floor(i / 2) * bh * 0.25;
 
+    // Night mode: warm glow around window
+    if (nightMode) {
+      const glowGrad = cityCtx.createRadialGradient(winX, winY, 0, winX, winY, winW * 2);
+      glowGrad.addColorStop(0, 'rgba(255, 200, 100, 0.4)');
+      glowGrad.addColorStop(0.5, 'rgba(255, 180, 80, 0.2)');
+      glowGrad.addColorStop(1, 'rgba(255, 150, 50, 0)');
+      cityCtx.fillStyle = glowGrad;
+      cityCtx.beginPath();
+      cityCtx.arc(winX, winY, winW * 2, 0, Math.PI * 2);
+      cityCtx.fill();
+    }
+
     // Window frame
-    cityCtx.fillStyle = '#3a2a1a';
+    cityCtx.fillStyle = nightMode ? '#1a1510' : '#3a2a1a';
     cityCtx.fillRect(winX - winW / 2 - 1, winY - winH / 2 - 1, winW + 2, winH + 2);
 
     // Window glass
-    const glassGrad = cityCtx.createLinearGradient(winX, winY - winH / 2, winX, winY + winH / 2);
-    glassGrad.addColorStop(0, '#87ceeb');
-    glassGrad.addColorStop(0.5, '#ffd700');
-    glassGrad.addColorStop(1, '#4682b4');
-    cityCtx.fillStyle = glassGrad;
+    if (nightMode) {
+      // Warm candlelight at night
+      const glassGrad = cityCtx.createLinearGradient(winX, winY - winH / 2, winX, winY + winH / 2);
+      glassGrad.addColorStop(0, '#ffcc66');
+      glassGrad.addColorStop(0.5, '#ffaa33');
+      glassGrad.addColorStop(1, '#ff8800');
+      cityCtx.fillStyle = glassGrad;
+    } else {
+      // Daytime reflections
+      const glassGrad = cityCtx.createLinearGradient(winX, winY - winH / 2, winX, winY + winH / 2);
+      glassGrad.addColorStop(0, '#87ceeb');
+      glassGrad.addColorStop(0.5, '#ffd700');
+      glassGrad.addColorStop(1, '#4682b4');
+      cityCtx.fillStyle = glassGrad;
+    }
     cityCtx.fillRect(winX - winW / 2, winY - winH / 2, winW, winH);
 
     // Window cross
-    cityCtx.strokeStyle = '#2a1a0a';
+    cityCtx.strokeStyle = nightMode ? '#1a1008' : '#2a1a0a';
     cityCtx.lineWidth = 1;
     cityCtx.beginPath();
     cityCtx.moveTo(winX, winY - winH / 2);
@@ -9967,6 +10230,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ========== SERVER TIME & DAY/NIGHT INDICATOR (Travian style) ==========
 let serverTimeInterval;
+let currentIsNight = null; // Track state for transitions
 
 function updateServerTime() {
   const now = new Date();
@@ -9986,6 +10250,9 @@ function updateServerTime() {
   // Day/Night: Night is 18:00 - 05:00 (like Travian)
   const isNight = hours >= 18 || hours < 5;
 
+  // Update body class for global theme
+  document.body.classList.toggle('night-mode', isNight);
+
   if (indicator) {
     indicator.classList.toggle('night', isNight);
     indicator.classList.toggle('day', !isNight);
@@ -9994,6 +10261,23 @@ function updateServerTime() {
   if (iconEl) {
     iconEl.textContent = isNight ? '🌙' : '☀️';
   }
+
+  // Re-render canvases when day/night changes
+  if (currentIsNight !== isNight) {
+    currentIsNight = isNight;
+    // Re-render city canvas with new theme
+    if (typeof renderCityCanvas === 'function') {
+      setTimeout(() => renderCityCanvas(), 100);
+    }
+    // Re-render map canvas with new theme
+    if (typeof renderMapCanvas === 'function') {
+      setTimeout(() => renderMapCanvas(), 100);
+    }
+  }
+}
+
+function isNightMode() {
+  return document.body.classList.contains('night-mode');
 }
 
 function startServerTime() {
