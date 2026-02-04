@@ -90,7 +90,15 @@ html, body {
 ::-webkit-scrollbar-thumb:hover { background: var(--bg-lighter); }
 
 /* ========== SCREENS ========== */
-.screen { display: none; height: 100vh; flex-direction: column; }
+.screen {
+  display: none;
+  height: 100vh;
+  flex-direction: column;
+}
+.screen[style*="display: flex"],
+.screen[style*="display:flex"] {
+  display: flex !important;
+}
 #auth-screen { display: flex; }
 
 /* ========== AUTH SCREEN - TRAVIAN STYLE ========== */
@@ -1723,6 +1731,19 @@ tr.marked, .list-item.marked {
   max-height: 350px;
   overflow-y: auto;
   color: #3a2a1a;
+}
+
+/* Build Panel Overlay */
+.build-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 400;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.build-panel-overlay.fade-in {
+  opacity: 1;
 }
 
 /* ========== TOAST ========== */

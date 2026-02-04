@@ -506,23 +506,28 @@ const FIELDS_LAYOUT = {
 function initCityCanvas() {
   cityCanvas = document.getElementById('city-canvas');
   if (!cityCanvas) return;
-  
+
   cityCtx = cityCanvas.getContext('2d');
-  
-  // Resize to container
+
+  // Resize to container with fallback dimensions
   const container = cityCanvas.parentElement;
-  cityCanvas.width = container.clientWidth;
-  cityCanvas.height = container.clientHeight;
-  
-  // Events
-  cityCanvas.addEventListener('mousemove', onCityMouseMove);
-  cityCanvas.addEventListener('click', onCityClick);
-  cityCanvas.addEventListener('mouseleave', () => {
-    cityHoveredSlot = null;
-    renderCityCanvas();
-    hideCityTooltip();
-  });
-  
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 600;
+  cityCanvas.width = Math.max(width, 300);
+  cityCanvas.height = Math.max(height, 200);
+
+  // Only add events once
+  if (!cityCanvas.hasAttribute('data-events-attached')) {
+    cityCanvas.setAttribute('data-events-attached', 'true');
+    cityCanvas.addEventListener('mousemove', onCityMouseMove);
+    cityCanvas.addEventListener('click', onCityClick);
+    cityCanvas.addEventListener('mouseleave', () => {
+      cityHoveredSlot = null;
+      renderCityCanvas();
+      hideCityTooltip();
+    });
+  }
+
   // Calculate slot positions
   calculateCitySlots();
 }
@@ -5153,20 +5158,29 @@ function showTab(tabName) {
   document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
   
   // Start/stop animations based on tab
-  if (tabName === 'city') {
+  if (tabName === 'city' || tabName === 'fields') {
     startCityAnimation();
   } else {
     stopCityAnimation();
   }
-  
+
   // Stop map animation if not on map
   if (tabName !== 'map' && typeof stopMapAnimation === 'function') {
     stopMapAnimation();
   }
-  
+
+  // Special handling for fields/city tabs - they share the same canvas
+  if (tabName === 'fields' || tabName === 'city') {
+    // Both use the city tab's canvas
+    document.getElementById('tab-fields')?.classList.remove('active');
+    document.getElementById('tab-city')?.classList.add('active');
+    currentCityView = tabName === 'fields' ? 'fields' : 'city';
+    renderCity();
+    return;
+  }
+
   // Load tab content
   switch(tabName) {
-    case 'city': renderCity(); break;
     case 'buildings': loadBuildings(); break;
     case 'army': renderArmies(); break;
     case 'recruit': loadUnits(); break;
@@ -7146,30 +7160,35 @@ function initMapCanvas() {
   mapCtx = mapCanvas?.getContext('2d');
   minimapCanvas = document.getElementById('minimap-canvas');
   minimapCtx = minimapCanvas?.getContext('2d');
-  
+
   if (!mapCanvas || !mapCtx) return;
-  
-  // Resize canvas to container
+
+  // Resize canvas to container with fallback dimensions
   const container = mapCanvas.parentElement;
-  mapCanvas.width = container.clientWidth;
-  mapCanvas.height = container.clientHeight;
-  
-  // Event listeners
-  mapCanvas.addEventListener('mousedown', onMapMouseDown);
-  mapCanvas.addEventListener('mousemove', onMapMouseMove);
-  mapCanvas.addEventListener('mouseup', onMapMouseUp);
-  mapCanvas.addEventListener('mouseleave', onMapMouseUp);
-  mapCanvas.addEventListener('wheel', onMapWheel, { passive: false });
-  mapCanvas.addEventListener('click', onMapClick);
-  
-  // Touch events for mobile
-  mapCanvas.addEventListener('touchstart', onMapTouchStart, { passive: false });
-  mapCanvas.addEventListener('touchmove', onMapTouchMove, { passive: false });
-  mapCanvas.addEventListener('touchend', onMapTouchEnd);
-  
-  // Keyboard shortcuts for zoom (when map tab is active)
-  document.addEventListener('keydown', onMapKeyDown);
-  
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 600;
+  mapCanvas.width = Math.max(width, 300);
+  mapCanvas.height = Math.max(height, 200);
+
+  // Only add events once
+  if (!mapCanvas.hasAttribute('data-events-attached')) {
+    mapCanvas.setAttribute('data-events-attached', 'true');
+    mapCanvas.addEventListener('mousedown', onMapMouseDown);
+    mapCanvas.addEventListener('mousemove', onMapMouseMove);
+    mapCanvas.addEventListener('mouseup', onMapMouseUp);
+    mapCanvas.addEventListener('mouseleave', onMapMouseUp);
+    mapCanvas.addEventListener('wheel', onMapWheel, { passive: false });
+    mapCanvas.addEventListener('click', onMapClick);
+
+    // Touch events for mobile
+    mapCanvas.addEventListener('touchstart', onMapTouchStart, { passive: false });
+    mapCanvas.addEventListener('touchmove', onMapTouchMove, { passive: false });
+    mapCanvas.addEventListener('touchend', onMapTouchEnd);
+
+    // Keyboard shortcuts for zoom (when map tab is active)
+    document.addEventListener('keydown', onMapKeyDown);
+  }
+
   // Center on capital initially
   centerOnCapital();
 }
