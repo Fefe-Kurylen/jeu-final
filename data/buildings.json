@@ -555,6 +555,40 @@
         "defenderAtkBonusPctPerLevel": 0.5,
         "defenderDefBonusPctPerLevel": 0.5
       }
+    },
+    {
+      "key": "HERO_HOME",
+      "name": "Domus du héros",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        {
+          "key": "MAIN_HALL",
+          "level": 5
+        },
+        {
+          "key": "ACADEMY",
+          "level": 3
+        }
+      ],
+      "costL1": {
+        "wood": 450,
+        "stone": 380,
+        "iron": 420,
+        "food": 250
+      },
+      "costL20": {
+        "wood": 45000,
+        "stone": 38000,
+        "iron": 42000,
+        "food": 25000
+      },
+      "timeL1Sec": 3600,
+      "timeL20Sec": 172800,
+      "effects": {
+        "heroXpBonusPctPerLevel": 2.0,
+        "heroStatBonusPctPerLevel": 1.0
+      }
     }
   ]
 }
