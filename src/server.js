@@ -262,7 +262,7 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
 
     // Create garrison army
     await prisma.army.create({
-      data: { playerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y }
+      data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true }
     });
 
     // Create 3 starter expeditions
@@ -2152,11 +2152,11 @@ setInterval(async () => {
 
     // ========== ARMY MOVEMENT & COMBAT RESOLUTION ==========
     const movingArmies = await prisma.army.findMany({
-      where: { 
+      where: {
         status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'] },
         arrivalAt: { lte: now }
       },
-      include: { units: true, player: true, city: true }
+      include: { units: true, owner: true, city: true }
     });
 
     for (const army of movingArmies) {
