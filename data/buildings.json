@@ -125,7 +125,12 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 64800,
       "effects": {
-        "trainTimeReductionPctPerLevel": 0.5
+        "trainTimeReductionPctPerLevel": 0.5,
+        "recruitInfantry": true,
+        "recruitArcher": true,
+        "unlockBaseTier": 1,
+        "unlockIntermediateTier": 7,
+        "unlockEliteTier": 15
       }
     },
     {
@@ -158,7 +163,11 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 64800,
       "effects": {
-        "trainTimeReductionPctPerLevel": 0.5
+        "trainTimeReductionPctPerLevel": 0.5,
+        "recruitCavalry": true,
+        "unlockBaseTier": 1,
+        "unlockIntermediateTier": 7,
+        "unlockEliteTier": 15
       }
     },
     {
@@ -557,38 +566,458 @@
       }
     },
     {
-      "key": "HERO_HOME",
-      "name": "Domus du héros",
+      "key": "MILL",
+      "name": "Moulin",
+      "category": "ADVANCED",
+      "maxLevel": 5,
+      "prereq": [
+        { "key": "FARM", "level": 5 }
+      ],
+      "costL1": { "wood": 440, "stone": 389, "iron": 450, "food": 1200 },
+      "costL5": { "wood": 5500, "stone": 4556, "iron": 3556, "food": 13000 },
+      "timeL1Sec": 1800,
+      "timeL5Sec": 19020,
+      "effects": {
+        "foodProdBonusPctL1": 4,
+        "foodProdBonusPctL5": 20
+      },
+      "description": "Augmente la production de céréales de toutes les fermes."
+    },
+    {
+      "key": "BAKERY",
+      "name": "Boulangerie",
+      "category": "ADVANCED",
+      "maxLevel": 5,
+      "prereq": [
+        { "key": "FARM", "level": 10 },
+        { "key": "MAIN_HALL", "level": 5 },
+        { "key": "MILL", "level": 5 }
+      ],
+      "costL1": { "wood": 1200, "stone": 1440, "iron": 870, "food": 1600 },
+      "costL5": { "wood": 12400, "stone": 15467, "iron": 9135, "food": 17000 },
+      "timeL1Sec": 4620,
+      "timeL5Sec": 28380,
+      "effects": {
+        "foodProdBonusPctL1": 4,
+        "foodProdBonusPctL5": 20
+      },
+      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +40% total."
+    },
+    {
+      "key": "GREAT_SILO",
+      "name": "Grand Silo",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 5
-        },
-        {
-          "key": "ACADEMY",
-          "level": 3
-        }
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "TREASURE_CHAMBER", "level": 5 }
       ],
-      "costL1": {
-        "wood": 450,
-        "stone": 380,
-        "iron": 420,
-        "food": 250
-      },
-      "costL20": {
-        "wood": 45000,
-        "stone": 38000,
-        "iron": 42000,
-        "food": 25000
-      },
-      "timeL1Sec": 3600,
+      "costL1": { "wood": 400, "stone": 500, "iron": 350, "food": 100 },
+      "costL20": { "wood": 80000, "stone": 110000, "iron": 60000, "food": 30000 },
+      "timeL1Sec": 6960,
       "timeL20Sec": 172800,
       "effects": {
-        "heroXpBonusPctPerLevel": 2.0,
-        "heroStatBonusPctPerLevel": 1.0
-      }
+        "protectedFoodStorageL1": 3600,
+        "protectedFoodStorageL20": 600000
+      },
+      "description": "Stockage de céréales protégé contre le pillage."
+    },
+    {
+      "key": "GREAT_WAREHOUSE",
+      "name": "Grand Dépôt",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "TREASURE_CHAMBER", "level": 5 }
+      ],
+      "costL1": { "wood": 400, "stone": 500, "iron": 350, "food": 100 },
+      "costL20": { "wood": 80000, "stone": 110000, "iron": 60000, "food": 30000 },
+      "timeL1Sec": 6960,
+      "timeL20Sec": 172800,
+      "effects": {
+        "protectedStorageL1": 3600,
+        "protectedStorageL20": 600000
+      },
+      "description": "Stockage de bois, pierre et fer protégé contre le pillage."
+    },
+    {
+      "key": "GREAT_BARRACKS",
+      "name": "Grande Caserne",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "BARRACKS", "level": 20 }
+      ],
+      "costL1": { "wood": 620, "stone": 420, "iron": 780, "food": 130 },
+      "costL20": { "wood": 70000, "stone": 45000, "iron": 85000, "food": 10000 },
+      "timeL1Sec": 1980,
+      "timeL20Sec": 63000,
+      "effects": {
+        "notInCapital": true,
+        "recruitInfantry": true,
+        "recruitArcher": true,
+        "unlockBaseTier": 1,
+        "unlockIntermediateTier": 7,
+        "unlockEliteTier": 15,
+        "trainTimeReductionPctPerLevel": 4.0
+      },
+      "description": "Permet de recruter de l'infanterie et archers hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
+    },
+    {
+      "key": "GREAT_STABLE",
+      "name": "Grande Écurie",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "STABLE", "level": 20 }
+      ],
+      "costL1": { "wood": 620, "stone": 420, "iron": 780, "food": 130 },
+      "costL20": { "wood": 70000, "stone": 45000, "iron": 85000, "food": 10000 },
+      "timeL1Sec": 1980,
+      "timeL20Sec": 63000,
+      "effects": {
+        "notInCapital": true,
+        "recruitCavalry": true,
+        "unlockBaseTier": 1,
+        "unlockIntermediateTier": 7,
+        "unlockEliteTier": 15,
+        "trainTimeReductionPctPerLevel": 4.0
+      },
+      "description": "Permet de recruter de la cavalerie hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
+    },
+    {
+      "key": "EMBASSY",
+      "name": "Ambassade",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 1 }
+      ],
+      "costL1": { "wood": 80, "stone": 130, "iron": 150, "food": 80 },
+      "costL20": { "wood": 19900, "stone": 14500, "iron": 19589, "food": 9876 },
+      "timeL1Sec": 1980,
+      "timeL20Sec": 63120,
+      "effects": {
+        "capitalOnly": true,
+        "uniqueBuilding": true,
+        "joinAllianceLevel": 5,
+        "createAllianceLevel": 7,
+        "maxAllianceHelpReceivedL1": 0,
+        "maxAllianceHelpReceivedL5": 5,
+        "maxAllianceHelpReceivedL20": 20,
+        "allianceHelpReductionPct": 1
+      },
+      "description": "Permet de rejoindre (niv.5) ou créer (niv.7) une alliance. Chaque aide reçue réduit le temps de construction de 1%."
+    },
+    {
+      "key": "TREASURE_CHAMBER",
+      "name": "Chambre au Trésor",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 }
+      ],
+      "costL1": { "wood": 2880, "stone": 2780, "iron": 2580, "food": 990 },
+      "costL20": { "wood": 232000, "stone": 221000, "iron": 208000, "food": 79000 },
+      "timeL1Sec": 7980,
+      "timeL20Sec": 162000,
+      "effects": {
+        "capitalOnly": true,
+        "uniqueBuilding": true,
+        "goldProdPerDayL1": 10,
+        "goldProdPerDayL20": 200
+      },
+      "description": "Produit de l'or chaque jour. Ressource rare pour les transactions spéciales."
+    },
+    {
+      "key": "HERO_MANSION",
+      "name": "Domus du Héros",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 1 }
+      ],
+      "costL1": { "wood": 700, "stone": 670, "iron": 700, "food": 240 },
+      "costL20": { "wood": 180000, "stone": 167000, "iron": 158000, "food": 40000 },
+      "timeL1Sec": 2280,
+      "timeL20Sec": 39600,
+      "effects": {
+        "capitalOnly": true,
+        "uniqueBuilding": true,
+        "heroManagement": true,
+        "heroResurrectionBaseHours": 24,
+        "heroResurrectionReductionPctPerLevel": 2
+      },
+      "description": "Permet de gérer et ressusciter le héros. Temps de résurrection de base 24h, réduit de 2% par niveau."
+    },
+    {
+      "key": "WATCHTOWER",
+      "name": "Tour de Guet",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 1 },
+        { "key": "BARRACKS", "level": 1 }
+      ],
+      "costL1": { "wood": 140, "stone": 200, "iron": 180, "food": 30 },
+      "costL20": { "wood": 110000, "stone": 130000, "iron": 80000, "food": 20000 },
+      "timeL1Sec": 1980,
+      "timeL20Sec": 108000,
+      "effects": {
+        "uniquePerCity": true,
+        "maxSpiesFaction": 2,
+        "visionRangeL1": 5,
+        "visionRangePerLevel": 6,
+        "spyUnlockL5": 1,
+        "spyUnlockL10": 2,
+        "alertArmyIncomingLevel": 5,
+        "alertArmyWhenLevel": 5,
+        "alertArmyWhoWhenLevel": 10,
+        "alertArmyDetailsLevel": 15,
+        "alertSpyUnknownLevel": 5,
+        "alertSpyWhenLevel": 10,
+        "alertSpyWhoWhenLevel": 15,
+        "counterSpyChanceL20": 70
+      },
+      "description": "Détecte les armées et espions ennemis. Vision +6 cases/niveau. Débloque espions (niv.5/10). Contre-espionnage 70% au niv.20."
+    },
+    {
+      "key": "FOUNDRY",
+      "name": "Fonderie",
+      "category": "ADVANCED",
+      "maxLevel": 5,
+      "prereq": [
+        { "key": "IRON_MINE", "level": 10 },
+        { "key": "MAIN_HALL", "level": 5 }
+      ],
+      "costL1": { "wood": 300, "stone": 450, "iron": 500, "food": 120 },
+      "costL5": { "wood": 2500, "stone": 4750, "iron": 5330, "food": 1260 },
+      "timeL1Sec": 4080,
+      "timeL5Sec": 32400,
+      "effects": {
+        "uniquePerCity": true,
+        "ironProdBonusPctL1": 5,
+        "ironProdBonusPctL5": 25
+      },
+      "description": "Augmente la production de fer de la ville de 5% par niveau."
+    },
+    {
+      "key": "STONEMASON",
+      "name": "Tailleur de Pierre",
+      "category": "ADVANCED",
+      "maxLevel": 5,
+      "prereq": [
+        { "key": "QUARRY", "level": 10 },
+        { "key": "MAIN_HALL", "level": 5 }
+      ],
+      "costL1": { "wood": 450, "stone": 500, "iron": 300, "food": 120 },
+      "costL5": { "wood": 4750, "stone": 5330, "iron": 2500, "food": 1260 },
+      "timeL1Sec": 4080,
+      "timeL5Sec": 32400,
+      "effects": {
+        "uniquePerCity": true,
+        "stoneProdBonusPctL1": 5,
+        "stoneProdBonusPctL5": 25
+      },
+      "description": "Augmente la production de pierre de la ville de 5% par niveau."
+    },
+    {
+      "key": "SAWMILL",
+      "name": "Scierie",
+      "category": "ADVANCED",
+      "maxLevel": 5,
+      "prereq": [
+        { "key": "LUMBER", "level": 10 },
+        { "key": "MAIN_HALL", "level": 5 }
+      ],
+      "costL1": { "wood": 500, "stone": 450, "iron": 300, "food": 120 },
+      "costL5": { "wood": 5330, "stone": 4750, "iron": 2500, "food": 1260 },
+      "timeL1Sec": 4080,
+      "timeL5Sec": 32400,
+      "effects": {
+        "uniquePerCity": true,
+        "woodProdBonusPctL1": 5,
+        "woodProdBonusPctL5": 25
+      },
+      "description": "Augmente la production de bois de la ville de 5% par niveau."
+    },
+    {
+      "key": "RESIDENCE",
+      "name": "Résidence",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 5 }
+      ],
+      "costL1": { "wood": 700, "stone": 500, "iron": 300, "food": 1200 },
+      "costL20": { "wood": 60000, "stone": 40000, "iron": 70000, "food": 100000 },
+      "timeL1Sec": 1980,
+      "timeL20Sec": 86400,
+      "effects": {
+        "capitalOnly": true,
+        "uniqueBuilding": true,
+        "buildTimeReductionPctPerLevel": 0.25,
+        "unlockSettlerL10": 1,
+        "unlockSettlerL15": 2,
+        "unlockSettlerL20": 3,
+        "settlerTrainTimeSec": 10800,
+        "settlerCost": { "wood": 0, "stone": 0, "iron": 0, "food": 0 },
+        "settlerVulnerable": true,
+        "cityFoundationTimeSec": 86400,
+        "secondaryCityBonusPct": 20
+      },
+      "description": "Réduit le temps de construction de 0.25% par niveau. Permet de former des colons (niv.10/15/20) pour fonder jusqu'à 3 villes secondaires sur des points de ressource (+20% production)."
+    },
+    {
+      "key": "TRADE_OFFICE",
+      "name": "Comptoir de Commerce",
+      "category": "ADVANCED",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MARKET", "level": 10 },
+        { "key": "MAIN_HALL", "level": 10 }
+      ],
+      "costL1": { "wood": 1400, "stone": 1200, "iron": 1000, "food": 400 },
+      "costL20": { "wood": 95000, "stone": 82000, "iron": 68000, "food": 27000 },
+      "timeL1Sec": 3600,
+      "timeL20Sec": 259200,
+      "effects": {
+        "p2pTaxReductionPctPerLevel": 1.0,
+        "armyTransportCapacityBonusPctPerLevel": 1.0
+      },
+      "description": "Réduit la taxe P2P de 1% par niveau et augmente la capacité de transport des armées lors du commerce entre joueurs de 1% par niveau."
+    },
+    {
+      "key": "ROMAN_THERMAE",
+      "name": "Thermes",
+      "category": "FACTION",
+      "faction": "ROME",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "HEALING_TENT", "level": 5 }
+      ],
+      "costL1": { "wood": 1800, "stone": 2200, "iron": 1400, "food": 600 },
+      "costL20": { "wood": 120000, "stone": 150000, "iron": 95000, "food": 40000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "ROME",
+        "uniqueBuilding": true,
+        "healTimeReductionPctPerLevel": 1.5,
+        "woundedInsteadOfDeadBonusPctPerLevel": 0.5
+      },
+      "description": "Bâtiment exclusif Rome. Réduit le temps de soins de 1.5% par niveau et augmente le taux de blessés (au lieu de morts) de 0.5% par niveau."
+    },
+    {
+      "key": "GALLIC_BREWERY",
+      "name": "Brasserie",
+      "category": "FACTION",
+      "faction": "GAUL",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "FARM", "level": 10 }
+      ],
+      "costL1": { "wood": 1600, "stone": 1400, "iron": 1200, "food": 800 },
+      "costL20": { "wood": 110000, "stone": 95000, "iron": 82000, "food": 55000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "GAUL",
+        "uniqueBuilding": true,
+        "siegeDefenseBonusPctPerLevel": 1.0
+      },
+      "description": "Bâtiment exclusif Gaule. Augmente la défense des unités de 1% par niveau lors d'un siège subi."
+    },
+    {
+      "key": "GREEK_TEMPLE",
+      "name": "Temple",
+      "category": "FACTION",
+      "faction": "GREEK",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "ACADEMY", "level": 10 }
+      ],
+      "costL1": { "wood": 2000, "stone": 2500, "iron": 1000, "food": 500 },
+      "costL20": { "wood": 135000, "stone": 170000, "iron": 68000, "food": 34000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "GREEK",
+        "uniqueBuilding": true,
+        "researchTimeReductionPctPerLevel": 1.0,
+        "deathReductionPctPerLevel": 0.5
+      },
+      "description": "Bâtiment exclusif Grèce. Réduit le temps de recherche de 1% par niveau et réduit les morts en bataille de 0.5% par niveau."
+    },
+    {
+      "key": "EGYPTIAN_IRRIGATION",
+      "name": "Poste d'Irrigation",
+      "category": "FACTION",
+      "faction": "EGYPT",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "FARM", "level": 10 }
+      ],
+      "costL1": { "wood": 1400, "stone": 1800, "iron": 1000, "food": 300 },
+      "costL20": { "wood": 95000, "stone": 122000, "iron": 68000, "food": 20000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "EGYPT",
+        "uniqueBuilding": true,
+        "globalProductionBonusPctPerLevel": 1.0,
+        "marchSpeedBonusPctPerLevel": 0.5
+      },
+      "description": "Bâtiment exclusif Égypte. Augmente la production de toutes les villes de 1% par niveau et la vitesse de marche de 0.5% par niveau."
+    },
+    {
+      "key": "HUN_WAR_TENT",
+      "name": "Tente de Guerre",
+      "category": "FACTION",
+      "faction": "HUN",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "STABLE", "level": 10 }
+      ],
+      "costL1": { "wood": 1200, "stone": 800, "iron": 1600, "food": 600 },
+      "costL20": { "wood": 82000, "stone": 55000, "iron": 110000, "food": 40000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "HUN",
+        "uniqueBuilding": true,
+        "upkeepReductionPctPerLevel": 0.5,
+        "deathReductionPctPerLevel": 0.5
+      },
+      "description": "Bâtiment exclusif Huns. Réduit la consommation de nourriture des unités de 0.5% par niveau et réduit les morts en bataille de 0.5% par niveau."
+    },
+    {
+      "key": "SULTAN_DESERT_OUTPOST",
+      "name": "Poste du Désert",
+      "category": "FACTION",
+      "faction": "SULTAN",
+      "maxLevel": 20,
+      "prereq": [
+        { "key": "MAIN_HALL", "level": 10 },
+        { "key": "MARKET", "level": 5 }
+      ],
+      "costL1": { "wood": 1000, "stone": 1200, "iron": 1400, "food": 500 },
+      "costL20": { "wood": 68000, "stone": 82000, "iron": 95000, "food": 34000 },
+      "timeL1Sec": 4200,
+      "timeL20Sec": 302400,
+      "effects": {
+        "factionOnly": "SULTAN",
+        "uniqueBuilding": true,
+        "interCityTaxReductionPctPerLevel": 0.5,
+        "upkeepReductionPctPerLevel": 0.5
+      },
+      "description": "Bâtiment exclusif Sultanat. Réduit la taxe inter-villes de 0.5% par niveau et la consommation de nourriture des unités de 0.5% par niveau."
     }
   ]
 }
