@@ -203,55 +203,28 @@
                         </div>
                     </div>
                     
-                    <!-- Vue ville 2.5D circulaire -->
-                    <div class="city-view-2d">
+                    <!-- Vue ville 2.5D circulaire - PLEIN ÉCRAN -->
+                    <div class="city-view-fullscreen">
                         <div class="city-canvas-container">
-                            <canvas id="city-canvas" width="800" height="600"></canvas>
-                            
+                            <canvas id="city-canvas"></canvas>
+
                             <!-- Overlay pour les tooltips -->
                             <div class="city-tooltip" id="city-tooltip" style="display:none"></div>
-                            
-                            <!-- Indicateur de vue courante -->
-                            <div class="view-indicator" id="view-indicator">
-                                <span class="view-label">🏰 Vue Ville</span>
-                                <span class="view-slots">20 emplacements</span>
-                            </div>
-                            
-                            <!-- Barre de mur en bas -->
-                            <div class="city-wall-bar">
-                                <div class="wall-icon">🏰</div>
-                                <div class="wall-progress">
-                                    <div class="wall-fill" id="wall-fill"></div>
-                                </div>
-                                <span class="wall-text" id="wall-hp">1000/1000</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Panneau latéral d'info -->
-                        <div class="city-sidebar">
-                            <div class="sidebar-section">
-                                <h3>📊 Production /h</h3>
-                                <div class="prod-list">
-                                    <div class="prod-row"><span class="prod-icon wood">🪵</span><span id="prod-wood">+0</span></div>
-                                    <div class="prod-row"><span class="prod-icon stone">🪨</span><span id="prod-stone">+0</span></div>
-                                    <div class="prod-row"><span class="prod-icon iron">⛏️</span><span id="prod-iron">+0</span></div>
-                                    <div class="prod-row"><span class="prod-icon food">🌾</span><span id="prod-food">+0</span></div>
+
+                            <!-- Mini infos en overlay (coin supérieur gauche) -->
+                            <div class="city-overlay-info">
+                                <div class="overlay-production">
+                                    <span>🪵 <span id="prod-wood">+0</span></span>
+                                    <span>🪨 <span id="prod-stone">+0</span></span>
+                                    <span>⛏️ <span id="prod-iron">+0</span></span>
+                                    <span>🌾 <span id="prod-food">+0</span></span>
                                 </div>
                             </div>
-                            
-                            <div class="sidebar-section">
-                                <h3>🏗️ Construction</h3>
-                                <div id="build-queue" class="queue-list"></div>
-                            </div>
-                            
-                            <div class="sidebar-section">
-                                <h3>⚔️ Recrutement</h3>
-                                <div id="recruit-queue" class="queue-list"></div>
-                            </div>
-                            
-                            <div class="sidebar-section">
-                                <h3>🚀 Armées</h3>
-                                <div id="moving-armies" class="queue-list"></div>
+
+                            <!-- Files d'attente en overlay (coin inférieur gauche) -->
+                            <div class="city-overlay-queues">
+                                <div id="build-queue" class="overlay-queue"></div>
+                                <div id="recruit-queue" class="overlay-queue"></div>
                             </div>
                         </div>
                     </div>
