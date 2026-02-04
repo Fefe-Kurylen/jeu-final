@@ -202,10 +202,25 @@ function showAuthError(msg) {
 async function showGame() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
+  await loadWorldInfo(); // Load world size first
   await loadPlayer();
   await loadCities();
   await loadArmies();
   startRefresh();
+}
+
+// Load world info to get dynamic world size
+async function loadWorldInfo() {
+  try {
+    const res = await fetch(`${API}/api/world/info`);
+    if (res.ok) {
+      const info = await res.json();
+      updateWorldSize(info.playerCount);
+      console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
+    }
+  } catch (e) {
+    console.warn('Could not load world info, using defaults');
+  }
 }
 
 async function loadPlayer() {
@@ -4911,13 +4926,29 @@ let mapDragStart = { x: 0, y: 0 };
 let mapHoveredTile = null;
 let mapSelectedTile = null;
 const TILE_SIZE = 40;
-const WORLD_SIZE = 200; // 200x200 world
+
+// ========== DYNAMIC WORLD SIZE SYSTEM ==========
+// Base: 374x374 = ~140,000 cases
+// Expansion: +10x10 (100 cases) per new player
+// Max players: 5000 → Max size: ~1100x1100
+const BASE_WORLD_SIZE = 374;
+const EXPANSION_PER_PLAYER = 10;
+const MAX_PLAYERS = 5000;
+let WORLD_SIZE = BASE_WORLD_SIZE;
+let WORLD_CENTER = Math.floor(WORLD_SIZE / 2);
+
+// Update world size based on player count (called after loading world info)
+function updateWorldSize(playerCount) {
+  const expansion = Math.min(playerCount || 0, MAX_PLAYERS) * EXPANSION_PER_PLAYER;
+  WORLD_SIZE = BASE_WORLD_SIZE + Math.floor(Math.sqrt(expansion * 100));
+  WORLD_CENTER = Math.floor(WORLD_SIZE / 2);
+  console.log(`🗺️ World size updated: ${WORLD_SIZE}x${WORLD_SIZE} (${WORLD_SIZE * WORLD_SIZE} tiles) - ${playerCount} players`);
+}
 
 // ========== ISOMETRIC MAP SYSTEM - Rise of Kingdoms Style ==========
 // ========== 3 BIOMES: FOREST (center), DESERT (middle ring), SNOW (outer ring) ==========
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
-const WORLD_CENTER = 250; // Center of the 500x500 map
 
 // BIOME CONFIGURATION
 const BIOMES = {
@@ -5008,14 +5039,20 @@ function seededRandom(x, y, seed = 12345) {
   return n - Math.floor(n);
 }
 
-// Get biome based on distance from center
+// Get biome based on distance from center (dynamic based on world size)
+// Biomes are proportional: Forest 32%, Desert 24%, Snow 44% (outer ring)
 function getBiome(x, y) {
   const dx = x - WORLD_CENTER;
   const dy = y - WORLD_CENTER;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (dist < 120) return 'forest';
-  if (dist < 200) return 'desert';
+  // Dynamic radii based on world size
+  const forestRadius = WORLD_CENTER * 0.32;  // Inner 32%
+  const desertRadius = WORLD_CENTER * 0.56;  // Middle ring (32-56%)
+  // Snow is everything beyond 56%
+
+  if (dist < forestRadius) return 'forest';
+  if (dist < desertRadius) return 'desert';
   return 'snow';
 }
 

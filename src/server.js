@@ -1506,9 +1506,41 @@ app.get('/api/diplomacy/player/:targetPlayerId', auth, async (req, res) => {
 
 // ========== MAP ==========
 
+// World size constants (matching frontend)
+const BASE_WORLD_SIZE = 374;
+const EXPANSION_PER_PLAYER = 10;
+const MAX_PLAYERS = 5000;
+
+// Calculate current world size based on player count
+async function getWorldSize() {
+  const playerCount = await prisma.player.count();
+  const expansion = Math.min(playerCount, MAX_PLAYERS) * EXPANSION_PER_PLAYER;
+  const worldSize = BASE_WORLD_SIZE + Math.floor(Math.sqrt(expansion * 100));
+  return { worldSize, playerCount, center: Math.floor(worldSize / 2) };
+}
+
+// Get world info (size, player count, etc.)
+app.get('/api/world/info', async (req, res) => {
+  try {
+    const { worldSize, playerCount, center } = await getWorldSize();
+    const resourceCount = await prisma.resourceNode.count();
+    res.json({
+      worldSize,
+      playerCount,
+      maxPlayers: MAX_PLAYERS,
+      center,
+      totalTiles: worldSize * worldSize,
+      resourceNodes: resourceCount
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/map/viewport', auth, async (req, res) => {
-  const x = parseInt(req.query.x) || 250;
-  const y = parseInt(req.query.y) || 250;
+  const { center } = await getWorldSize();
+  const x = parseInt(req.query.x) || center;
+  const y = parseInt(req.query.y) || center;
   const r = parseInt(req.query.radius) || 10;
 
   const cities = await prisma.city.findMany({
