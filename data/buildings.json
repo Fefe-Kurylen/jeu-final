@@ -578,8 +578,8 @@
       "timeL1Sec": 1800,
       "timeL5Sec": 19020,
       "effects": {
-        "foodProdBonusPctL1": 4,
-        "foodProdBonusPctL5": 20
+        "foodProdBonusPctL1": 5,
+        "foodProdBonusPctL5": 25
       },
       "description": "Augmente la production de céréales de toutes les fermes."
     },
@@ -598,10 +598,10 @@
       "timeL1Sec": 4620,
       "timeL5Sec": 28380,
       "effects": {
-        "foodProdBonusPctL1": 4,
-        "foodProdBonusPctL5": 20
+        "foodProdBonusPctL1": 5,
+        "foodProdBonusPctL5": 25
       },
-      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +40% total."
+      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +50% total."
     },
     {
       "key": "GREAT_SILO",
