@@ -322,7 +322,7 @@ app.get('/api/player/me', auth, async (req, res) => {
 
 app.get('/api/cities', auth, async (req, res) => {
   const cities = await prisma.city.findMany({
-    where: { ownerId: req.user.playerId },
+    where: { playerId: req.user.playerId },
     include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
   });
   res.json(cities);
@@ -332,7 +332,7 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
   try {
     const { buildingKey, slot } = req.body;
     const city = await prisma.city.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { buildings: true, buildQueue: true }
     });
     if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
@@ -445,7 +445,7 @@ app.post('/api/city/:id/recruit', auth, async (req, res) => {
     if (!count || count < 1) return res.status(400).json({ error: 'Nombre invalide' });
     
     const city = await prisma.city.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { recruitQueue: true, buildings: true }
     });
     if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
@@ -515,7 +515,7 @@ app.post('/api/city/:id/recruit', auth, async (req, res) => {
 
 app.get('/api/hero', auth, async (req, res) => {
   const hero = await prisma.hero.findUnique({
-    where: { ownerId: req.user.playerId },
+    where: { playerId: req.user.playerId },
     include: { items: true, army: true }
   });
   res.json(hero);
@@ -524,7 +524,7 @@ app.get('/api/hero', auth, async (req, res) => {
 app.post('/api/hero/assign-points', auth, async (req, res) => {
   try {
     const { atk, def, spd, log } = req.body;
-    const hero = await prisma.hero.findUnique({ where: { ownerId: req.user.playerId } });
+    const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
 
     const total = (atk || 0) + (def || 0) + (spd || 0) + (log || 0);
@@ -747,7 +747,7 @@ app.post('/api/army/create', auth, async (req, res) => {
     if (!cityId || !slot) return res.status(400).json({ error: 'cityId et slot requis' });
     
     const city = await prisma.city.findFirst({
-      where: { id: cityId, ownerId: req.user.playerId },
+      where: { id: cityId, playerId: req.user.playerId },
       include: { buildings: true }
     });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
@@ -799,7 +799,7 @@ app.patch('/api/army/:id/rename', auth, async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Nom requis' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId }
+      where: { id: req.params.id, playerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     
@@ -818,13 +818,13 @@ app.patch('/api/army/:id/rename', auth, async (req, res) => {
 app.post('/api/army/:id/assign-hero', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId }
+      where: { id: req.params.id, playerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
     
     const hero = await prisma.hero.findFirst({
-      where: { ownerId: req.user.playerId }
+      where: { playerId: req.user.playerId }
     });
     if (!hero) return res.status(404).json({ error: 'Héros non trouvé' });
     
@@ -851,7 +851,7 @@ app.post('/api/army/:id/assign-hero', auth, async (req, res) => {
 app.post('/api/army/:id/unassign-hero', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId }
+      where: { id: req.params.id, playerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
@@ -874,7 +874,7 @@ app.post('/api/army/:id/set-unit', auth, async (req, res) => {
     if (!unitKey || count === undefined) return res.status(400).json({ error: 'unitKey et count requis' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -942,7 +942,7 @@ app.post('/api/army/:id/set-unit', auth, async (req, res) => {
 app.delete('/api/army/:id/disband', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1013,7 +1013,7 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
     }
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1054,7 +1054,7 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1100,7 +1100,7 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1142,7 +1142,7 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
 app.post('/api/army/:id/return', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true, city: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1181,7 +1181,7 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
 // Get army details
 app.get('/api/army/:id', auth, async (req, res) => {
   const army = await prisma.army.findFirst({
-    where: { id: req.params.id, ownerId: req.user.playerId },
+    where: { id: req.params.id, playerId: req.user.playerId },
     include: { units: true, city: true, hero: true }
   });
   if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1194,7 +1194,7 @@ app.get('/api/army/:id', auth, async (req, res) => {
 // List all armies
 app.get('/api/armies', auth, async (req, res) => {
   const armies = await prisma.army.findMany({
-    where: { ownerId: req.user.playerId },
+    where: { playerId: req.user.playerId },
     include: { units: true, city: true, hero: true }
   });
   
@@ -1229,7 +1229,7 @@ async function createExpedition(playerId) {
 
 app.get('/api/expeditions', auth, async (req, res) => {
   const expeditions = await prisma.expedition.findMany({
-    where: { ownerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
+    where: { playerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
     orderBy: { createdAt: 'desc' }
   });
   res.json(expeditions);
@@ -1238,7 +1238,7 @@ app.get('/api/expeditions', auth, async (req, res) => {
 app.post('/api/expedition/:id/start', auth, async (req, res) => {
   try {
     const expedition = await prisma.expedition.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId, status: 'AVAILABLE' }
+      where: { id: req.params.id, playerId: req.user.playerId, status: 'AVAILABLE' }
     });
     if (!expedition) return res.status(404).json({ error: 'Expedition non trouvee' });
 
@@ -1284,7 +1284,7 @@ app.post('/api/alliance/create', auth, async (req, res) => {
     if (!name || !tag) return res.status(400).json({ error: 'Nom et tag requis' });
     if (tag.length < 2 || tag.length > 5) return res.status(400).json({ error: 'Tag entre 2 et 5 caracteres' });
 
-    const existing = await prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } });
+    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
 
     const alliance = await prisma.alliance.create({
@@ -1292,7 +1292,7 @@ app.post('/api/alliance/create', auth, async (req, res) => {
     });
 
     await prisma.allianceMember.create({
-      data: { allianceId: alliance.id, ownerId: req.user.playerId, role: 'LEADER' }
+      data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' }
     });
 
     res.json({ message: 'Alliance creee', alliance });
@@ -1307,11 +1307,11 @@ app.post('/api/alliance/:id/join', auth, async (req, res) => {
     const alliance = await prisma.alliance.findUnique({ where: { id: req.params.id } });
     if (!alliance) return res.status(404).json({ error: 'Alliance non trouvee' });
 
-    const existing = await prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } });
+    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
 
     await prisma.allianceMember.create({
-      data: { allianceId: alliance.id, ownerId: req.user.playerId, role: 'MEMBER' }
+      data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' }
     });
 
     res.json({ message: 'Alliance rejoint' });
@@ -1323,13 +1323,13 @@ app.post('/api/alliance/:id/join', auth, async (req, res) => {
 app.post('/api/alliance/leave', auth, async (req, res) => {
   try {
     const member = await prisma.allianceMember.findUnique({ 
-      where: { ownerId: req.user.playerId },
+      where: { playerId: req.user.playerId },
       include: { alliance: true }
     });
     if (!member) return res.status(400).json({ error: 'Vous n\'etes pas dans une alliance' });
 
     if (member.role === 'LEADER') {
-      const otherMembers = await prisma.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { ownerId: req.user.playerId } } });
+      const otherMembers = await prisma.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
       if (otherMembers > 0) return res.status(400).json({ error: 'Transferez le leadership avant de partir' });
       await prisma.alliance.delete({ where: { id: member.allianceId } });
     }
@@ -1343,7 +1343,7 @@ app.post('/api/alliance/leave', auth, async (req, res) => {
 
 app.post('/api/alliance/promote/:playerId', auth, async (req, res) => {
   try {
-    const myMember = await prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } });
+    const myMember = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (!myMember || myMember.role !== 'LEADER') return res.status(403).json({ error: 'Leader requis' });
 
     const target = await prisma.allianceMember.findUnique({ where: { playerId: req.params.playerId } });
@@ -1360,7 +1360,7 @@ app.post('/api/alliance/promote/:playerId', auth, async (req, res) => {
 
 app.post('/api/alliance/kick/:playerId', auth, async (req, res) => {
   try {
-    const myMember = await prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } });
+    const myMember = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (!myMember || !['LEADER', 'OFFICER'].includes(myMember.role)) return res.status(403).json({ error: 'Officier requis' });
 
     const target = await prisma.allianceMember.findUnique({ where: { playerId: req.params.playerId } });
@@ -1380,7 +1380,7 @@ app.post('/api/alliance/kick/:playerId', auth, async (req, res) => {
 app.get('/api/alliance/diplomacy', auth, async (req, res) => {
   try {
     const myMember = await prisma.allianceMember.findUnique({ 
-      where: { ownerId: req.user.playerId },
+      where: { playerId: req.user.playerId },
       include: { alliance: { include: { diplomacy: true, diplomacyTo: true } } }
     });
     
@@ -1414,7 +1414,7 @@ app.post('/api/alliance/diplomacy/:targetAllianceId', auth, async (req, res) => 
       return res.status(400).json({ error: 'Statut invalide (ALLY, NEUTRAL, ENEMY)' });
     }
     
-    const myMember = await prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } });
+    const myMember = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (!myMember || !['LEADER', 'OFFICER'].includes(myMember.role)) {
       return res.status(403).json({ error: 'Leader ou Officier requis' });
     }
@@ -1467,7 +1467,7 @@ app.get('/api/diplomacy/player/:targetPlayerId', auth, async (req, res) => {
     
     // Get both players' alliance info
     const [myMember, targetMember] = await Promise.all([
-      prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } }),
+      prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }),
       prisma.allianceMember.findUnique({ where: { playerId: targetPlayerId } })
     ]);
     
@@ -1552,7 +1552,7 @@ app.get('/api/ranking/alliances', async (req, res) => {
 app.get('/api/reports/battles', auth, async (req, res) => {
   try {
     const reports = await prisma.battleReport.findMany({
-      where: { ownerId: req.user.playerId },
+      where: { playerId: req.user.playerId },
       orderBy: { createdAt: 'desc' },
       take: 50
     });
@@ -1569,7 +1569,7 @@ app.post('/api/army/:id/spy', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1608,7 +1608,7 @@ app.post('/api/army/:id/spy', auth, async (req, res) => {
 app.get('/api/reports/spy', auth, async (req, res) => {
   try {
     const reports = await prisma.spyReport.findMany({
-      where: { ownerId: req.user.playerId },
+      where: { playerId: req.user.playerId },
       orderBy: { createdAt: 'desc' },
       take: 30
     });
@@ -1625,7 +1625,7 @@ app.post('/api/army/:id/transport', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Ville cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, ownerId: req.user.playerId },
+      where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true, city: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1645,7 +1645,7 @@ app.post('/api/army/:id/transport', auth, async (req, res) => {
     if (targetPlayerId !== req.user.playerId) {
       // Not own city - check diplomacy
       const [myMember, targetMember] = await Promise.all([
-        prisma.allianceMember.findUnique({ where: { ownerId: req.user.playerId } }),
+        prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }),
         prisma.allianceMember.findUnique({ where: { playerId: targetPlayerId } })
       ]);
       
@@ -1762,7 +1762,7 @@ app.post('/api/market/offer', auth, async (req, res) => {
     }
     
     const city = await prisma.city.findFirst({
-      where: { id: cityId, ownerId: req.user.playerId }
+      where: { id: cityId, playerId: req.user.playerId }
     });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
     
@@ -1810,7 +1810,7 @@ app.post('/api/market/offer/:id/accept', auth, async (req, res) => {
     if (offer.sellerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas accepter votre propre offre' });
     
     const buyerCity = await prisma.city.findFirst({
-      where: { id: cityId, ownerId: req.user.playerId }
+      where: { id: cityId, playerId: req.user.playerId }
     });
     if (!buyerCity) return res.status(404).json({ error: 'Ville acheteur non trouvée' });
     
