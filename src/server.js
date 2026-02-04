@@ -149,11 +149,146 @@ app.use((req, res, next) => {
 // Load game data
 let unitsData = [];
 let buildingsData = [];
+let factionsData = {};
 try {
   unitsData = JSON.parse(fs.readFileSync('data/units.json', 'utf-8')).units || [];
   buildingsData = JSON.parse(fs.readFileSync('data/buildings.json', 'utf-8')).buildings || [];
+  factionsData = JSON.parse(fs.readFileSync('data/factions.json', 'utf-8')).factions || {};
 } catch (e) {
   console.warn('Could not load game data:', e.message);
+}
+
+// ========== FACTION BONUS HELPERS ==========
+function getFactionBonus(faction, bonusType) {
+  const factionData = factionsData[faction];
+  if (!factionData || !factionData.bonuses) return 0;
+  const bonus = factionData.bonuses.find(b => b.type === bonusType);
+  return bonus ? bonus.value : 0;
+}
+
+// ========== WOUNDED UNIT SYSTEM ==========
+// Calculate how many units become wounded instead of dead
+// Base rate: 30% of dead units become wounded (if defender has Healing Tent)
+// Greek bonus: +10% wounded conversion
+async function calculateWoundedUnits(cityId, killedUnits, faction) {
+  // Check if city has HEALING_TENT
+  const healingTent = await prisma.cityBuilding.findFirst({
+    where: { cityId, key: 'HEALING_TENT' }
+  });
+
+  if (!healingTent) return []; // No healing tent = no wounded, all dead
+
+  // Base wounded rate: 30% + 3% per healing tent level
+  let woundedRate = 0.30 + (healingTent.level * 0.03);
+
+  // Greek faction bonus: +10% wounded conversion
+  const greekBonus = getFactionBonus(faction, 'woundedConversion');
+  woundedRate += greekBonus / 100;
+
+  // Cap at 70%
+  woundedRate = Math.min(0.70, woundedRate);
+
+  const woundedUnits = [];
+  for (const unit of killedUnits) {
+    if (unit.killed > 0) {
+      const wounded = Math.floor(unit.killed * woundedRate);
+      if (wounded > 0) {
+        woundedUnits.push({
+          unitKey: unit.key,
+          count: wounded
+        });
+      }
+    }
+  }
+
+  return woundedUnits;
+}
+
+// Add wounded units to city's healing queue
+async function addWoundedUnits(cityId, woundedUnits) {
+  if (!woundedUnits || woundedUnits.length === 0) return;
+
+  // Get healing tent level for heal time calculation
+  const healingTent = await prisma.cityBuilding.findFirst({
+    where: { cityId, key: 'HEALING_TENT' }
+  });
+
+  const healingLevel = healingTent?.level || 1;
+  // Base heal time: 30 minutes, reduced by 5% per level
+  const baseHealTimeMinutes = 30 * Math.pow(0.95, healingLevel - 1);
+
+  for (const unit of woundedUnits) {
+    const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
+
+    // Upsert wounded units (add to existing or create new)
+    const existing = await prisma.woundedUnit.findUnique({
+      where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } }
+    });
+
+    if (existing) {
+      await prisma.woundedUnit.update({
+        where: { id: existing.id },
+        data: {
+          count: existing.count + unit.count,
+          healsAt: new Date(Math.max(existing.healsAt.getTime(), healsAt.getTime()))
+        }
+      });
+    } else {
+      await prisma.woundedUnit.create({
+        data: {
+          cityId,
+          unitKey: unit.unitKey,
+          count: unit.count,
+          healsAt
+        }
+      });
+    }
+  }
+}
+
+// Process healed units (called in game tick)
+async function processHealedUnits() {
+  const now = new Date();
+
+  // Find all wounded units that are ready to heal
+  const healedUnits = await prisma.woundedUnit.findMany({
+    where: { healsAt: { lte: now } }
+  });
+
+  for (const wounded of healedUnits) {
+    // Find garrison army in city
+    const garrison = await prisma.army.findFirst({
+      where: { cityId: wounded.cityId, isGarrison: true },
+      include: { units: true }
+    });
+
+    if (garrison) {
+      // Add healed units back to garrison
+      const existingUnit = garrison.units.find(u => u.unitKey === wounded.unitKey);
+
+      if (existingUnit) {
+        await prisma.armyUnit.update({
+          where: { id: existingUnit.id },
+          data: { count: existingUnit.count + wounded.count }
+        });
+      } else {
+        await prisma.armyUnit.create({
+          data: {
+            armyId: garrison.id,
+            unitKey: wounded.unitKey,
+            count: wounded.count
+          }
+        });
+      }
+
+      console.log(`[HEAL] ${wounded.count} ${wounded.unitKey} healed in city ${wounded.cityId}`);
+    }
+
+    // Remove wounded entry
+    await prisma.woundedUnit.delete({ where: { id: wounded.id } });
+  }
+
+  return healedUnits.length;
 }
 
 // Auth middleware
@@ -362,6 +497,101 @@ app.get('/api/cities', auth, async (req, res) => {
     include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
   });
   res.json(cities);
+});
+
+// ========== WOUNDED UNITS ENDPOINTS ==========
+app.get('/api/city/:id/wounded', auth, async (req, res) => {
+  try {
+    const city = await prisma.city.findFirst({
+      where: { id: req.params.id, playerId: req.user.playerId }
+    });
+    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
+
+    const wounded = await prisma.woundedUnit.findMany({
+      where: { cityId: city.id }
+    });
+
+    // Add unit details
+    const woundedWithDetails = wounded.map(w => {
+      const unitDef = unitsData.find(u => u.key === w.unitKey);
+      return {
+        ...w,
+        unitName: unitDef?.name || w.unitKey,
+        faction: unitDef?.faction,
+        class: unitDef?.class,
+        tier: unitDef?.tier,
+        timeToHeal: Math.max(0, new Date(w.healsAt).getTime() - Date.now())
+      };
+    });
+
+    res.json(woundedWithDetails);
+  } catch (e) {
+    console.error('Error fetching wounded:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Instant heal wounded units (costs gold)
+app.post('/api/city/:id/wounded/heal', auth, async (req, res) => {
+  try {
+    const { unitKey } = req.body;
+
+    const city = await prisma.city.findFirst({
+      where: { id: req.params.id, playerId: req.user.playerId }
+    });
+    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
+
+    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
+
+    const wounded = await prisma.woundedUnit.findFirst({
+      where: { cityId: city.id, unitKey }
+    });
+    if (!wounded) return res.status(404).json({ error: 'Pas de blessés de ce type' });
+
+    // Gold cost: 1 gold per wounded unit
+    const goldCost = wounded.count;
+    if (player.gold < goldCost) {
+      return res.status(400).json({ error: `Pas assez d'or (${goldCost} requis)` });
+    }
+
+    // Deduct gold
+    await prisma.player.update({
+      where: { id: player.id },
+      data: { gold: player.gold - goldCost }
+    });
+
+    // Find garrison and add healed units
+    const garrison = await prisma.army.findFirst({
+      where: { cityId: city.id, isGarrison: true },
+      include: { units: true }
+    });
+
+    if (garrison) {
+      const existingUnit = garrison.units.find(u => u.unitKey === unitKey);
+      if (existingUnit) {
+        await prisma.armyUnit.update({
+          where: { id: existingUnit.id },
+          data: { count: existingUnit.count + wounded.count }
+        });
+      } else {
+        await prisma.armyUnit.create({
+          data: {
+            armyId: garrison.id,
+            unitKey,
+            count: wounded.count
+          }
+        });
+      }
+    }
+
+    // Remove wounded entry
+    await prisma.woundedUnit.delete({ where: { id: wounded.id } });
+
+    res.json({ success: true, healed: wounded.count, goldSpent: goldCost });
+  } catch (e) {
+    console.error('Error healing wounded:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/city/:id/build', auth, async (req, res) => {
@@ -1741,10 +1971,16 @@ app.post('/api/army/:id/transport', auth, async (req, res) => {
     }
     
     // Calculate carry capacity
-    const carryCapacity = army.units.reduce((sum, u) => {
+    // Get player faction for transport bonus
+    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
+    const transportBonus = getFactionBonus(player?.faction, 'transportCapacity');
+    const transportMultiplier = 1 + (transportBonus / 100); // Egypt: +10%
+
+    const baseCarryCapacity = army.units.reduce((sum, u) => {
       const unitDef = unitsData.find(ud => ud.key === u.unitKey);
       return sum + (unitDef?.stats?.transport || 50) * u.count;
     }, 0);
+    const carryCapacity = Math.floor(baseCarryCapacity * transportMultiplier);
     
     const totalToSend = (wood || 0) + (stone || 0) + (iron || 0) + (food || 0);
     if (totalToSend > carryCapacity) {
@@ -1993,8 +2229,14 @@ app.get('/api/player/:id', auth, async (req, res) => {
 setInterval(async () => {
   const now = new Date();
   const TICK_HOURS = 30 / 3600;
-  
+
   try {
+    // ========== HEAL WOUNDED UNITS ==========
+    const healedCount = await processHealedUnits();
+    if (healedCount > 0) {
+      console.log(`[TICK] ${healedCount} wounded unit groups healed`);
+    }
+
     // Production - Optimized with batch updates
     const cities = await prisma.city.findMany({ where: { isSieged: false }, include: { buildings: true } });
 
@@ -2309,6 +2551,31 @@ setInterval(async () => {
                 } else {
                   await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } });
                 }
+              }
+            }
+
+            // === WOUNDED SYSTEM ===
+            // Defender's killed units may become wounded (if they have Healing Tent)
+            const defenderWounded = await calculateWoundedUnits(
+              targetCity.id,
+              result.defenderFinalUnits,
+              targetCity.player.faction
+            );
+            if (defenderWounded.length > 0) {
+              await addWoundedUnits(targetCity.id, defenderWounded);
+              console.log(`[WOUNDED] ${defenderWounded.reduce((s,u) => s + u.count, 0)} defender units wounded in ${targetCity.name}`);
+            }
+
+            // Attacker's wounded units go to their home city (if they have one)
+            if (army.cityId) {
+              const attackerWounded = await calculateWoundedUnits(
+                army.cityId,
+                result.attackerFinalUnits,
+                army.owner.faction
+              );
+              if (attackerWounded.length > 0) {
+                await addWoundedUnits(army.cityId, attackerWounded);
+                console.log(`[WOUNDED] ${attackerWounded.reduce((s,u) => s + u.count, 0)} attacker units wounded, sent to home city`);
               }
             }
 

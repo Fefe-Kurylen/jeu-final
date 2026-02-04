@@ -1,10 +1,94 @@
 {
   "factions": {
-    "ROME": { "name": "Rome", "bonus": "+10% Defense Infanterie" },
-    "GAUL": { "name": "Gaule", "bonus": "+10% Vitesse Cavalerie" },
-    "GREEK": { "name": "Grece", "bonus": "+15% Murs" },
-    "EGYPT": { "name": "Egypte", "bonus": "+10% Production" },
-    "HUN": { "name": "Huns", "bonus": "+15% Vitesse Armee" },
-    "SULTAN": { "name": "Sultanat", "bonus": "+15% Siege" }
+    "ROME": {
+      "name": "Rome",
+      "bonuses": [
+        {
+          "type": "siegeLossReduction",
+          "value": 10,
+          "description": "+10% réduction des pertes en siège (subi ou infligé)"
+        },
+        {
+          "type": "unitDefense",
+          "value": 5,
+          "description": "+5% défense des unités"
+        }
+      ]
+    },
+    "GAUL": {
+      "name": "Gaule",
+      "bonuses": [
+        {
+          "type": "hideoutCapacity",
+          "value": 10,
+          "description": "+10% capacité de la cachette"
+        },
+        {
+          "type": "cityDefense",
+          "value": 10,
+          "description": "+10% défense dans ses villes"
+        }
+      ]
+    },
+    "GREEK": {
+      "name": "Grèce",
+      "bonuses": [
+        {
+          "type": "buildTimeReduction",
+          "value": 10,
+          "description": "+10% réduction temps de construction"
+        },
+        {
+          "type": "woundedConversion",
+          "value": 10,
+          "description": "+10% réduction des pertes (unités blessées au lieu de mortes)"
+        }
+      ]
+    },
+    "EGYPT": {
+      "name": "Égypte",
+      "bonuses": [
+        {
+          "type": "transportCapacity",
+          "value": 10,
+          "description": "+10% capacité de transport des unités"
+        },
+        {
+          "type": "wallHealth",
+          "value": 20,
+          "description": "+20% santé des murs"
+        }
+      ]
+    },
+    "HUN": {
+      "name": "Huns",
+      "bonuses": [
+        {
+          "type": "armySpeed",
+          "value": 15,
+          "description": "+15% vitesse armée"
+        },
+        {
+          "type": "siegeAttack",
+          "value": 5,
+          "description": "+5% attaque lors des sièges"
+        }
+      ]
+    },
+    "SULTAN": {
+      "name": "Sultanat",
+      "bonuses": [
+        {
+          "type": "siegeEngineAttack",
+          "value": 20,
+          "description": "+20% attaque aux bâtiments des engins de siège"
+        },
+        {
+          "type": "defendingCityAttack",
+          "value": 10,
+          "description": "+10% attaque en défendant une de ses villes"
+        }
+      ]
+    }
   }
 }
