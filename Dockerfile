@@ -18,11 +18,11 @@ RUN npx prisma generate
 # Copy rest of the app
 COPY . .
 
+# Make start script executable
+RUN chmod +x /app/start.sh
+
 # Expose port
 EXPOSE 3000
-
-# Create startup script that ensures DB is ready
-RUN echo '#!/bin/bash\necho "Pushing database schema..."\nnpx prisma db push --accept-data-loss --skip-generate\necho "Starting server..."\nnode src/server.js' > /app/start.sh && chmod +x /app/start.sh
 
 # Start command
 CMD ["/bin/bash", "/app/start.sh"]
