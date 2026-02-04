@@ -241,18 +241,54 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
 
     await prisma.playerStats.create({ data: { playerId: player.id } });
 
-    // Find free position
-    let x = 250, y = 250;
+    // Find free position on map EDGES (players spawn on borders, not center)
+    // Map: -187 to +186 (374x374), center is 0,0
+    // Spawn zones: within 100 tiles from edges (any side: N, S, E, W)
+    const MIN_COORD = -187;
+    const MAX_COORD = 186;
+    const SPAWN_DELTA = 100; // Players spawn within 100 tiles from map edge
+
+    function getRandomEdgePosition() {
+      const side = Math.floor(Math.random() * 4); // 0=North, 1=East, 2=South, 3=West
+      let x, y;
+
+      switch(side) {
+        case 0: // North edge (top, high Y)
+          x = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1));
+          y = MAX_COORD - Math.floor(Math.random() * SPAWN_DELTA);
+          break;
+        case 1: // East edge (right, high X)
+          x = MAX_COORD - Math.floor(Math.random() * SPAWN_DELTA);
+          y = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1));
+          break;
+        case 2: // South edge (bottom, low Y)
+          x = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1));
+          y = MIN_COORD + Math.floor(Math.random() * SPAWN_DELTA);
+          break;
+        case 3: // West edge (left, low X)
+          x = MIN_COORD + Math.floor(Math.random() * SPAWN_DELTA);
+          y = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1));
+          break;
+      }
+      return { x, y };
+    }
+
+    let { x, y } = getRandomEdgePosition();
     for (let i = 0; i < 100; i++) {
       const posExists = await prisma.city.findUnique({ where: { x_y: { x, y } } });
       if (!posExists) break;
-      x = 200 + Math.floor(Math.random() * 100);
-      y = 200 + Math.floor(Math.random() * 100);
+      ({ x, y } = getRandomEdgePosition());
     }
 
-    // Create capital (NO starter buildings!)
+    // Create capital (NO starter buildings - player builds everything)
     const city = await prisma.city.create({
-      data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true }
+      data: {
+        playerId: player.id,
+        name: `Capitale de ${name}`,
+        x, y,
+        isCapital: true,
+        wood: 500, stone: 500, iron: 500, food: 500
+      }
     });
 
     // Create hero
@@ -260,7 +296,7 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
       data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 }
     });
 
-    // Create garrison army
+    // Create empty garrison army (no starter units - player recruits everything)
     await prisma.army.create({
       data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true }
     });

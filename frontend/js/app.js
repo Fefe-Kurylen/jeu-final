@@ -4927,22 +4927,21 @@ let mapHoveredTile = null;
 let mapSelectedTile = null;
 const TILE_SIZE = 40;
 
-// ========== DYNAMIC WORLD SIZE SYSTEM ==========
-// Base: 374x374 = ~140,000 cases
-// Expansion: +10x10 (100 cases) per new player
-// Max players: 5000 → Max size: ~1100x1100
+// ========== WORLD COORDINATE SYSTEM ==========
+// Map uses centered coordinates: -187 to +186 (374x374)
+// Center of map is (0, 0) - richest resources
+// Players spawn on EDGES (borders of the map)
 const BASE_WORLD_SIZE = 374;
-const EXPANSION_PER_PLAYER = 10;
-const MAX_PLAYERS = 5000;
+const MIN_COORD = -Math.floor(BASE_WORLD_SIZE / 2);  // -187
+const MAX_COORD = MIN_COORD + BASE_WORLD_SIZE - 1;   // +186
 let WORLD_SIZE = BASE_WORLD_SIZE;
-let WORLD_CENTER = Math.floor(WORLD_SIZE / 2);
+const WORLD_CENTER = 0; // Center is always 0,0
 
-// Update world size based on player count (called after loading world info)
+// Update world size based on player count (for future expansion)
 function updateWorldSize(playerCount) {
-  const expansion = Math.min(playerCount || 0, MAX_PLAYERS) * EXPANSION_PER_PLAYER;
-  WORLD_SIZE = BASE_WORLD_SIZE + Math.floor(Math.sqrt(expansion * 100));
-  WORLD_CENTER = Math.floor(WORLD_SIZE / 2);
-  console.log(`🗺️ World size updated: ${WORLD_SIZE}x${WORLD_SIZE} (${WORLD_SIZE * WORLD_SIZE} tiles) - ${playerCount} players`);
+  // For now, world size is fixed at 374x374
+  // Future: could expand as more players join
+  console.log(`🗺️ World: ${WORLD_SIZE}x${WORLD_SIZE} (coords ${MIN_COORD} to ${MAX_COORD}) - ${playerCount} players`);
 }
 
 // ========== ISOMETRIC MAP SYSTEM - Rise of Kingdoms Style ==========
