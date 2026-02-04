@@ -21,5 +21,8 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-# Start command - run db push then start server
-CMD npx prisma db push --accept-data-loss && node src/server.js
+# Create startup script that ensures DB is ready
+RUN echo '#!/bin/bash\necho "Pushing database schema..."\nnpx prisma db push --accept-data-loss --skip-generate\necho "Starting server..."\nnode src/server.js' > /app/start.sh && chmod +x /app/start.sh
+
+# Start command
+CMD ["/bin/bash", "/app/start.sh"]
