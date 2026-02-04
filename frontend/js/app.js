@@ -2217,15 +2217,18 @@ function onCityMouseMove(e) {
   const rect = cityCanvas.getBoundingClientRect();
   const mouseX = (e.clientX - rect.left) * (cityCanvas.width / rect.width);
   const mouseY = (e.clientY - rect.top) * (cityCanvas.height / rect.height);
-  
-  // Find hovered slot
+
+  // Find hovered slot - correct ellipse collision detection
   let foundSlot = null;
   for (const slot of citySlots) {
     const dx = mouseX - slot.x;
     const dy = mouseY - slot.y;
-    const dist = Math.sqrt(dx * dx + dy * dy / 0.36); // Adjust for ellipse
-    
-    if (dist < slot.size * 0.7) {
+    // Ellipse formula: (dx/rx)^2 + (dy/ry)^2 <= 1
+    const rx = slot.size * 0.6;  // Rayon horizontal
+    const ry = slot.size * 0.35; // Rayon vertical (ellipse aplatie)
+    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+
+    if (normalizedDist <= 1) {
       foundSlot = slot.slot;
       break;
     }
@@ -5259,27 +5262,75 @@ function toggleHelpOverlay() {
 
 async function loadMap() {
   initMapCanvas();
-  
+
+  // Center map on player's first city if not already positioned
+  if (mapOffsetX === 0 && mapOffsetY === 0 && currentCity) {
+    mapOffsetX = currentCity.x;
+    mapOffsetY = currentCity.y;
+  }
+
   // Load all visible tiles from server
-  const viewSize = Math.ceil(50 / mapZoomLevel);
-  const startX = Math.floor(mapOffsetX - viewSize / 2);
-  const startY = Math.floor(mapOffsetY - viewSize / 2);
-  
+  const viewSize = Math.ceil(60 / mapZoomLevel);
+  const radius = Math.ceil(viewSize / 2);
+
   try {
     const res = await fetch(
-      `${API}/api/map/viewport?x=${startX}&y=${startY}&zoom=${viewSize}`,
+      `${API}/api/map/viewport?x=${Math.floor(mapOffsetX)}&y=${Math.floor(mapOffsetY)}&radius=${radius}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-    
+
     if (res.ok) {
-      mapData = await res.json();
+      const data = await res.json();
+      // Combine cities and resourceNodes into mapData array
+      mapData = [];
+
+      // Add cities
+      if (data.cities) {
+        data.cities.forEach(c => {
+          mapData.push({
+            x: c.x,
+            y: c.y,
+            type: 'CITY',
+            playerId: c.playerId || c.player?.id,
+            name: c.name,
+            isCapital: c.isCapital,
+            allianceId: c.player?.allianceId
+          });
+        });
+      }
+
+      // Add resource nodes
+      if (data.resourceNodes) {
+        data.resourceNodes.forEach(r => {
+          mapData.push({
+            x: r.x,
+            y: r.y,
+            type: 'RESOURCE',
+            resourceType: r.resourceType
+          });
+        });
+      }
+
+      // Always include player's cities even if not in viewport
+      cities.forEach(c => {
+        if (!mapData.find(d => d.x === c.x && d.y === c.y)) {
+          mapData.push({
+            x: c.x,
+            y: c.y,
+            type: 'CITY',
+            playerId: player?.id,
+            name: c.name,
+            isCapital: c.isCapital
+          });
+        }
+      });
     }
   } catch (e) {
-    console.warn('Could not load map data');
-    // Generate fake data for demo
-    mapData = generateFakeMapData(startX, startY, viewSize);
+    console.warn('Could not load map data:', e);
+    // Generate fake data for demo including player cities
+    mapData = generateFakeMapData(Math.floor(mapOffsetX), Math.floor(mapOffsetY), viewSize);
   }
-  
+
   renderMap();
   renderMinimap();
   updateMapUI();
