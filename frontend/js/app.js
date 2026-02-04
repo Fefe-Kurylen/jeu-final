@@ -4913,17 +4913,50 @@ let mapSelectedTile = null;
 const TILE_SIZE = 40;
 const WORLD_SIZE = 200; // 200x200 world
 
-// Colors for different tile types
-const TILE_COLORS = {
-  empty: ['#2a4a2a', '#2e4e2e', '#264626', '#324e32'],
-  myCity: { fill: '#d4a84b', stroke: '#8b6914', glow: '#ffd700' },
-  enemyCity: { fill: '#c44444', stroke: '#822222', glow: '#ff6060' },
-  allyCity: { fill: '#44aa88', stroke: '#228866', glow: '#66ffcc' },
-  wood: { fill: '#4a7a3a', stroke: '#3a5a2a', icon: '🌲' },
-  stone: { fill: '#7a7a7a', stroke: '#5a5a5a', icon: '⛰️' },
-  iron: { fill: '#5a5a7a', stroke: '#4a4a6a', icon: '⚒️' },
-  food: { fill: '#7aa040', stroke: '#5a8020', icon: '🌾' }
+// ========== ISOMETRIC MAP SYSTEM - Rise of Kingdoms Style ==========
+const ISO_TILE_WIDTH = 64;
+const ISO_TILE_HEIGHT = 32;
+
+// Terrain types with procedural generation
+const TERRAIN_COLORS = {
+  grass: ['#5a8c3a', '#4e7a32', '#62943e', '#568838', '#4a7230'],
+  grassDark: ['#4a7830', '#3e6a28', '#527e34', '#466c2c', '#3a6224'],
+  forest: '#2d5a1e',
+  mountain: '#8a8a8a',
+  water: '#3a6a9a'
 };
+
+const TILE_COLORS = {
+  myCity: { fill: '#d4a84b', stroke: '#8b6914', glow: '#ffd700', banner: '#ffd700' },
+  enemyCity: { fill: '#c44444', stroke: '#822222', glow: '#ff6060', banner: '#ff4444' },
+  allyCity: { fill: '#44aa88', stroke: '#228866', glow: '#66ffcc', banner: '#44ff88' },
+  neutralCity: { fill: '#888888', stroke: '#666666', glow: '#aaaaaa', banner: '#cccccc' },
+  wood: { fill: '#2d5a1e', stroke: '#1e4a12' },
+  stone: { fill: '#7a7a7a', stroke: '#5a5a5a' },
+  iron: { fill: '#5a6a7a', stroke: '#4a5a6a' },
+  food: { fill: '#8aaa40', stroke: '#6a8a20' }
+};
+
+// Pseudo-random based on coordinates for consistent terrain
+function seededRandom(x, y, seed = 12345) {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+// Check if tile has forest/mountain based on noise
+function getTerrainType(x, y) {
+  const noise = seededRandom(x, y);
+  const noise2 = seededRandom(x * 2, y * 2, 54321);
+
+  // Mountains (rare)
+  if (noise > 0.92 && noise2 > 0.5) return 'mountain';
+  // Forest clusters
+  if (noise > 0.65 && noise2 > 0.3) return 'forest';
+  // Water (rare)
+  if (noise < 0.03 && noise2 < 0.5) return 'water';
+
+  return 'grass';
+}
 
 function initMapCanvas() {
   mapCanvas = document.getElementById('world-canvas');
@@ -5363,93 +5396,513 @@ function generateFakeMapData(startX, startY, size) {
 
 function renderMap() {
   if (!mapCtx) return;
-  
+
   const w = mapCanvas.width;
   const h = mapCanvas.height;
-  const tileSize = TILE_SIZE * mapZoomLevel;
-  
-  // Clear canvas
-  mapCtx.fillStyle = '#1a2a1a';
+
+  // Tile size based on zoom
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+
+  // Clear canvas with sky gradient
+  const gradient = mapCtx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, '#87CEEB');
+  gradient.addColorStop(1, '#5a8c3a');
+  mapCtx.fillStyle = gradient;
   mapCtx.fillRect(0, 0, w, h);
-  
-  // Calculate visible area
-  const tilesX = Math.ceil(w / tileSize) + 2;
-  const tilesY = Math.ceil(h / tileSize) + 2;
-  const startTileX = Math.floor(mapOffsetX - tilesX / 2);
-  const startTileY = Math.floor(mapOffsetY - tilesY / 2);
-  
-  // Draw terrain grid
-  for (let ty = 0; ty < tilesY; ty++) {
-    for (let tx = 0; tx < tilesX; tx++) {
-      const worldX = startTileX + tx;
-      const worldY = startTileY + ty;
-      
-      const screenX = (tx - (mapOffsetX - startTileX)) * tileSize + w / 2;
-      const screenY = (ty - (mapOffsetY - startTileY)) * tileSize + h / 2;
-      
-      // Draw base terrain with slight variation
-      const colorIdx = ((worldX + worldY) % 4 + 4) % 4;
-      mapCtx.fillStyle = TILE_COLORS.empty[colorIdx];
-      mapCtx.fillRect(screenX - tileSize/2, screenY - tileSize/2, tileSize - 1, tileSize - 1);
-      
-      // Grid lines (subtle)
-      if (mapZoomLevel > 0.5) {
-        mapCtx.strokeStyle = 'rgba(255,255,255,0.05)';
-        mapCtx.strokeRect(screenX - tileSize/2, screenY - tileSize/2, tileSize - 1, tileSize - 1);
-      }
+
+  // Calculate visible tiles
+  const tilesX = Math.ceil(w / tileW) + 4;
+  const tilesY = Math.ceil(h / tileH) + 4;
+
+  // Convert world to isometric screen coordinates
+  function worldToScreen(wx, wy) {
+    const dx = wx - mapOffsetX;
+    const dy = wy - mapOffsetY;
+    return {
+      x: w / 2 + (dx - dy) * tileW / 2,
+      y: h / 2 + (dx + dy) * tileH / 2
+    };
+  }
+
+  // Convert screen to world coordinates
+  function screenToWorld(sx, sy) {
+    const dx = sx - w / 2;
+    const dy = sy - h / 2;
+    return {
+      x: Math.floor(mapOffsetX + (dx / tileW + dy / tileH)),
+      y: Math.floor(mapOffsetY + (dy / tileH - dx / tileW))
+    };
+  }
+
+  // Store for click detection
+  window.mapScreenToWorld = screenToWorld;
+
+  // Draw isometric terrain grid
+  const drawOrder = [];
+
+  for (let i = -tilesY; i < tilesY; i++) {
+    for (let j = -tilesX; j < tilesX; j++) {
+      const wx = Math.floor(mapOffsetX) + j;
+      const wy = Math.floor(mapOffsetY) + i;
+      const pos = worldToScreen(wx, wy);
+
+      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 ||
+          pos.y < -tileH * 2 || pos.y > h + tileH * 2) continue;
+
+      drawOrder.push({ wx, wy, x: pos.x, y: pos.y, type: 'terrain' });
     }
   }
-  
-  // Draw objects (cities, resources)
-  mapData.forEach(tile => {
-    const screenX = (tile.x - mapOffsetX) * tileSize + w / 2;
-    const screenY = (tile.y - mapOffsetY) * tileSize + h / 2;
-    
-    // Skip if off-screen
-    if (screenX < -tileSize || screenX > w + tileSize || 
-        screenY < -tileSize || screenY > h + tileSize) return;
-    
-    if (tile.type === 'CITY') {
-      drawCity(screenX, screenY, tileSize, tile);
-    } else if (tile.type === 'RESOURCE') {
-      drawResource(screenX, screenY, tileSize, tile);
+
+  // Sort by Y for proper layering (painter's algorithm)
+  drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
+
+  // Draw terrain tiles
+  drawOrder.forEach(tile => {
+    drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
+  });
+
+  // Draw objects (cities, resources) with proper layering
+  const objectsOrder = [];
+
+  mapData.forEach(obj => {
+    const pos = worldToScreen(obj.x, obj.y);
+    if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
+        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
+      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y });
     }
   });
-  
-  // Draw armies
+
+  // Add armies to draw order
   armies.forEach(army => {
-    const screenX = (army.x - mapOffsetX) * tileSize + w / 2;
-    const screenY = (army.y - mapOffsetY) * tileSize + h / 2;
-    
-    if (screenX >= -tileSize && screenX <= w + tileSize && 
-        screenY >= -tileSize && screenY <= h + tileSize) {
-      drawArmy(screenX, screenY, tileSize, army);
+    const pos = worldToScreen(army.x, army.y);
+    if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
+        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
     }
   });
-  
-  // Draw hovered tile highlight
+
+  // Sort objects by Y position
+  objectsOrder.sort((a, b) => a.screenY - b.screenY);
+
+  // Draw all objects
+  objectsOrder.forEach(obj => {
+    if (obj.type === 'CITY') {
+      drawIsoCity(obj.screenX, obj.screenY, tileW, tileH, obj);
+    } else if (obj.type === 'RESOURCE') {
+      drawIsoResource(obj.screenX, obj.screenY, tileW, tileH, obj);
+    } else if (obj.type === 'ARMY') {
+      drawIsoArmy(obj.screenX, obj.screenY, tileW, tileH, obj);
+    }
+  });
+
+  // Draw hover highlight
   if (mapHoveredTile) {
-    const screenX = (mapHoveredTile.x - mapOffsetX) * tileSize + w / 2;
-    const screenY = (mapHoveredTile.y - mapOffsetY) * tileSize + h / 2;
-    
-    mapCtx.strokeStyle = '#ffd700';
-    mapCtx.lineWidth = 2;
-    mapCtx.strokeRect(screenX - tileSize/2 + 2, screenY - tileSize/2 + 2, tileSize - 5, tileSize - 5);
+    const pos = worldToScreen(mapHoveredTile.x, mapHoveredTile.y);
+    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#ffd700', 2);
   }
-  
+
   // Draw selected tile
   if (mapSelectedTile) {
-    const screenX = (mapSelectedTile.x - mapOffsetX) * tileSize + w / 2;
-    const screenY = (mapSelectedTile.y - mapOffsetY) * tileSize + h / 2;
-    
-    mapCtx.strokeStyle = '#00ff00';
-    mapCtx.lineWidth = 3;
+    const pos = worldToScreen(mapSelectedTile.x, mapSelectedTile.y);
+    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#00ff00', 3);
+  }
+}
+
+// Draw a single isometric tile
+function drawIsoTile(x, y, tw, th, wx, wy) {
+  const terrain = getTerrainType(wx, wy);
+  const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
+
+  // Draw diamond shape
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - th / 2);        // Top
+  mapCtx.lineTo(x + tw / 2, y);        // Right
+  mapCtx.lineTo(x, y + th / 2);        // Bottom
+  mapCtx.lineTo(x - tw / 2, y);        // Left
+  mapCtx.closePath();
+
+  // Fill based on terrain
+  if (terrain === 'grass') {
+    mapCtx.fillStyle = TERRAIN_COLORS.grass[colorVariant];
+  } else if (terrain === 'forest') {
+    mapCtx.fillStyle = TERRAIN_COLORS.grassDark[colorVariant];
+  } else if (terrain === 'mountain') {
+    mapCtx.fillStyle = '#6a7a6a';
+  } else if (terrain === 'water') {
+    mapCtx.fillStyle = TERRAIN_COLORS.water;
+  } else {
+    mapCtx.fillStyle = TERRAIN_COLORS.grass[colorVariant];
+  }
+  mapCtx.fill();
+
+  // Subtle grid lines
+  if (mapZoomLevel > 0.5) {
+    mapCtx.strokeStyle = 'rgba(0,0,0,0.1)';
+    mapCtx.lineWidth = 0.5;
+    mapCtx.stroke();
+  }
+
+  // Draw terrain features
+  if (terrain === 'forest') {
+    drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+  } else if (terrain === 'mountain') {
+    drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
+  }
+}
+
+// Draw isometric tree (pine/fir)
+function drawIsoTree(x, y, w, h) {
+  const treeH = h * (0.8 + seededRandom(x, y) * 0.4);
+
+  // Trunk
+  mapCtx.fillStyle = '#4a3020';
+  mapCtx.fillRect(x - w * 0.05, y, w * 0.1, treeH * 0.3);
+
+  // Foliage layers (triangles)
+  mapCtx.fillStyle = '#1e4a12';
+  for (let i = 0; i < 3; i++) {
+    const layerY = y - treeH * 0.2 * i;
+    const layerW = w * (0.8 - i * 0.15);
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, layerY - treeH * 0.35);
+    mapCtx.lineTo(x + layerW / 2, layerY);
+    mapCtx.lineTo(x - layerW / 2, layerY);
+    mapCtx.closePath();
+    mapCtx.fill();
+  }
+
+  // Darker side for 3D effect
+  mapCtx.fillStyle = '#0e3a08';
+  for (let i = 0; i < 3; i++) {
+    const layerY = y - treeH * 0.2 * i;
+    const layerW = w * (0.8 - i * 0.15);
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, layerY - treeH * 0.35);
+    mapCtx.lineTo(x + layerW / 2, layerY);
+    mapCtx.lineTo(x, layerY);
+    mapCtx.closePath();
+    mapCtx.fill();
+  }
+}
+
+// Draw isometric mountain
+function drawIsoMountain(x, y, w, h) {
+  // Base (dark)
+  mapCtx.fillStyle = '#5a5a5a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x + w / 2, y);
+  mapCtx.lineTo(x - w / 2, y);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Light side
+  mapCtx.fillStyle = '#8a8a8a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x - w / 2, y);
+  mapCtx.lineTo(x - w * 0.1, y - h * 0.3);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Snow cap
+  mapCtx.fillStyle = '#e8e8e8';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - h);
+  mapCtx.lineTo(x + w * 0.15, y - h * 0.7);
+  mapCtx.lineTo(x - w * 0.15, y - h * 0.7);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Draw isometric highlight (diamond outline)
+function drawIsoHighlight(x, y, tw, th, color, lineWidth) {
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - th / 2);
+  mapCtx.lineTo(x + tw / 2, y);
+  mapCtx.lineTo(x, y + th / 2);
+  mapCtx.lineTo(x - tw / 2, y);
+  mapCtx.closePath();
+  mapCtx.strokeStyle = color;
+  mapCtx.lineWidth = lineWidth;
+  mapCtx.stroke();
+}
+
+// Draw isometric city (Rise of Kingdoms style)
+function drawIsoCity(x, y, tw, th, tile) {
+  const isMyCity = tile.playerId === player?.id;
+  const isAlly = tile.allianceId && tile.allianceId === player?.allianceId;
+  const colors = isMyCity ? TILE_COLORS.myCity : isAlly ? TILE_COLORS.allyCity : TILE_COLORS.enemyCity;
+
+  const citySize = Math.min(tw, th * 2) * 0.8;
+
+  // Shadow
+  mapCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x + 3, y + 5, citySize * 0.5, citySize * 0.25, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // City base (circular wall)
+  mapCtx.fillStyle = '#5a4a3a';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y, citySize * 0.45, citySize * 0.25, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Inner ground
+  mapCtx.fillStyle = isMyCity ? '#c4a060' : isAlly ? '#70a080' : '#a07060';
+  mapCtx.beginPath();
+  mapCtx.ellipse(x, y - 2, citySize * 0.38, citySize * 0.2, 0, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Main building
+  const bh = citySize * 0.6;
+  const bw = citySize * 0.3;
+
+  // Building shadow side
+  mapCtx.fillStyle = shadeColor(colors.fill, -30);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x + bw / 2, y - 5);
+  mapCtx.lineTo(x + bw / 2, y - 5 - bh);
+  mapCtx.lineTo(x, y - 5 - bh - bw * 0.3);
+  mapCtx.lineTo(x, y - 5 - bw * 0.15);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Building light side
+  mapCtx.fillStyle = colors.fill;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x - bw / 2, y - 5);
+  mapCtx.lineTo(x - bw / 2, y - 5 - bh);
+  mapCtx.lineTo(x, y - 5 - bh - bw * 0.3);
+  mapCtx.lineTo(x, y - 5 - bw * 0.15);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Roof
+  mapCtx.fillStyle = colors.stroke;
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - 5 - bh - bw * 0.5);
+  mapCtx.lineTo(x + bw / 2 + 3, y - 5 - bh + 3);
+  mapCtx.lineTo(x, y - 5 - bh + bw * 0.15);
+  mapCtx.lineTo(x - bw / 2 - 3, y - 5 - bh + 3);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // Side towers
+  if (mapZoomLevel > 0.7) {
+    drawMiniTower(x - citySize * 0.3, y + 3, citySize * 0.15);
+    drawMiniTower(x + citySize * 0.3, y + 3, citySize * 0.15);
+  }
+
+  // Banner/flag on top
+  const flagY = y - 5 - bh - bw * 0.5 - 8;
+  mapCtx.fillStyle = colors.banner;
+  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x + 1, flagY - 12);
+  mapCtx.lineTo(x + 10, flagY - 8);
+  mapCtx.lineTo(x + 1, flagY - 4);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // City name label
+  if (mapZoomLevel > 0.6 && tile.name) {
+    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'top';
+    mapCtx.fillStyle = '#fff';
+    mapCtx.shadowColor = '#000';
+    mapCtx.shadowBlur = 3;
+    mapCtx.fillText(tile.name, x, y + citySize * 0.3);
+    mapCtx.shadowBlur = 0;
+  }
+
+  // Power level badge
+  if (mapZoomLevel > 0.8 && tile.population) {
+    const badgeX = x + citySize * 0.35;
+    const badgeY = y - citySize * 0.4;
+    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
+    mapCtx.beginPath();
+    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.fillStyle = '#fff';
+    mapCtx.font = 'bold 9px Arial';
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+  }
+}
+
+// Mini tower for city decoration
+function drawMiniTower(x, y, size) {
+  mapCtx.fillStyle = '#6a5a4a';
+  mapCtx.fillRect(x - size / 2, y - size * 1.5, size, size * 1.5);
+  mapCtx.fillStyle = '#5a4a3a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - size * 2.2);
+  mapCtx.lineTo(x + size / 2 + 2, y - size * 1.5);
+  mapCtx.lineTo(x - size / 2 - 2, y - size * 1.5);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Draw isometric resource node
+function drawIsoResource(x, y, tw, th, tile) {
+  const resType = tile.resourceType?.toLowerCase() || 'wood';
+  const size = Math.min(tw, th * 2) * 0.5;
+
+  if (resType === 'wood') {
+    // Forest clearing with lumber
+    mapCtx.fillStyle = '#3a5a2a';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, size * 0.6, size * 0.3, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Multiple trees
+    drawIsoTree(x - size * 0.3, y - size * 0.1, size * 0.3, size * 0.5);
+    drawIsoTree(x + size * 0.2, y - size * 0.05, size * 0.25, size * 0.4);
+    drawIsoTree(x, y - size * 0.2, size * 0.35, size * 0.6);
+
+  } else if (resType === 'stone') {
+    // Quarry
+    mapCtx.fillStyle = '#6a6a6a';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Rock formations
+    drawIsoRock(x - size * 0.2, y - size * 0.1, size * 0.25);
+    drawIsoRock(x + size * 0.15, y - size * 0.05, size * 0.2);
+    drawIsoRock(x, y - size * 0.2, size * 0.3);
+
+  } else if (resType === 'iron') {
+    // Mine entrance
+    mapCtx.fillStyle = '#5a5a6a';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Mine structure
+    mapCtx.fillStyle = '#4a4a5a';
+    mapCtx.fillRect(x - size * 0.25, y - size * 0.4, size * 0.5, size * 0.35);
+    mapCtx.fillStyle = '#2a2a3a';
+    mapCtx.beginPath();
+    mapCtx.arc(x, y - size * 0.2, size * 0.15, Math.PI, 0);
+    mapCtx.fill();
+
+  } else if (resType === 'food') {
+    // Farm/oasis
+    mapCtx.fillStyle = '#7a9a40';
+    mapCtx.beginPath();
+    mapCtx.ellipse(x, y, size * 0.6, size * 0.3, 0, 0, Math.PI * 2);
+    mapCtx.fill();
+
+    // Crop rows
+    mapCtx.strokeStyle = '#6a8a30';
+    mapCtx.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+      mapCtx.beginPath();
+      mapCtx.moveTo(x - size * 0.4, y + i * size * 0.08);
+      mapCtx.lineTo(x + size * 0.4, y + i * size * 0.08);
+      mapCtx.stroke();
+    }
+
+    // Small barn
+    mapCtx.fillStyle = '#8a6a4a';
+    mapCtx.fillRect(x - size * 0.15, y - size * 0.35, size * 0.3, size * 0.25);
+    mapCtx.fillStyle = '#6a4a2a';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, y - size * 0.5);
+    mapCtx.lineTo(x + size * 0.2, y - size * 0.35);
+    mapCtx.lineTo(x - size * 0.2, y - size * 0.35);
+    mapCtx.closePath();
+    mapCtx.fill();
+  }
+
+  // Resource amount badge
+  if (mapZoomLevel > 0.7 && tile.amount) {
+    mapCtx.fillStyle = 'rgba(0,0,0,0.6)';
+    mapCtx.beginPath();
+    mapCtx.roundRect(x - 15, y + size * 0.35, 30, 14, 3);
+    mapCtx.fill();
+    mapCtx.fillStyle = '#fff';
+    mapCtx.font = 'bold 9px Arial';
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.amount), x, y + size * 0.35 + 7);
+  }
+}
+
+// Draw small rock for quarry
+function drawIsoRock(x, y, size) {
+  mapCtx.fillStyle = '#7a7a7a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - size);
+  mapCtx.lineTo(x + size * 0.5, y - size * 0.3);
+  mapCtx.lineTo(x + size * 0.3, y);
+  mapCtx.lineTo(x - size * 0.3, y);
+  mapCtx.lineTo(x - size * 0.5, y - size * 0.3);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  mapCtx.fillStyle = '#9a9a9a';
+  mapCtx.beginPath();
+  mapCtx.moveTo(x, y - size);
+  mapCtx.lineTo(x - size * 0.5, y - size * 0.3);
+  mapCtx.lineTo(x - size * 0.2, y - size * 0.5);
+  mapCtx.closePath();
+  mapCtx.fill();
+}
+
+// Draw isometric army marker
+function drawIsoArmy(x, y, tw, th, army) {
+  const size = Math.min(tw, th * 2) * 0.4;
+  const isMoving = army.status !== 'IDLE';
+
+  // Army marker background
+  mapCtx.fillStyle = isMoving ? '#ffaa00' : '#4488ff';
+  mapCtx.beginPath();
+  mapCtx.arc(x, y - size * 0.5, size * 0.4, 0, Math.PI * 2);
+  mapCtx.fill();
+
+  // Border
+  mapCtx.strokeStyle = '#fff';
+  mapCtx.lineWidth = 2;
+  mapCtx.stroke();
+
+  // Army icon
+  mapCtx.fillStyle = '#fff';
+  mapCtx.font = `${size * 0.5}px Arial`;
+  mapCtx.textAlign = 'center';
+  mapCtx.textBaseline = 'middle';
+  mapCtx.fillText('⚔', x, y - size * 0.5);
+
+  // Army name
+  if (mapZoomLevel > 0.8 && army.name) {
+    mapCtx.font = 'bold 9px Arial';
+    mapCtx.fillStyle = '#fff';
+    mapCtx.shadowColor = '#000';
+    mapCtx.shadowBlur = 2;
+    mapCtx.fillText(army.name, x, y + size * 0.2);
+    mapCtx.shadowBlur = 0;
+  }
+
+  // Movement line if moving
+  if (isMoving && army.targetX !== undefined && army.targetY !== undefined) {
+    const targetPos = window.mapScreenToWorld ? null : { x: army.targetX, y: army.targetY };
+    // Draw dashed line to target (simplified)
+    mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
+    mapCtx.lineWidth = 2;
     mapCtx.setLineDash([5, 5]);
-    mapCtx.strokeRect(screenX - tileSize/2 + 1, screenY - tileSize/2 + 1, tileSize - 3, tileSize - 3);
+    mapCtx.beginPath();
+    mapCtx.moveTo(x, y);
+    // We'd need worldToScreen here, simplified for now
     mapCtx.setLineDash([]);
   }
 }
 
+// Keep old drawCity for compatibility (renamed)
 function drawCity(x, y, size, tile) {
   const isMyCity = tile.playerId === player?.id;
   const isAlly = tile.allianceId && tile.allianceId === player?.allianceId;
