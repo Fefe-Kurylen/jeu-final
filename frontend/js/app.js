@@ -1737,30 +1737,41 @@ function renderFieldsView() {
   const h = cityCanvas.height;
   const centerX = w / 2;
   const centerY = h / 2 + 30;
-  
+  const nightMode = isNightMode();
+
   // Clear
   cityCtx.clearRect(0, 0, w, h);
-  
-  // ========== SKY ==========
+
+  // ========== SKY (Day/Night) ==========
   const skyGrad = cityCtx.createLinearGradient(0, 0, 0, h * 0.45);
-  skyGrad.addColorStop(0, '#5a9ac2');
-  skyGrad.addColorStop(0.5, '#7bc8e0');
-  skyGrad.addColorStop(1, '#a8e4f0');
+  if (nightMode) {
+    skyGrad.addColorStop(0, '#0a1020');
+    skyGrad.addColorStop(0.5, '#152040');
+    skyGrad.addColorStop(1, '#203050');
+  } else {
+    skyGrad.addColorStop(0, '#5a9ac2');
+    skyGrad.addColorStop(0.5, '#7bc8e0');
+    skyGrad.addColorStop(1, '#a8e4f0');
+  }
   cityCtx.fillStyle = skyGrad;
   cityCtx.fillRect(0, 0, w, h * 0.45);
-  
-  // Sun
-  drawSun(w - 100, 70, 35);
-  
-  // Clouds
-  drawCloud(cityCtx, 100, 55, 40);
-  drawCloud(cityCtx, w - 180, 70, 45);
-  
+
+  // Sun/Moon
+  if (nightMode) {
+    drawMoon(w - 100, 70, 30);
+    drawStars(w, h * 0.42);
+  } else {
+    drawSun(w - 100, 70, 35);
+    // Clouds
+    drawCloud(cityCtx, 100, 55, 40);
+    drawCloud(cityCtx, w - 180, 70, 45);
+  }
+
   // ========== GROUND - FARMLAND ==========
   const groundY = h * 0.42;
-  
+
   // Background hills
-  cityCtx.fillStyle = '#5a8a4a';
+  cityCtx.fillStyle = nightMode ? '#1a2a18' : '#5a8a4a';
   cityCtx.beginPath();
   cityCtx.moveTo(0, groundY);
   cityCtx.quadraticCurveTo(w * 0.25, groundY - 30, w * 0.5, groundY);
@@ -1769,16 +1780,23 @@ function renderFieldsView() {
   cityCtx.lineTo(0, h);
   cityCtx.closePath();
   cityCtx.fill();
-  
+
   // Main ground
   const groundGrad = cityCtx.createLinearGradient(0, groundY, 0, h);
-  groundGrad.addColorStop(0, '#6a9a5a');
-  groundGrad.addColorStop(0.3, '#5a8a4a');
-  groundGrad.addColorStop(0.7, '#4a7a3a');
-  groundGrad.addColorStop(1, '#3a6a2a');
+  if (nightMode) {
+    groundGrad.addColorStop(0, '#2a3a28');
+    groundGrad.addColorStop(0.3, '#1a2a18');
+    groundGrad.addColorStop(0.7, '#152515');
+    groundGrad.addColorStop(1, '#102010');
+  } else {
+    groundGrad.addColorStop(0, '#6a9a5a');
+    groundGrad.addColorStop(0.3, '#5a8a4a');
+    groundGrad.addColorStop(0.7, '#4a7a3a');
+    groundGrad.addColorStop(1, '#3a6a2a');
+  }
   cityCtx.fillStyle = groundGrad;
   cityCtx.fillRect(0, groundY, w, h - groundY);
-  
+
   // ========== SCATTERED TREES AROUND ==========
   const treesPos = [
     { x: 40, y: groundY + 50, size: 35 },
@@ -1786,13 +1804,13 @@ function renderFieldsView() {
     { x: 30, y: h - 60, size: 30 },
     { x: w - 40, y: h - 50, size: 32 }
   ];
-  treesPos.forEach(t => drawTree(t.x, t.y, t.size));
-  
+  treesPos.forEach(t => drawTree(t.x, t.y, t.size, nightMode));
+
   // ========== PATHS TO FIELDS ==========
-  cityCtx.strokeStyle = '#8a7050';
+  cityCtx.strokeStyle = nightMode ? '#3a3028' : '#8a7050';
   cityCtx.lineWidth = 10;
   cityCtx.lineCap = 'round';
-  
+
   // Paths from center to fields
   citySlots.filter(s => s.isField).forEach(slot => {
     cityCtx.beginPath();
@@ -1831,21 +1849,38 @@ let fieldButterflies = [];
 
 function drawFieldAnimations(w, h, centerX, centerY) {
   const time = Date.now() / 1000;
-  
-  // ========== ANIMATED BIRDS ==========
-  drawAnimatedBirds(w, h, time);
-  
+  const nightMode = isNightMode();
+
+  // ========== ANIMATED BIRDS/FIREFLIES ==========
+  if (nightMode) {
+    drawFireflies(w, h, time);
+  } else {
+    drawAnimatedBirds(w, h, time);
+  }
+
   // ========== ANIMATED WHEAT WAVES ==========
-  drawWheatWaves(w, h, time);
-  
-  // ========== FARM ANIMALS (chickens, cows) ==========
-  drawFarmAnimals(w, h, time);
-  
-  // ========== BUTTERFLIES ==========
-  drawButterflies(w, h, time);
-  
-  // ========== DUST PARTICLES ==========
+  if (!nightMode) {
+    drawWheatWaves(w, h, time);
+  }
+
+  // ========== FARM ANIMALS (day only) ==========
+  if (!nightMode) {
+    drawFarmAnimals(w, h, time);
+  }
+
+  // ========== BUTTERFLIES (day) / FIREFLIES (night) ==========
+  if (!nightMode) {
+    drawButterflies(w, h, time);
+  }
+
+  // ========== DUST/MIST PARTICLES ==========
   drawFieldDust(w, h, time);
+
+  // ========== NIGHT AMBIENT OVERLAY ==========
+  if (nightMode) {
+    cityCtx.fillStyle = 'rgba(10, 15, 30, 0.15)';
+    cityCtx.fillRect(0, 0, w, h);
+  }
 }
 
 function drawWheatWaves(w, h, time) {
@@ -6622,25 +6657,34 @@ const BIOMES = {
   forest: {
     ground: ['#5a8c3a', '#4e7a32', '#62943e', '#568838', '#4a7230'],
     groundDark: ['#4a7830', '#3e6a28', '#527e34', '#466c2c', '#3a6224'],
+    groundNight: ['#1a3018', '#152810', '#1c3520', '#182c18', '#122510'],
     features: ['tree', 'mountain', 'water'],
     skyTop: '#87CEEB',
-    skyBottom: '#5a8c3a'
+    skyBottom: '#5a8c3a',
+    skyTopNight: '#0a1525',
+    skyBottomNight: '#152535'
   },
   // TIER 2: Desert (middle ring, radius 120-200)
   desert: {
     ground: ['#d4c4a0', '#c9b896', '#ddd0aa', '#c4b48a', '#d9c99e'],
     groundDark: ['#c4b490', '#b9a886', '#cdc09a', '#b4a47a', '#c9b98e'],
+    groundNight: ['#3a3530', '#352f2a', '#3f3935', '#332d28', '#3d3732'],
     features: ['ruins', 'oasis', 'dunes', 'rocks'],
     skyTop: '#f4e8d0',
-    skyBottom: '#d4c4a0'
+    skyBottom: '#d4c4a0',
+    skyTopNight: '#151020',
+    skyBottomNight: '#201a2a'
   },
   // TIER 3: Snow/Tundra (outer ring, radius 200+)
   snow: {
     ground: ['#e8e8e8', '#dcdcdc', '#f0f0f0', '#d8d8d8', '#eaeaea'],
     groundDark: ['#c8c8c8', '#bcbcbc', '#d0d0d0', '#b8b8b8', '#cacaca'],
+    groundNight: ['#404858', '#3a424f', '#454d5e', '#383f4c', '#424a5a'],
     features: ['snowtree', 'icemountain', 'frozen'],
     skyTop: '#b8c8d8',
-    skyBottom: '#8898a8'
+    skyBottom: '#8898a8',
+    skyTopNight: '#0a1020',
+    skyBottomNight: '#1a2535'
   }
 };
 
@@ -7318,6 +7362,7 @@ function renderMap() {
 
   const w = mapCanvas.width;
   const h = mapCanvas.height;
+  const nightMode = isNightMode();
 
   // Tile size based on zoom
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -7327,12 +7372,22 @@ function renderMap() {
   const centerBiome = getBiome(Math.floor(mapOffsetX), Math.floor(mapOffsetY));
   const biomeColors = BIOMES[centerBiome];
 
-  // Clear canvas with sky gradient based on biome
+  // Clear canvas with sky gradient based on biome and day/night
   const gradient = mapCtx.createLinearGradient(0, 0, 0, h);
-  gradient.addColorStop(0, biomeColors.skyTop);
-  gradient.addColorStop(1, biomeColors.skyBottom);
+  if (nightMode) {
+    gradient.addColorStop(0, biomeColors.skyTopNight || '#0a1020');
+    gradient.addColorStop(1, biomeColors.skyBottomNight || '#152030');
+  } else {
+    gradient.addColorStop(0, biomeColors.skyTop);
+    gradient.addColorStop(1, biomeColors.skyBottom);
+  }
   mapCtx.fillStyle = gradient;
   mapCtx.fillRect(0, 0, w, h);
+
+  // Draw stars at night
+  if (nightMode) {
+    drawMapStars(w, h);
+  }
 
   // Calculate visible tiles
   const tilesX = Math.ceil(w / tileW) + 4;
@@ -7439,6 +7494,7 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   const feature = terrain.feature;
   const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
   const biomeColors = BIOMES[biome];
+  const nightMode = isNightMode();
 
   // Draw diamond shape (base tile)
   mapCtx.beginPath();
@@ -7448,13 +7504,21 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   mapCtx.lineTo(x - tw / 2, y);        // Left
   mapCtx.closePath();
 
-  // Fill based on biome and feature
+  // Fill based on biome, feature and day/night
   if (feature === 'water' || feature === 'frozen') {
-    mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
+    if (nightMode) {
+      mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
+    } else {
+      mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
+    }
   } else if (feature === 'oasis') {
-    mapCtx.fillStyle = '#4a9a6a';
+    mapCtx.fillStyle = nightMode ? '#1a3a2a' : '#4a9a6a';
   } else {
-    mapCtx.fillStyle = biomeColors.ground[colorVariant];
+    // Use night ground colors if available
+    const groundColors = nightMode && biomeColors.groundNight
+      ? biomeColors.groundNight
+      : biomeColors.ground;
+    mapCtx.fillStyle = groundColors[colorVariant];
   }
   mapCtx.fill();
 
@@ -7818,6 +7882,31 @@ function drawFrozenLake(x, y, tw, th) {
   mapCtx.beginPath();
   mapCtx.ellipse(x - tw * 0.1, y - th * 0.05, tw * 0.1, th * 0.04, 0, 0, Math.PI * 2);
   mapCtx.fill();
+}
+
+// Draw stars on map at night
+function drawMapStars(w, h) {
+  // Use seeded random for consistent star positions
+  const seed = 54321;
+  const random = (i) => {
+    const x = Math.sin(seed + i) * 10000;
+    return x - Math.floor(x);
+  };
+
+  for (let i = 0; i < 60; i++) {
+    const x = random(i) * w;
+    const y = random(i + 100) * h * 0.5; // Only upper half
+    const size = random(i + 200) * 1.5 + 0.5;
+    const brightness = random(i + 300) * 0.5 + 0.5;
+
+    // Twinkling effect
+    const twinkle = Math.sin(Date.now() / 600 + i) * 0.3 + 0.7;
+
+    mapCtx.fillStyle = `rgba(255, 255, 255, ${brightness * twinkle})`;
+    mapCtx.beginPath();
+    mapCtx.arc(x, y, size, 0, Math.PI * 2);
+    mapCtx.fill();
+  }
 }
 
 // Draw isometric highlight (diamond outline)
