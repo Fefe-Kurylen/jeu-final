@@ -256,6 +256,69 @@ html, body {
   font-weight: 600;
 }
 
+/* ========== DAY/NIGHT INDICATOR (Travian style) ========== */
+.server-time-section {
+  display: flex;
+  align-items: center;
+  margin-right: 15px;
+}
+
+.day-night-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, #4a3c2a 0%, #3a2e20 100%);
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.day-night-indicator.day {
+  background: linear-gradient(180deg, #5a4a3a 0%, #4a3c2a 100%);
+  border-color: #c9a227;
+}
+
+.day-night-indicator.night {
+  background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+  border-color: #6a7a9a;
+}
+
+.dn-icon {
+  font-size: 16px;
+  transition: transform 0.3s ease;
+}
+
+.day-night-indicator.day .dn-icon {
+  animation: sunPulse 3s ease-in-out infinite;
+}
+
+.day-night-indicator.night .dn-icon {
+  animation: moonGlow 4s ease-in-out infinite;
+}
+
+@keyframes sunPulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.1); filter: brightness(1.2); }
+}
+
+@keyframes moonGlow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.server-time {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5e6c8;
+  letter-spacing: 1px;
+}
+
+.day-night-indicator.night .server-time {
+  color: #aabbdd;
+}
+
 .player-section {
   display: flex;
   align-items: center;
@@ -703,6 +766,56 @@ html, body {
 .btn-secondary:hover {
   background: linear-gradient(180deg, #6a5a4a 0%, #5a4a3a 50%, #4a3c2a 100%);
   border-color: #a08060;
+}
+
+/* ========== TABLE ROW HIGHLIGHTING (Travian hlight) ========== */
+tr:hover, .list-item:hover, .queue-item:hover, .card:hover {
+  background: rgba(201, 162, 39, 0.1) !important;
+}
+
+tr.hlight, .list-item.hlight, .queue-item.hlight {
+  background: rgba(201, 162, 39, 0.2) !important;
+  border-left: 3px solid var(--gold);
+}
+
+tr.marked, .list-item.marked {
+  background: rgba(201, 162, 39, 0.3) !important;
+  border-left: 3px solid var(--gold);
+}
+
+/* Highlight current selection */
+.hl, .current, .active-row {
+  background: rgba(201, 162, 39, 0.15);
+  border-left: 3px solid var(--gold);
+}
+
+/* ========== COUNTDOWN TIMERS STYLING ========== */
+.activity-timer, .queue-time {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #f5e6c8;
+  transition: color 0.3s ease;
+}
+
+.activity-timer.countdown-done, .queue-time.countdown-done {
+  color: #7fbc5a !important;
+  animation: doneFlash 0.5s ease 3;
+}
+
+@keyframes doneFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Timer warning colors */
+.activity-timer[data-urgent="true"], .queue-time[data-urgent="true"] {
+  color: #ff6b6b;
+  animation: urgentPulse 1s ease-in-out infinite;
+}
+
+@keyframes urgentPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 /* Tab Inner */

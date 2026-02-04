@@ -4367,7 +4367,7 @@ function renderBuildQueue() {
       activityEl.innerHTML = `
         <span class="activity-icon">🏗️</span>
         <span class="activity-text">${BUILDING_ICONS[first.buildingKey] || '🏠'} ${getBuildingName(first.buildingKey)} Niv.${first.targetLevel}</span>
-        <span class="activity-timer">${formatTime(first.endsAt)}</span>
+        <span class="activity-timer" data-ends-at="${first.endsAt}">${formatTime(first.endsAt)}</span>
         ${running.length > 1 ? `<span class="activity-more">+${running.length - 1}</span>` : ''}
       `;
     } else {
@@ -4395,7 +4395,7 @@ function renderBuildQueue() {
           <div class="queue-item queue-running">
             <span class="queue-status-icon">🔨</span>
             <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="queue-time">${formatTime(q.endsAt)}</span>
+            <span class="queue-time" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
           </div>
         `;
       });
@@ -4425,7 +4425,7 @@ function renderRecruitQueue() {
       activityEl.innerHTML = `
         <span class="activity-icon">⚔️</span>
         <span class="activity-text">${first.count}x ${getUnitName(first.unitKey)}</span>
-        <span class="activity-timer">${formatTime(first.endsAt)}</span>
+        <span class="activity-timer" data-ends-at="${first.endsAt}">${formatTime(first.endsAt)}</span>
         ${queue.length > 1 ? `<span class="activity-more">+${queue.length - 1}</span>` : ''}
       `;
     } else {
@@ -4446,7 +4446,7 @@ function renderRecruitQueue() {
       legacyEl.innerHTML = queue.map(q => `
         <div class="queue-item">
           <span class="queue-name">${q.count}x ${getUnitName(q.unitKey)}</span>
-          <span class="queue-time">${formatTime(q.endsAt)}</span>
+          <span class="queue-time" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
         </div>
       `).join('');
     }
@@ -4476,7 +4476,7 @@ function renderMovingArmies() {
       activityEl.innerHTML = `
         <span class="activity-icon">${icon}</span>
         <span class="activity-text">${first.name || 'Armée'}</span>
-        <span class="activity-timer">${first.arrivalAt ? formatTime(first.arrivalAt) : '-'}</span>
+        <span class="activity-timer" data-ends-at="${first.arrivalAt || ''}">${first.arrivalAt ? formatTime(first.arrivalAt) : '-'}</span>
         ${moving.length > 1 ? `<span class="activity-more">+${moving.length - 1}</span>` : ''}
       `;
     } else {
@@ -9963,6 +9963,87 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && token) {
     refreshData(true);
   }
+});
+
+// ========== SERVER TIME & DAY/NIGHT INDICATOR (Travian style) ==========
+let serverTimeInterval;
+
+function updateServerTime() {
+  const now = new Date();
+  const hours = now.getHours();
+  const mins = now.getMinutes();
+  const secs = now.getSeconds();
+
+  // Format time: HH:MM:SS
+  const timeStr = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+  const timeEl = document.getElementById('server-time');
+  const iconEl = document.getElementById('dn-icon');
+  const indicator = document.getElementById('day-night-indicator');
+
+  if (timeEl) timeEl.textContent = timeStr;
+
+  // Day/Night: Night is 18:00 - 05:00 (like Travian)
+  const isNight = hours >= 18 || hours < 5;
+
+  if (indicator) {
+    indicator.classList.toggle('night', isNight);
+    indicator.classList.toggle('day', !isNight);
+  }
+
+  if (iconEl) {
+    iconEl.textContent = isNight ? '🌙' : '☀️';
+  }
+}
+
+function startServerTime() {
+  updateServerTime();
+  serverTimeInterval = setInterval(updateServerTime, 1000);
+}
+
+// ========== LIVE COUNTDOWN TIMERS (Travian style) ==========
+let countdownInterval;
+
+function updateAllCountdowns() {
+  // Update all countdown timers on the page
+  const timers = document.querySelectorAll('.activity-timer, .queue-time, [data-countdown]');
+
+  timers.forEach(timer => {
+    const endsAt = timer.dataset.endsAt;
+    if (!endsAt) return;
+
+    const endDate = new Date(endsAt);
+    const now = new Date();
+    const diff = Math.max(0, endDate - now);
+
+    if (diff === 0) {
+      timer.textContent = 'Terminé!';
+      timer.classList.add('countdown-done');
+      return;
+    }
+
+    const hours = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+
+    if (hours > 0) {
+      timer.textContent = `${hours}h ${mins}m ${secs}s`;
+    } else if (mins > 0) {
+      timer.textContent = `${mins}m ${secs}s`;
+    } else {
+      timer.textContent = `${secs}s`;
+    }
+  });
+}
+
+function startCountdowns() {
+  countdownInterval = setInterval(updateAllCountdowns, 1000);
+}
+
+// Initialize server time when game starts
+document.addEventListener('DOMContentLoaded', () => {
+  startServerTime();
+  startCountdowns();
 });
 
 // ========== MARCHÉ ==========
