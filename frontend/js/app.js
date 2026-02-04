@@ -102,14 +102,70 @@ function throttle(func, limit) {
   };
 }
 
-// Building icons mapping
+// Building icons mapping (39 bâtiments)
 const BUILDING_ICONS = {
-  MAIN_HALL: '🏛️', BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️',
-  FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
-  WAREHOUSE: '📦', SILO: '🏺', MARKET: '🏪', ACADEMY: '📚',
-  FORGE: '🔨', WALL: '🏰', MOAT: '💧', HEALING_TENT: '⛺',
-  RALLY_POINT: '🚩', HIDEOUT: '🕳️', HERO_HOME: '👤'
+  // Base buildings
+  MAIN_HALL: '🏛️', FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
+  WAREHOUSE: '📦', SILO: '🏺',
+  // Intermediate buildings
+  RALLY_POINT: '🚩', BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️',
+  ACADEMY: '📚', FORGE: '🔨', HIDEOUT: '🕳️', HEALING_TENT: '⛺',
+  // Advanced buildings
+  MARKET: '🏪', WALL: '🏰', MOAT: '💧',
+  // Production bonus
+  MILL: '🌀', BAKERY: '🥖', SAWMILL: '🪚', STONEMASON: '🗿', FOUNDRY: '🔥',
+  // Protected storage
+  GREAT_SILO: '🏛️', GREAT_WAREHOUSE: '🏗️',
+  // Military advanced
+  GREAT_BARRACKS: '🏟️', GREAT_STABLE: '🐴', WATCHTOWER: '🗼',
+  // Special buildings
+  EMBASSY: '🏰', TREASURE_CHAMBER: '💎', HERO_MANSION: '👤', RESIDENCE: '🏠', TRADE_OFFICE: '📊',
+  // Faction buildings
+  ROMAN_THERMAE: '🛁', GALLIC_BREWERY: '🍺', GREEK_TEMPLE: '⛩️',
+  EGYPTIAN_IRRIGATION: '💦', HUN_WAR_TENT: '⛺', SULTAN_DESERT_OUTPOST: '🏜️',
+  // Legacy
+  HERO_HOME: '👤'
 };
+
+// Building sprites cache (will be loaded when images are available)
+const buildingSprites = {};
+const SPRITE_BASE_PATH = 'assets/images/buildings';
+
+// Load building sprite image
+function loadBuildingSprite(buildingKey, faction = 'common') {
+  const cacheKey = `${faction}_${buildingKey}`;
+  if (buildingSprites[cacheKey]) return buildingSprites[cacheKey];
+
+  const img = new Image();
+  img.src = `${SPRITE_BASE_PATH}/${faction}/${buildingKey.toLowerCase()}.png`;
+  img.onload = () => {
+    buildingSprites[cacheKey] = img;
+    // Redraw city view when sprite loads
+    if (typeof renderCityView === 'function') renderCityView();
+  };
+  img.onerror = () => {
+    // Fallback: try common folder
+    if (faction !== 'common') {
+      const commonImg = new Image();
+      commonImg.src = `${SPRITE_BASE_PATH}/common/${buildingKey.toLowerCase()}.png`;
+      commonImg.onload = () => {
+        buildingSprites[cacheKey] = commonImg;
+        if (typeof renderCityView === 'function') renderCityView();
+      };
+    }
+  };
+  return null;
+}
+
+// Get building sprite (returns null if not loaded yet)
+function getBuildingSprite(buildingKey, faction = 'common') {
+  const cacheKey = `${faction}_${buildingKey}`;
+  if (!buildingSprites[cacheKey]) {
+    loadBuildingSprite(buildingKey, faction);
+    return null;
+  }
+  return buildingSprites[cacheKey];
+}
 
 const UNIT_ICONS = {
   INFANTRY: '🗡️', ARCHER: '🏹', CAVALRY: '🐴', SIEGE: '💣'
