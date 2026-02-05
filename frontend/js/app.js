@@ -4648,8 +4648,8 @@ function openBuildPanel(slotNum) {
       return;
     }
 
-    // Calculate costs for next level
-    const costMultiplier = Math.pow(1.3, level);
+    // Calculate costs for next level - must match backend formula
+    const costMultiplier = Math.pow(1.5, level);
     const nextCost = {
       wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
       stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
@@ -4657,8 +4657,9 @@ function openBuildPanel(slotNum) {
       food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
     };
 
+    // Time formula must match backend
     const baseDuration = def?.timeL1Sec || 60;
-    const buildTime = Math.floor(baseDuration * Math.pow(1.4, level));
+    const buildTime = Math.floor(baseDuration * Math.pow(1.8, level));
     const timeStr = formatDuration(buildTime);
 
     const bonus = getBuildingBonus(key, level);
@@ -5632,16 +5633,18 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   }
   overlay.style.display = 'block';
   
-  const costMultiplier = Math.pow(1.3, level);
+  // Cost formula must match backend: Math.pow(1.5, targetLevel - 1) where targetLevel = level + 1
+  const costMultiplier = Math.pow(1.5, level);
   const nextCost = {
     wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
     stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
     iron: Math.floor((def?.costL1?.iron || 50) * costMultiplier),
     food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
   };
-  
+
+  // Time formula must match backend: Math.pow(1.8, targetLevel - 1)
   const baseDuration = def?.timeL1Sec || 60;
-  const buildTime = Math.floor(baseDuration * Math.pow(1.4, level));
+  const buildTime = Math.floor(baseDuration * Math.pow(1.8, level));
   
   const hasResources = currentCity && 
     currentCity.wood >= nextCost.wood &&
