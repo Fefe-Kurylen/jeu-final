@@ -2570,7 +2570,7 @@ setInterval(async () => {
             const defenderHero = garrisonArmy?.hero;
 
             // Resolve combat with detailed rounds (with hero bonuses)
-            const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.player.name, targetCity.player.name, attackerHero, defenderHero);
+            const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, attackerHero, defenderHero);
             
             // Apply losses to attacker
             for (const unit of army.units) {
@@ -2652,7 +2652,7 @@ setInterval(async () => {
                 loot: {
                   rounds: result.rounds,
                   wallDamage: result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1) : 0,
-                  attackerName: army.player.name,
+                  attackerName: army.owner.name,
                   defenderName: targetCity.player.name,
                   cityName: targetCity.name,
                   duration: result.rounds.length
@@ -2682,7 +2682,7 @@ setInterval(async () => {
                 loot: {
                   rounds: result.rounds,
                   wallDamage: result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1) : 0,
-                  attackerName: army.player.name,
+                  attackerName: army.owner.name,
                   defenderName: targetCity.player.name,
                   cityName: targetCity.name,
                   duration: result.rounds.length
@@ -2703,7 +2703,7 @@ setInterval(async () => {
               });
             }
 
-            console.log(`[ATTACK] ${army.player.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'} (${result.rounds.length} rounds)`);
+            console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'} (${result.rounds.length} rounds)`);
           }
 
           // Army returns home after attack
@@ -2813,7 +2813,7 @@ setInterval(async () => {
                 }
               });
 
-              console.log(`[RAID] ${army.player.name} raided ${targetCity.player.name}: ${carryWood}W ${carryStone}S ${carryIron}I ${carryFood}F (hideout protected ${Math.floor(hideoutProtection*100)}%)`);
+              console.log(`[RAID] ${army.owner.name} raided ${targetCity.player.name}: ${carryWood}W ${carryStone}S ${carryIron}I ${carryFood}F (hideout protected ${Math.floor(hideoutProtection*100)}%)`);
             }
 
             // Create battle report
@@ -2891,7 +2891,7 @@ setInterval(async () => {
                   success: true
                 }
               });
-              console.log(`[SPY] ${army.player.name} successfully spied on ${targetCity.player.name}`);
+              console.log(`[SPY] ${army.owner.name} successfully spied on ${targetCity.player.name}`);
             } else {
               // Failed - create empty report
               await prisma.spyReport.create({
@@ -2908,7 +2908,7 @@ setInterval(async () => {
                   success: false
                 }
               });
-              console.log(`[SPY] ${army.player.name} failed to spy on ${targetCity.player.name}`);
+              console.log(`[SPY] ${army.owner.name} failed to spy on ${targetCity.player.name}`);
             }
           }
 
@@ -2948,7 +2948,7 @@ setInterval(async () => {
               }
             });
             
-            console.log(`[TRANSPORT] ${army.player.name} delivered ${army.carryWood}W ${army.carryStone}S ${army.carryIron}I ${army.carryFood}F to ${targetCity.name}`);
+            console.log(`[TRANSPORT] ${army.owner.name} delivered ${army.carryWood}W ${army.carryStone}S ${army.carryIron}I ${army.carryFood}F to ${targetCity.name}`);
           }
 
           // Army returns home (empty)
