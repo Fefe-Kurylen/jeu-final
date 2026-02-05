@@ -1,0 +1,48 @@
+{
+  "image": "tileset.png",
+  "tileWidth": 190,
+  "tileHeight": 160,
+  "columns": 6,
+  "rows": 4,
+  "tiles": {
+    "TEMPLE_ROAD": { "col": 0, "row": 0, "name": "Temple avec route" },
+    "TEMPLE_SMALL": { "col": 1, "row": 0, "name": "Petit temple" },
+    "CASTLE": { "col": 2, "row": 0, "name": "Château/Murailles" },
+    "VILLAGE_ROAD_T": { "col": 3, "row": 0, "name": "Village carrefour T" },
+    "VILLAGE_ROAD_CURVE": { "col": 4, "row": 0, "name": "Village route courbe" },
+    "ROAD_CURVE_GRASS": { "col": 5, "row": 0, "name": "Route courbe herbe" },
+
+    "ROAD_L_DIRT": { "col": 0, "row": 1, "name": "Route en L terre" },
+    "ARENA": { "col": 1, "row": 1, "name": "Arène/Amphithéâtre" },
+    "RIVER_CORNER": { "col": 2, "row": 1, "name": "Rivière coin" },
+    "WALL_RIVER": { "col": 3, "row": 1, "name": "Muraille rivière" },
+    "VILLAGE_CENTER": { "col": 4, "row": 1, "name": "Centre village" },
+    "RIVER_BRIDGE": { "col": 5, "row": 1, "name": "Pont rivière" },
+
+    "DESERT_MINE": { "col": 0, "row": 2, "name": "Mine désert" },
+    "FOREST_ROCKS": { "col": 1, "row": 2, "name": "Forêt rochers" },
+    "RIVER_STRAIGHT": { "col": 2, "row": 2, "name": "Rivière droite" },
+    "ROAD_T_GRASS": { "col": 3, "row": 2, "name": "Route T herbe" },
+    "RIVER_MILL": { "col": 4, "row": 2, "name": "Moulin rivière" },
+    "RIVER_VILLAGE": { "col": 5, "row": 2, "name": "Village rivière" },
+
+    "DESERT_EMPTY": { "col": 0, "row": 3, "name": "Désert vide" },
+    "DESERT_RIVER": { "col": 1, "row": 3, "name": "Désert rivière" },
+    "GRASS_TREES": { "col": 2, "row": 3, "name": "Herbe arbres" },
+    "DIRT_ROCKS": { "col": 3, "row": 3, "name": "Terre rochers" },
+    "DESERT_ROCKS": { "col": 4, "row": 3, "name": "Désert rochers" },
+    "DESERT_RUINS": { "col": 5, "row": 3, "name": "Ruines désert" }
+  },
+  "mapping": {
+    "CITY_ROME": ["TEMPLE_ROAD", "TEMPLE_SMALL", "ARENA"],
+    "CITY_GAUL": ["VILLAGE_CENTER", "VILLAGE_ROAD_CURVE"],
+    "CITY_DEFAULT": ["VILLAGE_CENTER", "CASTLE"],
+    "RESOURCE_WOOD": ["FOREST_ROCKS", "GRASS_TREES"],
+    "RESOURCE_STONE": ["DIRT_ROCKS", "DESERT_ROCKS"],
+    "RESOURCE_IRON": ["DESERT_MINE"],
+    "RESOURCE_FOOD": ["GRASS_TREES"],
+    "TERRAIN_GRASS": ["GRASS_TREES", "ROAD_CURVE_GRASS"],
+    "TERRAIN_DESERT": ["DESERT_EMPTY", "DESERT_ROCKS"],
+    "TERRAIN_WATER": ["RIVER_STRAIGHT", "RIVER_CORNER"]
+  }
+}

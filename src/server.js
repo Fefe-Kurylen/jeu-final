@@ -852,19 +852,24 @@ function calculateArmyPower(units) {
 }
 
 // Resolve combat between attacker and defender
-function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0) {
-  const attackerPower = calculateArmyPower(attackerUnits);
+// Hero bonus: +1% attack/defense per hero point
+function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null) {
+  // Calculate hero bonuses
+  const attackerHeroBonus = attackerHero ? 1 + ((attackerHero.attack || 0) + (attackerHero.defense || 0)) * 0.01 : 1;
+  const defenderHeroBonus = defenderHero ? 1 + ((defenderHero.attack || 0) + (defenderHero.defense || 0)) * 0.01 : 1;
+
+  const attackerPower = calculateArmyPower(attackerUnits) * attackerHeroBonus;
   // Defender gets wall bonus: +3% per wall level
   const wallBonus = 1 + (defenderWallLevel * 0.03);
-  const defenderPower = calculateArmyPower(defenderUnits) * wallBonus;
-  
+  const defenderPower = calculateArmyPower(defenderUnits) * wallBonus * defenderHeroBonus;
+
   const attackerWon = attackerPower > defenderPower;
   const ratio = attackerWon ? defenderPower / attackerPower : attackerPower / defenderPower;
-  
+
   // Calculate losses (winner loses ratio*30%, loser loses 70-100%)
   const winnerLossRate = ratio * 0.3;
   const loserLossRate = 0.7 + Math.random() * 0.3;
-  
+
   return {
     attackerWon,
     attackerLossRate: attackerWon ? winnerLossRate : loserLossRate,
@@ -875,10 +880,17 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0) {
 }
 
 // Detailed combat with rounds for replay
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName) {
+// attackerHero/defenderHero: { attack, defense, speed } or null
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null) {
   // TIER coefficients (ratio 1.8)
   const TIER_COEFF = { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 };
-  
+
+  // Hero bonus: +1% attack/defense per hero point
+  const attackerHeroAttackBonus = attackerHero ? 1 + (attackerHero.attack || 0) * 0.01 : 1;
+  const attackerHeroDefenseBonus = attackerHero ? 1 + (attackerHero.defense || 0) * 0.01 : 1;
+  const defenderHeroAttackBonus = defenderHero ? 1 + (defenderHero.attack || 0) * 0.01 : 1;
+  const defenderHeroDefenseBonus = defenderHero ? 1 + (defenderHero.defense || 0) * 0.01 : 1;
+
   // Clone units for simulation
   const attackers = attackerUnits.map(u => {
     const def = unitsData.find(x => x.key === u.unitKey);
@@ -887,13 +899,13 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
       initial: u.count,
       count: u.count,
       tier: u.tier || def?.tier || 'base',
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[u.tier || def?.tier || 'base'],
-      defense: (def?.stats?.defense || 30) * TIER_COEFF[u.tier || def?.tier || 'base'],
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[u.tier || def?.tier || 'base'] * attackerHeroAttackBonus,
+      defense: (def?.stats?.defense || 30) * TIER_COEFF[u.tier || def?.tier || 'base'] * attackerHeroDefenseBonus,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey
     };
   });
-  
+
   const defenders = defenderUnits.map(u => {
     const def = unitsData.find(x => x.key === u.unitKey);
     return {
@@ -901,13 +913,13 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
       initial: u.count,
       count: u.count,
       tier: u.tier || def?.tier || 'base',
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[u.tier || def?.tier || 'base'],
-      defense: (def?.stats?.defense || 30) * TIER_COEFF[u.tier || def?.tier || 'base'],
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[u.tier || def?.tier || 'base'] * defenderHeroAttackBonus,
+      defense: (def?.stats?.defense || 30) * TIER_COEFF[u.tier || def?.tier || 'base'] * defenderHeroDefenseBonus,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey
     };
   });
-  
+
   // Wall and moat bonuses
   const wallBonus = 1 + (wallLevel * 0.03);
   const moatBonus = 1 + (moatLevel * 0.02);
@@ -1300,8 +1312,11 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mouvement' });
-    if (army.units.length === 0) return res.status(400).json({ error: 'Armee vide' });
-    
+    // Hero requires minimum 1 soldier to move
+    if (army.units.length === 0) {
+      return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour se déplacer' : 'Armee vide' });
+    }
+
     // Calculate slowest unit speed
     let minSpeed = 100;
     for (const u of army.units) {
@@ -1334,15 +1349,18 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
   try {
     const { targetCityId } = req.body;
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
-    
+
     const army = await prisma.army.findFirst({
       where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
-    if (army.units.length === 0) return res.status(400).json({ error: 'Armee vide' });
-    
+    // Hero requires minimum 1 soldier to attack
+    if (army.units.length === 0) {
+      return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour attaquer' : 'Armee vide' });
+    }
+
     const targetCity = await prisma.city.findUnique({ where: { id: targetCityId } });
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvee' });
     if (targetCity.playerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas attaquer vos propres villes' });
@@ -1380,15 +1398,18 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
   try {
     const { targetCityId } = req.body;
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
-    
+
     const army = await prisma.army.findFirst({
       where: { id: req.params.id, playerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
-    if (army.units.length === 0) return res.status(400).json({ error: 'Armee vide' });
-    
+    // Hero requires minimum 1 soldier to raid
+    if (army.units.length === 0) {
+      return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour piller' : 'Armee vide' });
+    }
+
     const targetCity = await prisma.city.findUnique({ where: { id: targetCityId } });
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvee' });
     if (targetCity.playerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas piller vos propres villes' });
@@ -2482,7 +2503,7 @@ setInterval(async () => {
         status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'] },
         arrivalAt: { lte: now }
       },
-      include: { units: true, owner: true, city: true }
+      include: { units: true, owner: true, city: true, hero: true }
     });
 
     for (const army of movingArmies) {
@@ -2534,7 +2555,7 @@ setInterval(async () => {
           // Find target city
           const targetCity = await prisma.city.findUnique({
             where: { id: army.targetCityId },
-            include: { armies: { include: { units: true } }, buildings: true, player: true }
+            include: { armies: { include: { units: true, hero: true } }, buildings: true, player: true }
           });
 
           if (targetCity) {
@@ -2543,8 +2564,13 @@ setInterval(async () => {
             const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
             const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
 
-            // Resolve combat with detailed rounds
-            const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.player.name, targetCity.player.name);
+            // Get hero data for attacker and defender (garrison hero)
+            const attackerHero = army.hero;
+            const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
+            const defenderHero = garrisonArmy?.hero;
+
+            // Resolve combat with detailed rounds (with hero bonuses)
+            const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.player.name, targetCity.player.name, attackerHero, defenderHero);
             
             // Apply losses to attacker
             for (const unit of army.units) {
@@ -2709,15 +2735,20 @@ setInterval(async () => {
           // Find target city
           const targetCity = await prisma.city.findUnique({
             where: { id: army.targetCityId },
-            include: { armies: { include: { units: true } }, buildings: true, player: true }
+            include: { armies: { include: { units: true, hero: true } }, buildings: true, player: true }
           });
 
           if (targetCity) {
             const defenderUnits = targetCity.armies.flatMap(a => a.units);
             const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
 
-            // Resolve combat (lighter for raids)
-            const result = resolveCombat(army.units, defenderUnits, wallLevel);
+            // Get hero data for attacker and defender (garrison hero)
+            const attackerHero = army.hero;
+            const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
+            const defenderHero = garrisonArmy?.hero;
+
+            // Resolve combat (lighter for raids, with hero bonuses)
+            const result = resolveCombat(army.units, defenderUnits, wallLevel, attackerHero, defenderHero);
             
             // Apply lighter losses for raid
             for (const unit of army.units) {

@@ -127,6 +127,50 @@ const BUILDING_ICONS = {
   HERO_HOME: '👤'
 };
 
+// ========== PRODUCTION INTERPOLATION (L1 → L10 → L20) ==========
+function lerpExp(a, b, t) {
+  if (a <= 0 || b <= 0) return a + (b - a) * t;
+  return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
+}
+
+function getProductionAtLevel(buildingKey, level) {
+  if (!window.buildingsData) return level * 30; // Fallback
+  const def = window.buildingsData.find(b => b.key === buildingKey);
+  if (!def || !def.effects) return level * 30;
+
+  // Find the production key
+  const prodKeys = {
+    'FARM': 'foodProd',
+    'LUMBER': 'woodProd',
+    'QUARRY': 'stoneProd',
+    'IRON_MINE': 'ironProd'
+  };
+  const prodKey = prodKeys[buildingKey];
+  if (!prodKey) return level * 30;
+
+  const L1 = def.effects[prodKey + 'L1'] || 10;
+  const L10 = def.effects[prodKey + 'L10'];
+  const L20 = def.effects[prodKey + 'L20'] || 4500;
+
+  if (level <= 1) return L1;
+  if (level >= 20) return L20;
+
+  if (L10) {
+    // Piecewise interpolation: L1→L10 then L10→L20
+    if (level <= 10) {
+      const t = (level - 1) / 9;
+      return Math.round(lerpExp(L1, L10, t));
+    } else {
+      const t = (level - 10) / 10;
+      return Math.round(lerpExp(L10, L20, t));
+    }
+  } else {
+    // Simple interpolation: L1→L20
+    const t = (level - 1) / 19;
+    return Math.round(lerpExp(L1, L20, t));
+  }
+}
+
 // Building sprites cache (will be loaded when images are available)
 const buildingSprites = {};
 const SPRITE_BASE_PATH = 'assets/images/buildings';
@@ -431,10 +475,10 @@ function renderCity() {
   let woodProd = 5, stoneProd = 5, ironProd = 5, foodProd = 10;
   if (currentCity.buildings) {
     currentCity.buildings.forEach(b => {
-      if (b.key === 'LUMBER') woodProd += b.level * 30;
-      if (b.key === 'QUARRY') stoneProd += b.level * 30;
-      if (b.key === 'IRON_MINE') ironProd += b.level * 30;
-      if (b.key === 'FARM') foodProd += b.level * 40;
+      if (b.key === 'LUMBER') woodProd += getProductionAtLevel('LUMBER', b.level);
+      if (b.key === 'QUARRY') stoneProd += getProductionAtLevel('QUARRY', b.level);
+      if (b.key === 'IRON_MINE') ironProd += getProductionAtLevel('IRON_MINE', b.level);
+      if (b.key === 'FARM') foodProd += getProductionAtLevel('FARM', b.level);
     });
   }
   
@@ -489,6 +533,7 @@ function renderCity() {
 
 // ========== CITY CANVAS 2.5D CIRCULAR ==========
 let cityCanvas, cityCtx;
+let fieldsCanvas, fieldsCtx;
 let cityHoveredSlot = null;
 let citySlots = [];
 let currentCityView = 'city'; // 'city' ou 'fields'
@@ -586,6 +631,35 @@ function initCityCanvas() {
 
   // Calculate slot positions
   calculateCitySlots();
+}
+
+function initFieldsCanvas() {
+  fieldsCanvas = document.getElementById('fields-canvas');
+  if (!fieldsCanvas) return;
+
+  fieldsCtx = fieldsCanvas.getContext('2d');
+
+  // Resize to container with fallback dimensions
+  const container = fieldsCanvas.parentElement;
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 600;
+  fieldsCanvas.width = Math.max(width, 300);
+  fieldsCanvas.height = Math.max(height, 200);
+
+  // Only add events once
+  if (!fieldsCanvas.hasAttribute('data-events-attached')) {
+    fieldsCanvas.setAttribute('data-events-attached', 'true');
+    fieldsCanvas.addEventListener('mousemove', onFieldsMouseMove);
+    fieldsCanvas.addEventListener('click', onFieldsClick);
+    fieldsCanvas.addEventListener('mouseleave', () => {
+      cityHoveredSlot = null;
+      renderFieldsCanvas();
+      hideFieldsTooltip();
+    });
+  }
+
+  // Calculate field slot positions
+  calculateFieldSlots();
 }
 
 function calculateCitySlots() {
@@ -714,20 +788,25 @@ function renderCityCanvas() {
     initCityCanvas();
     if (!cityCtx) return;
   }
-  
-  // Recalculer les slots selon la vue
-  if (currentCityView === 'city') {
-    calculateCitySlots();
-    renderCityView();
-  } else {
+
+  // Render based on current view mode
+  if (currentCityView === 'fields') {
     calculateFieldSlots();
     renderFieldsView();
+  } else {
+    calculateCitySlots();
+    renderCityView();
   }
-  
-  // Mettre à jour l'indicateur (pas à chaque frame pour perf)
-  if (!cityAnimationRunning || Math.random() < 0.02) {
-    updateViewIndicator();
+}
+
+function renderFieldsCanvas() {
+  if (!fieldsCtx || !fieldsCanvas) {
+    initFieldsCanvas();
+    if (!fieldsCtx) return;
   }
+
+  calculateFieldSlots();
+  renderFieldsView();
 }
 
 function updateViewIndicator() {
@@ -870,29 +949,103 @@ function renderCityView() {
   cityCtx.ellipse(centerX, centerY, cityRadius + 15, (cityRadius + 15) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // City ground (dirt/cobblestone) - darker at night
-  const dirtGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, cityRadius);
+  // ========== TRAVIAN-STYLE: 4 GRASS QUADRANTS + CROSS PATHS ==========
+  const innerRadius = cityRadius - 5;
+  const pathWidth = 18; // Width of dirt cross paths
+
+  // Step 1: Draw grass background (bright green like Travian)
+  const grassGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, innerRadius);
   if (nightMode) {
-    dirtGrad.addColorStop(0, '#6a5846');
-    dirtGrad.addColorStop(0.4, '#5a4836');
-    dirtGrad.addColorStop(0.8, '#4a3826');
-    dirtGrad.addColorStop(1, '#3a2818');
+    grassGrad.addColorStop(0, '#3a5030');
+    grassGrad.addColorStop(0.5, '#2a4020');
+    grassGrad.addColorStop(1, '#1a3015');
   } else {
-    dirtGrad.addColorStop(0, '#d4b896');
-    dirtGrad.addColorStop(0.4, '#c4a876');
-    dirtGrad.addColorStop(0.8, '#a48856');
-    dirtGrad.addColorStop(1, '#846838');
+    // Travian bright green
+    grassGrad.addColorStop(0, '#7cb442');
+    grassGrad.addColorStop(0.3, '#6aa835');
+    grassGrad.addColorStop(0.7, '#5a9828');
+    grassGrad.addColorStop(1, '#4a8820');
   }
-  cityCtx.fillStyle = dirtGrad;
+  cityCtx.fillStyle = grassGrad;
   cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, cityRadius - 5, (cityRadius - 5) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(centerX, centerY, innerRadius, innerRadius * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  
+
+  // Step 2: Add grass texture spots (lighter patches)
+  if (!nightMode) {
+    cityCtx.fillStyle = 'rgba(150, 200, 100, 0.3)';
+    for (let i = 0; i < 20; i++) {
+      const angle = (i * 18 + 5) * Math.PI / 180;
+      const dist = innerRadius * (0.3 + (i % 3) * 0.2);
+      const spotX = centerX + Math.cos(angle) * dist;
+      const spotY = centerY + Math.sin(angle) * dist * 0.5;
+      const spotSize = 15 + (i % 4) * 8;
+      cityCtx.beginPath();
+      cityCtx.ellipse(spotX, spotY, spotSize, spotSize * 0.5, 0, 0, Math.PI * 2);
+      cityCtx.fill();
+    }
+  }
+
+  // Step 3: Draw cross dirt paths (Travian style)
+  const pathColor = nightMode ? '#4a3828' : '#c4a060';
+  const pathDark = nightMode ? '#3a2818' : '#a08040';
+  const pathLight = nightMode ? '#5a4838' : '#d4b880';
+
+  cityCtx.save();
+  // Clip to city ellipse
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, innerRadius - 2, (innerRadius - 2) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.clip();
+
+  // Vertical path (N-S)
+  const vPathGrad = cityCtx.createLinearGradient(centerX - pathWidth, 0, centerX + pathWidth, 0);
+  vPathGrad.addColorStop(0, pathDark);
+  vPathGrad.addColorStop(0.3, pathColor);
+  vPathGrad.addColorStop(0.7, pathColor);
+  vPathGrad.addColorStop(1, pathDark);
+  cityCtx.fillStyle = vPathGrad;
+  cityCtx.fillRect(centerX - pathWidth / 2, centerY - innerRadius, pathWidth, innerRadius * 2);
+
+  // Horizontal path (E-W) - wider for perspective
+  const hPathGrad = cityCtx.createLinearGradient(0, centerY - pathWidth * 0.4, 0, centerY + pathWidth * 0.4);
+  hPathGrad.addColorStop(0, pathDark);
+  hPathGrad.addColorStop(0.3, pathColor);
+  hPathGrad.addColorStop(0.7, pathColor);
+  hPathGrad.addColorStop(1, pathDark);
+  cityCtx.fillStyle = hPathGrad;
+  cityCtx.fillRect(centerX - innerRadius, centerY - pathWidth * 0.35, innerRadius * 2, pathWidth * 0.7);
+
+  // Center plaza (circular)
+  cityCtx.fillStyle = pathLight;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, pathWidth * 1.5, pathWidth * 0.8, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.strokeStyle = pathDark;
+  cityCtx.lineWidth = 2;
+  cityCtx.stroke();
+
+  cityCtx.restore();
+
+  // Step 4: Path edge borders
+  cityCtx.strokeStyle = pathDark;
+  cityCtx.lineWidth = 1.5;
+  cityCtx.setLineDash([4, 4]);
+  // Vertical path edges
+  cityCtx.beginPath();
+  cityCtx.moveTo(centerX - pathWidth / 2 - 1, centerY - innerRadius * 0.5 + 15);
+  cityCtx.lineTo(centerX - pathWidth / 2 - 1, centerY + innerRadius * 0.5 - 15);
+  cityCtx.stroke();
+  cityCtx.beginPath();
+  cityCtx.moveTo(centerX + pathWidth / 2 + 1, centerY - innerRadius * 0.5 + 15);
+  cityCtx.lineTo(centerX + pathWidth / 2 + 1, centerY + innerRadius * 0.5 - 15);
+  cityCtx.stroke();
+  cityCtx.setLineDash([]);
+
   // Stone wall ring
   drawCityWall(centerX, centerY, cityRadius);
-  
-  // Draw roads inside city
-  drawCityRoads(centerX, centerY);
+
+  // Roads are now integrated in the grass quadrants above
+  // drawCityRoads(centerX, centerY); // Disabled - using new cross paths
   
   // ========== RESOURCE FIELDS (4 coins) ==========
   citySlots.filter(s => s.isField).forEach(slot => {
@@ -1203,12 +1356,68 @@ function drawPaths(w, h, centerX, centerY, nightMode = false) {
 function drawCityWall(centerX, centerY, radius) {
   const wallRadius = radius - 3;
   const nightMode = isNightMode();
+  const faction = player?.faction || 'ROME';
 
-  // Travian-style colors
-  const stoneColor = nightMode ? '#4a4038' : '#c9b896';
-  const stoneDark = nightMode ? '#3a3028' : '#a08060';
-  const stoneLight = nightMode ? '#5a5048' : '#e4d4b0';
-  const roofColor = nightMode ? '#5a2a1a' : '#c45a20';
+  // ========== FACTION-SPECIFIC WALL THEMES ==========
+  const WALL_THEMES = {
+    ROME: {
+      // Pierre beige classique, toits tuiles rouges
+      stone: nightMode ? '#4a4038' : '#c9b896',
+      stoneDark: nightMode ? '#3a3028' : '#a08060',
+      stoneLight: nightMode ? '#5a5048' : '#e4d4b0',
+      roof: nightMode ? '#5a2a1a' : '#c45a20',
+      pattern: 'brick',
+      towerStyle: 'pointed'
+    },
+    GAUL: {
+      // Palissade en bois, tours en bois
+      stone: nightMode ? '#3a3020' : '#8b7355',
+      stoneDark: nightMode ? '#2a2010' : '#6a5a40',
+      stoneLight: nightMode ? '#4a4030' : '#a89070',
+      roof: nightMode ? '#2a4020' : '#4a7a30',
+      pattern: 'wood',
+      towerStyle: 'wooden'
+    },
+    GREEK: {
+      // Marbre blanc, toits bleus
+      stone: nightMode ? '#6a6a70' : '#e8e4e0',
+      stoneDark: nightMode ? '#4a4a50' : '#c8c4c0',
+      stoneLight: nightMode ? '#8a8a90' : '#f8f4f0',
+      roof: nightMode ? '#2a4060' : '#4a7ab0',
+      pattern: 'marble',
+      towerStyle: 'column'
+    },
+    EGYPT: {
+      // Grès doré, tours plates
+      stone: nightMode ? '#5a4a30' : '#d4b896',
+      stoneDark: nightMode ? '#4a3a20' : '#b49876',
+      stoneLight: nightMode ? '#6a5a40' : '#e4c8a6',
+      roof: nightMode ? '#4a6060' : '#6a9a9a',
+      pattern: 'sandstone',
+      towerStyle: 'flat'
+    },
+    HUN: {
+      // Terre et bois, style nomade
+      stone: nightMode ? '#3a3028' : '#7a6a5a',
+      stoneDark: nightMode ? '#2a2018' : '#5a4a3a',
+      stoneLight: nightMode ? '#4a4038' : '#9a8a7a',
+      roof: nightMode ? '#4a3020' : '#8a5030',
+      pattern: 'earth',
+      towerStyle: 'tent'
+    },
+    SULTAN: {
+      // Briques ocre, dômes
+      stone: nightMode ? '#5a4a38' : '#c4a080',
+      stoneDark: nightMode ? '#4a3a28' : '#a48060',
+      stoneLight: nightMode ? '#6a5a48' : '#e4c0a0',
+      roof: nightMode ? '#2a5050' : '#4a8a7a',
+      pattern: 'brick',
+      towerStyle: 'dome'
+    }
+  };
+
+  const theme = WALL_THEMES[faction] || WALL_THEMES.ROME;
+  const { stone: stoneColor, stoneDark, stoneLight, roof: roofColor, pattern, towerStyle } = theme;
 
   // Wall base shadow
   cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -1216,61 +1425,262 @@ function drawCityWall(centerX, centerY, radius) {
   cityCtx.ellipse(centerX + 5, centerY + 8, wallRadius + 5, (wallRadius + 5) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // Stone wall base (Travian beige)
-  cityCtx.strokeStyle = stoneColor;
-  cityCtx.lineWidth = 22;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall inner edge (darker)
-  cityCtx.strokeStyle = stoneDark;
-  cityCtx.lineWidth = 4;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius - 10, (wallRadius - 10) * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall outer edge (lighter highlight)
-  cityCtx.strokeStyle = stoneLight;
-  cityCtx.lineWidth = 3;
-  cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, wallRadius + 8, (wallRadius + 8) * 0.5, 0, Math.PI, Math.PI * 2);
-  cityCtx.stroke();
-
-  // Wall brick pattern
-  cityCtx.strokeStyle = stoneDark;
-  cityCtx.lineWidth = 1;
-  for (let angle = 0; angle < 360; angle += 12) {
-    const rad = angle * Math.PI / 180;
-    const x1 = centerX + Math.cos(rad) * (wallRadius - 10);
-    const y1 = centerY + Math.sin(rad) * (wallRadius - 10) * 0.5;
-    const x2 = centerX + Math.cos(rad) * (wallRadius + 10);
-    const y2 = centerY + Math.sin(rad) * (wallRadius + 10) * 0.5;
+  // Wall base - style depends on faction
+  if (pattern === 'wood') {
+    // Wooden palisade for Gaul
+    drawWoodenWall(centerX, centerY, wallRadius, stoneColor, stoneDark, stoneLight);
+  } else if (pattern === 'earth') {
+    // Earthen wall for Huns
+    drawEarthenWall(centerX, centerY, wallRadius, stoneColor, stoneDark, stoneLight);
+  } else {
+    // Stone wall (Rome, Greek, Egypt, Sultan)
+    cityCtx.strokeStyle = stoneColor;
+    cityCtx.lineWidth = 22;
     cityCtx.beginPath();
-    cityCtx.moveTo(x1, y1);
-    cityCtx.lineTo(x2, y2);
+    cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
     cityCtx.stroke();
+
+    // Wall inner edge (darker)
+    cityCtx.strokeStyle = stoneDark;
+    cityCtx.lineWidth = 4;
+    cityCtx.beginPath();
+    cityCtx.ellipse(centerX, centerY, wallRadius - 10, (wallRadius - 10) * 0.5, 0, 0, Math.PI * 2);
+    cityCtx.stroke();
+
+    // Wall outer edge (lighter highlight)
+    cityCtx.strokeStyle = stoneLight;
+    cityCtx.lineWidth = 3;
+    cityCtx.beginPath();
+    cityCtx.ellipse(centerX, centerY, wallRadius + 8, (wallRadius + 8) * 0.5, 0, Math.PI, Math.PI * 2);
+    cityCtx.stroke();
+
+    // Wall pattern
+    cityCtx.strokeStyle = stoneDark;
+    cityCtx.lineWidth = 1;
+    const patternSpacing = pattern === 'marble' ? 18 : 12;
+    for (let angle = 0; angle < 360; angle += patternSpacing) {
+      const rad = angle * Math.PI / 180;
+      const x1 = centerX + Math.cos(rad) * (wallRadius - 10);
+      const y1 = centerY + Math.sin(rad) * (wallRadius - 10) * 0.5;
+      const x2 = centerX + Math.cos(rad) * (wallRadius + 10);
+      const y2 = centerY + Math.sin(rad) * (wallRadius + 10) * 0.5;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x1, y1);
+      cityCtx.lineTo(x2, y2);
+      cityCtx.stroke();
+    }
   }
 
-  // 4 Gates with arches (N, E, S, W) - Travian style
+  // 4 Gates (N, E, S, W)
   const gateAngles = [0, 90, 180, 270];
   gateAngles.forEach((angle, idx) => {
     const rad = angle * Math.PI / 180;
     const gx = centerX + Math.cos(rad) * wallRadius;
     const gy = centerY + Math.sin(rad) * wallRadius * 0.5;
-    drawTravianGate(gx, gy, 28, angle, stoneColor, stoneDark, roofColor);
+    drawFactionGate(gx, gy, 28, angle, stoneColor, stoneDark, roofColor, towerStyle);
   });
 
-  // Towers between gates (8 towers total)
+  // Towers between gates
   const towerAngles = [45, 135, 225, 315, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5];
   towerAngles.forEach((angle, idx) => {
     const rad = angle * Math.PI / 180;
     const tx = centerX + Math.cos(rad) * wallRadius;
     const ty = centerY + Math.sin(rad) * wallRadius * 0.5;
-    // Alternate tower sizes
     const towerSize = idx < 4 ? 16 : 12;
-    drawTravianTower(tx, ty, towerSize, stoneColor, stoneDark, stoneLight, roofColor);
+    drawFactionTower(tx, ty, towerSize, stoneColor, stoneDark, stoneLight, roofColor, towerStyle);
   });
+}
+
+// ========== WOODEN WALL (Gaul) ==========
+function drawWoodenWall(centerX, centerY, wallRadius, woodColor, woodDark, woodLight) {
+  // Wooden palisade effect
+  for (let angle = 0; angle < 360; angle += 6) {
+    const rad = angle * Math.PI / 180;
+    const x = centerX + Math.cos(rad) * wallRadius;
+    const y = centerY + Math.sin(rad) * wallRadius * 0.5;
+
+    // Wooden post
+    cityCtx.fillStyle = woodColor;
+    cityCtx.fillRect(x - 4, y - 15, 8, 18);
+
+    // Post top (pointed)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - 5, y - 15);
+    cityCtx.lineTo(x, y - 22);
+    cityCtx.lineTo(x + 5, y - 15);
+    cityCtx.closePath();
+    cityCtx.fill();
+
+    // Wood grain
+    cityCtx.strokeStyle = woodDark;
+    cityCtx.lineWidth = 1;
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - 15);
+    cityCtx.lineTo(x, y + 3);
+    cityCtx.stroke();
+  }
+}
+
+// ========== EARTHEN WALL (Huns) ==========
+function drawEarthenWall(centerX, centerY, wallRadius, earthColor, earthDark, earthLight) {
+  // Low earthen rampart
+  cityCtx.strokeStyle = earthColor;
+  cityCtx.lineWidth = 18;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, wallRadius, wallRadius * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Darker base
+  cityCtx.strokeStyle = earthDark;
+  cityCtx.lineWidth = 6;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, wallRadius - 6, (wallRadius - 6) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Grass/earth texture spots
+  for (let i = 0; i < 30; i++) {
+    const angle = (i * 12) * Math.PI / 180;
+    const x = centerX + Math.cos(angle) * wallRadius;
+    const y = centerY + Math.sin(angle) * wallRadius * 0.5;
+    cityCtx.fillStyle = i % 3 === 0 ? '#5a7040' : earthLight;
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - 5, 3, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
+}
+
+// ========== FACTION-SPECIFIC TOWER ==========
+function drawFactionTower(x, y, size, stoneColor, stoneDark, stoneLight, roofColor, style) {
+  const nightMode = isNightMode();
+
+  // Tower shadow
+  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 3, y + 4, size * 0.8, size * 0.4, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Tower base
+  cityCtx.fillStyle = stoneDark;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, size, size * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Tower body
+  const bodyGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  bodyGrad.addColorStop(0, stoneLight);
+  bodyGrad.addColorStop(0.4, stoneColor);
+  bodyGrad.addColorStop(1, stoneDark);
+  cityCtx.fillStyle = bodyGrad;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size, y);
+  cityCtx.lineTo(x - size * 0.9, y - size * 1.8);
+  cityCtx.lineTo(x + size * 0.9, y - size * 1.8);
+  cityCtx.lineTo(x + size, y);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Tower top platform
+  cityCtx.fillStyle = stoneColor;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y - size * 1.8, size * 0.95, size * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Roof based on style
+  const roofGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  roofGrad.addColorStop(0, roofColor);
+  roofGrad.addColorStop(0.5, nightMode ? shadeColor(roofColor, 20) : shadeColor(roofColor, 15));
+  roofGrad.addColorStop(1, nightMode ? shadeColor(roofColor, -20) : shadeColor(roofColor, -15));
+  cityCtx.fillStyle = roofGrad;
+
+  if (style === 'pointed' || style === 'wooden') {
+    // Pointed roof (Rome, Gaul)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 3);
+    cityCtx.lineTo(x - size * 1.1, y - size * 1.7);
+    cityCtx.lineTo(x + size * 1.1, y - size * 1.7);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'dome') {
+    // Dome roof (Sultan)
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - size * 2.2, size * 0.9, Math.PI, 0);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'flat') {
+    // Flat roof (Egypt)
+    cityCtx.fillRect(x - size * 0.9, y - size * 2.2, size * 1.8, size * 0.4);
+  } else if (style === 'column') {
+    // Greek column style
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2.8);
+    cityCtx.lineTo(x - size * 1.2, y - size * 1.9);
+    cityCtx.lineTo(x + size * 1.2, y - size * 1.9);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'tent') {
+    // Tent style (Huns)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2.8);
+    cityCtx.quadraticCurveTo(x - size * 0.5, y - size * 2, x - size * 1.1, y - size * 1.7);
+    cityCtx.lineTo(x + size * 1.1, y - size * 1.7);
+    cityCtx.quadraticCurveTo(x + size * 0.5, y - size * 2, x, y - size * 2.8);
+    cityCtx.fill();
+  }
+}
+
+// ========== FACTION-SPECIFIC GATE ==========
+function drawFactionGate(x, y, size, angle, stoneColor, stoneDark, roofColor, style) {
+  // Gate base
+  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 4, y + 5, size * 0.9, size * 0.45, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  cityCtx.fillStyle = stoneDark;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x, y, size * 0.85, size * 0.42, 0, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Gate house
+  const gateGrad = cityCtx.createLinearGradient(x - size, y, x + size, y);
+  gateGrad.addColorStop(0, stoneColor);
+  gateGrad.addColorStop(1, stoneDark);
+  cityCtx.fillStyle = gateGrad;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size * 0.8, y);
+  cityCtx.lineTo(x - size * 0.7, y - size * 1.5);
+  cityCtx.lineTo(x + size * 0.7, y - size * 1.5);
+  cityCtx.lineTo(x + size * 0.8, y);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Gate arch (dark opening)
+  cityCtx.fillStyle = '#1a1008';
+  cityCtx.beginPath();
+  cityCtx.arc(x, y - size * 0.3, size * 0.4, Math.PI, 0);
+  cityCtx.lineTo(x + size * 0.4, y + size * 0.1);
+  cityCtx.lineTo(x - size * 0.4, y + size * 0.1);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Small roof on gate based on style
+  cityCtx.fillStyle = roofColor;
+  if (style === 'dome') {
+    cityCtx.beginPath();
+    cityCtx.arc(x, y - size * 1.7, size * 0.6, Math.PI, 0);
+    cityCtx.closePath();
+    cityCtx.fill();
+  } else if (style === 'flat') {
+    cityCtx.fillRect(x - size * 0.75, y - size * 1.7, size * 1.5, size * 0.25);
+  } else {
+    // Pointed (default)
+    cityCtx.beginPath();
+    cityCtx.moveTo(x, y - size * 2);
+    cityCtx.lineTo(x - size * 0.8, y - size * 1.5);
+    cityCtx.lineTo(x + size * 0.8, y - size * 1.5);
+    cityCtx.closePath();
+    cityCtx.fill();
+  }
 }
 
 // ========== TRAVIAN-STYLE TOWER ==========
@@ -1906,6 +2316,8 @@ function drawSmoke(x, y) {
 
 // ========== VUE CHAMPS DE RESSOURCES ==========
 function renderFieldsView() {
+  if (!cityCanvas || !cityCtx) return;
+
   const w = cityCanvas.width;
   const h = cityCanvas.height;
   const centerX = w / 2;
@@ -4097,6 +4509,99 @@ function hideCityTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
+// ========== FIELDS CANVAS HANDLERS ==========
+function onFieldsMouseMove(e) {
+  if (!fieldsCanvas) return;
+
+  const rect = fieldsCanvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (fieldsCanvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (fieldsCanvas.height / rect.height);
+
+  // Find hovered slot
+  let foundSlot = null;
+  for (const slot of citySlots) {
+    const dx = mouseX - slot.x;
+    const dy = mouseY - slot.y;
+    const rx = slot.size * 0.6;
+    const ry = slot.size * 0.35;
+    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+
+    if (normalizedDist <= 1) {
+      foundSlot = slot.slot;
+      break;
+    }
+  }
+
+  if (foundSlot !== cityHoveredSlot) {
+    cityHoveredSlot = foundSlot;
+    renderFieldsCanvas();
+
+    fieldsCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'default';
+
+    if (foundSlot !== null) {
+      showFieldsTooltip(e.clientX, e.clientY, foundSlot);
+    } else {
+      hideFieldsTooltip();
+    }
+  }
+}
+
+function onFieldsClick(e) {
+  if (cityHoveredSlot !== null) {
+    if (cityHoveredSlot === -1) {
+      // Click on village center -> switch to city tab
+      showTab('city');
+    } else {
+      // Click on a field -> open field build panel
+      openFieldBuildPanel(cityHoveredSlot);
+    }
+  }
+}
+
+function showFieldsTooltip(mouseX, mouseY, slotNum) {
+  const tooltip = document.getElementById('fields-tooltip');
+  if (!tooltip) return;
+
+  const slot = citySlots.find(s => s.slot === slotNum);
+  let html = '';
+
+  if (slot?.isVillageCenter) {
+    html = `
+      <h4><span class="tt-icon">🏰</span> Centre du Village</h4>
+      <p class="tt-hint">Cliquez pour voir les bâtiments</p>
+    `;
+  } else if (slot?.isField) {
+    const fieldIcons = { FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️' };
+    const fieldNames = { FARM: 'Champ de blé', LUMBER: 'Scierie', QUARRY: 'Carrière de pierre', IRON_MINE: 'Mine de fer' };
+    const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
+    const level = building?.level || 0;
+    const production = getProductionAtLevel(slot.fieldType, level);
+
+    html = `
+      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+      <p class="tt-level">Niveau ${level}/20</p>
+      ${level > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
+      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : 'Cliquez pour améliorer'}</p>
+    `;
+  }
+
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+
+  // Position tooltip
+  const canvasRect = fieldsCanvas.parentElement.getBoundingClientRect();
+  let left = mouseX - canvasRect.left + 10;
+  let top = mouseY - canvasRect.top + 20;
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function hideFieldsTooltip() {
+  const tooltip = document.getElementById('fields-tooltip');
+  if (tooltip) tooltip.style.display = 'none';
+}
+
 // ========== BUILD PANEL ==========
 let selectedBuildSlot = null;
 
@@ -4121,19 +4626,18 @@ function openBuildPanel(slotNum) {
   overlay.classList.add('fade-in');
   
   if (building || slot?.fixed) {
-    // ===== EXISTING BUILDING - DETAILED CARD (Travian Style) =====
+    // ===== EXISTING BUILDING - TABBED INTERFACE (Travian Style) =====
     const key = building?.key || slot?.fixedKey;
     const level = building?.level || 1;
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
     const canUpgrade = level < maxLevel;
     const nextLevel = level + 1;
-    
+
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
     const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key);
 
     if (isMilitaryBuilding) {
-      // Open recruitment panel for this building
       openRecruitmentPanel(key, level, slotNum);
       return;
     }
@@ -4143,8 +4647,8 @@ function openBuildPanel(slotNum) {
       openHeroManagementPanel(level, slotNum);
       return;
     }
-    
-    // Calculate costs for next level (exponential scaling)
+
+    // Calculate costs for next level
     const costMultiplier = Math.pow(1.3, level);
     const nextCost = {
       wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
@@ -4152,137 +4656,138 @@ function openBuildPanel(slotNum) {
       iron: Math.floor((def?.costL1?.iron || 50) * costMultiplier),
       food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
     };
-    
-    // Calculate build time
+
     const baseDuration = def?.timeL1Sec || 60;
     const buildTime = Math.floor(baseDuration * Math.pow(1.4, level));
     const timeStr = formatDuration(buildTime);
-    
-    // Get building bonus/effect
+
     const bonus = getBuildingBonus(key, level);
     const nextBonus = getBuildingBonus(key, nextLevel);
-    
-    // Check if player has enough resources
-    const hasResources = currentCity && 
+
+    const hasResources = currentCity &&
       currentCity.wood >= nextCost.wood &&
       currentCity.stone >= nextCost.stone &&
       currentCity.iron >= nextCost.iron &&
       currentCity.food >= nextCost.food;
-    
-    title.innerHTML = `<span class="building-detail-icon">${BUILDING_ICONS[key] || '🏠'}</span> ${getBuildingName(key)}`;
-    
+
+    // Determine special tabs based on building type
+    const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
+
+    title.innerHTML = `
+      <div class="building-title-header">
+        <span class="building-detail-icon">${BUILDING_ICONS[key] || '🏠'}</span>
+        <span>${getBuildingName(key)}</span>
+        <span class="building-level-badge">Niv. ${level}/${maxLevel}</span>
+      </div>
+    `;
+
     content.innerHTML = `
-      <div class="building-detail-card">
-        <!-- Header avec niveau et image -->
-        <div class="building-detail-header">
-          <div class="building-level-display">
-            <div class="level-circle">${level}</div>
-            <span class="level-label">Niveau</span>
-          </div>
-          <div class="building-image-container">
-            <div class="building-image">${BUILDING_ICONS[key] || '🏠'}</div>
-            ${building?.prodPerHour ? `<div class="production-badge">+${formatNum(building.prodPerHour)}/h</div>` : ''}
-          </div>
-          <div class="building-max-level">
-            <span class="max-label">Max</span>
-            <div class="max-circle">${maxLevel}</div>
-          </div>
+      <div class="building-tabbed-card">
+        <!-- Tabs Navigation -->
+        <div class="building-tabs">
+          <button class="building-tab active" onclick="switchBuildingTab('upgrade', this)">⬆️ Améliorer</button>
+          <button class="building-tab" onclick="switchBuildingTab('info', this)">📖 Information</button>
+          ${specialTabs.map(t => `<button class="building-tab" onclick="switchBuildingTab('${t.id}', this)">${t.icon} ${t.name}</button>`).join('')}
         </div>
-        
-        <!-- Description -->
-        <div class="building-description">
-          <p>${getBuildingDescription(key)}</p>
-        </div>
-        
-        <!-- Bonus actuel -->
-        <div class="building-bonus-section">
-          <h4>📊 Bonus actuel</h4>
-          <div class="bonus-display">${bonus}</div>
-        </div>
-        
-        ${canUpgrade ? `
-          <!-- Section Amélioration -->
-          <div class="upgrade-section">
-            <div class="upgrade-header">
-              <h4>⬆️ Améliorer au niveau ${nextLevel}</h4>
-              ${nextBonus !== bonus ? `<div class="next-bonus">→ ${nextBonus}</div>` : ''}
-            </div>
-            
-            <!-- Coûts détaillés -->
-            <div class="cost-grid">
-              <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
-                <span class="cost-icon">🪵</span>
-                <span class="cost-value">${formatNum(nextCost.wood)}</span>
-                <span class="cost-label">Bois</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div>
+
+        <!-- Tab Content: Upgrade -->
+        <div class="building-tab-content" id="tab-upgrade">
+          ${canUpgrade ? `
+            <div class="upgrade-preview">
+              <div class="upgrade-comparison">
+                <div class="level-current">
+                  <span class="level-num">${level}</span>
+                  <span class="level-label">Actuel</span>
+                  <p class="bonus-text">${bonus}</p>
                 </div>
-              </div>
-              <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
-                <span class="cost-icon">🪨</span>
-                <span class="cost-value">${formatNum(nextCost.stone)}</span>
-                <span class="cost-label">Pierre</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div>
-                </div>
-              </div>
-              <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
-                <span class="cost-icon">⛏️</span>
-                <span class="cost-value">${formatNum(nextCost.iron)}</span>
-                <span class="cost-label">Fer</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div>
-                </div>
-              </div>
-              <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
-                <span class="cost-icon">🌾</span>
-                <span class="cost-value">${formatNum(nextCost.food)}</span>
-                <span class="cost-label">Nourriture</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div>
+                <div class="level-arrow">→</div>
+                <div class="level-next">
+                  <span class="level-num">${nextLevel}</span>
+                  <span class="level-label">Suivant</span>
+                  <p class="bonus-text">${nextBonus}</p>
                 </div>
               </div>
             </div>
-            
-            <!-- Temps et bouton -->
-            <div class="upgrade-footer">
-              <div class="build-time">
-                <span class="time-icon">⏱️</span>
-                <span class="time-value">${timeStr}</span>
+            <div class="upgrade-costs">
+              <h4>Coût d'amélioration</h4>
+              <div class="cost-grid">
+                <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
+                  <span class="cost-icon">🪵</span>
+                  <span class="cost-value">${formatNum(nextCost.wood)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
+                  <span class="cost-icon">🪨</span>
+                  <span class="cost-value">${formatNum(nextCost.stone)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
+                  <span class="cost-icon">⛏️</span>
+                  <span class="cost-value">${formatNum(nextCost.iron)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
+                  <span class="cost-icon">🌾</span>
+                  <span class="cost-value">${formatNum(nextCost.food)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
+                </div>
               </div>
-              <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" 
-                      onclick="upgradeBuilding('${key}', ${slotNum})"
-                      ${hasResources ? '' : 'disabled'}>
+            </div>
+            <div class="upgrade-action">
+              <div class="build-time"><span class="time-icon">⏱️</span> ${timeStr}</div>
+              <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources ? '' : 'disabled'}>
                 ${hasResources ? '🔨 Améliorer' : '❌ Ressources insuffisantes'}
               </button>
             </div>
+          ` : `
+            <div class="max-level-notice">
+              <span class="max-icon">🏆</span>
+              <p>Niveau maximum atteint !</p>
+              <p class="bonus-max">${bonus}</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Tab Content: Information -->
+        <div class="building-tab-content" id="tab-info" style="display:none">
+          <div class="info-section">
+            <h4>📜 Description</h4>
+            <p class="info-description">${getBuildingDescription(key)}</p>
           </div>
-        ` : `
-          <div class="max-level-notice">
-            <span class="max-icon">🏆</span>
-            <p>Niveau maximum atteint !</p>
+          <div class="info-section">
+            <h4>📊 Bonus actuel (Niveau ${level})</h4>
+            <div class="info-bonus">${bonus}</div>
           </div>
-        `}
-        
-        <!-- Prérequis (si applicable) -->
-        ${def?.prereq && def.prereq.length > 0 ? `
-          <div class="prerequisites-section">
-            <h4>📋 Prérequis</h4>
-            <div class="prereq-list">
-              ${def.prereq.map(p => {
-                const prereqBuilding = currentCity?.buildings?.find(b => b.key === p.key);
-                const met = prereqBuilding && prereqBuilding.level >= p.level;
-                return `
-                  <div class="prereq-item ${met ? 'met' : 'unmet'}">
+          ${building?.prodPerHour ? `
+            <div class="info-section">
+              <h4>📈 Production</h4>
+              <p class="info-production">+${formatNum(building.prodPerHour)} par heure</p>
+            </div>
+          ` : ''}
+          ${def?.prereq && def.prereq.length > 0 ? `
+            <div class="info-section">
+              <h4>📋 Prérequis</h4>
+              <div class="prereq-list">
+                ${def.prereq.map(p => {
+                  const prereqBuilding = currentCity?.buildings?.find(b => b.key === p.key);
+                  const met = prereqBuilding && prereqBuilding.level >= p.level;
+                  return `<div class="prereq-item ${met ? 'met' : 'unmet'}">
                     <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
                     <span>${getBuildingName(p.key)} Niv.${p.level}</span>
                     <span class="prereq-status">${met ? '✓' : '✗'}</span>
-                  </div>
-                `;
-              }).join('')}
+                  </div>`;
+                }).join('')}
+              </div>
             </div>
+          ` : ''}
+        </div>
+
+        <!-- Special Tabs Content -->
+        ${specialTabs.map(t => `
+          <div class="building-tab-content" id="tab-${t.id}" style="display:none">
+            ${t.content}
           </div>
-        ` : ''}
+        `).join('')}
       </div>
     `;
   } else if (slot?.isField) {
@@ -4334,50 +4839,71 @@ function openBuildPanel(slotNum) {
       </div>
     `;
   } else {
-    // ===== EMPTY SLOT - BUILDING LIST =====
+    // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
     title.textContent = '🏗️ Construire un bâtiment';
-    
-    const availableBuildings = buildingsData.filter(b => 
+
+    const availableBuildings = buildingsData.filter(b =>
       !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)
     );
-    
+
     // Group by category
     const categories = {
-      'BASE': { name: 'Ressources', icon: '📦', buildings: [] },
+      'BASE': { name: 'Infrastructure', icon: '🏛️', buildings: [] },
       'INTERMEDIATE': { name: 'Militaire', icon: '⚔️', buildings: [] },
       'ADVANCED': { name: 'Avancé', icon: '🏰', buildings: [] }
     };
-    
+
     availableBuildings.forEach(b => {
       const cat = b.category || 'INTERMEDIATE';
       if (categories[cat]) categories[cat].buildings.push(b);
     });
-    
+
     content.innerHTML = `
-      <div class="building-categories">
+      <div class="building-categories travian-style">
         ${Object.entries(categories).map(([key, cat]) => cat.buildings.length > 0 ? `
           <div class="building-category">
             <h4 class="category-title">${cat.icon} ${cat.name}</h4>
             <div class="buildings-list">
               ${cat.buildings.map(b => {
-                const hasResources = currentCity && 
+                // Check prerequisites
+                const prereqStatus = checkBuildingPrerequisites(b);
+                const hasPrereqs = prereqStatus.met;
+                const hasResources = currentCity &&
                   currentCity.wood >= (b.costL1?.wood || 0) &&
                   currentCity.stone >= (b.costL1?.stone || 0) &&
-                  currentCity.iron >= (b.costL1?.iron || 0);
+                  currentCity.iron >= (b.costL1?.iron || 0) &&
+                  currentCity.food >= (b.costL1?.food || 0);
+                const canBuild = hasPrereqs && hasResources;
+                const alreadyBuilt = currentCity?.buildings?.some(existing => existing.key === b.key);
+                const isUnique = b.maxPerCity === 1 || !b.maxPerCity;
+                const blocked = alreadyBuilt && isUnique;
+
                 return `
-                  <div class="build-option-card ${hasResources ? '' : 'insufficient'}" onclick="buildAtSlot('${b.key}', ${slotNum})">
+                  <div class="build-option-card ${!hasPrereqs ? 'locked' : ''} ${!hasResources ? 'insufficient' : ''} ${blocked ? 'already-built' : ''}"
+                       onclick="${canBuild && !blocked ? `buildAtSlot('${b.key}', ${slotNum})` : ''}"
+                       ${!canBuild || blocked ? 'style="cursor: not-allowed"' : ''}>
                     <div class="build-option-icon-large">${BUILDING_ICONS[b.key] || '🏠'}</div>
                     <div class="build-option-details">
                       <h5>${b.name}</h5>
-                      <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
-                      <div class="build-option-costs">
+                      ${blocked ? `
+                        <p class="build-option-status already">✓ Déjà construit</p>
+                      ` : !hasPrereqs ? `
+                        <p class="build-option-prereq">⚠️ ${prereqStatus.missing}</p>
+                      ` : `
+                        <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
+                      `}
+                      <div class="build-option-costs ${!hasPrereqs ? 'dimmed' : ''}">
                         <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}">🪵${formatNum(b.costL1?.wood || 0)}</span>
                         <span class="${currentCity?.stone >= (b.costL1?.stone || 0) ? '' : 'missing'}">🪨${formatNum(b.costL1?.stone || 0)}</span>
                         <span class="${currentCity?.iron >= (b.costL1?.iron || 0) ? '' : 'missing'}">⛏️${formatNum(b.costL1?.iron || 0)}</span>
+                        <span class="${currentCity?.food >= (b.costL1?.food || 0) ? '' : 'missing'}">🌾${formatNum(b.costL1?.food || 0)}</span>
                       </div>
+                      <div class="build-option-time">⏱️ ${formatDuration(b.timeL1Sec || 60)}</div>
                     </div>
                     <div class="build-option-action">
-                      <button class="mini-build-btn">${hasResources ? '🔨' : '❌'}</button>
+                      ${blocked ? `<span class="built-badge">✓</span>` :
+                        canBuild ? `<button class="mini-build-btn">🔨</button>` :
+                        `<button class="mini-build-btn disabled">🔒</button>`}
                     </div>
                   </div>
                 `;
@@ -4416,10 +4942,10 @@ function getBuildingBonus(key, level) {
     MARKET: `Réduction taxe marché: -${level}%, Capacité transport: +${level * 5}%`,
     WAREHOUSE: `Stockage ressources: ${formatNum(1200 + level * 8000)}`,
     SILO: `Stockage nourriture: ${formatNum(1200 + level * 8000)}`,
-    FARM: `Production nourriture: +${formatNum(20 + level * 60)}/h`,
-    LUMBER: `Production bois: +${formatNum(20 + level * 60)}/h`,
-    QUARRY: `Production pierre: +${formatNum(20 + level * 60)}/h`,
-    IRON_MINE: `Production fer: +${formatNum(20 + level * 60)}/h`,
+    FARM: `Production nourriture: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
+    LUMBER: `Production bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
+    QUARRY: `Production pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
+    IRON_MINE: `Production fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
     WALL: `Bonus défense: +${level}%, Régénération mur: +${level}%`,
     MOAT: `Bonus ATK/DEF défenseur: +${(level * 0.5).toFixed(1)}%`,
     HEALING_TENT: `Capacité de soins: ${level * 3} blessés`,
@@ -4427,6 +4953,200 @@ function getBuildingBonus(key, level) {
     HIDEOUT: `Ressources cachées: ${level}%`
   };
   return bonuses[key] || 'Aucun bonus spécial';
+}
+
+// Helper: Switch building panel tabs
+function switchBuildingTab(tabId, btn) {
+  // Hide all tab contents
+  document.querySelectorAll('.building-tab-content').forEach(c => c.style.display = 'none');
+  // Remove active from all tabs
+  document.querySelectorAll('.building-tab').forEach(t => t.classList.remove('active'));
+  // Show selected tab and mark button active
+  document.getElementById(`tab-${tabId}`).style.display = 'block';
+  btn.classList.add('active');
+}
+
+// Helper: Get special tabs for specific building types
+function getBuildingSpecialTabs(buildingKey, level, slotNum) {
+  const tabs = [];
+
+  switch (buildingKey) {
+    case 'MARKET':
+      tabs.push({
+        id: 'trade',
+        icon: '📦',
+        name: 'Commerce',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏪 Place du marché</h4>
+            <p>Capacité de transport: <strong>${100 + level * 50}</strong> unités</p>
+            <p>Marchands disponibles: <strong>${Math.floor(level / 5) + 1}</strong></p>
+            <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'ACADEMY':
+      tabs.push({
+        id: 'research',
+        icon: '🔬',
+        name: 'Recherche',
+        content: `
+          <div class="special-tab-content">
+            <h4>🎓 Académie</h4>
+            <p>Bonus recherche: <strong>-${level}%</strong> temps</p>
+            <p>Technologies disponibles selon le niveau de l'académie.</p>
+            <button class="btn-secondary" onclick="showResearchPanel()">Voir les recherches</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'EMBASSY':
+      tabs.push({
+        id: 'diplomacy',
+        icon: '🤝',
+        name: 'Diplomatie',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏛️ Ambassade</h4>
+            <p>Permet de créer ou rejoindre une alliance.</p>
+            ${level >= 3 ? `<p>Niveau ${level}: Peut accueillir jusqu'à <strong>${level * 3}</strong> membres.</p>` : ''}
+            <button class="btn-primary" onclick="showTab('alliance'); closeBuildPanel();">Accéder à l'alliance</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'RALLY_POINT':
+      tabs.push({
+        id: 'armies',
+        icon: '⚔️',
+        name: 'Armées',
+        content: `
+          <div class="special-tab-content">
+            <h4>🎯 Point de ralliement</h4>
+            <p>Armées simultanées: <strong>${Math.min(1 + Math.floor(level / 5), 5)}</strong></p>
+            <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
+            <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'HEALING_TENT':
+      tabs.push({
+        id: 'heal',
+        icon: '💊',
+        name: 'Soins',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏥 Tente de soins</h4>
+            <p>Capacité: <strong>${level * 3}</strong> blessés</p>
+            <p>Les troupes blessées peuvent être soignées ici après une bataille défensive.</p>
+            <button class="btn-success" onclick="healWounded()">Soigner les blessés</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'WAREHOUSE':
+    case 'GREAT_WAREHOUSE':
+      tabs.push({
+        id: 'storage',
+        icon: '📦',
+        name: 'Stockage',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏪 Capacité de stockage</h4>
+            <div class="storage-bars">
+              <div class="storage-row">
+                <span>🪵 Bois:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+              <div class="storage-row">
+                <span>🪨 Pierre:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+              <div class="storage-row">
+                <span>⛏️ Fer:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+            </div>
+          </div>
+        `
+      });
+      break;
+
+    case 'SILO':
+    case 'GREAT_SILO':
+      tabs.push({
+        id: 'food-storage',
+        icon: '🌾',
+        name: 'Stockage',
+        content: `
+          <div class="special-tab-content">
+            <h4>🌾 Capacité de stockage nourriture</h4>
+            <div class="storage-bars">
+              <div class="storage-row">
+                <span>🌾 Nourriture:</span>
+                <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.food || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+            </div>
+          </div>
+        `
+      });
+      break;
+
+    case 'WATCHTOWER':
+      tabs.push({
+        id: 'watch',
+        icon: '👁️',
+        name: 'Surveillance',
+        content: `
+          <div class="special-tab-content">
+            <h4>🗼 Tour de guet</h4>
+            <p>Portée de détection: <strong>${level * 2}</strong> cases</p>
+            <p>Temps d'alerte: <strong>${Math.max(1, 10 - level)}</strong> minutes avant l'arrivée</p>
+            <p class="info-note">Les attaques ennemies seront détectées à l'avance.</p>
+          </div>
+        `
+      });
+      break;
+  }
+
+  return tabs;
+}
+
+// Helper: Check building prerequisites
+function checkBuildingPrerequisites(buildingDef) {
+  if (!buildingDef.prereq || buildingDef.prereq.length === 0) {
+    return { met: true, missing: '' };
+  }
+
+  const missingPrereqs = [];
+
+  for (const prereq of buildingDef.prereq) {
+    const existingBuilding = currentCity?.buildings?.find(b => b.key === prereq.key);
+    const currentLevel = existingBuilding?.level || 0;
+
+    if (currentLevel < prereq.level) {
+      const prereqDef = buildingsData?.find(b => b.key === prereq.key);
+      const prereqName = prereqDef?.name || prereq.key;
+      missingPrereqs.push(`${prereqName} niv.${prereq.level}`);
+    }
+  }
+
+  if (missingPrereqs.length > 0) {
+    return { met: false, missing: `Requis: ${missingPrereqs.join(', ')}` };
+  }
+
+  return { met: true, missing: '' };
 }
 
 function closeBuildPanel() {
@@ -4486,14 +5206,14 @@ function openFieldBuildPanel(slotNum) {
         <h4>${fieldNames[fieldType]}</h4>
         <span class="level-badge">Niveau ${level}</span>
         <p style="margin-top:10px;font-size:12px;color:#666">
-          Production: +${level * 30}/h
+          Production: +${getProductionAtLevel(fieldType, level)}/h
         </p>
       </div>
       ${canUpgrade ? `
         <div class="upgrade-info">
           <h5>Améliorer au niveau ${level + 1}</h5>
           <p style="font-size:12px;color:#666;margin-bottom:10px">
-            Production: +${(level + 1) * 30}/h (+30/h)
+            Production: +${getProductionAtLevel(fieldType, level + 1)}/h (+${getProductionAtLevel(fieldType, level + 1) - getProductionAtLevel(fieldType, level)}/h)
           </p>
           <div class="upgrade-cost">
             <span>🪵 ${formatNum((def?.costL1?.wood || 50) * (level + 1))}</span>
@@ -4515,7 +5235,7 @@ function openFieldBuildPanel(slotNum) {
         <div class="build-option-info">
           <h4>${fieldNames[fieldType]}</h4>
           <p>Production de ${fieldType === 'FARM' ? 'nourriture' : fieldType === 'LUMBER' ? 'bois' : fieldType === 'QUARRY' ? 'pierre' : 'fer'}</p>
-          <p style="font-size:11px;color:#888">+30/h au niveau 1</p>
+          <p style="font-size:11px;color:#888">+${getProductionAtLevel(fieldType, 1)}/h au niveau 1</p>
           <div class="build-option-cost">
             <span>🪵 ${def?.costL1?.wood || 50}</span>
             <span>🪨 ${def?.costL1?.stone || 50}</span>
@@ -4535,7 +5255,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
   const title = document.getElementById('build-panel-title');
-  
+
   // Create overlay
   let overlay = document.querySelector('.build-panel-overlay');
   if (!overlay) {
@@ -4546,48 +5266,108 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   }
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
-  
-  // Determine which units can be recruited here
-  const buildingNames = {
-    BARRACKS: 'Caserne',
-    STABLE: 'Écurie', 
-    WORKSHOP: 'Atelier'
-  };
-  
-  const buildingIcons = {
-    BARRACKS: '⚔️',
-    STABLE: '🐎',
-    WORKSHOP: '⚙️'
-  };
-  
-  // Filter units by building type and player faction
+
+  // Building configurations
+  const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier' };
+  const buildingIcons = { BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️' };
   const allowedClasses = {
     BARRACKS: ['INFANTRY', 'ARCHER'],
     STABLE: ['CAVALRY'],
     WORKSHOP: ['SIEGE']
   };
-  
+
   const classes = allowedClasses[buildingKey] || [];
-  
-  // Filter by tier based on building level
-  // Level 1-8: base only, Level 9-14: base + intermediate, Level 15+: all (base + inter + elite)
+
+  // Filter units by tier based on building level
   const availableUnits = unitsData.filter(u => {
     if (u.faction !== player?.faction) return false;
     if (!classes.includes(u.class)) return false;
-    
-    // Check tier requirements based on building level
     if (u.tier === 'intermediate' && buildingLevel < 9) return false;
     if (u.tier === 'elite' && buildingLevel < 15) return false;
-    
     return true;
   });
-  
-  // Check current recruitment queue for this building
+
+  // Group units by class for BARRACKS (separate Infantry and Archers)
+  const unitsByClass = {};
+  availableUnits.forEach(u => {
+    if (!unitsByClass[u.class]) unitsByClass[u.class] = [];
+    unitsByClass[u.class].push(u);
+  });
+
+  // Check current recruitment queue
   const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
   const isRecruiting = currentQueue.some(q => q.status === 'RUNNING');
-  
+
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel})`;
-  
+
+  // Helper function to render a unit card
+  const renderUnitCard = (u, isRecruiting, buildingKey) => {
+    const tierColor = TIER_COLORS[u.tier] || '#aaa';
+    const tierMultiplier = u.tier === 'base' ? 1.3 : u.tier === 'intermediate' ? 1.7 : u.tier === 'elite' ? 1.9 : 1;
+    const unitCost = {
+      wood: Math.ceil(50 * tierMultiplier),
+      stone: Math.ceil(30 * tierMultiplier),
+      iron: Math.ceil(60 * tierMultiplier),
+      food: Math.ceil(30 * tierMultiplier)
+    };
+    const canAfford = currentCity &&
+      currentCity.wood >= unitCost.wood &&
+      currentCity.stone >= unitCost.stone &&
+      currentCity.iron >= unitCost.iron &&
+      currentCity.food >= unitCost.food;
+
+    return `
+      <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}">
+        <div class="unit-recruit-header" style="border-color: ${tierColor}">
+          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitStatsPopup('${u.key}')" title="Voir les stats détaillées">${UNIT_ICONS[u.class] || '⚔️'}</span>
+          <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
+        </div>
+        <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
+          <h5>${u.name}</h5>
+          <div class="unit-mini-stats">
+            <span>⚔️${u.stats?.attack}</span>
+            <span>🛡️${u.stats?.defense}</span>
+            <span>🏃${u.stats?.speed}</span>
+          </div>
+          <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
+            <span>🪵${unitCost.wood}</span>
+            <span>⛏️${unitCost.iron}</span>
+          </div>
+        </div>
+        ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
+      </div>
+    `;
+  };
+
+  // Helper function to render a class section
+  const renderClassSection = (className, classLabel, classIcon, units) => {
+    if (!units || units.length === 0) return '';
+    return `
+      <div class="unit-class-section">
+        <div class="class-section-header">
+          <span class="class-icon">${classIcon}</span>
+          <span class="class-label">${classLabel}</span>
+          <span class="class-count">(${units.length})</span>
+        </div>
+        <div class="units-recruit-grid">
+          ${units.map(u => renderUnitCard(u, isRecruiting, buildingKey)).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  // Build sections based on building type
+  let unitsHtml = '';
+  if (buildingKey === 'BARRACKS') {
+    // Separate Infantry and Archers
+    unitsHtml += renderClassSection('INFANTRY', 'Infanterie', '⚔️', unitsByClass['INFANTRY']);
+    unitsHtml += renderClassSection('ARCHER', 'Archers', '🏹', unitsByClass['ARCHER']);
+  } else if (buildingKey === 'STABLE') {
+    unitsHtml += renderClassSection('CAVALRY', 'Cavalerie', '🐎', unitsByClass['CAVALRY']);
+  } else if (buildingKey === 'WORKSHOP') {
+    unitsHtml += renderClassSection('SIEGE', 'Machines de siège', '⚙️', unitsByClass['SIEGE']);
+  }
+
   content.innerHTML = `
     <div class="recruitment-panel">
       <!-- Building info header -->
@@ -4597,8 +5377,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <h3>${buildingNames[buildingKey]}</h3>
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
-            ${buildingLevel < 9 ? '🔹 Unités de base (Niv.1+)' : 
-              buildingLevel < 15 ? '🔹 Base + Intermédiaires (Niv.9+)' : 
+            ${buildingLevel < 9 ? '🔹 Unités de base (Niv.1-8)' :
+              buildingLevel < 15 ? '🔹 Base + Intermédiaires (Niv.9-14)' :
               '🔹 Toutes les unités (Niv.15+)'}
           </p>
         </div>
@@ -4606,7 +5386,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           ⬆️ Améliorer
         </button>
       </div>
-      
+
       <!-- Current recruitment queue -->
       ${currentQueue.length > 0 ? `
         <div class="current-recruitment">
@@ -4621,57 +5401,19 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           </div>
         </div>
       ` : ''}
-      
-      <!-- Available units -->
+
+      <!-- Available units by class -->
       <div class="available-units">
         <h4>🎖️ Recruter des unités</h4>
-        ${availableUnits.length > 0 ? `
-          <div class="units-recruit-grid">
-            ${availableUnits.map(u => {
-              const tierColor = TIER_COLORS[u.tier] || '#aaa';
-              const tierMultiplier = u.tier === 'base' ? 1.3 : u.tier === 'intermediate' ? 1.7 : u.tier === 'elite' ? 1.9 : 1;
-              const unitCost = {
-                wood: Math.ceil(50 * tierMultiplier),
-                stone: Math.ceil(30 * tierMultiplier),
-                iron: Math.ceil(60 * tierMultiplier),
-                food: Math.ceil(30 * tierMultiplier)
-              };
-              const canAfford = currentCity && 
-                currentCity.wood >= unitCost.wood &&
-                currentCity.stone >= unitCost.stone &&
-                currentCity.iron >= unitCost.iron &&
-                currentCity.food >= unitCost.food;
-              
-              return `
-                <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
-                  <div class="unit-recruit-header" style="border-color: ${tierColor}">
-                    <span class="unit-icon">${UNIT_ICONS[u.class] || '⚔️'}</span>
-                    <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div class="unit-recruit-body">
-                    <h5>${u.name}</h5>
-                    <div class="unit-mini-stats">
-                      <span>⚔️${u.stats?.attack}</span>
-                      <span>🛡️${u.stats?.defense}</span>
-                    </div>
-                    <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
-                      <span>🪵${unitCost.wood}</span>
-                      <span>⛏️${unitCost.iron}</span>
-                    </div>
-                  </div>
-                  ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        ` : `
+        <p class="recruit-hint">💡 Cliquez sur l'icône d'une unité pour voir ses statistiques détaillées</p>
+        ${unitsHtml || `
           <div class="no-units-available">
             <p>Aucune unité disponible</p>
             <p class="hint">Améliorez le bâtiment pour débloquer plus d'unités</p>
           </div>
         `}
       </div>
-      
+
       ${isRecruiting ? `
         <div class="recruitment-warning">
           <span>⚠️</span>
@@ -4680,7 +5422,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
       ` : ''}
     </div>
   `;
-  
+
   panel.style.display = 'block';
 }
 
@@ -5391,13 +6133,13 @@ function showTab(tabName) {
     stopMapAnimation();
   }
 
-  // Special handling for fields/city tabs - they share the same canvas
+  // Special handling for fields/city tabs - they share the city-canvas
   if (tabName === 'fields' || tabName === 'city') {
-    // Both use the city tab's canvas
+    // Show city tab container (both use city-canvas)
     document.getElementById('tab-fields')?.classList.remove('active');
     document.getElementById('tab-city')?.classList.add('active');
-    currentCityView = tabName === 'fields' ? 'fields' : 'city';
-    renderCity();
+    currentCityView = tabName;
+    renderCityCanvas();
     return;
   }
 
@@ -6012,21 +6754,28 @@ function calculateArmyPower(army) {
 function showArmyActionsMenu(armyId) {
   const army = armies.find(a => a.id === armyId);
   if (!army) return;
-  
+
+  // Check if army can move (needs at least 1 unit)
+  const totalUnits = army.units?.reduce((s, u) => s + u.count, 0) || 0;
+  const hasHero = army.heroId;
+  const canMove = totalUnits > 0;
+  const disabledReason = !canMove ? (hasHero ? 'Le héros nécessite au moins 1 soldat' : 'Armée vide') : '';
+
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
       <h3>⚙️ Actions - ${army.name}</h3>
+      ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">⚠️ ${disabledReason}</p>` : ''}
       <div class="actions-grid">
-        <button class="action-card" onclick="closeModal(); showMoveModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">🚶</span>
           <span class="action-label">Déplacer</span>
         </button>
-        <button class="action-card" onclick="closeModal(); showAttackModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showAttackModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">⚔️</span>
           <span class="action-label">Attaquer</span>
         </button>
-        <button class="action-card" onclick="closeModal(); showRaidModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showRaidModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">💰</span>
           <span class="action-label">Piller</span>
         </button>
@@ -7749,7 +8498,9 @@ async function loadMap() {
             x: c.x,
             y: c.y,
             type: 'CITY',
+            id: c.id,
             playerId: c.playerId || c.player?.id,
+            playerName: c.player?.name || c.playerName || 'Inconnu',
             name: c.name,
             isCapital: c.isCapital,
             allianceId: c.player?.allianceId,
@@ -7783,7 +8534,9 @@ async function loadMap() {
             x: c.x,
             y: c.y,
             type: 'CITY',
+            id: c.id,
             playerId: player?.id,
+            playerName: player?.name || 'Vous',
             name: c.name,
             isCapital: c.isCapital,
             faction: player?.faction || 'ROME',
@@ -7806,26 +8559,59 @@ async function loadMap() {
 
 function generateFakeMapData(startX, startY, size) {
   const data = [];
-  const seed = 12345;
-  
-  // Add player cities
+  const fakePlayerNames = ['Marcus', 'Julia', 'Gaius', 'Livia', 'Brutus', 'Helena', 'Nero', 'Octavia', 'Titus', 'Cornelia'];
+  const fakeFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+
+  // Add player cities with full data
   cities.forEach(c => {
-    data.push({ x: c.x, y: c.y, type: 'CITY', playerId: player?.id, name: c.name, isCapital: c.isCapital });
+    const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
+    data.push({
+      x: c.x,
+      y: c.y,
+      type: 'CITY',
+      id: c.id,
+      playerId: player?.id,
+      playerName: player?.name || 'Vous',
+      name: c.name,
+      isCapital: c.isCapital,
+      faction: player?.faction || 'ROME',
+      wallLevel: wallBuilding?.level || 0,
+      population: player?.population || 100
+    });
   });
-  
+
   // Add some random resources and enemy cities
   for (let i = 0; i < 50; i++) {
     const x = startX + Math.floor(Math.random() * size);
     const y = startY + Math.floor(Math.random() * size);
     const types = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-    
-    if (Math.random() < 0.1) {
-      data.push({ x, y, type: 'CITY', playerId: 'enemy', name: `Ville ${i}` });
+
+    // Avoid collision with player cities
+    if (data.find(d => d.x === x && d.y === y)) continue;
+
+    if (Math.random() < 0.15) {
+      // Enemy city with proper data
+      const fakePlayerId = `fake-player-${i}`;
+      const fakePlayerName = fakePlayerNames[i % fakePlayerNames.length];
+      const fakeFaction = fakeFactions[Math.floor(Math.random() * fakeFactions.length)];
+      data.push({
+        x,
+        y,
+        type: 'CITY',
+        id: `fake-city-${i}`,
+        playerId: fakePlayerId,
+        playerName: fakePlayerName,
+        name: `${fakePlayerName}'s Village`,
+        isCapital: Math.random() < 0.3,
+        faction: fakeFaction,
+        wallLevel: Math.floor(Math.random() * 10),
+        population: Math.floor(Math.random() * 1000) + 50
+      });
     } else {
       data.push({ x, y, type: 'RESOURCE', resourceType: types[Math.floor(Math.random() * 4)] });
     }
   }
-  
+
   return data;
 }
 
@@ -9325,8 +10111,11 @@ function updateMapUI() {
 }
 
 // Mouse handlers
+let mapDragDistance = 0; // Track total drag distance to distinguish click vs drag
+
 function onMapMouseDown(e) {
   mapDragging = true;
+  mapDragDistance = 0; // Reset drag distance
   mapDragStart = { x: e.clientX, y: e.clientY };
   mapCanvas.style.cursor = 'grabbing';
 }
@@ -9341,9 +10130,14 @@ function onMapMouseMove(e) {
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
   if (mapDragging) {
+    // Track drag distance for click vs drag detection
+    const pixelDx = e.clientX - mapDragStart.x;
+    const pixelDy = e.clientY - mapDragStart.y;
+    mapDragDistance += Math.abs(pixelDx) + Math.abs(pixelDy);
+
     // Dragging uses simpler offset (not isometric conversion)
-    const dx = (e.clientX - mapDragStart.x) / (tileW * 0.5);
-    const dy = (e.clientY - mapDragStart.y) / (tileH);
+    const dx = pixelDx / (tileW * 0.5);
+    const dy = pixelDy / (tileH);
 
     mapOffsetX -= (dx + dy) * 0.5;
     mapOffsetY -= (dy - dx) * 0.5;
@@ -9372,7 +10166,8 @@ function onMapMouseUp() {
 }
 
 function onMapClick(e) {
-  if (mapDragging) return;
+  // Prevent click if user dragged the map (threshold: 5 pixels)
+  if (mapDragDistance > 5) return;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -10482,6 +11277,11 @@ function showBuildingInfo(key, level) {
 }
 
 // ========== UNIT INFO MODAL ==========
+// Alias for unit stats popup (used in recruitment panel)
+function showUnitStatsPopup(unitKey) {
+  showUnitInfoModal(unitKey);
+}
+
 function showUnitInfoModal(unitKey) {
   const unit = unitsData.find(u => u.key === unitKey);
   if (!unit) {
@@ -10495,6 +11295,14 @@ function showUnitInfoModal(unitKey) {
 
   const tierColor = TIER_COLORS[unit.tier] || '#888';
   const tierName = unit.tier === 'base' ? 'Base' : unit.tier === 'intermediate' ? 'Intermédiaire' : unit.tier === 'elite' ? 'Élite' : 'Siège';
+  const classNames = { INFANTRY: 'Infanterie', ARCHER: 'Archer', CAVALRY: 'Cavalerie', SIEGE: 'Siège' };
+
+  // Get stats from unit.stats or fallback to root level
+  const attack = unit.stats?.attack || unit.attack || 0;
+  const defense = unit.stats?.defense || unit.defense || 0;
+  const speed = unit.stats?.speed || unit.speed || 0;
+  const endurance = unit.stats?.endurance || unit.endurance || unit.hp || 50;
+  const transport = unit.stats?.transport || unit.transport || unit.carryCapacity || 50;
 
   modalTitle.textContent = unit.name;
   modalBody.innerHTML = `
@@ -10507,29 +11315,45 @@ function showUnitInfoModal(unitKey) {
         <div class="unit-info-title">
           <h3>${unit.name}</h3>
           <span class="unit-tier-badge" style="background: ${tierColor}">${tierName}</span>
-          <span class="unit-class-badge">${unit.class}</span>
+          <span class="unit-class-badge">${classNames[unit.class] || unit.class}</span>
         </div>
       </div>
 
-      <!-- Stats de combat -->
+      <!-- Stats de combat avec barres visuelles -->
       <div class="unit-stats-section">
         <h4>⚔️ Statistiques de combat</h4>
-        <div class="unit-stats-grid">
-          <div class="unit-stat-item">
+        <div class="unit-stats-bars">
+          <div class="stat-bar-row">
+            <span class="stat-icon">⚔️</span>
             <span class="stat-label">Attaque</span>
-            <span class="stat-value">${unit.attack || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar attack" style="width: ${Math.min(attack, 100)}%"></div>
+            </div>
+            <span class="stat-value">${attack}</span>
           </div>
-          <div class="unit-stat-item">
+          <div class="stat-bar-row">
+            <span class="stat-icon">🛡️</span>
             <span class="stat-label">Défense</span>
-            <span class="stat-value">${unit.defense || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar defense" style="width: ${Math.min(defense, 100)}%"></div>
+            </div>
+            <span class="stat-value">${defense}</span>
           </div>
-          <div class="unit-stat-item">
-            <span class="stat-label">Endurance</span>
-            <span class="stat-value">${unit.endurance || unit.hp || 0}</span>
-          </div>
-          <div class="unit-stat-item">
+          <div class="stat-bar-row">
+            <span class="stat-icon">🏃</span>
             <span class="stat-label">Vitesse</span>
-            <span class="stat-value">${unit.speed || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar speed" style="width: ${Math.min(speed, 100)}%"></div>
+            </div>
+            <span class="stat-value">${speed}</span>
+          </div>
+          <div class="stat-bar-row">
+            <span class="stat-icon">❤️</span>
+            <span class="stat-label">Endurance</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar endurance" style="width: ${Math.min(endurance, 100)}%"></div>
+            </div>
+            <span class="stat-value">${endurance}</span>
           </div>
         </div>
       </div>
@@ -10541,18 +11365,18 @@ function showUnitInfoModal(unitKey) {
           <div class="capacity-item">
             <span class="capacity-icon">🎒</span>
             <span class="capacity-label">Transport</span>
-            <span class="capacity-value">${unit.transport || unit.carryCapacity || 0}</span>
+            <span class="capacity-value">${transport}</span>
           </div>
           <div class="capacity-item">
             <span class="capacity-icon">🍖</span>
             <span class="capacity-label">Nourriture/h</span>
-            <span class="capacity-value">${unit.foodCost || unit.foodConsumption || 1}</span>
+            <span class="capacity-value">${unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 20}</span>
           </div>
-          ${unit.buildingDamage ? `
+          ${unit.class === 'SIEGE' ? `
           <div class="capacity-item">
             <span class="capacity-icon">🏰</span>
-            <span class="capacity-label">Dégâts bâtiment</span>
-            <span class="capacity-value">${unit.buildingDamage}</span>
+            <span class="capacity-label">Dégâts muraille</span>
+            <span class="capacity-value">${unit.stats?.buildingDamage || unit.buildingDamage || 5}</span>
           </div>
           ` : ''}
         </div>
@@ -10700,6 +11524,23 @@ function formatEffectName(key) {
 
 function closeModal() {
   document.getElementById('modal').style.display = 'none';
+}
+
+function showModal(title, content) {
+  const modal = document.getElementById('modal');
+  const modalContent = modal.querySelector('.modal-content') || modal;
+
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2>${title}</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      ${content}
+    </div>
+  `;
+
+  modal.style.display = 'flex';
 }
 
 function showToast(msg, type = 'info') {
@@ -11205,12 +12046,6 @@ function showMarketTab(subTab) {
   }
 }
 
-function showReportsTab(subTab) {
-  document.querySelectorAll('#tab-reports .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
-  loadReports(subTab);
-}
-
 function filterBuildings(category) {
   document.querySelectorAll('#tab-buildings .toolbar-btn').forEach(b => b.classList.remove('active'));
   event?.target?.classList?.add('active');
@@ -11322,6 +12157,78 @@ async function loadTroopsForSending() {
   `).join('');
 }
 
+async function sendTroops() {
+  const target = document.getElementById('troops-target')?.value?.trim();
+  const mission = document.getElementById('troops-mission')?.value || 'ATTACK';
+
+  if (!target) {
+    showToast('Veuillez entrer une destination', 'error');
+    return;
+  }
+
+  // Parse coordinates
+  const coordMatch = target.match(/(-?\d+)[|,](-?\d+)/);
+  if (!coordMatch) {
+    showToast('Format invalide. Utilisez x|y', 'error');
+    return;
+  }
+
+  const targetX = parseInt(coordMatch[1]);
+  const targetY = parseInt(coordMatch[2]);
+
+  // Collect selected troops
+  const cityArmy = armies.find(a => a.cityId === currentCity?.id && a.status === 'IDLE');
+  if (!cityArmy) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  const units = {};
+  let totalTroops = 0;
+
+  cityArmy.units?.forEach(u => {
+    const input = document.getElementById(`send-${u.unitKey}`);
+    const count = parseInt(input?.value) || 0;
+    if (count > 0) {
+      units[u.unitKey] = count;
+      totalTroops += count;
+    }
+  });
+
+  if (totalTroops === 0) {
+    showToast('Sélectionnez au moins une unité', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/armies/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        armyId: cityArmy.id,
+        targetX,
+        targetY,
+        mission,
+        units
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`Troupes envoyées en mission ${mission}!`, 'success');
+      loadArmies();
+      loadCities();
+    } else {
+      showToast(data.error || 'Erreur lors de l\'envoi', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+}
+
 function showNpcMerchant() {
   const container = document.getElementById('market-content');
   if (!container) return;
@@ -11337,25 +12244,6 @@ function showNpcMerchant() {
     </div>
   `;
 }
-
-// ========== KEYBOARD SHORTCUTS ==========
-document.addEventListener('keydown', (e) => {
-  // Ignore if typing in input
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-  switch (e.key) {
-    case '1': showTab('fields'); break;
-    case '2': showTab('city'); break;
-    case '3': showTab('map'); break;
-    case '4': showTab('ranking'); break;
-    case '5': showTab('reports'); break;
-    case '6': showTab('alliance'); break;
-    case '7': showTab('army'); break;
-    case '8': showTab('hero'); break;
-    case '9': showTab('market'); break;
-    case 'Escape': closeModal(); closeBuildPanel(); break;
-  }
-});
 
 // ========== INIT ==========
 window.onload = () => {
