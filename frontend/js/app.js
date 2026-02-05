@@ -6675,7 +6675,9 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'ATTACKING': { icon: '⚔️', label: 'Attaque', cls: 'attacking' },
     'RETURNING': { icon: '↩️', label: 'Retour', cls: 'returning' },
     'RAIDING': { icon: '💰', label: 'Pillage', cls: 'raiding' },
-    'GARRISON': { icon: '🏰', label: 'Garnison', cls: 'garrison' }
+    'GARRISON': { icon: '🏰', label: 'Garnison', cls: 'garrison' },
+    'HARVESTING': { icon: '⛏️', label: 'Récolte', cls: 'harvesting' },
+    'COLLECTING': { icon: '📦', label: 'Collecte', cls: 'collecting' }
   };
   const status = statusMap[army.status] || { icon: '❓', label: army.status, cls: 'unknown' };
   
@@ -6724,6 +6726,20 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
         ` : `<span class="no-units-badge">Aucune</span>`}
       </div>
       
+      <!-- Harvest Progress (if harvesting) -->
+      ${army.status === 'HARVESTING' ? `
+        <div class="harvest-progress-row">
+          <div class="harvest-info">
+            <span class="harvest-type">⛏️ ${army.harvestResourceType || '?'}</span>
+            <span class="harvest-rate">+100/min</span>
+          </div>
+          <div class="harvest-carry">
+            <span class="carry-label">Transporté:</span>
+            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}</span>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- Actions -->
       <div class="army-actions-row">
         ${army.status === 'IDLE' ? `
@@ -6733,6 +6749,11 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <button class="army-btn icon-only" onclick="showArmyActionsMenu('${army.id}')" title="Actions">
             ⚙️
           </button>
+        ` : army.status === 'HARVESTING' ? `
+          <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
+            ↩️ Arrêter & Rentrer
+          </button>
+          <span class="destination-badge">📍 (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
@@ -11203,9 +11224,14 @@ function collectResource(nodeId, x, y) {
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>📦 Collecter des ressources</h3>
+    <h3>⛏️ Récolter des ressources</h3>
     <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
       <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+    </div>
+    <div style="background:rgba(255,215,0,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #ffd700;">
+      <p style="margin:0; font-size:12px; color:#c9a227;">
+        ⏱️ <strong>Récolte progressive:</strong> L'armée restera sur place et récoltera <strong>100 ressources/minute</strong> jusqu'à capacité max ou ressource épuisée.
+      </p>
     </div>
     <p>Position: (${x}, ${y})</p>
     <label style="display:block; margin:10px 0 5px;">Sélectionner une armée:</label>
@@ -11213,7 +11239,7 @@ function collectResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">📦 Collecter!</button>
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">⛏️ Démarrer la récolte</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -11238,7 +11264,16 @@ async function confirmCollectResource(nodeId) {
 
   if (res.ok) {
     const data = await res.json();
-    showToast(`Collecté ${formatNum(data.collected || 0)} ${data.resourceType}!`, 'success');
+    if (data.status === 'HARVESTING') {
+      // Récolte progressive
+      showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
+    } else if (data.travelTime) {
+      // Armée en route
+      showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');
+    } else {
+      // Ancien système (fallback)
+      showToast(`Collecté ${formatNum(data.collected || 0)} ${data.resourceType}!`, 'success');
+    }
     await loadArmies();
     loadMap();
   } else {

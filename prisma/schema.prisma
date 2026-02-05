@@ -152,6 +152,10 @@ model Army {
   carryIron   Int     @default(0)
   carryFood   Int     @default(0)
 
+  // Récolte progressive
+  harvestStartedAt DateTime?  // Quand la récolte a commencé
+  harvestResourceType String? // Type de ressource en cours de récolte
+
   owner Player     @relation(fields: [ownerId], references: [id])
   city  City?      @relation(fields: [cityId], references: [id])
   hero  Hero?      @relation(fields: [heroId], references: [id])

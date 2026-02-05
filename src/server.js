@@ -1484,6 +1484,27 @@ app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
     if (distance <= 1.5) {
       // IMMEDIATE COMBAT
       const result = await resolveTribteCombat(army, node, req.user.playerId);
+
+      // Si victoire, mettre l'armée en mode HARVESTING
+      if (result.success) {
+        await prisma.army.update({
+          where: { id: army.id },
+          data: {
+            status: 'HARVESTING',
+            x: node.x,
+            y: node.y,
+            targetX: node.x,
+            targetY: node.y,
+            targetResourceId: node.id,
+            missionType: 'HARVEST',
+            harvestStartedAt: new Date(),
+            harvestResourceType: node.resourceType
+          }
+        });
+        result.message = 'Tribu vaincue! Récolte démarrée (100/min)';
+        result.status = 'HARVESTING';
+      }
+
       return res.json(result);
     }
 
@@ -1532,14 +1553,13 @@ async function resolveTribteCombat(army, node, playerId) {
     }
   }
 
-  // If no defenders, auto-win
+  // If no defenders, auto-win - start harvesting instead of instant collect
   if (defenderUnits.length === 0 || !node.hasDefenders) {
-    const loot = await collectResourceLoot(army, node, playerId);
     return {
       success: true,
       combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 },
-      loot,
-      message: 'Ressource collectée sans combat'
+      loot: null, // Pas de butin instantané - l'armée va récolter progressivement
+      message: 'Tribu absente - démarrage de la récolte'
     };
   }
 
@@ -1589,9 +1609,8 @@ async function resolveTribteCombat(army, node, playerId) {
   // Check if all defenders are dead
   const defendersRemaining = Object.values(newDefenderUnits).reduce((sum, c) => sum + c, 0);
 
-  let loot = null;
   if (attackerWon) {
-    // Tribe defeated
+    // Tribe defeated - pas de collecte instantanée, l'armée va récolter progressivement
     await prisma.resourceNode.update({
       where: { id: node.id },
       data: {
@@ -1602,15 +1621,12 @@ async function resolveTribteCombat(army, node, playerId) {
       }
     });
 
-    // Collect loot
-    loot = await collectResourceLoot(army, node, playerId);
-
     // Give XP to hero if present
     if (army.heroId) {
       const xpGain = Math.floor(node.defenderPower * 0.5);
       await prisma.hero.update({
         where: { id: army.heroId },
-        data: { experience: { increment: xpGain } }
+        data: { xp: { increment: xpGain } }
       });
     }
   } else {
@@ -1652,8 +1668,8 @@ async function resolveTribteCombat(army, node, playerId) {
       attackerPower: combat.attackerPower,
       defenderPower: combat.defenderPower
     },
-    loot,
-    message: attackerWon ? 'Tribu vaincue!' : 'Votre armée a été repoussée'
+    loot: null, // Pas de butin instantané - l'armée récoltera progressivement
+    message: attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée'
   };
 }
 
@@ -1724,7 +1740,7 @@ app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
 
     if (distance > 1.5) {
-      // Send army to collect
+      // Send army to resource node, will start harvesting on arrival
       let minSpeed = 100;
       for (const u of army.units) {
         const unit = unitsData.find(x => x.key === u.unitKey);
@@ -1737,27 +1753,51 @@ app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
       await prisma.army.update({
         where: { id: army.id },
         data: {
-          status: 'COLLECTING',
+          status: 'MOVING',
           targetX: node.x,
           targetY: node.y,
           targetResourceId: node.id,
           arrivalAt,
-          missionType: 'COLLECT_RESOURCE'
+          missionType: 'MOVE_TO_HARVEST',
+          harvestResourceType: node.resourceType
         }
       });
 
       return res.json({ message: 'Armée en route pour collecter', travelTime, arrivalAt });
     }
 
-    // Immediate collection
-    const loot = await collectResourceLoot(army, node, req.user.playerId);
-    const collected = Object.values(loot)[0] || 0;
+    // L'armée est sur place - démarrer la récolte progressive
+    // Calculer la capacité de transport
+    let carryCapacity = 0;
+    for (const unit of army.units) {
+      const unitData = unitsData.find(u => u.key === unit.unitKey);
+      const carryPerUnit = unitData?.stats?.carry || 50;
+      carryCapacity += unit.count * carryPerUnit;
+    }
+
+    await prisma.army.update({
+      where: { id: army.id },
+      data: {
+        status: 'HARVESTING',
+        x: node.x,
+        y: node.y,
+        targetX: node.x,
+        targetY: node.y,
+        targetResourceId: node.id,
+        missionType: 'HARVEST',
+        harvestStartedAt: new Date(),
+        harvestResourceType: node.resourceType
+      }
+    });
 
     res.json({
       success: true,
-      collected,
+      status: 'HARVESTING',
       resourceType: node.resourceType,
-      message: `${collected} ${node.resourceType} collecté!`
+      nodeAmount: node.amount,
+      carryCapacity,
+      harvestRate: 100, // 100 par minute
+      message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})`
     });
   } catch (e) {
     console.error('Collect resource error:', e);
@@ -1795,10 +1835,13 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
         targetX: army.city.x,
         targetY: army.city.y,
         arrivalAt,
-        missionType: 'RETURN'
+        missionType: 'RETURN',
+        targetResourceId: null,
+        harvestStartedAt: null,
+        harvestResourceType: null
       }
     });
-    
+
     res.json({ message: 'Retour en cours', travelTime, arrivalAt });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -3305,43 +3348,29 @@ setInterval(async () => {
             const result = await resolveTribteCombat(army, node, army.ownerId);
             console.log(`[RAID_RESOURCE] ${army.name} ${result.success ? 'defeated' : 'lost to'} tribe at (${node.x}, ${node.y})`);
 
-            // If won, start return journey with loot
-            if (result.success && result.loot) {
-              const resourceType = node.resourceType.toLowerCase();
-              const lootAmount = result.loot[node.resourceType] || 0;
-
-              // Set carry based on resource type
-              const carryData = { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 };
-              if (resourceType === 'wood') carryData.carryWood = lootAmount;
-              else if (resourceType === 'stone') carryData.carryStone = lootAmount;
-              else if (resourceType === 'iron') carryData.carryIron = lootAmount;
-              else if (resourceType === 'food') carryData.carryFood = lootAmount;
-
-              // Return home with loot
-              if (army.cityId) {
-                const homeCity = await prisma.city.findUnique({ where: { id: army.cityId } });
-                if (homeCity) {
-                  const travelTime = calculateTravelTime(node.x, node.y, homeCity.x, homeCity.y, 50);
-                  await prisma.army.update({
-                    where: { id: army.id },
-                    data: {
-                      status: 'RETURNING',
-                      targetX: homeCity.x,
-                      targetY: homeCity.y,
-                      targetResourceId: null,
-                      missionType: 'RETURN',
-                      arrivalAt: new Date(Date.now() + travelTime * 1000),
-                      ...carryData
-                    }
-                  });
+            if (result.success) {
+              // Victoire - commencer la récolte progressive au lieu de retourner avec le butin
+              await prisma.army.update({
+                where: { id: army.id },
+                data: {
+                  status: 'HARVESTING',
+                  x: node.x,
+                  y: node.y,
+                  missionType: 'HARVEST',
+                  harvestStartedAt: new Date(),
+                  harvestResourceType: node.resourceType,
+                  arrivalAt: null
                 }
-              }
+              });
+              console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
             } else {
-              // Lost - return home without loot
+              // Défaite - l'armée reste sur place mais en IDLE
               await prisma.army.update({
                 where: { id: army.id },
                 data: {
                   status: 'IDLE',
+                  x: node.x,
+                  y: node.y,
                   targetX: null, targetY: null,
                   targetResourceId: null,
                   missionType: null,
@@ -3358,44 +3387,70 @@ setInterval(async () => {
           }
         }
 
-        // ========== COLLECT RESOURCE (NO TRIBE) ==========
+        // ========== MOVE TO HARVEST (ARMY ARRIVING AT RESOURCE) ==========
+        else if (army.missionType === 'MOVE_TO_HARVEST') {
+          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+
+          if (node && !node.hasDefenders) {
+            // Démarrer la récolte progressive
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'HARVESTING',
+                x: node.x,
+                y: node.y,
+                missionType: 'HARVEST',
+                harvestStartedAt: new Date(),
+                harvestResourceType: node.resourceType,
+                arrivalAt: null
+              }
+            });
+            console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
+          } else if (node && node.hasDefenders) {
+            // Tribu respawnée - l'armée doit d'abord combattre
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'IDLE',
+                x: node.x,
+                y: node.y,
+                targetX: null, targetY: null,
+                arrivalAt: null,
+                missionType: null,
+                targetResourceId: null,
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+            console.log(`[HARVEST] ${army.name} arrived but tribe respawned at (${node.x}, ${node.y})`);
+          } else {
+            // Node not found
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
+            });
+          }
+        }
+
+        // ========== COLLECT RESOURCE (LEGACY - redirect to HARVEST) ==========
         else if (army.missionType === 'COLLECT_RESOURCE') {
           const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
 
           if (node && !node.hasDefenders) {
-            // Collect resources
-            const loot = await collectResourceLoot(army, node, army.ownerId);
-            const resourceType = node.resourceType.toLowerCase();
-            const lootAmount = loot[node.resourceType] || 0;
-
-            console.log(`[COLLECT] ${army.name} collected ${lootAmount} ${node.resourceType}`);
-
-            // Set carry based on resource type
-            const carryData = { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 };
-            if (resourceType === 'wood') carryData.carryWood = lootAmount;
-            else if (resourceType === 'stone') carryData.carryStone = lootAmount;
-            else if (resourceType === 'iron') carryData.carryIron = lootAmount;
-            else if (resourceType === 'food') carryData.carryFood = lootAmount;
-
-            // Return home with resources
-            if (army.cityId) {
-              const homeCity = await prisma.city.findUnique({ where: { id: army.cityId } });
-              if (homeCity) {
-                const travelTime = calculateTravelTime(node.x, node.y, homeCity.x, homeCity.y, 50);
-                await prisma.army.update({
-                  where: { id: army.id },
-                  data: {
-                    status: 'RETURNING',
-                    targetX: homeCity.x,
-                    targetY: homeCity.y,
-                    targetResourceId: null,
-                    missionType: 'RETURN',
-                    arrivalAt: new Date(Date.now() + travelTime * 1000),
-                    ...carryData
-                  }
-                });
+            // Démarrer la récolte progressive au lieu de collecter instantanément
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'HARVESTING',
+                x: node.x,
+                y: node.y,
+                missionType: 'HARVEST',
+                harvestStartedAt: new Date(),
+                harvestResourceType: node.resourceType,
+                arrivalAt: null
               }
-            }
+            });
+            console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
           } else {
             // Tribe respawned or node not found, go back idle
             await prisma.army.update({
@@ -3406,6 +3461,132 @@ setInterval(async () => {
         }
       } catch (armyError) {
         console.error(`[ARMY ERROR] ${army.id}:`, armyError.message);
+      }
+    }
+
+    // ========== HARVESTING SYSTEM (Récolte progressive) ==========
+    // Traiter les armées qui récoltent actuellement - 50 ressources par tick (100/min)
+    const harvestingArmies = await prisma.army.findMany({
+      where: { status: 'HARVESTING', missionType: 'HARVEST' },
+      include: { units: true, city: true }
+    });
+
+    for (const army of harvestingArmies) {
+      try {
+        if (!army.targetResourceId) continue;
+
+        const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+        if (!node) {
+          // Node disparue, arrêter la récolte
+          await prisma.army.update({
+            where: { id: army.id },
+            data: {
+              status: 'IDLE',
+              missionType: null,
+              targetResourceId: null,
+              harvestStartedAt: null,
+              harvestResourceType: null
+            }
+          });
+          continue;
+        }
+
+        // Vérifier si la tribu a respawn pendant la récolte
+        if (node.hasDefenders && node.defenderPower > 0) {
+          console.log(`[HARVEST] ${army.name} interrupted - tribe respawned at (${node.x}, ${node.y})`);
+          // Tribu respawnée - retourner à la maison avec ce qu'on a récolté
+          if (army.cityId && army.city) {
+            const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'RETURNING',
+                targetX: army.city.x,
+                targetY: army.city.y,
+                missionType: 'RETURN',
+                arrivalAt: new Date(Date.now() + travelTime * 1000),
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+          } else {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, harvestStartedAt: null, harvestResourceType: null }
+            });
+          }
+          continue;
+        }
+
+        // Calculer la capacité de transport totale
+        let carryCapacity = 0;
+        for (const unit of army.units) {
+          const unitData = unitsData.find(u => u.key === unit.unitKey);
+          const carryPerUnit = unitData?.stats?.carry || 50;
+          carryCapacity += unit.count * carryPerUnit;
+        }
+
+        // Calculer ce que l'armée porte déjà
+        const currentCarry = army.carryWood + army.carryStone + army.carryIron + army.carryFood;
+        const remainingCapacity = carryCapacity - currentCarry;
+
+        // Récolte par tick: 50 ressources (100/minute avec tick de 30s)
+        const harvestPerTick = 50;
+        const toHarvest = Math.min(harvestPerTick, remainingCapacity, node.amount);
+
+        if (toHarvest <= 0 || node.amount <= 0 || remainingCapacity <= 0) {
+          // Capacité pleine ou node vide - retourner à la maison
+          console.log(`[HARVEST] ${army.name} finished harvesting at (${node.x}, ${node.y}) - capacity: ${currentCarry}/${carryCapacity}, node: ${node.amount}`);
+
+          if (army.cityId && army.city) {
+            const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'RETURNING',
+                targetX: army.city.x,
+                targetY: army.city.y,
+                missionType: 'RETURN',
+                arrivalAt: new Date(Date.now() + travelTime * 1000),
+                targetResourceId: null,
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+          } else {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, harvestStartedAt: null, harvestResourceType: null }
+            });
+          }
+          continue;
+        }
+
+        // Récolter les ressources
+        const resourceType = node.resourceType.toLowerCase();
+        const carryField = `carry${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}`;
+
+        // Mettre à jour le node (diminuer les ressources)
+        await prisma.resourceNode.update({
+          where: { id: node.id },
+          data: { amount: { decrement: toHarvest } }
+        });
+
+        // Mettre à jour l'armée (augmenter le carry)
+        const updateData = {};
+        if (resourceType === 'wood') updateData.carryWood = army.carryWood + toHarvest;
+        else if (resourceType === 'stone') updateData.carryStone = army.carryStone + toHarvest;
+        else if (resourceType === 'iron') updateData.carryIron = army.carryIron + toHarvest;
+        else if (resourceType === 'food') updateData.carryFood = army.carryFood + toHarvest;
+
+        await prisma.army.update({
+          where: { id: army.id },
+          data: updateData
+        });
+
+        console.log(`[HARVEST] ${army.name} harvested ${toHarvest} ${node.resourceType} at (${node.x}, ${node.y}) - total: ${currentCarry + toHarvest}/${carryCapacity}`);
+      } catch (harvestError) {
+        console.error(`[HARVEST ERROR] ${army.id}:`, harvestError.message);
       }
     }
 
