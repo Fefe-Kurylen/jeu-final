@@ -11123,6 +11123,23 @@ function closeModal() {
   document.getElementById('modal').style.display = 'none';
 }
 
+function showModal(title, content) {
+  const modal = document.getElementById('modal');
+  const modalContent = modal.querySelector('.modal-content') || modal;
+
+  modalContent.innerHTML = `
+    <div class="modal-header">
+      <h2>${title}</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      ${content}
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+}
+
 function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
@@ -11743,6 +11760,78 @@ async function loadTroopsForSending() {
   `).join('');
 }
 
+async function sendTroops() {
+  const target = document.getElementById('troops-target')?.value?.trim();
+  const mission = document.getElementById('troops-mission')?.value || 'ATTACK';
+
+  if (!target) {
+    showToast('Veuillez entrer une destination', 'error');
+    return;
+  }
+
+  // Parse coordinates
+  const coordMatch = target.match(/(-?\d+)[|,](-?\d+)/);
+  if (!coordMatch) {
+    showToast('Format invalide. Utilisez x|y', 'error');
+    return;
+  }
+
+  const targetX = parseInt(coordMatch[1]);
+  const targetY = parseInt(coordMatch[2]);
+
+  // Collect selected troops
+  const cityArmy = armies.find(a => a.cityId === currentCity?.id && a.status === 'IDLE');
+  if (!cityArmy) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  const units = {};
+  let totalTroops = 0;
+
+  cityArmy.units?.forEach(u => {
+    const input = document.getElementById(`send-${u.unitKey}`);
+    const count = parseInt(input?.value) || 0;
+    if (count > 0) {
+      units[u.unitKey] = count;
+      totalTroops += count;
+    }
+  });
+
+  if (totalTroops === 0) {
+    showToast('Sélectionnez au moins une unité', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/armies/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        armyId: cityArmy.id,
+        targetX,
+        targetY,
+        mission,
+        units
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast(`Troupes envoyées en mission ${mission}!`, 'success');
+      loadArmies();
+      loadCities();
+    } else {
+      showToast(data.error || 'Erreur lors de l\'envoi', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+}
+
 function showNpcMerchant() {
   const container = document.getElementById('market-content');
   if (!container) return;
@@ -11758,25 +11847,6 @@ function showNpcMerchant() {
     </div>
   `;
 }
-
-// ========== KEYBOARD SHORTCUTS ==========
-document.addEventListener('keydown', (e) => {
-  // Ignore if typing in input
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-  switch (e.key) {
-    case '1': showTab('fields'); break;
-    case '2': showTab('city'); break;
-    case '3': showTab('map'); break;
-    case '4': showTab('ranking'); break;
-    case '5': showTab('reports'); break;
-    case '6': showTab('alliance'); break;
-    case '7': showTab('army'); break;
-    case '8': showTab('hero'); break;
-    case '9': showTab('market'); break;
-    case 'Escape': closeModal(); closeBuildPanel(); break;
-  }
-});
 
 // ========== INIT ==========
 window.onload = () => {
