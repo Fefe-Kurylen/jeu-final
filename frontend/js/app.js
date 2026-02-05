@@ -415,9 +415,17 @@ function selectCity(id) {
 function updateQuicklinksCity() {
   const nameEl = document.getElementById('city-name-quick');
   const coordsEl = document.getElementById('city-coords-quick');
+  const tierEl = document.getElementById('city-tier-quick');
   if (currentCity && nameEl) {
     nameEl.textContent = currentCity.name + (currentCity.isCapital ? ' ⭐' : '');
     if (coordsEl) coordsEl.textContent = `(${currentCity.x}|${currentCity.y})`;
+    // Display city tier (Village/Ville/Ville Fortifiée)
+    if (tierEl) {
+      const tierName = currentCity.cityTierName || 'Village';
+      const tierColors = { 'Village': '#90ee90', 'Ville': '#87ceeb', 'Ville Fortifiée': '#ffd700' };
+      tierEl.textContent = tierName;
+      tierEl.style.color = tierColors[tierName] || '#90ee90';
+    }
   }
 }
 
@@ -9494,8 +9502,9 @@ function drawIsoCity(x, y, tw, th, tile) {
   }
 
   // Fallback to procedural rendering
-  // Determine wall tier (0=none, 1-7=tier1, 8-14=tier2, 15-20=tier3)
-  const wallTier = wallLevel === 0 ? 0 : wallLevel <= 7 ? 1 : wallLevel <= 14 ? 2 : 3;
+  // Use cityTier from API (Village=1, Ville=2, Ville Fortifiée=3) or calculate from wallLevel
+  // Village: wall 1-9, Ville: wall 10-14, Ville Fortifiée: wall 15+
+  const cityTier = tile.cityTier || (wallLevel === 0 ? 0 : wallLevel < 10 ? 1 : wallLevel < 15 ? 2 : 3);
 
   const citySize = Math.min(tw, th * 2) * 0.8;
 
@@ -9505,16 +9514,16 @@ function drawIsoCity(x, y, tw, th, tile) {
   mapCtx.ellipse(x + 3, y + 5, citySize * 0.5, citySize * 0.25, 0, 0, Math.PI * 2);
   mapCtx.fill();
 
-  // Draw walls based on tier (only if wallLevel > 0)
-  if (wallTier > 0) {
-    drawCityWalls(x, y, citySize, wallTier, cultureStyle);
+  // Draw walls based on city tier (only if cityTier > 0)
+  if (cityTier > 0) {
+    drawCityWalls(x, y, citySize, cityTier, cultureStyle);
   }
 
-  // City base ground
+  // City base ground - size varies by city tier
   mapCtx.fillStyle = isMyCity ? '#c4a060' : isAlly ? '#70a080' : '#a07060';
   mapCtx.beginPath();
-  const groundSize = wallTier > 0 ? 0.35 : 0.42;
-  mapCtx.ellipse(x, y - (wallTier > 0 ? 3 : 0), citySize * groundSize, citySize * groundSize * 0.55, 0, 0, Math.PI * 2);
+  const groundSize = cityTier > 0 ? 0.35 : 0.42;
+  mapCtx.ellipse(x, y - (cityTier > 0 ? 3 : 0), citySize * groundSize, citySize * groundSize * 0.55, 0, 0, Math.PI * 2);
   mapCtx.fill();
 
   // Draw culture-specific buildings (no central tower)
@@ -9541,6 +9550,15 @@ function drawIsoCity(x, y, tw, th, tile) {
     mapCtx.shadowColor = '#000';
     mapCtx.shadowBlur = 3;
     mapCtx.fillText(tile.name, x, y + citySize * 0.35);
+
+    // City tier label (Village/Ville/Ville Fortifiée)
+    if (mapZoomLevel > 0.8) {
+      const tierName = tile.cityTierName || (cityTier === 3 ? 'Ville Fortifiée' : cityTier === 2 ? 'Ville' : 'Village');
+      const tierColor = cityTier === 3 ? '#ffd700' : cityTier === 2 ? '#87ceeb' : '#90ee90';
+      mapCtx.font = `${8 * mapZoomLevel}px Arial, sans-serif`;
+      mapCtx.fillStyle = tierColor;
+      mapCtx.fillText(tierName, x, y + citySize * 0.35 + 12 * mapZoomLevel);
+    }
     mapCtx.shadowBlur = 0;
   }
 
