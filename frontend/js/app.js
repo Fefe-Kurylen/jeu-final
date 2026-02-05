@@ -5255,7 +5255,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
   const title = document.getElementById('build-panel-title');
-  
+
   // Create overlay
   let overlay = document.querySelector('.build-panel-overlay');
   if (!overlay) {
@@ -5266,48 +5266,108 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   }
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
-  
-  // Determine which units can be recruited here
-  const buildingNames = {
-    BARRACKS: 'Caserne',
-    STABLE: 'Écurie', 
-    WORKSHOP: 'Atelier'
-  };
-  
-  const buildingIcons = {
-    BARRACKS: '⚔️',
-    STABLE: '🐎',
-    WORKSHOP: '⚙️'
-  };
-  
-  // Filter units by building type and player faction
+
+  // Building configurations
+  const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier' };
+  const buildingIcons = { BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️' };
   const allowedClasses = {
     BARRACKS: ['INFANTRY', 'ARCHER'],
     STABLE: ['CAVALRY'],
     WORKSHOP: ['SIEGE']
   };
-  
+
   const classes = allowedClasses[buildingKey] || [];
-  
-  // Filter by tier based on building level
-  // Level 1-8: base only, Level 9-14: base + intermediate, Level 15+: all (base + inter + elite)
+
+  // Filter units by tier based on building level
   const availableUnits = unitsData.filter(u => {
     if (u.faction !== player?.faction) return false;
     if (!classes.includes(u.class)) return false;
-    
-    // Check tier requirements based on building level
     if (u.tier === 'intermediate' && buildingLevel < 9) return false;
     if (u.tier === 'elite' && buildingLevel < 15) return false;
-    
     return true;
   });
-  
-  // Check current recruitment queue for this building
+
+  // Group units by class for BARRACKS (separate Infantry and Archers)
+  const unitsByClass = {};
+  availableUnits.forEach(u => {
+    if (!unitsByClass[u.class]) unitsByClass[u.class] = [];
+    unitsByClass[u.class].push(u);
+  });
+
+  // Check current recruitment queue
   const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
   const isRecruiting = currentQueue.some(q => q.status === 'RUNNING');
-  
+
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel})`;
-  
+
+  // Helper function to render a unit card
+  const renderUnitCard = (u, isRecruiting, buildingKey) => {
+    const tierColor = TIER_COLORS[u.tier] || '#aaa';
+    const tierMultiplier = u.tier === 'base' ? 1.3 : u.tier === 'intermediate' ? 1.7 : u.tier === 'elite' ? 1.9 : 1;
+    const unitCost = {
+      wood: Math.ceil(50 * tierMultiplier),
+      stone: Math.ceil(30 * tierMultiplier),
+      iron: Math.ceil(60 * tierMultiplier),
+      food: Math.ceil(30 * tierMultiplier)
+    };
+    const canAfford = currentCity &&
+      currentCity.wood >= unitCost.wood &&
+      currentCity.stone >= unitCost.stone &&
+      currentCity.iron >= unitCost.iron &&
+      currentCity.food >= unitCost.food;
+
+    return `
+      <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}">
+        <div class="unit-recruit-header" style="border-color: ${tierColor}">
+          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitStatsPopup('${u.key}')" title="Voir les stats détaillées">${UNIT_ICONS[u.class] || '⚔️'}</span>
+          <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
+        </div>
+        <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
+          <h5>${u.name}</h5>
+          <div class="unit-mini-stats">
+            <span>⚔️${u.stats?.attack}</span>
+            <span>🛡️${u.stats?.defense}</span>
+            <span>🏃${u.stats?.speed}</span>
+          </div>
+          <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
+            <span>🪵${unitCost.wood}</span>
+            <span>⛏️${unitCost.iron}</span>
+          </div>
+        </div>
+        ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
+      </div>
+    `;
+  };
+
+  // Helper function to render a class section
+  const renderClassSection = (className, classLabel, classIcon, units) => {
+    if (!units || units.length === 0) return '';
+    return `
+      <div class="unit-class-section">
+        <div class="class-section-header">
+          <span class="class-icon">${classIcon}</span>
+          <span class="class-label">${classLabel}</span>
+          <span class="class-count">(${units.length})</span>
+        </div>
+        <div class="units-recruit-grid">
+          ${units.map(u => renderUnitCard(u, isRecruiting, buildingKey)).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  // Build sections based on building type
+  let unitsHtml = '';
+  if (buildingKey === 'BARRACKS') {
+    // Separate Infantry and Archers
+    unitsHtml += renderClassSection('INFANTRY', 'Infanterie', '⚔️', unitsByClass['INFANTRY']);
+    unitsHtml += renderClassSection('ARCHER', 'Archers', '🏹', unitsByClass['ARCHER']);
+  } else if (buildingKey === 'STABLE') {
+    unitsHtml += renderClassSection('CAVALRY', 'Cavalerie', '🐎', unitsByClass['CAVALRY']);
+  } else if (buildingKey === 'WORKSHOP') {
+    unitsHtml += renderClassSection('SIEGE', 'Machines de siège', '⚙️', unitsByClass['SIEGE']);
+  }
+
   content.innerHTML = `
     <div class="recruitment-panel">
       <!-- Building info header -->
@@ -5317,8 +5377,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <h3>${buildingNames[buildingKey]}</h3>
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
-            ${buildingLevel < 9 ? '🔹 Unités de base (Niv.1+)' : 
-              buildingLevel < 15 ? '🔹 Base + Intermédiaires (Niv.9+)' : 
+            ${buildingLevel < 9 ? '🔹 Unités de base (Niv.1-8)' :
+              buildingLevel < 15 ? '🔹 Base + Intermédiaires (Niv.9-14)' :
               '🔹 Toutes les unités (Niv.15+)'}
           </p>
         </div>
@@ -5326,7 +5386,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           ⬆️ Améliorer
         </button>
       </div>
-      
+
       <!-- Current recruitment queue -->
       ${currentQueue.length > 0 ? `
         <div class="current-recruitment">
@@ -5341,57 +5401,19 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           </div>
         </div>
       ` : ''}
-      
-      <!-- Available units -->
+
+      <!-- Available units by class -->
       <div class="available-units">
         <h4>🎖️ Recruter des unités</h4>
-        ${availableUnits.length > 0 ? `
-          <div class="units-recruit-grid">
-            ${availableUnits.map(u => {
-              const tierColor = TIER_COLORS[u.tier] || '#aaa';
-              const tierMultiplier = u.tier === 'base' ? 1.3 : u.tier === 'intermediate' ? 1.7 : u.tier === 'elite' ? 1.9 : 1;
-              const unitCost = {
-                wood: Math.ceil(50 * tierMultiplier),
-                stone: Math.ceil(30 * tierMultiplier),
-                iron: Math.ceil(60 * tierMultiplier),
-                food: Math.ceil(30 * tierMultiplier)
-              };
-              const canAfford = currentCity && 
-                currentCity.wood >= unitCost.wood &&
-                currentCity.stone >= unitCost.stone &&
-                currentCity.iron >= unitCost.iron &&
-                currentCity.food >= unitCost.food;
-              
-              return `
-                <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
-                  <div class="unit-recruit-header" style="border-color: ${tierColor}">
-                    <span class="unit-icon">${UNIT_ICONS[u.class] || '⚔️'}</span>
-                    <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div class="unit-recruit-body">
-                    <h5>${u.name}</h5>
-                    <div class="unit-mini-stats">
-                      <span>⚔️${u.stats?.attack}</span>
-                      <span>🛡️${u.stats?.defense}</span>
-                    </div>
-                    <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
-                      <span>🪵${unitCost.wood}</span>
-                      <span>⛏️${unitCost.iron}</span>
-                    </div>
-                  </div>
-                  ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        ` : `
+        <p class="recruit-hint">💡 Cliquez sur l'icône d'une unité pour voir ses statistiques détaillées</p>
+        ${unitsHtml || `
           <div class="no-units-available">
             <p>Aucune unité disponible</p>
             <p class="hint">Améliorez le bâtiment pour débloquer plus d'unités</p>
           </div>
         `}
       </div>
-      
+
       ${isRecruiting ? `
         <div class="recruitment-warning">
           <span>⚠️</span>
@@ -5400,7 +5422,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
       ` : ''}
     </div>
   `;
-  
+
   panel.style.display = 'block';
 }
 
@@ -11255,6 +11277,11 @@ function showBuildingInfo(key, level) {
 }
 
 // ========== UNIT INFO MODAL ==========
+// Alias for unit stats popup (used in recruitment panel)
+function showUnitStatsPopup(unitKey) {
+  showUnitInfoModal(unitKey);
+}
+
 function showUnitInfoModal(unitKey) {
   const unit = unitsData.find(u => u.key === unitKey);
   if (!unit) {
@@ -11268,6 +11295,14 @@ function showUnitInfoModal(unitKey) {
 
   const tierColor = TIER_COLORS[unit.tier] || '#888';
   const tierName = unit.tier === 'base' ? 'Base' : unit.tier === 'intermediate' ? 'Intermédiaire' : unit.tier === 'elite' ? 'Élite' : 'Siège';
+  const classNames = { INFANTRY: 'Infanterie', ARCHER: 'Archer', CAVALRY: 'Cavalerie', SIEGE: 'Siège' };
+
+  // Get stats from unit.stats or fallback to root level
+  const attack = unit.stats?.attack || unit.attack || 0;
+  const defense = unit.stats?.defense || unit.defense || 0;
+  const speed = unit.stats?.speed || unit.speed || 0;
+  const endurance = unit.stats?.endurance || unit.endurance || unit.hp || 50;
+  const transport = unit.stats?.transport || unit.transport || unit.carryCapacity || 50;
 
   modalTitle.textContent = unit.name;
   modalBody.innerHTML = `
@@ -11280,29 +11315,45 @@ function showUnitInfoModal(unitKey) {
         <div class="unit-info-title">
           <h3>${unit.name}</h3>
           <span class="unit-tier-badge" style="background: ${tierColor}">${tierName}</span>
-          <span class="unit-class-badge">${unit.class}</span>
+          <span class="unit-class-badge">${classNames[unit.class] || unit.class}</span>
         </div>
       </div>
 
-      <!-- Stats de combat -->
+      <!-- Stats de combat avec barres visuelles -->
       <div class="unit-stats-section">
         <h4>⚔️ Statistiques de combat</h4>
-        <div class="unit-stats-grid">
-          <div class="unit-stat-item">
+        <div class="unit-stats-bars">
+          <div class="stat-bar-row">
+            <span class="stat-icon">⚔️</span>
             <span class="stat-label">Attaque</span>
-            <span class="stat-value">${unit.attack || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar attack" style="width: ${Math.min(attack, 100)}%"></div>
+            </div>
+            <span class="stat-value">${attack}</span>
           </div>
-          <div class="unit-stat-item">
+          <div class="stat-bar-row">
+            <span class="stat-icon">🛡️</span>
             <span class="stat-label">Défense</span>
-            <span class="stat-value">${unit.defense || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar defense" style="width: ${Math.min(defense, 100)}%"></div>
+            </div>
+            <span class="stat-value">${defense}</span>
           </div>
-          <div class="unit-stat-item">
-            <span class="stat-label">Endurance</span>
-            <span class="stat-value">${unit.endurance || unit.hp || 0}</span>
-          </div>
-          <div class="unit-stat-item">
+          <div class="stat-bar-row">
+            <span class="stat-icon">🏃</span>
             <span class="stat-label">Vitesse</span>
-            <span class="stat-value">${unit.speed || 0}</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar speed" style="width: ${Math.min(speed, 100)}%"></div>
+            </div>
+            <span class="stat-value">${speed}</span>
+          </div>
+          <div class="stat-bar-row">
+            <span class="stat-icon">❤️</span>
+            <span class="stat-label">Endurance</span>
+            <div class="stat-bar-container">
+              <div class="stat-bar endurance" style="width: ${Math.min(endurance, 100)}%"></div>
+            </div>
+            <span class="stat-value">${endurance}</span>
           </div>
         </div>
       </div>
@@ -11314,18 +11365,18 @@ function showUnitInfoModal(unitKey) {
           <div class="capacity-item">
             <span class="capacity-icon">🎒</span>
             <span class="capacity-label">Transport</span>
-            <span class="capacity-value">${unit.transport || unit.carryCapacity || 0}</span>
+            <span class="capacity-value">${transport}</span>
           </div>
           <div class="capacity-item">
             <span class="capacity-icon">🍖</span>
             <span class="capacity-label">Nourriture/h</span>
-            <span class="capacity-value">${unit.foodCost || unit.foodConsumption || 1}</span>
+            <span class="capacity-value">${unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 20}</span>
           </div>
-          ${unit.buildingDamage ? `
+          ${unit.class === 'SIEGE' ? `
           <div class="capacity-item">
             <span class="capacity-icon">🏰</span>
-            <span class="capacity-label">Dégâts bâtiment</span>
-            <span class="capacity-value">${unit.buildingDamage}</span>
+            <span class="capacity-label">Dégâts muraille</span>
+            <span class="capacity-value">${unit.stats?.buildingDamage || unit.buildingDamage || 5}</span>
           </div>
           ` : ''}
         </div>

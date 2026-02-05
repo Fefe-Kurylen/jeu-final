@@ -3118,3 +3118,340 @@ tr.marked, .list-item.marked {
   transform: scale(1.1);
   box-shadow: 0 0 8px rgba(201, 162, 39, 0.5);
 }
+
+/* ========== RECRUITMENT PANEL STYLES ========== */
+.recruitment-panel {
+  padding: 15px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.recruit-building-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: linear-gradient(135deg, var(--bg-medium), var(--bg-dark));
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.building-icon-large {
+  font-size: 48px;
+  padding: 10px;
+  background: var(--bg-dark);
+  border-radius: 8px;
+  border: 2px solid var(--gold-primary);
+}
+
+.building-info {
+  flex: 1;
+}
+
+.building-info h3 {
+  margin: 0 0 5px 0;
+  color: var(--gold-primary);
+}
+
+.building-level {
+  color: var(--text-muted);
+  margin: 0 0 3px 0;
+}
+
+.tier-info {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.upgrade-building-btn {
+  padding: 8px 16px;
+  background: linear-gradient(180deg, var(--gold-primary), var(--gold-dark));
+  border: none;
+  border-radius: 4px;
+  color: var(--bg-darkest);
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upgrade-building-btn:hover {
+  background: linear-gradient(180deg, var(--gold-light), var(--gold-primary));
+  transform: translateY(-2px);
+}
+
+/* Current recruitment queue */
+.current-recruitment {
+  background: var(--bg-medium);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 15px;
+  border-left: 3px solid var(--gold-primary);
+}
+
+.current-recruitment h4 {
+  margin: 0 0 10px 0;
+  color: var(--gold-primary);
+  font-size: 14px;
+}
+
+.recruit-queue-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recruit-queue-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border-radius: 4px;
+}
+
+.recruit-queue-item.running {
+  border-left: 3px solid var(--green-light);
+}
+
+.recruit-queue-item.queued {
+  border-left: 3px solid var(--text-muted);
+}
+
+/* Available units section */
+.available-units h4 {
+  margin: 0 0 10px 0;
+  color: var(--gold-primary);
+}
+
+.recruit-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin: 0 0 15px 0;
+  font-style: italic;
+}
+
+/* Unit class sections (Infantry, Archers, etc.) */
+.unit-class-section {
+  margin-bottom: 20px;
+  background: var(--bg-medium);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.class-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bg-light);
+}
+
+.class-icon {
+  font-size: 24px;
+}
+
+.class-label {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--gold-primary);
+}
+
+.class-count {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Units grid */
+.units-recruit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.unit-recruit-card {
+  background: var(--bg-dark);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.unit-recruit-card:hover:not(.disabled) {
+  border-color: var(--gold-primary);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.unit-recruit-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.unit-recruit-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-medium);
+  border-bottom: 3px solid #888;
+  position: relative;
+}
+
+.unit-recruit-header .unit-icon {
+  font-size: 32px;
+}
+
+.unit-recruit-header .unit-icon.clickable {
+  cursor: pointer;
+  transition: transform 0.2s, text-shadow 0.2s;
+}
+
+.unit-recruit-header .unit-icon.clickable:hover {
+  transform: scale(1.2);
+  text-shadow: 0 0 10px var(--gold-primary);
+}
+
+.unit-recruit-header .tier-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+}
+
+.unit-recruit-body {
+  padding: 10px;
+  text-align: center;
+}
+
+.unit-recruit-body h5 {
+  margin: 0 0 8px 0;
+  color: var(--text-white);
+  font-size: 12px;
+}
+
+.unit-mini-stats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.unit-mini-cost {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.unit-mini-cost span {
+  color: var(--green-light);
+}
+
+.unit-mini-cost.insufficient span {
+  color: var(--red);
+}
+
+.unit-blocked {
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--gold-primary);
+  text-align: center;
+  padding: 4px;
+  font-size: 10px;
+}
+
+/* Recruitment warning */
+.recruitment-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(255, 152, 0, 0.15);
+  border-left: 3px solid #ff9800;
+  border-radius: 4px;
+  color: #ffc107;
+  font-size: 13px;
+}
+
+/* No units available */
+.no-units-available {
+  text-align: center;
+  padding: 30px;
+  color: var(--text-muted);
+}
+
+.no-units-available .hint {
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+/* Unit info modal stats with bars */
+.unit-stats-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-bar-row {
+  display: grid;
+  grid-template-columns: 24px 80px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-bar-row .stat-icon {
+  font-size: 16px;
+}
+
+.stat-bar-row .stat-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.stat-bar-row .stat-bar-container {
+  height: 8px;
+  background: var(--bg-dark);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stat-bar-row .stat-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+.stat-bar-row .stat-bar.attack {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.stat-bar-row .stat-bar.defense {
+  background: linear-gradient(90deg, #3498db, #2980b9);
+}
+
+.stat-bar-row .stat-bar.speed {
+  background: linear-gradient(90deg, #f39c12, #e67e22);
+}
+
+.stat-bar-row .stat-bar.endurance {
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+
+.stat-bar-row .stat-value {
+  text-align: right;
+  font-weight: bold;
+  color: var(--text-white);
+}
+
+/* Disabled action card */
+.action-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(50%);
+}
