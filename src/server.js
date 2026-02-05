@@ -97,6 +97,110 @@ const validateFaction = (faction) => {
   return validFactions.includes(faction?.toUpperCase());
 };
 
+// ========== FACTION UNITS FOR RESOURCE POINT DEFENDERS ==========
+const FACTIONS_LIST = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+
+const FACTION_UNITS = {
+  ROME: {
+    infantry: { base: 'ROM_INF_MILICIEN', intermediate: 'ROM_INF_TRIARII', elite: 'ROM_INF_LEGIONNAIRE' },
+    archer: { base: 'ROM_ARC_MILICIEN', intermediate: 'ROM_ARC_VETERAN', elite: 'ROM_ARC_ELITE' },
+    cavalry: { base: 'ROM_CAV_AUXILIAIRE', intermediate: 'ROM_CAV_EQUITES', elite: 'ROM_CAV_LOURDE' }
+  },
+  GAUL: {
+    infantry: { base: 'GAU_INF_GUERRIER', intermediate: 'GAU_INF_TRIARII', elite: 'GAU_INF_CHAMPION' },
+    archer: { base: 'GAU_ARC_CHASSEUR', intermediate: 'GAU_ARC_GAULOIS', elite: 'GAU_ARC_NOBLE' },
+    cavalry: { base: 'GAU_CAV_CHASSEUR', intermediate: 'GAU_CAV_GAULOIS', elite: 'GAU_CAV_NOBLE' }
+  },
+  GREEK: {
+    infantry: { base: 'GRE_INF_JEUNE', intermediate: 'GRE_INF_HOPLITE', elite: 'GRE_INF_SPARTIATE' },
+    archer: { base: 'GRE_ARC_PAYSAN', intermediate: 'GRE_ARC_TOXOTE', elite: 'GRE_ARC_ELITE' },
+    cavalry: { base: 'GRE_CAV_ECLAIREUR', intermediate: 'GRE_CAV_GREC', elite: 'GRE_CAV_ELITE' }
+  },
+  EGYPT: {
+    infantry: { base: 'EGY_INF_ESCLAVE', intermediate: 'EGY_INF_NIL', elite: 'EGY_INF_TEMPLE' },
+    archer: { base: 'EGY_ARC_NIL', intermediate: 'EGY_ARC_DESERT', elite: 'EGY_ARC_PHARAON' },
+    cavalry: { base: 'EGY_CAV_DESERT', intermediate: 'EGY_CAV_PHARAON', elite: 'EGY_CAV_CHAR_LOURD' }
+  },
+  HUN: {
+    infantry: { base: 'HUN_INF_NOMADE', intermediate: 'HUN_INF_GARDE', elite: 'HUN_INF_VETERAN' },
+    archer: { base: 'HUN_ARC_NOMADE', intermediate: 'HUN_ARC_CAMP', elite: 'HUN_ARC_ELITE' },
+    cavalry: { base: 'HUN_CAV_PILLARD', intermediate: 'HUN_CAV_INTER', elite: 'HUN_CAV_ELITE' }
+  },
+  SULTAN: {
+    infantry: { base: 'SUL_INF_DESERT', intermediate: 'SUL_INF_CROISSANT', elite: 'SUL_INF_PALAIS' },
+    archer: { base: 'SUL_ARC_DESERT', intermediate: 'SUL_ARC_TIREUR', elite: 'SUL_ARC_PERSE' },
+    cavalry: { base: 'SUL_CAV_BEDOUIN', intermediate: 'SUL_CAV_DESERT', elite: 'SUL_CAV_MAMELOUK' }
+  }
+};
+
+// Generate tribe defenders for resource points
+// Level 1: 100 soldats de base (INF/ARC/CAV)
+// Level 2: 600 soldats base + intermédiaire
+// Level 3: 1500 soldats base + intermédiaire + élite
+function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
+  // Choisir une faction aléatoire
+  const faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
+  const factionUnits = FACTION_UNITS[faction];
+
+  const units = {};
+  let totalSoldiers;
+
+  // Déterminer le nombre total de soldats selon le niveau
+  if (level === 1) {
+    totalSoldiers = Math.max(10, Math.floor(100 * resourcePercent));
+  } else if (level === 2) {
+    totalSoldiers = Math.max(60, Math.floor(600 * resourcePercent));
+  } else {
+    totalSoldiers = Math.max(150, Math.floor(1500 * resourcePercent));
+  }
+
+  // Répartition aléatoire entre les 3 classes
+  const infRatio = 0.25 + Math.random() * 0.2;  // 25-45%
+  const arcRatio = 0.25 + Math.random() * 0.2;  // 25-45%
+  const cavRatio = 1 - infRatio - arcRatio;     // Le reste
+
+  if (level === 1) {
+    // Seulement base
+    units[factionUnits.infantry.base] = Math.floor(totalSoldiers * infRatio);
+    units[factionUnits.archer.base] = Math.floor(totalSoldiers * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(totalSoldiers * cavRatio);
+
+  } else if (level === 2) {
+    // 60% base, 40% intermédiaire
+    const baseCount = Math.floor(totalSoldiers * 0.6);
+    const interCount = totalSoldiers - baseCount;
+
+    units[factionUnits.infantry.base] = Math.floor(baseCount * infRatio);
+    units[factionUnits.archer.base] = Math.floor(baseCount * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(baseCount * cavRatio);
+    units[factionUnits.infantry.intermediate] = Math.floor(interCount * infRatio);
+    units[factionUnits.archer.intermediate] = Math.floor(interCount * arcRatio);
+    units[factionUnits.cavalry.intermediate] = Math.floor(interCount * cavRatio);
+
+  } else {
+    // 40% base, 35% intermédiaire, 25% élite
+    const baseCount = Math.floor(totalSoldiers * 0.4);
+    const interCount = Math.floor(totalSoldiers * 0.35);
+    const eliteCount = totalSoldiers - baseCount - interCount;
+
+    units[factionUnits.infantry.base] = Math.floor(baseCount * infRatio);
+    units[factionUnits.archer.base] = Math.floor(baseCount * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(baseCount * cavRatio);
+    units[factionUnits.infantry.intermediate] = Math.floor(interCount * infRatio);
+    units[factionUnits.archer.intermediate] = Math.floor(interCount * arcRatio);
+    units[factionUnits.cavalry.intermediate] = Math.floor(interCount * cavRatio);
+    units[factionUnits.infantry.elite] = Math.floor(eliteCount * infRatio);
+    units[factionUnits.archer.elite] = Math.floor(eliteCount * arcRatio);
+    units[factionUnits.cavalry.elite] = Math.floor(eliteCount * cavRatio);
+  }
+
+  // Calculer la puissance
+  const basePower = isGold ? 140 : 100;
+  const power = basePower * level * (totalSoldiers / 100);
+
+  return { power, units, faction };
+}
+
 const validateCoordinates = (x, y) => {
   return Number.isInteger(x) && Number.isInteger(y) &&
          x >= 0 && x <= 500 && y >= 0 && y <= 500;
@@ -1441,6 +1545,374 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
   }
 });
 
+// ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
+// Raid a resource node defended by local tribe
+app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
+  try {
+    const { resourceNodeId } = req.body;
+    if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
+
+    // Get army with units
+    const army = await prisma.army.findFirst({
+      where: { id: req.params.id, playerId: req.user.playerId },
+      include: { units: true, hero: true, city: true }
+    });
+    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
+    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
+    if (army.units.length === 0) {
+      return res.status(400).json({ error: 'Armée vide - impossible d\'attaquer' });
+    }
+
+    // Get resource node
+    const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
+    if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
+
+    // Check if tribe is respawning
+    if (node.lastDefeat) {
+      const respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
+      if (new Date() < respawnTime && !node.hasDefenders) {
+        return res.status(400).json({ error: 'Tribu en respawn - collectez directement' });
+      }
+    }
+
+    // Calculate travel time
+    let minSpeed = 100;
+    for (const u of army.units) {
+      const unit = unitsData.find(x => x.key === u.unitKey);
+      if (unit && unit.stats.speed < minSpeed) minSpeed = unit.stats.speed;
+    }
+
+    const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
+
+    // If army is close enough (same tile or adjacent), resolve combat immediately
+    if (distance <= 1.5) {
+      // IMMEDIATE COMBAT
+      const result = await resolveTribteCombat(army, node, req.user.playerId);
+
+      // Si victoire, mettre l'armée en mode HARVESTING
+      if (result.success) {
+        await prisma.army.update({
+          where: { id: army.id },
+          data: {
+            status: 'HARVESTING',
+            x: node.x,
+            y: node.y,
+            targetX: node.x,
+            targetY: node.y,
+            targetResourceId: node.id,
+            missionType: 'HARVEST',
+            harvestStartedAt: new Date(),
+            harvestResourceType: node.resourceType
+          }
+        });
+        result.message = 'Tribu vaincue! Récolte démarrée (100/min)';
+        result.status = 'HARVESTING';
+      }
+
+      return res.json(result);
+    }
+
+    // Otherwise, send army to the node
+    const travelTime = calculateTravelTime(army.x, army.y, node.x, node.y, minSpeed);
+    const arrivalAt = new Date(Date.now() + travelTime * 1000);
+
+    await prisma.army.update({
+      where: { id: army.id },
+      data: {
+        status: 'RAIDING',
+        targetX: node.x,
+        targetY: node.y,
+        targetResourceId: node.id,
+        arrivalAt,
+        missionType: 'RAID_RESOURCE'
+      }
+    });
+
+    res.json({ message: 'Armée en route', travelTime, arrivalAt, target: `${node.resourceType} (${node.x}, ${node.y})` });
+  } catch (e) {
+    console.error('Raid resource error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Helper function to resolve combat against tribe
+async function resolveTribteCombat(army, node, playerId) {
+  // Convert defender units to array format for combat
+  // Les unités sont maintenant stockées avec les vraies clés de faction (ex: ROM_INF_MILICIEN)
+  const defenderUnits = [];
+  if (node.defenderUnits && node.hasDefenders) {
+    // Legacy mapping pour compatibilité avec anciennes données
+    const legacyMapping = {
+      warrior: 'GRE_INF_HOPLITE',
+      archer: 'GRE_ARC_TOXOTE',
+      cavalry: 'GRE_CAV_GREC',
+      elite: 'GRE_INF_SPARTIATE'
+    };
+
+    for (const [unitKey, count] of Object.entries(node.defenderUnits)) {
+      if (count > 0) {
+        // Vérifier si c'est une clé legacy ou une vraie clé de faction
+        const isLegacyKey = ['warrior', 'archer', 'cavalry', 'elite'].includes(unitKey);
+        defenderUnits.push({
+          unitKey: isLegacyKey ? legacyMapping[unitKey] : unitKey,
+          count: count
+        });
+      }
+    }
+  }
+
+  // If no defenders, auto-win - start harvesting instead of instant collect
+  if (defenderUnits.length === 0 || !node.hasDefenders) {
+    return {
+      success: true,
+      combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 },
+      loot: null, // Pas de butin instantané - l'armée va récolter progressivement
+      message: 'Tribu absente - démarrage de la récolte'
+    };
+  }
+
+  // Get attacker hero stats if present
+  const attackerHero = army.hero ? {
+    attack: army.hero.attack || 0,
+    defense: army.hero.defense || 0
+  } : null;
+
+  // Resolve combat
+  const combat = resolveCombat(
+    army.units.map(u => ({ unitKey: u.unitKey, count: u.count })),
+    defenderUnits,
+    0, // No wall bonus for tribes
+    attackerHero,
+    null // Tribes have no hero
+  );
+
+  const attackerWon = combat.attackerWon;
+
+  // Apply losses to attacker army
+  let totalAttackerLosses = 0;
+  for (const unit of army.units) {
+    const losses = Math.floor(unit.count * combat.attackerLossRate);
+    totalAttackerLosses += losses;
+    const newCount = unit.count - losses;
+
+    if (newCount <= 0) {
+      await prisma.armyUnit.delete({ where: { id: unit.id } });
+    } else {
+      await prisma.armyUnit.update({
+        where: { id: unit.id },
+        data: { count: newCount }
+      });
+    }
+  }
+
+  // Calculate defender losses
+  let totalDefenderLosses = 0;
+  const newDefenderUnits = {};
+  for (const [unitType, count] of Object.entries(node.defenderUnits)) {
+    const losses = Math.floor(count * combat.defenderLossRate);
+    totalDefenderLosses += losses;
+    newDefenderUnits[unitType] = Math.max(0, count - losses);
+  }
+
+  // Check if all defenders are dead
+  const defendersRemaining = Object.values(newDefenderUnits).reduce((sum, c) => sum + c, 0);
+
+  if (attackerWon) {
+    // Tribe defeated - pas de collecte instantanée, l'armée va récolter progressivement
+    await prisma.resourceNode.update({
+      where: { id: node.id },
+      data: {
+        hasDefenders: false,
+        defenderUnits: newDefenderUnits,
+        defenderPower: 0,
+        lastDefeat: new Date()
+      }
+    });
+
+    // Give XP to hero if present
+    if (army.heroId) {
+      const xpGain = Math.floor(node.defenderPower * 0.5);
+      await prisma.hero.update({
+        where: { id: army.heroId },
+        data: { xp: { increment: xpGain } }
+      });
+    }
+  } else {
+    // Attacker lost - update tribe with remaining defenders
+    await prisma.resourceNode.update({
+      where: { id: node.id },
+      data: {
+        defenderUnits: newDefenderUnits,
+        defenderPower: Math.floor(node.defenderPower * (1 - combat.defenderLossRate))
+      }
+    });
+  }
+
+  // Create combat report
+  await prisma.report.create({
+    data: {
+      playerId: playerId,
+      type: 'COMBAT',
+      title: attackerWon ? `Victoire contre tribu (${node.resourceType})` : `Défaite contre tribu (${node.resourceType})`,
+      content: JSON.stringify({
+        type: 'TRIBE_RAID',
+        location: { x: node.x, y: node.y },
+        resourceType: node.resourceType,
+        attackerWon,
+        attackerLosses: totalAttackerLosses,
+        defenderLosses: totalDefenderLosses,
+        loot: loot || {}
+      }),
+      isRead: false
+    }
+  });
+
+  return {
+    success: attackerWon,
+    combatResult: {
+      winner: attackerWon ? 'attacker' : 'defender',
+      attackerLosses: totalAttackerLosses,
+      defenderLosses: totalDefenderLosses,
+      attackerPower: combat.attackerPower,
+      defenderPower: combat.defenderPower
+    },
+    loot: null, // Pas de butin instantané - l'armée récoltera progressivement
+    message: attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée'
+  };
+}
+
+// Helper function to collect loot from resource node
+async function collectResourceLoot(army, node, playerId) {
+  // Calculate carry capacity
+  let carryCapacity = 0;
+  const armyWithUnits = await prisma.army.findUnique({
+    where: { id: army.id },
+    include: { units: true }
+  });
+
+  for (const unit of armyWithUnits.units) {
+    const unitData = unitsData.find(u => u.key === unit.unitKey);
+    const carryPerUnit = unitData?.stats?.carry || 50;
+    carryCapacity += unit.count * carryPerUnit;
+  }
+
+  // Calculate loot (max carry capacity or remaining resources)
+  const lootAmount = Math.min(carryCapacity, node.amount);
+
+  if (lootAmount <= 0) return {};
+
+  // Reduce node resources
+  await prisma.resourceNode.update({
+    where: { id: node.id },
+    data: { amount: { decrement: lootAmount } }
+  });
+
+  // Add resources to player's home city
+  const city = await prisma.city.findFirst({
+    where: { playerId: playerId, isCapital: true }
+  });
+
+  if (city) {
+    const resourceField = node.resourceType.toLowerCase();
+    await prisma.city.update({
+      where: { id: city.id },
+      data: { [resourceField]: { increment: lootAmount } }
+    });
+  }
+
+  return { [node.resourceType]: lootAmount };
+}
+
+// Collect resources from a node (no defenders)
+app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
+  try {
+    const { resourceNodeId } = req.body;
+    if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
+
+    const army = await prisma.army.findFirst({
+      where: { id: req.params.id, playerId: req.user.playerId },
+      include: { units: true }
+    });
+    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
+    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
+
+    const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
+    if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
+
+    // Check if there are still defenders
+    if (node.hasDefenders && node.defenderPower > 0) {
+      return res.status(400).json({ error: 'Tribu encore présente - attaquez d\'abord!' });
+    }
+
+    // Calculate distance
+    const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
+
+    if (distance > 1.5) {
+      // Send army to resource node, will start harvesting on arrival
+      let minSpeed = 100;
+      for (const u of army.units) {
+        const unit = unitsData.find(x => x.key === u.unitKey);
+        if (unit && unit.stats.speed < minSpeed) minSpeed = unit.stats.speed;
+      }
+
+      const travelTime = calculateTravelTime(army.x, army.y, node.x, node.y, minSpeed);
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+
+      await prisma.army.update({
+        where: { id: army.id },
+        data: {
+          status: 'MOVING',
+          targetX: node.x,
+          targetY: node.y,
+          targetResourceId: node.id,
+          arrivalAt,
+          missionType: 'MOVE_TO_HARVEST',
+          harvestResourceType: node.resourceType
+        }
+      });
+
+      return res.json({ message: 'Armée en route pour collecter', travelTime, arrivalAt });
+    }
+
+    // L'armée est sur place - démarrer la récolte progressive
+    // Calculer la capacité de transport
+    let carryCapacity = 0;
+    for (const unit of army.units) {
+      const unitData = unitsData.find(u => u.key === unit.unitKey);
+      const carryPerUnit = unitData?.stats?.carry || 50;
+      carryCapacity += unit.count * carryPerUnit;
+    }
+
+    await prisma.army.update({
+      where: { id: army.id },
+      data: {
+        status: 'HARVESTING',
+        x: node.x,
+        y: node.y,
+        targetX: node.x,
+        targetY: node.y,
+        targetResourceId: node.id,
+        missionType: 'HARVEST',
+        harvestStartedAt: new Date(),
+        harvestResourceType: node.resourceType
+      }
+    });
+
+    res.json({
+      success: true,
+      status: 'HARVESTING',
+      resourceType: node.resourceType,
+      nodeAmount: node.amount,
+      carryCapacity,
+      harvestRate: 100, // 100 par minute
+      message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})`
+    });
+  } catch (e) {
+    console.error('Collect resource error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Return army to home city
 app.post('/api/army/:id/return', auth, async (req, res) => {
   try {
@@ -1471,10 +1943,13 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
         targetX: army.city.x,
         targetY: army.city.y,
         arrivalAt,
-        missionType: 'RETURN'
+        missionType: 'RETURN',
+        targetResourceId: null,
+        harvestStartedAt: null,
+        harvestResourceType: null
       }
     });
-    
+
     res.json({ message: 'Retour en cours', travelTime, arrivalAt });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -2500,7 +2975,7 @@ setInterval(async () => {
     // ========== ARMY MOVEMENT & COMBAT RESOLUTION ==========
     const movingArmies = await prisma.army.findMany({
       where: {
-        status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'] },
+        status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'COLLECTING'] },
         arrivalAt: { lte: now }
       },
       include: { units: true, owner: true, city: true, hero: true }
@@ -2971,8 +3446,276 @@ setInterval(async () => {
             }
           }
         }
+
+        // ========== RAID RESOURCE NODE (TRIBE COMBAT) ==========
+        else if (army.missionType === 'RAID_RESOURCE') {
+          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+
+          if (node) {
+            // Resolve combat against tribe
+            const result = await resolveTribteCombat(army, node, army.ownerId);
+            console.log(`[RAID_RESOURCE] ${army.name} ${result.success ? 'defeated' : 'lost to'} tribe at (${node.x}, ${node.y})`);
+
+            if (result.success) {
+              // Victoire - commencer la récolte progressive au lieu de retourner avec le butin
+              await prisma.army.update({
+                where: { id: army.id },
+                data: {
+                  status: 'HARVESTING',
+                  x: node.x,
+                  y: node.y,
+                  missionType: 'HARVEST',
+                  harvestStartedAt: new Date(),
+                  harvestResourceType: node.resourceType,
+                  arrivalAt: null
+                }
+              });
+              console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
+            } else {
+              // Défaite - l'armée reste sur place mais en IDLE
+              await prisma.army.update({
+                where: { id: army.id },
+                data: {
+                  status: 'IDLE',
+                  x: node.x,
+                  y: node.y,
+                  targetX: null, targetY: null,
+                  targetResourceId: null,
+                  missionType: null,
+                  arrivalAt: null
+                }
+              });
+            }
+          } else {
+            // Node not found, just idle
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
+            });
+          }
+        }
+
+        // ========== MOVE TO HARVEST (ARMY ARRIVING AT RESOURCE) ==========
+        else if (army.missionType === 'MOVE_TO_HARVEST') {
+          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+
+          if (node && !node.hasDefenders) {
+            // Démarrer la récolte progressive
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'HARVESTING',
+                x: node.x,
+                y: node.y,
+                missionType: 'HARVEST',
+                harvestStartedAt: new Date(),
+                harvestResourceType: node.resourceType,
+                arrivalAt: null
+              }
+            });
+            // Marquer qu'une armée est présente sur le point
+            await prisma.resourceNode.update({
+              where: { id: node.id },
+              data: { hasPlayerArmy: true }
+            });
+            console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
+          } else if (node && node.hasDefenders) {
+            // Tribu respawnée - l'armée doit d'abord combattre
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'IDLE',
+                x: node.x,
+                y: node.y,
+                targetX: null, targetY: null,
+                arrivalAt: null,
+                missionType: null,
+                targetResourceId: null,
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+            console.log(`[HARVEST] ${army.name} arrived but tribe respawned at (${node.x}, ${node.y})`);
+          } else {
+            // Node not found
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
+            });
+          }
+        }
+
+        // ========== COLLECT RESOURCE (LEGACY - redirect to HARVEST) ==========
+        else if (army.missionType === 'COLLECT_RESOURCE') {
+          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+
+          if (node && !node.hasDefenders) {
+            // Démarrer la récolte progressive au lieu de collecter instantanément
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'HARVESTING',
+                x: node.x,
+                y: node.y,
+                missionType: 'HARVEST',
+                harvestStartedAt: new Date(),
+                harvestResourceType: node.resourceType,
+                arrivalAt: null
+              }
+            });
+            // Marquer qu'une armée est présente sur le point
+            await prisma.resourceNode.update({
+              where: { id: node.id },
+              data: { hasPlayerArmy: true }
+            });
+            console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
+          } else {
+            // Tribe respawned or node not found, go back idle
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
+            });
+          }
+        }
       } catch (armyError) {
         console.error(`[ARMY ERROR] ${army.id}:`, armyError.message);
+      }
+    }
+
+    // ========== HARVESTING SYSTEM (Récolte progressive) ==========
+    // Traiter les armées qui récoltent actuellement - 50 ressources par tick (100/min)
+    const harvestingArmies = await prisma.army.findMany({
+      where: { status: 'HARVESTING', missionType: 'HARVEST' },
+      include: { units: true, city: true }
+    });
+
+    for (const army of harvestingArmies) {
+      try {
+        if (!army.targetResourceId) continue;
+
+        const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
+        if (!node) {
+          // Node disparue, arrêter la récolte
+          await prisma.army.update({
+            where: { id: army.id },
+            data: {
+              status: 'IDLE',
+              missionType: null,
+              targetResourceId: null,
+              harvestStartedAt: null,
+              harvestResourceType: null
+            }
+          });
+          continue;
+        }
+
+        // Vérifier si la tribu a respawn pendant la récolte
+        if (node.hasDefenders && node.defenderPower > 0) {
+          console.log(`[HARVEST] ${army.name} interrupted - tribe respawned at (${node.x}, ${node.y})`);
+          // Marquer le départ de l'armée du point
+          await prisma.resourceNode.update({
+            where: { id: node.id },
+            data: { hasPlayerArmy: false, lastArmyDeparture: new Date() }
+          });
+          // Tribu respawnée - retourner à la maison avec ce qu'on a récolté
+          if (army.cityId && army.city) {
+            const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'RETURNING',
+                targetX: army.city.x,
+                targetY: army.city.y,
+                missionType: 'RETURN',
+                arrivalAt: new Date(Date.now() + travelTime * 1000),
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+          } else {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, harvestStartedAt: null, harvestResourceType: null }
+            });
+          }
+          continue;
+        }
+
+        // Calculer la capacité de transport totale
+        let carryCapacity = 0;
+        for (const unit of army.units) {
+          const unitData = unitsData.find(u => u.key === unit.unitKey);
+          const carryPerUnit = unitData?.stats?.carry || 50;
+          carryCapacity += unit.count * carryPerUnit;
+        }
+
+        // Calculer ce que l'armée porte déjà
+        const currentCarry = army.carryWood + army.carryStone + army.carryIron + army.carryFood;
+        const remainingCapacity = carryCapacity - currentCarry;
+
+        // Récolte par tick: 50 ressources (100/minute avec tick de 30s)
+        const harvestPerTick = 50;
+        const toHarvest = Math.min(harvestPerTick, remainingCapacity, node.amount);
+
+        if (toHarvest <= 0 || node.amount <= 0 || remainingCapacity <= 0) {
+          // Capacité pleine ou node vide - retourner à la maison
+          console.log(`[HARVEST] ${army.name} finished harvesting at (${node.x}, ${node.y}) - capacity: ${currentCarry}/${carryCapacity}, node: ${node.amount}`);
+
+          // Marquer le départ de l'armée du point
+          await prisma.resourceNode.update({
+            where: { id: node.id },
+            data: { hasPlayerArmy: false, lastArmyDeparture: new Date() }
+          });
+
+          if (army.cityId && army.city) {
+            const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'RETURNING',
+                targetX: army.city.x,
+                targetY: army.city.y,
+                missionType: 'RETURN',
+                arrivalAt: new Date(Date.now() + travelTime * 1000),
+                targetResourceId: null,
+                harvestStartedAt: null,
+                harvestResourceType: null
+              }
+            });
+          } else {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, harvestStartedAt: null, harvestResourceType: null }
+            });
+          }
+          continue;
+        }
+
+        // Récolter les ressources
+        const resourceType = node.resourceType.toLowerCase();
+        const carryField = `carry${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}`;
+
+        // Mettre à jour le node (diminuer les ressources)
+        await prisma.resourceNode.update({
+          where: { id: node.id },
+          data: { amount: { decrement: toHarvest } }
+        });
+
+        // Mettre à jour l'armée (augmenter le carry)
+        const updateData = {};
+        if (resourceType === 'wood') updateData.carryWood = army.carryWood + toHarvest;
+        else if (resourceType === 'stone') updateData.carryStone = army.carryStone + toHarvest;
+        else if (resourceType === 'iron') updateData.carryIron = army.carryIron + toHarvest;
+        else if (resourceType === 'food') updateData.carryFood = army.carryFood + toHarvest;
+
+        await prisma.army.update({
+          where: { id: army.id },
+          data: updateData
+        });
+
+        console.log(`[HARVEST] ${army.name} harvested ${toHarvest} ${node.resourceType} at (${node.x}, ${node.y}) - total: ${currentCarry + toHarvest}/${carryCapacity}`);
+      } catch (harvestError) {
+        console.error(`[HARVEST ERROR] ${army.id}:`, harvestError.message);
       }
     }
 
@@ -2984,6 +3727,110 @@ setInterval(async () => {
         for (const b of c.buildings) pop += b.level * 5;
       }
       await prisma.player.update({ where: { id: p.id }, data: { population: pop } });
+    }
+
+    // ========== TRIBE RESPAWN SYSTEM ==========
+    // Règles:
+    // - Regen des ressources commence 5 min après départ de l'armée
+    // - Respawn de la tribu 5 min après le début de la regen (donc 10 min après départ)
+    // - Puissance de la tribu proportionnelle au % de ressources
+    const TRIBE_RESPAWN_DELAY_MINUTES = 10; // 5 min délai regen + 5 min après début regen
+
+    const defeatedNodes = await prisma.resourceNode.findMany({
+      where: {
+        hasDefenders: false,
+        lastDefeat: { not: null }
+      }
+    });
+
+    for (const node of defeatedNodes) {
+      // Skip si une armée est encore présente
+      if (node.hasPlayerArmy) {
+        continue;
+      }
+
+      // Calculer le temps de respawn basé sur lastArmyDeparture (10 min après départ)
+      // Si pas de lastArmyDeparture, utiliser lastDefeat + respawnMinutes (ancien système)
+      let respawnTime;
+      if (node.lastArmyDeparture) {
+        respawnTime = new Date(new Date(node.lastArmyDeparture).getTime() + TRIBE_RESPAWN_DELAY_MINUTES * 60000);
+      } else {
+        respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
+      }
+
+      if (now >= respawnTime) {
+        // Calculer le % de ressources dans le node
+        const resourcePercent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
+
+        // Regenerate tribe defenders based on level using faction units
+        const level = node.level || 1;
+        const isGold = node.resourceType === 'GOLD';
+
+        // Générer les défenseurs avec la nouvelle fonction (faction aléatoire)
+        const tribe = generateTribeDefenders(level, isGold, resourcePercent);
+
+        await prisma.resourceNode.update({
+          where: { id: node.id },
+          data: {
+            hasDefenders: true,
+            defenderPower: tribe.power,
+            defenderUnits: tribe.units,
+            lastDefeat: null,
+            lastArmyDeparture: null
+          }
+        });
+
+        const totalUnits = Object.values(tribe.units).reduce((sum, c) => sum + c, 0);
+        console.log(`[TRIBE RESPAWN] Tribe (${tribe.faction}) respawned at (${node.x}, ${node.y}) - Level ${level}, ${totalUnits} soldiers, Power ${Math.floor(tribe.power)} (${Math.floor(resourcePercent * 100)}% resources)`);
+      }
+    }
+
+    // ========== RESOURCE NODE REGENERATION ==========
+    // Regenerate resources in nodes
+    // Règles:
+    // - Pas de regen si une armée joueur est présente (hasPlayerArmy = true)
+    // - Regen commence 5 min après le départ de l'armée
+    // - Temps de regen doublé (regenRate / 2)
+    const REGEN_DELAY_MINUTES = 5;
+    const nodesToRegen = await prisma.resourceNode.findMany({
+      where: {
+        amount: { lt: prisma.resourceNode.fields.maxAmount }
+      }
+    });
+
+    // Batch update for regeneration
+    const regenUpdates = [];
+    for (const node of nodesToRegen) {
+      // Skip si une armée est présente
+      if (node.hasPlayerArmy) {
+        continue;
+      }
+
+      // Skip si moins de 5 minutes depuis le départ de l'armée
+      if (node.lastArmyDeparture) {
+        const timeSinceDeparture = (now.getTime() - new Date(node.lastArmyDeparture).getTime()) / 60000;
+        if (timeSinceDeparture < REGEN_DELAY_MINUTES) {
+          continue;
+        }
+      }
+
+      if (node.amount < node.maxAmount) {
+        // Temps de regen doublé = regenRate divisé par 2
+        const effectiveRegenRate = node.regenRate / 2;
+        const regenAmount = Math.min(effectiveRegenRate * TICK_HOURS, node.maxAmount - node.amount);
+        if (regenAmount > 0) {
+          regenUpdates.push(
+            prisma.resourceNode.update({
+              where: { id: node.id },
+              data: { amount: { increment: Math.floor(regenAmount) } }
+            })
+          );
+        }
+      }
+    }
+
+    if (regenUpdates.length > 0) {
+      await Promise.all(regenUpdates);
     }
   } catch (e) {
     console.error('Tick error:', e);

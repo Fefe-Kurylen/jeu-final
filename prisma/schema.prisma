@@ -137,12 +137,13 @@ model Army {
   heroId     String? @unique
   isGarrison Boolean @default(false)
 
-  targetX      Int?
-  targetY      Int?
-  targetCityId String?
-  arrivesAt    DateTime?
-  arrivalAt    DateTime?
-  returnsAt    DateTime?
+  targetX          Int?
+  targetY          Int?
+  targetCityId     String?
+  targetResourceId String?
+  arrivesAt        DateTime?
+  arrivalAt        DateTime?
+  returnsAt        DateTime?
 
   mission     String?
   missionType String?
@@ -150,6 +151,10 @@ model Army {
   carryStone  Int     @default(0)
   carryIron   Int     @default(0)
   carryFood   Int     @default(0)
+
+  // Récolte progressive
+  harvestStartedAt DateTime?  // Quand la récolte a commencé
+  harvestResourceType String? // Type de ressource en cours de récolte
 
   owner Player     @relation(fields: [ownerId], references: [id])
   city  City?      @relation(fields: [cityId], references: [id])
@@ -277,6 +282,10 @@ model ResourceNode {
   defenderUnits   Json?                     // Ex: {"warrior": 20, "archer": 10}
   lastDefeat      DateTime?                 // Dernière défaite (respawn après X temps)
   respawnMinutes  Int     @default(60)      // Temps de respawn des défenseurs
+
+  // Système de régénération lié aux armées
+  lastArmyDeparture DateTime?              // Quand la dernière armée a quitté le point
+  hasPlayerArmy     Boolean @default(false) // Une armée joueur est présente sur le point
 
   @@unique([x, y])
 }

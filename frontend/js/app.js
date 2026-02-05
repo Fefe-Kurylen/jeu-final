@@ -6675,7 +6675,9 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'ATTACKING': { icon: '⚔️', label: 'Attaque', cls: 'attacking' },
     'RETURNING': { icon: '↩️', label: 'Retour', cls: 'returning' },
     'RAIDING': { icon: '💰', label: 'Pillage', cls: 'raiding' },
-    'GARRISON': { icon: '🏰', label: 'Garnison', cls: 'garrison' }
+    'GARRISON': { icon: '🏰', label: 'Garnison', cls: 'garrison' },
+    'HARVESTING': { icon: '⛏️', label: 'Récolte', cls: 'harvesting' },
+    'COLLECTING': { icon: '📦', label: 'Collecte', cls: 'collecting' }
   };
   const status = statusMap[army.status] || { icon: '❓', label: army.status, cls: 'unknown' };
   
@@ -6724,6 +6726,20 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
         ` : `<span class="no-units-badge">Aucune</span>`}
       </div>
       
+      <!-- Harvest Progress (if harvesting) -->
+      ${army.status === 'HARVESTING' ? `
+        <div class="harvest-progress-row">
+          <div class="harvest-info">
+            <span class="harvest-type">⛏️ ${army.harvestResourceType || '?'}</span>
+            <span class="harvest-rate">+100/min</span>
+          </div>
+          <div class="harvest-carry">
+            <span class="carry-label">Transporté:</span>
+            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}</span>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- Actions -->
       <div class="army-actions-row">
         ${army.status === 'IDLE' ? `
@@ -6733,6 +6749,11 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <button class="army-btn icon-only" onclick="showArmyActionsMenu('${army.id}')" title="Actions">
             ⚙️
           </button>
+        ` : army.status === 'HARVESTING' ? `
+          <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
+            ↩️ Arrêter & Rentrer
+          </button>
+          <span class="destination-badge">📍 (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
@@ -7870,6 +7891,142 @@ function updateWorldSize(playerCount) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
+// ========== TILESET IMAGE SYSTEM ==========
+let tilesetImage = null;
+let tilesetConfig = null;
+let tilesetLoaded = false;
+let tilesetLoadFailed = false;
+
+// Individual tile images for cities, units, resources
+const tileImages = {
+  cities: {},      // city type -> Image
+  units: {},       // unit type -> Image
+  resources: {},   // resource type -> Image
+  terrain: {},     // terrain type -> Image
+  buildings: {}    // building type -> Image
+};
+
+// Load tileset configuration and images
+async function loadTilesetAssets() {
+  console.log('🎨 Loading tileset assets...');
+
+  try {
+    // Try to load tileset config
+    const configResponse = await fetch('/assets/tileset-config.json');
+    if (configResponse.ok) {
+      tilesetConfig = await configResponse.json();
+      console.log('📋 Tileset config loaded:', tilesetConfig);
+
+      // Try to load the main tileset image
+      const tilesetPath = `/assets/images/map/${tilesetConfig.image}`;
+      tilesetImage = new Image();
+      tilesetImage.src = tilesetPath;
+
+      await new Promise((resolve, reject) => {
+        tilesetImage.onload = () => {
+          tilesetLoaded = true;
+          console.log('✅ Tileset image loaded:', tilesetPath);
+          resolve();
+        };
+        tilesetImage.onerror = () => {
+          console.warn('⚠️ Tileset image not found:', tilesetPath);
+          tilesetLoadFailed = true;
+          resolve(); // Don't reject, just use fallback
+        };
+      });
+    }
+  } catch (e) {
+    console.warn('⚠️ Could not load tileset config, using procedural rendering');
+    tilesetLoadFailed = true;
+  }
+
+  // Load individual tile images (cities, units, etc.)
+  await loadIndividualTileImages();
+}
+
+// Load individual images for specific game objects
+async function loadIndividualTileImages() {
+  const imagesToLoad = [
+    // Cities
+    { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
+    { category: 'cities', name: 'gaul', path: '/assets/images/map/cities/gaul.png' },
+    { category: 'cities', name: 'default', path: '/assets/images/map/cities/default.png' },
+    { category: 'cities', name: 'capital', path: '/assets/images/map/cities/capital.png' },
+
+    // Units
+    { category: 'units', name: 'hoplite', path: '/assets/images/map/units/hoplite.png' },
+    { category: 'units', name: 'archer', path: '/assets/images/map/units/archer.png' },
+    { category: 'units', name: 'cavalry', path: '/assets/images/map/units/cavalry.png' },
+    { category: 'units', name: 'catapult', path: '/assets/images/map/units/catapult.png' },
+    { category: 'units', name: 'trireme', path: '/assets/images/map/units/trireme.png' },
+    { category: 'units', name: 'merchant', path: '/assets/images/map/units/merchant.png' },
+    { category: 'units', name: 'settler', path: '/assets/images/map/units/settler.png' },
+
+    // Resources
+    { category: 'resources', name: 'wood', path: '/assets/images/map/resources/wood.png' },
+    { category: 'resources', name: 'stone', path: '/assets/images/map/resources/stone.png' },
+    { category: 'resources', name: 'iron', path: '/assets/images/map/resources/iron.png' },
+    { category: 'resources', name: 'food', path: '/assets/images/map/resources/food.png' },
+
+    // Terrain tiles
+    { category: 'terrain', name: 'grass', path: '/assets/images/map/terrain/grass.png' },
+    { category: 'terrain', name: 'desert', path: '/assets/images/map/terrain/desert.png' },
+    { category: 'terrain', name: 'snow', path: '/assets/images/map/terrain/snow.png' },
+    { category: 'terrain', name: 'water', path: '/assets/images/map/terrain/water.png' },
+    { category: 'terrain', name: 'forest', path: '/assets/images/map/terrain/forest.png' },
+    { category: 'terrain', name: 'mountain', path: '/assets/images/map/terrain/mountain.png' }
+  ];
+
+  const loadPromises = imagesToLoad.map(({ category, name, path }) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        tileImages[category][name] = img;
+        console.log(`✅ Loaded: ${category}/${name}`);
+        resolve();
+      };
+      img.onerror = () => {
+        // Image not found, will use procedural fallback
+        resolve();
+      };
+      img.src = path;
+    });
+  });
+
+  await Promise.all(loadPromises);
+
+  const loadedCount = Object.values(tileImages).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
+  console.log(`🎨 Loaded ${loadedCount}/${imagesToLoad.length} tile images`);
+}
+
+// Helper function to draw a tile from the tileset
+function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
+  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
+    return false; // Fallback to procedural
+  }
+
+  const tile = tilesetConfig.tiles[tileKey];
+  const srcX = tile.col * tilesetConfig.tileWidth;
+  const srcY = tile.row * tilesetConfig.tileHeight;
+
+  ctx.drawImage(
+    tilesetImage,
+    srcX, srcY, tilesetConfig.tileWidth, tilesetConfig.tileHeight,
+    destX, destY, destW, destH
+  );
+
+  return true;
+}
+
+// Helper function to draw an individual tile image
+function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
+  const img = tileImages[category]?.[name];
+  if (!img) return false;
+
+  ctx.drawImage(img, destX - destW/2, destY - destH, destW, destH);
+  return true;
+}
+
 // BIOME CONFIGURATION
 const BIOMES = {
   // TIER 1: Forest/Grassland (center, radius 0-120)
@@ -8158,6 +8315,16 @@ function initMapCanvas() {
 
     // Keyboard shortcuts for zoom (when map tab is active)
     document.addEventListener('keydown', onMapKeyDown);
+  }
+
+  // Add minimap click events for navigation
+  if (minimapCanvas && !minimapCanvas.hasAttribute('data-events-attached')) {
+    minimapCanvas.setAttribute('data-events-attached', 'true');
+    minimapCanvas.addEventListener('click', onMinimapClick);
+    minimapCanvas.addEventListener('mousedown', onMinimapMouseDown);
+    minimapCanvas.addEventListener('mousemove', onMinimapMouseMove);
+    minimapCanvas.addEventListener('mouseup', onMinimapMouseUp);
+    minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
   }
 
   // Center on capital initially
@@ -8467,6 +8634,11 @@ function toggleHelpOverlay() {
 }
 
 async function loadMap() {
+  // Load tileset assets if not already loaded
+  if (!tilesetLoaded && !tilesetLoadFailed) {
+    await loadTilesetAssets();
+  }
+
   initMapCanvas();
 
   // Center map on player's first city if not already positioned
@@ -8514,14 +8686,25 @@ async function loadMap() {
         });
       }
 
-      // Add resource nodes
+      // Add resource nodes with tribe defenders info
       if (data.resourceNodes) {
         data.resourceNodes.forEach(r => {
           mapData.push({
             x: r.x,
             y: r.y,
             type: 'RESOURCE',
-            resourceType: r.resourceType
+            id: r.id,
+            resourceType: r.resourceType,
+            level: r.level || 1,
+            amount: r.amount || 0,
+            maxAmount: r.maxAmount || 1000,
+            biome: r.biome || 'forest',
+            // Tribe defenders info
+            hasDefenders: r.hasDefenders !== false,
+            defenderPower: r.defenderPower || 0,
+            defenderUnits: r.defenderUnits || {},
+            lastDefeat: r.lastDefeat,
+            respawnMinutes: r.respawnMinutes || 60
           });
         });
       }
@@ -9229,6 +9412,50 @@ const CULTURE_STYLES = {
   }
 };
 
+// Draw city labels (name, flag, population badge) - used for both image and procedural rendering
+function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
+  const citySize = Math.min(tw, th * 2) * 0.8;
+
+  // Banner/flag
+  const flagY = y - citySize * 0.55;
+  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
+  mapCtx.fillStyle = bannerColor;
+  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x + 1, flagY - 12);
+  mapCtx.lineTo(x + 10, flagY - 8);
+  mapCtx.lineTo(x + 1, flagY - 4);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // City name label
+  if (mapZoomLevel > 0.5 && tile.name) {
+    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'top';
+    mapCtx.fillStyle = '#fff';
+    mapCtx.shadowColor = '#000';
+    mapCtx.shadowBlur = 3;
+    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
+    mapCtx.shadowBlur = 0;
+  }
+
+  // Power level badge
+  if (mapZoomLevel > 0.7 && tile.population) {
+    const badgeX = x + citySize * 0.4;
+    const badgeY = y - citySize * 0.5;
+    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
+    mapCtx.beginPath();
+    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.fillStyle = '#fff';
+    mapCtx.font = 'bold 9px Arial';
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+  }
+}
+
 // Draw isometric city with culture-specific style and walls
 function drawIsoCity(x, y, tw, th, tile) {
   const isMyCity = tile.playerId === player?.id;
@@ -9237,6 +9464,36 @@ function drawIsoCity(x, y, tw, th, tile) {
   const wallLevel = tile.wallLevel || 0;
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
+  // Try to draw from tileset image first
+  const cityImageSize = Math.max(tw * 1.5, th * 3);
+  const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
+
+  // Try individual city image
+  if (drawTileImage(mapCtx, 'cities', cityType, x, y, cityImageSize, cityImageSize)) {
+    // Image drawn successfully, add labels on top
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+    return;
+  }
+
+  // Try tileset mapping
+  const tilesetMapping = {
+    'ROME': ['TEMPLE_ROAD', 'TEMPLE_SMALL', 'ARENA'],
+    'GAUL': ['VILLAGE_CENTER', 'VILLAGE_ROAD_CURVE'],
+    'GREEK': ['ARENA', 'TEMPLE_SMALL'],
+    'EGYPT': ['DESERT_RUINS', 'TEMPLE_ROAD'],
+    'HUN': ['ROAD_L_DIRT', 'VILLAGE_CENTER'],
+    'SULTAN': ['WALL_RIVER', 'CASTLE']
+  };
+
+  const tileKeys = tilesetMapping[faction] || ['VILLAGE_CENTER'];
+  const tileKey = tileKeys[Math.abs(tile.x + tile.y) % tileKeys.length];
+
+  if (drawTileFromTileset(mapCtx, tileKey, x - cityImageSize/2, y - cityImageSize, cityImageSize, cityImageSize)) {
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+    return;
+  }
+
+  // Fallback to procedural rendering
   // Determine wall tier (0=none, 1-7=tier1, 8-14=tier2, 15-20=tier3)
   const wallTier = wallLevel === 0 ? 0 : wallLevel <= 7 ? 1 : wallLevel <= 14 ? 2 : 3;
 
@@ -9661,7 +9918,37 @@ function drawMiniTower(x, y, size) {
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
   const size = Math.min(tw, th * 2) * 0.5;
+  const imgSize = Math.max(tw, th * 2);
 
+  // Try to draw from individual image first
+  if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
+    // Draw resource level indicator
+    if (tile.amount && mapZoomLevel > 0.6) {
+      mapCtx.font = 'bold 9px Arial';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillStyle = '#fff';
+      mapCtx.shadowColor = '#000';
+      mapCtx.shadowBlur = 2;
+      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
+      mapCtx.shadowBlur = 0;
+    }
+    return;
+  }
+
+  // Try tileset mapping
+  const tilesetMapping = {
+    'wood': 'FOREST_ROCKS',
+    'stone': 'DIRT_ROCKS',
+    'iron': 'DESERT_MINE',
+    'food': 'GRASS_TREES',
+    'gold': 'DESERT_ROCKS'
+  };
+
+  if (drawTileFromTileset(mapCtx, tilesetMapping[resType], x - imgSize/2, y - imgSize, imgSize, imgSize)) {
+    return;
+  }
+
+  // Fallback to procedural rendering
   if (resType === 'wood') {
     // Forest clearing with lumber
     mapCtx.fillStyle = '#3a5a2a';
@@ -9818,7 +10105,32 @@ function drawIsoRock(x, y, size) {
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
   const isMoving = army.status !== 'IDLE';
+  const imgSize = Math.max(tw, th * 2) * 0.8;
 
+  // Try to draw unit image based on army composition
+  const mainUnitType = army.mainUnit?.toLowerCase() || 'hoplite';
+  if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
+    // Draw army name label
+    if (mapZoomLevel > 0.8 && army.name) {
+      mapCtx.font = 'bold 9px Arial';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillStyle = '#fff';
+      mapCtx.shadowColor = '#000';
+      mapCtx.shadowBlur = 2;
+      mapCtx.fillText(army.name, x, y + size * 0.5);
+      mapCtx.shadowBlur = 0;
+    }
+    // Movement indicator
+    if (isMoving) {
+      mapCtx.fillStyle = '#ffaa00';
+      mapCtx.beginPath();
+      mapCtx.arc(x + imgSize * 0.3, y - imgSize * 0.4, 5, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+    return;
+  }
+
+  // Fallback to procedural rendering
   // Army marker background
   mapCtx.fillStyle = isMoving ? '#ffaa00' : '#4488ff';
   mapCtx.beginPath();
@@ -10099,6 +10411,57 @@ function renderMinimap() {
     viewportEl.style.left = `${50 + left - viewSize/2}%`;
     viewportEl.style.top = `${50 + top - viewSize/2}%`;
   }
+}
+
+// ========== MINIMAP CLICK/DRAG HANDLERS ==========
+let minimapDragging = false;
+
+function onMinimapClick(e) {
+  e.stopPropagation(); // Prevent click from reaching the main canvas
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseDown(e) {
+  e.stopPropagation();
+  minimapDragging = true;
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseMove(e) {
+  if (!minimapDragging) return;
+  e.stopPropagation();
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseUp(e) {
+  minimapDragging = false;
+}
+
+function navigateMinimapToPosition(e) {
+  if (!minimapCanvas) return;
+
+  const rect = minimapCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  // Convert minimap coordinates to world coordinates
+  // Minimap center (75, 75 for 150x150) = world center (0, 0)
+  const minimapCenterX = minimapCanvas.width / 2;
+  const minimapCenterY = minimapCanvas.height / 2;
+  const scale = minimapCanvas.width / WORLD_SIZE;
+
+  // Calculate world position from minimap click
+  const worldX = (mouseX - minimapCenterX) / scale;
+  const worldY = (mouseY - minimapCenterY) / scale;
+
+  // Update map offset to center on clicked position
+  mapOffsetX = worldX;
+  mapOffsetY = worldY;
+
+  // Re-render
+  renderMap();
+  renderMinimap();
+  updateMapUI();
 }
 
 function updateMapUI() {
@@ -10383,12 +10746,63 @@ function showMapInfoPanel(x, y, tile) {
       return; // async
     }
   } else if (tile.type === 'RESOURCE') {
+    const resourceIcons = {
+      'WOOD': '🌲 Forêt',
+      'STONE': '⛰️ Carrière',
+      'IRON': '⚒️ Mine de fer',
+      'FOOD': '🌾 Oasis',
+      'GOLD': '💰 Mine d\'or'
+    };
+    const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
+    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+
+    // Check if tribe is defeated (respawning)
+    const isDefeated = tile.lastDefeat && !tile.hasDefenders;
+    const respawnTime = tile.lastDefeat ? new Date(new Date(tile.lastDefeat).getTime() + tile.respawnMinutes * 60000) : null;
+    const canRaid = respawnTime ? new Date() > respawnTime : true;
+
+    // Build defenders display
+    let defendersHtml = '';
+    if (tile.hasDefenders && tile.defenderUnits && Object.keys(tile.defenderUnits).length > 0) {
+      const unitNames = {
+        warrior: '⚔️ Guerriers',
+        archer: '🏹 Archers',
+        cavalry: '🐎 Cavalerie',
+        elite: '👑 Élite'
+      };
+      defendersHtml = `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
+          <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
+          ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
+            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || unit}: ${count}</p>`
+          ).join('')}
+        </div>
+      `;
+    } else if (isDefeated && !canRaid) {
+      const timeLeft = Math.max(0, Math.ceil((respawnTime - new Date()) / 60000));
+      defendersHtml = `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(76,175,80,0.2); border-radius: 4px; border-left: 3px solid #4caf50;">
+          <p style="margin: 0; color: #4caf50;">✅ Tribu vaincue</p>
+          <p style="margin: 2px 0; font-size: 11px; color: #888;">Respawn dans ${timeLeft} min</p>
+        </div>
+      `;
+    }
+
     content.innerHTML = `
-      <h3>${tile.resourceType === 'WOOD' ? '🌲 Forêt' : tile.resourceType === 'STONE' ? '⛰️ Carrière' : tile.resourceType === 'IRON' ? '⚒️ Mine' : '🌾 Oasis'}</h3>
+      <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
-      <p>Type: ${tile.resourceType}</p>
-      <div class="panel-actions">
-        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})">🚶 Envoyer armée</button>
+      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(tile.level - 1)}${'☆'.repeat(3 - tile.level)}</strong> (${tile.level}/3)</p>
+      <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
+      <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
+      ${defendersHtml}
+      <div class="panel-actions player-actions">
+        ${tile.hasDefenders ? `
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>⚔️ Attaquer tribu</button>
+        ` : `
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>📦 Collecter</button>
+        `}
+        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
       </div>
     `;
     panel.style.display = 'block';
@@ -10691,14 +11105,180 @@ async function confirmRaidFromMap(armyId, cityId) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ targetCityId: cityId })
   });
-  
+
   closeModal();
   closeMapPanel();
-  
+
   if (res.ok) {
     showToast('Raid lancé!', 'success');
     await loadArmies();
     loadMap();
+  }
+}
+
+// ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
+function raidResource(nodeId, x, y) {
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  if (availableArmies.length === 0) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  // Find the resource tile to show defender info
+  const tile = mapData.find(t => t.id === nodeId);
+  const defenderInfo = tile && tile.defenderUnits ? Object.entries(tile.defenderUnits)
+    .map(([unit, count]) => `${unit}: ${count}`).join(', ') : 'Inconnu';
+
+  // Build army selection
+  const armyOptions = availableArmies.map(a => {
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
+    return `<option value="${a.id}">${a.name} (${totalUnits} unités)</option>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>⚔️ Attaquer la tribu locale</h3>
+    <div style="background:rgba(244,67,54,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #f44;">
+      <p style="margin:0;"><strong>🛡️ Défenseurs:</strong> ${defenderInfo}</p>
+      <p style="margin:5px 0 0 0; color:#f44;"><strong>Puissance:</strong> ${tile?.defenderPower || '?'}</p>
+    </div>
+    <p>Position: (${x}, ${y})</p>
+    <label style="display:block; margin:10px 0 5px;">Sélectionner une armée:</label>
+    <select id="raid-army-select" style="width:100%; padding:8px; margin-bottom:15px; background:#2a2418; color:#f5e6c8; border:1px solid #8b6914; border-radius:4px;">
+      ${armyOptions}
+    </select>
+    <div style="display:flex; gap:10px;">
+      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">⚔️ Attaquer!</button>
+      <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
+    </div>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function confirmRaidResource(nodeId) {
+  const armyId = document.getElementById('raid-army-select').value;
+  if (!armyId) {
+    showToast('Sélectionnez une armée', 'error');
+    return;
+  }
+
+  const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ resourceNodeId: nodeId })
+  });
+
+  closeModal();
+  closeMapPanel();
+
+  if (res.ok) {
+    const data = await res.json();
+    if (data.combatResult) {
+      showRaidResourceResult(data);
+    } else {
+      showToast('Armée en route vers la ressource', 'success');
+    }
+    await loadArmies();
+    loadMap();
+  } else {
+    const data = await res.json();
+    showToast(data.error || 'Erreur lors du raid', 'error');
+  }
+}
+
+function showRaidResourceResult(data) {
+  const result = data.combatResult;
+  const won = result.winner === 'attacker';
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>${won ? '🎉 Victoire!' : '💀 Défaite!'}</h3>
+    <div style="background:${won ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)'}; padding:15px; border-radius:8px; margin:10px 0;">
+      <p><strong>Résultat:</strong> ${won ? 'Tribu vaincue!' : 'Votre armée a été repoussée'}</p>
+      <p><strong>Vos pertes:</strong> ${result.attackerLosses || 0} unités</p>
+      <p><strong>Pertes ennemies:</strong> ${result.defenderLosses || 0} unités</p>
+      ${won && data.loot ? `
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
+          <p><strong>💰 Butin récupéré:</strong></p>
+          ${Object.entries(data.loot).map(([res, amount]) =>
+            `<p style="margin:2px 0; font-size:12px;">${res}: +${formatNum(amount)}</p>`
+          ).join('')}
+        </div>
+      ` : ''}
+    </div>
+    <button onclick="closeModal()" class="btn btn-primary" style="width:100%;">Fermer</button>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function collectResource(nodeId, x, y) {
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  if (availableArmies.length === 0) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  const tile = mapData.find(t => t.id === nodeId);
+  const armyOptions = availableArmies.map(a => {
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
+    const carryCapacity = totalUnits * 50; // Assume 50 carry per unit
+    return `<option value="${a.id}">${a.name} (capacité: ${formatNum(carryCapacity)})</option>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>⛏️ Récolter des ressources</h3>
+    <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
+      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+    </div>
+    <div style="background:rgba(255,215,0,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #ffd700;">
+      <p style="margin:0; font-size:12px; color:#c9a227;">
+        ⏱️ <strong>Récolte progressive:</strong> L'armée restera sur place et récoltera <strong>100 ressources/minute</strong> jusqu'à capacité max ou ressource épuisée.
+      </p>
+    </div>
+    <p>Position: (${x}, ${y})</p>
+    <label style="display:block; margin:10px 0 5px;">Sélectionner une armée:</label>
+    <select id="collect-army-select" style="width:100%; padding:8px; margin-bottom:15px; background:#2a2418; color:#f5e6c8; border:1px solid #8b6914; border-radius:4px;">
+      ${armyOptions}
+    </select>
+    <div style="display:flex; gap:10px;">
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">⛏️ Démarrer la récolte</button>
+      <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
+    </div>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function confirmCollectResource(nodeId) {
+  const armyId = document.getElementById('collect-army-select').value;
+  if (!armyId) {
+    showToast('Sélectionnez une armée', 'error');
+    return;
+  }
+
+  const res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ resourceNodeId: nodeId })
+  });
+
+  closeModal();
+  closeMapPanel();
+
+  if (res.ok) {
+    const data = await res.json();
+    if (data.status === 'HARVESTING') {
+      // Récolte progressive
+      showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
+    } else if (data.travelTime) {
+      // Armée en route
+      showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');
+    } else {
+      // Ancien système (fallback)
+      showToast(`Collecté ${formatNum(data.collected || 0)} ${data.resourceType}!`, 'success');
+    }
+    await loadArmies();
+    loadMap();
+  } else {
+    const data = await res.json();
+    showToast(data.error || 'Erreur lors de la collecte', 'error');
   }
 }
 
