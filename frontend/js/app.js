@@ -8160,6 +8160,16 @@ function initMapCanvas() {
     document.addEventListener('keydown', onMapKeyDown);
   }
 
+  // Add minimap click events for navigation
+  if (minimapCanvas && !minimapCanvas.hasAttribute('data-events-attached')) {
+    minimapCanvas.setAttribute('data-events-attached', 'true');
+    minimapCanvas.addEventListener('click', onMinimapClick);
+    minimapCanvas.addEventListener('mousedown', onMinimapMouseDown);
+    minimapCanvas.addEventListener('mousemove', onMinimapMouseMove);
+    minimapCanvas.addEventListener('mouseup', onMinimapMouseUp);
+    minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
+  }
+
   // Center on capital initially
   centerOnCapital();
 }
@@ -10099,6 +10109,57 @@ function renderMinimap() {
     viewportEl.style.left = `${50 + left - viewSize/2}%`;
     viewportEl.style.top = `${50 + top - viewSize/2}%`;
   }
+}
+
+// ========== MINIMAP CLICK/DRAG HANDLERS ==========
+let minimapDragging = false;
+
+function onMinimapClick(e) {
+  e.stopPropagation(); // Prevent click from reaching the main canvas
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseDown(e) {
+  e.stopPropagation();
+  minimapDragging = true;
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseMove(e) {
+  if (!minimapDragging) return;
+  e.stopPropagation();
+  navigateMinimapToPosition(e);
+}
+
+function onMinimapMouseUp(e) {
+  minimapDragging = false;
+}
+
+function navigateMinimapToPosition(e) {
+  if (!minimapCanvas) return;
+
+  const rect = minimapCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  // Convert minimap coordinates to world coordinates
+  // Minimap center (75, 75 for 150x150) = world center (0, 0)
+  const minimapCenterX = minimapCanvas.width / 2;
+  const minimapCenterY = minimapCanvas.height / 2;
+  const scale = minimapCanvas.width / WORLD_SIZE;
+
+  // Calculate world position from minimap click
+  const worldX = (mouseX - minimapCenterX) / scale;
+  const worldY = (mouseY - minimapCenterY) / scale;
+
+  // Update map offset to center on clicked position
+  mapOffsetX = worldX;
+  mapOffsetY = worldY;
+
+  // Re-render
+  renderMap();
+  renderMinimap();
+  updateMapUI();
 }
 
 function updateMapUI() {
