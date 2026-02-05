@@ -283,6 +283,10 @@ model ResourceNode {
   lastDefeat      DateTime?                 // Dernière défaite (respawn après X temps)
   respawnMinutes  Int     @default(60)      // Temps de respawn des défenseurs
 
+  // Système de régénération lié aux armées
+  lastArmyDeparture DateTime?              // Quand la dernière armée a quitté le point
+  hasPlayerArmy     Boolean @default(false) // Une armée joueur est présente sur le point
+
   @@unique([x, y])
 }
 

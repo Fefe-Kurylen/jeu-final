@@ -3405,6 +3405,11 @@ setInterval(async () => {
                 arrivalAt: null
               }
             });
+            // Marquer qu'une armée est présente sur le point
+            await prisma.resourceNode.update({
+              where: { id: node.id },
+              data: { hasPlayerArmy: true }
+            });
             console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
           } else if (node && node.hasDefenders) {
             // Tribu respawnée - l'armée doit d'abord combattre
@@ -3450,6 +3455,11 @@ setInterval(async () => {
                 arrivalAt: null
               }
             });
+            // Marquer qu'une armée est présente sur le point
+            await prisma.resourceNode.update({
+              where: { id: node.id },
+              data: { hasPlayerArmy: true }
+            });
             console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
           } else {
             // Tribe respawned or node not found, go back idle
@@ -3494,6 +3504,11 @@ setInterval(async () => {
         // Vérifier si la tribu a respawn pendant la récolte
         if (node.hasDefenders && node.defenderPower > 0) {
           console.log(`[HARVEST] ${army.name} interrupted - tribe respawned at (${node.x}, ${node.y})`);
+          // Marquer le départ de l'armée du point
+          await prisma.resourceNode.update({
+            where: { id: node.id },
+            data: { hasPlayerArmy: false, lastArmyDeparture: new Date() }
+          });
           // Tribu respawnée - retourner à la maison avec ce qu'on a récolté
           if (army.cityId && army.city) {
             const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
@@ -3537,6 +3552,12 @@ setInterval(async () => {
         if (toHarvest <= 0 || node.amount <= 0 || remainingCapacity <= 0) {
           // Capacité pleine ou node vide - retourner à la maison
           console.log(`[HARVEST] ${army.name} finished harvesting at (${node.x}, ${node.y}) - capacity: ${currentCarry}/${carryCapacity}, node: ${node.amount}`);
+
+          // Marquer le départ de l'armée du point
+          await prisma.resourceNode.update({
+            where: { id: node.id },
+            data: { hasPlayerArmy: false, lastArmyDeparture: new Date() }
+          });
 
           if (army.cityId && army.city) {
             const travelTime = calculateTravelTime(node.x, node.y, army.city.x, army.city.y, 50);
@@ -3601,7 +3622,12 @@ setInterval(async () => {
     }
 
     // ========== TRIBE RESPAWN SYSTEM ==========
-    // Find defeated tribes that should respawn
+    // Règles:
+    // - Regen des ressources commence 5 min après départ de l'armée
+    // - Respawn de la tribu 5 min après le début de la regen (donc 10 min après départ)
+    // - Puissance de la tribu proportionnelle au % de ressources
+    const TRIBE_RESPAWN_DELAY_MINUTES = 10; // 5 min délai regen + 5 min après début regen
+
     const defeatedNodes = await prisma.resourceNode.findMany({
       where: {
         hasDefenders: false,
@@ -3610,29 +3636,55 @@ setInterval(async () => {
     });
 
     for (const node of defeatedNodes) {
-      const respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
+      // Skip si une armée est encore présente
+      if (node.hasPlayerArmy) {
+        continue;
+      }
+
+      // Calculer le temps de respawn basé sur lastArmyDeparture (10 min après départ)
+      // Si pas de lastArmyDeparture, utiliser lastDefeat + respawnMinutes (ancien système)
+      let respawnTime;
+      if (node.lastArmyDeparture) {
+        respawnTime = new Date(new Date(node.lastArmyDeparture).getTime() + TRIBE_RESPAWN_DELAY_MINUTES * 60000);
+      } else {
+        respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
+      }
 
       if (now >= respawnTime) {
+        // Calculer le % de ressources dans le node
+        const resourcePercent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
+
         // Regenerate tribe defenders based on level
         const level = node.level || 1;
         const isGold = node.resourceType === 'GOLD';
         const basePower = isGold ? 140 : 100;
-        const power = basePower * level;
+        // Puissance proportionnelle au % de ressources (minimum 10% de la puissance de base)
+        const fullPower = basePower * level;
+        const power = Math.max(Math.floor(fullPower * resourcePercent), Math.floor(fullPower * 0.1));
 
-        // Generate new defenders
+        // Generate new defenders - proportionnel au % de ressources
         const units = {};
         if (level === 1) {
-          units.warrior = 5 + Math.floor(Math.random() * 10);
-          units.archer = 3 + Math.floor(Math.random() * 5);
+          const baseWarrior = 5 + Math.floor(Math.random() * 10);
+          const baseArcher = 3 + Math.floor(Math.random() * 5);
+          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
+          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
         } else if (level === 2) {
-          units.warrior = 15 + Math.floor(Math.random() * 15);
-          units.archer = 10 + Math.floor(Math.random() * 10);
-          units.cavalry = 3 + Math.floor(Math.random() * 5);
+          const baseWarrior = 15 + Math.floor(Math.random() * 15);
+          const baseArcher = 10 + Math.floor(Math.random() * 10);
+          const baseCavalry = 3 + Math.floor(Math.random() * 5);
+          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
+          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
+          units.cavalry = Math.max(1, Math.floor(baseCavalry * resourcePercent));
         } else {
-          units.warrior = 30 + Math.floor(Math.random() * 20);
-          units.archer = 20 + Math.floor(Math.random() * 15);
-          units.cavalry = 10 + Math.floor(Math.random() * 10);
-          units.elite = 3 + Math.floor(Math.random() * 5);
+          const baseWarrior = 30 + Math.floor(Math.random() * 20);
+          const baseArcher = 20 + Math.floor(Math.random() * 15);
+          const baseCavalry = 10 + Math.floor(Math.random() * 10);
+          const baseElite = 3 + Math.floor(Math.random() * 5);
+          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
+          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
+          units.cavalry = Math.max(1, Math.floor(baseCavalry * resourcePercent));
+          units.elite = Math.max(1, Math.floor(baseElite * resourcePercent));
         }
 
         await prisma.resourceNode.update({
@@ -3641,16 +3693,22 @@ setInterval(async () => {
             hasDefenders: true,
             defenderPower: power,
             defenderUnits: units,
-            lastDefeat: null
+            lastDefeat: null,
+            lastArmyDeparture: null
           }
         });
 
-        console.log(`[TRIBE RESPAWN] Tribe respawned at (${node.x}, ${node.y}) - Level ${level}, Power ${power}`);
+        console.log(`[TRIBE RESPAWN] Tribe respawned at (${node.x}, ${node.y}) - Level ${level}, Power ${power} (${Math.floor(resourcePercent * 100)}% resources)`);
       }
     }
 
     // ========== RESOURCE NODE REGENERATION ==========
     // Regenerate resources in nodes
+    // Règles:
+    // - Pas de regen si une armée joueur est présente (hasPlayerArmy = true)
+    // - Regen commence 5 min après le départ de l'armée
+    // - Temps de regen doublé (regenRate / 2)
+    const REGEN_DELAY_MINUTES = 5;
     const nodesToRegen = await prisma.resourceNode.findMany({
       where: {
         amount: { lt: prisma.resourceNode.fields.maxAmount }
@@ -3660,8 +3718,23 @@ setInterval(async () => {
     // Batch update for regeneration
     const regenUpdates = [];
     for (const node of nodesToRegen) {
+      // Skip si une armée est présente
+      if (node.hasPlayerArmy) {
+        continue;
+      }
+
+      // Skip si moins de 5 minutes depuis le départ de l'armée
+      if (node.lastArmyDeparture) {
+        const timeSinceDeparture = (now.getTime() - new Date(node.lastArmyDeparture).getTime()) / 60000;
+        if (timeSinceDeparture < REGEN_DELAY_MINUTES) {
+          continue;
+        }
+      }
+
       if (node.amount < node.maxAmount) {
-        const regenAmount = Math.min(node.regenRate * TICK_HOURS, node.maxAmount - node.amount);
+        // Temps de regen doublé = regenRate divisé par 2
+        const effectiveRegenRate = node.regenRate / 2;
+        const regenAmount = Math.min(effectiveRegenRate * TICK_HOURS, node.maxAmount - node.amount);
         if (regenAmount > 0) {
           regenUpdates.push(
             prisma.resourceNode.update({
