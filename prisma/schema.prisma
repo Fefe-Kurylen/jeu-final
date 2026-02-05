@@ -137,12 +137,13 @@ model Army {
   heroId     String? @unique
   isGarrison Boolean @default(false)
 
-  targetX      Int?
-  targetY      Int?
-  targetCityId String?
-  arrivesAt    DateTime?
-  arrivalAt    DateTime?
-  returnsAt    DateTime?
+  targetX          Int?
+  targetY          Int?
+  targetCityId     String?
+  targetResourceId String?
+  arrivesAt        DateTime?
+  arrivalAt        DateTime?
+  returnsAt        DateTime?
 
   mission     String?
   missionType String?

@@ -8665,14 +8665,25 @@ async function loadMap() {
         });
       }
 
-      // Add resource nodes
+      // Add resource nodes with tribe defenders info
       if (data.resourceNodes) {
         data.resourceNodes.forEach(r => {
           mapData.push({
             x: r.x,
             y: r.y,
             type: 'RESOURCE',
-            resourceType: r.resourceType
+            id: r.id,
+            resourceType: r.resourceType,
+            level: r.level || 1,
+            amount: r.amount || 0,
+            maxAmount: r.maxAmount || 1000,
+            biome: r.biome || 'forest',
+            // Tribe defenders info
+            hasDefenders: r.hasDefenders !== false,
+            defenderPower: r.defenderPower || 0,
+            defenderUnits: r.defenderUnits || {},
+            lastDefeat: r.lastDefeat,
+            respawnMinutes: r.respawnMinutes || 60
           });
         });
       }
@@ -10714,12 +10725,63 @@ function showMapInfoPanel(x, y, tile) {
       return; // async
     }
   } else if (tile.type === 'RESOURCE') {
+    const resourceIcons = {
+      'WOOD': '🌲 Forêt',
+      'STONE': '⛰️ Carrière',
+      'IRON': '⚒️ Mine de fer',
+      'FOOD': '🌾 Oasis',
+      'GOLD': '💰 Mine d\'or'
+    };
+    const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
+    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+
+    // Check if tribe is defeated (respawning)
+    const isDefeated = tile.lastDefeat && !tile.hasDefenders;
+    const respawnTime = tile.lastDefeat ? new Date(new Date(tile.lastDefeat).getTime() + tile.respawnMinutes * 60000) : null;
+    const canRaid = respawnTime ? new Date() > respawnTime : true;
+
+    // Build defenders display
+    let defendersHtml = '';
+    if (tile.hasDefenders && tile.defenderUnits && Object.keys(tile.defenderUnits).length > 0) {
+      const unitNames = {
+        warrior: '⚔️ Guerriers',
+        archer: '🏹 Archers',
+        cavalry: '🐎 Cavalerie',
+        elite: '👑 Élite'
+      };
+      defendersHtml = `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
+          <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
+          ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
+            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || unit}: ${count}</p>`
+          ).join('')}
+        </div>
+      `;
+    } else if (isDefeated && !canRaid) {
+      const timeLeft = Math.max(0, Math.ceil((respawnTime - new Date()) / 60000));
+      defendersHtml = `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(76,175,80,0.2); border-radius: 4px; border-left: 3px solid #4caf50;">
+          <p style="margin: 0; color: #4caf50;">✅ Tribu vaincue</p>
+          <p style="margin: 2px 0; font-size: 11px; color: #888;">Respawn dans ${timeLeft} min</p>
+        </div>
+      `;
+    }
+
     content.innerHTML = `
-      <h3>${tile.resourceType === 'WOOD' ? '🌲 Forêt' : tile.resourceType === 'STONE' ? '⛰️ Carrière' : tile.resourceType === 'IRON' ? '⚒️ Mine' : '🌾 Oasis'}</h3>
+      <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
-      <p>Type: ${tile.resourceType}</p>
-      <div class="panel-actions">
-        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})">🚶 Envoyer armée</button>
+      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(tile.level - 1)}${'☆'.repeat(3 - tile.level)}</strong> (${tile.level}/3)</p>
+      <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
+      <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
+      ${defendersHtml}
+      <div class="panel-actions player-actions">
+        ${tile.hasDefenders ? `
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>⚔️ Attaquer tribu</button>
+        ` : `
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>📦 Collecter</button>
+        `}
+        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
       </div>
     `;
     panel.style.display = 'block';
@@ -11022,14 +11084,166 @@ async function confirmRaidFromMap(armyId, cityId) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ targetCityId: cityId })
   });
-  
+
   closeModal();
   closeMapPanel();
-  
+
   if (res.ok) {
     showToast('Raid lancé!', 'success');
     await loadArmies();
     loadMap();
+  }
+}
+
+// ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
+function raidResource(nodeId, x, y) {
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  if (availableArmies.length === 0) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  // Find the resource tile to show defender info
+  const tile = mapData.find(t => t.id === nodeId);
+  const defenderInfo = tile && tile.defenderUnits ? Object.entries(tile.defenderUnits)
+    .map(([unit, count]) => `${unit}: ${count}`).join(', ') : 'Inconnu';
+
+  // Build army selection
+  const armyOptions = availableArmies.map(a => {
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
+    return `<option value="${a.id}">${a.name} (${totalUnits} unités)</option>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>⚔️ Attaquer la tribu locale</h3>
+    <div style="background:rgba(244,67,54,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #f44;">
+      <p style="margin:0;"><strong>🛡️ Défenseurs:</strong> ${defenderInfo}</p>
+      <p style="margin:5px 0 0 0; color:#f44;"><strong>Puissance:</strong> ${tile?.defenderPower || '?'}</p>
+    </div>
+    <p>Position: (${x}, ${y})</p>
+    <label style="display:block; margin:10px 0 5px;">Sélectionner une armée:</label>
+    <select id="raid-army-select" style="width:100%; padding:8px; margin-bottom:15px; background:#2a2418; color:#f5e6c8; border:1px solid #8b6914; border-radius:4px;">
+      ${armyOptions}
+    </select>
+    <div style="display:flex; gap:10px;">
+      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">⚔️ Attaquer!</button>
+      <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
+    </div>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function confirmRaidResource(nodeId) {
+  const armyId = document.getElementById('raid-army-select').value;
+  if (!armyId) {
+    showToast('Sélectionnez une armée', 'error');
+    return;
+  }
+
+  const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ resourceNodeId: nodeId })
+  });
+
+  closeModal();
+  closeMapPanel();
+
+  if (res.ok) {
+    const data = await res.json();
+    if (data.combatResult) {
+      showRaidResourceResult(data);
+    } else {
+      showToast('Armée en route vers la ressource', 'success');
+    }
+    await loadArmies();
+    loadMap();
+  } else {
+    const data = await res.json();
+    showToast(data.error || 'Erreur lors du raid', 'error');
+  }
+}
+
+function showRaidResourceResult(data) {
+  const result = data.combatResult;
+  const won = result.winner === 'attacker';
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>${won ? '🎉 Victoire!' : '💀 Défaite!'}</h3>
+    <div style="background:${won ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)'}; padding:15px; border-radius:8px; margin:10px 0;">
+      <p><strong>Résultat:</strong> ${won ? 'Tribu vaincue!' : 'Votre armée a été repoussée'}</p>
+      <p><strong>Vos pertes:</strong> ${result.attackerLosses || 0} unités</p>
+      <p><strong>Pertes ennemies:</strong> ${result.defenderLosses || 0} unités</p>
+      ${won && data.loot ? `
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
+          <p><strong>💰 Butin récupéré:</strong></p>
+          ${Object.entries(data.loot).map(([res, amount]) =>
+            `<p style="margin:2px 0; font-size:12px;">${res}: +${formatNum(amount)}</p>`
+          ).join('')}
+        </div>
+      ` : ''}
+    </div>
+    <button onclick="closeModal()" class="btn btn-primary" style="width:100%;">Fermer</button>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function collectResource(nodeId, x, y) {
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  if (availableArmies.length === 0) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
+
+  const tile = mapData.find(t => t.id === nodeId);
+  const armyOptions = availableArmies.map(a => {
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
+    const carryCapacity = totalUnits * 50; // Assume 50 carry per unit
+    return `<option value="${a.id}">${a.name} (capacité: ${formatNum(carryCapacity)})</option>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <h3>📦 Collecter des ressources</h3>
+    <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
+      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+    </div>
+    <p>Position: (${x}, ${y})</p>
+    <label style="display:block; margin:10px 0 5px;">Sélectionner une armée:</label>
+    <select id="collect-army-select" style="width:100%; padding:8px; margin-bottom:15px; background:#2a2418; color:#f5e6c8; border:1px solid #8b6914; border-radius:4px;">
+      ${armyOptions}
+    </select>
+    <div style="display:flex; gap:10px;">
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">📦 Collecter!</button>
+      <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
+    </div>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function confirmCollectResource(nodeId) {
+  const armyId = document.getElementById('collect-army-select').value;
+  if (!armyId) {
+    showToast('Sélectionnez une armée', 'error');
+    return;
+  }
+
+  const res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ resourceNodeId: nodeId })
+  });
+
+  closeModal();
+  closeMapPanel();
+
+  if (res.ok) {
+    const data = await res.json();
+    showToast(`Collecté ${formatNum(data.collected || 0)} ${data.resourceType}!`, 'success');
+    await loadArmies();
+    loadMap();
+  } else {
+    const data = await res.json();
+    showToast(data.error || 'Erreur lors de la collecte', 'error');
   }
 }
 
