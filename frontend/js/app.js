@@ -533,6 +533,7 @@ function renderCity() {
 
 // ========== CITY CANVAS 2.5D CIRCULAR ==========
 let cityCanvas, cityCtx;
+let fieldsCanvas, fieldsCtx;
 let cityHoveredSlot = null;
 let citySlots = [];
 let currentCityView = 'city'; // 'city' ou 'fields'
@@ -630,6 +631,35 @@ function initCityCanvas() {
 
   // Calculate slot positions
   calculateCitySlots();
+}
+
+function initFieldsCanvas() {
+  fieldsCanvas = document.getElementById('fields-canvas');
+  if (!fieldsCanvas) return;
+
+  fieldsCtx = fieldsCanvas.getContext('2d');
+
+  // Resize to container with fallback dimensions
+  const container = fieldsCanvas.parentElement;
+  const width = container.clientWidth || 800;
+  const height = container.clientHeight || 600;
+  fieldsCanvas.width = Math.max(width, 300);
+  fieldsCanvas.height = Math.max(height, 200);
+
+  // Only add events once
+  if (!fieldsCanvas.hasAttribute('data-events-attached')) {
+    fieldsCanvas.setAttribute('data-events-attached', 'true');
+    fieldsCanvas.addEventListener('mousemove', onFieldsMouseMove);
+    fieldsCanvas.addEventListener('click', onFieldsClick);
+    fieldsCanvas.addEventListener('mouseleave', () => {
+      cityHoveredSlot = null;
+      renderFieldsCanvas();
+      hideFieldsTooltip();
+    });
+  }
+
+  // Calculate field slot positions
+  calculateFieldSlots();
 }
 
 function calculateCitySlots() {
@@ -758,20 +788,25 @@ function renderCityCanvas() {
     initCityCanvas();
     if (!cityCtx) return;
   }
-  
-  // Recalculer les slots selon la vue
-  if (currentCityView === 'city') {
-    calculateCitySlots();
-    renderCityView();
-  } else {
+
+  // Render based on current view mode
+  if (currentCityView === 'fields') {
     calculateFieldSlots();
     renderFieldsView();
+  } else {
+    calculateCitySlots();
+    renderCityView();
   }
-  
-  // Mettre à jour l'indicateur (pas à chaque frame pour perf)
-  if (!cityAnimationRunning || Math.random() < 0.02) {
-    updateViewIndicator();
+}
+
+function renderFieldsCanvas() {
+  if (!fieldsCtx || !fieldsCanvas) {
+    initFieldsCanvas();
+    if (!fieldsCtx) return;
   }
+
+  calculateFieldSlots();
+  renderFieldsView();
 }
 
 function updateViewIndicator() {
@@ -2281,6 +2316,8 @@ function drawSmoke(x, y) {
 
 // ========== VUE CHAMPS DE RESSOURCES ==========
 function renderFieldsView() {
+  if (!cityCanvas || !cityCtx) return;
+
   const w = cityCanvas.width;
   const h = cityCanvas.height;
   const centerX = w / 2;
@@ -4472,6 +4509,99 @@ function hideCityTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
+// ========== FIELDS CANVAS HANDLERS ==========
+function onFieldsMouseMove(e) {
+  if (!fieldsCanvas) return;
+
+  const rect = fieldsCanvas.getBoundingClientRect();
+  const mouseX = (e.clientX - rect.left) * (fieldsCanvas.width / rect.width);
+  const mouseY = (e.clientY - rect.top) * (fieldsCanvas.height / rect.height);
+
+  // Find hovered slot
+  let foundSlot = null;
+  for (const slot of citySlots) {
+    const dx = mouseX - slot.x;
+    const dy = mouseY - slot.y;
+    const rx = slot.size * 0.6;
+    const ry = slot.size * 0.35;
+    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+
+    if (normalizedDist <= 1) {
+      foundSlot = slot.slot;
+      break;
+    }
+  }
+
+  if (foundSlot !== cityHoveredSlot) {
+    cityHoveredSlot = foundSlot;
+    renderFieldsCanvas();
+
+    fieldsCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'default';
+
+    if (foundSlot !== null) {
+      showFieldsTooltip(e.clientX, e.clientY, foundSlot);
+    } else {
+      hideFieldsTooltip();
+    }
+  }
+}
+
+function onFieldsClick(e) {
+  if (cityHoveredSlot !== null) {
+    if (cityHoveredSlot === -1) {
+      // Click on village center -> switch to city tab
+      showTab('city');
+    } else {
+      // Click on a field -> open field build panel
+      openFieldBuildPanel(cityHoveredSlot);
+    }
+  }
+}
+
+function showFieldsTooltip(mouseX, mouseY, slotNum) {
+  const tooltip = document.getElementById('fields-tooltip');
+  if (!tooltip) return;
+
+  const slot = citySlots.find(s => s.slot === slotNum);
+  let html = '';
+
+  if (slot?.isVillageCenter) {
+    html = `
+      <h4><span class="tt-icon">🏰</span> Centre du Village</h4>
+      <p class="tt-hint">Cliquez pour voir les bâtiments</p>
+    `;
+  } else if (slot?.isField) {
+    const fieldIcons = { FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️' };
+    const fieldNames = { FARM: 'Champ de blé', LUMBER: 'Scierie', QUARRY: 'Carrière de pierre', IRON_MINE: 'Mine de fer' };
+    const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
+    const level = building?.level || 0;
+    const production = getProductionAtLevel(slot.fieldType, level);
+
+    html = `
+      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+      <p class="tt-level">Niveau ${level}/20</p>
+      ${level > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
+      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : 'Cliquez pour améliorer'}</p>
+    `;
+  }
+
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+
+  // Position tooltip
+  const canvasRect = fieldsCanvas.parentElement.getBoundingClientRect();
+  let left = mouseX - canvasRect.left + 10;
+  let top = mouseY - canvasRect.top + 20;
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function hideFieldsTooltip() {
+  const tooltip = document.getElementById('fields-tooltip');
+  if (tooltip) tooltip.style.display = 'none';
+}
+
 // ========== BUILD PANEL ==========
 let selectedBuildSlot = null;
 
@@ -4496,19 +4626,18 @@ function openBuildPanel(slotNum) {
   overlay.classList.add('fade-in');
   
   if (building || slot?.fixed) {
-    // ===== EXISTING BUILDING - DETAILED CARD (Travian Style) =====
+    // ===== EXISTING BUILDING - TABBED INTERFACE (Travian Style) =====
     const key = building?.key || slot?.fixedKey;
     const level = building?.level || 1;
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
     const canUpgrade = level < maxLevel;
     const nextLevel = level + 1;
-    
+
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
     const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key);
 
     if (isMilitaryBuilding) {
-      // Open recruitment panel for this building
       openRecruitmentPanel(key, level, slotNum);
       return;
     }
@@ -4518,8 +4647,8 @@ function openBuildPanel(slotNum) {
       openHeroManagementPanel(level, slotNum);
       return;
     }
-    
-    // Calculate costs for next level (exponential scaling)
+
+    // Calculate costs for next level
     const costMultiplier = Math.pow(1.3, level);
     const nextCost = {
       wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
@@ -4527,137 +4656,138 @@ function openBuildPanel(slotNum) {
       iron: Math.floor((def?.costL1?.iron || 50) * costMultiplier),
       food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
     };
-    
-    // Calculate build time
+
     const baseDuration = def?.timeL1Sec || 60;
     const buildTime = Math.floor(baseDuration * Math.pow(1.4, level));
     const timeStr = formatDuration(buildTime);
-    
-    // Get building bonus/effect
+
     const bonus = getBuildingBonus(key, level);
     const nextBonus = getBuildingBonus(key, nextLevel);
-    
-    // Check if player has enough resources
-    const hasResources = currentCity && 
+
+    const hasResources = currentCity &&
       currentCity.wood >= nextCost.wood &&
       currentCity.stone >= nextCost.stone &&
       currentCity.iron >= nextCost.iron &&
       currentCity.food >= nextCost.food;
-    
-    title.innerHTML = `<span class="building-detail-icon">${BUILDING_ICONS[key] || '🏠'}</span> ${getBuildingName(key)}`;
-    
+
+    // Determine special tabs based on building type
+    const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
+
+    title.innerHTML = `
+      <div class="building-title-header">
+        <span class="building-detail-icon">${BUILDING_ICONS[key] || '🏠'}</span>
+        <span>${getBuildingName(key)}</span>
+        <span class="building-level-badge">Niv. ${level}/${maxLevel}</span>
+      </div>
+    `;
+
     content.innerHTML = `
-      <div class="building-detail-card">
-        <!-- Header avec niveau et image -->
-        <div class="building-detail-header">
-          <div class="building-level-display">
-            <div class="level-circle">${level}</div>
-            <span class="level-label">Niveau</span>
-          </div>
-          <div class="building-image-container">
-            <div class="building-image">${BUILDING_ICONS[key] || '🏠'}</div>
-            ${building?.prodPerHour ? `<div class="production-badge">+${formatNum(building.prodPerHour)}/h</div>` : ''}
-          </div>
-          <div class="building-max-level">
-            <span class="max-label">Max</span>
-            <div class="max-circle">${maxLevel}</div>
-          </div>
+      <div class="building-tabbed-card">
+        <!-- Tabs Navigation -->
+        <div class="building-tabs">
+          <button class="building-tab active" onclick="switchBuildingTab('upgrade', this)">⬆️ Améliorer</button>
+          <button class="building-tab" onclick="switchBuildingTab('info', this)">📖 Information</button>
+          ${specialTabs.map(t => `<button class="building-tab" onclick="switchBuildingTab('${t.id}', this)">${t.icon} ${t.name}</button>`).join('')}
         </div>
-        
-        <!-- Description -->
-        <div class="building-description">
-          <p>${getBuildingDescription(key)}</p>
-        </div>
-        
-        <!-- Bonus actuel -->
-        <div class="building-bonus-section">
-          <h4>📊 Bonus actuel</h4>
-          <div class="bonus-display">${bonus}</div>
-        </div>
-        
-        ${canUpgrade ? `
-          <!-- Section Amélioration -->
-          <div class="upgrade-section">
-            <div class="upgrade-header">
-              <h4>⬆️ Améliorer au niveau ${nextLevel}</h4>
-              ${nextBonus !== bonus ? `<div class="next-bonus">→ ${nextBonus}</div>` : ''}
-            </div>
-            
-            <!-- Coûts détaillés -->
-            <div class="cost-grid">
-              <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
-                <span class="cost-icon">🪵</span>
-                <span class="cost-value">${formatNum(nextCost.wood)}</span>
-                <span class="cost-label">Bois</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div>
+
+        <!-- Tab Content: Upgrade -->
+        <div class="building-tab-content" id="tab-upgrade">
+          ${canUpgrade ? `
+            <div class="upgrade-preview">
+              <div class="upgrade-comparison">
+                <div class="level-current">
+                  <span class="level-num">${level}</span>
+                  <span class="level-label">Actuel</span>
+                  <p class="bonus-text">${bonus}</p>
                 </div>
-              </div>
-              <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
-                <span class="cost-icon">🪨</span>
-                <span class="cost-value">${formatNum(nextCost.stone)}</span>
-                <span class="cost-label">Pierre</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div>
-                </div>
-              </div>
-              <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
-                <span class="cost-icon">⛏️</span>
-                <span class="cost-value">${formatNum(nextCost.iron)}</span>
-                <span class="cost-label">Fer</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div>
-                </div>
-              </div>
-              <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
-                <span class="cost-icon">🌾</span>
-                <span class="cost-value">${formatNum(nextCost.food)}</span>
-                <span class="cost-label">Nourriture</span>
-                <div class="cost-bar">
-                  <div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div>
+                <div class="level-arrow">→</div>
+                <div class="level-next">
+                  <span class="level-num">${nextLevel}</span>
+                  <span class="level-label">Suivant</span>
+                  <p class="bonus-text">${nextBonus}</p>
                 </div>
               </div>
             </div>
-            
-            <!-- Temps et bouton -->
-            <div class="upgrade-footer">
-              <div class="build-time">
-                <span class="time-icon">⏱️</span>
-                <span class="time-value">${timeStr}</span>
+            <div class="upgrade-costs">
+              <h4>Coût d'amélioration</h4>
+              <div class="cost-grid">
+                <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
+                  <span class="cost-icon">🪵</span>
+                  <span class="cost-value">${formatNum(nextCost.wood)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
+                  <span class="cost-icon">🪨</span>
+                  <span class="cost-value">${formatNum(nextCost.stone)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
+                  <span class="cost-icon">⛏️</span>
+                  <span class="cost-value">${formatNum(nextCost.iron)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
+                </div>
+                <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
+                  <span class="cost-icon">🌾</span>
+                  <span class="cost-value">${formatNum(nextCost.food)}</span>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
+                </div>
               </div>
-              <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" 
-                      onclick="upgradeBuilding('${key}', ${slotNum})"
-                      ${hasResources ? '' : 'disabled'}>
+            </div>
+            <div class="upgrade-action">
+              <div class="build-time"><span class="time-icon">⏱️</span> ${timeStr}</div>
+              <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources ? '' : 'disabled'}>
                 ${hasResources ? '🔨 Améliorer' : '❌ Ressources insuffisantes'}
               </button>
             </div>
+          ` : `
+            <div class="max-level-notice">
+              <span class="max-icon">🏆</span>
+              <p>Niveau maximum atteint !</p>
+              <p class="bonus-max">${bonus}</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Tab Content: Information -->
+        <div class="building-tab-content" id="tab-info" style="display:none">
+          <div class="info-section">
+            <h4>📜 Description</h4>
+            <p class="info-description">${getBuildingDescription(key)}</p>
           </div>
-        ` : `
-          <div class="max-level-notice">
-            <span class="max-icon">🏆</span>
-            <p>Niveau maximum atteint !</p>
+          <div class="info-section">
+            <h4>📊 Bonus actuel (Niveau ${level})</h4>
+            <div class="info-bonus">${bonus}</div>
           </div>
-        `}
-        
-        <!-- Prérequis (si applicable) -->
-        ${def?.prereq && def.prereq.length > 0 ? `
-          <div class="prerequisites-section">
-            <h4>📋 Prérequis</h4>
-            <div class="prereq-list">
-              ${def.prereq.map(p => {
-                const prereqBuilding = currentCity?.buildings?.find(b => b.key === p.key);
-                const met = prereqBuilding && prereqBuilding.level >= p.level;
-                return `
-                  <div class="prereq-item ${met ? 'met' : 'unmet'}">
+          ${building?.prodPerHour ? `
+            <div class="info-section">
+              <h4>📈 Production</h4>
+              <p class="info-production">+${formatNum(building.prodPerHour)} par heure</p>
+            </div>
+          ` : ''}
+          ${def?.prereq && def.prereq.length > 0 ? `
+            <div class="info-section">
+              <h4>📋 Prérequis</h4>
+              <div class="prereq-list">
+                ${def.prereq.map(p => {
+                  const prereqBuilding = currentCity?.buildings?.find(b => b.key === p.key);
+                  const met = prereqBuilding && prereqBuilding.level >= p.level;
+                  return `<div class="prereq-item ${met ? 'met' : 'unmet'}">
                     <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
                     <span>${getBuildingName(p.key)} Niv.${p.level}</span>
                     <span class="prereq-status">${met ? '✓' : '✗'}</span>
-                  </div>
-                `;
-              }).join('')}
+                  </div>`;
+                }).join('')}
+              </div>
             </div>
+          ` : ''}
+        </div>
+
+        <!-- Special Tabs Content -->
+        ${specialTabs.map(t => `
+          <div class="building-tab-content" id="tab-${t.id}" style="display:none">
+            ${t.content}
           </div>
-        ` : ''}
+        `).join('')}
       </div>
     `;
   } else if (slot?.isField) {
@@ -4709,50 +4839,71 @@ function openBuildPanel(slotNum) {
       </div>
     `;
   } else {
-    // ===== EMPTY SLOT - BUILDING LIST =====
+    // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
     title.textContent = '🏗️ Construire un bâtiment';
-    
-    const availableBuildings = buildingsData.filter(b => 
+
+    const availableBuildings = buildingsData.filter(b =>
       !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)
     );
-    
+
     // Group by category
     const categories = {
-      'BASE': { name: 'Ressources', icon: '📦', buildings: [] },
+      'BASE': { name: 'Infrastructure', icon: '🏛️', buildings: [] },
       'INTERMEDIATE': { name: 'Militaire', icon: '⚔️', buildings: [] },
       'ADVANCED': { name: 'Avancé', icon: '🏰', buildings: [] }
     };
-    
+
     availableBuildings.forEach(b => {
       const cat = b.category || 'INTERMEDIATE';
       if (categories[cat]) categories[cat].buildings.push(b);
     });
-    
+
     content.innerHTML = `
-      <div class="building-categories">
+      <div class="building-categories travian-style">
         ${Object.entries(categories).map(([key, cat]) => cat.buildings.length > 0 ? `
           <div class="building-category">
             <h4 class="category-title">${cat.icon} ${cat.name}</h4>
             <div class="buildings-list">
               ${cat.buildings.map(b => {
-                const hasResources = currentCity && 
+                // Check prerequisites
+                const prereqStatus = checkBuildingPrerequisites(b);
+                const hasPrereqs = prereqStatus.met;
+                const hasResources = currentCity &&
                   currentCity.wood >= (b.costL1?.wood || 0) &&
                   currentCity.stone >= (b.costL1?.stone || 0) &&
-                  currentCity.iron >= (b.costL1?.iron || 0);
+                  currentCity.iron >= (b.costL1?.iron || 0) &&
+                  currentCity.food >= (b.costL1?.food || 0);
+                const canBuild = hasPrereqs && hasResources;
+                const alreadyBuilt = currentCity?.buildings?.some(existing => existing.key === b.key);
+                const isUnique = b.maxPerCity === 1 || !b.maxPerCity;
+                const blocked = alreadyBuilt && isUnique;
+
                 return `
-                  <div class="build-option-card ${hasResources ? '' : 'insufficient'}" onclick="buildAtSlot('${b.key}', ${slotNum})">
+                  <div class="build-option-card ${!hasPrereqs ? 'locked' : ''} ${!hasResources ? 'insufficient' : ''} ${blocked ? 'already-built' : ''}"
+                       onclick="${canBuild && !blocked ? `buildAtSlot('${b.key}', ${slotNum})` : ''}"
+                       ${!canBuild || blocked ? 'style="cursor: not-allowed"' : ''}>
                     <div class="build-option-icon-large">${BUILDING_ICONS[b.key] || '🏠'}</div>
                     <div class="build-option-details">
                       <h5>${b.name}</h5>
-                      <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
-                      <div class="build-option-costs">
+                      ${blocked ? `
+                        <p class="build-option-status already">✓ Déjà construit</p>
+                      ` : !hasPrereqs ? `
+                        <p class="build-option-prereq">⚠️ ${prereqStatus.missing}</p>
+                      ` : `
+                        <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
+                      `}
+                      <div class="build-option-costs ${!hasPrereqs ? 'dimmed' : ''}">
                         <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}">🪵${formatNum(b.costL1?.wood || 0)}</span>
                         <span class="${currentCity?.stone >= (b.costL1?.stone || 0) ? '' : 'missing'}">🪨${formatNum(b.costL1?.stone || 0)}</span>
                         <span class="${currentCity?.iron >= (b.costL1?.iron || 0) ? '' : 'missing'}">⛏️${formatNum(b.costL1?.iron || 0)}</span>
+                        <span class="${currentCity?.food >= (b.costL1?.food || 0) ? '' : 'missing'}">🌾${formatNum(b.costL1?.food || 0)}</span>
                       </div>
+                      <div class="build-option-time">⏱️ ${formatDuration(b.timeL1Sec || 60)}</div>
                     </div>
                     <div class="build-option-action">
-                      <button class="mini-build-btn">${hasResources ? '🔨' : '❌'}</button>
+                      ${blocked ? `<span class="built-badge">✓</span>` :
+                        canBuild ? `<button class="mini-build-btn">🔨</button>` :
+                        `<button class="mini-build-btn disabled">🔒</button>`}
                     </div>
                   </div>
                 `;
@@ -4802,6 +4953,200 @@ function getBuildingBonus(key, level) {
     HIDEOUT: `Ressources cachées: ${level}%`
   };
   return bonuses[key] || 'Aucun bonus spécial';
+}
+
+// Helper: Switch building panel tabs
+function switchBuildingTab(tabId, btn) {
+  // Hide all tab contents
+  document.querySelectorAll('.building-tab-content').forEach(c => c.style.display = 'none');
+  // Remove active from all tabs
+  document.querySelectorAll('.building-tab').forEach(t => t.classList.remove('active'));
+  // Show selected tab and mark button active
+  document.getElementById(`tab-${tabId}`).style.display = 'block';
+  btn.classList.add('active');
+}
+
+// Helper: Get special tabs for specific building types
+function getBuildingSpecialTabs(buildingKey, level, slotNum) {
+  const tabs = [];
+
+  switch (buildingKey) {
+    case 'MARKET':
+      tabs.push({
+        id: 'trade',
+        icon: '📦',
+        name: 'Commerce',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏪 Place du marché</h4>
+            <p>Capacité de transport: <strong>${100 + level * 50}</strong> unités</p>
+            <p>Marchands disponibles: <strong>${Math.floor(level / 5) + 1}</strong></p>
+            <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'ACADEMY':
+      tabs.push({
+        id: 'research',
+        icon: '🔬',
+        name: 'Recherche',
+        content: `
+          <div class="special-tab-content">
+            <h4>🎓 Académie</h4>
+            <p>Bonus recherche: <strong>-${level}%</strong> temps</p>
+            <p>Technologies disponibles selon le niveau de l'académie.</p>
+            <button class="btn-secondary" onclick="showResearchPanel()">Voir les recherches</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'EMBASSY':
+      tabs.push({
+        id: 'diplomacy',
+        icon: '🤝',
+        name: 'Diplomatie',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏛️ Ambassade</h4>
+            <p>Permet de créer ou rejoindre une alliance.</p>
+            ${level >= 3 ? `<p>Niveau ${level}: Peut accueillir jusqu'à <strong>${level * 3}</strong> membres.</p>` : ''}
+            <button class="btn-primary" onclick="showTab('alliance'); closeBuildPanel();">Accéder à l'alliance</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'RALLY_POINT':
+      tabs.push({
+        id: 'armies',
+        icon: '⚔️',
+        name: 'Armées',
+        content: `
+          <div class="special-tab-content">
+            <h4>🎯 Point de ralliement</h4>
+            <p>Armées simultanées: <strong>${Math.min(1 + Math.floor(level / 5), 5)}</strong></p>
+            <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
+            <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'HEALING_TENT':
+      tabs.push({
+        id: 'heal',
+        icon: '💊',
+        name: 'Soins',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏥 Tente de soins</h4>
+            <p>Capacité: <strong>${level * 3}</strong> blessés</p>
+            <p>Les troupes blessées peuvent être soignées ici après une bataille défensive.</p>
+            <button class="btn-success" onclick="healWounded()">Soigner les blessés</button>
+          </div>
+        `
+      });
+      break;
+
+    case 'WAREHOUSE':
+    case 'GREAT_WAREHOUSE':
+      tabs.push({
+        id: 'storage',
+        icon: '📦',
+        name: 'Stockage',
+        content: `
+          <div class="special-tab-content">
+            <h4>🏪 Capacité de stockage</h4>
+            <div class="storage-bars">
+              <div class="storage-row">
+                <span>🪵 Bois:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+              <div class="storage-row">
+                <span>🪨 Pierre:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+              <div class="storage-row">
+                <span>⛏️ Fer:</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+            </div>
+          </div>
+        `
+      });
+      break;
+
+    case 'SILO':
+    case 'GREAT_SILO':
+      tabs.push({
+        id: 'food-storage',
+        icon: '🌾',
+        name: 'Stockage',
+        content: `
+          <div class="special-tab-content">
+            <h4>🌾 Capacité de stockage nourriture</h4>
+            <div class="storage-bars">
+              <div class="storage-row">
+                <span>🌾 Nourriture:</span>
+                <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / (1200 + level * 8000)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.food || 0)} / ${formatNum(1200 + level * 8000)}</span>
+              </div>
+            </div>
+          </div>
+        `
+      });
+      break;
+
+    case 'WATCHTOWER':
+      tabs.push({
+        id: 'watch',
+        icon: '👁️',
+        name: 'Surveillance',
+        content: `
+          <div class="special-tab-content">
+            <h4>🗼 Tour de guet</h4>
+            <p>Portée de détection: <strong>${level * 2}</strong> cases</p>
+            <p>Temps d'alerte: <strong>${Math.max(1, 10 - level)}</strong> minutes avant l'arrivée</p>
+            <p class="info-note">Les attaques ennemies seront détectées à l'avance.</p>
+          </div>
+        `
+      });
+      break;
+  }
+
+  return tabs;
+}
+
+// Helper: Check building prerequisites
+function checkBuildingPrerequisites(buildingDef) {
+  if (!buildingDef.prereq || buildingDef.prereq.length === 0) {
+    return { met: true, missing: '' };
+  }
+
+  const missingPrereqs = [];
+
+  for (const prereq of buildingDef.prereq) {
+    const existingBuilding = currentCity?.buildings?.find(b => b.key === prereq.key);
+    const currentLevel = existingBuilding?.level || 0;
+
+    if (currentLevel < prereq.level) {
+      const prereqDef = buildingsData?.find(b => b.key === prereq.key);
+      const prereqName = prereqDef?.name || prereq.key;
+      missingPrereqs.push(`${prereqName} niv.${prereq.level}`);
+    }
+  }
+
+  if (missingPrereqs.length > 0) {
+    return { met: false, missing: `Requis: ${missingPrereqs.join(', ')}` };
+  }
+
+  return { met: true, missing: '' };
 }
 
 function closeBuildPanel() {
@@ -5766,13 +6111,13 @@ function showTab(tabName) {
     stopMapAnimation();
   }
 
-  // Special handling for fields/city tabs - they share the same canvas
+  // Special handling for fields/city tabs - they share the city-canvas
   if (tabName === 'fields' || tabName === 'city') {
-    // Both use the city tab's canvas
+    // Show city tab container (both use city-canvas)
     document.getElementById('tab-fields')?.classList.remove('active');
     document.getElementById('tab-city')?.classList.add('active');
-    currentCityView = tabName === 'fields' ? 'fields' : 'city';
-    renderCity();
+    currentCityView = tabName;
+    renderCityCanvas();
     return;
   }
 
