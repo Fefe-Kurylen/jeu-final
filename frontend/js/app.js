@@ -11643,12 +11643,6 @@ function showMarketTab(subTab) {
   }
 }
 
-function showReportsTab(subTab) {
-  document.querySelectorAll('#tab-reports .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
-  loadReports(subTab);
-}
-
 function filterBuildings(category) {
   document.querySelectorAll('#tab-buildings .toolbar-btn').forEach(b => b.classList.remove('active'));
   event?.target?.classList?.add('active');
