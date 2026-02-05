@@ -2787,10 +2787,10 @@ setInterval(async () => {
       let foodConsumption = 0;
       for (const unit of army.units) {
         const unitDef = unitsData.find(u => u.key === unit.unitKey);
-        // Upkeep par tier: base=2.5, inter=5, elite=7.5, siege=10
+        // Upkeep par tier: base=2.5, inter=5, elite=7.5, siege=30
         const upkeep = unitDef?.tier === 'base' ? 2.5 :
                        unitDef?.tier === 'intermediate' ? 5 :
-                       unitDef?.tier === 'elite' ? 7.5 : 10;
+                       unitDef?.tier === 'elite' ? 7.5 : 30;
         foodConsumption += unit.count * upkeep;
       }
       
