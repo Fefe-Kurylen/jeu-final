@@ -7870,6 +7870,142 @@ function updateWorldSize(playerCount) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
+// ========== TILESET IMAGE SYSTEM ==========
+let tilesetImage = null;
+let tilesetConfig = null;
+let tilesetLoaded = false;
+let tilesetLoadFailed = false;
+
+// Individual tile images for cities, units, resources
+const tileImages = {
+  cities: {},      // city type -> Image
+  units: {},       // unit type -> Image
+  resources: {},   // resource type -> Image
+  terrain: {},     // terrain type -> Image
+  buildings: {}    // building type -> Image
+};
+
+// Load tileset configuration and images
+async function loadTilesetAssets() {
+  console.log('🎨 Loading tileset assets...');
+
+  try {
+    // Try to load tileset config
+    const configResponse = await fetch('/assets/tileset-config.json');
+    if (configResponse.ok) {
+      tilesetConfig = await configResponse.json();
+      console.log('📋 Tileset config loaded:', tilesetConfig);
+
+      // Try to load the main tileset image
+      const tilesetPath = `/assets/images/map/${tilesetConfig.image}`;
+      tilesetImage = new Image();
+      tilesetImage.src = tilesetPath;
+
+      await new Promise((resolve, reject) => {
+        tilesetImage.onload = () => {
+          tilesetLoaded = true;
+          console.log('✅ Tileset image loaded:', tilesetPath);
+          resolve();
+        };
+        tilesetImage.onerror = () => {
+          console.warn('⚠️ Tileset image not found:', tilesetPath);
+          tilesetLoadFailed = true;
+          resolve(); // Don't reject, just use fallback
+        };
+      });
+    }
+  } catch (e) {
+    console.warn('⚠️ Could not load tileset config, using procedural rendering');
+    tilesetLoadFailed = true;
+  }
+
+  // Load individual tile images (cities, units, etc.)
+  await loadIndividualTileImages();
+}
+
+// Load individual images for specific game objects
+async function loadIndividualTileImages() {
+  const imagesToLoad = [
+    // Cities
+    { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
+    { category: 'cities', name: 'gaul', path: '/assets/images/map/cities/gaul.png' },
+    { category: 'cities', name: 'default', path: '/assets/images/map/cities/default.png' },
+    { category: 'cities', name: 'capital', path: '/assets/images/map/cities/capital.png' },
+
+    // Units
+    { category: 'units', name: 'hoplite', path: '/assets/images/map/units/hoplite.png' },
+    { category: 'units', name: 'archer', path: '/assets/images/map/units/archer.png' },
+    { category: 'units', name: 'cavalry', path: '/assets/images/map/units/cavalry.png' },
+    { category: 'units', name: 'catapult', path: '/assets/images/map/units/catapult.png' },
+    { category: 'units', name: 'trireme', path: '/assets/images/map/units/trireme.png' },
+    { category: 'units', name: 'merchant', path: '/assets/images/map/units/merchant.png' },
+    { category: 'units', name: 'settler', path: '/assets/images/map/units/settler.png' },
+
+    // Resources
+    { category: 'resources', name: 'wood', path: '/assets/images/map/resources/wood.png' },
+    { category: 'resources', name: 'stone', path: '/assets/images/map/resources/stone.png' },
+    { category: 'resources', name: 'iron', path: '/assets/images/map/resources/iron.png' },
+    { category: 'resources', name: 'food', path: '/assets/images/map/resources/food.png' },
+
+    // Terrain tiles
+    { category: 'terrain', name: 'grass', path: '/assets/images/map/terrain/grass.png' },
+    { category: 'terrain', name: 'desert', path: '/assets/images/map/terrain/desert.png' },
+    { category: 'terrain', name: 'snow', path: '/assets/images/map/terrain/snow.png' },
+    { category: 'terrain', name: 'water', path: '/assets/images/map/terrain/water.png' },
+    { category: 'terrain', name: 'forest', path: '/assets/images/map/terrain/forest.png' },
+    { category: 'terrain', name: 'mountain', path: '/assets/images/map/terrain/mountain.png' }
+  ];
+
+  const loadPromises = imagesToLoad.map(({ category, name, path }) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        tileImages[category][name] = img;
+        console.log(`✅ Loaded: ${category}/${name}`);
+        resolve();
+      };
+      img.onerror = () => {
+        // Image not found, will use procedural fallback
+        resolve();
+      };
+      img.src = path;
+    });
+  });
+
+  await Promise.all(loadPromises);
+
+  const loadedCount = Object.values(tileImages).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
+  console.log(`🎨 Loaded ${loadedCount}/${imagesToLoad.length} tile images`);
+}
+
+// Helper function to draw a tile from the tileset
+function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
+  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
+    return false; // Fallback to procedural
+  }
+
+  const tile = tilesetConfig.tiles[tileKey];
+  const srcX = tile.col * tilesetConfig.tileWidth;
+  const srcY = tile.row * tilesetConfig.tileHeight;
+
+  ctx.drawImage(
+    tilesetImage,
+    srcX, srcY, tilesetConfig.tileWidth, tilesetConfig.tileHeight,
+    destX, destY, destW, destH
+  );
+
+  return true;
+}
+
+// Helper function to draw an individual tile image
+function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
+  const img = tileImages[category]?.[name];
+  if (!img) return false;
+
+  ctx.drawImage(img, destX - destW/2, destY - destH, destW, destH);
+  return true;
+}
+
 // BIOME CONFIGURATION
 const BIOMES = {
   // TIER 1: Forest/Grassland (center, radius 0-120)
@@ -8477,6 +8613,11 @@ function toggleHelpOverlay() {
 }
 
 async function loadMap() {
+  // Load tileset assets if not already loaded
+  if (!tilesetLoaded && !tilesetLoadFailed) {
+    await loadTilesetAssets();
+  }
+
   initMapCanvas();
 
   // Center map on player's first city if not already positioned
@@ -9239,6 +9380,50 @@ const CULTURE_STYLES = {
   }
 };
 
+// Draw city labels (name, flag, population badge) - used for both image and procedural rendering
+function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
+  const citySize = Math.min(tw, th * 2) * 0.8;
+
+  // Banner/flag
+  const flagY = y - citySize * 0.55;
+  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
+  mapCtx.fillStyle = bannerColor;
+  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
+  mapCtx.beginPath();
+  mapCtx.moveTo(x + 1, flagY - 12);
+  mapCtx.lineTo(x + 10, flagY - 8);
+  mapCtx.lineTo(x + 1, flagY - 4);
+  mapCtx.closePath();
+  mapCtx.fill();
+
+  // City name label
+  if (mapZoomLevel > 0.5 && tile.name) {
+    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'top';
+    mapCtx.fillStyle = '#fff';
+    mapCtx.shadowColor = '#000';
+    mapCtx.shadowBlur = 3;
+    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
+    mapCtx.shadowBlur = 0;
+  }
+
+  // Power level badge
+  if (mapZoomLevel > 0.7 && tile.population) {
+    const badgeX = x + citySize * 0.4;
+    const badgeY = y - citySize * 0.5;
+    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
+    mapCtx.beginPath();
+    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
+    mapCtx.fill();
+    mapCtx.fillStyle = '#fff';
+    mapCtx.font = 'bold 9px Arial';
+    mapCtx.textAlign = 'center';
+    mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+  }
+}
+
 // Draw isometric city with culture-specific style and walls
 function drawIsoCity(x, y, tw, th, tile) {
   const isMyCity = tile.playerId === player?.id;
@@ -9247,6 +9432,36 @@ function drawIsoCity(x, y, tw, th, tile) {
   const wallLevel = tile.wallLevel || 0;
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
+  // Try to draw from tileset image first
+  const cityImageSize = Math.max(tw * 1.5, th * 3);
+  const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
+
+  // Try individual city image
+  if (drawTileImage(mapCtx, 'cities', cityType, x, y, cityImageSize, cityImageSize)) {
+    // Image drawn successfully, add labels on top
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+    return;
+  }
+
+  // Try tileset mapping
+  const tilesetMapping = {
+    'ROME': ['TEMPLE_ROAD', 'TEMPLE_SMALL', 'ARENA'],
+    'GAUL': ['VILLAGE_CENTER', 'VILLAGE_ROAD_CURVE'],
+    'GREEK': ['ARENA', 'TEMPLE_SMALL'],
+    'EGYPT': ['DESERT_RUINS', 'TEMPLE_ROAD'],
+    'HUN': ['ROAD_L_DIRT', 'VILLAGE_CENTER'],
+    'SULTAN': ['WALL_RIVER', 'CASTLE']
+  };
+
+  const tileKeys = tilesetMapping[faction] || ['VILLAGE_CENTER'];
+  const tileKey = tileKeys[Math.abs(tile.x + tile.y) % tileKeys.length];
+
+  if (drawTileFromTileset(mapCtx, tileKey, x - cityImageSize/2, y - cityImageSize, cityImageSize, cityImageSize)) {
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+    return;
+  }
+
+  // Fallback to procedural rendering
   // Determine wall tier (0=none, 1-7=tier1, 8-14=tier2, 15-20=tier3)
   const wallTier = wallLevel === 0 ? 0 : wallLevel <= 7 ? 1 : wallLevel <= 14 ? 2 : 3;
 
@@ -9671,7 +9886,37 @@ function drawMiniTower(x, y, size) {
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
   const size = Math.min(tw, th * 2) * 0.5;
+  const imgSize = Math.max(tw, th * 2);
 
+  // Try to draw from individual image first
+  if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
+    // Draw resource level indicator
+    if (tile.amount && mapZoomLevel > 0.6) {
+      mapCtx.font = 'bold 9px Arial';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillStyle = '#fff';
+      mapCtx.shadowColor = '#000';
+      mapCtx.shadowBlur = 2;
+      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
+      mapCtx.shadowBlur = 0;
+    }
+    return;
+  }
+
+  // Try tileset mapping
+  const tilesetMapping = {
+    'wood': 'FOREST_ROCKS',
+    'stone': 'DIRT_ROCKS',
+    'iron': 'DESERT_MINE',
+    'food': 'GRASS_TREES',
+    'gold': 'DESERT_ROCKS'
+  };
+
+  if (drawTileFromTileset(mapCtx, tilesetMapping[resType], x - imgSize/2, y - imgSize, imgSize, imgSize)) {
+    return;
+  }
+
+  // Fallback to procedural rendering
   if (resType === 'wood') {
     // Forest clearing with lumber
     mapCtx.fillStyle = '#3a5a2a';
@@ -9828,7 +10073,32 @@ function drawIsoRock(x, y, size) {
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
   const isMoving = army.status !== 'IDLE';
+  const imgSize = Math.max(tw, th * 2) * 0.8;
 
+  // Try to draw unit image based on army composition
+  const mainUnitType = army.mainUnit?.toLowerCase() || 'hoplite';
+  if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
+    // Draw army name label
+    if (mapZoomLevel > 0.8 && army.name) {
+      mapCtx.font = 'bold 9px Arial';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillStyle = '#fff';
+      mapCtx.shadowColor = '#000';
+      mapCtx.shadowBlur = 2;
+      mapCtx.fillText(army.name, x, y + size * 0.5);
+      mapCtx.shadowBlur = 0;
+    }
+    // Movement indicator
+    if (isMoving) {
+      mapCtx.fillStyle = '#ffaa00';
+      mapCtx.beginPath();
+      mapCtx.arc(x + imgSize * 0.3, y - imgSize * 0.4, 5, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+    return;
+  }
+
+  // Fallback to procedural rendering
   // Army marker background
   mapCtx.fillStyle = isMoving ? '#ffaa00' : '#4488ff';
   mapCtx.beginPath();
