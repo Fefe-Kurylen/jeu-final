@@ -97,6 +97,110 @@ const validateFaction = (faction) => {
   return validFactions.includes(faction?.toUpperCase());
 };
 
+// ========== FACTION UNITS FOR RESOURCE POINT DEFENDERS ==========
+const FACTIONS_LIST = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+
+const FACTION_UNITS = {
+  ROME: {
+    infantry: { base: 'ROM_INF_MILICIEN', intermediate: 'ROM_INF_TRIARII', elite: 'ROM_INF_LEGIONNAIRE' },
+    archer: { base: 'ROM_ARC_MILICIEN', intermediate: 'ROM_ARC_VETERAN', elite: 'ROM_ARC_ELITE' },
+    cavalry: { base: 'ROM_CAV_AUXILIAIRE', intermediate: 'ROM_CAV_EQUITES', elite: 'ROM_CAV_LOURDE' }
+  },
+  GAUL: {
+    infantry: { base: 'GAU_INF_GUERRIER', intermediate: 'GAU_INF_TRIARII', elite: 'GAU_INF_CHAMPION' },
+    archer: { base: 'GAU_ARC_CHASSEUR', intermediate: 'GAU_ARC_GAULOIS', elite: 'GAU_ARC_NOBLE' },
+    cavalry: { base: 'GAU_CAV_CHASSEUR', intermediate: 'GAU_CAV_GAULOIS', elite: 'GAU_CAV_NOBLE' }
+  },
+  GREEK: {
+    infantry: { base: 'GRE_INF_JEUNE', intermediate: 'GRE_INF_HOPLITE', elite: 'GRE_INF_SPARTIATE' },
+    archer: { base: 'GRE_ARC_PAYSAN', intermediate: 'GRE_ARC_TOXOTE', elite: 'GRE_ARC_ELITE' },
+    cavalry: { base: 'GRE_CAV_ECLAIREUR', intermediate: 'GRE_CAV_GREC', elite: 'GRE_CAV_ELITE' }
+  },
+  EGYPT: {
+    infantry: { base: 'EGY_INF_ESCLAVE', intermediate: 'EGY_INF_NIL', elite: 'EGY_INF_TEMPLE' },
+    archer: { base: 'EGY_ARC_NIL', intermediate: 'EGY_ARC_DESERT', elite: 'EGY_ARC_PHARAON' },
+    cavalry: { base: 'EGY_CAV_DESERT', intermediate: 'EGY_CAV_PHARAON', elite: 'EGY_CAV_CHAR_LOURD' }
+  },
+  HUN: {
+    infantry: { base: 'HUN_INF_NOMADE', intermediate: 'HUN_INF_GARDE', elite: 'HUN_INF_VETERAN' },
+    archer: { base: 'HUN_ARC_NOMADE', intermediate: 'HUN_ARC_CAMP', elite: 'HUN_ARC_ELITE' },
+    cavalry: { base: 'HUN_CAV_PILLARD', intermediate: 'HUN_CAV_INTER', elite: 'HUN_CAV_ELITE' }
+  },
+  SULTAN: {
+    infantry: { base: 'SUL_INF_DESERT', intermediate: 'SUL_INF_CROISSANT', elite: 'SUL_INF_PALAIS' },
+    archer: { base: 'SUL_ARC_DESERT', intermediate: 'SUL_ARC_TIREUR', elite: 'SUL_ARC_PERSE' },
+    cavalry: { base: 'SUL_CAV_BEDOUIN', intermediate: 'SUL_CAV_DESERT', elite: 'SUL_CAV_MAMELOUK' }
+  }
+};
+
+// Generate tribe defenders for resource points
+// Level 1: 100 soldats de base (INF/ARC/CAV)
+// Level 2: 600 soldats base + intermédiaire
+// Level 3: 1500 soldats base + intermédiaire + élite
+function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
+  // Choisir une faction aléatoire
+  const faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
+  const factionUnits = FACTION_UNITS[faction];
+
+  const units = {};
+  let totalSoldiers;
+
+  // Déterminer le nombre total de soldats selon le niveau
+  if (level === 1) {
+    totalSoldiers = Math.max(10, Math.floor(100 * resourcePercent));
+  } else if (level === 2) {
+    totalSoldiers = Math.max(60, Math.floor(600 * resourcePercent));
+  } else {
+    totalSoldiers = Math.max(150, Math.floor(1500 * resourcePercent));
+  }
+
+  // Répartition aléatoire entre les 3 classes
+  const infRatio = 0.25 + Math.random() * 0.2;  // 25-45%
+  const arcRatio = 0.25 + Math.random() * 0.2;  // 25-45%
+  const cavRatio = 1 - infRatio - arcRatio;     // Le reste
+
+  if (level === 1) {
+    // Seulement base
+    units[factionUnits.infantry.base] = Math.floor(totalSoldiers * infRatio);
+    units[factionUnits.archer.base] = Math.floor(totalSoldiers * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(totalSoldiers * cavRatio);
+
+  } else if (level === 2) {
+    // 60% base, 40% intermédiaire
+    const baseCount = Math.floor(totalSoldiers * 0.6);
+    const interCount = totalSoldiers - baseCount;
+
+    units[factionUnits.infantry.base] = Math.floor(baseCount * infRatio);
+    units[factionUnits.archer.base] = Math.floor(baseCount * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(baseCount * cavRatio);
+    units[factionUnits.infantry.intermediate] = Math.floor(interCount * infRatio);
+    units[factionUnits.archer.intermediate] = Math.floor(interCount * arcRatio);
+    units[factionUnits.cavalry.intermediate] = Math.floor(interCount * cavRatio);
+
+  } else {
+    // 40% base, 35% intermédiaire, 25% élite
+    const baseCount = Math.floor(totalSoldiers * 0.4);
+    const interCount = Math.floor(totalSoldiers * 0.35);
+    const eliteCount = totalSoldiers - baseCount - interCount;
+
+    units[factionUnits.infantry.base] = Math.floor(baseCount * infRatio);
+    units[factionUnits.archer.base] = Math.floor(baseCount * arcRatio);
+    units[factionUnits.cavalry.base] = Math.floor(baseCount * cavRatio);
+    units[factionUnits.infantry.intermediate] = Math.floor(interCount * infRatio);
+    units[factionUnits.archer.intermediate] = Math.floor(interCount * arcRatio);
+    units[factionUnits.cavalry.intermediate] = Math.floor(interCount * cavRatio);
+    units[factionUnits.infantry.elite] = Math.floor(eliteCount * infRatio);
+    units[factionUnits.archer.elite] = Math.floor(eliteCount * arcRatio);
+    units[factionUnits.cavalry.elite] = Math.floor(eliteCount * cavRatio);
+  }
+
+  // Calculer la puissance
+  const basePower = isGold ? 140 : 100;
+  const power = basePower * level * (totalSoldiers / 100);
+
+  return { power, units, faction };
+}
+
 const validateCoordinates = (x, y) => {
   return Number.isInteger(x) && Number.isInteger(y) &&
          x >= 0 && x <= 500 && y >= 0 && y <= 500;
@@ -1534,20 +1638,24 @@ app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
 // Helper function to resolve combat against tribe
 async function resolveTribteCombat(army, node, playerId) {
   // Convert defender units to array format for combat
+  // Les unités sont maintenant stockées avec les vraies clés de faction (ex: ROM_INF_MILICIEN)
   const defenderUnits = [];
   if (node.defenderUnits && node.hasDefenders) {
-    const tribeUnitMapping = {
-      warrior: 'HOPLITE',
-      archer: 'ARCHER',
-      cavalry: 'CAVALRY',
-      elite: 'CATAPULT'
+    // Legacy mapping pour compatibilité avec anciennes données
+    const legacyMapping = {
+      warrior: 'GRE_INF_HOPLITE',
+      archer: 'GRE_ARC_TOXOTE',
+      cavalry: 'GRE_CAV_GREC',
+      elite: 'GRE_INF_SPARTIATE'
     };
 
-    for (const [unitType, count] of Object.entries(node.defenderUnits)) {
+    for (const [unitKey, count] of Object.entries(node.defenderUnits)) {
       if (count > 0) {
+        // Vérifier si c'est une clé legacy ou une vraie clé de faction
+        const isLegacyKey = ['warrior', 'archer', 'cavalry', 'elite'].includes(unitKey);
         defenderUnits.push({
-          unitKey: tribeUnitMapping[unitType] || 'HOPLITE',
-          quantity: count
+          unitKey: isLegacyKey ? legacyMapping[unitKey] : unitKey,
+          count: count
         });
       }
     }
@@ -3654,51 +3762,26 @@ setInterval(async () => {
         // Calculer le % de ressources dans le node
         const resourcePercent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
 
-        // Regenerate tribe defenders based on level
+        // Regenerate tribe defenders based on level using faction units
         const level = node.level || 1;
         const isGold = node.resourceType === 'GOLD';
-        const basePower = isGold ? 140 : 100;
-        // Puissance proportionnelle au % de ressources (minimum 10% de la puissance de base)
-        const fullPower = basePower * level;
-        const power = Math.max(Math.floor(fullPower * resourcePercent), Math.floor(fullPower * 0.1));
 
-        // Generate new defenders - proportionnel au % de ressources
-        const units = {};
-        if (level === 1) {
-          const baseWarrior = 5 + Math.floor(Math.random() * 10);
-          const baseArcher = 3 + Math.floor(Math.random() * 5);
-          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
-          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
-        } else if (level === 2) {
-          const baseWarrior = 15 + Math.floor(Math.random() * 15);
-          const baseArcher = 10 + Math.floor(Math.random() * 10);
-          const baseCavalry = 3 + Math.floor(Math.random() * 5);
-          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
-          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
-          units.cavalry = Math.max(1, Math.floor(baseCavalry * resourcePercent));
-        } else {
-          const baseWarrior = 30 + Math.floor(Math.random() * 20);
-          const baseArcher = 20 + Math.floor(Math.random() * 15);
-          const baseCavalry = 10 + Math.floor(Math.random() * 10);
-          const baseElite = 3 + Math.floor(Math.random() * 5);
-          units.warrior = Math.max(1, Math.floor(baseWarrior * resourcePercent));
-          units.archer = Math.max(1, Math.floor(baseArcher * resourcePercent));
-          units.cavalry = Math.max(1, Math.floor(baseCavalry * resourcePercent));
-          units.elite = Math.max(1, Math.floor(baseElite * resourcePercent));
-        }
+        // Générer les défenseurs avec la nouvelle fonction (faction aléatoire)
+        const tribe = generateTribeDefenders(level, isGold, resourcePercent);
 
         await prisma.resourceNode.update({
           where: { id: node.id },
           data: {
             hasDefenders: true,
-            defenderPower: power,
-            defenderUnits: units,
+            defenderPower: tribe.power,
+            defenderUnits: tribe.units,
             lastDefeat: null,
             lastArmyDeparture: null
           }
         });
 
-        console.log(`[TRIBE RESPAWN] Tribe respawned at (${node.x}, ${node.y}) - Level ${level}, Power ${power} (${Math.floor(resourcePercent * 100)}% resources)`);
+        const totalUnits = Object.values(tribe.units).reduce((sum, c) => sum + c, 0);
+        console.log(`[TRIBE RESPAWN] Tribe (${tribe.faction}) respawned at (${node.x}, ${node.y}) - Level ${level}, ${totalUnits} soldiers, Power ${Math.floor(tribe.power)} (${Math.floor(resourcePercent * 100)}% resources)`);
       }
     }
 
