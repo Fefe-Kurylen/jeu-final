@@ -6732,21 +6732,28 @@ function calculateArmyPower(army) {
 function showArmyActionsMenu(armyId) {
   const army = armies.find(a => a.id === armyId);
   if (!army) return;
-  
+
+  // Check if army can move (needs at least 1 unit)
+  const totalUnits = army.units?.reduce((s, u) => s + u.count, 0) || 0;
+  const hasHero = army.heroId;
+  const canMove = totalUnits > 0;
+  const disabledReason = !canMove ? (hasHero ? 'Le héros nécessite au moins 1 soldat' : 'Armée vide') : '';
+
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
       <h3>⚙️ Actions - ${army.name}</h3>
+      ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">⚠️ ${disabledReason}</p>` : ''}
       <div class="actions-grid">
-        <button class="action-card" onclick="closeModal(); showMoveModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">🚶</span>
           <span class="action-label">Déplacer</span>
         </button>
-        <button class="action-card" onclick="closeModal(); showAttackModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showAttackModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">⚔️</span>
           <span class="action-label">Attaquer</span>
         </button>
-        <button class="action-card" onclick="closeModal(); showRaidModal('${armyId}')">
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showRaidModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon">💰</span>
           <span class="action-label">Piller</span>
         </button>
