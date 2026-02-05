@@ -600,7 +600,18 @@ app.get('/api/cities', auth, async (req, res) => {
     where: { playerId: req.user.playerId },
     include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
   });
-  res.json(cities);
+  // Add city tier information to each city
+  const citiesWithTier = cities.map(city => {
+    const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
+    const cityTier = getCityTier(wallLevel);
+    return {
+      ...city,
+      wallLevel,
+      cityTier,
+      cityTierName: getCityTierName(cityTier)
+    };
+  });
+  res.json(citiesWithTier);
 });
 
 // ========== WOUNDED UNITS ENDPOINTS ==========
@@ -953,6 +964,44 @@ function calculateArmyPower(units) {
     const power = (unit.stats.attack + unit.stats.defense) * mult * u.count;
     return total + power;
   }, 0);
+}
+
+// Calculate city tier based on wall level
+// Village (tier 1): wall 1-9, Ville (tier 2): wall 10-14, Ville Fortifiée (tier 3): wall 15+
+function getCityTier(wallLevel) {
+  if (wallLevel >= 15) return 3; // Ville Fortifiée
+  if (wallLevel >= 10) return 2; // Ville
+  return 1; // Village
+}
+
+// Get city tier name for display
+function getCityTierName(tier) {
+  switch (tier) {
+    case 3: return 'Ville Fortifiée';
+    case 2: return 'Ville';
+    default: return 'Village';
+  }
+}
+
+// Get minimum siege engines required to attack a city based on tier
+function getMinSiegeEngines(cityTier) {
+  switch (cityTier) {
+    case 3: return 20; // Ville Fortifiée
+    case 2: return 10; // Ville
+    default: return 1; // Village
+  }
+}
+
+// Count siege engines in an army
+function countSiegeEngines(armyUnits) {
+  let count = 0;
+  for (const unit of armyUnits) {
+    const unitDef = unitsData.find(u => u.key === unit.unitKey);
+    if (unitDef && unitDef.class === 'SIEGE') {
+      count += unit.count;
+    }
+  }
+  return count;
 }
 
 // Resolve combat between attacker and defender
@@ -1465,10 +1514,26 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
       return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour attaquer' : 'Armee vide' });
     }
 
-    const targetCity = await prisma.city.findUnique({ where: { id: targetCityId } });
+    const targetCity = await prisma.city.findUnique({
+      where: { id: targetCityId },
+      include: { buildings: true }
+    });
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvee' });
     if (targetCity.playerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas attaquer vos propres villes' });
-    
+
+    // Check siege engine requirements based on city tier
+    const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
+    const cityTier = getCityTier(wallLevel);
+    const minSiegeRequired = getMinSiegeEngines(cityTier);
+    const siegeCount = countSiegeEngines(army.units);
+
+    if (siegeCount < minSiegeRequired) {
+      const tierName = getCityTierName(cityTier);
+      return res.status(400).json({
+        error: `Pour assiéger une ${tierName}, il faut minimum ${minSiegeRequired} engin(s) de siège. Vous en avez ${siegeCount}.`
+      });
+    }
+
     // Calculate travel time
     let minSpeed = 100;
     for (const u of army.units) {
@@ -2323,14 +2388,34 @@ app.get('/api/map/viewport', auth, async (req, res) => {
 
   const cities = await prisma.city.findMany({
     where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } },
-    select: { id: true, name: true, x: true, y: true, player: { select: { id: true, name: true, faction: true, alliance: { select: { alliance: { select: { tag: true } } } } } } }
+    select: {
+      id: true, name: true, x: true, y: true,
+      buildings: { where: { key: 'WALL' }, select: { level: true } },
+      player: { select: { id: true, name: true, faction: true, alliance: { select: { alliance: { select: { tag: true } } } } } }
+    }
+  });
+
+  // Add city tier information
+  const citiesWithTier = cities.map(city => {
+    const wallLevel = city.buildings[0]?.level || 0;
+    const cityTier = getCityTier(wallLevel);
+    return {
+      id: city.id,
+      name: city.name,
+      x: city.x,
+      y: city.y,
+      player: city.player,
+      wallLevel,
+      cityTier,
+      cityTierName: getCityTierName(cityTier)
+    };
   });
 
   const nodes = await prisma.resourceNode.findMany({
     where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } }
   });
 
-  res.json({ cities, resourceNodes: nodes, center: { x, y }, radius: r });
+  res.json({ cities: citiesWithTier, resourceNodes: nodes, center: { x, y }, radius: r });
 });
 
 // ========== RANKING ==========
