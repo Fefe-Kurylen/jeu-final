@@ -11971,11 +11971,6 @@ function getBuildingName(key) {
   return fallbackNames[key] || key;
 }
 
-function getUnitName(key) {
-  const unit = window.unitsData?.find(u => u.key === key);
-  return unit?.name || key;
-}
-
 // ========== VILLAGE LIST MODAL ==========
 function openVillageList() {
   if (!cities || cities.length === 0) {
