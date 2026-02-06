@@ -683,9 +683,9 @@ function calculateCitySlots() {
   const centerX = w / 2;
   const centerY = h / 2 + 20;
   
-  const innerRadius = Math.min(w, h) * 0.15;
-  const outerRadius = Math.min(w, h) * 0.28;
-  const slotSize = Math.min(w, h) * 0.07;
+  const innerRadius = Math.min(w, h) * 0.16;
+  const outerRadius = Math.min(w, h) * 0.30;
+  const slotSize = Math.min(w, h) * 0.085;
   
   citySlots = [];
   
@@ -944,7 +944,7 @@ function renderCityView() {
   drawPaths(w, h, centerX, centerY, nightMode);
 
   // ========== CITY CIRCLE ==========
-  const cityRadius = Math.min(w, h) * 0.32;
+  const cityRadius = Math.min(w, h) * 0.35;
 
   // Outer wall shadow
   cityCtx.fillStyle = nightMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.35)';
@@ -968,9 +968,10 @@ function renderCityView() {
   cityCtx.ellipse(centerX, centerY, cityRadius + 15, (cityRadius + 15) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // ========== TRAVIAN-STYLE: 4 GRASS QUADRANTS + CROSS PATHS ==========
+  // ========== TRAVIAN-STYLE: GRASS + CIRCULAR ROAD + CROSS PATHS ==========
   const innerRadius = cityRadius - 5;
-  const pathWidth = 18; // Width of dirt cross paths
+  const pathWidth = 16;
+  const roadRadius = innerRadius * 0.72; // Circular road where buildings sit
 
   // Step 1: Draw grass background (bright green like Travian)
   const grassGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, innerRadius);
@@ -979,86 +980,97 @@ function renderCityView() {
     grassGrad.addColorStop(0.5, '#2a4020');
     grassGrad.addColorStop(1, '#1a3015');
   } else {
-    // Travian bright green
-    grassGrad.addColorStop(0, '#7cb442');
-    grassGrad.addColorStop(0.3, '#6aa835');
-    grassGrad.addColorStop(0.7, '#5a9828');
-    grassGrad.addColorStop(1, '#4a8820');
+    grassGrad.addColorStop(0, '#82bc48');
+    grassGrad.addColorStop(0.2, '#74b03a');
+    grassGrad.addColorStop(0.5, '#68a430');
+    grassGrad.addColorStop(0.8, '#5c9828');
+    grassGrad.addColorStop(1, '#508c20');
   }
   cityCtx.fillStyle = grassGrad;
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, innerRadius, innerRadius * 0.5, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // Step 2: Add grass texture spots (lighter patches)
+  // Step 2: Grass texture (natural patches)
   if (!nightMode) {
-    cityCtx.fillStyle = 'rgba(150, 200, 100, 0.3)';
-    for (let i = 0; i < 20; i++) {
-      const angle = (i * 18 + 5) * Math.PI / 180;
-      const dist = innerRadius * (0.3 + (i % 3) * 0.2);
+    // Darker patches
+    cityCtx.save();
+    cityCtx.beginPath();
+    cityCtx.ellipse(centerX, centerY, innerRadius - 2, (innerRadius - 2) * 0.5, 0, 0, Math.PI * 2);
+    cityCtx.clip();
+
+    for (let i = 0; i < 30; i++) {
+      const angle = (i * 12 + 3) * Math.PI / 180;
+      const dist = innerRadius * (0.15 + (i % 5) * 0.15);
       const spotX = centerX + Math.cos(angle) * dist;
       const spotY = centerY + Math.sin(angle) * dist * 0.5;
-      const spotSize = 15 + (i % 4) * 8;
+      const spotSize = 12 + (i % 4) * 10;
+      cityCtx.fillStyle = i % 3 === 0 ? 'rgba(100, 160, 50, 0.25)' : 'rgba(140, 200, 80, 0.2)';
       cityCtx.beginPath();
-      cityCtx.ellipse(spotX, spotY, spotSize, spotSize * 0.5, 0, 0, Math.PI * 2);
+      cityCtx.ellipse(spotX, spotY, spotSize, spotSize * 0.5, (i * 30) * Math.PI / 180, 0, Math.PI * 2);
       cityCtx.fill();
     }
+    cityCtx.restore();
   }
 
-  // Step 3: Draw cross dirt paths (Travian style)
-  const pathColor = nightMode ? '#4a3828' : '#c4a060';
-  const pathDark = nightMode ? '#3a2818' : '#a08040';
-  const pathLight = nightMode ? '#5a4838' : '#d4b880';
+  // Step 3: Circular road ring (Travian brick/dirt road)
+  const roadColor = nightMode ? '#4a3828' : '#b89060';
+  const roadDark = nightMode ? '#3a2818' : '#8a6840';
+  const roadLight = nightMode ? '#5a4838' : '#d4b888';
 
   cityCtx.save();
-  // Clip to city ellipse
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, innerRadius - 2, (innerRadius - 2) * 0.5, 0, 0, Math.PI * 2);
   cityCtx.clip();
 
-  // Vertical path (N-S)
-  const vPathGrad = cityCtx.createLinearGradient(centerX - pathWidth, 0, centerX + pathWidth, 0);
-  vPathGrad.addColorStop(0, pathDark);
-  vPathGrad.addColorStop(0.3, pathColor);
-  vPathGrad.addColorStop(0.7, pathColor);
-  vPathGrad.addColorStop(1, pathDark);
-  cityCtx.fillStyle = vPathGrad;
-  cityCtx.fillRect(centerX - pathWidth / 2, centerY - innerRadius, pathWidth, innerRadius * 2);
-
-  // Horizontal path (E-W) - wider for perspective
-  const hPathGrad = cityCtx.createLinearGradient(0, centerY - pathWidth * 0.4, 0, centerY + pathWidth * 0.4);
-  hPathGrad.addColorStop(0, pathDark);
-  hPathGrad.addColorStop(0.3, pathColor);
-  hPathGrad.addColorStop(0.7, pathColor);
-  hPathGrad.addColorStop(1, pathDark);
-  cityCtx.fillStyle = hPathGrad;
-  cityCtx.fillRect(centerX - innerRadius, centerY - pathWidth * 0.35, innerRadius * 2, pathWidth * 0.7);
-
-  // Center plaza (circular)
-  cityCtx.fillStyle = pathLight;
+  // Road outer edge
+  cityCtx.strokeStyle = roadDark;
+  cityCtx.lineWidth = pathWidth + 4;
   cityCtx.beginPath();
-  cityCtx.ellipse(centerX, centerY, pathWidth * 1.5, pathWidth * 0.8, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(centerX, centerY, roadRadius, roadRadius * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Road surface
+  cityCtx.strokeStyle = roadColor;
+  cityCtx.lineWidth = pathWidth;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, roadRadius, roadRadius * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Road inner highlight
+  cityCtx.strokeStyle = roadLight;
+  cityCtx.lineWidth = 2;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, roadRadius - pathWidth * 0.35, (roadRadius - pathWidth * 0.35) * 0.5, 0, 0, Math.PI * 2);
+  cityCtx.stroke();
+
+  // Step 4: Cross paths connecting to center
+  const pathColor = nightMode ? '#4a3828' : '#c4a060';
+  const pathDark = nightMode ? '#3a2818' : '#a08040';
+  const pathLight = nightMode ? '#5a4838' : '#d4b880';
+
+  // Vertical path (N-S)
+  const pw = pathWidth * 0.8;
+  cityCtx.fillStyle = pathColor;
+  cityCtx.fillRect(centerX - pw / 2, centerY - roadRadius * 0.5, pw, roadRadius);
+
+  // Horizontal path (E-W)
+  cityCtx.fillRect(centerX - roadRadius, centerY - pw * 0.35, roadRadius * 2, pw * 0.7);
+
+  // Center plaza (circular platform)
+  const plazaGrad = cityCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, pathWidth * 2);
+  plazaGrad.addColorStop(0, pathLight);
+  plazaGrad.addColorStop(0.7, pathColor);
+  plazaGrad.addColorStop(1, roadDark);
+  cityCtx.fillStyle = plazaGrad;
+  cityCtx.beginPath();
+  cityCtx.ellipse(centerX, centerY, pathWidth * 2, pathWidth * 1.1, 0, 0, Math.PI * 2);
   cityCtx.fill();
-  cityCtx.strokeStyle = pathDark;
+  cityCtx.strokeStyle = roadDark;
   cityCtx.lineWidth = 2;
   cityCtx.stroke();
 
   cityCtx.restore();
-
-  // Step 4: Path edge borders
-  cityCtx.strokeStyle = pathDark;
-  cityCtx.lineWidth = 1.5;
-  cityCtx.setLineDash([4, 4]);
-  // Vertical path edges
-  cityCtx.beginPath();
-  cityCtx.moveTo(centerX - pathWidth / 2 - 1, centerY - innerRadius * 0.5 + 15);
-  cityCtx.lineTo(centerX - pathWidth / 2 - 1, centerY + innerRadius * 0.5 - 15);
-  cityCtx.stroke();
-  cityCtx.beginPath();
-  cityCtx.moveTo(centerX + pathWidth / 2 + 1, centerY - innerRadius * 0.5 + 15);
-  cityCtx.lineTo(centerX + pathWidth / 2 + 1, centerY + innerRadius * 0.5 - 15);
-  cityCtx.stroke();
-  cityCtx.setLineDash([]);
 
   // Stone wall ring
   drawCityWall(centerX, centerY, cityRadius);
@@ -1240,71 +1252,163 @@ function drawForestLine(w, groundY, nightMode = false) {
 }
 
 function drawRiver(w, h, groundY, nightMode = false) {
-  cityCtx.strokeStyle = nightMode ? '#203858' : '#5090c0';
-  cityCtx.lineWidth = 20;
+  // Main river (wider, curves around city like Travian)
+  cityCtx.strokeStyle = nightMode ? '#1a3050' : '#4888b8';
+  cityCtx.lineWidth = 28;
   cityCtx.lineCap = 'round';
+  cityCtx.lineJoin = 'round';
 
   cityCtx.beginPath();
-  cityCtx.moveTo(-20, groundY + 30);
-  cityCtx.bezierCurveTo(w * 0.2, groundY + 60, w * 0.15, h * 0.65, w * 0.08, h + 20);
+  cityCtx.moveTo(-20, groundY + 40);
+  cityCtx.bezierCurveTo(w * 0.15, groundY + 80, w * 0.3, h * 0.55, w * 0.22, h * 0.75);
+  cityCtx.bezierCurveTo(w * 0.18, h * 0.85, w * 0.25, h * 0.92, w * 0.35, h + 20);
   cityCtx.stroke();
 
-  // River highlight (moonlight reflection at night)
-  cityCtx.strokeStyle = nightMode ? 'rgba(100,140,180,0.3)' : 'rgba(150,200,230,0.5)';
-  cityCtx.lineWidth = 8;
+  // River banks (darker edges)
+  cityCtx.strokeStyle = nightMode ? '#0a2040' : '#2a6890';
+  cityCtx.lineWidth = 32;
+  cityCtx.globalAlpha = 0.3;
   cityCtx.beginPath();
-  cityCtx.moveTo(-15, groundY + 28);
-  cityCtx.bezierCurveTo(w * 0.18, groundY + 55, w * 0.13, h * 0.63, w * 0.06, h + 15);
+  cityCtx.moveTo(-20, groundY + 40);
+  cityCtx.bezierCurveTo(w * 0.15, groundY + 80, w * 0.3, h * 0.55, w * 0.22, h * 0.75);
+  cityCtx.bezierCurveTo(w * 0.18, h * 0.85, w * 0.25, h * 0.92, w * 0.35, h + 20);
+  cityCtx.stroke();
+  cityCtx.globalAlpha = 1;
+
+  // River highlight
+  cityCtx.strokeStyle = nightMode ? 'rgba(100,140,180,0.3)' : 'rgba(160,210,240,0.5)';
+  cityCtx.lineWidth = 10;
+  cityCtx.beginPath();
+  cityCtx.moveTo(-15, groundY + 38);
+  cityCtx.bezierCurveTo(w * 0.14, groundY + 75, w * 0.28, h * 0.53, w * 0.21, h * 0.73);
+  cityCtx.stroke();
+
+  // Small tributary
+  cityCtx.strokeStyle = nightMode ? '#1a3050' : '#4888b8';
+  cityCtx.lineWidth = 12;
+  cityCtx.beginPath();
+  cityCtx.moveTo(w + 10, h * 0.6);
+  cityCtx.bezierCurveTo(w * 0.7, h * 0.65, w * 0.5, h * 0.7, w * 0.3, h * 0.8);
   cityCtx.stroke();
 }
 
 function drawScatteredTrees(w, h, groundY, centerX, centerY, nightMode = false) {
   const trees = [
-    { x: 60, y: groundY + 80, size: 35 },
-    { x: 120, y: groundY + 120, size: 40 },
-    { x: w - 80, y: groundY + 90, size: 38 },
-    { x: w - 150, y: groundY + 140, size: 42 },
-    { x: w - 60, y: h - 100, size: 35 },
-    { x: 80, y: h - 80, size: 30 },
-    { x: w / 2 - 200, y: groundY + 60, size: 32 },
-    { x: w / 2 + 200, y: groundY + 70, size: 36 }
+    { x: 40, y: groundY + 70, size: 40, type: 'pine' },
+    { x: 90, y: groundY + 100, size: 45, type: 'oak' },
+    { x: 140, y: groundY + 130, size: 38, type: 'pine' },
+    { x: w - 60, y: groundY + 80, size: 42, type: 'oak' },
+    { x: w - 130, y: groundY + 120, size: 48, type: 'pine' },
+    { x: w - 40, y: groundY + 160, size: 35, type: 'oak' },
+    { x: w - 80, y: h - 90, size: 40, type: 'pine' },
+    { x: 60, y: h - 70, size: 35, type: 'oak' },
+    { x: w / 2 - 220, y: groundY + 55, size: 38, type: 'pine' },
+    { x: w / 2 + 220, y: groundY + 60, size: 42, type: 'oak' },
+    { x: w / 2 - 180, y: h - 50, size: 36, type: 'pine' },
+    { x: w / 2 + 190, y: h - 60, size: 40, type: 'oak' }
   ];
 
+  // Rocks/boulders
+  const rocks = [
+    { x: 30, y: groundY + 140, size: 20 },
+    { x: w - 40, y: h - 130, size: 16 },
+    { x: w / 2 - 250, y: h * 0.7, size: 22 },
+    { x: w / 2 + 260, y: h * 0.65, size: 18 },
+    { x: 180, y: h - 40, size: 14 },
+    { x: w - 180, y: groundY + 170, size: 20 }
+  ];
+
+  rocks.forEach(rock => {
+    const dx = rock.x - centerX;
+    const dy = rock.y - centerY;
+    if (Math.sqrt(dx*dx + dy*dy) < 200) return;
+    drawRock(rock.x, rock.y, rock.size, nightMode);
+  });
+
   trees.forEach(tree => {
-    // Skip if too close to city
     const dx = tree.x - centerX;
     const dy = tree.y - centerY;
     if (Math.sqrt(dx*dx + dy*dy) < 200) return;
-
     drawTree(tree.x, tree.y, tree.size, nightMode);
   });
+}
+
+function drawRock(x, y, size, nightMode = false) {
+  const baseColor = nightMode ? '#3a3830' : '#8a8478';
+  const lightColor = nightMode ? '#4a4840' : '#a8a090';
+  const darkColor = nightMode ? '#2a2820' : '#6a6458';
+
+  cityCtx.fillStyle = darkColor;
+  cityCtx.beginPath();
+  cityCtx.ellipse(x + 2, y + 3, size * 0.6, size * 0.25, 0.1, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Main rock body
+  cityCtx.fillStyle = baseColor;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size * 0.5, y);
+  cityCtx.quadraticCurveTo(x - size * 0.4, y - size * 0.6, x, y - size * 0.5);
+  cityCtx.quadraticCurveTo(x + size * 0.4, y - size * 0.6, x + size * 0.5, y);
+  cityCtx.quadraticCurveTo(x + size * 0.3, y + size * 0.15, x - size * 0.3, y + size * 0.15);
+  cityCtx.closePath();
+  cityCtx.fill();
+
+  // Light side
+  cityCtx.fillStyle = lightColor;
+  cityCtx.beginPath();
+  cityCtx.moveTo(x - size * 0.3, y - size * 0.1);
+  cityCtx.quadraticCurveTo(x - size * 0.2, y - size * 0.45, x + size * 0.1, y - size * 0.4);
+  cityCtx.quadraticCurveTo(x + size * 0.15, y - size * 0.15, x - size * 0.1, y);
+  cityCtx.closePath();
+  cityCtx.fill();
 }
 
 function drawTree(x, y, size, nightMode = false) {
   // Shadow
   cityCtx.fillStyle = nightMode ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.2)';
   cityCtx.beginPath();
-  cityCtx.ellipse(x + 3, y + 5, size * 0.4, size * 0.15, 0, 0, Math.PI * 2);
+  cityCtx.ellipse(x + 4, y + 5, size * 0.45, size * 0.15, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
   // Trunk
-  cityCtx.fillStyle = nightMode ? '#2a2018' : '#5a4030';
-  cityCtx.fillRect(x - size * 0.08, y - size * 0.3, size * 0.16, size * 0.35);
+  const trunkGrad = cityCtx.createLinearGradient(x - size * 0.1, 0, x + size * 0.1, 0);
+  trunkGrad.addColorStop(0, nightMode ? '#2a2018' : '#5a4030');
+  trunkGrad.addColorStop(0.5, nightMode ? '#3a3020' : '#6a5040');
+  trunkGrad.addColorStop(1, nightMode ? '#2a2018' : '#4a3020');
+  cityCtx.fillStyle = trunkGrad;
+  cityCtx.fillRect(x - size * 0.07, y - size * 0.35, size * 0.14, size * 0.4);
 
-  // Foliage layers (darker at night)
-  const colors = nightMode
-    ? ['#0a2008', '#152810', '#1a3015']
-    : ['#2a5a1a', '#3a6a2a', '#4a7a3a'];
+  // Round foliage (Travian style - bushy round tree)
+  const darkGreen = nightMode ? '#0a2008' : '#2a5a1a';
+  const midGreen = nightMode ? '#152810' : '#3a7a2a';
+  const lightGreen = nightMode ? '#1a3015' : '#4a8a3a';
 
-  for (let i = 0; i < 3; i++) {
-    cityCtx.fillStyle = colors[i];
-    cityCtx.beginPath();
-    cityCtx.moveTo(x, y - size * (0.6 + i * 0.25));
-    cityCtx.lineTo(x - size * (0.4 - i * 0.08), y - size * (0.2 + i * 0.15));
-    cityCtx.lineTo(x + size * (0.4 - i * 0.08), y - size * (0.2 + i * 0.15));
-    cityCtx.closePath();
-    cityCtx.fill();
-  }
+  // Main canopy (large circle)
+  cityCtx.fillStyle = darkGreen;
+  cityCtx.beginPath();
+  cityCtx.arc(x, y - size * 0.55, size * 0.42, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Light patch (top-left highlight)
+  cityCtx.fillStyle = midGreen;
+  cityCtx.beginPath();
+  cityCtx.arc(x - size * 0.08, y - size * 0.62, size * 0.32, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Small highlight
+  cityCtx.fillStyle = lightGreen;
+  cityCtx.beginPath();
+  cityCtx.arc(x - size * 0.12, y - size * 0.68, size * 0.18, 0, Math.PI * 2);
+  cityCtx.fill();
+
+  // Side foliage bumps
+  cityCtx.fillStyle = darkGreen;
+  cityCtx.beginPath();
+  cityCtx.arc(x - size * 0.25, y - size * 0.42, size * 0.2, 0, Math.PI * 2);
+  cityCtx.fill();
+  cityCtx.beginPath();
+  cityCtx.arc(x + size * 0.22, y - size * 0.45, size * 0.2, 0, Math.PI * 2);
+  cityCtx.fill();
 }
 
 function drawCropFields(w, h, centerX, centerY, nightMode = false) {
@@ -3579,7 +3683,7 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   };
 
   const bh = size * style.height;
-  const bw = size * 0.55;
+  const bw = size * 0.65;
 
   // ========== HOVER EFFECT (Travian-style golden glow) ==========
   if (isHovered) {
@@ -4228,52 +4332,44 @@ function drawWaterBuilding(x, y, bw, style) {
 
 // ========== TRAVIAN-STYLE LEVEL BADGE ==========
 function drawTravianLevelBadge(x, y, bw, bh, level, isHovered, canUpgrade = true) {
-  const badgeX = x + bw * 0.55;
-  const badgeY = y - 5;
-  const badgeRadius = 13;
+  const badgeX = x + bw * 0.6;
+  const badgeY = y - bh * 0.3;
+  const badgeRadius = 12;
 
-  // Travian-style colors: green = built, yellow = can upgrade
-  const bgColor = canUpgrade ? (isHovered ? '#d4a820' : '#c4a020') : (isHovered ? '#4a9a4a' : '#3a8a3a');
-  const borderColor = isHovered ? '#ffffff' : (canUpgrade ? '#a08010' : '#2a6a2a');
-  const textColor = canUpgrade ? '#3a2a10' : '#ffffff';
+  // Travian Legends style: blue circle with white text (like screenshot)
+  const bgColor = isHovered ? '#4a9ad8' : '#3a8ac8';
 
   // Badge shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.4)';
+  cityCtx.fillStyle = 'rgba(0,0,0,0.5)';
   cityCtx.beginPath();
-  cityCtx.arc(badgeX + 2, badgeY + 2, badgeRadius, 0, Math.PI * 2);
+  cityCtx.arc(badgeX + 1, badgeY + 2, badgeRadius + 1, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // Badge background (Travian yellow/green circle)
-  const badgeGrad = cityCtx.createRadialGradient(badgeX - 3, badgeY - 3, 0, badgeX, badgeY, badgeRadius);
-  if (canUpgrade) {
-    badgeGrad.addColorStop(0, isHovered ? '#f4c830' : '#e4b830');
-    badgeGrad.addColorStop(0.7, bgColor);
-    badgeGrad.addColorStop(1, '#8a7010');
-  } else {
-    badgeGrad.addColorStop(0, isHovered ? '#5aba5a' : '#4aaa4a');
-    badgeGrad.addColorStop(0.7, bgColor);
-    badgeGrad.addColorStop(1, '#2a5a2a');
-  }
+  // Badge background (Travian blue circle)
+  const badgeGrad = cityCtx.createRadialGradient(badgeX - 2, badgeY - 2, 0, badgeX, badgeY, badgeRadius);
+  badgeGrad.addColorStop(0, isHovered ? '#6ab8f0' : '#5aa8e0');
+  badgeGrad.addColorStop(0.6, bgColor);
+  badgeGrad.addColorStop(1, '#2a6aa0');
   cityCtx.fillStyle = badgeGrad;
   cityCtx.beginPath();
   cityCtx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // Badge border
-  cityCtx.strokeStyle = borderColor;
-  cityCtx.lineWidth = isHovered ? 3 : 2;
+  // Badge border (white like Travian)
+  cityCtx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255,255,255,0.8)';
+  cityCtx.lineWidth = 2;
   cityCtx.stroke();
 
-  // Inner highlight (3D effect)
-  cityCtx.strokeStyle = canUpgrade ? 'rgba(255,255,200,0.5)' : 'rgba(200,255,200,0.5)';
+  // Inner highlight (shine)
+  cityCtx.strokeStyle = 'rgba(255,255,255,0.4)';
   cityCtx.lineWidth = 1;
   cityCtx.beginPath();
-  cityCtx.arc(badgeX, badgeY, badgeRadius - 3, Math.PI * 1.2, Math.PI * 1.8);
+  cityCtx.arc(badgeX, badgeY, badgeRadius - 3, Math.PI * 1.1, Math.PI * 1.9);
   cityCtx.stroke();
 
-  // Level number
-  cityCtx.fillStyle = textColor;
-  cityCtx.font = 'bold 13px Cinzel, serif';
+  // Level number (white, bold)
+  cityCtx.fillStyle = '#ffffff';
+  cityCtx.font = `bold ${level >= 10 ? 11 : 13}px Arial, sans-serif`;
   cityCtx.textAlign = 'center';
   cityCtx.textBaseline = 'middle';
   cityCtx.fillText(level.toString(), badgeX, badgeY + 1);

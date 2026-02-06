@@ -434,12 +434,13 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px;
+  padding: 6px 16px;
   background:
     linear-gradient(180deg, #4a3c2a 0%, #3a2e20 50%, #2a2218 100%);
-  border-bottom: 3px solid #8b6914;
+  border-bottom: 2px solid #8b6914;
   position: relative;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  z-index: 100;
 }
 
 /* Decorative top edge */
@@ -482,19 +483,19 @@ html, body {
 .resource-box {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 90px;
-  padding: 8px 12px;
+  gap: 6px;
+  min-width: 95px;
+  padding: 6px 10px;
   background: linear-gradient(180deg,
-    #4a4a4a 0%,
-    #3a3a3a 50%,
-    #2a2a2a 100%);
-  border: 1px solid #1a1a1a;
-  border-radius: 3px;
+    #5a5040 0%,
+    #4a4030 50%,
+    #3a3020 100%);
+  border: 1px solid #2a2018;
+  border-top: 1px solid #6a5a48;
+  border-radius: 4px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.1),
-    inset 0 -1px 0 rgba(0,0,0,0.3),
-    0 2px 3px rgba(0,0,0,0.5);
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 2px 3px rgba(0,0,0,0.4);
   position: relative;
 }
 
@@ -520,8 +521,9 @@ html, body {
 }
 
 .res-icon {
-  font-size: 24px;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+  font-size: 20px;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+  flex-shrink: 0;
 }
 
 .res-name {
@@ -556,10 +558,10 @@ html, body {
   background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
 }
 .clay-fill {
-  background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
+  background: linear-gradient(180deg, #c47040 0%, #a05828 100%);
 }
 .iron-fill {
-  background: linear-gradient(180deg, #7cb442 0%, #5a9030 100%);
+  background: linear-gradient(180deg, #8090a0 0%, #607080 100%);
 }
 .food-fill {
   background: linear-gradient(180deg, #e8c040 0%, #c4a030 100%);
@@ -575,19 +577,24 @@ html, body {
 }
 
 .res-current {
-  color: #ffffff;
-  font-size: 16px;
+  color: #f0e0c0;
+  font-size: 14px;
   font-weight: 700;
   font-family: Arial, sans-serif;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.6);
 }
 
 .res-max {
-  display: none; /* Hide max in Travian style */
+  color: #8a7a60;
+  font-size: 11px;
+  margin-left: 1px;
 }
 
 .res-prod {
-  display: none; /* Production shown separately for food */
+  color: #7cb442;
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: 4px;
 }
 
 /* ========== FOOD PRODUCTION BOX (separate) ========== */
@@ -1092,14 +1099,10 @@ html, body {
 .view-canvas-container {
   flex: 1;
   position: relative;
-  background:
-    radial-gradient(ellipse at 50% 30%, rgba(74,124,35,0.1) 0%, transparent 50%),
-    linear-gradient(180deg, #2a3a2a 0%, #1a2a1a 50%, #0d1a0d 100%);
-  border: 3px solid #3a4a3a;
+  background: #1a2a1a;
+  border: none;
   border-radius: 0;
-  box-shadow:
-    inset 0 0 60px rgba(0,0,0,0.5),
-    inset 0 2px 0 rgba(255,255,255,0.03);
+  overflow: hidden;
 }
 .view-canvas-container canvas {
   width: 100%;
