@@ -13019,7 +13019,7 @@ function startCountdowns() {
       updateAllCountdowns();
       updateAttackNotification();
     }
-  }, 1000);
+  }, 500);
 }
 
 // Initialize server time when game starts
