@@ -95,7 +95,7 @@ model CityBuilding {
   city City @relation(fields: [cityId], references: [id])
 
   @@unique([cityId, slot])
-  @@unique([cityId, key])
+  @@index([cityId, key])
 }
 
 model BuildQueueItem {

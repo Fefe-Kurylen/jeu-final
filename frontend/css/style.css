@@ -2001,9 +2001,9 @@ tr.marked, .list-item.marked {
 /* ========== TRAVIAN-STYLE BUILD PANEL ========== */
 .build-panel {
   position: fixed;
-  bottom: 58px; /* above the floating bottom nav */
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   width: 95%;
   max-width: 650px;
   max-height: 70vh;
@@ -2011,12 +2011,11 @@ tr.marked, .list-item.marked {
   flex-direction: column;
   background: linear-gradient(180deg, #f5e6c8 0%, #e8d4a8 50%, #d4c498 100%);
   border: 3px solid #8b6914;
-  border-bottom: none;
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px;
   z-index: 500;
   box-shadow:
     0 0 0 1px #5a4010,
-    0 -8px 32px rgba(0, 0, 0, 0.5);
+    0 8px 32px rgba(0, 0, 0, 0.5);
 }
 /* Greek pattern border at top */
 .build-panel::before {
