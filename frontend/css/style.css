@@ -4379,6 +4379,36 @@ tr.marked, .list-item.marked {
   color: #8a7a6a;
 }
 
+.qd-section-header {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #c9a227;
+  background: rgba(58, 50, 40, 0.4);
+  border-bottom: 1px solid rgba(58, 50, 40, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qd-item .qd-num {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(201, 162, 39, 0.2);
+  color: #c9a227;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.qd-item.running .qd-num {
+  background: rgba(74, 124, 35, 0.3);
+  color: #6db33f;
+}
+
 /* Legacy activity dropdown - hidden */
 .activity-dropdown {
   display: none;

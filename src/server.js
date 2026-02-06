@@ -4226,14 +4226,30 @@ async function startServer() {
         // Index already gone, no problem
       }
 
-      // Auto-seed resource nodes if none exist
+      // Auto-seed resource nodes if none exist or FORCE_RESEED
       try {
         const nodeCount = await prisma.resourceNode.count();
-        if (nodeCount === 0) {
-          console.log('🌱 Aucun point de ressource trouvé, génération automatique...');
+        const RESEED_VERSION = 2; // Increment to force reseed
+        const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
+        // Check if we need to reseed based on version
+        const lastSeedVersion = await prisma.$queryRawUnsafe(
+          `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
+        ).then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
+        const needsReseed = forceReseed || lastSeedVersion < RESEED_VERSION;
+        if (needsReseed) {
+          if (nodeCount > 0) {
+            console.log(`🗑️ Suppression de ${nodeCount} anciens nœuds de ressource (v${lastSeedVersion} → v${RESEED_VERSION})...`);
+            await prisma.resourceNode.deleteMany({});
+          }
+          console.log('🌱 Génération des points de ressource v' + RESEED_VERSION + '...');
           await seedResourceNodes();
+          // Store seed version as table comment
+          await prisma.$executeRawUnsafe(
+            `COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`
+          );
+          console.log(`✅ Version de seed stockée: v${RESEED_VERSION}`);
         } else {
-          console.log(`🌍 ${nodeCount} points de ressource existants`);
+          console.log(`🌍 ${nodeCount} points de ressource existants (v${lastSeedVersion})`);
         }
       } catch (seedErr) {
         console.warn('⚠️ Erreur seed:', seedErr.message);

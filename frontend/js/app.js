@@ -5949,12 +5949,18 @@ function renderBuildQueue() {
   const statusTimer = document.getElementById('build-status-timer');
 
   if (statusText) {
+    const total = running.length + queued.length;
     if (running.length > 0) {
-      statusText.textContent = `${getBuildingName(running[0].buildingKey)} Niv.${running[0].targetLevel}`;
+      const suffix = total > 1 ? ` (+${total - 1})` : '';
+      statusText.textContent = `${getBuildingName(running[0].buildingKey)} Niv.${running[0].targetLevel}${suffix}`;
       if (statusTimer) {
         statusTimer.textContent = formatTime(running[0].endsAt);
         statusTimer.dataset.endsAt = running[0].endsAt;
       }
+      statusItem?.classList.add('active');
+    } else if (queued.length > 0) {
+      statusText.textContent = `${queued.length} en attente`;
+      if (statusTimer) { statusTimer.textContent = ''; statusTimer.dataset.endsAt = ''; }
       statusItem?.classList.add('active');
     } else {
       statusText.textContent = 'Aucune construction';
@@ -5968,22 +5974,28 @@ function renderBuildQueue() {
   if (listEl) {
     if (running.length > 0 || queued.length > 0) {
       let html = '';
-      running.forEach(q => {
-        html += `<div class="qd-item running">
-          <span>🔨</span>
-          <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
-          <span class="qd-level">Niv.${q.targetLevel}</span>
-          <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-        </div>`;
-      });
-      queued.forEach(q => {
-        html += `<div class="qd-item queued">
-          <span>⏳</span>
-          <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
-          <span class="qd-level">Niv.${q.targetLevel}</span>
-          <span class="qd-status">En attente</span>
-        </div>`;
-      });
+      if (running.length > 0) {
+        html += '<div class="qd-section-header">🔨 En cours (${running.length}/2)</div>'.replace('${running.length}', running.length);
+        running.forEach((q, i) => {
+          html += `<div class="qd-item running">
+            <span class="qd-num">${i + 1}</span>
+            <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+            <span class="qd-level">Niv.${q.targetLevel}</span>
+            <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          </div>`;
+        });
+      }
+      if (queued.length > 0) {
+        html += '<div class="qd-section-header">⏳ En attente (${queued.length}/2)</div>'.replace('${queued.length}', queued.length);
+        queued.forEach((q, i) => {
+          html += `<div class="qd-item queued">
+            <span class="qd-num">${i + 1}</span>
+            <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+            <span class="qd-level">Niv.${q.targetLevel}</span>
+            <span class="qd-status">En attente</span>
+          </div>`;
+        });
+      }
       listEl.innerHTML = html;
     } else {
       listEl.innerHTML = '<div class="qd-empty">Aucune construction en cours</div>';
@@ -10995,10 +11007,12 @@ function onMapClick(e) {
 // Touch handlers for mobile
 let touchStartDist = 0;
 let touchStartZoom = 1;
+let touchDragDistance = 0;
+let touchStartPos = null;
 
 function onMapTouchStart(e) {
   e.preventDefault();
-  
+
   if (e.touches.length === 2) {
     // Pinch zoom start
     touchStartDist = Math.hypot(
@@ -11008,6 +11022,9 @@ function onMapTouchStart(e) {
     touchStartZoom = mapZoomLevel;
   } else if (e.touches.length === 1) {
     mapDragging = true;
+    mapDragDistance = 0;
+    touchDragDistance = 0;
+    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
 }
@@ -11030,8 +11047,13 @@ function onMapTouchMove(e) {
     // Use isometric tile dimensions
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
     const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-    const dx = (e.touches[0].clientX - mapDragStart.x) / (tileW * 0.5);
-    const dy = (e.touches[0].clientY - mapDragStart.y) / (tileH);
+    const pixelDx = e.touches[0].clientX - mapDragStart.x;
+    const pixelDy = e.touches[0].clientY - mapDragStart.y;
+    touchDragDistance += Math.abs(pixelDx) + Math.abs(pixelDy);
+    mapDragDistance = touchDragDistance;
+
+    const dx = pixelDx / (tileW * 0.5);
+    const dy = pixelDy / (tileH);
 
     mapOffsetX -= (dx + dy) * 0.5;
     mapOffsetY -= (dy - dx) * 0.5;
@@ -11043,8 +11065,33 @@ function onMapTouchMove(e) {
   }
 }
 
-function onMapTouchEnd() {
+function onMapTouchEnd(e) {
   mapDragging = false;
+
+  // Simulate click/tap if no significant drag
+  if (touchDragDistance < 10 && touchStartPos) {
+    const rect = mapCanvas.getBoundingClientRect();
+    const mouseX = touchStartPos.x - rect.left;
+    const mouseY = touchStartPos.y - rect.top;
+
+    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+    const centerX = mapCanvas.width / 2;
+    const centerY = mapCanvas.height / 2;
+
+    const dx = mouseX - centerX;
+    const dy = mouseY - centerY;
+    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
+    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
+
+    const tile = mapData.find(t => t.x === tileX && t.y === tileY);
+    mapSelectedTile = { x: tileX, y: tileY };
+    showMapInfoPanel(tileX, tileY, tile);
+    renderMap();
+  }
+
+  touchDragDistance = 0;
+  touchStartPos = null;
 }
 
 // Wheel zoom
