@@ -130,75 +130,78 @@
 
         <!-- TOP BAR - Resources with progress bars (Travian style) -->
         <header class="top-bar">
-            <!-- Resources -->
+            <!-- Resources (Travian detailed style) -->
             <div class="resources-container">
                 <div class="resource-box" title="Bois">
-                    <div class="res-header">
-                        <span class="res-icon">🪵</span>
-                        <span class="res-name">Bois</span>
+                    <span class="res-icon">🪵</span>
+                    <div class="res-detail">
+                        <span class="res-current" id="res-wood">0</span>
+                        <span class="res-timer" id="timer-wood">00:00:00</span>
+                        <div class="res-sub">
+                            <span class="res-prod" id="prod-wood">/h: 0</span>
+                            <span class="res-max">Max: <span id="max-wood">800</span></span>
+                        </div>
                     </div>
                     <div class="res-bar">
                         <div class="res-bar-fill wood-fill" id="wood-bar"></div>
                     </div>
-                    <div class="res-numbers">
-                        <span class="res-current" id="res-wood">0</span>
-                        <span class="res-max">/ <span id="max-wood">800</span></span>
-                    </div>
-                    <span class="res-prod" id="prod-wood">+0/h</span>
                 </div>
 
                 <div class="resource-box" title="Argile">
-                    <div class="res-header">
-                        <span class="res-icon">🧱</span>
-                        <span class="res-name">Argile</span>
+                    <span class="res-icon">🧱</span>
+                    <div class="res-detail">
+                        <span class="res-current" id="res-stone">0</span>
+                        <span class="res-timer" id="timer-stone">00:00:00</span>
+                        <div class="res-sub">
+                            <span class="res-prod" id="prod-stone">/h: 0</span>
+                            <span class="res-max">Max: <span id="max-stone">800</span></span>
+                        </div>
                     </div>
                     <div class="res-bar">
                         <div class="res-bar-fill clay-fill" id="clay-bar"></div>
                     </div>
-                    <div class="res-numbers">
-                        <span class="res-current" id="res-stone">0</span>
-                        <span class="res-max">/ <span id="max-stone">800</span></span>
-                    </div>
-                    <span class="res-prod" id="prod-stone">+0/h</span>
                 </div>
 
                 <div class="resource-box" title="Fer">
-                    <div class="res-header">
-                        <span class="res-icon">⛏️</span>
-                        <span class="res-name">Fer</span>
+                    <span class="res-icon">⛏️</span>
+                    <div class="res-detail">
+                        <span class="res-current" id="res-iron">0</span>
+                        <span class="res-timer" id="timer-iron">00:00:00</span>
+                        <div class="res-sub">
+                            <span class="res-prod" id="prod-iron">/h: 0</span>
+                            <span class="res-max">Max: <span id="max-iron">800</span></span>
+                        </div>
                     </div>
                     <div class="res-bar">
                         <div class="res-bar-fill iron-fill" id="iron-bar"></div>
                     </div>
-                    <div class="res-numbers">
-                        <span class="res-current" id="res-iron">0</span>
-                        <span class="res-max">/ <span id="max-iron">800</span></span>
-                    </div>
-                    <span class="res-prod" id="prod-iron">+0/h</span>
                 </div>
 
                 <div class="resource-box" title="Blé">
-                    <div class="res-header">
-                        <span class="res-icon">🌾</span>
-                        <span class="res-name">Blé</span>
+                    <span class="res-icon">🌾</span>
+                    <div class="res-detail">
+                        <span class="res-current" id="res-food">0</span>
+                        <span class="res-timer" id="timer-food">00:00:00</span>
+                        <div class="res-sub">
+                            <span class="res-prod" id="prod-food">/h: 0</span>
+                            <span class="res-max">Max: <span id="max-food">800</span></span>
+                        </div>
                     </div>
                     <div class="res-bar">
                         <div class="res-bar-fill food-fill" id="food-bar"></div>
                     </div>
-                    <div class="res-numbers">
-                        <span class="res-current" id="res-food">0</span>
-                        <span class="res-max">/ <span id="max-food">800</span></span>
-                    </div>
-                    <span class="res-prod" id="prod-food">+0/h</span>
                 </div>
 
                 <div class="resource-box gold-box" title="Or (premium)">
-                    <div class="res-header">
-                        <span class="res-icon">🪙</span>
-                        <span class="res-name">Or</span>
-                    </div>
+                    <span class="res-icon">🪙</span>
                     <span class="res-current gold-value" id="res-gold">0</span>
                 </div>
+            </div>
+
+            <!-- Attack Notification (Travian style) -->
+            <div class="attack-notif" id="attack-notif" style="display:none">
+                <span class="attack-icon">⚔️</span>
+                <span class="attack-timer" id="attack-timer">00:00:00</span>
             </div>
 
             <!-- Server Time & Day/Night Indicator (Travian style) -->

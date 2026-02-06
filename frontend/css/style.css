@@ -482,20 +482,20 @@ html, body {
 /* ========== TRAVIAN-STYLE RESOURCE BOX ========== */
 .resource-box {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 95px;
-  padding: 6px 10px;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 80px;
+  padding: 4px 8px 3px;
   background: linear-gradient(180deg,
-    #5a5040 0%,
-    #4a4030 50%,
-    #3a3020 100%);
-  border: 1px solid #2a2018;
-  border-top: 1px solid #6a5a48;
-  border-radius: 4px;
+    #e8dcc4 0%,
+    #d8ccb4 50%,
+    #c8bca0 100%);
+  border: 1px solid #a09070;
+  border-bottom: 2px solid #8a7a60;
+  border-radius: 3px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 2px 3px rgba(0,0,0,0.4);
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    0 1px 3px rgba(0,0,0,0.3);
   position: relative;
 }
 
@@ -507,23 +507,26 @@ html, body {
   top: 4px;
   bottom: 4px;
   width: 1px;
-  background: linear-gradient(180deg, transparent, #5a5a5a, transparent);
+  background: linear-gradient(180deg, transparent, #a09070, transparent);
 }
 
 .resource-box:last-child::after {
   display: none;
 }
 
-.res-header {
-  display: flex;
-  align-items: center;
+.res-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
   flex-shrink: 0;
+  align-self: center;
+  line-height: 1;
 }
 
-.res-icon {
-  font-size: 20px;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
-  flex-shrink: 0;
+.res-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
 }
 
 .res-name {
@@ -539,12 +542,11 @@ html, body {
 
 .res-bar {
   width: 100%;
-  height: 4px;
-  background: #1a1a1a;
-  border-radius: 2px;
+  height: 3px;
+  background: #8a7a60;
+  border-radius: 1px;
   overflow: hidden;
-  margin-top: 4px;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.3);
 }
 
 .res-bar-fill {
@@ -577,24 +579,74 @@ html, body {
 }
 
 .res-current {
-  color: #f0e0c0;
-  font-size: 14px;
+  color: #3a2a10;
+  font-size: 15px;
   font-weight: 700;
   font-family: Arial, sans-serif;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+  text-align: center;
+}
+
+.res-timer {
+  display: block;
+  color: #ffffff;
+  background: #4a8a28;
+  font-size: 10px;
+  font-weight: bold;
+  font-family: monospace;
+  padding: 1px 6px;
+  border-radius: 2px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.res-sub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
 }
 
 .res-max {
-  color: #8a7a60;
-  font-size: 11px;
-  margin-left: 1px;
+  color: #6a5a40;
+  font-size: 10px;
 }
 
 .res-prod {
-  color: #7cb442;
+  color: #3a2a10;
   font-size: 10px;
   font-weight: bold;
-  margin-left: 4px;
+}
+
+/* Attack notification */
+.attack-notif {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(180deg, #c02020, #8a1010);
+  border: 1px solid #ff4040;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(200,0,0,0.4);
+  animation: attackPulse 1.5s ease-in-out infinite;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.attack-icon {
+  font-size: 16px;
+}
+
+.attack-timer {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: monospace;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+@keyframes attackPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; box-shadow: 0 2px 12px rgba(255,0,0,0.6); }
 }
 
 /* ========== FOOD PRODUCTION BOX (separate) ========== */
@@ -622,17 +674,18 @@ html, body {
 
 /* ========== GOLD BOX - MEDALLION STYLE ========== */
 .gold-box {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   background: linear-gradient(180deg,
     #8b6914 0%,
     #6a5010 50%,
     #4a3808 100%);
   border: 2px solid #c9a227;
-  border-radius: 50%;
-  min-width: 44px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  justify-content: center;
+  border-radius: 8px;
+  min-width: 60px;
+  padding: 4px 8px;
   box-shadow:
     inset 0 2px 4px rgba(255,255,255,0.2),
     inset 0 -2px 4px rgba(0,0,0,0.4),
@@ -643,15 +696,16 @@ html, body {
   display: none;
 }
 
-.gold-box .res-header {
-  display: none;
+.gold-box .res-icon {
+  position: static;
+  font-size: 18px;
 }
 
 .gold-value {
-  font-size: 18px;
+  font-size: 16px;
   color: #ffd700;
   font-weight: 900;
-  font-family: 'Cinzel', serif;
+  font-family: Arial, sans-serif;
   text-shadow:
     0 1px 0 #4a3808,
     0 2px 3px rgba(0,0,0,0.5);
@@ -2912,11 +2966,19 @@ tr.marked, .list-item.marked {
 }
 
 @media (max-width: 600px) {
-  .resource-box { min-width: 50px; }
+  .resource-box { min-width: 60px; padding: 3px 5px 2px; }
+  .res-icon { font-size: 16px; }
+  .res-current { font-size: 12px; }
+  .res-timer { font-size: 9px; padding: 1px 3px; }
+  .res-sub { display: none; }
   .res-bar { display: none; }
-  .res-max { display: none; }
   .village-selector { display: none; }
   .player-info-box { display: none; }
+  .gold-box { min-width: 50px; padding: 3px 6px; }
+  .gold-value { font-size: 13px; }
+  .attack-notif { padding: 3px 6px; }
+  .attack-timer { font-size: 11px; }
+  .server-time-section { display: none; }
 }
 
 /* ========== HERO MANAGEMENT PANEL ========== */

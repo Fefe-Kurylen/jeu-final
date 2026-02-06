@@ -315,6 +315,7 @@ async function showGame() {
   await Promise.all([loadPlayer(), loadBuildings(), loadUnits()]);
   await loadCities();
   await loadArmies();
+  startAttackCheck();
   startRefresh();
 }
 
@@ -434,6 +435,66 @@ function updateQuicklinksCity() {
   }
 }
 
+// ========== INCOMING ATTACK NOTIFICATION ==========
+let incomingAttacks = [];
+let attackCheckInterval = null;
+
+async function checkIncomingAttacks() {
+  try {
+    const resp = await fetch('/api/incoming-attacks', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (resp.ok) {
+      incomingAttacks = await resp.json();
+    }
+  } catch (e) {
+    // Silently ignore
+  }
+}
+
+function updateAttackNotification() {
+  const notifEl = document.getElementById('attack-notif');
+  if (!notifEl) return;
+
+  // Filter to attacks that haven't arrived yet
+  const now = new Date();
+  const active = incomingAttacks.filter(a => new Date(a.arrivalAt) > now);
+
+  if (active.length === 0) {
+    notifEl.style.display = 'none';
+    return;
+  }
+
+  notifEl.style.display = 'flex';
+
+  // Show earliest attack timer
+  const earliest = active[0];
+  const diff = new Date(earliest.arrivalAt) - now;
+  const totalSec = Math.max(0, Math.floor(diff / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const timerStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  const timerEl = document.getElementById('attack-timer');
+  if (timerEl) {
+    timerEl.textContent = timerStr;
+  }
+
+  // Show count if multiple attacks
+  const iconEl = notifEl.querySelector('.attack-icon');
+  if (iconEl) {
+    iconEl.textContent = active.length > 1 ? `⚔️ ${active.length}x` : '⚔️';
+  }
+}
+
+// Start checking for attacks every 30 seconds
+function startAttackCheck() {
+  if (attackCheckInterval) clearInterval(attackCheckInterval);
+  checkIncomingAttacks();
+  attackCheckInterval = setInterval(checkIncomingAttacks, 30000);
+}
+
 function renderCity() {
   if (!currentCity) return;
 
@@ -514,21 +575,56 @@ function renderCity() {
   // Net food production
   const netFood = foodProd - foodConsumption;
   
-  document.getElementById('prod-wood').textContent = `+${formatNum(woodProd)}`;
-  document.getElementById('prod-stone').textContent = `+${formatNum(stoneProd)}`;
-  document.getElementById('prod-iron').textContent = `+${formatNum(ironProd)}`;
-  
+  // Update production display (Travian style: "/h: X")
+  const prodWoodEl = document.getElementById('prod-wood');
+  const prodStoneEl = document.getElementById('prod-stone');
+  const prodIronEl = document.getElementById('prod-iron');
+  if (prodWoodEl) prodWoodEl.textContent = `/h: ${formatNum(woodProd)}`;
+  if (prodStoneEl) prodStoneEl.textContent = `/h: ${formatNum(stoneProd)}`;
+  if (prodIronEl) prodIronEl.textContent = `/h: ${formatNum(ironProd)}`;
+
   // Food display with consumption
   const foodEl = document.getElementById('prod-food');
-  if (netFood >= 0) {
-    foodEl.textContent = `+${formatNum(netFood)}`;
-    foodEl.style.color = '';
-    foodEl.title = `Production: +${foodProd}/h | Consommation: -${foodConsumption}/h`;
-  } else {
-    foodEl.textContent = `${formatNum(netFood)}`;
-    foodEl.style.color = '#e74c3c'; // Rouge si déficit
-    foodEl.title = `⚠️ DÉFICIT! Production: +${foodProd}/h | Consommation: -${foodConsumption}/h`;
+  if (foodEl) {
+    if (netFood >= 0) {
+      foodEl.textContent = `/h: ${formatNum(netFood)}`;
+      foodEl.style.color = '';
+    } else {
+      foodEl.textContent = `/h: ${formatNum(netFood)}`;
+      foodEl.style.color = '#c03030';
+    }
   }
+
+  // Calculate time until warehouse full (Travian timer style)
+  function calcTimeToFull(current, max, prodPerH) {
+    if (prodPerH <= 0 || current >= max) return '00:00:00';
+    const remaining = max - current;
+    const hoursLeft = remaining / prodPerH;
+    const totalSec = Math.floor(hoursLeft * 3600);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  const timerWood = document.getElementById('timer-wood');
+  const timerStone = document.getElementById('timer-stone');
+  const timerIron = document.getElementById('timer-iron');
+  const timerFood = document.getElementById('timer-food');
+  if (timerWood) timerWood.textContent = calcTimeToFull(currentCity.wood, maxRes, woodProd);
+  if (timerStone) timerStone.textContent = calcTimeToFull(currentCity.stone, maxRes, stoneProd);
+  if (timerIron) timerIron.textContent = calcTimeToFull(currentCity.iron, maxRes, ironProd);
+  if (timerFood) timerFood.textContent = calcTimeToFull(currentCity.food, maxFood, netFood);
+
+  // Update food timer color if deficit
+  if (timerFood && netFood < 0) {
+    timerFood.style.background = '#c03030';
+  } else if (timerFood) {
+    timerFood.style.background = '';
+  }
+
+  // Update attack notification
+  updateAttackNotification();
   
   // Render 2.5D city canvas
   renderCityCanvas();
@@ -683,42 +779,47 @@ function calculateCitySlots() {
   const centerX = w / 2;
   const centerY = h / 2 + 20;
   
-  const innerRadius = Math.min(w, h) * 0.16;
-  const outerRadius = Math.min(w, h) * 0.30;
-  const slotSize = Math.min(w, h) * 0.085;
-  
+  // Adjust layout based on portrait vs landscape
+  const isPortrait = h > w;
+  const base = Math.min(w, h);
+
+  const innerRadius = base * (isPortrait ? 0.14 : 0.16);
+  const outerRadius = base * (isPortrait ? 0.27 : 0.30);
+  const slotSize = base * (isPortrait ? 0.06 : 0.07);
+  const yCompress = isPortrait ? 0.50 : 0.55; // Less compression on portrait
+
   citySlots = [];
-  
+
   // Centre (Main Hall) - slot 0
   citySlots.push({
     slot: 0,
     x: centerX,
     y: centerY,
-    size: slotSize * 1.5,
+    size: slotSize * 1.3,
     fixed: true,
     fixedKey: 'MAIN_HALL'
   });
-  
+
   // Anneau intérieur (6 slots) - slots 1-6
   CITY_LAYOUT.innerRing.forEach(s => {
     const rad = (s.angle - 90) * Math.PI / 180;
     citySlots.push({
       slot: s.slot,
       x: centerX + Math.cos(rad) * innerRadius,
-      y: centerY + Math.sin(rad) * innerRadius * 0.55, // Écrasement pour effet 2.5D
+      y: centerY + Math.sin(rad) * innerRadius * yCompress,
       size: slotSize,
       ring: 'inner'
     });
   });
-  
+
   // Anneau extérieur (13 slots) - slots 7-19
   CITY_LAYOUT.outerRing.forEach(s => {
     const rad = (s.angle - 90) * Math.PI / 180;
     citySlots.push({
       slot: s.slot,
       x: centerX + Math.cos(rad) * outerRadius,
-      y: centerY + Math.sin(rad) * outerRadius * 0.55,
-      size: slotSize * 0.9,
+      y: centerY + Math.sin(rad) * outerRadius * yCompress,
+      size: slotSize * 0.85,
       ring: 'outer'
     });
   });
@@ -3683,7 +3784,7 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   };
 
   const bh = size * style.height;
-  const bw = size * 0.65;
+  const bw = size * 0.55;
 
   // ========== HOVER EFFECT (Travian-style golden glow) ==========
   if (isHovered) {
@@ -12881,7 +12982,7 @@ let countdownInterval;
 
 function updateAllCountdowns() {
   // Update all countdown timers on the page
-  const timers = document.querySelectorAll('.activity-timer, .queue-time, [data-countdown]');
+  const timers = document.querySelectorAll('.activity-timer, .queue-time, .qd-timer, .qs-timer, [data-countdown]');
 
   timers.forEach(timer => {
     const endsAt = timer.dataset.endsAt;
@@ -12914,7 +13015,10 @@ function updateAllCountdowns() {
 function startCountdowns() {
   if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
-    if (document.visibilityState === 'visible') updateAllCountdowns();
+    if (document.visibilityState === 'visible') {
+      updateAllCountdowns();
+      updateAttackNotification();
+    }
   }, 1000);
 }
 
