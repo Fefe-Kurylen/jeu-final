@@ -1903,6 +1903,9 @@ tr.marked, .list-item.marked {
   transform: translateX(-50%);
   width: 95%;
   max-width: 650px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, #f5e6c8 0%, #e8d4a8 50%, #d4c498 100%);
   border: 3px solid #8b6914;
   border-bottom: none;
@@ -1961,8 +1964,9 @@ tr.marked, .list-item.marked {
 }
 .panel-body {
   padding: 15px 20px;
-  max-height: 350px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   color: #3a2a1a;
 }
 
