@@ -5,7 +5,6 @@ let player = null;
 let currentCity = null;
 let cities = [];
 let armies = [];
-let mapX = 0, mapY = 0;
 
 // ========== CACHE SYSTEM ==========
 const cache = {
@@ -77,31 +76,6 @@ const requestManager = {
   }
 };
 
-// ========== DEBOUNCE UTILITY ==========
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-// ========== THROTTLE UTILITY ==========
-function throttle(func, limit) {
-  let inThrottle;
-  return function(...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-}
-
 // Building icons mapping (39 bâtiments)
 const BUILDING_ICONS = {
   // Base buildings
@@ -169,46 +143,6 @@ function getProductionAtLevel(buildingKey, level) {
     const t = (level - 1) / 19;
     return Math.round(lerpExp(L1, L20, t));
   }
-}
-
-// Building sprites cache (will be loaded when images are available)
-const buildingSprites = {};
-const SPRITE_BASE_PATH = 'assets/images/buildings';
-
-// Load building sprite image
-function loadBuildingSprite(buildingKey, faction = 'common') {
-  const cacheKey = `${faction}_${buildingKey}`;
-  if (buildingSprites[cacheKey]) return buildingSprites[cacheKey];
-
-  const img = new Image();
-  img.src = `${SPRITE_BASE_PATH}/${faction}/${buildingKey.toLowerCase()}.png`;
-  img.onload = () => {
-    buildingSprites[cacheKey] = img;
-    // Redraw city view when sprite loads
-    if (typeof renderCityView === 'function') renderCityView();
-  };
-  img.onerror = () => {
-    // Fallback: try common folder
-    if (faction !== 'common') {
-      const commonImg = new Image();
-      commonImg.src = `${SPRITE_BASE_PATH}/common/${buildingKey.toLowerCase()}.png`;
-      commonImg.onload = () => {
-        buildingSprites[cacheKey] = commonImg;
-        if (typeof renderCityView === 'function') renderCityView();
-      };
-    }
-  };
-  return null;
-}
-
-// Get building sprite (returns null if not loaded yet)
-function getBuildingSprite(buildingKey, faction = 'common') {
-  const cacheKey = `${faction}_${buildingKey}`;
-  if (!buildingSprites[cacheKey]) {
-    loadBuildingSprite(buildingKey, faction);
-    return null;
-  }
-  return buildingSprites[cacheKey];
 }
 
 const UNIT_ICONS = {
@@ -923,22 +857,6 @@ function renderFieldsCanvas() {
   renderFieldsView();
 }
 
-function updateViewIndicator() {
-  const indicator = document.getElementById('view-indicator');
-  if (!indicator) return;
-  
-  if (currentCityView === 'city') {
-    indicator.innerHTML = `
-      <span class="view-label">🏰 Vue Ville</span>
-      <span class="view-slots">20 emplacements</span>
-    `;
-  } else {
-    indicator.innerHTML = `
-      <span class="view-label">🌾 Vue Champs</span>
-      <span class="view-slots">18 champs de ressources</span>
-    `;
-  }
-}
 
 function switchCityView(view) {
   currentCityView = view;
@@ -2047,24 +1965,6 @@ function drawTravianGate(x, y, size, angle, stoneColor, stoneDark, roofColor) {
   cityCtx.stroke();
 }
 
-// Legacy compatibility
-function drawTower(x, y, size) {
-  const nightMode = isNightMode();
-  const stoneColor = nightMode ? '#4a4038' : '#c9b896';
-  const stoneDark = nightMode ? '#3a3028' : '#a08060';
-  const stoneLight = nightMode ? '#5a5048' : '#e4d4b0';
-  const roofColor = nightMode ? '#5a2a1a' : '#c45a20';
-  drawTravianTower(x, y, size, stoneColor, stoneDark, stoneLight, roofColor);
-}
-
-function drawGate(x, y) {
-  const nightMode = isNightMode();
-  const stoneColor = nightMode ? '#4a4038' : '#c9b896';
-  const stoneDark = nightMode ? '#3a3028' : '#a08060';
-  const roofColor = nightMode ? '#5a2a1a' : '#c45a20';
-  drawTravianGate(x, y, 28, 180, stoneColor, stoneDark, roofColor);
-}
-
 function drawDecorations(w, h, centerX, centerY) {
   const time = Date.now() / 1000;
   const nightMode = isNightMode();
@@ -2531,11 +2431,6 @@ function drawParticleEffects(w, h, time) {
     cityCtx.arc(dustX, dustY, dustSize, 0, Math.PI * 2);
     cityCtx.fill();
   }
-}
-
-// Old smoke function (keep for compatibility)
-function drawSmoke(x, y) {
-  drawAnimatedSmoke(x, y, Date.now() / 1000, 1);
 }
 
 // ========== VUE CHAMPS DE RESSOURCES ==========
@@ -3342,19 +3237,6 @@ function drawFieldDetails(x, y, size, fieldType, level, time) {
     cityCtx.lineTo(x + size * 0.5, rowY);
     cityCtx.stroke();
   }
-}
-
-function drawMiniTree(x, y, size) {
-  cityCtx.fillStyle = '#3a5a2a';
-  cityCtx.beginPath();
-  cityCtx.moveTo(x, y - size);
-  cityCtx.lineTo(x - size * 0.5, y);
-  cityCtx.lineTo(x + size * 0.5, y);
-  cityCtx.closePath();
-  cityCtx.fill();
-  
-  cityCtx.fillStyle = '#5a4030';
-  cityCtx.fillRect(x - size * 0.1, y, size * 0.2, size * 0.3);
 }
 
 function getFieldBuildingAtSlot(slotNum, fieldType) {
@@ -6086,18 +5968,7 @@ function startConstructionAnimation() {
     }
   }, 250);
 }
-function stopConstructionAnimation() {
-  if (constructionAnimInterval) {
-    clearInterval(constructionAnimInterval);
-    constructionAnimInterval = null;
-  }
-}
 startConstructionAnimation();
-
-function renderBuildingSlots() {
-  // Legacy function - now handled by renderCityCanvas
-  renderCityCanvas();
-}
 
 // ========== QUEUE STATUS BAR & DROPDOWNS ==========
 function toggleQueueDropdown(type) {
@@ -6130,10 +6001,6 @@ document.addEventListener('click', function(e) {
     document.getElementById('recruit-status')?.classList.remove('open');
   }
 });
-
-// Legacy compatibility
-function toggleActivityDropdown() {}
-function updateActivityBadge() {}
 
 function renderBuildQueue() {
   const queue = currentCity?.buildQueue || [];
@@ -6198,122 +6065,6 @@ function renderBuildQueue() {
       listEl.innerHTML = '<div class="qd-empty">Aucune construction en cours</div>';
     }
   }
-}
-
-function openBuildQueuePanel() {
-  const queue = currentCity?.buildQueue || [];
-  const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
-  const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
-
-  const panel = document.getElementById('build-panel');
-  const content = document.getElementById('build-panel-content');
-  const title = document.getElementById('build-panel-title');
-
-  title.textContent = '🏗️ File de construction';
-
-  // Show overlay
-  let overlay = document.querySelector('.build-panel-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.className = 'build-panel-overlay';
-    overlay.onclick = closeBuildPanel;
-    document.body.appendChild(overlay);
-  }
-  overlay.style.display = 'block';
-  overlay.classList.add('fade-in');
-
-  let html = `
-    <div class="build-queue-panel">
-      <div class="bq-header">
-        <span>🔨 En cours: <strong>${running.length}/2</strong></span>
-        <span>⏳ En attente: <strong>${queued.length}/2</strong></span>
-      </div>
-  `;
-
-  if (queue.length === 0) {
-    html += '<div class="bq-empty">Aucune construction en cours. Cliquez sur un emplacement dans votre village pour construire.</div>';
-  } else {
-    // Running constructions
-    running.forEach(q => {
-      const endsAt = new Date(q.endsAt);
-      const now = new Date();
-      const totalMs = endsAt - new Date(q.startedAt || now);
-      const remainMs = Math.max(0, endsAt - now);
-      const pct = totalMs > 0 ? Math.min(100, ((totalMs - remainMs) / totalMs) * 100) : 100;
-
-      html += `
-        <div class="bq-item bq-running">
-          <div class="bq-item-header">
-            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
-            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
-            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
-            <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-          </div>
-          <div class="bq-progress">
-            <div class="bq-progress-fill" style="width:${pct}%"></div>
-          </div>
-        </div>
-      `;
-    });
-
-    // Queued constructions
-    queued.forEach(q => {
-      html += `
-        <div class="bq-item bq-queued">
-          <div class="bq-item-header">
-            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
-            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
-            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
-            <span class="bq-item-status">⏳ En attente</span>
-          </div>
-        </div>
-      `;
-    });
-  }
-
-  html += '</div>';
-  content.innerHTML = html;
-  panel.style.display = 'flex';
-}
-
-function openRecruitQueuePanel() {
-  const queue = currentCity?.recruitQueue || [];
-  if (queue.length === 0) {
-    showToast('Aucun recrutement en cours', 'info');
-    return;
-  }
-
-  const panel = document.getElementById('build-panel');
-  const content = document.getElementById('build-panel-content');
-  const title = document.getElementById('build-panel-title');
-
-  title.textContent = '⚔️ File de recrutement';
-
-  let overlay = document.querySelector('.build-panel-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.className = 'build-panel-overlay';
-    overlay.onclick = closeBuildPanel;
-    document.body.appendChild(overlay);
-  }
-  overlay.style.display = 'block';
-  overlay.classList.add('fade-in');
-
-  let html = '<div class="build-queue-panel">';
-  queue.forEach(q => {
-    html += `
-      <div class="bq-item bq-running">
-        <div class="bq-item-header">
-          <span class="bq-item-icon">⚔️</span>
-          <span class="bq-item-name">${q.count}x ${getUnitName(q.unitKey)}</span>
-          <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-        </div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  content.innerHTML = html;
-  panel.style.display = 'flex';
 }
 
 function renderRecruitQueue() {
@@ -6409,7 +6160,6 @@ function renderMovingArmies() {
       `).join('');
     }
   }
-  updateActivityBadge();
 }
 
 // ========== WOUNDED UNITS ==========
@@ -6668,12 +6418,6 @@ async function loadUnits() {
     console.warn('loadUnits error:', e);
   }
   renderUnits('all');
-}
-
-function filterUnits(classFilter, evt) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  if (evt && evt.target) evt.target.classList.add('active');
-  renderUnits(classFilter);
 }
 
 function renderUnits(filter) {
@@ -7722,89 +7466,6 @@ async function adjustArmyUnit(armyId, unitKey, delta) {
   }
 }
 
-// Open modal to add units to army
-function openAddUnitsModal(armyId) {
-  const garrison = getGarrisonUnits();
-  
-  if (garrison.length === 0) {
-    showToast('Aucune unité en garnison!', 'error');
-    return;
-  }
-  
-  const modal = document.getElementById('modal');
-  
-  document.getElementById('modal-body').innerHTML = `
-    <div class="add-units-modal">
-      <h3>➕ Ajouter des unités à l'armée</h3>
-      <div class="add-units-grid">
-        ${garrison.map(g => {
-          const unit = unitsData.find(u => u.key === g.unitKey);
-          const tierColor = TIER_COLORS[unit?.tier] || '#888';
-          return `
-            <div class="add-unit-row">
-              <div class="add-unit-info">
-                <span class="add-unit-icon" style="border-color: ${tierColor}">${UNIT_ICONS[unit?.class] || '⚔️'}</span>
-                <span class="add-unit-name">${unit?.name || g.unitKey}</span>
-                <span class="add-unit-available">(${g.count} dispo)</span>
-              </div>
-              <div class="add-unit-controls">
-                <input type="number" id="add-${g.unitKey}" min="0" max="${g.count}" value="0" class="add-unit-input">
-                <button class="btn-max" onclick="document.getElementById('add-${g.unitKey}').value = ${g.count}">Max</button>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="confirmAddUnits('${armyId}')">Ajouter</button>
-      </div>
-    </div>
-  `;
-  
-  modal.style.display = 'flex';
-}
-
-// Confirm adding units
-async function confirmAddUnits(armyId) {
-  const garrison = getGarrisonUnits();
-  const unitsToAdd = [];
-  
-  garrison.forEach(g => {
-    const input = document.getElementById(`add-${g.unitKey}`);
-    const count = parseInt(input?.value) || 0;
-    if (count > 0) {
-      unitsToAdd.push({ unitKey: g.unitKey, count });
-    }
-  });
-  
-  if (unitsToAdd.length === 0) {
-    showToast('Sélectionnez au moins une unité', 'warning');
-    return;
-  }
-  
-  try {
-    const res = await fetch(`${API}/api/army/${armyId}/add-units`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ units: unitsToAdd })
-    });
-    
-    closeModal();
-    
-    if (res.ok) {
-      showToast('Unités ajoutées!', 'success');
-      await loadArmies();
-      renderArmies();
-    } else {
-      const data = await res.json();
-      showToast(data.error || 'Erreur', 'error');
-    }
-  } catch (e) {
-    showToast('Erreur', 'error');
-  }
-}
-
 // Confirm disband army
 function confirmDisbandArmy(armyId) {
   const army = armies.find(a => a.id === armyId);
@@ -8714,26 +8375,6 @@ const TERRAIN_MOVEMENT = {
   icemountain: Infinity, // Montagne de glace infranchissable
   snowtree: 1.3      // Sapin enneigé
 };
-
-// Vérifie si une case est traversable
-function isTerrainPassable(x, y) {
-  const terrain = getTerrainType(x, y);
-  if (!terrain.feature) return true;
-  const mult = TERRAIN_MOVEMENT[terrain.feature];
-  return mult !== Infinity;
-}
-
-// Calcule le multiplicateur de temps pour une case
-function getTerrainMovementMultiplier(x, y) {
-  const terrain = getTerrainType(x, y);
-  if (!terrain.feature) {
-    // Terrain de base selon le biome
-    if (terrain.biome === 'desert') return TERRAIN_MOVEMENT.sand;
-    if (terrain.biome === 'snow') return TERRAIN_MOVEMENT.snow;
-    return TERRAIN_MOVEMENT.grass;
-  }
-  return TERRAIN_MOVEMENT[terrain.feature] || 1.0;
-}
 
 // Pseudo-random based on coordinates for consistent terrain
 function seededRandom(x, y, seed = 12345) {
@@ -10527,19 +10168,6 @@ function drawSmallBuilding(x, y, size, style) {
   mapCtx.fill();
 }
 
-// Mini tower for city decoration
-function drawMiniTower(x, y, size) {
-  mapCtx.fillStyle = '#6a5a4a';
-  mapCtx.fillRect(x - size / 2, y - size * 1.5, size, size * 1.5);
-  mapCtx.fillStyle = '#5a4a3a';
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - size * 2.2);
-  mapCtx.lineTo(x + size / 2 + 2, y - size * 1.5);
-  mapCtx.lineTo(x - size / 2 - 2, y - size * 1.5);
-  mapCtx.closePath();
-  mapCtx.fill();
-}
-
 // Draw isometric resource node
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
@@ -10799,82 +10427,6 @@ function drawIsoArmy(x, y, tw, th, army) {
   }
 }
 
-// Keep old drawCity for compatibility (renamed)
-function drawCity(x, y, size, tile) {
-  const isMyCity = tile.playerId === player?.id;
-  const isAlly = tile.allianceId && tile.allianceId === player?.allianceId;
-  
-  const colors = isMyCity ? TILE_COLORS.myCity : isAlly ? TILE_COLORS.allyCity : TILE_COLORS.enemyCity;
-  
-  // Shadow
-  mapCtx.fillStyle = 'rgba(0,0,0,0.3)';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x + 2, y + 4, size * 0.4, size * 0.2, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-  
-  // Glow effect for hover
-  if (mapHoveredTile && mapHoveredTile.x === tile.x && mapHoveredTile.y === tile.y) {
-    mapCtx.shadowColor = colors.glow;
-    mapCtx.shadowBlur = 20;
-  }
-  
-  // City wall (ellipse base)
-  mapCtx.fillStyle = '#6a6a6a';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, size * 0.45, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-  mapCtx.shadowBlur = 0;
-  
-  // City ground inside wall
-  mapCtx.fillStyle = isMyCity ? '#c4a060' : isAlly ? '#80a080' : '#a08080';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, size * 0.38, size * 0.2, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-  
-  // Draw mini 2.5D buildings if zoomed enough
-  if (mapZoomLevel > 0.6) {
-    // Main building (center)
-    drawMapBuilding(x, y - size * 0.08, size * 0.25, colors.fill, colors.stroke);
-    
-    // Side buildings
-    if (mapZoomLevel > 0.9) {
-      drawMapBuilding(x - size * 0.18, y + size * 0.02, size * 0.15, '#8b7355', '#5a4030');
-      drawMapBuilding(x + size * 0.18, y + size * 0.02, size * 0.15, '#8b7355', '#5a4030');
-    }
-    
-    // Towers on wall
-    if (mapZoomLevel > 0.8) {
-      drawMapTower(x - size * 0.35, y, size * 0.08);
-      drawMapTower(x + size * 0.35, y, size * 0.08);
-      drawMapTower(x, y - size * 0.2, size * 0.08);
-      drawMapTower(x, y + size * 0.2, size * 0.08);
-    }
-  } else {
-    // Simple icon for far zoom
-    mapCtx.font = `${size * 0.4}px Arial`;
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText('🏰', x, y);
-  }
-  
-  // Capital crown
-  if (tile.isCapital && isMyCity) {
-    mapCtx.font = `${size * 0.35}px Arial`;
-    mapCtx.textAlign = 'center';
-    mapCtx.fillText('👑', x, y - size * 0.35);
-  }
-  
-  // Name label (if zoomed in enough)
-  if (mapZoomLevel > 0.7 && tile.name) {
-    mapCtx.font = `bold ${10 * mapZoomLevel}px Cinzel, serif`;
-    mapCtx.fillStyle = '#fff';
-    mapCtx.shadowColor = '#000';
-    mapCtx.shadowBlur = 3;
-    mapCtx.fillText(tile.name, x, y + size * 0.5);
-    mapCtx.shadowBlur = 0;
-  }
-}
-
 function drawMapBuilding(x, y, size, fillColor, strokeColor) {
   const height = size * 1.2;
   
@@ -10943,61 +10495,6 @@ function drawMapTower(x, y, size) {
   mapCtx.lineTo(x + size, y - size * 2.7);
   mapCtx.lineTo(x, y - size * 2.4);
   mapCtx.fill();
-}
-
-function drawResource(x, y, size, tile) {
-  const resType = tile.resourceType?.toLowerCase() || 'wood';
-  const colors = TILE_COLORS[resType] || TILE_COLORS.wood;
-  
-  // Resource circle
-  mapCtx.fillStyle = colors.fill;
-  mapCtx.beginPath();
-  mapCtx.arc(x, y, size * 0.25, 0, Math.PI * 2);
-  mapCtx.fill();
-  
-  mapCtx.strokeStyle = colors.stroke;
-  mapCtx.lineWidth = 1;
-  mapCtx.stroke();
-  
-  // Resource icon
-  if (mapZoomLevel > 0.6) {
-    mapCtx.font = `${size * 0.35}px Arial`;
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(colors.icon, x, y);
-  }
-}
-
-function drawArmy(x, y, size, army) {
-  const isMoving = army.status !== 'IDLE';
-  
-  // Army marker
-  mapCtx.fillStyle = isMoving ? '#ff8800' : '#4488ff';
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - size * 0.3);
-  mapCtx.lineTo(x - size * 0.2, y + size * 0.15);
-  mapCtx.lineTo(x + size * 0.2, y + size * 0.15);
-  mapCtx.closePath();
-  mapCtx.fill();
-  
-  mapCtx.strokeStyle = '#fff';
-  mapCtx.lineWidth = 1;
-  mapCtx.stroke();
-  
-  // Draw movement line
-  if (isMoving && army.targetX !== undefined) {
-    const targetScreenX = (army.targetX - mapOffsetX) * size + mapCanvas.width / 2;
-    const targetScreenY = (army.targetY - mapOffsetY) * size + mapCanvas.height / 2;
-    
-    mapCtx.strokeStyle = 'rgba(255,136,0,0.5)';
-    mapCtx.lineWidth = 2;
-    mapCtx.setLineDash([5, 5]);
-    mapCtx.beginPath();
-    mapCtx.moveTo(x, y);
-    mapCtx.lineTo(targetScreenX, targetScreenY);
-    mapCtx.stroke();
-    mapCtx.setLineDash([]);
-  }
 }
 
 function renderMinimap() {
@@ -11371,25 +10868,6 @@ function gotoCoords() {
   } else {
     showToast('Coordonnées invalides', 'error');
   }
-}
-
-// Open recruit modal
-function openRecruitModal() {
-  if (!currentCity) {
-    showToast('Sélectionnez une ville', 'error');
-    return;
-  }
-
-  // Check if city has barracks
-  const barracks = currentCity.buildings?.find(b => b.key === 'BARRACKS');
-  if (!barracks) {
-    showToast('Construisez une caserne d\'abord', 'warning');
-    return;
-  }
-
-  // Show recruit tab or modal
-  showTab('army');
-  showToast('Utilisez la section armée pour recruter', 'info');
 }
 
 function showMapInfoPanel(x, y, tile) {
@@ -12566,10 +12044,6 @@ function formatTime(dateStr) {
   return `${secs}s`;
 }
 
-function showBuildingInfo(key, level) {
-  showToast(`${getBuildingName(key)} niveau ${level}`, 'info');
-}
-
 // ========== UNIT INFO MODAL ==========
 // Alias for unit stats popup (used in recruitment panel)
 function showUnitStatsPopup(unitKey) {
@@ -12901,13 +12375,6 @@ function startRefresh() {
   
   // Refresh immédiat au démarrage
   refreshData(true);
-}
-
-function stopRefresh() {
-  if (refreshInterval) {
-    clearInterval(refreshInterval);
-    refreshInterval = null;
-  }
 }
 
 // Refresh quand la fenêtre redevient visible
@@ -13638,8 +13105,6 @@ async function executeNpcTrade() {
 }
 
 // ========== INVENTORY ==========
-let inventoryItems = [];
-
 async function loadInventory() {
   const container = document.getElementById('inventory-content');
   if (!container) return;

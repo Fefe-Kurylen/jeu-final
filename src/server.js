@@ -1353,7 +1353,7 @@ app.patch('/api/army/:id/rename', auth, async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Nom requis' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId }
+      where: { id: req.params.id, ownerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     
@@ -1372,7 +1372,7 @@ app.patch('/api/army/:id/rename', auth, async (req, res) => {
 app.post('/api/army/:id/assign-hero', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId }
+      where: { id: req.params.id, ownerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
@@ -1405,7 +1405,7 @@ app.post('/api/army/:id/assign-hero', auth, async (req, res) => {
 app.post('/api/army/:id/unassign-hero', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId }
+      where: { id: req.params.id, ownerId: req.user.playerId }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
@@ -1428,7 +1428,7 @@ app.post('/api/army/:id/set-unit', auth, async (req, res) => {
     if (!unitKey || count === undefined) return res.status(400).json({ error: 'unitKey et count requis' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1496,7 +1496,7 @@ app.post('/api/army/:id/set-unit', auth, async (req, res) => {
 app.delete('/api/army/:id/disband', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1567,7 +1567,7 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
     }
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1611,7 +1611,7 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
 
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1676,7 +1676,7 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
 
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -1726,7 +1726,7 @@ app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
 
     // Get army with units
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true, hero: true, city: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -1920,22 +1920,18 @@ async function resolveTribteCombat(army, node, playerId) {
     });
   }
 
-  // Create combat report
-  await prisma.report.create({
+  // Create combat report (use BattleReport model)
+  await prisma.battleReport.create({
     data: {
-      playerId: playerId,
-      type: 'COMBAT',
-      title: attackerWon ? `Victoire contre tribu (${node.resourceType})` : `Défaite contre tribu (${node.resourceType})`,
-      content: JSON.stringify({
-        type: 'TRIBE_RAID',
-        location: { x: node.x, y: node.y },
-        resourceType: node.resourceType,
-        attackerWon,
-        attackerLosses: totalAttackerLosses,
-        defenderLosses: totalDefenderLosses,
-        loot: loot || {}
-      }),
-      isRead: false
+      attackerId: playerId,
+      x: node.x,
+      y: node.y,
+      result: attackerWon ? 'WIN' : 'LOSE',
+      winner: attackerWon ? 'ATTACKER' : 'DEFENDER',
+      attackerLosses: { totalAttackerLosses },
+      defenderLosses: { totalDefenderLosses },
+      loot: {},
+      rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType }
     }
   });
 
@@ -2002,7 +1998,7 @@ app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
     if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
 
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -2089,7 +2085,7 @@ app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
 app.post('/api/army/:id/return', auth, async (req, res) => {
   try {
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true, city: true }
     });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
@@ -2131,11 +2127,11 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
 // Get army details
 app.get('/api/army/:id', auth, async (req, res) => {
   const army = await prisma.army.findFirst({
-    where: { id: req.params.id, playerId: req.user.playerId },
+    where: { id: req.params.id, ownerId: req.user.playerId },
     include: { units: true, city: true, hero: true }
   });
   if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-  
+
   // Add power calculation
   const power = calculateArmyPower(army.units);
   res.json({ ...army, power });
@@ -2144,7 +2140,7 @@ app.get('/api/army/:id', auth, async (req, res) => {
 // List all armies
 app.get('/api/armies', auth, async (req, res) => {
   const armies = await prisma.army.findMany({
-    where: { playerId: req.user.playerId },
+    where: { ownerId: req.user.playerId },
     include: { units: true, city: true, hero: true }
   });
   
@@ -2331,20 +2327,20 @@ app.get('/api/alliance/diplomacy', auth, async (req, res) => {
   try {
     const myMember = await prisma.allianceMember.findUnique({ 
       where: { playerId: req.user.playerId },
-      include: { alliance: { include: { diplomacy: true, diplomacyTo: true } } }
+      include: { alliance: { include: { diplomacy: true, targetOf: true } } }
     });
-    
+
     if (!myMember) return res.json({ diplomacy: [] });
-    
+
     // Combine both directions
     const allDiplomacy = [
-      ...myMember.alliance.diplomacy.map(d => ({ 
-        allianceId: d.targetAllianceId, 
+      ...myMember.alliance.diplomacy.map(d => ({
+        allianceId: d.targetAllianceId,
         status: d.status,
         direction: 'from'
       })),
-      ...myMember.alliance.diplomacyTo.map(d => ({ 
-        allianceId: d.allianceId, 
+      ...myMember.alliance.targetOf.map(d => ({
+        allianceId: d.allianceId,
         status: d.status,
         direction: 'to'
       }))
@@ -2581,7 +2577,7 @@ app.post('/api/army/:id/spy', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -2637,7 +2633,7 @@ app.post('/api/army/:id/transport', auth, async (req, res) => {
     if (!targetCityId) return res.status(400).json({ error: 'Ville cible requise' });
     
     const army = await prisma.army.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
+      where: { id: req.params.id, ownerId: req.user.playerId },
       include: { units: true, city: true }
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -2761,7 +2757,7 @@ app.get('/api/market', auth, async (req, res) => {
   try {
     const offers = await prisma.marketOffer.findMany({
       where: { status: 'ACTIVE' },
-      include: { seller: { select: { id: true, name: true } } },
+      include: { player: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' }
     });
     res.json(offers);
@@ -2821,7 +2817,7 @@ app.post('/api/market/offer/:id/accept', auth, async (req, res) => {
     
     const offer = await prisma.marketOffer.findUnique({
       where: { id: req.params.id },
-      include: { seller: true, city: true }
+      include: { player: true }
     });
     if (!offer) return res.status(404).json({ error: 'Offre non trouvée' });
     if (offer.status !== 'ACTIVE') return res.status(400).json({ error: 'Offre inactive' });
@@ -3391,7 +3387,7 @@ setInterval(async () => {
             // Create detailed battle report
             await prisma.battleReport.create({
               data: {
-                playerId: army.playerId,
+                playerId: army.ownerId,
                 x: targetCity.x,
                 y: targetCity.y,
                 attackerUnits: result.attackerInitialUnits,
@@ -3451,7 +3447,7 @@ setInterval(async () => {
             // Update stats
             if (result.attackerWon) {
               await prisma.playerStats.update({
-                where: { playerId: army.playerId },
+                where: { playerId: army.ownerId },
                 data: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled } }
               });
             } else {
@@ -3577,7 +3573,7 @@ setInterval(async () => {
             // Create battle report
             await prisma.battleReport.create({
               data: {
-                playerId: army.playerId,
+                playerId: army.ownerId,
                 x: targetCity.x,
                 y: targetCity.y,
                 attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })),
@@ -3629,7 +3625,7 @@ setInterval(async () => {
               // Create spy report
               await prisma.spyReport.create({
                 data: {
-                  playerId: army.playerId,
+                  playerId: army.ownerId,
                   targetPlayerId: targetCity.playerId,
                   targetCityId: targetCity.id,
                   x: targetCity.x,
@@ -3654,7 +3650,7 @@ setInterval(async () => {
               // Failed - create empty report
               await prisma.spyReport.create({
                 data: {
-                  playerId: army.playerId,
+                  playerId: army.ownerId,
                   targetPlayerId: targetCity.playerId,
                   targetCityId: targetCity.id,
                   x: targetCity.x,
