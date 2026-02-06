@@ -2000,10 +2000,12 @@ tr.marked, .list-item.marked {
 
 /* ========== TRAVIAN-STYLE BUILD PANEL ========== */
 .build-panel {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  bottom: auto !important;
+  right: auto !important;
   width: 95%;
   max-width: 650px;
   max-height: 70vh;
@@ -2016,6 +2018,7 @@ tr.marked, .list-item.marked {
   box-shadow:
     0 0 0 1px #5a4010,
     0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 /* Greek pattern border at top */
 .build-panel::before {

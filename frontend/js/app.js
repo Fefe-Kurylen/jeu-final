@@ -8864,7 +8864,7 @@ function onMapKeyDown(e) {
     case 'w':
     case 'arrowup':
       e.preventDefault();
-      mapOffsetY = Math.max(0, mapOffsetY - moveSpeed);
+      mapOffsetY = Math.max(MIN_COORD, mapOffsetY - moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8872,7 +8872,7 @@ function onMapKeyDown(e) {
     case 's':
     case 'arrowdown':
       e.preventDefault();
-      mapOffsetY = Math.min(WORLD_SIZE, mapOffsetY + moveSpeed);
+      mapOffsetY = Math.min(MAX_COORD, mapOffsetY + moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8880,7 +8880,7 @@ function onMapKeyDown(e) {
     case 'a':
     case 'arrowleft':
       e.preventDefault();
-      mapOffsetX = Math.max(0, mapOffsetX - moveSpeed);
+      mapOffsetX = Math.max(MIN_COORD, mapOffsetX - moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8888,7 +8888,7 @@ function onMapKeyDown(e) {
     case 'd':
     case 'arrowright':
       e.preventDefault();
-      mapOffsetX = Math.min(WORLD_SIZE, mapOffsetX + moveSpeed);
+      mapOffsetX = Math.min(MAX_COORD, mapOffsetX + moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -10785,11 +10785,13 @@ function renderMinimap() {
   minimapCtx.fillStyle = '#1a2a1a';
   minimapCtx.fillRect(0, 0, w, h);
   
-  // Draw objects
+  // Draw objects (world coords are centered: -187 to +186)
+  const centerX = w / 2;
+  const centerY = h / 2;
   mapData.forEach(tile => {
-    const x = tile.x * scale;
-    const y = tile.y * scale;
-    
+    const x = centerX + tile.x * scale;
+    const y = centerY + tile.y * scale;
+
     if (tile.type === 'CITY') {
       minimapCtx.fillStyle = tile.playerId === player?.id ? '#ffd700' : '#c44';
       minimapCtx.fillRect(x - 2, y - 2, 4, 4);
@@ -10798,14 +10800,14 @@ function renderMinimap() {
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
     }
   });
-  
+
   // Draw viewport rectangle
   const viewportEl = document.getElementById('minimap-viewport');
   if (viewportEl) {
-    const viewSize = (mapCanvas.width / (TILE_SIZE * mapZoomLevel)) / WORLD_SIZE * 100;
+    const viewSize = (mapCanvas?.width ? mapCanvas.width / (TILE_SIZE * mapZoomLevel) : 20) / WORLD_SIZE * 100;
     const left = ((mapOffsetX / WORLD_SIZE) * 100);
     const top = ((mapOffsetY / WORLD_SIZE) * 100);
-    
+
     viewportEl.style.width = `${viewSize}%`;
     viewportEl.style.height = `${viewSize}%`;
     viewportEl.style.left = `${50 + left - viewSize/2}%`;
@@ -11062,8 +11064,8 @@ function onMapWheel(e) {
   mapOffsetY += (worldYBefore - worldYAfter);
   
   // Limiter aux bornes du monde
-  mapOffsetX = Math.max(0, Math.min(WORLD_SIZE, mapOffsetX));
-  mapOffsetY = Math.max(0, Math.min(WORLD_SIZE, mapOffsetY));
+  mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
+  mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
   
   renderMap();
   renderMinimap();
