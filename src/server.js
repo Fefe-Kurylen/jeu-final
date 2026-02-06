@@ -4190,6 +4190,14 @@ async function startServer() {
         console.error('⚠️ Erreur lors de la synchronisation du schéma:', dbPushError.message);
       }
 
+      // Fix: drop old unique constraint if it still exists (allow multiple field buildings)
+      try {
+        await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "CityBuilding_cityId_key_key"`);
+        console.log('✅ Index unique CityBuilding supprimé (champs multiples autorisés)');
+      } catch (idxErr) {
+        // Index already gone, no problem
+      }
+
       // Auto-seed resource nodes if none exist
       try {
         const nodeCount = await prisma.resourceNode.count();
