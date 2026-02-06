@@ -225,26 +225,33 @@
         <!-- MAIN CONTENT AREA -->
         <main class="game-content">
 
-            <!-- ACTIVITY DROPDOWN (right side) -->
-            <div class="activity-dropdown" id="activity-dropdown">
-                <button class="activity-toggle" onclick="toggleActivityDropdown()" title="Files d'attente">
-                    <span class="activity-toggle-icon">🔔</span>
-                    <span class="activity-toggle-badge" id="activity-badge" style="display:none">0</span>
-                </button>
-                <div class="activity-dropdown-menu" id="activity-dropdown-menu">
-                    <div class="activity-dd-header">Files d'attente</div>
-                    <div class="activity-dd-section" id="build-activity" onclick="openBuildQueuePanel();toggleActivityDropdown();" style="cursor:pointer;">
-                        <span class="activity-icon">🏗️</span>
-                        <span class="activity-text">Aucune construction</span>
-                    </div>
-                    <div class="activity-dd-section" id="recruit-activity" onclick="openRecruitQueuePanel();toggleActivityDropdown();" style="cursor:pointer;">
-                        <span class="activity-icon">⚔️</span>
-                        <span class="activity-text">Aucun recrutement</span>
-                    </div>
-                    <div class="activity-dd-section" id="movement-activity">
-                        <span class="activity-icon">🚶</span>
-                        <span class="activity-text">Aucun mouvement</span>
-                    </div>
+            <!-- QUEUE STATUS BAR (always visible, dropdown on click) -->
+            <div class="queue-status-bar" id="queue-status-bar">
+                <div class="queue-status-item" id="build-status" onclick="toggleQueueDropdown('build')">
+                    <span class="qs-icon">🏗️</span>
+                    <span class="qs-text" id="build-status-text">Aucune construction</span>
+                    <span class="qs-timer" id="build-status-timer"></span>
+                    <span class="qs-arrow">▾</span>
+                </div>
+                <div class="queue-status-item" id="recruit-status" onclick="toggleQueueDropdown('recruit')">
+                    <span class="qs-icon">⚔️</span>
+                    <span class="qs-text" id="recruit-status-text">Aucun recrutement</span>
+                    <span class="qs-timer" id="recruit-status-timer"></span>
+                    <span class="qs-arrow">▾</span>
+                </div>
+            </div>
+            <!-- Build Queue Dropdown -->
+            <div class="queue-dropdown" id="build-queue-dropdown">
+                <div class="qd-header">🏗️ File de construction</div>
+                <div class="qd-content" id="build-queue-list">
+                    <div class="qd-empty">Aucune construction en cours</div>
+                </div>
+            </div>
+            <!-- Recruit Queue Dropdown -->
+            <div class="queue-dropdown" id="recruit-queue-dropdown">
+                <div class="qd-header">⚔️ File de recrutement</div>
+                <div class="qd-content" id="recruit-queue-list">
+                    <div class="qd-empty">Aucun recrutement en cours</div>
                 </div>
             </div>
 

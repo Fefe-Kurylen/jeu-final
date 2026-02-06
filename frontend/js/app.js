@@ -5902,76 +5902,93 @@ function renderBuildingSlots() {
   renderCityCanvas();
 }
 
-// ========== ACTIVITY DROPDOWN ==========
-function toggleActivityDropdown() {
-  const menu = document.getElementById('activity-dropdown-menu');
-  if (menu) {
-    menu.classList.toggle('open');
-  }
+// ========== QUEUE STATUS BAR & DROPDOWNS ==========
+function toggleQueueDropdown(type) {
+  const dropdown = document.getElementById(`${type}-queue-dropdown`);
+  const statusItem = document.getElementById(`${type}-status`);
+  const otherType = type === 'build' ? 'recruit' : 'build';
+  const otherDropdown = document.getElementById(`${otherType}-queue-dropdown`);
+  const otherStatus = document.getElementById(`${otherType}-status`);
+
+  // Close the other dropdown
+  if (otherDropdown) otherDropdown.classList.remove('open');
+  if (otherStatus) otherStatus.classList.remove('open');
+
+  // Toggle this dropdown
+  if (dropdown) dropdown.classList.toggle('open');
+  if (statusItem) statusItem.classList.toggle('open');
 }
 
-// Close dropdown when clicking outside
+// Close dropdowns when clicking outside
 document.addEventListener('click', function(e) {
-  const dropdown = document.getElementById('activity-dropdown');
-  if (dropdown && !dropdown.contains(e.target)) {
-    const menu = document.getElementById('activity-dropdown-menu');
-    if (menu) menu.classList.remove('open');
+  const bar = document.getElementById('queue-status-bar');
+  const buildDD = document.getElementById('build-queue-dropdown');
+  const recruitDD = document.getElementById('recruit-queue-dropdown');
+  if (bar && !bar.contains(e.target) &&
+      buildDD && !buildDD.contains(e.target) &&
+      recruitDD && !recruitDD.contains(e.target)) {
+    buildDD.classList.remove('open');
+    recruitDD.classList.remove('open');
+    document.getElementById('build-status')?.classList.remove('open');
+    document.getElementById('recruit-status')?.classList.remove('open');
   }
 });
 
-function updateActivityBadge() {
-  const badge = document.getElementById('activity-badge');
-  if (!badge) return;
-  const buildQueue = currentCity?.buildQueue || [];
-  const recruitQueue = currentCity?.recruitQueue || [];
-  const movingArmies = armies?.filter(a => a.status !== 'IDLE') || [];
-  const total = buildQueue.length + recruitQueue.length + movingArmies.length;
-  if (total > 0) {
-    badge.textContent = total;
-    badge.style.display = 'flex';
-  } else {
-    badge.style.display = 'none';
-  }
-}
+// Legacy compatibility
+function toggleActivityDropdown() {}
+function updateActivityBadge() {}
 
 function renderBuildQueue() {
-  const queue = currentCity.buildQueue || [];
+  const queue = currentCity?.buildQueue || [];
   const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
   const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-  // Update activity dropdown - show ALL constructions
-  const activityEl = document.getElementById('build-activity');
-  if (activityEl) {
-    if (running.length > 0 || queued.length > 0) {
-      activityEl.classList.add('active');
-      let html = '<span class="activity-icon">🏗️</span><div class="activity-queue-list">';
-      running.forEach((q, i) => {
-        html += `
-          <div class="activity-queue-item ${i === 0 ? 'first' : ''}">
-            <span class="aq-icon">🔨</span>
-            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-          </div>`;
-      });
-      queued.forEach(q => {
-        html += `
-          <div class="activity-queue-item queued">
-            <span class="aq-icon">⏳</span>
-            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="aq-status">En attente</span>
-          </div>`;
-      });
-      html += '</div>';
-      activityEl.innerHTML = html;
+  // Update status bar text
+  const statusItem = document.getElementById('build-status');
+  const statusText = document.getElementById('build-status-text');
+  const statusTimer = document.getElementById('build-status-timer');
+
+  if (statusText) {
+    if (running.length > 0) {
+      statusText.textContent = `${getBuildingName(running[0].buildingKey)} Niv.${running[0].targetLevel}`;
+      if (statusTimer) {
+        statusTimer.textContent = formatTime(running[0].endsAt);
+        statusTimer.dataset.endsAt = running[0].endsAt;
+      }
+      statusItem?.classList.add('active');
     } else {
-      activityEl.classList.remove('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">🏗️</span>
-        <span class="activity-text">Aucune construction</span>
-      `;
+      statusText.textContent = 'Aucune construction';
+      if (statusTimer) { statusTimer.textContent = ''; statusTimer.dataset.endsAt = ''; }
+      statusItem?.classList.remove('active');
     }
   }
-  updateActivityBadge();
+
+  // Update dropdown content
+  const listEl = document.getElementById('build-queue-list');
+  if (listEl) {
+    if (running.length > 0 || queued.length > 0) {
+      let html = '';
+      running.forEach(q => {
+        html += `<div class="qd-item running">
+          <span>🔨</span>
+          <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+          <span class="qd-level">Niv.${q.targetLevel}</span>
+          <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+        </div>`;
+      });
+      queued.forEach(q => {
+        html += `<div class="qd-item queued">
+          <span>⏳</span>
+          <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+          <span class="qd-level">Niv.${q.targetLevel}</span>
+          <span class="qd-status">En attente</span>
+        </div>`;
+      });
+      listEl.innerHTML = html;
+    } else {
+      listEl.innerHTML = '<div class="qd-empty">Aucune construction en cours</div>';
+    }
+  }
 }
 
 function openBuildQueuePanel() {
@@ -6091,44 +6108,44 @@ function openRecruitQueuePanel() {
 }
 
 function renderRecruitQueue() {
-  const queue = currentCity.recruitQueue || [];
+  const queue = currentCity?.recruitQueue || [];
 
-  // Update activity bar
-  const activityEl = document.getElementById('recruit-activity');
-  if (activityEl) {
+  // Update status bar text
+  const statusItem = document.getElementById('recruit-status');
+  const statusText = document.getElementById('recruit-status-text');
+  const statusTimer = document.getElementById('recruit-status-timer');
+
+  if (statusText) {
     if (queue.length > 0) {
       const first = queue[0];
-      activityEl.classList.add('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">⚔️</span>
-        <span class="activity-text">${first.count}x ${getUnitName(first.unitKey)}</span>
-        <span class="activity-timer" data-ends-at="${first.endsAt}">${formatTime(first.endsAt)}</span>
-        ${queue.length > 1 ? `<span class="activity-more">+${queue.length - 1}</span>` : ''}
-      `;
+      statusText.textContent = `${first.count}x ${getUnitName(first.unitKey)}`;
+      if (statusTimer) {
+        statusTimer.textContent = formatTime(first.endsAt);
+        statusTimer.dataset.endsAt = first.endsAt;
+      }
+      statusItem?.classList.add('active');
     } else {
-      activityEl.classList.remove('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">⚔️</span>
-        <span class="activity-text">Aucun recrutement</span>
-      `;
+      statusText.textContent = 'Aucun recrutement';
+      if (statusTimer) { statusTimer.textContent = ''; statusTimer.dataset.endsAt = ''; }
+      statusItem?.classList.remove('active');
     }
   }
 
-  // Also update legacy recruit-queue element if it exists
-  const legacyEl = document.getElementById('recruit-queue');
-  if (legacyEl) {
-    if (queue.length === 0) {
-      legacyEl.innerHTML = '<p style="padding:10px;color:var(--text-muted);font-size:12px;">Aucun recrutement</p>';
-    } else {
-      legacyEl.innerHTML = queue.map(q => `
-        <div class="queue-item">
-          <span class="queue-name">${q.count}x ${getUnitName(q.unitKey)}</span>
-          <span class="queue-time" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+  // Update dropdown content
+  const listEl = document.getElementById('recruit-queue-list');
+  if (listEl) {
+    if (queue.length > 0) {
+      listEl.innerHTML = queue.map(q => `
+        <div class="qd-item running">
+          <span>⚔️</span>
+          <span class="qd-name">${q.count}x ${getUnitName(q.unitKey)}</span>
+          <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
         </div>
       `).join('');
+    } else {
+      listEl.innerHTML = '<div class="qd-empty">Aucun recrutement en cours</div>';
     }
   }
-  updateActivityBadge();
 }
 
 function renderMovingArmies() {
@@ -8864,7 +8881,7 @@ function onMapKeyDown(e) {
     case 'w':
     case 'arrowup':
       e.preventDefault();
-      mapOffsetY = Math.max(0, mapOffsetY - moveSpeed);
+      mapOffsetY = Math.max(MIN_COORD, mapOffsetY - moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8872,7 +8889,7 @@ function onMapKeyDown(e) {
     case 's':
     case 'arrowdown':
       e.preventDefault();
-      mapOffsetY = Math.min(WORLD_SIZE, mapOffsetY + moveSpeed);
+      mapOffsetY = Math.min(MAX_COORD, mapOffsetY + moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8880,7 +8897,7 @@ function onMapKeyDown(e) {
     case 'a':
     case 'arrowleft':
       e.preventDefault();
-      mapOffsetX = Math.max(0, mapOffsetX - moveSpeed);
+      mapOffsetX = Math.max(MIN_COORD, mapOffsetX - moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -8888,7 +8905,7 @@ function onMapKeyDown(e) {
     case 'd':
     case 'arrowright':
       e.preventDefault();
-      mapOffsetX = Math.min(WORLD_SIZE, mapOffsetX + moveSpeed);
+      mapOffsetX = Math.min(MAX_COORD, mapOffsetX + moveSpeed);
       renderMap();
       renderMinimap();
       updateMapUI();
@@ -10785,11 +10802,13 @@ function renderMinimap() {
   minimapCtx.fillStyle = '#1a2a1a';
   minimapCtx.fillRect(0, 0, w, h);
   
-  // Draw objects
+  // Draw objects (world coords are centered: -187 to +186)
+  const centerX = w / 2;
+  const centerY = h / 2;
   mapData.forEach(tile => {
-    const x = tile.x * scale;
-    const y = tile.y * scale;
-    
+    const x = centerX + tile.x * scale;
+    const y = centerY + tile.y * scale;
+
     if (tile.type === 'CITY') {
       minimapCtx.fillStyle = tile.playerId === player?.id ? '#ffd700' : '#c44';
       minimapCtx.fillRect(x - 2, y - 2, 4, 4);
@@ -10798,14 +10817,14 @@ function renderMinimap() {
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
     }
   });
-  
+
   // Draw viewport rectangle
   const viewportEl = document.getElementById('minimap-viewport');
   if (viewportEl) {
-    const viewSize = (mapCanvas.width / (TILE_SIZE * mapZoomLevel)) / WORLD_SIZE * 100;
+    const viewSize = (mapCanvas?.width ? mapCanvas.width / (TILE_SIZE * mapZoomLevel) : 20) / WORLD_SIZE * 100;
     const left = ((mapOffsetX / WORLD_SIZE) * 100);
     const top = ((mapOffsetY / WORLD_SIZE) * 100);
-    
+
     viewportEl.style.width = `${viewSize}%`;
     viewportEl.style.height = `${viewSize}%`;
     viewportEl.style.left = `${50 + left - viewSize/2}%`;
@@ -11062,8 +11081,8 @@ function onMapWheel(e) {
   mapOffsetY += (worldYBefore - worldYAfter);
   
   // Limiter aux bornes du monde
-  mapOffsetX = Math.max(0, Math.min(WORLD_SIZE, mapOffsetX));
-  mapOffsetY = Math.max(0, Math.min(WORLD_SIZE, mapOffsetY));
+  mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
+  mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
   
   renderMap();
   renderMinimap();
