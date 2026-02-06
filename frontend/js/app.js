@@ -5866,12 +5866,44 @@ function renderBuildingSlots() {
   renderCityCanvas();
 }
 
+// ========== ACTIVITY DROPDOWN ==========
+function toggleActivityDropdown() {
+  const menu = document.getElementById('activity-dropdown-menu');
+  if (menu) {
+    menu.classList.toggle('open');
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const dropdown = document.getElementById('activity-dropdown');
+  if (dropdown && !dropdown.contains(e.target)) {
+    const menu = document.getElementById('activity-dropdown-menu');
+    if (menu) menu.classList.remove('open');
+  }
+});
+
+function updateActivityBadge() {
+  const badge = document.getElementById('activity-badge');
+  if (!badge) return;
+  const buildQueue = currentCity?.buildQueue || [];
+  const recruitQueue = currentCity?.recruitQueue || [];
+  const movingArmies = armies?.filter(a => a.status !== 'IDLE') || [];
+  const total = buildQueue.length + recruitQueue.length + movingArmies.length;
+  if (total > 0) {
+    badge.textContent = total;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 function renderBuildQueue() {
   const queue = currentCity.buildQueue || [];
   const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
   const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-  // Update activity bar - show ALL constructions
+  // Update activity dropdown - show ALL constructions
   const activityEl = document.getElementById('build-activity');
   if (activityEl) {
     if (running.length > 0 || queued.length > 0) {
@@ -5903,6 +5935,7 @@ function renderBuildQueue() {
       `;
     }
   }
+  updateActivityBadge();
 }
 
 function openBuildQueuePanel() {
@@ -6059,6 +6092,7 @@ function renderRecruitQueue() {
       `).join('');
     }
   }
+  updateActivityBadge();
 }
 
 function renderMovingArmies() {
@@ -6113,6 +6147,7 @@ function renderMovingArmies() {
       `).join('');
     }
   }
+  updateActivityBadge();
 }
 
 // ========== WOUNDED UNITS ==========
@@ -6222,11 +6257,13 @@ function showTab(tabName) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.bnav-tab').forEach(b => b.classList.remove('active'));
 
   const tabEl = document.getElementById(`tab-${tabName}`);
   if (tabEl) tabEl.classList.add('active');
+  // Activate both old nav-tab and new bnav-tab
   document.querySelector(`.nav-tab[data-tab="${tabName}"]`)?.classList.add('active');
-  document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+  document.querySelector(`.bnav-tab[data-tab="${tabName}"]`)?.classList.add('active');
   
   // Start/stop animations based on tab
   if (tabName === 'city' || tabName === 'fields') {
