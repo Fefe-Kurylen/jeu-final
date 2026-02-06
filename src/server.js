@@ -655,6 +655,51 @@ app.get('/api/cities', auth, async (req, res) => {
   res.json(citiesWithTier);
 });
 
+// ========== INCOMING ATTACKS ENDPOINT ==========
+app.get('/api/incoming-attacks', auth, async (req, res) => {
+  try {
+    // Find all player's cities
+    const playerCities = await prisma.city.findMany({
+      where: { playerId: req.user.playerId },
+      select: { id: true, name: true, x: true, y: true }
+    });
+    const cityIds = playerCities.map(c => c.id);
+
+    // Find armies targeting our cities that are ATTACKING or RAIDING
+    const incomingArmies = await prisma.army.findMany({
+      where: {
+        targetCityId: { in: cityIds },
+        status: { in: ['ATTACKING', 'RAIDING'] },
+        arrivalAt: { gt: new Date() }
+      },
+      select: {
+        id: true,
+        status: true,
+        arrivalAt: true,
+        targetCityId: true,
+        missionType: true
+      },
+      orderBy: { arrivalAt: 'asc' }
+    });
+
+    // Map target city names
+    const attacks = incomingArmies.map(a => {
+      const targetCity = playerCities.find(c => c.id === a.targetCityId);
+      return {
+        id: a.id,
+        type: a.missionType || a.status,
+        arrivalAt: a.arrivalAt,
+        targetCity: targetCity?.name || 'Ville',
+        targetCityId: a.targetCityId
+      };
+    });
+
+    res.json(attacks);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ========== WOUNDED UNITS ENDPOINTS ==========
 app.get('/api/city/:id/wounded', auth, async (req, res) => {
   try {
@@ -4226,14 +4271,30 @@ async function startServer() {
         // Index already gone, no problem
       }
 
-      // Auto-seed resource nodes if none exist
+      // Auto-seed resource nodes if none exist or FORCE_RESEED
       try {
         const nodeCount = await prisma.resourceNode.count();
-        if (nodeCount === 0) {
-          console.log('🌱 Aucun point de ressource trouvé, génération automatique...');
+        const RESEED_VERSION = 2; // Increment to force reseed
+        const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
+        // Check if we need to reseed based on version
+        const lastSeedVersion = await prisma.$queryRawUnsafe(
+          `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
+        ).then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
+        const needsReseed = forceReseed || lastSeedVersion < RESEED_VERSION;
+        if (needsReseed) {
+          if (nodeCount > 0) {
+            console.log(`🗑️ Suppression de ${nodeCount} anciens nœuds de ressource (v${lastSeedVersion} → v${RESEED_VERSION})...`);
+            await prisma.resourceNode.deleteMany({});
+          }
+          console.log('🌱 Génération des points de ressource v' + RESEED_VERSION + '...');
           await seedResourceNodes();
+          // Store seed version as table comment
+          await prisma.$executeRawUnsafe(
+            `COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`
+          );
+          console.log(`✅ Version de seed stockée: v${RESEED_VERSION}`);
         } else {
-          console.log(`🌍 ${nodeCount} points de ressource existants`);
+          console.log(`🌍 ${nodeCount} points de ressource existants (v${lastSeedVersion})`);
         }
       } catch (seedErr) {
         console.warn('⚠️ Erreur seed:', seedErr.message);
