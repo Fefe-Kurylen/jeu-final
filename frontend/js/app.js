@@ -5171,7 +5171,8 @@ function checkBuildingPrerequisites(buildingDef) {
 }
 
 function closeBuildPanel() {
-  document.getElementById('build-panel').style.display = 'none';
+  const panel = document.getElementById('build-panel');
+  if (panel) panel.style.display = 'none';
   const overlay = document.querySelector('.build-panel-overlay');
   if (overlay) overlay.style.display = 'none';
   selectedBuildSlot = null;
@@ -5762,40 +5763,52 @@ function getUnitName(unitKey) {
 }
 
 async function buildField(buildingKey, slot) {
-  const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ buildingKey, slot })
-  });
-  
-  const data = await res.json();
-  closeBuildPanel();
-  
-  if (res.ok) {
-    showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
-    await loadCities();
-    renderCity();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ buildingKey, slot })
+    });
+
+    const data = await res.json();
+    closeBuildPanel();
+
+    if (res.ok) {
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
+      await loadCities();
+      renderCity();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('buildField error:', e);
+    closeBuildPanel();
+    showToast('Erreur réseau', 'error');
   }
 }
 
 async function buildAtSlot(buildingKey, slot) {
-  const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ buildingKey, slot })
-  });
-  
-  const data = await res.json();
-  closeBuildPanel();
-  
-  if (res.ok) {
-    showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
-    await loadCities();
-    renderCity();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ buildingKey, slot })
+    });
+
+    const data = await res.json();
+    closeBuildPanel();
+
+    if (res.ok) {
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
+      await loadCities();
+      renderCity();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('buildAtSlot error:', e);
+    closeBuildPanel();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -5865,13 +5878,24 @@ window.addEventListener('resize', () => {
 });
 
 // Animation loop for construction (250ms = 4 FPS, sufficient for progress bars)
-setInterval(() => {
-  if (document.visibilityState !== 'visible') return;
-  if (document.getElementById('tab-city')?.classList.contains('active') &&
-      currentCity?.buildQueue?.some(q => q.status === 'RUNNING')) {
-    renderCityCanvas();
+let constructionAnimInterval = null;
+function startConstructionAnimation() {
+  if (constructionAnimInterval) return;
+  constructionAnimInterval = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (document.getElementById('tab-city')?.classList.contains('active') &&
+        currentCity?.buildQueue?.some(q => q.status === 'RUNNING')) {
+      renderCityCanvas();
+    }
+  }, 250);
+}
+function stopConstructionAnimation() {
+  if (constructionAnimInterval) {
+    clearInterval(constructionAnimInterval);
+    constructionAnimInterval = null;
   }
-}, 250);
+}
+startConstructionAnimation();
 
 function renderBuildingSlots() {
   // Legacy function - now handled by renderCityCanvas
@@ -6372,20 +6396,25 @@ function renderBuildings(filter) {
 }
 
 async function build(buildingKey) {
-  const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ buildingKey })
-  });
-  
-  const data = await res.json();
-  if (res.ok) {
-    showToast('Construction lancée!', 'success');
-    await loadCities();
-    renderCity();
-    loadBuildings();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ buildingKey })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Construction lancée!', 'success');
+      await loadCities();
+      renderCity();
+      loadBuildings();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('build error:', e);
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -6415,14 +6444,15 @@ async function loadUnits() {
   renderUnits('all');
 }
 
-function filterUnits(classFilter) {
+function filterUnits(classFilter, evt) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (evt && evt.target) evt.target.classList.add('active');
   renderUnits(classFilter);
 }
 
 function renderUnits(filter) {
   const grid = document.getElementById('units-grid');
+  if (!grid) return;
   let units = unitsData.filter(u => u.faction === player?.faction);
   
   if (filter !== 'all') {
@@ -7602,24 +7632,30 @@ function showMoveModal(armyId) {
 }
 
 async function moveArmy(armyId) {
-  const x = parseInt(document.getElementById('move-x').value);
-  const y = parseInt(document.getElementById('move-y').value);
-  
-  const res = await fetch(`${API}/api/army/${armyId}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ x, y })
-  });
-  
-  const data = await res.json();
-  closeModal();
-  
-  if (res.ok) {
-    showToast('Armée en mouvement!', 'success');
-    await loadArmies();
-    renderArmies();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const x = parseInt(document.getElementById('move-x').value);
+    const y = parseInt(document.getElementById('move-y').value);
+
+    const res = await fetch(`${API}/api/army/${armyId}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ x, y })
+    });
+
+    const data = await res.json();
+    closeModal();
+
+    if (res.ok) {
+      showToast('Armée en mouvement!', 'success');
+      await loadArmies();
+      renderArmies();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('moveArmy error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -7634,23 +7670,29 @@ function showAttackModal(armyId) {
 }
 
 async function attackCity(armyId) {
-  const targetCityId = document.getElementById('attack-city').value;
-  
-  const res = await fetch(`${API}/api/army/${armyId}/attack`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId })
-  });
-  
-  const data = await res.json();
-  closeModal();
-  
-  if (res.ok) {
-    showToast(`Attaque lancée contre ${data.target}!`, 'success');
-    await loadArmies();
-    renderArmies();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const targetCityId = document.getElementById('attack-city').value;
+
+    const res = await fetch(`${API}/api/army/${armyId}/attack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId })
+    });
+
+    const data = await res.json();
+    closeModal();
+
+    if (res.ok) {
+      showToast(`Attaque lancée contre ${data.target}!`, 'success');
+      await loadArmies();
+      renderArmies();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('attackCity error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -7665,39 +7707,50 @@ function showRaidModal(armyId) {
 }
 
 async function raidCity(armyId) {
-  const targetCityId = document.getElementById('raid-city').value;
-  
-  const res = await fetch(`${API}/api/army/${armyId}/raid`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId })
-  });
-  
-  const data = await res.json();
-  closeModal();
-  
-  if (res.ok) {
-    showToast(`Raid lancé contre ${data.target}!`, 'success');
-    await loadArmies();
-    renderArmies();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const targetCityId = document.getElementById('raid-city').value;
+
+    const res = await fetch(`${API}/api/army/${armyId}/raid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId })
+    });
+
+    const data = await res.json();
+    closeModal();
+
+    if (res.ok) {
+      showToast(`Raid lancé contre ${data.target}!`, 'success');
+      await loadArmies();
+      renderArmies();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('raidCity error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
 async function returnArmy(armyId) {
-  const res = await fetch(`${API}/api/army/${armyId}/return`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  const data = await res.json();
-  if (res.ok) {
-    showToast('Armée rappelée!', 'success');
-    await loadArmies();
-    renderArmies();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/return`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Armée rappelée!', 'success');
+      await loadArmies();
+      renderArmies();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('returnArmy error:', e);
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -7718,7 +7771,14 @@ const EQUIPMENT_SLOTS = {
 let heroData = null;
 
 async function loadHero() {
-  const res = await fetch(`${API}/api/hero`, { headers: { Authorization: `Bearer ${token}` } });
+  let res;
+  try {
+    res = await fetch(`${API}/api/hero`, { headers: { Authorization: `Bearer ${token}` } });
+  } catch (e) {
+    console.error('loadHero error:', e);
+    showToast('Erreur réseau', 'error');
+    return;
+  }
   const panel = document.getElementById('hero-panel');
 
   if (res.ok) {
@@ -7860,7 +7920,7 @@ function onEquipSlotClick(slotKey) {
 
   if (equipped) {
     // Show equipped item details
-    openModal(`${slotInfo.name} - ${equipped.itemKey}`, `
+    showModal(`${slotInfo.name} - ${equipped.itemKey}`, `
       <div style="text-align:center;">
         <div style="font-size:48px;margin:10px 0;">${getItemIcon(equipped.itemKey)}</div>
         <h4>${equipped.itemKey.replace(/_/g, ' ')}</h4>
@@ -7878,7 +7938,7 @@ function onEquipSlotClick(slotKey) {
     `);
   } else {
     // Show empty slot info
-    openModal(`${slotInfo.name} - Vide`, `
+    showModal(`${slotInfo.name} - Vide`, `
       <div style="text-align:center;">
         <div style="font-size:48px;margin:10px 0;opacity:0.3;">${slotInfo.icon}</div>
         <p style="color:var(--text-muted)">Emplacement vide</p>
@@ -7908,18 +7968,23 @@ async function unequipItem(itemId) {
 }
 
 async function assignPoint(stat) {
-  const body = { atk: 0, def: 0, spd: 0, log: 0 };
-  body[stat] = 1;
-  
-  const res = await fetch(`${API}/api/hero/assign-points`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body)
-  });
-  
-  if (res.ok) {
-    showToast('Point assigné!', 'success');
-    loadHero();
+  try {
+    const body = { atk: 0, def: 0, spd: 0, log: 0 };
+    body[stat] = 1;
+
+    const res = await fetch(`${API}/api/hero/assign-points`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      showToast('Point assigné!', 'success');
+      loadHero();
+    }
+  } catch (e) {
+    console.error('assignPoint error:', e);
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -8118,7 +8183,14 @@ function showHeroEquipment() {
 
 // ========== EXPEDITIONS ==========
 async function loadExpeditions() {
-  const res = await fetch(`${API}/api/expeditions`, { headers: { Authorization: `Bearer ${token}` } });
+  let res;
+  try {
+    res = await fetch(`${API}/api/expeditions`, { headers: { Authorization: `Bearer ${token}` } });
+  } catch (e) {
+    console.error('loadExpeditions error:', e);
+    showToast('Erreur réseau', 'error');
+    return;
+  }
   
   if (res.ok) {
     const expeditions = await res.json();
@@ -8153,20 +8225,25 @@ async function startExpedition(id) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
-  
-  const res = await fetch(`${API}/api/expedition/${id}/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ armyId: army.id })
-  });
-  
-  if (res.ok) {
-    showToast('Expédition lancée!', 'success');
-    await loadArmies();
-    loadExpeditions();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+
+  try {
+    const res = await fetch(`${API}/api/expedition/${id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ armyId: army.id })
+    });
+
+    if (res.ok) {
+      showToast('Expédition lancée!', 'success');
+      await loadArmies();
+      loadExpeditions();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('startExpedition error:', e);
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -8907,7 +8984,7 @@ function toggleHelpOverlay() {
           <div class="shortcut"><kbd>4</kbd> Classement</div>
           <div class="shortcut"><kbd>5</kbd> Rapports</div>
           <div class="shortcut"><kbd>6</kbd> Alliance</div>
-          <div class="shortcut"><kbd>7</kbd> Armée</div>
+          <div class="shortcut"><kbd>7</kbd> Inventaire</div>
           <div class="shortcut"><kbd>8</kbd> Héros</div>
           <div class="shortcut"><kbd>9</kbd> Marché</div>
         </div>
@@ -11212,10 +11289,17 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
 
 // View player profile
 async function viewPlayerProfile(playerId) {
-  const res = await fetch(`${API}/api/player/${playerId}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
+  let res;
+  try {
+    res = await fetch(`${API}/api/player/${playerId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (e) {
+    console.error('viewPlayerProfile error:', e);
+    showToast('Erreur réseau', 'error');
+    return;
+  }
+
   if (!res.ok) {
     showToast('Erreur chargement profil', 'error');
     return;
@@ -11274,23 +11358,29 @@ function spyFromMap(cityId) {
 }
 
 async function confirmSpyFromMap(armyId, cityId) {
-  const res = await fetch(`${API}/api/army/${armyId}/spy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId: cityId })
-  });
-  
-  closeModal();
-  closeMapPanel();
-  
-  if (res.ok) {
-    const data = await res.json();
-    showToast(`Espions envoyés vers ${data.target}!`, 'success');
-    await loadArmies();
-    loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/spy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId: cityId })
+    });
+
+    closeModal();
+    closeMapPanel();
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast(`Espions envoyés vers ${data.target}!`, 'success');
+      await loadArmies();
+      loadMap();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('confirmSpyFromMap error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -11342,34 +11432,40 @@ function sendResourcesFromMap(cityId, cityName) {
 }
 
 async function confirmSendResources(armyId, cityId) {
-  const wood = parseInt(document.getElementById('send-wood').value) || 0;
-  const stone = parseInt(document.getElementById('send-stone').value) || 0;
-  const iron = parseInt(document.getElementById('send-iron').value) || 0;
-  const food = parseInt(document.getElementById('send-food').value) || 0;
-  
+  const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
+  const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
+  const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
+  const food = parseInt(document.getElementById('send-food')?.value) || 0;
+
   if (wood + stone + iron + food === 0) {
     showToast('Sélectionnez des ressources à envoyer', 'error');
     return;
   }
-  
-  const res = await fetch(`${API}/api/army/${armyId}/transport`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId: cityId, wood, stone, iron, food })
-  });
-  
-  closeModal();
-  closeMapPanel();
-  
-  if (res.ok) {
-    const data = await res.json();
-    showToast(data.message, 'success');
-    await loadArmies();
-    await loadCity();
-    loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/transport`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId: cityId, wood, stone, iron, food })
+    });
+
+    closeModal();
+    closeMapPanel();
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.message, 'success');
+      await loadArmies();
+      await loadCities();
+      loadMap();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('confirmSendResources error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -11404,22 +11500,28 @@ function attackFromMap(cityId, x, y) {
 }
 
 async function confirmAttackFromMap(armyId, cityId) {
-  const res = await fetch(`${API}/api/army/${armyId}/attack`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId: cityId })
-  });
-  
-  closeModal();
-  closeMapPanel();
-  
-  if (res.ok) {
-    showToast('Attaque lancée!', 'success');
-    await loadArmies();
-    loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/attack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId: cityId })
+    });
+
+    closeModal();
+    closeMapPanel();
+
+    if (res.ok) {
+      showToast('Attaque lancée!', 'success');
+      await loadArmies();
+      loadMap();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('confirmAttackFromMap error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -11437,19 +11539,28 @@ function raidFromMap(cityId) {
 }
 
 async function confirmRaidFromMap(armyId, cityId) {
-  const res = await fetch(`${API}/api/army/${armyId}/raid`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ targetCityId: cityId })
-  });
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/raid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetCityId: cityId })
+    });
 
-  closeModal();
-  closeMapPanel();
+    closeModal();
+    closeMapPanel();
 
-  if (res.ok) {
-    showToast('Raid lancé!', 'success');
-    await loadArmies();
-    loadMap();
+    if (res.ok) {
+      showToast('Raid lancé!', 'success');
+      await loadArmies();
+      loadMap();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    console.error('confirmRaidFromMap error:', e);
+    closeModal();
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -12443,7 +12554,8 @@ function formatEffectName(key) {
 }
 
 function closeModal() {
-  document.getElementById('modal').style.display = 'none';
+  const modal = document.getElementById('modal');
+  if (modal) modal.style.display = 'none';
 }
 
 function showModal(title, content) {
@@ -12465,6 +12577,7 @@ function showModal(title, content) {
 
 function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   toast.textContent = msg;
   toast.className = `toast ${type} show`;
   setTimeout(() => toast.classList.remove('show'), 3000);
@@ -12594,6 +12707,7 @@ function isNightMode() {
 }
 
 function startServerTime() {
+  if (serverTimeInterval) clearInterval(serverTimeInterval);
   updateServerTime();
   serverTimeInterval = setInterval(() => {
     if (document.visibilityState === 'visible') updateServerTime();
@@ -12636,6 +12750,7 @@ function updateAllCountdowns() {
 }
 
 function startCountdowns() {
+  if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
     if (document.visibilityState === 'visible') updateAllCountdowns();
   }, 1000);
@@ -12725,7 +12840,7 @@ async function createMarketOffer() {
       document.getElementById('market-sell-amount').value = '';
       document.getElementById('market-buy-amount').value = '';
       await loadMarket();
-      await loadCity();
+      await loadCities();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
@@ -12746,7 +12861,7 @@ async function acceptMarketOffer(offerId) {
     if (res.ok) {
       showToast('Échange effectué!', 'success');
       await loadMarket();
-      await loadCity();
+      await loadCities();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
@@ -12766,7 +12881,7 @@ async function cancelMarketOffer(offerId) {
     if (res.ok) {
       showToast('Offre annulée', 'success');
       await loadMarket();
-      await loadCity();
+      await loadCities();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
@@ -13245,7 +13360,7 @@ async function executeNpcTrade() {
     if (res.ok) {
       const data = await res.json();
       showToast(`Echange reussi! -${formatNum(data.given)} ${giveResource} → +${formatNum(data.received)} ${receiveResource}`, 'success');
-      await loadCity();
+      await loadCities();
       showNpcMerchant(); // Refresh display
     } else {
       const data = await res.json();
@@ -13341,7 +13456,7 @@ function showItemDetails(itemId) {
   if (!item) return;
 
   const slotInfo = EQUIPMENT_SLOTS[item.slot] || { name: item.slot, icon: '📦' };
-  openModal(`${item.itemKey.replace(/_/g, ' ')}`, `
+  showModal(`${item.itemKey.replace(/_/g, ' ')}`, `
     <div style="text-align:center;">
       <div style="font-size:48px;margin:10px 0;">${getItemIcon(item.itemKey)}</div>
       <p style="color:var(--text-muted);">Emplacement: ${slotInfo.name}</p>
