@@ -262,6 +262,47 @@ try {
   console.warn('Could not load game data:', e.message);
 }
 
+// ========== PRODUCTION INTERPOLATION (matching frontend formula) ==========
+function lerpExp(a, b, t) {
+  if (a <= 0 || b <= 0) return a + (b - a) * t;
+  return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
+}
+
+function getProductionAtLevel(buildingKey, level) {
+  const def = buildingsData.find(b => b.key === buildingKey);
+  if (!def || !def.effects) return level * 30;
+
+  const prodKeys = {
+    'FARM': 'foodProd',
+    'LUMBER': 'woodProd',
+    'QUARRY': 'stoneProd',
+    'IRON_MINE': 'ironProd'
+  };
+  const prodKey = prodKeys[buildingKey];
+  if (!prodKey) return 0;
+
+  const L1 = def.effects[prodKey + 'L1'] || 10;
+  const L10 = def.effects[prodKey + 'L10'];
+  const L20 = def.effects[prodKey + 'L20'] || 4500;
+
+  if (level <= 0) return 0;
+  if (level <= 1) return L1;
+  if (level >= 20) return L20;
+
+  if (L10) {
+    if (level <= 10) {
+      const t = (level - 1) / 9;
+      return Math.round(lerpExp(L1, L10, t));
+    } else {
+      const t = (level - 10) / 10;
+      return Math.round(lerpExp(L10, L20, t));
+    }
+  } else {
+    const t = (level - 1) / 19;
+    return Math.round(lerpExp(L1, L20, t));
+  }
+}
+
 // ========== FACTION BONUS HELPERS ==========
 function getFactionBonus(faction, bonusType) {
   const factionData = factionsData[faction];
@@ -2917,14 +2958,14 @@ setInterval(async () => {
     // Production - Optimized with batch updates
     const cities = await prisma.city.findMany({ where: { isSieged: false }, include: { buildings: true } });
 
-    // Prepare all updates
+    // Prepare all updates (using exponential interpolation matching frontend)
     const cityUpdates = cities.map(city => {
       let wood = 5, stone = 5, iron = 5, food = 10; // Base production
       for (const b of city.buildings) {
-        if (b.key === 'LUMBER') wood += b.level * 30;
-        else if (b.key === 'QUARRY') stone += b.level * 30;
-        else if (b.key === 'IRON_MINE') iron += b.level * 30;
-        else if (b.key === 'FARM') food += b.level * 40;
+        if (b.key === 'LUMBER') wood += getProductionAtLevel('LUMBER', b.level);
+        else if (b.key === 'QUARRY') stone += getProductionAtLevel('QUARRY', b.level);
+        else if (b.key === 'IRON_MINE') iron += getProductionAtLevel('IRON_MINE', b.level);
+        else if (b.key === 'FARM') food += getProductionAtLevel('FARM', b.level);
       }
 
       return prisma.city.update({
