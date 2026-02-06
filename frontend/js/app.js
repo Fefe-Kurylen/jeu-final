@@ -312,7 +312,7 @@ async function showGame() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
   await loadWorldInfo(); // Load world size first
-  await loadPlayer();
+  await Promise.all([loadPlayer(), loadBuildings(), loadUnits()]);
   await loadCities();
   await loadArmies();
   startRefresh();
@@ -400,10 +400,15 @@ async function loadArmies() {
 }
 
 function updateCitySelector() {
+  // Update old select if it exists
   const select = document.getElementById('city-select');
-  select.innerHTML = cities.map(c => 
-    `<option value="${c.id}" ${c.id === currentCity?.id ? 'selected' : ''}>${c.name} ${c.isCapital ? '👑' : ''}</option>`
-  ).join('');
+  if (select) {
+    select.innerHTML = cities.map(c =>
+      `<option value="${c.id}" ${c.id === currentCity?.id ? 'selected' : ''}>${c.name} ${c.isCapital ? '👑' : ''}</option>`
+    ).join('');
+  }
+  // Update bottom-nav village selector
+  updateQuicklinksCity();
 }
 
 function selectCity(id) {
@@ -836,12 +841,18 @@ function updateViewIndicator() {
 
 function switchCityView(view) {
   currentCityView = view;
-  
-  // Update button states
-  document.getElementById('btn-view-city').classList.toggle('active', view === 'city');
-  document.getElementById('btn-view-fields').classList.toggle('active', view === 'fields');
-  
+
+  // Update button states (if buttons exist)
+  document.getElementById('btn-view-city')?.classList.toggle('active', view === 'city');
+  document.getElementById('btn-view-fields')?.classList.toggle('active', view === 'fields');
+
+  // Update bottom nav active tab
+  document.querySelectorAll('.bnav-tab').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.bnav-tab[data-tab="${view === 'fields' ? 'fields' : 'city'}"]`)?.classList.add('active');
+
   // Re-render
+  calculateCitySlots();
+  if (view === 'fields') calculateFieldSlots();
   renderCityCanvas();
 }
 
@@ -4924,7 +4935,7 @@ function openBuildPanel(slotNum) {
     `;
   }
   
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
   panel.classList.add('slide-in');
 }
 
@@ -4971,8 +4982,9 @@ function switchBuildingTab(tabId, btn) {
   // Remove active from all tabs
   document.querySelectorAll('.building-tab').forEach(t => t.classList.remove('active'));
   // Show selected tab and mark button active
-  document.getElementById(`tab-${tabId}`).style.display = 'block';
-  btn.classList.add('active');
+  const tabEl = document.getElementById(`tab-${tabId}`);
+  if (tabEl) tabEl.style.display = 'block';
+  if (btn) btn.classList.add('active');
 }
 
 // Helper: Get special tabs for specific building types
@@ -5006,7 +5018,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
             <h4>🎓 Académie</h4>
             <p>Bonus recherche: <strong>-${level}%</strong> temps</p>
             <p>Technologies disponibles selon le niveau de l'académie.</p>
-            <button class="btn-secondary" onclick="showResearchPanel()">Voir les recherches</button>
+            <button class="btn-secondary" onclick="showToast('Recherches bientôt disponibles', 'info')">Voir les recherches</button>
           </div>
         `
       });
@@ -5256,7 +5268,7 @@ function openFieldBuildPanel(slotNum) {
     `;
   }
   
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
 }
 
 // ========== RECRUITMENT PANEL (via Military Buildings) ==========
@@ -5432,7 +5444,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     </div>
   `;
 
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
 }
 
 // Open unit recruit modal (from recruitment panel)
@@ -5740,7 +5752,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
     </div>
   `;
   
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
 }
 
 // Get unit name helper
@@ -5843,7 +5855,7 @@ function getBuildingDescription(key) {
 
 // Handle window resize for city canvas
 window.addEventListener('resize', () => {
-  if (cityCanvas && document.getElementById('tab-city').classList.contains('active')) {
+  if (cityCanvas && document.getElementById('tab-city')?.classList.contains('active')) {
     const container = cityCanvas.parentElement;
     cityCanvas.width = container.clientWidth;
     cityCanvas.height = container.clientHeight;
@@ -5866,23 +5878,67 @@ function renderBuildingSlots() {
   renderCityCanvas();
 }
 
+// ========== ACTIVITY DROPDOWN ==========
+function toggleActivityDropdown() {
+  const menu = document.getElementById('activity-dropdown-menu');
+  if (menu) {
+    menu.classList.toggle('open');
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const dropdown = document.getElementById('activity-dropdown');
+  if (dropdown && !dropdown.contains(e.target)) {
+    const menu = document.getElementById('activity-dropdown-menu');
+    if (menu) menu.classList.remove('open');
+  }
+});
+
+function updateActivityBadge() {
+  const badge = document.getElementById('activity-badge');
+  if (!badge) return;
+  const buildQueue = currentCity?.buildQueue || [];
+  const recruitQueue = currentCity?.recruitQueue || [];
+  const movingArmies = armies?.filter(a => a.status !== 'IDLE') || [];
+  const total = buildQueue.length + recruitQueue.length + movingArmies.length;
+  if (total > 0) {
+    badge.textContent = total;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 function renderBuildQueue() {
   const queue = currentCity.buildQueue || [];
   const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
   const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-  // Update activity bar
+  // Update activity dropdown - show ALL constructions
   const activityEl = document.getElementById('build-activity');
   if (activityEl) {
-    if (running.length > 0) {
-      const first = running[0];
+    if (running.length > 0 || queued.length > 0) {
       activityEl.classList.add('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">🏗️</span>
-        <span class="activity-text">${BUILDING_ICONS[first.buildingKey] || '🏠'} ${getBuildingName(first.buildingKey)} Niv.${first.targetLevel}</span>
-        <span class="activity-timer" data-ends-at="${first.endsAt}">${formatTime(first.endsAt)}</span>
-        ${running.length > 1 ? `<span class="activity-more">+${running.length - 1}</span>` : ''}
-      `;
+      let html = '<span class="activity-icon">🏗️</span><div class="activity-queue-list">';
+      running.forEach((q, i) => {
+        html += `
+          <div class="activity-queue-item ${i === 0 ? 'first' : ''}">
+            <span class="aq-icon">🔨</span>
+            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          </div>`;
+      });
+      queued.forEach(q => {
+        html += `
+          <div class="activity-queue-item queued">
+            <span class="aq-icon">⏳</span>
+            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="aq-status">En attente</span>
+          </div>`;
+      });
+      html += '</div>';
+      activityEl.innerHTML = html;
     } else {
       activityEl.classList.remove('active');
       activityEl.innerHTML = `
@@ -5891,39 +5947,123 @@ function renderBuildQueue() {
       `;
     }
   }
+  updateActivityBadge();
+}
 
-  // Also update legacy build-queue element if it exists
-  const legacyEl = document.getElementById('build-queue');
-  if (legacyEl) {
-    let html = `<div class="build-slots-header">
-      <span>🔨 En cours: ${running.length}/2</span>
-      <span>⏳ En attente: ${queued.length}/2</span>
-    </div>`;
+function openBuildQueuePanel() {
+  const queue = currentCity?.buildQueue || [];
+  const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
+  const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-    if (queue.length === 0) {
-      html += '<p style="padding:10px;color:var(--text-muted);font-size:12px;text-align:center;">Aucune construction</p>';
-    } else {
-      running.forEach(q => {
-        html += `
-          <div class="queue-item queue-running">
-            <span class="queue-status-icon">🔨</span>
-            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="queue-time" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-          </div>
-        `;
-      });
-      queued.forEach(q => {
-        html += `
-          <div class="queue-item queue-waiting">
-            <span class="queue-status-icon">⏳</span>
-            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="queue-time">En attente</span>
-          </div>
-        `;
-      });
-    }
-    legacyEl.innerHTML = html;
+  const panel = document.getElementById('build-panel');
+  const content = document.getElementById('build-panel-content');
+  const title = document.getElementById('build-panel-title');
+
+  title.textContent = '🏗️ File de construction';
+
+  // Show overlay
+  let overlay = document.querySelector('.build-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'build-panel-overlay';
+    overlay.onclick = closeBuildPanel;
+    document.body.appendChild(overlay);
   }
+  overlay.style.display = 'block';
+  overlay.classList.add('fade-in');
+
+  let html = `
+    <div class="build-queue-panel">
+      <div class="bq-header">
+        <span>🔨 En cours: <strong>${running.length}/2</strong></span>
+        <span>⏳ En attente: <strong>${queued.length}/2</strong></span>
+      </div>
+  `;
+
+  if (queue.length === 0) {
+    html += '<div class="bq-empty">Aucune construction en cours. Cliquez sur un emplacement dans votre village pour construire.</div>';
+  } else {
+    // Running constructions
+    running.forEach(q => {
+      const endsAt = new Date(q.endsAt);
+      const now = new Date();
+      const totalMs = endsAt - new Date(q.startedAt || now);
+      const remainMs = Math.max(0, endsAt - now);
+      const pct = totalMs > 0 ? Math.min(100, ((totalMs - remainMs) / totalMs) * 100) : 100;
+
+      html += `
+        <div class="bq-item bq-running">
+          <div class="bq-item-header">
+            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
+            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
+            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
+            <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          </div>
+          <div class="bq-progress">
+            <div class="bq-progress-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    });
+
+    // Queued constructions
+    queued.forEach(q => {
+      html += `
+        <div class="bq-item bq-queued">
+          <div class="bq-item-header">
+            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
+            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
+            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
+            <span class="bq-item-status">⏳ En attente</span>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += '</div>';
+  content.innerHTML = html;
+  panel.style.display = 'flex';
+}
+
+function openRecruitQueuePanel() {
+  const queue = currentCity?.recruitQueue || [];
+  if (queue.length === 0) {
+    showToast('Aucun recrutement en cours', 'info');
+    return;
+  }
+
+  const panel = document.getElementById('build-panel');
+  const content = document.getElementById('build-panel-content');
+  const title = document.getElementById('build-panel-title');
+
+  title.textContent = '⚔️ File de recrutement';
+
+  let overlay = document.querySelector('.build-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'build-panel-overlay';
+    overlay.onclick = closeBuildPanel;
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'block';
+  overlay.classList.add('fade-in');
+
+  let html = '<div class="build-queue-panel">';
+  queue.forEach(q => {
+    html += `
+      <div class="bq-item bq-running">
+        <div class="bq-item-header">
+          <span class="bq-item-icon">⚔️</span>
+          <span class="bq-item-name">${q.count}x ${getUnitName(q.unitKey)}</span>
+          <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  content.innerHTML = html;
+  panel.style.display = 'flex';
 }
 
 function renderRecruitQueue() {
@@ -5964,6 +6104,7 @@ function renderRecruitQueue() {
       `).join('');
     }
   }
+  updateActivityBadge();
 }
 
 function renderMovingArmies() {
@@ -6018,6 +6159,7 @@ function renderMovingArmies() {
       `).join('');
     }
   }
+  updateActivityBadge();
 }
 
 // ========== WOUNDED UNITS ==========
@@ -6127,11 +6269,13 @@ function showTab(tabName) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.bnav-tab').forEach(b => b.classList.remove('active'));
 
   const tabEl = document.getElementById(`tab-${tabName}`);
   if (tabEl) tabEl.classList.add('active');
+  // Activate both old nav-tab and new bnav-tab
   document.querySelector(`.nav-tab[data-tab="${tabName}"]`)?.classList.add('active');
-  document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+  document.querySelector(`.bnav-tab[data-tab="${tabName}"]`)?.classList.add('active');
   
   // Start/stop animations based on tab
   if (tabName === 'city' || tabName === 'fields') {
@@ -10918,7 +11062,7 @@ function showMapInfoPanel(x, y, tile) {
       <p>Position: (${x}, ${y})</p>
       <p style="color:#888">Aucun objet à cet emplacement</p>
     `;
-    panel.style.display = 'block';
+    panel.style.display = 'flex';
   } else if (tile.type === 'CITY') {
     const isMyCity = tile.playerId === player?.id;
     const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
@@ -10932,7 +11076,7 @@ function showMapInfoPanel(x, y, tile) {
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">🏠 Visiter</button>
         </div>
       `;
-      panel.style.display = 'block';
+      panel.style.display = 'flex';
     } else {
       // Other player's city - check diplomacy first
       showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content);
@@ -10998,7 +11142,7 @@ function showMapInfoPanel(x, y, tile) {
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
       </div>
     `;
-    panel.style.display = 'block';
+    panel.style.display = 'flex';
   }
 }
 
@@ -11063,7 +11207,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     </div>
     ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">⚠️ Aucune armée disponible</p>' : ''}
   `;
-  panel.style.display = 'block';
+  panel.style.display = 'flex';
 }
 
 // View player profile
@@ -12554,10 +12698,10 @@ function renderMarketOffers() {
 }
 
 async function createMarketOffer() {
-  const sellResource = document.getElementById('market-sell-resource').value;
-  const sellAmount = parseInt(document.getElementById('market-sell-amount').value);
-  const buyResource = document.getElementById('market-buy-resource').value;
-  const buyAmount = parseInt(document.getElementById('market-buy-amount').value);
+  const sellResource = document.getElementById('market-sell-resource')?.value;
+  const sellAmount = parseInt(document.getElementById('market-sell-amount')?.value);
+  const buyResource = document.getElementById('market-buy-resource')?.value;
+  const buyAmount = parseInt(document.getElementById('market-buy-amount')?.value);
   
   if (!sellAmount || !buyAmount || sellAmount <= 0 || buyAmount <= 0) {
     showToast('Quantités invalides', 'error');

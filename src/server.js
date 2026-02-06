@@ -731,8 +731,14 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
       return res.status(400).json({ error: `File de construction pleine (max ${MAX_TOTAL}: ${MAX_RUNNING} en cours + ${MAX_QUEUED} en attente)` });
     }
 
-    const existing = city.buildings.find(b => b.key === buildingKey);
-    const inQueue = city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
+    // Find existing building - use slot for field buildings (multiple of same type)
+    const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(buildingKey);
+    const existing = isFieldBuilding && slot
+      ? city.buildings.find(b => b.key === buildingKey && b.slot === slot)
+      : city.buildings.find(b => b.key === buildingKey);
+    const inQueue = isFieldBuilding && slot
+      ? city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === slot).length
+      : city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
     const targetLevel = (existing?.level || 0) + inQueue + 1;
 
     // Get building def
@@ -3001,7 +3007,11 @@ setInterval(async () => {
       const cityBuilds = buildsByCityId[cityId];
       
       for (const b of cityBuilds) {
-        const existing = b.city.buildings.find(x => x.key === b.buildingKey);
+        // For field buildings (multiple of same type), find by key AND slot
+        const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(b.buildingKey);
+        const existing = isFieldBuilding
+          ? b.city.buildings.find(x => x.key === b.buildingKey && x.slot === b.slot)
+          : b.city.buildings.find(x => x.key === b.buildingKey);
         if (existing) {
           await prisma.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } });
         } else {
@@ -4001,6 +4011,108 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// ========== AUTO-SEED RESOURCE NODES ==========
+async function seedResourceNodes() {
+  const FACTIONS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+  const FACTION_UNITS = {
+    ROME: { base: ['ROM_INF_MILICIEN', 'ROM_ARC_MILICIEN', 'ROM_CAV_AUXILIAIRE'], inter: ['ROM_INF_TRIARII', 'ROM_ARC_VETERAN'] },
+    GAUL: { base: ['GAU_INF_GUERRIER', 'GAU_ARC_CHASSEUR', 'GAU_CAV_CHASSEUR'], inter: ['GAU_INF_TRIARII', 'GAU_ARC_GAULOIS'] },
+    GREEK: { base: ['GRE_INF_JEUNE', 'GRE_ARC_PAYSAN', 'GRE_CAV_ECLAIREUR'], inter: ['GRE_INF_HOPLITE', 'GRE_ARC_TOXOTE'] },
+    EGYPT: { base: ['EGY_INF_ESCLAVE', 'EGY_ARC_NIL', 'EGY_CAV_DESERT'], inter: ['EGY_INF_NIL', 'EGY_ARC_DESERT'] },
+    HUN: { base: ['HUN_INF_NOMADE', 'HUN_ARC_NOMADE', 'HUN_CAV_PILLARD'], inter: ['HUN_INF_GARDE', 'HUN_ARC_CAMP'] },
+    SULTAN: { base: ['SUL_INF_DESERT', 'SUL_ARC_DESERT', 'SUL_CAV_BEDOUIN'], inter: ['SUL_INF_CROISSANT', 'SUL_ARC_TIREUR'] }
+  };
+
+  const { worldSize } = await getWorldSize();
+  const half = Math.floor(worldSize / 2);
+  const RES_TOTAL = Math.min(30000, Math.floor(worldSize * worldSize * 0.2));
+  const GOLD_TOTAL = Math.floor(RES_TOTAL * 0.13);
+  const BATCH = 1000;
+
+  const used = new Set();
+  // Mark existing city positions
+  const existingCities = await prisma.city.findMany({ select: { x: true, y: true } });
+  existingCities.forEach(c => used.add(`${c.x},${c.y}`));
+
+  const data = [];
+  const resTypes = ['WOOD', 'STONE', 'IRON', 'FOOD'];
+  const biomes = (x, y) => {
+    const angle = (Math.atan2(y, x) + Math.PI) / (2 * Math.PI);
+    return angle < 0.33 ? 'forest' : angle < 0.66 ? 'desert' : 'snow';
+  };
+
+  const pickLevel = (x, y) => {
+    const d = Math.sqrt(x * x + y * y);
+    const r = Math.random();
+    if (d < half * 0.35) return r < 0.6 ? 3 : r < 0.85 ? 2 : 1;
+    return r < 0.55 ? 1 : r < 0.9 ? 2 : 3;
+  };
+
+  const genDefenders = (level) => {
+    const faction = FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
+    const fu = FACTION_UNITS[faction];
+    const units = {};
+    const counts = level === 1 ? 100 : level === 2 ? 600 : 1500;
+    fu.base.forEach(u => { units[u] = Math.floor(counts * (level === 1 ? 0.33 : 0.2) * (0.8 + Math.random() * 0.4)); });
+    if (level >= 2) fu.inter.forEach(u => { units[u] = Math.floor(counts * 0.15 * (0.8 + Math.random() * 0.4)); });
+    return { power: 100 * level * (counts / 100), units };
+  };
+
+  // Standard resources
+  let attempts = 0;
+  while (data.length < RES_TOTAL && attempts < RES_TOTAL * 3) {
+    attempts++;
+    const x = Math.floor(Math.random() * worldSize) - half;
+    const y = Math.floor(Math.random() * worldSize) - half;
+    const key = `${x},${y}`;
+    if (used.has(key)) continue;
+    used.add(key);
+
+    const level = pickLevel(x, y);
+    const type = resTypes[Math.floor(Math.random() * 4)];
+    const baseAmt = [1500, 3500, 6000][level - 1];
+    const amount = Math.floor(baseAmt * (0.8 + Math.random() * 0.4));
+    const tribe = genDefenders(level);
+
+    data.push({
+      x, y, resourceType: type, level, biome: biomes(x, y),
+      amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.floor(amount / 100),
+      hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units,
+      respawnMinutes: 30 + level * 30
+    });
+  }
+
+  // Gold resources
+  let goldCount = 0;
+  attempts = 0;
+  while (goldCount < GOLD_TOTAL && attempts < GOLD_TOTAL * 3) {
+    attempts++;
+    const x = Math.floor(Math.random() * worldSize) - half;
+    const y = Math.floor(Math.random() * worldSize) - half;
+    const key = `${x},${y}`;
+    if (used.has(key)) continue;
+    used.add(key);
+
+    const level = pickLevel(x, y);
+    const amount = Math.floor([500, 1500, 3000][level - 1] * (0.8 + Math.random() * 0.4));
+    const tribe = genDefenders(level);
+
+    data.push({
+      x, y, resourceType: 'GOLD', level, biome: biomes(x, y),
+      amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.floor(amount / 200),
+      hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units,
+      respawnMinutes: 60 + level * 60
+    });
+    goldCount++;
+  }
+
+  // Insert in batches
+  for (let i = 0; i < data.length; i += BATCH) {
+    await prisma.resourceNode.createMany({ data: data.slice(i, i + BATCH), skipDuplicates: true });
+  }
+  console.log(`✅ ${data.length} points de ressource générés (dont ${goldCount} or)`);
+}
+
 // Fonction de démarrage avec retry pour la DB
 async function startServer() {
   console.log('');
@@ -4035,6 +4147,19 @@ async function startServer() {
         console.log('✅ Schéma de base de données synchronisé!');
       } catch (dbPushError) {
         console.error('⚠️ Erreur lors de la synchronisation du schéma:', dbPushError.message);
+      }
+
+      // Auto-seed resource nodes if none exist
+      try {
+        const nodeCount = await prisma.resourceNode.count();
+        if (nodeCount === 0) {
+          console.log('🌱 Aucun point de ressource trouvé, génération automatique...');
+          await seedResourceNodes();
+        } else {
+          console.log(`🌍 ${nodeCount} points de ressource existants`);
+        }
+      } catch (seedErr) {
+        console.warn('⚠️ Erreur seed:', seedErr.message);
       }
 
       break;
