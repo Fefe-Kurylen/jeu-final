@@ -842,15 +842,30 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
     
     const endsAt = new Date(startAt.getTime() + durationSec * 1000);
 
+    // Determine the correct slot for the queue item
+    let buildSlot = slot;
+    if (!buildSlot && existing) {
+      // Use existing building's slot for upgrades
+      buildSlot = existing.slot;
+    }
+    if (!buildSlot) {
+      // New building - find next available slot
+      const usedSlots = new Set(city.buildings.map(b => b.slot));
+      const queuedSlots = city.buildQueue.map(q => q.slot);
+      queuedSlots.forEach(s => usedSlots.add(s));
+      buildSlot = 1;
+      while (usedSlots.has(buildSlot)) buildSlot++;
+    }
+
     const queueItem = await prisma.buildQueueItem.create({
-      data: { 
-        cityId: city.id, 
-        buildingKey, 
-        targetLevel, 
-        slot: slot || (totalCount + 1), 
-        startedAt: startAt, 
-        endsAt, 
-        status 
+      data: {
+        cityId: city.id,
+        buildingKey,
+        targetLevel,
+        slot: buildSlot,
+        startedAt: startAt,
+        endsAt,
+        status
       }
     });
 
@@ -3046,23 +3061,36 @@ setInterval(async () => {
     
     for (const cityId of Object.keys(buildsByCityId)) {
       const cityBuilds = buildsByCityId[cityId];
-      
+
       for (const b of cityBuilds) {
-        // For field buildings (multiple of same type), find by key AND slot
-        const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(b.buildingKey);
-        const existing = isFieldBuilding
-          ? b.city.buildings.find(x => x.key === b.buildingKey && x.slot === b.slot)
-          : b.city.buildings.find(x => x.key === b.buildingKey);
-        if (existing) {
-          await prisma.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } });
-        } else {
-          const slot = b.slot || (b.city.buildings.length + 1);
-          await prisma.cityBuilding.create({
-            data: { cityId: b.cityId, key: b.buildingKey, slot, level: b.targetLevel }
-          });
+        try {
+          // Reload fresh buildings from DB (not snapshot) to handle multiple completions
+          const freshBuildings = await prisma.cityBuilding.findMany({ where: { cityId: b.cityId } });
+
+          // For field buildings (multiple of same type), find by key AND slot
+          const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(b.buildingKey);
+          const existing = isFieldBuilding
+            ? freshBuildings.find(x => x.key === b.buildingKey && x.slot === b.slot)
+            : freshBuildings.find(x => x.key === b.buildingKey);
+          if (existing) {
+            await prisma.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } });
+          } else {
+            // Find next available slot for this city
+            const usedSlots = new Set(freshBuildings.map(x => x.slot));
+            let newSlot = b.slot || 1;
+            while (usedSlots.has(newSlot)) newSlot++;
+
+            await prisma.cityBuilding.create({
+              data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel }
+            });
+          }
+          await prisma.buildQueueItem.delete({ where: { id: b.id } });
+          console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
+        } catch (buildErr) {
+          console.error(`[BUILD ERROR] ${b.buildingKey}:`, buildErr.message);
+          // Delete the stuck queue item to prevent infinite retry
+          try { await prisma.buildQueueItem.delete({ where: { id: b.id } }); } catch (e) {}
         }
-        await prisma.buildQueueItem.delete({ where: { id: b.id } });
-        console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel}`);
       }
       
       // Count how many RUNNING slots are now free
