@@ -265,14 +265,14 @@
             </div>
 
             <div class="nav-tabs nav-tabs-right">
-                <button class="nav-tab" data-tab="army" onclick="showTab('army')">
-                    <span class="tab-icon">⚔️</span>
-                    <span class="tab-text">Troupes</span>
+                <button class="nav-tab" data-tab="inventory" onclick="showTab('inventory')">
+                    <span class="tab-icon">🎒</span>
+                    <span class="tab-text">Inventaire</span>
                     <span class="tab-key">7</span>
                 </button>
                 <button class="nav-tab" data-tab="hero" onclick="showTab('hero')">
                     <span class="tab-icon">🦸</span>
-                    <span class="tab-text">Héros</span>
+                    <span class="tab-text">Heros</span>
                     <span class="tab-key">8</span>
                 </button>
                 <button class="nav-tab" data-tab="alliance" onclick="showTab('alliance')">
@@ -376,12 +376,23 @@
                     </div>
                 </div>
 
-                <!-- TAB: ARMY -->
+                <!-- TAB: INVENTORY -->
+                <div id="tab-inventory" class="tab">
+                    <div class="tab-inner">
+                        <div class="tab-toolbar">
+                            <button class="toolbar-btn active" onclick="showInventoryTab('items')">📦 Objets</button>
+                            <button class="toolbar-btn" onclick="showInventoryTab('materials')">🔧 Materiaux</button>
+                        </div>
+                        <div id="inventory-content" class="inventory-content"></div>
+                    </div>
+                </div>
+
+                <!-- TAB: ARMY (accessible via rally point only) -->
                 <div id="tab-army" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showArmyTab('overview')">📊 Aperçu</button>
-                            <button class="toolbar-btn" onclick="showArmyTab('train')">⚔️ Entraîner</button>
+                            <button class="toolbar-btn active" onclick="showArmyTab('overview')">📊 Apercu</button>
+                            <button class="toolbar-btn" onclick="showArmyTab('train')">⚔️ Entrainer</button>
                             <button class="toolbar-btn" onclick="showArmyTab('send')">📤 Envoyer</button>
                         </div>
                         <div id="armies-management" class="army-content"></div>
@@ -416,35 +427,56 @@
                             <button class="toolbar-btn" onclick="showMarketTab('npc')">🏪 Marchand</button>
                         </div>
                         <div id="market-content" class="market-content">
-                            <div class="market-send">
+                            <!-- SEND Section -->
+                            <div id="market-section-send" class="market-section">
                                 <h3>Envoyer des ressources</h3>
                                 <div class="send-form">
                                     <div class="form-row">
                                         <label>Destination</label>
-                                        <input type="text" id="send-target" placeholder="Coordonnées (x|y) ou nom">
+                                        <input type="text" id="send-target" placeholder="Coordonnees (x|y) ou nom">
                                     </div>
                                     <div class="resources-input">
-                                        <div class="res-input">
-                                            <span>🪵</span>
-                                            <input type="number" id="send-wood" value="0" min="0">
-                                        </div>
-                                        <div class="res-input">
-                                            <span>🧱</span>
-                                            <input type="number" id="send-stone" value="0" min="0">
-                                        </div>
-                                        <div class="res-input">
-                                            <span>⛏️</span>
-                                            <input type="number" id="send-iron" value="0" min="0">
-                                        </div>
-                                        <div class="res-input">
-                                            <span>🌾</span>
-                                            <input type="number" id="send-food" value="0" min="0">
-                                        </div>
+                                        <div class="res-input"><span>🪵</span><input type="number" id="send-wood" value="0" min="0"></div>
+                                        <div class="res-input"><span>🧱</span><input type="number" id="send-stone" value="0" min="0"></div>
+                                        <div class="res-input"><span>⛏️</span><input type="number" id="send-iron" value="0" min="0"></div>
+                                        <div class="res-input"><span>🌾</span><input type="number" id="send-food" value="0" min="0"></div>
                                     </div>
                                     <button onclick="sendResources()" class="btn-primary">Envoyer</button>
                                 </div>
                             </div>
-                            <div id="market-offers" class="offers-section"></div>
+                            <!-- OFFERS Section -->
+                            <div id="market-section-offers" class="market-section" style="display:none">
+                                <h3>Place du Marche</h3>
+                                <div class="market-create-offer">
+                                    <h4>Creer une offre</h4>
+                                    <div class="offer-form">
+                                        <div class="offer-form-row">
+                                            <label>Je vends</label>
+                                            <select id="market-sell-resource">
+                                                <option value="wood">🪵 Bois</option>
+                                                <option value="stone">🧱 Argile</option>
+                                                <option value="iron">⛏️ Fer</option>
+                                                <option value="food">🌾 Ble</option>
+                                            </select>
+                                            <input type="number" id="market-sell-amount" placeholder="Quantite" min="1">
+                                        </div>
+                                        <div class="offer-form-row">
+                                            <label>Je demande</label>
+                                            <select id="market-buy-resource">
+                                                <option value="wood">🪵 Bois</option>
+                                                <option value="stone" selected>🧱 Argile</option>
+                                                <option value="iron">⛏️ Fer</option>
+                                                <option value="food">🌾 Ble</option>
+                                            </select>
+                                            <input type="number" id="market-buy-amount" placeholder="Quantite" min="1">
+                                        </div>
+                                        <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
+                                    </div>
+                                </div>
+                                <div id="market-offers" class="offers-section"></div>
+                            </div>
+                            <!-- NPC Section -->
+                            <div id="market-section-npc" class="market-section" style="display:none"></div>
                         </div>
                     </div>
                 </div>

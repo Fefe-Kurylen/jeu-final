@@ -5852,13 +5852,14 @@ window.addEventListener('resize', () => {
   }
 });
 
-// Animation loop for construction
+// Animation loop for construction (250ms = 4 FPS, sufficient for progress bars)
 setInterval(() => {
-  if (document.getElementById('tab-city')?.classList.contains('active') && 
+  if (document.visibilityState !== 'visible') return;
+  if (document.getElementById('tab-city')?.classList.contains('active') &&
       currentCity?.buildQueue?.some(q => q.status === 'RUNNING')) {
     renderCityCanvas();
   }
-}, 100);
+}, 250);
 
 function renderBuildingSlots() {
   // Legacy function - now handled by renderCityCanvas
@@ -6160,6 +6161,7 @@ function showTab(tabName) {
     case 'army': renderArmies(); break;
     case 'recruit': loadUnits(); break;
     case 'hero': loadHero(); break;
+    case 'inventory': loadInventory(); break;
     case 'expeditions': loadExpeditions(); break;
     case 'map': loadMap(); break;
     case 'alliance': loadAlliance(); break;
@@ -7556,49 +7558,208 @@ async function returnArmy(armyId) {
 }
 
 // ========== HERO ==========
+
+// Equipment slots definition
+const EQUIPMENT_SLOTS = {
+  head: { name: 'Tete', icon: '🪖', x: 50, y: 5 },
+  chest: { name: 'Torse', icon: '🛡️', x: 50, y: 28 },
+  weapon: { name: 'Arme', icon: '⚔️', x: 15, y: 35 },
+  shield: { name: 'Bouclier', icon: '🛡️', x: 85, y: 35 },
+  legs: { name: 'Jambes', icon: '👖', x: 50, y: 55 },
+  boots: { name: 'Bottes', icon: '👢', x: 50, y: 78 },
+  ring: { name: 'Anneau', icon: '💍', x: 15, y: 60 },
+  amulet: { name: 'Amulette', icon: '📿', x: 85, y: 60 }
+};
+
+let heroData = null;
+
 async function loadHero() {
   const res = await fetch(`${API}/api/hero`, { headers: { Authorization: `Bearer ${token}` } });
   const panel = document.getElementById('hero-panel');
-  
+
   if (res.ok) {
     const hero = await res.json();
+    heroData = hero;
     if (hero) {
-      const xpPct = (hero.xp / hero.xpToNextLevel) * 100;
+      const xpPct = Math.min(100, (hero.xp / hero.xpToNextLevel) * 100);
+      const xpRemaining = hero.xpToNextLevel - hero.xp;
+
+      // Build equipment map from hero items
+      const equippedItems = {};
+      if (hero.items) {
+        hero.items.forEach(item => { equippedItems[item.slot] = item; });
+      }
+
       panel.innerHTML = `
-        <div class="hero-card">
-          <div class="hero-header">
-            <div class="hero-portrait">⚔️</div>
-            <div class="hero-info">
-              <h3>${hero.name}</h3>
-              <div class="hero-level">Niveau ${hero.level}</div>
-              <div class="hero-xp">
-                <div class="xp-bar"><div class="xp-fill" style="width:${xpPct}%"></div></div>
-                <div class="xp-text">${hero.xp} / ${hero.xpToNextLevel} XP</div>
+        <div class="hero-full-panel">
+          <!-- Left: Hero info + Stats -->
+          <div class="hero-left-col">
+            <div class="hero-identity">
+              <div class="hero-portrait-large">⚔️</div>
+              <div class="hero-name-level">
+                <h3>${hero.name}</h3>
+                <span class="hero-level-badge">Niv. ${hero.level}</span>
+              </div>
+            </div>
+
+            <!-- XP Bar -->
+            <div class="hero-xp-section">
+              <div class="xp-label">
+                <span>Experience</span>
+                <span class="xp-numbers">${formatNum(hero.xp)} / ${formatNum(hero.xpToNextLevel)}</span>
+              </div>
+              <div class="xp-bar-outer">
+                <div class="xp-bar-inner" style="width:${xpPct}%">
+                  <span class="xp-bar-text">${xpPct.toFixed(1)}%</span>
+                </div>
+              </div>
+              <div class="xp-remaining">${formatNum(xpRemaining)} XP restants</div>
+            </div>
+
+            <!-- Stats -->
+            <div class="hero-stats-grid">
+              <div class="hero-stat-row">
+                <span class="stat-icon">⚔️</span>
+                <span class="stat-label">Attaque</span>
+                <span class="stat-val">${hero.attack + hero.atkPoints}</span>
+                ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('atk')">+</button>` : ''}
+              </div>
+              <div class="hero-stat-row">
+                <span class="stat-icon">🛡️</span>
+                <span class="stat-label">Defense</span>
+                <span class="stat-val">${hero.defense + hero.defPoints}</span>
+                ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('def')">+</button>` : ''}
+              </div>
+              <div class="hero-stat-row">
+                <span class="stat-icon">🏃</span>
+                <span class="stat-label">Vitesse</span>
+                <span class="stat-val">${hero.speed + hero.spdPoints}</span>
+                ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('spd')">+</button>` : ''}
+              </div>
+              <div class="hero-stat-row">
+                <span class="stat-icon">📦</span>
+                <span class="stat-label">Logistique</span>
+                <span class="stat-val">${hero.logistics + hero.logPoints}</span>
+                ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('log')">+</button>` : ''}
+              </div>
+            </div>
+            ${hero.statPoints > 0 ? `
+              <div class="hero-free-points">
+                <span>Points a distribuer:</span>
+                <span class="free-points-count">${hero.statPoints}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Right: Body Equipment -->
+          <div class="hero-right-col">
+            <h4 class="equipment-title">Equipement</h4>
+            <div class="hero-body-container">
+              <!-- Body silhouette -->
+              <div class="hero-body-silhouette">
+                <svg viewBox="0 0 100 100" class="body-svg">
+                  <!-- Head -->
+                  <circle cx="50" cy="15" r="10" fill="rgba(200,160,80,0.3)" stroke="rgba(200,160,80,0.5)" stroke-width="1"/>
+                  <!-- Neck -->
+                  <line x1="50" y1="25" x2="50" y2="30" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
+                  <!-- Torso -->
+                  <rect x="35" y="30" width="30" height="25" rx="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
+                  <!-- Arms -->
+                  <line x1="35" y1="33" x2="20" y2="48" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
+                  <line x1="65" y1="33" x2="80" y2="48" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
+                  <!-- Legs -->
+                  <line x1="42" y1="55" x2="38" y2="75" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
+                  <line x1="58" y1="55" x2="62" y2="75" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
+                  <!-- Feet -->
+                  <ellipse cx="36" cy="80" rx="6" ry="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
+                  <ellipse cx="64" cy="80" rx="6" ry="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
+                </svg>
+
+                <!-- Equipment slot overlays -->
+                ${Object.entries(EQUIPMENT_SLOTS).map(([slot, info]) => {
+                  const equipped = equippedItems[slot];
+                  const isEmpty = !equipped;
+                  return `
+                    <div class="equip-slot ${isEmpty ? 'empty' : 'filled'}"
+                         style="left:${info.x}%;top:${info.y}%"
+                         onclick="onEquipSlotClick('${slot}')"
+                         title="${info.name}${equipped ? ': ' + equipped.itemKey : ' (vide)'}">
+                      <span class="equip-slot-icon">${equipped ? getItemIcon(equipped.itemKey) : info.icon}</span>
+                      ${!isEmpty ? '<span class="equip-slot-badge">!</span>' : ''}
+                    </div>
+                  `;
+                }).join('')}
               </div>
             </div>
           </div>
-          <div class="hero-stats">
-            <div class="stat-item"><span class="stat-name">⚔️ Attaque</span><span class="stat-value">${hero.atkPoints}</span></div>
-            <div class="stat-item"><span class="stat-name">🛡️ Défense</span><span class="stat-value">${hero.defPoints}</span></div>
-            <div class="stat-item"><span class="stat-name">🏃 Vitesse</span><span class="stat-value">${hero.spdPoints}</span></div>
-            <div class="stat-item"><span class="stat-name">📦 Logistique</span><span class="stat-value">${hero.logPoints}</span></div>
-          </div>
-          ${hero.statPoints > 0 ? `
-            <div class="hero-points">
-              <div class="points-available">Points disponibles: ${hero.statPoints}</div>
-              <div class="points-grid">
-                <button class="point-btn" onclick="assignPoint('atk')">+ATK</button>
-                <button class="point-btn" onclick="assignPoint('def')">+DEF</button>
-                <button class="point-btn" onclick="assignPoint('spd')">+SPD</button>
-                <button class="point-btn" onclick="assignPoint('log')">+LOG</button>
-              </div>
-            </div>
-          ` : ''}
         </div>
       `;
     } else {
-      panel.innerHTML = '<p style="color:var(--text-muted)">Aucun héros</p>';
+      panel.innerHTML = '<p style="color:var(--text-muted)">Aucun heros. Construisez une Demeure du Heros.</p>';
     }
+  }
+}
+
+function getItemIcon(itemKey) {
+  const icons = {
+    'iron_sword': '🗡️', 'steel_sword': '⚔️', 'bronze_helm': '🪖', 'iron_helm': '⛑️',
+    'leather_armor': '🧥', 'chain_mail': '🛡️', 'iron_boots': '👢', 'war_boots': '🥾',
+    'gold_ring': '💍', 'war_amulet': '📿', 'wooden_shield': '🛡️', 'iron_shield': '🔰',
+    'leather_pants': '👖', 'chain_legs': '🦿'
+  };
+  return icons[itemKey] || '📦';
+}
+
+function onEquipSlotClick(slotKey) {
+  const slotInfo = EQUIPMENT_SLOTS[slotKey];
+  const equipped = heroData?.items?.find(i => i.slot === slotKey);
+
+  if (equipped) {
+    // Show equipped item details
+    openModal(`${slotInfo.name} - ${equipped.itemKey}`, `
+      <div style="text-align:center;">
+        <div style="font-size:48px;margin:10px 0;">${getItemIcon(equipped.itemKey)}</div>
+        <h4>${equipped.itemKey.replace(/_/g, ' ')}</h4>
+        ${equipped.stats ? `
+          <div style="margin-top:10px;text-align:left;">
+            ${Object.entries(equipped.stats).map(([k, v]) => `
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-dark);">
+                <span>${k}</span><span style="color:var(--green-light);">+${v}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<p style="color:var(--text-muted)">Aucun bonus</p>'}
+        <button class="btn-primary" onclick="unequipItem('${equipped.id}');closeModal();" style="margin-top:12px;">Desequiper</button>
+      </div>
+    `);
+  } else {
+    // Show empty slot info
+    openModal(`${slotInfo.name} - Vide`, `
+      <div style="text-align:center;">
+        <div style="font-size:48px;margin:10px 0;opacity:0.3;">${slotInfo.icon}</div>
+        <p style="color:var(--text-muted)">Emplacement vide</p>
+        <p style="color:var(--text-muted);font-size:12px;">Trouvez des objets en expedition ou au combat.</p>
+      </div>
+    `);
+  }
+}
+
+async function unequipItem(itemId) {
+  try {
+    const res = await fetch(`${API}/api/hero/unequip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ itemId })
+    });
+    if (res.ok) {
+      showToast('Objet desequipe', 'success');
+      loadHero();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
   }
 }
 
@@ -8383,10 +8544,10 @@ function onGlobalKeyDown(e) {
       showTab('alliance');
       showToast('⚔️ Alliance', 'info');
       break;
-    case '7': // Armée
+    case '7': // Inventaire
       e.preventDefault();
-      showTab('army');
-      showToast('🗡️ Armée', 'info');
+      showTab('inventory');
+      showToast('🎒 Inventaire', 'info');
       break;
     case '8': // Héros
       e.preventDefault();
@@ -8673,10 +8834,6 @@ async function loadMap() {
       // Add cities
       if (data.cities) {
         data.cities.forEach(c => {
-          // Get wall level from buildings if available
-          const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
-          const wallLevel = wallBuilding?.level || 0;
-
           mapData.push({
             x: c.x,
             y: c.y,
@@ -8685,10 +8842,13 @@ async function loadMap() {
             playerId: c.playerId || c.player?.id,
             playerName: c.player?.name || c.playerName || 'Inconnu',
             name: c.name,
-            isCapital: c.isCapital,
-            allianceId: c.player?.allianceId,
+            isCapital: c.isCapital || false,
+            allianceId: c.player?.allianceId || null,
+            allianceTag: c.player?.allianceTag || null,
             faction: c.player?.faction || 'ROME',
-            wallLevel: wallLevel,
+            wallLevel: c.wallLevel || 0,
+            cityTier: c.cityTier || 0,
+            cityTierName: c.cityTierName || 'Village',
             population: c.player?.population || 0
           });
         });
@@ -8720,9 +8880,8 @@ async function loadMap() {
       // Always include player's cities even if not in viewport
       cities.forEach(c => {
         if (!mapData.find(d => d.x === c.x && d.y === c.y)) {
-          // Get wall level from buildings if available
           const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
-          const wallLevel = wallBuilding?.level || 0;
+          const wallLevel = c.wallLevel || wallBuilding?.level || 0;
 
           mapData.push({
             x: c.x,
@@ -8732,9 +8891,11 @@ async function loadMap() {
             playerId: player?.id,
             playerName: player?.name || 'Vous',
             name: c.name,
-            isCapital: c.isCapital,
+            isCapital: c.isCapital || false,
+            allianceId: player?.allianceId || null,
             faction: player?.faction || 'ROME',
             wallLevel: wallLevel,
+            cityTier: c.cityTier || (wallLevel >= 15 ? 3 : wallLevel >= 10 ? 2 : wallLevel >= 1 ? 1 : 0),
             population: player?.population || 0
           });
         }
@@ -10504,6 +10665,22 @@ function onMapMouseDown(e) {
   mapCanvas.style.cursor = 'grabbing';
 }
 
+// Use requestAnimationFrame to batch map renders
+let mapRenderScheduled = false;
+function scheduleMapRender(includeMinimapAndUI = false) {
+  if (!mapRenderScheduled) {
+    mapRenderScheduled = true;
+    requestAnimationFrame(() => {
+      renderMap();
+      if (includeMinimapAndUI) {
+        renderMinimap();
+        updateMapUI();
+      }
+      mapRenderScheduled = false;
+    });
+  }
+}
+
 function onMapMouseMove(e) {
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -10527,9 +10704,7 @@ function onMapMouseMove(e) {
     mapOffsetY -= (dy - dx) * 0.5;
 
     mapDragStart = { x: e.clientX, y: e.clientY };
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    scheduleMapRender(true);
   } else {
     // Update hovered tile using isometric conversion
     const centerX = mapCanvas.width / 2;
@@ -10540,7 +10715,7 @@ function onMapMouseMove(e) {
     const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
 
     mapHoveredTile = { x: tileX, y: tileY };
-    renderMap();
+    scheduleMapRender(false);
   }
 }
 
@@ -12183,8 +12358,8 @@ async function refreshData(force = false) {
     
     // Mettre à jour la carte si active
     const mapTab = document.getElementById('tab-map');
-    if (mapTab?.classList.contains('active') && typeof renderMapCanvas === 'function') {
-      renderMapCanvas();
+    if (mapTab?.classList.contains('active') && typeof renderMap === 'function') {
+      renderMap();
     }
   } catch (e) {
     console.warn('refreshData error:', e);
@@ -12199,8 +12374,10 @@ function startRefresh() {
     clearInterval(refreshInterval);
   }
   
-  // Refresh toutes les 10 secondes
-  refreshInterval = setInterval(() => refreshData(), 10000);
+  // Refresh toutes les 15 secondes (seulement si onglet visible)
+  refreshInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') refreshData();
+  }, 15000);
   
   // Refresh immédiat au démarrage
   refreshData(true);
@@ -12262,8 +12439,8 @@ function updateServerTime() {
       setTimeout(() => renderCityCanvas(), 100);
     }
     // Re-render map canvas with new theme
-    if (typeof renderMapCanvas === 'function') {
-      setTimeout(() => renderMapCanvas(), 100);
+    if (typeof renderMap === 'function') {
+      setTimeout(() => renderMap(), 100);
     }
   }
 }
@@ -12274,7 +12451,9 @@ function isNightMode() {
 
 function startServerTime() {
   updateServerTime();
-  serverTimeInterval = setInterval(updateServerTime, 1000);
+  serverTimeInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') updateServerTime();
+  }, 1000);
 }
 
 // ========== LIVE COUNTDOWN TIMERS (Travian style) ==========
@@ -12313,7 +12492,9 @@ function updateAllCountdowns() {
 }
 
 function startCountdowns() {
-  countdownInterval = setInterval(updateAllCountdowns, 1000);
+  countdownInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') updateAllCountdowns();
+  }, 1000);
 }
 
 // Initialize server time when game starts
@@ -12631,15 +12812,15 @@ function showMarketTab(subTab) {
   document.querySelectorAll('#tab-market .toolbar-btn').forEach(b => b.classList.remove('active'));
   event?.target?.classList?.add('active');
 
-  const sendSection = document.querySelector('.market-send');
-  const offersSection = document.getElementById('market-offers');
+  // Hide all sections
+  document.querySelectorAll('#market-content .market-section').forEach(s => s.style.display = 'none');
 
-  if (sendSection) sendSection.style.display = subTab === 'send' ? 'block' : 'none';
-  if (offersSection) offersSection.style.display = subTab === 'offers' ? 'block' : 'none';
+  // Show selected section
+  const section = document.getElementById(`market-section-${subTab}`);
+  if (section) section.style.display = 'block';
 
-  if (subTab === 'npc') {
-    showNpcMerchant();
-  }
+  if (subTab === 'offers') loadMarket();
+  if (subTab === 'npc') showNpcMerchant();
 }
 
 function filterBuildings(category) {
@@ -12826,19 +13007,254 @@ async function sendTroops() {
 }
 
 function showNpcMerchant() {
-  const container = document.getElementById('market-content');
+  const container = document.getElementById('market-section-npc');
   if (!container) return;
+
+  const resources = [
+    { key: 'wood', icon: '🪵', name: 'Bois', current: Math.floor(currentCity?.wood || 0) },
+    { key: 'stone', icon: '🧱', name: 'Argile', current: Math.floor(currentCity?.stone || 0) },
+    { key: 'iron', icon: '⛏️', name: 'Fer', current: Math.floor(currentCity?.iron || 0) },
+    { key: 'food', icon: '🌾', name: 'Ble', current: Math.floor(currentCity?.food || 0) }
+  ];
+
+  // NPC exchange rate: give X resources, receive Y of another type
+  // Rate: 3:2 (give 3, get 2) - NPC takes a 33% cut
+  const NPC_RATE_GIVE = 3;
+  const NPC_RATE_RECEIVE = 2;
 
   container.innerHTML = `
     <div class="npc-merchant">
-      <h3>🏪 Marchand NPC</h3>
-      <p style="color:var(--text-muted)">Échangez vos ressources instantanément contre de l'or.</p>
-      <div class="npc-rates">
-        <p>Taux: 100 ressources = 1 or</p>
+      <h3>🏪 Marchand Itinerant</h3>
+      <p style="color:var(--text-muted);margin-bottom:12px;">
+        Echangez vos ressources entre elles. Taux: <strong>${NPC_RATE_GIVE} → ${NPC_RATE_RECEIVE}</strong> (le marchand prend sa part)
+      </p>
+
+      <div class="npc-exchange-form">
+        <div class="npc-row">
+          <label>Je donne</label>
+          <select id="npc-give-resource">
+            ${resources.map(r => `<option value="${r.key}">${r.icon} ${r.name} (${formatNum(r.current)})</option>`).join('')}
+          </select>
+          <input type="number" id="npc-give-amount" placeholder="Quantite" min="1"
+                 oninput="updateNpcPreview()">
+        </div>
+        <div class="npc-arrow">⬇️</div>
+        <div class="npc-row">
+          <label>Je recois</label>
+          <select id="npc-receive-resource" onchange="updateNpcPreview()">
+            ${resources.map((r, i) => `<option value="${r.key}" ${i === 1 ? 'selected' : ''}>${r.icon} ${r.name}</option>`).join('')}
+          </select>
+          <span id="npc-receive-preview" class="npc-preview">0</span>
+        </div>
+        <button onclick="executeNpcTrade()" class="btn-primary" style="margin-top:12px;">Echanger</button>
       </div>
-      <p style="color:var(--text-muted);font-style:italic;">Fonctionnalité à venir...</p>
+
+      <div class="npc-stock" style="margin-top:16px;">
+        <h4>Vos ressources</h4>
+        <div class="npc-resources-grid">
+          ${resources.map(r => `
+            <div class="npc-res-item">
+              <span>${r.icon}</span>
+              <span>${formatNum(r.current)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
     </div>
   `;
+}
+
+function updateNpcPreview() {
+  const giveAmount = parseInt(document.getElementById('npc-give-amount')?.value) || 0;
+  const preview = document.getElementById('npc-receive-preview');
+  if (preview) {
+    const received = Math.floor(giveAmount * 2 / 3); // 3:2 rate
+    preview.textContent = formatNum(received);
+  }
+}
+
+async function executeNpcTrade() {
+  const giveResource = document.getElementById('npc-give-resource')?.value;
+  const receiveResource = document.getElementById('npc-receive-resource')?.value;
+  const giveAmount = parseInt(document.getElementById('npc-give-amount')?.value) || 0;
+
+  if (!giveResource || !receiveResource || giveAmount <= 0) {
+    showToast('Entrez une quantite valide', 'error');
+    return;
+  }
+  if (giveResource === receiveResource) {
+    showToast('Choisissez des ressources differentes', 'error');
+    return;
+  }
+  if (giveAmount < 3) {
+    showToast('Minimum 3 ressources pour un echange', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/market/npc-trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ cityId: currentCity?.id, giveResource, receiveResource, giveAmount })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast(`Echange reussi! -${formatNum(data.given)} ${giveResource} → +${formatNum(data.received)} ${receiveResource}`, 'success');
+      await loadCity();
+      showNpcMerchant(); // Refresh display
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
+  }
+}
+
+// ========== INVENTORY ==========
+let inventoryItems = [];
+
+async function loadInventory() {
+  const container = document.getElementById('inventory-content');
+  if (!container) return;
+
+  try {
+    const res = await fetch(`${API}/api/hero`, { headers: { Authorization: `Bearer ${token}` } });
+    let heroItems = [];
+    if (res.ok) {
+      const hero = await res.json();
+      heroItems = hero?.items || [];
+    }
+
+    renderInventory(heroItems);
+  } catch (e) {
+    container.innerHTML = '<p style="color:var(--text-muted);padding:20px;">Erreur de chargement</p>';
+  }
+}
+
+function renderInventory(items) {
+  const container = document.getElementById('inventory-content');
+  if (!container) return;
+
+  // Define item categories
+  const categories = {
+    items: { name: 'Objets', filter: i => ['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) },
+    materials: { name: 'Materiaux', filter: i => !['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) }
+  };
+
+  const currentTab = document.querySelector('#tab-inventory .toolbar-btn.active')?.textContent?.includes('Materiaux') ? 'materials' : 'items';
+  const filteredItems = items.filter(categories[currentTab]?.filter || (() => true));
+
+  if (filteredItems.length === 0) {
+    container.innerHTML = `
+      <div class="inventory-empty">
+        <div style="font-size:48px;margin-bottom:12px;">🎒</div>
+        <h3>Inventaire vide</h3>
+        <p style="color:var(--text-muted)">Trouvez des objets en expedition, en pillant des tribus locales ou au combat.</p>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:8px;">
+          Accedez a vos troupes via la
+          <strong style="color:var(--gold)">Place de rassemblement</strong> 🚩 dans votre village.
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="inventory-grid">
+      ${filteredItems.map(item => `
+        <div class="inventory-item" onclick="showItemDetails('${item.id}')">
+          <div class="item-icon">${getItemIcon(item.itemKey)}</div>
+          <div class="item-info">
+            <div class="item-name">${item.itemKey.replace(/_/g, ' ')}</div>
+            <div class="item-slot">${EQUIPMENT_SLOTS[item.slot]?.name || item.slot}</div>
+          </div>
+          ${item.stats ? `
+            <div class="item-stats-mini">
+              ${Object.entries(item.stats).slice(0, 2).map(([k, v]) => `<span>+${v} ${k}</span>`).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `).join('')}
+    </div>
+    <div class="inventory-hint" style="margin-top:16px;padding:12px;background:var(--bg-dark);border-radius:6px;text-align:center;">
+      <p style="color:var(--text-muted);font-size:12px;">
+        Gerez vos troupes via la <strong style="color:var(--gold)">Place de rassemblement</strong> 🚩 dans votre village.
+      </p>
+    </div>
+  `;
+}
+
+function showInventoryTab(subTab) {
+  document.querySelectorAll('#tab-inventory .toolbar-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList?.add('active');
+  loadInventory();
+}
+
+function showItemDetails(itemId) {
+  const item = heroData?.items?.find(i => i.id === itemId);
+  if (!item) return;
+
+  const slotInfo = EQUIPMENT_SLOTS[item.slot] || { name: item.slot, icon: '📦' };
+  openModal(`${item.itemKey.replace(/_/g, ' ')}`, `
+    <div style="text-align:center;">
+      <div style="font-size:48px;margin:10px 0;">${getItemIcon(item.itemKey)}</div>
+      <p style="color:var(--text-muted);">Emplacement: ${slotInfo.name}</p>
+      ${item.stats ? `
+        <div style="margin-top:10px;text-align:left;">
+          ${Object.entries(item.stats).map(([k, v]) => `
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-dark);">
+              <span>${k}</span><span style="color:var(--green-light);">+${v}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--text-muted)">Aucun bonus</p>'}
+      <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
+        <button class="btn-primary" onclick="equipItem('${item.id}');closeModal();">Equiper</button>
+        <button class="btn btn-danger btn-small" onclick="dropItem('${item.id}');closeModal();" style="padding:8px 16px;">Jeter</button>
+      </div>
+    </div>
+  `);
+}
+
+async function equipItem(itemId) {
+  try {
+    const res = await fetch(`${API}/api/hero/equip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ itemId })
+    });
+    if (res.ok) {
+      showToast('Objet equipe!', 'success');
+      loadInventory();
+      loadHero();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
+  }
+}
+
+async function dropItem(itemId) {
+  try {
+    const res = await fetch(`${API}/api/hero/drop-item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ itemId })
+    });
+    if (res.ok) {
+      showToast('Objet jete', 'success');
+      loadInventory();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
+  }
 }
 
 // ========== INIT ==========
