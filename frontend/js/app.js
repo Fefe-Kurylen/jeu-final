@@ -5871,18 +5871,30 @@ function renderBuildQueue() {
   const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
   const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-  // Update activity bar
+  // Update activity bar - show ALL constructions
   const activityEl = document.getElementById('build-activity');
   if (activityEl) {
-    if (running.length > 0) {
-      const first = running[0];
+    if (running.length > 0 || queued.length > 0) {
       activityEl.classList.add('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">🏗️</span>
-        <span class="activity-text">${BUILDING_ICONS[first.buildingKey] || '🏠'} ${getBuildingName(first.buildingKey)} Niv.${first.targetLevel}</span>
-        <span class="activity-timer" data-ends-at="${first.endsAt}">${formatTime(first.endsAt)}</span>
-        ${running.length > 1 ? `<span class="activity-more">+${running.length - 1}</span>` : ''}
-      `;
+      let html = '<span class="activity-icon">🏗️</span><div class="activity-queue-list">';
+      running.forEach((q, i) => {
+        html += `
+          <div class="activity-queue-item ${i === 0 ? 'first' : ''}">
+            <span class="aq-icon">🔨</span>
+            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          </div>`;
+      });
+      queued.forEach(q => {
+        html += `
+          <div class="activity-queue-item queued">
+            <span class="aq-icon">⏳</span>
+            <span class="aq-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
+            <span class="aq-status">En attente</span>
+          </div>`;
+      });
+      html += '</div>';
+      activityEl.innerHTML = html;
     } else {
       activityEl.classList.remove('active');
       activityEl.innerHTML = `
@@ -5891,39 +5903,122 @@ function renderBuildQueue() {
       `;
     }
   }
+}
 
-  // Also update legacy build-queue element if it exists
-  const legacyEl = document.getElementById('build-queue');
-  if (legacyEl) {
-    let html = `<div class="build-slots-header">
-      <span>🔨 En cours: ${running.length}/2</span>
-      <span>⏳ En attente: ${queued.length}/2</span>
-    </div>`;
+function openBuildQueuePanel() {
+  const queue = currentCity?.buildQueue || [];
+  const running = queue.filter(q => q.status === 'RUNNING').sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt));
+  const queued = queue.filter(q => q.status === 'QUEUED').sort((a, b) => a.slot - b.slot);
 
-    if (queue.length === 0) {
-      html += '<p style="padding:10px;color:var(--text-muted);font-size:12px;text-align:center;">Aucune construction</p>';
-    } else {
-      running.forEach(q => {
-        html += `
-          <div class="queue-item queue-running">
-            <span class="queue-status-icon">🔨</span>
-            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="queue-time" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
-          </div>
-        `;
-      });
-      queued.forEach(q => {
-        html += `
-          <div class="queue-item queue-waiting">
-            <span class="queue-status-icon">⏳</span>
-            <span class="queue-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)} Niv.${q.targetLevel}</span>
-            <span class="queue-time">En attente</span>
-          </div>
-        `;
-      });
-    }
-    legacyEl.innerHTML = html;
+  const panel = document.getElementById('build-panel');
+  const content = document.getElementById('build-panel-content');
+  const title = document.getElementById('build-panel-title');
+
+  title.textContent = '🏗️ File de construction';
+
+  // Show overlay
+  let overlay = document.querySelector('.build-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'build-panel-overlay';
+    overlay.onclick = closeBuildPanel;
+    document.body.appendChild(overlay);
   }
+  overlay.style.display = 'block';
+  overlay.classList.add('fade-in');
+
+  let html = `
+    <div class="build-queue-panel">
+      <div class="bq-header">
+        <span>🔨 En cours: <strong>${running.length}/2</strong></span>
+        <span>⏳ En attente: <strong>${queued.length}/2</strong></span>
+      </div>
+  `;
+
+  if (queue.length === 0) {
+    html += '<div class="bq-empty">Aucune construction en cours. Cliquez sur un emplacement dans votre village pour construire.</div>';
+  } else {
+    // Running constructions
+    running.forEach(q => {
+      const endsAt = new Date(q.endsAt);
+      const now = new Date();
+      const totalMs = endsAt - new Date(q.startedAt || now);
+      const remainMs = Math.max(0, endsAt - now);
+      const pct = totalMs > 0 ? Math.min(100, ((totalMs - remainMs) / totalMs) * 100) : 100;
+
+      html += `
+        <div class="bq-item bq-running">
+          <div class="bq-item-header">
+            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
+            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
+            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
+            <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          </div>
+          <div class="bq-progress">
+            <div class="bq-progress-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    });
+
+    // Queued constructions
+    queued.forEach(q => {
+      html += `
+        <div class="bq-item bq-queued">
+          <div class="bq-item-header">
+            <span class="bq-item-icon">${BUILDING_ICONS[q.buildingKey] || '🏠'}</span>
+            <span class="bq-item-name">${getBuildingName(q.buildingKey)}</span>
+            <span class="bq-item-level">Niv. ${q.targetLevel}</span>
+            <span class="bq-item-status">⏳ En attente</span>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += '</div>';
+  content.innerHTML = html;
+  panel.style.display = 'flex';
+}
+
+function openRecruitQueuePanel() {
+  const queue = currentCity?.recruitQueue || [];
+  if (queue.length === 0) {
+    showToast('Aucun recrutement en cours', 'info');
+    return;
+  }
+
+  const panel = document.getElementById('build-panel');
+  const content = document.getElementById('build-panel-content');
+  const title = document.getElementById('build-panel-title');
+
+  title.textContent = '⚔️ File de recrutement';
+
+  let overlay = document.querySelector('.build-panel-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'build-panel-overlay';
+    overlay.onclick = closeBuildPanel;
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'block';
+  overlay.classList.add('fade-in');
+
+  let html = '<div class="build-queue-panel">';
+  queue.forEach(q => {
+    html += `
+      <div class="bq-item bq-running">
+        <div class="bq-item-header">
+          <span class="bq-item-icon">⚔️</span>
+          <span class="bq-item-name">${q.count}x ${getUnitName(q.unitKey)}</span>
+          <span class="bq-item-timer activity-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  content.innerHTML = html;
+  panel.style.display = 'flex';
 }
 
 function renderRecruitQueue() {
