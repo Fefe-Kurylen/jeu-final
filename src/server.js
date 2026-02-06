@@ -2389,9 +2389,9 @@ app.get('/api/map/viewport', auth, async (req, res) => {
   const cities = await prisma.city.findMany({
     where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } },
     select: {
-      id: true, name: true, x: true, y: true,
+      id: true, name: true, x: true, y: true, isCapital: true, playerId: true,
       buildings: { where: { key: 'WALL' }, select: { level: true } },
-      player: { select: { id: true, name: true, faction: true, alliance: { select: { alliance: { select: { tag: true } } } } } }
+      player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } }
     }
   });
 
@@ -2399,12 +2399,22 @@ app.get('/api/map/viewport', auth, async (req, res) => {
   const citiesWithTier = cities.map(city => {
     const wallLevel = city.buildings[0]?.level || 0;
     const cityTier = getCityTier(wallLevel);
+    const allianceInfo = city.player?.alliance?.[0]?.alliance;
     return {
       id: city.id,
       name: city.name,
       x: city.x,
       y: city.y,
-      player: city.player,
+      isCapital: city.isCapital,
+      playerId: city.playerId,
+      player: {
+        id: city.player?.id,
+        name: city.player?.name,
+        faction: city.player?.faction,
+        population: city.player?.population || 0,
+        allianceId: allianceInfo?.id || null,
+        allianceTag: allianceInfo?.tag || null
+      },
       wallLevel,
       cityTier,
       cityTierName: getCityTierName(cityTier)
@@ -2776,6 +2786,70 @@ app.delete('/api/market/offer/:id', auth, async (req, res) => {
     });
     
     res.json({ message: 'Offre annulée' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== NPC TRADE (Resource Exchange) ==========
+app.post('/api/market/npc-trade', auth, async (req, res) => {
+  try {
+    const { cityId, giveResource, receiveResource, giveAmount } = req.body;
+
+    const validResources = ['wood', 'stone', 'iron', 'food'];
+    if (!validResources.includes(giveResource) || !validResources.includes(receiveResource)) {
+      return res.status(400).json({ error: 'Ressource invalide' });
+    }
+    if (giveResource === receiveResource) {
+      return res.status(400).json({ error: 'Choisissez des ressources differentes' });
+    }
+    if (!giveAmount || giveAmount < 3) {
+      return res.status(400).json({ error: 'Minimum 3 ressources' });
+    }
+
+    const city = await prisma.city.findFirst({
+      where: { id: cityId, playerId: req.user.playerId }
+    });
+    if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
+
+    // Check player has enough resources
+    if (city[giveResource] < giveAmount) {
+      return res.status(400).json({ error: `Pas assez de ${giveResource}` });
+    }
+
+    // Check market building
+    const market = await prisma.cityBuilding.findFirst({
+      where: { cityId: city.id, key: 'MARKET' }
+    });
+    if (!market || market.level < 1) {
+      return res.status(400).json({ error: 'Construisez un marche (niveau 1 minimum)' });
+    }
+
+    // NPC rate: 3:2 (give 3, receive 2)
+    const receiveAmount = Math.floor(giveAmount * 2 / 3);
+    if (receiveAmount <= 0) {
+      return res.status(400).json({ error: 'Quantite trop faible' });
+    }
+
+    // Check storage limit
+    const maxStorage = city.maxWoodStorage || 800;
+    const currentReceived = city[receiveResource];
+    const actualReceived = Math.min(receiveAmount, maxStorage - currentReceived);
+
+    if (actualReceived <= 0) {
+      return res.status(400).json({ error: 'Stockage plein pour cette ressource' });
+    }
+
+    // Execute trade
+    await prisma.city.update({
+      where: { id: city.id },
+      data: {
+        [giveResource]: city[giveResource] - giveAmount,
+        [receiveResource]: currentReceived + actualReceived
+      }
+    });
+
+    res.json({ given: giveAmount, received: actualReceived, giveResource, receiveResource });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
