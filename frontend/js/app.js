@@ -79,7 +79,7 @@ const requestManager = {
 // Building icons mapping (39 bâtiments)
 const BUILDING_ICONS = {
   // Base buildings
-  MAIN_HALL: '🏛️', FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
+  FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
   WAREHOUSE: '📦', SILO: '🏺',
   // Intermediate buildings
   RALLY_POINT: '🚩', BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️',
@@ -583,8 +583,8 @@ let currentCityView = 'city'; // 'city' ou 'fields'
 // Définition des 20 slots en disposition circulaire (style Travian)
 // Centre = Main Hall, puis anneaux concentriques
 const CITY_LAYOUT = {
-  // Anneau central (Main Hall) - slot 0
-  center: { slot: 0, key: 'MAIN_HALL', fixed: true },
+  // Anneau central - slot 0 (constructible)
+  center: { slot: 0 },
   
   // Anneau intérieur (6 slots) - slots 1-6
   innerRing: [
@@ -723,14 +723,12 @@ function calculateCitySlots() {
 
   citySlots = [];
 
-  // Centre (Main Hall) - slot 0
+  // Centre - slot 0 (constructible)
   citySlots.push({
     slot: 0,
     x: centerX,
     y: centerY,
-    size: slotSize * 1.3,
-    fixed: true,
-    fixedKey: 'MAIN_HALL'
+    size: slotSize * 1.3
   });
 
   // Anneau intérieur (6 slots) - slots 1-6
@@ -3385,11 +3383,11 @@ function drawResourceField(slot) {
 }
 
 function drawBuildingSlot(slot, building, isHovered, isBuilding) {
-  const { x, y, size, fixed, fixedKey } = slot;
-  
+  const { x, y, size } = slot;
+
   // Determine what's in this slot
-  const key = fixed ? fixedKey : building?.key;
-  const level = building?.level || (fixed ? 1 : 0);
+  const key = building?.key;
+  const level = building?.level || 0;
   const isEmpty = !key;
   
   // Shadow
@@ -3475,11 +3473,6 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
 
   // Detailed Travian-style building definitions with culture colors
   const buildingStyles = {
-    MAIN_HALL: {
-      base: culture.stoneDark, roof: culture.roof, roofType: 'dome',
-      height: 2.0, windows: 4, hasColumns: true, hasFlag: true,
-      wallColor: culture.stone, trimColor: culture.trim
-    },
     BARRACKS: {
       base: culture.stoneDark, roof: culture.accent, roofType: 'pointed',
       height: 1.5, windows: 2, hasBanner: true, hasWeaponRack: true,
@@ -4099,7 +4092,7 @@ function drawBuildingFlag(x, y, bw, bh, key) {
   // Flag
   const time = Date.now() / 1000;
   const wave = Math.sin(time * 3) * 2;
-  cityCtx.fillStyle = key === 'MAIN_HALL' ? '#ffd700' : '#c44';
+  cityCtx.fillStyle = '#c44';
   cityCtx.beginPath();
   cityCtx.moveTo(flagX, flagY - 15);
   cityCtx.quadraticCurveTo(flagX + 10 + wave, flagY - 10, flagX + 15, flagY - 8 + wave);
@@ -4511,17 +4504,6 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
         ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
         <p class="tt-hint">${building.level < maxLevel ? 'Cliquez pour améliorer' : 'Niveau maximum atteint'}</p>
       `;
-    } else if (slot?.fixed) {
-      const mainHall = getBuildingAtSlot(0);
-      const level = mainHall?.level || 1;
-      html = `
-        <h4><span class="tt-icon">🏛️</span> Hôtel de Ville</h4>
-        <p class="tt-level">Niveau ${level}/30</p>
-        <div class="tt-stats">
-          <span class="tt-stat">Réduction construction: <span class="tt-stat-value">${(level * 2.5).toFixed(1)}%</span></span>
-        </div>
-        <p class="tt-hint">Bâtiment principal</p>
-      `;
     } else {
       html = `
         <h4><span class="tt-icon">🔨</span> Emplacement libre</h4>
@@ -4556,7 +4538,6 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
 function getBuildingEffect(key, level) {
   const effects = {
     // Base & Intermediate
-    'MAIN_HALL': `Réduction construction: ${(level * 2.5).toFixed(1)}%`,
     'BARRACKS': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'STABLE': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'WORKSHOP': `Réduction entraînement: ${(level * 4).toFixed(1)}%`,
@@ -4722,9 +4703,9 @@ function openBuildPanel(slotNum) {
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
   
-  if (building || slot?.fixed) {
+  if (building) {
     // ===== EXISTING BUILDING - TABBED INTERFACE (Travian Style) =====
-    const key = building?.key || slot?.fixedKey;
+    const key = building?.key;
     const level = building?.level || 1;
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
@@ -4941,7 +4922,7 @@ function openBuildPanel(slotNum) {
     title.textContent = '🏗️ Construire un bâtiment';
 
     const availableBuildings = buildingsData.filter(b =>
-      !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)
+      !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE'].includes(b.key)
     );
 
     // Group by category
@@ -5031,7 +5012,6 @@ function formatDuration(seconds) {
 // Helper: Get building bonus text
 function getBuildingBonus(key, level) {
   const bonuses = {
-    MAIN_HALL: `Réduction temps construction: -${(level * 2.5).toFixed(1)}%`,
     BARRACKS: `Réduction temps entraînement: -${(level * 0.5).toFixed(1)}%`,
     STABLE: `Réduction temps entraînement cavalerie: -${(level * 0.5).toFixed(1)}%`,
     WORKSHOP: `Réduction temps entraînement siège: -${(level * 4).toFixed(1)}%`,
@@ -5900,7 +5880,6 @@ function getBuildingDescription(key) {
   if (building?.description) return building.description;
 
   const descriptions = {
-    MAIN_HALL: 'Réduit le temps de construction',
     BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
     WORKSHOP: 'Construit des machines de siège',
@@ -12896,7 +12875,7 @@ function getBuildingName(key) {
 
   // Fallback pour les cas où buildingsData n'est pas encore chargé
   const fallbackNames = {
-    MAIN_HALL: 'Bâtiment principal', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
+    BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
     WAREHOUSE: 'Dépôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
     FARM: 'Ferme', LUMBER: 'Bûcheron', QUARRY: 'Carrière', IRON_MINE: 'Mine de fer',
     WALL: 'Mur', MOAT: 'Douves', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',
