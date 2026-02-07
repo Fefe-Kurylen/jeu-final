@@ -203,7 +203,7 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
 
 const validateCoordinates = (x, y) => {
   return Number.isInteger(x) && Number.isInteger(y) &&
-         x >= 0 && x <= 500 && y >= 0 && y <= 500;
+         x >= -500 && x <= 500 && y >= -500 && y <= 500;
 };
 
 // ========== CACHE HEADERS MIDDLEWARE ==========
@@ -417,10 +417,12 @@ async function processHealedUnits() {
           data: { count: existingUnit.count + wounded.count }
         });
       } else {
+        const unitDef = unitsData.find(u => u.key === wounded.unitKey);
         await prisma.armyUnit.create({
           data: {
             armyId: garrison.id,
             unitKey: wounded.unitKey,
+            tier: unitDef?.tier || 'base',
             count: wounded.count
           }
         });
@@ -513,7 +515,7 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
     if (nameExists) return res.status(400).json({ error: 'Pseudo deja pris' });
 
     const hash = await bcrypt.hash(password, 10);
-    const account = await prisma.account.create({ data: { email, passwordHash: hash } });
+    const account = await prisma.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
 
     const player = await prisma.player.create({
       data: { accountId: account.id, name, faction: faction.toUpperCase(), gold: 0 }
@@ -775,10 +777,12 @@ app.post('/api/city/:id/wounded/heal', auth, async (req, res) => {
           data: { count: existingUnit.count + wounded.count }
         });
       } else {
+        const unitDef = unitsData.find(u => u.key === unitKey);
         await prisma.armyUnit.create({
           data: {
             armyId: garrison.id,
             unitKey,
+            tier: unitDef?.tier || 'base',
             count: wounded.count
           }
         });
@@ -1022,8 +1026,13 @@ app.post('/api/hero/assign-points', auth, async (req, res) => {
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
 
+    // Validate non-negative integers to prevent exploit
+    const vals = [atk, def, spd, log];
+    if (vals.some(v => v !== undefined && v !== null && (typeof v !== 'number' || v < 0 || !Number.isInteger(v)))) {
+      return res.status(400).json({ error: 'Valeurs invalides' });
+    }
     const total = (atk || 0) + (def || 0) + (spd || 0) + (log || 0);
-    if (total > hero.statPoints) return res.status(400).json({ error: 'Pas assez de points' });
+    if (total <= 0 || total > hero.statPoints) return res.status(400).json({ error: 'Pas assez de points' });
 
     await prisma.hero.update({
       where: { id: hero.id },
@@ -1923,6 +1932,7 @@ async function resolveTribteCombat(army, node, playerId) {
   // Create combat report (use BattleReport model)
   await prisma.battleReport.create({
     data: {
+      playerId: playerId,
       attackerId: playerId,
       x: node.x,
       y: node.y,
@@ -2277,7 +2287,11 @@ app.post('/api/alliance/leave', auth, async (req, res) => {
     if (member.role === 'LEADER') {
       const otherMembers = await prisma.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
       if (otherMembers > 0) return res.status(400).json({ error: 'Transferez le leadership avant de partir' });
+      // Delete member first, then diplomacy, then alliance (FK order)
+      await prisma.allianceMember.delete({ where: { id: member.id } });
+      await prisma.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
       await prisma.alliance.delete({ where: { id: member.allianceId } });
+      return res.json({ message: 'Alliance dissoute' });
     }
 
     await prisma.allianceMember.delete({ where: { id: member.id } });
@@ -2502,7 +2516,7 @@ app.get('/api/map/viewport', auth, async (req, res) => {
   const citiesWithTier = cities.map(city => {
     const wallLevel = city.buildings[0]?.level || 0;
     const cityTier = getCityTier(wallLevel);
-    const allianceInfo = city.player?.alliance?.[0]?.alliance;
+    const allianceInfo = city.player?.alliance?.alliance;
     return {
       id: city.id,
       name: city.name,
@@ -2771,8 +2785,15 @@ app.post('/api/market/offer', auth, async (req, res) => {
   try {
     const { sellResource, sellAmount, buyResource, buyAmount, cityId } = req.body;
     
+    const validResources = ['wood', 'stone', 'iron', 'food'];
     if (!sellResource || !sellAmount || !buyResource || !buyAmount) {
       return res.status(400).json({ error: 'Paramètres manquants' });
+    }
+    if (!validResources.includes(sellResource) || !validResources.includes(buyResource)) {
+      return res.status(400).json({ error: 'Ressource invalide' });
+    }
+    if (!Number.isInteger(sellAmount) || sellAmount < 1 || !Number.isInteger(buyAmount) || buyAmount < 1) {
+      return res.status(400).json({ error: 'Montants invalides' });
     }
     
     const city = await prisma.city.findFirst({
@@ -2839,17 +2860,17 @@ app.post('/api/market/offer/:id/accept', auth, async (req, res) => {
       where: { id: buyerCity.id },
       data: { 
         [offer.buyResource]: buyerCity[offer.buyResource] - offer.buyAmount,
-        [offer.sellResource]: Math.min(buyerCity[offer.sellResource] + offer.sellAmount, buyerCity.maxStorage)
+        [offer.sellResource]: Math.min(buyerCity[offer.sellResource] + offer.sellAmount, offer.sellResource === 'food' ? buyerCity.maxFoodStorage : buyerCity.maxStorage)
       }
     });
-    
+
     // Seller receives
     const sellerCity = await prisma.city.findUnique({ where: { id: offer.cityId } });
     if (sellerCity) {
       await prisma.city.update({
         where: { id: sellerCity.id },
-        data: { 
-          [offer.buyResource]: Math.min(sellerCity[offer.buyResource] + offer.buyAmount, sellerCity.maxStorage)
+        data: {
+          [offer.buyResource]: Math.min(sellerCity[offer.buyResource] + offer.buyAmount, offer.buyResource === 'food' ? sellerCity.maxFoodStorage : sellerCity.maxStorage)
         }
       });
     }
@@ -2935,7 +2956,7 @@ app.post('/api/market/npc-trade', auth, async (req, res) => {
     }
 
     // Check storage limit
-    const maxStorage = city.maxWoodStorage || 800;
+    const maxStorage = receiveResource === 'food' ? city.maxFoodStorage : city.maxStorage;
     const currentReceived = city[receiveResource];
     const actualReceived = Math.min(receiveAmount, maxStorage - currentReceived);
 
@@ -3169,7 +3190,7 @@ setInterval(async () => {
       include: { city: { include: { armies: { include: { units: true } } } } }
     });
     for (const r of recruits) {
-      const garrison = r.city.armies.find(a => a.cityId === r.cityId);
+      const garrison = r.city.armies.find(a => a.isGarrison);
       if (garrison) {
         const unit = unitsData.find(u => u.key === r.unitKey);
         const existing = garrison.units.find(u => u.unitKey === r.unitKey);
@@ -3269,7 +3290,47 @@ setInterval(async () => {
         });
 
         // Handle different mission types
-        if (army.missionType === 'MOVE' || army.status === 'MOVING') {
+        if (army.missionType === 'MOVE_TO_HARVEST') {
+          // Arrived at resource node - start harvesting
+          await prisma.army.update({
+            where: { id: army.id },
+            data: {
+              status: 'HARVESTING',
+              missionType: 'COLLECT_RESOURCE',
+              harvestStartedAt: new Date(),
+              harvestResourceType: army.mission || null
+            }
+          });
+          if (army.targetResourceId) {
+            await prisma.resourceNode.update({
+              where: { id: army.targetResourceId },
+              data: { hasPlayerArmy: true }
+            }).catch(() => {});
+          }
+        } else if (army.missionType === 'RAID_RESOURCE') {
+          // Arrived at resource node for raid
+          const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
+          if (node) {
+            const result = await resolveTribteCombat(army, node, army.ownerId);
+            if (result.success) {
+              const lootResult = await collectResourceLoot(army, node, army.ownerId);
+              await prisma.army.update({
+                where: { id: army.id },
+                data: { status: 'RETURNING', missionType: 'RETURNING', targetX: army.x, targetY: army.y, arrivalAt: new Date(Date.now() + 60000) }
+              });
+            } else {
+              await prisma.army.update({
+                where: { id: army.id },
+                data: { status: 'RETURNING', missionType: 'RETURNING', arrivalAt: new Date(Date.now() + 60000) }
+              });
+            }
+          } else {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, mission: null, targetX: null, targetY: null, targetResourceId: null, arrivalAt: null }
+            });
+          }
+        } else if (army.missionType === 'MOVE' || army.status === 'MOVING') {
           // Simple move - just update position and set IDLE
           await prisma.army.update({
             where: { id: army.id },
@@ -3726,104 +3787,6 @@ setInterval(async () => {
           }
         }
 
-        // ========== RAID RESOURCE NODE (TRIBE COMBAT) ==========
-        else if (army.missionType === 'RAID_RESOURCE') {
-          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
-
-          if (node) {
-            // Resolve combat against tribe
-            const result = await resolveTribteCombat(army, node, army.ownerId);
-            console.log(`[RAID_RESOURCE] ${army.name} ${result.success ? 'defeated' : 'lost to'} tribe at (${node.x}, ${node.y})`);
-
-            if (result.success) {
-              // Victoire - commencer la récolte progressive au lieu de retourner avec le butin
-              await prisma.army.update({
-                where: { id: army.id },
-                data: {
-                  status: 'HARVESTING',
-                  x: node.x,
-                  y: node.y,
-                  missionType: 'HARVEST',
-                  harvestStartedAt: new Date(),
-                  harvestResourceType: node.resourceType,
-                  arrivalAt: null
-                }
-              });
-              console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
-            } else {
-              // Défaite - l'armée reste sur place mais en IDLE
-              await prisma.army.update({
-                where: { id: army.id },
-                data: {
-                  status: 'IDLE',
-                  x: node.x,
-                  y: node.y,
-                  targetX: null, targetY: null,
-                  targetResourceId: null,
-                  missionType: null,
-                  arrivalAt: null
-                }
-              });
-            }
-          } else {
-            // Node not found, just idle
-            await prisma.army.update({
-              where: { id: army.id },
-              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
-            });
-          }
-        }
-
-        // ========== MOVE TO HARVEST (ARMY ARRIVING AT RESOURCE) ==========
-        else if (army.missionType === 'MOVE_TO_HARVEST') {
-          const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
-
-          if (node && !node.hasDefenders) {
-            // Démarrer la récolte progressive
-            await prisma.army.update({
-              where: { id: army.id },
-              data: {
-                status: 'HARVESTING',
-                x: node.x,
-                y: node.y,
-                missionType: 'HARVEST',
-                harvestStartedAt: new Date(),
-                harvestResourceType: node.resourceType,
-                arrivalAt: null
-              }
-            });
-            // Marquer qu'une armée est présente sur le point
-            await prisma.resourceNode.update({
-              where: { id: node.id },
-              data: { hasPlayerArmy: true }
-            });
-            console.log(`[HARVEST] ${army.name} started harvesting ${node.resourceType} at (${node.x}, ${node.y})`);
-          } else if (node && node.hasDefenders) {
-            // Tribu respawnée - l'armée doit d'abord combattre
-            await prisma.army.update({
-              where: { id: army.id },
-              data: {
-                status: 'IDLE',
-                x: node.x,
-                y: node.y,
-                targetX: null, targetY: null,
-                arrivalAt: null,
-                missionType: null,
-                targetResourceId: null,
-                harvestStartedAt: null,
-                harvestResourceType: null
-              }
-            });
-            console.log(`[HARVEST] ${army.name} arrived but tribe respawned at (${node.x}, ${node.y})`);
-          } else {
-            // Node not found
-            await prisma.army.update({
-              where: { id: army.id },
-              data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null, targetResourceId: null }
-            });
-          }
-        }
-
         // ========== COLLECT RESOURCE (LEGACY - redirect to HARVEST) ==========
         else if (army.missionType === 'COLLECT_RESOURCE') {
           const node = await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } });
@@ -4071,11 +4034,9 @@ setInterval(async () => {
     // - Regen commence 5 min après le départ de l'armée
     // - Temps de regen doublé (regenRate / 2)
     const REGEN_DELAY_MINUTES = 5;
-    const nodesToRegen = await prisma.resourceNode.findMany({
-      where: {
-        amount: { lt: prisma.resourceNode.fields.maxAmount }
-      }
-    });
+    const nodesToRegen = await prisma.$queryRaw`
+      SELECT * FROM "ResourceNode" WHERE amount < "maxAmount"
+    `;
 
     // Batch update for regeneration
     const regenUpdates = [];

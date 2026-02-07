@@ -571,7 +571,6 @@ function renderCity() {
   // Update sidebar stats
   updateCityStats();
   loadWounded();
-  renderMovingArmies();
 }
 
 // ========== CITY CANVAS 2.5D CIRCULAR ==========
@@ -6683,23 +6682,32 @@ function renderArmies() {
   const garrisonSummary = document.getElementById('garrison-summary');
   
   if (!container) return;
-  
+
   // Get garrison units (units in city, not assigned to any army)
   const garrisonUnits = getGarrisonUnits();
   const cityArmies = armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison);
   const maxArmies = getMaxArmies();
   const heroData = player?.hero;
   const heroAssignedToArmy = cityArmies.find(a => a.heroId === heroData?.id);
-  
+
   // Rally Point info
   const rallyPoint = currentCity?.buildings?.find(b => b.key === 'RALLY_POINT');
   const rallyLevel = rallyPoint?.level || 0;
-  
+
   // Total garrison count
   const totalGarrison = garrisonUnits.reduce((sum, u) => sum + u.count, 0);
-  
+
+  // Create garrison-summary if it doesn't exist
+  if (!garrisonSummary) {
+    const gs = document.createElement('div');
+    gs.id = 'garrison-summary';
+    container.parentNode.insertBefore(gs, container);
+  }
+  const gsSummary = document.getElementById('garrison-summary');
+  if (!gsSummary) return;
+
   // Render garrison summary header (compact)
-  garrisonSummary.innerHTML = `
+  gsSummary.innerHTML = `
     <div class="army-header-compact">
       <div class="header-left-info">
         <span class="rally-badge">🚩 Rally Niv.${rallyLevel}</span>
@@ -8677,8 +8685,7 @@ function onGlobalKeyDown(e) {
     case 'P':
       if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        showPlayerProfile();
-        showToast('👤 Profil', 'info');
+        showTab('hero');
       }
       break;
   }
@@ -10590,11 +10597,13 @@ function navigateMinimapToPosition(e) {
 }
 
 function updateMapUI() {
-  document.getElementById('map-x').textContent = Math.round(mapOffsetX);
-  document.getElementById('map-y').textContent = Math.round(mapOffsetY);
-  
+  const mapXEl = document.getElementById('map-x');
+  const mapYEl = document.getElementById('map-y');
+  if (mapXEl) mapXEl.textContent = Math.round(mapOffsetX);
+  if (mapYEl) mapYEl.textContent = Math.round(mapOffsetY);
+
   const zoomEl = document.getElementById('zoom-level');
-  zoomEl.textContent = `${Math.round(mapZoomLevel * 100)}%`;
+  if (zoomEl) zoomEl.textContent = `${Math.round(mapZoomLevel * 100)}%`;
   
   // Animation pulse
   zoomEl.classList.add('zooming');
@@ -12630,8 +12639,11 @@ let currentReportTab = 'battles';
 
 function showReportsTab(tab) {
   currentReportTab = tab;
-  document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.report-tab[onclick*="${tab}"]`)?.classList.add('active');
+  const reportTabContainer = document.querySelector('#tab-reports .toolbar-tabs');
+  if (reportTabContainer) {
+    reportTabContainer.querySelectorAll('.toolbar-btn').forEach(t => t.classList.remove('active'));
+    reportTabContainer.querySelector(`.toolbar-btn[onclick*="${tab}"]`)?.classList.add('active');
+  }
   
   if (tab === 'battles') {
     loadReports();
@@ -12774,7 +12786,7 @@ function openVillageList() {
 // ========== TAB SUB-TABS ==========
 function showArmyTab(subTab) {
   document.querySelectorAll('#tab-army .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
+  document.querySelector(`#tab-army .toolbar-btn[onclick*="${subTab}"]`)?.classList.add('active');
 
   const container = document.getElementById('armies-management');
   if (!container) return;
@@ -12796,13 +12808,13 @@ function showArmyTab(subTab) {
 
 function showAllianceTab(subTab) {
   document.querySelectorAll('#tab-alliance .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
+  document.querySelector(`#tab-alliance .toolbar-btn[onclick*="${subTab}"]`)?.classList.add('active');
   loadAlliance(subTab);
 }
 
 function showMarketTab(subTab) {
   document.querySelectorAll('#tab-market .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
+  document.querySelector(`#tab-market .toolbar-btn[onclick*="${subTab}"]`)?.classList.add('active');
 
   // Hide all sections
   document.querySelectorAll('#market-content .market-section').forEach(s => s.style.display = 'none');
@@ -12817,7 +12829,7 @@ function showMarketTab(subTab) {
 
 function filterBuildings(category) {
   document.querySelectorAll('#tab-buildings .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
+  document.querySelector(`#tab-buildings .toolbar-btn[onclick*="${category}"]`)?.classList.add('active');
   renderBuildings(category);
 }
 
@@ -13178,7 +13190,7 @@ function renderInventory(items) {
 
 function showInventoryTab(subTab) {
   document.querySelectorAll('#tab-inventory .toolbar-btn').forEach(b => b.classList.remove('active'));
-  event?.target?.classList?.add('active');
+  document.querySelector(`#tab-inventory .toolbar-btn[onclick*="${subTab}"]`)?.classList.add('active');
   loadInventory();
 }
 
