@@ -669,6 +669,9 @@ function initCityCanvas() {
       renderCityCanvas();
       hideCityTooltip();
     });
+    // Touch events for mobile
+    cityCanvas.addEventListener('touchstart', onCityTouchStart, { passive: false });
+    cityCanvas.addEventListener('touchend', onCityTouchEnd);
   }
 
   // Calculate slot positions
@@ -698,6 +701,9 @@ function initFieldsCanvas() {
       renderFieldsCanvas();
       hideFieldsTooltip();
     });
+    // Touch events for mobile
+    fieldsCanvas.addEventListener('touchstart', onFieldsTouchStart, { passive: false });
+    fieldsCanvas.addEventListener('touchend', onFieldsTouchEnd);
   }
 
   // Calculate field slot positions
@@ -4416,6 +4422,51 @@ function onCityMouseMove(e) {
   }
 }
 
+// ========== CITY CANVAS TOUCH HANDLERS ==========
+function onCityTouchStart(e) {
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = cityCanvas.getBoundingClientRect();
+    const mouseX = (touch.clientX - rect.left) * (cityCanvas.width / rect.width);
+    const mouseY = (touch.clientY - rect.top) * (cityCanvas.height / rect.height);
+
+    // Find touched slot using same ellipse collision as mouse
+    let foundSlot = null;
+    for (const slot of citySlots) {
+      const dx = mouseX - slot.x;
+      const dy = mouseY - slot.y;
+      const rx = slot.size * 0.6;
+      const ry = slot.size * 0.35;
+      const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+      if (normalizedDist <= 1) {
+        foundSlot = slot.slot;
+        break;
+      }
+    }
+
+    cityHoveredSlot = foundSlot;
+    renderCityCanvas();
+  }
+}
+
+function onCityTouchEnd(e) {
+  if (cityHoveredSlot !== null) {
+    // Simulate click on the hovered slot
+    const fakeEvent = { clientX: 0, clientY: 0 };
+    const canvasRect = cityCanvas.getBoundingClientRect();
+    const slot = citySlots.find(s => s.slot === cityHoveredSlot);
+    if (slot) {
+      fakeEvent.clientX = canvasRect.left + (slot.x / cityCanvas.width) * canvasRect.width;
+      fakeEvent.clientY = canvasRect.top + (slot.y / cityCanvas.height) * canvasRect.height;
+      showClickRipple(fakeEvent.clientX - canvasRect.left, fakeEvent.clientY - canvasRect.top);
+    }
+    onCityClick(fakeEvent);
+  }
+  cityHoveredSlot = null;
+  hideCityTooltip();
+}
+
 // Animation de clic (ripple effect)
 function showClickRipple(x, y) {
   const ripple = document.createElement('div');
@@ -4678,6 +4729,40 @@ function showFieldsTooltip(mouseX, mouseY, slotNum) {
 function hideFieldsTooltip() {
   const tooltip = document.getElementById('fields-tooltip');
   if (tooltip) tooltip.style.display = 'none';
+}
+
+// ========== FIELDS CANVAS TOUCH HANDLERS ==========
+function onFieldsTouchStart(e) {
+  if (!fieldsCanvas || e.touches.length !== 1) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = fieldsCanvas.getBoundingClientRect();
+  const mouseX = (touch.clientX - rect.left) * (fieldsCanvas.width / rect.width);
+  const mouseY = (touch.clientY - rect.top) * (fieldsCanvas.height / rect.height);
+
+  let foundSlot = null;
+  for (const slot of citySlots) {
+    const dx = mouseX - slot.x;
+    const dy = mouseY - slot.y;
+    const rx = slot.size * 0.6;
+    const ry = slot.size * 0.35;
+    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+    if (normalizedDist <= 1) {
+      foundSlot = slot.slot;
+      break;
+    }
+  }
+
+  cityHoveredSlot = foundSlot;
+  renderFieldsCanvas();
+}
+
+function onFieldsTouchEnd(e) {
+  if (cityHoveredSlot !== null) {
+    onFieldsClick({ clientX: 0, clientY: 0 });
+  }
+  cityHoveredSlot = null;
+  hideFieldsTooltip();
 }
 
 // ========== BUILD PANEL ==========
@@ -8569,6 +8654,10 @@ function initMapCanvas() {
     minimapCanvas.addEventListener('mousemove', onMinimapMouseMove);
     minimapCanvas.addEventListener('mouseup', onMinimapMouseUp);
     minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
+    // Touch events for mobile minimap
+    minimapCanvas.addEventListener('touchstart', onMinimapTouchStart, { passive: false });
+    minimapCanvas.addEventListener('touchmove', onMinimapTouchMove, { passive: false });
+    minimapCanvas.addEventListener('touchend', onMinimapTouchEnd);
   }
 
   // Center on capital initially
@@ -10608,6 +10697,28 @@ function onMinimapMouseMove(e) {
 }
 
 function onMinimapMouseUp(e) {
+  minimapDragging = false;
+}
+
+// ========== MINIMAP TOUCH HANDLERS ==========
+function onMinimapTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  e.preventDefault();
+  e.stopPropagation();
+  minimapDragging = true;
+  const touch = e.touches[0];
+  navigateMinimapToPosition({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+function onMinimapTouchMove(e) {
+  if (!minimapDragging || e.touches.length !== 1) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const touch = e.touches[0];
+  navigateMinimapToPosition({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+function onMinimapTouchEnd(e) {
   minimapDragging = false;
 }
 

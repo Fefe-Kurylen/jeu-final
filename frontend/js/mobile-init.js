@@ -4,7 +4,8 @@
 
   const isMobileApp = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
   const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isMobile = isMobileApp || isMobileBrowser;
+  const isSmallScreen = window.innerWidth <= 768 || window.innerHeight <= 500;
+  const isMobile = isMobileApp || isMobileBrowser || isSmallScreen;
 
   if (!isMobile) return;
 
@@ -18,57 +19,109 @@
     initCapacitorPlugins();
   }
 
-  // Prevent pull-to-refresh on mobile
-  document.body.addEventListener('touchmove', function(e) {
-    if (document.scrollingElement.scrollTop === 0 && e.touches[0].clientY > 0) {
-      // Allow scroll inside scrollable elements
-      let el = e.target;
-      while (el !== document.body) {
-        if (el.scrollHeight > el.clientHeight) return;
-        el = el.parentElement;
-        if (!el) break;
+  // Prevent pull-to-refresh and double-tap zoom on the game area
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function(e) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      // Prevent double-tap zoom but not on inputs
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
       }
     }
-  }, { passive: true });
+    lastTouchEnd = now;
+  }, { passive: false });
 
-  // Handle keyboard visibility on mobile
+  // Prevent pinch zoom on document (but allow on canvas)
+  document.addEventListener('gesturestart', function(e) {
+    if (e.target.tagName !== 'CANVAS') {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // Handle keyboard visibility on mobile browsers
   if ('virtualKeyboard' in navigator) {
     navigator.virtualKeyboard.overlaysContent = true;
   }
 
-  // Handle back button on Android
+  // Auto-scroll input into view when focused
+  document.addEventListener('focusin', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      setTimeout(function() {
+        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  });
+
+  // Handle back button on Android (Capacitor only)
   if (isMobileApp) {
     document.addEventListener('backbutton', function(e) {
       e.preventDefault();
-      // Close any open modal first
-      const openModal = document.querySelector('.modal[style*="flex"], .modal[style*="block"]');
-      if (openModal) {
-        openModal.style.display = 'none';
+
+      // Close build panel overlay first
+      const overlay = document.querySelector('.build-panel-overlay.fade-in');
+      if (overlay) {
+        const closeBtn = document.querySelector('.panel-close');
+        if (closeBtn) closeBtn.click();
         return;
       }
-      // If on game screen, show confirm exit
-      const gameScreen = document.getElementById('game-screen');
-      if (gameScreen && gameScreen.style.display !== 'none') {
-        if (confirm('Quitter le jeu ?')) {
-          if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-            window.Capacitor.Plugins.App.exitApp();
-          }
+
+      // Close any open modal
+      const modal = document.getElementById('modal');
+      if (modal && modal.style.display !== 'none' && modal.style.display !== '') {
+        if (typeof closeModal === 'function') closeModal();
+        return;
+      }
+
+      // Close build panel
+      const buildPanel = document.getElementById('build-panel');
+      if (buildPanel && buildPanel.style.display !== 'none' && buildPanel.style.display !== '') {
+        if (typeof closeBuildPanel === 'function') closeBuildPanel();
+        return;
+      }
+
+      // Close map info panel
+      const mapPanel = document.getElementById('map-info-panel');
+      if (mapPanel && mapPanel.style.display !== 'none' && mapPanel.style.display !== '') {
+        mapPanel.style.display = 'none';
+        return;
+      }
+
+      // Confirm exit
+      if (confirm('Quitter le jeu ?')) {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+          window.Capacitor.Plugins.App.exitApp();
         }
       }
     });
   }
 
-  // Fix 100vh on mobile browsers
+  // Fix 100vh on mobile browsers (iOS Safari address bar)
   function setMobileVh() {
     const vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', vh + 'px');
   }
   setMobileVh();
   window.addEventListener('resize', setMobileVh);
+  window.addEventListener('orientationchange', function() {
+    setTimeout(setMobileVh, 100);
+  });
+
+  // Handle orientation changes - resize canvases
+  window.addEventListener('orientationchange', function() {
+    setTimeout(function() {
+      // Trigger canvas resize for all active canvases
+      if (typeof initCityCanvas === 'function') initCityCanvas();
+      if (typeof initFieldsCanvas === 'function') initFieldsCanvas();
+      if (typeof initMapCanvas === 'function') initMapCanvas();
+    }, 300);
+  });
+
+  // Optimize canvas rendering for mobile - reduce pixel ratio on slow devices
+  window.mobilePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
 
   async function initCapacitorPlugins() {
     try {
-      // Status bar
       if (window.Capacitor.Plugins.StatusBar) {
         const { StatusBar } = window.Capacitor.Plugins;
         await StatusBar.setBackgroundColor({ color: '#1a1a2e' });
@@ -79,7 +132,6 @@
     }
 
     try {
-      // Splash screen
       if (window.Capacitor.Plugins.SplashScreen) {
         const { SplashScreen } = window.Capacitor.Plugins;
         await SplashScreen.hide();
@@ -89,18 +141,33 @@
     }
 
     try {
-      // Keyboard
       if (window.Capacitor.Plugins.Keyboard) {
         const { Keyboard } = window.Capacitor.Plugins;
-        Keyboard.addListener('keyboardWillShow', (info) => {
+        Keyboard.addListener('keyboardWillShow', function(info) {
+          document.body.classList.add('keyboard-open');
           document.body.style.paddingBottom = info.keyboardHeight + 'px';
+          // Hide bottom nav when keyboard is open
+          const nav = document.querySelector('.bottom-nav');
+          if (nav) nav.style.display = 'none';
         });
-        Keyboard.addListener('keyboardWillHide', () => {
+        Keyboard.addListener('keyboardWillHide', function() {
+          document.body.classList.remove('keyboard-open');
           document.body.style.paddingBottom = '0px';
+          const nav = document.querySelector('.bottom-nav');
+          if (nav) nav.style.display = '';
         });
       }
     } catch (e) {
       console.log('Keyboard plugin not available:', e.message);
+    }
+
+    // Keep screen awake during gameplay (if plugin available)
+    try {
+      if (window.Capacitor.Plugins.KeepAwake) {
+        await window.Capacitor.Plugins.KeepAwake.keepAwake();
+      }
+    } catch (e) {
+      // Plugin not installed, ignore
     }
   }
 })();

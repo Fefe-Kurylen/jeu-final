@@ -5,11 +5,11 @@ const config: CapacitorConfig = {
   appName: 'Imperium Antiquitas',
   webDir: 'frontend',
   server: {
-    // En production, pointer vers votre serveur Railway
+    // IMPORTANT: Remplacez par l'URL de votre serveur Railway
+    // Pour dev local: 'http://VOTRE_IP:3000'
     url: 'https://jeu-final-production.up.railway.app',
     cleartext: false,
-    // Permettre la navigation vers l'API
-    allowNavigation: ['jeu-final-production.up.railway.app', '*.railway.app']
+    allowNavigation: ['*.railway.app', '*.up.railway.app']
   },
   plugins: {
     StatusBar: {
@@ -31,15 +31,13 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
     backgroundColor: '#1a1a2e',
-    buildOptions: {
-      keystorePath: undefined,
-      keystoreAlias: undefined
-    }
+    webContentsDebuggingEnabled: false
   },
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#1a1a2e',
-    scheme: 'Imperium Antiquitas'
+    scheme: 'Imperium Antiquitas',
+    preferredContentMode: 'mobile'
   }
 };
 

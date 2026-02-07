@@ -1712,7 +1712,7 @@ tr.marked, .list-item.marked {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 400;
+  z-index: 499;
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -2187,7 +2187,7 @@ tr.marked, .list-item.marked {
 /* ========== TOAST ========== */
 .toast {
   position: fixed;
-  bottom: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(100px);
   padding: 10px 20px;
@@ -2199,6 +2199,7 @@ tr.marked, .list-item.marked {
   opacity: 0;
   transition: all 0.3s;
   z-index: 2000;
+  max-width: calc(100vw - 40px);
 }
 .toast.show {
   transform: translateX(-50%) translateY(0);
@@ -3676,6 +3677,7 @@ tr.marked, .list-item.marked {
   border-top: 2px solid #5a4a3a;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
   padding: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-inner {
@@ -4049,7 +4051,6 @@ tr.marked, .list-item.marked {
 
 .capacitor-app {
   padding-top: var(--safe-top);
-  padding-bottom: var(--safe-bottom);
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
 }
@@ -4087,14 +4088,20 @@ tr.marked, .list-item.marked {
 
 /* Smooth scrolling for modals on mobile */
 .mobile-device .modal-body,
-.mobile-device .panel-body {
+.mobile-device .panel-body,
+.mobile-device .map-info-panel {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-/* Bottom nav safe area */
+/* Bottom nav safe area for notch devices */
 .capacitor-app .bottom-nav {
   padding-bottom: var(--safe-bottom);
+}
+
+/* Toast safe area for notch devices */
+.capacitor-app .toast {
+  bottom: calc(20px + var(--safe-bottom));
 }
 
 /* Resource bar - adjust for status bar */
@@ -4102,17 +4109,103 @@ tr.marked, .list-item.marked {
   padding-top: calc(var(--safe-top) + 4px);
 }
 
+/* Map info panel - responsive width on mobile */
+.mobile-device .map-info-panel {
+  width: calc(100vw - 30px);
+  max-width: 300px;
+  left: 8px;
+  bottom: 60px;
+}
+
+/* Build panel - ensure fit on small screens */
+.mobile-device .build-panel {
+  width: 98%;
+  max-width: 98vw;
+  max-height: 80vh;
+}
+
+/* Touch feedback - :active states mirror :hover for touch devices */
+@media (hover: none) and (pointer: coarse) {
+  /* Disable hover transforms on touch - use active instead */
+  .btn:hover, button:hover { transform: none; box-shadow: none; }
+  .btn:active, button:active {
+    transform: scale(0.97);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    filter: brightness(1.1);
+  }
+
+  .btn-primary:active, .upgrade-building-btn:active, .recruit-btn:active {
+    background: linear-gradient(180deg, #8bc34a 0%, #689f38 50%, #33691e 100%);
+    border-color: #9ccc65;
+  }
+
+  .btn-danger:active {
+    background: linear-gradient(180deg, #ef5350 0%, #e53935 50%, #c62828 100%);
+    border-color: #ff5252;
+  }
+
+  .btn-secondary:active {
+    background: linear-gradient(180deg, #6a5a4a 0%, #5a4a3a 50%, #4a3c2a 100%);
+    border-color: #a08060;
+  }
+
+  tr:active, .list-item:active, .queue-item:active, .card:active {
+    background: rgba(201, 162, 39, 0.1) !important;
+  }
+
+  .bnav-tab:active {
+    background: rgba(201, 162, 39, 0.2);
+  }
+
+  .building-tab:active {
+    background: rgba(201, 162, 39, 0.15);
+  }
+
+  .toolbar-btn:active, .map-btn:active {
+    background: rgba(201, 162, 39, 0.2);
+  }
+
+  .modal-close:active, .panel-close:active {
+    color: var(--red-light);
+  }
+
+  .faction-option:active { transform: translateY(-1px); }
+  .bnav-village-arrow:active { background: rgba(201, 162, 39, 0.3); }
+  .stat-plus-btn:active { background: rgba(74, 124, 35, 0.3); }
+  .equip-slot:active { border-color: var(--gold); }
+  .inventory-item:active { border-color: var(--gold); }
+  .garrison-unit-compact:active { background: rgba(201, 162, 39, 0.15); }
+
+  /* Hide tooltips on touch devices (use tap instead) */
+  .city-tooltip, .fields-tooltip, #city-tooltip, #fields-tooltip {
+    display: none !important;
+  }
+}
+
+/* Fix small font sizes on mobile */
+.mobile-device .online-status-badge { font-size: 10px; }
+.mobile-device .faction-bonus { font-size: 11px; }
+.mobile-device .mission-alert { font-size: 11px; }
+
 /* Mobile landscape adjustments */
 @media (max-height: 500px) and (orientation: landscape) {
   .mobile-device .game-header { height: 35px; font-size: 11px; }
   .mobile-device .bottom-nav { height: 40px; }
   .mobile-device .bnav-icon { font-size: 16px; }
   .mobile-device .bnav-label { display: none; }
+  .mobile-device .map-info-panel { bottom: 45px; max-height: 50vh; }
 }
 
-/* Small phone adjustments */
+/* Small phone adjustments (< 380px) */
 @media (max-width: 380px) {
   .mobile-device .res-item { padding: 0 4px; font-size: 10px; }
   .mobile-device .modal { width: 95vw !important; max-width: 95vw !important; }
   .mobile-device .auth-box { width: 95%; padding: 15px; }
+  .mobile-device .map-info-panel { width: calc(100vw - 16px); left: 4px; }
+}
+
+/* Standard phone adjustments (< 600px) */
+@media (max-width: 600px) {
+  .mobile-device .build-panel { max-height: 85vh; }
+  .mobile-device .modal-box { width: 95%; }
 }
