@@ -9159,12 +9159,75 @@ function renderMap() {
     }
   });
 
-  // Add armies to draw order
+  // Add armies to draw order (with interpolated positions for moving armies)
   armies.forEach(army => {
-    const pos = worldToScreen(army.x, army.y);
+    let armyWorldX = army.x;
+    let armyWorldY = army.y;
+    const isMoving = army.status !== 'IDLE' && army.targetX != null && army.targetY != null && army.arrivalAt;
+
+    if (isMoving) {
+      const now = Date.now();
+      const arrivalTime = new Date(army.arrivalAt).getTime();
+      const departureTime = army.arrivesAt ? new Date(army.arrivesAt).getTime() : null;
+
+      if (departureTime) {
+        const totalDuration = arrivalTime - departureTime;
+        if (totalDuration > 0) {
+          const elapsed = now - departureTime;
+          const progress = Math.max(0, Math.min(1, elapsed / totalDuration));
+          armyWorldX = army.x + (army.targetX - army.x) * progress;
+          armyWorldY = army.y + (army.targetY - army.y) * progress;
+        }
+      } else {
+        // Fallback: estimate departure from distance
+        const dist = Math.sqrt((army.targetX - army.x) ** 2 + (army.targetY - army.y) ** 2);
+        const timeToArrival = Math.max(0, arrivalTime - now);
+        const estimatedTotal = timeToArrival + dist * 200;
+        if (estimatedTotal > 0) {
+          const progress = Math.max(0, Math.min(1, 1 - timeToArrival / estimatedTotal));
+          armyWorldX = army.x + (army.targetX - army.x) * progress;
+          armyWorldY = army.y + (army.targetY - army.y) * progress;
+        }
+      }
+
+      // Draw movement path line (dashed)
+      const originPos = worldToScreen(army.x, army.y);
+      const targetPos = worldToScreen(army.targetX, army.targetY);
+      const currentPos = worldToScreen(armyWorldX, armyWorldY);
+
+      // Draw path trail (already traveled - solid)
+      mapCtx.strokeStyle = 'rgba(255,170,0,0.3)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(originPos.x, originPos.y);
+      mapCtx.lineTo(currentPos.x, currentPos.y);
+      mapCtx.stroke();
+
+      // Draw remaining path (dashed)
+      mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([6, 4]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(currentPos.x, currentPos.y);
+      mapCtx.lineTo(targetPos.x, targetPos.y);
+      mapCtx.stroke();
+      mapCtx.setLineDash([]);
+
+      // Draw target marker
+      mapCtx.fillStyle = 'rgba(255,170,0,0.6)';
+      mapCtx.beginPath();
+      mapCtx.arc(targetPos.x, targetPos.y, 4, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.strokeStyle = '#ffaa00';
+      mapCtx.lineWidth = 1;
+      mapCtx.stroke();
+    }
+
+    const pos = worldToScreen(armyWorldX, armyWorldY);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, _interpolated: isMoving });
     }
   });
 
@@ -10420,17 +10483,17 @@ function drawIsoArmy(x, y, tw, th, army) {
     mapCtx.shadowBlur = 0;
   }
 
-  // Movement line if moving
-  if (isMoving && army.targetX !== undefined && army.targetY !== undefined) {
-    const targetPos = window.mapScreenToWorld ? null : { x: army.targetX, y: army.targetY };
-    // Draw dashed line to target (simplified)
-    mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
-    mapCtx.lineWidth = 2;
-    mapCtx.setLineDash([5, 5]);
-    mapCtx.beginPath();
-    mapCtx.moveTo(x, y);
-    // We'd need worldToScreen here, simplified for now
-    mapCtx.setLineDash([]);
+  // Mission type label for moving armies
+  if (isMoving && mapZoomLevel > 0.6) {
+    const missionLabels = {
+      'ATTACK': '⚔️', 'RAID': '💰', 'RAID_RESOURCE': '💰', 'SPY': '🔍',
+      'TRANSPORT': '📦', 'RETURN': '🏠', 'RETURNING': '🏠', 'MOVE': '🚶',
+      'MOVE_TO_HARVEST': '🌾', 'HARVEST': '🌾'
+    };
+    const label = missionLabels[army.missionType] || '🚶';
+    mapCtx.font = `${size * 0.4}px Arial`;
+    mapCtx.textAlign = 'center';
+    mapCtx.fillText(label, x + size * 0.4, y - size * 0.8);
   }
 }
 
@@ -12498,10 +12561,50 @@ function startCountdowns() {
   }, 500);
 }
 
+// ========== MAP ARMY ANIMATION LOOP ==========
+let mapAnimationFrame = null;
+function startMapAnimation() {
+  if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
+  function animate() {
+    const mapTab = document.getElementById('tab-map');
+    if (mapTab && mapTab.classList.contains('active') && mapCtx) {
+      const hasMoving = armies.some(a => a.status !== 'IDLE' && a.targetX != null && a.arrivalAt);
+      if (hasMoving) {
+        renderMap();
+      }
+    }
+    mapAnimationFrame = requestAnimationFrame(animate);
+  }
+  // Throttle to ~10 FPS for performance
+  let lastFrame = 0;
+  function throttledAnimate(timestamp) {
+    if (timestamp - lastFrame >= 100) {
+      lastFrame = timestamp;
+      const mapTab = document.getElementById('tab-map');
+      if (mapTab && mapTab.classList.contains('active') && mapCtx) {
+        const hasMoving = armies.some(a => a.status !== 'IDLE' && a.targetX != null && a.arrivalAt);
+        if (hasMoving) {
+          renderMap();
+        }
+      }
+    }
+    mapAnimationFrame = requestAnimationFrame(throttledAnimate);
+  }
+  mapAnimationFrame = requestAnimationFrame(throttledAnimate);
+}
+
+function stopMapAnimation() {
+  if (mapAnimationFrame) {
+    cancelAnimationFrame(mapAnimationFrame);
+    mapAnimationFrame = null;
+  }
+}
+
 // Initialize server time when game starts
 document.addEventListener('DOMContentLoaded', () => {
   startServerTime();
   startCountdowns();
+  startMapAnimation();
 });
 
 // ========== MARCHÉ ==========
@@ -12639,16 +12742,18 @@ let currentReportTab = 'battles';
 
 function showReportsTab(tab) {
   currentReportTab = tab;
-  const reportTabContainer = document.querySelector('#tab-reports .toolbar-tabs');
+  const reportTabContainer = document.querySelector('#tab-reports .tab-toolbar');
   if (reportTabContainer) {
     reportTabContainer.querySelectorAll('.toolbar-btn').forEach(t => t.classList.remove('active'));
     reportTabContainer.querySelector(`.toolbar-btn[onclick*="${tab}"]`)?.classList.add('active');
   }
-  
+
   if (tab === 'battles') {
     loadReports();
   } else if (tab === 'spy') {
     loadSpyReports();
+  } else if (tab === 'trade') {
+    loadTradeReports();
   }
 }
 
@@ -12729,6 +12834,56 @@ function renderSpyReports() {
             `).join('')
           }
         </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ========== RAPPORTS COMMERCE ==========
+let tradeReports = [];
+
+async function loadTradeReports() {
+  try {
+    const res = await fetch(`${API}/api/reports/trade`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      tradeReports = await res.json();
+      renderTradeReports();
+    }
+  } catch (e) {
+    console.error('Error loading trade reports:', e);
+  }
+}
+
+function renderTradeReports() {
+  const container = document.getElementById('reports-list');
+  if (!container) return;
+
+  if (tradeReports.length === 0) {
+    container.innerHTML = '<p class="empty-state">Aucun échange commercial</p>';
+    return;
+  }
+
+  const resourceIcons = { wood: '🪵', stone: '🪨', iron: '⛏️', food: '🌾' };
+  const resourceNames = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
+
+  container.innerHTML = tradeReports.map(trade => {
+    const date = new Date(trade.createdAt).toLocaleString('fr-FR');
+    const isSeller = trade.sellerId === player?.id;
+    const isBuyer = trade.buyerId === player?.id;
+    const statusLabel = trade.status === 'COMPLETED' ? '✅ Complété' : '❌ Annulé';
+    const statusClass = trade.status === 'COMPLETED' ? 'report-victory' : 'report-defeat';
+
+    return `
+      <div class="report-card ${statusClass}">
+        <div class="report-header">
+          <span class="report-title">📦 ${isSeller ? 'Vente' : isBuyer ? 'Achat' : 'Échange'}</span>
+          <span class="report-date">${date}</span>
+        </div>
+        <p>${resourceIcons[trade.sellResource] || ''} ${formatNum(trade.sellAmount)} ${resourceNames[trade.sellResource] || trade.sellResource}
+          → ${resourceIcons[trade.buyResource] || ''} ${formatNum(trade.buyAmount)} ${resourceNames[trade.buyResource] || trade.buyResource}</p>
+        <p style="font-size:11px;color:#888">${statusLabel}</p>
       </div>
     `;
   }).join('');

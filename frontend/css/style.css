@@ -1297,15 +1297,17 @@ tr.marked, .list-item.marked {
 
 .map-info-panel {
   position: absolute;
-  bottom: 15px;
+  bottom: 65px;
   left: 15px;
   width: 300px;
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
   background: linear-gradient(180deg, rgba(74,60,42,0.98) 0%, rgba(42,36,24,0.98) 100%);
   border: 3px solid #8b6914;
   border-radius: 8px;
   padding: 0;
   z-index: 50;
-  overflow: hidden;
+  overflow-x: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 
@@ -2521,7 +2523,7 @@ tr.marked, .list-item.marked {
   .resource-box { min-width: 60px; padding: 3px 5px 2px; }
   .res-icon { font-size: 16px; }
   .res-current { font-size: 12px; }
-  .res-timer { font-size: 9px; padding: 1px 3px; }
+  .res-timer { display: none; }
   .res-sub { display: none; }
   .res-bar { display: none; }
   .player-info-box { display: none; }
