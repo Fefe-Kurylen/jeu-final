@@ -27,6 +27,5 @@ Thumbs.db
 dist/
 build/
 
-# Capacitor native projects (generated - rebuild with `npx cap add`)
-android/
+# Capacitor native projects
 ios/
