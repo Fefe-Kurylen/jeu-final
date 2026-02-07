@@ -8,9 +8,25 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "build": "prisma generate && prisma db push --accept-data-loss"
+    "build": "prisma generate && prisma db push --accept-data-loss",
+    "cap:init": "npx cap init 'Imperium Antiquitas' com.imperiumantiquitas.app --web-dir frontend",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:android": "npx cap run android",
+    "cap:run:ios": "npx cap run ios",
+    "mobile:build": "npx cap sync && echo 'Sync complete. Use cap:open:android or cap:open:ios to build.'"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
     "@prisma/client": "^5.22.0",
     "bcrypt": "5.1.1",
     "cors": "2.8.5",
@@ -19,6 +35,7 @@
     "jsonwebtoken": "9.0.2"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "typescript": "^5.9.3"
   }
 }

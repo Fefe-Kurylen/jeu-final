@@ -4036,3 +4036,83 @@ tr.marked, .list-item.marked {
   .bnav-village-info .village-coords { display: none; }
   .bnav-village-info .village-tier { display: none; }
 }
+
+/* ========== MOBILE / CAPACITOR APP SUPPORT ========== */
+
+/* Safe area insets for notch/island devices */
+.mobile-device {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.capacitor-app {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Use real viewport height on mobile (fixes 100vh issue) */
+.mobile-device .screen {
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+/* Larger touch targets on mobile */
+.mobile-device button,
+.mobile-device .btn,
+.mobile-device [onclick] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent text selection on game elements */
+.mobile-device canvas,
+.mobile-device .game-header,
+.mobile-device .bottom-nav {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+/* Allow text selection in inputs and chat */
+.mobile-device input,
+.mobile-device textarea,
+.mobile-device .chat-messages {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Smooth scrolling for modals on mobile */
+.mobile-device .modal-body,
+.mobile-device .panel-body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Bottom nav safe area */
+.capacitor-app .bottom-nav {
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Resource bar - adjust for status bar */
+.capacitor-app .game-header {
+  padding-top: calc(var(--safe-top) + 4px);
+}
+
+/* Mobile landscape adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-device .game-header { height: 35px; font-size: 11px; }
+  .mobile-device .bottom-nav { height: 40px; }
+  .mobile-device .bnav-icon { font-size: 16px; }
+  .mobile-device .bnav-label { display: none; }
+}
+
+/* Small phone adjustments */
+@media (max-width: 380px) {
+  .mobile-device .res-item { padding: 0 4px; font-size: 10px; }
+  .mobile-device .modal { width: 95vw !important; max-width: 95vw !important; }
+  .mobile-device .auth-box { width: 95%; padding: 15px; }
+}
