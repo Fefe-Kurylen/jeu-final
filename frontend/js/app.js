@@ -79,7 +79,7 @@ const requestManager = {
 // Building icons mapping (39 bâtiments)
 const BUILDING_ICONS = {
   // Base buildings
-  MAIN_HALL: '🏛️', FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
+  FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
   WAREHOUSE: '📦', SILO: '🏺',
   // Intermediate buildings
   RALLY_POINT: '🚩', BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️',
@@ -583,8 +583,8 @@ let currentCityView = 'city'; // 'city' ou 'fields'
 // Définition des 20 slots en disposition circulaire (style Travian)
 // Centre = Main Hall, puis anneaux concentriques
 const CITY_LAYOUT = {
-  // Anneau central (Main Hall) - slot 0
-  center: { slot: 0, key: 'MAIN_HALL', fixed: true },
+  // Anneau central - slot 0 (constructible)
+  center: { slot: 0 },
   
   // Anneau intérieur (6 slots) - slots 1-6
   innerRing: [
@@ -669,6 +669,9 @@ function initCityCanvas() {
       renderCityCanvas();
       hideCityTooltip();
     });
+    // Touch events for mobile
+    cityCanvas.addEventListener('touchstart', onCityTouchStart, { passive: false });
+    cityCanvas.addEventListener('touchend', onCityTouchEnd);
   }
 
   // Calculate slot positions
@@ -698,6 +701,9 @@ function initFieldsCanvas() {
       renderFieldsCanvas();
       hideFieldsTooltip();
     });
+    // Touch events for mobile
+    fieldsCanvas.addEventListener('touchstart', onFieldsTouchStart, { passive: false });
+    fieldsCanvas.addEventListener('touchend', onFieldsTouchEnd);
   }
 
   // Calculate field slot positions
@@ -723,14 +729,12 @@ function calculateCitySlots() {
 
   citySlots = [];
 
-  // Centre (Main Hall) - slot 0
+  // Centre - slot 0 (constructible)
   citySlots.push({
     slot: 0,
     x: centerX,
     y: centerY,
-    size: slotSize * 1.3,
-    fixed: true,
-    fixedKey: 'MAIN_HALL'
+    size: slotSize * 1.3
   });
 
   // Anneau intérieur (6 slots) - slots 1-6
@@ -3385,11 +3389,11 @@ function drawResourceField(slot) {
 }
 
 function drawBuildingSlot(slot, building, isHovered, isBuilding) {
-  const { x, y, size, fixed, fixedKey } = slot;
-  
+  const { x, y, size } = slot;
+
   // Determine what's in this slot
-  const key = fixed ? fixedKey : building?.key;
-  const level = building?.level || (fixed ? 1 : 0);
+  const key = building?.key;
+  const level = building?.level || 0;
   const isEmpty = !key;
   
   // Shadow
@@ -3475,11 +3479,6 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
 
   // Detailed Travian-style building definitions with culture colors
   const buildingStyles = {
-    MAIN_HALL: {
-      base: culture.stoneDark, roof: culture.roof, roofType: 'dome',
-      height: 2.0, windows: 4, hasColumns: true, hasFlag: true,
-      wallColor: culture.stone, trimColor: culture.trim
-    },
     BARRACKS: {
       base: culture.stoneDark, roof: culture.accent, roofType: 'pointed',
       height: 1.5, windows: 2, hasBanner: true, hasWeaponRack: true,
@@ -4099,7 +4098,7 @@ function drawBuildingFlag(x, y, bw, bh, key) {
   // Flag
   const time = Date.now() / 1000;
   const wave = Math.sin(time * 3) * 2;
-  cityCtx.fillStyle = key === 'MAIN_HALL' ? '#ffd700' : '#c44';
+  cityCtx.fillStyle = '#c44';
   cityCtx.beginPath();
   cityCtx.moveTo(flagX, flagY - 15);
   cityCtx.quadraticCurveTo(flagX + 10 + wave, flagY - 10, flagX + 15, flagY - 8 + wave);
@@ -4423,6 +4422,51 @@ function onCityMouseMove(e) {
   }
 }
 
+// ========== CITY CANVAS TOUCH HANDLERS ==========
+function onCityTouchStart(e) {
+  if (e.touches.length === 1) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = cityCanvas.getBoundingClientRect();
+    const mouseX = (touch.clientX - rect.left) * (cityCanvas.width / rect.width);
+    const mouseY = (touch.clientY - rect.top) * (cityCanvas.height / rect.height);
+
+    // Find touched slot using same ellipse collision as mouse
+    let foundSlot = null;
+    for (const slot of citySlots) {
+      const dx = mouseX - slot.x;
+      const dy = mouseY - slot.y;
+      const rx = slot.size * 0.6;
+      const ry = slot.size * 0.35;
+      const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+      if (normalizedDist <= 1) {
+        foundSlot = slot.slot;
+        break;
+      }
+    }
+
+    cityHoveredSlot = foundSlot;
+    renderCityCanvas();
+  }
+}
+
+function onCityTouchEnd(e) {
+  if (cityHoveredSlot !== null) {
+    // Simulate click on the hovered slot
+    const fakeEvent = { clientX: 0, clientY: 0 };
+    const canvasRect = cityCanvas.getBoundingClientRect();
+    const slot = citySlots.find(s => s.slot === cityHoveredSlot);
+    if (slot) {
+      fakeEvent.clientX = canvasRect.left + (slot.x / cityCanvas.width) * canvasRect.width;
+      fakeEvent.clientY = canvasRect.top + (slot.y / cityCanvas.height) * canvasRect.height;
+      showClickRipple(fakeEvent.clientX - canvasRect.left, fakeEvent.clientY - canvasRect.top);
+    }
+    onCityClick(fakeEvent);
+  }
+  cityHoveredSlot = null;
+  hideCityTooltip();
+}
+
 // Animation de clic (ripple effect)
 function showClickRipple(x, y) {
   const ripple = document.createElement('div');
@@ -4511,17 +4555,6 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
         ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
         <p class="tt-hint">${building.level < maxLevel ? 'Cliquez pour améliorer' : 'Niveau maximum atteint'}</p>
       `;
-    } else if (slot?.fixed) {
-      const mainHall = getBuildingAtSlot(0);
-      const level = mainHall?.level || 1;
-      html = `
-        <h4><span class="tt-icon">🏛️</span> Hôtel de Ville</h4>
-        <p class="tt-level">Niveau ${level}/30</p>
-        <div class="tt-stats">
-          <span class="tt-stat">Réduction construction: <span class="tt-stat-value">${(level * 2.5).toFixed(1)}%</span></span>
-        </div>
-        <p class="tt-hint">Bâtiment principal</p>
-      `;
     } else {
       html = `
         <h4><span class="tt-icon">🔨</span> Emplacement libre</h4>
@@ -4556,7 +4589,6 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
 function getBuildingEffect(key, level) {
   const effects = {
     // Base & Intermediate
-    'MAIN_HALL': `Réduction construction: ${(level * 2.5).toFixed(1)}%`,
     'BARRACKS': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'STABLE': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
     'WORKSHOP': `Réduction entraînement: ${(level * 4).toFixed(1)}%`,
@@ -4699,6 +4731,40 @@ function hideFieldsTooltip() {
   if (tooltip) tooltip.style.display = 'none';
 }
 
+// ========== FIELDS CANVAS TOUCH HANDLERS ==========
+function onFieldsTouchStart(e) {
+  if (!fieldsCanvas || e.touches.length !== 1) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = fieldsCanvas.getBoundingClientRect();
+  const mouseX = (touch.clientX - rect.left) * (fieldsCanvas.width / rect.width);
+  const mouseY = (touch.clientY - rect.top) * (fieldsCanvas.height / rect.height);
+
+  let foundSlot = null;
+  for (const slot of citySlots) {
+    const dx = mouseX - slot.x;
+    const dy = mouseY - slot.y;
+    const rx = slot.size * 0.6;
+    const ry = slot.size * 0.35;
+    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+    if (normalizedDist <= 1) {
+      foundSlot = slot.slot;
+      break;
+    }
+  }
+
+  cityHoveredSlot = foundSlot;
+  renderFieldsCanvas();
+}
+
+function onFieldsTouchEnd(e) {
+  if (cityHoveredSlot !== null) {
+    onFieldsClick({ clientX: 0, clientY: 0 });
+  }
+  cityHoveredSlot = null;
+  hideFieldsTooltip();
+}
+
 // ========== BUILD PANEL ==========
 let selectedBuildSlot = null;
 
@@ -4722,9 +4788,9 @@ function openBuildPanel(slotNum) {
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
   
-  if (building || slot?.fixed) {
+  if (building) {
     // ===== EXISTING BUILDING - TABBED INTERFACE (Travian Style) =====
-    const key = building?.key || slot?.fixedKey;
+    const key = building?.key;
     const level = building?.level || 1;
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
@@ -4941,7 +5007,7 @@ function openBuildPanel(slotNum) {
     title.textContent = '🏗️ Construire un bâtiment';
 
     const availableBuildings = buildingsData.filter(b =>
-      !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)
+      !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE'].includes(b.key)
     );
 
     // Group by category
@@ -5031,7 +5097,6 @@ function formatDuration(seconds) {
 // Helper: Get building bonus text
 function getBuildingBonus(key, level) {
   const bonuses = {
-    MAIN_HALL: `Réduction temps construction: -${(level * 2.5).toFixed(1)}%`,
     BARRACKS: `Réduction temps entraînement: -${(level * 0.5).toFixed(1)}%`,
     STABLE: `Réduction temps entraînement cavalerie: -${(level * 0.5).toFixed(1)}%`,
     WORKSHOP: `Réduction temps entraînement siège: -${(level * 4).toFixed(1)}%`,
@@ -5900,7 +5965,6 @@ function getBuildingDescription(key) {
   if (building?.description) return building.description;
 
   const descriptions = {
-    MAIN_HALL: 'Réduit le temps de construction',
     BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
     WORKSHOP: 'Construit des machines de siège',
@@ -8590,6 +8654,10 @@ function initMapCanvas() {
     minimapCanvas.addEventListener('mousemove', onMinimapMouseMove);
     minimapCanvas.addEventListener('mouseup', onMinimapMouseUp);
     minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
+    // Touch events for mobile minimap
+    minimapCanvas.addEventListener('touchstart', onMinimapTouchStart, { passive: false });
+    minimapCanvas.addEventListener('touchmove', onMinimapTouchMove, { passive: false });
+    minimapCanvas.addEventListener('touchend', onMinimapTouchEnd);
   }
 
   // Center on capital initially
@@ -9159,12 +9227,75 @@ function renderMap() {
     }
   });
 
-  // Add armies to draw order
+  // Add armies to draw order (with interpolated positions for moving armies)
   armies.forEach(army => {
-    const pos = worldToScreen(army.x, army.y);
+    let armyWorldX = army.x;
+    let armyWorldY = army.y;
+    const isMoving = army.status !== 'IDLE' && army.targetX != null && army.targetY != null && army.arrivalAt;
+
+    if (isMoving) {
+      const now = Date.now();
+      const arrivalTime = new Date(army.arrivalAt).getTime();
+      const departureTime = army.arrivesAt ? new Date(army.arrivesAt).getTime() : null;
+
+      if (departureTime) {
+        const totalDuration = arrivalTime - departureTime;
+        if (totalDuration > 0) {
+          const elapsed = now - departureTime;
+          const progress = Math.max(0, Math.min(1, elapsed / totalDuration));
+          armyWorldX = army.x + (army.targetX - army.x) * progress;
+          armyWorldY = army.y + (army.targetY - army.y) * progress;
+        }
+      } else {
+        // Fallback: estimate departure from distance
+        const dist = Math.sqrt((army.targetX - army.x) ** 2 + (army.targetY - army.y) ** 2);
+        const timeToArrival = Math.max(0, arrivalTime - now);
+        const estimatedTotal = timeToArrival + dist * 200;
+        if (estimatedTotal > 0) {
+          const progress = Math.max(0, Math.min(1, 1 - timeToArrival / estimatedTotal));
+          armyWorldX = army.x + (army.targetX - army.x) * progress;
+          armyWorldY = army.y + (army.targetY - army.y) * progress;
+        }
+      }
+
+      // Draw movement path line (dashed)
+      const originPos = worldToScreen(army.x, army.y);
+      const targetPos = worldToScreen(army.targetX, army.targetY);
+      const currentPos = worldToScreen(armyWorldX, armyWorldY);
+
+      // Draw path trail (already traveled - solid)
+      mapCtx.strokeStyle = 'rgba(255,170,0,0.3)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(originPos.x, originPos.y);
+      mapCtx.lineTo(currentPos.x, currentPos.y);
+      mapCtx.stroke();
+
+      // Draw remaining path (dashed)
+      mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
+      mapCtx.lineWidth = 2;
+      mapCtx.setLineDash([6, 4]);
+      mapCtx.beginPath();
+      mapCtx.moveTo(currentPos.x, currentPos.y);
+      mapCtx.lineTo(targetPos.x, targetPos.y);
+      mapCtx.stroke();
+      mapCtx.setLineDash([]);
+
+      // Draw target marker
+      mapCtx.fillStyle = 'rgba(255,170,0,0.6)';
+      mapCtx.beginPath();
+      mapCtx.arc(targetPos.x, targetPos.y, 4, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.strokeStyle = '#ffaa00';
+      mapCtx.lineWidth = 1;
+      mapCtx.stroke();
+    }
+
+    const pos = worldToScreen(armyWorldX, armyWorldY);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, _interpolated: isMoving });
     }
   });
 
@@ -10420,17 +10551,17 @@ function drawIsoArmy(x, y, tw, th, army) {
     mapCtx.shadowBlur = 0;
   }
 
-  // Movement line if moving
-  if (isMoving && army.targetX !== undefined && army.targetY !== undefined) {
-    const targetPos = window.mapScreenToWorld ? null : { x: army.targetX, y: army.targetY };
-    // Draw dashed line to target (simplified)
-    mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
-    mapCtx.lineWidth = 2;
-    mapCtx.setLineDash([5, 5]);
-    mapCtx.beginPath();
-    mapCtx.moveTo(x, y);
-    // We'd need worldToScreen here, simplified for now
-    mapCtx.setLineDash([]);
+  // Mission type label for moving armies
+  if (isMoving && mapZoomLevel > 0.6) {
+    const missionLabels = {
+      'ATTACK': '⚔️', 'RAID': '💰', 'RAID_RESOURCE': '💰', 'SPY': '🔍',
+      'TRANSPORT': '📦', 'RETURN': '🏠', 'RETURNING': '🏠', 'MOVE': '🚶',
+      'MOVE_TO_HARVEST': '🌾', 'HARVEST': '🌾'
+    };
+    const label = missionLabels[army.missionType] || '🚶';
+    mapCtx.font = `${size * 0.4}px Arial`;
+    mapCtx.textAlign = 'center';
+    mapCtx.fillText(label, x + size * 0.4, y - size * 0.8);
   }
 }
 
@@ -10566,6 +10697,28 @@ function onMinimapMouseMove(e) {
 }
 
 function onMinimapMouseUp(e) {
+  minimapDragging = false;
+}
+
+// ========== MINIMAP TOUCH HANDLERS ==========
+function onMinimapTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  e.preventDefault();
+  e.stopPropagation();
+  minimapDragging = true;
+  const touch = e.touches[0];
+  navigateMinimapToPosition({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+function onMinimapTouchMove(e) {
+  if (!minimapDragging || e.touches.length !== 1) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const touch = e.touches[0];
+  navigateMinimapToPosition({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+function onMinimapTouchEnd(e) {
   minimapDragging = false;
 }
 
@@ -12498,10 +12651,50 @@ function startCountdowns() {
   }, 500);
 }
 
+// ========== MAP ARMY ANIMATION LOOP ==========
+let mapAnimationFrame = null;
+function startMapAnimation() {
+  if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
+  function animate() {
+    const mapTab = document.getElementById('tab-map');
+    if (mapTab && mapTab.classList.contains('active') && mapCtx) {
+      const hasMoving = armies.some(a => a.status !== 'IDLE' && a.targetX != null && a.arrivalAt);
+      if (hasMoving) {
+        renderMap();
+      }
+    }
+    mapAnimationFrame = requestAnimationFrame(animate);
+  }
+  // Throttle to ~10 FPS for performance
+  let lastFrame = 0;
+  function throttledAnimate(timestamp) {
+    if (timestamp - lastFrame >= 100) {
+      lastFrame = timestamp;
+      const mapTab = document.getElementById('tab-map');
+      if (mapTab && mapTab.classList.contains('active') && mapCtx) {
+        const hasMoving = armies.some(a => a.status !== 'IDLE' && a.targetX != null && a.arrivalAt);
+        if (hasMoving) {
+          renderMap();
+        }
+      }
+    }
+    mapAnimationFrame = requestAnimationFrame(throttledAnimate);
+  }
+  mapAnimationFrame = requestAnimationFrame(throttledAnimate);
+}
+
+function stopMapAnimation() {
+  if (mapAnimationFrame) {
+    cancelAnimationFrame(mapAnimationFrame);
+    mapAnimationFrame = null;
+  }
+}
+
 // Initialize server time when game starts
 document.addEventListener('DOMContentLoaded', () => {
   startServerTime();
   startCountdowns();
+  startMapAnimation();
 });
 
 // ========== MARCHÉ ==========
@@ -12639,16 +12832,18 @@ let currentReportTab = 'battles';
 
 function showReportsTab(tab) {
   currentReportTab = tab;
-  const reportTabContainer = document.querySelector('#tab-reports .toolbar-tabs');
+  const reportTabContainer = document.querySelector('#tab-reports .tab-toolbar');
   if (reportTabContainer) {
     reportTabContainer.querySelectorAll('.toolbar-btn').forEach(t => t.classList.remove('active'));
     reportTabContainer.querySelector(`.toolbar-btn[onclick*="${tab}"]`)?.classList.add('active');
   }
-  
+
   if (tab === 'battles') {
     loadReports();
   } else if (tab === 'spy') {
     loadSpyReports();
+  } else if (tab === 'trade') {
+    loadTradeReports();
   }
 }
 
@@ -12734,6 +12929,56 @@ function renderSpyReports() {
   }).join('');
 }
 
+// ========== RAPPORTS COMMERCE ==========
+let tradeReports = [];
+
+async function loadTradeReports() {
+  try {
+    const res = await fetch(`${API}/api/reports/trade`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      tradeReports = await res.json();
+      renderTradeReports();
+    }
+  } catch (e) {
+    console.error('Error loading trade reports:', e);
+  }
+}
+
+function renderTradeReports() {
+  const container = document.getElementById('reports-list');
+  if (!container) return;
+
+  if (tradeReports.length === 0) {
+    container.innerHTML = '<p class="empty-state">Aucun échange commercial</p>';
+    return;
+  }
+
+  const resourceIcons = { wood: '🪵', stone: '🪨', iron: '⛏️', food: '🌾' };
+  const resourceNames = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
+
+  container.innerHTML = tradeReports.map(trade => {
+    const date = new Date(trade.createdAt).toLocaleString('fr-FR');
+    const isSeller = trade.sellerId === player?.id;
+    const isBuyer = trade.buyerId === player?.id;
+    const statusLabel = trade.status === 'COMPLETED' ? '✅ Complété' : '❌ Annulé';
+    const statusClass = trade.status === 'COMPLETED' ? 'report-victory' : 'report-defeat';
+
+    return `
+      <div class="report-card ${statusClass}">
+        <div class="report-header">
+          <span class="report-title">📦 ${isSeller ? 'Vente' : isBuyer ? 'Achat' : 'Échange'}</span>
+          <span class="report-date">${date}</span>
+        </div>
+        <p>${resourceIcons[trade.sellResource] || ''} ${formatNum(trade.sellAmount)} ${resourceNames[trade.sellResource] || trade.sellResource}
+          → ${resourceIcons[trade.buyResource] || ''} ${formatNum(trade.buyAmount)} ${resourceNames[trade.buyResource] || trade.buyResource}</p>
+        <p style="font-size:11px;color:#888">${statusLabel}</p>
+      </div>
+    `;
+  }).join('');
+}
+
 function getBuildingName(key) {
   // Chercher dans buildingsData d'abord (contient les 39 bâtiments)
   const building = window.buildingsData?.find(b => b.key === key);
@@ -12741,7 +12986,7 @@ function getBuildingName(key) {
 
   // Fallback pour les cas où buildingsData n'est pas encore chargé
   const fallbackNames = {
-    MAIN_HALL: 'Bâtiment principal', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
+    BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
     WAREHOUSE: 'Dépôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
     FARM: 'Ferme', LUMBER: 'Bûcheron', QUARRY: 'Carrière', IRON_MINE: 'Mine de fer',
     WALL: 'Mur', MOAT: 'Douves', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',

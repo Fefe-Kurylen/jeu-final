@@ -1,40 +1,11 @@
 {
   "buildings": [
     {
-      "key": "MAIN_HALL",
-      "name": "Bâtiment principal",
-      "category": "BASE",
-      "maxLevel": 30,
-      "prereq": [],
-      "costL1": {
-        "wood": 200,
-        "stone": 200,
-        "iron": 150,
-        "food": 50
-      },
-      "costL30": {
-        "wood": 2500000,
-        "stone": 2600000,
-        "iron": 2400000,
-        "food": 1400000
-      },
-      "timeL1Sec": 180,
-      "timeL30Sec": 2520000,
-      "effects": {
-        "buildTimeReductionPctPerLevel": 2.5
-      }
-    },
-    {
       "key": "RALLY_POINT",
       "name": "Place de rassemblement",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 120,
         "stone": 100,
@@ -64,10 +35,6 @@
       "maxLevel": 20,
       "prereq": [
         {
-          "key": "MAIN_HALL",
-          "level": 3
-        },
-        {
           "key": "SILO",
           "level": 1
         },
@@ -92,8 +59,8 @@
       "timeL20Sec": 86400,
       "effects": {
         "serverMarketTaxPctBase": 30,
-        "serverMarketTaxReductionPctPerLevel": 1.0,
-        "playerTransportBonusPctPerLevel": 5.0
+        "serverMarketTaxReductionPctPerLevel": 1,
+        "playerTransportBonusPctPerLevel": 5
       }
     },
     {
@@ -105,10 +72,6 @@
         {
           "key": "RALLY_POINT",
           "level": 1
-        },
-        {
-          "key": "MAIN_HALL",
-          "level": 3
         }
       ],
       "costL1": {
@@ -180,10 +143,6 @@
         {
           "key": "ACADEMY",
           "level": 10
-        },
-        {
-          "key": "MAIN_HALL",
-          "level": 5
         }
       ],
       "costL1": {
@@ -201,7 +160,7 @@
       "timeL1Sec": 3600,
       "timeL20Sec": 108000,
       "effects": {
-        "trainTimeReductionPctPerLevel": 4.0
+        "trainTimeReductionPctPerLevel": 4
       }
     },
     {
@@ -209,12 +168,7 @@
       "name": "Académie",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 3
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 220,
         "stone": 200,
@@ -230,8 +184,8 @@
       "timeL1Sec": 1800,
       "timeL20Sec": 72000,
       "effects": {
-        "researchTimeReductionPctPerLevel": 1.0,
-        "buildTimeReductionPctPerLevel": 1.0
+        "researchTimeReductionPctPerLevel": 1,
+        "buildTimeReductionPctPerLevel": 1
       }
     },
     {
@@ -239,12 +193,7 @@
       "name": "Forge",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 5
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 300,
         "stone": 250,
@@ -269,12 +218,7 @@
       "name": "Ferme",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 75,
         "stone": 90,
@@ -300,12 +244,7 @@
       "name": "Bûcheron",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 40,
         "stone": 100,
@@ -331,12 +270,7 @@
       "name": "Carrière de pierre",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 80,
         "stone": 40,
@@ -362,12 +296,7 @@
       "name": "Mine de fer",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 100,
         "stone": 80,
@@ -393,12 +322,7 @@
       "name": "Silo à céréales",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 80,
         "stone": 100,
@@ -423,12 +347,7 @@
       "name": "Dépôt de ressources",
       "category": "BASE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 130,
         "stone": 160,
@@ -453,12 +372,7 @@
       "name": "Cachette",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 100,
         "stone": 150,
@@ -474,7 +388,7 @@
       "timeL1Sec": 180,
       "timeL20Sec": 86400,
       "effects": {
-        "hiddenPctMax": 20.0
+        "hiddenPctMax": 20
       }
     },
     {
@@ -482,12 +396,7 @@
       "name": "Tente de soins",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 1
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 220,
         "stone": 180,
@@ -511,12 +420,7 @@
       "name": "Mur",
       "category": "ADVANCED",
       "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 3
-        }
-      ],
+      "prereq": [],
       "costL1": {
         "wood": 70,
         "stone": 90,
@@ -532,8 +436,8 @@
       "timeL1Sec": 1800,
       "timeL20Sec": 172800,
       "effects": {
-        "wallRegenBonusPctPerLevel": 1.0,
-        "defenderDefenseBonusPctPerLevel": 1.0
+        "wallRegenBonusPctPerLevel": 1,
+        "defenderDefenseBonusPctPerLevel": 1
       }
     },
     {
@@ -542,10 +446,6 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 10
-        },
         {
           "key": "WALL",
           "level": 5
@@ -576,10 +476,23 @@
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
-        { "key": "FARM", "level": 5 }
+        {
+          "key": "FARM",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 440, "stone": 389, "iron": 450, "food": 1200 },
-      "costL5": { "wood": 5500, "stone": 4556, "iron": 3556, "food": 13000 },
+      "costL1": {
+        "wood": 440,
+        "stone": 389,
+        "iron": 450,
+        "food": 1200
+      },
+      "costL5": {
+        "wood": 5500,
+        "stone": 4556,
+        "iron": 3556,
+        "food": 13000
+      },
       "timeL1Sec": 1800,
       "timeL5Sec": 19020,
       "effects": {
@@ -594,12 +507,27 @@
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
-        { "key": "FARM", "level": 10 },
-        { "key": "MAIN_HALL", "level": 5 },
-        { "key": "MILL", "level": 5 }
+        {
+          "key": "FARM",
+          "level": 10
+        },
+        {
+          "key": "MILL",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 1200, "stone": 1440, "iron": 870, "food": 1600 },
-      "costL5": { "wood": 12400, "stone": 15467, "iron": 9135, "food": 17000 },
+      "costL1": {
+        "wood": 1200,
+        "stone": 1440,
+        "iron": 870,
+        "food": 1600
+      },
+      "costL5": {
+        "wood": 12400,
+        "stone": 15467,
+        "iron": 9135,
+        "food": 17000
+      },
       "timeL1Sec": 4620,
       "timeL5Sec": 28380,
       "effects": {
@@ -614,11 +542,23 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "TREASURE_CHAMBER", "level": 5 }
+        {
+          "key": "TREASURE_CHAMBER",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 400, "stone": 500, "iron": 350, "food": 100 },
-      "costL20": { "wood": 80000, "stone": 110000, "iron": 60000, "food": 30000 },
+      "costL1": {
+        "wood": 400,
+        "stone": 500,
+        "iron": 350,
+        "food": 100
+      },
+      "costL20": {
+        "wood": 80000,
+        "stone": 110000,
+        "iron": 60000,
+        "food": 30000
+      },
       "timeL1Sec": 6960,
       "timeL20Sec": 172800,
       "effects": {
@@ -633,11 +573,23 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "TREASURE_CHAMBER", "level": 5 }
+        {
+          "key": "TREASURE_CHAMBER",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 400, "stone": 500, "iron": 350, "food": 100 },
-      "costL20": { "wood": 80000, "stone": 110000, "iron": 60000, "food": 30000 },
+      "costL1": {
+        "wood": 400,
+        "stone": 500,
+        "iron": 350,
+        "food": 100
+      },
+      "costL20": {
+        "wood": 80000,
+        "stone": 110000,
+        "iron": 60000,
+        "food": 30000
+      },
       "timeL1Sec": 6960,
       "timeL20Sec": 172800,
       "effects": {
@@ -652,10 +604,23 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "BARRACKS", "level": 20 }
+        {
+          "key": "BARRACKS",
+          "level": 20
+        }
       ],
-      "costL1": { "wood": 620, "stone": 420, "iron": 780, "food": 130 },
-      "costL20": { "wood": 70000, "stone": 45000, "iron": 85000, "food": 10000 },
+      "costL1": {
+        "wood": 620,
+        "stone": 420,
+        "iron": 780,
+        "food": 130
+      },
+      "costL20": {
+        "wood": 70000,
+        "stone": 45000,
+        "iron": 85000,
+        "food": 10000
+      },
       "timeL1Sec": 1980,
       "timeL20Sec": 63000,
       "effects": {
@@ -665,7 +630,7 @@
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
-        "trainTimeReductionPctPerLevel": 4.0
+        "trainTimeReductionPctPerLevel": 4
       },
       "description": "Permet de recruter de l'infanterie et archers hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
     },
@@ -675,10 +640,23 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "STABLE", "level": 20 }
+        {
+          "key": "STABLE",
+          "level": 20
+        }
       ],
-      "costL1": { "wood": 620, "stone": 420, "iron": 780, "food": 130 },
-      "costL20": { "wood": 70000, "stone": 45000, "iron": 85000, "food": 10000 },
+      "costL1": {
+        "wood": 620,
+        "stone": 420,
+        "iron": 780,
+        "food": 130
+      },
+      "costL20": {
+        "wood": 70000,
+        "stone": 45000,
+        "iron": 85000,
+        "food": 10000
+      },
       "timeL1Sec": 1980,
       "timeL20Sec": 63000,
       "effects": {
@@ -687,7 +665,7 @@
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
-        "trainTimeReductionPctPerLevel": 4.0
+        "trainTimeReductionPctPerLevel": 4
       },
       "description": "Permet de recruter de la cavalerie hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
     },
@@ -696,11 +674,19 @@
       "name": "Ambassade",
       "category": "ADVANCED",
       "maxLevel": 20,
-      "prereq": [
-        { "key": "MAIN_HALL", "level": 1 }
-      ],
-      "costL1": { "wood": 80, "stone": 130, "iron": 150, "food": 80 },
-      "costL20": { "wood": 19900, "stone": 14500, "iron": 19589, "food": 9876 },
+      "prereq": [],
+      "costL1": {
+        "wood": 80,
+        "stone": 130,
+        "iron": 150,
+        "food": 80
+      },
+      "costL20": {
+        "wood": 19900,
+        "stone": 14500,
+        "iron": 19589,
+        "food": 9876
+      },
       "timeL1Sec": 1980,
       "timeL20Sec": 63120,
       "effects": {
@@ -720,11 +706,19 @@
       "name": "Chambre au Trésor",
       "category": "ADVANCED",
       "maxLevel": 20,
-      "prereq": [
-        { "key": "MAIN_HALL", "level": 10 }
-      ],
-      "costL1": { "wood": 2880, "stone": 2780, "iron": 2580, "food": 990 },
-      "costL20": { "wood": 232000, "stone": 221000, "iron": 208000, "food": 79000 },
+      "prereq": [],
+      "costL1": {
+        "wood": 2880,
+        "stone": 2780,
+        "iron": 2580,
+        "food": 990
+      },
+      "costL20": {
+        "wood": 232000,
+        "stone": 221000,
+        "iron": 208000,
+        "food": 79000
+      },
       "timeL1Sec": 7980,
       "timeL20Sec": 162000,
       "effects": {
@@ -740,11 +734,19 @@
       "name": "Domus du Héros",
       "category": "ADVANCED",
       "maxLevel": 20,
-      "prereq": [
-        { "key": "MAIN_HALL", "level": 1 }
-      ],
-      "costL1": { "wood": 700, "stone": 670, "iron": 700, "food": 240 },
-      "costL20": { "wood": 180000, "stone": 167000, "iron": 158000, "food": 40000 },
+      "prereq": [],
+      "costL1": {
+        "wood": 700,
+        "stone": 670,
+        "iron": 700,
+        "food": 240
+      },
+      "costL20": {
+        "wood": 180000,
+        "stone": 167000,
+        "iron": 158000,
+        "food": 40000
+      },
       "timeL1Sec": 2280,
       "timeL20Sec": 39600,
       "effects": {
@@ -762,11 +764,23 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 1 },
-        { "key": "BARRACKS", "level": 1 }
+        {
+          "key": "BARRACKS",
+          "level": 1
+        }
       ],
-      "costL1": { "wood": 140, "stone": 200, "iron": 180, "food": 30 },
-      "costL20": { "wood": 110000, "stone": 130000, "iron": 80000, "food": 20000 },
+      "costL1": {
+        "wood": 140,
+        "stone": 200,
+        "iron": 180,
+        "food": 30
+      },
+      "costL20": {
+        "wood": 110000,
+        "stone": 130000,
+        "iron": 80000,
+        "food": 20000
+      },
       "timeL1Sec": 1980,
       "timeL20Sec": 108000,
       "effects": {
@@ -793,11 +807,23 @@
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
-        { "key": "IRON_MINE", "level": 10 },
-        { "key": "MAIN_HALL", "level": 5 }
+        {
+          "key": "IRON_MINE",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 300, "stone": 450, "iron": 500, "food": 120 },
-      "costL5": { "wood": 2500, "stone": 4750, "iron": 5330, "food": 1260 },
+      "costL1": {
+        "wood": 300,
+        "stone": 450,
+        "iron": 500,
+        "food": 120
+      },
+      "costL5": {
+        "wood": 2500,
+        "stone": 4750,
+        "iron": 5330,
+        "food": 1260
+      },
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
@@ -813,11 +839,23 @@
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
-        { "key": "QUARRY", "level": 10 },
-        { "key": "MAIN_HALL", "level": 5 }
+        {
+          "key": "QUARRY",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 450, "stone": 500, "iron": 300, "food": 120 },
-      "costL5": { "wood": 4750, "stone": 5330, "iron": 2500, "food": 1260 },
+      "costL1": {
+        "wood": 450,
+        "stone": 500,
+        "iron": 300,
+        "food": 120
+      },
+      "costL5": {
+        "wood": 4750,
+        "stone": 5330,
+        "iron": 2500,
+        "food": 1260
+      },
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
@@ -833,11 +871,23 @@
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
-        { "key": "LUMBER", "level": 10 },
-        { "key": "MAIN_HALL", "level": 5 }
+        {
+          "key": "LUMBER",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 500, "stone": 450, "iron": 300, "food": 120 },
-      "costL5": { "wood": 5330, "stone": 4750, "iron": 2500, "food": 1260 },
+      "costL1": {
+        "wood": 500,
+        "stone": 450,
+        "iron": 300,
+        "food": 120
+      },
+      "costL5": {
+        "wood": 5330,
+        "stone": 4750,
+        "iron": 2500,
+        "food": 1260
+      },
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
@@ -852,11 +902,19 @@
       "name": "Résidence",
       "category": "ADVANCED",
       "maxLevel": 20,
-      "prereq": [
-        { "key": "MAIN_HALL", "level": 5 }
-      ],
-      "costL1": { "wood": 700, "stone": 500, "iron": 300, "food": 1200 },
-      "costL20": { "wood": 60000, "stone": 40000, "iron": 70000, "food": 100000 },
+      "prereq": [],
+      "costL1": {
+        "wood": 700,
+        "stone": 500,
+        "iron": 300,
+        "food": 1200
+      },
+      "costL20": {
+        "wood": 60000,
+        "stone": 40000,
+        "iron": 70000,
+        "food": 100000
+      },
       "timeL1Sec": 1980,
       "timeL20Sec": 86400,
       "effects": {
@@ -867,7 +925,12 @@
         "unlockSettlerL15": 2,
         "unlockSettlerL20": 3,
         "settlerTrainTimeSec": 10800,
-        "settlerCost": { "wood": 0, "stone": 0, "iron": 0, "food": 0 },
+        "settlerCost": {
+          "wood": 0,
+          "stone": 0,
+          "iron": 0,
+          "food": 0
+        },
         "settlerVulnerable": true,
         "cityFoundationTimeSec": 86400,
         "secondaryCityBonusPct": 20
@@ -880,16 +943,28 @@
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MARKET", "level": 10 },
-        { "key": "MAIN_HALL", "level": 10 }
+        {
+          "key": "MARKET",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 1400, "stone": 1200, "iron": 1000, "food": 400 },
-      "costL20": { "wood": 95000, "stone": 82000, "iron": 68000, "food": 27000 },
+      "costL1": {
+        "wood": 1400,
+        "stone": 1200,
+        "iron": 1000,
+        "food": 400
+      },
+      "costL20": {
+        "wood": 95000,
+        "stone": 82000,
+        "iron": 68000,
+        "food": 27000
+      },
       "timeL1Sec": 3600,
       "timeL20Sec": 259200,
       "effects": {
-        "p2pTaxReductionPctPerLevel": 1.0,
-        "armyTransportCapacityBonusPctPerLevel": 1.0
+        "p2pTaxReductionPctPerLevel": 1,
+        "armyTransportCapacityBonusPctPerLevel": 1
       },
       "description": "Réduit la taxe P2P de 1% par niveau et augmente la capacité de transport des armées lors du commerce entre joueurs de 1% par niveau."
     },
@@ -900,11 +975,23 @@
       "faction": "ROME",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "HEALING_TENT", "level": 5 }
+        {
+          "key": "HEALING_TENT",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 1800, "stone": 2200, "iron": 1400, "food": 600 },
-      "costL20": { "wood": 120000, "stone": 150000, "iron": 95000, "food": 40000 },
+      "costL1": {
+        "wood": 1800,
+        "stone": 2200,
+        "iron": 1400,
+        "food": 600
+      },
+      "costL20": {
+        "wood": 120000,
+        "stone": 150000,
+        "iron": 95000,
+        "food": 40000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
@@ -922,17 +1009,29 @@
       "faction": "GAUL",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "FARM", "level": 10 }
+        {
+          "key": "FARM",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 1600, "stone": 1400, "iron": 1200, "food": 800 },
-      "costL20": { "wood": 110000, "stone": 95000, "iron": 82000, "food": 55000 },
+      "costL1": {
+        "wood": 1600,
+        "stone": 1400,
+        "iron": 1200,
+        "food": 800
+      },
+      "costL20": {
+        "wood": 110000,
+        "stone": 95000,
+        "iron": 82000,
+        "food": 55000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
         "factionOnly": "GAUL",
         "uniqueBuilding": true,
-        "siegeDefenseBonusPctPerLevel": 1.0
+        "siegeDefenseBonusPctPerLevel": 1
       },
       "description": "Bâtiment exclusif Gaule. Augmente la défense des unités de 1% par niveau lors d'un siège subi."
     },
@@ -943,17 +1042,29 @@
       "faction": "GREEK",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "ACADEMY", "level": 10 }
+        {
+          "key": "ACADEMY",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 2000, "stone": 2500, "iron": 1000, "food": 500 },
-      "costL20": { "wood": 135000, "stone": 170000, "iron": 68000, "food": 34000 },
+      "costL1": {
+        "wood": 2000,
+        "stone": 2500,
+        "iron": 1000,
+        "food": 500
+      },
+      "costL20": {
+        "wood": 135000,
+        "stone": 170000,
+        "iron": 68000,
+        "food": 34000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
         "factionOnly": "GREEK",
         "uniqueBuilding": true,
-        "researchTimeReductionPctPerLevel": 1.0,
+        "researchTimeReductionPctPerLevel": 1,
         "deathReductionPctPerLevel": 0.5
       },
       "description": "Bâtiment exclusif Grèce. Réduit le temps de recherche de 1% par niveau et réduit les morts en bataille de 0.5% par niveau."
@@ -965,17 +1076,29 @@
       "faction": "EGYPT",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "FARM", "level": 10 }
+        {
+          "key": "FARM",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 1400, "stone": 1800, "iron": 1000, "food": 300 },
-      "costL20": { "wood": 95000, "stone": 122000, "iron": 68000, "food": 20000 },
+      "costL1": {
+        "wood": 1400,
+        "stone": 1800,
+        "iron": 1000,
+        "food": 300
+      },
+      "costL20": {
+        "wood": 95000,
+        "stone": 122000,
+        "iron": 68000,
+        "food": 20000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
         "factionOnly": "EGYPT",
         "uniqueBuilding": true,
-        "globalProductionBonusPctPerLevel": 1.0,
+        "globalProductionBonusPctPerLevel": 1,
         "marchSpeedBonusPctPerLevel": 0.5
       },
       "description": "Bâtiment exclusif Égypte. Augmente la production de toutes les villes de 1% par niveau et la vitesse de marche de 0.5% par niveau."
@@ -987,11 +1110,23 @@
       "faction": "HUN",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "STABLE", "level": 10 }
+        {
+          "key": "STABLE",
+          "level": 10
+        }
       ],
-      "costL1": { "wood": 1200, "stone": 800, "iron": 1600, "food": 600 },
-      "costL20": { "wood": 82000, "stone": 55000, "iron": 110000, "food": 40000 },
+      "costL1": {
+        "wood": 1200,
+        "stone": 800,
+        "iron": 1600,
+        "food": 600
+      },
+      "costL20": {
+        "wood": 82000,
+        "stone": 55000,
+        "iron": 110000,
+        "food": 40000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
@@ -1009,11 +1144,23 @@
       "faction": "SULTAN",
       "maxLevel": 20,
       "prereq": [
-        { "key": "MAIN_HALL", "level": 10 },
-        { "key": "MARKET", "level": 5 }
+        {
+          "key": "MARKET",
+          "level": 5
+        }
       ],
-      "costL1": { "wood": 1000, "stone": 1200, "iron": 1400, "food": 500 },
-      "costL20": { "wood": 68000, "stone": 82000, "iron": 95000, "food": 34000 },
+      "costL1": {
+        "wood": 1000,
+        "stone": 1200,
+        "iron": 1400,
+        "food": 500
+      },
+      "costL20": {
+        "wood": 68000,
+        "stone": 82000,
+        "iron": 95000,
+        "food": 34000
+      },
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {

@@ -1297,15 +1297,17 @@ tr.marked, .list-item.marked {
 
 .map-info-panel {
   position: absolute;
-  bottom: 15px;
+  bottom: 65px;
   left: 15px;
   width: 300px;
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
   background: linear-gradient(180deg, rgba(74,60,42,0.98) 0%, rgba(42,36,24,0.98) 100%);
   border: 3px solid #8b6914;
   border-radius: 8px;
   padding: 0;
   z-index: 50;
-  overflow: hidden;
+  overflow-x: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 
@@ -1710,7 +1712,7 @@ tr.marked, .list-item.marked {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 400;
+  z-index: 499;
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -2185,7 +2187,7 @@ tr.marked, .list-item.marked {
 /* ========== TOAST ========== */
 .toast {
   position: fixed;
-  bottom: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(100px);
   padding: 10px 20px;
@@ -2197,6 +2199,7 @@ tr.marked, .list-item.marked {
   opacity: 0;
   transition: all 0.3s;
   z-index: 2000;
+  max-width: calc(100vw - 40px);
 }
 .toast.show {
   transform: translateX(-50%) translateY(0);
@@ -2521,7 +2524,7 @@ tr.marked, .list-item.marked {
   .resource-box { min-width: 60px; padding: 3px 5px 2px; }
   .res-icon { font-size: 16px; }
   .res-current { font-size: 12px; }
-  .res-timer { font-size: 9px; padding: 1px 3px; }
+  .res-timer { display: none; }
   .res-sub { display: none; }
   .res-bar { display: none; }
   .player-info-box { display: none; }
@@ -3674,6 +3677,7 @@ tr.marked, .list-item.marked {
   border-top: 2px solid #5a4a3a;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
   padding: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-inner {
@@ -4033,4 +4037,175 @@ tr.marked, .list-item.marked {
   .bnav-icon { font-size: 20px; }
   .bnav-village-info .village-coords { display: none; }
   .bnav-village-info .village-tier { display: none; }
+}
+
+/* ========== MOBILE / CAPACITOR APP SUPPORT ========== */
+
+/* Safe area insets for notch/island devices */
+.mobile-device {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.capacitor-app {
+  padding-top: var(--safe-top);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Use real viewport height on mobile (fixes 100vh issue) */
+.mobile-device .screen {
+  min-height: calc(var(--vh, 1vh) * 100);
+}
+
+/* Larger touch targets on mobile */
+.mobile-device button,
+.mobile-device .btn,
+.mobile-device [onclick] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent text selection on game elements */
+.mobile-device canvas,
+.mobile-device .game-header,
+.mobile-device .bottom-nav {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+/* Allow text selection in inputs and chat */
+.mobile-device input,
+.mobile-device textarea,
+.mobile-device .chat-messages {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Smooth scrolling for modals on mobile */
+.mobile-device .modal-body,
+.mobile-device .panel-body,
+.mobile-device .map-info-panel {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Bottom nav safe area for notch devices */
+.capacitor-app .bottom-nav {
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Toast safe area for notch devices */
+.capacitor-app .toast {
+  bottom: calc(20px + var(--safe-bottom));
+}
+
+/* Resource bar - adjust for status bar */
+.capacitor-app .game-header {
+  padding-top: calc(var(--safe-top) + 4px);
+}
+
+/* Map info panel - responsive width on mobile */
+.mobile-device .map-info-panel {
+  width: calc(100vw - 30px);
+  max-width: 300px;
+  left: 8px;
+  bottom: 60px;
+}
+
+/* Build panel - ensure fit on small screens */
+.mobile-device .build-panel {
+  width: 98%;
+  max-width: 98vw;
+  max-height: 80vh;
+}
+
+/* Touch feedback - :active states mirror :hover for touch devices */
+@media (hover: none) and (pointer: coarse) {
+  /* Disable hover transforms on touch - use active instead */
+  .btn:hover, button:hover { transform: none; box-shadow: none; }
+  .btn:active, button:active {
+    transform: scale(0.97);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    filter: brightness(1.1);
+  }
+
+  .btn-primary:active, .upgrade-building-btn:active, .recruit-btn:active {
+    background: linear-gradient(180deg, #8bc34a 0%, #689f38 50%, #33691e 100%);
+    border-color: #9ccc65;
+  }
+
+  .btn-danger:active {
+    background: linear-gradient(180deg, #ef5350 0%, #e53935 50%, #c62828 100%);
+    border-color: #ff5252;
+  }
+
+  .btn-secondary:active {
+    background: linear-gradient(180deg, #6a5a4a 0%, #5a4a3a 50%, #4a3c2a 100%);
+    border-color: #a08060;
+  }
+
+  tr:active, .list-item:active, .queue-item:active, .card:active {
+    background: rgba(201, 162, 39, 0.1) !important;
+  }
+
+  .bnav-tab:active {
+    background: rgba(201, 162, 39, 0.2);
+  }
+
+  .building-tab:active {
+    background: rgba(201, 162, 39, 0.15);
+  }
+
+  .toolbar-btn:active, .map-btn:active {
+    background: rgba(201, 162, 39, 0.2);
+  }
+
+  .modal-close:active, .panel-close:active {
+    color: var(--red-light);
+  }
+
+  .faction-option:active { transform: translateY(-1px); }
+  .bnav-village-arrow:active { background: rgba(201, 162, 39, 0.3); }
+  .stat-plus-btn:active { background: rgba(74, 124, 35, 0.3); }
+  .equip-slot:active { border-color: var(--gold); }
+  .inventory-item:active { border-color: var(--gold); }
+  .garrison-unit-compact:active { background: rgba(201, 162, 39, 0.15); }
+
+  /* Hide tooltips on touch devices (use tap instead) */
+  .city-tooltip, .fields-tooltip, #city-tooltip, #fields-tooltip {
+    display: none !important;
+  }
+}
+
+/* Fix small font sizes on mobile */
+.mobile-device .online-status-badge { font-size: 10px; }
+.mobile-device .faction-bonus { font-size: 11px; }
+.mobile-device .mission-alert { font-size: 11px; }
+
+/* Mobile landscape adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+  .mobile-device .game-header { height: 35px; font-size: 11px; }
+  .mobile-device .bottom-nav { height: 40px; }
+  .mobile-device .bnav-icon { font-size: 16px; }
+  .mobile-device .bnav-label { display: none; }
+  .mobile-device .map-info-panel { bottom: 45px; max-height: 50vh; }
+}
+
+/* Small phone adjustments (< 380px) */
+@media (max-width: 380px) {
+  .mobile-device .res-item { padding: 0 4px; font-size: 10px; }
+  .mobile-device .modal { width: 95vw !important; max-width: 95vw !important; }
+  .mobile-device .auth-box { width: 95%; padding: 15px; }
+  .mobile-device .map-info-panel { width: calc(100vw - 16px); left: 4px; }
+}
+
+/* Standard phone adjustments (< 600px) */
+@media (max-width: 600px) {
+  .mobile-device .build-panel { max-height: 85vh; }
+  .mobile-device .modal-box { width: 95%; }
 }

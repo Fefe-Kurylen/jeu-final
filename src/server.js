@@ -1598,15 +1598,16 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
     
     await prisma.army.update({
       where: { id: army.id },
-      data: { 
+      data: {
         status: 'MOVING',
         targetX: x,
         targetY: y,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'MOVE'
       }
     });
-    
+
     res.json({ message: 'Armee en mouvement', travelTime, arrivalAt });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1667,6 +1668,7 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
         targetX: targetCity.x,
         targetY: targetCity.y,
         targetCityId: targetCity.id,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'ATTACK'
       }
@@ -1715,11 +1717,12 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
         targetX: targetCity.x,
         targetY: targetCity.y,
         targetCityId: targetCity.id,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'RAID'
       }
     });
-    
+
     res.json({ message: 'Raid lance', travelTime, arrivalAt, target: targetCity.name });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1804,6 +1807,7 @@ app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
         targetX: node.x,
         targetY: node.y,
         targetResourceId: node.id,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'RAID_RESOURCE'
       }
@@ -2043,6 +2047,7 @@ app.post('/api/army/:id/collect-resource', auth, async (req, res) => {
           targetX: node.x,
           targetY: node.y,
           targetResourceId: node.id,
+          arrivesAt: new Date(),
           arrivalAt,
           missionType: 'MOVE_TO_HARVEST',
           harvestResourceType: node.resourceType
@@ -2120,6 +2125,7 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
         status: 'RETURNING',
         targetX: army.city.x,
         targetY: army.city.y,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'RETURN',
         targetResourceId: null,
@@ -2615,6 +2621,7 @@ app.post('/api/army/:id/spy', auth, async (req, res) => {
         targetX: targetCity.x,
         targetY: targetCity.y,
         targetCityId: targetCity.id,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'SPY'
       }
@@ -2745,6 +2752,7 @@ app.post('/api/army/:id/transport', auth, async (req, res) => {
         targetX: targetCity.x,
         targetY: targetCity.y,
         targetCityId: targetCity.id,
+        arrivesAt: new Date(),
         arrivalAt,
         missionType: 'TRANSPORT',
         carryWood: wood || 0,
@@ -2974,6 +2982,26 @@ app.post('/api/market/npc-trade', auth, async (req, res) => {
     });
 
     res.json({ given: giveAmount, received: actualReceived, giveResource, receiveResource });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== TRADE HISTORY ==========
+app.get('/api/reports/trade', auth, async (req, res) => {
+  try {
+    const offers = await prisma.marketOffer.findMany({
+      where: {
+        OR: [
+          { sellerId: req.user.playerId },
+          { buyerId: req.user.playerId }
+        ],
+        status: { in: ['COMPLETED', 'CANCELLED'] }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(offers);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -3316,12 +3344,12 @@ setInterval(async () => {
               const lootResult = await collectResourceLoot(army, node, army.ownerId);
               await prisma.army.update({
                 where: { id: army.id },
-                data: { status: 'RETURNING', missionType: 'RETURNING', targetX: army.x, targetY: army.y, arrivalAt: new Date(Date.now() + 60000) }
+                data: { status: 'RETURNING', missionType: 'RETURNING', targetX: army.x, targetY: army.y, arrivesAt: new Date(), arrivalAt: new Date(Date.now() + 60000) }
               });
             } else {
               await prisma.army.update({
                 where: { id: army.id },
-                data: { status: 'RETURNING', missionType: 'RETURNING', arrivalAt: new Date(Date.now() + 60000) }
+                data: { status: 'RETURNING', missionType: 'RETURNING', arrivesAt: new Date(), arrivalAt: new Date(Date.now() + 60000) }
               });
             }
           } else {
@@ -3331,10 +3359,10 @@ setInterval(async () => {
             });
           }
         } else if (army.missionType === 'MOVE' || army.status === 'MOVING') {
-          // Simple move - just update position and set IDLE
+          // Simple move - update position and set IDLE
           await prisma.army.update({
             where: { id: army.id },
-            data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null }
+            data: { x: army.targetX, y: army.targetY, status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, arrivesAt: null, missionType: null }
           });
           console.log(`[MOVE] ${army.name} arrived at (${army.targetX}, ${army.targetY})`);
         }
@@ -3357,9 +3385,10 @@ setInterval(async () => {
           }
           await prisma.army.update({
             where: { id: army.id },
-            data: { 
-              status: 'IDLE', 
-              targetX: null, targetY: null, arrivalAt: null, missionType: null,
+            data: {
+              x: army.targetX || army.x, y: army.targetY || army.y,
+              status: 'IDLE',
+              targetX: null, targetY: null, arrivalAt: null, arrivesAt: null, missionType: null,
               carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0
             }
           });
@@ -3529,11 +3558,13 @@ setInterval(async () => {
               await prisma.army.update({
                 where: { id: army.id },
                 data: {
+                  x: army.targetX, y: army.targetY,
                   status: 'RETURNING',
                   targetX: homeCity.x,
                   targetY: homeCity.y,
                   targetCityId: null,
                   missionType: 'RETURN',
+                  arrivesAt: new Date(),
                   arrivalAt: new Date(Date.now() + travelTime * 1000)
                 }
               });
@@ -3654,11 +3685,13 @@ setInterval(async () => {
                 await prisma.army.update({
                   where: { id: army.id },
                   data: {
+                    x: army.targetX, y: army.targetY,
                     status: 'RETURNING',
                     targetX: homeCity.x,
                     targetY: homeCity.y,
                     targetCityId: null,
                     missionType: 'RETURN',
+                    arrivesAt: new Date(),
                     arrivalAt: new Date(Date.now() + travelTime * 1000),
                     carryWood, carryStone, carryIron, carryFood
                   }
@@ -3740,6 +3773,7 @@ setInterval(async () => {
                   targetY: homeCity.y,
                   targetCityId: null,
                   missionType: 'RETURN',
+                  arrivesAt: new Date(),
                   arrivalAt: new Date(Date.now() + travelTime * 1000)
                 }
               });
@@ -3779,6 +3813,7 @@ setInterval(async () => {
                   targetY: homeCity.y,
                   targetCityId: null,
                   missionType: 'RETURN',
+                  arrivesAt: new Date(),
                   arrivalAt: new Date(Date.now() + travelTime * 1000),
                   carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0
                 }
@@ -3869,6 +3904,7 @@ setInterval(async () => {
                 targetX: army.city.x,
                 targetY: army.city.y,
                 missionType: 'RETURN',
+                arrivesAt: new Date(),
                 arrivalAt: new Date(Date.now() + travelTime * 1000),
                 harvestStartedAt: null,
                 harvestResourceType: null
@@ -3918,6 +3954,7 @@ setInterval(async () => {
                 targetX: army.city.x,
                 targetY: army.city.y,
                 missionType: 'RETURN',
+                arrivesAt: new Date(),
                 arrivalAt: new Date(Date.now() + travelTime * 1000),
                 targetResourceId: null,
                 harvestStartedAt: null,
