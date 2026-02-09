@@ -836,6 +836,20 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
     const maxLevel = buildingDef?.maxLevel || 20;
     if (targetLevel > maxLevel) return res.status(400).json({ error: `Niveau max atteint (${maxLevel})` });
 
+    // MAIN_HALL is unique per city (1 only, at slot 0)
+    if (buildingKey === 'MAIN_HALL' && existing && !slot) {
+      // MAIN_HALL already exists - only allow upgrade, not duplicate
+    }
+
+    // Other buildings cannot exceed the current MAIN_HALL level
+    if (buildingKey !== 'MAIN_HALL') {
+      const mainHall = city.buildings.find(b => b.key === 'MAIN_HALL');
+      const mainHallLevel = mainHall?.level || 1;
+      if (targetLevel > mainHallLevel) {
+        return res.status(400).json({ error: `Le niveau du bâtiment ne peut pas dépasser celui du Bâtiment principal (Niv.${mainHallLevel})` });
+      }
+    }
+
     // Calculate cost
     const baseCost = buildingDef?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
     const mult = Math.pow(1.5, targetLevel - 1);
@@ -4094,7 +4108,8 @@ async function seedResourceNodes() {
     SULTAN: { base: ['SUL_INF_DESERT', 'SUL_ARC_DESERT', 'SUL_CAV_BEDOUIN'], inter: ['SUL_INF_CROISSANT', 'SUL_ARC_TIREUR'] }
   };
 
-  const { worldSize } = await getWorldSize();
+  // Always use BASE_WORLD_SIZE for resource distribution (matching frontend 374x374)
+  const worldSize = BASE_WORLD_SIZE;
   const half = Math.floor(worldSize / 2);
   const RES_TOTAL = Math.min(30000, Math.floor(worldSize * worldSize * 0.2));
   const GOLD_TOTAL = Math.floor(RES_TOTAL * 0.13);

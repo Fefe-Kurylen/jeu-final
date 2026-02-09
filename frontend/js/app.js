@@ -4486,12 +4486,17 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
       const level = building?.level || 0;
       const production = building?.prodPerHour || 0;
+      const cvMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+      const cvMainHallLevel = cvMainHall?.level || 1;
+      const cvFieldDef = buildingsData?.find(b => b.key === slot.fieldType);
+      const cvFieldMax = cvFieldDef?.maxLevel || 20;
+      const cvEffectiveMax = Math.min(cvFieldMax, cvMainHallLevel);
 
       html = `
         <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
-        <p class="tt-level">Niveau ${level}/20</p>
+        <p class="tt-level">Niveau ${level}/${cvEffectiveMax}</p>
         ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
-        <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : 'Cliquez pour améliorer'}</p>
+        <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= cvEffectiveMax ? (level >= cvFieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${cvMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
       `;
     }
   } else {
@@ -4501,26 +4506,29 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
     if (building) {
       const def = buildingsData?.find(b => b.key === building.key);
       const maxLevel = def?.maxLevel || 20;
+      const ttMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+      const ttMainHallLevel = ttMainHall?.level || 1;
+      const ttEffectiveMax = building.key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, ttMainHallLevel);
       const production = building.prodPerHour || 0;
       const effect = getBuildingEffect(building.key, building.level);
 
       html = `
         <h4><span class="tt-icon">${BUILDING_ICONS[building.key] || '🏠'}</span> ${getBuildingName(building.key)}</h4>
-        <p class="tt-level">Niveau ${building.level}/${maxLevel}</p>
+        <p class="tt-level">Niveau ${building.level}/${ttEffectiveMax}</p>
         ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
         ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
-        <p class="tt-hint">${building.level < maxLevel ? 'Cliquez pour améliorer' : 'Niveau maximum atteint'}</p>
+        <p class="tt-hint">${building.level < ttEffectiveMax ? 'Cliquez pour améliorer' : building.level >= maxLevel ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${ttMainHallLevel})`}</p>
       `;
     } else if (slot?.fixed) {
       const mainHall = getBuildingAtSlot(0);
       const level = mainHall?.level || 1;
       html = `
-        <h4><span class="tt-icon">🏛️</span> Hôtel de Ville</h4>
+        <h4><span class="tt-icon">🏛️</span> Bâtiment principal</h4>
         <p class="tt-level">Niveau ${level}/30</p>
         <div class="tt-stats">
           <span class="tt-stat">Réduction construction: <span class="tt-stat-value">${(level * 2.5).toFixed(1)}%</span></span>
         </div>
-        <p class="tt-hint">Bâtiment principal</p>
+        <p class="tt-hint">Cliquez pour améliorer</p>
       `;
     } else {
       html = `
@@ -4673,12 +4681,17 @@ function showFieldsTooltip(mouseX, mouseY, slotNum) {
     const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
     const level = building?.level || 0;
     const production = getProductionAtLevel(slot.fieldType, level);
+    const fMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+    const fMainHallLevel = fMainHall?.level || 1;
+    const fieldDef = buildingsData?.find(b => b.key === slot.fieldType);
+    const fieldMax = fieldDef?.maxLevel || 20;
+    const fEffectiveMax = Math.min(fieldMax, fMainHallLevel);
 
     html = `
       <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
-      <p class="tt-level">Niveau ${level}/20</p>
+      <p class="tt-level">Niveau ${level}/${fEffectiveMax}</p>
       ${level > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
-      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : 'Cliquez pour améliorer'}</p>
+      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= fEffectiveMax ? (level >= fieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${fMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
     `;
   }
 
@@ -4728,7 +4741,11 @@ function openBuildPanel(slotNum) {
     const level = building?.level || 1;
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
-    const canUpgrade = level < maxLevel;
+    // Other buildings cannot exceed MAIN_HALL level
+    const mainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+    const mainHallLevel = mainHall?.level || 1;
+    const effectiveMax = key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, mainHallLevel);
+    const canUpgrade = level < effectiveMax;
     const nextLevel = level + 1;
 
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
@@ -4839,8 +4856,9 @@ function openBuildPanel(slotNum) {
             </div>
           ` : `
             <div class="max-level-notice">
-              <span class="max-icon">🏆</span>
-              <p>Niveau maximum atteint !</p>
+              <span class="max-icon">${level >= maxLevel ? '🏆' : '🔒'}</span>
+              <p>${level >= maxLevel ? 'Niveau maximum atteint !' : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
+              ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
               <p class="bonus-max">${bonus}</p>
             </div>
           `}
@@ -4940,15 +4958,19 @@ function openBuildPanel(slotNum) {
     // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
     title.textContent = '🏗️ Construire un bâtiment';
 
-    const availableBuildings = buildingsData.filter(b =>
-      !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)
-    );
+    const availableBuildings = buildingsData.filter(b => {
+      if (['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)) return false;
+      // Filter faction buildings: only show those matching player faction
+      if (b.category === 'FACTION' && b.faction && player?.faction && b.faction !== player.faction) return false;
+      return true;
+    });
 
     // Group by category
     const categories = {
       'BASE': { name: 'Infrastructure', icon: '🏛️', buildings: [] },
       'INTERMEDIATE': { name: 'Militaire', icon: '⚔️', buildings: [] },
-      'ADVANCED': { name: 'Avancé', icon: '🏰', buildings: [] }
+      'ADVANCED': { name: 'Avancé', icon: '🏰', buildings: [] },
+      'FACTION': { name: 'Bâtiment de faction', icon: '🏟️', buildings: [] }
     };
 
     availableBuildings.forEach(b => {
@@ -5720,7 +5742,11 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   const level = building?.level || 1;
   const def = buildingsData.find(b => b.key === buildingKey);
   const maxLevel = def?.maxLevel || 20;
-  const canUpgrade = level < maxLevel;
+  // Other buildings cannot exceed MAIN_HALL level
+  const upMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+  const upMainHallLevel = upMainHall?.level || 1;
+  const upEffectiveMax = buildingKey === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, upMainHallLevel);
+  const canUpgrade = level < upEffectiveMax;
   const nextLevel = level + 1;
   
   let overlay = document.querySelector('.build-panel-overlay');
@@ -5765,7 +5791,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
         </div>
         <div class="building-max-level">
           <span class="max-label">Max</span>
-          <div class="max-circle">${maxLevel}</div>
+          <div class="max-circle">${upEffectiveMax}</div>
         </div>
       </div>
       
@@ -5820,11 +5846,12 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
         </div>
       ` : `
         <div class="max-level-notice">
-          <span class="max-icon">🏆</span>
-          <p>Niveau maximum atteint!</p>
+          <span class="max-icon">${level >= maxLevel ? '🏆' : '🔒'}</span>
+          <p>${level >= maxLevel ? 'Niveau maximum atteint!' : `Limité par le Bâtiment principal (Niv.${upMainHallLevel})`}</p>
+          ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
         </div>
       `}
-      
+
       <button class="back-to-recruit-btn" onclick="closeBuildPanel(); openBuildPanel(${slotNum})">
         ← Retour au recrutement
       </button>
@@ -6345,26 +6372,37 @@ async function loadBuildings() {
 
 function renderBuildings(filter) {
   const grid = document.getElementById('buildings-grid');
-  let buildings = buildingsData;
-  
+  let buildings = buildingsData.filter(b => {
+    // Filter faction buildings: only show those matching player faction
+    if (b.category === 'FACTION' && b.faction && player?.faction && b.faction !== player.faction) return false;
+    return true;
+  });
+
   if (filter !== 'all') {
     buildings = buildings.filter(b => b.category === filter);
   }
   
+  const rbMainHall = currentCity?.buildings?.find(cb => cb.key === 'MAIN_HALL');
+  const rbMainHallLevel = rbMainHall?.level || 1;
+
   grid.innerHTML = buildings.map(b => {
     const existing = currentCity?.buildings?.find(cb => cb.key === b.key);
     const level = existing?.level || 0;
     const nextLevel = level + 1;
-    const canBuild = nextLevel <= b.maxLevel;
-    
+    const rbEffectiveMax = b.key === 'MAIN_HALL' ? b.maxLevel : Math.min(b.maxLevel, rbMainHallLevel);
+    const canBuild = nextLevel <= rbEffectiveMax;
+    const blockedByMainHall = !canBuild && level < b.maxLevel && b.key !== 'MAIN_HALL';
+
     return `
       <div class="card">
         <h3>${BUILDING_ICONS[b.key] || '🏠'} ${b.name}</h3>
-        <p>Niveau actuel: ${level} / ${b.maxLevel}</p>
+        <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
           Coût: 🪵${formatNum(b.costL1?.wood || 50)} 🪨${formatNum(b.costL1?.stone || 50)} ⛏️${formatNum(b.costL1?.iron || 50)} 🌾${formatNum(b.costL1?.food || 50)}
         </div>
-        ${canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` : '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
+        ${canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
+          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">🔒 Bât. principal Niv.${rbMainHallLevel} requis</p>` :
+          '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
       </div>
     `;
   }).join('');
@@ -10651,12 +10689,9 @@ function onMapMouseMove(e) {
     const pixelDy = e.clientY - mapDragStart.y;
     mapDragDistance += Math.abs(pixelDx) + Math.abs(pixelDy);
 
-    // Dragging uses simpler offset (not isometric conversion)
-    const dx = pixelDx / (tileW * 0.5);
-    const dy = pixelDy / (tileH);
-
-    mapOffsetX -= (dx + dy) * 0.5;
-    mapOffsetY -= (dy - dx) * 0.5;
+    // Convert pixel drag to isometric world offset
+    mapOffsetX -= (pixelDx / tileW + pixelDy / tileH);
+    mapOffsetY -= (pixelDy / tileH - pixelDx / tileW);
 
     mapDragStart = { x: e.clientX, y: e.clientY };
     scheduleMapRender(true);
@@ -10755,11 +10790,9 @@ function onMapTouchMove(e) {
     touchDragDistance += Math.abs(pixelDx) + Math.abs(pixelDy);
     mapDragDistance = touchDragDistance;
 
-    const dx = pixelDx / (tileW * 0.5);
-    const dy = pixelDy / (tileH);
-
-    mapOffsetX -= (dx + dy) * 0.5;
-    mapOffsetY -= (dy - dx) * 0.5;
+    // Convert pixel drag to isometric world offset
+    mapOffsetX -= (pixelDx / tileW + pixelDy / tileH);
+    mapOffsetY -= (pixelDy / tileH - pixelDx / tileW);
 
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     renderMap();
@@ -10803,29 +10836,35 @@ function onMapWheel(e) {
   
   const canvas = mapCanvas;
   const rect = canvas.getBoundingClientRect();
-  
+
   // Position du curseur sur le canvas
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
-  
-  // Position du monde sous le curseur avant zoom
-  const tileSize = BASE_TILE_SIZE * mapZoomLevel;
+
+  // Dimensions de tuile isométrique avant zoom
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-  
-  const worldXBefore = mapOffsetX + (mouseX - centerX) / tileSize;
-  const worldYBefore = mapOffsetY + (mouseY - centerY) / tileSize;
-  
+  const dx = mouseX - centerX;
+  const dy = mouseY - centerY;
+
+  // Position du monde sous le curseur avant zoom (conversion isométrique)
+  const worldXBefore = mapOffsetX + (dx / tileW + dy / tileH);
+  const worldYBefore = mapOffsetY + (dy / tileH - dx / tileW);
+
   // Appliquer le zoom (plus fluide)
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-  const oldZoom = mapZoomLevel;
   mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
-  
+
+  // Dimensions de tuile isométrique après zoom
+  const newTileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const newTileH = ISO_TILE_HEIGHT * mapZoomLevel;
+
   // Recalculer pour garder le point sous le curseur fixe
-  const newTileSize = BASE_TILE_SIZE * mapZoomLevel;
-  const worldXAfter = mapOffsetX + (mouseX - centerX) / newTileSize;
-  const worldYAfter = mapOffsetY + (mouseY - centerY) / newTileSize;
-  
+  const worldXAfter = mapOffsetX + (dx / newTileW + dy / newTileH);
+  const worldYAfter = mapOffsetY + (dy / newTileH - dx / newTileW);
+
   // Ajuster l'offset pour compenser
   mapOffsetX += (worldXBefore - worldXAfter);
   mapOffsetY += (worldYBefore - worldYAfter);
