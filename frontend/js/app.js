@@ -231,6 +231,12 @@ async function register() {
 function logout() {
   token = null;
   localStorage.removeItem('token');
+  // Clear all intervals to prevent memory leaks
+  if (attackCheckInterval) { clearInterval(attackCheckInterval); attackCheckInterval = null; }
+  if (constructionAnimInterval) { clearInterval(constructionAnimInterval); constructionAnimInterval = null; }
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+  if (serverTimeInterval) { clearInterval(serverTimeInterval); serverTimeInterval = null; }
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
 }
@@ -286,10 +292,13 @@ async function loadPlayer() {
   }
 }
 
+let _loadCitiesInProgress = false;
 async function loadCities() {
+  if (_loadCitiesInProgress) return;
+  _loadCitiesInProgress = true;
   try {
-    const res = await requestManager.fetchWithRetry(`${API}/api/cities`, { 
-      headers: { Authorization: `Bearer ${token}` } 
+    const res = await requestManager.fetchWithRetry(`${API}/api/cities`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
       const newCities = await res.json();
@@ -318,6 +327,8 @@ async function loadCities() {
     }
   } catch (e) {
     console.warn('loadCities error:', e);
+  } finally {
+    _loadCitiesInProgress = false;
   }
 }
 
@@ -375,7 +386,7 @@ let attackCheckInterval = null;
 
 async function checkIncomingAttacks() {
   try {
-    const resp = await fetch('/api/incoming-attacks', {
+    const resp = await fetch(`${API}/api/incoming-attacks`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (resp.ok) {
@@ -473,11 +484,12 @@ function renderCity() {
   if (foodBar) foodBar.style.width = `${foodPct}%`;
 
   // Wall HP (if element exists)
-  const wallPct = (currentCity.wallHp / currentCity.wallMaxHp) * 100;
+  const wallMaxHp = currentCity.wallMaxHp || 1;
+  const wallPct = Math.min(100, ((currentCity.wallHp || 0) / wallMaxHp) * 100);
   const wallFill = document.getElementById('wall-fill');
   if (wallFill) wallFill.style.width = `${wallPct}%`;
   const wallHpEl = document.getElementById('wall-hp');
-  if (wallHpEl) wallHpEl.textContent = `${Math.floor(currentCity.wallHp)}/${currentCity.wallMaxHp}`;
+  if (wallHpEl) wallHpEl.textContent = `${Math.floor(currentCity.wallHp || 0)}/${currentCity.wallMaxHp || 0}`;
   
   // Calculate production
   let woodProd = 5, stoneProd = 5, ironProd = 5, foodProd = 10;
@@ -6285,8 +6297,8 @@ function updateCityStats() {
   const siloEl = document.getElementById('city-silo');
   const wallsEl = document.getElementById('city-walls');
 
-  if (storageEl) storageEl.textContent = `${formatNumber(currentStorage)}/${formatNumber(maxStorage)}`;
-  if (siloEl) siloEl.textContent = `${formatNumber(currentSilo)}/${formatNumber(maxSilo)}`;
+  if (storageEl) storageEl.textContent = `${formatNum(currentStorage)}/${formatNum(maxStorage)}`;
+  if (siloEl) siloEl.textContent = `${formatNum(currentSilo)}/${formatNum(maxSilo)}`;
   if (wallsEl) wallsEl.textContent = wallLevel > 0 ? `${currentWallHp}/${maxWallHp}` : 'Pas de mur';
 }
 
@@ -6372,6 +6384,7 @@ async function loadBuildings() {
 
 function renderBuildings(filter) {
   const grid = document.getElementById('buildings-grid');
+  if (!grid || !buildingsData?.length) return;
   let buildings = buildingsData.filter(b => {
     // Filter faction buildings: only show those matching player faction
     if (b.category === 'FACTION' && b.faction && player?.faction && b.faction !== player.faction) return false;
@@ -6459,7 +6472,7 @@ async function loadUnits() {
 
 function renderUnits(filter) {
   const grid = document.getElementById('units-grid');
-  if (!grid) return;
+  if (!grid || !unitsData?.length) return;
   let units = unitsData.filter(u => u.faction === player?.faction);
   
   if (filter !== 'all') {
@@ -8324,7 +8337,7 @@ async function loadIndividualTileImages() {
 
 // Helper function to draw a tile from the tileset
 function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
-  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
+  if (!tilesetLoaded || !tilesetConfig?.tiles?.[tileKey]) {
     return false; // Fallback to procedural
   }
 
