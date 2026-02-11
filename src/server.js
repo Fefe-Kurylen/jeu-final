@@ -60,8 +60,8 @@ const rateLimit = (maxRequests, keyPrefix = 'api') => (req, res, next) => {
   record.count++;
   rateLimitMap.set(key, record);
 
-  // Cleanup old entries periodically
-  if (Math.random() < 0.01) {
+  // Cleanup old entries periodically (every ~100 requests OR when map is too large)
+  if (Math.random() < 0.01 || rateLimitMap.size > 10000) {
     for (const [k, v] of rateLimitMap.entries()) {
       if (now > v.resetAt) rateLimitMap.delete(k);
     }
@@ -365,28 +365,23 @@ async function addWoundedUnits(cityId, woundedUnits) {
   for (const unit of woundedUnits) {
     const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
 
-    // Upsert wounded units (add to existing or create new)
-    const existing = await prisma.woundedUnit.findUnique({
-      where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } }
-    });
-
-    if (existing) {
-      await prisma.woundedUnit.update({
-        where: { id: existing.id },
-        data: {
-          count: existing.count + unit.count,
-          healsAt: new Date(Math.max(existing.healsAt.getTime(), healsAt.getTime()))
-        }
-      });
-    } else {
-      await prisma.woundedUnit.create({
-        data: {
+    // Atomic upsert to prevent race conditions
+    try {
+      await prisma.woundedUnit.upsert({
+        where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } },
+        update: {
+          count: { increment: unit.count },
+          healsAt
+        },
+        create: {
           cityId,
           unitKey: unit.unitKey,
           count: unit.count,
           healsAt
         }
       });
+    } catch (e) {
+      console.warn(`[WOUNDED] Failed to upsert ${unit.unitKey}:`, e.message);
     }
   }
 }
@@ -515,13 +510,16 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
     if (nameExists) return res.status(400).json({ error: 'Pseudo deja pris' });
 
     const hash = await bcrypt.hash(password, 10);
-    const account = await prisma.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
 
-    const player = await prisma.player.create({
-      data: { accountId: account.id, name, faction: faction.toUpperCase(), gold: 0 }
-    });
+    // Atomic transaction: create account, player, stats, hero, city together
+    const result = await prisma.$transaction(async (tx) => {
+      const account = await tx.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
 
-    await prisma.playerStats.create({ data: { playerId: player.id } });
+      const player = await tx.player.create({
+        data: { accountId: account.id, name, faction: faction.toUpperCase(), gold: 0 }
+      });
+
+      await tx.playerStats.create({ data: { playerId: player.id } });
 
     // Find free position on map EDGES (players spawn on borders, not center)
     // Map: -187 to +186 (374x374), center is 0,0
@@ -555,41 +553,48 @@ app.post('/api/auth/register', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (re
       return { x, y };
     }
 
-    let { x, y } = getRandomEdgePosition();
-    for (let i = 0; i < 100; i++) {
-      const posExists = await prisma.city.findUnique({ where: { x_y: { x, y } } });
-      if (!posExists) break;
-      ({ x, y } = getRandomEdgePosition());
-    }
-
-    // Create capital (NO starter buildings - player builds everything)
-    const city = await prisma.city.create({
-      data: {
-        playerId: player.id,
-        name: `Capitale de ${name}`,
-        x, y,
-        isCapital: true,
-        wood: 500, stone: 500, iron: 500, food: 500
+      let { x, y } = getRandomEdgePosition();
+      for (let i = 0; i < 100; i++) {
+        const posExists = await tx.city.findUnique({ where: { x_y: { x, y } } });
+        if (!posExists) break;
+        ({ x, y } = getRandomEdgePosition());
       }
-    });
 
-    // Create hero
-    const hero = await prisma.hero.create({
-      data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 }
-    });
+      // Create capital (NO starter buildings - player builds everything)
+      const city = await tx.city.create({
+        data: {
+          playerId: player.id,
+          name: `Capitale de ${name}`,
+          x, y,
+          isCapital: true,
+          wood: 500, stone: 500, iron: 500, food: 500
+        }
+      });
 
-    // Create empty garrison army (no starter units - player recruits everything)
-    await prisma.army.create({
-      data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true }
-    });
+      // Create hero
+      const hero = await tx.hero.create({
+        data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 }
+      });
 
-    // Create 3 starter expeditions
-    for (let i = 0; i < 3; i++) {
-      await createExpedition(player.id);
+      // Create empty garrison army (no starter units - player recruits everything)
+      await tx.army.create({
+        data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true }
+      });
+
+      return { account, player };
+    }); // End transaction
+
+    // Non-critical: Create 3 starter expeditions (outside transaction)
+    try {
+      for (let i = 0; i < 3; i++) {
+        await createExpedition(result.player.id);
+      }
+    } catch (expErr) {
+      console.warn('Expedition creation failed (non-critical):', expErr.message);
     }
 
-    const token = jwt.sign({ id: account.id, playerId: player.id }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, player: { id: player.id, name, faction } });
+    const token = jwt.sign({ id: result.account.id, playerId: result.player.id }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, player: { id: result.player.id, name, faction } });
   } catch (e) {
     console.error('Register error:', e);
     res.status(500).json({ error: IS_PRODUCTION ? 'Erreur serveur' : e.message });
@@ -623,38 +628,49 @@ app.post('/api/auth/login', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (req, 
 // ========== PLAYER ==========
 
 app.get('/api/player/me', auth, async (req, res) => {
-  const player = await prisma.player.findUnique({
-    where: { id: req.user.playerId },
-    include: { 
-      cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } }, 
-      hero: { include: { items: true } }, 
-      stats: true, 
-      alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
-      expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
-    }
-  });
-  res.json(player);
+  try {
+    const player = await prisma.player.findUnique({
+      where: { id: req.user.playerId },
+      include: {
+        cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } },
+        hero: { include: { items: true } },
+        stats: true,
+        alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
+        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
+      }
+    });
+    if (!player) return res.status(404).json({ error: 'Joueur non trouvé' });
+    res.json(player);
+  } catch (e) {
+    console.error('GET /api/player/me error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ========== CITIES ==========
 
 app.get('/api/cities', auth, async (req, res) => {
-  const cities = await prisma.city.findMany({
-    where: { playerId: req.user.playerId },
-    include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
-  });
-  // Add city tier information to each city
-  const citiesWithTier = cities.map(city => {
-    const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
-    const cityTier = getCityTier(wallLevel);
-    return {
-      ...city,
-      wallLevel,
-      cityTier,
-      cityTierName: getCityTierName(cityTier)
-    };
-  });
-  res.json(citiesWithTier);
+  try {
+    const cities = await prisma.city.findMany({
+      where: { playerId: req.user.playerId },
+      include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
+    });
+    // Add city tier information to each city
+    const citiesWithTier = cities.map(city => {
+      const wallLevel = city.buildings?.find(b => b.key === 'WALL')?.level || 0;
+      const cityTier = getCityTier(wallLevel);
+      return {
+        ...city,
+        wallLevel,
+        cityTier,
+        cityTierName: getCityTierName(cityTier)
+      };
+    });
+    res.json(citiesWithTier);
+  } catch (e) {
+    console.error('GET /api/cities error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ========== INCOMING ATTACKS ENDPOINT ==========
@@ -1027,11 +1043,16 @@ app.post('/api/city/:id/recruit', auth, async (req, res) => {
 // ========== HERO ==========
 
 app.get('/api/hero', auth, async (req, res) => {
-  const hero = await prisma.hero.findUnique({
-    where: { playerId: req.user.playerId },
-    include: { items: true, army: true }
-  });
-  res.json(hero);
+  try {
+    const hero = await prisma.hero.findUnique({
+      where: { playerId: req.user.playerId },
+      include: { items: true, army: true }
+    });
+    res.json(hero);
+  } catch (e) {
+    console.error('GET /api/hero error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 app.post('/api/hero/assign-points', auth, async (req, res) => {
@@ -1596,7 +1617,7 @@ app.post('/api/army/:id/move', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mouvement' });
     // Hero requires minimum 1 soldier to move
-    if (army.units.length === 0) {
+    if ((!army.units || army.units.length === 0)) {
       return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour se déplacer' : 'Armee vide' });
     }
 
@@ -1640,7 +1661,7 @@ app.post('/api/army/:id/attack', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
     // Hero requires minimum 1 soldier to attack
-    if (army.units.length === 0) {
+    if ((!army.units || army.units.length === 0)) {
       return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour attaquer' : 'Armee vide' });
     }
 
@@ -1705,7 +1726,7 @@ app.post('/api/army/:id/raid', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
     // Hero requires minimum 1 soldier to raid
-    if (army.units.length === 0) {
+    if ((!army.units || army.units.length === 0)) {
       return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour piller' : 'Armee vide' });
     }
 
@@ -1754,7 +1775,7 @@ app.post('/api/army/:id/raid-resource', auth, async (req, res) => {
     });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
-    if (army.units.length === 0) {
+    if ((!army.units || army.units.length === 0)) {
       return res.status(400).json({ error: 'Armée vide - impossible d\'attaquer' });
     }
 
@@ -1903,7 +1924,7 @@ async function resolveTribteCombat(army, node, playerId) {
   // Calculate defender losses
   let totalDefenderLosses = 0;
   const newDefenderUnits = {};
-  for (const [unitType, count] of Object.entries(node.defenderUnits)) {
+  for (const [unitType, count] of Object.entries(node.defenderUnits || {})) {
     const losses = Math.floor(count * combat.defenderLossRate);
     totalDefenderLosses += losses;
     newDefenderUnits[unitType] = Math.max(0, count - losses);
@@ -2150,30 +2171,39 @@ app.post('/api/army/:id/return', auth, async (req, res) => {
 
 // Get army details
 app.get('/api/army/:id', auth, async (req, res) => {
-  const army = await prisma.army.findFirst({
-    where: { id: req.params.id, ownerId: req.user.playerId },
-    include: { units: true, city: true, hero: true }
-  });
-  if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
+  try {
+    const army = await prisma.army.findFirst({
+      where: { id: req.params.id, ownerId: req.user.playerId },
+      include: { units: true, city: true, hero: true }
+    });
+    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
 
-  // Add power calculation
-  const power = calculateArmyPower(army.units);
-  res.json({ ...army, power });
+    const power = calculateArmyPower(army.units || []);
+    res.json({ ...army, power });
+  } catch (e) {
+    console.error('GET /api/army/:id error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // List all armies
 app.get('/api/armies', auth, async (req, res) => {
-  const armies = await prisma.army.findMany({
-    where: { ownerId: req.user.playerId },
-    include: { units: true, city: true, hero: true }
-  });
-  
-  const armiesWithPower = armies.map(a => ({
-    ...a,
-    power: calculateArmyPower(a.units)
-  }));
-  
-  res.json(armiesWithPower);
+  try {
+    const armies = await prisma.army.findMany({
+      where: { ownerId: req.user.playerId },
+      include: { units: true, city: true, hero: true }
+    });
+
+    const armiesWithPower = armies.map(a => ({
+      ...a,
+      power: calculateArmyPower(a.units || [])
+    }));
+
+    res.json(armiesWithPower);
+  } catch (e) {
+    console.error('GET /api/armies error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ========== EXPEDITIONS ==========
@@ -2198,11 +2228,16 @@ async function createExpedition(playerId) {
 }
 
 app.get('/api/expeditions', auth, async (req, res) => {
-  const expeditions = await prisma.expedition.findMany({
-    where: { playerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(expeditions);
+  try {
+    const expeditions = await prisma.expedition.findMany({
+      where: { playerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(expeditions);
+  } catch (e) {
+    console.error('GET /api/expeditions error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 app.post('/api/expedition/:id/start', auth, async (req, res) => {
@@ -2216,7 +2251,7 @@ app.post('/api/expedition/:id/start', auth, async (req, res) => {
       where: { ownerId: req.user.playerId, status: 'IDLE' },
       include: { units: true }
     });
-    if (!army || army.units.length === 0) return res.status(400).json({ error: 'Armee requise avec des unites' });
+    if (!army || (!army.units || army.units.length === 0)) return res.status(400).json({ error: 'Armee requise avec des unites' });
 
     const now = new Date();
     const endsAt = new Date(now.getTime() + expedition.duration * 1000);
@@ -2240,12 +2275,17 @@ app.post('/api/expedition/:id/start', auth, async (req, res) => {
 // ========== ALLIANCE ==========
 
 app.get('/api/alliances', auth, async (req, res) => {
-  const alliances = await prisma.alliance.findMany({
-    include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } },
-    orderBy: { createdAt: 'desc' },
-    take: 50
-  });
-  res.json(alliances);
+  try {
+    const alliances = await prisma.alliance.findMany({
+      include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(alliances);
+  } catch (e) {
+    console.error('GET /api/alliances error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 app.post('/api/alliance/create', auth, async (req, res) => {
@@ -2512,10 +2552,11 @@ app.get('/api/world/info', async (req, res) => {
 });
 
 app.get('/api/map/viewport', auth, async (req, res) => {
+  try {
   const { center } = await getWorldSize();
   const x = parseInt(req.query.x) || center;
   const y = parseInt(req.query.y) || center;
-  const r = parseInt(req.query.radius) || 10;
+  const r = Math.min(parseInt(req.query.radius) || 10, 50); // Cap radius to prevent huge queries
 
   const cities = await prisma.city.findMany({
     where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } },
@@ -2557,31 +2598,45 @@ app.get('/api/map/viewport', auth, async (req, res) => {
   });
 
   res.json({ cities: citiesWithTier, resourceNodes: nodes, center: { x, y }, radius: r });
+  } catch (e) {
+    console.error('GET /api/map/viewport error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ========== RANKING ==========
 
 app.get('/api/ranking/players', async (req, res) => {
-  const players = await prisma.player.findMany({
-    orderBy: { population: 'desc' },
-    take: 50,
-    select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { tag: true } } } } }
-  });
-  res.json(players);
+  try {
+    const players = await prisma.player.findMany({
+      orderBy: { population: 'desc' },
+      take: 50,
+      select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { tag: true } } } } }
+    });
+    res.json(players);
+  } catch (e) {
+    console.error('GET /api/ranking/players error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 app.get('/api/ranking/alliances', async (req, res) => {
-  const alliances = await prisma.alliance.findMany({
-    include: { members: { include: { player: { select: { population: true } } } } }
-  });
-  const ranked = alliances.map(a => ({
-    id: a.id,
-    name: a.name,
-    tag: a.tag,
-    members: a.members.length,
-    population: a.members.reduce((sum, m) => sum + m.player.population, 0)
-  })).sort((a, b) => b.population - a.population);
-  res.json(ranked);
+  try {
+    const alliances = await prisma.alliance.findMany({
+      include: { members: { include: { player: { select: { population: true } } } } }
+    });
+    const ranked = alliances.map(a => ({
+      id: a.id,
+      name: a.name,
+      tag: a.tag,
+      members: a.members.length,
+      population: a.members.reduce((sum, m) => sum + (m.player?.population || 0), 0)
+    })).sort((a, b) => b.population - a.population);
+    res.json(ranked);
+  } catch (e) {
+    console.error('GET /api/ranking/alliances error:', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ========== BATTLE REPORTS ==========
@@ -3041,9 +3096,14 @@ setInterval(async () => {
 
   try {
     // ========== HEAL WOUNDED UNITS ==========
-    const healedCount = await processHealedUnits();
-    if (healedCount > 0) {
-      console.log(`[TICK] ${healedCount} wounded unit groups healed`);
+    let healedCount = 0;
+    try {
+      healedCount = await processHealedUnits();
+      if (healedCount > 0) {
+        console.log(`[TICK] ${healedCount} wounded unit groups healed`);
+      }
+    } catch (healErr) {
+      console.warn('[TICK] Heal processing failed:', healErr.message);
     }
 
     // Production - Optimized with batch updates
@@ -3070,8 +3130,10 @@ setInterval(async () => {
       });
     });
 
-    // Execute all updates in parallel (batch)
-    await Promise.all(cityUpdates);
+    // Execute all updates in parallel (batch) - use allSettled to prevent one failure crashing all
+    const updateResults = await Promise.allSettled(cityUpdates);
+    const failed = updateResults.filter(r => r.status === 'rejected');
+    if (failed.length > 0) console.warn(`[TICK] ${failed.length} city production updates failed`);
 
     // ========== UPKEEP: Consommation de céréales par les troupes ==========
     const allArmies = await prisma.army.findMany({
@@ -3095,16 +3157,19 @@ setInterval(async () => {
       const consumption = foodConsumption * TICK_HOURS;
       
       if (consumption > 0 && army.city) {
-        const city = await prisma.city.findUnique({ where: { id: army.cityId } });
-        if (city) {
-          const newFood = Math.max(0, city.food - consumption);
-          await prisma.city.update({
-            where: { id: city.id },
-            data: { food: newFood }
+        try {
+          // Atomic decrement to prevent race conditions
+          const updatedCity = await prisma.city.update({
+            where: { id: army.cityId },
+            data: { food: { decrement: consumption } }
           });
+          // Clamp to 0 if negative
+          if (updatedCity.food < 0) {
+            await prisma.city.update({ where: { id: army.cityId }, data: { food: 0 } });
+          }
 
           // Si plus de nourriture, les troupes meurent de faim (10% par tick sans food)
-          if (newFood <= 0) {
+          if (updatedCity.food <= 0) {
             for (const unit of army.units) {
               const losses = Math.ceil(unit.count * 0.1);
               if (losses > 0) {
@@ -3118,6 +3183,8 @@ setInterval(async () => {
               }
             }
           }
+        } catch (upkeepErr) {
+          console.warn(`[TICK] Upkeep error for army ${army.id}:`, upkeepErr.message);
         }
       }
     }
@@ -3312,14 +3379,14 @@ setInterval(async () => {
               status: 'HARVESTING',
               missionType: 'COLLECT_RESOURCE',
               harvestStartedAt: new Date(),
-              harvestResourceType: army.mission || null
+              harvestResourceType: army.harvestResourceType || null
             }
           });
           if (army.targetResourceId) {
             await prisma.resourceNode.update({
               where: { id: army.targetResourceId },
               data: { hasPlayerArmy: true }
-            }).catch(() => {});
+            }).catch(e => console.warn(`[TICK] ResourceNode update failed for ${army.targetResourceId}:`, e.message));
           }
         } else if (army.missionType === 'RAID_RESOURCE') {
           // Arrived at resource node for raid
@@ -3976,13 +4043,17 @@ setInterval(async () => {
     }
 
     // Update population
-    const players = await prisma.player.findMany({ include: { cities: { include: { buildings: true } } } });
-    for (const p of players) {
-      let pop = 0;
-      for (const c of p.cities) {
-        for (const b of c.buildings) pop += b.level * 5;
+    try {
+      const players = await prisma.player.findMany({ include: { cities: { include: { buildings: true } } } });
+      for (const p of players) {
+        let pop = 0;
+        for (const c of p.cities || []) {
+          for (const b of c.buildings || []) pop += b.level * 5;
+        }
+        await prisma.player.update({ where: { id: p.id }, data: { population: pop } });
       }
-      await prisma.player.update({ where: { id: p.id }, data: { population: pop } });
+    } catch (popErr) {
+      console.warn('[TICK] Population update failed:', popErr.message);
     }
 
     // ========== TRIBE RESPAWN SYSTEM ==========
@@ -4010,8 +4081,10 @@ setInterval(async () => {
       let respawnTime;
       if (node.lastArmyDeparture) {
         respawnTime = new Date(new Date(node.lastArmyDeparture).getTime() + TRIBE_RESPAWN_DELAY_MINUTES * 60000);
+      } else if (node.lastDefeat) {
+        respawnTime = new Date(new Date(node.lastDefeat).getTime() + (node.respawnMinutes || 60) * 60000);
       } else {
-        respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
+        continue; // No reference time, skip
       }
 
       if (now >= respawnTime) {
@@ -4048,9 +4121,14 @@ setInterval(async () => {
     // - Regen commence 5 min après le départ de l'armée
     // - Temps de regen doublé (regenRate / 2)
     const REGEN_DELAY_MINUTES = 5;
-    const nodesToRegen = await prisma.$queryRaw`
-      SELECT * FROM "ResourceNode" WHERE amount < "maxAmount"
-    `;
+    let nodesToRegen = [];
+    try {
+      nodesToRegen = await prisma.$queryRaw`
+        SELECT * FROM "ResourceNode" WHERE amount < "maxAmount" LIMIT 5000
+      `;
+    } catch (regenErr) {
+      console.warn('[TICK] Resource regen query failed:', regenErr.message);
+    }
 
     // Batch update for regeneration
     const regenUpdates = [];
@@ -4084,7 +4162,9 @@ setInterval(async () => {
     }
 
     if (regenUpdates.length > 0) {
-      await Promise.all(regenUpdates);
+      const regenResults = await Promise.allSettled(regenUpdates);
+      const regenFailed = regenResults.filter(r => r.status === 'rejected');
+      if (regenFailed.length > 0) console.warn(`[TICK] ${regenFailed.length} regen updates failed`);
     }
   } catch (e) {
     console.error('Tick error:', e);
@@ -4300,6 +4380,16 @@ async function startServer() {
   
   return server;
 }
+
+// Prevent unhandled rejections from crashing the server
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION]', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]', err);
+  // Don't exit - let the server continue running
+});
 
 // Gestion propre de l'arrêt
 process.on('SIGTERM', async () => {
