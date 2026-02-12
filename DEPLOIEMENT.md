@@ -1,6 +1,34 @@
-# MonJeu v0.6 - Guide de Déploiement
+# Imperium Antiquitas v0.6 - Guide de Deploiement
 
-## Déploiement sur Render.com (GRATUIT)
+## Deploiement sur Fly.io (RECOMMANDE)
+
+Guide complet : voir **[FLY_GUIDE.md](FLY_GUIDE.md)**
+
+Commandes rapides :
+```bash
+# 1. Installer flyctl + se connecter
+curl -L https://fly.io/install.sh | sh
+fly auth login
+
+# 2. Creer l'app
+fly launch --no-deploy
+
+# 3. Base de donnees PostgreSQL
+fly postgres create --name imperium-db --region cdg
+fly postgres attach imperium-db --app imperium-antiquitas
+
+# 4. Secrets
+fly secrets set JWT_SECRET="$(openssl rand -hex 32)"
+
+# 5. Deployer
+fly deploy
+```
+
+URL finale : `https://imperium-antiquitas.fly.dev`
+
+---
+
+## Alternative: Render.com (GRATUIT)
 
 ### 1. Créer un compte Render
 - Aller sur https://render.com
@@ -87,9 +115,10 @@ NODE_ENV = production
 - Le premier chargement peut prendre 30-60 secondes
 - Pour éviter ça: utiliser un service de ping (UptimeRobot)
 
-### Base de données gratuite
-- Render: 1GB, expire après 90 jours (renouvelable)
-- Railway: $5 de crédit gratuit/mois
+### Base de donnees gratuite
+- Fly.io: 1GB Postgres gratuit, pas d'expiration
+- Render: 1GB, expire apres 90 jours (renouvelable)
+- Railway: $5 de credit gratuit/mois
 
 ### CORS
 Le serveur est déjà configuré pour accepter toutes les origines.
@@ -100,6 +129,7 @@ Le serveur est déjà configuré pour accepter toutes les origines.
 
 ### Voir les logs
 ```bash
+# Fly.io: fly logs
 # Render: Dashboard → Logs
 # Railway: Dashboard → Deployments → Logs
 ```

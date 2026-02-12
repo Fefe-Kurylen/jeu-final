@@ -20,6 +20,13 @@ primary_region = 'cdg'
     hard_limit = 250
     soft_limit = 200
 
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/api/health"
+
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'
