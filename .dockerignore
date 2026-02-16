@@ -1,9 +1,37 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
+
+# Project specific
 .git
 .gitignore
 *.md
-.env
-.env.*
 docker-compose.yml
 wetransfer_content
 tools
