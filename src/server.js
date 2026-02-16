@@ -3311,20 +3311,32 @@ setInterval(async () => {
         // Handle different mission types
         if (army.missionType === 'MOVE_TO_HARVEST') {
           // Arrived at resource node - start harvesting
-          await prisma.army.update({
-            where: { id: army.id },
-            data: {
-              status: 'HARVESTING',
-              missionType: 'COLLECT_RESOURCE',
-              harvestStartedAt: new Date(),
-              harvestResourceType: army.mission || null
-            }
-          });
-          if (army.targetResourceId) {
+          const harvestNode = army.targetResourceId
+            ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } })
+            : null;
+
+          if (harvestNode && !harvestNode.hasDefenders) {
+            await prisma.army.update({
+              where: { id: army.id },
+              data: {
+                status: 'HARVESTING',
+                missionType: 'HARVEST',
+                harvestStartedAt: new Date(),
+                harvestResourceType: harvestNode.resourceType
+              }
+            });
             await prisma.resourceNode.update({
-              where: { id: army.targetResourceId },
+              where: { id: harvestNode.id },
               data: { hasPlayerArmy: true }
-            }).catch(() => {});
+            }).catch(e => console.error(`[HARVEST ARRIVE] Failed to mark hasPlayerArmy:`, e.message));
+            console.log(`[HARVEST] ${army.name} arrived and started harvesting ${harvestNode.resourceType} at (${harvestNode.x}, ${harvestNode.y})`);
+          } else {
+            // Node gone or tribe respawned while traveling - go idle
+            await prisma.army.update({
+              where: { id: army.id },
+              data: { status: 'IDLE', missionType: null, targetX: null, targetY: null, arrivalAt: null, targetResourceId: null, harvestStartedAt: null, harvestResourceType: null }
+            });
+            console.log(`[HARVEST] ${army.name} arrived but node unavailable (defenders: ${harvestNode?.hasDefenders})`);
           }
         } else if (army.missionType === 'RAID_RESOURCE') {
           // Arrived at resource node for raid
@@ -3978,6 +3990,22 @@ setInterval(async () => {
       } catch (harvestError) {
         console.error(`[HARVEST ERROR] ${army.id}:`, harvestError.message);
       }
+    }
+
+    // ========== CLEANUP: Reset orphaned hasPlayerArmy flags ==========
+    // If a node has hasPlayerArmy=true but no army is actually harvesting there, reset it
+    const orphanedNodes = await prisma.$executeRaw`
+      UPDATE "ResourceNode"
+      SET "hasPlayerArmy" = false, "lastArmyDeparture" = NOW()
+      WHERE "hasPlayerArmy" = true
+        AND id NOT IN (
+          SELECT "targetResourceId" FROM "Army"
+          WHERE "targetResourceId" IS NOT NULL
+            AND status = 'HARVESTING'
+        )
+    `;
+    if (orphanedNodes > 0) {
+      console.log(`[CLEANUP] ${orphanedNodes} orphaned hasPlayerArmy flags reset`);
     }
 
     // Update population
