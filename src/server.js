@@ -628,38 +628,40 @@ app.post('/api/auth/login', rateLimit(RATE_LIMIT_MAX_AUTH, 'auth'), async (req, 
 // ========== PLAYER ==========
 
 app.get('/api/player/me', auth, async (req, res) => {
-  const player = await prisma.player.findUnique({
-    where: { id: req.user.playerId },
-    include: { 
-      cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } }, 
-      hero: { include: { items: true } }, 
-      stats: true, 
-      alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
-      expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
-    }
-  });
-  res.json(player);
+  try {
+    const player = await prisma.player.findUnique({
+      where: { id: req.user.playerId },
+      include: {
+        cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } },
+        hero: { include: { items: true } },
+        stats: true,
+        alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
+        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
+      }
+    });
+    res.json(player);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ========== CITIES ==========
 
 app.get('/api/cities', auth, async (req, res) => {
-  const cities = await prisma.city.findMany({
-    where: { playerId: req.user.playerId },
-    include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
-  });
-  // Add city tier information to each city
-  const citiesWithTier = cities.map(city => {
-    const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
-    const cityTier = getCityTier(wallLevel);
-    return {
-      ...city,
-      wallLevel,
-      cityTier,
-      cityTierName: getCityTierName(cityTier)
-    };
-  });
-  res.json(citiesWithTier);
+  try {
+    const cities = await prisma.city.findMany({
+      where: { playerId: req.user.playerId },
+      include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
+    });
+    const citiesWithTier = cities.map(city => {
+      const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
+      const cityTier = getCityTier(wallLevel);
+      return { ...city, wallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+    });
+    res.json(citiesWithTier);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ========== INCOMING ATTACKS ENDPOINT ==========
@@ -962,70 +964,70 @@ app.post('/api/city/:id/build', auth, async (req, res) => {
 app.post('/api/city/:id/recruit', auth, async (req, res) => {
   try {
     const { unitKey, count } = req.body;
-    if (!count || count < 1) return res.status(400).json({ error: 'Nombre invalide' });
-    
-    const city = await prisma.city.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
-      include: { recruitQueue: true, buildings: true }
-    });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
+    if (!count || count < 1 || !Number.isInteger(count)) return res.status(400).json({ error: 'Nombre invalide' });
 
     const unit = unitsData.find(u => u.key === unitKey);
     if (!unit) return res.status(400).json({ error: 'Unite inconnue' });
 
-    // Check building requirements based on unit class and tier
-    const barracks = city.buildings.find(b => b.key === 'BARRACKS');
-    const stable = city.buildings.find(b => b.key === 'STABLE');
-    const workshop = city.buildings.find(b => b.key === 'WORKSHOP');
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({
+        where: { id: req.params.id, playerId: req.user.playerId },
+        include: { recruitQueue: true, buildings: true }
+      });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
 
-    // Infantry & Archers need Barracks
-    if (unit.class === 'INFANTRY' || unit.class === 'ARCHER') {
-      if (!barracks) return res.status(400).json({ error: 'Caserne requise pour recruter de l\'infanterie/archers' });
-      if (unit.tier === 'intermediate' && barracks.level < 5) return res.status(400).json({ error: 'Caserne niveau 5 requise pour unites intermediaires' });
-      if (unit.tier === 'elite' && barracks.level < 10) return res.status(400).json({ error: 'Caserne niveau 10 requise pour unites elite' });
-    }
+      // Check building requirements based on unit class and tier
+      const barracks = city.buildings.find(b => b.key === 'BARRACKS');
+      const stable = city.buildings.find(b => b.key === 'STABLE');
+      const workshop = city.buildings.find(b => b.key === 'WORKSHOP');
 
-    // Cavalry needs Stable
-    if (unit.class === 'CAVALRY') {
-      if (!stable) return res.status(400).json({ error: 'Ecurie requise pour recruter de la cavalerie' });
-      if (unit.tier === 'intermediate' && stable.level < 5) return res.status(400).json({ error: 'Ecurie niveau 5 requise pour cavalerie intermediaire' });
-      if (unit.tier === 'elite' && stable.level < 10) return res.status(400).json({ error: 'Ecurie niveau 10 requise pour cavalerie elite' });
-    }
+      if (unit.class === 'INFANTRY' || unit.class === 'ARCHER') {
+        if (!barracks) return { error: 'Caserne requise pour recruter de l\'infanterie/archers', status: 400 };
+        if (unit.tier === 'intermediate' && barracks.level < 5) return { error: 'Caserne niveau 5 requise pour unites intermediaires', status: 400 };
+        if (unit.tier === 'elite' && barracks.level < 10) return { error: 'Caserne niveau 10 requise pour unites elite', status: 400 };
+      }
+      if (unit.class === 'CAVALRY') {
+        if (!stable) return { error: 'Ecurie requise pour recruter de la cavalerie', status: 400 };
+        if (unit.tier === 'intermediate' && stable.level < 5) return { error: 'Ecurie niveau 5 requise pour cavalerie intermediaire', status: 400 };
+        if (unit.tier === 'elite' && stable.level < 10) return { error: 'Ecurie niveau 10 requise pour cavalerie elite', status: 400 };
+      }
+      if (unit.class === 'SIEGE') {
+        if (!workshop) return { error: 'Atelier requis pour recruter des machines de siege', status: 400 };
+        if (workshop.level < 5) return { error: 'Atelier niveau 5 requis pour machines de siege', status: 400 };
+      }
 
-    // Siege needs Workshop
-    if (unit.class === 'SIEGE') {
-      if (!workshop) return res.status(400).json({ error: 'Atelier requis pour recruter des machines de siege' });
-      if (workshop.level < 5) return res.status(400).json({ error: 'Atelier niveau 5 requis pour machines de siege' });
-    }
+      const tierMult = unit.tier === 'base' ? 1.3 : unit.tier === 'intermediate' ? 1.7 : 1.9;
+      const cost = {
+        wood: Math.ceil(50 * tierMult * count),
+        stone: Math.ceil(30 * tierMult * count),
+        iron: Math.ceil(60 * tierMult * count),
+        food: Math.ceil(30 * tierMult * count)
+      };
 
-    const tierMult = unit.tier === 'base' ? 1.3 : unit.tier === 'intermediate' ? 1.7 : 1.9;
-    const cost = { 
-      wood: Math.ceil(50 * tierMult * count), 
-      stone: Math.ceil(30 * tierMult * count), 
-      iron: Math.ceil(60 * tierMult * count), 
-      food: Math.ceil(30 * tierMult * count) 
-    };
+      if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
+        return { error: 'Ressources insuffisantes', status: 400, cost };
+      }
 
-    if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
-      return res.status(400).json({ error: 'Ressources insuffisantes', cost });
-    }
+      await tx.city.update({
+        where: { id: city.id },
+        data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
+      });
 
-    await prisma.city.update({
-      where: { id: city.id },
-      data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
+      let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : 180;
+      if (unit.class === 'CAVALRY') baseTime = baseTime * 1.25;
+      const totalTime = baseTime * count;
+      const now = new Date();
+      const endsAt = new Date(now.getTime() + totalTime * 1000);
+
+      const queueItem = await tx.recruitQueueItem.create({
+        data: { cityId: city.id, unitKey, count, buildingKey: 'BARRACKS', startedAt: now, endsAt, status: 'RUNNING' }
+      });
+
+      return { message: 'Recrutement lance', queueItem, durationSec: totalTime, cost };
     });
 
-    let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : 180;
-    if (unit.class === 'CAVALRY') baseTime = baseTime * 1.25;
-    const totalTime = baseTime * count;
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + totalTime * 1000);
-
-    const queueItem = await prisma.recruitQueueItem.create({
-      data: { cityId: city.id, unitKey, count, buildingKey: 'BARRACKS', startedAt: now, endsAt, status: 'RUNNING' }
-    });
-
-    res.json({ message: 'Recrutement lance', queueItem, durationSec: totalTime, cost });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1034,11 +1036,15 @@ app.post('/api/city/:id/recruit', auth, async (req, res) => {
 // ========== HERO ==========
 
 app.get('/api/hero', auth, async (req, res) => {
-  const hero = await prisma.hero.findUnique({
-    where: { playerId: req.user.playerId },
-    include: { items: true, army: true }
-  });
-  res.json(hero);
+  try {
+    const hero = await prisma.hero.findUnique({
+      where: { playerId: req.user.playerId },
+      include: { items: true, army: true }
+    });
+    res.json(hero);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/hero/assign-points', auth, async (req, res) => {
@@ -2817,36 +2823,30 @@ app.post('/api/market/offer', auth, async (req, res) => {
       return res.status(400).json({ error: 'Montants invalides' });
     }
     
-    const city = await prisma.city.findFirst({
-      where: { id: cityId, playerId: req.user.playerId }
-    });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
-    
-    // Check if player has the resources
-    if (city[sellResource] < sellAmount) {
-      return res.status(400).json({ error: `Ressources insuffisantes (${sellResource}: ${Math.floor(city[sellResource])})` });
-    }
-    
-    // Deduct resources
-    await prisma.city.update({
-      where: { id: city.id },
-      data: { [sellResource]: city[sellResource] - sellAmount }
-    });
-    
-    // Create offer
-    const offer = await prisma.marketOffer.create({
-      data: {
-        sellerId: req.user.playerId,
-        cityId: city.id,
-        sellResource,
-        sellAmount,
-        buyResource,
-        buyAmount,
-        status: 'ACTIVE'
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({
+        where: { id: cityId, playerId: req.user.playerId }
+      });
+      if (!city) return { error: 'Ville non trouvée', status: 404 };
+
+      if (city[sellResource] < sellAmount) {
+        return { error: `Ressources insuffisantes (${sellResource}: ${Math.floor(city[sellResource])})`, status: 400 };
       }
+
+      await tx.city.update({
+        where: { id: city.id },
+        data: { [sellResource]: city[sellResource] - sellAmount }
+      });
+
+      const offer = await tx.marketOffer.create({
+        data: { sellerId: req.user.playerId, cityId: city.id, sellResource, sellAmount, buyResource, buyAmount, status: 'ACTIVE' }
+      });
+
+      return { message: 'Offre créée', offer };
     });
-    
-    res.json({ message: 'Offre créée', offer });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -2857,52 +2857,52 @@ app.post('/api/market/offer/:id/accept', auth, async (req, res) => {
   try {
     const { cityId } = req.body;
     
-    const offer = await prisma.marketOffer.findUnique({
-      where: { id: req.params.id },
-      include: { player: true }
-    });
-    if (!offer) return res.status(404).json({ error: 'Offre non trouvée' });
-    if (offer.status !== 'ACTIVE') return res.status(400).json({ error: 'Offre inactive' });
-    if (offer.sellerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas accepter votre propre offre' });
-    
-    const buyerCity = await prisma.city.findFirst({
-      where: { id: cityId, playerId: req.user.playerId }
-    });
-    if (!buyerCity) return res.status(404).json({ error: 'Ville acheteur non trouvée' });
-    
-    // Check buyer has resources
-    if (buyerCity[offer.buyResource] < offer.buyAmount) {
-      return res.status(400).json({ error: `Ressources insuffisantes (${offer.buyResource})` });
-    }
-    
-    // Execute trade
-    // Buyer pays
-    await prisma.city.update({
-      where: { id: buyerCity.id },
-      data: { 
-        [offer.buyResource]: buyerCity[offer.buyResource] - offer.buyAmount,
-        [offer.sellResource]: Math.min(buyerCity[offer.sellResource] + offer.sellAmount, offer.sellResource === 'food' ? buyerCity.maxFoodStorage : buyerCity.maxStorage)
-      }
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const offer = await tx.marketOffer.findUnique({
+        where: { id: req.params.id },
+        include: { player: true }
+      });
+      if (!offer) return { error: 'Offre non trouvée', status: 404 };
+      if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
+      if (offer.sellerId === req.user.playerId) return { error: 'Vous ne pouvez pas accepter votre propre offre', status: 400 };
 
-    // Seller receives
-    const sellerCity = await prisma.city.findUnique({ where: { id: offer.cityId } });
-    if (sellerCity) {
-      await prisma.city.update({
-        where: { id: sellerCity.id },
+      const buyerCity = await tx.city.findFirst({
+        where: { id: cityId, playerId: req.user.playerId }
+      });
+      if (!buyerCity) return { error: 'Ville acheteur non trouvée', status: 404 };
+
+      if (buyerCity[offer.buyResource] < offer.buyAmount) {
+        return { error: `Ressources insuffisantes (${offer.buyResource})`, status: 400 };
+      }
+
+      await tx.city.update({
+        where: { id: buyerCity.id },
         data: {
-          [offer.buyResource]: Math.min(sellerCity[offer.buyResource] + offer.buyAmount, offer.buyResource === 'food' ? sellerCity.maxFoodStorage : sellerCity.maxStorage)
+          [offer.buyResource]: buyerCity[offer.buyResource] - offer.buyAmount,
+          [offer.sellResource]: Math.min(buyerCity[offer.sellResource] + offer.sellAmount, offer.sellResource === 'food' ? buyerCity.maxFoodStorage : buyerCity.maxStorage)
         }
       });
-    }
-    
-    // Mark offer as completed
-    await prisma.marketOffer.update({
-      where: { id: offer.id },
-      data: { status: 'COMPLETED', buyerId: req.user.playerId }
+
+      const sellerCity = await tx.city.findUnique({ where: { id: offer.cityId } });
+      if (sellerCity) {
+        await tx.city.update({
+          where: { id: sellerCity.id },
+          data: {
+            [offer.buyResource]: Math.min(sellerCity[offer.buyResource] + offer.buyAmount, offer.buyResource === 'food' ? sellerCity.maxFoodStorage : sellerCity.maxStorage)
+          }
+        });
+      }
+
+      await tx.marketOffer.update({
+        where: { id: offer.id },
+        data: { status: 'COMPLETED', buyerId: req.user.playerId }
+      });
+
+      return { message: 'Échange effectué!' };
     });
-    
-    res.json({ message: 'Échange effectué!' });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -2952,49 +2952,45 @@ app.post('/api/market/npc-trade', auth, async (req, res) => {
       return res.status(400).json({ error: 'Minimum 3 ressources' });
     }
 
-    const city = await prisma.city.findFirst({
-      where: { id: cityId, playerId: req.user.playerId }
-    });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({
+        where: { id: cityId, playerId: req.user.playerId }
+      });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
 
-    // Check player has enough resources
-    if (city[giveResource] < giveAmount) {
-      return res.status(400).json({ error: `Pas assez de ${giveResource}` });
-    }
-
-    // Check market building
-    const market = await prisma.cityBuilding.findFirst({
-      where: { cityId: city.id, key: 'MARKET' }
-    });
-    if (!market || market.level < 1) {
-      return res.status(400).json({ error: 'Construisez un marche (niveau 1 minimum)' });
-    }
-
-    // NPC rate: 3:2 (give 3, receive 2)
-    const receiveAmount = Math.floor(giveAmount * 2 / 3);
-    if (receiveAmount <= 0) {
-      return res.status(400).json({ error: 'Quantite trop faible' });
-    }
-
-    // Check storage limit
-    const maxStorage = receiveResource === 'food' ? city.maxFoodStorage : city.maxStorage;
-    const currentReceived = city[receiveResource];
-    const actualReceived = Math.min(receiveAmount, maxStorage - currentReceived);
-
-    if (actualReceived <= 0) {
-      return res.status(400).json({ error: 'Stockage plein pour cette ressource' });
-    }
-
-    // Execute trade
-    await prisma.city.update({
-      where: { id: city.id },
-      data: {
-        [giveResource]: city[giveResource] - giveAmount,
-        [receiveResource]: currentReceived + actualReceived
+      if (city[giveResource] < giveAmount) {
+        return { error: `Pas assez de ${giveResource}`, status: 400 };
       }
+
+      const market = await tx.cityBuilding.findFirst({
+        where: { cityId: city.id, key: 'MARKET' }
+      });
+      if (!market || market.level < 1) {
+        return { error: 'Construisez un marche (niveau 1 minimum)', status: 400 };
+      }
+
+      const receiveAmount = Math.floor(giveAmount * 2 / 3);
+      if (receiveAmount <= 0) return { error: 'Quantite trop faible', status: 400 };
+
+      const maxStorage = receiveResource === 'food' ? city.maxFoodStorage : city.maxStorage;
+      const currentReceived = city[receiveResource];
+      const actualReceived = Math.min(receiveAmount, maxStorage - currentReceived);
+
+      if (actualReceived <= 0) return { error: 'Stockage plein pour cette ressource', status: 400 };
+
+      await tx.city.update({
+        where: { id: city.id },
+        data: {
+          [giveResource]: city[giveResource] - giveAmount,
+          [receiveResource]: currentReceived + actualReceived
+        }
+      });
+
+      return { given: giveAmount, received: actualReceived, giveResource, receiveResource };
     });
 
-    res.json({ given: giveAmount, received: actualReceived, giveResource, receiveResource });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -5699,8 +5699,13 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   modal.style.display = 'flex';
 }
 
+// Global action guard to prevent double-click on any resource-modifying action
+let _actionInProgress = false;
+
 // Recruit from building
 async function recruitFromBuilding(unitKey, buildingKey) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   const countInput = document.getElementById('recruit-count');
   const count = parseInt(countInput?.value) || 1;
   
@@ -5728,6 +5733,8 @@ async function recruitFromBuilding(unitKey, buildingKey) {
     }
   } catch (e) {
     showToast('Erreur de connexion', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -6697,23 +6704,29 @@ function showRecruitModal(unitKey, unitName) {
 }
 
 async function recruit(unitKey) {
-  const count = parseInt(document.getElementById('recruit-count').value) || 1;
-  
-  const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ unitKey, count })
-  });
-  
-  const data = await res.json();
-  closeModal();
-  
-  if (res.ok) {
-    showToast(`Recrutement de ${count}x ${unitKey} lancé!`, 'success');
-    await loadCities();
-    renderCity();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  if (_actionInProgress) return;
+  _actionInProgress = true;
+  try {
+    const count = parseInt(document.getElementById('recruit-count').value) || 1;
+
+    const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ unitKey, count })
+    });
+
+    const data = await res.json();
+    closeModal();
+
+    if (res.ok) {
+      showToast(`Recrutement de ${count}x ${unitKey} lancé!`, 'success');
+      await loadCities();
+      renderCity();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -12608,21 +12621,23 @@ function renderMarketOffers() {
 }
 
 async function createMarketOffer() {
+  if (_actionInProgress) return;
   const sellResource = document.getElementById('market-sell-resource')?.value;
   const sellAmount = parseInt(document.getElementById('market-sell-amount')?.value);
   const buyResource = document.getElementById('market-buy-resource')?.value;
   const buyAmount = parseInt(document.getElementById('market-buy-amount')?.value);
-  
+
   if (!sellAmount || !buyAmount || sellAmount <= 0 || buyAmount <= 0) {
     showToast('Quantités invalides', 'error');
     return;
   }
-  
+
   if (sellResource === buyResource) {
     showToast('Sélectionnez des ressources différentes', 'error');
     return;
   }
-  
+
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer`, {
       method: 'POST',
@@ -12642,10 +12657,14 @@ async function createMarketOffer() {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
 async function acceptMarketOffer(offerId) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}/accept`, {
       method: 'POST',
@@ -12663,10 +12682,14 @@ async function acceptMarketOffer(offerId) {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
 async function cancelMarketOffer(offerId) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}`, {
       method: 'DELETE',
@@ -12683,6 +12706,8 @@ async function cancelMarketOffer(offerId) {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -13131,6 +13156,7 @@ function updateNpcPreview() {
 }
 
 async function executeNpcTrade() {
+  if (_actionInProgress) return;
   const giveResource = document.getElementById('npc-give-resource')?.value;
   const receiveResource = document.getElementById('npc-receive-resource')?.value;
   const giveAmount = parseInt(document.getElementById('npc-give-amount')?.value) || 0;
@@ -13148,6 +13174,7 @@ async function executeNpcTrade() {
     return;
   }
 
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/npc-trade`, {
       method: 'POST',
@@ -13166,6 +13193,8 @@ async function executeNpcTrade() {
     }
   } catch (e) {
     showToast('Erreur reseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
