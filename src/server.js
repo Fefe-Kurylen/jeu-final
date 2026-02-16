@@ -4108,19 +4108,17 @@ async function seedResourceNodes() {
     SULTAN: { base: ['SUL_INF_DESERT', 'SUL_ARC_DESERT', 'SUL_CAV_BEDOUIN'], inter: ['SUL_INF_CROISSANT', 'SUL_ARC_TIREUR'] }
   };
 
-  // Always use BASE_WORLD_SIZE for resource distribution (matching frontend 374x374)
+  // Reduced for Render free tier (512MB RAM) - 5000 instead of 28000
   const worldSize = BASE_WORLD_SIZE;
   const half = Math.floor(worldSize / 2);
-  const RES_TOTAL = Math.min(30000, Math.floor(worldSize * worldSize * 0.2));
+  const RES_TOTAL = Math.min(5000, Math.floor(worldSize * worldSize * 0.035));
   const GOLD_TOTAL = Math.floor(RES_TOTAL * 0.13);
-  const BATCH = 1000;
+  const BATCH = 500;
 
   const used = new Set();
-  // Mark existing city positions
   const existingCities = await prisma.city.findMany({ select: { x: true, y: true } });
   existingCities.forEach(c => used.add(`${c.x},${c.y}`));
 
-  const data = [];
   const resTypes = ['WOOD', 'STONE', 'IRON', 'FOOD'];
   const biomes = (x, y) => {
     const angle = (Math.atan2(y, x) + Math.PI) / (2 * Math.PI);
@@ -4144,9 +4142,14 @@ async function seedResourceNodes() {
     return { power: 100 * level * (counts / 100), units };
   };
 
-  // Standard resources
+  // Generate and insert in streaming batches to limit memory usage
+  let totalInserted = 0;
+  let goldCount = 0;
+  let batch = [];
   let attempts = 0;
-  while (data.length < RES_TOTAL && attempts < RES_TOTAL * 3) {
+
+  // Standard resources - stream by batch
+  while (totalInserted + batch.length < RES_TOTAL && attempts < RES_TOTAL * 3) {
     attempts++;
     const x = Math.floor(Math.random() * worldSize) - half;
     const y = Math.floor(Math.random() * worldSize) - half;
@@ -4160,16 +4163,21 @@ async function seedResourceNodes() {
     const amount = Math.floor(baseAmt * (0.8 + Math.random() * 0.4));
     const tribe = genDefenders(level);
 
-    data.push({
+    batch.push({
       x, y, resourceType: type, level, biome: biomes(x, y),
       amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.floor(amount / 100),
       hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units,
       respawnMinutes: 30 + level * 30
     });
+
+    if (batch.length >= BATCH) {
+      await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
+      totalInserted += batch.length;
+      batch = [];
+    }
   }
 
-  // Gold resources
-  let goldCount = 0;
+  // Gold resources - stream by batch
   attempts = 0;
   while (goldCount < GOLD_TOTAL && attempts < GOLD_TOTAL * 3) {
     attempts++;
@@ -4183,20 +4191,28 @@ async function seedResourceNodes() {
     const amount = Math.floor([500, 1500, 3000][level - 1] * (0.8 + Math.random() * 0.4));
     const tribe = genDefenders(level);
 
-    data.push({
+    batch.push({
       x, y, resourceType: 'GOLD', level, biome: biomes(x, y),
       amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.floor(amount / 200),
       hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units,
       respawnMinutes: 60 + level * 60
     });
     goldCount++;
+
+    if (batch.length >= BATCH) {
+      await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
+      totalInserted += batch.length;
+      batch = [];
+    }
   }
 
-  // Insert in batches
-  for (let i = 0; i < data.length; i += BATCH) {
-    await prisma.resourceNode.createMany({ data: data.slice(i, i + BATCH), skipDuplicates: true });
+  // Flush remaining batch
+  if (batch.length > 0) {
+    await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
+    totalInserted += batch.length;
   }
-  console.log(`✅ ${data.length} points de ressource générés (dont ${goldCount} or)`);
+
+  console.log(`✅ ${totalInserted} points de ressource générés (dont ${goldCount} or)`);
 }
 
 // Fonction de démarrage avec retry pour la DB
@@ -4206,20 +4222,25 @@ async function startServer() {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL ? '✅ Configurée' : '❌ Manquante'}`);
   console.log('');
-  
-  // Test de connexion à la base de données avec retry
+
+  // Ouvrir le port HTTP immédiatement (Render exige un port ouvert rapidement)
+  let connected = false;
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Serveur HTTP démarré sur le port ${PORT}`);
+  });
+
+  // Connexion DB en arrière-plan (le serveur est déjà accessible)
   const MAX_RETRIES = 10;
   const RETRY_DELAY = 2000;
-  let connected = false;
-  
+
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       console.log(`⏳ Tentative de connexion DB ${i + 1}/${MAX_RETRIES}...`);
       await prisma.$connect();
-      
+
       // Test simple pour vérifier que la DB répond
       await prisma.$queryRaw`SELECT 1`;
-      
+
       console.log('✅ Connexion à la base de données réussie!');
       connected = true;
 
@@ -4246,7 +4267,7 @@ async function startServer() {
       // Auto-seed resource nodes if none exist or FORCE_RESEED
       try {
         const nodeCount = await prisma.resourceNode.count();
-        const RESEED_VERSION = 2; // Increment to force reseed
+        const RESEED_VERSION = 3; // v3: reduced for 512MB Render free tier
         const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
         // Check if we need to reseed based on version
         const lastSeedVersion = await prisma.$queryRawUnsafe(
@@ -4272,6 +4293,14 @@ async function startServer() {
         console.warn('⚠️ Erreur seed:', seedErr.message);
       }
 
+      console.log('');
+      console.log('==========================================');
+      console.log(`   MonJeu v0.6 - ONLINE`);
+      console.log(`   URL: http://0.0.0.0:${PORT}`);
+      console.log(`   DB:  ✅ Connectée`);
+      console.log('==========================================');
+      console.log('');
+
       break;
     } catch (e) {
       console.log(`   Erreur: ${e.message.substring(0, 100)}`);
@@ -4280,24 +4309,12 @@ async function startServer() {
         console.error('❌ Impossible de se connecter à la base de données après', MAX_RETRIES, 'tentatives');
         console.error('   Vérifiez DATABASE_URL dans les variables d\'environnement');
         console.error('');
-        // On ne quitte pas, on laisse Render décider
       } else {
         await new Promise(r => setTimeout(r, RETRY_DELAY));
       }
     }
   }
-  
-  // Démarrer le serveur même si pas de DB (pour le health check)
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log('');
-    console.log('==========================================');
-    console.log(`   MonJeu v0.6 - ONLINE`);
-    console.log(`   URL: http://0.0.0.0:${PORT}`);
-    console.log(`   DB:  ${connected ? '✅ Connectée' : '❌ Non connectée'}`);
-    console.log('==========================================');
-    console.log('');
-  });
-  
+
   return server;
 }
 
