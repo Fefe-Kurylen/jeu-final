@@ -2667,6 +2667,26 @@ app.get('/api/reports/spy', auth, async (req, res) => {
   }
 });
 
+// Get trade reports (completed market offers)
+app.get('/api/reports/trade', auth, async (req, res) => {
+  try {
+    const trades = await prisma.marketOffer.findMany({
+      where: {
+        status: 'COMPLETED',
+        OR: [
+          { sellerId: req.user.playerId },
+          { buyerId: req.user.playerId }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30
+    });
+    res.json(trades);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ========== ENVOYER RESSOURCES (transport) ==========
 app.post('/api/army/:id/transport', auth, async (req, res) => {
   try {
