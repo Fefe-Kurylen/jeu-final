@@ -10,7 +10,12 @@ require('dotenv').config();
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'production' ? ['error'] : ['query', 'error', 'warn']
+  log: process.env.NODE_ENV === 'production' ? ['error'] : ['query', 'error', 'warn'],
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL + (process.env.DATABASE_URL?.includes('?') ? '&' : '?') + 'connection_limit=5&pool_timeout=20'
+    }
+  }
 });
 
 const app = express();
@@ -4048,43 +4053,21 @@ setInterval(async () => {
     // - Regen commence 5 min après le départ de l'armée
     // - Temps de regen doublé (regenRate / 2)
     const REGEN_DELAY_MINUTES = 5;
-    const nodesToRegen = await prisma.$queryRaw`
-      SELECT * FROM "ResourceNode" WHERE amount < "maxAmount"
+    const regenCutoff = new Date(now.getTime() - REGEN_DELAY_MINUTES * 60000);
+
+    // Single bulk SQL UPDATE instead of thousands of individual Prisma updates
+    const regenResult = await prisma.$executeRaw`
+      UPDATE "ResourceNode"
+      SET amount = LEAST(amount + FLOOR("regenRate" / 2.0 * ${TICK_HOURS}), "maxAmount")
+      WHERE amount < "maxAmount"
+        AND "hasPlayerArmy" = false
+        AND (
+          "lastArmyDeparture" IS NULL
+          OR "lastArmyDeparture" <= ${regenCutoff}
+        )
     `;
-
-    // Batch update for regeneration
-    const regenUpdates = [];
-    for (const node of nodesToRegen) {
-      // Skip si une armée est présente
-      if (node.hasPlayerArmy) {
-        continue;
-      }
-
-      // Skip si moins de 5 minutes depuis le départ de l'armée
-      if (node.lastArmyDeparture) {
-        const timeSinceDeparture = (now.getTime() - new Date(node.lastArmyDeparture).getTime()) / 60000;
-        if (timeSinceDeparture < REGEN_DELAY_MINUTES) {
-          continue;
-        }
-      }
-
-      if (node.amount < node.maxAmount) {
-        // Temps de regen doublé = regenRate divisé par 2
-        const effectiveRegenRate = node.regenRate / 2;
-        const regenAmount = Math.min(effectiveRegenRate * TICK_HOURS, node.maxAmount - node.amount);
-        if (regenAmount > 0) {
-          regenUpdates.push(
-            prisma.resourceNode.update({
-              where: { id: node.id },
-              data: { amount: { increment: Math.floor(regenAmount) } }
-            })
-          );
-        }
-      }
-    }
-
-    if (regenUpdates.length > 0) {
-      await Promise.all(regenUpdates);
+    if (regenResult > 0) {
+      console.log(`[REGEN] ${regenResult} resource nodes regenerated`);
     }
   } catch (e) {
     console.error('Tick error:', e);
