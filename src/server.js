@@ -23,7 +23,7 @@ if (IS_PRODUCTION && JWT_SECRET === 'monjeu-secret-change-this') {
   console.error('⚠️  WARNING: Using default JWT secret in production! Set JWT_SECRET environment variable.');
 }
 
-// Trust proxy pour Railway
+// Trust proxy pour Render
 app.set('trust proxy', 1);
 
 // CORS - configuration sécurisée
@@ -450,7 +450,7 @@ const auth = (req, res, next) => {
   }
 };
 
-// Health check pour Render/Railway
+// Health check pour Render
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '0.6.0' }));
 app.get('/api/health', async (req, res) => {
   try {
@@ -4280,7 +4280,7 @@ async function startServer() {
         console.error('❌ Impossible de se connecter à la base de données après', MAX_RETRIES, 'tentatives');
         console.error('   Vérifiez DATABASE_URL dans les variables d\'environnement');
         console.error('');
-        // On ne quitte pas, on laisse Railway décider
+        // On ne quitte pas, on laisse Render décider
       } else {
         await new Promise(r => setTimeout(r, RETRY_DELAY));
       }
