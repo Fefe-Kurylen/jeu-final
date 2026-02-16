@@ -5867,7 +5867,11 @@ function getUnitName(unitKey) {
   return unit?.name || unitKey;
 }
 
+let _buildInProgress = false;
+
 async function buildField(buildingKey, slot) {
+  if (_buildInProgress) return;
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -5889,10 +5893,14 @@ async function buildField(buildingKey, slot) {
     console.error('buildField error:', e);
     closeBuildPanel();
     showToast('Erreur réseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 
 async function buildAtSlot(buildingKey, slot) {
+  if (_buildInProgress) return;
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -5914,6 +5922,8 @@ async function buildAtSlot(buildingKey, slot) {
     console.error('buildAtSlot error:', e);
     closeBuildPanel();
     showToast('Erreur réseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 
@@ -6409,6 +6419,8 @@ function renderBuildings(filter) {
 }
 
 async function build(buildingKey) {
+  if (_buildInProgress) return;
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -6428,6 +6440,8 @@ async function build(buildingKey) {
   } catch (e) {
     console.error('build error:', e);
     showToast('Erreur réseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 

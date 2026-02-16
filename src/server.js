@@ -807,148 +807,150 @@ app.post('/api/city/:id/wounded/heal', auth, async (req, res) => {
 app.post('/api/city/:id/build', auth, async (req, res) => {
   try {
     const { buildingKey, slot } = req.body;
-    const city = await prisma.city.findFirst({
-      where: { id: req.params.id, playerId: req.user.playerId },
-      include: { buildings: true, buildQueue: true }
-    });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvee' });
 
-    // Configuration: 2 constructions simultanées + 2 en attente = 4 max
-    const MAX_RUNNING = 2;
-    const MAX_QUEUED = 2;
-    const MAX_TOTAL = MAX_RUNNING + MAX_QUEUED;
-    
-    const runningCount = city.buildQueue.filter(b => b.status === 'RUNNING').length;
-    const queuedCount = city.buildQueue.filter(b => b.status === 'QUEUED').length;
-    const totalCount = city.buildQueue.length;
-    
-    if (totalCount >= MAX_TOTAL) {
-      return res.status(400).json({ error: `File de construction pleine (max ${MAX_TOTAL}: ${MAX_RUNNING} en cours + ${MAX_QUEUED} en attente)` });
-    }
+    // Use a transaction to prevent race conditions (double-click = duplicate builds)
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({
+        where: { id: req.params.id, playerId: req.user.playerId },
+        include: { buildings: true, buildQueue: true }
+      });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
 
-    // Find existing building - use slot for field buildings (multiple of same type)
-    const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(buildingKey);
-    const existing = isFieldBuilding && slot
-      ? city.buildings.find(b => b.key === buildingKey && b.slot === slot)
-      : city.buildings.find(b => b.key === buildingKey);
-    const inQueue = isFieldBuilding && slot
-      ? city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === slot).length
-      : city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
-    const targetLevel = (existing?.level || 0) + inQueue + 1;
+      // Configuration: 2 constructions simultanées + 2 en attente = 4 max
+      const MAX_RUNNING = 2;
+      const MAX_QUEUED = 2;
+      const MAX_TOTAL = MAX_RUNNING + MAX_QUEUED;
 
-    // Get building def
-    const buildingDef = buildingsData.find(b => b.key === buildingKey);
-    const maxLevel = buildingDef?.maxLevel || 20;
-    if (targetLevel > maxLevel) return res.status(400).json({ error: `Niveau max atteint (${maxLevel})` });
+      const runningCount = city.buildQueue.filter(b => b.status === 'RUNNING').length;
+      const totalCount = city.buildQueue.length;
 
-    // MAIN_HALL is unique per city (1 only, at slot 0)
-    if (buildingKey === 'MAIN_HALL' && existing && !slot) {
-      // MAIN_HALL already exists - only allow upgrade, not duplicate
-    }
-
-    // Other buildings cannot exceed the current MAIN_HALL level
-    if (buildingKey !== 'MAIN_HALL') {
-      const mainHall = city.buildings.find(b => b.key === 'MAIN_HALL');
-      const mainHallLevel = mainHall?.level || 1;
-      if (targetLevel > mainHallLevel) {
-        return res.status(400).json({ error: `Le niveau du bâtiment ne peut pas dépasser celui du Bâtiment principal (Niv.${mainHallLevel})` });
+      if (totalCount >= MAX_TOTAL) {
+        return { error: `File de construction pleine (max ${MAX_TOTAL}: ${MAX_RUNNING} en cours + ${MAX_QUEUED} en attente)`, status: 400 };
       }
-    }
 
-    // Calculate cost
-    const baseCost = buildingDef?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
-    const mult = Math.pow(1.5, targetLevel - 1);
-    const cost = {
-      wood: Math.floor(baseCost.wood * mult),
-      stone: Math.floor(baseCost.stone * mult),
-      iron: Math.floor(baseCost.iron * mult),
-      food: Math.floor(baseCost.food * mult)
-    };
+      // Find existing building - use slot for field buildings (multiple of same type)
+      const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(buildingKey);
+      const existing = isFieldBuilding && slot
+        ? city.buildings.find(b => b.key === buildingKey && b.slot === slot)
+        : city.buildings.find(b => b.key === buildingKey);
+      const inQueue = isFieldBuilding && slot
+        ? city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === slot).length
+        : city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
+      const targetLevel = (existing?.level || 0) + inQueue + 1;
 
-    if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
-      return res.status(400).json({ error: 'Ressources insuffisantes', cost, have: { wood: Math.floor(city.wood), stone: Math.floor(city.stone), iron: Math.floor(city.iron), food: Math.floor(city.food) } });
-    }
+      // Get building def
+      const buildingDef = buildingsData.find(b => b.key === buildingKey);
+      const maxLevel = buildingDef?.maxLevel || 20;
+      if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
 
-    await prisma.city.update({
-      where: { id: city.id },
-      data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
-    });
-
-    // Calculate duration
-    const baseTime = buildingDef?.timeL1Sec || 60;
-    let durationSec = Math.floor(baseTime * Math.pow(1.8, targetLevel - 1));
-
-    // Greek faction bonus: -10% build time
-    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
-    const buildTimeBonus = getFactionBonus(player?.faction, 'buildTimeReduction');
-    if (buildTimeBonus > 0) {
-      durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
-    }
-    
-    const now = new Date();
-    let startAt = now;
-    let status = 'RUNNING';
-    
-    // Determine status: RUNNING if less than 2 running, otherwise QUEUED
-    if (runningCount >= MAX_RUNNING) {
-      // Must be queued - find when it can start
-      const allRunning = city.buildQueue.filter(b => b.status === 'RUNNING');
-      const earliestEnd = allRunning.sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt))[0];
-      
-      // Check if there are queued items already
-      const allQueued = city.buildQueue.filter(b => b.status === 'QUEUED');
-      if (allQueued.length > 0) {
-        // Queue after last queued item
-        const lastQueued = allQueued.sort((a, b) => new Date(b.endsAt) - new Date(a.endsAt))[0];
-        startAt = new Date(lastQueued.endsAt);
-      } else {
-        // Queue after earliest running
-        startAt = new Date(earliestEnd.endsAt);
+      // MAIN_HALL is unique per city (1 only, at slot 0)
+      if (buildingKey === 'MAIN_HALL' && existing && !slot) {
+        // MAIN_HALL already exists - only allow upgrade, not duplicate
       }
-      status = 'QUEUED';
-    }
-    
-    const endsAt = new Date(startAt.getTime() + durationSec * 1000);
 
-    // Determine the correct slot for the queue item
-    let buildSlot = slot;
-    if (!buildSlot && existing) {
-      // Use existing building's slot for upgrades
-      buildSlot = existing.slot;
-    }
-    if (!buildSlot) {
-      // New building - find next available slot
-      const usedSlots = new Set(city.buildings.map(b => b.slot));
-      const queuedSlots = city.buildQueue.map(q => q.slot);
-      queuedSlots.forEach(s => usedSlots.add(s));
-      buildSlot = 1;
-      while (usedSlots.has(buildSlot)) buildSlot++;
-    }
+      // Other buildings cannot exceed the current MAIN_HALL level
+      if (buildingKey !== 'MAIN_HALL') {
+        const mainHall = city.buildings.find(b => b.key === 'MAIN_HALL');
+        const mainHallLevel = mainHall?.level || 1;
+        if (targetLevel > mainHallLevel) {
+          return { error: `Le niveau du bâtiment ne peut pas dépasser celui du Bâtiment principal (Niv.${mainHallLevel})`, status: 400 };
+        }
+      }
 
-    const queueItem = await prisma.buildQueueItem.create({
-      data: {
-        cityId: city.id,
-        buildingKey,
-        targetLevel,
-        slot: buildSlot,
-        startedAt: startAt,
-        endsAt,
-        status
+      // Calculate cost
+      const baseCost = buildingDef?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
+      const mult = Math.pow(1.5, targetLevel - 1);
+      const cost = {
+        wood: Math.floor(baseCost.wood * mult),
+        stone: Math.floor(baseCost.stone * mult),
+        iron: Math.floor(baseCost.iron * mult),
+        food: Math.floor(baseCost.food * mult)
+      };
+
+      if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
+        return { error: 'Ressources insuffisantes', status: 400, cost, have: { wood: Math.floor(city.wood), stone: Math.floor(city.stone), iron: Math.floor(city.iron), food: Math.floor(city.food) } };
+      }
+
+      await tx.city.update({
+        where: { id: city.id },
+        data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
+      });
+
+      // Calculate duration
+      const baseTime = buildingDef?.timeL1Sec || 60;
+      let durationSec = Math.floor(baseTime * Math.pow(1.8, targetLevel - 1));
+
+      // Greek faction bonus: -10% build time
+      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
+      const buildTimeBonus = getFactionBonus(player?.faction, 'buildTimeReduction');
+      if (buildTimeBonus > 0) {
+        durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
+      }
+
+      const now = new Date();
+      let startAt = now;
+      let status = 'RUNNING';
+
+      // Determine status: RUNNING if less than 2 running, otherwise QUEUED
+      if (runningCount >= MAX_RUNNING) {
+        const allRunning = city.buildQueue.filter(b => b.status === 'RUNNING');
+        const earliestEnd = allRunning.sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt))[0];
+
+        const allQueued = city.buildQueue.filter(b => b.status === 'QUEUED');
+        if (allQueued.length > 0) {
+          const lastQueued = allQueued.sort((a, b) => new Date(b.endsAt) - new Date(a.endsAt))[0];
+          startAt = new Date(lastQueued.endsAt);
+        } else {
+          startAt = new Date(earliestEnd.endsAt);
+        }
+        status = 'QUEUED';
+      }
+
+      const endsAt = new Date(startAt.getTime() + durationSec * 1000);
+
+      // Determine the correct slot for the queue item
+      let buildSlot = slot;
+      if (!buildSlot && existing) {
+        buildSlot = existing.slot;
+      }
+      if (!buildSlot) {
+        const usedSlots = new Set(city.buildings.map(b => b.slot));
+        const queuedSlots = city.buildQueue.map(q => q.slot);
+        queuedSlots.forEach(s => usedSlots.add(s));
+        buildSlot = 1;
+        while (usedSlots.has(buildSlot)) buildSlot++;
+      }
+
+      const queueItem = await tx.buildQueueItem.create({
+        data: {
+          cityId: city.id,
+          buildingKey,
+          targetLevel,
+          slot: buildSlot,
+          startedAt: startAt,
+          endsAt,
+          status
       }
     });
 
-    res.json({ 
-      message: status === 'RUNNING' ? 'Construction lancee' : 'Construction ajoutee a la file', 
-      queueItem, 
-      durationSec, 
-      cost,
-      queueStatus: {
-        running: runningCount + (status === 'RUNNING' ? 1 : 0),
-        queued: queuedCount + (status === 'QUEUED' ? 1 : 0),
-        maxRunning: MAX_RUNNING,
-        maxQueued: MAX_QUEUED
-      }
-    });
+      return {
+        message: status === 'RUNNING' ? 'Construction lancee' : 'Construction ajoutee a la file',
+        queueItem,
+        durationSec,
+        cost,
+        queueStatus: {
+          running: runningCount + (status === 'RUNNING' ? 1 : 0),
+          queued: (city.buildQueue.filter(b => b.status === 'QUEUED').length) + (status === 'QUEUED' ? 1 : 0),
+          maxRunning: MAX_RUNNING,
+          maxQueued: MAX_QUEUED
+        }
+      };
+    }); // end $transaction
+
+    if (result.error) {
+      return res.status(result.status || 400).json(result);
+    }
+    res.json(result);
   } catch (e) {
     console.error('Build error:', e);
     res.status(500).json({ error: e.message });
