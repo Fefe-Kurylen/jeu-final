@@ -375,7 +375,7 @@ let attackCheckInterval = null;
 
 async function checkIncomingAttacks() {
   try {
-    const resp = await fetch('/api/incoming-attacks', {
+    const resp = await fetch(`${API}/api/incoming-attacks`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (resp.ok) {
@@ -6316,8 +6316,8 @@ function updateCityStats() {
   const siloEl = document.getElementById('city-silo');
   const wallsEl = document.getElementById('city-walls');
 
-  if (storageEl) storageEl.textContent = `${formatNumber(currentStorage)}/${formatNumber(maxStorage)}`;
-  if (siloEl) siloEl.textContent = `${formatNumber(currentSilo)}/${formatNumber(maxSilo)}`;
+  if (storageEl) storageEl.textContent = `${formatNum(currentStorage)}/${formatNum(maxStorage)}`;
+  if (siloEl) siloEl.textContent = `${formatNum(currentSilo)}/${formatNum(maxSilo)}`;
   if (wallsEl) wallsEl.textContent = wallLevel > 0 ? `${currentWallHp}/${maxWallHp}` : 'Pas de mur';
 }
 
@@ -6744,6 +6744,8 @@ async function recruit(unitKey) {
     } else {
       showToast(data.error || 'Erreur', 'error');
     }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
   } finally {
     _actionInProgress = false;
   }
@@ -7958,12 +7960,15 @@ async function assignPoint(stat) {
     });
 
     if (res.ok) {
-      showToast('Point assigné!', 'success');
+      showToast('Point assigne!', 'success');
       loadHero();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Plus de points disponibles', 'error');
     }
   } catch (e) {
     console.error('assignPoint error:', e);
-    showToast('Erreur réseau', 'error');
+    showToast('Erreur reseau', 'error');
   }
 }
 
@@ -8144,14 +8149,17 @@ async function renameHero() {
     });
 
     if (res.ok) {
-      showToast('Héros renommé!', 'success');
+      showToast('Heros renomme!', 'success');
       const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur lors du renommage', 'error');
     }
   } catch (e) {
-    showToast('Erreur', 'error');
+    showToast('Erreur reseau', 'error');
   }
 }
 
