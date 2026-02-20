@@ -2235,30 +2235,27 @@ app.post('/api/armies/send', auth, async (req, res) => {
 
 // Get army details
 app.get('/api/army/:id', auth, async (req, res) => {
-  const army = await prisma.army.findFirst({
-    where: { id: req.params.id, ownerId: req.user.playerId },
-    include: { units: true, city: true, hero: true }
-  });
-  if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-
-  // Add power calculation
-  const power = calculateArmyPower(army.units);
-  res.json({ ...army, power });
+  try {
+    const army = await prisma.army.findFirst({
+      where: { id: req.params.id, ownerId: req.user.playerId },
+      include: { units: true, city: true, hero: true }
+    });
+    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
+    const power = calculateArmyPower(army.units);
+    res.json({ ...army, power });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // List all armies
 app.get('/api/armies', auth, async (req, res) => {
-  const armies = await prisma.army.findMany({
-    where: { ownerId: req.user.playerId },
-    include: { units: true, city: true, hero: true }
-  });
-  
-  const armiesWithPower = armies.map(a => ({
-    ...a,
-    power: calculateArmyPower(a.units)
-  }));
-  
-  res.json(armiesWithPower);
+  try {
+    const armies = await prisma.army.findMany({
+      where: { ownerId: req.user.playerId },
+      include: { units: true, city: true, hero: true }
+    });
+    const armiesWithPower = armies.map(a => ({ ...a, power: calculateArmyPower(a.units) }));
+    res.json(armiesWithPower);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ========== EXPEDITIONS ==========
@@ -2283,11 +2280,13 @@ async function createExpedition(playerId) {
 }
 
 app.get('/api/expeditions', auth, async (req, res) => {
-  const expeditions = await prisma.expedition.findMany({
-    where: { playerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(expeditions);
+  try {
+    const expeditions = await prisma.expedition.findMany({
+      where: { playerId: req.user.playerId, status: { in: ['AVAILABLE', 'IN_PROGRESS'] } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(expeditions);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/expedition/:id/start', auth, async (req, res) => {
@@ -2325,12 +2324,16 @@ app.post('/api/expedition/:id/start', auth, async (req, res) => {
 // ========== ALLIANCE ==========
 
 app.get('/api/alliances', auth, async (req, res) => {
-  const alliances = await prisma.alliance.findMany({
-    include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } },
-    orderBy: { createdAt: 'desc' },
-    take: 50
-  });
-  res.json(alliances);
+  try {
+    const alliances = await prisma.alliance.findMany({
+      include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(alliances);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/alliance/create', auth, async (req, res) => {
@@ -2597,76 +2600,88 @@ app.get('/api/world/info', async (req, res) => {
 });
 
 app.get('/api/map/viewport', auth, async (req, res) => {
-  const { center } = await getWorldSize();
-  const x = parseInt(req.query.x) || center;
-  const y = parseInt(req.query.y) || center;
-  const r = parseInt(req.query.radius) || 10;
+  try {
+    const { center } = await getWorldSize();
+    const x = parseInt(req.query.x) || center;
+    const y = parseInt(req.query.y) || center;
+    const r = parseInt(req.query.radius) || 10;
 
-  const cities = await prisma.city.findMany({
-    where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } },
-    select: {
-      id: true, name: true, x: true, y: true, isCapital: true, playerId: true,
-      buildings: { where: { key: 'WALL' }, select: { level: true } },
-      player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } }
-    }
-  });
+    const cities = await prisma.city.findMany({
+      where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } },
+      select: {
+        id: true, name: true, x: true, y: true, isCapital: true, playerId: true,
+        buildings: { where: { key: 'WALL' }, select: { level: true } },
+        player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } }
+      }
+    });
 
-  // Add city tier information
-  const citiesWithTier = cities.map(city => {
-    const wallLevel = city.buildings[0]?.level || 0;
-    const cityTier = getCityTier(wallLevel);
-    const allianceInfo = city.player?.alliance?.alliance;
-    return {
-      id: city.id,
-      name: city.name,
-      x: city.x,
-      y: city.y,
-      isCapital: city.isCapital,
-      playerId: city.playerId,
-      player: {
-        id: city.player?.id,
-        name: city.player?.name,
-        faction: city.player?.faction,
-        population: city.player?.population || 0,
-        allianceId: allianceInfo?.id || null,
-        allianceTag: allianceInfo?.tag || null
-      },
-      wallLevel,
-      cityTier,
-      cityTierName: getCityTierName(cityTier)
-    };
-  });
+    // Add city tier information
+    const citiesWithTier = cities.map(city => {
+      const wallLevel = city.buildings[0]?.level || 0;
+      const cityTier = getCityTier(wallLevel);
+      const allianceInfo = city.player?.alliance?.alliance;
+      return {
+        id: city.id,
+        name: city.name,
+        x: city.x,
+        y: city.y,
+        isCapital: city.isCapital,
+        playerId: city.playerId,
+        player: {
+          id: city.player?.id,
+          name: city.player?.name,
+          faction: city.player?.faction,
+          population: city.player?.population || 0,
+          allianceId: allianceInfo?.id || null,
+          allianceTag: allianceInfo?.tag || null
+        },
+        wallLevel,
+        cityTier,
+        cityTierName: getCityTierName(cityTier)
+      };
+    });
 
-  const nodes = await prisma.resourceNode.findMany({
-    where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } }
-  });
+    const nodes = await prisma.resourceNode.findMany({
+      where: { x: { gte: x - r, lte: x + r }, y: { gte: y - r, lte: y + r } }
+    });
 
-  res.json({ cities: citiesWithTier, resourceNodes: nodes, center: { x, y }, radius: r });
+    res.json({ cities: citiesWithTier, resourceNodes: nodes, center: { x, y }, radius: r });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ========== RANKING ==========
 
 app.get('/api/ranking/players', async (req, res) => {
-  const players = await prisma.player.findMany({
-    orderBy: { population: 'desc' },
-    take: 50,
-    select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { tag: true } } } } }
-  });
-  res.json(players);
+  try {
+    const players = await prisma.player.findMany({
+      orderBy: { population: 'desc' },
+      take: 50,
+      select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { tag: true } } } } }
+    });
+    res.json(players);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/ranking/alliances', async (req, res) => {
-  const alliances = await prisma.alliance.findMany({
-    include: { members: { include: { player: { select: { population: true } } } } }
-  });
-  const ranked = alliances.map(a => ({
-    id: a.id,
-    name: a.name,
-    tag: a.tag,
-    members: a.members.length,
-    population: a.members.reduce((sum, m) => sum + m.player.population, 0)
-  })).sort((a, b) => b.population - a.population);
-  res.json(ranked);
+  try {
+    const alliances = await prisma.alliance.findMany({
+      include: { members: { include: { player: { select: { population: true } } } } }
+    });
+    const ranked = alliances.map(a => ({
+      id: a.id,
+      name: a.name,
+      tag: a.tag,
+      members: a.members.length,
+      population: a.members.reduce((sum, m) => sum + m.player.population, 0)
+    })).sort((a, b) => b.population - a.population);
+    res.json(ranked);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ========== BATTLE REPORTS ==========
