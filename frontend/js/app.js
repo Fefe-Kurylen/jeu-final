@@ -263,7 +263,7 @@ async function loadWorldInfo() {
     const res = await fetch(`${API}/api/world/info`);
     if (res.ok) {
       const info = await res.json();
-      updateWorldSize(info.playerCount);
+      updateWorldSize(info.playerCount, info.worldSize);
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }
   } catch (e) {
@@ -8257,6 +8257,7 @@ let mapCanvas, mapCtx, minimapCanvas, minimapCtx;
 let mapData = [];
 let mapZoomLevel = 1;
 let mapOffsetX = 0, mapOffsetY = 0;
+let mapInitialized = false;
 let mapDragging = false;
 let mapDragStart = { x: 0, y: 0 };
 let mapHoveredTile = null;
@@ -8274,10 +8275,11 @@ const MAX_COORD = MIN_COORD + BASE_WORLD_SIZE - 1;   // +186
 let WORLD_SIZE = BASE_WORLD_SIZE;
 const WORLD_CENTER = 0; // Center is always 0,0
 
-// Update world size based on player count (for future expansion)
-function updateWorldSize(playerCount) {
-  // For now, world size is fixed at 374x374
-  // Future: could expand as more players join
+// Update world size based on player count
+function updateWorldSize(playerCount, serverWorldSize) {
+  if (serverWorldSize && serverWorldSize > WORLD_SIZE) {
+    WORLD_SIZE = serverWorldSize;
+  }
   console.log(`🗺️ World: ${WORLD_SIZE}x${WORLD_SIZE} (coords ${MIN_COORD} to ${MAX_COORD}) - ${playerCount} players`);
 }
 
@@ -9015,10 +9017,11 @@ async function loadMap() {
 
   initMapCanvas();
 
-  // Center map on player's first city if not already positioned
-  if (mapOffsetX === 0 && mapOffsetY === 0 && currentCity) {
+  // Center map on player's first city on first load
+  if (!mapInitialized && currentCity) {
     mapOffsetX = currentCity.x;
     mapOffsetY = currentCity.y;
+    mapInitialized = true;
   }
 
   // Load all visible tiles from server
@@ -9082,9 +9085,33 @@ async function loadMap() {
         });
       }
 
+      // Add moving armies from server
+      if (data.armies) {
+        data.armies.forEach(a => {
+          // Avoid duplicating player's own armies already shown
+          if (!mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
+            mapData.push({
+              x: a.x,
+              y: a.y,
+              type: 'ARMY',
+              id: a.id,
+              name: a.name,
+              status: a.status,
+              missionType: a.missionType,
+              targetX: a.targetX,
+              targetY: a.targetY,
+              arrivalAt: a.arrivalAt,
+              ownerId: a.ownerId,
+              ownerName: a.owner?.name || 'Inconnu',
+              faction: a.owner?.faction || 'ROME'
+            });
+          }
+        });
+      }
+
       // Always include player's cities even if not in viewport
       cities.forEach(c => {
-        if (!mapData.find(d => d.x === c.x && d.y === c.y)) {
+        if (!mapData.find(d => d.x === c.x && d.y === c.y && d.type === 'CITY')) {
           const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
           const wallLevel = c.wallLevel || wallBuilding?.level || 0;
 
@@ -9231,8 +9258,9 @@ function renderMap() {
     };
   }
 
-  // Store for click detection
+  // Store for click detection and army movement lines
   window.mapScreenToWorld = screenToWorld;
+  window.mapWorldToScreen = worldToScreen;
 
   // Draw isometric terrain grid
   const drawOrder = [];
@@ -10530,16 +10558,16 @@ function drawIsoArmy(x, y, tw, th, army) {
     mapCtx.shadowBlur = 0;
   }
 
-  // Movement line if moving
-  if (isMoving && army.targetX !== undefined && army.targetY !== undefined) {
-    const targetPos = window.mapScreenToWorld ? null : { x: army.targetX, y: army.targetY };
-    // Draw dashed line to target (simplified)
+  // Movement line if moving - use worldToScreen stored globally
+  if (isMoving && army.targetX !== undefined && army.targetY !== undefined && window.mapWorldToScreen) {
+    const targetScreenPos = window.mapWorldToScreen(army.targetX, army.targetY);
     mapCtx.strokeStyle = 'rgba(255,170,0,0.5)';
     mapCtx.lineWidth = 2;
     mapCtx.setLineDash([5, 5]);
     mapCtx.beginPath();
     mapCtx.moveTo(x, y);
-    // We'd need worldToScreen here, simplified for now
+    mapCtx.lineTo(targetScreenPos.x, targetScreenPos.y);
+    mapCtx.stroke();
     mapCtx.setLineDash([]);
   }
 }
