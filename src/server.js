@@ -33,6 +33,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
+// ========== HEALTH CHECK (Render) ==========
+app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
 // ========== GLOBAL RATE LIMIT ==========
 app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
 

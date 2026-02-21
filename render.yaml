@@ -10,7 +10,7 @@ services:
     plan: free
     runtime: node
     region: frankfurt
-    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss
+    buildCommand: npm install && npx prisma generate && npx prisma db push --skip-generate
     startCommand: node src/server.js
     healthCheckPath: /api/health
     envVars:
