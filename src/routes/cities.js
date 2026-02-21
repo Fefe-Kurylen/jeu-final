@@ -226,34 +226,41 @@ router.get('/:id/wounded', auth, async (req, res) => {
 router.post('/:id/wounded/heal', auth, async (req, res) => {
   try {
     const { unitKey } = req.body;
-    const city = await prisma.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId } });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
+    if (!unitKey) return res.status(400).json({ error: 'unitKey requis' });
 
-    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
-    const wounded = await prisma.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
-    if (!wounded) return res.status(404).json({ error: 'Pas de blessés de ce type' });
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId } });
+      if (!city) return { error: 'Ville non trouvée', status: 404 };
 
-    const goldCost = wounded.count;
-    if (player.gold < goldCost) return res.status(400).json({ error: `Pas assez d'or (${goldCost} requis)` });
+      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
+      const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
+      if (!wounded) return { error: 'Pas de blessés de ce type', status: 404 };
 
-    await prisma.player.update({ where: { id: player.id }, data: { gold: player.gold - goldCost } });
+      const goldCost = wounded.count;
+      if (player.gold < goldCost) return { error: `Pas assez d'or (${goldCost} requis)`, status: 400 };
 
-    const garrison = await prisma.army.findFirst({
-      where: { cityId: city.id, isGarrison: true }, include: { units: true }
-    });
-    if (garrison) {
-      const existingUnit = garrison.units.find(u => u.unitKey === unitKey);
-      if (existingUnit) {
-        await prisma.armyUnit.update({ where: { id: existingUnit.id }, data: { count: existingUnit.count + wounded.count } });
-      } else {
-        const unitDef = unitsData.find(u => u.key === unitKey);
-        await prisma.armyUnit.create({
-          data: { armyId: garrison.id, unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
-        });
+      await tx.player.update({ where: { id: player.id }, data: { gold: player.gold - goldCost } });
+
+      const garrison = await tx.army.findFirst({
+        where: { cityId: city.id, isGarrison: true }, include: { units: true }
+      });
+      if (garrison) {
+        const existingUnit = garrison.units.find(u => u.unitKey === unitKey);
+        if (existingUnit) {
+          await tx.armyUnit.update({ where: { id: existingUnit.id }, data: { count: existingUnit.count + wounded.count } });
+        } else {
+          const unitDef = unitsData.find(u => u.key === unitKey);
+          await tx.armyUnit.create({
+            data: { armyId: garrison.id, unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
+          });
+        }
       }
-    }
-    await prisma.woundedUnit.delete({ where: { id: wounded.id } });
-    res.json({ success: true, healed: wounded.count, goldSpent: goldCost });
+      await tx.woundedUnit.delete({ where: { id: wounded.id } });
+      return { success: true, healed: wounded.count, goldSpent: goldCost };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

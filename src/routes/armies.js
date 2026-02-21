@@ -417,15 +417,12 @@ router.post('/:id/spy', auth, async (req, res) => {
 // POST /api/army/:id/transport
 router.post('/:id/transport', auth, async (req, res) => {
   try {
-    const { targetCityId, wood, stone, iron, food } = req.body;
+    const { targetCityId, wood = 0, stone = 0, iron = 0, food = 0 } = req.body;
     if (!targetCityId) return res.status(400).json({ error: 'Ville cible requise' });
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true } });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
-    if (!army.city) return res.status(400).json({ error: 'Armée sans ville d\'origine' });
+    if (wood < 0 || stone < 0 || iron < 0 || food < 0) return res.status(400).json({ error: 'Montants invalides' });
     const targetCity = await prisma.city.findUnique({ where: { id: targetCityId }, include: { player: true } });
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
-    // Check diplomacy
+    // Check diplomacy before transaction
     const targetPlayerId = targetCity.playerId;
     if (targetPlayerId !== req.user.playerId) {
       const [myMember, targetMember] = await Promise.all([
@@ -439,21 +436,31 @@ router.post('/:id/transport', auth, async (req, res) => {
         }
       }
     }
-    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
-    const transportBonus = getFactionBonus(player?.faction, 'transportCapacity', factionsData);
-    const transportMultiplier = 1 + (transportBonus / 100);
-    const baseCarryCapacity = army.units.reduce((sum, u) => { const unitDef = unitsData.find(ud => ud.key === u.unitKey); return sum + (unitDef?.stats?.transport || 50) * u.count; }, 0);
-    const carryCapacity = Math.floor(baseCarryCapacity * transportMultiplier);
-    const totalToSend = (wood || 0) + (stone || 0) + (iron || 0) + (food || 0);
-    if (totalToSend > carryCapacity) return res.status(400).json({ error: `Capacité insuffisante (max ${carryCapacity})`, carryCapacity });
-    const sourceCity = army.city;
-    if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return res.status(400).json({ error: 'Ressources insuffisantes' });
-    await prisma.city.update({ where: { id: sourceCity.id }, data: { wood: sourceCity.wood - (wood || 0), stone: sourceCity.stone - (stone || 0), iron: sourceCity.iron - (iron || 0), food: sourceCity.food - (food || 0) } });
-    const minSpeed = getArmyMinSpeed(army.units, unitsData);
-    const travelTime = calculateTravelTime(army.x, army.y, targetCity.x, targetCity.y, minSpeed);
-    const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood || 0, carryStone: stone || 0, carryIron: iron || 0, carryFood: food || 0 } });
-    res.json({ message: `Transport lancé vers ${targetCity.name}`, travelTime, arrivalAt, resources: { wood: wood || 0, stone: stone || 0, iron: iron || 0, food: food || 0 } });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true } });
+      if (!army) return { error: 'Armée non trouvée', status: 404 };
+      if (army.status !== 'IDLE') return { error: 'Armée déjà en mission', status: 400 };
+      if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
+      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
+      const transportBonus = getFactionBonus(player?.faction, 'transportCapacity', factionsData);
+      const transportMultiplier = 1 + (transportBonus / 100);
+      const baseCarryCapacity = army.units.reduce((sum, u) => { const unitDef = unitsData.find(ud => ud.key === u.unitKey); return sum + (unitDef?.stats?.transport || 50) * u.count; }, 0);
+      const carryCapacity = Math.floor(baseCarryCapacity * transportMultiplier);
+      const totalToSend = wood + stone + iron + food;
+      if (totalToSend > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
+      const sourceCity = army.city;
+      if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return { error: 'Ressources insuffisantes', status: 400 };
+      await tx.city.update({ where: { id: sourceCity.id }, data: { wood: sourceCity.wood - wood, stone: sourceCity.stone - stone, iron: sourceCity.iron - iron, food: sourceCity.food - food } });
+      const minSpeed = getArmyMinSpeed(army.units, unitsData);
+      const travelTime = calculateTravelTime(army.x, army.y, targetCity.x, targetCity.y, minSpeed);
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+      await tx.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food } });
+      return { message: `Transport lancé vers ${targetCity.name}`, travelTime, arrivalAt, resources: { wood, stone, iron, food } };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -463,27 +470,29 @@ router.post('/send', auth, async (req, res) => {
     const { armyId, targetX, targetY, mission } = req.body;
     if (!armyId) return res.status(400).json({ error: 'Armee requise' });
     if (targetX === undefined || targetY === undefined) return res.status(400).json({ error: 'Destination requise' });
+    const parsedX = parseInt(targetX), parsedY = parseInt(targetY);
+    if (!validateCoordinates(parsedX, parsedY)) return res.status(400).json({ error: 'Coordonnées invalides' });
     const army = await prisma.army.findFirst({ where: { id: armyId, ownerId: req.user.playerId }, include: { units: true } });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
     if (!army.units.length) return res.status(400).json({ error: 'Armee vide' });
-    const targetCity = await prisma.city.findFirst({ where: { x: parseInt(targetX), y: parseInt(targetY) } });
+    const targetCity = await prisma.city.findFirst({ where: { x: parsedX, y: parsedY } });
     const minSpeed = getArmyMinSpeed(army.units, unitsData);
-    const travelTime = calculateTravelTime(army.x, army.y, parseInt(targetX), parseInt(targetY), minSpeed);
+    const travelTime = calculateTravelTime(army.x, army.y, parsedX, parsedY, minSpeed);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     if (mission === 'ATTACK' || mission === 'RAID') {
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
       if (targetCity.playerId === req.user.playerId) return res.status(400).json({ error: 'Vous ne pouvez pas attaquer vos propres villes' });
       const missionType = mission; const status = mission === 'ATTACK' ? 'ATTACKING' : 'RAIDING';
-      await prisma.army.update({ where: { id: army.id }, data: { status, targetX: parseInt(targetX), targetY: parseInt(targetY), targetCityId: targetCity.id, arrivalAt, missionType } });
+      await prisma.army.update({ where: { id: army.id }, data: { status, targetX: parsedX, targetY: parsedY, targetCityId: targetCity.id, arrivalAt, missionType } });
       res.json({ message: `${mission} lance vers ${targetCity.name}`, target: targetCity.name });
     } else if (mission === 'SPY') {
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
-      await prisma.army.update({ where: { id: army.id }, data: { status: 'SPYING', targetX: parseInt(targetX), targetY: parseInt(targetY), targetCityId: targetCity.id, arrivalAt, missionType: 'SPY' } });
+      await prisma.army.update({ where: { id: army.id }, data: { status: 'SPYING', targetX: parsedX, targetY: parsedY, targetCityId: targetCity.id, arrivalAt, missionType: 'SPY' } });
       res.json({ message: `Espionnage lance vers ${targetCity.name}`, target: targetCity.name });
     } else {
-      await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: parseInt(targetX), targetY: parseInt(targetY), arrivalAt, missionType: 'MOVE' } });
-      res.json({ message: `Armee en mouvement vers (${targetX}, ${targetY})` });
+      await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, missionType: 'MOVE' } });
+      res.json({ message: `Armee en mouvement vers (${parsedX}, ${parsedY})` });
     }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

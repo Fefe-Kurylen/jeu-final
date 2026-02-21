@@ -39,18 +39,23 @@ router.post('/:id/join', auth, async (req, res) => {
 
 router.post('/leave', auth, async (req, res) => {
   try {
-    const member = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: true } });
-    if (!member) return res.status(400).json({ error: 'Vous n\'etes pas dans une alliance' });
-    if (member.role === 'LEADER') {
-      const otherMembers = await prisma.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
-      if (otherMembers > 0) return res.status(400).json({ error: 'Transferez le leadership avant de partir' });
-      await prisma.allianceMember.delete({ where: { id: member.id } });
-      await prisma.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
-      await prisma.alliance.delete({ where: { id: member.allianceId } });
-      return res.json({ message: 'Alliance dissoute' });
-    }
-    await prisma.allianceMember.delete({ where: { id: member.id } });
-    res.json({ message: 'Alliance quittee' });
+    const result = await prisma.$transaction(async (tx) => {
+      const member = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: true } });
+      if (!member) return { error: 'Vous n\'etes pas dans une alliance', status: 400 };
+      if (member.role === 'LEADER') {
+        const otherMembers = await tx.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
+        if (otherMembers > 0) return { error: 'Transferez le leadership avant de partir', status: 400 };
+        // Delete in correct order: diplomacy first (FK refs alliance), then member, then alliance
+        await tx.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
+        await tx.allianceMember.delete({ where: { id: member.id } });
+        await tx.alliance.delete({ where: { id: member.allianceId } });
+        return { message: 'Alliance dissoute' };
+      }
+      await tx.allianceMember.delete({ where: { id: member.id } });
+      return { message: 'Alliance quittee' };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -73,6 +78,7 @@ router.post('/kick/:playerId', auth, async (req, res) => {
     const target = await prisma.allianceMember.findUnique({ where: { playerId: req.params.playerId } });
     if (!target || target.allianceId !== myMember.allianceId) return res.status(404).json({ error: 'Membre non trouve' });
     if (target.role === 'LEADER') return res.status(403).json({ error: 'Impossible de kick le leader' });
+    if (myMember.role === 'OFFICER' && target.role === 'OFFICER') return res.status(403).json({ error: 'Un officier ne peut pas exclure un autre officier' });
     await prisma.allianceMember.delete({ where: { id: target.id } });
     res.json({ message: 'Membre exclus' });
   } catch (e) { res.status(500).json({ error: e.message }); }

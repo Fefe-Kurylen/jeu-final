@@ -164,10 +164,15 @@ async function gameTick() {
         xpGained = Math.floor(exp.enemyPower * 0.25 / 100);
         if (exp.player.hero) {
           const hero = exp.player.hero;
-          const newXp = hero.xp + xpGained;
+          let remainingXp = hero.xp + xpGained;
           let newLevel = hero.level, newXpToNext = hero.xpToNextLevel, newStatPoints = hero.statPoints;
-          if (newXp >= hero.xpToNextLevel) { newLevel++; newXpToNext = Math.floor(hero.xpToNextLevel * 1.5); newStatPoints += 4; }
-          await prisma.hero.update({ where: { id: hero.id }, data: { xp: newXp % hero.xpToNextLevel, level: newLevel, xpToNextLevel: newXpToNext, statPoints: newStatPoints } });
+          while (remainingXp >= newXpToNext) {
+            remainingXp -= newXpToNext;
+            newLevel++;
+            newXpToNext = Math.floor(newXpToNext * 1.5);
+            newStatPoints += 4;
+          }
+          await prisma.hero.update({ where: { id: hero.id }, data: { xp: remainingXp, level: newLevel, xpToNextLevel: newXpToNext, statPoints: newStatPoints } });
         }
         const lootChance = { COMMON: 0.5, RARE: 0.3, EPIC: 0.15, LEGENDARY: 0.05 }[exp.lootTier] || 0.5;
         if (Math.random() < lootChance) {
@@ -264,12 +269,17 @@ async function gameTick() {
     if (orphanedNodes > 0) console.log(`[CLEANUP] ${orphanedNodes} orphaned hasPlayerArmy flags reset`);
 
     // ========== UPDATE POPULATION ==========
-    const players = await prisma.player.findMany({ include: { cities: { include: { buildings: true } } } });
-    for (const p of players) {
-      let pop = 0;
-      for (const c of p.cities) { for (const b of c.buildings) pop += b.level * 5; }
-      await prisma.player.update({ where: { id: p.id }, data: { population: pop } });
-    }
+    // Batch update all players at once instead of N+1 individual queries
+    await prisma.$executeRaw`
+      UPDATE "Player" p SET population = COALESCE(sub.pop, 0)
+      FROM (
+        SELECT c."playerId", SUM(cb.level * 5) as pop
+        FROM "City" c
+        JOIN "CityBuilding" cb ON cb."cityId" = c.id
+        GROUP BY c."playerId"
+      ) sub
+      WHERE p.id = sub."playerId"
+    `;
 
     // ========== TRIBE RESPAWN ==========
     await processTribeRespawn(now);
@@ -340,14 +350,16 @@ async function processAttack(army, now) {
     winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
     loot: { rounds: result.rounds, wallDamage: result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1) : 0, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length }
   };
-  await prisma.battleReport.create({ data: { ...reportData, playerId: army.ownerId } });
-  await prisma.battleReport.create({ data: { ...reportData, playerId: targetCity.playerId } });
+  await prisma.battleReport.create({ data: { ...reportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+  await prisma.battleReport.create({ data: { ...reportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
 
-  // Stats (upsert to handle missing PlayerStats)
+  // Stats (upsert to handle missing PlayerStats) - track both sides
   if (result.attackerWon) {
-    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled } }, create: { playerId: army.ownerId, attacksWon: 1, unitsKilled: result.defenderTotalKilled } });
+    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, attacksWon: 1, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
+    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
   } else {
-    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled } }, create: { playerId: targetCity.playerId, defensesWon: 1, unitsKilled: result.attackerTotalKilled } });
+    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, defensesWon: 1, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
+    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
   }
 
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
@@ -411,7 +423,16 @@ async function processRaid(army, now) {
     } });
   }
 
-  await prisma.battleReport.create({ data: { playerId: army.ownerId, x: targetCity.x, y: targetCity.y, attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })), attackerLosses: { rate: result.attackerLossRate }, defenderLosses: { rate: result.defenderLossRate }, winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', loot: result.attackerWon ? { wood: carryWood, stone: carryStone, iron: carryIron, food: carryFood } : null } });
+  const raidReportData = { x: targetCity.x, y: targetCity.y, attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })), attackerLosses: { rate: result.attackerLossRate }, defenderLosses: { rate: result.defenderLossRate }, winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', loot: result.attackerWon ? { wood: carryWood, stone: carryStone, iron: carryIron, food: carryFood } : null };
+  await prisma.battleReport.create({ data: { ...raidReportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+  await prisma.battleReport.create({ data: { ...raidReportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+
+  // Stats for raids
+  if (result.attackerWon) {
+    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
+  }
+
+  console.log(`[RAID] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Raider won' : 'Defender won'}`);
 
   if (army.cityId) {
     const homeCity = await prisma.city.findUnique({ where: { id: army.cityId } });
@@ -430,9 +451,9 @@ async function processSpy(army, now) {
     const successChance = Math.min(0.9, 0.5 + (spyPower / Math.max(1, defenderPower)) * 0.3);
     const success = Math.random() < successChance;
     if (success) {
-      await prisma.spyReport.create({ data: { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, x: targetCity.x, y: targetCity.y, cityName: targetCity.name, buildings: targetCity.buildings.map(b => ({ key: b.key, level: b.level })), armies: targetCity.armies.map(a => ({ name: a.name, units: a.units.map(u => ({ key: u.unitKey, count: u.count })) })), resources: { wood: Math.floor(targetCity.wood), stone: Math.floor(targetCity.stone), iron: Math.floor(targetCity.iron), food: Math.floor(targetCity.food) }, success: true } });
+      await prisma.spyReport.create({ data: { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name, buildings: targetCity.buildings.map(b => ({ key: b.key, level: b.level })), armies: targetCity.armies.map(a => ({ name: a.name, units: a.units.map(u => ({ key: u.unitKey, count: u.count })) })), resources: { wood: Math.floor(targetCity.wood), stone: Math.floor(targetCity.stone), iron: Math.floor(targetCity.iron), food: Math.floor(targetCity.food) }, success: true } });
     } else {
-      await prisma.spyReport.create({ data: { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, x: targetCity.x, y: targetCity.y, cityName: targetCity.name, buildings: [], armies: [], resources: {}, success: false } });
+      await prisma.spyReport.create({ data: { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name, buildings: [], armies: [], resources: {}, success: false } });
     }
   }
   if (army.cityId) {

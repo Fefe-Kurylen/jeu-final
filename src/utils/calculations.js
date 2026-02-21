@@ -92,9 +92,9 @@ function calculateArmyPower(units, unitsData) {
   const TIER_MULT = config.combat.tierCoefficients;
   return units.reduce((total, u) => {
     const unit = unitsData.find(x => x.key === u.unitKey);
-    if (!unit) return total;
+    if (!unit || !unit.stats) return total;
     const mult = TIER_MULT[u.tier] || 1.0;
-    const power = (unit.stats.attack + unit.stats.defense) * mult * u.count;
+    const power = ((unit.stats.attack || 0) + (unit.stats.defense || 0)) * mult * u.count;
     return total + power;
   }, 0);
 }
@@ -116,7 +116,7 @@ function getArmyMinSpeed(units, unitsData) {
   let minSpeed = 100;
   for (const u of units) {
     const unit = unitsData.find(x => x.key === u.unitKey);
-    if (unit && unit.stats.speed < minSpeed) minSpeed = unit.stats.speed;
+    if (unit && unit.stats && unit.stats.speed < minSpeed) minSpeed = unit.stats.speed;
   }
   return minSpeed;
 }

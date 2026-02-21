@@ -18,26 +18,33 @@ router.post('/trade/send', auth, async (req, res) => {
   try {
     const { fromCityId, targetX, targetY, resources } = req.body;
     const wood = resources?.wood || 0, stone = resources?.stone || 0, iron = resources?.iron || 0, food = resources?.food || 0;
+    if (wood < 0 || stone < 0 || iron < 0 || food < 0) return res.status(400).json({ error: 'Montants invalides' });
     if (wood + stone + iron + food <= 0) return res.status(400).json({ error: 'Entrez des ressources a envoyer' });
     const targetCity = await prisma.city.findFirst({ where: { x: targetX, y: targetY }, include: { player: true } });
     if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
-    const army = await prisma.army.findFirst({ where: { cityId: fromCityId, ownerId: req.user.playerId, status: 'IDLE' }, include: { units: true, city: true } });
-    if (!army || !army.units.length) return res.status(400).json({ error: 'Aucune armee disponible pour transporter' });
-    const sourceCity = army.city;
-    if (!sourceCity) return res.status(400).json({ error: 'Ville source introuvable' });
-    if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return res.status(400).json({ error: 'Ressources insuffisantes' });
-    const player = await prisma.player.findUnique({ where: { id: req.user.playerId } });
-    const transportBonus = getFactionBonus(player?.faction, 'transportCapacity', factionsData);
-    const transportMultiplier = 1 + (transportBonus / 100);
-    const baseCarry = army.units.reduce((sum, u) => { const unitDef = unitsData.find(ud => ud.key === u.unitKey); return sum + (unitDef?.stats?.transport || 50) * u.count; }, 0);
-    const carryCapacity = Math.floor(baseCarry * transportMultiplier);
-    if (wood + stone + iron + food > carryCapacity) return res.status(400).json({ error: `Capacite insuffisante (max ${carryCapacity})` });
-    await prisma.city.update({ where: { id: sourceCity.id }, data: { wood: sourceCity.wood - wood, stone: sourceCity.stone - stone, iron: sourceCity.iron - iron, food: sourceCity.food - food } });
-    const minSpeed = getArmyMinSpeed(army.units, unitsData);
-    const travelTime = calculateTravelTime(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, minSpeed);
-    const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food } });
-    res.json({ message: `Ressources envoyees vers ${targetCity.name}` });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { cityId: fromCityId, ownerId: req.user.playerId, status: 'IDLE' }, include: { units: true, city: true } });
+      if (!army || !army.units.length) return { error: 'Aucune armee disponible pour transporter', status: 400 };
+      const sourceCity = army.city;
+      if (!sourceCity) return { error: 'Ville source introuvable', status: 400 };
+      if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return { error: 'Ressources insuffisantes', status: 400 };
+      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
+      const transportBonus = getFactionBonus(player?.faction, 'transportCapacity', factionsData);
+      const transportMultiplier = 1 + (transportBonus / 100);
+      const baseCarry = army.units.reduce((sum, u) => { const unitDef = unitsData.find(ud => ud.key === u.unitKey); return sum + (unitDef?.stats?.transport || 50) * u.count; }, 0);
+      const carryCapacity = Math.floor(baseCarry * transportMultiplier);
+      if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
+      await tx.city.update({ where: { id: sourceCity.id }, data: { wood: sourceCity.wood - wood, stone: sourceCity.stone - stone, iron: sourceCity.iron - iron, food: sourceCity.food - food } });
+      const minSpeed = getArmyMinSpeed(army.units, unitsData);
+      const travelTime = calculateTravelTime(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, minSpeed);
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+      await tx.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food } });
+      return { message: `Ressources envoyees vers ${targetCity.name}` };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -88,14 +95,21 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
 // DELETE /api/market/offer/:id
 router.delete('/offer/:id', auth, async (req, res) => {
   try {
-    const offer = await prisma.marketOffer.findUnique({ where: { id: req.params.id } });
-    if (!offer) return res.status(404).json({ error: 'Offre non trouvée' });
-    if (offer.sellerId !== req.user.playerId) return res.status(403).json({ error: 'Non autorisé' });
-    if (offer.status !== 'ACTIVE') return res.status(400).json({ error: 'Offre inactive' });
-    const city = await prisma.city.findUnique({ where: { id: offer.cityId } });
-    if (city) { await prisma.city.update({ where: { id: city.id }, data: { [offer.sellResource]: city[offer.sellResource] + offer.sellAmount } }); }
-    await prisma.marketOffer.update({ where: { id: offer.id }, data: { status: 'CANCELLED' } });
-    res.json({ message: 'Offre annulée' });
+    const result = await prisma.$transaction(async (tx) => {
+      const offer = await tx.marketOffer.findUnique({ where: { id: req.params.id } });
+      if (!offer) return { error: 'Offre non trouvée', status: 404 };
+      if (offer.sellerId !== req.user.playerId) return { error: 'Non autorisé', status: 403 };
+      if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
+      const city = await tx.city.findUnique({ where: { id: offer.cityId } });
+      if (city) {
+        const maxCap = offer.sellResource === 'food' ? city.maxFoodStorage : city.maxStorage;
+        await tx.city.update({ where: { id: city.id }, data: { [offer.sellResource]: Math.min(city[offer.sellResource] + offer.sellAmount, maxCap) } });
+      }
+      await tx.marketOffer.update({ where: { id: offer.id }, data: { status: 'CANCELLED' } });
+      return { message: 'Offre annulée' };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
