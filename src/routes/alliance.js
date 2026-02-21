@@ -113,7 +113,23 @@ router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Diplomacy between players
+// Diplomacy between players (mounted at /api/alliance AND /api/diplomacy)
+router.get('/player/:targetPlayerId', auth, async (req, res) => {
+  try {
+    const targetPlayerId = req.params.targetPlayerId;
+    if (targetPlayerId === req.user.playerId) return res.json({ status: 'SELF', canTransport: true, canAttack: false });
+    const [myMember, targetMember] = await Promise.all([
+      prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }),
+      prisma.allianceMember.findUnique({ where: { playerId: targetPlayerId } })
+    ]);
+    if (myMember && targetMember && myMember.allianceId === targetMember.allianceId) return res.json({ status: 'SAME_ALLIANCE', canTransport: true, canAttack: false });
+    if (!myMember || !targetMember) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
+    const diplomacy = await prisma.allianceDiplomacy.findFirst({ where: { OR: [{ allianceId: myMember.allianceId, targetAllianceId: targetMember.allianceId }, { allianceId: targetMember.allianceId, targetAllianceId: myMember.allianceId }] } });
+    if (!diplomacy) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
+    return res.json({ status: diplomacy.status, canTransport: diplomacy.status !== 'ENEMY', canAttack: diplomacy.status !== 'ALLY' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/diplomacy/player/:targetPlayerId', auth, async (req, res) => {
   try {
     const targetPlayerId = req.params.targetPlayerId;

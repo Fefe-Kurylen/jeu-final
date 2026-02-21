@@ -44,6 +44,7 @@ app.use('/portal', express.static(path.join(__dirname, '../portal')));
 // ========== STATIC DATA (cached) ==========
 app.get('/api/buildings', cacheControl(3600), (req, res) => res.json({ buildings: buildingsData }));
 app.get('/api/data/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
+app.get('/api/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
 
 // ========== ROUTES ==========
 app.use('/api/auth', require('./routes/auth'));

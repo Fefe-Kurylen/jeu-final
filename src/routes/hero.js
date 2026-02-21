@@ -10,6 +10,70 @@ router.get('/', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/hero/create
+router.post('/create', auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    const existing = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
+    if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
+    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name } });
+    res.json({ message: 'Heros cree', hero });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/hero/rename
+router.post('/rename', auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
+    if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
+    await prisma.hero.update({ where: { id: hero.id }, data: { name } });
+    res.json({ message: 'Heros renomme' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/hero/equip
+router.post('/equip', auth, async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    if (!itemId) return res.status(400).json({ error: 'itemId requis' });
+    const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true } });
+    if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
+    const item = hero.items.find(i => i.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Objet non trouve' });
+    res.json({ message: 'Objet equipe' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/hero/unequip
+router.post('/unequip', auth, async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    if (!itemId) return res.status(400).json({ error: 'itemId requis' });
+    const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true } });
+    if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
+    const item = hero.items.find(i => i.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Objet non trouve' });
+    res.json({ message: 'Objet desequipe' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/hero/drop-item
+router.post('/drop-item', auth, async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    if (!itemId) return res.status(400).json({ error: 'itemId requis' });
+    const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true } });
+    if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
+    const item = hero.items.find(i => i.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Objet non trouve' });
+    await prisma.heroItem.delete({ where: { id: itemId } });
+    res.json({ message: 'Objet jete' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/assign-points', auth, async (req, res) => {
   try {
     const { atk, def, spd, log } = req.body;

@@ -135,6 +135,39 @@ router.post('/:id/unassign-hero', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/army/:id/adjust-unit (delta-based, used by frontend)
+router.post('/:id/adjust-unit', auth, async (req, res) => {
+  try {
+    const { unitKey, delta } = req.body;
+    if (!unitKey || delta === undefined || delta === 0) return res.status(400).json({ error: 'unitKey et delta requis' });
+    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
+    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
+    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee doit etre en ville' });
+    const garrison = await prisma.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
+    const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
+    const currentInGarrison = garrison?.units?.find(u => u.unitKey === unitKey)?.count || 0;
+    const newCount = Math.max(0, currentInArmy + delta);
+    if (delta > 0 && delta > currentInGarrison) return res.status(400).json({ error: 'Pas assez d\'unites en garnison' });
+    if (delta < 0 && Math.abs(delta) > currentInArmy) return res.status(400).json({ error: 'Pas assez d\'unites dans l\'armee' });
+    const unitInfo = unitsData.find(u => u.key === unitKey);
+    const tier = unitInfo?.tier || 'base';
+    if (newCount > 0) {
+      await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
+    } else {
+      await prisma.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
+    }
+    if (garrison) {
+      const newGarrisonCount = currentInGarrison - delta;
+      if (newGarrisonCount > 0) {
+        await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
+      } else {
+        await prisma.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
+      }
+    }
+    res.json({ message: 'Composition mise a jour', newCount });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/army/:id/set-unit
 router.post('/:id/set-unit', auth, async (req, res) => {
   try {
