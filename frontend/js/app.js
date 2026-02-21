@@ -497,10 +497,10 @@ function renderCity() {
     if (army.units) {
       for (const unit of army.units) {
         const unitDef = unitsData.find(u => u.key === unit.unitKey);
-        // Upkeep par tier: base=5, inter=10, elite=15, siege=20
-        const upkeep = unitDef?.tier === 'base' ? 5 : 
-                       unitDef?.tier === 'intermediate' ? 10 : 
-                       unitDef?.tier === 'elite' ? 15 : 20;
+        // Upkeep par tier (must match backend config.army.upkeepPerTier)
+        const upkeep = unitDef?.tier === 'base' ? 2.5 :
+                       unitDef?.tier === 'intermediate' ? 5 :
+                       unitDef?.tier === 'elite' ? 7.5 : 30;
         foodConsumption += unit.count * upkeep;
       }
     }
@@ -4770,7 +4770,7 @@ function openBuildPanel(slotNum) {
     }
 
     // Calculate costs for next level - must match backend formula
-    const costMultiplier = Math.pow(1.5, level);
+    const costMultiplier = Math.pow(1.28, level);
     const nextCost = {
       wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
       stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
@@ -4780,7 +4780,7 @@ function openBuildPanel(slotNum) {
 
     // Time formula must match backend
     const baseDuration = def?.timeL1Sec || 60;
-    const buildTime = Math.floor(baseDuration * Math.pow(1.8, level));
+    const buildTime = Math.floor(baseDuration * Math.pow(1.2, level));
     const timeStr = formatDuration(buildTime);
 
     const bonus = getBuildingBonus(key, level);
@@ -5579,7 +5579,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   if (unit.class === 'CAVALRY') baseTime = Math.floor(baseTime * 1.25);
   
   // Upkeep
-  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 20;
+  const foodUpkeep = unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30;
   
   const wood = currentCity?.wood || 0;
   const stone = currentCity?.stone || 0;
@@ -5773,7 +5773,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   overlay.style.display = 'block';
   
   // Cost formula must match backend: Math.pow(1.5, targetLevel - 1) where targetLevel = level + 1
-  const costMultiplier = Math.pow(1.5, level);
+  const costMultiplier = Math.pow(1.28, level);
   const nextCost = {
     wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
     stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
@@ -5783,7 +5783,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
 
   // Time formula must match backend: Math.pow(1.8, targetLevel - 1)
   const baseDuration = def?.timeL1Sec || 60;
-  const buildTime = Math.floor(baseDuration * Math.pow(1.8, level));
+  const buildTime = Math.floor(baseDuration * Math.pow(1.2, level));
   
   const hasResources = currentCity && 
     currentCity.wood >= nextCost.wood &&
@@ -6569,7 +6569,7 @@ function showUnitDetail(unitKey) {
   };
   
   // Consommation de céréales par heure (upkeep)
-  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 20;
+  const foodUpkeep = unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30;
   
   // Training time
   let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : unit.tier === 'elite' ? 180 : 600;
@@ -12279,7 +12279,7 @@ function showUnitInfoModal(unitKey) {
           <div class="capacity-item">
             <span class="capacity-icon">🍖</span>
             <span class="capacity-label">Nourriture/h</span>
-            <span class="capacity-value">${unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 20}</span>
+            <span class="capacity-value">${unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30}</span>
           </div>
           ${unit.class === 'SIEGE' ? `
           <div class="capacity-item">
