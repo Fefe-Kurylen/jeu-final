@@ -249,6 +249,10 @@ async function showGame() {
   await Promise.all([loadPlayer(), loadBuildings(), loadUnits()]);
   await loadCities();
   await loadArmies();
+  // Init canvases now that game screen is visible and data is loaded
+  initCityCanvas();
+  initFieldsCanvas();
+  renderCityCanvas();
   startAttackCheck();
   startRefresh();
 }
@@ -4441,6 +4445,7 @@ function showClickRipple(x, y) {
 }
 
 function onCityClick(e) {
+  if (!currentCity) return; // Guard: city data not loaded yet
   if (cityHoveredSlot !== null) {
     // Feedback visuel de clic
     const canvasRect = cityCanvas.getBoundingClientRect();
@@ -4659,6 +4664,7 @@ function onFieldsMouseMove(e) {
 }
 
 function onFieldsClick(e) {
+  if (!currentCity) return; // Guard: city data not loaded yet
   if (cityHoveredSlot !== null) {
     if (cityHoveredSlot === -1) {
       // Click on village center -> switch to city tab
@@ -6006,16 +6012,7 @@ function getBuildingDescription(key) {
   return descriptions[key] || 'Bâtiment';
 }
 
-// Handle window resize for city canvas
-window.addEventListener('resize', () => {
-  if (cityCanvas && document.getElementById('tab-city')?.classList.contains('active')) {
-    const container = cityCanvas.parentElement;
-    cityCanvas.width = container.clientWidth;
-    cityCanvas.height = container.clientHeight;
-    calculateCitySlots();
-    renderCityCanvas();
-  }
-});
+// (resize handler consolidated below in map section)
 
 // Animation loop for construction (250ms = 4 FPS, sufficient for progress bars)
 let constructionAnimInterval = null;
@@ -6359,6 +6356,8 @@ function showTab(tabName) {
     document.getElementById('tab-fields')?.classList.remove('active');
     document.getElementById('tab-city')?.classList.add('active');
     currentCityView = tabName;
+    // Init canvas if not yet done (ensures event handlers are attached)
+    if (!cityCanvas || !cityCtx) initCityCanvas();
     // Ensure canvas is properly sized (may have been hidden)
     if (cityCanvas) {
       const container = cityCanvas.parentElement;
@@ -10642,17 +10641,22 @@ function renderMinimap() {
     }
   });
 
-  // Draw viewport rectangle
-  const viewportEl = document.getElementById('minimap-viewport');
-  if (viewportEl) {
-    const viewSize = (mapCanvas?.width ? mapCanvas.width / (TILE_SIZE * mapZoomLevel) : 20) / WORLD_SIZE * 100;
-    const left = ((mapOffsetX / WORLD_SIZE) * 100);
-    const top = ((mapOffsetY / WORLD_SIZE) * 100);
+  // Draw viewport rectangle directly on canvas
+  if (mapCanvas) {
+    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+    // Estimate visible tiles in each direction
+    const visTilesX = mapCanvas.width / tileW;
+    const visTilesY = mapCanvas.height / tileH;
+    // Convert to minimap pixels
+    const vpW = visTilesX * scale;
+    const vpH = visTilesY * scale;
+    const vpX = centerX + mapOffsetX * scale - vpW / 2;
+    const vpY = centerY + mapOffsetY * scale - vpH / 2;
 
-    viewportEl.style.width = `${viewSize}%`;
-    viewportEl.style.height = `${viewSize}%`;
-    viewportEl.style.left = `${50 + left - viewSize/2}%`;
-    viewportEl.style.top = `${50 + top - viewSize/2}%`;
+    minimapCtx.strokeStyle = '#ffd700';
+    minimapCtx.lineWidth = 2;
+    minimapCtx.strokeRect(vpX, vpY, vpW, vpH);
   }
 }
 
@@ -10697,14 +10701,12 @@ function navigateMinimapToPosition(e) {
   const worldX = (mouseX - minimapCenterX) / scale;
   const worldY = (mouseY - minimapCenterY) / scale;
 
-  // Update map offset to center on clicked position
-  mapOffsetX = worldX;
-  mapOffsetY = worldY;
+  // Update map offset to center on clicked position (clamped to world bounds)
+  mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, worldX));
+  mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, worldY));
 
   // Re-render
-  renderMap();
-  renderMinimap();
-  updateMapUI();
+  loadMap(); // Reload map data for new viewport
 }
 
 function updateMapUI() {
@@ -10714,11 +10716,12 @@ function updateMapUI() {
   if (mapYEl) mapYEl.textContent = Math.round(mapOffsetY);
 
   const zoomEl = document.getElementById('zoom-level');
-  if (zoomEl) zoomEl.textContent = `${Math.round(mapZoomLevel * 100)}%`;
-  
-  // Animation pulse
-  zoomEl.classList.add('zooming');
-  setTimeout(() => zoomEl.classList.remove('zooming'), 200);
+  if (zoomEl) {
+    zoomEl.textContent = `${Math.round(mapZoomLevel * 100)}%`;
+    // Animation pulse
+    zoomEl.classList.add('zooming');
+    setTimeout(() => zoomEl.classList.remove('zooming'), 200);
+  }
 }
 
 // Mouse handlers
@@ -10766,6 +10769,10 @@ function onMapMouseMove(e) {
     mapOffsetX -= (pixelDx / tileW + pixelDy / tileH);
     mapOffsetY -= (pixelDy / tileH - pixelDx / tileW);
 
+    // Clamp to world bounds
+    mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
+    mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
+
     mapDragStart = { x: e.clientX, y: e.clientY };
     scheduleMapRender(true);
   } else {
@@ -10782,14 +10789,23 @@ function onMapMouseMove(e) {
   }
 }
 
+let mapReloadTimeout = null;
 function onMapMouseUp() {
+  const wasDragging = mapDragging;
   mapDragging = false;
-  mapCanvas.style.cursor = 'grab';
+  if (mapCanvas) mapCanvas.style.cursor = 'grab';
+  // Reload map data after drag ends (debounced)
+  if (wasDragging && mapDragDistance > 5) {
+    clearTimeout(mapReloadTimeout);
+    mapReloadTimeout = setTimeout(() => loadMap(), 300);
+  }
 }
 
 function onMapClick(e) {
   // Prevent click if user dragged the map (threshold: 5 pixels)
-  if (mapDragDistance > 5) return;
+  const wasDrag = mapDragDistance > 5;
+  mapDragDistance = 0; // Always reset after click evaluation
+  if (wasDrag) return;
 
   const rect = mapCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -10867,6 +10883,10 @@ function onMapTouchMove(e) {
     mapOffsetX -= (pixelDx / tileW + pixelDy / tileH);
     mapOffsetY -= (pixelDy / tileH - pixelDx / tileW);
 
+    // Clamp to world bounds
+    mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
+    mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
+
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     renderMap();
     renderMinimap();
@@ -10897,6 +10917,12 @@ function onMapTouchEnd(e) {
     mapSelectedTile = { x: tileX, y: tileY };
     showMapInfoPanel(tileX, tileY, tile);
     renderMap();
+  }
+
+  // Reload map data after significant touch drag (debounced)
+  if (touchDragDistance >= 10) {
+    clearTimeout(mapReloadTimeout);
+    mapReloadTimeout = setTimeout(() => loadMap(), 300);
   }
 
   touchDragDistance = 0;
@@ -10955,6 +10981,9 @@ function onMapWheel(e) {
 function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
   mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  // Debounced reload to get data for new zoom level
+  clearTimeout(mapReloadTimeout);
+  mapReloadTimeout = setTimeout(() => loadMap(), 400);
   renderMap();
   renderMinimap();
   updateMapUI();
@@ -10965,9 +10994,12 @@ function centerOnCapital() {
   if (capital) {
     mapOffsetX = capital.x;
     mapOffsetY = capital.y;
+  } else if (currentCity) {
+    mapOffsetX = currentCity.x;
+    mapOffsetY = currentCity.y;
   } else {
-    mapOffsetX = WORLD_SIZE / 2;
-    mapOffsetY = WORLD_SIZE / 2;
+    mapOffsetX = 0;
+    mapOffsetY = 0;
   }
   loadMap();
 }
@@ -10980,12 +11012,10 @@ function gotoCoords() {
   const y = parseInt(yInput?.value);
 
   if (!isNaN(x) && !isNaN(y)) {
-    mapOffsetX = x;
-    mapOffsetY = y;
-    renderMap();
-    renderMinimap();
-    updateMapUI();
-    showToast(`Position: (${x}, ${y})`, 'info');
+    mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, x));
+    mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, y));
+    loadMap(); // Reload map data for new viewport
+    showToast(`Position: (${mapOffsetX}, ${mapOffsetY})`, 'info');
   } else {
     showToast('Coordonnées invalides', 'error');
   }
@@ -10994,7 +11024,8 @@ function gotoCoords() {
 function showMapInfoPanel(x, y, tile) {
   const panel = document.getElementById('map-info-panel');
   const content = document.getElementById('map-panel-content');
-  
+  if (!panel || !content) return;
+
   if (!tile) {
     content.innerHTML = `
       <h3>Terrain vide</h3>
@@ -11332,7 +11363,8 @@ async function confirmSendResources(armyId, cityId) {
 }
 
 function closeMapPanel() {
-  document.getElementById('map-info-panel').style.display = 'none';
+  const panel = document.getElementById('map-info-panel');
+  if (panel) panel.style.display = 'none';
   mapSelectedTile = null;
   renderMap();
 }
@@ -11614,14 +11646,34 @@ async function sendArmyTo(x, y) {
   }
 }
 
-// Resize handler
+// Resize handler (debounced)
+let mapResizeTimeout;
 window.addEventListener('resize', () => {
-  if (mapCanvas && document.getElementById('tab-map').classList.contains('active')) {
-    const container = mapCanvas.parentElement;
-    mapCanvas.width = container.clientWidth;
-    mapCanvas.height = container.clientHeight;
-    renderMap();
-  }
+  clearTimeout(mapResizeTimeout);
+  mapResizeTimeout = setTimeout(() => {
+    // Resize map canvas
+    const mapTab = document.getElementById('tab-map');
+    if (mapCanvas && mapTab && mapTab.classList.contains('active')) {
+      const container = mapCanvas.parentElement;
+      if (container && container.clientWidth > 0) {
+        mapCanvas.width = Math.max(container.clientWidth, 300);
+        mapCanvas.height = Math.max(container.clientHeight, 200);
+      }
+      renderMap();
+      renderMinimap();
+    }
+    // Resize city/fields canvas
+    if (cityCanvas) {
+      const container = cityCanvas.parentElement;
+      if (container && container.clientWidth > 0) {
+        cityCanvas.width = Math.max(container.clientWidth, 300);
+        cityCanvas.height = Math.max(container.clientHeight, 200);
+      }
+      calculateCitySlots();
+      if (currentCityView === 'fields') calculateFieldSlots();
+      renderCityCanvas();
+    }
+  }, 150);
 });
 
 // ========== ALLIANCE ==========
@@ -12438,6 +12490,7 @@ function closeModal() {
 
 function showModal(title, content) {
   const modal = document.getElementById('modal');
+  if (!modal) return;
   const modalBox = modal.querySelector('.modal-box');
 
   if (modalBox) {
@@ -12539,30 +12592,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ========== CANVAS RESIZE HANDLER ==========
-let resizeTimeout;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(() => {
-    if (cityCanvas) {
-      const container = cityCanvas.parentElement;
-      if (container) {
-        cityCanvas.width = Math.max(container.clientWidth, 300);
-        cityCanvas.height = Math.max(container.clientHeight, 200);
-        calculateCitySlots();
-        renderCityCanvas();
-      }
-    }
-    if (mapCanvas) {
-      const container = mapCanvas.parentElement;
-      if (container) {
-        mapCanvas.width = Math.max(container.clientWidth, 300);
-        mapCanvas.height = Math.max(container.clientHeight, 200);
-        if (typeof renderMap === 'function') renderMap();
-        if (typeof renderMinimap === 'function') renderMinimap();
-      }
-    }
-  }, 150);
-});
+// (resize handler consolidated in map section)
 
 // ========== SERVER TIME & DAY/NIGHT INDICATOR (Travian style) ==========
 let serverTimeInterval;
