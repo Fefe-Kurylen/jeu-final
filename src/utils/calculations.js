@@ -84,7 +84,7 @@ function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = n
     }
   }
 
-  return Math.ceil(distance * timePerTile);
+  return Math.max(1, Math.ceil(distance * timePerTile));
 }
 
 // Calculate army power

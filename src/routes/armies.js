@@ -66,10 +66,15 @@ async function collectResourceLoot(army, node, playerId) {
   const lootAmount = Math.min(carryCapacity, node.amount);
   if (lootAmount <= 0) return {};
   await prisma.resourceNode.update({ where: { id: node.id }, data: { amount: { decrement: lootAmount } } });
-  const city = await prisma.city.findFirst({ where: { playerId, isCapital: true } });
+  // Send to army's home city (not always capital)
+  const city = army.cityId
+    ? await prisma.city.findUnique({ where: { id: army.cityId } })
+    : await prisma.city.findFirst({ where: { playerId, isCapital: true } });
   if (city) {
     const resourceField = node.resourceType.toLowerCase();
-    await prisma.city.update({ where: { id: city.id }, data: { [resourceField]: { increment: lootAmount } } });
+    const maxCap = resourceField === 'food' ? city.maxFoodStorage : city.maxStorage;
+    const newAmount = Math.min(city[resourceField] + lootAmount, maxCap);
+    await prisma.city.update({ where: { id: city.id }, data: { [resourceField]: newAmount } });
   }
   return { [node.resourceType]: lootAmount };
 }
@@ -140,31 +145,38 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
   try {
     const { unitKey, delta } = req.body;
     if (!unitKey || delta === undefined || delta === 0) return res.status(400).json({ error: 'unitKey et delta requis' });
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
-    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee doit etre en ville' });
-    const garrison = await prisma.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-    const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
-    const currentInGarrison = garrison?.units?.find(u => u.unitKey === unitKey)?.count || 0;
-    const newCount = Math.max(0, currentInArmy + delta);
-    if (delta > 0 && delta > currentInGarrison) return res.status(400).json({ error: 'Pas assez d\'unites en garnison' });
-    if (delta < 0 && Math.abs(delta) > currentInArmy) return res.status(400).json({ error: 'Pas assez d\'unites dans l\'armee' });
-    const unitInfo = unitsData.find(u => u.key === unitKey);
-    const tier = unitInfo?.tier || 'base';
-    if (newCount > 0) {
-      await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
-    } else {
-      await prisma.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
-    }
-    if (garrison) {
-      const newGarrisonCount = currentInGarrison - delta;
-      if (newGarrisonCount > 0) {
-        await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
+    if (!Number.isInteger(delta)) return res.status(400).json({ error: 'Delta doit être un entier' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
+      if (!army) return { error: 'Armee non trouvee', status: 404 };
+      if (army.status !== 'IDLE') return { error: 'Armee doit etre en ville', status: 400 };
+      const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
+      const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
+      const currentInGarrison = garrison?.units?.find(u => u.unitKey === unitKey)?.count || 0;
+      const newCount = Math.max(0, currentInArmy + delta);
+      if (delta > 0 && delta > currentInGarrison) return { error: 'Pas assez d\'unites en garnison', status: 400 };
+      if (delta < 0 && Math.abs(delta) > currentInArmy) return { error: 'Pas assez d\'unites dans l\'armee', status: 400 };
+      const unitInfo = unitsData.find(u => u.key === unitKey);
+      const tier = unitInfo?.tier || 'base';
+      if (newCount > 0) {
+        await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
       } else {
-        await prisma.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
+        await tx.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
       }
-    }
-    res.json({ message: 'Composition mise a jour', newCount });
+      if (garrison) {
+        const newGarrisonCount = currentInGarrison - delta;
+        if (newGarrisonCount > 0) {
+          await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
+        } else {
+          await tx.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
+        }
+      }
+      return { message: 'Composition mise a jour', newCount };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -173,55 +185,68 @@ router.post('/:id/set-unit', auth, async (req, res) => {
   try {
     const { unitKey, count } = req.body;
     if (!unitKey || count === undefined) return res.status(400).json({ error: 'unitKey et count requis' });
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
-    const garrison = await prisma.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-    const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
-    const currentInGarrison = garrison?.units?.find(u => u.unitKey === unitKey)?.count || 0;
-    const totalAvailable = currentInArmy + currentInGarrison;
-    const newCount = Math.max(0, Math.min(count, totalAvailable));
-    const delta = newCount - currentInArmy;
-    if (delta === 0) return res.json({ message: 'Aucun changement' });
-    const unitInfo = unitsData.find(u => u.key === unitKey);
-    const tier = unitInfo?.tier || 'base';
-    if (newCount > 0) {
-      await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
-    } else {
-      await prisma.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
-    }
-    if (garrison) {
-      const newGarrisonCount = currentInGarrison - delta;
-      if (newGarrisonCount > 0) {
-        await prisma.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
+    if (!Number.isInteger(count) || count < 0) return res.status(400).json({ error: 'count doit être un entier positif' });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
+      if (!army) return { error: 'Armée non trouvée', status: 404 };
+      if (army.status !== 'IDLE') return { error: 'Armée doit être en ville', status: 400 };
+      const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
+      const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
+      const currentInGarrison = garrison?.units?.find(u => u.unitKey === unitKey)?.count || 0;
+      const totalAvailable = currentInArmy + currentInGarrison;
+      const newCount = Math.max(0, Math.min(count, totalAvailable));
+      const delta = newCount - currentInArmy;
+      if (delta === 0) return { message: 'Aucun changement' };
+      const unitInfo = unitsData.find(u => u.key === unitKey);
+      const tier = unitInfo?.tier || 'base';
+      if (newCount > 0) {
+        await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
       } else {
-        await prisma.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
+        await tx.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
       }
-    }
-    res.json({ message: 'Composition mise à jour', delta, newCount });
+      if (garrison) {
+        const newGarrisonCount = currentInGarrison - delta;
+        if (newGarrisonCount > 0) {
+          await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
+        } else {
+          await tx.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
+        }
+      }
+      return { message: 'Composition mise à jour', delta, newCount };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // DELETE /api/army/:id/disband
 router.delete('/:id/disband', auth, async (req, res) => {
   try {
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
-    if (army.isGarrison) return res.status(400).json({ error: 'Impossible de dissoudre la garnison' });
-    let garrison = await prisma.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-    if (!garrison) {
-      const city = await prisma.city.findUnique({ where: { id: army.cityId } });
-      garrison = await prisma.army.create({ data: { ownerId: req.user.playerId, cityId: army.cityId, name: 'Garnison', x: city.x, y: city.y, status: 'IDLE', isGarrison: true }, include: { units: true } });
-    }
-    for (const unit of army.units) {
-      const garrisonUnit = garrison.units?.find(u => u.unitKey === unit.unitKey);
-      if (garrisonUnit) { await prisma.armyUnit.update({ where: { id: garrisonUnit.id }, data: { count: garrisonUnit.count + unit.count } }); }
-      else { await prisma.armyUnit.create({ data: { armyId: garrison.id, unitKey: unit.unitKey, tier: unit.tier, count: unit.count } }); }
-    }
-    await prisma.armyUnit.deleteMany({ where: { armyId: army.id } });
-    await prisma.army.delete({ where: { id: army.id } });
-    res.json({ message: 'Armée dissoute' });
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
+      if (!army) return { error: 'Armée non trouvée', status: 404 };
+      if (army.status !== 'IDLE') return { error: 'Armée doit être en ville', status: 400 };
+      if (army.isGarrison) return { error: 'Impossible de dissoudre la garnison', status: 400 };
+      let garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
+      if (!garrison) {
+        const city = await tx.city.findUnique({ where: { id: army.cityId } });
+        if (!city) return { error: 'Ville non trouvée', status: 404 };
+        garrison = await tx.army.create({ data: { ownerId: req.user.playerId, cityId: army.cityId, name: 'Garnison', x: city.x, y: city.y, status: 'IDLE', isGarrison: true } });
+        garrison.units = [];
+      }
+      for (const unit of army.units) {
+        const garrisonUnit = garrison.units?.find(u => u.unitKey === unit.unitKey);
+        if (garrisonUnit) { await tx.armyUnit.update({ where: { id: garrisonUnit.id }, data: { count: garrisonUnit.count + unit.count } }); }
+        else { await tx.armyUnit.create({ data: { armyId: garrison.id, unitKey: unit.unitKey, tier: unit.tier, count: unit.count } }); }
+      }
+      await tx.armyUnit.deleteMany({ where: { armyId: army.id } });
+      await tx.army.delete({ where: { id: army.id } });
+      return { message: 'Armée dissoute' };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -328,23 +353,31 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body;
     if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
-    const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
-    if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
-    if (node.hasDefenders && node.defenderPower > 0) return res.status(400).json({ error: 'Tribu encore présente - attaquez d\'abord!' });
-    const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
-    if (distance > 1.5) {
-      const minSpeed = getArmyMinSpeed(army.units, unitsData);
-      const travelTime = calculateTravelTime(army.x, army.y, node.x, node.y, minSpeed);
-      const arrivalAt = new Date(Date.now() + travelTime * 1000);
-      await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
-      return res.json({ message: 'Armée en route pour collecter', travelTime, arrivalAt });
-    }
-    const carryCapacity = getArmyCarryCapacity(army.units, unitsData);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
-    res.json({ success: true, status: 'HARVESTING', resourceType: node.resourceType, nodeAmount: node.amount, carryCapacity, harvestRate: 100, message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})` });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const army = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true } });
+      if (!army) return { error: 'Armée non trouvée', status: 404 };
+      if (army.status !== 'IDLE') return { error: 'Armée déjà en mission', status: 400 };
+      const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
+      if (!node) return { error: 'Ressource non trouvée', status: 404 };
+      if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
+      if (node.hasPlayerArmy) return { error: 'Une armée récolte déjà ce point', status: 400 };
+      const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
+      if (distance > 1.5) {
+        const minSpeed = getArmyMinSpeed(army.units, unitsData);
+        const travelTime = calculateTravelTime(army.x, army.y, node.x, node.y, minSpeed);
+        const arrivalAt = new Date(Date.now() + travelTime * 1000);
+        await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
+        return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
+      }
+      const carryCapacity = getArmyCarryCapacity(army.units, unitsData);
+      await tx.resourceNode.update({ where: { id: node.id }, data: { hasPlayerArmy: true } });
+      await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
+      return { success: true, status: 'HARVESTING', resourceType: node.resourceType, nodeAmount: node.amount, carryCapacity, harvestRate: 100, message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})` };
+    });
+
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

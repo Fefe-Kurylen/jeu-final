@@ -47,29 +47,39 @@ async function gameTick() {
     await Promise.all(cityUpdates);
 
     // ========== UPKEEP (food consumption) ==========
-    const allArmies = await prisma.army.findMany({ include: { units: true, city: true } });
+    // Group armies by city to avoid race conditions with concurrent food deductions
+    const allArmies = await prisma.army.findMany({ where: { cityId: { not: null } }, include: { units: true } });
+    const armiesByCity = {};
     for (const army of allArmies) {
       if (!army.cityId) continue;
-      let foodConsumption = 0;
-      for (const unit of army.units) {
-        const unitDef = unitsData.find(u => u.key === unit.unitKey);
-        const upkeep = config.army.upkeepPerTier[unitDef?.tier] || config.army.upkeepPerTier.base;
-        foodConsumption += unit.count * upkeep;
+      if (!armiesByCity[army.cityId]) armiesByCity[army.cityId] = [];
+      armiesByCity[army.cityId].push(army);
+    }
+    for (const [cityId, cityArmies] of Object.entries(armiesByCity)) {
+      let totalFoodConsumption = 0;
+      for (const army of cityArmies) {
+        for (const unit of army.units) {
+          const unitDef = unitsData.find(u => u.key === unit.unitKey);
+          const upkeep = config.army.upkeepPerTier[unitDef?.tier] || config.army.upkeepPerTier.base;
+          totalFoodConsumption += unit.count * upkeep;
+        }
       }
-      const consumption = foodConsumption * TICK_HOURS;
-      if (consumption > 0 && army.city) {
-        const city = await prisma.city.findUnique({ where: { id: army.cityId } });
+      const consumption = totalFoodConsumption * TICK_HOURS;
+      if (consumption > 0) {
+        const city = await prisma.city.findUnique({ where: { id: cityId } });
         if (city) {
           const newFood = Math.max(0, city.food - consumption);
-          await prisma.city.update({ where: { id: city.id }, data: { food: newFood } });
+          await prisma.city.update({ where: { id: cityId }, data: { food: newFood } });
           if (newFood <= 0) {
-            for (const unit of army.units) {
-              const losses = Math.ceil(unit.count * config.army.starvationLossRate);
-              if (losses > 0) {
-                const remaining = Math.max(0, unit.count - losses);
-                if (remaining > 0) { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: remaining } }); }
-                else { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-                console.log(`[STARVATION] ${losses}x ${unit.unitKey} morts de faim!`);
+            for (const army of cityArmies) {
+              for (const unit of army.units) {
+                const losses = Math.ceil(unit.count * config.army.starvationLossRate);
+                if (losses > 0) {
+                  const remaining = Math.max(0, unit.count - losses);
+                  if (remaining > 0) { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: remaining } }); }
+                  else { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
+                  console.log(`[STARVATION] ${losses}x ${unit.unitKey} morts de faim!`);
+                }
               }
             }
           }
@@ -333,9 +343,12 @@ async function processAttack(army, now) {
   await prisma.battleReport.create({ data: { ...reportData, playerId: army.ownerId } });
   await prisma.battleReport.create({ data: { ...reportData, playerId: targetCity.playerId } });
 
-  // Stats
-  if (result.attackerWon) { await prisma.playerStats.update({ where: { playerId: army.ownerId }, data: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled } } }); }
-  else { await prisma.playerStats.update({ where: { playerId: targetCity.playerId }, data: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled } } }); }
+  // Stats (upsert to handle missing PlayerStats)
+  if (result.attackerWon) {
+    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled } }, create: { playerId: army.ownerId, attacksWon: 1, unitsKilled: result.defenderTotalKilled } });
+  } else {
+    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled } }, create: { playerId: targetCity.playerId, defensesWon: 1, unitsKilled: result.attackerTotalKilled } });
+  }
 
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
 
@@ -359,10 +372,20 @@ async function processRaid(army, now) {
   const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
   const result = resolveCombat(army.units, defenderUnits, wallLevel, army.hero, garrisonArmy?.hero);
 
+  // Apply attacker losses
   for (const unit of army.units) {
     const newCount = Math.floor(unit.count * (1 - result.attackerLossRate * 0.5));
     if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
     else { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+  }
+
+  // Apply defender losses (raids also cause casualties)
+  for (const defArmy of targetCity.armies) {
+    for (const unit of defArmy.units) {
+      const newCount = Math.floor(unit.count * (1 - result.defenderLossRate * 0.3));
+      if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
+      else if (newCount < unit.count) { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+    }
   }
 
   let carryWood = 0, carryStone = 0, carryIron = 0, carryFood = 0;
@@ -379,7 +402,13 @@ async function processRaid(army, now) {
     carryStone = Math.floor(Math.min(targetCity.stone * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
     carryIron = Math.floor(Math.min(targetCity.iron * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
     carryFood = Math.floor(Math.min(targetCity.food * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
-    await prisma.city.update({ where: { id: targetCity.id }, data: { wood: targetCity.wood - carryWood, stone: targetCity.stone - carryStone, iron: targetCity.iron - carryIron, food: targetCity.food - carryFood } });
+    // Ensure resources don't go negative
+    await prisma.city.update({ where: { id: targetCity.id }, data: {
+      wood: Math.max(0, targetCity.wood - carryWood),
+      stone: Math.max(0, targetCity.stone - carryStone),
+      iron: Math.max(0, targetCity.iron - carryIron),
+      food: Math.max(0, targetCity.food - carryFood)
+    } });
   }
 
   await prisma.battleReport.create({ data: { playerId: army.ownerId, x: targetCity.x, y: targetCity.y, attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })), attackerLosses: { rate: result.attackerLossRate }, defenderLosses: { rate: result.defenderLossRate }, winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', loot: result.attackerWon ? { wood: carryWood, stone: carryStone, iron: carryIron, food: carryFood } : null } });

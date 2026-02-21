@@ -37,13 +37,20 @@ router.post('/rename', auth, async (req, res) => {
 // POST /api/hero/equip
 router.post('/equip', auth, async (req, res) => {
   try {
-    const { itemId } = req.body;
+    const { itemId, slot } = req.body;
     if (!itemId) return res.status(400).json({ error: 'itemId requis' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     const item = hero.items.find(i => i.id === itemId);
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
-    res.json({ message: 'Objet equipe' });
+    const equipSlot = slot || item.slot || 'main';
+    // Unequip any item currently in that slot
+    const currentlyEquipped = hero.items.find(i => i.slot === equipSlot && i.id !== itemId);
+    if (currentlyEquipped) {
+      await prisma.heroItem.update({ where: { id: currentlyEquipped.id }, data: { slot: 'inventory' } });
+    }
+    await prisma.heroItem.update({ where: { id: itemId }, data: { slot: equipSlot } });
+    res.json({ message: 'Objet equipe', slot: equipSlot });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -56,6 +63,7 @@ router.post('/unequip', auth, async (req, res) => {
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     const item = hero.items.find(i => i.id === itemId);
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
+    await prisma.heroItem.update({ where: { id: itemId }, data: { slot: 'inventory' } });
     res.json({ message: 'Objet desequipe' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

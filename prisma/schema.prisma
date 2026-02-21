@@ -93,7 +93,7 @@ model CityBuilding {
   category    String @default("BASE")
   prodPerHour Int    @default(0)
 
-  city City @relation(fields: [cityId], references: [id])
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   @@unique([cityId, slot])
   @@index([cityId, key])
@@ -109,7 +109,7 @@ model BuildQueueItem {
   endsAt      DateTime
   status      String   @default("QUEUED")
 
-  city City @relation(fields: [cityId], references: [id])
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   @@index([cityId, status])
   @@index([status, endsAt])
@@ -125,8 +125,9 @@ model RecruitQueueItem {
   endsAt      DateTime
   status      String   @default("RUNNING")
 
-  city City @relation(fields: [cityId], references: [id])
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
+  @@index([cityId])
   @@index([status, endsAt])
 }
 
@@ -163,11 +164,12 @@ model Army {
   harvestResourceType String? // Type de ressource en cours de récolte
 
   owner Player     @relation(fields: [ownerId], references: [id])
-  city  City?      @relation(fields: [cityId], references: [id])
-  hero  Hero?      @relation(fields: [heroId], references: [id])
+  city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  hero  Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
   units ArmyUnit[]
 
   @@index([ownerId])
+  @@index([ownerId, status])
   @@index([cityId])
   @@index([status, arrivalAt])
   @@index([targetCityId])
@@ -180,7 +182,7 @@ model ArmyUnit {
   tier    String @default("base")
   count   Int
 
-  army Army @relation(fields: [armyId], references: [id])
+  army Army @relation(fields: [armyId], references: [id], onDelete: Cascade)
 
   @@unique([armyId, unitKey])
 }
@@ -218,7 +220,7 @@ model HeroItem {
   slot     String
   stats    Json?
 
-  hero Hero @relation(fields: [heroId], references: [id])
+  hero Hero @relation(fields: [heroId], references: [id], onDelete: Cascade)
 }
 
 model WoundedUnit {
@@ -347,7 +349,7 @@ model AllianceMember {
   role       String   @default("MEMBER")
   joinedAt   DateTime @default(now())
 
-  alliance Alliance @relation(fields: [allianceId], references: [id])
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
   player   Player   @relation(fields: [playerId], references: [id])
 }
 
@@ -358,8 +360,8 @@ model AllianceDiplomacy {
   status           String   @default("NEUTRAL")
   changedAt        DateTime @default(now())
 
-  alliance       Alliance @relation("AllianceSource", fields: [allianceId], references: [id])
-  targetAlliance Alliance @relation("AllianceTarget", fields: [targetAllianceId], references: [id])
+  alliance       Alliance @relation("AllianceSource", fields: [allianceId], references: [id], onDelete: Cascade)
+  targetAlliance Alliance @relation("AllianceTarget", fields: [targetAllianceId], references: [id], onDelete: Cascade)
 
   @@unique([allianceId, targetAllianceId])
 }
