@@ -42,12 +42,14 @@ app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
 // ========== STATIC FILES ==========
 app.use('/css', express.static(path.join(__dirname, '../frontend/css')));
 app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
+app.use('/img', express.static(path.join(__dirname, '../frontend/img')));
+app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 app.use('/portal', express.static(path.join(__dirname, '../portal')));
 
 // ========== STATIC DATA (cached) ==========
-app.get('/api/buildings', cacheControl(3600), (req, res) => res.json({ buildings: buildingsData }));
-app.get('/api/data/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
-app.get('/api/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
+app.get('/api/buildings', cacheControl(3600), (req, res) => res.json(buildingsData));
+app.get('/api/data/units', cacheControl(3600), (req, res) => res.json(unitsData));
+app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
 
 // ========== ROUTES ==========
 app.use('/api/auth', require('./routes/auth'));

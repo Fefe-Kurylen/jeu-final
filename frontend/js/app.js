@@ -816,17 +816,24 @@ function stopCityAnimation() {
   }
 }
 
+let lastCityFrameTime = 0;
+const CITY_FRAME_INTERVAL = 50; // ~20fps for animations (was 60fps)
+
 function animateCityView() {
   if (!cityAnimationRunning) return;
-  
+
   // Only animate if city tab is visible
   const cityTab = document.getElementById('tab-city');
   if (!cityTab || !cityTab.classList.contains('active')) {
     cityAnimationFrame = requestAnimationFrame(animateCityView);
     return;
   }
-  
-  renderCityCanvas();
+
+  const now = performance.now();
+  if (now - lastCityFrameTime >= CITY_FRAME_INTERVAL) {
+    lastCityFrameTime = now;
+    renderCityCanvas();
+  }
   cityAnimationFrame = requestAnimationFrame(animateCityView);
 }
 
@@ -6352,6 +6359,16 @@ function showTab(tabName) {
     document.getElementById('tab-fields')?.classList.remove('active');
     document.getElementById('tab-city')?.classList.add('active');
     currentCityView = tabName;
+    // Ensure canvas is properly sized (may have been hidden)
+    if (cityCanvas) {
+      const container = cityCanvas.parentElement;
+      if (container && container.clientWidth > 0) {
+        cityCanvas.width = Math.max(container.clientWidth, 300);
+        cityCanvas.height = Math.max(container.clientHeight, 200);
+      }
+    }
+    if (tabName === 'fields') calculateFieldSlots();
+    else calculateCitySlots();
     renderCityCanvas();
     return;
   }
@@ -6391,7 +6408,8 @@ async function loadBuildings() {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
-      buildingsData = await res.json();
+      const raw = await res.json();
+      buildingsData = Array.isArray(raw) ? raw : (raw.buildings || []);
       window.buildingsData = buildingsData;
       cache.set('buildings', buildingsData);
     }
@@ -6488,7 +6506,8 @@ async function loadUnits() {
       headers: { Authorization: `Bearer ${token}` } 
     });
     if (res.ok) {
-      unitsData = await res.json();
+      const raw = await res.json();
+      unitsData = Array.isArray(raw) ? raw : (raw.units || []);
       cache.set('units', unitsData);
     }
   } catch (e) {
@@ -12419,17 +12438,30 @@ function closeModal() {
 
 function showModal(title, content) {
   const modal = document.getElementById('modal');
-  const modalContent = modal.querySelector('.modal-content') || modal;
+  const modalBox = modal.querySelector('.modal-box');
 
-  modalContent.innerHTML = `
-    <div class="modal-header">
-      <h2>${title}</h2>
-      <button class="modal-close" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      ${content}
-    </div>
-  `;
+  if (modalBox) {
+    // Use existing modal structure
+    const titleEl = modal.querySelector('#modal-title') || modal.querySelector('.modal-header h3');
+    const bodyEl = modal.querySelector('#modal-body') || modal.querySelector('.modal-body');
+    const footerEl = modal.querySelector('#modal-footer');
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.innerHTML = content;
+    if (footerEl) footerEl.innerHTML = '';
+  } else {
+    // Fallback: recreate structure
+    modal.innerHTML = `
+      <div class="modal-backdrop" onclick="closeModal()"></div>
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3>${title}</h3>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">${content}</div>
+        <div class="modal-footer"></div>
+      </div>
+    `;
+  }
 
   modal.style.display = 'flex';
 }
@@ -12504,6 +12536,32 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && token) {
     refreshData(true);
   }
+});
+
+// ========== CANVAS RESIZE HANDLER ==========
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (cityCanvas) {
+      const container = cityCanvas.parentElement;
+      if (container) {
+        cityCanvas.width = Math.max(container.clientWidth, 300);
+        cityCanvas.height = Math.max(container.clientHeight, 200);
+        calculateCitySlots();
+        renderCityCanvas();
+      }
+    }
+    if (mapCanvas) {
+      const container = mapCanvas.parentElement;
+      if (container) {
+        mapCanvas.width = Math.max(container.clientWidth, 300);
+        mapCanvas.height = Math.max(container.clientHeight, 200);
+        if (typeof renderMap === 'function') renderMap();
+        if (typeof renderMinimap === 'function') renderMinimap();
+      }
+    }
+  }, 150);
 });
 
 // ========== SERVER TIME & DAY/NIGHT INDICATOR (Travian style) ==========
