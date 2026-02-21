@@ -375,7 +375,7 @@ let attackCheckInterval = null;
 
 async function checkIncomingAttacks() {
   try {
-    const resp = await fetch('/api/incoming-attacks', {
+    const resp = await fetch(`${API}/api/incoming-attacks`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (resp.ok) {
@@ -4850,8 +4850,8 @@ function openBuildPanel(slotNum) {
             </div>
             <div class="upgrade-action">
               <div class="build-time"><span class="time-icon">⏱️</span> ${timeStr}</div>
-              <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources ? '' : 'disabled'}>
-                ${hasResources ? '🔨 Améliorer' : '❌ Ressources insuffisantes'}
+              <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
+                ${isBuildQueueFull() ? '⏳ File de construction pleine' : hasResources ? '🔨 Ameliorer' : '❌ Ressources insuffisantes'}
               </button>
             </div>
           ` : `
@@ -4949,8 +4949,8 @@ function openBuildPanel(slotNum) {
           </div>
         </div>
         
-        <button class="build-field-btn" onclick="buildAtSlot('${fieldKey}', ${slotNum})">
-          🏗️ Construire ${getBuildingName(fieldKey)}
+        <button class="build-field-btn ${isBuildQueueFull() ? 'disabled' : ''}" onclick="buildAtSlot('${fieldKey}', ${slotNum})" ${isBuildQueueFull() ? 'disabled' : ''}>
+          ${isBuildQueueFull() ? '⏳ File de construction pleine' : `🏗️ Construire ${getBuildingName(fieldKey)}`}
         </button>
       </div>
     `;
@@ -5699,8 +5699,13 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   modal.style.display = 'flex';
 }
 
+// Global action guard to prevent double-click on any resource-modifying action
+let _actionInProgress = false;
+
 // Recruit from building
 async function recruitFromBuilding(unitKey, buildingKey) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   const countInput = document.getElementById('recruit-count');
   const count = parseInt(countInput?.value) || 1;
   
@@ -5728,6 +5733,8 @@ async function recruitFromBuilding(unitKey, buildingKey) {
     }
   } catch (e) {
     showToast('Erreur de connexion', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -5837,10 +5844,10 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
           </div>
           <div class="upgrade-footer">
             <div class="build-time">⏱️ ${formatDuration(buildTime)}</div>
-            <button class="upgrade-btn ${hasResources ? '' : 'disabled'}" 
+            <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}"
                     onclick="upgradeBuilding('${buildingKey}', ${slotNum})"
-                    ${hasResources ? '' : 'disabled'}>
-              ${hasResources ? '🔨 Améliorer' : '❌ Ressources insuffisantes'}
+                    ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
+              ${isBuildQueueFull() ? '⏳ File pleine' : hasResources ? '🔨 Ameliorer' : '❌ Ressources insuffisantes'}
             </button>
           </div>
         </div>
@@ -5867,7 +5874,20 @@ function getUnitName(unitKey) {
   return unit?.name || unitKey;
 }
 
+let _buildInProgress = false;
+
+function isBuildQueueFull() {
+  const queueSize = currentCity?.buildQueue?.length || 0;
+  return queueSize >= 4;
+}
+
 async function buildField(buildingKey, slot) {
+  if (_buildInProgress) return;
+  if (isBuildQueueFull()) {
+    showToast('File de construction pleine (4/4)', 'error');
+    return;
+  }
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -5876,23 +5896,30 @@ async function buildField(buildingKey, slot) {
     });
 
     const data = await res.json();
-    closeBuildPanel();
 
     if (res.ok) {
-      showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
+      closeBuildPanel();
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancee!`, 'success');
       await loadCities();
       renderCity();
     } else {
-      showToast(data.error || 'Erreur', 'error');
+      showToast(data.error || 'Erreur de construction', 'error');
     }
   } catch (e) {
     console.error('buildField error:', e);
-    closeBuildPanel();
-    showToast('Erreur réseau', 'error');
+    showToast('Erreur reseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 
 async function buildAtSlot(buildingKey, slot) {
+  if (_buildInProgress) return;
+  if (isBuildQueueFull()) {
+    showToast('File de construction pleine (4/4)', 'error');
+    return;
+  }
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -5901,19 +5928,20 @@ async function buildAtSlot(buildingKey, slot) {
     });
 
     const data = await res.json();
-    closeBuildPanel();
 
     if (res.ok) {
-      showToast(`Construction de ${getBuildingName(buildingKey)} lancée!`, 'success');
+      closeBuildPanel();
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancee!`, 'success');
       await loadCities();
       renderCity();
     } else {
-      showToast(data.error || 'Erreur', 'error');
+      showToast(data.error || 'Erreur de construction', 'error');
     }
   } catch (e) {
     console.error('buildAtSlot error:', e);
-    closeBuildPanel();
-    showToast('Erreur réseau', 'error');
+    showToast('Erreur reseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 
@@ -6232,7 +6260,8 @@ function renderWounded(wounded) {
 
 async function healWounded(unitKey) {
   if (!currentCity) return;
-
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/wounded/heal`, {
       method: 'POST',
@@ -6252,7 +6281,9 @@ async function healWounded(unitKey) {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur réseau', 'error');
+    showToast('Erreur reseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -6285,8 +6316,8 @@ function updateCityStats() {
   const siloEl = document.getElementById('city-silo');
   const wallsEl = document.getElementById('city-walls');
 
-  if (storageEl) storageEl.textContent = `${formatNumber(currentStorage)}/${formatNumber(maxStorage)}`;
-  if (siloEl) siloEl.textContent = `${formatNumber(currentSilo)}/${formatNumber(maxSilo)}`;
+  if (storageEl) storageEl.textContent = `${formatNum(currentStorage)}/${formatNum(maxStorage)}`;
+  if (siloEl) siloEl.textContent = `${formatNum(currentSilo)}/${formatNum(maxSilo)}`;
   if (wallsEl) wallsEl.textContent = wallLevel > 0 ? `${currentWallHp}/${maxWallHp}` : 'Pas de mur';
 }
 
@@ -6400,8 +6431,9 @@ function renderBuildings(filter) {
         <div class="stats">
           Coût: 🪵${formatNum(b.costL1?.wood || 50)} 🪨${formatNum(b.costL1?.stone || 50)} ⛏️${formatNum(b.costL1?.iron || 50)} 🌾${formatNum(b.costL1?.food || 50)}
         </div>
-        ${canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
-          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">🔒 Bât. principal Niv.${rbMainHallLevel} requis</p>` :
+        ${isBuildQueueFull() ? '<p style="padding:10px;color:var(--error);">⏳ File de construction pleine (4/4)</p>' :
+          canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
+          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">🔒 Bat. principal Niv.${rbMainHallLevel} requis</p>` :
           '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
       </div>
     `;
@@ -6409,6 +6441,12 @@ function renderBuildings(filter) {
 }
 
 async function build(buildingKey) {
+  if (_buildInProgress) return;
+  if (isBuildQueueFull()) {
+    showToast('File de construction pleine (4/4)', 'error');
+    return;
+  }
+  _buildInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
       method: 'POST',
@@ -6428,6 +6466,8 @@ async function build(buildingKey) {
   } catch (e) {
     console.error('build error:', e);
     showToast('Erreur réseau', 'error');
+  } finally {
+    _buildInProgress = false;
   }
 }
 
@@ -6683,23 +6723,31 @@ function showRecruitModal(unitKey, unitName) {
 }
 
 async function recruit(unitKey) {
-  const count = parseInt(document.getElementById('recruit-count').value) || 1;
-  
-  const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ unitKey, count })
-  });
-  
-  const data = await res.json();
-  closeModal();
-  
-  if (res.ok) {
-    showToast(`Recrutement de ${count}x ${unitKey} lancé!`, 'success');
-    await loadCities();
-    renderCity();
-  } else {
-    showToast(data.error || 'Erreur', 'error');
+  if (_actionInProgress) return;
+  _actionInProgress = true;
+  try {
+    const count = parseInt(document.getElementById('recruit-count').value) || 1;
+
+    const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ unitKey, count })
+    });
+
+    const data = await res.json();
+    closeModal();
+
+    if (res.ok) {
+      showToast(`Recrutement de ${count}x ${unitKey} lancé!`, 'success');
+      await loadCities();
+      renderCity();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -7912,12 +7960,15 @@ async function assignPoint(stat) {
     });
 
     if (res.ok) {
-      showToast('Point assigné!', 'success');
+      showToast('Point assigne!', 'success');
       loadHero();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Plus de points disponibles', 'error');
     }
   } catch (e) {
     console.error('assignPoint error:', e);
-    showToast('Erreur réseau', 'error');
+    showToast('Erreur reseau', 'error');
   }
 }
 
@@ -8098,14 +8149,17 @@ async function renameHero() {
     });
 
     if (res.ok) {
-      showToast('Héros renommé!', 'success');
+      showToast('Heros renomme!', 'success');
       const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur lors du renommage', 'error');
     }
   } catch (e) {
-    showToast('Erreur', 'error');
+    showToast('Erreur reseau', 'error');
   }
 }
 
@@ -11575,18 +11629,25 @@ async function loadAlliance() {
         // Get other alliances for diplomacy management
         const otherAlliances = alliances.filter(a => a.id !== myAlliance.id);
         
+        const showSub = (id) => currentAllianceTab === id ? 'block' : 'none';
         content.innerHTML = `
           <div class="alliance-container">
-            <div class="alliance-section">
-              <div class="alliance-header">
-                <div class="alliance-emblem">🛡️</div>
-                <div class="alliance-info">
-                  <h3>[${myAlliance.tag}] ${myAlliance.name}</h3>
-                  <div class="alliance-tag">${myAlliance.members.length} membres</div>
+            <div id="alliance-sub-overview" class="alliance-sub-section" style="display:${showSub('overview')}">
+              <div class="alliance-section">
+                <div class="alliance-header">
+                  <div class="alliance-emblem">🛡️</div>
+                  <div class="alliance-info">
+                    <h3>[${myAlliance.tag}] ${myAlliance.name}</h3>
+                    <div class="alliance-tag">${myAlliance.members.length} membres</div>
+                  </div>
                 </div>
+                <button onclick="leaveAlliance()" class="btn btn-danger" style="margin-top:20px">Quitter l'alliance</button>
               </div>
-              <div class="alliance-members">
-                <h4>👥 Membres</h4>
+            </div>
+
+            <div id="alliance-sub-members" class="alliance-sub-section" style="display:${showSub('members')}">
+              <div class="alliance-section">
+                <h4>👥 Membres (${myAlliance.members.length})</h4>
                 ${myAlliance.members.map(m => `
                   <div class="member-row">
                     <span class="member-name">${m.player.name}</span>
@@ -11594,36 +11655,36 @@ async function loadAlliance() {
                   </div>
                 `).join('')}
               </div>
-              <button onclick="leaveAlliance()" class="btn btn-danger" style="margin-top:20px">Quitter l'alliance</button>
             </div>
-            
+
+            <div id="alliance-sub-diplomacy" class="alliance-sub-section" style="display:${showSub('diplomacy')}">
             ${isLeaderOrOfficer ? `
-            <div class="alliance-section">
-              <h4>🤝 Diplomatie</h4>
-              <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Définissez vos relations avec les autres alliances (max 3 alliés)</p>
-              
-              <div class="diplomacy-list">
-                ${otherAlliances.map(a => {
-                  const dipStatus = diplomacyData.diplomacy?.find(d => d.allianceId === a.id)?.status || 'NEUTRAL';
-                  return `
-                    <div class="diplomacy-row">
-                      <div class="diplomacy-alliance">
-                        <strong>[${a.tag}]</strong> ${a.name}
-                        <span style="font-size:11px;color:var(--text-muted)">(${a.members.length} membres)</span>
+              <div class="alliance-section">
+                <h4>🤝 Diplomatie</h4>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Definissez vos relations avec les autres alliances (max 3 allies)</p>
+                <div class="diplomacy-list">
+                  ${otherAlliances.map(a => {
+                    const dipStatus = diplomacyData.diplomacy?.find(d => d.allianceId === a.id)?.status || 'NEUTRAL';
+                    return `
+                      <div class="diplomacy-row">
+                        <div class="diplomacy-alliance">
+                          <strong>[${a.tag}]</strong> ${a.name}
+                          <span style="font-size:11px;color:var(--text-muted)">(${a.members.length} membres)</span>
+                        </div>
+                        <div class="diplomacy-status">
+                          <select onchange="setDiplomacy('${a.id}', this.value)" class="diplomacy-select">
+                            <option value="NEUTRAL" ${dipStatus === 'NEUTRAL' ? 'selected' : ''}>⚪ Neutre</option>
+                            <option value="ALLY" ${dipStatus === 'ALLY' ? 'selected' : ''}>🤝 Allie</option>
+                            <option value="ENEMY" ${dipStatus === 'ENEMY' ? 'selected' : ''}>⚔️ Ennemi</option>
+                          </select>
+                        </div>
                       </div>
-                      <div class="diplomacy-status">
-                        <select onchange="setDiplomacy('${a.id}', this.value)" class="diplomacy-select">
-                          <option value="NEUTRAL" ${dipStatus === 'NEUTRAL' ? 'selected' : ''}>⚪ Neutre</option>
-                          <option value="ALLY" ${dipStatus === 'ALLY' ? 'selected' : ''}>🤝 Allié</option>
-                          <option value="ENEMY" ${dipStatus === 'ENEMY' ? 'selected' : ''}>⚔️ Ennemi</option>
-                        </select>
-                      </div>
-                    </div>
-                  `;
-                }).join('') || '<p style="color:var(--text-muted)">Aucune autre alliance</p>'}
+                    `;
+                  }).join('') || '<p style="color:var(--text-muted)">Aucune autre alliance</p>'}
+                </div>
               </div>
+            ` : '<div class="alliance-section"><p style="color:var(--text-muted)">Seuls les leaders et officiers peuvent gerer la diplomatie.</p></div>'}
             </div>
-            ` : ''}
           </div>
         `;
         return;
@@ -11674,36 +11735,49 @@ async function setDiplomacy(targetAllianceId, status) {
 }
 
 async function createAlliance() {
-  const name = document.getElementById('alliance-name').value;
-  const tag = document.getElementById('alliance-tag').value;
-  
-  const res = await fetch(`${API}/api/alliance/create`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ name, tag })
-  });
-  
-  if (res.ok) {
-    showToast('Alliance créée!', 'success');
-    loadAlliance();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+  const name = document.getElementById('alliance-name')?.value;
+  const tag = document.getElementById('alliance-tag')?.value;
+
+  if (!name || !tag) {
+    showToast('Remplissez le nom et le tag', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/api/alliance/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, tag })
+    });
+
+    if (res.ok) {
+      showToast('Alliance creee!', 'success');
+      loadAlliance();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
   }
 }
 
 async function joinAlliance(id) {
-  const res = await fetch(`${API}/api/alliance/${id}/join`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  if (res.ok) {
-    showToast('Alliance rejointe!', 'success');
-    loadAlliance();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur', 'error');
+  try {
+    const res = await fetch(`${API}/api/alliance/${id}/join`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (res.ok) {
+      showToast('Alliance rejointe!', 'success');
+      loadAlliance();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Erreur', 'error');
+    }
+  } catch (e) {
+    showToast('Erreur reseau', 'error');
   }
 }
 
@@ -12594,21 +12668,23 @@ function renderMarketOffers() {
 }
 
 async function createMarketOffer() {
+  if (_actionInProgress) return;
   const sellResource = document.getElementById('market-sell-resource')?.value;
   const sellAmount = parseInt(document.getElementById('market-sell-amount')?.value);
   const buyResource = document.getElementById('market-buy-resource')?.value;
   const buyAmount = parseInt(document.getElementById('market-buy-amount')?.value);
-  
+
   if (!sellAmount || !buyAmount || sellAmount <= 0 || buyAmount <= 0) {
     showToast('Quantités invalides', 'error');
     return;
   }
-  
+
   if (sellResource === buyResource) {
     showToast('Sélectionnez des ressources différentes', 'error');
     return;
   }
-  
+
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer`, {
       method: 'POST',
@@ -12628,10 +12704,14 @@ async function createMarketOffer() {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
 async function acceptMarketOffer(offerId) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}/accept`, {
       method: 'POST',
@@ -12649,10 +12729,14 @@ async function acceptMarketOffer(offerId) {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
 async function cancelMarketOffer(offerId) {
+  if (_actionInProgress) return;
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}`, {
       method: 'DELETE',
@@ -12669,6 +12753,8 @@ async function cancelMarketOffer(offerId) {
     }
   } catch (e) {
     showToast('Erreur réseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 
@@ -12688,7 +12774,56 @@ function showReportsTab(tab) {
     loadReports();
   } else if (tab === 'spy') {
     loadSpyReports();
+  } else if (tab === 'trade') {
+    loadTradeReports();
   }
+}
+
+let tradeReports = [];
+
+async function loadTradeReports() {
+  try {
+    const res = await fetch(`${API}/api/reports/trade`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      tradeReports = await res.json();
+      renderTradeReports();
+    }
+  } catch (e) {
+    console.error('Error loading trade reports:', e);
+  }
+}
+
+function renderTradeReports() {
+  const container = document.getElementById('reports-list');
+  if (!container) return;
+
+  if (!tradeReports.length) {
+    container.innerHTML = '<div class="empty-state">Aucun echange effectue</div>';
+    return;
+  }
+
+  const resNames = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
+  const resIcons = { wood: '🪵', stone: '🪨', iron: '⚒️', food: '🌾' };
+
+  container.innerHTML = tradeReports.map(t => {
+    const isSeller = t.sellerId === gameState?.player?.id;
+    const date = new Date(t.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="report-item" style="padding:10px;margin-bottom:6px;background:var(--bg-tertiary);border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>${isSeller ? '📤 Vendu' : '📥 Achet\u00e9'}</span>
+          <span style="color:var(--text-secondary);font-size:0.85em;">${date}</span>
+        </div>
+        <div style="margin-top:4px;">
+          <span style="color:var(--error)">${resIcons[t.sellResource] || ''} -${formatNum(t.sellAmount)} ${resNames[t.sellResource] || t.sellResource}</span>
+          →
+          <span style="color:var(--success)">${resIcons[t.buyResource] || ''} +${formatNum(t.buyAmount)} ${resNames[t.buyResource] || t.buyResource}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function loadSpyReports() {
@@ -12845,10 +12980,20 @@ function showArmyTab(subTab) {
   }
 }
 
+let currentAllianceTab = 'overview';
+
 function showAllianceTab(subTab) {
+  currentAllianceTab = subTab;
   document.querySelectorAll('#tab-alliance .toolbar-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`#tab-alliance .toolbar-btn[onclick*="${subTab}"]`)?.classList.add('active');
-  loadAlliance(subTab);
+
+  // Show/hide sections
+  document.querySelectorAll('.alliance-sub-section').forEach(s => s.style.display = 'none');
+  const section = document.getElementById(`alliance-sub-${subTab}`);
+  if (section) section.style.display = 'block';
+
+  // If sections don't exist yet, load fresh
+  if (!section) loadAlliance();
 }
 
 function showMarketTab(subTab) {
@@ -13117,6 +13262,7 @@ function updateNpcPreview() {
 }
 
 async function executeNpcTrade() {
+  if (_actionInProgress) return;
   const giveResource = document.getElementById('npc-give-resource')?.value;
   const receiveResource = document.getElementById('npc-receive-resource')?.value;
   const giveAmount = parseInt(document.getElementById('npc-give-amount')?.value) || 0;
@@ -13134,6 +13280,7 @@ async function executeNpcTrade() {
     return;
   }
 
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/npc-trade`, {
       method: 'POST',
@@ -13152,6 +13299,8 @@ async function executeNpcTrade() {
     }
   } catch (e) {
     showToast('Erreur reseau', 'error');
+  } finally {
+    _actionInProgress = false;
   }
 }
 

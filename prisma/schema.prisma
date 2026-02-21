@@ -80,6 +80,7 @@ model City {
   armies       Army[]
 
   @@unique([x, y])
+  @@index([playerId])
   @@map("City")
 }
 
@@ -109,6 +110,9 @@ model BuildQueueItem {
   status      String   @default("QUEUED")
 
   city City @relation(fields: [cityId], references: [id])
+
+  @@index([cityId, status])
+  @@index([status, endsAt])
 }
 
 model RecruitQueueItem {
@@ -122,6 +126,8 @@ model RecruitQueueItem {
   status      String   @default("RUNNING")
 
   city City @relation(fields: [cityId], references: [id])
+
+  @@index([status, endsAt])
 }
 
 model Army {
@@ -160,6 +166,11 @@ model Army {
   city  City?      @relation(fields: [cityId], references: [id])
   hero  Hero?      @relation(fields: [heroId], references: [id])
   units ArmyUnit[]
+
+  @@index([ownerId])
+  @@index([cityId])
+  @@index([status, arrivalAt])
+  @@index([targetCityId])
 }
 
 model ArmyUnit {
@@ -241,6 +252,8 @@ model BattleReport {
 
   attacker Player? @relation("Attacker", fields: [attackerId], references: [id])
   defender Player? @relation("Defender", fields: [defenderId], references: [id])
+
+  @@index([playerId, createdAt])
 }
 
 model SpyReport {
@@ -262,6 +275,8 @@ model SpyReport {
   createdAt      DateTime @default(now())
 
   player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, createdAt])
 }
 
 model ResourceNode {
@@ -288,6 +303,8 @@ model ResourceNode {
   hasPlayerArmy     Boolean @default(false) // Une armée joueur est présente sur le point
 
   @@unique([x, y])
+  @@index([hasDefenders, lastDefeat])
+  @@index([hasPlayerArmy])
 }
 
 model MarketOffer {
@@ -304,6 +321,9 @@ model MarketOffer {
   createdAt    DateTime @default(now())
 
   player Player? @relation(fields: [playerId], references: [id])
+
+  @@index([status])
+  @@index([sellerId])
 }
 
 model Alliance {
@@ -364,4 +384,7 @@ model Expedition {
   createdAt  DateTime  @default(now())
 
   player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, status])
+  @@index([status, endsAt])
 }

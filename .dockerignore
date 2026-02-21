@@ -3,6 +3,7 @@ node_modules/
 
 # Environment
 .env
+.env.*
 .env.local
 .env.production
 
@@ -26,3 +27,13 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Project specific
+.git
+.gitignore
+*.md
+docker-compose.yml
+wetransfer_content
+tools
+game
+.fly

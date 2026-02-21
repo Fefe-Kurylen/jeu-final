@@ -32,7 +32,7 @@ git commit -m "MonJeu v0.6 - Army Management System
 ✅ Prérequis recrutement: Niv.1 base, Niv.9 inter, Niv.15 elite
 ✅ 6 nouveaux endpoints backend
 ✅ Schéma Prisma mis à jour (slot, isGarrison)
-✅ Optimisé pour Railway"
+✅ Optimisé pour Render"
 
 # Ajouter remote si nécessaire
 if ! git remote | grep -q origin; then
@@ -47,7 +47,7 @@ git push -u origin $BRANCH
 echo ""
 echo "✅ Terminé ! Ton code est sur https://github.com/$GITHUB_USER/$REPO_NAME"
 echo ""
-echo "📌 Prochaine étape : Déployer sur Railway"
-echo "   1. Va sur https://railway.app"
-echo "   2. New Project → Deploy from GitHub"
+echo "📌 Prochaine étape : Déployer sur Render"
+echo "   1. Va sur https://render.com"
+echo "   2. New + → Web Service → Deploy from GitHub"
 echo "   3. Sélectionne '$REPO_NAME'"
