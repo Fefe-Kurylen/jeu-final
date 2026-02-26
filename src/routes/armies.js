@@ -7,77 +7,7 @@ const { unitsData } = require('../config/gamedata');
 const { factionsData } = require('../config/gamedata');
 const { validateCoordinates } = require('../utils/validation');
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyMinSpeed, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
-const { resolveCombat } = require('../services/combatService');
-
-// ========== HELPER: Tribe Combat ==========
-async function resolveTribteCombat(army, node, playerId) {
-  const defenderUnits = [];
-  if (node.defenderUnits && node.hasDefenders) {
-    const legacyMapping = { warrior: 'GRE_INF_HOPLITE', archer: 'GRE_ARC_TOXOTE', cavalry: 'GRE_CAV_GREC', elite: 'GRE_INF_SPARTIATE' };
-    for (const [unitKey, count] of Object.entries(node.defenderUnits)) {
-      if (count > 0) {
-        const isLegacyKey = ['warrior', 'archer', 'cavalry', 'elite'].includes(unitKey);
-        defenderUnits.push({ unitKey: isLegacyKey ? legacyMapping[unitKey] : unitKey, count });
-      }
-    }
-  }
-
-  if (defenderUnits.length === 0 || !node.hasDefenders) {
-    return { success: true, combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 }, loot: null, message: 'Tribu absente - démarrage de la récolte' };
-  }
-
-  const attackerHero = army.hero ? { attack: army.hero.attack || 0, defense: army.hero.defense || 0 } : null;
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, count: u.count })), defenderUnits, 0, attackerHero, null);
-
-  let totalAttackerLosses = 0;
-  for (const unit of army.units) {
-    const losses = Math.floor(unit.count * combat.attackerLossRate);
-    totalAttackerLosses += losses;
-    const newCount = unit.count - losses;
-    if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-    else { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
-  }
-
-  let totalDefenderLosses = 0;
-  const newDefenderUnits = {};
-  for (const [unitType, count] of Object.entries(node.defenderUnits)) {
-    const losses = Math.floor(count * combat.defenderLossRate);
-    totalDefenderLosses += losses;
-    newDefenderUnits[unitType] = Math.max(0, count - losses);
-  }
-
-  if (combat.attackerWon) {
-    await prisma.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: newDefenderUnits, defenderPower: 0, lastDefeat: new Date() } });
-    if (army.heroId) { await prisma.hero.update({ where: { id: army.heroId }, data: { xp: { increment: Math.floor(node.defenderPower * 0.5) } } }); }
-  } else {
-    await prisma.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: newDefenderUnits, defenderPower: Math.floor(node.defenderPower * (1 - combat.defenderLossRate)) } });
-  }
-
-  await prisma.battleReport.create({
-    data: { playerId, attackerId: playerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerLosses: { totalAttackerLosses }, defenderLosses: { totalDefenderLosses }, loot: {}, rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType } }
-  });
-
-  return { success: combat.attackerWon, combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses: totalAttackerLosses, defenderLosses: totalDefenderLosses, attackerPower: combat.attackerPower, defenderPower: combat.defenderPower }, loot: null, message: combat.attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée' };
-}
-
-async function collectResourceLoot(army, node, playerId) {
-  const armyWithUnits = await prisma.army.findUnique({ where: { id: army.id }, include: { units: true } });
-  const carryCapacity = getArmyCarryCapacity(armyWithUnits.units, unitsData);
-  const lootAmount = Math.min(carryCapacity, node.amount);
-  if (lootAmount <= 0) return {};
-  await prisma.resourceNode.update({ where: { id: node.id }, data: { amount: { decrement: lootAmount } } });
-  // Send to army's home city (not always capital)
-  const city = army.cityId
-    ? await prisma.city.findUnique({ where: { id: army.cityId } })
-    : await prisma.city.findFirst({ where: { playerId, isCapital: true } });
-  if (city) {
-    const resourceField = node.resourceType.toLowerCase();
-    const maxCap = resourceField === 'food' ? city.maxFoodStorage : city.maxStorage;
-    const newAmount = Math.min(city[resourceField] + lootAmount, maxCap);
-    await prisma.city.update({ where: { id: city.id }, data: { [resourceField]: newAmount } });
-  }
-  return { [node.resourceType]: lootAmount };
-}
+const { resolveTribeCombat, collectResourceLoot } = require('../services/armyService');
 
 // ========== ENDPOINTS ==========
 
@@ -332,7 +262,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     }
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
     if (distance <= 1.5) {
-      const result = await resolveTribteCombat(army, node, req.user.playerId);
+      const result = await resolveTribeCombat(army, node, req.user.playerId);
       if (result.success) {
         await prisma.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
         result.message = 'Tribu vaincue! Récolte démarrée (100/min)';
@@ -515,9 +445,5 @@ router.get('/', auth, async (req, res) => {
     res.json(armiesWithPower);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
-// Export helpers for use in tick processor
-router.resolveTribteCombat = resolveTribteCombat;
-router.collectResourceLoot = collectResourceLoot;
 
 module.exports = router;
