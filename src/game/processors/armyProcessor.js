@@ -104,55 +104,56 @@ async function handleAttack(army, now) {
   const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
   const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, army.hero, garrisonArmy?.hero);
 
-  // Apply losses
-  for (const unit of army.units) {
-    const unitResult = result.attackerFinalUnits.find(u => u.key === unit.unitKey);
-    const newCount = unitResult ? unitResult.remaining : 0;
-    if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-    else { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
-  }
-  for (const defArmy of targetCity.armies) {
-    for (const unit of defArmy.units) {
-      const unitResult = result.defenderFinalUnits.find(u => u.key === unit.unitKey);
+  // Apply all combat effects atomically
+  await prisma.$transaction(async (tx) => {
+    // Apply attacker losses
+    for (const unit of army.units) {
+      const unitResult = result.attackerFinalUnits.find(u => u.key === unit.unitKey);
       const newCount = unitResult ? unitResult.remaining : 0;
-      if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-      else { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+      if (newCount <= 0) { await tx.armyUnit.delete({ where: { id: unit.id } }); }
+      else { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
     }
-  }
+    // Apply defender losses
+    for (const defArmy of targetCity.armies) {
+      for (const unit of defArmy.units) {
+        const unitResult = result.defenderFinalUnits.find(u => u.key === unit.unitKey);
+        const newCount = unitResult ? unitResult.remaining : 0;
+        if (newCount <= 0) { await tx.armyUnit.delete({ where: { id: unit.id } }); }
+        else { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+      }
+    }
+    // Wall damage
+    if (result.attackerWon) {
+      const wallDamage = Math.floor(targetCity.wallMaxHp * 0.1 * (1 + result.rounds.length * 0.05));
+      await tx.city.update({ where: { id: targetCity.id }, data: { wallHp: Math.max(0, targetCity.wallHp - wallDamage) } });
+    }
+    // Battle reports (attacker + defender)
+    const reportData = {
+      x: targetCity.x, y: targetCity.y,
+      attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
+      attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
+      defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled },
+      winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
+      loot: { rounds: result.rounds, wallDamage: result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1) : 0, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length }
+    };
+    await tx.battleReport.create({ data: { ...reportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    await tx.battleReport.create({ data: { ...reportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    // Stats
+    if (result.attackerWon) {
+      await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, attacksWon: 1, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
+      await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
+    } else {
+      await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, defensesWon: 1, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
+      await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
+    }
+  });
 
-  // Wounded
+  // Wounded units (outside transaction - uses its own prisma client)
   const defenderWounded = await calculateWoundedUnits(targetCity.id, result.defenderFinalUnits, targetCity.player.faction);
   if (defenderWounded.length > 0) await addWoundedUnits(targetCity.id, defenderWounded);
   if (army.cityId) {
     const attackerWounded = await calculateWoundedUnits(army.cityId, result.attackerFinalUnits, army.owner.faction);
     if (attackerWounded.length > 0) await addWoundedUnits(army.cityId, attackerWounded);
-  }
-
-  // Wall damage
-  if (result.attackerWon) {
-    const wallDamage = Math.floor(targetCity.wallMaxHp * 0.1 * (1 + result.rounds.length * 0.05));
-    await prisma.city.update({ where: { id: targetCity.id }, data: { wallHp: Math.max(0, targetCity.wallHp - wallDamage) } });
-  }
-
-  // Battle reports (attacker + defender)
-  const reportData = {
-    x: targetCity.x, y: targetCity.y,
-    attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
-    attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
-    defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled },
-    winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-    loot: { rounds: result.rounds, wallDamage: result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1) : 0, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length }
-  };
-  await prisma.battleReport.create({ data: { ...reportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-  await prisma.battleReport.create({ data: { ...reportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-
-  // Stats
-  if (result.attackerWon) {
-    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { attacksWon: { increment: 1 }, unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, attacksWon: 1, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
-    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-  } else {
-    await prisma.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { defensesWon: { increment: 1 }, unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, defensesWon: 1, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
   }
 
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
@@ -167,22 +168,7 @@ async function handleRaid(army, now) {
   const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
   const result = resolveCombat(army.units, defenderUnits, wallLevel, army.hero, garrisonArmy?.hero);
 
-  // Apply attacker losses
-  for (const unit of army.units) {
-    const newCount = Math.floor(unit.count * (1 - result.attackerLossRate * 0.5));
-    if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-    else { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
-  }
-
-  // Apply defender losses
-  for (const defArmy of targetCity.armies) {
-    for (const unit of defArmy.units) {
-      const newCount = Math.floor(unit.count * (1 - result.defenderLossRate * 0.3));
-      if (newCount <= 0) { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-      else if (newCount < unit.count) { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
-    }
-  }
-
+  // Calculate loot before transaction
   let carryWood = 0, carryStone = 0, carryIron = 0, carryFood = 0;
   if (result.attackerWon) {
     let totalCarry = 0;
@@ -197,21 +183,42 @@ async function handleRaid(army, now) {
     carryStone = Math.floor(Math.min(targetCity.stone * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
     carryIron = Math.floor(Math.min(targetCity.iron * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
     carryFood = Math.floor(Math.min(targetCity.food * (1 - hideoutProtection) * stealRate, totalCarry * 0.25));
-    await prisma.city.update({ where: { id: targetCity.id }, data: {
-      wood: Math.max(0, targetCity.wood - carryWood),
-      stone: Math.max(0, targetCity.stone - carryStone),
-      iron: Math.max(0, targetCity.iron - carryIron),
-      food: Math.max(0, targetCity.food - carryFood)
-    } });
   }
 
-  const raidReportData = { x: targetCity.x, y: targetCity.y, attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })), attackerLosses: { rate: result.attackerLossRate }, defenderLosses: { rate: result.defenderLossRate }, winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', loot: result.attackerWon ? { wood: carryWood, stone: carryStone, iron: carryIron, food: carryFood } : null };
-  await prisma.battleReport.create({ data: { ...raidReportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-  await prisma.battleReport.create({ data: { ...raidReportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-
-  if (result.attackerWon) {
-    await prisma.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
-  }
+  // Apply all raid effects atomically
+  await prisma.$transaction(async (tx) => {
+    // Apply attacker losses
+    for (const unit of army.units) {
+      const newCount = Math.floor(unit.count * (1 - result.attackerLossRate * 0.5));
+      if (newCount <= 0) { await tx.armyUnit.delete({ where: { id: unit.id } }); }
+      else { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+    }
+    // Apply defender losses
+    for (const defArmy of targetCity.armies) {
+      for (const unit of defArmy.units) {
+        const newCount = Math.floor(unit.count * (1 - result.defenderLossRate * 0.3));
+        if (newCount <= 0) { await tx.armyUnit.delete({ where: { id: unit.id } }); }
+        else if (newCount < unit.count) { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
+      }
+    }
+    // Steal resources
+    if (result.attackerWon) {
+      await tx.city.update({ where: { id: targetCity.id }, data: {
+        wood: Math.max(0, targetCity.wood - carryWood),
+        stone: Math.max(0, targetCity.stone - carryStone),
+        iron: Math.max(0, targetCity.iron - carryIron),
+        food: Math.max(0, targetCity.food - carryFood)
+      } });
+    }
+    // Reports
+    const raidReportData = { x: targetCity.x, y: targetCity.y, attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })), attackerLosses: { rate: result.attackerLossRate }, defenderLosses: { rate: result.defenderLossRate }, winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', loot: result.attackerWon ? { wood: carryWood, stone: carryStone, iron: carryIron, food: carryFood } : null };
+    await tx.battleReport.create({ data: { ...raidReportData, playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    await tx.battleReport.create({ data: { ...raidReportData, playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    // Stats
+    if (result.attackerWon) {
+      await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
+    }
+  });
 
   console.log(`[RAID] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Raider won' : 'Defender won'}`);
   await sendArmyHome(army, army.targetX, army.targetY, 50, { carryWood, carryStone, carryIron, carryFood });

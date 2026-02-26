@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const { sanitizeString } = require('../utils/validation');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -14,10 +15,10 @@ router.get('/', auth, async (req, res) => {
 router.post('/create', auth, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const existing = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
-    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name } });
+    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name: sanitizeString(name) } });
     res.json({ message: 'Heros cree', hero });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -26,10 +27,10 @@ router.post('/create', auth, async (req, res) => {
 router.post('/rename', auth, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
-    await prisma.hero.update({ where: { id: hero.id }, data: { name } });
+    await prisma.hero.update({ where: { id: hero.id }, data: { name: sanitizeString(name) } });
     res.json({ message: 'Heros renomme' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

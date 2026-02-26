@@ -29,6 +29,9 @@ router.get('/', auth, async (req, res) => {
 router.post('/:id/build', auth, async (req, res) => {
   try {
     const { buildingKey, slot } = req.body;
+    if (!buildingKey || typeof buildingKey !== 'string') return res.status(400).json({ error: 'Bâtiment requis' });
+    const buildingDef = buildingsData.find(b => b.key === buildingKey);
+    if (!buildingDef) return res.status(400).json({ error: 'Bâtiment inconnu' });
     const result = await prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
@@ -53,7 +56,6 @@ router.post('/:id/build', auth, async (req, res) => {
         : city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
       const targetLevel = (existing?.level || 0) + inQueue + 1;
 
-      const buildingDef = buildingsData.find(b => b.key === buildingKey);
       const maxLevel = buildingDef?.maxLevel || 20;
       if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
 
@@ -135,7 +137,7 @@ router.post('/:id/build', auth, async (req, res) => {
 router.post('/:id/recruit', auth, async (req, res) => {
   try {
     const { unitKey, count } = req.body;
-    if (!count || count < 1 || !Number.isInteger(count)) return res.status(400).json({ error: 'Nombre invalide' });
+    if (!count || count < 1 || count > 10000 || !Number.isInteger(count)) return res.status(400).json({ error: 'Nombre invalide (1-10000)' });
 
     const unit = unitsData.find(u => u.key === unitKey);
     if (!unit) return res.status(400).json({ error: 'Unite inconnue' });

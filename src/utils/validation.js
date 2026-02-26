@@ -27,10 +27,47 @@ const validateCoordinates = (x, y) => {
          y >= config.map.minCoord && y <= config.map.maxCoord;
 };
 
+// Validate a string is safe text (no HTML injection, reasonable length)
+const validateString = (str, minLen = 1, maxLen = 100) => {
+  if (!str || typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  return trimmed.length >= minLen && trimmed.length <= maxLen;
+};
+
+// Sanitize a string (strip HTML tags)
+const sanitizeString = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/<[^>]*>/g, '').trim();
+};
+
+// Validate a positive integer
+const validatePositiveInt = (val) => {
+  return Number.isInteger(val) && val > 0;
+};
+
+// Validate alliance tag (2-5 uppercase alphanumeric)
+const validateAllianceTag = (tag) => {
+  if (!tag || typeof tag !== 'string') return false;
+  const tagRegex = /^[A-Z0-9]{2,5}$/;
+  return tagRegex.test(tag.toUpperCase());
+};
+
+// Validate alliance name (3-30 chars, alphanumeric + spaces)
+const validateAllianceName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  return trimmed.length >= 3 && trimmed.length <= 30;
+};
+
 module.exports = {
   validateEmail,
   validatePassword,
   validateName,
   validateFaction,
-  validateCoordinates
+  validateCoordinates,
+  validateString,
+  sanitizeString,
+  validatePositiveInt,
+  validateAllianceTag,
+  validateAllianceName
 };
