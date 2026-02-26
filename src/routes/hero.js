@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const { sanitizeString } = require('../utils/validation');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -14,10 +15,10 @@ router.get('/', auth, async (req, res) => {
 router.post('/create', auth, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const existing = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
-    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name } });
+    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name: sanitizeString(name) } });
     res.json({ message: 'Heros cree', hero });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -26,10 +27,10 @@ router.post('/create', auth, async (req, res) => {
 router.post('/rename', auth, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
-    await prisma.hero.update({ where: { id: hero.id }, data: { name } });
+    await prisma.hero.update({ where: { id: hero.id }, data: { name: sanitizeString(name) } });
     res.json({ message: 'Heros renomme' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -37,13 +38,20 @@ router.post('/rename', auth, async (req, res) => {
 // POST /api/hero/equip
 router.post('/equip', auth, async (req, res) => {
   try {
-    const { itemId } = req.body;
+    const { itemId, slot } = req.body;
     if (!itemId) return res.status(400).json({ error: 'itemId requis' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     const item = hero.items.find(i => i.id === itemId);
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
-    res.json({ message: 'Objet equipe' });
+    const equipSlot = slot || item.slot || 'main';
+    // Unequip any item currently in that slot
+    const currentlyEquipped = hero.items.find(i => i.slot === equipSlot && i.id !== itemId);
+    if (currentlyEquipped) {
+      await prisma.heroItem.update({ where: { id: currentlyEquipped.id }, data: { slot: 'inventory' } });
+    }
+    await prisma.heroItem.update({ where: { id: itemId }, data: { slot: equipSlot } });
+    res.json({ message: 'Objet equipe', slot: equipSlot });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -56,6 +64,7 @@ router.post('/unequip', auth, async (req, res) => {
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     const item = hero.items.find(i => i.id === itemId);
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
+    await prisma.heroItem.update({ where: { id: itemId }, data: { slot: 'inventory' } });
     res.json({ message: 'Objet desequipe' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

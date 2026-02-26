@@ -31,8 +31,8 @@ const config = {
   build: {
     maxRunning: 2,
     maxQueued: 2,
-    costMultiplierBase: 1.5,
-    timeMultiplierBase: 1.8
+    costMultiplierBase: 1.28,   // was 1.5 → L20 = ~100x base (Travian-like)
+    timeMultiplierBase: 1.2     // was 1.8 → L20 = ~32x base (Travian-like)
   },
 
   // Recruit

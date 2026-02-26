@@ -42,57 +42,55 @@ app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
 // ========== STATIC FILES ==========
 app.use('/css', express.static(path.join(__dirname, '../frontend/css')));
 app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
+app.use('/img', express.static(path.join(__dirname, '../frontend/img')));
+app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 app.use('/portal', express.static(path.join(__dirname, '../portal')));
 
 // ========== STATIC DATA (cached) ==========
-app.get('/api/buildings', cacheControl(3600), (req, res) => res.json({ buildings: buildingsData }));
-app.get('/api/data/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
-app.get('/api/units', cacheControl(3600), (req, res) => res.json({ units: unitsData }));
+app.get('/api/buildings', cacheControl(3600), (req, res) => res.json(buildingsData));
+app.get('/api/data/units', cacheControl(3600), (req, res) => res.json(unitsData));
+app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
 
 // ========== ROUTES ==========
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/player', require('./routes/player'));
-app.use('/api/city', require('./routes/cities'));
-app.use('/api/cities', require('./routes/cities'));
-app.use('/api/army', require('./routes/armies'));
-app.use('/api/armies', require('./routes/armies'));
-app.use('/api/hero', require('./routes/hero'));
-app.use('/api/alliances', require('./routes/alliance'));
-app.use('/api/alliance', require('./routes/alliance'));
-app.use('/api', require('./routes/map'));
-app.use('/api/market', require('./routes/market'));
-app.use('/api', require('./routes/market'));  // for /api/trade/send
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/ranking', require('./routes/ranking'));
-app.use('/api/expeditions', require('./routes/expeditions'));
-app.use('/api/expedition', require('./routes/expeditions'));
-app.use('/api/diplomacy', require('./routes/alliance'));
+// Each route module is mounted once, with aliases where the frontend expects them
+const authRoutes = require('./routes/auth');
+const playerRoutes = require('./routes/player');
+const cityRoutes = require('./routes/cities');
+const armyRoutes = require('./routes/armies');
+const heroRoutes = require('./routes/hero');
+const allianceRoutes = require('./routes/alliance');
+const mapRoutes = require('./routes/map');
+const marketRoutes = require('./routes/market');
+const reportRoutes = require('./routes/reports');
+const rankingRoutes = require('./routes/ranking');
+const expeditionRoutes = require('./routes/expeditions');
 
-// Incoming attacks
-app.get('/api/incoming-attacks', require('./middleware/auth'), async (req, res) => {
-  try {
-    const playerCities = await prisma.city.findMany({
-      where: { playerId: req.user.playerId },
-      select: { id: true, name: true, x: true, y: true }
-    });
-    const cityIds = playerCities.map(c => c.id);
-    const incomingArmies = await prisma.army.findMany({
-      where: { targetCityId: { in: cityIds }, status: { in: ['ATTACKING', 'RAIDING'] }, arrivalAt: { gt: new Date() } },
-      select: { id: true, status: true, arrivalAt: true, targetCityId: true, missionType: true },
-      orderBy: { arrivalAt: 'asc' }
-    });
-    const attacks = incomingArmies.map(a => {
-      const targetCity = playerCities.find(c => c.id === a.targetCityId);
-      return { id: a.id, type: a.missionType || a.status, arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId };
-    });
-    res.json(attacks);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+app.use('/api/auth', authRoutes);
+app.use('/api/player', playerRoutes);
+app.use('/api/city', cityRoutes);
+app.use('/api/cities', cityRoutes);
+app.use('/api/army', armyRoutes);
+app.use('/api/armies', armyRoutes);
+app.use('/api/hero', heroRoutes);
+app.use('/api/alliances', allianceRoutes);
+app.use('/api/alliance', allianceRoutes);
+app.use('/api/diplomacy', allianceRoutes);
+app.use('/api', mapRoutes);
+app.use('/api/market', marketRoutes);
+app.use('/api', marketRoutes);  // for /api/trade/send
+app.use('/api/reports', reportRoutes);
+app.use('/api/ranking', rankingRoutes);
+app.use('/api/expeditions', expeditionRoutes);
+app.use('/api/expedition', expeditionRoutes);
 
 // ========== CATCH-ALL: Serve frontend ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
+
+// ========== ERROR HANDLER ==========
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 // ========== STARTUP ==========
 async function startServer() {

@@ -1272,6 +1272,7 @@ tr.marked, .list-item.marked {
   position: relative;
   overflow: hidden;
   background: linear-gradient(180deg, #2a3a2a 0%, #1a2a1a 100%);
+  min-height: 200px;
 }
 
 .map-canvas-container canvas {
@@ -4033,4 +4034,37 @@ tr.marked, .list-item.marked {
   .bnav-icon { font-size: 20px; }
   .bnav-village-info .village-coords { display: none; }
   .bnav-village-info .village-tier { display: none; }
+
+  /* Build panel responsive */
+  .build-panel {
+    width: 98% !important;
+    max-width: none !important;
+    max-height: 80vh !important;
+  }
+
+  /* Modal responsive */
+  .modal-box {
+    width: 96%;
+    max-width: none;
+    max-height: 90vh;
+  }
+
+  /* Map info panel responsive */
+  .map-info-panel {
+    width: calc(100% - 20px) !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  /* Map controls compact */
+  .map-controls {
+    padding: 6px 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .map-btn { padding: 6px 10px; font-size: 13px; }
+  .map-goto input { width: 45px; padding: 6px; }
 }

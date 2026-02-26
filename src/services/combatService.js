@@ -134,8 +134,12 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const attackerTotalKilled = attackerTotalInitial - attackerTotalRemaining;
   const defenderTotalKilled = defenderTotalInitial - defenderTotalRemaining;
 
+  // Compare remaining POWER (not unit count) to determine winner
+  const attackerRemainingPower = attackers.reduce((sum, u) => sum + Math.max(0, u.count) * u.attack, 0);
+  const defenderRemainingPower = defenders.reduce((sum, u) => sum + Math.max(0, u.count) * u.attack * defenseMultiplier, 0);
+
   return {
-    attackerWon: attackerTotalRemaining > defenderTotalRemaining,
+    attackerWon: attackerRemainingPower > defenderRemainingPower,
     attackerLossRate: attackerTotalInitial > 0 ? attackerTotalKilled / attackerTotalInitial : 0,
     defenderLossRate: defenderTotalInitial > 0 ? defenderTotalKilled / defenderTotalInitial : 0,
     attackerTotalKilled, defenderTotalKilled,
