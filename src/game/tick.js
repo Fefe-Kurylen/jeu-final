@@ -196,7 +196,7 @@ async function gameTick() {
 
     // ========== ARMY MOVEMENT & COMBAT ==========
     const movingArmies = await prisma.army.findMany({
-      where: { status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'COLLECTING'] }, arrivalAt: { lte: now } },
+      where: { status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'] }, arrivalAt: { lte: now } },
       include: { units: true, owner: true, city: true, hero: true }
     });
 
@@ -220,9 +220,17 @@ async function gameTick() {
             if (result.success) {
               await armiesRouter.collectResourceLoot(army, node, army.ownerId);
             }
-            await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', missionType: 'RETURNING', targetX: army.x, targetY: army.y, arrivalAt: new Date(Date.now() + 60000) } });
+            // Return to home city with proper travel time
+            const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
+            if (homeCity) {
+              const minSpeed = army.units.reduce((min, u) => Math.min(min, 50), 50);
+              const travelTime = calculateTravelTime(node.x, node.y, homeCity.x, homeCity.y, minSpeed);
+              await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', missionType: 'RETURN', targetX: homeCity.x, targetY: homeCity.y, targetResourceId: null, arrivalAt: new Date(Date.now() + travelTime * 1000) } });
+            } else {
+              await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, targetX: null, targetY: null, targetResourceId: null, arrivalAt: null } });
+            }
           } else {
-            await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, mission: null, targetX: null, targetY: null, targetResourceId: null, arrivalAt: null } });
+            await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, targetX: null, targetY: null, targetResourceId: null, arrivalAt: null } });
           }
         } else if (army.missionType === 'MOVE' || army.status === 'MOVING') {
           await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', targetX: null, targetY: null, arrivalAt: null, missionType: null } });
