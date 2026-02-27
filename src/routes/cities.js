@@ -152,26 +152,43 @@ router.post('/:id/recruit', auth, async (req, res) => {
       const barracks = city.buildings.find(b => b.key === 'BARRACKS');
       const stable = city.buildings.find(b => b.key === 'STABLE');
       const workshop = city.buildings.find(b => b.key === 'WORKSHOP');
+      const greatBarracks = city.buildings.find(b => b.key === 'GREAT_BARRACKS');
+      const greatStable = city.buildings.find(b => b.key === 'GREAT_STABLE');
+
+      // Use building data for unlock thresholds (GDD: unlockIntermediateTier=7, unlockEliteTier=15)
+      const barracksDef = buildingsData.find(b => b.key === 'BARRACKS');
+      const stableDef = buildingsData.find(b => b.key === 'STABLE');
+      const workshopDef = buildingsData.find(b => b.key === 'WORKSHOP');
+      const unlockInterBarracks = barracksDef?.effects?.unlockIntermediateTier || 7;
+      const unlockEliteBarracks = barracksDef?.effects?.unlockEliteTier || 15;
+      const unlockInterStable = stableDef?.effects?.unlockIntermediateTier || 7;
+      const unlockEliteStable = stableDef?.effects?.unlockEliteTier || 15;
 
       if (unit.class === 'INFANTRY' || unit.class === 'ARCHER') {
-        if (!barracks) return { error: 'Caserne requise', status: 400 };
-        if (unit.tier === 'intermediate' && barracks.level < 5) return { error: 'Caserne niveau 5 requise pour unites intermediaires', status: 400 };
-        if (unit.tier === 'elite' && barracks.level < 10) return { error: 'Caserne niveau 10 requise pour unites elite', status: 400 };
+        const recruitBuilding = barracks || greatBarracks;
+        if (!recruitBuilding) return { error: 'Caserne requise', status: 400 };
+        if (unit.tier === 'intermediate' && recruitBuilding.level < unlockInterBarracks) return { error: `Caserne niveau ${unlockInterBarracks} requise pour unités intermédiaires`, status: 400 };
+        if (unit.tier === 'elite' && recruitBuilding.level < unlockEliteBarracks) return { error: `Caserne niveau ${unlockEliteBarracks} requise pour unités élite`, status: 400 };
       }
       if (unit.class === 'CAVALRY') {
-        if (!stable) return { error: 'Ecurie requise', status: 400 };
-        if (unit.tier === 'intermediate' && stable.level < 5) return { error: 'Ecurie niveau 5 requise', status: 400 };
-        if (unit.tier === 'elite' && stable.level < 10) return { error: 'Ecurie niveau 10 requise', status: 400 };
+        const recruitBuilding = stable || greatStable;
+        if (!recruitBuilding) return { error: 'Écurie requise', status: 400 };
+        if (unit.tier === 'intermediate' && recruitBuilding.level < unlockInterStable) return { error: `Écurie niveau ${unlockInterStable} requise`, status: 400 };
+        if (unit.tier === 'elite' && recruitBuilding.level < unlockEliteStable) return { error: `Écurie niveau ${unlockEliteStable} requise`, status: 400 };
       }
       if (unit.class === 'SIEGE') {
         if (!workshop) return { error: 'Atelier requis', status: 400 };
         if (workshop.level < 5) return { error: 'Atelier niveau 5 requis', status: 400 };
       }
 
-      const tierMult = config.recruit.tierMultipliers[unit.tier] || 1.3;
+      // Per-class base costs with tier multiplier (GDD formulas.json)
+      const classCosts = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
+      const tierCostMult = config.recruit.tierCostMultipliers[unit.tier] || 1.0;
       const cost = {
-        wood: Math.ceil(50 * tierMult * count), stone: Math.ceil(30 * tierMult * count),
-        iron: Math.ceil(60 * tierMult * count), food: Math.ceil(30 * tierMult * count)
+        wood: Math.ceil(classCosts.wood * tierCostMult * count),
+        stone: Math.ceil(classCosts.stone * tierCostMult * count),
+        iron: Math.ceil(classCosts.iron * tierCostMult * count),
+        food: Math.ceil(classCosts.food * tierCostMult * count)
       };
 
       if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
@@ -183,9 +200,11 @@ router.post('/:id/recruit', auth, async (req, res) => {
         data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
       });
 
-      let baseTime = config.recruit.baseTimeSec[unit.tier] || 60;
-      if (unit.class === 'CAVALRY') baseTime *= config.recruit.cavalryTimeMultiplier;
-      const totalTime = baseTime * count;
+      // Per-class base time with tier multiplier (GDD unit_training_times.json)
+      const classBaseTime = config.recruit.baseTimeSec[unit.class] || 360;
+      const tierTimeMult = config.recruit.tierTimeMultipliers[unit.tier] || 1.0;
+      const timePerUnit = Math.ceil(classBaseTime * tierTimeMult);
+      const totalTime = timePerUnit * count;
       const now = new Date();
       const endsAt = new Date(now.getTime() + totalTime * 1000);
 

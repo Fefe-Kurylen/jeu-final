@@ -347,13 +347,20 @@ async function aiAction(player, hour, now) {
     }
     if (count < 1) return;
 
-    const tierMult = config.recruit.tierMultipliers[tier] || 1.3;
-    const cost = {wood:Math.ceil(50*tierMult*count),stone:Math.ceil(30*tierMult*count),iron:Math.ceil(60*tierMult*count),food:Math.ceil(30*tierMult*count)};
+    const uDef = unitsData.find(u => u.key === unitKey);
+    const classCosts = config.recruit.baseCosts[uDef?.class] || config.recruit.baseCosts.INFANTRY;
+    const tierCostMult = config.recruit.tierCostMultipliers[tier] || 1.0;
+    const cost = {
+      wood: Math.ceil(classCosts.wood * tierCostMult * count),
+      stone: Math.ceil(classCosts.stone * tierCostMult * count),
+      iron: Math.ceil(classCosts.iron * tierCostMult * count),
+      food: Math.ceil(classCosts.food * tierCostMult * count)
+    };
     if (!canAfford(city, cost)) return;
 
-    let baseTime = config.recruit.baseTimeSec[tier] || 60;
-    const uDef = unitsData.find(u => u.key === unitKey);
-    if (uDef?.class === 'CAVALRY') baseTime *= config.recruit.cavalryTimeMultiplier;
+    const classBaseTime = config.recruit.baseTimeSec[uDef?.class] || 360;
+    const tierTimeMult = config.recruit.tierTimeMultipliers[tier] || 1.0;
+    const baseTime = Math.ceil(classBaseTime * tierTimeMult);
     const totalTime = baseTime * count;
     const endsAt = new global.Date(simulatedTime + totalTime*1000);
 
