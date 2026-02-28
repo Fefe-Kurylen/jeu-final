@@ -7,15 +7,15 @@
     "node": "20.x"
   },
   "scripts": {
+    "api": "node src/server.js",
+    "api:build": "prisma generate && prisma db push --skip-generate",
     "start": "node src/server.js",
     "build": "prisma generate && prisma db push --skip-generate",
-    "cap:init": "npx cap add ios && npx cap add android",
-    "cap:sync": "npx cap sync",
-    "cap:ios": "npx cap sync ios && npx cap open ios",
-    "cap:android": "npx cap sync android && npx cap open android",
-    "cap:build:ios": "npx cap sync ios && npx cap copy ios",
-    "cap:build:android": "npx cap sync android && npx cap copy android",
-    "mobile:dev": "node src/server.js & npx cap sync && echo 'Ready for mobile dev'"
+    "sync": "npx cap sync",
+    "ios": "npx cap sync ios && npx cap open ios",
+    "android": "npx cap sync android && npx cap open android",
+    "ios:build": "npx cap sync ios && npx cap copy ios",
+    "android:build": "npx cap sync android && npx cap copy android"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

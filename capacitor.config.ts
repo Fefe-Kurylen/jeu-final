@@ -4,18 +4,17 @@ const config: CapacitorConfig = {
   appId: 'com.imperiumantiquitas.app',
   appName: 'Imperium Antiquitas',
   webDir: 'frontend',
+  // App always connects to the remote API server
   server: {
-    // In production, the app loads local files.
-    // For development, uncomment and set your server URL:
-    // url: 'http://192.168.1.x:3000',
-    // cleartext: true,
     androidScheme: 'https',
     iosScheme: 'https',
+    // Allow all navigation (API calls to server)
+    allowNavigation: ['*'],
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      launchAutoHide: true,
+      launchAutoHide: false, // Hide manually after app init
       backgroundColor: '#1a1510',
       showSpinner: true,
       spinnerColor: '#c9a227',
@@ -26,6 +25,7 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: 'DARK',
       backgroundColor: '#1a1510',
+      overlaysWebView: false,
     },
     Keyboard: {
       resize: 'body',
@@ -36,12 +36,14 @@ const config: CapacitorConfig = {
     contentInset: 'automatic',
     preferredContentMode: 'mobile',
     backgroundColor: '#1a1510',
+    allowsLinkPreview: false,
   },
   android: {
     backgroundColor: '#1a1510',
-    allowMixedContent: true,
+    allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
+    overScrollMode: 'never',
   },
 };
 

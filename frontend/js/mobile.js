@@ -1,74 +1,61 @@
-// ========== IMPERIUM ANTIQUITAS - Mobile Bridge (Capacitor) ==========
-// Handles native mobile features: status bar, keyboard, back button, network, haptics
+// ========== IMPERIUM ANTIQUITAS - Native Mobile App Bridge ==========
+// Application mobile native uniquement - pas de fallback navigateur
 
 (function() {
   'use strict';
 
-  // Detect if running inside Capacitor native app
-  const isCapacitor = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || isCapacitor;
+  // ========== API SERVER URL ==========
+  // IMPORTANT: Mettre l'URL de votre serveur de production ici
+  // Exemple: 'https://imperium-antiquitas.onrender.com'
+  window.API_SERVER = window.API_SERVER || 'https://imperium-antiquitas.onrender.com';
 
-  // Set API URL for Capacitor native apps (must point to your production server)
-  if (isCapacitor && !window.CAPACITOR_API_URL) {
-    // In production, set this to your actual server URL
-    // e.g., 'https://imperium-antiquitas.onrender.com'
-    window.CAPACITOR_API_URL = '';
-  }
+  // Force native app mode
+  document.body.classList.add('native-app');
 
-  // Add body class for CSS targeting
-  if (isCapacitor) {
-    document.body.classList.add('capacitor-app');
-  }
-  if (isMobile) {
-    document.body.classList.add('is-mobile');
-  }
-
-  // ========== CAPACITOR PLUGIN INITIALIZATION ==========
-  async function initCapacitorPlugins() {
-    if (!isCapacitor) return;
-
+  // ========== CAPACITOR PLUGINS ==========
+  async function initNativePlugins() {
+    // Status Bar
     try {
-      // Status Bar - dark style for the game theme
       const { StatusBar, Style } = await import('@capacitor/status-bar');
       await StatusBar.setStyle({ style: Style.Dark });
       await StatusBar.setBackgroundColor({ color: '#1a1510' });
-    } catch (e) {
-      // StatusBar plugin not available (web)
-    }
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (e) {}
 
+    // Splash Screen - cacher apres initialisation
     try {
-      // Splash Screen - hide after app is ready
       const { SplashScreen } = await import('@capacitor/splash-screen');
-      await SplashScreen.hide();
-    } catch (e) {
-      // SplashScreen plugin not available
-    }
+      // Attendre que l'app soit prete avant de cacher
+      setTimeout(() => SplashScreen.hide(), 500);
+    } catch (e) {}
 
+    // Keyboard
     try {
-      // Keyboard - handle keyboard show/hide for better UX
       const { Keyboard } = await import('@capacitor/keyboard');
-      Keyboard.addListener('keyboardWillShow', () => {
+      Keyboard.addListener('keyboardWillShow', (info) => {
         document.body.classList.add('keyboard-open');
+        document.body.style.setProperty('--keyboard-height', info.keyboardHeight + 'px');
       });
       Keyboard.addListener('keyboardWillHide', () => {
         document.body.classList.remove('keyboard-open');
+        document.body.style.removeProperty('--keyboard-height');
       });
-    } catch (e) {
-      // Keyboard plugin not available
-    }
+    } catch (e) {}
 
+    // Back Button (Android)
     try {
-      // App - handle back button and app state
       const { App: CapApp } = await import('@capacitor/app');
       CapApp.addListener('backButton', ({ canGoBack }) => {
-        // Close open panels/modals first
         const modal = document.getElementById('modal');
         const buildPanel = document.getElementById('build-panel');
+        const mapPanel = document.getElementById('map-info-panel');
 
         if (modal && modal.style.display !== 'none') {
-          if (typeof closeModal === 'function') closeModal();
+          closeModal();
         } else if (buildPanel && buildPanel.style.display !== 'none') {
-          if (typeof closeBuildPanel === 'function') closeBuildPanel();
+          closeBuildPanel();
+        } else if (mapPanel && mapPanel.style.display !== 'none') {
+          closeMapPanel();
         } else if (canGoBack) {
           window.history.back();
         } else {
@@ -76,128 +63,90 @@
         }
       });
 
-      // Refresh data when app comes back to foreground
+      // Refresh quand l'app revient au premier plan
       CapApp.addListener('appStateChange', ({ isActive }) => {
-        if (isActive && typeof refreshData === 'function') {
-          const tkn = localStorage.getItem('token');
-          if (tkn) refreshData(true);
+        if (isActive && localStorage.getItem('token')) {
+          if (typeof refreshData === 'function') refreshData(true);
         }
       });
-    } catch (e) {
-      // App plugin not available
-    }
+    } catch (e) {}
 
+    // Network - detection connexion
     try {
-      // Network - show offline indicator
       const { Network } = await import('@capacitor/network');
       Network.addListener('networkStatusChange', (status) => {
         if (!status.connected) {
-          if (typeof showToast === 'function') {
-            showToast('Connexion perdue - mode hors ligne', 'error');
-          }
+          showToast('Connexion perdue', 'error');
+          document.body.classList.add('offline');
         } else {
-          if (typeof showToast === 'function') {
-            showToast('Connexion retablie', 'success');
-          }
-          // Auto-refresh on reconnect
-          const tkn = localStorage.getItem('token');
-          if (tkn && typeof refreshData === 'function') {
+          document.body.classList.remove('offline');
+          showToast('Connexion retablie', 'success');
+          if (localStorage.getItem('token') && typeof refreshData === 'function') {
             refreshData(true);
           }
         }
       });
-    } catch (e) {
-      // Network plugin not available
+    } catch (e) {}
+  }
+
+  // ========== TOUCH OPTIMIZATIONS ==========
+
+  // Empecher double-tap zoom
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 300 && !e.target.matches('input, textarea, select')) {
+      e.preventDefault();
     }
-  }
+    lastTouchEnd = now;
+  }, { passive: false });
 
-  // ========== MOBILE TOUCH OPTIMIZATIONS ==========
-  if (isMobile) {
-    // Prevent double-tap zoom on game elements
-    document.addEventListener('touchend', (e) => {
-      const now = Date.now();
-      if (now - (window._lastTouchEnd || 0) < 300) {
-        // Only prevent if not on an input/textarea
-        if (!e.target.matches('input, textarea, select')) {
-          e.preventDefault();
-        }
+  // Empecher pull-to-refresh / overscroll
+  document.addEventListener('touchmove', (e) => {
+    const gameScreen = document.getElementById('game-screen');
+    if (gameScreen && gameScreen.style.display === 'flex') {
+      const scrollable = e.target.closest('.tab-inner, .list-container, .panel-body, .modal-body, .buildings-grid, .army-content, .hero-content, .market-content, .inventory-content');
+      if (!scrollable && !e.target.matches('canvas')) {
+        e.preventDefault();
       }
-      window._lastTouchEnd = now;
-    }, { passive: false });
+    }
+  }, { passive: false });
 
-    // Prevent pull-to-refresh in the game view
-    document.addEventListener('touchmove', (e) => {
-      if (document.getElementById('game-screen')?.style.display === 'flex') {
-        // Allow scrolling inside scrollable containers
-        const scrollable = e.target.closest('.tab-inner, .list-container, .panel-body, .modal-body, .buildings-grid');
-        if (!scrollable) {
-          // Prevent overscroll on the main body
-          if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            if (touch.clientY > 0 && document.scrollingElement.scrollTop <= 0) {
-              // Don't prevent on canvas elements (let map.js handle)
-              if (!e.target.matches('canvas')) {
-                e.preventDefault();
-              }
-            }
-          }
-        }
+  // Gerer changement d'orientation
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 250);
+  });
+
+  // ========== PERFORMANCE ==========
+
+  // Limiter a 30fps pour economiser la batterie
+  let lastFrameTime = 0;
+  const FRAME_INTERVAL = 33; // ~30fps
+  const originalRAF = window.requestAnimationFrame;
+  window.requestAnimationFrame = function(callback) {
+    return originalRAF(function(timestamp) {
+      if (timestamp - lastFrameTime >= FRAME_INTERVAL) {
+        lastFrameTime = timestamp;
+        callback(timestamp);
+      } else {
+        originalRAF(callback);
       }
-    }, { passive: false });
-
-    // Orientation change handler
-    window.addEventListener('orientationchange', () => {
-      // Small delay to let the browser update dimensions
-      setTimeout(() => {
-        // Trigger resize for canvases
-        window.dispatchEvent(new Event('resize'));
-      }, 200);
     });
-  }
+  };
 
-  // ========== PERFORMANCE: REQUEST ANIMATION FRAME THROTTLE ==========
-  // Reduce canvas rendering on mobile to save battery
-  if (isMobile) {
-    let lastRenderTime = 0;
-    const MIN_RENDER_INTERVAL = 33; // ~30fps cap on mobile (vs 60fps desktop)
-
-    const originalRAF = window.requestAnimationFrame;
-    window.requestAnimationFrame = function(callback) {
-      return originalRAF(function(timestamp) {
-        if (timestamp - lastRenderTime >= MIN_RENDER_INTERVAL) {
-          lastRenderTime = timestamp;
-          callback(timestamp);
-        } else {
-          // Reschedule
-          originalRAF(callback);
-        }
-      });
-    };
-  }
+  // ========== HAPTICS ==========
+  window.haptic = async function(style) {
+    try {
+      const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+      const map = { light: ImpactStyle.Light, heavy: ImpactStyle.Heavy, medium: ImpactStyle.Medium };
+      await Haptics.impact({ style: map[style] || ImpactStyle.Medium });
+    } catch (e) {}
+  };
 
   // ========== INIT ==========
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCapacitorPlugins);
+    document.addEventListener('DOMContentLoaded', initNativePlugins);
   } else {
-    initCapacitorPlugins();
+    initNativePlugins();
   }
-
-  // Expose mobile utils globally
-  window.MobileUtils = {
-    isCapacitor,
-    isMobile,
-    async vibrate(style) {
-      if (!isCapacitor) return;
-      try {
-        const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
-        if (style === 'light') {
-          await Haptics.impact({ style: ImpactStyle.Light });
-        } else if (style === 'heavy') {
-          await Haptics.impact({ style: ImpactStyle.Heavy });
-        } else {
-          await Haptics.impact({ style: ImpactStyle.Medium });
-        }
-      } catch (e) { /* Haptics not available */ }
-    }
-  };
 })();

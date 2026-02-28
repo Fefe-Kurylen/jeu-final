@@ -1,6 +1,6 @@
-// Imperium Antiquitas v1.0 - Frontend JavaScript (Mobile Optimized)
-// API URL: empty for same-origin (web), set for Capacitor native apps
-const API = window.CAPACITOR_API_URL || '';
+// Imperium Antiquitas v1.0 - Application Mobile Native
+// API_SERVER est defini dans mobile.js (charge avant app.js)
+const API = window.API_SERVER || '';
 let token = localStorage.getItem('token');
 let player = null;
 let currentCity = null;
