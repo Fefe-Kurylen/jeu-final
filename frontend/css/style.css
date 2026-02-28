@@ -72,7 +72,7 @@ body.night-mode {
   --border-light: #4a4a5a;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
   height: 100%;
@@ -81,6 +81,19 @@ html, body {
   background: var(--bg-darkest);
   color: var(--text-light);
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+}
+
+/* Safe area insets for notch/dynamic island devices */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* ========== SCROLLBAR ========== */
@@ -3675,6 +3688,7 @@ tr.marked, .list-item.marked {
   border-top: 2px solid #5a4a3a;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
   padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .bottom-nav-inner {
@@ -4067,4 +4081,214 @@ tr.marked, .list-item.marked {
   }
   .map-btn { padding: 6px 10px; font-size: 13px; }
   .map-goto input { width: 45px; padding: 6px; }
+}
+
+/* ========== MOBILE APP OPTIMIZATIONS (Capacitor) ========== */
+
+/* Prevent text selection on interactive elements */
+button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
+.panel-close, .modal-close, .queue-status-item {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Ensure minimum touch target sizes (44x44px Apple guideline) */
+@media (max-width: 768px) {
+  button, .btn-primary, .btn-large, .toolbar-btn, .bnav-tab {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .bnav-tab {
+    padding: 6px 8px;
+    min-width: 44px;
+  }
+
+  .bnav-icon { font-size: 22px; }
+
+  /* Larger close buttons on mobile */
+  .panel-close, .modal-close {
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+  }
+
+  /* Better touch targets for form inputs */
+  input, select, textarea {
+    font-size: 16px; /* Prevent iOS zoom on focus */
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  /* Queue status bar scroll horizontal */
+  .queue-status-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Smooth scrolling for all scrollable areas */
+  .tab-inner, .list-container, .buildings-grid,
+  .army-content, .hero-content, .market-content,
+  .panel-body, .modal-body {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Optimize game content for mobile viewport */
+  .game-content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
+
+  /* Tab content full height */
+  .tab-content-area {
+    height: calc(100vh - 50px - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  /* Auth screen mobile optimization */
+  .auth-header h1 {
+    font-size: 24px;
+    letter-spacing: 2px;
+  }
+
+  .auth-container {
+    padding: 12px;
+  }
+
+  .auth-form {
+    gap: 12px;
+    padding: 16px 16px 20px;
+  }
+
+  /* Faction grid 2 columns on mobile */
+  .faction-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .faction-option {
+    padding: 10px 8px;
+  }
+
+  /* Map optimizations */
+  .map-canvas-container {
+    touch-action: none; /* Let JS handle all touch */
+  }
+
+  .minimap {
+    width: 100px;
+    height: 100px;
+    opacity: 0.8;
+  }
+
+  .minimap canvas {
+    width: 100px;
+    height: 100px;
+  }
+
+  /* Better modal sizing */
+  .modal-box {
+    width: 95%;
+    max-height: 85vh;
+    margin: auto;
+    border-radius: 12px;
+  }
+
+  /* Better build panel */
+  .build-panel {
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 75vh !important;
+  }
+
+  /* Hero panel compact */
+  .hero-full-panel {
+    flex-direction: column;
+  }
+  .hero-right-col {
+    width: 100%;
+  }
+
+  /* Inventory grid mobile */
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px;
+    padding: 8px;
+  }
+
+  /* Buildings grid mobile */
+  .buildings-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+/* Extra small devices (iPhone SE, small Android) */
+@media (max-width: 380px) {
+  .bnav-label { display: none; }
+  .bnav-tab { padding: 8px 6px; min-width: 36px; }
+  .bnav-icon { font-size: 20px; }
+  .bnav-separator { display: none; }
+  .bnav-village-selector { display: none; }
+
+  .resource-box { min-width: 55px; padding: 2px 4px; }
+  .res-icon { font-size: 14px; }
+  .res-current { font-size: 11px; }
+  .res-sub, .res-bar, .res-timer { display: none; }
+
+  .auth-header h1 { font-size: 20px; }
+
+  .top-bar { padding: 4px 8px; }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .top-bar { padding: 2px 12px; }
+  .resource-box { padding: 2px 6px; }
+  .res-sub, .res-bar { display: none; }
+
+  .bottom-nav { display: none; }
+
+  .game-content {
+    padding-bottom: 0;
+  }
+
+  .tab-content-area {
+    height: calc(100vh - 40px);
+  }
+
+  .auth-container { padding: 8px; }
+  .auth-header { padding: 12px 20px 8px; }
+  .auth-header h1 { font-size: 22px; }
+  .auth-form { gap: 8px; padding: 12px 20px 16px; }
+}
+
+/* Capacitor native app specific - body class set by mobile.js */
+body.capacitor-app {
+  /* Disable rubber-band scrolling in native app */
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+body.capacitor-app .top-bar {
+  padding-top: max(6px, env(safe-area-inset-top));
+}
+
+body.capacitor-app .bottom-nav {
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+/* Capacitor keyboard open state */
+body.keyboard-open .bottom-nav {
+  display: none;
+}
+
+body.keyboard-open .game-content {
+  padding-bottom: 0;
+}
+
+body.keyboard-open .modal-box {
+  max-height: 50vh;
 }

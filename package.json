@@ -1,22 +1,43 @@
 {
-  "name": "monjeu",
-  "version": "0.6.0",
-  "description": "Jeu de strategie MMO style Travian",
+  "name": "imperium-antiquitas",
+  "version": "1.0.0",
+  "description": "Jeu de strategie MMO style Travian - iOS & Android",
   "main": "src/server.js",
   "engines": {
     "node": "20.x"
   },
   "scripts": {
     "start": "node src/server.js",
-    "build": "prisma generate && prisma db push --skip-generate"
+    "build": "prisma generate && prisma db push --skip-generate",
+    "cap:init": "npx cap add ios && npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap sync ios && npx cap open ios",
+    "cap:android": "npx cap sync android && npx cap open android",
+    "cap:build:ios": "npx cap sync ios && npx cap copy ios",
+    "cap:build:android": "npx cap sync android && npx cap copy android",
+    "mobile:dev": "node src/server.js & npx cap sync && echo 'Ready for mobile dev'"
   },
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/haptics": "^8.0.1",
+    "@capacitor/ios": "^8.1.0",
+    "@capacitor/keyboard": "^8.0.1",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "2.4.3",
+    "compression": "^1.8.1",
     "cors": "2.8.5",
     "dotenv": "16.4.5",
     "express": "4.21.0",
     "jsonwebtoken": "9.0.2",
     "prisma": "^5.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

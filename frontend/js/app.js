@@ -1,5 +1,6 @@
-// MonJeu v0.6 - Frontend JavaScript (Optimized)
-const API = '';
+// Imperium Antiquitas v1.0 - Frontend JavaScript (Mobile Optimized)
+// API URL: empty for same-origin (web), set for Capacitor native apps
+const API = window.CAPACITOR_API_URL || '';
 let token = localStorage.getItem('token');
 let player = null;
 let currentCity = null;
@@ -674,6 +675,15 @@ function initCityCanvas() {
       renderCityCanvas();
       hideCityTooltip();
     });
+    // Touch support for mobile
+    cityCanvas.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const rect = cityCanvas.getBoundingClientRect();
+        const fakeEvent = { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+        onCityClick(fakeEvent);
+      }
+    }, { passive: true });
   }
 
   // Calculate slot positions
@@ -703,6 +713,15 @@ function initFieldsCanvas() {
       renderFieldsCanvas();
       hideFieldsTooltip();
     });
+    // Touch support for mobile
+    fieldsCanvas.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const rect = fieldsCanvas.getBoundingClientRect();
+        const fakeEvent = { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+        onFieldsClick(fakeEvent);
+      }
+    }, { passive: true });
   }
 
   // Calculate field slot positions

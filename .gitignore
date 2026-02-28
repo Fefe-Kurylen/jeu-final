@@ -26,3 +26,15 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Capacitor native build artifacts (keep project configs, ignore build outputs)
+ios/App/App/public/
+ios/App/Pods/
+ios/DerivedData/
+android/app/src/main/assets/public/
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.ipa
