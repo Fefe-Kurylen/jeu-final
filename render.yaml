@@ -6,11 +6,11 @@ databases:
 
 services:
   - type: web
-    name: imperium-antiquitas
+    name: imperium-antiquitas-api
     plan: free
     runtime: node
     region: frankfurt
-    buildCommand: npm install && npx prisma generate && npx prisma db push --skip-generate
+    buildCommand: npm install --omit=dev && npx prisma generate && npx prisma db push --skip-generate
     startCommand: node src/server.js
     healthCheckPath: /api/health
     envVars:

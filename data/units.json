@@ -12,7 +12,14 @@
         "endurance": 40,
         "speed": 50,
         "transport": 70
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "ROM_INF_TRIARII",
@@ -26,7 +33,14 @@
         "endurance": 60,
         "speed": 45,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "ROM_INF_LEGIONNAIRE",
@@ -40,7 +54,14 @@
         "endurance": 85,
         "speed": 40,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "ROM_ARC_MILICIEN",
@@ -54,7 +75,14 @@
         "endurance": 40,
         "speed": 60,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "ROM_ARC_VETERAN",
@@ -68,7 +96,14 @@
         "endurance": 55,
         "speed": 55,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "ROM_ARC_ELITE",
@@ -82,7 +117,14 @@
         "endurance": 70,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "ROM_CAV_AUXILIAIRE",
@@ -96,7 +138,14 @@
         "endurance": 45,
         "speed": 75,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "ROM_CAV_EQUITES",
@@ -110,7 +159,14 @@
         "endurance": 60,
         "speed": 70,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "ROM_CAV_LOURDE",
@@ -124,7 +180,14 @@
         "endurance": 80,
         "speed": 65,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "ROM_SIEGE_CATAPULTE",
@@ -138,7 +201,14 @@
         "endurance": 60,
         "speed": 20,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     },
     {
       "key": "GAU_INF_GUERRIER",
@@ -152,7 +222,14 @@
         "endurance": 40,
         "speed": 55,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "GAU_INF_TRIARII",
@@ -166,7 +243,14 @@
         "endurance": 55,
         "speed": 50,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "GAU_INF_CHAMPION",
@@ -180,7 +264,14 @@
         "endurance": 75,
         "speed": 45,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "GAU_ARC_CHASSEUR",
@@ -194,7 +285,14 @@
         "endurance": 40,
         "speed": 60,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "GAU_ARC_GAULOIS",
@@ -208,7 +306,14 @@
         "endurance": 50,
         "speed": 55,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "GAU_ARC_NOBLE",
@@ -222,7 +327,14 @@
         "endurance": 65,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "GAU_CAV_CHASSEUR",
@@ -236,7 +348,14 @@
         "endurance": 50,
         "speed": 80,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "GAU_CAV_GAULOIS",
@@ -250,7 +369,14 @@
         "endurance": 60,
         "speed": 75,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "GAU_CAV_NOBLE",
@@ -264,7 +390,14 @@
         "endurance": 75,
         "speed": 70,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "GAU_SIEGE_BELIER",
@@ -278,7 +411,14 @@
         "endurance": 65,
         "speed": 20,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     },
     {
       "key": "GRE_INF_JEUNE",
@@ -292,7 +432,14 @@
         "endurance": 42,
         "speed": 50,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "GRE_INF_HOPLITE",
@@ -306,7 +453,14 @@
         "endurance": 60,
         "speed": 45,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "GRE_INF_SPARTIATE",
@@ -320,7 +474,14 @@
         "endurance": 90,
         "speed": 40,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "GRE_ARC_PAYSAN",
@@ -334,7 +495,14 @@
         "endurance": 40,
         "speed": 60,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "GRE_ARC_TOXOTE",
@@ -348,7 +516,14 @@
         "endurance": 50,
         "speed": 55,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "GRE_ARC_ELITE",
@@ -362,7 +537,14 @@
         "endurance": 65,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "GRE_CAV_ECLAIREUR",
@@ -376,7 +558,14 @@
         "endurance": 45,
         "speed": 85,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "GRE_CAV_GREC",
@@ -390,7 +579,14 @@
         "endurance": 60,
         "speed": 75,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "GRE_CAV_ELITE",
@@ -404,7 +600,14 @@
         "endurance": 75,
         "speed": 80,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "GRE_SIEGE_CATAPULTE",
@@ -418,7 +621,14 @@
         "endurance": 60,
         "speed": 20,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     },
     {
       "key": "EGY_INF_ESCLAVE",
@@ -432,7 +642,14 @@
         "endurance": 45,
         "speed": 55,
         "transport": 70
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "EGY_INF_NIL",
@@ -446,7 +663,14 @@
         "endurance": 60,
         "speed": 50,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "EGY_INF_TEMPLE",
@@ -460,7 +684,14 @@
         "endurance": 80,
         "speed": 45,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "EGY_ARC_NIL",
@@ -474,7 +705,14 @@
         "endurance": 40,
         "speed": 60,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "EGY_ARC_DESERT",
@@ -488,7 +726,14 @@
         "endurance": 55,
         "speed": 55,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "EGY_ARC_PHARAON",
@@ -502,7 +747,14 @@
         "endurance": 65,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "EGY_CAV_DESERT",
@@ -516,7 +768,14 @@
         "endurance": 50,
         "speed": 85,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "EGY_CAV_PHARAON",
@@ -530,7 +789,14 @@
         "endurance": 65,
         "speed": 80,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "EGY_CAV_CHAR_LOURD",
@@ -544,7 +810,14 @@
         "endurance": 85,
         "speed": 70,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "EGY_SIEGE_MANGONNEAU",
@@ -558,7 +831,14 @@
         "endurance": 65,
         "speed": 20,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     },
     {
       "key": "HUN_INF_NOMADE",
@@ -572,7 +852,14 @@
         "endurance": 40,
         "speed": 60,
         "transport": 65
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "HUN_INF_GARDE",
@@ -586,7 +873,14 @@
         "endurance": 55,
         "speed": 55,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "HUN_INF_VETERAN",
@@ -600,7 +894,14 @@
         "endurance": 65,
         "speed": 50,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "HUN_ARC_NOMADE",
@@ -614,7 +915,14 @@
         "endurance": 40,
         "speed": 65,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "HUN_ARC_CAMP",
@@ -628,7 +936,14 @@
         "endurance": 50,
         "speed": 60,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "HUN_ARC_ELITE",
@@ -642,7 +957,14 @@
         "endurance": 60,
         "speed": 55,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "HUN_CAV_PILLARD",
@@ -656,7 +978,14 @@
         "endurance": 50,
         "speed": 90,
         "transport": 70
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "HUN_CAV_INTER",
@@ -670,7 +999,14 @@
         "endurance": 60,
         "speed": 85,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "HUN_CAV_ELITE",
@@ -684,7 +1020,14 @@
         "endurance": 75,
         "speed": 80,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "HUN_SIEGE_SAPEUR",
@@ -698,7 +1041,14 @@
         "endurance": 60,
         "speed": 25,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     },
     {
       "key": "SUL_INF_DESERT",
@@ -712,7 +1062,14 @@
         "endurance": 45,
         "speed": 60,
         "transport": 70
-      }
+      },
+      "recruitCost": {
+        "wood": 30,
+        "stone": 20,
+        "iron": 55,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "SUL_INF_CROISSANT",
@@ -726,7 +1083,14 @@
         "endurance": 55,
         "speed": 55,
         "transport": 55
-      }
+      },
+      "recruitCost": {
+        "wood": 54,
+        "stone": 36,
+        "iron": 99,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "SUL_INF_PALAIS",
@@ -740,7 +1104,14 @@
         "endurance": 70,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 96,
+        "stone": 64,
+        "iron": 176,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "SUL_ARC_DESERT",
@@ -754,7 +1125,14 @@
         "endurance": 45,
         "speed": 60,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 60,
+        "stone": 20,
+        "iron": 25,
+        "food": 20
+      },
+      "recruitTimeSec": 360
     },
     {
       "key": "SUL_ARC_TIREUR",
@@ -768,7 +1146,14 @@
         "endurance": 55,
         "speed": 55,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 108,
+        "stone": 36,
+        "iron": 45,
+        "food": 36
+      },
+      "recruitTimeSec": 576
     },
     {
       "key": "SUL_ARC_PERSE",
@@ -782,7 +1167,14 @@
         "endurance": 60,
         "speed": 50,
         "transport": 45
-      }
+      },
+      "recruitCost": {
+        "wood": 192,
+        "stone": 64,
+        "iron": 80,
+        "food": 64
+      },
+      "recruitTimeSec": 972
     },
     {
       "key": "SUL_CAV_BEDOUIN",
@@ -796,7 +1188,14 @@
         "endurance": 50,
         "speed": 90,
         "transport": 70
-      }
+      },
+      "recruitCost": {
+        "wood": 45,
+        "stone": 35,
+        "iron": 50,
+        "food": 30
+      },
+      "recruitTimeSec": 432
     },
     {
       "key": "SUL_CAV_DESERT",
@@ -810,7 +1209,14 @@
         "endurance": 60,
         "speed": 85,
         "transport": 60
-      }
+      },
+      "recruitCost": {
+        "wood": 81,
+        "stone": 63,
+        "iron": 90,
+        "food": 54
+      },
+      "recruitTimeSec": 691
     },
     {
       "key": "SUL_CAV_MAMELOUK",
@@ -824,7 +1230,14 @@
         "endurance": 70,
         "speed": 80,
         "transport": 50
-      }
+      },
+      "recruitCost": {
+        "wood": 144,
+        "stone": 112,
+        "iron": 160,
+        "food": 96
+      },
+      "recruitTimeSec": 1166
     },
     {
       "key": "SUL_SIEGE_MANGONNEAU",
@@ -838,7 +1251,14 @@
         "endurance": 60,
         "speed": 20,
         "transport": 30
-      }
+      },
+      "recruitCost": {
+        "wood": 560,
+        "stone": 640,
+        "iron": 720,
+        "food": 240
+      },
+      "recruitTimeSec": 3600
     }
   ]
 }

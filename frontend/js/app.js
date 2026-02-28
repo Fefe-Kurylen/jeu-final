@@ -1,5 +1,6 @@
-// MonJeu v0.6 - Frontend JavaScript (Optimized)
-const API = '';
+// Imperium Antiquitas v1.0 - Application Mobile Native
+// API_SERVER est defini dans mobile.js (charge avant app.js)
+const API = window.API_SERVER || '';
 let token = localStorage.getItem('token');
 let player = null;
 let currentCity = null;
@@ -502,9 +503,10 @@ function renderCity() {
       for (const unit of army.units) {
         const unitDef = unitsData.find(u => u.key === unit.unitKey);
         // Upkeep par tier (must match backend config.army.upkeepPerTier)
-        const upkeep = unitDef?.tier === 'base' ? 2.5 :
-                       unitDef?.tier === 'intermediate' ? 5 :
-                       unitDef?.tier === 'elite' ? 7.5 : 30;
+        // GDD economy_config.json upkeep values
+        const upkeep = unitDef?.tier === 'base' ? 5 :
+                       unitDef?.tier === 'intermediate' ? 10 :
+                       unitDef?.tier === 'elite' ? 15 : 15;
         foodConsumption += unit.count * upkeep;
       }
     }
@@ -673,6 +675,15 @@ function initCityCanvas() {
       renderCityCanvas();
       hideCityTooltip();
     });
+    // Touch support for mobile
+    cityCanvas.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const rect = cityCanvas.getBoundingClientRect();
+        const fakeEvent = { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+        onCityClick(fakeEvent);
+      }
+    }, { passive: true });
   }
 
   // Calculate slot positions
@@ -702,6 +713,15 @@ function initFieldsCanvas() {
       renderFieldsCanvas();
       hideFieldsTooltip();
     });
+    // Touch support for mobile
+    fieldsCanvas.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const rect = fieldsCanvas.getBoundingClientRect();
+        const fakeEvent = { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top };
+        onFieldsClick(fakeEvent);
+      }
+    }, { passive: true });
   }
 
   // Calculate field slot positions
@@ -5438,13 +5458,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   // Helper function to render a unit card
   const renderUnitCard = (u, isRecruiting, buildingKey) => {
     const tierColor = TIER_COLORS[u.tier] || '#aaa';
-    const tierMultiplier = u.tier === 'base' ? 1.3 : u.tier === 'intermediate' ? 1.7 : u.tier === 'elite' ? 1.9 : 1;
-    const unitCost = {
-      wood: Math.ceil(50 * tierMultiplier),
-      stone: Math.ceil(30 * tierMultiplier),
-      iron: Math.ceil(60 * tierMultiplier),
-      food: Math.ceil(30 * tierMultiplier)
-    };
+    // Use per-unit GDD costs from units data (class-specific + tier multiplier)
+    const unitCost = u.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
     const canAfford = currentCity &&
       currentCity.wood >= unitCost.wood &&
       currentCity.stone >= unitCost.stone &&
@@ -5571,21 +5586,14 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   const modal = document.getElementById('modal');
   const tierColor = TIER_COLORS[unit.tier] || '#aaa';
   
-  // Calculate costs
-  const tierMultiplier = unit.tier === 'base' ? 1.3 : unit.tier === 'intermediate' ? 1.7 : unit.tier === 'elite' ? 1.9 : 1;
-  const unitCost = {
-    wood: Math.ceil(50 * tierMultiplier),
-    stone: Math.ceil(30 * tierMultiplier),
-    iron: Math.ceil(60 * tierMultiplier),
-    food: Math.ceil(30 * tierMultiplier)
-  };
-  
-  // Training time
-  let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : unit.tier === 'elite' ? 180 : 600;
-  if (unit.class === 'CAVALRY') baseTime = Math.floor(baseTime * 1.25);
-  
-  // Upkeep
-  const foodUpkeep = unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30;
+  // Use per-unit GDD costs from units data (class-specific + tier multiplier)
+  const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
+
+  // Training time from GDD data
+  const baseTime = unit.recruitTimeSec || 360;
+
+  // Upkeep (GDD economy_config.json values)
+  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15;
   
   const wood = currentCity?.wood || 0;
   const stone = currentCity?.stone || 0;
@@ -6556,24 +6564,14 @@ function showUnitDetail(unitKey) {
   const modal = document.getElementById('modal');
   const tierColor = TIER_COLORS[unit.tier] || '#aaa';
   
-  // Calculate costs with tier multipliers (same formula as server!)
-  const tierMultiplier = unit.tier === 'base' ? 1.3 : unit.tier === 'intermediate' ? 1.7 : unit.tier === 'elite' ? 1.9 : 1;
-  // Coûts de base serveur: wood: 50, stone: 30, iron: 60, food: 30
-  const baseCost = { wood: 50, stone: 30, iron: 60, food: 30 };
-  const unitCost = {
-    wood: Math.ceil(baseCost.wood * tierMultiplier),
-    stone: Math.ceil(baseCost.stone * tierMultiplier),
-    iron: Math.ceil(baseCost.iron * tierMultiplier),
-    food: Math.ceil(baseCost.food * tierMultiplier)
-  };
-  
-  // Consommation de céréales par heure (upkeep)
-  const foodUpkeep = unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30;
-  
-  // Training time
-  let baseTime = unit.tier === 'base' ? 60 : unit.tier === 'intermediate' ? 120 : unit.tier === 'elite' ? 180 : 600;
-  if (unit.class === 'CAVALRY') baseTime = Math.floor(baseTime * 1.25);
-  const trainTime = baseTime;
+  // Use per-unit GDD costs from units data (class-specific + tier multiplier)
+  const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
+
+  // Upkeep (GDD economy_config.json values)
+  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15;
+
+  // Training time from GDD data
+  const trainTime = unit.recruitTimeSec || 360;
   
   // Helper function to check and color resources
   const getResourceClass = (needed, available) => needed <= available ? 'res-available' : 'res-missing';
@@ -8910,7 +8908,7 @@ function showUnitInfoModal(unitKey) {
           <div class="capacity-item">
             <span class="capacity-icon">🍖</span>
             <span class="capacity-label">Nourriture/h</span>
-            <span class="capacity-value">${unit.tier === 'base' ? 2.5 : unit.tier === 'intermediate' ? 5 : unit.tier === 'elite' ? 7.5 : 30}</span>
+            <span class="capacity-value">${unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15}</span>
           </div>
           ${unit.class === 'SIEGE' ? `
           <div class="capacity-item">

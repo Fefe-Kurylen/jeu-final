@@ -2,6 +2,31 @@ const config = require('../config');
 const { unitsData } = require('../config/gamedata');
 const { calculateArmyPower } = require('../utils/calculations');
 
+// Combat triangle bonus: returns multiplier for attacker class vs defender class (GDD combat_config.json)
+function getTriangleBonus(attackerClass, defenderClass) {
+  const tri = config.combat.triangle;
+  if (!tri) return 1.0;
+  if (attackerClass === 'INFANTRY' && defenderClass === 'CAVALRY') return tri.INFANTRY_vs_CAVALRY || 1.0;
+  if (attackerClass === 'CAVALRY' && defenderClass === 'ARCHER') return tri.CAVALRY_vs_ARCHER || 1.0;
+  if (attackerClass === 'ARCHER' && defenderClass === 'INFANTRY') return tri.ARCHER_vs_INFANTRY || 1.0;
+  return 1.0;
+}
+
+// Get dominant class in a unit array (most units)
+function getDominantClass(units) {
+  const classCounts = {};
+  for (const u of units) {
+    const def = unitsData.find(x => x.key === (u.unitKey || u.key));
+    const cls = def?.class || 'INFANTRY';
+    classCounts[cls] = (classCounts[cls] || 0) + (u.count || 0);
+  }
+  let maxClass = 'INFANTRY', maxCount = 0;
+  for (const [cls, cnt] of Object.entries(classCounts)) {
+    if (cls !== 'SIEGE' && cnt > maxCount) { maxClass = cls; maxCount = cnt; }
+  }
+  return maxClass;
+}
+
 // Simple combat resolution (for raids)
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null) {
   const attackerHeroBonus = attackerHero ? 1 + ((attackerHero.attack || 0) + (attackerHero.defense || 0)) * config.combat.heroBonusPerPoint : 1;
@@ -36,12 +61,19 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const defenderHeroAttackBonus = defenderHero ? 1 + (defenderHero.attack || 0) * hbp : 1;
   const defenderHeroDefenseBonus = defenderHero ? 1 + (defenderHero.defense || 0) * hbp : 1;
 
+  // Determine dominant class for triangle bonus (GDD combat_config.json)
+  const attackerDominantClass = getDominantClass(attackerUnits);
+  const defenderDominantClass = getDominantClass(defenderUnits);
+  const attackerTriangleBonus = getTriangleBonus(attackerDominantClass, defenderDominantClass);
+  const defenderTriangleBonus = getTriangleBonus(defenderDominantClass, attackerDominantClass);
+
   const attackers = attackerUnits.map(u => {
     const def = unitsData.find(x => x.key === u.unitKey);
     const tier = u.tier || def?.tier || 'base';
+    const unitClass = def?.class || 'INFANTRY';
     return {
-      key: u.unitKey, initial: u.count, count: u.count, tier,
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * attackerHeroAttackBonus,
+      key: u.unitKey, initial: u.count, count: u.count, tier, unitClass,
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * attackerHeroAttackBonus * (unitClass !== 'SIEGE' ? attackerTriangleBonus : 1.0),
       defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * attackerHeroDefenseBonus,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey
@@ -51,9 +83,10 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const defenders = defenderUnits.map(u => {
     const def = unitsData.find(x => x.key === u.unitKey);
     const tier = u.tier || def?.tier || 'base';
+    const unitClass = def?.class || 'INFANTRY';
     return {
-      key: u.unitKey, initial: u.count, count: u.count, tier,
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * defenderHeroAttackBonus,
+      key: u.unitKey, initial: u.count, count: u.count, tier, unitClass,
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * defenderHeroAttackBonus * (unitClass !== 'SIEGE' ? defenderTriangleBonus : 1.0),
       defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * defenderHeroDefenseBonus,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey

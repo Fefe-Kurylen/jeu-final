@@ -35,11 +35,26 @@ const config = {
     timeMultiplierBase: 1.2     // was 1.8 → L20 = ~32x base (Travian-like)
   },
 
-  // Recruit
+  // Recruit (GDD v4 values)
   recruit: {
-    tierMultipliers: { base: 1.3, intermediate: 1.7, elite: 1.9 },
-    baseTimeSec: { base: 60, intermediate: 120, elite: 180 },
-    cavalryTimeMultiplier: 1.25
+    // Per-class base costs (GDD formulas.json)
+    baseCosts: {
+      INFANTRY: { wood: 30, stone: 20, iron: 55, food: 20 },
+      ARCHER:   { wood: 60, stone: 20, iron: 25, food: 20 },
+      CAVALRY:  { wood: 45, stone: 35, iron: 50, food: 30 },
+      SIEGE:    { wood: 140, stone: 160, iron: 180, food: 60 }
+    },
+    // Tier cost multipliers (GDD formulas.json)
+    tierCostMultipliers: { base: 1.0, intermediate: 1.8, elite: 3.2, siege: 4.0 },
+    // Per-class base training times in seconds (GDD unit_training_times.json)
+    baseTimeSec: {
+      INFANTRY: 360,
+      ARCHER: 360,
+      CAVALRY: 432,
+      SIEGE: 1200
+    },
+    // Tier time multipliers (GDD unit_training_times.json)
+    tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 }
   },
 
   // Combat
@@ -51,7 +66,13 @@ const config = {
     winnerLossMultiplier: 0.3,
     loserLossBase: 0.7,
     loserLossRandom: 0.3,
-    tierCoefficients: { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 }
+    tierCoefficients: { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 },
+    // Combat triangle (GDD combat_config.json)
+    triangle: {
+      INFANTRY_vs_CAVALRY: 1.20,   // INF has +20% attack bonus vs CAV
+      CAVALRY_vs_ARCHER: 1.20,     // CAV has +20% attack bonus vs ARCH
+      ARCHER_vs_INFANTRY: 1.20     // ARCH has +20% attack bonus vs INF
+    }
   },
 
   // Tick (game loop)
@@ -67,7 +88,7 @@ const config = {
   army: {
     baseSpeedTilesPerSec: 1 / 30,  // 1 tile per 30 seconds at speed 50
     baseSpeed: 50,
-    upkeepPerTier: { base: 2.5, intermediate: 5, elite: 7.5, siege: 30 },
+    upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
     starvationLossRate: 0.1
   },
 

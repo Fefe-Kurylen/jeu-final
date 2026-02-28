@@ -1,9 +1,9 @@
-// ========== IMPERIUM ANTIQUITAS - SERVER ==========
-// Modular architecture - each concern in its own file
+// ========== IMPERIUM ANTIQUITAS - API SERVER (Mobile Backend) ==========
+// Pure API server - no static file serving (frontend is embedded in native apps)
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
+const compression = require('compression');
 const { execSync } = require('child_process');
 require('dotenv').config();
 
@@ -21,30 +21,21 @@ const PORT = config.port;
 // Trust proxy (Render, Railway, etc.)
 app.set('trust proxy', 1);
 
-// ========== CORS - Strict in production ==========
-const corsOptions = {
-  origin: config.isProduction
-    ? (process.env.CORS_ORIGIN || true)
-    : true,
+// ========== CORS - Accept all origins (mobile apps use capacitor://, ionic://) ==========
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-};
-app.use(cors(corsOptions));
+}));
+app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 
-// ========== HEALTH CHECK (Render) ==========
+// ========== HEALTH CHECK ==========
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
 // ========== GLOBAL RATE LIMIT ==========
 app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
-
-// ========== STATIC FILES ==========
-app.use('/css', express.static(path.join(__dirname, '../frontend/css')));
-app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
-app.use('/img', express.static(path.join(__dirname, '../frontend/img')));
-app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
-app.use('/portal', express.static(path.join(__dirname, '../portal')));
 
 // ========== STATIC DATA (cached) ==========
 app.get('/api/buildings', cacheControl(3600), (req, res) => res.json(buildingsData));
@@ -52,7 +43,6 @@ app.get('/api/data/units', cacheControl(3600), (req, res) => res.json(unitsData)
 app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
 
 // ========== ROUTES ==========
-// Each route module is mounted once, with aliases where the frontend expects them
 const authRoutes = require('./routes/auth');
 const playerRoutes = require('./routes/player');
 const cityRoutes = require('./routes/cities');
@@ -83,9 +73,9 @@ app.use('/api/ranking', rankingRoutes);
 app.use('/api/expeditions', expeditionRoutes);
 app.use('/api/expedition', expeditionRoutes);
 
-// ========== CATCH-ALL: Serve frontend ==========
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+// ========== 404 for unknown routes ==========
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route non trouvee' });
 });
 
 // ========== ERROR HANDLER ==========
@@ -95,13 +85,13 @@ app.use(errorHandler);
 // ========== STARTUP ==========
 async function startServer() {
   console.log('');
-  console.log('Demarrage Imperium Antiquitas...');
+  console.log('Demarrage Imperium Antiquitas API...');
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`DATABASE_URL: ${process.env.DATABASE_URL ? 'Configuree' : 'Manquante'}`);
   console.log('');
 
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Serveur HTTP demarre sur le port ${PORT}`);
+    console.log(`API demarre sur le port ${PORT}`);
   });
 
   const MAX_RETRIES = 10;
@@ -114,7 +104,7 @@ async function startServer() {
       await prisma.$queryRaw`SELECT 1`;
       console.log('Connexion a la base de donnees reussie!');
 
-      // Sync schema (safe in dev, careful in prod)
+      // Sync schema
       console.log('Synchronisation du schema...');
       try {
         execSync('npx prisma db push --skip-generate', { stdio: 'inherit', env: { ...process.env } });
@@ -157,9 +147,10 @@ async function startServer() {
 
       console.log('');
       console.log('==========================================');
-      console.log(`   Imperium Antiquitas - ONLINE`);
-      console.log(`   URL: http://0.0.0.0:${PORT}`);
-      console.log(`   DB:  Connectee`);
+      console.log(`   Imperium Antiquitas API - ONLINE`);
+      console.log(`   Port: ${PORT}`);
+      console.log(`   DB:   Connectee`);
+      console.log(`   Mode: Mobile API uniquement`);
       console.log('==========================================');
       console.log('');
       break;

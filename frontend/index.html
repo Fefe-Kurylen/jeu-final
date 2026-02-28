@@ -2,8 +2,10 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Imperium Antiquitas - MMO Stratégie</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
+    <title>Imperium Antiquitas</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -40,45 +42,41 @@
                                     </feMerge>
                                 </filter>
                             </defs>
-                            <!-- Shield -->
                             <path d="M60 15 L95 30 L95 65 Q95 95 60 110 Q25 95 25 65 L25 30 Z" fill="url(#shieldGrad)" stroke="#8b6914" stroke-width="3"/>
-                            <!-- Inner shield decoration -->
                             <path d="M60 25 L85 37 L85 62 Q85 85 60 98 Q35 85 35 62 L35 37 Z" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
-                            <!-- Crown/Star -->
                             <path d="M60 35 L65 50 L80 50 L68 60 L73 75 L60 65 L47 75 L52 60 L40 50 L55 50 Z" fill="url(#swordGrad)" stroke="#5a4010" stroke-width="1" filter="url(#glow)"/>
-                            <!-- Center gem -->
                             <circle cx="60" cy="55" r="6" fill="#c44040" stroke="#8b6914" stroke-width="2"/>
                         </svg>
                     </div>
                     <h1>Imperium Antiquitas</h1>
-                    <p class="auth-subtitle">Conquérez. Dominez. Régnez.</p>
+                    <p class="auth-subtitle">Conquerez. Dominez. Regnez.</p>
                 </div>
 
                 <div id="login-form" class="auth-form">
                     <div class="form-group">
                         <label>Email</label>
-                        <input type="email" id="login-email" placeholder="votre@email.com">
+                        <input type="email" id="login-email" placeholder="votre@email.com" autocomplete="email" autocapitalize="none">
                     </div>
                     <div class="form-group">
                         <label>Mot de passe</label>
-                        <input type="password" id="login-password" placeholder="••••••••">
+                        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
                     </div>
                     <button onclick="login()" class="btn-primary btn-large">Entrer dans l'Empire</button>
-                    <p class="auth-link">Nouveau conquérant ? <a href="#" onclick="showRegister(); return false;">Créer un compte</a></p>
+                    <p class="auth-link">Nouveau conquerant ? <a href="#" onclick="showRegister(); return false;">Creer un compte</a></p>
                 </div>
 
                 <div id="register-form" class="auth-form" style="display:none">
                     <div class="form-group">
                         <label>Email</label>
-                        <input type="email" id="reg-email" placeholder="votre@email.com">
+                        <input type="email" id="reg-email" placeholder="votre@email.com" autocomplete="email" autocapitalize="none">
                     </div>
                     <div class="form-group">
                         <label>Nom d'Empire</label>
-                        <input type="text" id="reg-name" placeholder="Votre nom glorieux">
+                        <input type="text" id="reg-name" placeholder="Votre nom glorieux" autocomplete="username" autocapitalize="words">
                     </div>
                     <div class="form-group">
                         <label>Mot de passe</label>
-                        <input type="password" id="reg-password" placeholder="••••••••">
+                        <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label>Faction</label>
@@ -86,7 +84,7 @@
                             <div class="faction-option" data-faction="ROME" onclick="selectFaction('ROME')">
                                 <span class="faction-icon">🏛️</span>
                                 <span class="faction-name">Rome</span>
-                                <span class="faction-bonus">+5% Défense</span>
+                                <span class="faction-bonus">+5% Defense</span>
                             </div>
                             <div class="faction-option" data-faction="GAUL" onclick="selectFaction('GAUL')">
                                 <span class="faction-icon">🌲</span>
@@ -95,12 +93,12 @@
                             </div>
                             <div class="faction-option" data-faction="GREEK" onclick="selectFaction('GREEK')">
                                 <span class="faction-icon">🏺</span>
-                                <span class="faction-name">Grèce</span>
+                                <span class="faction-name">Grece</span>
                                 <span class="faction-bonus">-10% Construction</span>
                             </div>
                             <div class="faction-option" data-faction="EGYPT" onclick="selectFaction('EGYPT')">
                                 <span class="faction-icon">🏜️</span>
-                                <span class="faction-name">Égypte</span>
+                                <span class="faction-name">Egypte</span>
                                 <span class="faction-bonus">+20% Murs</span>
                             </div>
                             <div class="faction-option" data-faction="HUN" onclick="selectFaction('HUN')">
@@ -111,13 +109,13 @@
                             <div class="faction-option" data-faction="SULTAN" onclick="selectFaction('SULTAN')">
                                 <span class="faction-icon">🌙</span>
                                 <span class="faction-name">Sultanat</span>
-                                <span class="faction-bonus">+20% Siège</span>
+                                <span class="faction-bonus">+20% Siege</span>
                             </div>
                         </div>
                         <input type="hidden" id="reg-faction" value="">
                     </div>
                     <button onclick="register()" class="btn-primary btn-large">Fonder mon Empire</button>
-                    <p class="auth-link">Déjà conquérant ? <a href="#" onclick="showLogin(); return false;">Se connecter</a></p>
+                    <p class="auth-link">Deja conquerant ? <a href="#" onclick="showLogin(); return false;">Se connecter</a></p>
                 </div>
 
                 <div id="auth-error" class="auth-error"></div>
@@ -125,14 +123,11 @@
         </div>
     </div>
 
-    <!-- GAME SCREEN - TRAVIAN STYLE -->
+    <!-- GAME SCREEN -->
     <div id="game-screen" class="screen" style="display:none">
-
-        <!-- TOP BAR - Resources with progress bars (Travian style) -->
         <header class="top-bar">
-            <!-- Resources (Travian detailed style) -->
             <div class="resources-container">
-                <div class="resource-box" title="Bois">
+                <div class="resource-box">
                     <span class="res-icon">🪵</span>
                     <div class="res-detail">
                         <span class="res-current" id="res-wood">0</span>
@@ -142,12 +137,9 @@
                             <span class="res-max">Max: <span id="max-wood">800</span></span>
                         </div>
                     </div>
-                    <div class="res-bar">
-                        <div class="res-bar-fill wood-fill" id="wood-bar"></div>
-                    </div>
+                    <div class="res-bar"><div class="res-bar-fill wood-fill" id="wood-bar"></div></div>
                 </div>
-
-                <div class="resource-box" title="Argile">
+                <div class="resource-box">
                     <span class="res-icon">🧱</span>
                     <div class="res-detail">
                         <span class="res-current" id="res-stone">0</span>
@@ -157,12 +149,9 @@
                             <span class="res-max">Max: <span id="max-stone">800</span></span>
                         </div>
                     </div>
-                    <div class="res-bar">
-                        <div class="res-bar-fill clay-fill" id="clay-bar"></div>
-                    </div>
+                    <div class="res-bar"><div class="res-bar-fill clay-fill" id="clay-bar"></div></div>
                 </div>
-
-                <div class="resource-box" title="Fer">
+                <div class="resource-box">
                     <span class="res-icon">⛏️</span>
                     <div class="res-detail">
                         <span class="res-current" id="res-iron">0</span>
@@ -172,12 +161,9 @@
                             <span class="res-max">Max: <span id="max-iron">800</span></span>
                         </div>
                     </div>
-                    <div class="res-bar">
-                        <div class="res-bar-fill iron-fill" id="iron-bar"></div>
-                    </div>
+                    <div class="res-bar"><div class="res-bar-fill iron-fill" id="iron-bar"></div></div>
                 </div>
-
-                <div class="resource-box" title="Blé">
+                <div class="resource-box">
                     <span class="res-icon">🌾</span>
                     <div class="res-detail">
                         <span class="res-current" id="res-food">0</span>
@@ -187,32 +173,23 @@
                             <span class="res-max">Max: <span id="max-food">800</span></span>
                         </div>
                     </div>
-                    <div class="res-bar">
-                        <div class="res-bar-fill food-fill" id="food-bar"></div>
-                    </div>
+                    <div class="res-bar"><div class="res-bar-fill food-fill" id="food-bar"></div></div>
                 </div>
-
-                <div class="resource-box gold-box" title="Or (premium)">
+                <div class="resource-box gold-box">
                     <span class="res-icon">🪙</span>
                     <span class="res-current gold-value" id="res-gold">0</span>
                 </div>
             </div>
-
-            <!-- Attack Notification (Travian style) -->
             <div class="attack-notif" id="attack-notif" style="display:none">
                 <span class="attack-icon">⚔️</span>
                 <span class="attack-timer" id="attack-timer">00:00:00</span>
             </div>
-
-            <!-- Server Time & Day/Night Indicator (Travian style) -->
             <div class="server-time-section">
-                <div class="day-night-indicator" id="day-night-indicator" title="Heure du serveur">
+                <div class="day-night-indicator" id="day-night-indicator">
                     <span class="dn-icon" id="dn-icon">☀️</span>
                     <span class="server-time" id="server-time">00:00:00</span>
                 </div>
             </div>
-
-            <!-- Player Info -->
             <div class="player-section">
                 <div class="player-info-box">
                     <span class="player-name" id="player-name">Joueur</span>
@@ -221,14 +198,11 @@
                         Pop: <span id="player-pop">0</span>
                     </span>
                 </div>
-                <button onclick="logout()" class="btn-logout" title="Déconnexion">⏻</button>
+                <button onclick="logout()" class="btn-logout">⏻</button>
             </div>
         </header>
 
-        <!-- MAIN CONTENT AREA -->
         <main class="game-content">
-
-            <!-- QUEUE STATUS BAR (always visible, dropdown on click) -->
             <div class="queue-status-bar" id="queue-status-bar">
                 <div class="queue-status-item" id="build-status" onclick="toggleQueueDropdown('build')">
                     <span class="qs-icon">🏗️</span>
@@ -243,40 +217,22 @@
                     <span class="qs-arrow">▾</span>
                 </div>
             </div>
-            <!-- Build Queue Dropdown -->
             <div class="queue-dropdown" id="build-queue-dropdown">
                 <div class="qd-header">🏗️ File de construction</div>
-                <div class="qd-content" id="build-queue-list">
-                    <div class="qd-empty">Aucune construction en cours</div>
-                </div>
+                <div class="qd-content" id="build-queue-list"><div class="qd-empty">Aucune construction en cours</div></div>
             </div>
-            <!-- Recruit Queue Dropdown -->
             <div class="queue-dropdown" id="recruit-queue-dropdown">
                 <div class="qd-header">⚔️ File de recrutement</div>
-                <div class="qd-content" id="recruit-queue-list">
-                    <div class="qd-empty">Aucun recrutement en cours</div>
-                </div>
+                <div class="qd-content" id="recruit-queue-list"><div class="qd-empty">Aucun recrutement en cours</div></div>
             </div>
 
-            <!-- TAB CONTENT -->
             <div class="tab-content-area">
-                <!-- TAB: FIELDS (Resources view) -->
                 <div id="tab-fields" class="tab">
-                    <div class="view-canvas-container">
-                        <canvas id="fields-canvas"></canvas>
-                        <div class="canvas-tooltip" id="fields-tooltip" style="display:none"></div>
-                    </div>
+                    <div class="view-canvas-container"><canvas id="fields-canvas"></canvas><div class="canvas-tooltip" id="fields-tooltip" style="display:none"></div></div>
                 </div>
-
-                <!-- TAB: CITY (Village view) -->
                 <div id="tab-city" class="tab active">
-                    <div class="view-canvas-container">
-                        <canvas id="city-canvas"></canvas>
-                        <div class="canvas-tooltip" id="city-tooltip" style="display:none"></div>
-                    </div>
+                    <div class="view-canvas-container"><canvas id="city-canvas"></canvas><div class="canvas-tooltip" id="city-tooltip" style="display:none"></div></div>
                 </div>
-
-                <!-- TAB: MAP -->
                 <div id="tab-map" class="tab">
                     <div class="map-view">
                         <div class="map-controls">
@@ -285,16 +241,14 @@
                             <button onclick="mapZoom(0.2)" class="map-btn">+</button>
                             <button onclick="centerOnCapital()" class="map-btn btn-home">🏠</button>
                             <div class="map-goto">
-                                <input type="number" id="goto-x" placeholder="X">
-                                <input type="number" id="goto-y" placeholder="Y">
+                                <input type="number" id="goto-x" placeholder="X" inputmode="numeric">
+                                <input type="number" id="goto-y" placeholder="Y" inputmode="numeric">
                                 <button onclick="gotoCoords()" class="map-btn">→</button>
                             </div>
                         </div>
                         <div class="map-canvas-container">
                             <canvas id="world-canvas"></canvas>
-                            <div class="minimap">
-                                <canvas id="minimap-canvas" width="150" height="150"></canvas>
-                            </div>
+                            <div class="minimap"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
                         </div>
                     </div>
                     <div class="map-info-panel" id="map-info-panel" style="display:none">
@@ -302,8 +256,6 @@
                         <div id="map-panel-content"></div>
                     </div>
                 </div>
-
-                <!-- TAB: REPORTS -->
                 <div id="tab-reports" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
@@ -314,21 +266,17 @@
                         <div id="reports-list" class="list-container"></div>
                     </div>
                 </div>
-
-                <!-- TAB: RANKING -->
                 <div id="tab-ranking" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
                             <button class="toolbar-btn active" onclick="showRanking('players')">👤 Joueurs</button>
                             <button class="toolbar-btn" onclick="showRanking('alliances')">🤝 Alliances</button>
                             <button class="toolbar-btn" onclick="showRanking('attackers')">⚔️ Attaquants</button>
-                            <button class="toolbar-btn" onclick="showRanking('defenders')">🛡️ Défenseurs</button>
+                            <button class="toolbar-btn" onclick="showRanking('defenders')">🛡️ Defenseurs</button>
                         </div>
                         <div id="ranking-content" class="list-container"></div>
                     </div>
                 </div>
-
-                <!-- TAB: INVENTORY -->
                 <div id="tab-inventory" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
@@ -338,8 +286,6 @@
                         <div id="inventory-content" class="inventory-content"></div>
                     </div>
                 </div>
-
-                <!-- TAB: ARMY (accessible via rally point only) -->
                 <div id="tab-army" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
@@ -350,27 +296,19 @@
                         <div id="armies-management" class="army-content"></div>
                     </div>
                 </div>
-
-                <!-- TAB: HERO -->
                 <div id="tab-hero" class="tab">
-                    <div class="tab-inner">
-                        <div id="hero-panel" class="hero-content"></div>
-                    </div>
+                    <div class="tab-inner"><div id="hero-panel" class="hero-content"></div></div>
                 </div>
-
-                <!-- TAB: ALLIANCE -->
                 <div id="tab-alliance" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showAllianceTab('overview')">📊 Aperçu</button>
+                            <button class="toolbar-btn active" onclick="showAllianceTab('overview')">📊 Apercu</button>
                             <button class="toolbar-btn" onclick="showAllianceTab('members')">👥 Membres</button>
                             <button class="toolbar-btn" onclick="showAllianceTab('diplomacy')">🤝 Diplomatie</button>
                         </div>
                         <div id="alliance-content"></div>
                     </div>
                 </div>
-
-                <!-- TAB: MARKET -->
                 <div id="tab-market" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
@@ -379,68 +317,42 @@
                             <button class="toolbar-btn" onclick="showMarketTab('npc')">🏪 Marchand</button>
                         </div>
                         <div id="market-content" class="market-content">
-                            <!-- SEND Section -->
                             <div id="market-section-send" class="market-section">
                                 <h3>Envoyer des ressources</h3>
                                 <div class="send-form">
-                                    <div class="form-row">
-                                        <label>Destination</label>
-                                        <input type="text" id="send-target" placeholder="Coordonnees (x|y) ou nom">
-                                    </div>
+                                    <div class="form-row"><label>Destination</label><input type="text" id="send-target" placeholder="Coordonnees (x|y) ou nom" autocapitalize="none"></div>
                                     <div class="resources-input">
-                                        <div class="res-input"><span>🪵</span><input type="number" id="send-wood" value="0" min="0"></div>
-                                        <div class="res-input"><span>🧱</span><input type="number" id="send-stone" value="0" min="0"></div>
-                                        <div class="res-input"><span>⛏️</span><input type="number" id="send-iron" value="0" min="0"></div>
-                                        <div class="res-input"><span>🌾</span><input type="number" id="send-food" value="0" min="0"></div>
+                                        <div class="res-input"><span>🪵</span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span>🧱</span><input type="number" id="send-stone" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span>⛏️</span><input type="number" id="send-iron" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span>🌾</span><input type="number" id="send-food" value="0" min="0" inputmode="numeric"></div>
                                     </div>
                                     <button onclick="sendResources()" class="btn-primary">Envoyer</button>
                                 </div>
                             </div>
-                            <!-- OFFERS Section -->
                             <div id="market-section-offers" class="market-section" style="display:none">
                                 <h3>Place du Marche</h3>
                                 <div class="market-create-offer">
                                     <h4>Creer une offre</h4>
                                     <div class="offer-form">
-                                        <div class="offer-form-row">
-                                            <label>Je vends</label>
-                                            <select id="market-sell-resource">
-                                                <option value="wood">🪵 Bois</option>
-                                                <option value="stone">🧱 Argile</option>
-                                                <option value="iron">⛏️ Fer</option>
-                                                <option value="food">🌾 Ble</option>
-                                            </select>
-                                            <input type="number" id="market-sell-amount" placeholder="Quantite" min="1">
-                                        </div>
-                                        <div class="offer-form-row">
-                                            <label>Je demande</label>
-                                            <select id="market-buy-resource">
-                                                <option value="wood">🪵 Bois</option>
-                                                <option value="stone" selected>🧱 Argile</option>
-                                                <option value="iron">⛏️ Fer</option>
-                                                <option value="food">🌾 Ble</option>
-                                            </select>
-                                            <input type="number" id="market-buy-amount" placeholder="Quantite" min="1">
-                                        </div>
+                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">🪵 Bois</option><option value="stone">🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Ble</option></select><input type="number" id="market-sell-amount" placeholder="Quantite" min="1" inputmode="numeric"></div>
+                                        <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">🪵 Bois</option><option value="stone" selected>🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Ble</option></select><input type="number" id="market-buy-amount" placeholder="Quantite" min="1" inputmode="numeric"></div>
                                         <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
                                     </div>
                                 </div>
                                 <div id="market-offers" class="offers-section"></div>
                             </div>
-                            <!-- NPC Section -->
                             <div id="market-section-npc" class="market-section" style="display:none"></div>
                         </div>
                     </div>
                 </div>
-
-                <!-- TAB: BUILDINGS (from click) -->
                 <div id="tab-buildings" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
                             <button class="toolbar-btn active" onclick="filterBuildings('all')">Tous</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('BASE')">🏛️ Infrastructure</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('BASE')">🏛️ Infra</button>
                             <button class="toolbar-btn" onclick="filterBuildings('INTERMEDIATE')">⚔️ Militaire</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('ADVANCED')">🏰 Avancé</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('ADVANCED')">🏰 Avance</button>
                             <button class="toolbar-btn" onclick="filterBuildings('FACTION')">🏟️ Faction</button>
                         </div>
                         <div id="buildings-grid" class="buildings-grid"></div>
@@ -449,32 +361,13 @@
             </div>
         </main>
 
-        <!-- FLOATING BOTTOM NAV BAR -->
         <nav class="bottom-nav" id="bottom-nav">
             <div class="bottom-nav-inner">
-                <button class="bnav-tab" data-tab="fields" onclick="showTab('fields')">
-                    <span class="bnav-icon">🌾</span>
-                    <span class="bnav-label">Ressources</span>
-                </button>
-                <button class="bnav-tab active" data-tab="city" onclick="showTab('city')">
-                    <span class="bnav-icon">🏘️</span>
-                    <span class="bnav-label">Village</span>
-                </button>
-                <button class="bnav-tab" data-tab="map" onclick="showTab('map')">
-                    <span class="bnav-icon">🗺️</span>
-                    <span class="bnav-label">Carte</span>
-                </button>
-                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')">
-                    <span class="bnav-icon">📜</span>
-                    <span class="bnav-label">Rapports</span>
-                    <span class="tab-badge" id="reports-badge" style="display:none">0</span>
-                </button>
-                <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')">
-                    <span class="bnav-icon">🏆</span>
-                    <span class="bnav-label">Stats</span>
-                </button>
-
-                <!-- Village selector inline -->
+                <button class="bnav-tab" data-tab="fields" onclick="showTab('fields')"><span class="bnav-icon">🌾</span><span class="bnav-label">Champs</span></button>
+                <button class="bnav-tab active" data-tab="city" onclick="showTab('city')"><span class="bnav-icon">🏘️</span><span class="bnav-label">Village</span></button>
+                <button class="bnav-tab" data-tab="map" onclick="showTab('map')"><span class="bnav-icon">🗺️</span><span class="bnav-label">Carte</span></button>
+                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><span class="bnav-icon">📜</span><span class="bnav-label">Rapports</span><span class="tab-badge" id="reports-badge" style="display:none">0</span></button>
+                <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')"><span class="bnav-icon">🏆</span><span class="bnav-label">Stats</span></button>
                 <div class="bnav-separator"></div>
                 <div class="bnav-village-selector">
                     <button class="bnav-village-arrow" onclick="switchToPreviousCity()">‹</button>
@@ -486,52 +379,32 @@
                     <button class="bnav-village-arrow" onclick="switchToNextCity()">›</button>
                 </div>
                 <div class="bnav-separator"></div>
-
-                <button class="bnav-tab" data-tab="inventory" onclick="showTab('inventory')">
-                    <span class="bnav-icon">🎒</span>
-                    <span class="bnav-label">Inventaire</span>
-                </button>
-                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')">
-                    <span class="bnav-icon">🦸</span>
-                    <span class="bnav-label">Heros</span>
-                </button>
-                <button class="bnav-tab" data-tab="alliance" onclick="showTab('alliance')">
-                    <span class="bnav-icon">🤝</span>
-                    <span class="bnav-label">Alliance</span>
-                </button>
-                <button class="bnav-tab" data-tab="market" onclick="showTab('market')">
-                    <span class="bnav-icon">🏪</span>
-                    <span class="bnav-label">Marche</span>
-                </button>
+                <button class="bnav-tab" data-tab="inventory" onclick="showTab('inventory')"><span class="bnav-icon">🎒</span><span class="bnav-label">Sac</span></button>
+                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')"><span class="bnav-icon">🦸</span><span class="bnav-label">Heros</span></button>
+                <button class="bnav-tab" data-tab="alliance" onclick="showTab('alliance')"><span class="bnav-icon">🤝</span><span class="bnav-label">Alliance</span></button>
+                <button class="bnav-tab" data-tab="market" onclick="showTab('market')"><span class="bnav-icon">🏪</span><span class="bnav-label">Marche</span></button>
             </div>
         </nav>
     </div>
 
-    <!-- MODAL -->
     <div id="modal" class="modal" style="display:none">
         <div class="modal-backdrop" onclick="closeModal()"></div>
         <div class="modal-box">
-            <div class="modal-header">
-                <h3 id="modal-title">Info</h3>
-                <button class="modal-close" onclick="closeModal()">×</button>
-            </div>
+            <div class="modal-header"><h3 id="modal-title">Info</h3><button class="modal-close" onclick="closeModal()">×</button></div>
             <div id="modal-body" class="modal-body"></div>
             <div class="modal-footer" id="modal-footer"></div>
         </div>
     </div>
 
-    <!-- BUILD PANEL (slide up from bottom) -->
     <div id="build-panel" class="build-panel" style="display:none">
-        <div class="panel-header">
-            <h3 id="build-panel-title">Construire</h3>
-            <button class="panel-close" onclick="closeBuildPanel()">×</button>
-        </div>
+        <div class="panel-header"><h3 id="build-panel-title">Construire</h3><button class="panel-close" onclick="closeBuildPanel()">×</button></div>
         <div id="build-panel-content" class="panel-body"></div>
     </div>
 
-    <!-- TOAST -->
     <div id="toast" class="toast"></div>
 
+    <!-- mobile.js AVANT app.js pour definir API_SERVER -->
+    <script src="js/mobile.js"></script>
     <script src="js/app.js"></script>
     <script src="js/map.js"></script>
 </body>
