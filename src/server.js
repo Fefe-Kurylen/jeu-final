@@ -115,7 +115,7 @@ async function startServer() {
 
       // Fix old unique constraint
       try {
-        await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "CityBuilding_cityId_key_key"`);
+        await prisma.$executeRaw`DROP INDEX IF EXISTS "CityBuilding_cityId_key_key"`;
       } catch (idxErr) { /* already gone */ }
 
       // Auto-seed resource nodes
@@ -123,9 +123,8 @@ async function startServer() {
         const nodeCount = await prisma.resourceNode.count();
         const RESEED_VERSION = 3;
         const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
-        const lastSeedVersion = await prisma.$queryRawUnsafe(
-          `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
-        ).then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
+        const lastSeedVersion = await prisma.$queryRaw`SELECT obj_description('public."ResourceNode"'::regclass) as ver`
+          .then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
         const needsReseed = forceReseed || lastSeedVersion < RESEED_VERSION;
         if (needsReseed) {
           if (nodeCount > 0) {
@@ -134,7 +133,7 @@ async function startServer() {
           }
           console.log('Generation des points de ressource v' + RESEED_VERSION + '...');
           await seedResourceNodes();
-          await prisma.$executeRawUnsafe(`COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`);
+          await prisma.$executeRaw`COMMENT ON TABLE "ResourceNode" IS ${String(RESEED_VERSION)}`;
         } else {
           console.log(`${nodeCount} points de ressource existants (v${lastSeedVersion})`);
         }
@@ -155,7 +154,7 @@ async function startServer() {
       console.log('');
       break;
     } catch (e) {
-      console.log(`   Erreur: ${e.message.substring(0, 100)}`);
+      console.log(`   Erreur: ${(e?.message || String(e)).substring(0, 100)}`);
       if (i === MAX_RETRIES - 1) {
         console.error('Impossible de se connecter a la base de donnees apres', MAX_RETRIES, 'tentatives');
       } else {
@@ -170,5 +169,6 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', async () => { console.log('SIGTERM recu, arret...'); await prisma.$disconnect(); process.exit(0); });
 process.on('SIGINT', async () => { console.log('SIGINT recu, arret...'); await prisma.$disconnect(); process.exit(0); });
+process.on('unhandledRejection', (reason) => { console.error('[UNHANDLED REJECTION]', reason); });
 
 startServer().catch(e => { console.error('Erreur au demarrage:', e); process.exit(1); });

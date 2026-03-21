@@ -49,13 +49,19 @@ router.get('/map/viewport', auth, async (req, res) => {
     });
     const nodes = await prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } } });
 
-    // Include moving armies visible in viewport
+    // Include moving armies visible in viewport (only own armies + attacks targeting own cities)
+    const playerId = req.user.playerId;
+    const playerCityIds = citiesWithTier.filter(c => c.playerId === playerId).map(c => c.id);
+
     const movingArmies = await prisma.army.findMany({
       where: {
         status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING'] },
         OR: [
-          { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-          { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
+          // Own armies anywhere in viewport
+          { ownerId: playerId, x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
+          { ownerId: playerId, targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } },
+          // Incoming attacks/raids on player's cities (limited info)
+          ...(playerCityIds.length > 0 ? [{ targetCityId: { in: playerCityIds }, status: { in: ['ATTACKING', 'RAIDING'] } }] : [])
         ]
       },
       select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, ownerId: true, owner: { select: { name: true, faction: true } } }

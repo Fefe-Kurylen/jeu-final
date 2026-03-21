@@ -66,30 +66,48 @@ async function processHealedUnits() {
   });
 
   for (const wounded of healedUnits) {
-    const garrison = await prisma.army.findFirst({
-      where: { cityId: wounded.cityId, isGarrison: true },
-      include: { units: true }
-    });
+    try {
+      let garrison = await prisma.army.findFirst({
+        where: { cityId: wounded.cityId, isGarrison: true },
+        include: { units: true }
+      });
 
-    if (garrison) {
-      const existingUnit = garrison.units.find(u => u.unitKey === wounded.unitKey);
-      if (existingUnit) {
-        await prisma.armyUnit.update({
-          where: { id: existingUnit.id },
-          data: { count: existingUnit.count + wounded.count }
-        });
-      } else {
-        const unitDef = unitsData.find(u => u.key === wounded.unitKey);
-        await prisma.armyUnit.create({
-          data: {
-            armyId: garrison.id, unitKey: wounded.unitKey,
-            tier: unitDef?.tier || 'base', count: wounded.count
-          }
-        });
+      // Create garrison if missing (prevents silent unit loss)
+      if (!garrison) {
+        const city = await prisma.city.findUnique({ where: { id: wounded.cityId } });
+        if (city) {
+          garrison = await prisma.army.create({
+            data: { name: 'Garnison', ownerId: city.playerId, cityId: city.id, isGarrison: true, status: 'IDLE', x: city.x, y: city.y }
+          });
+          garrison.units = [];
+          console.warn(`[HEAL] Created missing garrison for city ${city.id}`);
+        }
       }
-      console.log(`[HEAL] ${wounded.count} ${wounded.unitKey} healed in city ${wounded.cityId}`);
+
+      if (garrison) {
+        const existingUnit = garrison.units.find(u => u.unitKey === wounded.unitKey);
+        if (existingUnit) {
+          await prisma.armyUnit.update({
+            where: { id: existingUnit.id },
+            data: { count: existingUnit.count + wounded.count }
+          });
+        } else {
+          const unitDef = unitsData.find(u => u.key === wounded.unitKey);
+          await prisma.armyUnit.create({
+            data: {
+              armyId: garrison.id, unitKey: wounded.unitKey,
+              tier: unitDef?.tier || 'base', count: wounded.count
+            }
+          });
+        }
+        console.log(`[HEAL] ${wounded.count} ${wounded.unitKey} healed in city ${wounded.cityId}`);
+      } else {
+        console.warn(`[HEAL] No garrison and no city found for wounded ${wounded.unitKey} in city ${wounded.cityId} - units lost`);
+      }
+      await prisma.woundedUnit.delete({ where: { id: wounded.id } });
+    } catch (e) {
+      console.error(`[HEAL ERROR] ${wounded.unitKey} in city ${wounded.cityId}:`, e.message);
     }
-    await prisma.woundedUnit.delete({ where: { id: wounded.id } });
   }
   return healedUnits.length;
 }

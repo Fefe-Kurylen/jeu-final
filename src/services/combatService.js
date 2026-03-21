@@ -29,6 +29,14 @@ function getDominantClass(units) {
 
 // Simple combat resolution (for raids)
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null) {
+  // Guard against empty arrays
+  if (!attackerUnits || attackerUnits.length === 0) {
+    return { attackerWon: false, attackerLossRate: 1, defenderLossRate: 0, attackerPower: 0, defenderPower: 1 };
+  }
+  if (!defenderUnits || defenderUnits.length === 0) {
+    return { attackerWon: true, attackerLossRate: 0, defenderLossRate: 1, attackerPower: 1, defenderPower: 0 };
+  }
+
   const attackerHeroBonus = attackerHero ? 1 + ((attackerHero.attack || 0) + (attackerHero.defense || 0)) * config.combat.heroBonusPerPoint : 1;
   const defenderHeroBonus = defenderHero ? 1 + ((defenderHero.attack || 0) + (defenderHero.defense || 0)) * config.combat.heroBonusPerPoint : 1;
 
@@ -53,6 +61,14 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 
 // Detailed combat with rounds for replay
 function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null) {
+  // Guard against empty arrays
+  if (!attackerUnits || attackerUnits.length === 0) {
+    return { attackerWon: false, attackerLossRate: 1, defenderLossRate: 0, attackerTotalKilled: 0, defenderTotalKilled: 0, attackerInitialUnits: [], defenderInitialUnits: [], attackerFinalUnits: [], defenderFinalUnits: [], rounds: [], wallBonus: 1, moatBonus: 1 };
+  }
+  if (!defenderUnits || defenderUnits.length === 0) {
+    return { attackerWon: true, attackerLossRate: 0, defenderLossRate: 1, attackerTotalKilled: 0, defenderTotalKilled: 0, attackerInitialUnits: attackerUnits.map(u => ({ key: u.unitKey, name: u.unitKey, count: u.count, tier: u.tier || 'base' })), defenderInitialUnits: [], attackerFinalUnits: attackerUnits.map(u => ({ key: u.unitKey, name: u.unitKey, initial: u.count, remaining: u.count, killed: 0 })), defenderFinalUnits: [], rounds: [], wallBonus: 1, moatBonus: 1 };
+  }
+
   const TIER_COEFF = config.combat.tierCoefficients;
   const hbp = config.combat.heroBonusPerPoint;
 
@@ -115,7 +131,8 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     for (const unit of defenders) {
       if (unit.count <= 0) continue;
       const unitTotalHp = unit.count * unit.hp * defenseMultiplier;
-      const damageToUnit = Math.min(attackerDamage * (unitTotalHp / defenders.reduce((s, u) => s + u.count * u.hp * defenseMultiplier, 1)), unitTotalHp);
+      const totalDefenderHp = defenders.reduce((s, u) => s + Math.max(0, u.count) * u.hp * defenseMultiplier, 0);
+      const damageToUnit = Math.min(attackerDamage * (unitTotalHp / Math.max(1, totalDefenderHp)), unitTotalHp);
       const killed = Math.floor(damageToUnit / (unit.hp * defenseMultiplier));
       const actualKilled = Math.min(killed, unit.count);
       unit.count -= actualKilled;
@@ -128,7 +145,8 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     for (const unit of attackers) {
       if (unit.count <= 0) continue;
       const unitTotalHp = unit.count * unit.hp;
-      const damageToUnit = Math.min(defenderDamage * (unitTotalHp / attackers.reduce((s, u) => s + u.count * u.hp, 1)), unitTotalHp);
+      const totalAttackerHp = attackers.reduce((s, u) => s + Math.max(0, u.count) * u.hp, 0);
+      const damageToUnit = Math.min(defenderDamage * (unitTotalHp / Math.max(1, totalAttackerHp)), unitTotalHp);
       const killed = Math.floor(damageToUnit / unit.hp);
       const actualKilled = Math.min(killed, unit.count);
       unit.count -= actualKilled;

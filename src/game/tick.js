@@ -14,6 +14,23 @@ const { updatePopulation, cleanupOrphanedFlags } = require('./processors/worldPr
 
 let tickRunning = false;
 
+const TICK_TIMEOUT_MS = 25000; // 25s timeout (tick interval is 30s)
+
+function withTimeout(promise, name) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timed out after ${TICK_TIMEOUT_MS}ms`)), TICK_TIMEOUT_MS))
+  ]);
+}
+
+async function runProcessor(name, fn) {
+  try {
+    await withTimeout(fn(), name);
+  } catch (e) {
+    console.error(`[TICK] ${name} failed:`, e.message);
+  }
+}
+
 async function gameTick() {
   if (tickRunning) return;
   tickRunning = true;
@@ -27,28 +44,28 @@ async function gameTick() {
     if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
 
     // Resource production & upkeep
-    await processResourceProduction(TICK_HOURS);
-    await processUpkeep(TICK_HOURS);
+    await runProcessor('resourceProduction', () => processResourceProduction(TICK_HOURS));
+    await runProcessor('upkeep', () => processUpkeep(TICK_HOURS));
 
     // Construction & recruitment queues
-    await processBuilds(now);
-    await processRecruits(now);
+    await runProcessor('builds', () => processBuilds(now));
+    await runProcessor('recruits', () => processRecruits(now));
 
     // Expeditions
-    await processExpeditions(now);
-    await generateNewExpeditions();
+    await runProcessor('expeditions', () => processExpeditions(now));
+    await runProcessor('expeditionGen', () => generateNewExpeditions());
 
     // Army movement & combat
-    await processArmyMovements(now);
+    await runProcessor('armyMovements', () => processArmyMovements(now));
 
     // Harvesting
-    await processHarvesting(now);
+    await runProcessor('harvesting', () => processHarvesting(now));
 
     // World state maintenance
-    await cleanupOrphanedFlags();
-    await updatePopulation();
-    await processTribeRespawn(now);
-    await processResourceRegen(now, TICK_HOURS);
+    await runProcessor('cleanupOrphans', () => cleanupOrphanedFlags());
+    await runProcessor('population', () => updatePopulation());
+    await runProcessor('tribeRespawn', () => processTribeRespawn(now));
+    await runProcessor('resourceRegen', () => processResourceRegen(now, TICK_HOURS));
 
   } catch (e) {
     console.error('Tick error:', e);

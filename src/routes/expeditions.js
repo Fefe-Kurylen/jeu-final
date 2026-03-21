@@ -12,18 +12,22 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/:id/start', auth, async (req, res) => {
   try {
-    const expedition = await prisma.expedition.findFirst({ where: { id: req.params.id, playerId: req.user.playerId, status: 'AVAILABLE' } });
-    if (!expedition) return res.status(404).json({ error: 'Expedition non trouvee' });
-    // Allow specifying which army to send, otherwise pick first idle
-    const armyWhere = { ownerId: req.user.playerId, status: 'IDLE', isGarrison: false };
-    if (req.body.armyId) armyWhere.id = req.body.armyId;
-    const army = await prisma.army.findFirst({ where: armyWhere, include: { units: true } });
-    if (!army || !army.units || army.units.length === 0) return res.status(400).json({ error: 'Armee requise avec des unites' });
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + expedition.duration * 1000);
-    await prisma.expedition.update({ where: { id: expedition.id }, data: { status: 'IN_PROGRESS', startedAt: now, endsAt, armyId: army.id } });
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'EXPEDITION' } });
-    res.json({ message: 'Expedition lancee', endsAt });
+    const result = await prisma.$transaction(async (tx) => {
+      const expedition = await tx.expedition.findFirst({ where: { id: req.params.id, playerId: req.user.playerId, status: 'AVAILABLE' } });
+      if (!expedition) return { error: 'Expedition non trouvee', status: 404 };
+      // Allow specifying which army to send, otherwise pick first idle
+      const armyWhere = { ownerId: req.user.playerId, status: 'IDLE', isGarrison: false };
+      if (req.body.armyId) armyWhere.id = req.body.armyId;
+      const army = await tx.army.findFirst({ where: armyWhere, include: { units: true } });
+      if (!army || !army.units || army.units.length === 0) return { error: 'Armee requise avec des unites', status: 400 };
+      const now = new Date();
+      const endsAt = new Date(now.getTime() + (expedition.duration || 1800) * 1000);
+      await tx.expedition.update({ where: { id: expedition.id }, data: { status: 'IN_PROGRESS', startedAt: now, endsAt, armyId: army.id } });
+      await tx.army.update({ where: { id: army.id }, data: { status: 'EXPEDITION' } });
+      return { message: 'Expedition lancee', endsAt };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
