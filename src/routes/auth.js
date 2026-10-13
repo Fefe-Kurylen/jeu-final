@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const config = require('../config');
 const rateLimit = require('../middleware/rateLimit');
@@ -26,7 +27,7 @@ router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req
     const nameExists = await prisma.player.findUnique({ where: { name } });
     if (nameExists) return res.status(400).json({ error: 'Pseudo deja pris' });
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 12);
     const account = await prisma.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
 
     const player = await prisma.player.create({
@@ -81,7 +82,7 @@ router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req
     res.json({ token, player: { id: player.id, name, faction } });
   } catch (e) {
     console.error('Register error:', e);
-    res.status(500).json({ error: config.isProduction ? 'Erreur serveur' : e.message });
+    sendError(res, e);
   }
 });
 
@@ -95,15 +96,16 @@ router.post('/login', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, r
       where: { email: email.toLowerCase() },
       include: { player: true }
     });
-    if (!account || !account.player) return res.status(401).json({ error: 'Identifiants invalides' });
-
-    const valid = await bcrypt.compare(password, account.passwordHash);
-    if (!valid) return res.status(401).json({ error: 'Identifiants invalides' });
+    // Anti-énumération : temps de réponse constant même si le compte n'existe pas
+    const DUMMY_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO7ZcbKMYq0PbIcJXKqwyQBSD1uV5S8O2';
+    const hashToCheck = account?.passwordHash || DUMMY_HASH;
+    const valid = await bcrypt.compare(password, hashToCheck);
+    if (!account || !account.player || !valid) return res.status(401).json({ error: 'Identifiants invalides' });
 
     const token = jwt.sign({ id: account.id, playerId: account.player.id }, config.jwtSecret, { expiresIn: config.jwtExpiry });
     res.json({ token, player: { id: account.player.id, name: account.player.name, faction: account.player.faction } });
   } catch (e) {
-    res.status(500).json({ error: config.isProduction ? 'Erreur serveur' : e.message });
+    sendError(res, e);
   }
 });
 

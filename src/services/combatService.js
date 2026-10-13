@@ -1,6 +1,9 @@
 const config = require('../config');
-const { unitsData } = require('../config/gamedata');
-const { calculateArmyPower } = require('../utils/calculations');
+const { unitsData, factionsData } = require('../config/gamedata');
+const { calculateArmyPower, getFactionBonus } = require('../utils/calculations');
+
+// Multiplicateur depuis un bonus de faction en % (0 si absent)
+function fb(faction, type) { return faction ? 1 + (getFactionBonus(faction, type, factionsData) || 0) / 100 : 1; }
 
 // Combat triangle bonus: returns multiplier for attacker class vs defender class (GDD combat_config.json)
 function getTriangleBonus(attackerClass, defenderClass) {
@@ -29,14 +32,6 @@ function getDominantClass(units) {
 
 // Simple combat resolution (for raids)
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null) {
-  // Guard against empty arrays
-  if (!attackerUnits || attackerUnits.length === 0) {
-    return { attackerWon: false, attackerLossRate: 1, defenderLossRate: 0, attackerPower: 0, defenderPower: 1 };
-  }
-  if (!defenderUnits || defenderUnits.length === 0) {
-    return { attackerWon: true, attackerLossRate: 0, defenderLossRate: 1, attackerPower: 1, defenderPower: 0 };
-  }
-
   const attackerHeroBonus = attackerHero ? 1 + ((attackerHero.attack || 0) + (attackerHero.defense || 0)) * config.combat.heroBonusPerPoint : 1;
   const defenderHeroBonus = defenderHero ? 1 + ((defenderHero.attack || 0) + (defenderHero.defense || 0)) * config.combat.heroBonusPerPoint : 1;
 
@@ -60,17 +55,19 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 }
 
 // Detailed combat with rounds for replay
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null) {
-  // Guard against empty arrays
-  if (!attackerUnits || attackerUnits.length === 0) {
-    return { attackerWon: false, attackerLossRate: 1, defenderLossRate: 0, attackerTotalKilled: 0, defenderTotalKilled: 0, attackerInitialUnits: [], defenderInitialUnits: [], attackerFinalUnits: [], defenderFinalUnits: [], rounds: [], wallBonus: 1, moatBonus: 1 };
-  }
-  if (!defenderUnits || defenderUnits.length === 0) {
-    return { attackerWon: true, attackerLossRate: 0, defenderLossRate: 1, attackerTotalKilled: 0, defenderTotalKilled: 0, attackerInitialUnits: attackerUnits.map(u => ({ key: u.unitKey, name: u.unitKey, count: u.count, tier: u.tier || 'base' })), defenderInitialUnits: [], attackerFinalUnits: attackerUnits.map(u => ({ key: u.unitKey, name: u.unitKey, initial: u.count, remaining: u.count, killed: 0 })), defenderFinalUnits: [], rounds: [], wallBonus: 1, moatBonus: 1 };
-  }
-
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null) {
   const TIER_COEFF = config.combat.tierCoefficients;
   const hbp = config.combat.heroBonusPerPoint;
+
+  // Bonus de faction (siège de ville = ce moteur sert aux attaques de villes)
+  const atkSiegeAttack = fb(attackerFaction, 'siegeAttack');            // HUN : +attaque en siège
+  const defCityAttack = fb(defenderFaction, 'defendingCityAttack');     // + attaque en défense de ville
+  const atkUnitDefense = fb(attackerFaction, 'unitDefense');            // ROME : +défense des unités
+  const defUnitDefense = fb(defenderFaction, 'unitDefense');
+  const defCityDefense = fb(defenderFaction, 'cityDefense');            // GAUL : +défense de ville
+  const defWallHealth = fb(defenderFaction, 'wallHealth');              // EGYPT : mur plus efficace
+  const atkLossReduction = fb(attackerFaction, 'siegeLossReduction');   // réduit les dégâts subis
+  const defLossReduction = fb(defenderFaction, 'siegeLossReduction');
 
   const attackerHeroAttackBonus = attackerHero ? 1 + (attackerHero.attack || 0) * hbp : 1;
   const attackerHeroDefenseBonus = attackerHero ? 1 + (attackerHero.defense || 0) * hbp : 1;
@@ -89,8 +86,8 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     const unitClass = def?.class || 'INFANTRY';
     return {
       key: u.unitKey, initial: u.count, count: u.count, tier, unitClass,
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * attackerHeroAttackBonus * (unitClass !== 'SIEGE' ? attackerTriangleBonus : 1.0),
-      defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * attackerHeroDefenseBonus,
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * attackerHeroAttackBonus * (unitClass !== 'SIEGE' ? attackerTriangleBonus : 1.0) * atkSiegeAttack,
+      defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * attackerHeroDefenseBonus * atkUnitDefense,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey
     };
@@ -102,16 +99,16 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     const unitClass = def?.class || 'INFANTRY';
     return {
       key: u.unitKey, initial: u.count, count: u.count, tier, unitClass,
-      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * defenderHeroAttackBonus * (unitClass !== 'SIEGE' ? defenderTriangleBonus : 1.0),
-      defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * defenderHeroDefenseBonus,
+      attack: (def?.stats?.attack || 30) * TIER_COEFF[tier] * defenderHeroAttackBonus * (unitClass !== 'SIEGE' ? defenderTriangleBonus : 1.0) * defCityAttack,
+      defense: (def?.stats?.defense || 30) * TIER_COEFF[tier] * defenderHeroDefenseBonus * defUnitDefense,
       hp: def?.stats?.endurance || 50,
       name: def?.name || u.unitKey
     };
   });
 
-  const wallBonus = 1 + (wallLevel * config.combat.wallBonusPerLevel);
+  const wallBonus = 1 + (wallLevel * config.combat.wallBonusPerLevel) * defWallHealth;
   const moatBonus = 1 + (moatLevel * config.combat.moatBonusPerLevel);
-  const defenseMultiplier = wallBonus * moatBonus;
+  const defenseMultiplier = wallBonus * moatBonus * defCityDefense;
 
   const attackerInitialUnits = attackers.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
   const defenderInitialUnits = defenders.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
@@ -124,15 +121,16 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
 
     if (attackerTotal <= 0 || defenderTotal <= 0) break;
 
-    const attackerDamage = attackers.reduce((sum, u) => sum + u.count * u.attack, 0);
-    const defenderDamage = defenders.reduce((sum, u) => sum + u.count * u.attack * defenseMultiplier, 0);
+    const RDF = config.combat.roundDamageFactor || 1.0;
+    // siegeLossReduction : réduit les dégâts subis par la faction concernée
+    const attackerDamage = attackers.reduce((sum, u) => sum + u.count * u.attack, 0) * RDF / defLossReduction;
+    const defenderDamage = defenders.reduce((sum, u) => sum + u.count * u.attack * defenseMultiplier, 0) * RDF / atkLossReduction;
 
     const defenderKills = [];
     for (const unit of defenders) {
       if (unit.count <= 0) continue;
       const unitTotalHp = unit.count * unit.hp * defenseMultiplier;
-      const totalDefenderHp = defenders.reduce((s, u) => s + Math.max(0, u.count) * u.hp * defenseMultiplier, 0);
-      const damageToUnit = Math.min(attackerDamage * (unitTotalHp / Math.max(1, totalDefenderHp)), unitTotalHp);
+      const damageToUnit = Math.min(attackerDamage * (unitTotalHp / defenders.reduce((s, u) => s + u.count * u.hp * defenseMultiplier, 1)), unitTotalHp);
       const killed = Math.floor(damageToUnit / (unit.hp * defenseMultiplier));
       const actualKilled = Math.min(killed, unit.count);
       unit.count -= actualKilled;
@@ -145,8 +143,7 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     for (const unit of attackers) {
       if (unit.count <= 0) continue;
       const unitTotalHp = unit.count * unit.hp;
-      const totalAttackerHp = attackers.reduce((s, u) => s + Math.max(0, u.count) * u.hp, 0);
-      const damageToUnit = Math.min(defenderDamage * (unitTotalHp / Math.max(1, totalAttackerHp)), unitTotalHp);
+      const damageToUnit = Math.min(defenderDamage * (unitTotalHp / attackers.reduce((s, u) => s + u.count * u.hp, 1)), unitTotalHp);
       const killed = Math.floor(damageToUnit / unit.hp);
       const actualKilled = Math.min(killed, unit.count);
       unit.count -= actualKilled;

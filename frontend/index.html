@@ -366,6 +366,7 @@
                 <button class="bnav-tab" data-tab="fields" onclick="showTab('fields')"><span class="bnav-icon">🌾</span><span class="bnav-label">Champs</span></button>
                 <button class="bnav-tab active" data-tab="city" onclick="showTab('city')"><span class="bnav-icon">🏘️</span><span class="bnav-label">Village</span></button>
                 <button class="bnav-tab" data-tab="map" onclick="showTab('map')"><span class="bnav-icon">🗺️</span><span class="bnav-label">Carte</span></button>
+                <button class="bnav-tab" data-tab="army" onclick="showTab('army')"><span class="bnav-icon">⚔️</span><span class="bnav-label">Armée</span></button>
                 <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><span class="bnav-icon">📜</span><span class="bnav-label">Rapports</span><span class="tab-badge" id="reports-badge" style="display:none">0</span></button>
                 <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')"><span class="bnav-icon">🏆</span><span class="bnav-label">Stats</span></button>
                 <div class="bnav-separator"></div>
@@ -405,7 +406,18 @@
 
     <!-- mobile.js AVANT app.js pour definir API_SERVER -->
     <script src="js/mobile.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/app/01-core.js"></script>
+    <script src="js/app/02-city-render.js"></script>
+    <script src="js/app/03-fields-render.js"></script>
+    <script src="js/app/04-buildings-render.js"></script>
+    <script src="js/app/05-panels.js"></script>
+    <script src="js/app/06-city-ui.js"></script>
+    <script src="js/app/07-army.js"></script>
+    <script src="js/app/08-hero.js"></script>
+    <script src="js/app/09-social.js"></script>
+    <script src="js/app/10-modals-misc.js"></script>
+    <script src="js/app/11-market.js"></script>
+    <script src="js/app/12-misc-init.js"></script>
     <script src="js/map.js"></script>
 </body>
 </html>

@@ -50,7 +50,14 @@ const tileImages = {
 };
 
 // Load tileset configuration and images
-async function loadTilesetAssets() {
+// Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
+let _tilesetAssetsPromise = null;
+function loadTilesetAssets() {
+  if (!_tilesetAssetsPromise) _tilesetAssetsPromise = _loadTilesetAssetsOnce();
+  return _tilesetAssetsPromise;
+}
+
+async function _loadTilesetAssetsOnce() {
   console.log('🎨 Loading tileset assets...');
 
   try {
@@ -77,6 +84,8 @@ async function loadTilesetAssets() {
           resolve(); // Don't reject, just use fallback
         };
       });
+    } else {
+      tilesetLoadFailed = true; // config absente : ne jamais retenter
     }
   } catch (e) {
     console.warn('⚠️ Could not load tileset config, using procedural rendering');
@@ -89,6 +98,12 @@ async function loadTilesetAssets() {
 
 // Load individual images for specific game objects
 async function loadIndividualTileImages() {
+  // Les skins PNG sont optionnels et absents par défaut : on ne tente le chargement
+  // que si un manifest est présent (évite 16 requêtes 404 au premier affichage de la carte)
+  try {
+    const probe = await fetch('/assets/images/map/manifest.json', { method: 'HEAD' });
+    if (!probe.ok) { console.log('🎨 Pas de skins PNG (manifest absent), rendu procédural'); return; }
+  } catch (e) { return; }
   const imagesToLoad = [
     // Cities
     { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
@@ -248,20 +263,33 @@ function seededRandom(x, y, seed = 12345) {
   return n - Math.floor(n);
 }
 
-// Get biome based on DISTANCE from center (concentric rings)
-// Center = Forest (rich), Middle ring = Desert, Outer ring = Snow (harsh)
+// Biomes en taches (patches ~30-50 cases) avec biais centre -> bord
+// Le centre reste majoritairement forêt (riche), le bord majoritairement neige (rude),
+// mais plusieurs biomes sont visibles dans un même viewport.
+const BIOME_SCALE = 36; // taille caractéristique d'une tache de biome (en cases)
+
+// Bruit de valeur lissé (interpolation bilinéaire de seededRandom sur une grille grossière)
+function smoothNoise(x, y, seed) {
+  const gx = Math.floor(x / BIOME_SCALE), gy = Math.floor(y / BIOME_SCALE);
+  const fx = (x / BIOME_SCALE) - gx, fy = (y / BIOME_SCALE) - gy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy); // smoothstep
+  const n00 = seededRandom(gx, gy, seed), n10 = seededRandom(gx + 1, gy, seed);
+  const n01 = seededRandom(gx, gy + 1, seed), n11 = seededRandom(gx + 1, gy + 1, seed);
+  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
+}
+
 function getBiome(x, y) {
   const dx = x - WORLD_CENTER;
   const dy = y - WORLD_CENTER;
   const distance = Math.sqrt(dx * dx + dy * dy);
+  const maxDist = WORLD_SIZE / 2 * 1.4;
+  const normalizedDist = distance / maxDist; // 0 au centre -> ~1 au bord
 
-  // Max distance is ~265 (corner of 374x374 map from center)
-  const maxDist = WORLD_SIZE / 2 * 1.4; // ~262
-  const normalizedDist = distance / maxDist;
+  // Valeur de "climat" : bruit (taches) + biais de distance (centre chaud/fertile, bord froid)
+  const climate = smoothNoise(x, y, 77777) * 0.65 + normalizedDist * 0.55;
 
-  // Concentric rings: Forest (0-35%), Desert (35-70%), Snow (70-100%)
-  if (normalizedDist < 0.35) return 'forest';
-  if (normalizedDist < 0.70) return 'desert';
+  if (climate < 0.50) return 'forest';
+  if (climate < 0.80) return 'desert';
   return 'snow';
 }
 
@@ -406,6 +434,7 @@ function getTerrainType(x, y) {
   return { biome, feature: null };
 }
 
+let _mapCanvasInitialized = false;
 function initMapCanvas() {
   mapCanvas = document.getElementById('world-canvas');
   mapCtx = mapCanvas?.getContext('2d');
@@ -450,8 +479,13 @@ function initMapCanvas() {
     minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
   }
 
-  // Center on capital initially
-  centerOnCapital();
+  // Centrage initial UNE SEULE FOIS, sans loadMap (l'appelant loadMap continue son fetch juste après)
+  // Bug fix : centerOnCapital() appelait loadMap() -> initMapCanvas() -> centerOnCapital() en boucle infinie
+  if (!_mapCanvasInitialized) {
+    _mapCanvasInitialized = true;
+    const capital = cities.find(c => c.isCapital) || currentCity;
+    if (capital) { mapOffsetX = capital.x; mapOffsetY = capital.y; }
+  }
 }
 
 // ========== TRAVIAN-STYLE KEYBOARD SHORTCUTS ==========
@@ -2318,49 +2352,52 @@ function drawIsoArmy(x, y, tw, th, army) {
   }
 }
 
-function drawMapBuilding(x, y, size, fillColor, strokeColor) {
+function drawMapBuilding(x, y, size, fillColor, strokeColor, ctx) {
+  // Bug fix : appelée depuis la vue ville (cityCtx) alors qu'elle utilisait mapCtx (indéfini hors carte)
+  const _c = ctx || (typeof cityCtx !== 'undefined' && cityCtx) || (typeof mapCtx !== 'undefined' && mapCtx);
+  if (!_c) return;
   const height = size * 1.2;
   
   // Building base
-  mapCtx.fillStyle = fillColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = fillColor;
+  _c.beginPath();
+  _c.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Left wall
-  mapCtx.fillStyle = shadeColor(fillColor, -15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x - size * 0.5, y);
-  mapCtx.lineTo(x - size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -15);
+  _c.beginPath();
+  _c.moveTo(x - size * 0.5, y);
+  _c.lineTo(x - size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Right wall
-  mapCtx.fillStyle = shadeColor(fillColor, -30);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + size * 0.5, y);
-  mapCtx.lineTo(x + size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -30);
+  _c.beginPath();
+  _c.moveTo(x + size * 0.5, y);
+  _c.lineTo(x + size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Roof
-  mapCtx.fillStyle = strokeColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = strokeColor;
+  _c.beginPath();
+  _c.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Roof point
-  mapCtx.fillStyle = shadeColor(strokeColor, -20);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - height - size * 0.5);
-  mapCtx.lineTo(x - size * 0.35, y - height + size * 0.1);
-  mapCtx.lineTo(x + size * 0.35, y - height + size * 0.1);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(strokeColor, -20);
+  _c.beginPath();
+  _c.moveTo(x, y - height - size * 0.5);
+  _c.lineTo(x - size * 0.35, y - height + size * 0.1);
+  _c.lineTo(x + size * 0.35, y - height + size * 0.1);
+  _c.closePath();
+  _c.fill();
 }
 
 function drawMapTower(x, y, size) {
@@ -2728,7 +2765,7 @@ function onMapWheel(e) {
 
   // Appliquer le zoom (plus fluide)
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
 
   // Dimensions de tuile isométrique après zoom
   const newTileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2754,7 +2791,7 @@ function onMapWheel(e) {
 // Zoom buttons
 function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
   // Debounced reload to get data for new zoom level
   clearTimeout(mapReloadTimeout);
   mapReloadTimeout = setTimeout(() => loadMap(), 400);

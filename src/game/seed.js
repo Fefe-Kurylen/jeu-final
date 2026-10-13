@@ -17,10 +17,9 @@ async function seedResourceNodes() {
   existingCities.forEach(c => used.add(`${c.x},${c.y}`));
 
   const resTypes = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-  const biomes = (x, y) => {
-    const angle = (Math.atan2(y, x) + Math.PI) / (2 * Math.PI);
-    return angle < 0.33 ? 'forest' : angle < 0.66 ? 'desert' : 'snow';
-  };
+  // Formule partagée avec le client (frontend/js/map.js) pour une étiquette cohérente avec le terrain affiché
+  const { getBiome } = require('../utils/biome');
+  const biomes = getBiome;
   const pickLevel = (x, y) => {
     const d = Math.sqrt(x * x + y * y);
     const r = Math.random();

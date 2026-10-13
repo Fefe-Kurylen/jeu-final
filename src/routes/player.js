@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 
@@ -18,7 +19,7 @@ router.get('/me', auth, async (req, res) => {
     });
     res.json(player);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -48,7 +49,7 @@ router.get('/:id', auth, async (req, res) => {
       createdAt: targetPlayer.createdAt
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 

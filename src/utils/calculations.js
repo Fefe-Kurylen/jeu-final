@@ -9,6 +9,18 @@ function lerpExp(a, b, t) {
   return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 }
 
+// Capacité de stockage donnée par un WAREHOUSE (storage) ou SILO (foodStorage) à un niveau
+// Même courbe exponentielle que la production, basée sur effects.storageL1/L20 de buildings.json
+function getStorageAtLevel(buildingKey, level, buildingsData) {
+  const def = buildingsData.find(b => b.key === buildingKey);
+  const prefix = buildingKey === 'SILO' ? 'foodStorage' : 'storage';
+  const L1 = def?.effects?.[prefix + 'L1'] || 1200;
+  const L20 = def?.effects?.[prefix + 'L20'] || 160000;
+  if (level <= 0) return 0;
+  if (level >= 20) return L20;
+  return Math.round(lerpExp(L1, L20, (level - 1) / 19));
+}
+
 // Get resource production at a given building level
 function getProductionAtLevel(buildingKey, level, buildingsData) {
   const def = buildingsData.find(b => b.key === buildingKey);
@@ -135,6 +147,7 @@ function getArmyCarryCapacity(units, unitsData) {
 module.exports = {
   lerpExp,
   getProductionAtLevel,
+  getStorageAtLevel,
   getFactionBonus,
   getCityTier,
   getCityTierName,

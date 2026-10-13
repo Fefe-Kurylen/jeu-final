@@ -2,7 +2,7 @@ const config = require('../config');
 
 const validateEmail = (email) => {
   if (!email || typeof email !== 'string') return false;
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email) && email.length <= 255;
 };
 
@@ -34,10 +34,10 @@ const validateString = (str, minLen = 1, maxLen = 100) => {
   return trimmed.length >= minLen && trimmed.length <= maxLen;
 };
 
-// Sanitize a string (strip HTML tags and angle brackets)
+// Sanitize a string (strip HTML tags)
 const sanitizeString = (str) => {
   if (!str || typeof str !== 'string') return '';
-  return str.replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim();
+  return str.replace(/<[^>]*>/g, '').trim();
 };
 
 // Validate a positive integer

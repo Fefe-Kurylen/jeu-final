@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { sanitizeString } = require('../utils/validation');
@@ -8,7 +9,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true, army: true } });
     res.json(hero);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/hero/create
@@ -20,7 +21,7 @@ router.post('/create', auth, async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
     const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name: sanitizeString(name) } });
     res.json({ message: 'Heros cree', hero });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/hero/rename
@@ -32,7 +33,7 @@ router.post('/rename', auth, async (req, res) => {
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     await prisma.hero.update({ where: { id: hero.id }, data: { name: sanitizeString(name) } });
     res.json({ message: 'Heros renomme' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/hero/equip
@@ -52,7 +53,7 @@ router.post('/equip', auth, async (req, res) => {
     }
     await prisma.heroItem.update({ where: { id: itemId }, data: { slot: equipSlot } });
     res.json({ message: 'Objet equipe', slot: equipSlot });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/hero/unequip
@@ -66,7 +67,7 @@ router.post('/unequip', auth, async (req, res) => {
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
     await prisma.heroItem.update({ where: { id: itemId }, data: { slot: 'inventory' } });
     res.json({ message: 'Objet desequipe' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/hero/drop-item
@@ -80,7 +81,7 @@ router.post('/drop-item', auth, async (req, res) => {
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
     await prisma.heroItem.delete({ where: { id: itemId } });
     res.json({ message: 'Objet jete' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/assign-points', auth, async (req, res) => {
@@ -99,7 +100,7 @@ router.post('/assign-points', auth, async (req, res) => {
       data: { atkPoints: hero.atkPoints + (atk || 0), defPoints: hero.defPoints + (def || 0), spdPoints: hero.spdPoints + (spd || 0), logPoints: hero.logPoints + (log || 0), statPoints: hero.statPoints - total }
     });
     res.json({ message: 'Points assignes' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 module.exports = router;

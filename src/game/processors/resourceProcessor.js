@@ -1,71 +1,97 @@
 // ========== RESOURCE PRODUCTION & UPKEEP ==========
 
 const prisma = require('../../config/database');
+const { Prisma } = require('@prisma/client');
 const config = require('../../config');
 const { unitsData, buildingsData } = require('../../config/gamedata');
 const { getProductionAtLevel } = require('../../utils/calculations');
 
-async function processResourceProduction(TICK_HOURS) {
-  const cities = await prisma.city.findMany({ where: { isSieged: false }, include: { buildings: true } });
-  const cityUpdates = cities.map(city => {
-    let wood = 5, stone = 5, iron = 5, food = 10;
-    for (const b of city.buildings) {
-      if (b.key === 'LUMBER') wood += getProductionAtLevel('LUMBER', b.level, buildingsData);
-      else if (b.key === 'QUARRY') stone += getProductionAtLevel('QUARRY', b.level, buildingsData);
-      else if (b.key === 'IRON_MINE') iron += getProductionAtLevel('IRON_MINE', b.level, buildingsData);
-      else if (b.key === 'FARM') food += getProductionAtLevel('FARM', b.level, buildingsData);
+// Table de production précalculée (clé, niveau 1-20) -> prod/h, envoyée une fois en VALUES SQL
+let _prodTableSql = null;
+function getProdTableSql() {
+  if (_prodTableSql) return _prodTableSql;
+  const rows = [];
+  for (const key of ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM']) {
+    for (let lvl = 1; lvl <= 25; lvl++) {
+      rows.push(Prisma.sql`(${key}, ${lvl}, ${getProductionAtLevel(key, lvl, buildingsData)}::float)`);
     }
-    return prisma.city.update({
-      where: { id: city.id },
-      data: {
-        wood: Math.min(city.wood + wood * TICK_HOURS, city.maxStorage),
-        stone: Math.min(city.stone + stone * TICK_HOURS, city.maxStorage),
-        iron: Math.min(city.iron + iron * TICK_HOURS, city.maxStorage),
-        food: Math.min(city.food + food * TICK_HOURS, city.maxFoodStorage)
-      }
-    });
+  }
+  _prodTableSql = Prisma.join(rows);
+  return _prodTableSql;
+}
+
+async function processResourceProduction(TICK_HOURS) {
+  // 100% SQL : une seule requête pour toutes les villes, aucune lecture côté Node
+  await prisma.$executeRaw`
+    UPDATE "City" AS c SET
+      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
+      stone = LEAST(c.stone + (COALESCE(p.s, 0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
+      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
+      food  = LEAST(c.food  + (COALESCE(p.f, 0) + 10) * ${TICK_HOURS}, c."maxFoodStorage")
+    FROM (
+      SELECT cb."cityId",
+        SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
+        SUM(CASE WHEN cb.key = 'QUARRY'    THEN pt.prod ELSE 0 END) AS s,
+        SUM(CASE WHEN cb.key = 'IRON_MINE' THEN pt.prod ELSE 0 END) AS i,
+        SUM(CASE WHEN cb.key = 'FARM'      THEN pt.prod ELSE 0 END) AS f
+      FROM "CityBuilding" cb
+      JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod)
+        ON pt.key = cb.key AND pt.level = cb.level
+      GROUP BY cb."cityId"
+    ) AS p
+    WHERE c.id = p."cityId" AND c."isSieged" = false
+  `;
+  // Villes sans bâtiment de production : production de base uniquement
+  await prisma.$executeRaw`
+    UPDATE "City" AS c SET
+      wood  = LEAST(c.wood  + 5  * ${TICK_HOURS}, c."maxStorage"),
+      stone = LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage"),
+      iron  = LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage"),
+      food  = LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage")
+    WHERE c."isSieged" = false AND NOT EXISTS (
+      SELECT 1 FROM "CityBuilding" cb
+      WHERE cb."cityId" = c.id AND cb.key IN ('LUMBER','QUARRY','IRON_MINE','FARM')
+    )
+  `;
+}
+
+// Table upkeep par unité (clé -> conso/h), envoyée une fois en VALUES SQL
+let _upkeepTableSql = null;
+function getUpkeepTableSql() {
+  if (_upkeepTableSql) return _upkeepTableSql;
+  const rows = unitsData.map(u => {
+    const up = config.army.upkeepPerTier[u.tier] || config.army.upkeepPerTier.base;
+    return Prisma.sql`(${u.key}, ${up}::float)`;
   });
-  await Promise.all(cityUpdates);
+  _upkeepTableSql = Prisma.join(rows);
+  return _upkeepTableSql;
 }
 
 async function processUpkeep(TICK_HOURS) {
-  const allArmies = await prisma.army.findMany({ where: { cityId: { not: null } }, include: { units: true } });
-  const armiesByCity = {};
-  for (const army of allArmies) {
-    if (!army.cityId) continue;
-    if (!armiesByCity[army.cityId]) armiesByCity[army.cityId] = [];
-    armiesByCity[army.cityId].push(army);
-  }
-  for (const [cityId, cityArmies] of Object.entries(armiesByCity)) {
-    let totalFoodConsumption = 0;
-    for (const army of cityArmies) {
-      for (const unit of army.units) {
-        const unitDef = unitsData.find(u => u.key === unit.unitKey);
-        const upkeep = config.army.upkeepPerTier[unitDef?.tier] || config.army.upkeepPerTier.base;
-        totalFoodConsumption += unit.count * upkeep;
-      }
-    }
-    const consumption = totalFoodConsumption * TICK_HOURS;
-    if (consumption > 0) {
-      const city = await prisma.city.findUnique({ where: { id: cityId } });
-      if (city) {
-        const newFood = Math.max(0, city.food - consumption);
-        await prisma.city.update({ where: { id: cityId }, data: { food: newFood } });
-        if (newFood <= 0) {
-          for (const army of cityArmies) {
-            for (const unit of army.units) {
-              const losses = Math.ceil(unit.count * config.army.starvationLossRate);
-              if (losses > 0) {
-                const remaining = Math.max(0, unit.count - losses);
-                if (remaining > 0) { await prisma.armyUnit.update({ where: { id: unit.id }, data: { count: remaining } }); }
-                else { await prisma.armyUnit.delete({ where: { id: unit.id } }); }
-                console.log(`[STARVATION] ${losses}x ${unit.unitKey} morts de faim!`);
-              }
-            }
-          }
-        }
-      }
-    }
+  // 1) Décrément de nourriture : une seule requête SQL pour toutes les villes
+  await prisma.$executeRaw`
+    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * ${TICK_HOURS})
+    FROM (
+      SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
+      FROM "Army" a
+      JOIN "ArmyUnit" au ON au."armyId" = a.id
+      JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
+      WHERE a."cityId" IS NOT NULL
+      GROUP BY a."cityId"
+    ) AS cons
+    WHERE c.id = cons."cityId" AND cons.total > 0
+  `;
+
+  // 2) Famine : traitée en 3 requêtes SQL fixes, quel que soit le nombre de villes affamées
+  const starvedGroups = await prisma.$executeRaw`
+    UPDATE "ArmyUnit" AS au
+    SET count = au.count - CEIL(au.count * ${config.army.starvationLossRate})
+    FROM "Army" a, "City" c
+    WHERE au."armyId" = a.id AND a."cityId" = c.id AND c.food <= 0
+  `;
+  if (starvedGroups > 0) {
+    const deleted = await prisma.armyUnit.deleteMany({ where: { count: { lte: 0 } } });
+    console.log(`[STARVATION] ${starvedGroups} groupes d'unités affamés (${deleted.count} groupes anéantis)`);
   }
 }
 

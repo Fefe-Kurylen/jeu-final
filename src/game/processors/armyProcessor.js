@@ -6,6 +6,7 @@ const { unitsData, factionsData } = require('../../config/gamedata');
 const { calculateTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../../utils/calculations');
 const { resolveCombat, resolveCombatDetailed } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits } = require('../../services/woundedService');
+const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, collectResourceLoot } = require('../../services/armyService');
 
 async function processArmyMovements(now) {
@@ -102,7 +103,7 @@ async function handleAttack(army, now) {
   const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
   const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
   const garrisonArmy = targetCity.armies.find(a => a.isGarrison);
-  const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, army.hero, garrisonArmy?.hero);
+  const result = resolveCombatDetailed(army.units, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, army.hero, garrisonArmy?.hero, army.owner.faction, targetCity.player.faction);
 
   // Apply all combat effects atomically
   await prisma.$transaction(async (tx) => {
@@ -122,10 +123,32 @@ async function handleAttack(army, now) {
         else { await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } }); }
       }
     }
-    // Wall damage
-    if (result.attackerWon) {
-      const wallDamage = Math.floor(targetCity.wallMaxHp * 0.1 * (1 + result.rounds.length * 0.05));
-      await tx.city.update({ where: { id: targetCity.id }, data: { wallHp: Math.max(0, targetCity.wallHp - wallDamage) } });
+    // Wall damage : base + contribution des engins de siège survivants
+    {
+      const siegeSurvivors = result.attackerFinalUnits.reduce((sum, u) => {
+        const def = require('../../config/gamedata').unitsData.find(x => x.key === u.key);
+        return def?.class === 'SIEGE' ? sum + u.remaining : sum;
+      }, 0);
+      const siegeEngineBonus = 1 + (getFactionBonus(army.owner.faction, 'siegeEngineAttack', factionsData) || 0) / 100;
+      const perUnit = config.combat.siegeWallDamagePerUnit || 40;
+      const baseDamage = result.attackerWon ? Math.floor(targetCity.wallMaxHp * 0.1 * (1 + result.rounds.length * 0.05)) : 0;
+      // Les engins endommagent le mur même en cas de défaite (à 30% d'efficacité)
+      const siegeDamage = Math.floor(siegeSurvivors * perUnit * siegeEngineBonus * (result.attackerWon ? 1 : 0.3));
+      const totalDamage = baseDamage + siegeDamage;
+      if (totalDamage > 0) {
+        const newHp = targetCity.wallHp - totalDamage;
+        if (newHp <= 0) {
+          // Mur percé : le bâtiment MUR perd un niveau, les PV repartent au max
+          const wallBuilding = targetCity.buildings.find(b => b.key === 'WALL');
+          if (wallBuilding && wallBuilding.level > 0) {
+            await tx.cityBuilding.update({ where: { id: wallBuilding.id }, data: { level: wallBuilding.level - 1 } });
+            console.log(`[SIEGE] Mur de ${targetCity.name} percé ! Niveau ${wallBuilding.level} -> ${wallBuilding.level - 1}`);
+          }
+          await tx.city.update({ where: { id: targetCity.id }, data: { wallHp: targetCity.wallMaxHp } });
+        } else {
+          await tx.city.update({ where: { id: targetCity.id }, data: { wallHp: newHp } });
+        }
+      }
     }
     // Battle reports (attacker + defender)
     const reportData = {
@@ -147,6 +170,14 @@ async function handleAttack(army, now) {
       await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     }
   });
+
+  // XP des héros : proportionnelle aux unités adverses tuées (vainqueur x1, perdant x0.3)
+  try {
+    const atkXp = Math.floor(result.defenderTotalKilled * 2 * (result.attackerWon ? 1 : 0.3));
+    const defXp = Math.floor(result.attackerTotalKilled * 2 * (result.attackerWon ? 0.3 : 1));
+    if (army.heroId) await awardHeroXp(army.heroId, atkXp);
+    if (garrisonArmy?.heroId) await awardHeroXp(garrisonArmy.heroId, defXp);
+  } catch (xpErr) { console.error('[HERO XP]', xpErr.message); }
 
   // Wounded units (outside transaction - uses its own prisma client)
   const defenderWounded = await calculateWoundedUnits(targetCity.id, result.defenderFinalUnits, targetCity.player.faction);

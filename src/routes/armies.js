@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
@@ -29,7 +30,7 @@ router.post('/create', auth, async (req, res) => {
     if (existingArmy) return res.status(400).json({ error: `Slot ${slot} déjà occupé` });
     const army = await prisma.army.create({ data: { ownerId: req.user.playerId, cityId, slot, name: name || `Armée ${slot}`, x: city.x, y: city.y, status: 'IDLE', isGarrison: false } });
     res.json({ message: 'Armée créée', army });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // PATCH /api/army/:id/rename
@@ -41,7 +42,7 @@ router.patch('/:id/rename', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     await prisma.army.update({ where: { id: army.id }, data: { name } });
     res.json({ message: 'Armée renommée' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/assign-hero
@@ -56,7 +57,7 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
     if (armyWithHero) return res.status(400).json({ error: 'Héros déjà assigné à une autre armée' });
     await prisma.army.update({ where: { id: army.id }, data: { heroId: hero.id } });
     res.json({ message: 'Héros assigné' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/unassign-hero
@@ -67,7 +68,7 @@ router.post('/:id/unassign-hero', auth, async (req, res) => {
     if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée doit être en ville' });
     await prisma.army.update({ where: { id: army.id }, data: { heroId: null } });
     res.json({ message: 'Héros retiré' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/adjust-unit (delta-based, used by frontend)
@@ -107,7 +108,7 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/set-unit
@@ -148,7 +149,7 @@ router.post('/:id/set-unit', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // DELETE /api/army/:id/disband
@@ -177,7 +178,7 @@ router.delete('/:id/disband', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/move
@@ -195,7 +196,7 @@ router.post('/:id/move', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: x, targetY: y, arrivalAt, missionType: 'MOVE' } });
     res.json({ message: 'Armee en mouvement', travelTime, arrivalAt });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/attack
@@ -222,7 +223,7 @@ router.post('/:id/attack', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'ATTACKING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'ATTACK' } });
     res.json({ message: 'Attaque lancee', travelTime, arrivalAt, target: targetCity.name });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/raid
@@ -242,7 +243,7 @@ router.post('/:id/raid', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RAIDING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'RAID' } });
     res.json({ message: 'Raid lance', travelTime, arrivalAt, target: targetCity.name });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/raid-resource
@@ -275,7 +276,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RAIDING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'RAID_RESOURCE' } });
     res.json({ message: 'Armée en route', travelTime, arrivalAt, target: `${node.resourceType} (${node.x}, ${node.y})` });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/collect-resource
@@ -308,7 +309,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/return
@@ -323,7 +324,7 @@ router.post('/:id/return', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestStartedAt: null, harvestResourceType: null } });
     res.json({ message: 'Retour en cours', travelTime, arrivalAt });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/spy
@@ -341,7 +342,7 @@ router.post('/:id/spy', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'SPYING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'SPY' } });
     res.json({ message: 'Espionnage lancé', travelTime, arrivalAt, target: targetCity.name });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/army/:id/transport
@@ -391,7 +392,7 @@ router.post('/:id/transport', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/armies/send (dispatch endpoint)
@@ -424,7 +425,7 @@ router.post('/send', auth, async (req, res) => {
       await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, missionType: 'MOVE' } });
       res.json({ message: `Armee en mouvement vers (${parsedX}, ${parsedY})` });
     }
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // GET /api/army/:id
@@ -434,7 +435,7 @@ router.get('/:id', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     const power = calculateArmyPower(army.units, unitsData);
     res.json({ ...army, power });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // GET /api/armies
@@ -443,7 +444,21 @@ router.get('/', auth, async (req, res) => {
     const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: true } });
     const armiesWithPower = armies.map(a => ({ ...a, power: calculateArmyPower(a.units, unitsData) }));
     res.json(armiesWithPower);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
+});
+
+// POST /api/army/:id/rename
+router.post('/:id/rename', auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 30) {
+      return res.status(400).json({ error: 'Nom invalide (2-30 caractères)' });
+    }
+    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId } });
+    if (!army) return res.status(404).json({ error: 'Armée introuvable' });
+    await prisma.army.update({ where: { id: army.id }, data: { name: name.trim() } });
+    res.json({ message: 'Armée renommée' });
+  } catch (e) { sendError(res, e); }
 });
 
 module.exports = router;

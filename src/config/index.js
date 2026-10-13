@@ -23,8 +23,8 @@ const config = {
   // Rate limiting
   rateLimit: {
     windowMs: 60 * 1000,
-    maxAuth: 5,   // 5 login attempts per minute (was 10 - too weak)
-    maxApi: 60    // 60 API requests per minute (was 100)
+    maxAuth: parseInt(process.env.RATE_MAX_AUTH, 10) || 5,    // 5 tentatives de connexion par minute
+    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240     // 240 req/min : le client fait ~12 req/min en fond + carte + actions ; 60 provoquait des 429 en jeu actif
   },
 
   // Build queue
@@ -60,6 +60,8 @@ const config = {
   // Combat
   combat: {
     maxRounds: 10,
+    roundDamageFactor: 0.18,  // fraction des dégâts appliquée par round (sinon annihilation mutuelle en 1-2 rounds)
+    siegeWallDamagePerUnit: 40,  // PV de mur détruits par engin de siège survivant
     wallBonusPerLevel: 0.03,
     moatBonusPerLevel: 0.02,
     heroBonusPerPoint: 0.01,

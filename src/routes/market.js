@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { unitsData, factionsData } = require('../config/gamedata');
@@ -10,7 +11,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const offers = await prisma.marketOffer.findMany({ where: { status: 'ACTIVE' }, include: { player: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } });
     res.json(offers);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/trade/send
@@ -45,7 +46,7 @@ router.post('/trade/send', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/market/offer
@@ -66,7 +67,7 @@ router.post('/offer', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/market/offer/:id/accept
@@ -89,7 +90,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // DELETE /api/market/offer/:id
@@ -110,7 +111,7 @@ router.delete('/offer/:id', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // POST /api/market/npc-trade
@@ -137,7 +138,7 @@ router.post('/npc-trade', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 module.exports = router;

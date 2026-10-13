@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
@@ -21,7 +22,7 @@ router.get('/', auth, async (req, res) => {
     });
     res.json(citiesWithTier);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -129,7 +130,7 @@ router.post('/:id/build', auth, async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('Build error:', e);
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -218,7 +219,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -239,7 +240,7 @@ router.get('/:id/wounded', auth, async (req, res) => {
     });
     res.json(woundedWithDetails);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -283,7 +284,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -308,7 +309,7 @@ router.get('/incoming-attacks', auth, async (req, res) => {
     });
     res.json(attacks);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 

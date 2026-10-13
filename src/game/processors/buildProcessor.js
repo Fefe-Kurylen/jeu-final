@@ -3,6 +3,50 @@
 const prisma = require('../../config/database');
 const config = require('../../config');
 const { buildingsData } = require('../../config/gamedata');
+const { getStorageAtLevel } = require('../../utils/calculations');
+
+const BASE_STORAGE = 1000;
+
+// Recalcule maxStorage / maxFoodStorage d'une ville à partir de ses bâtiments
+async function syncCityStorage(cityId) {
+  const buildings = await prisma.cityBuilding.findMany({ where: { cityId, key: { in: ['WAREHOUSE', 'SILO'] } }, select: { key: true, level: true } });
+  let storage = 0, foodStorage = 0;
+  for (const b of buildings) {
+    if (b.key === 'WAREHOUSE') storage += getStorageAtLevel('WAREHOUSE', b.level, buildingsData);
+    else foodStorage += getStorageAtLevel('SILO', b.level, buildingsData);
+  }
+  await prisma.city.update({
+    where: { id: cityId },
+    data: { maxStorage: Math.max(BASE_STORAGE, storage), maxFoodStorage: Math.max(BASE_STORAGE, foodStorage) }
+  });
+}
+
+// Répare le stockage de TOUTES les villes (appelé une fois au démarrage)
+async function syncAllCityStorage() {
+  const { Prisma } = require('@prisma/client');
+  const rows = [];
+  for (const key of ['WAREHOUSE', 'SILO']) {
+    for (let lvl = 1; lvl <= 25; lvl++) rows.push(Prisma.sql`(${key}, ${lvl}, ${getStorageAtLevel(key, lvl, buildingsData)})`);
+  }
+  const table = Prisma.join(rows);
+  const updated = await prisma.$executeRaw`
+    UPDATE "City" AS c SET
+      "maxStorage"     = GREATEST(${BASE_STORAGE}, COALESCE(st.w, 0)),
+      "maxFoodStorage" = GREATEST(${BASE_STORAGE}, COALESCE(st.f, 0))
+    FROM (
+      SELECT cb."cityId",
+        SUM(CASE WHEN cb.key = 'WAREHOUSE' THEN t.cap ELSE 0 END) AS w,
+        SUM(CASE WHEN cb.key = 'SILO'      THEN t.cap ELSE 0 END) AS f
+      FROM "CityBuilding" cb
+      JOIN (VALUES ${table}) AS t(key, level, cap) ON t.key = cb.key AND t.level = cb.level
+      GROUP BY cb."cityId"
+    ) AS st
+    WHERE c.id = st."cityId"
+      AND (c."maxStorage" <> GREATEST(${BASE_STORAGE}, COALESCE(st.w, 0))
+        OR c."maxFoodStorage" <> GREATEST(${BASE_STORAGE}, COALESCE(st.f, 0)))
+  `;
+  if (updated > 0) console.log(`[STORAGE] ${updated} villes resynchronisées (fix maxStorage)`);
+}
 
 async function processBuilds(now) {
   const builds = await prisma.buildQueueItem.findMany({
@@ -29,6 +73,8 @@ async function processBuilds(now) {
           await prisma.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel } });
         }
         await prisma.buildQueueItem.delete({ where: { id: b.id } });
+        // Bug fix : le stockage de la ville doit suivre les niveaux d'Entrepôt/Silo
+        if (b.buildingKey === 'WAREHOUSE' || b.buildingKey === 'SILO') await syncCityStorage(b.cityId);
         console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
       } catch (buildErr) {
         console.error(`[BUILD ERROR] ${b.buildingKey}:`, buildErr.message);
@@ -51,4 +97,4 @@ async function processBuilds(now) {
   }
 }
 
-module.exports = { processBuilds };
+module.exports = { processBuilds, syncCityStorage, syncAllCityStorage };

@@ -45,7 +45,7 @@ async function resolveTribeCombat(army, node, playerId) {
 
   if (combat.attackerWon) {
     await prisma.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: newDefenderUnits, defenderPower: 0, lastDefeat: new Date() } });
-    if (army.heroId) { await prisma.hero.update({ where: { id: army.heroId }, data: { xp: { increment: Math.floor(node.defenderPower * 0.5) } } }); }
+    if (army.heroId) { const { awardHeroXp } = require('./heroXpService'); await awardHeroXp(army.heroId, Math.floor(node.defenderPower * 0.5)); }
   } else {
     await prisma.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: newDefenderUnits, defenderPower: Math.floor(node.defenderPower * (1 - combat.defenderLossRate)) } });
   }

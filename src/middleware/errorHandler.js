@@ -2,12 +2,11 @@
 const config = require('../config');
 
 function errorHandler(err, req, res, next) {
-  console.error(`[ERROR] ${req.method} ${req.path}:`, err.stack || err.message);
-  const status = err.status || 500;
+  console.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
   if (config.isProduction) {
-    res.status(status).json({ error: status >= 500 ? 'Erreur serveur' : err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   } else {
-    res.status(status).json({ error: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 }
 
