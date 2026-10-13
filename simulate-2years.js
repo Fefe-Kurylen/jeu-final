@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // ============================================================
 // SIMULATION 2 ANS - Imperium Antiquitas
-// 6 joueurs × 6 factions × 4,380 ticks (4h chaque)
-// Optimized: 4h ticks, smarter AI, better economy balance
+// 6 joueurs × 6 factions × 2,920 ticks (6h chaque)
 // ============================================================
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://claude:claude@localhost:5432/monjeu';
 
@@ -208,7 +207,7 @@ async function simulate() {
 
   // ============ MAIN LOOP ============
   for (let tick = 1; tick <= TOTAL_TICKS; tick++) {
-    simulatedTime += TICK_HOURS * 3600000; // +4 hours
+    simulatedTime += TICK_HOURS * 3600000;
     const now = new global.Date(simulatedTime);
     const hour = tick * TICK_HOURS; // current game hour
 
@@ -233,7 +232,7 @@ async function simulate() {
 
     // AI ACTIONS (each tick = 4h, so run AI every tick = equivalent to every 4h)
     for (const p of players) {
-      try { await aiAction(p, hour, now, tick); } catch(e) {}
+      try { await aiAction(p, hour, now, tick, players); } catch(e) {}
     }
 
     // POPULATION (every 4 ticks = 24h game time)
@@ -279,7 +278,7 @@ async function simulate() {
 }
 
 // ============ AI ============
-async function aiAction(player, hour, now, tick) {
+async function aiAction(player, hour, now, tick, players) {
   const city = await prisma.city.findFirst({
     where:{id:player.cityId},
     include:{buildings:true,buildQueue:true,recruitQueue:true,armies:{include:{units:true}}}
@@ -477,7 +476,7 @@ async function aiAction(player, hour, now, tick) {
     const newUpkeepRate = config.army.upkeepPerTier[tier] || 5;
     const maxSustainable = Math.floor(foodSurplus * 0.6 / newUpkeepRate);
     count = Math.min(count, Math.max(1, maxSustainable));
-    if (count < 1) return;
+    if (count < 1) break recruit_block;
 
     const uDef = unitsData.find(u => u.key === unitKey);
     const classCosts = config.recruit.baseCosts[uDef?.class] || config.recruit.baseCosts.INFANTRY;
@@ -488,7 +487,7 @@ async function aiAction(player, hour, now, tick) {
       iron: Math.ceil(classCosts.iron * tierCostMult * count),
       food: Math.ceil(classCosts.food * tierCostMult * count)
     };
-    if (!canAfford(city, cost)) return;
+    if (!canAfford(city, cost)) break recruit_block;
 
     const classBaseTime = config.recruit.baseTimeSec[uDef?.class] || 360;
     const tierTimeMult = config.recruit.tierTimeMultipliers[tier] || 1.0;
