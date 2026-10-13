@@ -6,10 +6,20 @@ const auth = require('../middleware/auth');
 const { validateAllianceTag, cleanText } = require('../utils/validation');
 const { getRelation } = require('../services/diplomacyService');
 
+const memberInclude = { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } };
+
 router.get('/', auth, async (req, res) => {
   try {
-    const alliances = await prisma.alliance.findMany({ include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const alliances = await prisma.alliance.findMany({ include: memberInclude, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(alliances);
+  } catch (e) { sendError(res, e); }
+});
+
+// GET /api/alliance/mine — the caller's alliance with members, whatever the size of the alliance list
+router.get('/mine', auth, async (req, res) => {
+  try {
+    const member = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: { include: memberInclude } } });
+    res.json(member ? { role: member.role, alliance: member.alliance } : null);
   } catch (e) { sendError(res, e); }
 });
 
@@ -20,25 +30,68 @@ router.post('/create', auth, async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
     if (!validateAllianceTag(tag)) return res.status(400).json({ error: 'Tag invalide (2-5 caractères alphanumériques)' });
     const description = req.body.description ? (cleanText(String(req.body.description).substring(0, 400), 0, 200) || '') : '';
-    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
-    if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
-    const alliance = await prisma.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
-    await prisma.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' } });
-    res.json({ message: 'Alliance creee', alliance });
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+      if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
+      const alliance = await tx.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
+      await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' } });
+      await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
+      return { message: 'Alliance creee', alliance };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     if (e.code === 'P2002') return res.status(400).json({ error: 'Nom ou tag deja pris' });
     sendError(res, e);
   }
 });
 
+// Invitations: joining requires one, otherwise anyone could join a target's alliance to become immune
+router.post('/invite', auth, async (req, res) => {
+  try {
+    const myMember = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+    if (!myMember || !['LEADER', 'OFFICER'].includes(myMember.role)) return res.status(403).json({ error: 'Officier requis' });
+    const playerName = typeof req.body.playerName === 'string' ? req.body.playerName.trim() : '';
+    const target = playerName ? await prisma.player.findUnique({ where: { name: playerName }, include: { alliance: true } }) : null;
+    if (!target) return res.status(404).json({ error: 'Joueur introuvable' });
+    if (target.alliance) return res.status(400).json({ error: 'Ce joueur est déjà dans une alliance' });
+    await prisma.allianceInvite.upsert({
+      where: { allianceId_playerId: { allianceId: myMember.allianceId, playerId: target.id } },
+      update: {}, create: { allianceId: myMember.allianceId, playerId: target.id }
+    });
+    res.json({ message: `Invitation envoyée à ${target.name}` });
+  } catch (e) { sendError(res, e); }
+});
+
+router.get('/invites', auth, async (req, res) => {
+  try {
+    const invites = await prisma.allianceInvite.findMany({ where: { playerId: req.user.playerId }, include: { alliance: { select: { id: true, name: true, tag: true } } }, orderBy: { createdAt: 'desc' } });
+    res.json(invites);
+  } catch (e) { sendError(res, e); }
+});
+
+router.post('/invites/:id/decline', auth, async (req, res) => {
+  try {
+    await prisma.allianceInvite.deleteMany({ where: { id: req.params.id, playerId: req.user.playerId } });
+    res.json({ message: 'Invitation refusée' });
+  } catch (e) { sendError(res, e); }
+});
+
 router.post('/:id/join', auth, async (req, res) => {
   try {
-    const alliance = await prisma.alliance.findUnique({ where: { id: req.params.id } });
-    if (!alliance) return res.status(404).json({ error: 'Alliance non trouvee' });
-    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
-    if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
-    await prisma.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
-    res.json({ message: 'Alliance rejoint' });
+    const result = await prisma.$transaction(async (tx) => {
+      const alliance = await tx.alliance.findUnique({ where: { id: req.params.id } });
+      if (!alliance) return { error: 'Alliance non trouvee', status: 404 };
+      const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+      if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
+      const invite = await tx.allianceInvite.findUnique({ where: { allianceId_playerId: { allianceId: alliance.id, playerId: req.user.playerId } } });
+      if (!invite) return { error: 'Cette alliance recrute sur invitation', status: 403 };
+      await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
+      await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
+      return { message: 'Alliance rejointe' };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { sendError(res, e); }
 });
 
@@ -50,7 +103,6 @@ router.post('/leave', auth, async (req, res) => {
       if (member.role === 'LEADER') {
         const otherMembers = await tx.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
         if (otherMembers > 0) return { error: 'Transferez le leadership avant de partir', status: 400 };
-        // Delete in correct order: diplomacy first (FK refs alliance), then member, then alliance
         await tx.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
         await tx.allianceMember.delete({ where: { id: member.id } });
         await tx.alliance.delete({ where: { id: member.allianceId } });
@@ -121,7 +173,7 @@ router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
     if (!targetAlliance) return res.status(404).json({ error: 'Alliance cible non trouvée' });
     if (targetAlliance.id === myMember.allianceId) return res.status(400).json({ error: 'Impossible de modifier la diplomatie avec vous-même' });
     if (status === 'ALLY') {
-      const currentAllies = await prisma.allianceDiplomacy.count({ where: { allianceId: myMember.allianceId, status: 'ALLY' } });
+      const currentAllies = await prisma.allianceDiplomacy.count({ where: { allianceId: myMember.allianceId, status: 'ALLY', NOT: { targetAllianceId: targetAlliance.id } } });
       if (currentAllies >= 3) return res.status(400).json({ error: 'Maximum 3 alliances alliées' });
     }
     await prisma.allianceDiplomacy.upsert({

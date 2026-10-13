@@ -95,10 +95,11 @@ router.post('/assign-points', auth, async (req, res) => {
     }
     const total = (atk || 0) + (def || 0) + (spd || 0) + (log || 0);
     if (total <= 0 || total > hero.statPoints) return res.status(400).json({ error: 'Pas assez de points' });
-    await prisma.hero.update({
-      where: { id: hero.id },
-      data: { atkPoints: hero.atkPoints + (atk || 0), defPoints: hero.defPoints + (def || 0), spdPoints: hero.spdPoints + (spd || 0), logPoints: hero.logPoints + (log || 0), statPoints: hero.statPoints - total }
+    const spent = await prisma.hero.updateMany({
+      where: { id: hero.id, statPoints: { gte: total } },
+      data: { atkPoints: { increment: atk || 0 }, defPoints: { increment: def || 0 }, spdPoints: { increment: spd || 0 }, logPoints: { increment: log || 0 }, statPoints: { decrement: total } }
     });
+    if (spent.count !== 1) return res.status(400).json({ error: 'Pas assez de points' });
     res.json({ message: 'Points assignes' });
   } catch (e) { sendError(res, e); }
 });

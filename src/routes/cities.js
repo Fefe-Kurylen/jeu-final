@@ -4,23 +4,42 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
-const { unitsData, buildingsData } = require('../config/gamedata');
-const { factionsData } = require('../config/gamedata');
+const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
-const { isNonNegInt } = require('../utils/validation');
+const { lockCity, debitCity } = require('../utils/db');
+
+const FIELD_KEYS = Object.keys(config.city.fieldSlots);
+const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
 
 // Highest level among buildings of a key (fields like FARM exist on several slots).
 // A city without a Main Hall counts as having it at level 1, as in the level cap rule below.
 const maxBuildingLevel = (buildings, key) => buildings.reduce((m, b) => (b.key === key && b.level > m ? b.level : m), key === 'MAIN_HALL' ? 1 : 0);
 
-const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
+// Slot a building may occupy: fields live on typed slots (101-118), the Main Hall in the centre (0),
+// everything else on a free ring slot (1-19). Returns null when the request is invalid.
+function resolveSlot(buildingKey, slot, existing, city) {
+  if (existing) return existing.slot;
+  if (FIELD_KEYS.includes(buildingKey)) return config.city.fieldSlots[buildingKey].includes(slot) ? slot : null;
+  if (buildingKey === 'MAIN_HALL') return 0;
+  const used = new Set(city.buildings.map(b => b.slot));
+  city.buildQueue.forEach(q => used.add(q.slot));
+  if (slot !== null) return slot >= 1 && slot <= config.city.maxSlot && !used.has(slot) ? slot : null;
+  for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) return s;
+  return null;
+}
+
+function buildCost(buildingDef, targetLevel) {
+  const base = buildingDef.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
+  const mult = Math.pow(config.build.costMultiplierBase, targetLevel - 1);
+  return { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+}
 
 // GET /api/cities
 router.get('/', auth, async (req, res) => {
   try {
     const cities = await prisma.city.findMany({
       where: { playerId: req.user.playerId },
-      include: { buildings: true, buildQueue: { orderBy: { slot: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
+      include: { buildings: true, buildQueue: { orderBy: { startedAt: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
     });
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
@@ -36,12 +55,18 @@ router.get('/', auth, async (req, res) => {
 // POST /api/city/:id/build
 router.post('/:id/build', auth, async (req, res) => {
   try {
-    const { buildingKey, slot } = req.body;
+    const { buildingKey } = req.body;
+    const rawSlot = req.body.slot;
+    const slot = rawSlot === undefined || rawSlot === null || rawSlot === '' ? null : Number(rawSlot);
     if (!buildingKey || typeof buildingKey !== 'string') return res.status(400).json({ error: 'Bâtiment requis' });
-    if (slot !== undefined && slot !== null && !isNonNegInt(slot)) return res.status(400).json({ error: 'Emplacement invalide' });
+    if (slot !== null && !Number.isInteger(slot)) return res.status(400).json({ error: 'Emplacement invalide' });
     const buildingDef = buildingsData.find(b => b.key === buildingKey);
     if (!buildingDef) return res.status(400).json({ error: 'Bâtiment inconnu' });
+    const isField = FIELD_KEYS.includes(buildingKey);
+    if (isField && slot === null) return res.status(400).json({ error: 'Emplacement requis pour un champ' });
+
     const result = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, req.params.id);
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
         include: { buildings: true, buildQueue: true, player: true }
@@ -50,23 +75,19 @@ router.post('/:id/build', auth, async (req, res) => {
       if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
 
       const MAX_RUNNING = config.build.maxRunning;
-      const MAX_QUEUED = config.build.maxQueued;
-      const MAX_TOTAL = MAX_RUNNING + MAX_QUEUED;
+      const MAX_TOTAL = MAX_RUNNING + config.build.maxQueued;
+      if (city.buildQueue.length >= MAX_TOTAL) return { error: `File de construction pleine (max ${MAX_TOTAL})`, status: 400 };
 
-      const runningCount = city.buildQueue.filter(b => b.status === 'RUNNING').length;
-      const totalCount = city.buildQueue.length;
-      if (totalCount >= MAX_TOTAL) return { error: `File de construction pleine (max ${MAX_TOTAL})`, status: 400 };
-
-      const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(buildingKey);
-      const existing = isFieldBuilding && slot
+      const existing = isField
         ? city.buildings.find(b => b.key === buildingKey && b.slot === slot)
         : city.buildings.find(b => b.key === buildingKey);
-      const inQueue = isFieldBuilding && slot
-        ? city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === slot).length
-        : city.buildQueue.filter(b => b.buildingKey === buildingKey).length;
+      const buildSlot = resolveSlot(buildingKey, slot, existing, city);
+      if (buildSlot === null) return { error: 'Emplacement invalide ou déjà occupé', status: 400 };
+
+      const inQueue = city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === buildSlot).length;
       const targetLevel = (existing?.level || 0) + inQueue + 1;
 
-      const maxLevel = buildingDef?.maxLevel || 20;
+      const maxLevel = buildingDef.maxLevel || 20;
       if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
 
       if (targetLevel === 1) {
@@ -78,62 +99,33 @@ router.post('/:id/build', auth, async (req, res) => {
       }
 
       if (buildingKey !== 'MAIN_HALL') {
-        const mainHall = city.buildings.find(b => b.key === 'MAIN_HALL');
-        const mainHallLevel = mainHall?.level || 1;
+        const mainHallLevel = maxBuildingLevel(city.buildings, 'MAIN_HALL');
         if (targetLevel > mainHallLevel) {
           return { error: `Le niveau du bâtiment ne peut pas dépasser celui du Bâtiment principal (Niv.${mainHallLevel})`, status: 400 };
         }
       }
 
-      const baseCost = buildingDef?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
-      const mult = Math.pow(config.build.costMultiplierBase, targetLevel - 1);
-      const cost = {
-        wood: Math.floor(baseCost.wood * mult), stone: Math.floor(baseCost.stone * mult),
-        iron: Math.floor(baseCost.iron * mult), food: Math.floor(baseCost.food * mult)
-      };
-
-      if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
+      const cost = buildCost(buildingDef, targetLevel);
+      if (!(await debitCity(tx, city.id, cost))) {
         return { error: 'Ressources insuffisantes', status: 400, cost, have: { wood: Math.floor(city.wood), stone: Math.floor(city.stone), iron: Math.floor(city.iron), food: Math.floor(city.food) } };
       }
 
-      await tx.city.update({
-        where: { id: city.id },
-        data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
-      });
-
-      const baseTime = buildingDef?.timeL1Sec || 60;
+      const baseTime = buildingDef.timeL1Sec || 60;
       let durationSec = Math.floor(baseTime * Math.pow(config.build.timeMultiplierBase, targetLevel - 1));
-
       const buildTimeBonus = getFactionBonus(city.player.faction, 'buildTimeReduction', factionsData);
       if (buildTimeBonus > 0) durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
+      durationSec = Math.max(1, durationSec);
 
       const now = new Date();
-      let startAt = now;
-      let status = 'RUNNING';
-
-      if (runningCount >= MAX_RUNNING) {
-        const allRunning = city.buildQueue.filter(b => b.status === 'RUNNING');
-        const earliestEnd = allRunning.sort((a, b) => new Date(a.endsAt) - new Date(b.endsAt))[0];
-        const allQueued = city.buildQueue.filter(b => b.status === 'QUEUED');
-        if (allQueued.length > 0) {
-          const lastQueued = allQueued.sort((a, b) => new Date(b.endsAt) - new Date(a.endsAt))[0];
-          startAt = new Date(lastQueued.endsAt);
-        } else {
-          startAt = new Date(earliestEnd.endsAt);
-        }
+      const running = city.buildQueue.filter(b => b.status === 'RUNNING');
+      let startAt = now, status = 'RUNNING';
+      if (running.length >= MAX_RUNNING) {
+        // Starts when the latest item of the queue ends (queued items run after the running ones)
+        const lastEnd = city.buildQueue.reduce((m, b) => Math.max(m, new Date(b.endsAt).getTime()), now.getTime());
+        startAt = new Date(lastEnd);
         status = 'QUEUED';
       }
-
       const endsAt = new Date(startAt.getTime() + durationSec * 1000);
-
-      let buildSlot = slot;
-      if (!buildSlot && existing) buildSlot = existing.slot;
-      if (!buildSlot) {
-        const usedSlots = new Set(city.buildings.map(b => b.slot));
-        city.buildQueue.forEach(q => usedSlots.add(q.slot));
-        buildSlot = 1;
-        while (usedSlots.has(buildSlot)) buildSlot++;
-      }
 
       const queueItem = await tx.buildQueueItem.create({
         data: { cityId: city.id, buildingKey, targetLevel, slot: buildSlot, startedAt: startAt, endsAt, status }
@@ -154,12 +146,14 @@ router.post('/:id/build', auth, async (req, res) => {
 router.post('/:id/recruit', auth, async (req, res) => {
   try {
     const { unitKey, count } = req.body;
-    if (!count || count < 1 || count > 10000 || !Number.isInteger(count)) return res.status(400).json({ error: 'Nombre invalide (1-10000)' });
+    if (!Number.isInteger(count) || count < 1 || count > config.limits.maxRecruitCount) return res.status(400).json({ error: `Nombre invalide (1-${config.limits.maxRecruitCount})` });
+    if (typeof unitKey !== 'string') return res.status(400).json({ error: 'Unite inconnue' });
 
     const unit = unitsData.find(u => u.key === unitKey);
     if (!unit) return res.status(400).json({ error: 'Unite inconnue' });
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, req.params.id);
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
         include: { recruitQueue: true, buildings: true, player: true }
@@ -173,10 +167,9 @@ router.post('/:id/recruit', auth, async (req, res) => {
       const greatBarracks = city.buildings.find(b => b.key === 'GREAT_BARRACKS');
       const greatStable = city.buildings.find(b => b.key === 'GREAT_STABLE');
 
-      // Use building data for unlock thresholds (GDD: unlockIntermediateTier=7, unlockEliteTier=15)
+      // Unlock thresholds come from building data (GDD: unlockIntermediateTier=7, unlockEliteTier=15)
       const barracksDef = buildingsData.find(b => b.key === 'BARRACKS');
       const stableDef = buildingsData.find(b => b.key === 'STABLE');
-      const workshopDef = buildingsData.find(b => b.key === 'WORKSHOP');
       const unlockInterBarracks = barracksDef?.effects?.unlockIntermediateTier || 7;
       const unlockEliteBarracks = barracksDef?.effects?.unlockEliteTier || 15;
       const unlockInterStable = stableDef?.effects?.unlockIntermediateTier || 7;
@@ -196,7 +189,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
       }
       if (unit.class === 'SIEGE') {
         if (!workshop) return { error: 'Atelier requis', status: 400 };
-        if (workshop.level < 5) return { error: 'Atelier niveau 5 requis', status: 400 };
+        if (workshop.level < config.recruit.siegeWorkshopLevel) return { error: `Atelier niveau ${config.recruit.siegeWorkshopLevel} requis`, status: 400 };
       }
 
       // Per-class base costs with tier multiplier (GDD formulas.json)
@@ -208,15 +201,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
         iron: Math.ceil(classCosts.iron * tierCostMult * count),
         food: Math.ceil(classCosts.food * tierCostMult * count)
       };
-
-      if (city.wood < cost.wood || city.stone < cost.stone || city.iron < cost.iron || city.food < cost.food) {
-        return { error: 'Ressources insuffisantes', status: 400, cost };
-      }
-
-      await tx.city.update({
-        where: { id: city.id },
-        data: { wood: city.wood - cost.wood, stone: city.stone - cost.stone, iron: city.iron - cost.iron, food: city.food - cost.food }
-      });
+      if (!(await debitCity(tx, city.id, cost))) return { error: 'Ressources insuffisantes', status: 400, cost };
 
       // Per-class base time with tier multiplier (GDD unit_training_times.json)
       const classBaseTime = config.recruit.baseTimeSec[unit.class] || 360;
@@ -233,7 +218,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
         data: { cityId: city.id, unitKey, count, buildingKey, startedAt: startAt, endsAt, status: 'RUNNING' }
       });
 
-      return { message: 'Recrutement lance', queueItem, durationSec: totalTime, cost };
+      return { message: 'Recrutement lance', queueItem, durationSec: totalTime, timePerUnit, cost };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
@@ -264,38 +249,32 @@ router.get('/:id/wounded', auth, async (req, res) => {
   }
 });
 
-// POST /api/city/:id/wounded/heal
+// POST /api/city/:id/wounded/heal — instant healing for 1 gold per unit
 router.post('/:id/wounded/heal', auth, async (req, res) => {
   try {
     const { unitKey } = req.body;
-    if (!unitKey) return res.status(400).json({ error: 'unitKey requis' });
+    if (!unitKey || typeof unitKey !== 'string') return res.status(400).json({ error: 'unitKey requis' });
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, req.params.id);
       const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
 
-      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
       const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
       if (!wounded) return { error: 'Pas de blessés de ce type', status: 404 };
 
       const goldCost = wounded.count;
-      if (player.gold < goldCost) return { error: `Pas assez d'or (${goldCost} requis)`, status: 400 };
+      const paid = await tx.player.updateMany({ where: { id: req.user.playerId, gold: { gte: goldCost } }, data: { gold: { decrement: goldCost } } });
+      if (paid.count !== 1) return { error: `Pas assez d'or (${goldCost} requis)`, status: 400 };
 
-      await tx.player.update({ where: { id: player.id }, data: { gold: player.gold - goldCost } });
-
-      const garrison = await tx.army.findFirst({
-        where: { cityId: city.id, isGarrison: true }, include: { units: true }
-      });
+      const garrison = await tx.army.findFirst({ where: { cityId: city.id, isGarrison: true } });
       if (garrison) {
-        const existingUnit = garrison.units.find(u => u.unitKey === unitKey);
-        if (existingUnit) {
-          await tx.armyUnit.update({ where: { id: existingUnit.id }, data: { count: existingUnit.count + wounded.count } });
-        } else {
-          const unitDef = unitsData.find(u => u.key === unitKey);
-          await tx.armyUnit.create({
-            data: { armyId: garrison.id, unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
-          });
-        }
+        const unitDef = unitsData.find(u => u.key === unitKey);
+        await tx.armyUnit.upsert({
+          where: { armyId_unitKey: { armyId: garrison.id, unitKey } },
+          update: { count: { increment: wounded.count } },
+          create: { armyId: garrison.id, unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
+        });
       }
       await tx.woundedUnit.delete({ where: { id: wounded.id } });
       return { success: true, healed: wounded.count, goldSpent: goldCost };
@@ -308,7 +287,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
   }
 });
 
-// GET /api/incoming-attacks
+// GET /api/city/incoming-attacks
 router.get('/incoming-attacks', auth, async (req, res) => {
   try {
     const playerCities = await prisma.city.findMany({

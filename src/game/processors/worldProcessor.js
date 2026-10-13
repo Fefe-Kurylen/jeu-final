@@ -1,7 +1,8 @@
 // ========== WORLD STATE PROCESSOR ==========
-// Population updates, orphan cleanup
+// Population updates, orphan cleanup, retention
 
 const prisma = require('../../config/database');
+const config = require('../../config');
 
 async function updatePopulation() {
   await prisma.$executeRaw`
@@ -26,4 +27,21 @@ async function cleanupOrphanedFlags() {
   if (orphanedNodes > 0) console.log(`[CLEANUP] ${orphanedNodes} orphaned hasPlayerArmy flags reset`);
 }
 
-module.exports = { updatePopulation, cleanupOrphanedFlags };
+// Old reports, finished expeditions and closed offers would otherwise grow without bound
+let lastPurgeAt = 0;
+async function purgeOldRecords(now) {
+  if (now.getTime() - lastPurgeAt < 3600000) return;
+  lastPurgeAt = now.getTime();
+  const days = (n) => new Date(now.getTime() - n * 86400000);
+  const r = config.tick.retentionDays;
+  const [reports, spy, expeditions, offers] = await Promise.all([
+    prisma.battleReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } }),
+    prisma.spyReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } }),
+    prisma.expedition.deleteMany({ where: { status: { in: ['COMPLETED', 'EXPIRED'] }, createdAt: { lt: days(r.expeditions) } } }),
+    prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED'] }, createdAt: { lt: days(r.offers) } } })
+  ]);
+  const total = reports.count + spy.count + expeditions.count + offers.count;
+  if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres supprimés`);
+}
+
+module.exports = { updatePopulation, cleanupOrphanedFlags, purgeOldRecords };

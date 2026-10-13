@@ -41,6 +41,7 @@ router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
           await tx.playerStats.create({ data: { playerId: player.id } });
           const city = await tx.city.create({ data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 } });
+          await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
           const hero = await tx.hero.create({ data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 } });
           await tx.army.create({ data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
           for (let i = 0; i < 3; i++) await createExpedition(player.id, tx);

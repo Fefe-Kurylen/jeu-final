@@ -18,7 +18,7 @@ const validateName = (name) => {
 };
 
 const validateFaction = (faction) => {
-  return config.validFactions.includes(faction?.toUpperCase());
+  return typeof faction === 'string' && config.validFactions.includes(faction.toUpperCase());
 };
 
 const validateCoordinates = (x, y) => {
@@ -37,6 +37,9 @@ const cleanText = (str, minLen = 1, maxLen = 30) => {
 
 const isNonNegInt = (v) => Number.isInteger(v) && v >= 0;
 
+// Resource amount accepted from a client: integer within [0, maxAmount]
+const isAmount = (v) => Number.isInteger(v) && v >= 0 && v <= config.limits.maxAmount;
+
 // Validate alliance tag (2-5 uppercase alphanumeric)
 const validateAllianceTag = (tag) => {
   if (!tag || typeof tag !== 'string') return false;
@@ -52,5 +55,6 @@ module.exports = {
   validateCoordinates,
   cleanText,
   isNonNegInt,
+  isAmount,
   validateAllianceTag
 };

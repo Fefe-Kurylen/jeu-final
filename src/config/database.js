@@ -11,7 +11,7 @@ const prisma = new PrismaClient({
   log: config.isProduction ? ['error'] : ['error', 'warn'],
   datasources: {
     db: {
-      url: dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=5&pool_timeout=20'
+      url: dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'connection_limit=' + (process.env.DB_POOL || 10) + '&pool_timeout=20'
     }
   }
 });

@@ -232,6 +232,7 @@ model WoundedUnit {
   healsAt DateTime
 
   @@unique([cityId, unitKey])
+  @@index([healsAt])
 }
 
 model BattleReport {
@@ -325,7 +326,7 @@ model MarketOffer {
 
   player Player? @relation(fields: [playerId], references: [id])
 
-  @@index([status])
+  @@index([status, createdAt])
   @@index([sellerId])
 }
 
@@ -340,6 +341,7 @@ model Alliance {
   members   AllianceMember[]
   diplomacy AllianceDiplomacy[] @relation("AllianceSource")
   targetOf  AllianceDiplomacy[] @relation("AllianceTarget")
+  invites   AllianceInvite[]
 }
 
 model AllianceMember {
@@ -390,4 +392,25 @@ model Expedition {
 
   @@index([playerId, status])
   @@index([status, endsAt])
+  @@index([status, expiresAt])
+}
+
+// Lease taken by the single process that runs the game tick
+model TickLock {
+  id          Int      @id
+  owner       String
+  lockedUntil DateTime
+}
+
+// Joining an alliance requires an invitation from one of its officers
+model AllianceInvite {
+  id         String   @id @default(uuid())
+  allianceId String
+  playerId   String
+  createdAt  DateTime @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@unique([allianceId, playerId])
+  @@index([playerId])
 }

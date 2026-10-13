@@ -3,11 +3,13 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
-const { validateCoordinates, cleanText } = require('../utils/validation');
+const { validateCoordinates, cleanText, isAmount } = require('../utils/validation');
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const { resolveTribeCombat } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
+const { lockArmy, lockCity, debitCity, transition, isId } = require('../utils/db');
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
@@ -18,6 +20,15 @@ const loadArmy = (id, playerId, include = {}, db = prisma) =>
 const travelTo = (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction);
 const spyTravelTo = (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
+
+// Common checks before a field army leaves: the garrison never leaves the city
+function readyToLeave(army, verb) {
+  if (!army) return { status: 404, error: 'Armée non trouvée' };
+  if (army.isGarrison) return { status: 400, error: 'La garnison ne quitte pas la ville : créez une armée au point de ralliement' };
+  if (army.status !== 'IDLE') return { status: 400, error: 'Armée déjà en mission' };
+  if (army.units.length === 0) return { status: 400, error: army.heroId ? `Le héros nécessite au moins 1 soldat pour ${verb}` : 'Armée vide' };
+  return null;
+}
 
 // Returns an error message when `army` may not run `mission` (ATTACK|RAID|SPY) against `targetCity`
 async function checkHostileTarget(army, targetCity, mission) {
@@ -33,6 +44,15 @@ async function checkHostileTarget(army, targetCity, mission) {
     const siegeCount = countSiegeEngines(army.units, unitsData);
     if (siegeCount < minSiegeRequired) return `Pour assiéger une ${getCityTierName(cityTier)}, il faut minimum ${minSiegeRequired} engin(s) de siège. Vous en avez ${siegeCount}.`;
   }
+  if (mission === 'RAID') {
+    // GDD: one raid per target city per attacker per 24h
+    const since = new Date(Date.now() - config.combat.raidCooldownHours * 3600000);
+    const recent = await prisma.battleReport.findFirst({ where: { attackerId: army.ownerId, playerId: army.ownerId, defenderId: targetCity.playerId, x: targetCity.x, y: targetCity.y, createdAt: { gt: since }, loot: { path: ['type'], equals: 'RAID' } }, select: { createdAt: true } });
+    if (recent) {
+      const hoursLeft = Math.ceil((recent.createdAt.getTime() + config.combat.raidCooldownHours * 3600000 - Date.now()) / 3600000);
+      return `Cette ville a déjà été pillée récemment : nouveau raid possible dans ${hoursLeft} h`;
+    }
+  }
   return null;
 }
 
@@ -40,8 +60,8 @@ async function launchCityMission(army, targetCity, mission) {
   const travelTime = mission === 'SPY' ? spyTravelTo(army, targetCity.x, targetCity.y) : travelTo(army, targetCity.x, targetCity.y);
   const arrivalAt = new Date(Date.now() + travelTime * 1000);
   const status = { ATTACK: 'ATTACKING', RAID: 'RAIDING', SPY: 'SPYING' }[mission];
-  await prisma.army.update({ where: { id: army.id }, data: { status, targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: mission } });
-  return { travelTime, arrivalAt };
+  const ok = await transition(prisma, 'army', army.id, 'IDLE', { status, targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: mission });
+  return ok ? { travelTime, arrivalAt } : null;
 }
 
 // Moves units between an army standing in its city and that city's garrison
@@ -62,9 +82,14 @@ async function transferUnits(tx, army, garrison, unitKey, newCount, currentInArm
   return delta;
 }
 
+// Both rows are locked through the city: every unit transfer of a city is serialized
 async function loadArmyAndGarrison(tx, armyId, playerId) {
+  const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
+  if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
+  await lockCity(tx, probe.cityId);
   const army = await loadArmy(armyId, playerId, { city: true }, tx);
   if (!army) return { error: 'Armée non trouvée', status: 404 };
+  if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
   if (!garrison) return { error: 'Garnison introuvable', status: 404 };
@@ -77,18 +102,23 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
 router.post('/create', auth, async (req, res) => {
   try {
     const { cityId, slot } = req.body;
-    if (!cityId || !Number.isInteger(slot) || slot < 1) return res.status(400).json({ error: 'cityId et slot requis' });
+    if (!isId(cityId) || !Number.isInteger(slot) || slot < 1) return res.status(400).json({ error: 'cityId et slot requis' });
     const name = req.body.name === undefined || req.body.name === '' ? `Armée ${slot}` : cleanText(req.body.name, 2, 30);
     if (!name) return res.status(400).json({ error: 'Nom invalide (2-30 caractères)' });
-    const city = await prisma.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: true } });
-    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
-    const rallyLevel = city.buildings.find(b => b.key === 'RALLY_POINT')?.level || 0;
-    const maxArmies = rallyLevel >= 10 ? 3 : rallyLevel >= 5 ? 2 : rallyLevel >= 1 ? 1 : 0;
-    if (slot > maxArmies) return res.status(400).json({ error: `Slot ${slot} non débloqué. Rally Point Niv.${slot === 1 ? 1 : slot === 2 ? 5 : 10} requis.` });
-    const existingArmy = await prisma.army.findFirst({ where: { cityId, slot, isGarrison: false } });
-    if (existingArmy) return res.status(400).json({ error: `Slot ${slot} déjà occupé` });
-    const army = await prisma.army.create({ data: { ownerId: req.user.playerId, cityId, slot, name, x: city.x, y: city.y, status: 'IDLE', isGarrison: false } });
-    res.json({ message: 'Armée créée', army });
+    const result = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, cityId);
+      const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: true } });
+      if (!city) return { error: 'Ville non trouvée', status: 404 };
+      const rallyLevel = city.buildings.find(b => b.key === 'RALLY_POINT')?.level || 0;
+      const maxArmies = rallyLevel >= 10 ? 3 : rallyLevel >= 5 ? 2 : rallyLevel >= 1 ? 1 : 0;
+      if (slot > maxArmies) return { error: `Slot ${slot} non débloqué. Rally Point Niv.${slot === 1 ? 1 : slot === 2 ? 5 : 10} requis.`, status: 400 };
+      const existingArmy = await tx.army.findFirst({ where: { cityId, slot, isGarrison: false } });
+      if (existingArmy) return { error: `Slot ${slot} déjà occupé`, status: 400 };
+      const army = await tx.army.create({ data: { ownerId: req.user.playerId, cityId, slot, name, x: city.x, y: city.y, status: 'IDLE', isGarrison: false } });
+      return { message: 'Armée créée', army };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { sendError(res, e); }
 });
 
@@ -150,13 +180,12 @@ router.post('/:id/unassign-hero', auth, async (req, res) => {
 router.post('/:id/adjust-unit', auth, async (req, res) => {
   try {
     const { unitKey, delta } = req.body;
-    if (!unitKey || !Number.isInteger(delta) || delta === 0) return res.status(400).json({ error: 'unitKey et delta (entier non nul) requis' });
+    if (!isId(unitKey) || !Number.isInteger(delta) || delta === 0 || Math.abs(delta) > config.limits.maxAmount) return res.status(400).json({ error: 'unitKey et delta (entier non nul) requis' });
 
     const result = await prisma.$transaction(async (tx) => {
       const loaded = await loadArmyAndGarrison(tx, req.params.id, req.user.playerId);
       if (loaded.error) return loaded;
       const { army, garrison } = loaded;
-      if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
       const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
       const currentInGarrison = garrison.units.find(u => u.unitKey === unitKey)?.count || 0;
       if (delta > 0 && delta > currentInGarrison) return { error: 'Pas assez d\'unites en garnison', status: 400 };
@@ -175,13 +204,12 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
 router.post('/:id/set-unit', auth, async (req, res) => {
   try {
     const { unitKey, count } = req.body;
-    if (!unitKey || !Number.isInteger(count) || count < 0) return res.status(400).json({ error: 'unitKey et count (entier positif) requis' });
+    if (!isId(unitKey) || !isAmount(count)) return res.status(400).json({ error: 'unitKey et count (entier positif) requis' });
 
     const result = await prisma.$transaction(async (tx) => {
       const loaded = await loadArmyAndGarrison(tx, req.params.id, req.user.playerId);
       if (loaded.error) return loaded;
       const { army, garrison } = loaded;
-      if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
       const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
       const currentInGarrison = garrison.units.find(u => u.unitKey === unitKey)?.count || 0;
       const newCount = Math.min(count, currentInArmy + currentInGarrison);
@@ -199,14 +227,9 @@ router.post('/:id/set-unit', auth, async (req, res) => {
 router.delete('/:id/disband', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
-      if (!army) return { error: 'Armée non trouvée', status: 404 };
-      if (army.isGarrison) return { error: 'Impossible de dissoudre la garnison', status: 400 };
-      if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
-      let garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true } });
-      if (!garrison) {
-        garrison = await tx.army.create({ data: { ownerId: req.user.playerId, cityId: army.cityId, name: 'Garnison', x: army.city.x, y: army.city.y, status: 'IDLE', isGarrison: true } });
-      }
+      const loaded = await loadArmyAndGarrison(tx, req.params.id, req.user.playerId);
+      if (loaded.error) return loaded;
+      const { army, garrison } = loaded;
       for (const unit of army.units) {
         await tx.armyUnit.upsert({
           where: { armyId_unitKey: { armyId: garrison.id, unitKey: unit.unitKey } },
@@ -231,12 +254,11 @@ router.post('/:id/move', auth, async (req, res) => {
     const x = parseInt(req.body.x), y = parseInt(req.body.y);
     if (!validateCoordinates(x, y)) return res.status(400).json({ error: 'Coordonnées invalides' });
     const army = await loadArmy(req.params.id, req.user.playerId);
-    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mouvement' });
-    if (army.units.length === 0) return res.status(400).json({ error: army.heroId ? 'Le héros nécessite au moins 1 soldat pour se déplacer' : 'Armee vide' });
+    const err = readyToLeave(army, 'se déplacer');
+    if (err) return res.status(err.status).json({ error: err.error });
     const travelTime = travelTo(army, x, y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: x, targetY: y, arrivalAt, missionType: 'MOVE' } });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: x, targetY: y, arrivalAt, missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: 'Armee en mouvement', travelTime, arrivalAt });
   } catch (e) { sendError(res, e); }
 });
@@ -246,17 +268,17 @@ function cityMissionRoute(mission, messages) {
   return async (req, res) => {
     try {
       const { targetCityId } = req.body;
-      if (!targetCityId) return res.status(400).json({ error: 'Cible requise' });
+      if (!isId(targetCityId)) return res.status(400).json({ error: 'Cible requise' });
       const army = await loadArmy(req.params.id, req.user.playerId);
-      if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-      if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
-      if (army.units.length === 0) return res.status(400).json({ error: army.heroId ? `Le héros nécessite au moins 1 soldat pour ${messages.verb}` : 'Armée vide' });
+      const err = readyToLeave(army, messages.verb);
+      if (err) return res.status(err.status).json({ error: err.error });
       const targetCity = await prisma.city.findUnique({ where: { id: targetCityId }, include: { buildings: true } });
       if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
-      const err = await checkHostileTarget(army, targetCity, mission);
-      if (err) return res.status(400).json({ error: err });
-      const { travelTime, arrivalAt } = await launchCityMission(army, targetCity, mission);
-      res.json({ message: messages.ok, travelTime, arrivalAt, target: targetCity.name });
+      const refusal = await checkHostileTarget(army, targetCity, mission);
+      if (refusal) return res.status(400).json({ error: refusal });
+      const launched = await launchCityMission(army, targetCity, mission);
+      if (!launched) return res.status(409).json({ error: 'Armée déjà en mission' });
+      res.json({ message: messages.ok, ...launched, target: targetCity.name });
     } catch (e) { sendError(res, e); }
   };
 }
@@ -268,11 +290,10 @@ router.post('/:id/spy', auth, cityMissionRoute('SPY', { verb: 'espionner', ok: '
 router.post('/:id/raid-resource', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body;
-    if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
+    if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
     const army = await loadArmy(req.params.id, req.user.playerId, { hero: true, city: true });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armée déjà en mission' });
-    if (army.units.length === 0) return res.status(400).json({ error: 'Armée vide' });
+    const err = readyToLeave(army, 'attaquer');
+    if (err) return res.status(err.status).json({ error: err.error });
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
     if (node.lastDefeat) {
@@ -281,18 +302,27 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     }
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
     if (distance <= 1.5) {
-      const result = await resolveTribeCombat(army, node, req.user.playerId);
-      if (result.success) {
-        await prisma.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
-        await prisma.resourceNode.update({ where: { id: node.id }, data: { hasPlayerArmy: true } });
-        result.message = 'Tribu vaincue! Récolte démarrée (100/min)';
-        result.status = 'HARVESTING';
-      }
+      // Adjacent: the fight is resolved now, under the army row lock so it cannot be resolved twice
+      const result = await prisma.$transaction(async (tx) => {
+        await lockArmy(tx, army.id);
+        const fresh = await loadArmy(army.id, req.user.playerId, { hero: true }, tx);
+        if (!fresh || fresh.status !== 'IDLE' || fresh.units.length === 0) return { error: 'Armée déjà en mission', status: 409 };
+        const freshNode = await tx.resourceNode.findUnique({ where: { id: node.id } });
+        const r = await resolveTribeCombat(fresh, freshNode, req.user.playerId, tx);
+        if (r.success) {
+          await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
+          await tx.resourceNode.update({ where: { id: node.id }, data: { hasPlayerArmy: true } });
+          r.message = 'Tribu vaincue! Récolte démarrée (100/min)';
+          r.status = 'HARVESTING';
+        }
+        return r;
+      });
+      if (result.error) return res.status(result.status || 400).json(result);
       return res.json(result);
     }
     const travelTime = travelTo(army, node.x, node.y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'RAIDING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'RAID_RESOURCE' } });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'RAIDING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'RAID_RESOURCE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: 'Armée en route', travelTime, arrivalAt, target: `${node.resourceType} (${node.x}, ${node.y})` });
   } catch (e) { sendError(res, e); }
 });
@@ -301,13 +331,13 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
 router.post('/:id/collect-resource', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body;
-    if (!resourceNodeId) return res.status(400).json({ error: 'ID de ressource requis' });
+    if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
 
     const result = await prisma.$transaction(async (tx) => {
+      await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
-      if (!army) return { error: 'Armée non trouvée', status: 404 };
-      if (army.status !== 'IDLE') return { error: 'Armée déjà en mission', status: 400 };
-      if (army.units.length === 0) return { error: 'Armée vide', status: 400 };
+      const err = readyToLeave(army, 'collecter');
+      if (err) return { error: err.error, status: err.status };
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
@@ -333,31 +363,39 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
 // POST /api/army/:id/return — also recalls an army that is still on its way
 router.post('/:id/return', auth, async (req, res) => {
   try {
-    const army = await loadArmy(req.params.id, req.user.playerId, { city: true });
-    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-    if (!army.city) return res.status(400).json({ error: 'Armee sans ville d\'origine' });
-    if (army.status === 'RETURNING') return res.status(400).json({ error: 'Armée déjà sur le chemin du retour' });
-    if (army.status === 'EXPEDITION') return res.status(400).json({ error: 'Armée en expédition : impossible de la rappeler' });
+    const result = await prisma.$transaction(async (tx) => {
+      await lockArmy(tx, req.params.id);
+      const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
+      if (!army) return { error: 'Armee non trouvee', status: 404 };
+      if (!army.city) return { error: 'Armee sans ville d\'origine', status: 400 };
+      if (army.status === 'RETURNING') return { message: 'Armée déjà sur le chemin du retour', arrivalAt: army.arrivalAt };
+      if (army.status === 'EXPEDITION') return { error: 'Armée en expédition : impossible de la rappeler', status: 400 };
 
-    let fromX = army.x, fromY = army.y;
-    if (OUTBOUND.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
-      // Position is only written on arrival: interpolate where the army is on its route right now
-      const total = army.status === 'SPYING' ? spyTravelTo(army, army.targetX, army.targetY) : travelTo(army, army.targetX, army.targetY);
-      const remaining = Math.max(0, (new Date(army.arrivalAt).getTime() - Date.now()) / 1000);
-      const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
-      fromX = army.x + (army.targetX - army.x) * progress;
-      fromY = army.y + (army.targetY - army.y) * progress;
-    } else if (army.status === 'IDLE' && isHome(army, army.city)) {
-      return res.json({ message: 'Armee deja a la maison' });
-    }
+      let fromX = army.x, fromY = army.y;
+      if (OUTBOUND.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
+        // Position is only written on arrival: interpolate where the army is on its route right now
+        const total = army.status === 'SPYING' ? spyTravelTo(army, army.targetX, army.targetY) : travelTo(army, army.targetX, army.targetY);
+        const remaining = Math.max(0, (new Date(army.arrivalAt).getTime() - Date.now()) / 1000);
+        const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
+        fromX = army.x + (army.targetX - army.x) * progress;
+        fromY = army.y + (army.targetY - army.y) * progress;
+      } else if (army.status === 'IDLE' && isHome(army, army.city)) {
+        return { message: 'Armee deja a la maison' };
+      }
+      if (army.status === 'HARVESTING' && army.targetResourceId) {
+        await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+      }
 
-    const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction);
-    const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: {
-      status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
-      arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestStartedAt: null, harvestResourceType: null
-    } });
-    res.json({ message: 'Retour en cours', travelTime, arrivalAt });
+      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction);
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+      await tx.army.update({ where: { id: army.id }, data: {
+        status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
+        arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestStartedAt: null, harvestResourceType: null
+      } });
+      return { message: 'Retour en cours', travelTime, arrivalAt };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) { sendError(res, e); }
 });
 
@@ -365,8 +403,8 @@ router.post('/:id/return', auth, async (req, res) => {
 router.post('/:id/transport', auth, async (req, res) => {
   try {
     const { targetCityId, wood = 0, stone = 0, iron = 0, food = 0 } = req.body;
-    if (!targetCityId) return res.status(400).json({ error: 'Ville cible requise' });
-    if (![wood, stone, iron, food].every(v => Number.isInteger(v) && v >= 0)) return res.status(400).json({ error: 'Montants invalides' });
+    if (!isId(targetCityId)) return res.status(400).json({ error: 'Ville cible requise' });
+    if (![wood, stone, iron, food].every(isAmount)) return res.status(400).json({ error: 'Montants invalides' });
     if (wood + stone + iron + food <= 0) return res.status(400).json({ error: 'Entrez des ressources a envoyer' });
     const targetCity = await prisma.city.findUnique({ where: { id: targetCityId } });
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
@@ -374,52 +412,55 @@ router.post('/:id/transport', auth, async (req, res) => {
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
 
     const result = await prisma.$transaction(async (tx) => {
+      const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
+      if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
+      await lockCity(tx, probe.cityId);
       const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
-      if (!army) return { error: 'Armée non trouvée', status: 404 };
-      if (army.status !== 'IDLE') return { error: 'Armée déjà en mission', status: 400 };
+      const err = readyToLeave(army, 'transporter');
+      if (err) return { error: err.error, status: err.status };
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
-      if (army.units.length === 0) return { error: 'Armée vide', status: 400 };
       const transportMultiplier = 1 + (getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100);
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
-      const sourceCity = army.city;
-      if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return { error: 'Ressources insuffisantes', status: 400 };
-      await tx.city.update({ where: { id: sourceCity.id }, data: { wood: { decrement: wood }, stone: { decrement: stone }, iron: { decrement: iron }, food: { decrement: food } } });
+      if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
       const travelTime = travelTo(army, targetCity.x, targetCity.y);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
-      await tx.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food } });
+      if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food }))) throw new Error('army busy');
       return { message: `Transport lancé vers ${targetCity.name}`, travelTime, arrivalAt, resources: { wood, stone, iron, food } };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { sendError(res, e); }
+  } catch (e) {
+    if (e.message === 'army busy') return res.status(409).json({ error: 'Armée déjà en mission' });
+    sendError(res, e);
+  }
 });
 
 // POST /api/armies/send (dispatch endpoint)
 router.post('/send', auth, async (req, res) => {
   try {
     const { armyId, targetX, targetY, mission } = req.body;
-    if (!armyId) return res.status(400).json({ error: 'Armee requise' });
+    if (!isId(armyId)) return res.status(400).json({ error: 'Armee requise' });
     const parsedX = parseInt(targetX), parsedY = parseInt(targetY);
     if (!validateCoordinates(parsedX, parsedY)) return res.status(400).json({ error: 'Coordonnées invalides' });
     const army = await loadArmy(armyId, req.user.playerId);
-    if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
-    if (army.status !== 'IDLE') return res.status(400).json({ error: 'Armee deja en mission' });
-    if (!army.units.length) return res.status(400).json({ error: 'Armee vide' });
+    const err = readyToLeave(army, 'partir');
+    if (err) return res.status(err.status).json({ error: err.error });
     if (mission === 'ATTACK' || mission === 'RAID' || mission === 'SPY') {
       const targetCity = await prisma.city.findFirst({ where: { x: parsedX, y: parsedY }, include: { buildings: true } });
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
-      const err = await checkHostileTarget(army, targetCity, mission);
-      if (err) return res.status(400).json({ error: err });
-      const { travelTime, arrivalAt } = await launchCityMission(army, targetCity, mission);
+      const refusal = await checkHostileTarget(army, targetCity, mission);
+      if (refusal) return res.status(400).json({ error: refusal });
+      const launched = await launchCityMission(army, targetCity, mission);
+      if (!launched) return res.status(409).json({ error: 'Armée déjà en mission' });
       const label = { ATTACK: 'Attaque lancée', RAID: 'Raid lancé', SPY: 'Espionnage lancé' }[mission];
-      return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, travelTime, arrivalAt });
+      return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, ...launched });
     }
     const travelTime = travelTo(army, parsedX, parsedY);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    await prisma.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, missionType: 'MOVE' } });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: `Armee en mouvement vers (${parsedX}, ${parsedY})`, travelTime, arrivalAt });
   } catch (e) { sendError(res, e); }
 });

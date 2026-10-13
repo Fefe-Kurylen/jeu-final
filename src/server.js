@@ -16,13 +16,18 @@ const workersEnv = process.env.CLUSTER_WORKERS;
 const nWorkers = workersEnv === 'auto' ? os.cpus().length : parseInt(workersEnv, 10) || 1;
 if (cluster.isPrimary && nWorkers > 1) {
   console.log(`[CLUSTER] Demarrage de ${nWorkers} workers...`);
-  for (let i = 0; i < nWorkers; i++) {
-    // Seul le worker 1 execute le game loop et le seed (évite les doubles ticks)
-    cluster.fork({ ...process.env, IS_TICK_WORKER: i === 0 ? 'true' : 'false', SKIP_DB_SETUP: i === 0 ? 'false' : 'true' });
-  }
+  let tickWorkerId = null;
+  const fork = (isTick, skipSetup) => {
+    const w = cluster.fork({ ...process.env, IS_TICK_WORKER: String(isTick), SKIP_DB_SETUP: String(skipSetup) });
+    if (isTick) tickWorkerId = w.id;
+    return w;
+  };
+  // Seul le worker de tick execute le game loop et le seed (évite les doubles ticks)
+  for (let i = 0; i < nWorkers; i++) fork(i === 0, i !== 0);
   cluster.on('exit', (worker, code) => {
-    console.error(`[CLUSTER] Worker ${worker.process.pid} mort (code ${code}), redemarrage...`);
-    cluster.fork({ ...process.env, IS_TICK_WORKER: 'false', SKIP_DB_SETUP: 'true' });
+    const wasTick = worker.id === tickWorkerId;
+    console.error(`[CLUSTER] Worker ${worker.process.pid} mort (code ${code}), redemarrage${wasTick ? ' (worker de tick)' : ''}...`);
+    fork(wasTick, true);
   });
   return; // le primaire ne sert pas de HTTP
 }
@@ -34,11 +39,12 @@ const prisma = require('./config/database');
 const { buildingsData, unitsData } = require('./config/gamedata');
 const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
-const { startGameLoop } = require('./game/tick');
+const { startGameLoop, releaseTickLease } = require('./game/tick');
 const { seedResourceNodes } = require('./game/seed');
 
 const app = express();
 const PORT = config.port;
+let dbReady = false;
 
 // Trust proxy (Render, Railway, etc.)
 app.set('trust proxy', 1);
@@ -57,8 +63,15 @@ app.use(helmet({
 app.use(compression());
 app.use(express.json({ limit: '200kb' }));  // aucune requête légitime ne dépasse ça
 
-// ========== HEALTH CHECK ==========
-app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+// ========== HEALTH CHECK (503 tant que la base n'est pas prête : le déploiement attend) ==========
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(dbReady ? 200 : 503).json({ status: dbReady ? 'ok' : 'starting', db: 'ok', uptime: process.uptime() });
+  } catch (e) {
+    res.status(503).json({ status: 'degraded', db: 'down', uptime: process.uptime() });
+  }
+});
 
 // ========== GLOBAL RATE LIMIT ==========
 app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
@@ -108,6 +121,30 @@ app.use((req, res) => {
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
+// ========== DATA REPAIRS (idempotent, run by the tick worker at boot) ==========
+async function repairData() {
+  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "CityBuilding_cityId_key_key"`);
+  // The Main Hall belongs to the centre slot; older cities had it on slot 1 or not at all
+  await prisma.$executeRaw`
+    UPDATE "CityBuilding" cb SET slot = 0 WHERE key = 'MAIN_HALL' AND slot <> 0
+      AND NOT EXISTS (SELECT 1 FROM "CityBuilding" o WHERE o."cityId" = cb."cityId" AND o.slot = 0)`;
+  await prisma.$executeRaw`
+    INSERT INTO "CityBuilding" (id, "cityId", key, slot, level)
+    SELECT gen_random_uuid()::text, c.id, 'MAIN_HALL', 0, 1 FROM "City" c
+    WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.key = 'MAIN_HALL')
+      AND NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.slot = 0)`;
+  // GDD regeneration speed: full refill in 4h (gold: 24h)
+  await prisma.$executeRaw`
+    UPDATE "ResourceNode" SET "regenRate" = GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)
+    WHERE "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)`;
+  // Wall HP follows the wall level
+  await prisma.$executeRaw`
+    UPDATE "City" c SET "wallMaxHp" = m.max, "wallHp" = LEAST(c."wallHp", m.max)
+    FROM (SELECT c2.id, ${config.combat.wallHpPerLevel} * GREATEST(1, COALESCE(w.level, 1)) AS max
+          FROM "City" c2 LEFT JOIN "CityBuilding" w ON w."cityId" = c2.id AND w.key = 'WALL') m
+    WHERE m.id = c.id AND c."wallMaxHp" <> m.max`;
+}
+
 // ========== STARTUP ==========
 async function startServer() {
   console.log('');
@@ -138,14 +175,15 @@ async function startServer() {
           execSync('npx prisma db push --skip-generate', { stdio: 'inherit', env: { ...process.env }, timeout: 120000 });
           console.log('Schema synchronise!');
         } catch (dbPushError) {
+          // Serving requests on a schema that differs from the client only produces Prisma errors
           console.error('Erreur sync schema:', dbPushError.message);
+          if (config.isProduction) process.exit(1);
         }
       }
 
-      // Fix old unique constraint
-      try {
-        await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "CityBuilding_cityId_key_key"`);
-      } catch (idxErr) { /* already gone */ }
+      if (!SKIP_DB_SETUP) {
+        try { await repairData(); } catch (repairErr) { console.warn('Erreur réparation données:', repairErr.message); }
+      }
 
       // Auto-seed resource nodes (tick worker uniquement)
       try {
@@ -172,6 +210,8 @@ async function startServer() {
         if (!seedErr._skip) console.warn('Erreur seed:', seedErr.message);
       }
 
+      dbReady = true;
+
       // Start game loop (un seul worker le fait en mode cluster)
       if (IS_TICK_WORKER) startGameLoop();
       else console.log('[CLUSTER] Worker HTTP (pas de game loop)');
@@ -189,6 +229,7 @@ async function startServer() {
       console.log(`   Erreur: ${e.message.substring(0, 100)}`);
       if (i === MAX_RETRIES - 1) {
         console.error('Impossible de se connecter a la base de donnees apres', MAX_RETRIES, 'tentatives');
+        if (config.isProduction) process.exit(1);
       } else {
         await new Promise(r => setTimeout(r, RETRY_DELAY));
       }
@@ -198,8 +239,14 @@ async function startServer() {
   return server;
 }
 
-// Graceful shutdown
-process.on('SIGTERM', async () => { console.log('SIGTERM recu, arret...'); await prisma.$disconnect(); process.exit(0); });
-process.on('SIGINT', async () => { console.log('SIGINT recu, arret...'); await prisma.$disconnect(); process.exit(0); });
+// Graceful shutdown: release the tick lease so the next instance can start ticking immediately
+async function shutdown(signal) {
+  console.log(`${signal} recu, arret...`);
+  try { if (IS_TICK_WORKER) await releaseTickLease(); } catch (e) { /* lease expires on its own */ }
+  try { await prisma.$disconnect(); } catch (e) { /* already closed */ }
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 startServer().catch(e => { console.error('Erreur au demarrage:', e); process.exit(1); });

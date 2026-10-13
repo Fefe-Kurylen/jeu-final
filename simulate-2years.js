@@ -450,10 +450,10 @@ async function aiAction(player, hour, now, tick, players) {
     const useCav = tick % 12 === 0;
 
     if (useInf || !stable) {
-      if (barracks.level >= 10) {
+      if (barracks.level >= 15) {
         const u = unitFor(player.faction, 'elite', 'INFANTRY');
         if (u) { unitKey=u.key; tier='elite'; count=3+Math.floor(Math.random()*5); }
-      } else if (barracks.level >= 5) {
+      } else if (barracks.level >= 7) {
         const u = unitFor(player.faction, 'intermediate', 'INFANTRY');
         if (u) { unitKey=u.key; tier='intermediate'; count=5+Math.floor(Math.random()*8); }
       } else {
@@ -461,11 +461,11 @@ async function aiAction(player, hour, now, tick, players) {
         if (u) { unitKey=u.key; tier='base'; count=5+Math.floor(Math.random()*10); }
       }
     } else if (useArch) {
-      const t = barracks.level >= 10 ? 'elite' : barracks.level >= 5 ? 'intermediate' : 'base';
+      const t = barracks.level >= 15 ? 'elite' : barracks.level >= 7 ? 'intermediate' : 'base';
       const u = unitFor(player.faction, t, 'ARCHER');
       if (u) { unitKey=u.key; tier=t; count=3+Math.floor(Math.random()*7); }
     } else if (useCav && stable) {
-      const t = stable.level >= 10 ? 'elite' : stable.level >= 5 ? 'intermediate' : 'base';
+      const t = stable.level >= 15 ? 'elite' : stable.level >= 7 ? 'intermediate' : 'base';
       const u = unitFor(player.faction, t, 'CAVALRY');
       if (u) { unitKey=u.key; tier=t; count=2+Math.floor(Math.random()*5); }
     }
@@ -534,6 +534,7 @@ async function aiAction(player, hour, now, tick, players) {
       const tc = await prisma.city.findFirst({where:{playerId:target.id}});
       if (!tc) break attack_block;
 
+      const mission = Math.random()<0.5?'ATTACK':'RAID';
       const toSend = [];
       for (const u of (garrison?.units||[])) {
         const send = Math.floor(u.count * 0.35);
@@ -548,8 +549,8 @@ async function aiAction(player, hour, now, tick, players) {
         await prisma.army.create({data:{
           ownerId:player.id,playerId:player.id,cityId:city.id,
           name:`Attaque sur ${tc.name}`,x:city.x,y:city.y,
-          isGarrison:false,status:'ATTACKING',
-          missionType:Math.random()<0.5?'ATTACK':'RAID',
+          isGarrison:false,status:mission==='RAID'?'RAIDING':'ATTACKING',
+          missionType:mission,
           targetX:tc.x,targetY:tc.y,targetCityId:tc.id,arrivalAt,
           units:{create:toSend}
         }});

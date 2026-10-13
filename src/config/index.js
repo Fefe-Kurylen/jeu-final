@@ -20,11 +20,28 @@ const config = {
     spawnEdgeDelta: 100
   },
 
-  // Rate limiting
+  // Rate limiting (keyed by player once authenticated, by IP otherwise — mobile carriers share IPs)
   rateLimit: {
     windowMs: 60 * 1000,
-    maxAuth: parseInt(process.env.RATE_MAX_AUTH, 10) || 5,    // 5 tentatives de connexion par minute
-    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240     // 240 req/min : le client fait ~12 req/min en fond + carte + actions ; 60 provoquait des 429 en jeu actif
+    maxAuth: parseInt(process.env.RATE_MAX_AUTH, 10) || 20,
+    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240
+  },
+
+  // Generic input bounds
+  limits: {
+    maxAmount: 1e9,
+    maxRecruitCount: 10000
+  },
+
+  // City layout: ring slots 1-19 (0 = Main Hall), typed field slots 101-118
+  city: {
+    maxSlot: 19,
+    fieldSlots: {
+      LUMBER: [101, 102, 103, 104],
+      QUARRY: [105, 106, 107, 108],
+      IRON_MINE: [109, 110, 111, 112],
+      FARM: [113, 114, 115, 116, 117, 118]
+    }
   },
 
   // Build queue
@@ -54,36 +71,54 @@ const config = {
       SIEGE: 1200
     },
     // Tier time multipliers (GDD unit_training_times.json)
-    tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 }
+    tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 },
+    siegeWorkshopLevel: 5
   },
 
-  // Combat
+  // Combat (GDD combat_config.json + formulas)
   combat: {
-    maxRounds: 10,
-    roundDamageFactor: 0.18,  // fraction des dégâts appliquée par round (sinon annihilation mutuelle en 1-2 rounds)
-    siegeWallDamagePerUnit: 40,  // PV de mur détruits par engin de siège survivant
-    wallBonusPerLevel: 0.03,
-    moatBonusPerLevel: 0.02,
-    heroBonusPerPoint: 0.01,
+    maxRounds: 15,
+    roundDamageFactor: 0.18,     // fraction of the damage applied per round (otherwise mutual annihilation in 1-2 rounds)
+    defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT: damage per hit = ATK × mods − 0.55 × DEF
+    minDamageRatio: 0.2,         // a hit always deals at least 20% of the raw attack
+    targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
+    siegeWallDamagePerUnit: 40,  // wall HP destroyed per surviving siege engine
+    wallHpPerLevel: 1000,
+    wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
+    wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level
+    moatBonusPerLevel: 0.005,    // GDD: +0.5% defender attack and defense per moat level
+    heroBonusPerPoint: 0.005,    // GDD: +0.5% per hero point...
+    heroBonusMax: 0.05,          // ...capped at +5%
+    heroXpPerKill: 0.25,         // GDD: XP per enemy unit destroyed
+    heroMaxLevel: 30,
     winnerLossMultiplier: 0.3,
-    loserLossBase: 0.7,
-    loserLossRandom: 0.3,
+    loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
+    raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
+    raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
     tierCoefficients: { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 },
-    // Combat triangle (GDD combat_config.json)
+    // Combat triangle (GDD combat_config.json), applied per attacker class / target class pair
     triangle: {
-      INFANTRY_vs_CAVALRY: 1.20,   // INF has +20% attack bonus vs CAV
-      CAVALRY_vs_ARCHER: 1.20,     // CAV has +20% attack bonus vs ARCH
-      ARCHER_vs_INFANTRY: 1.20     // ARCH has +20% attack bonus vs INF
+      INFANTRY_vs_CAVALRY: 1.20,
+      CAVALRY_vs_ARCHER: 1.20,
+      ARCHER_vs_INFANTRY: 1.20
     }
+  },
+
+  // Expeditions
+  expedition: {
+    powerDivisor: 7,             // army power / 7 ≈ 10 per base unit, 20 per elite
+    lossPctPerDifficulty: 0.02   // 2% of each unit group lost per difficulty level
   },
 
   // Tick (game loop)
   tick: {
     intervalMs: 30000,
     tickHours: 30 / 3600,
-    harvestPerTick: 50,   // 100/min at 30s ticks
+    leaseMs: 90000,              // only one process runs the tick: lease stored in the TickLock table
+    harvestPerTick: 50,          // 100/min at 30s ticks
     regenDelayMinutes: 5,
-    tribeRespawnDelayMinutes: 10
+    tribeRespawnDelayMinutes: 10,
+    retentionDays: { reports: 30, expeditions: 7, offers: 30 }
   },
 
   // Army
@@ -91,7 +126,8 @@ const config = {
     baseSpeedTilesPerSec: 1 / 30,  // 1 tile per 30 seconds at speed 50
     baseSpeed: 50,
     upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
-    starvationLossRate: 0.1
+    starvationLossRate: 0.1,       // per hour, armies standing in a city without food
+    starvationIntervalHours: 1
   },
 
   // Wounded
@@ -110,10 +146,10 @@ const config = {
     { minWall: 15, tier: 3, name: 'Ville Fortifiée', minSiege: 20 }
   ],
 
-  // Hideout
+  // Hideout (GDD: 1% of the stock hidden per level, 20% max)
   hideout: {
-    protectionPerLevel: 0.05,
-    maxProtection: 1.0,
+    protectionPerLevel: 0.01,
+    maxProtection: 0.20,
     raidStealRate: 0.5
   },
 

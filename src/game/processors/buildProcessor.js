@@ -48,10 +48,16 @@ async function syncAllCityStorage() {
   if (updated > 0) console.log(`[STORAGE] ${updated} villes resynchronisées (fix maxStorage)`);
 }
 
+// Wall HP scales with the wall level (GDD: HP in % of the level's max); the new level starts intact
+async function syncWallHp(cityId, wallLevel) {
+  const max = config.combat.wallHpPerLevel * Math.max(1, wallLevel);
+  await prisma.city.update({ where: { id: cityId }, data: { wallMaxHp: max, wallHp: max } });
+}
+
 async function processBuilds(now) {
   const builds = await prisma.buildQueueItem.findMany({
     where: { status: 'RUNNING', endsAt: { lte: now } },
-    include: { city: { include: { buildings: true, buildQueue: true } } }
+    take: 500
   });
   const buildsByCityId = {};
   for (const b of builds) {
@@ -68,13 +74,14 @@ async function processBuilds(now) {
         if (existing) { await prisma.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } }); }
         else {
           const usedSlots = new Set(freshBuildings.map(x => x.slot));
-          let newSlot = b.slot || 1;
+          let newSlot = b.slot ?? 1;
           while (usedSlots.has(newSlot)) newSlot++;
           await prisma.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel } });
         }
         await prisma.buildQueueItem.delete({ where: { id: b.id } });
         // Bug fix : le stockage de la ville doit suivre les niveaux d'Entrepôt/Silo
         if (b.buildingKey === 'WAREHOUSE' || b.buildingKey === 'SILO') await syncCityStorage(b.cityId);
+        if (b.buildingKey === 'WALL') await syncWallHp(b.cityId, b.targetLevel);
         console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
       } catch (buildErr) {
         console.error(`[BUILD ERROR] ${b.buildingKey}:`, buildErr.message);

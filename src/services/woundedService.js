@@ -36,61 +36,42 @@ async function addWoundedUnits(cityId, woundedUnits) {
 
   const healingLevel = healingTent?.level || 1;
   const baseHealTimeMinutes = config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1);
+  const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
 
   for (const unit of woundedUnits) {
-    const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
-    const existing = await prisma.woundedUnit.findUnique({
-      where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } }
+    // A new batch pushes the healing time of the whole group to its own completion
+    await prisma.woundedUnit.upsert({
+      where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } },
+      update: { count: { increment: unit.count }, healsAt },
+      create: { cityId, unitKey: unit.unitKey, count: unit.count, healsAt }
     });
-
-    if (existing) {
-      await prisma.woundedUnit.update({
-        where: { id: existing.id },
-        data: {
-          count: existing.count + unit.count,
-          healsAt: new Date(Math.max(existing.healsAt.getTime(), healsAt.getTime()))
-        }
-      });
-    } else {
-      await prisma.woundedUnit.create({
-        data: { cityId, unitKey: unit.unitKey, count: unit.count, healsAt }
-      });
-    }
   }
 }
 
+// Healed groups go back to their city's garrison, in one transaction for the whole tick
 async function processHealedUnits() {
   const now = new Date();
-  const healedUnits = await prisma.woundedUnit.findMany({
-    where: { healsAt: { lte: now } }
-  });
+  const healedUnits = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
+  if (healedUnits.length === 0) return 0;
 
-  for (const wounded of healedUnits) {
-    const garrison = await prisma.army.findFirst({
-      where: { cityId: wounded.cityId, isGarrison: true },
-      include: { units: true }
-    });
+  const cityIds = [...new Set(healedUnits.map(w => w.cityId))];
+  const garrisons = await prisma.army.findMany({ where: { cityId: { in: cityIds }, isGarrison: true }, select: { id: true, cityId: true } });
+  const garrisonByCity = new Map(garrisons.map(g => [g.cityId, g.id]));
 
-    if (garrison) {
-      const existingUnit = garrison.units.find(u => u.unitKey === wounded.unitKey);
-      if (existingUnit) {
-        await prisma.armyUnit.update({
-          where: { id: existingUnit.id },
-          data: { count: existingUnit.count + wounded.count }
-        });
-      } else {
+  await prisma.$transaction(async (tx) => {
+    for (const wounded of healedUnits) {
+      const garrisonId = garrisonByCity.get(wounded.cityId);
+      if (garrisonId) {
         const unitDef = unitsData.find(u => u.key === wounded.unitKey);
-        await prisma.armyUnit.create({
-          data: {
-            armyId: garrison.id, unitKey: wounded.unitKey,
-            tier: unitDef?.tier || 'base', count: wounded.count
-          }
+        await tx.armyUnit.upsert({
+          where: { armyId_unitKey: { armyId: garrisonId, unitKey: wounded.unitKey } },
+          update: { count: { increment: wounded.count } },
+          create: { armyId: garrisonId, unitKey: wounded.unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
         });
       }
-      console.log(`[HEAL] ${wounded.count} ${wounded.unitKey} healed in city ${wounded.cityId}`);
     }
-    await prisma.woundedUnit.delete({ where: { id: wounded.id } });
-  }
+    await tx.woundedUnit.deleteMany({ where: { id: { in: healedUnits.map(w => w.id) } } });
+  });
   return healedUnits.length;
 }
 
