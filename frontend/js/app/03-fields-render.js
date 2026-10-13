@@ -106,8 +106,8 @@ function renderFieldsView() {
   sortedFields.forEach(slot => {
     const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
     const isHovered = cityHoveredSlot === slot.slot;
-    const isBuilding = currentCity?.buildQueue?.some(q => 
-      q.buildingKey === slot.fieldType && q.status === 'RUNNING'
+    const isBuilding = currentCity?.buildQueue?.some(q =>
+      q.buildingKey === slot.fieldType && q.slot === slot.slot + 100 && q.status === 'RUNNING'
     );
     
     drawFieldSlot(slot, building, isHovered, isBuilding);

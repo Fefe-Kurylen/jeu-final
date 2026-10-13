@@ -17,6 +17,31 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Hourly production of a city per resource (same formula as the server's resourceProcessor)
+function getCityProduction(city) {
+  const fields = { wood: 0, stone: 0, iron: 0, food: 0 };
+  const bonus = { wood: 0, stone: 0, iron: 0, food: 0 };
+  const BONUS_KEYS = { SAWMILL: 'wood', STONEMASON: 'stone', FOUNDRY: 'iron', MILL: 'food', BAKERY: 'food' };
+  const FIELD_KEYS = { LUMBER: 'wood', QUARRY: 'stone', IRON_MINE: 'iron', FARM: 'food' };
+  (city?.buildings || []).forEach(b => {
+    if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
+    if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
+  });
+  return {
+    wood: 5 + fields.wood * (1 + bonus.wood / 100),
+    stone: 5 + fields.stone * (1 + bonus.stone / 100),
+    iron: 5 + fields.iron * (1 + bonus.iron / 100),
+    food: 10 + fields.food * (1 + bonus.food / 100)
+  };
+}
+
+// Storage given by a warehouse (or silo) level: exponential 1 200 -> 160 000, like the server
+function getStorageAtLevel(level) {
+  if (level <= 0) return 1000;
+  if (level >= 20) return 160000;
+  return Math.round(1200 * Math.pow(160000 / 1200, (level - 1) / 19));
+}
+
 // ========== CACHE SYSTEM ==========
 const cache = {
   units: null,
@@ -62,18 +87,20 @@ const requestManager = {
     return promise.then(res => res.clone());
   },
   
-  // Fetch avec retry automatique
+  // Fetch avec retry automatique ; la dernière réponse (même 5xx) est renvoyée au lieu de undefined
   async fetchWithRetry(url, options = {}, retries = 2) {
+    let last = null;
     for (let i = 0; i <= retries; i++) {
       try {
-        const res = await this.fetch(url, options);
-        if (res.ok || res.status === 400 || res.status === 401) return res;
+        last = await this.fetch(url, options);
+        if (last.ok || last.status < 500) return last;
         if (i < retries) await new Promise(r => setTimeout(r, 1000 * (i + 1)));
       } catch (e) {
         if (i === retries) throw e;
         await new Promise(r => setTimeout(r, 1000 * (i + 1)));
       }
     }
+    return last;
   }
 };
 
@@ -232,6 +259,12 @@ async function register() {
 function logout() {
   token = null;
   localStorage.removeItem('token');
+  // Stop every background activity started by showGame()
+  if (typeof refreshInterval !== 'undefined' && refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+  if (attackCheckInterval) { clearInterval(attackCheckInterval); attackCheckInterval = null; }
+  if (typeof stopCityAnimation === 'function') stopCityAnimation();
+  if (typeof stopBattleReplay === 'function') stopBattleReplay();
+  player = null; currentCity = null; cities = []; armies = []; incomingAttacks = [];
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
 }
@@ -254,6 +287,7 @@ async function showGame() {
   initCityCanvas();
   initFieldsCanvas();
   renderCityCanvas();
+  if (typeof startCityAnimation === 'function') startCityAnimation();
   startAttackCheck();
   startRefresh();
 }
@@ -447,11 +481,9 @@ function renderCity() {
   document.getElementById('res-iron').textContent = formatNum(currentCity.iron);
   document.getElementById('res-food').textContent = formatNum(currentCity.food);
 
-  // Calculate max storage
-  const warehouse = currentCity.buildings?.find(b => b.key === 'WAREHOUSE');
-  const silo = currentCity.buildings?.find(b => b.key === 'SILO');
-  const maxRes = 800 + ((warehouse?.level || 0) * 400);
-  const maxFood = 800 + ((silo?.level || 0) * 400);
+  // Storage capacity is computed by the server (warehouse / silo curves)
+  const maxRes = currentCity.maxStorage || 1000;
+  const maxFood = currentCity.maxFoodStorage || 1000;
 
   // Update max displays
   const maxWoodEl = document.getElementById('max-wood');
@@ -485,16 +517,9 @@ function renderCity() {
   const wallHpEl = document.getElementById('wall-hp');
   if (wallHpEl) wallHpEl.textContent = `${Math.floor(currentCity.wallHp)}/${currentCity.wallMaxHp}`;
   
-  // Calculate production
-  let woodProd = 5, stoneProd = 5, ironProd = 5, foodProd = 10;
-  if (currentCity.buildings) {
-    currentCity.buildings.forEach(b => {
-      if (b.key === 'LUMBER') woodProd += getProductionAtLevel('LUMBER', b.level);
-      if (b.key === 'QUARRY') stoneProd += getProductionAtLevel('QUARRY', b.level);
-      if (b.key === 'IRON_MINE') ironProd += getProductionAtLevel('IRON_MINE', b.level);
-      if (b.key === 'FARM') foodProd += getProductionAtLevel('FARM', b.level);
-    });
-  }
+  // Production: base 5/5/5/10 + fields, boosted by the bonus buildings (+5%/level), like the server
+  const prod = getCityProduction(currentCity);
+  let woodProd = prod.wood, stoneProd = prod.stone, ironProd = prod.iron, foodProd = prod.food;
   
   // Calculate food consumption (upkeep) from armies
   let foodConsumption = 0;

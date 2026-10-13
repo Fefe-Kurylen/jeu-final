@@ -83,19 +83,14 @@ function updateCityStats() {
   const silo = currentCity.buildings?.find(b => b.key === 'SILO');
   const wall = currentCity.buildings?.find(b => b.key === 'WALL');
 
-  // Calculate storage (base 1000 + 500 per warehouse level)
-  const storageLevel = warehouse?.level || 0;
-  const maxStorage = 1000 + (storageLevel * 500);
+  const maxStorage = currentCity.maxStorage || 1000;
   const currentStorage = Math.floor((currentCity.wood || 0) + (currentCity.stone || 0) + (currentCity.iron || 0));
-
-  // Calculate silo (base 1000 + 500 per silo level)
-  const siloLevel = silo?.level || 0;
-  const maxSilo = 1000 + (siloLevel * 500);
+  const maxSilo = currentCity.maxFoodStorage || 1000;
   const currentSilo = Math.floor(currentCity.food || 0);
 
   // Wall HP
   const wallLevel = wall?.level || 0;
-  const maxWallHp = wallLevel * 100;
+  const maxWallHp = currentCity.wallMaxHp || wallLevel * 1000;
   const currentWallHp = currentCity.wallHp || maxWallHp;
 
   // Update display
@@ -296,6 +291,10 @@ async function loadUnits() {
 function renderUnits(filter) {
   const grid = document.getElementById('units-grid');
   if (!grid) return;
+  if (!currentCity?.buildings?.some(b => ['BARRACKS', 'STABLE', 'WORKSHOP', 'GREAT_BARRACKS', 'GREAT_STABLE'].includes(b.key))) {
+    grid.innerHTML = '<div class="empty-state">Construisez une Caserne, une Écurie ou un Atelier pour recruter.</div>';
+    return;
+  }
   let units = unitsData.filter(u => u.faction === player?.faction);
   
   if (filter !== 'all') {

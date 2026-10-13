@@ -134,20 +134,20 @@ function showUnitInfoModal(unitKey) {
       <div class="unit-cost-section">
         <h4>💰 Coût de recrutement</h4>
         <div class="unit-cost-grid">
-          <div class="cost-item"><span class="cost-icon">🪵</span><span>${unit.cost?.wood || 0}</span></div>
-          <div class="cost-item"><span class="cost-icon">🪨</span><span>${unit.cost?.stone || 0}</span></div>
-          <div class="cost-item"><span class="cost-icon">⛏️</span><span>${unit.cost?.iron || 0}</span></div>
-          <div class="cost-item"><span class="cost-icon">🌾</span><span>${unit.cost?.food || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🪵</span><span>${unit.recruitCost?.wood || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🪨</span><span>${unit.recruitCost?.stone || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">⛏️</span><span>${unit.recruitCost?.iron || 0}</span></div>
+          <div class="cost-item"><span class="cost-icon">🌾</span><span>${unit.recruitCost?.food || 0}</span></div>
         </div>
         <div class="train-time">
-          <span>⏱️ Temps: ${formatDuration(unit.trainTime || 60)}</span>
+          <span>⏱️ Temps: ${formatDuration(unit.recruitTimeSec || 360)}</span>
         </div>
       </div>
 
       <!-- Bâtiment requis -->
       <div class="unit-building-section">
         <h4>🏗️ Formation</h4>
-        <p>Entraîné dans: <strong>${getBuildingName(unit.building) || 'Caserne'}</strong></p>
+        <p>Entraîné dans: <strong>${getBuildingName({ INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' }[unit.class] || 'BARRACKS')}</strong>${unit.class === 'SIEGE' ? ' (niveau 5)' : unit.tier === 'intermediate' ? ' (niveau 7)' : unit.tier === 'elite' ? ' (niveau 15)' : ''}</p>
       </div>
     </div>
   `;

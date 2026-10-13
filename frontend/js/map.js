@@ -496,6 +496,8 @@ function onGlobalKeyDown(e) {
   // Don't capture if typing in input/textarea
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   
+  if (e.key === 'Escape') { closeAllPanels(); return; }
+
   // Don't capture if modal is open
   const modal = document.getElementById('modal');
   if (modal && modal.style.display !== 'none') return;
@@ -587,7 +589,7 @@ function onGlobalKeyDown(e) {
 function onMapKeyDown(e) {
   // Only when map tab is visible
   const mapTab = document.getElementById('tab-map');
-  if (!mapTab || mapTab.style.display === 'none') return;
+  if (!mapTab || !mapTab.classList.contains('active')) return;
   
   // Don't capture if typing in input
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -709,7 +711,7 @@ function toggleMapGrid() {
 let showMinimapPanel = true;
 function toggleMinimap() {
   showMinimapPanel = !showMinimapPanel;
-  const minimapContainer = document.querySelector('.minimap-container');
+  const minimapContainer = document.querySelector('.minimap');
   if (minimapContainer) {
     minimapContainer.style.display = showMinimapPanel ? 'block' : 'none';
   }
@@ -719,6 +721,10 @@ function toggleMinimap() {
 // ===== CLOSE ALL PANELS =====
 function closeAllPanels() {
   closeModal();
+  if (typeof closeBuildPanel === 'function') closeBuildPanel();
+  if (typeof closeMapPanel === 'function') closeMapPanel();
+  const help = document.getElementById('help-overlay');
+  if (help) help.style.display = 'none';
   const actionPanel = document.getElementById('action-panel');
   if (actionPanel) actionPanel.style.display = 'none';
 }
@@ -915,71 +921,13 @@ async function loadMap() {
     }
   } catch (e) {
     console.warn('Could not load map data:', e);
-    // Generate fake data for demo including player cities
-    mapData = generateFakeMapData(Math.floor(mapOffsetX), Math.floor(mapOffsetY), viewSize);
+    // Keep the last known tiles rather than inventing cities
+    showToast('Carte indisponible, nouvel essai au prochain déplacement', 'warning');
   }
 
   renderMap();
   renderMinimap();
   updateMapUI();
-}
-
-function generateFakeMapData(startX, startY, size) {
-  const data = [];
-  const fakePlayerNames = ['Marcus', 'Julia', 'Gaius', 'Livia', 'Brutus', 'Helena', 'Nero', 'Octavia', 'Titus', 'Cornelia'];
-  const fakeFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
-
-  // Add player cities with full data
-  cities.forEach(c => {
-    const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
-    data.push({
-      x: c.x,
-      y: c.y,
-      type: 'CITY',
-      id: c.id,
-      playerId: player?.id,
-      playerName: player?.name || 'Vous',
-      name: c.name,
-      isCapital: c.isCapital,
-      faction: player?.faction || 'ROME',
-      wallLevel: wallBuilding?.level || 0,
-      population: player?.population || 100
-    });
-  });
-
-  // Add some random resources and enemy cities
-  for (let i = 0; i < 50; i++) {
-    const x = startX + Math.floor(Math.random() * size);
-    const y = startY + Math.floor(Math.random() * size);
-    const types = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-
-    // Avoid collision with player cities
-    if (data.find(d => d.x === x && d.y === y)) continue;
-
-    if (Math.random() < 0.15) {
-      // Enemy city with proper data
-      const fakePlayerId = `fake-player-${i}`;
-      const fakePlayerName = fakePlayerNames[i % fakePlayerNames.length];
-      const fakeFaction = fakeFactions[Math.floor(Math.random() * fakeFactions.length)];
-      data.push({
-        x,
-        y,
-        type: 'CITY',
-        id: `fake-city-${i}`,
-        playerId: fakePlayerId,
-        playerName: fakePlayerName,
-        name: `${fakePlayerName}'s Village`,
-        isCapital: Math.random() < 0.3,
-        faction: fakeFaction,
-        wallLevel: Math.floor(Math.random() * 10),
-        population: Math.floor(Math.random() * 1000) + 50
-      });
-    } else {
-      data.push({ x, y, type: 'RESOURCE', resourceType: types[Math.floor(Math.random() * 4)] });
-    }
-  }
-
-  return data;
 }
 
 function renderMap() {
@@ -1028,13 +976,13 @@ function renderMap() {
     };
   }
 
-  // Convert screen to world coordinates
+  // Convert screen to world coordinates (tiles are drawn centred on integer coordinates)
   function screenToWorld(sx, sy) {
     const dx = sx - w / 2;
     const dy = sy - h / 2;
     return {
-      x: Math.floor(mapOffsetX + (dx / tileW + dy / tileH)),
-      y: Math.floor(mapOffsetY + (dy / tileH - dx / tileW))
+      x: Math.round(mapOffsetX + (dx / tileW + dy / tileH)),
+      y: Math.round(mapOffsetY + (dy / tileH - dx / tileW))
     };
   }
 
@@ -2612,6 +2560,27 @@ function onMapMouseUp() {
   }
 }
 
+// Tile under a canvas point. Cities, resources and armies are drawn above their ground diamond,
+// so a click on a sprite lands on the tile behind it: the neighbours whose sprite covers the
+// point are checked before reporting empty terrain.
+function pickMapTile(mouseX, mouseY) {
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  const dx = mouseX - mapCanvas.width / 2;
+  const dy = mouseY - mapCanvas.height / 2;
+  const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
+  const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
+  const entityAt = (x, y) => mapData.find(t => t.x === x && t.y === y && (t.type === 'CITY' || t.type === 'RESOURCE' || t.type === 'ARMY'));
+  let tile = entityAt(tileX, tileY);
+  if (!tile) {
+    for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
+      const t = entityAt(tileX + ox, tileY + oy);
+      if (t) { tile = t; break; }
+    }
+  }
+  return tile ? { x: tile.x, y: tile.y, tile } : { x: tileX, y: tileY, tile: null };
+}
+
 function onMapClick(e) {
   // Prevent click if user dragged the map (threshold: 5 pixels)
   const wasDrag = mapDragDistance > 5;
@@ -2619,26 +2588,9 @@ function onMapClick(e) {
   if (wasDrag) return;
 
   const rect = mapCanvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-
-  // Use isometric coordinate conversion
-  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = mapCanvas.width / 2;
-  const centerY = mapCanvas.height / 2;
-
-  // Screen to isometric world coordinates
-  const dx = mouseX - centerX;
-  const dy = mouseY - centerY;
-  const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-  const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-  // Find what's at this tile
-  const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-
-  mapSelectedTile = { x: tileX, y: tileY };
-  showMapInfoPanel(tileX, tileY, tile);
+  const picked = pickMapTile(e.clientX - rect.left, e.clientY - rect.top);
+  mapSelectedTile = { x: picked.x, y: picked.y };
+  showMapInfoPanel(picked.x, picked.y, picked.tile);
   renderMap();
 }
 
@@ -2711,22 +2663,9 @@ function onMapTouchEnd(e) {
   // Simulate click/tap if no significant drag
   if (touchDragDistance < 10 && touchStartPos) {
     const rect = mapCanvas.getBoundingClientRect();
-    const mouseX = touchStartPos.x - rect.left;
-    const mouseY = touchStartPos.y - rect.top;
-
-    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
-
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-    const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-    mapSelectedTile = { x: tileX, y: tileY };
-    showMapInfoPanel(tileX, tileY, tile);
+    const picked = pickMapTile(touchStartPos.x - rect.left, touchStartPos.y - rect.top);
+    mapSelectedTile = { x: picked.x, y: picked.y };
+    showMapInfoPanel(picked.x, picked.y, picked.tile);
     renderMap();
   }
 
@@ -2846,7 +2785,7 @@ function showMapInfoPanel(x, y, tile) {
     panel.style.display = 'flex';
   } else if (tile.type === 'CITY') {
     const isMyCity = tile.playerId === player?.id;
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
     
     if (isMyCity) {
       content.innerHTML = `
@@ -2872,7 +2811,7 @@ function showMapInfoPanel(x, y, tile) {
       'GOLD': '💰 Mine d\'or'
     };
     const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
 
     // Check if tribe is defeated (respawning)
     const isDefeated = tile.lastDefeat && !tile.hasDefenders;
@@ -2893,7 +2832,7 @@ function showMapInfoPanel(x, y, tile) {
           <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
-            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || unit}: ${count}</p>`
+            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
           ).join('')}
         </div>
       `;
@@ -3043,7 +2982,7 @@ async function viewPlayerProfile(playerId) {
 
 // Spy from map
 function spyFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3090,17 +3029,18 @@ async function confirmSpyFromMap(armyId, cityId) {
 
 // Send resources from map
 function sendResourcesFromMap(cityId, cityName) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
   
-  // Calculate carry capacity
-  const capacity = army.units.reduce((sum, u) => {
-    const unitDef = window.unitsData?.find(ud => ud.key === u.unitKey);
+  // Carry capacity: unit transport stats × faction bonus (EGYPT +10%), like the server
+  const transportBonus = player?.faction === 'EGYPT' ? 1.10 : 1;
+  const capacity = Math.floor(army.units.reduce((sum, u) => {
+    const unitDef = unitsData.find(ud => ud.key === u.unitKey);
     return sum + (unitDef?.stats?.transport || 50) * u.count;
-  }, 0);
+  }, 0) * transportBonus);
   
   document.getElementById('modal-body').innerHTML = `
     <h3>📦 Envoyer des ressources</h3>
@@ -3111,19 +3051,19 @@ function sendResourcesFromMap(cityId, cityName) {
     <div class="resource-inputs">
       <div class="resource-input">
         <label>🪵 Bois</label>
-        <input type="number" id="send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}">
+        <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>🪨 Pierre</label>
-        <input type="number" id="send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}">
+        <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>⛏️ Fer</label>
-        <input type="number" id="send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}">
+        <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
         <label>🌾 Nourriture</label>
-        <input type="number" id="send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}">
+        <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}" inputmode="numeric">
       </div>
     </div>
     
@@ -3136,10 +3076,10 @@ function sendResourcesFromMap(cityId, cityName) {
 }
 
 async function confirmSendResources(armyId, cityId) {
-  const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
-  const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
-  const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
-  const food = parseInt(document.getElementById('send-food')?.value) || 0;
+  const wood = parseInt(document.getElementById('map-send-wood')?.value) || 0;
+  const stone = parseInt(document.getElementById('map-send-stone')?.value) || 0;
+  const iron = parseInt(document.getElementById('map-send-iron')?.value) || 0;
+  const food = parseInt(document.getElementById('map-send-food')?.value) || 0;
 
   if (wood + stone + iron + food === 0) {
     showToast('Sélectionnez des ressources à envoyer', 'error');
@@ -3189,7 +3129,7 @@ function goToCity(cityId) {
 }
 
 function attackFromMap(cityId, x, y) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3231,7 +3171,7 @@ async function confirmAttackFromMap(armyId, cityId) {
 }
 
 function raidFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (army) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
@@ -3271,7 +3211,7 @@ async function confirmRaidFromMap(armyId, cityId) {
 
 // ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
 function raidResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3358,7 +3298,7 @@ function showRaidResourceResult(data) {
 }
 
 function collectResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;

@@ -84,9 +84,9 @@ function renderArmies() {
             <span class="hero-level-mini">Niv.${heroData?.level || 1}</span>
           </div>
           <div class="hero-stats-row">
-            <span>⚔️${heroData?.attack || 5}</span>
-            <span>🛡️${heroData?.defense || 5}</span>
-            <span>⚡${heroData?.speed || 5}</span>
+            <span>⚔️${(heroData?.attack || 5) + (heroData?.atkPoints || 0)}</span>
+            <span>🛡️${(heroData?.defense || 5) + (heroData?.defPoints || 0)}</span>
+            <span>⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
           </div>
           <div class="hero-assign-status">
             ${heroAssignedToArmy 
@@ -134,7 +134,7 @@ function renderArmies() {
 function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   // Locked slot
   if (isLocked) {
-    const requiredLevel = slotNum === 2 ? 5 : 10;
+    const requiredLevel = slotNum === 1 ? 1 : slotNum === 2 ? 5 : 10;
     return `
       <div class="army-card-new locked">
         <div class="army-card-top locked">
@@ -167,7 +167,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   // Existing army
   const hasHero = army.heroId === heroData?.id;
   const totalUnits = army.units?.reduce((s, u) => s + u.count, 0) || 0;
-  const armyPower = calculateArmyPower(army);
+  const armyPower = army.power ?? calculateArmyPower(army);
   
   const statusMap = {
     'IDLE': { icon: '🏠', label: 'En ville', cls: 'idle' },
@@ -175,9 +175,10 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'ATTACKING': { icon: '⚔️', label: 'Attaque', cls: 'attacking' },
     'RETURNING': { icon: '↩️', label: 'Retour', cls: 'returning' },
     'RAIDING': { icon: '💰', label: 'Pillage', cls: 'raiding' },
-    'GARRISON': { icon: '🏰', label: 'Garnison', cls: 'garrison' },
-    'HARVESTING': { icon: '⛏️', label: 'Récolte', cls: 'harvesting' },
-    'COLLECTING': { icon: '📦', label: 'Collecte', cls: 'collecting' }
+    'SPYING': { icon: '🔍', label: 'Espionnage', cls: 'moving' },
+    'TRANSPORTING': { icon: '📦', label: 'Transport', cls: 'moving' },
+    'EXPEDITION': { icon: '🧭', label: 'Expédition', cls: 'moving' },
+    'HARVESTING': { icon: '⛏️', label: 'Récolte', cls: 'harvesting' }
   };
   const status = statusMap[army.status] || { icon: '❓', label: army.status, cls: 'unknown' };
   
@@ -254,24 +255,27 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
             ↩️ Arrêter & Rentrer
           </button>
           <span class="destination-badge">📍 (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
+        ` : army.status === 'EXPEDITION' ? `
+          <span class="destination-badge">🧭 En expédition, retour automatique</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
           </button>
-          <span class="destination-badge">📍 (${army.targetX || '?'}, ${army.targetY || '?'})</span>
+          <span class="destination-badge">📍 (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
         `}
       </div>
     </div>
   `;
 }
 
-// Calculate army power
+// Army power like the server: (attack + defense) × tier coefficient × count
+const TIER_POWER = { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 };
+function unitPower(unit, count) {
+  return count * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0)) * (TIER_POWER[unit?.tier] || 1);
+}
 function calculateArmyPower(army) {
   if (!army?.units) return 0;
-  return army.units.reduce((sum, u) => {
-    const unit = unitsData.find(ud => ud.key === u.unitKey);
-    return sum + (u.count * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0)));
-  }, 0);
+  return army.units.reduce((sum, u) => sum + unitPower(unitsData.find(ud => ud.key === u.unitKey), u.count), 0);
 }
 
 // Show actions menu for army
@@ -392,7 +396,7 @@ function openArmyComposition(armyId) {
           <div class="hero-info-comp">
             ${hasHero ? `
               <span class="hero-name-comp">${escapeHtml(heroData?.name || 'Héros')}</span>
-              <span class="hero-stats-comp">⚔️${heroData?.attack} 🛡️${heroData?.defense} ⚡${heroData?.speed}</span>
+              <span class="hero-stats-comp">⚔️${(heroData?.attack || 5) + (heroData?.atkPoints || 0)} 🛡️${(heroData?.defense || 5) + (heroData?.defPoints || 0)} ⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
             ` : `
               <span class="hero-placeholder-comp">Aucun héros assigné</span>
             `}
@@ -470,7 +474,7 @@ function renderCompositionUnitRow(armyId, unitData) {
         <div class="comp-slider-group">
           <button class="comp-btn-adjust" onclick="adjustComposition('${armyId}', '${unitKey}', -10)">−10</button>
           <button class="comp-btn-adjust" onclick="adjustComposition('${armyId}', '${unitKey}', -1)">−</button>
-          <input type="number" class="comp-input" id="comp-${unitKey}" 
+          <input type="number" class="comp-input" id="comp-${unitKey}" data-in-army="${inArmy}"
                  value="${inArmy}" min="0" max="${total}" 
                  onchange="setComposition('${armyId}', '${unitKey}', this.value)">
           <button class="comp-btn-adjust" onclick="adjustComposition('${armyId}', '${unitKey}', 1)">+</button>
@@ -489,19 +493,21 @@ async function adjustComposition(armyId, unitKey, delta) {
   const garrisonSpan = document.getElementById(`garrison-${unitKey}`);
   if (!input) return;
   
-  const currentInArmy = parseInt(input.value) || 0;
+  // data-in-army holds the last confirmed value: the input itself may contain a value being typed
+  const currentInArmy = parseInt(input.dataset.inArmy) || 0;
   const currentGarrison = parseInt(garrisonSpan?.textContent) || 0;
   const total = currentInArmy + currentGarrison;
   
   let newValue = currentInArmy + delta;
   newValue = Math.max(0, Math.min(total, newValue));
   
-  if (newValue === currentInArmy) return;
+  if (newValue === currentInArmy) { input.value = currentInArmy; return; }
   
   const actualDelta = newValue - currentInArmy;
   
   // Optimistic UI update
   input.value = newValue;
+  input.dataset.inArmy = newValue;
   if (garrisonSpan) {
     garrisonSpan.textContent = currentGarrison - actualDelta;
   }
@@ -515,46 +521,48 @@ async function adjustComposition(armyId, unitKey, delta) {
       body: JSON.stringify({ unitKey, count: newValue })
     });
     
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       // Revert on error
       input.value = currentInArmy;
+      input.dataset.inArmy = currentInArmy;
       if (garrisonSpan) garrisonSpan.textContent = currentGarrison;
-      const data = await res.json();
+      updateCompositionSummary();
       showToast(data.error || 'Erreur', 'error');
     } else {
-      // Refresh armies data silently
+      // The server may clamp: align with its answer, then refresh armies data silently
+      if (Number.isInteger(data.newCount) && data.newCount !== newValue) {
+        input.value = data.newCount; input.dataset.inArmy = data.newCount;
+        if (garrisonSpan) garrisonSpan.textContent = total - data.newCount;
+        updateCompositionSummary();
+      }
       await loadArmies();
     }
   } catch (e) {
     input.value = currentInArmy;
+    input.dataset.inArmy = currentInArmy;
     if (garrisonSpan) garrisonSpan.textContent = currentGarrison;
+    updateCompositionSummary();
     showToast('Erreur de connexion', 'error');
   }
 }
 
-// Set exact composition
+// Set exact composition (typed value), clamped to what the garrison can provide
 async function setComposition(armyId, unitKey, value) {
-  const newValue = Math.max(0, parseInt(value) || 0);
-  await adjustComposition(armyId, unitKey, 0); // Trigger validation
-  
   const input = document.getElementById(`comp-${unitKey}`);
   const garrisonSpan = document.getElementById(`garrison-${unitKey}`);
-  const currentInArmy = parseInt(input?.value) || 0;
+  if (!input) return;
+  const currentInArmy = parseInt(input.dataset.inArmy) || 0;
   const currentGarrison = parseInt(garrisonSpan?.textContent) || 0;
-  const total = currentInArmy + currentGarrison;
-  
-  const clampedValue = Math.min(newValue, total);
-  const delta = clampedValue - currentInArmy;
-  
-  if (delta !== 0) {
-    await adjustComposition(armyId, unitKey, delta);
-  }
+  const target = Math.max(0, Math.min(currentInArmy + currentGarrison, parseInt(value) || 0));
+  input.value = currentInArmy;
+  if (target !== currentInArmy) await adjustComposition(armyId, unitKey, target - currentInArmy);
 }
 
 // Set max units
 async function setMaxComposition(armyId, unitKey, total) {
   const input = document.getElementById(`comp-${unitKey}`);
-  const currentInArmy = parseInt(input?.value) || 0;
+  const currentInArmy = parseInt(input?.dataset.inArmy) || 0;
   const delta = total - currentInArmy;
   
   if (delta !== 0) {
@@ -585,8 +593,7 @@ function updateCompositionSummary() {
     totalInArmy += inArmy;
     totalGarrison += garrison;
     
-    const unit = unitsData.find(u => u.key === unitKey);
-    totalPower += inArmy * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0));
+    totalPower += unitPower(unitsData.find(u => u.key === unitKey), inArmy);
   });
   
   totalUnitsSpan.innerHTML = `<strong>${totalInArmy}</strong> unités dans l'armée`;
@@ -665,7 +672,7 @@ function getGarrisonUnits() {
 // Create new army
 async function createArmy(slotNum) {
   const maxArmies = getMaxArmies();
-  const cityArmies = armies.filter(a => a.cityId === currentCity?.id);
+  const cityArmies = armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison);
   
   if (maxArmies === 0) {
     showToast('Construisez une Place de rassemblement!', 'error');
@@ -766,13 +773,16 @@ async function unassignHero(armyId) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
     });
     
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       showToast('Héros retiré de l\'armée', 'success');
       await loadArmies();
       renderArmies();
+    } else {
+      showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 

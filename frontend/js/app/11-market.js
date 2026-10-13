@@ -150,7 +150,7 @@ let currentReportTab = 'battles';
 
 function showReportsTab(tab) {
   currentReportTab = tab;
-  const reportTabContainer = document.querySelector('#tab-reports .toolbar-tabs');
+  const reportTabContainer = document.querySelector('#tab-reports .tab-toolbar');
   if (reportTabContainer) {
     reportTabContainer.querySelectorAll('.toolbar-btn').forEach(t => t.classList.remove('active'));
     reportTabContainer.querySelector(`.toolbar-btn[onclick*="${tab}"]`)?.classList.add('active');
@@ -249,7 +249,7 @@ function renderSpyReports() {
             <span class="report-title">🔍 Espionnage échoué</span>
             <span class="report-date">${date}</span>
           </div>
-          <p>Votre espion n'a pas réussi à infiltrer <strong>${escapeHtml(report.cityName)}</strong> à (${report.x}, ${report.y})</p>
+          <p>Votre espion n'a pas réussi à infiltrer <strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
         </div>
       `;
     }
@@ -260,7 +260,7 @@ function renderSpyReports() {
           <span class="report-title">🔍 Espionnage réussi</span>
           <span class="report-date">${date}</span>
         </div>
-        <p><strong>${escapeHtml(report.cityName)}</strong> à (${report.x}, ${report.y})</p>
+        <p><strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
         
         <div class="spy-section">
           <h4>💰 Ressources</h4>
@@ -336,7 +336,7 @@ function openVillageList() {
           <span class="village-name">${escapeHtml(city.name)}</span>
           <span class="village-coords">(${city.x}|${city.y})</span>
         </div>
-        <span class="village-pop">Pop: ${city.population || 0}</span>
+        <span class="village-pop">${city.cityTierName || 'Village'}</span>
       </div>
     `;
   });
@@ -358,6 +358,7 @@ function showArmyTab(subTab) {
       renderArmies();
       break;
     case 'train':
+      container.innerHTML = '<div id="units-grid" class="units-grid"></div>';
       loadUnits();
       break;
     case 'send':

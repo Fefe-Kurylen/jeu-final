@@ -152,18 +152,11 @@ function openBuildPanel(slotNum) {
       return;
     }
 
-    // Calculate costs for next level - must match backend formula
-    const costMultiplier = Math.pow(1.28, level);
-    const nextCost = {
-      wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
-      stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
-      iron: Math.floor((def?.costL1?.iron || 50) * costMultiplier),
-      food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
-    };
-
-    // Time formula must match backend
-    const baseDuration = def?.timeL1Sec || 60;
-    const buildTime = Math.floor(baseDuration * Math.pow(1.2, level));
+    // Next level to build = current level + levels already queued on this building (server rule)
+    const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === key && (key === 'MAIN_HALL' ? true : q.slot === slotNum)).length;
+    const targetLevel = level + inQueue + 1;
+    const nextCost = getBuildCost(def, targetLevel);
+    const buildTime = getBuildTime(def, targetLevel);
     const timeStr = formatDuration(buildTime);
 
     const bonus = getBuildingBonus(key, level);
@@ -177,6 +170,7 @@ function openBuildPanel(slotNum) {
 
     // Determine special tabs based on building type
     const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
+    if (key === 'HEALING_TENT') setTimeout(() => { if (typeof loadWounded === 'function') loadWounded(); }, 0);
 
     title.innerHTML = `
       <div class="building-title-header">
@@ -207,9 +201,9 @@ function openBuildPanel(slotNum) {
                 </div>
                 <div class="level-arrow">→</div>
                 <div class="level-next">
-                  <span class="level-num">${nextLevel}</span>
-                  <span class="level-label">Suivant</span>
-                  <p class="bonus-text">${nextBonus}</p>
+                  <span class="level-num">${targetLevel}</span>
+                  <span class="level-label">${inQueue > 0 ? `Suivant (${inQueue} en file)` : 'Suivant'}</span>
+                  <p class="bonus-text">${getBuildingBonus(key, targetLevel)}</p>
                 </div>
               </div>
             </div>
@@ -264,10 +258,10 @@ function openBuildPanel(slotNum) {
             <h4>📊 Bonus actuel (Niveau ${level})</h4>
             <div class="info-bonus">${bonus}</div>
           </div>
-          ${building?.prodPerHour ? `
+          ${['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(key) ? `
             <div class="info-section">
               <h4>📈 Production</h4>
-              <p class="info-production">+${formatNum(building.prodPerHour)} par heure</p>
+              <p class="info-production">+${formatNum(getProductionAtLevel(key, level))} par heure</p>
             </div>
           ` : ''}
           ${def?.prereq && def.prereq.length > 0 ? `
@@ -429,6 +423,18 @@ function openBuildPanel(slotNum) {
 }
 
 // Helper: Format duration in seconds to readable string
+// Same formulas as the server (routes/cities.js): cost × 1.28^(L-1), time × 1.2^(L-1), GREEK -10%
+function getBuildCost(def, targetLevel) {
+  const mult = Math.pow(1.28, targetLevel - 1);
+  const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
+  return { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+}
+function getBuildTime(def, targetLevel) {
+  let t = Math.floor((def?.timeL1Sec || 60) * Math.pow(1.2, targetLevel - 1));
+  if (player?.faction === 'GREEK') t = Math.floor(t * 0.9);
+  return Math.max(1, t);
+}
+
 function formatDuration(seconds) {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -449,17 +455,22 @@ function getBuildingBonus(key, level) {
     ACADEMY: `Réduction temps recherche: -${level}%`,
     FORGE: `Bonus défense globale: +${(level * 0.5).toFixed(1)}%`,
     MARKET: `Réduction taxe marché: -${level}%, Capacité transport: +${level * 5}%`,
-    WAREHOUSE: `Stockage ressources: ${formatNum(1200 + level * 8000)}`,
-    SILO: `Stockage nourriture: ${formatNum(1200 + level * 8000)}`,
+    WAREHOUSE: `Stockage ressources: ${formatNum(getStorageAtLevel(level))}`,
+    SILO: `Stockage nourriture: ${formatNum(getStorageAtLevel(level))}`,
+    MILL: `Production nourriture: +${level * 5}%`,
+    BAKERY: `Production nourriture: +${level * 5}%`,
+    SAWMILL: `Production bois: +${level * 5}%`,
+    STONEMASON: `Production pierre: +${level * 5}%`,
+    FOUNDRY: `Production fer: +${level * 5}%`,
     FARM: `Production nourriture: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
     LUMBER: `Production bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
     QUARRY: `Production pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
     IRON_MINE: `Production fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
-    WALL: `Bonus défense: +${level}%, Régénération mur: +${level}%`,
+    WALL: `Défense des défenseurs: +${level}%, PV du mur: ${formatNum(level * 1000)}`,
     MOAT: `Bonus ATK/DEF défenseur: +${(level * 0.5).toFixed(1)}%`,
-    HEALING_TENT: `Capacité de soins: ${level * 3} blessés`,
-    RALLY_POINT: `Armées max: ${Math.min(1 + Math.floor(level / 5), 3)}`,
-    HIDEOUT: `Ressources cachées: ${level}%`
+    HEALING_TENT: `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes, soins en ${Math.round(30 * Math.pow(0.95, level - 1))} min`,
+    RALLY_POINT: `Armées max: ${level >= 10 ? 3 : level >= 5 ? 2 : 1}`,
+    HIDEOUT: `Ressources cachées: ${Math.min(20, level)}%`
   };
   return bonuses[key] || 'Aucun bonus spécial';
 }
@@ -537,7 +548,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         content: `
           <div class="special-tab-content">
             <h4>🎯 Point de ralliement</h4>
-            <p>Armées simultanées: <strong>${Math.min(1 + Math.floor(level / 5), 5)}</strong></p>
+            <p>Armées simultanées: <strong>${level >= 10 ? 3 : level >= 5 ? 2 : 1}</strong> (2 au niveau 5, 3 au niveau 10)</p>
             <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
             <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
           </div>
@@ -553,9 +564,8 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         content: `
           <div class="special-tab-content">
             <h4>🏥 Tente de soins</h4>
-            <p>Capacité: <strong>${level * 3}</strong> blessés</p>
-            <p>Les troupes blessées peuvent être soignées ici après une bataille défensive.</p>
-            <button class="btn-success" onclick="healWounded()">Soigner les blessés</button>
+            <p>${Math.min(70, 30 + level * 3)}% des pertes reviennent blessées et guérissent en ${Math.round(30 * Math.pow(0.95, level - 1))} min. Soin immédiat : 1 or par unité.</p>
+            <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
         `
       });
@@ -705,6 +715,22 @@ function openFieldBuildPanel(slotNum) {
   }
   overlay.style.display = 'block';
   
+  const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === fieldType && q.slot === slotNum + 100).length;
+  const targetLevel = level + inQueue + 1;
+  const cost = getBuildCost(def, targetLevel);
+  const time = getBuildTime(def, targetLevel);
+  const mainHallLevel = Math.max(1, ...(currentCity?.buildings || []).filter(b => b.key === 'MAIN_HALL').map(b => b.level));
+  const queueFull = isBuildQueueFull();
+  const canAfford = currentCity && currentCity.wood >= cost.wood && currentCity.stone >= cost.stone && currentCity.iron >= cost.iron && currentCity.food >= cost.food;
+  const costHtml = `<div class="upgrade-cost">
+            <span class="${currentCity?.wood >= cost.wood ? '' : 'missing'}">🪵 ${formatNum(cost.wood)}</span>
+            <span class="${currentCity?.stone >= cost.stone ? '' : 'missing'}">🪨 ${formatNum(cost.stone)}</span>
+            <span class="${currentCity?.iron >= cost.iron ? '' : 'missing'}">⛏️ ${formatNum(cost.iron)}</span>
+            <span class="${currentCity?.food >= cost.food ? '' : 'missing'}">🌾 ${formatNum(cost.food)}</span>
+          </div>
+          <p style="font-size:12px;color:#888">⏱️ ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
+  const buttonLabel = queueFull ? '⏳ File pleine' : targetLevel > mainHallLevel ? `🔒 Bât. principal Niv.${targetLevel} requis` : !canAfford ? '❌ Ressources insuffisantes' : null;
+
   if (level > 0) {
     // Existing field - show upgrade
     const maxLevel = def?.maxLevel || 20;
@@ -722,17 +748,13 @@ function openFieldBuildPanel(slotNum) {
       </div>
       ${canUpgrade ? `
         <div class="upgrade-info">
-          <h5>Améliorer au niveau ${level + 1}</h5>
+          <h5>Améliorer au niveau ${targetLevel}</h5>
           <p style="font-size:12px;color:#666;margin-bottom:10px">
-            Production: +${getProductionAtLevel(fieldType, level + 1)}/h (+${getProductionAtLevel(fieldType, level + 1) - getProductionAtLevel(fieldType, level)}/h)
+            Production: +${getProductionAtLevel(fieldType, targetLevel)}/h (+${getProductionAtLevel(fieldType, targetLevel) - getProductionAtLevel(fieldType, targetLevel - 1)}/h)
           </p>
-          <div class="upgrade-cost">
-            <span>🪵 ${formatNum((def?.costL1?.wood || 50) * (level + 1))}</span>
-            <span>🪨 ${formatNum((def?.costL1?.stone || 50) * (level + 1))}</span>
-            <span>⛏️ ${formatNum((def?.costL1?.iron || 50) * (level + 1))}</span>
-          </div>
-          <button class="build-option-btn" onclick="buildField('${fieldType}', ${slotNum + 100})">
-            Améliorer
+          ${costHtml}
+          <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''} onclick="buildField('${fieldType}', ${slotNum + 100})">
+            ${buttonLabel || 'Améliorer'}
           </button>
         </div>
       ` : `<p style="text-align:center;color:#666;">Niveau maximum atteint</p>`}
@@ -741,19 +763,15 @@ function openFieldBuildPanel(slotNum) {
     // Empty field - show build option
     title.textContent = 'Construire';
     content.innerHTML = `
-      <div class="build-option" onclick="buildField('${fieldType}', ${slotNum + 100})">
+      <div class="build-option" onclick="${buttonLabel ? '' : `buildField('${fieldType}', ${slotNum + 100})`}">
         <div class="build-option-icon">${fieldIcons[fieldType]}</div>
         <div class="build-option-info">
           <h4>${fieldNames[fieldType]}</h4>
           <p>Production de ${fieldType === 'FARM' ? 'nourriture' : fieldType === 'LUMBER' ? 'bois' : fieldType === 'QUARRY' ? 'pierre' : 'fer'}</p>
           <p style="font-size:11px;color:#888">+${getProductionAtLevel(fieldType, 1)}/h au niveau 1</p>
-          <div class="build-option-cost">
-            <span>🪵 ${def?.costL1?.wood || 50}</span>
-            <span>🪨 ${def?.costL1?.stone || 50}</span>
-            <span>⛏️ ${def?.costL1?.iron || 50}</span>
-          </div>
+          ${costHtml}
         </div>
-        <button class="build-option-btn">Construire</button>
+        <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''}>${buttonLabel || 'Construire'}</button>
       </div>
     `;
   }
@@ -789,12 +807,17 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   const classes = allowedClasses[buildingKey] || [];
 
-  // Filter units by tier based on building level
+  // Unlock thresholds come from building data, like on the server (intermediate L7, elite L15, siege: workshop L5)
+  const bDef = buildingsData.find(b => b.key === buildingKey);
+  const unlockInter = bDef?.effects?.unlockIntermediateTier || 7;
+  const unlockElite = bDef?.effects?.unlockEliteTier || 15;
+  const siegeMin = 5;
   const availableUnits = unitsData.filter(u => {
     if (u.faction !== player?.faction) return false;
     if (!classes.includes(u.class)) return false;
-    if (u.tier === 'intermediate' && buildingLevel < 9) return false;
-    if (u.tier === 'elite' && buildingLevel < 15) return false;
+    if (u.class === 'SIEGE') return buildingLevel >= siegeMin;
+    if (u.tier === 'intermediate' && buildingLevel < unlockInter) return false;
+    if (u.tier === 'elite' && buildingLevel < unlockElite) return false;
     return true;
   });
 
@@ -805,9 +828,9 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     unitsByClass[u.class].push(u);
   });
 
-  // Check current recruitment queue
+  // Batches queue up one after another on the server: a running batch never blocks a new order
   const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
-  const isRecruiting = currentQueue.some(q => q.status === 'RUNNING');
+  const isRecruiting = false;
 
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel})`;
 
@@ -883,9 +906,10 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <h3>${buildingNames[buildingKey]}</h3>
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
-            ${buildingLevel < 9 ? '🔹 Unités de base (Niv.1-8)' :
-              buildingLevel < 15 ? '🔹 Base + Intermédiaires (Niv.9-14)' :
-              '🔹 Toutes les unités (Niv.15+)'}
+            ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `🔹 Engins de siège dès le niveau ${siegeMin}` : '🔹 Engins de siège disponibles') :
+              buildingLevel < unlockInter ? `🔹 Unités de base (intermédiaires au niveau ${unlockInter})` :
+              buildingLevel < unlockElite ? `🔹 Base + Intermédiaires (élite au niveau ${unlockElite})` :
+              '🔹 Toutes les unités'}
           </p>
         </div>
         <button class="upgrade-building-btn" onclick="closeBuildPanel(); openBuildPanelUpgrade('${buildingKey}', ${slotNum})">
@@ -920,12 +944,6 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
         `}
       </div>
 
-      ${isRecruiting ? `
-        <div class="recruitment-warning">
-          <span>⚠️</span>
-          <span>Un recrutement est déjà en cours. Attendez qu'il se termine.</span>
-        </div>
-      ` : ''}
     </div>
   `;
 

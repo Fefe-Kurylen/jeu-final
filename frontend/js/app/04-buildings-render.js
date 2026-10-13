@@ -946,7 +946,10 @@ function shadeColor(color, percent) {
 }
 
 function getBuildingAtSlot(slotNum) {
-  return currentCity?.buildings?.find(b => b.slot === slotNum);
+  const buildings = currentCity?.buildings || [];
+  // The centre slot always holds the Main Hall, wherever older data stored it
+  if (slotNum === 0) return buildings.find(b => b.key === 'MAIN_HALL') || buildings.find(b => b.slot === 0);
+  return buildings.find(b => b.slot === slotNum && b.key !== 'MAIN_HALL');
 }
 
 function onCityMouseMove(e) {
@@ -1065,7 +1068,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       };
       const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
       const level = building?.level || 0;
-      const production = building?.prodPerHour || 0;
+      const production = level > 0 ? getProductionAtLevel(slot.fieldType, level) : 0;
       const cvMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
       const cvMainHallLevel = cvMainHall?.level || 1;
       const cvFieldDef = buildingsData?.find(b => b.key === slot.fieldType);
@@ -1089,7 +1092,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const ttMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
       const ttMainHallLevel = ttMainHall?.level || 1;
       const ttEffectiveMax = building.key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, ttMainHallLevel);
-      const production = building.prodPerHour || 0;
+      const production = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(building.key) ? getProductionAtLevel(building.key, building.level) : 0;
       const effect = getBuildingEffect(building.key, building.level);
 
       html = `
@@ -1105,9 +1108,6 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       html = `
         <h4><span class="tt-icon">🏛️</span> Bâtiment principal</h4>
         <p class="tt-level">Niveau ${level}/30</p>
-        <div class="tt-stats">
-          <span class="tt-stat">Réduction construction: <span class="tt-stat-value">${(level * 2.5).toFixed(1)}%</span></span>
-        </div>
         <p class="tt-hint">Cliquez pour améliorer</p>
       `;
     } else {

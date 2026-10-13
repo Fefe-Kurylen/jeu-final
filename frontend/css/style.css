@@ -4294,3 +4294,38 @@ body.offline .top-bar::after {
   font-family: 'Cinzel', serif;
   letter-spacing: 2px;
 }
+
+
+/* ===== Bottom nav: centred when it fits, scrollable from the first tab when it overflows ===== */
+.bottom-nav-inner { justify-content: flex-start; }
+.bottom-nav-inner::before, .bottom-nav-inner::after { content: ''; margin: auto; flex: 0 0 auto; }
+@media (max-width: 480px) {
+  .bnav-tab { padding: 6px 5px; min-width: 42px; }
+  .bnav-label { font-size: 9px; }
+  .bnav-village-info .village-name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+  .bnav-village-info .village-coords { display: none; }
+  .npc-row, .offer-form-row { flex-wrap: wrap; }
+  .npc-row select, .npc-row input, .offer-form-row select, .offer-form-row input { min-width: 0; flex: 1 1 110px; }
+  .npc-resources-grid { flex-wrap: wrap; gap: 8px; }
+}
+
+/* ===== Keyboard help overlay ===== */
+.help-overlay { position: fixed; inset: 0; z-index: 1200; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.help-content { position: relative; background: #2a2418; border: 2px solid #8b6914; border-radius: 10px; padding: 20px 24px; max-width: 760px; width: 100%; max-height: 90vh; overflow: auto; color: #f5e6c8; }
+.help-content h2 { margin: 0 0 12px; color: #ffd700; font-family: 'Cinzel', serif; }
+.help-content .close-help { position: absolute; top: 10px; right: 12px; background: none; border: none; color: #f5e6c8; font-size: 20px; cursor: pointer; }
+.help-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.help-column h3 { font-size: 14px; color: #c9a227; margin: 0 0 8px; }
+.help-column .shortcut { font-size: 13px; margin: 4px 0; }
+.help-content kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin-right: 4px; border: 1px solid #8b6914; border-radius: 4px; background: #1a1510; font-family: monospace; font-size: 12px; text-align: center; }
+.help-footer { margin-top: 12px; font-size: 12px; color: #8a7a6a; text-align: center; }
+
+/* ===== Misc ===== */
+.ranking-row.me { outline: 1px solid #c9a227; }
+.ranking-row[onclick] { cursor: pointer; }
+.upgrade-cost .missing, .build-option-cost .missing { color: #ff6b6b; }
+.build-option-btn.disabled, .build-option-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.hero-full-panel { flex-wrap: wrap; }
+.hero-expeditions { flex: 1 1 100%; width: 100%; margin-top: 16px; }
+.expeditions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.expedition-card.in-progress { opacity: 0.8; border-style: dashed; }

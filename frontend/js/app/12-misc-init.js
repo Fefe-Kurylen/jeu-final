@@ -59,97 +59,65 @@ async function sendResources() {
   }
 }
 
+// Field armies of the current city that are home and have units
+function sendableArmies() {
+  return armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison && a.status === 'IDLE' && a.units?.length > 0 && a.x === currentCity?.x && a.y === currentCity?.y);
+}
+
 function renderSendTroopsForm() {
   const container = document.getElementById('armies-management');
   if (!container) return;
+  const available = sendableArmies();
 
   container.innerHTML = `
     <div class="send-troops-form">
-      <h3>Envoyer des troupes</h3>
+      <h3>Envoyer une armée</h3>
+      <p style="font-size:12px;color:var(--text-muted)">Composez vos armées dans l'onglet Aperçu, puis envoyez-les ici ou depuis la carte.</p>
+      <div class="form-row">
+        <label>Armée</label>
+        <select id="troops-army">
+          ${available.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${a.units.reduce((s, u) => s + u.count, 0)} unités)</option>`).join('')}
+        </select>
+      </div>
       <div class="form-row">
         <label>Destination</label>
-        <input type="text" id="troops-target" placeholder="x|y">
+        <input type="text" id="troops-target" placeholder="x|y" inputmode="numeric">
       </div>
       <div class="form-row">
         <label>Mission</label>
         <select id="troops-mission">
-          <option value="ATTACK">⚔️ Attaque</option>
-          <option value="RAID">💰 Raid</option>
-          <option value="SUPPORT">🛡️ Renfort</option>
+          <option value="ATTACK">⚔️ Attaque (engins de siège requis)</option>
+          <option value="RAID">💰 Pillage</option>
           <option value="SPY">🔍 Espionnage</option>
+          <option value="MOVE">🚶 Déplacement</option>
         </select>
       </div>
-      <div id="troops-selection" class="troops-selection">
-        <p style="color:var(--text-muted)">Chargement des troupes...</p>
-      </div>
-      <button class="btn-primary" onclick="sendTroops()">Envoyer</button>
+      ${available.length ? '<button class="btn-primary" onclick="sendTroops()">Envoyer</button>' : '<p style="color:var(--text-muted)">Aucune armée prête : créez-en une au point de ralliement et ajoutez-y des unités.</p>'}
     </div>
   `;
-
-  loadTroopsForSending();
-}
-
-async function loadTroopsForSending() {
-  const cityArmy = armies.find(a => a.cityId === currentCity?.id && a.status === 'IDLE');
-  const container = document.getElementById('troops-selection');
-  if (!container) return;
-
-  if (!cityArmy || !cityArmy.units || cityArmy.units.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted)">Aucune troupe disponible</p>';
-    return;
-  }
-
-  container.innerHTML = cityArmy.units.map(u => `
-    <div class="troop-row">
-      <span class="troop-name">${getUnitName(u.unitKey)}</span>
-      <span class="troop-available">Dispo: ${u.count}</span>
-      <input type="number" id="send-${u.unitKey}" min="0" max="${u.count}" value="0">
-    </div>
-  `).join('');
 }
 
 async function sendTroops() {
   const target = document.getElementById('troops-target')?.value?.trim();
   const mission = document.getElementById('troops-mission')?.value || 'ATTACK';
+  const armyId = document.getElementById('troops-army')?.value;
 
+  if (!armyId) {
+    showToast('Aucune armée disponible', 'error');
+    return;
+  }
   if (!target) {
     showToast('Veuillez entrer une destination', 'error');
     return;
   }
 
-  // Parse coordinates
   const coordMatch = target.match(/(-?\d+)[|,](-?\d+)/);
   if (!coordMatch) {
     showToast('Format invalide. Utilisez x|y', 'error');
     return;
   }
-
   const targetX = parseInt(coordMatch[1]);
   const targetY = parseInt(coordMatch[2]);
-
-  // Collect selected troops
-  const cityArmy = armies.find(a => a.cityId === currentCity?.id && a.status === 'IDLE');
-  if (!cityArmy) {
-    showToast('Aucune armée disponible', 'error');
-    return;
-  }
-
-  const units = {};
-  let totalTroops = 0;
-
-  cityArmy.units?.forEach(u => {
-    const input = document.getElementById(`send-${u.unitKey}`);
-    const count = parseInt(input?.value) || 0;
-    if (count > 0) {
-      units[u.unitKey] = count;
-      totalTroops += count;
-    }
-  });
-
-  if (totalTroops === 0) {
-    showToast('Sélectionnez au moins une unité', 'error');
-    return;
-  }
 
   try {
     const res = await fetch(`${API}/api/armies/send`, {
@@ -158,20 +126,14 @@ async function sendTroops() {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        armyId: cityArmy.id,
-        targetX,
-        targetY,
-        mission,
-        units
-      })
+      body: JSON.stringify({ armyId, targetX, targetY, mission })
     });
 
     const data = await res.json();
     if (res.ok) {
-      showToast(`Troupes envoyées en mission ${mission}!`, 'success');
-      loadArmies();
-      loadCities();
+      showToast(data.message || 'Armée envoyée !', 'success');
+      await loadArmies();
+      renderSendTroopsForm();
     } else {
       showToast(data.error || 'Erreur lors de l\'envoi', 'error');
     }

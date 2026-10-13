@@ -47,25 +47,27 @@ const CITY_LAYOUT = {
 // Layout des champs de ressources (vue séparée) - 18 emplacements typique Travian
 const FIELDS_LAYOUT = {
   // 4 types de ressources × plusieurs emplacements
+  // Anneau 1 : 12 champs espacés de 30°, anneau 2 : 6 champs espacés de 60° (décalés de 15°)
+  // Les numéros de slot correspondent aux emplacements typés du serveur (101-118)
   fields: [
     // Bois (forêt) - 4 emplacements
-    { slot: 1, type: 'LUMBER', angle: 20, ring: 1 },
-    { slot: 2, type: 'LUMBER', angle: 70, ring: 2 },
-    { slot: 3, type: 'LUMBER', angle: 340, ring: 1 },
-    { slot: 4, type: 'LUMBER', angle: 290, ring: 2 },
-    
+    { slot: 1, type: 'LUMBER', angle: 30, ring: 1 },
+    { slot: 2, type: 'LUMBER', angle: 75, ring: 2 },
+    { slot: 3, type: 'LUMBER', angle: 330, ring: 1 },
+    { slot: 4, type: 'LUMBER', angle: 315, ring: 2 },
+
     // Pierre (carrière) - 4 emplacements
-    { slot: 5, type: 'QUARRY', angle: 110, ring: 1 },
-    { slot: 6, type: 'QUARRY', angle: 160, ring: 2 },
-    { slot: 7, type: 'QUARRY', angle: 200, ring: 1 },
-    { slot: 8, type: 'QUARRY', angle: 250, ring: 2 },
-    
+    { slot: 5, type: 'QUARRY', angle: 150, ring: 1 },
+    { slot: 6, type: 'QUARRY', angle: 135, ring: 2 },
+    { slot: 7, type: 'QUARRY', angle: 210, ring: 1 },
+    { slot: 8, type: 'QUARRY', angle: 195, ring: 2 },
+
     // Fer (mine) - 4 emplacements
-    { slot: 9, type: 'IRON_MINE', angle: 45, ring: 2 },
-    { slot: 10, type: 'IRON_MINE', angle: 135, ring: 1 },
-    { slot: 11, type: 'IRON_MINE', angle: 225, ring: 2 },
-    { slot: 12, type: 'IRON_MINE', angle: 315, ring: 1 },
-    
+    { slot: 9, type: 'IRON_MINE', angle: 15, ring: 2 },
+    { slot: 10, type: 'IRON_MINE', angle: 90, ring: 1 },
+    { slot: 11, type: 'IRON_MINE', angle: 255, ring: 2 },
+    { slot: 12, type: 'IRON_MINE', angle: 270, ring: 1 },
+
     // Nourriture (ferme) - 6 emplacements
     { slot: 13, type: 'FARM', angle: 0, ring: 1 },
     { slot: 14, type: 'FARM', angle: 60, ring: 1 },

@@ -17,12 +17,12 @@ function renderLoadError(el, retryFn) {
 async function loadAlliance() {
   const content = document.getElementById('alliance-content');
   try {
-    const [p, alliances] = await Promise.all([fetchJson('/api/player/me'), fetchJson('/api/alliances')]);
-    const myAllianceId = p.alliance?.allianceId;
-    const myAlliance = myAllianceId ? alliances.find(a => a.id === myAllianceId) : null;
+    const [mine, alliances] = await Promise.all([fetchJson('/api/alliance/mine'), fetchJson('/api/alliances')]);
+    const p = { id: player?.id };
+    const myAlliance = mine?.alliance || null;
 
     if (myAlliance) {
-      const myRole = p.alliance.role;
+      const myRole = mine.role;
       const isLeaderOrOfficer = ['LEADER', 'OFFICER'].includes(myRole);
       const isLeader = myRole === 'LEADER';
       const diplomacyData = await fetchJson('/api/alliance/diplomacy').catch(() => ({ diplomacy: [] }));
@@ -42,6 +42,12 @@ async function loadAlliance() {
                     ${myAlliance.description ? `<p style="font-size:12px;color:var(--text-muted)">${escapeHtml(myAlliance.description)}</p>` : ''}
                   </div>
                 </div>
+                ${isLeaderOrOfficer ? `
+                  <div class="form-row" style="margin-top:16px">
+                    <label>Inviter un joueur</label>
+                    <input type="text" id="alliance-invite-name" placeholder="Pseudo exact" autocapitalize="none">
+                    <button class="btn btn-secondary" onclick="invitePlayer()">Inviter</button>
+                  </div>` : ''}
                 <button onclick="leaveAlliance()" class="btn btn-danger" style="margin-top:20px">Quitter l'alliance</button>
               </div>
             </div>
@@ -97,18 +103,31 @@ async function loadAlliance() {
       return;
     }
 
+    const invites = await fetchJson('/api/alliance/invites').catch(() => []);
     content.innerHTML = `
+      ${invites.length ? `
+      <div style="margin-bottom:30px">
+        <h3 style="color:var(--gold);margin-bottom:15px">Invitations reçues</h3>
+        ${invites.map(inv => `
+          <div class="member-row">
+            <span class="member-name">[${escapeHtml(inv.alliance?.tag)}] ${escapeHtml(inv.alliance?.name)}</span>
+            <span>
+              <button onclick="joinAlliance('${inv.alliance?.id}')" class="btn btn-secondary" style="margin:0;padding:6px 12px">Accepter</button>
+              <button onclick="declineInvite('${inv.id}')" class="btn btn-danger" style="margin:0 0 0 6px;padding:6px 12px">Refuser</button>
+            </span>
+          </div>`).join('')}
+      </div>` : ''}
       <div style="margin-bottom:30px">
         <h3 style="color:var(--gold);margin-bottom:15px">Créer une alliance</h3>
         <input type="text" id="alliance-name" placeholder="Nom de l'alliance" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border);color:var(--text);border-radius:4px">
         <input type="text" id="alliance-tag" placeholder="Tag (2-5 caractères)" maxlength="5" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border);color:var(--text);border-radius:4px">
         <button onclick="createAlliance()" class="btn">Créer</button>
       </div>
-      <h3 style="color:var(--gold);margin-bottom:15px">Rejoindre une alliance</h3>
-      ${alliances.slice(0, 10).map(a => `
+      <h3 style="color:var(--gold);margin-bottom:15px">Alliances existantes</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">On rejoint une alliance sur invitation de l'un de ses officiers.</p>
+      ${alliances.slice(0, 20).map(a => `
         <div class="member-row">
           <span class="member-name">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)} (${a.members.length} membres)</span>
-          <button onclick="joinAlliance('${a.id}')" class="btn btn-secondary" style="margin:0;padding:6px 12px">Rejoindre</button>
         </div>
       `).join('') || '<p style="color:var(--text-muted)">Aucune alliance</p>'}
     `;
@@ -116,6 +135,20 @@ async function loadAlliance() {
     console.warn('loadAlliance error:', e);
     renderLoadError(content, 'loadAlliance()');
   }
+}
+
+async function invitePlayer() {
+  const playerName = document.getElementById('alliance-invite-name')?.value?.trim();
+  if (!playerName) { showToast('Entrez un pseudo', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/api/alliance/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ playerName }) });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? (data.message || 'Invitation envoyée') : (data.error || 'Erreur'), res.ok ? 'success' : 'error');
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+}
+
+async function declineInvite(inviteId) {
+  await allianceAction(`/api/alliance/invites/${inviteId}/decline`, 'Invitation refusée');
 }
 
 async function promoteMember(playerId, role) {
@@ -214,19 +247,21 @@ async function leaveAlliance() {
 
 // ========== RANKING ==========
 async function loadRanking(type) {
-  document.querySelectorAll('.rank-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.rank-tab:${type === 'players' ? 'first-child' : 'last-child'}`)?.classList.add('active');
+  document.querySelectorAll('#tab-ranking .toolbar-btn').forEach(t => t.classList.remove('active'));
+  document.querySelector(`#tab-ranking .toolbar-btn[onclick*="'${type}'"]`)?.classList.add('active');
   const content = document.getElementById('ranking-content');
+  const endpoints = { players: '/api/ranking/players', alliances: '/api/ranking/alliances', attackers: '/api/ranking/attackers', defenders: '/api/ranking/defenders' };
+  const valueOf = (item) => type === 'attackers' ? `${formatNum(item.attacksWon || 0)} victoires` : type === 'defenders' ? `${formatNum(item.defensesWon || 0)} défenses` : `${formatNum(item.population || 0)} pop`;
 
   try {
-    const data = await fetchJson(type === 'players' ? '/api/ranking/players' : '/api/ranking/alliances');
-    content.innerHTML = `
+    const data = await fetchJson(endpoints[type] || endpoints.players);
+    content.innerHTML = data.length === 0 ? '<div class="empty-state">Aucun classement pour le moment</div>' : `
       <div class="ranking-list">
         ${data.map((item, i) => `
-          <div class="ranking-row">
+          <div class="ranking-row ${item.id === player?.id ? 'me' : ''}" ${type !== 'alliances' && item.id ? `onclick="viewPlayerProfile('${item.id}')"` : ''}>
             <span class="ranking-position ${i < 3 ? 'top' + (i + 1) : ''}">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</span>
-            <span class="ranking-name">${type === 'players' ? escapeHtml(item.name) : `[${escapeHtml(item.tag)}] ${escapeHtml(item.name)}`}</span>
-            <span class="ranking-value">${formatNum(item.population || 0)} pop</span>
+            <span class="ranking-name">${type === 'alliances' ? `[${escapeHtml(item.tag)}] ${escapeHtml(item.name)}` : `${item.alliance?.alliance?.tag ? `[${escapeHtml(item.alliance.alliance.tag)}] ` : ''}${escapeHtml(item.name)}`}</span>
+            <span class="ranking-value">${valueOf(item)}</span>
           </div>
         `).join('')}
       </div>
@@ -298,7 +333,7 @@ async function loadReports() {
               <div class="losses">
                 <span class="loss-label">Pertes:</span>
                 <span class="loss-value">${Math.round((r.attackerLosses?.rate || 0) * 100)}%</span>
-                <span class="loss-count">(${r.attackerLosses?.totalKilled || 0} unités)</span>
+                <span class="loss-count">(${r.attackerLosses?.totalKilled ?? r.attackerLosses?.totalAttackerLosses ?? 0} unités)</span>
               </div>
             </div>
             
@@ -317,7 +352,7 @@ async function loadReports() {
               <div class="losses">
                 <span class="loss-label">Pertes:</span>
                 <span class="loss-value">${Math.round((r.defenderLosses?.rate || 0) * 100)}%</span>
-                <span class="loss-count">(${r.defenderLosses?.totalKilled || 0} unités)</span>
+                <span class="loss-count">(${r.defenderLosses?.totalKilled ?? r.defenderLosses?.totalDefenderLosses ?? 0} unités)</span>
               </div>
             </div>
           </div>

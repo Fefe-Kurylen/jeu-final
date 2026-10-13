@@ -145,8 +145,18 @@ async function loadHero() {
               </div>
             </div>
           </div>
+
+          <!-- Expeditions -->
+          <div class="hero-expeditions">
+            <h4 class="equipment-title">🧭 Expéditions</h4>
+            <p style="font-size:12px;color:var(--text-muted)">Envoyez une armée (hors garnison) en expédition : XP pour le héros qui l'accompagne, or en récompense, quelques pertes selon la difficulté.</p>
+            <div id="expeditions-available" class="expeditions-grid"><p style="color:var(--text-muted)">Chargement…</p></div>
+            <h4 class="equipment-title" style="margin-top:12px">Historique</h4>
+            <div id="expeditions-history"></div>
+          </div>
         </div>
       `;
+      loadExpeditions();
     } else {
       panel.innerHTML = '<p style="color:var(--text-muted)">Aucun heros. Construisez une Demeure du Heros.</p>';
     }
@@ -447,35 +457,47 @@ async function loadExpeditions() {
     return;
   }
   
+  const availableEl = document.getElementById('expeditions-available');
+  const historyEl = document.getElementById('expeditions-history');
+  if (!availableEl || !historyEl) return;
   if (res.ok) {
     const expeditions = await res.json();
     const available = expeditions.filter(e => e.status === 'AVAILABLE');
-    const history = expeditions.filter(e => e.status !== 'AVAILABLE');
+    const inProgress = expeditions.filter(e => e.status === 'IN_PROGRESS');
+    const history = expeditions.filter(e => e.status === 'COMPLETED' || e.status === 'EXPIRED');
+    const sendable = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
     
-    document.getElementById('expeditions-available').innerHTML = available.length > 0 
-      ? available.map(e => `
+    availableEl.innerHTML = [
+      ...inProgress.map(e => `
+          <div class="expedition-card in-progress">
+            <div class="exp-difficulty"><span class="exp-stars">${'⭐'.repeat(e.difficulty)}</span></div>
+            <h4>En cours</h4>
+            <p>Retour: <span class="qd-timer" data-ends-at="${e.endsAt}">${formatTime(e.endsAt)}</span></p>
+          </div>`),
+      ...available.map(e => `
           <div class="expedition-card">
             <div class="exp-difficulty"><span class="exp-stars">${'⭐'.repeat(e.difficulty)}</span></div>
             <h4>Expédition ${e.difficulty > 2 ? 'Difficile' : 'Standard'}</h4>
             <p>Puissance ennemie: ${e.enemyPower}</p>
             <p>Durée: ${Math.floor(e.duration / 60)} min</p>
             <div class="exp-loot"><span class="loot-badge ${e.lootTier}">${e.lootTier}</span></div>
-            <button onclick="startExpedition('${e.id}')" class="btn">Lancer</button>
-          </div>
-        `).join('')
-      : '<p style="color:var(--text-muted)">Aucune expédition disponible</p>';
+            <button onclick="startExpedition('${e.id}')" class="btn" ${sendable.length ? '' : 'disabled title="Aucune armée prête"'}>Lancer</button>
+          </div>`)
+    ].join('') || '<p style="color:var(--text-muted)">Aucune expédition disponible (une nouvelle apparaît environ chaque heure)</p>';
     
-    document.getElementById('expeditions-history').innerHTML = history.slice(0, 10).map(e => `
+    historyEl.innerHTML = history.slice(0, 10).map(e => `
       <div class="queue-item">
-        <span>${e.won ? '✅' : '❌'} Difficulté ${e.difficulty}</span>
-        <span class="loot-badge ${e.lootTier}">${e.xpGained || 0} XP</span>
+        <span>${e.status === 'EXPIRED' ? '⌛ Expirée' : e.won ? '✅ Victoire' : '❌ Défaite'} · Difficulté ${e.difficulty}</span>
+        <span class="loot-badge ${e.lootTier}">${e.xpGained || 0} XP${e.lootGained?.gold ? ` · ${e.lootGained.gold} or` : ''}</span>
       </div>
     `).join('') || '<p style="color:var(--text-muted)">Aucun historique</p>';
+  } else {
+    availableEl.innerHTML = '<p style="color:var(--text-muted)">Impossible de charger les expéditions</p>';
   }
 }
 
 async function startExpedition(id) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0 && a.cityId === currentCity?.id) || armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
