@@ -1,0 +1,29 @@
+{
+  "cities": [
+    "rome",
+    "gaul",
+    "greek",
+    "egypt",
+    "hun",
+    "sultan",
+    "capital",
+    "default"
+  ],
+  "resources": [
+    "wood",
+    "stone",
+    "iron",
+    "food",
+    "gold"
+  ],
+  "units": [
+    "hoplite",
+    "archer",
+    "cavalry",
+    "catapult",
+    "merchant"
+  ],
+  "format": "png",
+  "size": 256,
+  "anchor": "bottom-center"
+}

@@ -1,0 +1,63 @@
+{
+  "factions": [
+    "ROME",
+    "GAUL",
+    "GREEK",
+    "EGYPT",
+    "HUN",
+    "SULTAN"
+  ],
+  "buildings": [
+    "MAIN_HALL",
+    "FARM",
+    "LUMBER",
+    "QUARRY",
+    "IRON_MINE",
+    "WAREHOUSE",
+    "SILO",
+    "RALLY_POINT",
+    "BARRACKS",
+    "STABLE",
+    "WORKSHOP",
+    "ACADEMY",
+    "FORGE",
+    "HIDEOUT",
+    "HEALING_TENT",
+    "MARKET",
+    "WALL",
+    "MOAT",
+    "MILL",
+    "BAKERY",
+    "GREAT_SILO",
+    "GREAT_WAREHOUSE",
+    "GREAT_BARRACKS",
+    "GREAT_STABLE",
+    "EMBASSY",
+    "TREASURE_CHAMBER",
+    "HERO_MANSION",
+    "WATCHTOWER",
+    "FOUNDRY",
+    "STONEMASON",
+    "SAWMILL",
+    "RESIDENCE",
+    "TRADE_OFFICE",
+    "ROMAN_THERMAE",
+    "GALLIC_BREWERY",
+    "GREEK_TEMPLE",
+    "EGYPTIAN_IRRIGATION",
+    "HUN_WAR_TENT",
+    "SULTAN_DESERT_OUTPOST"
+  ],
+  "fields": [
+    "FARM",
+    "LUMBER",
+    "QUARRY",
+    "IRON_MINE"
+  ],
+  "tiers": 3,
+  "viewBox": "35 -16 130 126",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.683
+  }
+}

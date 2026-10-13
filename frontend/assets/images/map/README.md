@@ -1,58 +1,21 @@
-# Map Tileset Images
+# Sprites de la carte du monde
 
-Ce dossier contient les images pour la carte du monde isométrique.
-
-## Structure des dossiers
+Générés par `node tools/build-assets.cjs` (SVG) puis `node tools/build-assets.cjs --png` (rendu PNG via
+Playwright/Chromium). Ne pas retoucher les fichiers à la main : modifier le générateur (`M.cities`,
+`M.resources`, `M.units`).
 
 ```
 map/
-├── tileset.png          # Tileset principal (optionnel)
-├── cities/              # Images des villes
-│   ├── rome.png
-│   ├── gaul.png
-│   ├── greek.png
-│   ├── egypt.png
-│   ├── hun.png
-│   ├── sultan.png
-│   ├── capital.png
-│   └── default.png
-├── units/               # Images des unités
-│   ├── hoplite.png
-│   ├── archer.png
-│   ├── cavalry.png
-│   ├── catapult.png
-│   ├── trireme.png
-│   ├── merchant.png
-│   └── settler.png
-├── resources/           # Images des ressources
-│   ├── wood.png
-│   ├── stone.png
-│   ├── iron.png
-│   ├── food.png
-│   └── gold.png
-└── terrain/             # Tuiles de terrain
-    ├── grass.png
-    ├── desert.png
-    ├── snow.png
-    ├── water.png
-    ├── forest.png
-    └── mountain.png
+├── manifest.json      # listes cities / resources / units, format, taille, ancre
+├── cities/            # rome gaul greek egypt hun sultan capital default  (.svg + .png)
+├── resources/         # wood stone iron food gold
+└── units/             # hoplite archer cavalry catapult merchant
 ```
 
-## Spécifications des images
+## Spécifications
 
-### Format recommandé
-- **Format**: PNG avec transparence (fond transparent)
-- **Style**: Isométrique, angle ~30 degrés
-- **Taille recommandée**: 128x128 ou 256x256 pixels
-
-### Tileset principal (optionnel)
-Si vous utilisez un tileset combiné (`tileset.png`), configurez-le dans `/assets/tileset-config.json`.
-
-Le tileset doit avoir:
-- Largeur de tuile: 190px
-- Hauteur de tuile: 160px
-- 6 colonnes x 4 lignes
-
-## Fallback
-Si les images ne sont pas trouvées, le jeu utilisera automatiquement le rendu procédural (formes géométriques).
+- PNG 256×256, fond transparent, **ancre bas-centre** : le centre du losange au sol du sprite est au
+  point (128, 206) de l'image, ce que `drawTileImage()` de `frontend/js/map.js` attend (`destX - destW/2,
+  destY - destH`).
+- `map.js` ne charge que les fichiers listés dans `manifest.json` ; si le PNG manque, le rendu procédural
+  (formes géométriques) prend le relais.

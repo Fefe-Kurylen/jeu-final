@@ -1,83 +1,28 @@
-# Sprites des Bâtiments
+# Sprites des bâtiments (vue ville)
 
-## Structure des dossiers
+Tous les fichiers de ce dossier sont **générés** par `node tools/build-assets.cjs` : ne pas les retoucher à la main, modifier le générateur.
 
 ```
 buildings/
-├── common/     # Sprites partagés par toutes les factions
-├── rome/       # Sprites spécifiques Rome
-├── gaul/       # Sprites spécifiques Gaule
-├── greek/      # Sprites spécifiques Grèce
-├── egypt/      # Sprites spécifiques Égypte
-├── hun/        # Sprites spécifiques Huns
-└── sultan/     # Sprites spécifiques Sultanat
+├── manifest.json          # factions, clés, cadre commun (viewBox + ancre)
+├── ROME/ GAUL/ GREEK/ EGYPT/ HUN/ SULTAN/
+│   └── <KEY>.svg          # un sprite par bâtiment (39) dans la palette de la faction
+../fields/
+    └── <TYPE>_<tier>.svg  # FARM / LUMBER / QUARRY / IRON_MINE × paliers 1 (nv 1-6), 2 (7-13), 3 (14-20)
 ```
 
-## Nommage des fichiers
+## Cadre commun
 
-Les fichiers doivent être nommés en minuscules avec le nom du bâtiment (key) :
-- `main_hall.png`
-- `barracks.png`
-- `farm.png`
-- etc.
+- Projection isométrique 2:1, tuile de 2×2 unités (largeur 100 px, hauteur 50 px dans le SVG source).
+- `viewBox` identique pour tous les sprites (voir `manifest.json`) : le centre du losange au sol est à
+  l'ancre `(0.5, 0.683)` de l'image. Pour dessiner un bâtiment dont le centre au sol est en `(x, y)` sur
+  le canvas avec une largeur `w` : `drawImage(img, x - w/2, y - w*0.683*(h/w), w, w*(h/w))`.
+- Fond transparent, le terrain (losange d'herbe/sable/pierre) fait partie du sprite.
 
-## Liste des 39 bâtiments
+## Ajouter ou modifier un bâtiment
 
-### Base (7)
-- main_hall.png
-- farm.png
-- lumber.png
-- quarry.png
-- iron_mine.png
-- warehouse.png
-- silo.png
-
-### Intermédiaire (8)
-- rally_point.png
-- barracks.png
-- stable.png
-- workshop.png
-- academy.png
-- forge.png
-- hideout.png
-- healing_tent.png
-
-### Avancé - Production (5)
-- mill.png
-- bakery.png
-- sawmill.png
-- stonemason.png
-- foundry.png
-
-### Avancé - Stockage (2)
-- great_silo.png
-- great_warehouse.png
-
-### Avancé - Militaire (3)
-- great_barracks.png
-- great_stable.png
-- watchtower.png
-
-### Avancé - Spéciaux (8)
-- market.png
-- wall.png
-- moat.png
-- embassy.png
-- treasure_chamber.png
-- hero_mansion.png
-- residence.png
-- trade_office.png
-
-### Faction (6)
-- roman_thermae.png (Rome uniquement)
-- gallic_brewery.png (Gaule uniquement)
-- greek_temple.png (Grèce uniquement)
-- egyptian_irrigation.png (Égypte uniquement)
-- hun_war_tent.png (Huns uniquement)
-- sultan_desert_outpost.png (Sultanat uniquement)
-
-## Format recommandé
-
-- **Format** : PNG avec transparence
-- **Taille** : 128x128 pixels (ou multiples)
-- **Style** : Isométrique ou vue de dessus
+Ajouter une entrée `B.<KEY> = (p) => ...` dans `tools/build-assets.cjs` (`p` = palette de faction :
+`wall`, `roof`, `accent`, `trim`, `ground`) à partir des primitives `box`, `roofGable`, `roofHip`,
+`cylinder`, `cone`, `dome`, `tent`, `columns`, et des accessoires (`tree`, `rock`, `crate`, `barrel`,
+`flag`, `chimney`, `door`, `windowRect`, `torch`, `fence`, `wheel`, `cart`, `horse`, `coins`…), puis relancer
+le générateur.
