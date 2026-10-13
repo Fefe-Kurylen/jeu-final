@@ -670,20 +670,30 @@ function spriteVariant(isHovered) {
 
 // Rasterise une image SVG à la résolution de l'écran (w × h logiques, × devicePixelRatio), une fois par
 // taille et par variante, puis la renvoie pour un simple blit
+// Budget mémoire des rasters (octets) : au-delà, les plus anciens sont libérés (Map = ordre d'insertion)
+const SPRITE_RASTER_BUDGET = 40 * 1024 * 1024;
+let _spriteRasterBytes = 0;
 function spriteRaster(img, w, h, variant) {
   const scale = canvasScale();
-  const key = img.src + '@' + Math.round(w) + '@' + variant + '@' + scale;
+  // largeurs quantifiées (pas de 4 px) : un pincement ne crée pas un raster par pixel de zoom
+  const qw = Math.max(4, Math.round(w / 4) * 4), qh = Math.max(1, Math.round(qw * h / w));
+  const key = img.src + '@' + qw + '@' + variant + '@' + scale;
   let raster = _spriteRasters.get(key);
-  if (!raster) {
-    if (_spriteRasters.size > 600) _spriteRasters.clear();   // tailles obsolètes après redimensionnement
-    raster = document.createElement('canvas');
-    raster.width = Math.max(1, Math.round(w * scale));
-    raster.height = Math.max(1, Math.round(h * scale));
-    const rc = raster.getContext('2d');
-    const filter = SPRITE_VARIANTS[variant] || '';
-    if (filter && 'filter' in rc) rc.filter = filter;
-    rc.drawImage(img, 0, 0, raster.width, raster.height);
-    _spriteRasters.set(key, raster);
+  if (raster) { _spriteRasters.delete(key); _spriteRasters.set(key, raster); return raster; }   // LRU : remonte en fin
+  raster = document.createElement('canvas');
+  raster.width = Math.max(1, Math.round(qw * scale));
+  raster.height = Math.max(1, Math.round(qh * scale));
+  const rc = raster.getContext('2d');
+  const filter = SPRITE_VARIANTS[variant] || '';
+  if (filter && 'filter' in rc) rc.filter = filter;
+  rc.drawImage(img, 0, 0, raster.width, raster.height);
+  _spriteRasters.set(key, raster);
+  _spriteRasterBytes += raster.width * raster.height * 4;
+  while (_spriteRasterBytes > SPRITE_RASTER_BUDGET && _spriteRasters.size > 1) {
+    const [oldKey, old] = _spriteRasters.entries().next().value;
+    _spriteRasters.delete(oldKey);
+    _spriteRasterBytes -= old.width * old.height * 4;
+    old.width = old.height = 0;   // libère le backing store immédiatement
   }
   return raster;
 }
@@ -693,7 +703,7 @@ function drawSprite(ctx, img, x, y, w, variant = 'day') {
   const cw = Math.max(1, Math.round(w));
   const ch = Math.max(1, Math.round(w * SPRITE_FRAME.h / SPRITE_FRAME.w));
   const raster = spriteRaster(img, cw, ch, variant);
-  ctx.drawImage(raster, Math.round(x - cw * SPRITE_FRAME.ax), Math.round(y - ch * SPRITE_FRAME.ay), cw, ch);
+  ctx.drawImage(raster, x - cw * SPRITE_FRAME.ax, y - ch * SPRITE_FRAME.ay, cw, ch);
 }
 
 // Décor (arbre, rocher…) : cadre 64×84, ancre bas-centre (0.5, 0.952) ; h = hauteur logique
@@ -704,7 +714,7 @@ function drawProp(ctx, name, x, y, h, variant = 'day') {
   const ch = Math.max(1, Math.round(h));
   const cw = Math.max(1, Math.round(h * PROP_FRAME.w / PROP_FRAME.h));
   const raster = spriteRaster(img, cw, ch, variant);
-  ctx.drawImage(raster, Math.round(x - cw * PROP_FRAME.ax), Math.round(y - ch * PROP_FRAME.ay), cw, ch);
+  ctx.drawImage(raster, x - cw * PROP_FRAME.ax, y - ch * PROP_FRAME.ay, cw, ch);
   return true;
 }
 
