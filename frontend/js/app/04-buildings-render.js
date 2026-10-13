@@ -269,32 +269,41 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   cityCtx.ellipse(x + 5, y + 8, bw * 0.9, bw * 0.45, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // ========== BASE PLATFORM ==========
-  cityCtx.fillStyle = '#6a5a4a';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y + 3, bw + 5, (bw + 5) * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-
-  // Draw building based on type
-  if (style.isWater) {
-    drawWaterBuilding(x, y, bw, style);
-  } else if (style.isUnderground) {
-    drawUndergroundBuilding(x, y, bw, style);
-  } else if (style.isTent) {
-    drawTentBuilding(x, y, bw, bh, style);
-  } else if (style.isRound) {
-    drawRoundBuilding(x, y, bw, bh, style, level);
-  } else if (style.isWall) {
-    drawWallBuilding(x, y, bw, bh, style, level);
+  // ========== SPRITE (assets/images/buildings/<faction>/<key>.svg, généré par tools/build-assets.cjs) ==========
+  // Le losange au sol du sprite (±0.56·size × ±0.28·size) recouvre l'emplacement ; sinon rendu procédural
+  const sprite = getSprite(buildingSpriteUrl(key));
+  if (sprite) {
+    drawSprite(cityCtx, sprite, x, y, size * 1.7, spriteVariant(isHovered));
   } else {
-    drawStandardBuilding(x, y, bw, bh, style, key, level);
+    // ========== BASE PLATFORM ==========
+    cityCtx.fillStyle = '#6a5a4a';
+    cityCtx.beginPath();
+    cityCtx.ellipse(x, y + 3, bw + 5, (bw + 5) * 0.5, 0, 0, Math.PI * 2);
+    cityCtx.fill();
+
+    // Draw building based on type
+    if (style.isWater) {
+      drawWaterBuilding(x, y, bw, style);
+    } else if (style.isUnderground) {
+      drawUndergroundBuilding(x, y, bw, style);
+    } else if (style.isTent) {
+      drawTentBuilding(x, y, bw, bh, style);
+    } else if (style.isRound) {
+      drawRoundBuilding(x, y, bw, bh, style, level);
+    } else if (style.isWall) {
+      drawWallBuilding(x, y, bw, bh, style, level);
+    } else {
+      drawStandardBuilding(x, y, bw, bh, style, key, level);
+    }
   }
 
   cityCtx.globalAlpha = 1;
 
   // ========== LEVEL BADGE (Travian-style) ==========
   if (level > 0) {
-    drawTravianLevelBadge(x, y, bw, bh, level, isHovered);
+    // Avec un sprite : badge au coin droit du losange au sol, taille proportionnelle à l'emplacement
+    if (sprite) drawTravianLevelBadge(x, y, bw, bh, level, isHovered, true, { x: x + size * 0.62, y: y + size * 0.08, radius: Math.max(7, Math.min(12, size * 0.24)) });
+    else drawTravianLevelBadge(x, y, bw, bh, level, isHovered);
   }
 
   // ========== CONSTRUCTION INDICATOR ==========
@@ -892,10 +901,11 @@ function drawWaterBuilding(x, y, bw, style) {
 }
 
 // ========== TRAVIAN-STYLE LEVEL BADGE ==========
-function drawTravianLevelBadge(x, y, bw, bh, level, isHovered, canUpgrade = true) {
-  const badgeX = x + bw * 0.6;
-  const badgeY = y - bh * 0.3;
-  const badgeRadius = 12;
+function drawTravianLevelBadge(x, y, bw, bh, level, isHovered, canUpgrade = true, place = null) {
+  const badgeX = place ? place.x : x + bw * 0.6;
+  const badgeY = place ? place.y : y - bh * 0.3;
+  const badgeRadius = place ? place.radius : 12;
+  const fontPx = Math.round(badgeRadius * (level >= 10 ? 0.92 : 1.08));
 
   // Travian Legends style: blue circle with white text (like screenshot)
   const bgColor = isHovered ? '#4a9ad8' : '#3a8ac8';
@@ -930,7 +940,7 @@ function drawTravianLevelBadge(x, y, bw, bh, level, isHovered, canUpgrade = true
 
   // Level number (white, bold)
   cityCtx.fillStyle = '#ffffff';
-  cityCtx.font = `bold ${level >= 10 ? 11 : 13}px Arial, sans-serif`;
+  cityCtx.font = `bold ${fontPx}px Arial, sans-serif`;
   cityCtx.textAlign = 'center';
   cityCtx.textBaseline = 'middle';
   cityCtx.fillText(level.toString(), badgeX, badgeY + 1);

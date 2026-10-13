@@ -13,6 +13,17 @@ const MAX_PLAYERS = config.map.maxPlayers;
 const MIN_COORD = config.map.minCoord;
 const MAX_COORD = config.map.maxCoord;
 
+// Sprite de carte d'une armée en mouvement : marchand pour les transports, sinon la classe
+// de l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
+const UNIT_CLASS = Object.fromEntries((Array.isArray(unitsData) ? unitsData : (unitsData?.units || [])).map(u => [u.key, u.class]));
+const CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
+function mainUnitSprite(army, units) {
+  if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
+  let best = null;
+  for (const u of units || []) if (!best || u.count > best.count) best = u;
+  return (best && CLASS_SPRITE[UNIT_CLASS[best.unitKey]]) || 'hoplite';
+}
+
 async function getWorldSize() {
   const playerCount = await prisma.player.count();
   const expansion = Math.min(playerCount, MAX_PLAYERS) * EXPANSION_PER_PLAYER;
@@ -70,9 +81,10 @@ router.get('/map/viewport', auth, async (req, res) => {
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
           ]
         },
-        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, ownerId: true, owner: { select: { name: true, faction: true } } }
+        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, ownerId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })
     ]);
+    const armies = movingArmies.map(({ units, ...a }) => ({ ...a, mainUnit: mainUnitSprite(a, units) }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings[0]?.level || 0;
       const cityTier = getCityTier(wallLevel);
@@ -80,7 +92,7 @@ router.get('/map/viewport', auth, async (req, res) => {
       return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
-    const payload = { cities: citiesWithTier, resourceNodes: nodes, armies: movingArmies, center: { x: centerX, y: centerY }, radius: r };
+    const payload = { cities: citiesWithTier, resourceNodes: nodes, armies, center: { x: centerX, y: centerY }, radius: r };
     if (viewportCache.size < VIEWPORT_CACHE_MAX) viewportCache.set(cacheKey, { data: payload, expires: Date.now() + VIEWPORT_TTL_MS });
     res.json(payload);
   } catch (e) { sendError(res, e); }

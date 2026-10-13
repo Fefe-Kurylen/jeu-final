@@ -34,22 +34,19 @@ function updateWorldSize(playerCount, serverWorldSize) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
-// ========== TILESET IMAGE SYSTEM ==========
-let tilesetImage = null;
-let tilesetConfig = null;
-let tilesetLoaded = false;
-let tilesetLoadFailed = false;
+// ========== MAP SPRITES (PNG générés par tools/build-assets.cjs --png) ==========
+// assets/images/map/manifest.json liste les sprites disponibles ; sans manifest ou sans image,
+// le rendu procédural (formes géométriques) prend le relais sprite par sprite.
+let tilesetLoaded = false;       // manifest lu et images chargées
+let tilesetLoadFailed = false;   // manifest absent : ne jamais retenter
+let mapSpriteAnchor = { x: 0.5, y: 0.8 };   // point de l'image posé sur le centre de la tuile
 
-// Individual tile images for cities, units, resources
 const tileImages = {
-  cities: {},      // city type -> Image
-  units: {},       // unit type -> Image
-  resources: {},   // resource type -> Image
-  terrain: {},     // terrain type -> Image
-  buildings: {}    // building type -> Image
+  cities: {},      // rome gaul greek egypt hun sultan capital default
+  units: {},       // hoplite archer cavalry catapult merchant
+  resources: {}    // wood stone iron food gold
 };
 
-// Load tileset configuration and images
 // Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
 let _tilesetAssetsPromise = null;
 function loadTilesetAssets() {
@@ -58,130 +55,41 @@ function loadTilesetAssets() {
 }
 
 async function _loadTilesetAssetsOnce() {
-  console.log('🎨 Loading tileset assets...');
-
+  let manifest;
   try {
-    // Try to load tileset config
-    const configResponse = await fetch('/assets/tileset-config.json');
-    if (configResponse.ok) {
-      tilesetConfig = await configResponse.json();
-      console.log('📋 Tileset config loaded:', tilesetConfig);
-
-      // Try to load the main tileset image
-      const tilesetPath = `/assets/images/map/${tilesetConfig.image}`;
-      tilesetImage = new Image();
-      tilesetImage.src = tilesetPath;
-
-      await new Promise((resolve, reject) => {
-        tilesetImage.onload = () => {
-          tilesetLoaded = true;
-          console.log('✅ Tileset image loaded:', tilesetPath);
-          resolve();
-        };
-        tilesetImage.onerror = () => {
-          console.warn('⚠️ Tileset image not found:', tilesetPath);
-          tilesetLoadFailed = true;
-          resolve(); // Don't reject, just use fallback
-        };
-      });
-    } else {
-      tilesetLoadFailed = true; // config absente : ne jamais retenter
-    }
+    const res = await fetch('assets/images/map/manifest.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    manifest = await res.json();
   } catch (e) {
-    console.warn('⚠️ Could not load tileset config, using procedural rendering');
     tilesetLoadFailed = true;
+    console.log('🎨 Pas de sprites de carte (manifest absent), rendu procédural');
+    return;
   }
-
-  // Load individual tile images (cities, units, etc.)
-  await loadIndividualTileImages();
-}
-
-// Load individual images for specific game objects
-async function loadIndividualTileImages() {
-  // Les skins PNG sont optionnels et absents par défaut : on ne tente le chargement
-  // que si un manifest est présent (évite 16 requêtes 404 au premier affichage de la carte)
-  try {
-    const probe = await fetch('/assets/images/map/manifest.json', { method: 'HEAD' });
-    if (!probe.ok) { console.log('🎨 Pas de skins PNG (manifest absent), rendu procédural'); return; }
-  } catch (e) { return; }
-  const imagesToLoad = [
-    // Cities
-    { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
-    { category: 'cities', name: 'gaul', path: '/assets/images/map/cities/gaul.png' },
-    { category: 'cities', name: 'default', path: '/assets/images/map/cities/default.png' },
-    { category: 'cities', name: 'capital', path: '/assets/images/map/cities/capital.png' },
-
-    // Units
-    { category: 'units', name: 'hoplite', path: '/assets/images/map/units/hoplite.png' },
-    { category: 'units', name: 'archer', path: '/assets/images/map/units/archer.png' },
-    { category: 'units', name: 'cavalry', path: '/assets/images/map/units/cavalry.png' },
-    { category: 'units', name: 'catapult', path: '/assets/images/map/units/catapult.png' },
-    { category: 'units', name: 'trireme', path: '/assets/images/map/units/trireme.png' },
-    { category: 'units', name: 'merchant', path: '/assets/images/map/units/merchant.png' },
-    { category: 'units', name: 'settler', path: '/assets/images/map/units/settler.png' },
-
-    // Resources
-    { category: 'resources', name: 'wood', path: '/assets/images/map/resources/wood.png' },
-    { category: 'resources', name: 'stone', path: '/assets/images/map/resources/stone.png' },
-    { category: 'resources', name: 'iron', path: '/assets/images/map/resources/iron.png' },
-    { category: 'resources', name: 'food', path: '/assets/images/map/resources/food.png' },
-
-    // Terrain tiles
-    { category: 'terrain', name: 'grass', path: '/assets/images/map/terrain/grass.png' },
-    { category: 'terrain', name: 'desert', path: '/assets/images/map/terrain/desert.png' },
-    { category: 'terrain', name: 'snow', path: '/assets/images/map/terrain/snow.png' },
-    { category: 'terrain', name: 'water', path: '/assets/images/map/terrain/water.png' },
-    { category: 'terrain', name: 'forest', path: '/assets/images/map/terrain/forest.png' },
-    { category: 'terrain', name: 'mountain', path: '/assets/images/map/terrain/mountain.png' }
-  ];
-
-  const loadPromises = imagesToLoad.map(({ category, name, path }) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        tileImages[category][name] = img;
-        console.log(`✅ Loaded: ${category}/${name}`);
-        resolve();
-      };
-      img.onerror = () => {
-        // Image not found, will use procedural fallback
-        resolve();
-      };
-      img.src = path;
-    });
-  });
-
-  await Promise.all(loadPromises);
-
+  if (manifest.anchor && typeof manifest.anchor.y === 'number') mapSpriteAnchor = manifest.anchor;
+  const ext = manifest.format === 'svg' ? 'svg' : 'png';
+  const jobs = [];
+  for (const category of Object.keys(tileImages)) {
+    for (const name of manifest[category] || []) {
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages[category][name] = img; resolve(); };
+        img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
+        img.src = `assets/images/map/${category}/${name}.${ext}`;
+      }));
+    }
+  }
+  await Promise.all(jobs);
+  tilesetLoaded = true;
   const loadedCount = Object.values(tileImages).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
-  console.log(`🎨 Loaded ${loadedCount}/${imagesToLoad.length} tile images`);
+  console.log(`🎨 ${loadedCount}/${jobs.length} sprites de carte chargés`);
 }
 
-// Helper function to draw a tile from the tileset
-function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
-  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
-    return false; // Fallback to procedural
-  }
-
-  const tile = tilesetConfig.tiles[tileKey];
-  const srcX = tile.col * tilesetConfig.tileWidth;
-  const srcY = tile.row * tilesetConfig.tileHeight;
-
-  ctx.drawImage(
-    tilesetImage,
-    srcX, srcY, tilesetConfig.tileWidth, tilesetConfig.tileHeight,
-    destX, destY, destW, destH
-  );
-
-  return true;
-}
-
-// Helper function to draw an individual tile image
+// Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
 
-  ctx.drawImage(img, destX - destW/2, destY - destH, destW, destH);
+  ctx.drawImage(img, destX - destW * mapSpriteAnchor.x, destY - destH * mapSpriteAnchor.y, destW, destH);
   return true;
 }
 
@@ -874,8 +782,8 @@ async function loadMap() {
       // Add moving armies from server
       if (data.armies) {
         data.armies.forEach(a => {
-          // Avoid duplicating player's own armies already shown
-          if (!mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
+          // Nos propres armées sont dessinées depuis la liste `armies` (plus fraîche) : éviter le doublon
+          if (a.ownerId !== player?.id && !mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
             mapData.push({
               x: a.x,
               y: a.y,
@@ -884,6 +792,7 @@ async function loadMap() {
               name: a.name,
               status: a.status,
               missionType: a.missionType,
+              mainUnit: a.mainUnit,
               targetX: a.targetX,
               targetY: a.targetY,
               arrivalAt: a.arrivalAt,
@@ -1027,6 +936,7 @@ function renderMap() {
 
   // Add armies to draw order
   armies.forEach(army => {
+    if (army.isGarrison) return;   // la garnison ne quitte jamais la ville : le sprite de ville la représente
     const pos = worldToScreen(army.x, army.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
@@ -1595,30 +1505,18 @@ function drawIsoCity(x, y, tw, th, tile) {
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
   // Try to draw from tileset image first
-  const cityImageSize = Math.max(tw * 1.5, th * 3);
+  const cityImageSize = Math.max(tw * 1.5, th * 3) * (tile.isCapital ? 1.25 : 1);
   const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
 
-  // Try individual city image
-  if (drawTileImage(mapCtx, 'cities', cityType, x, y, cityImageSize, cityImageSize)) {
-    // Image drawn successfully, add labels on top
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
-    return;
-  }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'ROME': ['TEMPLE_ROAD', 'TEMPLE_SMALL', 'ARENA'],
-    'GAUL': ['VILLAGE_CENTER', 'VILLAGE_ROAD_CURVE'],
-    'GREEK': ['ARENA', 'TEMPLE_SMALL'],
-    'EGYPT': ['DESERT_RUINS', 'TEMPLE_ROAD'],
-    'HUN': ['ROAD_L_DIRT', 'VILLAGE_CENTER'],
-    'SULTAN': ['WALL_RIVER', 'CASTLE']
-  };
-
-  const tileKeys = tilesetMapping[faction] || ['VILLAGE_CENTER'];
-  const tileKey = tileKeys[Math.abs(tile.x + tile.y) % tileKeys.length];
-
-  if (drawTileFromTileset(mapCtx, tileKey, x - cityImageSize/2, y - cityImageSize, cityImageSize, cityImageSize)) {
+  // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
+  if (tileImages.cities[cityType] || tileImages.cities.default) {
+    if (isMyCity || isAlly) {
+      mapCtx.fillStyle = isMyCity ? 'rgba(255,215,0,0.35)' : 'rgba(90,200,130,0.35)';
+      mapCtx.beginPath();
+      mapCtx.ellipse(x, y, tw * 0.52, th * 0.52, 0, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+    drawTileImage(mapCtx, 'cities', tileImages.cities[cityType] ? cityType : 'default', x, y, cityImageSize, cityImageSize);
     drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
     return;
   }
@@ -2045,7 +1943,7 @@ function drawSmallBuilding(x, y, size, style) {
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
   const size = Math.min(tw, th * 2) * 0.5;
-  const imgSize = Math.max(tw, th * 2);
+  const imgSize = Math.max(tw, th * 2) * 1.3;
 
   // Try to draw from individual image first
   if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
@@ -2059,19 +1957,6 @@ function drawIsoResource(x, y, tw, th, tile) {
       mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
       mapCtx.shadowBlur = 0;
     }
-    return;
-  }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'wood': 'FOREST_ROCKS',
-    'stone': 'DIRT_ROCKS',
-    'iron': 'DESERT_MINE',
-    'food': 'GRASS_TREES',
-    'gold': 'DESERT_ROCKS'
-  };
-
-  if (drawTileFromTileset(mapCtx, tilesetMapping[resType], x - imgSize/2, y - imgSize, imgSize, imgSize)) {
     return;
   }
 
@@ -2228,14 +2113,26 @@ function drawIsoRock(x, y, size) {
   mapCtx.fill();
 }
 
+// Nom du sprite de carte d'une armée : marchand pour les transports, sinon la classe de
+// l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
+const ARMY_CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
+function armySpriteName(army) {
+  if (army.mainUnit) return String(army.mainUnit).toLowerCase();
+  if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
+  let best = null;
+  for (const u of army.units || []) if (!best || (u.count || 0) > (best.count || 0)) best = u;
+  const def = best && typeof unitsData !== 'undefined' ? unitsData.find(d => d.key === best.unitKey) : null;
+  return (def && ARMY_CLASS_SPRITE[def.class]) || 'hoplite';
+}
+
 // Draw isometric army marker
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
   const isMoving = army.status !== 'IDLE';
-  const imgSize = Math.max(tw, th * 2) * 0.8;
+  const imgSize = Math.max(tw, th * 2) * 1.2;
 
-  // Try to draw unit image based on army composition
-  const mainUnitType = army.mainUnit?.toLowerCase() || 'hoplite';
+  // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées
+  const mainUnitType = armySpriteName(army);
   if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
     // Draw army name label
     if (mapZoomLevel > 0.8 && army.name) {

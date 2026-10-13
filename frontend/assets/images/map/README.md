@@ -14,8 +14,8 @@ map/
 
 ## Spécifications
 
-- PNG 256×256, fond transparent, **ancre bas-centre** : le centre du losange au sol du sprite est au
-  point (128, 206) de l'image, ce que `drawTileImage()` de `frontend/js/map.js` attend (`destX - destW/2,
-  destY - destH`).
+- PNG 256×256, fond transparent ; le centre du losange au sol du sprite est au point (128, 204) de
+  l'image, soit l'ancre `(0.5, 0.797)` publiée dans `manifest.json` : `drawTileImage()` de
+  `frontend/js/map.js` pose ce point sur le centre de la tuile.
 - `map.js` ne charge que les fichiers listés dans `manifest.json` ; si le PNG manque, le rendu procédural
   (formes géométriques) prend le relais.

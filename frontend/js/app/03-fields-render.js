@@ -460,53 +460,99 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.fill();
   }
 
+  // ========== SPRITE (assets/images/fields/<TYPE>_<palier>.svg, généré par tools/build-assets.cjs) ==========
+  // Largeur 1.5·size : losange au sol de ±0.577·size en x et ±0.288·size en y ; sinon rendu procédural
+  const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : null;
+
   // ========== SHADOW ==========
   cityCtx.fillStyle = 'rgba(0,0,0,0.35)';
   cityCtx.beginPath();
-  cityCtx.ellipse(x + 4, y + 6, size * 0.72, size * 0.38, 0, 0, Math.PI * 2);
+  if (sprite) cityCtx.ellipse(x + 4, y + 5, size * 0.6, size * 0.3, 0, 0, Math.PI * 2);
+  else cityCtx.ellipse(x + 4, y + 6, size * 0.72, size * 0.38, 0, 0, Math.PI * 2);
   cityCtx.fill();
 
-  // ========== OUTER FIELD (terrain) ==========
-  const outerGrad = cityCtx.createRadialGradient(x, y, 0, x, y, size * 0.7);
-  outerGrad.addColorStop(0, style.bgInner);
-  outerGrad.addColorStop(0.7, style.bgOuter);
-  outerGrad.addColorStop(1, shadeColor(style.bgOuter, -20));
-  cityCtx.fillStyle = outerGrad;
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.7, size * 0.38, 0, 0, Math.PI * 2);
-  cityCtx.fill();
+  if (sprite) {
+    drawSprite(cityCtx, sprite, x, y, size * 1.5, spriteVariant(isHovered));
 
-  // ========== HOVER BORDER ==========
-  if (isHovered) {
-    cityCtx.strokeStyle = '#ffd700';
-    cityCtx.lineWidth = 3;
-    cityCtx.shadowColor = '#ffd700';
-    cityCtx.shadowBlur = 15;
+    // ========== HOVER BORDER (contour doré du losange au sol) ==========
+    if (isHovered) {
+      cityCtx.strokeStyle = '#ffd700';
+      cityCtx.lineWidth = 3;
+      cityCtx.shadowColor = '#ffd700';
+      cityCtx.shadowBlur = 15;
+      cityCtx.beginPath();
+      cityCtx.moveTo(x - size * 0.577, y);
+      cityCtx.lineTo(x, y - size * 0.288);
+      cityCtx.lineTo(x + size * 0.577, y);
+      cityCtx.lineTo(x, y + size * 0.288);
+      cityCtx.closePath();
+      cityCtx.stroke();
+      cityCtx.shadowBlur = 0;
+    }
+  } else if (level === 0) {
+    // ========== EMPTY PLOT (losange de terre, même gabarit que les sprites) ==========
+    const night = isNightMode();
+    cityCtx.fillStyle = night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)';
+    cityCtx.beginPath();
+    cityCtx.moveTo(x - size * 0.577, y);
+    cityCtx.lineTo(x, y - size * 0.288);
+    cityCtx.lineTo(x + size * 0.577, y);
+    cityCtx.lineTo(x, y + size * 0.288);
+    cityCtx.closePath();
+    cityCtx.fill();
+    if (isHovered) {
+      cityCtx.shadowColor = '#ffd700';
+      cityCtx.shadowBlur = 15;
+    }
+    cityCtx.strokeStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.45)';
+    cityCtx.lineWidth = isHovered ? 3 : 2;
+    cityCtx.setLineDash([5, 5]);
+    cityCtx.stroke();
+    cityCtx.setLineDash([]);
+    cityCtx.shadowBlur = 0;
+  } else {
+    // ========== OUTER FIELD (terrain) ==========
+    const outerGrad = cityCtx.createRadialGradient(x, y, 0, x, y, size * 0.7);
+    outerGrad.addColorStop(0, style.bgInner);
+    outerGrad.addColorStop(0.7, style.bgOuter);
+    outerGrad.addColorStop(1, shadeColor(style.bgOuter, -20));
+    cityCtx.fillStyle = outerGrad;
     cityCtx.beginPath();
     cityCtx.ellipse(x, y, size * 0.7, size * 0.38, 0, 0, Math.PI * 2);
-    cityCtx.stroke();
-    cityCtx.shadowBlur = 0;
-  }
+    cityCtx.fill();
 
-  // ========== FIELD-SPECIFIC GRAPHICS ==========
-  if (level > 0) {
-    drawFieldDetails(x, y, size, fieldType, level, time);
-  }
+    // ========== HOVER BORDER ==========
+    if (isHovered) {
+      cityCtx.strokeStyle = '#ffd700';
+      cityCtx.lineWidth = 3;
+      cityCtx.shadowColor = '#ffd700';
+      cityCtx.shadowBlur = 15;
+      cityCtx.beginPath();
+      cityCtx.ellipse(x, y, size * 0.7, size * 0.38, 0, 0, Math.PI * 2);
+      cityCtx.stroke();
+      cityCtx.shadowBlur = 0;
+    }
 
-  // ========== FIELD DECORATION BASED ON TYPE ==========
-  if (fieldType === 'FARM' && level > 0) {
-    drawFarmField(x, y, size, level, time);
-  } else if (fieldType === 'LUMBER' && level > 0) {
-    drawLumberField(x, y, size, level);
-  } else if (fieldType === 'QUARRY' && level > 0) {
-    drawQuarryField(x, y, size, level);
-  } else if (fieldType === 'IRON_MINE' && level > 0) {
-    drawMineField(x, y, size, level, time);
+    // ========== FIELD-SPECIFIC GRAPHICS ==========
+    if (level > 0) {
+      drawFieldDetails(x, y, size, fieldType, level, time);
+    }
+
+    // ========== FIELD DECORATION BASED ON TYPE ==========
+    if (fieldType === 'FARM' && level > 0) {
+      drawFarmField(x, y, size, level, time);
+    } else if (fieldType === 'LUMBER' && level > 0) {
+      drawLumberField(x, y, size, level);
+    } else if (fieldType === 'QUARRY' && level > 0) {
+      drawQuarryField(x, y, size, level);
+    } else if (fieldType === 'IRON_MINE' && level > 0) {
+      drawMineField(x, y, size, level, time);
+    }
   }
 
   // ========== PRODUCTION INDICATOR (animated) ==========
   if (level > 0 && !isBuilding) {
-    const prodY = y - size * 0.5 + Math.sin(time * 2) * 3;
+    const prodY = y - size * (sprite ? 0.75 : 0.5) + Math.sin(time * 2) * 3;
     cityCtx.globalAlpha = 0.7 + Math.sin(time * 3) * 0.2;
     cityCtx.font = '16px Arial';
     cityCtx.textAlign = 'center';
@@ -516,15 +562,6 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
 
   // ========== EMPTY SLOT INDICATOR ==========
   if (level === 0) {
-    // Dashed border for empty
-    cityCtx.strokeStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.4)';
-    cityCtx.lineWidth = 2;
-    cityCtx.setLineDash([5, 5]);
-    cityCtx.beginPath();
-    cityCtx.ellipse(x, y, size * 0.5, size * 0.28, 0, 0, Math.PI * 2);
-    cityCtx.stroke();
-    cityCtx.setLineDash([]);
-
     // Plus sign
     cityCtx.fillStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.6)';
     cityCtx.font = `bold ${size * 0.4}px Arial`;
@@ -535,19 +572,21 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
 
   // ========== LEVEL BADGE (Travian-style) ==========
   if (level > 0) {
-    const badgeX = x + size * 0.55;
-    const badgeY = y - size * 0.2;
+    // Au coin droit du losange au sol, taille proportionnelle à l'emplacement
+    const badgeR = Math.max(8, Math.min(13, size * 0.26));
+    const badgeX = x + size * (sprite ? 0.6 : 0.55);
+    const badgeY = y + size * (sprite ? 0.08 : -0.2);
 
     // Badge shadow
     cityCtx.fillStyle = 'rgba(0,0,0,0.5)';
     cityCtx.beginPath();
-    cityCtx.arc(badgeX + 2, badgeY + 2, 13, 0, Math.PI * 2);
+    cityCtx.arc(badgeX + 2, badgeY + 2, badgeR, 0, Math.PI * 2);
     cityCtx.fill();
 
     // Badge background
     cityCtx.fillStyle = isHovered ? '#2a2a2a' : '#1a1a1a';
     cityCtx.beginPath();
-    cityCtx.arc(badgeX, badgeY, 13, 0, Math.PI * 2);
+    cityCtx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
     cityCtx.fill();
 
     // Gold ring
@@ -557,7 +596,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
 
     // Level number
     cityCtx.fillStyle = isHovered ? '#ffd700' : '#e8c547';
-    cityCtx.font = 'bold 11px Cinzel, serif';
+    cityCtx.font = `bold ${Math.round(badgeR * 0.85)}px Cinzel, serif`;
     cityCtx.textAlign = 'center';
     cityCtx.textBaseline = 'middle';
     cityCtx.fillText(level.toString(), badgeX, badgeY + 1);

@@ -246,7 +246,9 @@ function buildCitySprites() {
 // World map sprites: 256×256 box, ground diamond centred at (128, 206), no terrain
 // ---------------------------------------------------------------------------
 const M = {};
-const mapSvg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">${DEFS}<g transform="translate(28,136) scale(1.0)">${inner}</g></svg>\n`;
+// Diamond centre (CX, CY) of the city frame is placed at (128, MAP_CY) of the 256 box: that is the sprite anchor
+const MAP_SCALE = 1.6, MAP_CY = 204;
+const mapSvg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">${DEFS}<g transform="translate(${f1(128 - CX * MAP_SCALE)},${f1(MAP_CY - CY * MAP_SCALE)}) scale(${MAP_SCALE})">${inner}</g></svg>\n`;
 const shadow = (rx = 48, ry = 22) => ell(CX, CY, rx, ry, '#000', 'opacity="0.28"');
 const cityBase = (c) => poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], c, 'opacity="0.9"');
 M.cities = {
@@ -277,44 +279,58 @@ M.units = {
 function buildMapSprites() {
   const manifest = { cities: [], resources: [], units: [] };
   for (const cat of Object.keys(M)) for (const [name, fn] of Object.entries(M[cat])) { resetSeed(11); writeFile(path.join(OUT, 'map', cat, `${name}.svg`), mapSvg(fn())); manifest[cat].push(name); }
-  writeFile(path.join(OUT, 'map', 'manifest.json'), JSON.stringify({ ...manifest, format: 'png', size: 256, anchor: 'bottom-center' }, null, 2));
+  writeFile(path.join(OUT, 'map', 'manifest.json'), JSON.stringify({ ...manifest, format: 'png', size: 256, anchor: { x: 0.5, y: MAP_CY / 256 } }, null, 2));
   return manifest;
 }
 
 // ---------------------------------------------------------------------------
 // Logo, icon and splash
 // ---------------------------------------------------------------------------
-function laurel(cx, cy, r, flip) {
-  const s = flip ? -1 : 1;
-  let out = `<path d="M${f1(cx + s * r * 0.15)},${f1(cy + r * 0.95)} A${f1(r)},${f1(r)} 0 0 ${flip ? 0 : 1} ${f1(cx + s * r * 0.95)},${f1(cy - r * 0.35)}" stroke="#c9a227" stroke-width="${f1(r * 0.035)}" fill="none" stroke-linecap="round"/>`;
-  for (let i = 0; i < 8; i++) {
-    const a = (-0.42 + i * 0.165) * Math.PI;
-    const x = cx + s * Math.cos(a - Math.PI / 2 + (flip ? Math.PI : 0)) * r, y = cy + r * 0.3 + Math.sin(a - Math.PI / 2 + (flip ? Math.PI : 0)) * r;
-    const ang = (a * 180) / Math.PI * s + (flip ? 180 : 0);
-    out += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(r * 0.16)}" ry="${f1(r * 0.06)}" fill="#d8b43a" transform="rotate(${f1(ang + 60 * s)} ${f1(x)} ${f1(y)})"/>`;
-    out += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(r * 0.16)}" ry="${f1(r * 0.06)}" fill="#b8942a" transform="rotate(${f1(ang + 120 * s)} ${f1(x)} ${f1(y)})"/>`;
+// Laurel branch: an arc with pairs of tangent leaves, from the base up to the top (side = 1 right, -1 left)
+function laurel(cx, cy, r, side) {
+  const a0 = 100 * Math.PI / 180, a1 = -40 * Math.PI / 180;
+  const px = (a) => cx + side * r * Math.cos(a), py = (a) => cy + r * Math.sin(a);
+  let out = `<path d="M${f1(px(a0))},${f1(py(a0))} A${f1(r)},${f1(r)} 0 0 ${side === 1 ? 0 : 1} ${f1(px(a1))},${f1(py(a1))}" stroke="#a8842a" stroke-width="${f1(r * 0.045)}" fill="none" stroke-linecap="round"/>`;
+  const n = 9, len = r * 0.21, wid = r * 0.08;
+  const leaf = (x, y, ang, fill) =>
+    `<path d="M0,0 q${f1(len * 0.5)},${f1(-wid)} ${f1(len)},0 q${f1(-len * 0.5)},${f1(wid)} ${f1(-len)},0 z" fill="${fill}" transform="translate(${f1(x)},${f1(y)}) rotate(${f1(ang)})"/>` +
+    `<path d="M0,0 l${f1(len * 0.8)},0" stroke="#8a6414" stroke-width="${f1(wid * 0.18)}" opacity="0.7" transform="translate(${f1(x)},${f1(y)}) rotate(${f1(ang)})"/>`;
+  for (let i = 0; i < n; i++) {
+    const a = a0 + (a1 - a0) * (i + 0.5) / n;
+    const x = px(a), y = py(a);
+    const dir = Math.atan2(-Math.cos(a), side * Math.sin(a)) * 180 / Math.PI;   // direction of the branch (upwards)
+    out += leaf(x, y, dir + side * 40, '#c9a227') + leaf(x, y, dir - side * 40, '#e2c04a');
   }
   return out;
 }
+// Corinthian helmet in profile, facing left: bowl, neck guard, cheek guard, eye slit, red crest
 function helmet(cx, cy, s) {
-  return `<path d="M${f1(cx - s * 0.5)},${f1(cy + s * 0.1)} a${f1(s * 0.5)},${f1(s * 0.55)} 0 0 1 ${f1(s)},0 v${f1(s * 0.12)} h${f1(-s)} z" fill="url(#gold)" stroke="#6a4a10" stroke-width="${f1(s * 0.02)}"/>` +
-    `<path d="M${f1(cx - s * 0.5)},${f1(cy + s * 0.22)} q${f1(-s * 0.05)},${f1(s * 0.28)} ${f1(s * 0.18)},${f1(s * 0.42)} h${f1(s * 0.14)} v${f1(-s * 0.42)} z" fill="url(#gold)" stroke="#6a4a10" stroke-width="${f1(s * 0.02)}"/>` +
-    `<path d="M${f1(cx + s * 0.5)},${f1(cy + s * 0.22)} q${f1(s * 0.05)},${f1(s * 0.28)} ${f1(-s * 0.18)},${f1(s * 0.42)} h${f1(-s * 0.14)} v${f1(-s * 0.42)} z" fill="url(#gold)" stroke="#6a4a10" stroke-width="${f1(s * 0.02)}"/>` +
-    `<path d="M${f1(cx - s * 0.52)},${f1(cy + s * 0.22)} h${f1(s * 1.04)} v${f1(s * 0.06)} h${f1(-s * 1.04)} z" fill="#8a6a10"/>` +
-    `<path d="M${f1(cx - s * 0.42)},${f1(cy - s * 0.08)} q${f1(s * 0.42)},${f1(-s * 0.62)} ${f1(s * 0.84)},0 q${f1(-s * 0.1)},${f1(-s * 0.08)} ${f1(-s * 0.2)},${f1(-s * 0.1)} q${f1(-s * 0.22)},${f1(-s * 0.38)} ${f1(-s * 0.44)},0 q${f1(-s * 0.1)},${f1(s * 0.02)} ${f1(-s * 0.2)},${f1(s * 0.1)} z" fill="#b22a1a" stroke="#6a1410" stroke-width="${f1(s * 0.015)}"/>` +
-    `<path d="M${f1(cx - s * 0.36)},${f1(cy - s * 0.02)} q${f1(s * 0.36)},${f1(-s * 0.42)} ${f1(s * 0.72)},0" stroke="#e8c547" stroke-width="${f1(s * 0.03)}" fill="none" opacity="0.8"/>` +
-    `<circle cx="${f1(cx)}" cy="${f1(cy - s * 0.02)}" r="${f1(s * 0.05)}" fill="#e8c547"/>`;
+  const t = (x, y) => `${f1(cx + x * s)},${f1(cy + y * s)}`;
+  const edge = '#5a3e0a', sw = f1(s * 0.016);
+  let out = `<path d="M${t(-0.30, -0.36)} C${t(-0.18, -0.92)} ${t(0.40, -1.02)} ${t(0.70, -0.46)} C${t(0.80, -0.26)} ${t(0.74, -0.04)} ${t(0.58, 0.10)} L${t(0.50, 0.0)} C${t(0.60, -0.26)} ${t(0.46, -0.64)} ${t(0.08, -0.62)} C${t(-0.06, -0.60)} ${t(-0.18, -0.50)} ${t(-0.24, -0.40)} Z" fill="#b8261a" stroke="#6a1410" stroke-width="${sw}"/>`;
+  for (let i = 1; i <= 6; i++) {   // plume strands
+    const u = i / 7;
+    out += `<path d="M${t(-0.24 + 0.72 * u, -0.42 - 0.22 * Math.sin(u * Math.PI))} L${t(-0.26 + 0.92 * u, -0.50 - 0.50 * Math.sin(u * Math.PI))}" stroke="#7a1a10" stroke-width="${f1(s * 0.012)}" opacity="0.55"/>`;
+  }
+  out += `<path d="M${t(-0.46, 0.02)} C${t(-0.48, -0.60)} ${t(0.48, -0.60)} ${t(0.46, 0.02)} Z" fill="url(#gold)" stroke="${edge}" stroke-width="${sw}"/>`;   // bowl
+  out += `<path d="M${t(0.24, -0.02)} L${t(0.46, -0.02)} L${t(0.62, 0.30)} C${t(0.62, 0.38)} ${t(0.50, 0.40)} ${t(0.44, 0.34)} L${t(0.28, 0.12)} Z" fill="url(#gold)" stroke="${edge}" stroke-width="${sw}"/>`;   // neck guard
+  out += `<path d="M${t(-0.46, 0.0)} L${t(-0.10, 0.0)} L${t(-0.08, 0.32)} C${t(-0.08, 0.50)} ${t(-0.22, 0.58)} ${t(-0.34, 0.54)} L${t(-0.42, 0.34)} Z" fill="url(#gold)" stroke="${edge}" stroke-width="${sw}"/>`;   // cheek guard
+  out += `<ellipse cx="${f1(cx - 0.30 * s)}" cy="${f1(cy + 0.10 * s)}" rx="${f1(s * 0.11)}" ry="${f1(s * 0.045)}" fill="#1a1208" transform="rotate(-12 ${f1(cx - 0.30 * s)} ${f1(cy + 0.10 * s)})"/>`;   // eye slit
+  out += `<path d="M${t(-0.30, -0.38)} Q${t(0.04, -0.66)} ${t(0.40, -0.34)}" stroke="#8a6414" stroke-width="${f1(s * 0.05)}" fill="none" stroke-linecap="round"/>`;   // crest holder
+  out += `<path d="M${t(-0.36, -0.10)} Q${t(-0.22, -0.46)} ${t(0.06, -0.52)}" stroke="#fff3c0" stroke-width="${f1(s * 0.03)}" fill="none" stroke-linecap="round" opacity="0.55"/>`;   // highlight
+  return out;
 }
 function logoSvg(size, withText = false, bg = true) {
-  const cx = size / 2, cy = size / 2, r = size * 0.44;
+  // With the title underneath, the medallion is smaller and raised to leave room for the text
+  const cx = size / 2, cy = withText ? size * 0.40 : size / 2, r = size * (withText ? 0.35 : 0.44);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
 <defs>
   <radialGradient id="bg" cx="0.5" cy="0.42" r="0.7"><stop offset="0" stop-color="#3a3228"/><stop offset="0.7" stop-color="#1f1a12"/><stop offset="1" stop-color="#120e08"/></radialGradient>
   <linearGradient id="gold" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="0.45" stop-color="#d4af37"/><stop offset="1" stop-color="#8a6414"/></linearGradient>
 </defs>
 ${bg ? `<circle cx="${cx}" cy="${cy}" r="${r + size * 0.04}" fill="url(#bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#gold)" stroke-width="${f1(size * 0.025)}"/><circle cx="${cx}" cy="${cy}" r="${f1(r * 0.93)}" fill="none" stroke="#8a6414" stroke-width="${f1(size * 0.006)}" opacity="0.7"/>` : ''}
-${laurel(cx, cy, r * 0.74, false)}${laurel(cx, cy, r * 0.74, true)}
-${helmet(cx, cy - size * 0.04, size * 0.44)}
+${laurel(cx, cy, r * 0.74, 1)}${laurel(cx, cy, r * 0.74, -1)}
+${helmet(cx, cy + size * 0.02, size * 0.34)}
 ${withText ? `<text x="${cx}" y="${f1(size * 0.86)}" text-anchor="middle" font-family="Cinzel, 'Times New Roman', serif" font-weight="700" font-size="${f1(size * 0.075)}" fill="url(#gold)" letter-spacing="${f1(size * 0.006)}">IMPERIVM ANTIQVITAS</text>` : ''}
 </svg>
 `;

@@ -25,5 +25,8 @@
   ],
   "format": "png",
   "size": 256,
-  "anchor": "bottom-center"
+  "anchor": {
+    "x": 0.5,
+    "y": 0.796875
+  }
 }

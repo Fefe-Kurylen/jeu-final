@@ -605,3 +605,73 @@ function renderCity() {
   loadWounded();
 }
 
+
+// ========== SPRITES (images générées par tools/build-assets.cjs) ==========
+// Cadre commun des sprites ville/champs : 130×126, centre du losange au sol à l'ancre (0.5, 0.683)
+const SPRITE_FRAME = { w: 130, h: 126, ax: 0.5, ay: 0.683 };
+const _sprites = new Map();   // url -> { img, ready, failed }
+const _spriteRasters = new Map(); // url@largeur -> canvas (un SVG rasterisé une fois par taille, puis simple blit)
+let _spriteRedrawQueued = false;
+
+function getSprite(url) {
+  let s = _sprites.get(url);
+  if (!s) {
+    const img = new Image();
+    s = { img, ready: false, failed: false };
+    _sprites.set(url, s);
+    img.onload = () => { s.ready = img.naturalWidth > 0; queueSpriteRedraw(); };
+    img.onerror = () => { s.failed = true; };   // image absente : rendu procédural, pas de nouvel essai
+    img.src = url;
+  }
+  return s.ready ? s.img : null;
+}
+
+// Un seul re-rendu par lot d'images chargées (la vue ville est aussi animée, la carte non)
+function queueSpriteRedraw() {
+  if (_spriteRedrawQueued) return;
+  _spriteRedrawQueued = true;
+  requestAnimationFrame(() => {
+    _spriteRedrawQueued = false;
+    if (document.getElementById('game-screen')?.style.display !== 'flex') return;
+    if (typeof renderCityCanvas === 'function' && document.getElementById('tab-city')?.classList.contains('active')) renderCityCanvas();
+    if (typeof scheduleMapRender === 'function' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(true);
+  });
+}
+
+// Variantes de rendu : le filtre est appliqué une fois à la rasterisation, jamais à chaque image
+const SPRITE_VARIANTS = {
+  day: '', hover: 'brightness(1.18)',
+  night: 'brightness(0.62) saturate(0.85)', 'night-hover': 'brightness(0.85)'
+};
+function spriteVariant(isHovered) {
+  const night = typeof isNightMode === 'function' && isNightMode();
+  return night ? (isHovered ? 'night-hover' : 'night') : (isHovered ? 'hover' : 'day');
+}
+
+// Dessine un sprite ville/champ de largeur w, le centre de son losange au sol en (x, y)
+function drawSprite(ctx, img, x, y, w, variant = 'day') {
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(w * SPRITE_FRAME.h / SPRITE_FRAME.w));
+  const key = img.src + '@' + cw + '@' + variant;
+  let raster = _spriteRasters.get(key);
+  if (!raster) {
+    if (_spriteRasters.size > 600) _spriteRasters.clear();   // tailles obsolètes après redimensionnement
+    raster = document.createElement('canvas');
+    raster.width = cw;
+    raster.height = ch;
+    const rc = raster.getContext('2d');
+    const filter = SPRITE_VARIANTS[variant] || '';
+    if (filter && 'filter' in rc) rc.filter = filter;
+    rc.drawImage(img, 0, 0, cw, ch);
+    _spriteRasters.set(key, raster);
+  }
+  ctx.drawImage(raster, Math.round(x - cw * SPRITE_FRAME.ax), Math.round(y - ch * SPRITE_FRAME.ay));
+}
+
+function buildingSpriteUrl(key) {
+  return `assets/images/buildings/${player?.faction || 'ROME'}/${key}.svg`;
+}
+// Paliers visuels des champs : niveaux 1-6, 7-13, 14-20
+function fieldSpriteUrl(type, level) {
+  return `assets/images/fields/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.svg`;
+}
