@@ -7,6 +7,7 @@ const prisma = require('../config/database');
 const config = require('../config');
 const rateLimit = require('../middleware/rateLimit');
 const { validateEmail, validatePassword, validateName, validateFaction } = require('../utils/validation');
+const { createExpedition } = require('../services/expeditionService');
 
 // POST /api/auth/register
 router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, res) => {
@@ -28,63 +29,60 @@ router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req
     if (nameExists) return res.status(400).json({ error: 'Pseudo deja pris' });
 
     const hash = await bcrypt.hash(password, 12);
-    const account = await prisma.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
+    const factionKey = faction.toUpperCase();
 
-    const player = await prisma.player.create({
-      data: { accountId: account.id, name, faction: faction.toUpperCase(), gold: 0 }
-    });
-
-    await prisma.playerStats.create({ data: { playerId: player.id } });
-
-    // Spawn on map edges
-    const MIN_COORD = config.map.minCoord;
-    const MAX_COORD = config.map.maxCoord;
-    const SPAWN_DELTA = config.map.spawnEdgeDelta;
-
-    function getRandomEdgePosition() {
-      const side = Math.floor(Math.random() * 4);
-      let x, y;
-      switch(side) {
-        case 0: x = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1)); y = MAX_COORD - Math.floor(Math.random() * SPAWN_DELTA); break;
-        case 1: x = MAX_COORD - Math.floor(Math.random() * SPAWN_DELTA); y = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1)); break;
-        case 2: x = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1)); y = MIN_COORD + Math.floor(Math.random() * SPAWN_DELTA); break;
-        case 3: x = MIN_COORD + Math.floor(Math.random() * SPAWN_DELTA); y = MIN_COORD + Math.floor(Math.random() * (MAX_COORD - MIN_COORD + 1)); break;
+    // Everything is created atomically; a coordinate collision with a concurrent signup just retries
+    let created = null;
+    for (let attempt = 0; attempt < 5 && !created; attempt++) {
+      const { x, y } = await findFreeSpawn();
+      try {
+        created = await prisma.$transaction(async (tx) => {
+          const account = await tx.account.create({ data: { email: email.toLowerCase(), passwordHash: hash } });
+          const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
+          await tx.playerStats.create({ data: { playerId: player.id } });
+          const city = await tx.city.create({ data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 } });
+          const hero = await tx.hero.create({ data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 } });
+          await tx.army.create({ data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
+          for (let i = 0; i < 3; i++) await createExpedition(player.id, tx);
+          return { account, player };
+        });
+      } catch (e) {
+        const target = String(e.meta?.target || '');
+        if (e.code !== 'P2002') throw e;
+        if (target.includes('email')) return res.status(400).json({ error: 'Email deja utilise' });
+        if (target.includes('name')) return res.status(400).json({ error: 'Pseudo deja pris' });
+        if (!target.includes('x')) throw e;
       }
-      return { x, y };
     }
+    if (!created) return res.status(503).json({ error: 'Carte saturée, réessayez' });
 
-    let { x, y } = getRandomEdgePosition();
-    for (let i = 0; i < 100; i++) {
-      const posExists = await prisma.city.findUnique({ where: { x_y: { x, y } } });
-      if (!posExists) break;
-      ({ x, y } = getRandomEdgePosition());
-    }
-
-    const city = await prisma.city.create({
-      data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 }
-    });
-
-    const hero = await prisma.hero.create({
-      data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 }
-    });
-
-    await prisma.army.create({
-      data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true }
-    });
-
-    // Create starter expeditions
-    const { createExpedition } = require('../services/expeditionService');
-    for (let i = 0; i < 3; i++) {
-      await createExpedition(player.id);
-    }
-
-    const token = jwt.sign({ id: account.id, playerId: player.id }, config.jwtSecret, { expiresIn: config.jwtExpiry });
-    res.json({ token, player: { id: player.id, name, faction } });
+    const token = jwt.sign({ id: created.account.id, playerId: created.player.id }, config.jwtSecret, { expiresIn: config.jwtExpiry });
+    res.json({ token, player: { id: created.player.id, name, faction: factionKey } });
   } catch (e) {
     console.error('Register error:', e);
     sendError(res, e);
   }
 });
+
+function randomEdgePosition() {
+  const { minCoord: MIN, maxCoord: MAX, spawnEdgeDelta: DELTA } = config.map;
+  const along = () => MIN + Math.floor(Math.random() * (MAX - MIN + 1));
+  switch (Math.floor(Math.random() * 4)) {
+    case 0: return { x: along(), y: MAX - Math.floor(Math.random() * DELTA) };
+    case 1: return { x: MAX - Math.floor(Math.random() * DELTA), y: along() };
+    case 2: return { x: along(), y: MIN + Math.floor(Math.random() * DELTA) };
+    default: return { x: MIN + Math.floor(Math.random() * DELTA), y: along() };
+  }
+}
+
+async function findFreeSpawn() {
+  let pos = randomEdgePosition();
+  for (let i = 0; i < 100; i++) {
+    if (!(await prisma.city.findUnique({ where: { x_y: pos } }))) return pos;
+    pos = randomEdgePosition();
+  }
+  return pos;
+}
 
 // POST /api/auth/login
 router.post('/login', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, res) => {

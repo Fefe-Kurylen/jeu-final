@@ -97,4 +97,3 @@ router.get('/units', auth, (req, res) => {
 });
 
 module.exports = router;
-module.exports.getWorldSize = getWorldSize;

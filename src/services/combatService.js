@@ -5,6 +5,12 @@ const { calculateArmyPower, getFactionBonus } = require('../utils/calculations')
 // Multiplicateur depuis un bonus de faction en % (0 si absent)
 function fb(faction, type) { return faction ? 1 + (getFactionBonus(faction, type, factionsData) || 0) / 100 : 1; }
 
+// Hero as it fights: base stats plus the points the player assigned
+function heroCombatStats(hero) {
+  if (!hero) return null;
+  return { ...hero, attack: (hero.attack || 0) + (hero.atkPoints || 0), defense: (hero.defense || 0) + (hero.defPoints || 0) };
+}
+
 // Combat triangle bonus: returns multiplier for attacker class vs defender class (GDD combat_config.json)
 function getTriangleBonus(attackerClass, defenderClass) {
   const tri = config.combat.triangle;
@@ -197,4 +203,4 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   };
 }
 
-module.exports = { resolveCombat, resolveCombatDetailed };
+module.exports = { resolveCombat, resolveCombatDetailed, heroCombatStats };

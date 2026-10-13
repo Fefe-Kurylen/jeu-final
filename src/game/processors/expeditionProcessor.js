@@ -5,12 +5,13 @@ const { awardHeroXp } = require('../../services/heroXpService');
 const { createExpedition } = require('../../services/expeditionService');
 
 async function processExpeditions(now) {
+  await prisma.expedition.updateMany({ where: { status: 'AVAILABLE', expiresAt: { lte: now } }, data: { status: 'EXPIRED' } });
   const expeditions = await prisma.expedition.findMany({
     where: { status: 'IN_PROGRESS', endsAt: { lte: now } },
     include: { player: { include: { hero: true } } }
   });
   for (const exp of expeditions) {
-    const army = await prisma.army.findUnique({ where: { id: exp.armyId }, include: { units: true } });
+    const army = exp.armyId ? await prisma.army.findUnique({ where: { id: exp.armyId }, include: { units: true } }) : null;
     const playerPower = army ? army.units.reduce((sum, u) => sum + u.count * 10, 0) : 0;
     const won = playerPower > exp.enemyPower * 0.7;
     let xpGained = 0, lootGained = null;

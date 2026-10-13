@@ -4,44 +4,54 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { unitsData, factionsData } = require('../config/gamedata');
-const { calculateTravelTime, getArmyMinSpeed, getFactionBonus } = require('../utils/calculations');
+const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
+const { getRelation } = require('../services/diplomacyService');
+
+const RESOURCES = ['wood', 'stone', 'iron', 'food'];
+const tradeRouter = express.Router();
 
 // GET /api/market
 router.get('/', auth, async (req, res) => {
   try {
-    const offers = await prisma.marketOffer.findMany({ where: { status: 'ACTIVE' }, include: { player: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } });
-    res.json(offers);
+    const offers = await prisma.marketOffer.findMany({ where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' }, take: 200 });
+    // Older offers only carry sellerId, so resolve seller names from it
+    const sellerIds = [...new Set(offers.map(o => o.sellerId || o.playerId).filter(Boolean))];
+    const sellers = await prisma.player.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true } });
+    const byId = new Map(sellers.map(p => [p.id, p]));
+    res.json(offers.map(o => ({ ...o, player: byId.get(o.sellerId || o.playerId) || null })));
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/trade/send
-router.post('/trade/send', auth, async (req, res) => {
+// POST /api/trade/send (mounted at /api)
+tradeRouter.post('/trade/send', auth, async (req, res) => {
   try {
-    const { fromCityId, targetX, targetY, resources } = req.body;
+    const { fromCityId, resources } = req.body;
+    const targetX = parseInt(req.body.targetX), targetY = parseInt(req.body.targetY);
     const wood = resources?.wood || 0, stone = resources?.stone || 0, iron = resources?.iron || 0, food = resources?.food || 0;
-    if (wood < 0 || stone < 0 || iron < 0 || food < 0) return res.status(400).json({ error: 'Montants invalides' });
+    if (![wood, stone, iron, food].every(v => Number.isInteger(v) && v >= 0)) return res.status(400).json({ error: 'Montants invalides' });
     if (wood + stone + iron + food <= 0) return res.status(400).json({ error: 'Entrez des ressources a envoyer' });
-    const targetCity = await prisma.city.findFirst({ where: { x: targetX, y: targetY }, include: { player: true } });
+    if (Number.isNaN(targetX) || Number.isNaN(targetY)) return res.status(400).json({ error: 'Coordonnées invalides' });
+    const targetCity = await prisma.city.findFirst({ where: { x: targetX, y: targetY } });
     if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
+    if (targetCity.id === fromCityId) return res.status(400).json({ error: 'Choisissez une autre ville' });
+    const relation = await getRelation(req.user.playerId, targetCity.playerId);
+    if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const army = await tx.army.findFirst({ where: { cityId: fromCityId, ownerId: req.user.playerId, status: 'IDLE' }, include: { units: true, city: true } });
-      if (!army || !army.units.length) return { error: 'Aucune armee disponible pour transporter', status: 400 };
+      // Any idle army (garrison included) standing in the source city can carry the goods
+      const candidates = await tx.army.findMany({ where: { cityId: fromCityId, ownerId: req.user.playerId, status: 'IDLE' }, include: { units: true, city: true, owner: true } });
+      const army = candidates.find(a => a.units.length > 0 && a.city && a.x === a.city.x && a.y === a.city.y);
+      if (!army) return { error: 'Aucune armee disponible pour transporter', status: 400 };
       const sourceCity = army.city;
-      if (!sourceCity) return { error: 'Ville source introuvable', status: 400 };
       if (sourceCity.wood < wood || sourceCity.stone < stone || sourceCity.iron < iron || sourceCity.food < food) return { error: 'Ressources insuffisantes', status: 400 };
-      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
-      const transportBonus = getFactionBonus(player?.faction, 'transportCapacity', factionsData);
-      const transportMultiplier = 1 + (transportBonus / 100);
-      const baseCarry = army.units.reduce((sum, u) => { const unitDef = unitsData.find(ud => ud.key === u.unitKey); return sum + (unitDef?.stats?.transport || 50) * u.count; }, 0);
-      const carryCapacity = Math.floor(baseCarry * transportMultiplier);
+      const transportMultiplier = 1 + (getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100);
+      const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
-      await tx.city.update({ where: { id: sourceCity.id }, data: { wood: sourceCity.wood - wood, stone: sourceCity.stone - stone, iron: sourceCity.iron - iron, food: sourceCity.food - food } });
-      const minSpeed = getArmyMinSpeed(army.units, unitsData);
-      const travelTime = calculateTravelTime(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, minSpeed);
+      await tx.city.update({ where: { id: sourceCity.id }, data: { wood: { decrement: wood }, stone: { decrement: stone }, iron: { decrement: iron }, food: { decrement: food } } });
+      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, army.owner.faction);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food } });
-      return { message: `Ressources envoyees vers ${targetCity.name}` };
+      return { message: `Ressources envoyees vers ${targetCity.name}`, travelTime, arrivalAt };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
@@ -53,16 +63,16 @@ router.post('/trade/send', auth, async (req, res) => {
 router.post('/offer', auth, async (req, res) => {
   try {
     const { sellResource, sellAmount, buyResource, buyAmount, cityId } = req.body;
-    const validResources = ['wood', 'stone', 'iron', 'food'];
     if (!sellResource || !sellAmount || !buyResource || !buyAmount) return res.status(400).json({ error: 'Paramètres manquants' });
-    if (!validResources.includes(sellResource) || !validResources.includes(buyResource)) return res.status(400).json({ error: 'Ressource invalide' });
+    if (!RESOURCES.includes(sellResource) || !RESOURCES.includes(buyResource)) return res.status(400).json({ error: 'Ressource invalide' });
+    if (sellResource === buyResource) return res.status(400).json({ error: 'Choisissez des ressources differentes' });
     if (!Number.isInteger(sellAmount) || sellAmount < 1 || !Number.isInteger(buyAmount) || buyAmount < 1) return res.status(400).json({ error: 'Montants invalides' });
     const result = await prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
       if (city[sellResource] < sellAmount) return { error: `Ressources insuffisantes (${sellResource}: ${Math.floor(city[sellResource])})`, status: 400 };
       await tx.city.update({ where: { id: city.id }, data: { [sellResource]: city[sellResource] - sellAmount } });
-      const offer = await tx.marketOffer.create({ data: { sellerId: req.user.playerId, cityId: city.id, sellResource, sellAmount, buyResource, buyAmount, status: 'ACTIVE' } });
+      const offer = await tx.marketOffer.create({ data: { sellerId: req.user.playerId, playerId: req.user.playerId, cityId: city.id, sellResource, sellAmount, buyResource, buyAmount, status: 'ACTIVE' } });
       return { message: 'Offre créée', offer };
     });
     if (result.error) return res.status(result.status || 400).json(result);
@@ -118,10 +128,9 @@ router.delete('/offer/:id', auth, async (req, res) => {
 router.post('/npc-trade', auth, async (req, res) => {
   try {
     const { cityId, giveResource, receiveResource, giveAmount } = req.body;
-    const validResources = ['wood', 'stone', 'iron', 'food'];
-    if (!validResources.includes(giveResource) || !validResources.includes(receiveResource)) return res.status(400).json({ error: 'Ressource invalide' });
+    if (!RESOURCES.includes(giveResource) || !RESOURCES.includes(receiveResource)) return res.status(400).json({ error: 'Ressource invalide' });
     if (giveResource === receiveResource) return res.status(400).json({ error: 'Choisissez des ressources differentes' });
-    if (!giveAmount || giveAmount < 3) return res.status(400).json({ error: 'Minimum 3 ressources' });
+    if (!Number.isInteger(giveAmount) || giveAmount < 3) return res.status(400).json({ error: 'Minimum 3 ressources' });
     const result = await prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
@@ -142,3 +151,4 @@ router.post('/npc-trade', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.tradeRouter = tradeRouter;

@@ -3,7 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { sanitizeString } = require('../utils/validation');
+const { cleanText } = require('../utils/validation');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -15,11 +15,11 @@ router.get('/', auth, async (req, res) => {
 // POST /api/hero/create
 router.post('/create', auth, async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    const name = cleanText(req.body.name, 2, 20);
+    if (!name) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const existing = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
-    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name: sanitizeString(name) } });
+    const hero = await prisma.hero.create({ data: { playerId: req.user.playerId, name } });
     res.json({ message: 'Heros cree', hero });
   } catch (e) { sendError(res, e); }
 });
@@ -27,11 +27,11 @@ router.post('/create', auth, async (req, res) => {
 // POST /api/hero/rename
 router.post('/rename', auth, async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || typeof name !== 'string' || name.length < 2 || name.length > 20) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
+    const name = cleanText(req.body.name, 2, 20);
+    if (!name) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
-    await prisma.hero.update({ where: { id: hero.id }, data: { name: sanitizeString(name) } });
+    await prisma.hero.update({ where: { id: hero.id }, data: { name } });
     res.json({ message: 'Heros renomme' });
   } catch (e) { sendError(res, e); }
 });

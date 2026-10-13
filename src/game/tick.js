@@ -14,6 +14,11 @@ const { updatePopulation, cleanupOrphanedFlags } = require('./processors/worldPr
 
 let tickRunning = false;
 
+// Each step is isolated: a failure in one subsystem must not skip the others for this tick
+async function step(name, fn) {
+  try { return await fn(); } catch (e) { console.error(`[TICK] ${name} error:`, e); }
+}
+
 async function gameTick() {
   if (tickRunning) return;
   tickRunning = true;
@@ -22,36 +27,25 @@ async function gameTick() {
   const TICK_HOURS = config.tick.tickHours;
 
   try {
-    // Heal wounded units
-    const healedCount = await processHealedUnits();
+    const healedCount = await step('heal', () => processHealedUnits());
     if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
 
-    // Resource production & upkeep
-    await processResourceProduction(TICK_HOURS);
-    await processUpkeep(TICK_HOURS);
+    await step('production', () => processResourceProduction(TICK_HOURS));
+    await step('upkeep', () => processUpkeep(TICK_HOURS));
 
-    // Construction & recruitment queues
-    await processBuilds(now);
-    await processRecruits(now);
+    await step('builds', () => processBuilds(now));
+    await step('recruits', () => processRecruits(now));
 
-    // Expeditions
-    await processExpeditions(now);
-    await generateNewExpeditions();
+    await step('expeditions', () => processExpeditions(now));
+    await step('newExpeditions', () => generateNewExpeditions());
 
-    // Army movement & combat
-    await processArmyMovements(now);
+    await step('armies', () => processArmyMovements(now));
+    await step('harvest', () => processHarvesting(now));
 
-    // Harvesting
-    await processHarvesting(now);
-
-    // World state maintenance
-    await cleanupOrphanedFlags();
-    await updatePopulation();
-    await processTribeRespawn(now);
-    await processResourceRegen(now, TICK_HOURS);
-
-  } catch (e) {
-    console.error('Tick error:', e);
+    await step('flags', () => cleanupOrphanedFlags());
+    await step('population', () => updatePopulation());
+    await step('tribeRespawn', () => processTribeRespawn(now));
+    await step('regen', () => processResourceRegen(now, TICK_HOURS));
   } finally {
     tickRunning = false;
   }

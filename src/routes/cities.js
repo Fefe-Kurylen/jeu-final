@@ -6,7 +6,14 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData } = require('../config/gamedata');
 const { factionsData } = require('../config/gamedata');
-const { getCityTier, getCityTierName, getProductionAtLevel, getFactionBonus } = require('../utils/calculations');
+const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
+const { isNonNegInt } = require('../utils/validation');
+
+// Highest level among buildings of a key (fields like FARM exist on several slots).
+// A city without a Main Hall counts as having it at level 1, as in the level cap rule below.
+const maxBuildingLevel = (buildings, key) => buildings.reduce((m, b) => (b.key === key && b.level > m ? b.level : m), key === 'MAIN_HALL' ? 1 : 0);
+
+const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
 
 // GET /api/cities
 router.get('/', auth, async (req, res) => {
@@ -31,14 +38,16 @@ router.post('/:id/build', auth, async (req, res) => {
   try {
     const { buildingKey, slot } = req.body;
     if (!buildingKey || typeof buildingKey !== 'string') return res.status(400).json({ error: 'Bâtiment requis' });
+    if (slot !== undefined && slot !== null && !isNonNegInt(slot)) return res.status(400).json({ error: 'Emplacement invalide' });
     const buildingDef = buildingsData.find(b => b.key === buildingKey);
     if (!buildingDef) return res.status(400).json({ error: 'Bâtiment inconnu' });
     const result = await prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
-        include: { buildings: true, buildQueue: true }
+        include: { buildings: true, buildQueue: true, player: true }
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
+      if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
 
       const MAX_RUNNING = config.build.maxRunning;
       const MAX_QUEUED = config.build.maxQueued;
@@ -59,6 +68,14 @@ router.post('/:id/build', auth, async (req, res) => {
 
       const maxLevel = buildingDef?.maxLevel || 20;
       if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
+
+      if (targetLevel === 1) {
+        const missing = (buildingDef.prereq || []).filter(p => maxBuildingLevel(city.buildings, p.key) < p.level);
+        if (missing.length) {
+          const names = missing.map(p => `${buildingsData.find(b => b.key === p.key)?.name || p.key} niv.${p.level}`);
+          return { error: `Prérequis manquants : ${names.join(', ')}`, status: 400 };
+        }
+      }
 
       if (buildingKey !== 'MAIN_HALL') {
         const mainHall = city.buildings.find(b => b.key === 'MAIN_HALL');
@@ -87,8 +104,7 @@ router.post('/:id/build', auth, async (req, res) => {
       const baseTime = buildingDef?.timeL1Sec || 60;
       let durationSec = Math.floor(baseTime * Math.pow(config.build.timeMultiplierBase, targetLevel - 1));
 
-      const player = await tx.player.findUnique({ where: { id: req.user.playerId } });
-      const buildTimeBonus = getFactionBonus(player?.faction, 'buildTimeReduction', factionsData);
+      const buildTimeBonus = getFactionBonus(city.player.faction, 'buildTimeReduction', factionsData);
       if (buildTimeBonus > 0) durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
 
       const now = new Date();
@@ -146,9 +162,10 @@ router.post('/:id/recruit', auth, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
-        include: { recruitQueue: true, buildings: true }
+        include: { recruitQueue: true, buildings: true, player: true }
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
+      if (unit.faction !== city.player.faction) return { error: 'Unité d\'une autre faction', status: 400 };
 
       const barracks = city.buildings.find(b => b.key === 'BARRACKS');
       const stable = city.buildings.find(b => b.key === 'STABLE');
@@ -204,13 +221,16 @@ router.post('/:id/recruit', auth, async (req, res) => {
       // Per-class base time with tier multiplier (GDD unit_training_times.json)
       const classBaseTime = config.recruit.baseTimeSec[unit.class] || 360;
       const tierTimeMult = config.recruit.tierTimeMultipliers[unit.tier] || 1.0;
-      const timePerUnit = Math.ceil(classBaseTime * tierTimeMult);
+      const timePerUnit = Math.round(classBaseTime * tierTimeMult);
       const totalTime = timePerUnit * count;
-      const now = new Date();
-      const endsAt = new Date(now.getTime() + totalTime * 1000);
+      // Batches in the same building train one after another, not in parallel
+      const buildingKey = RECRUIT_BUILDING[unit.class] || 'BARRACKS';
+      const lastEnd = city.recruitQueue.filter(q => q.buildingKey === buildingKey).reduce((m, q) => Math.max(m, new Date(q.endsAt).getTime()), 0);
+      const startAt = new Date(Math.max(Date.now(), lastEnd));
+      const endsAt = new Date(startAt.getTime() + totalTime * 1000);
 
       const queueItem = await tx.recruitQueueItem.create({
-        data: { cityId: city.id, unitKey, count, buildingKey: 'BARRACKS', startedAt: now, endsAt, status: 'RUNNING' }
+        data: { cityId: city.id, unitKey, count, buildingKey, startedAt: startAt, endsAt, status: 'RUNNING' }
       });
 
       return { message: 'Recrutement lance', queueItem, durationSec: totalTime, cost };

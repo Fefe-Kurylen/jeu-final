@@ -3,7 +3,8 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { validateAllianceName, validateAllianceTag, sanitizeString } = require('../utils/validation');
+const { validateAllianceTag, cleanText } = require('../utils/validation');
+const { getRelation } = require('../services/diplomacyService');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -14,11 +15,11 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/create', auth, async (req, res) => {
   try {
-    let { name, tag, description } = req.body;
-    if (!validateAllianceName(name)) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
+    let { tag } = req.body;
+    const name = cleanText(req.body.name, 3, 30);
+    if (!name) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
     if (!validateAllianceTag(tag)) return res.status(400).json({ error: 'Tag invalide (2-5 caractères alphanumériques)' });
-    name = sanitizeString(name);
-    description = description ? sanitizeString(description).substring(0, 200) : '';
+    const description = req.body.description ? (cleanText(String(req.body.description).substring(0, 400), 0, 200) || '') : '';
     const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
     const alliance = await prisma.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
@@ -69,9 +70,18 @@ router.post('/promote/:playerId', auth, async (req, res) => {
     if (!myMember || myMember.role !== 'LEADER') return res.status(403).json({ error: 'Leader requis' });
     const target = await prisma.allianceMember.findUnique({ where: { playerId: req.params.playerId } });
     if (!target || target.allianceId !== myMember.allianceId) return res.status(404).json({ error: 'Membre non trouve' });
-    const newRole = target.role === 'MEMBER' ? 'OFFICER' : target.role;
-    await prisma.allianceMember.update({ where: { id: target.id }, data: { role: newRole } });
-    res.json({ message: 'Membre promu' });
+    if (target.role === 'OFFICER') {
+      // Promoting an officer hands over leadership; the old leader steps down to officer
+      await prisma.$transaction([
+        prisma.allianceMember.update({ where: { id: target.id }, data: { role: 'LEADER' } }),
+        prisma.allianceMember.update({ where: { id: myMember.id }, data: { role: 'OFFICER' } }),
+        prisma.alliance.update({ where: { id: myMember.allianceId }, data: { leaderId: target.playerId } })
+      ]);
+      return res.json({ message: 'Leadership transféré', role: 'LEADER' });
+    }
+    if (target.role !== 'MEMBER') return res.status(400).json({ error: 'Ce membre ne peut pas être promu' });
+    await prisma.allianceMember.update({ where: { id: target.id }, data: { role: 'OFFICER' } });
+    res.json({ message: 'Membre promu', role: 'OFFICER' });
   } catch (e) { sendError(res, e); }
 });
 
@@ -126,17 +136,7 @@ router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
 // Diplomacy between players (mounted at /api/alliance AND /api/diplomacy)
 router.get('/player/:targetPlayerId', auth, async (req, res) => {
   try {
-    const targetPlayerId = req.params.targetPlayerId;
-    if (targetPlayerId === req.user.playerId) return res.json({ status: 'SELF', canTransport: true, canAttack: false });
-    const [myMember, targetMember] = await Promise.all([
-      prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }),
-      prisma.allianceMember.findUnique({ where: { playerId: targetPlayerId } })
-    ]);
-    if (myMember && targetMember && myMember.allianceId === targetMember.allianceId) return res.json({ status: 'SAME_ALLIANCE', canTransport: true, canAttack: false });
-    if (!myMember || !targetMember) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
-    const diplomacy = await prisma.allianceDiplomacy.findFirst({ where: { OR: [{ allianceId: myMember.allianceId, targetAllianceId: targetMember.allianceId }, { allianceId: targetMember.allianceId, targetAllianceId: myMember.allianceId }] } });
-    if (!diplomacy) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
-    return res.json({ status: diplomacy.status, canTransport: diplomacy.status !== 'ENEMY', canAttack: diplomacy.status !== 'ALLY' });
+    res.json(await getRelation(req.user.playerId, req.params.targetPlayerId));
   } catch (e) { sendError(res, e); }
 });
 

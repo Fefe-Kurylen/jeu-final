@@ -133,6 +133,12 @@ function getArmyMinSpeed(units, unitsData) {
   return minSpeed;
 }
 
+// Travel time for a concrete army: slowest unit + owner's faction speed bonus
+function getArmyTravelTime(units, fromX, fromY, toX, toY, faction) {
+  const { unitsData, factionsData } = require('../config/gamedata');
+  return calculateTravelTime(fromX, fromY, toX, toY, getArmyMinSpeed(units, unitsData), faction, factionsData);
+}
+
 // Calculate carry capacity of an army
 function getArmyCarryCapacity(units, unitsData) {
   let total = 0;
@@ -156,5 +162,6 @@ module.exports = {
   calculateArmyPower,
   countSiegeEngines,
   getArmyMinSpeed,
+  getArmyTravelTime,
   getArmyCarryCapacity
 };

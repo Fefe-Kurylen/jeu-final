@@ -158,6 +158,7 @@ model Army {
   carryStone  Int     @default(0)
   carryIron   Int     @default(0)
   carryFood   Int     @default(0)
+  carryGold   Int     @default(0)
 
   // Récolte progressive
   harvestStartedAt DateTime?  // Quand la récolte a commencé

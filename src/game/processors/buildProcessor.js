@@ -84,12 +84,11 @@ async function processBuilds(now) {
     const remainingRunning = await prisma.buildQueueItem.count({ where: { cityId, status: 'RUNNING' } });
     const slotsToStart = config.build.maxRunning - remainingRunning;
     if (slotsToStart > 0) {
-      const nextQueued = await prisma.buildQueueItem.findMany({ where: { cityId, status: 'QUEUED' }, orderBy: { slot: 'asc' }, take: slotsToStart });
+      const nextQueued = await prisma.buildQueueItem.findMany({ where: { cityId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' }, take: slotsToStart });
       for (const next of nextQueued) {
-        const buildingDef = buildingsData.find(bd => bd.key === next.buildingKey);
-        const baseTime = buildingDef?.timeL1Sec || 60;
-        const durationSec = Math.floor(baseTime * Math.pow(config.build.timeMultiplierBase, next.targetLevel - 1));
-        const endsAt = new Date(now.getTime() + durationSec * 1000);
+        // Duration was fixed at enqueue time (faction bonus included): keep it, only shift the start
+        const durationMs = Math.max(1000, new Date(next.endsAt).getTime() - new Date(next.startedAt).getTime());
+        const endsAt = new Date(now.getTime() + durationMs);
         await prisma.buildQueueItem.update({ where: { id: next.id }, data: { status: 'RUNNING', startedAt: now, endsAt } });
         console.log(`[BUILD] Demarrage ${next.buildingKey} niveau ${next.targetLevel}`);
       }

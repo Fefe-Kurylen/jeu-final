@@ -5,7 +5,7 @@
 const prisma = require('../config/database');
 const { unitsData } = require('../config/gamedata');
 const { getArmyCarryCapacity } = require('../utils/calculations');
-const { resolveCombat } = require('./combatService');
+const { resolveCombat, heroCombatStats } = require('./combatService');
 
 async function resolveTribeCombat(army, node, playerId) {
   const defenderUnits = [];
@@ -23,8 +23,7 @@ async function resolveTribeCombat(army, node, playerId) {
     return { success: true, combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 }, loot: null, message: 'Tribu absente - démarrage de la récolte' };
   }
 
-  const attackerHero = army.hero ? { attack: army.hero.attack || 0, defense: army.hero.defense || 0 } : null;
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, count: u.count })), defenderUnits, 0, attackerHero, null);
+  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null);
 
   let totalAttackerLosses = 0;
   for (const unit of army.units) {
@@ -63,6 +62,10 @@ async function collectResourceLoot(army, node, playerId) {
   const lootAmount = Math.min(carryCapacity, node.amount);
   if (lootAmount <= 0) return {};
   await prisma.resourceNode.update({ where: { id: node.id }, data: { amount: { decrement: lootAmount } } });
+  if (node.resourceType === 'GOLD') {
+    await prisma.player.update({ where: { id: playerId }, data: { gold: { increment: lootAmount } } });
+    return { GOLD: lootAmount };
+  }
   const city = army.cityId
     ? await prisma.city.findUnique({ where: { id: army.cityId } })
     : await prisma.city.findFirst({ where: { playerId, isCapital: true } });

@@ -1,7 +1,7 @@
 // ========== RESOURCE NODE SEEDING ==========
 const prisma = require('../config/database');
 const config = require('../config');
-const { generateTribeDefenders, FACTIONS_LIST, FACTION_UNITS } = require('../utils/tribeDefenders');
+const { generateTribeDefenders } = require('../utils/tribeDefenders');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 

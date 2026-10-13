@@ -93,7 +93,7 @@ app.use('/api/alliance', allianceRoutes);
 app.use('/api/diplomacy', allianceRoutes);
 app.use('/api', mapRoutes);
 app.use('/api/market', marketRoutes);
-app.use('/api', marketRoutes);  // for /api/trade/send
+app.use('/api', marketRoutes.tradeRouter);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/expeditions', expeditionRoutes);
