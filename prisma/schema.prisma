@@ -24,6 +24,8 @@ model Player {
   gold       Int      @default(0)
   population Int      @default(0)
   createdAt  DateTime @default(now())
+  premiumUntil DateTime?        // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
+  cosmetics    Json?            // identifiants des cosmétiques possédés
 
   account      Account          @relation(fields: [accountId], references: [id])
   cities       City[]
@@ -36,6 +38,8 @@ model Player {
   marketOffers MarketOffer[]
   alliance     AllianceMember?
   expeditions  Expedition[]
+  pushTokens   PushToken[]
+  purchases    Purchase[]
 }
 
 model PlayerStats {
@@ -413,4 +417,49 @@ model AllianceInvite {
 
   @@unique([allianceId, playerId])
   @@index([playerId])
+}
+
+// Jeton de notification push d'un appareil (supprimé avec le compte)
+model PushToken {
+  id         String   @id @default(uuid())
+  playerId   String
+  token      String   @unique
+  platform   String   // ios | android | web
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Achat ou abonnement vérifié côté serveur (RevenueCat), jamais accordé sur la seule parole du client
+model Purchase {
+  id            String    @id @default(uuid())
+  playerId      String
+  store         String    @default("app_store")
+  productId     String
+  transactionId String    @unique
+  purchasedAt   DateTime
+  expiresAt     DateTime?
+  status        String    @default("ACTIVE")   // ACTIVE | EXPIRED | REFUNDED
+  raw           Json?
+  createdAt     DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Événements d'usage internes (entonnoir d'activation), anonymisés à la suppression du compte
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  playerId  String?
+  event     String
+  props     Json?
+  platform  String?
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([playerId, createdAt])
 }

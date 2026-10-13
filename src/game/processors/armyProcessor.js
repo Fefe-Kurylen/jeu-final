@@ -1,6 +1,7 @@
 // ========== ARMY MOVEMENT & COMBAT PROCESSOR ==========
 
 const prisma = require('../../config/database');
+const { notify } = require('../../services/pushService');
 const config = require('../../config');
 const { unitsData, factionsData } = require('../../config/gamedata');
 const { calculateTravelTime, getArmyTravelTime, getFactionBonus, getArmyCarryCapacity } = require('../../utils/calculations');
@@ -184,6 +185,8 @@ async function handleAttack(army, now) {
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
   });
+  notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${army.owner.name} : ${result.attackerWon ? 'défaite' : 'victoire'}. Rapport disponible.`, { tab: 'reports' });
+  notify(army.ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { tab: 'reports' });
 
   // Hero XP: GDD 0.25 per enemy unit destroyed (winner x1, loser x0.3)
   try {

@@ -1,6 +1,8 @@
 // ========== BUILD QUEUE PROCESSOR ==========
 
 const prisma = require('../../config/database');
+const { notify } = require('../../services/pushService');
+const buildingName = (key) => buildingsData.find(b => b.key === key)?.name || key;
 const config = require('../../config');
 const { buildingsData } = require('../../config/gamedata');
 const { getStorageAtLevel } = require('../../utils/calculations');
@@ -79,6 +81,8 @@ async function processBuilds(now) {
           await prisma.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel } });
         }
         await prisma.buildQueueItem.delete({ where: { id: b.id } });
+        const owner = await prisma.city.findUnique({ where: { id: b.cityId }, select: { playerId: true, name: true } });
+        if (owner) notify(owner.playerId, 'build_done', '🏗️ Construction terminée', `${buildingName(b.buildingKey)} niveau ${b.targetLevel} à ${owner.name}`, { tab: 'city', cityId: b.cityId });
         // Bug fix : le stockage de la ville doit suivre les niveaux d'Entrepôt/Silo
         if (b.buildingKey === 'WAREHOUSE' || b.buildingKey === 'SILO') await syncCityStorage(b.cityId);
         if (b.buildingKey === 'WALL') await syncWallHp(b.cityId, b.targetLevel);

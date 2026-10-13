@@ -1,4 +1,5 @@
 const express = require('express');
+const { notify } = require('../services/pushService');
 const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
@@ -455,6 +456,10 @@ router.post('/send', auth, async (req, res) => {
       if (refusal) return res.status(400).json({ error: refusal });
       const launched = await launchCityMission(army, targetCity, mission);
       if (!launched) return res.status(409).json({ error: 'Armée déjà en mission' });
+      if (mission !== 'SPY') {
+        const minutes = Math.max(1, Math.round(launched.travelTime / 60));
+        notify(targetCity.playerId, 'attack_incoming', '⚔️ Attaque en approche', `${army.owner?.name || 'Un joueur'} marche sur ${targetCity.name} (arrivée dans ${minutes} min)`, { tab: 'city', cityId: targetCity.id });
+      }
       const label = { ATTACK: 'Attaque lancée', RAID: 'Raid lancé', SPY: 'Espionnage lancé' }[mission];
       return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, ...launched });
     }

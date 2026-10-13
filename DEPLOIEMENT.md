@@ -72,3 +72,50 @@ Les icônes et écrans de lancement sont générés depuis `tools/build-assets.c
 - Logs Render : Dashboard → service → **Logs** ; Fly : `fly logs`.
 - Réinitialiser la base (destructif) : `npx prisma db push --force-reset`.
 - Simulation d'équilibrage (2 ans de jeu en ~8 min) : `DATABASE_URL=... node simulate-2years.js` sur une base dédiée (elle est vidée au départ).
+
+## 7. VPS avec HTTPS (Docker + Caddy)
+
+Sur un VPS Debian/Ubuntu avec un nom de domaine pointant dessus (`api.votre-domaine.fr`) :
+
+```bash
+apt install -y docker.io docker-compose-plugin
+git clone <dépôt> && cd jeu-final
+cat > docker-compose.prod.yml <<'YAML'
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_USER: imperium, POSTGRES_PASSWORD: change-moi, POSTGRES_DB: imperium }
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://imperium:change-moi@db:5432/imperium
+      JWT_SECRET: "<openssl rand -hex 32>"
+      NODE_ENV: production
+      PORT: "3000"
+    depends_on: [ db ]
+  caddy:
+    image: caddy:2
+    ports: [ "80:80", "443:443" ]
+    command: caddy reverse-proxy --from api.votre-domaine.fr --to api:3000
+    volumes: [ "caddy:/data" ]
+volumes: { pgdata: {}, caddy: {} }
+YAML
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Caddy obtient et renouvelle le certificat HTTPS automatiquement. Mettre `https://api.votre-domaine.fr` dans
+`frontend/js/mobile.js` (`window.API_SERVER`) et dans `capacitor.config.ts` (`allowNavigation`).
+
+## 8. Variables pour les fonctions natives
+
+| Variable | Rôle |
+|---|---|
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`, `APNS_PRODUCTION` | notifications push iOS (clé .p8 Apple) |
+| `FCM_SERVICE_ACCOUNT` | notifications push Android (JSON du compte de service Firebase, sur une ligne) |
+| `REVENUECAT_SECRET_KEY` | vérification des achats côté serveur (clé secrète RevenueCat) |
+| `REVENUECAT_WEBHOOK_AUTH` | valeur attendue dans l'en-tête Authorization du webhook RevenueCat |
+| `ADMIN_KEY` | accès à `GET /api/analytics/funnel` |
+
+Sans ces variables, l'API fonctionne normalement : notifications et achats sont simplement désactivés.
+Voir `docs/APP-STORE.md` pour la mise en place pas à pas.

@@ -8,6 +8,8 @@ const config = require('../config');
 const rateLimit = require('../middleware/rateLimit');
 const { validateEmail, validatePassword, validateName, validateFaction } = require('../utils/validation');
 const { createExpedition } = require('../services/expeditionService');
+const auth = require('../middleware/auth');
+const { deleteAccount } = require('../services/accountService');
 
 // POST /api/auth/register
 router.post('/register', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, res) => {
@@ -106,6 +108,18 @@ router.post('/login', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, r
   } catch (e) {
     sendError(res, e);
   }
+});
+
+// DELETE /api/auth/account { password } — suppression définitive du compte depuis l'application (exigence App Store)
+router.delete('/account', auth, rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    const account = await prisma.account.findUnique({ where: { id: req.user.id } });
+    if (!account) return res.status(404).json({ error: 'Compte introuvable' });
+    if (typeof password !== 'string' || !(await bcrypt.compare(password, account.passwordHash))) return res.status(400).json({ error: 'Mot de passe incorrect' });
+    await deleteAccount(account.id);
+    res.status(204).end();
+  } catch (e) { sendError(res, e); }
 });
 
 module.exports = router;

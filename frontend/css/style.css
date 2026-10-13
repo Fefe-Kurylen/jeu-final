@@ -4330,3 +4330,45 @@ body.offline .top-bar::after {
 .hero-expeditions { flex: 1 1 100%; width: 100%; margin-top: 16px; }
 .expeditions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .expedition-card.in-progress { opacity: 0.8; border-style: dashed; }
+
+/* ========== PARAMÈTRES, BOUTIQUE, PAGES LÉGALES ========== */
+.settings-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid rgba(201,162,39,0.25); color: #d8c8a0; }
+.settings-row strong { color: #ffd700; }
+.settings-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.settings-actions button { width: 100%; padding: 12px; font-size: 15px; }
+.btn-danger { background: linear-gradient(180deg, #a03030, #6a1818); color: #fff; border: 1px solid #c04040; border-radius: 8px; cursor: pointer; font-family: 'Cinzel', serif; font-weight: 600; }
+.btn-danger:active { transform: scale(0.98); }
+.btn-settings { font-size: 18px; }
+.gold-box { cursor: pointer; }
+.shop-item { background: rgba(0,0,0,0.25); border: 1px solid rgba(201,162,39,0.35); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.shop-item.shop-sub { border-color: #ffd700; background: linear-gradient(180deg, rgba(201,162,39,0.18), rgba(0,0,0,0.3)); }
+.shop-item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.shop-item-head strong { color: #ffd700; font-family: 'Cinzel', serif; }
+.shop-item p { margin: 8px 0 4px; color: #e0d0b0; font-size: 14px; }
+.shop-item ul { margin: 4px 0 0 18px; padding: 0; color: #c9b07a; font-size: 13px; }
+.shop-buy { padding: 8px 14px; white-space: nowrap; }
+.shop-owned { color: #8fd36a; font-weight: 600; white-space: nowrap; }
+.shop-note { color: #c9b07a; font-style: italic; font-size: 13px; }
+.shop-footer { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.shop-legal { color: #a89a78; font-size: 11px; line-height: 1.4; margin: 0; }
+.legal { color: #e0d0b0; font-size: 14px; line-height: 1.5; max-height: 60vh; overflow-y: auto; }
+.legal h1 { font-size: 18px; color: #ffd700; margin-top: 0; }
+.legal h2 { font-size: 15px; color: #e8c547; margin: 14px 0 6px; }
+.legal table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.legal th, .legal td { border: 1px solid rgba(201,162,39,0.3); padding: 4px 6px; text-align: left; vertical-align: top; }
+.legal .meta { color: #a89a78; font-size: 12px; }
+/* Contraste sur le fond parchemin des modales */
+.settings-row { color: #6a4a1a; border-bottom-color: rgba(138,90,16,0.25); }
+.settings-row strong { color: #8a5a10; }
+.shop-item { background: rgba(255,250,235,0.75); border-color: rgba(138,90,16,0.35); }
+.shop-item.shop-sub { border-color: #c9a227; background: linear-gradient(180deg, rgba(255,236,170,0.85), rgba(255,250,235,0.8)); box-shadow: 0 0 0 1px rgba(201,162,39,0.4) inset; }
+.shop-item-head strong { color: #8a5a10; }
+.shop-item p { color: #3a2a14; }
+.shop-item ul { color: #5a4020; }
+.shop-owned { color: #2f7a3a; }
+.shop-note, .shop-legal { color: #6a5a40; }
+.legal { color: #3a2a14; }
+.legal h1 { color: #8a5a10; }
+.legal h2 { color: #6a4a1a; }
+.legal th { background: rgba(201,162,39,0.18); }
+.legal .meta { color: #7a6a4a; }

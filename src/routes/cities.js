@@ -1,4 +1,5 @@
 const express = require('express');
+const { isPremium } = require('../services/entitlementService');
 const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
@@ -75,7 +76,7 @@ router.post('/:id/build', auth, async (req, res) => {
       if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
 
       const MAX_RUNNING = config.build.maxRunning;
-      const MAX_TOTAL = MAX_RUNNING + config.build.maxQueued;
+      const MAX_TOTAL = MAX_RUNNING + config.build.maxQueued + (isPremium(city.player) ? config.purchases.perks.extraBuildQueue : 0);
       if (city.buildQueue.length >= MAX_TOTAL) return { error: `File de construction pleine (max ${MAX_TOTAL})`, status: 400 };
 
       const existing = isField

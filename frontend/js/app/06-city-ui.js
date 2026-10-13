@@ -105,6 +105,7 @@ function updateCityStats() {
 
 // ========== TABS ==========
 function showTab(tabName) {
+  if (typeof track === 'function') track('tab_view', { tab: String(tabName) });
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -509,6 +510,7 @@ function showRecruitModal(unitKey, unitName) {
 }
 
 async function recruit(unitKey) {
+  if (typeof trackOnce === 'function') trackOnce('first_recruit', { unit: String(unitKey) });
   if (_actionInProgress) return;
   _actionInProgress = true;
   try {

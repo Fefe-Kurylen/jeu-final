@@ -28,6 +28,9 @@ const config: CapacitorConfig = {
       backgroundColor: '#1a1510',
       overlaysWebView: false,
     },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
     Keyboard: {
       resize: 'body',
       resizeOnFullScreen: true,

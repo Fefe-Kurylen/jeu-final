@@ -120,6 +120,7 @@ async function sendTroops() {
   const targetY = parseInt(coordMatch[2]);
 
   try {
+    if (typeof trackOnce === 'function') trackOnce('first_army_send');
     const res = await fetch(`${API}/api/armies/send`, {
       method: 'POST',
       headers: {

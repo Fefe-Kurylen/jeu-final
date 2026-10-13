@@ -10,6 +10,28 @@ const config = {
   jwtSecret: process.env.JWT_SECRET || 'monjeu-secret-change-this',
   jwtExpiry: '7d',
 
+  // Notifications push (APNs via HTTP/2 + JWT ES256, FCM v1 via compte de service) : inactif sans clés
+  push: {
+    apns: {
+      keyId: process.env.APNS_KEY_ID || '',
+      teamId: process.env.APNS_TEAM_ID || '',
+      privateKey: (process.env.APNS_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+      bundleId: process.env.APNS_BUNDLE_ID || 'com.imperiumantiquitas.app',
+      production: process.env.APNS_PRODUCTION === 'true'
+    },
+    fcm: { serviceAccount: process.env.FCM_SERVICE_ACCOUNT || '' },
+    // Intervalle minimal entre deux notifications du même type pour un joueur
+    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000 }
+  },
+
+  // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
+  purchases: {
+    revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || '',
+    webhookAuth: process.env.REVENUECAT_WEBHOOK_AUTH || '',
+    premiumEntitlement: process.env.PREMIUM_ENTITLEMENT || 'plus',
+    perks: { extraBuildQueue: 1, productionBonus: 0.05 }
+  },
+
   // Map
   map: {
     baseWorldSize: 374,

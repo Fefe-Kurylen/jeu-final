@@ -217,6 +217,7 @@ async function login() {
       token = data.token;
       localStorage.setItem('token', token);
       showGame();
+      if (typeof track === 'function') track('login_success');
     } else {
       showAuthError(data.error || 'Erreur de connexion');
     }
@@ -248,6 +249,7 @@ async function register() {
       token = data.token;
       localStorage.setItem('token', token);
       showGame();
+      if (typeof track === 'function') track('register_success', { faction: document.getElementById('register-faction')?.value || '' });
     } else {
       showAuthError(data.error || 'Erreur d\'inscription');
     }
@@ -257,6 +259,8 @@ async function register() {
 }
 
 function logout() {
+  if (typeof window.unregisterPush === 'function' && token) window.unregisterPush();
+  if (typeof flushAnalytics === 'function') flushAnalytics();
   token = null;
   localStorage.removeItem('token');
   // Stop every background activity started by showGame()
@@ -314,6 +318,7 @@ async function loadPlayer() {
     if (res.ok) {
       player = await res.json();
       player.allianceId = player.alliance?.allianceId || null;
+      if (!window._playerReadyFor || window._playerReadyFor !== player.id) { window._playerReadyFor = player.id; if (typeof window.onPlayerReady === 'function') window.onPlayerReady(player); }
       document.getElementById('player-name').textContent = player.name;
       document.getElementById('player-faction').textContent = player.faction;
       document.getElementById('player-pop').textContent = player.population || 0;

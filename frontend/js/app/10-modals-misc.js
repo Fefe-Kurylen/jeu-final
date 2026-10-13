@@ -493,3 +493,67 @@ document.addEventListener('DOMContentLoaded', () => {
   startCountdowns();
 });
 
+
+// ========== PARAMÈTRES : compte, notifications, boutique, confidentialité, suppression ==========
+function openSettings() {
+  const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const pushOn = !!localStorage.getItem('push_token');
+  const version = (window.APP_VERSION || '1.0');
+  showModal('Paramètres', `
+    <div class="settings">
+      <div class="settings-row"><span>Joueur</span><strong>${escapeHtml(player?.name || '')}</strong></div>
+      <div class="settings-row"><span>Faction</span><strong>${escapeHtml(player?.faction || '')}</strong></div>
+      <div class="settings-row"><span>Version</span><strong>${escapeHtml(version)}</strong></div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="Store.openShop()">Boutique et abonnement</button>
+        <button class="btn-secondary" onclick="Store.restore()">Restaurer les achats</button>
+        ${native ? `<button class="btn-secondary" onclick="togglePush()">${pushOn ? 'Désactiver' : 'Activer'} les notifications</button>` : ''}
+        <button class="btn-secondary" onclick="openLegalPage('privacy')">Politique de confidentialité</button>
+        <button class="btn-secondary" onclick="openLegalPage('support')">Assistance</button>
+        <button class="btn-secondary" onclick="logout()">Se déconnecter</button>
+        <button class="btn-danger" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
+      </div>
+    </div>`);
+}
+
+// Pages légales embarquées (frontend/privacy.html, support.html) ; aussi servies par l'API (/privacy, /support)
+async function openLegalPage(name) {
+  try {
+    const res = await fetch(`${name}.html`);
+    const html = await res.text();
+    const body = html.replace(/^[\s\S]*<main>/, '').replace(/<\/main>[\s\S]*$/, '');
+    showModal(name === 'privacy' ? 'Confidentialité' : 'Assistance', `<div class="legal">${body}</div>`);
+  } catch (e) {
+    window.open(`${API}/${name}`, '_blank');
+  }
+}
+
+function confirmDeleteAccount() {
+  showModal('Supprimer mon compte', `
+    <div class="settings">
+      <p>La suppression est <strong>immédiate et définitive</strong> : villes, armées, héros, rapports, achats et abonnement (à résilier séparément dans votre store) seront perdus.</p>
+      <div class="form-group"><label>Confirmez avec votre mot de passe</label><input type="password" id="delete-password" autocomplete="current-password"></div>
+      <div class="settings-actions">
+        <button class="btn-danger" onclick="deleteAccount()">Supprimer définitivement</button>
+        <button class="btn-secondary" onclick="closeModal()">Annuler</button>
+      </div>
+    </div>`);
+}
+
+async function deleteAccount() {
+  const password = document.getElementById('delete-password')?.value || '';
+  if (!password) { showToast('Mot de passe requis', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/api/auth/account`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ password }) });
+    if (res.status === 204) {
+      if (typeof track === 'function') { track('account_deleted'); if (typeof flushAnalytics === 'function') flushAnalytics(); }
+      try { localStorage.clear(); } catch (e) {}
+      closeModal();
+      logout();
+      showToast('Compte supprimé. À bientôt peut-être !', 'info');
+      return;
+    }
+    const err = await res.json().catch(() => ({}));
+    showToast(err.error || 'Suppression impossible', 'error');
+  } catch (e) { showToast('Suppression impossible (hors ligne ?)', 'error'); }
+}

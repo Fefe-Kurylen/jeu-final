@@ -29,14 +29,17 @@ const BONUS = {
   food: { keys: ['MILL', 'BAKERY'], pct: bonusPct('MILL', 'foodProdBonusPctL1') }
 };
 
+// Bonus de production de l'abonnement « Plus » (vérifié côté serveur)
+const PREMIUM_BONUS = config.purchases.perks.productionBonus;
+
 async function processResourceProduction(TICK_HOURS) {
   // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
-      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
-      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS}, c."maxStorage"),
-      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS}, c."maxFoodStorage")
+      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
+      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
+      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
+      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxFoodStorage")
     FROM (
       SELECT cb."cityId",
         SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
@@ -46,8 +49,11 @@ async function processResourceProduction(TICK_HOURS) {
         SUM(CASE WHEN cb.key = ANY(${BONUS.wood.keys})  THEN cb.level * ${BONUS.wood.pct}  ELSE 0 END) AS wb,
         SUM(CASE WHEN cb.key = ANY(${BONUS.stone.keys}) THEN cb.level * ${BONUS.stone.pct} ELSE 0 END) AS sb,
         SUM(CASE WHEN cb.key = ANY(${BONUS.iron.keys})  THEN cb.level * ${BONUS.iron.pct}  ELSE 0 END) AS ib,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb
+        SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb,
+        MAX(CASE WHEN pl."premiumUntil" > NOW() THEN 1 ELSE 0 END) AS prem
       FROM "CityBuilding" cb
+      JOIN "City" ci ON ci.id = cb."cityId"
+      LEFT JOIN "Player" pl ON pl.id = ci."playerId"
       LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod)
         ON pt.key = cb.key AND pt.level = cb.level
       GROUP BY cb."cityId"

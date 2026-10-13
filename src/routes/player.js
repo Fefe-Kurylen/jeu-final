@@ -17,6 +17,7 @@ router.get('/me', auth, async (req, res) => {
         expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
       }
     });
+    if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
     res.json(player);
   } catch (e) {
     sendError(res, e);

@@ -126,6 +126,60 @@
     setTimeout(() => window.dispatchEvent(new Event('resize')), 250);
   });
 
+  // ========== NOTIFICATIONS PUSH ==========
+  // Le jeton de l'appareil est envoyé au serveur (POST /api/push/register) ; le serveur l'oublie à la
+  // déconnexion, à la désactivation ou à la suppression du compte.
+  let pushListenersReady = false;
+  async function sendPushToken(token) {
+    try {
+      const res = await fetch(`${window.API_SERVER}/api/push/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ token, platform: window.Capacitor.getPlatform() }) });
+      if (res.ok) localStorage.setItem('push_token', token);
+    } catch (e) {}
+  }
+  window.registerPush = async function () {
+    if (!isNative()) return false;
+    const { PushNotifications } = Plugins();
+    if (!PushNotifications) return false;
+    try {
+      let perm = await PushNotifications.checkPermissions();
+      if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
+      if (perm.receive !== 'granted') return false;
+      if (!pushListenersReady) {
+        pushListenersReady = true;
+        await PushNotifications.addListener('registration', (t) => sendPushToken(t.value));
+        await PushNotifications.addListener('registrationError', (e) => console.warn('push registration', e));
+        await PushNotifications.addListener('pushNotificationReceived', (n) => { if (n.title) showToast(n.title, 'info'); if (typeof refreshData === 'function') refreshData(true); });
+        await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
+          const tab = a.notification?.data?.tab;
+          if (typeof refreshData === 'function') refreshData(true);
+          if (tab && typeof showTab === 'function') showTab(tab);
+        });
+      }
+      await PushNotifications.register();
+      return true;
+    } catch (e) { console.warn('push:', e.message); return false; }
+  };
+  window.unregisterPush = async function () {
+    const t = localStorage.getItem('push_token');
+    if (!t) return;
+    localStorage.removeItem('push_token');
+    try { await fetch(`${window.API_SERVER}/api/push/register`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ token: t }) }); } catch (e) {}
+  };
+  window.togglePush = async function () {
+    if (localStorage.getItem('push_token')) { await window.unregisterPush(); showToast('Notifications désactivées', 'info'); }
+    else { const ok = await window.registerPush(); showToast(ok ? 'Notifications activées' : 'Autorisation refusée : activez-les dans les réglages du téléphone', ok ? 'success' : 'error'); }
+    if (typeof openSettings === 'function') openSettings();
+  };
+
+  // Quand le joueur est chargé : boutique (RevenueCat) et notifications
+  window.onPlayerReady = function (player) {
+    if (window.Store) window.Store.configure(player.id);
+    if (localStorage.getItem('push_token') || !localStorage.getItem('push_asked')) {
+      localStorage.setItem('push_asked', '1');
+      window.registerPush();
+    }
+  };
+
   // ========== HAPTICS ==========
   window.haptic = async function(style) {
     try {

@@ -1341,6 +1341,7 @@ async function buildAtSlot(buildingKey, slot) {
 }
 
 async function upgradeBuilding(buildingKey, slot) {
+  if (typeof trackOnce === 'function') trackOnce('first_build', { key: String(buildingKey) });
   await buildAtSlot(buildingKey, slot);
 }
 

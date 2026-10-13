@@ -2,6 +2,7 @@
 // Pure API server - no static file serving (frontend is embedded in native apps)
 
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -111,6 +112,14 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/expeditions', expeditionRoutes);
 app.use('/api/expedition', expeditionRoutes);
+app.use('/api/push', require('./routes/push'));
+app.use('/api/purchases', require('./routes/purchases'));
+app.use('/api/analytics', require('./routes/analytics'));
+
+// Pages publiques exigées par les stores (politique de confidentialité, assistance)
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.get('/privacy', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'privacy.html')));
+app.get('/support', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'support.html')));
 
 // ========== 404 for unknown routes ==========
 app.use((req, res) => {
