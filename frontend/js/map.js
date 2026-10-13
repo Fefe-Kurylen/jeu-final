@@ -1505,8 +1505,11 @@ function drawIsoCity(x, y, tw, th, tile) {
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
   // Try to draw from tileset image first
-  const cityImageSize = Math.max(tw * 1.5, th * 3) * (tile.isCapital ? 1.25 : 1);
-  const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
+  // Sprite de la faction ; une ville fortifiée (palier 3 : mur ≥ 15) prend le sprite « capital » (enceinte à tours).
+  // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
+  const fortified = (tile.cityTier || 0) >= 3;
+  const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
+  const cityType = fortified ? 'capital' : faction.toLowerCase();
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {

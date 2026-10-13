@@ -39,135 +39,214 @@ const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147
 const resetSeed = (s) => { seed = s; };
 
 // ---------------------------------------------------------------------------
-// Primitives
+// Primitives — "cartoon × Travian" style: warm dark outlines, painterly gradients,
+// chunky roofs and props. Every building / field / map sprite is built from these.
 // ---------------------------------------------------------------------------
+const STYLE = { line: '#3a2414', lineW: 1.4, lineOp: 0.9, hi: '#fff6d8' };
+const OL = (w = STYLE.lineW, op = STYLE.lineOp) => `stroke="${STYLE.line}" stroke-width="${f1(w)}" stroke-opacity="${op}" stroke-linejoin="round" stroke-linecap="round"`;
+
+// Per-document gradient store, emitted by svgDoc / mapSvg through takeDefs()
+const _defs = new Map();
+function grad(c1, c2, x1 = 0, y1 = 0, x2 = 0, y2 = 1) {
+  const key = `l|${c1}|${c2}|${x1},${y1},${x2},${y2}`;
+  if (!_defs.has(key)) { const id = `g${_defs.size}`; _defs.set(key, { id, markup: `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>` }); }
+  return `url(#${_defs.get(key).id})`;
+}
+function rgrad(c1, c2, cx = 0.5, cy = 0.5, r = 0.7) {
+  const key = `r|${c1}|${c2}|${cx},${cy},${r}`;
+  if (!_defs.has(key)) { const id = `g${_defs.size}`; _defs.set(key, { id, markup: `<radialGradient id="${id}" cx="${cx}" cy="${cy}" r="${r}"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></radialGradient>` }); }
+  return `url(#${_defs.get(key).id})`;
+}
+function takeDefs() { const out = [..._defs.values()].map(d => d.markup).join(''); _defs.clear(); return out; }
+
 const GROUND = {
-  grass: ['#5c8a3c', '#4e7a32'], sand: ['#d8c48a', '#c4ae74'], stone: ['#9a948a', '#847e74'],
-  dirt: ['#8a6a44', '#765836'], water: ['#3f7fbf', '#2f6aa8']
+  grass: ['#7ab843', '#4c8a2a', '#a2d85e'], sand: ['#e8d08e', '#c4a65e', '#f6e4ad'], stone: ['#aaa498', '#7c7465', '#c8c1b4'],
+  dirt: ['#9e7040', '#6d4824', '#bb8b5b'], water: ['#49a0e6', '#2a6fb5', '#8cd0ff']
 };
+// Ground diamond: radial light, dark front edges (thickness), outline, scattered tufts / pebbles / ripples
 function ground(kind = 'grass', spread = 1) {
-  const [c1, c2] = GROUND[kind] || GROUND.grass;
+  const [c, dark, light] = GROUND[kind] || GROUND.grass;
   const s = spread;
-  return poly([P(-s, -s), P(s, -s), P(s, s), P(-s, s)], c1) +
-    poly([P(-s, -s), P(s, -s), P(s, s), P(-s, s)], 'none', `stroke="${c2}" stroke-width="1.5"`) +
-    `<polygon points="${pts([P(-s, -s), P(s, -s), P(s, s), P(-s, s)])}" fill="url(#gtex)" opacity="0.35"/>`;
+  const d4 = [P(-s, -s), P(s, -s), P(s, s), P(-s, s)];
+  let out = poly(d4, rgrad(light, c, 0.5, 0.42, 0.75)) + `<polygon points="${pts(d4)}" fill="url(#gtex)" opacity="0.28"/>` +
+    poly([P(-s, s), P(s, s), P(s, -s)], 'none', `stroke="${dark}" stroke-width="2.4" stroke-opacity="0.5" stroke-linejoin="round"`) +
+    poly(d4, 'none', OL(1.6, 0.8));
+  resetSeed(5);
+  for (let i = 0; i < 8; i++) {
+    const [x, y] = P((rnd() * 2 - 1) * s * 0.78, (rnd() * 2 - 1) * s * 0.78);
+    if (kind === 'grass') out += `<path d="M${f1(x - 3)},${f1(y)} q1.5,-4.5 3,0 q1.5,-5 3,0" stroke="${dark}" stroke-width="1.1" fill="none" opacity="0.75"/>`;
+    else if (kind === 'sand') out += `<path d="M${f1(x - 4)},${f1(y)} q4,-2.5 8,0" stroke="${dark}" stroke-width="1" fill="none" opacity="0.5"/>`;
+    else if (kind === 'water') out += ell(x, y, 5, 1.6, light, 'opacity="0.65"');
+    else out += ell(x, y, 2.2, 1.3, i % 2 ? dark : light, 'opacity="0.75"');
+  }
+  return out;
 }
 
-// Box with footprint ix0..ix0+w, iy0..iy0+d and height h (units); c = base colour
-function box(ix0, iy0, w, d, h, c, z0 = 0) {
-  const top = shade(c, 22), left = shade(c, 0), right = shade(c, -18);
+// Soft contact shadow for objects standing on the ground
+function groundShadow(ix, iy, rx, ry) { const [x, y] = P(ix + 0.12, iy + 0.12); return ell(x, y, rx, ry, '#1a0e04', 'opacity="0.22"'); }
+
+// Box with footprint ix0..ix0+w, iy0..iy0+d and height h (units); c = base colour; opts.tex = 'stone' | 'plank'
+function box(ix0, iy0, w, d, h, c, z0 = 0, opts = {}) {
+  const top = shade(c, 28), left = c, right = shade(c, -22);
   const a = P(ix0, iy0 + d, z0), b = P(ix0 + w, iy0 + d, z0), cc = P(ix0 + w, iy0, z0);
   const a2 = P(ix0, iy0 + d, z0 + h), b2 = P(ix0 + w, iy0 + d, z0 + h), c2 = P(ix0 + w, iy0, z0 + h), d2 = P(ix0, iy0, z0 + h);
-  return poly([a, b, b2, a2], left) + poly([b, cc, c2, b2], right) + poly([d2, c2, b2, a2], top) +
-    `<polyline points="${pts([a2, b2, c2])}" fill="none" stroke="${shade(c, 35)}" stroke-width="1" opacity="0.6"/>`;
+  let out = z0 === 0 ? groundShadow(ix0 + w / 2, iy0 + d / 2, (w + d) * UX * 0.52, (w + d) * UY * 0.52) : '';
+  out += poly([a, b, b2, a2], grad(shade(left, 12), shade(left, -12))) + poly([b, cc, c2, b2], grad(shade(right, 6), shade(right, -14))) + poly([d2, c2, b2, a2], top);
+  if (opts.tex) out += poly([a, b, b2, a2], `url(#${opts.tex}tex)`) + poly([b, cc, c2, b2], `url(#${opts.tex}tex)`);
+  out += line(b[0], b[1], b2[0], b2[1], shade(c, -42), 1, 'opacity="0.55"') + `<polyline points="${pts([a2, b2, c2])}" fill="none" stroke="${STYLE.hi}" stroke-width="1.3" opacity="0.55"/>`;
+  out += poly([a, b, cc, c2, d2, a2], 'none', OL());
+  return out;
 }
-// Gable roof along x on top of a box (ridge parallel to ix)
+// Chunky gable roof along x on top of a box (ridge parallel to ix)
 function roofGable(ix0, iy0, w, d, z, rh, c) {
-  const o = 0.12;
+  const o = 0.2, RH = rh * 1.25;
   const bl = P(ix0 - o, iy0 + d + o, z), br = P(ix0 + w + o, iy0 + d + o, z);
-  const kl = P(ix0 - o, iy0 - o, z), kr = P(ix0 + w + o, iy0 - o, z);
-  const rl = P(ix0 - o, iy0 + d / 2, z + rh), rr = P(ix0 + w + o, iy0 + d / 2, z + rh);
-  return poly([kl, kr, rr, rl], shade(c, 12)) + poly([br, kr, rr], shade(c, -22)) + poly([bl, br, rr, rl], c) +
-    line(rl[0], rl[1], rr[0], rr[1], shade(c, 30), 1.5);
+  const kr = P(ix0 + w + o, iy0 - o, z);
+  const rl = P(ix0 - o, iy0 + d / 2, z + RH), rr = P(ix0 + w + o, iy0 + d / 2, z + RH);
+  let out = poly([br, kr, rr], grad(shade(c, -12), shade(c, -34))) + poly([bl, br, rr, rl], grad(shade(c, 20), shade(c, -14)));
+  for (let i = 1; i <= 3; i++) { const t = i / 4; out += line(bl[0] + (rl[0] - bl[0]) * t, bl[1] + (rl[1] - bl[1]) * t, br[0] + (rr[0] - br[0]) * t, br[1] + (rr[1] - br[1]) * t, shade(c, -32), 0.8, 'opacity="0.4"'); }
+  out += line(rl[0], rl[1], rr[0], rr[1], STYLE.hi, 1.8, 'opacity="0.7"');
+  out += poly([bl, br, kr, rr, rl], 'none', OL()) + line(br[0], br[1], rr[0], rr[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`);
+  return out;
 }
 // Hip / pyramid roof
 function roofHip(ix0, iy0, w, d, z, rh, c) {
-  const o = 0.12;
+  const o = 0.2, RH = rh * 1.25;
   const a = P(ix0 - o, iy0 + d + o, z), b = P(ix0 + w + o, iy0 + d + o, z), cc = P(ix0 + w + o, iy0 - o, z), dd = P(ix0 - o, iy0 - o, z);
-  const t = P(ix0 + w / 2, iy0 + d / 2, z + rh);
-  return poly([dd, cc, t], shade(c, 10)) + poly([a, dd, t], shade(c, 4)) + poly([b, cc, t], shade(c, -22)) + poly([a, b, t], c);
+  const t = P(ix0 + w / 2, iy0 + d / 2, z + RH);
+  let out = poly([dd, cc, t], shade(c, 10)) + poly([a, dd, t], shade(c, 4)) + poly([b, cc, t], grad(shade(c, -10), shade(c, -30))) + poly([a, b, t], grad(shade(c, 20), shade(c, -12)));
+  out += line(a[0], a[1], t[0], t[1], STYLE.hi, 1.3, 'opacity="0.5"');
+  out += poly([a, b, cc, dd], 'none', OL()) + line(a[0], a[1], t[0], t[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`) + line(b[0], b[1], t[0], t[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`) + line(cc[0], cc[1], t[0], t[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`);
+  return out;
 }
 function roofFlat(ix0, iy0, w, d, z, c) {
-  const o = 0.1;
-  return poly([P(ix0 - o, iy0 - o, z), P(ix0 + w + o, iy0 - o, z), P(ix0 + w + o, iy0 + d + o, z), P(ix0 - o, iy0 + d + o, z)], c);
+  const o = 0.12;
+  const q = [P(ix0 - o, iy0 - o, z), P(ix0 + w + o, iy0 - o, z), P(ix0 + w + o, iy0 + d + o, z), P(ix0 - o, iy0 + d + o, z)];
+  return poly(q, grad(shade(c, 12), shade(c, -6))) + poly(q, 'none', OL());
 }
 // Cylinder of radius r (units) centred on (ix,iy), from z0 to z0+h
 function cylinder(ix, iy, r, h, c, z0 = 0) {
   const [cx, cy] = P(ix, iy, z0), [, cyt] = P(ix, iy, z0 + h);
   const rx = r * UX * 1.41, ry = r * UY * 1.41;
-  const id = `cyl${Math.round(cx)}${Math.round(cy)}${Math.round(h * 10)}`;
-  return `<defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="${shade(c, 8)}"/><stop offset="0.55" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -25)}"/></linearGradient></defs>` +
-    rect(cx - rx, cyt, rx * 2, cy - cyt, `url(#${id})`) + ell(cx, cy, rx, ry, shade(c, -12)) + rect(cx - rx, cyt, rx * 2, cy - cyt, `url(#${id})`) + ell(cx, cyt, rx, ry, shade(c, 22));
+  let out = z0 === 0 ? groundShadow(ix, iy, rx * 1.15, ry * 1.15) : '';
+  out += `<path d="M${f1(cx - rx)},${f1(cyt)} v${f1(cy - cyt)} a${f1(rx)},${f1(ry)} 0 0 0 ${f1(rx * 2)},0 v${f1(cyt - cy)} z" fill="${grad(shade(c, 16), shade(c, -30), 0, 0, 1, 0)}" ${OL()}/>`;
+  out += ell(cx, cyt, rx, ry, shade(c, 26), OL()) + line(cx - rx * 0.55, cyt + ry * 0.6, cx - rx * 0.55, cy - ry * 0.4, STYLE.hi, 2.2, 'opacity="0.35"');
+  return out;
 }
 function cone(ix, iy, r, z0, h, c) {
-  const [cx, cy] = P(ix, iy, z0), [, ty] = P(ix, iy, z0 + h);
+  const [cx, cy] = P(ix, iy, z0), [, ty] = P(ix, iy, z0 + h * 1.2);
   const rx = r * UX * 1.41, ry = r * UY * 1.41;
-  return ell(cx, cy, rx, ry, shade(c, -5)) + poly([[cx - rx, cy], [cx, ty], [cx, cy + ry]], shade(c, 8)) + poly([[cx + rx, cy], [cx, ty], [cx, cy + ry]], shade(c, -20)) +
-    `<path d="M${f1(cx - rx)},${f1(cy)} A${f1(rx)},${f1(ry)} 0 0 0 ${f1(cx + rx)},${f1(cy)} L${f1(cx)},${f1(ty)} Z" fill="${c}" opacity="0.55"/>`;
+  return `<path d="M${f1(cx - rx)},${f1(cy)} a${f1(rx)},${f1(ry)} 0 0 0 ${f1(rx * 2)},0 L${f1(cx)},${f1(ty)} z" fill="${grad(shade(c, 18), shade(c, -28), 0, 0, 1, 0)}" ${OL()}/>` +
+    line(cx - rx * 0.5, cy - ry * 0.1, cx - rx * 0.1, ty + (cy - ty) * 0.25, STYLE.hi, 1.6, 'opacity="0.5"');
 }
 function dome(ix, iy, r, z0, c) {
   const [cx, cy] = P(ix, iy, z0);
-  const rx = r * UX * 1.41, ry = rx * 0.95;
-  const id = `dome${Math.round(cx)}${Math.round(cy)}`;
-  return `<defs><radialGradient id="${id}" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="${shade(c, 28)}"/><stop offset="1" stop-color="${shade(c, -22)}"/></radialGradient></defs>` +
-    `<path d="M${f1(cx - rx)},${f1(cy)} A${f1(rx)},${f1(ry)} 0 0 1 ${f1(cx + rx)},${f1(cy)} Z" fill="url(#${id})"/>` + ell(cx, cy, rx, r * UY * 1.41, shade(c, -10), 'opacity="0.5"');
+  const rx = r * UX * 1.41, ryt = rx * 0.95, ryb = r * UY * 1.41;
+  return `<path d="M${f1(cx - rx)},${f1(cy)} a${f1(rx)},${f1(ryt)} 0 0 1 ${f1(rx * 2)},0 a${f1(rx)},${f1(ryb)} 0 0 1 ${f1(-rx * 2)},0 z" fill="${rgrad(shade(c, 30), shade(c, -24), 0.38, 0.3, 0.75)}" ${OL()}/>` +
+    ell(cx - rx * 0.35, cy - ryt * 0.55, rx * 0.16, ryt * 0.22, STYLE.hi, 'opacity="0.5"');
 }
 // Striped tent (pyramid) over a square footprint
 function tent(ix, iy, r, h, c1, c2) {
-  const a = P(ix - r, iy + r), b = P(ix + r, iy + r), cc = P(ix + r, iy - r), d = P(ix - r, iy - r), t = P(ix, iy, h);
-  return poly([d, cc, t], shade(c1, 6)) + poly([a, d, t], shade(c2, 8)) + poly([b, cc, t], shade(c2, -20)) + poly([a, b, t], c1) +
-    line(a[0], a[1], t[0], t[1], shade(c1, -30), 1) + line(b[0], b[1], t[0], t[1], shade(c1, -30), 1);
+  const a = P(ix - r, iy + r), b = P(ix + r, iy + r), cc = P(ix + r, iy - r), d = P(ix - r, iy - r), t = P(ix, iy, h * 1.15);
+  let out = groundShadow(ix, iy, r * UX * 1.6, r * UY * 1.6);
+  out += poly([d, cc, t], shade(c1, 6)) + poly([a, d, t], shade(c2, 8)) + poly([b, cc, t], grad(shade(c2, -8), shade(c2, -26))) + poly([a, b, t], grad(shade(c1, 14), shade(c1, -10)));
+  out += poly([a, b, cc, d], 'none', OL()) + line(a[0], a[1], t[0], t[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`) + line(b[0], b[1], t[0], t[1], STYLE.line, 1.2, `opacity="${STYLE.lineOp}"`) + line(cc[0], cc[1], t[0], t[1], STYLE.line, 1.1, `opacity="${STYLE.lineOp}"`);
+  out += circ(t[0], t[1], 2.2, '#e8c547', OL(1));
+  return out;
 }
 // Props (screen coordinates)
-function tree(x, y, s, c = '#3f7a2f') {
-  return rect(x - s * 0.08, y - s * 0.35, s * 0.16, s * 0.4, '#5a3a1a') +
-    poly([[x - s * 0.45, y - s * 0.25], [x + s * 0.45, y - s * 0.25], [x, y - s * 0.75]], shade(c, -8)) +
-    poly([[x - s * 0.38, y - s * 0.5], [x + s * 0.38, y - s * 0.5], [x, y - s * 1.0]], c) +
-    poly([[x - s * 0.3, y - s * 0.75], [x + s * 0.3, y - s * 0.75], [x, y - s * 1.2]], shade(c, 12));
+function tree(x, y, s, c = '#3f9430') {
+  const dark = shade(c, -18), light = shade(c, 18);
+  let out = ell(x + 2, y + 1, s * 0.3, s * 0.1, '#1a0e04', 'opacity="0.22"');
+  out += `<path d="M${f1(x - s * 0.1)},${f1(y)} q${f1(-s * 0.02)},${f1(-s * 0.3)} ${f1(s * 0.1)},${f1(-s * 0.42)} q${f1(s * 0.12)},${f1(s * 0.12)} ${f1(s * 0.1)},${f1(s * 0.42)} z" fill="#6b4423" ${OL(1.1)}/>`;
+  for (const [b, t, hw] of [[0.25, 0.55, 0.44], [0.5, 0.82, 0.37], [0.72, 1.1, 0.28]]) {
+    out += `<path d="M${f1(x - s * hw)},${f1(y - s * b)} q${f1(s * hw * 0.55)},${f1(-s * (t - b) * 0.4)} ${f1(s * hw)},${f1(-s * (t - b))} q${f1(s * hw * 0.45)},${f1(s * (t - b) * 0.6)} ${f1(s * hw)},${f1(s * (t - b))} q${f1(-s * hw * 0.3)},${f1(s * 0.06)} ${f1(-s * hw)},${f1(s * 0.04)} q${f1(-s * hw * 0.7)},${f1(s * 0.02)} ${f1(-s * hw)},${f1(-s * 0.04)} z" fill="${grad(light, dark, 0, 0, 1, 0)}" ${OL(1.2)}/>`;
+  }
+  out += `<path d="M${f1(x - s * 0.22)},${f1(y - s * 0.5)} q${f1(s * 0.08)},${f1(-s * 0.22)} ${f1(s * 0.2)},${f1(-s * 0.45)}" stroke="${STYLE.hi}" stroke-width="${f1(s * 0.05)}" fill="none" opacity="0.4" stroke-linecap="round"/>`;
+  return out;
 }
-function roundTree(x, y, s, c = '#4a8a34') {
-  return rect(x - s * 0.07, y - s * 0.3, s * 0.14, s * 0.35, '#5a3a1a') + circ(x, y - s * 0.55, s * 0.38, shade(c, -10)) + circ(x - s * 0.12, y - s * 0.65, s * 0.3, c) + circ(x + s * 0.1, y - s * 0.72, s * 0.24, shade(c, 14));
+function roundTree(x, y, s, c = '#4f9e36') {
+  const dark = shade(c, -16), light = shade(c, 20);
+  let out = ell(x + 2, y + 1, s * 0.3, s * 0.1, '#1a0e04', 'opacity="0.22"') + rect(x - s * 0.07, y - s * 0.38, s * 0.14, s * 0.4, '#6b4423', OL(1.1) + ' rx="2"');
+  for (const [bx, by, r] of [[0, -0.56, 0.4], [-0.22, -0.7, 0.3], [0.2, -0.74, 0.27], [0, -0.88, 0.24]]) out += circ(x + s * bx, y + s * by, s * r, rgrad(light, dark, 0.4, 0.35, 0.7), OL(1.2));
+  out += circ(x - s * 0.12, y - s * 0.8, s * 0.07, STYLE.hi, 'opacity="0.5"');
+  return out;
 }
 function palm(x, y, s) {
-  let out = `<path d="M${f1(x)},${f1(y)} q${f1(s * 0.15)},${f1(-s * 0.5)} ${f1(s * 0.1)},${f1(-s * 1.1)}" stroke="#7a5a2a" stroke-width="${f1(s * 0.09)}" fill="none"/>`;
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; out += `<path d="M${f1(x + s * 0.1)},${f1(y - s * 1.1)} q${f1(Math.cos(a) * s * 0.35)},${f1(Math.sin(a) * s * 0.18 - s * 0.05)} ${f1(Math.cos(a) * s * 0.6)},${f1(Math.sin(a) * s * 0.3 + s * 0.15)}" stroke="#3f8a34" stroke-width="${f1(s * 0.07)}" fill="none" stroke-linecap="round"/>`; }
+  const trunk = `M${f1(x)},${f1(y)} q${f1(s * 0.15)},${f1(-s * 0.5)} ${f1(s * 0.1)},${f1(-s * 1.1)}`;
+  let out = ell(x + 2, y + 1, s * 0.25, s * 0.08, '#1a0e04', 'opacity="0.22"') + `<path d="${trunk}" stroke="${STYLE.line}" stroke-width="${f1(s * 0.15)}" fill="none" stroke-linecap="round" stroke-opacity="${STYLE.lineOp}"/><path d="${trunk}" stroke="#8a6230" stroke-width="${f1(s * 0.09)}" fill="none" stroke-linecap="round"/>`;
+  const fronds = [];
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; fronds.push(`M${f1(x + s * 0.1)},${f1(y - s * 1.1)} q${f1(Math.cos(a) * s * 0.35)},${f1(Math.sin(a) * s * 0.18 - s * 0.05)} ${f1(Math.cos(a) * s * 0.62)},${f1(Math.sin(a) * s * 0.3 + s * 0.15)}`); }
+  out += fronds.map(fd => `<path d="${fd}" stroke="${STYLE.line}" stroke-width="${f1(s * 0.14)}" fill="none" stroke-linecap="round" stroke-opacity="${STYLE.lineOp}"/>`).join('') + fronds.map(fd => `<path d="${fd}" stroke="#46a040" stroke-width="${f1(s * 0.08)}" fill="none" stroke-linecap="round"/>`).join('');
   return out;
 }
-function rock(x, y, s, c = '#8a8a8a') {
-  return poly([[x - s * 0.5, y], [x - s * 0.35, y - s * 0.45], [x + s * 0.05, y - s * 0.6], [x + s * 0.5, y - s * 0.2], [x + s * 0.4, y + s * 0.05], [x - s * 0.3, y + s * 0.1]], shade(c, -12)) +
-    poly([[x - s * 0.35, y - s * 0.45], [x + s * 0.05, y - s * 0.6], [x + s * 0.15, y - s * 0.25], [x - s * 0.2, y - s * 0.15]], shade(c, 16));
+function rock(x, y, s, c = '#8f8f8f') {
+  return ell(x + 1, y + 2, s * 0.5, s * 0.14, '#1a0e04', 'opacity="0.2"') +
+    poly([[x - s * 0.5, y], [x - s * 0.35, y - s * 0.45], [x + s * 0.05, y - s * 0.6], [x + s * 0.5, y - s * 0.2], [x + s * 0.4, y + s * 0.05], [x - s * 0.3, y + s * 0.1]], grad(shade(c, -4), shade(c, -24)), OL(1.2)) +
+    poly([[x - s * 0.35, y - s * 0.45], [x + s * 0.05, y - s * 0.6], [x + s * 0.15, y - s * 0.25], [x - s * 0.2, y - s * 0.15]], shade(c, 22));
 }
-function crate(x, y, s) { return rect(x - s / 2, y - s, s, s, '#a07a40') + rect(x - s / 2, y - s, s, s, 'none', `stroke="#6a4a20" stroke-width="1"`) + line(x - s / 2, y - s, x + s / 2, y, '#6a4a20', 1) + line(x + s / 2, y - s, x - s / 2, y, '#6a4a20', 1); }
-function barrel(x, y, s) { return rect(x - s * 0.4, y - s, s * 0.8, s, '#7a5230', 'rx="3"') + line(x - s * 0.4, y - s * 0.7, x + s * 0.4, y - s * 0.7, '#4a3018', 1) + line(x - s * 0.4, y - s * 0.3, x + s * 0.4, y - s * 0.3, '#4a3018', 1) + ell(x, y - s, s * 0.4, s * 0.14, '#9a7050'); }
-function flag(x, y, h, c) { return line(x, y, x, y - h, '#5a3a1a', 2) + poly([[x, y - h], [x + h * 0.5, y - h * 0.85], [x, y - h * 0.7]], c) + circ(x, y - h, 2, '#e8c547'); }
-function chimney(x, y, s) { return rect(x - s * 0.18, y - s, s * 0.36, s, '#6a5a4a') + rect(x - s * 0.22, y - s * 1.08, s * 0.44, s * 0.14, '#4a3a2a') + circ(x + s * 0.05, y - s * 1.35, s * 0.17, '#d8d8d8', 'opacity="0.7"') + circ(x + s * 0.25, y - s * 1.65, s * 0.22, '#e8e8e8', 'opacity="0.55"'); }
-function door(x, y, w, h, c = '#3a2a1a') { return `<path d="M${f1(x - w / 2)},${f1(y)} v${f1(-(h - w / 2))} a${f1(w / 2)},${f1(w / 2)} 0 0 1 ${f1(w)},0 v${f1(h - w / 2)} z" fill="${c}"/>`; }
-function windowRect(x, y, w, h, c = '#2a2a3a') { return rect(x - w / 2, y - h, w, h, c) + rect(x - w / 2, y - h, w, h * 0.45, '#e8d8a0', 'opacity="0.55"'); }
-function torch(x, y, h) { return line(x, y, x, y - h, '#5a3a1a', 2) + circ(x, y - h, 3, '#ff8a20') + circ(x, y - h - 2, 2, '#ffd040'); }
-function wheatRows(ix0, iy0, w, d, rows, c = '#d8b840') {
+function crate(x, y, s) { return rect(x - s / 2, y - s, s, s, grad('#b8904c', '#9a7238'), OL(1.1)) + line(x - s / 2, y - s, x + s / 2, y, '#6a4a20', 1.1) + line(x + s / 2, y - s, x - s / 2, y, '#6a4a20', 1.1); }
+function barrel(x, y, s) { return `<path d="M${f1(x - s * 0.4)},${f1(y - s * 0.85)} q${f1(-s * 0.1)},${f1(s * 0.42)} 0,${f1(s * 0.85)} h${f1(s * 0.8)} q${f1(s * 0.1)},${f1(-s * 0.43)} 0,${f1(-s * 0.85)} z" fill="${grad('#9a6a3c', '#6a4424', 0, 0, 1, 0)}" ${OL(1.1)}/>` + line(x - s * 0.44, y - s * 0.62, x + s * 0.44, y - s * 0.62, '#3a2414', 1.6, 'opacity="0.8"') + line(x - s * 0.44, y - s * 0.25, x + s * 0.44, y - s * 0.25, '#3a2414', 1.6, 'opacity="0.8"') + ell(x, y - s * 0.85, s * 0.4, s * 0.14, '#b08454', OL(1)); }
+function flag(x, y, h, c) {
+  const w = h * 0.75;
+  return line(x, y, x, y - h, STYLE.line, 3) + line(x, y, x, y - h, '#a0764a', 1.2) +
+    `<path d="M${f1(x)},${f1(y - h)} q${f1(w * 0.5)},${f1(-h * 0.12)} ${f1(w)},${f1(h * 0.02)} l${f1(-w * 0.1)},${f1(h * 0.38)} q${f1(-w * 0.45)},${f1(-h * 0.12)} ${f1(-w * 0.9)},${f1(-h * 0.02)} z" fill="${grad(shade(c, 14), shade(c, -14), 0, 0, 1, 0)}" ${OL(1.1)}/>` + circ(x, y - h, 2.5, '#f0c940', OL(1));
+}
+function chimney(x, y, s) {
+  return rect(x - s * 0.2, y - s, s * 0.4, s, grad('#8a7362', '#5e4a3a', 0, 0, 1, 0), OL(1.1)) + rect(x - s * 0.26, y - s * 1.1, s * 0.52, s * 0.16, '#4a3626', OL(1)) +
+    circ(x + s * 0.05, y - s * 1.4, s * 0.19, '#e8e2da', OL(1) + ' opacity="0.85"') + circ(x + s * 0.28, y - s * 1.72, s * 0.25, '#f2eee8', OL(1) + ' opacity="0.8"') + circ(x + s * 0.55, y - s * 2.08, s * 0.3, '#f8f6f2', OL(1) + ' opacity="0.7"');
+}
+function door(x, y, w, h, c = '#3a2414') {
+  return `<path d="M${f1(x - w / 2)},${f1(y)} v${f1(-(h - w / 2))} a${f1(w / 2)},${f1(w / 2)} 0 0 1 ${f1(w)},0 v${f1(h - w / 2)} z" fill="${c}" ${OL(1.4)}/>` +
+    `<path d="M${f1(x - w / 2 + 1.5)},${f1(y)} v${f1(-(h - w / 2) + 0.5)} a${f1(w / 2 - 1.5)},${f1(w / 2 - 1.5)} 0 0 1 ${f1(w - 3)},0" fill="none" stroke="#a07a44" stroke-width="1" opacity="0.6"/>`;
+}
+function windowRect(x, y, w, h, c = '#2a2a3a') { return rect(x - w / 2, y - h, w, h, grad('#f6e4a6', c, 0, 0, 0, 1), OL(1.2)) + line(x, y - h, x, y, '#3a2414', 0.9, 'opacity="0.7"'); }
+function torch(x, y, h) {
+  return line(x, y, x, y - h, STYLE.line, 3.2) + line(x, y, x, y - h, '#8a6230', 1.4) + circ(x, y - h, h * 0.42, '#ffb020', 'opacity="0.25"') +
+    `<path d="M${f1(x - 3)},${f1(y - h + 1)} q0,-4 3,-7 q3,3 3,7 q0,3 -3,3 q-3,0 -3,-3 z" fill="#ff8a20" ${OL(1)}/>` + `<path d="M${f1(x - 1.4)},${f1(y - h + 1)} q0,-2 1.4,-3.6 q1.4,1.6 1.4,3.6 q0,1.6 -1.4,1.6 q-1.4,0 -1.4,-1.6 z" fill="#ffe060"/>`;
+}
+function wheatRows(ix0, iy0, w, d, rows, c = '#e8c248') {
   let out = '';
-  for (let i = 1; i <= rows; i++) { const t = iy0 + (d * i) / (rows + 1); const a = P(ix0 + 0.1, t), b = P(ix0 + w - 0.1, t); out += line(a[0], a[1], b[0], b[1], c, 2.2); for (let k = 0; k < 4; k++) { const u = 0.15 + k * 0.23; const q = P(ix0 + 0.1 + (w - 0.2) * u, t); out += line(q[0], q[1], q[0], q[1] - 5, shade(c, 15), 1.5); } }
+  for (let i = 1; i <= rows; i++) { const t = iy0 + (d * i) / (rows + 1); const a = P(ix0 + 0.1, t), b = P(ix0 + w - 0.1, t); out += line(a[0], a[1], b[0], b[1], shade(c, -30), 2.8, 'opacity="0.5"') + line(a[0], a[1], b[0], b[1], c, 2.2); for (let k = 0; k < 4; k++) { const u = 0.15 + k * 0.23; const q = P(ix0 + 0.1 + (w - 0.2) * u, t); out += line(q[0], q[1], q[0], q[1] - 5.5, shade(c, 12), 1.6); } }
   return out;
 }
-function water(ix, iy, rx, ry, z = 0) { const [x, y] = P(ix, iy, z); return ell(x, y, rx, ry, '#3f7fbf') + ell(x - rx * 0.2, y - ry * 0.25, rx * 0.45, ry * 0.3, '#7fb5e8', 'opacity="0.6"'); }
-function fence(ix0, iy0, w, d, c = '#8a6a3a') {
+function water(ix, iy, rx, ry, z = 0) { const [x, y] = P(ix, iy, z); return ell(x, y, rx, ry, rgrad('#7cc6f4', '#2f78c2', 0.4, 0.35, 0.8), OL(1.2)) + ell(x - rx * 0.25, y - ry * 0.3, rx * 0.4, ry * 0.26, '#b8e6ff', 'opacity="0.6"') + ell(x + rx * 0.3, y + ry * 0.2, rx * 0.2, ry * 0.14, '#b8e6ff', 'opacity="0.45"'); }
+function fence(ix0, iy0, w, d, c = '#9a7340') {
   let out = '';
   const corners = [P(ix0, iy0 + d), P(ix0 + w, iy0 + d), P(ix0 + w, iy0)];
-  for (let i = 0; i < corners.length - 1; i++) { const a = corners[i], b = corners[i + 1]; out += line(a[0], a[1] - 5, b[0], b[1] - 5, c, 1.5) + line(a[0], a[1] - 9, b[0], b[1] - 9, c, 1.5); for (let k = 0; k <= 3; k++) { const x = a[0] + (b[0] - a[0]) * k / 3, y = a[1] + (b[1] - a[1]) * k / 3; out += line(x, y + 1, x, y - 12, shade(c, -15), 2); } }
+  for (let i = 0; i < corners.length - 1; i++) {
+    const a = corners[i], b = corners[i + 1];
+    for (const dy of [5, 9]) out += line(a[0], a[1] - dy, b[0], b[1] - dy, STYLE.line, 2.6, 'opacity="0.85"') + line(a[0], a[1] - dy, b[0], b[1] - dy, c, 1.3);
+    for (let k = 0; k <= 3; k++) { const x = a[0] + (b[0] - a[0]) * k / 3, y = a[1] + (b[1] - a[1]) * k / 3; out += line(x, y + 1, x, y - 13, STYLE.line, 3.4, 'opacity="0.85"') + line(x, y + 1, x, y - 13, shade(c, -8), 1.8); }
+  }
   return out;
 }
-function columns(ix0, iy0, w, h, n, c = '#eae2cc', z0 = 0) {
+function columns(ix0, iy0, w, h, n, c = '#efe6d0', z0 = 0) {
   let out = '';
-  for (let i = 0; i < n; i++) { const [x, y] = P(n > 1 ? ix0 + (w * i) / (n - 1) : ix0, iy0, z0); const top = y - h * UZ; out += rect(x - 2.6, top, 5.2, h * UZ, c) + rect(x - 3.6, top - 2, 7.2, 3, shade(c, -15)) + rect(x - 3.4, y - 2, 6.8, 3, shade(c, -15)); }
+  for (let i = 0; i < n; i++) { const [x, y] = P(n > 1 ? ix0 + (w * i) / (n - 1) : ix0, iy0, z0); const top = y - h * UZ; out += rect(x - 2.8, top, 5.6, h * UZ, grad(shade(c, 6), shade(c, -16), 0, 0, 1, 0), OL(1.1)) + rect(x - 3.9, top - 2.2, 7.8, 3.2, shade(c, -12), OL(1)) + rect(x - 3.7, y - 2.2, 7.4, 3.2, shade(c, -12), OL(1)); }
   return out;
 }
-function shield(x, y, s, c) { return `<path d="M${f1(x - s * 0.5)},${f1(y - s)} h${f1(s)} v${f1(s * 0.5)} q0,${f1(s * 0.5)} ${f1(-s * 0.5)},${f1(s * 0.7)} q${f1(-s * 0.5)},${f1(-s * 0.2)} ${f1(-s * 0.5)},${f1(-s * 0.7)} z" fill="${c}" stroke="#2a2018" stroke-width="1"/>` + circ(x, y - s * 0.5, s * 0.12, '#e8c547'); }
-function cart(x, y, s) { return rect(x - s * 0.5, y - s * 0.55, s, s * 0.4, '#8a6a3a') + circ(x - s * 0.3, y - s * 0.1, s * 0.16, '#4a3a2a') + circ(x + s * 0.3, y - s * 0.1, s * 0.16, '#4a3a2a') + line(x + s * 0.5, y - s * 0.4, x + s * 0.85, y - s * 0.35, '#6a4a2a', 2); }
-function anvil(x, y, s) { return rect(x - s * 0.3, y - s * 0.25, s * 0.6, s * 0.25, '#3a3a44') + rect(x - s * 0.45, y - s * 0.5, s * 0.9, s * 0.22, '#55555f') + poly([[x + s * 0.45, y - s * 0.5], [x + s * 0.7, y - s * 0.45], [x + s * 0.45, y - s * 0.3]], '#55555f'); }
-function wheel(x, y, r) { let out = circ(x, y, r, 'none', `stroke="#5a3a1a" stroke-width="2.5"`); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; out += line(x - Math.cos(a) * r, y - Math.sin(a) * r, x + Math.cos(a) * r, y + Math.sin(a) * r, '#5a3a1a', 1.5); } return out; }
-function coins(x, y, s) { let out = ''; for (let i = 0; i < 5; i++) out += ell(x + (i - 2) * s * 0.35, y - (i % 2) * s * 0.3, s * 0.3, s * 0.12, '#e8c547', 'stroke="#a07a20" stroke-width="0.8"'); return out; }
-function horse(x, y, s, c = '#6a4a2a') { return `<path d="M${f1(x - s * 0.5)},${f1(y)} v${f1(-s * 0.45)} q0,${f1(-s * 0.25)} ${f1(s * 0.25)},${f1(-s * 0.25)} h${f1(s * 0.45)} q${f1(s * 0.25)},0 ${f1(s * 0.3)},${f1(-s * 0.3)} l${f1(s * 0.15)},${f1(s * 0.05)} l${f1(-s * 0.05)},${f1(s * 0.35)} q${f1(-s * 0.1)},${f1(s * 0.2)} ${f1(-s * 0.3)},${f1(s * 0.2)} v${f1(s * 0.45)} h${f1(-s * 0.12)} v${f1(-s * 0.3)} h${f1(-s * 0.4)} v${f1(s * 0.3)} z" fill="${c}"/>` + `<path d="M${f1(x + s * 0.15)},${f1(y - s * 0.7)} q${f1(s * 0.2)},${f1(-s * 0.15)} ${f1(s * 0.45)},${f1(-s * 0.3)}" stroke="#2a1a0a" stroke-width="${f1(s * 0.08)}" fill="none"/>`; }
+function shield(x, y, s, c) { return `<path d="M${f1(x - s * 0.5)},${f1(y - s)} h${f1(s)} v${f1(s * 0.5)} q0,${f1(s * 0.5)} ${f1(-s * 0.5)},${f1(s * 0.7)} q${f1(-s * 0.5)},${f1(-s * 0.2)} ${f1(-s * 0.5)},${f1(-s * 0.7)} z" fill="${grad(shade(c, 12), shade(c, -14))}" ${OL(1.3)}/>` + circ(x, y - s * 0.5, s * 0.14, '#f0c940', OL(0.9)); }
+function cart(x, y, s) { return rect(x - s * 0.5, y - s * 0.55, s, s * 0.4, grad('#a07a48', '#7a5830'), OL(1.1)) + circ(x - s * 0.3, y - s * 0.1, s * 0.17, '#5a3a22', OL(1.1)) + circ(x + s * 0.3, y - s * 0.1, s * 0.17, '#5a3a22', OL(1.1)) + line(x + s * 0.5, y - s * 0.4, x + s * 0.85, y - s * 0.35, '#3a2414', 2.4); }
+function anvil(x, y, s) { return rect(x - s * 0.3, y - s * 0.25, s * 0.6, s * 0.25, '#3a3a44', OL(1.1)) + rect(x - s * 0.45, y - s * 0.5, s * 0.9, s * 0.22, grad('#6a6a76', '#4a4a56'), OL(1.1)) + poly([[x + s * 0.45, y - s * 0.5], [x + s * 0.7, y - s * 0.45], [x + s * 0.45, y - s * 0.3]], '#55555f', OL(1)); }
+function wheel(x, y, r) { let out = circ(x, y, r, '#c8a060', 'opacity="0.25"') + circ(x, y, r, 'none', `stroke="${STYLE.line}" stroke-width="4" stroke-opacity="0.9"`) + circ(x, y, r, 'none', `stroke="#8a6230" stroke-width="2"`); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; out += line(x - Math.cos(a) * r, y - Math.sin(a) * r, x + Math.cos(a) * r, y + Math.sin(a) * r, '#5a3a1a', 1.6); } return out + circ(x, y, r * 0.22, '#3a2414'); }
+function coins(x, y, s) { let out = ''; for (let i = 0; i < 5; i++) out += ell(x + (i - 2) * s * 0.35, y - (i % 2) * s * 0.3, s * 0.3, s * 0.13, '#f0c940', OL(0.9)); return out; }
+function horse(x, y, s, c = '#7a5230') {
+  const body = `M${f1(x - s * 0.5)},${f1(y)} v${f1(-s * 0.45)} q0,${f1(-s * 0.25)} ${f1(s * 0.25)},${f1(-s * 0.25)} h${f1(s * 0.45)} q${f1(s * 0.25)},0 ${f1(s * 0.3)},${f1(-s * 0.3)} l${f1(s * 0.15)},${f1(s * 0.05)} l${f1(-s * 0.05)},${f1(s * 0.35)} q${f1(-s * 0.1)},${f1(s * 0.2)} ${f1(-s * 0.3)},${f1(s * 0.2)} v${f1(s * 0.45)} h${f1(-s * 0.12)} v${f1(-s * 0.3)} h${f1(-s * 0.4)} v${f1(s * 0.3)} z`;
+  return `<path d="${body}" fill="${grad(shade(c, 14), shade(c, -14))}" ${OL(1.2)}/>` + `<path d="M${f1(x + s * 0.15)},${f1(y - s * 0.7)} q${f1(s * 0.2)},${f1(-s * 0.15)} ${f1(s * 0.45)},${f1(-s * 0.3)}" stroke="#2a1a0a" stroke-width="${f1(s * 0.09)}" fill="none" stroke-linecap="round"/>` + circ(x + s * 0.56, y - s * 0.86, s * 0.045, '#1a0e04');
+}
+
 
 // ---------------------------------------------------------------------------
 // Faction palettes (walls / roofs / accents) for the city view
 // ---------------------------------------------------------------------------
 const PALETTES = {
-  ROME:   { wall: '#d8c9a3', roof: '#b8502a', accent: '#8b1a1a', trim: '#6a4a2a', ground: 'grass' },
-  GAUL:   { wall: '#a8926a', roof: '#6a7a34', accent: '#2f5f2a', trim: '#4a3a20', ground: 'grass' },
-  GREEK:  { wall: '#ece4d2', roof: '#4a6e94', accent: '#2f5a8a', trim: '#8a8070', ground: 'grass' },
-  EGYPT:  { wall: '#e2cf9e', roof: '#3a8a8a', accent: '#c9a227', trim: '#8a7040', ground: 'sand' },
-  HUN:    { wall: '#9a8468', roof: '#6a3a2a', accent: '#8a2a10', trim: '#4a3020', ground: 'dirt' },
-  SULTAN: { wall: '#ead9b6', roof: '#2a7a6a', accent: '#c9a227', trim: '#6a5a40', ground: 'sand' }
+  ROME:   { wall: '#ecd8ac', roof: '#e4562c', accent: '#c0241e', trim: '#8a5a30', ground: 'grass' },
+  GAUL:   { wall: '#c8aa72', roof: '#7ea232', accent: '#2f8a3e', trim: '#6a4424', ground: 'grass' },
+  GREEK:  { wall: '#f6eedc', roof: '#3f84cc', accent: '#2a62b0', trim: '#9a8a6a', ground: 'grass' },
+  EGYPT:  { wall: '#f2dc9e', roof: '#2bb0a6', accent: '#e8b82a', trim: '#9a7236', ground: 'sand' },
+  HUN:    { wall: '#b59472', roof: '#9a3e24', accent: '#cc3418', trim: '#5a3620', ground: 'dirt' },
+  SULTAN: { wall: '#f6e4bc', roof: '#1fa48c', accent: '#e8b82a', trim: '#8a6640', ground: 'sand' }
 };
 
 // ---------------------------------------------------------------------------
@@ -176,39 +255,39 @@ const PALETTES = {
 const B = {};
 B.MAIN_HALL = (p) => ground(p.ground) + box(-0.9, -0.6, 1.8, 1.2, 1.6, p.wall) + columns(-0.8, 0.6, 1.6, 1.6, 4, shade(p.wall, 10)) + roofHip(-0.9, -0.6, 1.8, 1.2, 1.6, 0.6, p.roof) + windowRect(P(0.9, 0.0, 0.9)[0], P(0.9, 0.0, 0.9)[1], 5, 8) + door(P(0.1, 0.6, 0)[0], P(0.1, 0.6, 0)[1] + 1, 9, 15) + flag(P(0, 0, 2.2)[0], P(0, 0, 2.2)[1], 18, p.accent);
 B.FARM = (p) => ground('grass') + wheatRows(-0.9, -0.9, 1.8, 1.8, 4) + fence(-0.95, -0.95, 1.9, 1.9) + box(0.3, -0.9, 0.55, 0.45, 0.5, p.trim) + roofGable(0.3, -0.9, 0.55, 0.45, 0.5, 0.35, p.roof);
-B.LUMBER = (p) => ground('grass') + tree(P(-0.6, -0.5)[0], P(-0.6, -0.5)[1], 30) + tree(P(0.5, -0.7)[0], P(0.5, -0.7)[1], 26) + tree(P(-0.1, 0.1)[0], P(-0.1, 0.1)[1], 32) + box(0.2, 0.3, 0.7, 0.5, 0.45, p.trim) + roofGable(0.2, 0.3, 0.7, 0.5, 0.45, 0.3, '#6a4a2a') + rect(P(-0.7, 0.7)[0] - 10, P(-0.7, 0.7)[1] - 8, 20, 8, '#8a6a3a', 'rx="2"');
+B.LUMBER = (p) => ground('grass') + tree(P(-0.6, -0.5)[0], P(-0.6, -0.5)[1], 30) + tree(P(0.5, -0.7)[0], P(0.5, -0.7)[1], 26) + tree(P(-0.1, 0.1)[0], P(-0.1, 0.1)[1], 32) + box(0.2, 0.3, 0.7, 0.5, 0.45, p.trim, 0, { tex: 'plank' }) + roofGable(0.2, 0.3, 0.7, 0.5, 0.45, 0.3, '#6a4a2a') + rect(P(-0.7, 0.7)[0] - 10, P(-0.7, 0.7)[1] - 8, 20, 8, '#8a6a3a', 'rx="2"');
 B.QUARRY = (p) => ground('stone') + rock(P(-0.4, -0.3)[0], P(-0.4, -0.3)[1], 28) + rock(P(0.4, 0.2)[0], P(0.4, 0.2)[1], 24, '#9a9a9a') + rock(P(0.1, -0.6)[0], P(0.1, -0.6)[1], 18, '#a0a0a0') + line(P(-0.6, 0.6)[0], P(-0.6, 0.6)[1], P(-0.6, 0.6)[0] + 12, P(-0.6, 0.6)[1] - 34, '#6a4a2a', 3) + line(P(-0.6, 0.6)[0] + 12, P(-0.6, 0.6)[1] - 34, P(-0.6, 0.6)[0] + 30, P(-0.6, 0.6)[1] - 24, '#6a4a2a', 3) + crate(P(0.6, 0.7)[0], P(0.6, 0.7)[1], 9);
-B.IRON_MINE = (p) => ground('dirt') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0), P(-0.9, 0)], '#6a5a4a') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 1.1), P(-0.6, -0.9, 1.1)], '#7a6a5a') + `<path d="M${f1(P(-0.1, -0.2)[0] - 11)},${f1(P(-0.1, -0.2)[1] + 2)} v-12 a11,11 0 0 1 22,0 v12 z" fill="#1a1410"/>` + line(P(-0.8, 0.5)[0], P(-0.8, 0.5)[1], P(0.8, 0.5)[0], P(0.8, 0.5)[1], '#5a4a3a', 2) + line(P(-0.8, 0.7)[0], P(-0.8, 0.7)[1], P(0.8, 0.7)[0], P(0.8, 0.7)[1], '#5a4a3a', 2) + cart(P(0.3, 0.6)[0], P(0.3, 0.6)[1], 18) + rock(P(0.7, -0.4)[0], P(0.7, -0.4)[1] - 6, 12, '#7a7a8a');
-B.WAREHOUSE = (p) => ground(p.ground) + box(-0.9, -0.7, 1.8, 1.4, 1.0, p.trim) + roofGable(-0.9, -0.7, 1.8, 1.4, 1.0, 0.6, shade(p.roof, -10)) + door(P(0.1, 0.7)[0], P(0.1, 0.7)[1] + 1, 12, 16, '#2a1a0a') + crate(P(0.8, 0.95)[0], P(0.8, 0.95)[1], 9) + crate(P(-0.9, 0.85)[0] - 2, P(-0.9, 0.85)[1], 8);
+B.IRON_MINE = (p) => ground('dirt') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0), P(-0.9, 0)], '#6a5a4a', OL(1.3)) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 1.1), P(-0.6, -0.9, 1.1)], '#7a6a5a', OL(1.3)) + `<path d="M${f1(P(-0.1, -0.2)[0] - 11)},${f1(P(-0.1, -0.2)[1] + 2)} v-12 a11,11 0 0 1 22,0 v12 z" fill="#1a1410"/>` + line(P(-0.8, 0.5)[0], P(-0.8, 0.5)[1], P(0.8, 0.5)[0], P(0.8, 0.5)[1], '#5a4a3a', 2) + line(P(-0.8, 0.7)[0], P(-0.8, 0.7)[1], P(0.8, 0.7)[0], P(0.8, 0.7)[1], '#5a4a3a', 2) + cart(P(0.3, 0.6)[0], P(0.3, 0.6)[1], 18) + rock(P(0.7, -0.4)[0], P(0.7, -0.4)[1] - 6, 12, '#7a7a8a');
+B.WAREHOUSE = (p) => ground(p.ground) + box(-0.9, -0.7, 1.8, 1.4, 1.0, p.trim, 0, { tex: 'plank' }) + roofGable(-0.9, -0.7, 1.8, 1.4, 1.0, 0.6, shade(p.roof, -10)) + door(P(0.1, 0.7)[0], P(0.1, 0.7)[1] + 1, 12, 16, '#2a1a0a') + crate(P(0.8, 0.95)[0], P(0.8, 0.95)[1], 9) + crate(P(-0.9, 0.85)[0] - 2, P(-0.9, 0.85)[1], 8);
 B.SILO = (p) => ground(p.ground) + cylinder(0, 0, 0.7, 1.8, p.wall) + cone(0, 0, 0.78, 1.8, 0.7, p.roof) + door(P(0.5, 0.5)[0], P(0.5, 0.5)[1] + 1, 8, 12) + wheatRows(-0.95, 0.6, 0.5, 0.35, 1);
 B.RALLY_POINT = (p) => ground('dirt') + poly([P(-0.6, -0.6), P(0.6, -0.6), P(0.6, 0.6), P(-0.6, 0.6)], '#9a8a6a') + flag(P(0, 0)[0], P(0, 0)[1], 42, p.accent) + torch(P(-0.7, 0.7)[0], P(-0.7, 0.7)[1], 16) + torch(P(0.7, -0.7)[0], P(0.7, -0.7)[1], 16) + shield(P(0.6, 0.4)[0], P(0.6, 0.4)[1], 12, p.accent) + line(P(-0.5, 0.75)[0], P(-0.5, 0.75)[1], P(-0.5, 0.75)[0] + 10, P(-0.5, 0.75)[1] - 26, '#8a6a3a', 2);
 B.BARRACKS = (p) => ground(p.ground) + box(-0.9, -0.5, 1.8, 1.0, 1.1, shade(p.wall, -10)) + roofGable(-0.9, -0.5, 1.8, 1.0, 1.1, 0.45, p.accent) + door(P(0.1, 0.5)[0], P(0.1, 0.5)[1] + 1, 10, 14) + flag(P(-0.9, -0.5, 1.6)[0], P(-0.9, -0.5, 1.6)[1], 16, p.accent) + shield(P(0.95, 0.1, 0.55)[0], P(0.95, 0.1, 0.55)[1], 10, p.accent) + line(P(-0.5, 0.9)[0], P(-0.5, 0.9)[1], P(-0.5, 0.9)[0], P(-0.5, 0.9)[1] - 22, '#aaa', 2) + line(P(-0.35, 0.95)[0], P(-0.35, 0.95)[1], P(-0.35, 0.95)[0], P(-0.35, 0.95)[1] - 20, '#aaa', 2);
-B.STABLE = (p) => ground('grass') + box(-0.9, -0.7, 1.5, 1.0, 0.9, p.trim) + roofGable(-0.9, -0.7, 1.5, 1.0, 0.9, 0.5, shade(p.roof, -15)) + fence(0.4, -0.2, 0.6, 1.1) + horse(P(0.75, 0.4)[0], P(0.75, 0.4)[1], 20) + door(P(-0.2, 0.3)[0], P(-0.2, 0.3)[1] + 1, 14, 16, '#3a2a1a') + rect(P(-0.9, 0.9)[0] - 8, P(-0.9, 0.9)[1] - 6, 16, 6, '#d8b840');
-B.WORKSHOP = (p) => ground('dirt') + box(-0.9, -0.6, 1.5, 1.2, 1.2, '#6a5a4a') + roofFlat(-0.9, -0.6, 1.5, 1.2, 1.2, '#4a4a4a') + chimney(P(-0.5, -0.4, 1.2)[0], P(-0.5, -0.4, 1.2)[1], 14) + wheel(P(0.95, 0.45)[0] + 2, P(0.95, 0.45)[1] - 14, 10) + rect(P(0.5, -0.9, 0.0)[0] - 6, P(0.5, -0.9)[1] - 22, 12, 22, '#8a6a3a') + door(P(0.1, 0.6)[0], P(0.1, 0.6)[1] + 1, 12, 15);
+B.STABLE = (p) => ground('grass') + box(-0.9, -0.7, 1.5, 1.0, 0.9, p.trim, 0, { tex: 'plank' }) + roofGable(-0.9, -0.7, 1.5, 1.0, 0.9, 0.5, shade(p.roof, -15)) + fence(0.4, -0.2, 0.6, 1.1) + horse(P(0.75, 0.4)[0], P(0.75, 0.4)[1], 20) + door(P(-0.2, 0.3)[0], P(-0.2, 0.3)[1] + 1, 14, 16, '#3a2a1a') + rect(P(-0.9, 0.9)[0] - 8, P(-0.9, 0.9)[1] - 6, 16, 6, '#d8b840');
+B.WORKSHOP = (p) => ground('dirt') + box(-0.9, -0.6, 1.5, 1.2, 1.2, '#6a5a4a', OL(1.3)) + roofFlat(-0.9, -0.6, 1.5, 1.2, 1.2, '#4a4a4a') + chimney(P(-0.5, -0.4, 1.2)[0], P(-0.5, -0.4, 1.2)[1], 14) + wheel(P(0.95, 0.45)[0] + 2, P(0.95, 0.45)[1] - 14, 10) + rect(P(0.5, -0.9, 0.0)[0] - 6, P(0.5, -0.9)[1] - 22, 12, 22, '#8a6a3a') + door(P(0.1, 0.6)[0], P(0.1, 0.6)[1] + 1, 12, 15);
 B.ACADEMY = (p) => ground(p.ground) + box(-0.9, -0.7, 1.8, 1.4, 1.1, shade(p.wall, 6)) + columns(-0.8, 0.7, 1.6, 1.1, 5, shade(p.wall, 12)) + roofGable(-0.9, -0.7, 1.8, 1.4, 1.1, 0.5, p.roof) + windowRect(P(0.9, 0.0, 0.7)[0], P(0.9, 0.0, 0.7)[1], 5, 8) + rect(P(0, 0, 1.6)[0] - 6, P(0, 0, 1.6)[1] - 14, 12, 14, '#e8d8a0') + line(P(0, 0, 1.6)[0] - 4, P(0, 0, 1.6)[1] - 10, P(0, 0, 1.6)[0] + 4, P(0, 0, 1.6)[1] - 10, '#8a6a3a', 1) + line(P(0, 0, 1.6)[0] - 4, P(0, 0, 1.6)[1] - 6, P(0, 0, 1.6)[0] + 4, P(0, 0, 1.6)[1] - 6, '#8a6a3a', 1);
 B.FORGE = (p) => ground('dirt') + box(-0.9, -0.5, 1.4, 1.0, 1.0, '#5a4a3a') + roofGable(-0.9, -0.5, 1.4, 1.0, 1.0, 0.45, '#3a3a3a') + chimney(P(0.2, -0.3, 1.0)[0], P(0.2, -0.3, 1.0)[1], 16) + anvil(P(0.7, 0.6)[0], P(0.7, 0.6)[1], 18) + circ(P(-0.2, 0.5)[0], P(-0.2, 0.5)[1] - 8, 6, '#ff7a20') + circ(P(-0.2, 0.5)[0], P(-0.2, 0.5)[1] - 9, 3.5, '#ffd040');
 B.HIDEOUT = (p) => ground('grass') + ell(P(0.2, 0.2)[0], P(0.2, 0.2)[1], 34, 16, '#4a3a2a') + `<path d="M${f1(P(0.2, 0.2)[0] - 12)},${f1(P(0.2, 0.2)[1] + 2)} v-10 a12,12 0 0 1 24,0 v10 z" fill="#15100a"/>` + roundTree(P(-0.7, -0.5)[0], P(-0.7, -0.5)[1], 28) + roundTree(P(0.8, -0.6)[0], P(0.8, -0.6)[1], 22) + rock(P(-0.6, 0.6)[0], P(-0.6, 0.6)[1], 14, '#7a8a6a') + crate(P(0.8, 0.7)[0], P(0.8, 0.7)[1], 7);
 B.HEALING_TENT = (p) => ground(p.ground) + tent(0, 0, 0.9, 1.6, '#f0ece0', '#dcd6c6') + rect(P(0.15, 0.95, 0.75)[0] - 2, P(0.15, 0.95, 0.75)[1] - 9, 4, 12, '#c0202a') + rect(P(0.15, 0.95, 0.75)[0] - 6, P(0.15, 0.95, 0.75)[1] - 5, 12, 4, '#c0202a') + barrel(P(-0.95, 0.7)[0], P(-0.95, 0.7)[1], 12);
-B.MARKET = (p) => ground(p.ground) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0.9), P(-0.9, 0.9)], '#b8a888') + box(-0.8, -0.8, 1.0, 0.7, 0.5, p.wall) + poly([P(-0.95, -0.95, 0.9), P(0.35, -0.95, 0.9), P(0.35, 0.05, 0.6), P(-0.95, 0.05, 0.6)], p.accent) + poly([P(-0.95, -0.95, 0.9), P(0.35, -0.95, 0.9), P(0.35, 0.05, 0.6), P(-0.95, 0.05, 0.6)], 'url(#stripes)') + crate(P(0.6, 0.4)[0], P(0.6, 0.4)[1], 10) + crate(P(0.75, 0.75)[0], P(0.75, 0.75)[1], 9) + barrel(P(0.25, 0.8)[0], P(0.25, 0.8)[1], 12) + ell(P(-0.5, 0.6)[0], P(-0.5, 0.6)[1] - 3, 10, 5, '#d8b840');
-B.WALL = (p) => ground(p.ground) + box(-1.0, -0.35, 2.0, 0.5, 1.0, shade(p.wall, -22)) + box(-1.0, -0.4, 0.45, 0.6, 1.45, shade(p.wall, -14)) + box(0.55, -0.4, 0.45, 0.6, 1.45, shade(p.wall, -14)) + [-0.45, -0.15, 0.15, 0.45].map(ix => box(ix - 0.1, -0.3, 0.2, 0.2, 0.25, shade(p.wall, -8), 1.0)).join('') + torch(P(-0.78, 0.25, 1.45)[0], P(-0.78, 0.25, 1.45)[1], 10) + torch(P(0.78, 0.25, 1.45)[0], P(0.78, 0.25, 1.45)[1], 10) + door(P(0, 0.15)[0], P(0, 0.15)[1] + 1, 14, 20, '#1a1410');
-B.MOAT = (p) => ground('grass') + poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], '#3f7fbf') + poly([P(-0.55, -0.55), P(0.55, -0.55), P(0.55, 0.55), P(-0.55, 0.55)], '#8a9a6a') + poly([P(-0.1, -1), P(0.1, -1), P(0.1, -0.55), P(-0.1, -0.55)], '#8a6a3a') + ell(P(-0.6, 0.7)[0], P(-0.6, 0.7)[1], 8, 3, '#9fd0ff', 'opacity="0.7"') + ell(P(0.7, -0.3)[0], P(0.7, -0.3)[1], 10, 4, '#9fd0ff', 'opacity="0.6"') + line(P(-1, 0.1)[0], P(-1, 0.1)[1] - 3, P(-0.55, 0.1)[0], P(-0.55, 0.1)[1] - 3, '#8a6a3a', 3);
+B.MARKET = (p) => ground(p.ground) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0.9), P(-0.9, 0.9)], '#b8a888') + box(-0.8, -0.8, 1.0, 0.7, 0.5, p.wall) + poly([P(-0.95, -0.95, 0.9), P(0.35, -0.95, 0.9), P(0.35, 0.05, 0.6), P(-0.95, 0.05, 0.6)], p.accent, OL()) + poly([P(-0.95, -0.95, 0.9), P(0.35, -0.95, 0.9), P(0.35, 0.05, 0.6), P(-0.95, 0.05, 0.6)], 'url(#stripes)') + crate(P(0.6, 0.4)[0], P(0.6, 0.4)[1], 10) + crate(P(0.75, 0.75)[0], P(0.75, 0.75)[1], 9) + barrel(P(0.25, 0.8)[0], P(0.25, 0.8)[1], 12) + ell(P(-0.5, 0.6)[0], P(-0.5, 0.6)[1] - 3, 10, 5, '#d8b840');
+B.WALL = (p) => ground(p.ground) + box(-1.0, -0.35, 2.0, 0.5, 1.0, shade(p.wall, -22), 0, { tex: 'stone' }) + box(-1.0, -0.4, 0.45, 0.6, 1.45, shade(p.wall, -14), 0, { tex: 'stone' }) + box(0.55, -0.4, 0.45, 0.6, 1.45, shade(p.wall, -14), 0, { tex: 'stone' }) + [-0.45, -0.15, 0.15, 0.45].map(ix => box(ix - 0.1, -0.3, 0.2, 0.2, 0.25, shade(p.wall, -8), 1.0)).join('') + torch(P(-0.78, 0.25, 1.45)[0], P(-0.78, 0.25, 1.45)[1], 10) + torch(P(0.78, 0.25, 1.45)[0], P(0.78, 0.25, 1.45)[1], 10) + door(P(0, 0.15)[0], P(0, 0.15)[1] + 1, 14, 20, '#1a1410');
+B.MOAT = (p) => ground('grass') + poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], '#3f7fbf') + poly([P(-0.55, -0.55), P(0.55, -0.55), P(0.55, 0.55), P(-0.55, 0.55)], '#8a9a6a', OL(1.3)) + poly([P(-0.1, -1), P(0.1, -1), P(0.1, -0.55), P(-0.1, -0.55)], '#8a6a3a') + ell(P(-0.6, 0.7)[0], P(-0.6, 0.7)[1], 8, 3, '#9fd0ff', 'opacity="0.7"') + ell(P(0.7, -0.3)[0], P(0.7, -0.3)[1], 10, 4, '#9fd0ff', 'opacity="0.6"') + line(P(-1, 0.1)[0], P(-1, 0.1)[1] - 3, P(-0.55, 0.1)[0], P(-0.55, 0.1)[1] - 3, '#8a6a3a', 3);
 B.MILL = (p) => ground('grass') + cylinder(0.1, 0.1, 0.55, 1.5, p.wall) + cone(0.1, 0.1, 0.62, 1.5, 0.55, p.roof) + (() => { const [x, y] = P(0.1, 0.1, 1.4); const x0 = x - 18, y0 = y + 4; let o = circ(x0, y0, 3, '#5a3a1a'); for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + 0.4; o += line(x0, y0, x0 + Math.cos(a) * 26, y0 + Math.sin(a) * 26, '#8a6a3a', 2.5) + poly([[x0 + Math.cos(a) * 8, y0 + Math.sin(a) * 8], [x0 + Math.cos(a) * 26, y0 + Math.sin(a) * 26], [x0 + Math.cos(a + 0.35) * 24, y0 + Math.sin(a + 0.35) * 24]], '#e8e0d0'); } return o; })() + door(P(0.55, 0.55)[0], P(0.55, 0.55)[1] + 1, 8, 12);
 B.BAKERY = (p) => ground(p.ground) + box(-0.8, -0.6, 1.4, 1.1, 0.9, p.wall) + roofGable(-0.8, -0.6, 1.4, 1.1, 0.9, 0.45, p.roof) + chimney(P(0.3, -0.4, 0.9)[0], P(0.3, -0.4, 0.9)[1], 13) + door(P(0, 0.5)[0], P(0, 0.5)[1] + 1, 10, 13) + ell(P(0.75, 0.3)[0], P(0.75, 0.3)[1] - 3, 7, 4, '#d8a050') + ell(P(0.75, 0.6)[0], P(0.75, 0.6)[1] - 3, 7, 4, '#d8a050') + windowRect(P(0.8, -0.2, 0.55)[0], P(0.8, -0.2, 0.55)[1], 5, 7);
 B.GREAT_SILO = (p) => ground(p.ground) + cylinder(-0.45, 0.1, 0.55, 1.9, p.wall) + cylinder(0.5, -0.3, 0.55, 2.2, shade(p.wall, -6)) + cone(-0.45, 0.1, 0.62, 1.9, 0.6, p.roof) + cone(0.5, -0.3, 0.62, 2.2, 0.6, p.roof) + door(P(0, 0.6)[0], P(0, 0.6)[1] + 1, 8, 12) + wheatRows(-0.95, 0.65, 0.7, 0.3, 1);
-B.GREAT_WAREHOUSE = (p) => ground(p.ground) + box(-1.0, -0.8, 2.0, 1.6, 1.3, shade(p.trim, 5)) + roofGable(-1.0, -0.8, 2.0, 1.6, 1.3, 0.7, shade(p.roof, -12)) + door(P(0.1, 0.8)[0], P(0.1, 0.8)[1] + 1, 14, 18, '#2a1a0a') + crate(P(0.9, 1.0)[0], P(0.9, 1.0)[1], 9) + crate(P(0.9, 1.0)[0], P(0.9, 1.0)[1] - 9, 9) + barrel(P(-1.0, 0.95)[0], P(-1.0, 0.95)[1], 12);
+B.GREAT_WAREHOUSE = (p) => ground(p.ground) + box(-1.0, -0.8, 2.0, 1.6, 1.3, shade(p.trim, 5), 0, { tex: 'plank' }) + roofGable(-1.0, -0.8, 2.0, 1.6, 1.3, 0.7, shade(p.roof, -12)) + door(P(0.1, 0.8)[0], P(0.1, 0.8)[1] + 1, 14, 18, '#2a1a0a') + crate(P(0.9, 1.0)[0], P(0.9, 1.0)[1], 9) + crate(P(0.9, 1.0)[0], P(0.9, 1.0)[1] - 9, 9) + barrel(P(-1.0, 0.95)[0], P(-1.0, 0.95)[1], 12);
 B.GREAT_BARRACKS = (p) => ground(p.ground) + box(-1.0, -0.7, 2.0, 1.4, 1.4, shade(p.wall, -14)) + roofGable(-1.0, -0.7, 2.0, 1.4, 1.4, 0.5, p.accent) + flag(P(-1.0, -0.7, 1.9)[0], P(-1.0, -0.7, 1.9)[1], 16, p.accent) + flag(P(1.0, -0.7, 1.9)[0], P(1.0, -0.7, 1.9)[1], 16, p.accent) + door(P(0, 0.7)[0], P(0, 0.7)[1] + 1, 12, 16) + shield(P(1.05, -0.2, 0.75)[0], P(1.05, -0.2, 0.75)[1], 10, p.accent) + shield(P(1.05, 0.3, 0.75)[0], P(1.05, 0.3, 0.75)[1], 10, p.accent);
 B.GREAT_STABLE = (p) => ground('grass') + box(-1.0, -0.8, 1.5, 1.6, 1.0, p.trim) + roofGable(-1.0, -0.8, 1.5, 1.6, 1.0, 0.6, shade(p.roof, -15)) + fence(0.5, -0.8, 0.5, 1.7) + horse(P(0.75, -0.3)[0], P(0.75, -0.3)[1], 18) + horse(P(0.8, 0.5)[0], P(0.8, 0.5)[1], 18, '#8a6a4a') + door(P(-0.3, 0.8)[0], P(-0.3, 0.8)[1] + 1, 14, 16, '#3a2a1a');
 B.EMBASSY = (p) => ground(p.ground) + box(-0.9, -0.6, 1.8, 1.2, 1.4, shade(p.wall, 8)) + columns(-0.8, 0.6, 1.6, 1.4, 4, shade(p.wall, 14)) + roofHip(-0.9, -0.6, 1.8, 1.2, 1.4, 0.5, p.roof) + flag(P(-0.9, -0.6, 1.9)[0], P(-0.9, -0.6, 1.9)[1], 16, p.accent) + flag(P(0.9, -0.6, 1.9)[0], P(0.9, -0.6, 1.9)[1], 16, '#2f5a8a') + door(P(0.1, 0.6)[0], P(0.1, 0.6)[1] + 1, 10, 16);
-B.TREASURE_CHAMBER = (p) => ground('stone') + box(-0.8, -0.6, 1.6, 1.2, 1.1, '#8a8a92') + roofFlat(-0.8, -0.6, 1.6, 1.2, 1.1, '#6a6a72') + [-0.5, 0, 0.5].map(ix => box(ix - 0.12, -0.6, 0.24, 0.24, 0.25, '#9a9aa2', 1.1)).join('') + door(P(0.1, 0.6)[0], P(0.1, 0.6)[1] + 1, 12, 15, '#2a2a30') + rect(P(0.1, 0.6)[0] - 6, P(0.1, 0.6)[1] - 14, 12, 15, 'none', 'stroke="#c9a227" stroke-width="1.5"') + coins(P(-0.6, 0.85)[0], P(-0.6, 0.85)[1], 10);
+B.TREASURE_CHAMBER = (p) => ground('stone') + box(-0.8, -0.6, 1.6, 1.2, 1.1, '#8a8a92', 0, { tex: 'stone' }) + roofFlat(-0.8, -0.6, 1.6, 1.2, 1.1, '#6a6a72') + [-0.5, 0, 0.5].map(ix => box(ix - 0.12, -0.6, 0.24, 0.24, 0.25, '#9a9aa2', 1.1)).join('') + door(P(0.1, 0.6)[0], P(0.1, 0.6)[1] + 1, 12, 15, '#2a2a30') + rect(P(0.1, 0.6)[0] - 6, P(0.1, 0.6)[1] - 14, 12, 15, 'none', 'stroke="#c9a227" stroke-width="1.5"') + coins(P(-0.6, 0.85)[0], P(-0.6, 0.85)[1], 10);
 B.HERO_MANSION = (p) => ground(p.ground) + box(-0.9, -0.5, 1.4, 1.0, 1.2, shade(p.wall, 4)) + box(0.5, -0.5, 0.5, 0.5, 1.7, shade(p.wall, -6)) + roofHip(-0.9, -0.5, 1.4, 1.0, 1.2, 0.45, p.roof) + cone(0.75, -0.25, 0.4, 1.7, 0.6, p.roof) + flag(P(0.75, -0.25, 2.3)[0], P(0.75, -0.25, 2.3)[1], 14, p.accent) + door(P(-0.2, 0.5)[0], P(-0.2, 0.5)[1] + 1, 10, 14) + windowRect(P(0.5, 0.0, 0.7)[0] + 8, P(0.5, 0.0, 0.7)[1], 5, 8) + roundTree(P(-0.8, 0.8)[0], P(-0.8, 0.8)[1], 18);
-B.WATCHTOWER = (p) => ground('stone') + box(-0.35, -0.35, 0.7, 0.7, 2.6, shade(p.wall, -18)) + box(-0.45, -0.45, 0.9, 0.9, 0.35, shade(p.wall, -8), 2.6) + roofHip(-0.45, -0.45, 0.9, 0.9, 2.95, 0.5, p.roof) + windowRect(P(0.35, 0.0, 2.0)[0], P(0.35, 0.0, 2.0)[1], 5, 8) + windowRect(P(0.35, 0.0, 1.2)[0], P(0.35, 0.0, 1.2)[1], 5, 8) + torch(P(-0.45, 0.45, 2.95)[0], P(-0.45, 0.45, 2.95)[1], 10) + door(P(0.0, 0.35)[0], P(0.0, 0.35)[1] + 1, 8, 12);
+B.WATCHTOWER = (p) => ground('stone') + box(-0.35, -0.35, 0.7, 0.7, 2.6, shade(p.wall, -18), 0, { tex: 'stone' }) + box(-0.45, -0.45, 0.9, 0.9, 0.35, shade(p.wall, -8), 2.6) + roofHip(-0.45, -0.45, 0.9, 0.9, 2.95, 0.5, p.roof) + windowRect(P(0.35, 0.0, 2.0)[0], P(0.35, 0.0, 2.0)[1], 5, 8) + windowRect(P(0.35, 0.0, 1.2)[0], P(0.35, 0.0, 1.2)[1], 5, 8) + torch(P(-0.45, 0.45, 2.95)[0], P(-0.45, 0.45, 2.95)[1], 10) + door(P(0.0, 0.35)[0], P(0.0, 0.35)[1] + 1, 8, 12);
 B.FOUNDRY = (p) => ground('dirt') + box(-0.9, -0.6, 1.5, 1.2, 1.1, '#5a4a40') + roofGable(-0.9, -0.6, 1.5, 1.2, 1.1, 0.4, '#3a3634') + chimney(P(-0.4, -0.4, 1.1)[0], P(-0.4, -0.4, 1.1)[1], 20) + chimney(P(0.2, -0.4, 1.1)[0], P(0.2, -0.4, 1.1)[1], 16) + circ(P(0.65, 0.4)[0], P(0.65, 0.4)[1] - 6, 7, '#ff6a10') + circ(P(0.65, 0.4)[0], P(0.65, 0.4)[1] - 7, 4, '#ffd040') + rect(P(0.85, 0.85)[0] - 10, P(0.85, 0.85)[1] - 5, 20, 5, '#7a7a86') + rect(P(0.85, 0.85)[0] - 8, P(0.85, 0.85)[1] - 10, 16, 5, '#8a8a96');
 B.STONEMASON = (p) => ground('stone') + box(-0.9, -0.4, 1.3, 0.9, 0.9, shade(p.wall, -10)) + roofGable(-0.9, -0.4, 1.3, 0.9, 0.9, 0.4, p.trim) + rect(P(0.7, 0.3)[0] - 9, P(0.7, 0.3)[1] - 8, 18, 8, '#b0b0b0') + rect(P(0.7, 0.3)[0] - 7, P(0.7, 0.3)[1] - 15, 14, 7, '#c4c4c4') + rect(P(0.5, 0.75)[0] - 8, P(0.5, 0.75)[1] - 7, 16, 7, '#a8a8a8') + line(P(-0.7, 0.8)[0], P(-0.7, 0.8)[1], P(-0.7, 0.8)[0] + 6, P(-0.7, 0.8)[1] - 16, '#6a4a2a', 2.5) + rect(P(-0.7, 0.8)[0] + 3, P(-0.7, 0.8)[1] - 20, 8, 6, '#555');
-B.SAWMILL = (p) => ground('grass') + box(-0.9, -0.5, 1.5, 1.0, 0.8, p.trim) + roofGable(-0.9, -0.5, 1.5, 1.0, 0.8, 0.45, '#6a4a2a') + wheel(P(0.9, 0.2)[0], P(0.9, 0.2)[1] - 12, 11) + rect(P(-0.5, 0.75)[0] - 14, P(-0.5, 0.75)[1] - 6, 28, 6, '#a07a40', 'rx="3"') + rect(P(-0.5, 0.75)[0] - 12, P(-0.5, 0.75)[1] - 12, 24, 6, '#b08a50', 'rx="3"') + tree(P(0.5, 0.75)[0], P(0.5, 0.75)[1], 18);
+B.SAWMILL = (p) => ground('grass') + box(-0.9, -0.5, 1.5, 1.0, 0.8, p.trim, 0, { tex: 'plank' }) + roofGable(-0.9, -0.5, 1.5, 1.0, 0.8, 0.45, '#6a4a2a') + wheel(P(0.9, 0.2)[0], P(0.9, 0.2)[1] - 12, 11) + rect(P(-0.5, 0.75)[0] - 14, P(-0.5, 0.75)[1] - 6, 28, 6, '#a07a40', 'rx="3"') + rect(P(-0.5, 0.75)[0] - 12, P(-0.5, 0.75)[1] - 12, 24, 6, '#b08a50', 'rx="3"') + tree(P(0.5, 0.75)[0], P(0.5, 0.75)[1], 18);
 B.RESIDENCE = (p) => ground(p.ground) + box(-0.9, -0.5, 1.6, 1.0, 1.1, shade(p.wall, 6)) + roofHip(-0.9, -0.5, 1.6, 1.0, 1.1, 0.5, p.roof) + columns(-0.7, 0.5, 1.2, 1.1, 3, shade(p.wall, 12)) + windowRect(P(0.75, 0.0, 0.7)[0], P(0.75, 0.0, 0.7)[1], 5, 8) + door(P(-0.1, 0.5)[0], P(-0.1, 0.5)[1] + 1, 9, 13) + roundTree(P(0.85, 0.8)[0], P(0.85, 0.8)[1], 16) + roundTree(P(-0.9, 0.85)[0], P(-0.9, 0.85)[1], 14);
-B.TRADE_OFFICE = (p) => ground(p.ground) + box(-0.9, -0.6, 1.4, 1.2, 1.2, p.wall) + roofHip(-0.9, -0.6, 1.4, 1.2, 1.2, 0.4, p.accent) + poly([P(-0.95, 0.6, 0.75), P(0.55, 0.6, 0.75), P(0.55, 0.95, 0.55), P(-0.95, 0.95, 0.55)], p.accent) + crate(P(0.8, 0.5)[0], P(0.8, 0.5)[1], 9) + crate(P(0.8, 0.9)[0], P(0.8, 0.9)[1], 9) + cart(P(-0.6, 0.95)[0], P(-0.6, 0.95)[1], 16) + windowRect(P(0.5, -0.2, 0.7)[0] + 4, P(0.5, -0.2, 0.7)[1], 5, 8);
+B.TRADE_OFFICE = (p) => ground(p.ground) + box(-0.9, -0.6, 1.4, 1.2, 1.2, p.wall) + roofHip(-0.9, -0.6, 1.4, 1.2, 1.2, 0.4, p.accent) + poly([P(-0.95, 0.6, 0.75), P(0.55, 0.6, 0.75), P(0.55, 0.95, 0.55), P(-0.95, 0.95, 0.55)], p.accent, OL()) + crate(P(0.8, 0.5)[0], P(0.8, 0.5)[1], 9) + crate(P(0.8, 0.9)[0], P(0.8, 0.9)[1], 9) + cart(P(-0.6, 0.95)[0], P(-0.6, 0.95)[1], 16) + windowRect(P(0.5, -0.2, 0.7)[0] + 4, P(0.5, -0.2, 0.7)[1], 5, 8);
 B.ROMAN_THERMAE = (p) => ground('stone') + box(-0.9, -0.9, 1.8, 0.8, 1.0, '#ece4d4') + columns(-0.8, -0.1, 1.6, 1.0, 5, '#f4ecdc') + roofGable(-0.9, -0.9, 1.8, 0.8, 1.0, 0.4, '#b8a090') + water(0, 0.5, 40, 18) + dome(0, -0.5, 0.45, 1.4, '#c8b8a8');
-B.GALLIC_BREWERY = (p) => ground('grass') + box(-0.9, -0.6, 1.4, 1.0, 0.9, '#a08060') + roofGable(-0.9, -0.6, 1.4, 1.0, 0.9, 0.5, '#8b5a2b') + chimney(P(0.2, -0.4, 0.9)[0], P(0.2, -0.4, 0.9)[1], 12) + barrel(P(0.7, 0.3)[0], P(0.7, 0.3)[1], 13) + barrel(P(0.85, 0.7)[0], P(0.85, 0.7)[1], 13) + barrel(P(0.45, 0.8)[0], P(0.45, 0.8)[1], 12) + door(P(-0.2, 0.4)[0], P(-0.2, 0.4)[1] + 1, 10, 14, '#3a2a1a');
+B.GALLIC_BREWERY = (p) => ground('grass') + box(-0.9, -0.6, 1.4, 1.0, 0.9, '#a08060', 0, { tex: 'plank' }) + roofGable(-0.9, -0.6, 1.4, 1.0, 0.9, 0.5, '#8b5a2b') + chimney(P(0.2, -0.4, 0.9)[0], P(0.2, -0.4, 0.9)[1], 12) + barrel(P(0.7, 0.3)[0], P(0.7, 0.3)[1], 13) + barrel(P(0.85, 0.7)[0], P(0.85, 0.7)[1], 13) + barrel(P(0.45, 0.8)[0], P(0.45, 0.8)[1], 12) + door(P(-0.2, 0.4)[0], P(-0.2, 0.4)[1] + 1, 10, 14, '#3a2a1a');
 B.GREEK_TEMPLE = (p) => ground('stone') + poly([P(-1, -0.8), P(1, -0.8), P(1, 0.8), P(-1, 0.8)], '#e4dccc') + box(-0.9, -0.7, 1.8, 1.4, 0.25, '#ede6d6') + columns(-0.8, 0.7, 1.6, 1.3, 6, '#faf6ec', 0.25) + columns(0.8, -0.6, 0, 1.3, 1, '#faf6ec', 0.25) + box(-0.6, -0.6, 1.2, 1.1, 1.3, '#f6f2e8', 0.25) + roofGable(-0.95, -0.75, 1.9, 1.5, 1.55, 0.45, '#e0d8c8') + rect(P(0.95, 0.0, 1.0)[0] - 3, P(0.95, 0.0, 1.0)[1] - 10, 6, 10, '#d4af37');
 B.EGYPTIAN_IRRIGATION = (p) => ground('sand') + poly([P(-1, -0.2), P(1, -0.2), P(1, 0.2), P(-1, 0.2)], '#3f7fbf') + poly([P(-0.2, -1), P(0.2, -1), P(0.2, 1), P(-0.2, 1)], '#3f7fbf') + ell(P(0.6, 0.0)[0], P(0.6, 0.0)[1] - 1, 9, 3, '#9fd0ff', 'opacity="0.7"') + palm(P(-0.65, -0.6)[0], P(-0.65, -0.6)[1], 26) + palm(P(0.7, 0.65)[0], P(0.7, 0.65)[1], 22) + wheatRows(-0.95, 0.3, 0.7, 0.6, 2, '#7fb050') + wheatRows(0.3, -0.95, 0.6, 0.6, 2, '#7fb050') + wheel(P(0.0, 0.0)[0], P(0.0, 0.0)[1] - 10, 9);
 B.HUN_WAR_TENT = (p) => ground('dirt') + tent(0, 0, 1.0, 1.7, '#9b7355', '#7b5a44') + tent(-0.75, 0.55, 0.35, 0.8, '#8a6a4a', '#6b5344') + flag(P(0, 0, 1.7)[0], P(0, 0, 1.7)[1], 16, '#8a2a10') + shield(P(0.85, 0.75)[0], P(0.85, 0.75)[1], 11, '#8a2a10') + line(P(0.6, 0.95)[0], P(0.6, 0.95)[1], P(0.6, 0.95)[0] + 4, P(0.6, 0.95)[1] - 26, '#5a3a1a', 2) + torch(P(-0.9, -0.5)[0], P(-0.9, -0.5)[1], 14);
@@ -219,15 +298,18 @@ const F = {
   FARM: (t) => ground('grass') + wheatRows(-0.95, -0.95, 1.9, 1.9, 2 + t * 2) + (t >= 2 ? fence(-1, -1, 2, 2) : '') + (t >= 3 ? box(0.45, -0.95, 0.5, 0.4, 0.5, '#8a6a3a') + roofGable(0.45, -0.95, 0.5, 0.4, 0.5, 0.3, '#b8502a') : ''),
   LUMBER: (t) => ground('grass') + [[-0.6, -0.6, 30], [0.5, -0.7, 26], [-0.1, 0.1, 32], [0.6, 0.4, 24], [-0.7, 0.5, 22], [0.1, -0.9, 20]].slice(0, 2 + t * 1.4 | 0).map(([ix, iy, s]) => tree(P(ix, iy)[0], P(ix, iy)[1], s)).join('') + (t >= 2 ? rect(P(0.7, 0.85)[0] - 12, P(0.7, 0.85)[1] - 7, 24, 7, '#8a6a3a', 'rx="2"') : '') + (t >= 3 ? box(-0.95, 0.5, 0.5, 0.4, 0.4, '#6a4a2a') + roofGable(-0.95, 0.5, 0.5, 0.4, 0.4, 0.25, '#4a3a2a') : ''),
   QUARRY: (t) => ground('stone') + rock(P(-0.4, -0.3)[0], P(-0.4, -0.3)[1], 20 + t * 5) + (t >= 2 ? rock(P(0.4, 0.2)[0], P(0.4, 0.2)[1], 22, '#9a9a9a') + rock(P(0.1, -0.7)[0], P(0.1, -0.7)[1], 16, '#a4a4a4') : '') + (t >= 3 ? line(P(-0.6, 0.6)[0], P(-0.6, 0.6)[1], P(-0.6, 0.6)[0] + 12, P(-0.6, 0.6)[1] - 34, '#6a4a2a', 3) + line(P(-0.6, 0.6)[0] + 12, P(-0.6, 0.6)[1] - 34, P(-0.6, 0.6)[0] + 30, P(-0.6, 0.6)[1] - 24, '#6a4a2a', 3) + crate(P(0.7, 0.7)[0], P(0.7, 0.7)[1], 9) : ''),
-  IRON_MINE: (t) => ground('dirt') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0), P(-0.9, 0)], '#6a5a4a') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 0.8 + t * 0.2), P(-0.6, -0.9, 0.8 + t * 0.2)], '#7a6a5a') + `<path d="M${f1(P(-0.1, -0.2)[0] - 10)},${f1(P(-0.1, -0.2)[1] + 2)} v-11 a10,10 0 0 1 20,0 v11 z" fill="#1a1410"/>` + (t >= 2 ? line(P(-0.8, 0.5)[0], P(-0.8, 0.5)[1], P(0.8, 0.5)[0], P(0.8, 0.5)[1], '#5a4a3a', 2) + line(P(-0.8, 0.7)[0], P(-0.8, 0.7)[1], P(0.8, 0.7)[0], P(0.8, 0.7)[1], '#5a4a3a', 2) + cart(P(0.3, 0.6)[0], P(0.3, 0.6)[1], 16) : '') + (t >= 3 ? rock(P(0.7, -0.4)[0], P(0.7, -0.4)[1] - 6, 12, '#7a7a8a') + rock(P(-0.75, 0.2)[0], P(-0.75, 0.2)[1], 10, '#8a8a9a') : '')
+  IRON_MINE: (t) => ground('dirt') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0), P(-0.9, 0)], '#6a5a4a', OL(1.3)) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 0.8 + t * 0.2), P(-0.6, -0.9, 0.8 + t * 0.2)], '#7a6a5a', OL(1.3)) + `<path d="M${f1(P(-0.1, -0.2)[0] - 10)},${f1(P(-0.1, -0.2)[1] + 2)} v-11 a10,10 0 0 1 20,0 v11 z" fill="#1a1410"/>` + (t >= 2 ? line(P(-0.8, 0.5)[0], P(-0.8, 0.5)[1], P(0.8, 0.5)[0], P(0.8, 0.5)[1], '#5a4a3a', 2) + line(P(-0.8, 0.7)[0], P(-0.8, 0.7)[1], P(0.8, 0.7)[0], P(0.8, 0.7)[1], '#5a4a3a', 2) + cart(P(0.3, 0.6)[0], P(0.3, 0.6)[1], 16) : '') + (t >= 3 ? rock(P(0.7, -0.4)[0], P(0.7, -0.4)[1] - 6, 12, '#7a7a8a') + rock(P(-0.75, 0.2)[0], P(-0.75, 0.2)[1], 10, '#8a8a9a') : '')
 };
 
 const DEFS = `<defs>
   <pattern id="gtex" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="0.8" fill="#000" opacity="0.18"/><circle cx="4.5" cy="4" r="0.6" fill="#fff" opacity="0.18"/></pattern>
   <pattern id="stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="8" fill="#fff" opacity="0.35"/></pattern>
+  <pattern id="stonetex" width="12" height="7" patternUnits="userSpaceOnUse"><path d="M0,3.5 h12 M6,0 v3.5 M0,3.5 v3.5 M12,3.5 v3.5" stroke="#000" stroke-width="0.9" fill="none" opacity="0.16"/></pattern>
+  <pattern id="planktex" width="12" height="5" patternUnits="userSpaceOnUse"><path d="M0,2.5 h12" stroke="#000" stroke-width="0.9" opacity="0.18"/><path d="M0,4.6 h12" stroke="#fff" stroke-width="0.6" opacity="0.12"/></pattern>
 </defs>`;
-const SPRITE_VIEWBOX = '35 -16 130 126';   // diamond centre (100,70) sits at (0.5, 0.683) of the box
-const svgDoc = (inner, vb = SPRITE_VIEWBOX, w = 130, h = 126) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${w}" height="${h}" shape-rendering="geometricPrecision">${DEFS}${inner}</svg>\n`;
+const SPRITE_VIEWBOX = '35 -22 130 132';   // diamond centre (100,70) sits at (0.5, 0.697) of the box
+const SPRITE_ANCHOR_Y = 92 / 132;
+const svgDoc = (inner, vb = SPRITE_VIEWBOX, w = 130, h = 132) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${w}" height="${h}" shape-rendering="geometricPrecision">${DEFS}<defs>${takeDefs()}</defs>${inner}</svg>\n`;
 
 function writeFile(p, content) { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, content); }
 
@@ -238,7 +320,7 @@ function buildCitySprites() {
     for (const key of keys) { resetSeed(7); writeFile(path.join(OUT, 'buildings', faction, `${key}.svg`), svgDoc(B[key](palette))); n++; }
   }
   for (const [type, fn] of Object.entries(F)) for (const tier of [1, 2, 3]) { resetSeed(3); writeFile(path.join(OUT, 'fields', `${type}_${tier}.svg`), svgDoc(fn(tier))); n++; }
-  writeFile(path.join(OUT, 'buildings', 'manifest.json'), JSON.stringify({ factions: Object.keys(PALETTES), buildings: keys, fields: Object.keys(F), tiers: 3, viewBox: SPRITE_VIEWBOX, anchor: { x: 0.5, y: 0.683 } }, null, 2));
+  writeFile(path.join(OUT, 'buildings', 'manifest.json'), JSON.stringify({ factions: Object.keys(PALETTES), buildings: keys, fields: Object.keys(F), tiers: 3, viewBox: SPRITE_VIEWBOX, anchor: { x: 0.5, y: Math.round(SPRITE_ANCHOR_Y * 1000) / 1000 } }, null, 2));
   return n;
 }
 
@@ -248,9 +330,9 @@ function buildCitySprites() {
 const M = {};
 // Diamond centre (CX, CY) of the city frame is placed at (128, MAP_CY) of the 256 box: that is the sprite anchor
 const MAP_SCALE = 1.6, MAP_CY = 204;
-const mapSvg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">${DEFS}<g transform="translate(${f1(128 - CX * MAP_SCALE)},${f1(MAP_CY - CY * MAP_SCALE)}) scale(${MAP_SCALE})">${inner}</g></svg>\n`;
+const mapSvg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">${DEFS}<defs>${takeDefs()}</defs><g transform="translate(${f1(128 - CX * MAP_SCALE)},${f1(MAP_CY - CY * MAP_SCALE)}) scale(${MAP_SCALE})">${inner}</g></svg>\n`;
 const shadow = (rx = 48, ry = 22) => ell(CX, CY, rx, ry, '#000', 'opacity="0.28"');
-const cityBase = (c) => poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], c, 'opacity="0.9"');
+const cityBase = (c) => poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], c, 'opacity="0.95" ' + OL(1.8, 0.8));
 M.cities = {
   rome: () => shadow() + cityBase('#c8b89a') + box(-0.9, 0.0, 0.7, 0.7, 0.7, '#d8c9a3') + roofGable(-0.9, 0.0, 0.7, 0.7, 0.7, 0.35, '#b8502a') + box(0.2, 0.2, 0.7, 0.6, 0.6, '#d0c09a') + roofGable(0.2, 0.2, 0.7, 0.6, 0.6, 0.3, '#b8502a') + box(-0.4, -0.9, 1.1, 0.8, 1.0, '#e8dcc0') + columns(-0.3, -0.1, 0.9, 1.0, 4, '#f2ead8') + roofGable(-0.4, -0.9, 1.1, 0.8, 1.0, 0.4, '#b8502a') + flag(P(0.15, -0.5, 1.4)[0], P(0.15, -0.5, 1.4)[1], 14, '#8b1a1a'),
   gaul: () => shadow() + cityBase('#8aa062') + cylinder(-0.5, 0.2, 0.42, 0.7, '#a8926a') + cone(-0.5, 0.2, 0.5, 0.7, 0.7, '#8a7a3a') + cylinder(0.45, 0.45, 0.35, 0.6, '#a8926a') + cone(0.45, 0.45, 0.42, 0.6, 0.6, '#8a7a3a') + cylinder(0.3, -0.6, 0.5, 0.9, '#a8926a') + cone(0.3, -0.6, 0.6, 0.9, 0.9, '#6a7a34') + fence(-1, -1, 2, 2, '#7a6a3a') + tree(P(-0.8, -0.7)[0], P(-0.8, -0.7)[1], 22),
@@ -264,7 +346,7 @@ M.cities = {
 M.resources = {
   wood: () => shadow(40, 18) + tree(P(-0.5, -0.4)[0], P(-0.5, -0.4)[1], 40) + tree(P(0.5, -0.6)[0], P(0.5, -0.6)[1], 34) + tree(P(0.0, 0.4)[0], P(0.0, 0.4)[1], 44) + tree(P(0.7, 0.5)[0], P(0.7, 0.5)[1], 30),
   stone: () => shadow(40, 18) + rock(P(-0.4, -0.2)[0], P(-0.4, -0.2)[1], 40, '#8a8a8a') + rock(P(0.45, 0.25)[0], P(0.45, 0.25)[1], 34, '#9a9a9a') + rock(P(0.1, -0.7)[0], P(0.1, -0.7)[1], 24, '#a4a4a4') + rock(P(-0.5, 0.6)[0], P(-0.5, 0.6)[1], 20, '#7a7a7a'),
-  iron: () => shadow(40, 18) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0.1), P(-0.9, 0.1)], '#6a5a4a') + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 1.2), P(-0.6, -0.9, 1.2)], '#7a6a5a') + `<path d="M${f1(P(-0.05, -0.1)[0] - 13)},${f1(P(-0.05, -0.1)[1] + 2)} v-14 a13,13 0 0 1 26,0 v14 z" fill="#1a1410"/>` + cart(P(0.4, 0.6)[0], P(0.4, 0.6)[1], 20) + rock(P(-0.7, 0.5)[0], P(-0.7, 0.5)[1], 16, '#7a7a8a'),
+  iron: () => shadow(40, 18) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.9, 0.1), P(-0.9, 0.1)], '#6a5a4a', OL(1.3)) + poly([P(-0.9, -0.9), P(0.9, -0.9), P(0.6, -0.9, 1.2), P(-0.6, -0.9, 1.2)], '#7a6a5a', OL(1.3)) + `<path d="M${f1(P(-0.05, -0.1)[0] - 13)},${f1(P(-0.05, -0.1)[1] + 2)} v-14 a13,13 0 0 1 26,0 v14 z" fill="#1a1410"/>` + cart(P(0.4, 0.6)[0], P(0.4, 0.6)[1], 20) + rock(P(-0.7, 0.5)[0], P(-0.7, 0.5)[1], 16, '#7a7a8a'),
   food: () => shadow(40, 18) + poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], '#b8a040') + wheatRows(-1, -1, 2, 2, 6, '#e8c84a') + fence(-1, -1, 2, 2),
   gold: () => shadow(40, 18) + rock(P(-0.3, -0.2)[0], P(-0.3, -0.2)[1], 38, '#8a7a5a') + rock(P(0.45, 0.3)[0], P(0.45, 0.3)[1], 30, '#9a8a6a') + coins(P(0.0, 0.5)[0], P(0.0, 0.5)[1], 12) + circ(P(-0.35, -0.35)[0], P(-0.35, -0.35)[1] - 14, 5, '#ffd040') + circ(P(0.5, 0.2)[0], P(0.5, 0.2)[1] - 10, 4, '#ffd040')
 };

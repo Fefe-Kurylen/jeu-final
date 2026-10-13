@@ -15,9 +15,12 @@ buildings/
 
 - Projection isométrique 2:1, tuile de 2×2 unités (largeur 100 px, hauteur 50 px dans le SVG source).
 - `viewBox` identique pour tous les sprites (voir `manifest.json`) : le centre du losange au sol est à
-  l'ancre `(0.5, 0.683)` de l'image. Pour dessiner un bâtiment dont le centre au sol est en `(x, y)` sur
-  le canvas avec une largeur `w` : `drawImage(img, x - w/2, y - w*0.683*(h/w), w, w*(h/w))`.
+  l'ancre `(0.5, 0.697)` de l'image. Pour dessiner un bâtiment dont le centre au sol est en `(x, y)` sur
+  le canvas avec une largeur `w` : `drawImage(img, x - w/2, y - w*0.697*(h/w), w, w*(h/w))`.
 - Fond transparent, le terrain (losange d'herbe/sable/pierre) fait partie du sprite.
+- Style « cartoon × Travian » : contours bruns, dégradés peints, toits et accessoires généreux. Le trait,
+  les couleurs de sol et les palettes de faction sont centralisés dans `STYLE`, `GROUND` et `PALETTES`
+  du générateur.
 
 ## Ajouter ou modifier un bâtiment
 

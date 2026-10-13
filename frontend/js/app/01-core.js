@@ -607,8 +607,8 @@ function renderCity() {
 
 
 // ========== SPRITES (images générées par tools/build-assets.cjs) ==========
-// Cadre commun des sprites ville/champs : 130×126, centre du losange au sol à l'ancre (0.5, 0.683)
-const SPRITE_FRAME = { w: 130, h: 126, ax: 0.5, ay: 0.683 };
+// Cadre commun des sprites ville/champs : 130×132, centre du losange au sol à l'ancre (0.5, 0.697)
+const SPRITE_FRAME = { w: 130, h: 132, ax: 0.5, ay: 0.697 };
 const _sprites = new Map();   // url -> { img, ready, failed }
 const _spriteRasters = new Map(); // url@largeur -> canvas (un SVG rasterisé une fois par taille, puis simple blit)
 let _spriteRedrawQueued = false;
