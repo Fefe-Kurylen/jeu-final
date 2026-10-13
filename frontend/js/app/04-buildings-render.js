@@ -301,20 +301,27 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
 
   // ========== LEVEL BADGE (Travian-style) ==========
   if (level > 0) {
-    // Avec un sprite : badge au coin droit du losange au sol, taille proportionnelle à l'emplacement
-    if (sprite) drawTravianLevelBadge(x, y, bw, bh, level, isHovered, true, { x: x + size * 0.62, y: y + size * 0.08, radius: Math.max(7, Math.min(12, size * 0.24)) });
+    // Avec un sprite : badge au coin droit du losange au sol ; en scène iso il part dans la couche d'overlay (jamais masqué)
+    if (sprite) isoOverlay(() => drawTravianLevelBadge(x, y, bw, bh, level, isHovered, true, typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.78, size * 0.39) : { x: x + size * 0.62, y: y + size * 0.1, radius: Math.max(8, Math.min(13, size * 0.3)) }));
     else drawTravianLevelBadge(x, y, bw, bh, level, isHovered);
   }
 
   // ========== CONSTRUCTION INDICATOR ==========
   if (isBuilding) {
-    const hammerY = y - bh - 15;
-    cityCtx.fillStyle = '#ffa500';
-    cityCtx.font = 'bold 18px Arial';
-    cityCtx.textAlign = 'center';
-    cityCtx.fillText('⚒️', x, hammerY + Math.sin(Date.now() / 200) * 3);
+    const hammerY = sprite ? y - size * 1.05 : y - bh - 15;
+    isoOverlay(() => {
+      cityCtx.fillStyle = '#ffa500';
+      cityCtx.font = 'bold 18px Arial';
+      cityCtx.textAlign = 'center';
+      cityCtx.textBaseline = 'middle';
+      cityCtx.fillText('⚒️', x, hammerY + Math.sin(Date.now() / 200) * 3);
+    });
   }
 }
+
+// Couche d'overlay de la scène iso : les badges et indicateurs sont dessinés après tous les bâtiments
+let isoOverlayQueue = null;
+function isoOverlay(fn) { if (isoOverlayQueue) isoOverlayQueue.push(fn); else fn(); }
 
 // ========== TRAVIAN-STYLE STANDARD BUILDING ==========
 function drawStandardBuilding(x, y, bw, bh, style, key, level) {
@@ -962,58 +969,6 @@ function getBuildingAtSlot(slotNum) {
   return buildings.find(b => b.slot === slotNum && b.key !== 'MAIN_HALL');
 }
 
-function onCityMouseMove(e) {
-  const rect = cityCanvas.getBoundingClientRect();
-  const mouseX = (e.clientX - rect.left) * (cityViewW / rect.width);
-  const mouseY = (e.clientY - rect.top) * (cityViewH / rect.height);
-
-  // Find hovered slot - correct ellipse collision detection
-  let foundSlot = null;
-  for (const slot of citySlots) {
-    const dx = mouseX - slot.x;
-    const dy = mouseY - slot.y;
-    // Ellipse formula: (dx/rx)^2 + (dy/ry)^2 <= 1
-    const rx = slot.size * 0.6;  // Rayon horizontal
-    const ry = slot.size * 0.35; // Rayon vertical (ellipse aplatie)
-    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
-
-    if (normalizedDist <= 1) {
-      foundSlot = slot.slot;
-      break;
-    }
-  }
-  
-  if (foundSlot !== cityHoveredSlot) {
-    cityHoveredSlot = foundSlot;
-    renderCityCanvas();
-
-    // Curseur pointer dynamique
-    cityCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'default';
-
-    if (foundSlot !== null) {
-      showCityTooltip(e.clientX, e.clientY, foundSlot);
-    } else {
-      hideCityTooltip();
-    }
-  } else if (foundSlot !== null) {
-    // Mettre à jour la position du tooltip même si le slot n'a pas changé
-    const tooltip = document.getElementById('city-tooltip');
-    if (tooltip && tooltip.style.display !== 'none') {
-      const canvasRect = cityCanvas.parentElement.getBoundingClientRect();
-      const tooltipRect = tooltip.getBoundingClientRect();
-      let left = e.clientX - canvasRect.left + 10;
-      let top = e.clientY - canvasRect.top + 20;
-      if (left + tooltipRect.width > canvasRect.width - 10) {
-        left = e.clientX - canvasRect.left - tooltipRect.width - 10;
-      }
-      if (top + tooltipRect.height > canvasRect.height - 10) {
-        top = e.clientY - canvasRect.top - tooltipRect.height - 20;
-      }
-      tooltip.style.left = `${left}px`;
-      tooltip.style.top = `${top}px`;
-    }
-  }
-}
 
 // Animation de clic (ripple effect)
 function showClickRipple(x, y) {
@@ -1027,6 +982,7 @@ function showClickRipple(x, y) {
 
 function onCityClick(e) {
   if (!currentCity) return; // Guard: city data not loaded yet
+  if (e && e.type === 'click' && typeof isoIgnoreClick === 'function' && isoIgnoreClick()) return;   // tap déjà traité ou déplacement
   if (cityHoveredSlot !== null) {
     // Feedback visuel de clic
     const canvasRect = cityCanvas.getBoundingClientRect();

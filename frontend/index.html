@@ -106,7 +106,7 @@
         <header class="top-bar">
             <div class="resources-container">
                 <div class="resource-box">
-                    <span class="res-icon">🪵</span>
+                    <img class="res-icon" src="assets/images/ui/wood.svg" alt="">
                     <div class="res-detail">
                         <span class="res-current" id="res-wood">0</span>
                         <span class="res-timer" id="timer-wood">00:00:00</span>
@@ -118,7 +118,7 @@
                     <div class="res-bar"><div class="res-bar-fill wood-fill" id="wood-bar"></div></div>
                 </div>
                 <div class="resource-box">
-                    <span class="res-icon">🧱</span>
+                    <img class="res-icon" src="assets/images/ui/stone.svg" alt="">
                     <div class="res-detail">
                         <span class="res-current" id="res-stone">0</span>
                         <span class="res-timer" id="timer-stone">00:00:00</span>
@@ -130,7 +130,7 @@
                     <div class="res-bar"><div class="res-bar-fill clay-fill" id="clay-bar"></div></div>
                 </div>
                 <div class="resource-box">
-                    <span class="res-icon">⛏️</span>
+                    <img class="res-icon" src="assets/images/ui/iron.svg" alt="">
                     <div class="res-detail">
                         <span class="res-current" id="res-iron">0</span>
                         <span class="res-timer" id="timer-iron">00:00:00</span>
@@ -142,7 +142,7 @@
                     <div class="res-bar"><div class="res-bar-fill iron-fill" id="iron-bar"></div></div>
                 </div>
                 <div class="resource-box">
-                    <span class="res-icon">🌾</span>
+                    <img class="res-icon" src="assets/images/ui/food.svg" alt="">
                     <div class="res-detail">
                         <span class="res-current" id="res-food">0</span>
                         <span class="res-timer" id="timer-food">00:00:00</span>
@@ -154,7 +154,7 @@
                     <div class="res-bar"><div class="res-bar-fill food-fill" id="food-bar"></div></div>
                 </div>
                 <div class="resource-box gold-box" onclick="Store.openShop()" title="Boutique">
-                    <span class="res-icon">🪙</span>
+                    <img class="res-icon" src="assets/images/ui/gold.svg" alt="">
                     <span class="res-current gold-value" id="res-gold">0</span>
                 </div>
             </div>
@@ -164,7 +164,7 @@
             </div>
             <div class="server-time-section">
                 <div class="day-night-indicator" id="day-night-indicator">
-                    <span class="dn-icon" id="dn-icon">☀️</span>
+                    <img class="dn-icon" id="dn-icon" src="assets/images/ui/sun.svg" alt="">
                     <span class="server-time" id="server-time">00:00:00</span>
                 </div>
             </div>
@@ -176,20 +176,20 @@
                         Pop: <span id="player-pop">0</span>
                     </span>
                 </div>
-                <button onclick="openSettings()" class="btn-logout btn-settings" title="Paramètres">⚙️</button>
+                <button onclick="openSettings()" class="btn-logout btn-settings" title="Paramètres"><img src="assets/images/ui/settings.svg" alt="Paramètres"></button>
             </div>
         </header>
 
         <main class="game-content">
             <div class="queue-status-bar" id="queue-status-bar">
                 <div class="queue-status-item" id="build-status" onclick="toggleQueueDropdown('build')">
-                    <span class="qs-icon">🏗️</span>
+                    <img class="qs-icon" src="assets/images/ui/build.svg" alt="">
                     <span class="qs-text" id="build-status-text">Aucune construction</span>
                     <span class="qs-timer" id="build-status-timer"></span>
                     <span class="qs-arrow">▾</span>
                 </div>
                 <div class="queue-status-item" id="recruit-status" onclick="toggleQueueDropdown('recruit')">
-                    <span class="qs-icon">⚔️</span>
+                    <img class="qs-icon" src="assets/images/ui/recruit.svg" alt="">
                     <span class="qs-text" id="recruit-status-text">Aucun recrutement</span>
                     <span class="qs-timer" id="recruit-status-timer"></span>
                     <span class="qs-arrow">▾</span>
@@ -214,10 +214,10 @@
                 <div id="tab-map" class="tab">
                     <div class="map-view">
                         <div class="map-controls">
-                            <button onclick="mapZoom(-0.2)" class="map-btn">−</button>
+                            <button onclick="mapZoom(-0.2)" class="map-btn"><img src="assets/images/ui/minus.svg" alt="−"></button>
                             <span id="zoom-level">100%</span>
-                            <button onclick="mapZoom(0.2)" class="map-btn">+</button>
-                            <button onclick="centerOnCapital()" class="map-btn btn-home">🏠</button>
+                            <button onclick="mapZoom(0.2)" class="map-btn"><img src="assets/images/ui/plus.svg" alt="+"></button>
+                            <button onclick="centerOnCapital()" class="map-btn btn-home"><img src="assets/images/ui/home.svg" alt="Capitale"></button>
                             <div class="map-goto">
                                 <input type="number" id="goto-x" placeholder="X" inputmode="numeric">
                                 <input type="number" id="goto-y" placeholder="Y" inputmode="numeric">
@@ -341,27 +341,27 @@
 
         <nav class="bottom-nav" id="bottom-nav">
             <div class="bottom-nav-inner">
-                <button class="bnav-tab" data-tab="fields" onclick="showTab('fields')"><span class="bnav-icon">🌾</span><span class="bnav-label">Champs</span></button>
-                <button class="bnav-tab active" data-tab="city" onclick="showTab('city')"><span class="bnav-icon">🏘️</span><span class="bnav-label">Village</span></button>
-                <button class="bnav-tab" data-tab="map" onclick="showTab('map')"><span class="bnav-icon">🗺️</span><span class="bnav-label">Carte</span></button>
-                <button class="bnav-tab" data-tab="army" onclick="showTab('army')"><span class="bnav-icon">⚔️</span><span class="bnav-label">Armée</span></button>
-                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><span class="bnav-icon">📜</span><span class="bnav-label">Rapports</span><span class="tab-badge" id="reports-badge" style="display:none">0</span></button>
-                <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')"><span class="bnav-icon">🏆</span><span class="bnav-label">Stats</span></button>
+                <button class="bnav-tab" data-tab="fields" onclick="showTab('fields')"><img class="bnav-icon" src="assets/images/ui/fields.svg" alt=""><span class="bnav-label">Champs</span></button>
+                <button class="bnav-tab active" data-tab="city" onclick="showTab('city')"><img class="bnav-icon" src="assets/images/ui/city.svg" alt=""><span class="bnav-label">Village</span></button>
+                <button class="bnav-tab" data-tab="map" onclick="showTab('map')"><img class="bnav-icon" src="assets/images/ui/map.svg" alt=""><span class="bnav-label">Carte</span></button>
+                <button class="bnav-tab" data-tab="army" onclick="showTab('army')"><img class="bnav-icon" src="assets/images/ui/army.svg" alt=""><span class="bnav-label">Armée</span></button>
+                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><img class="bnav-icon" src="assets/images/ui/reports.svg" alt=""><span class="bnav-label">Rapports</span><span class="tab-badge" id="reports-badge" style="display:none">0</span></button>
+                <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')"><img class="bnav-icon" src="assets/images/ui/ranking.svg" alt=""><span class="bnav-label">Stats</span></button>
                 <div class="bnav-separator"></div>
                 <div class="bnav-village-selector">
-                    <button class="bnav-village-arrow" onclick="switchToPreviousCity()">‹</button>
+                    <button class="bnav-village-arrow" onclick="switchToPreviousCity()"><img src="assets/images/ui/left.svg" alt="‹"></button>
                     <div class="bnav-village-info" onclick="openVillageList()">
                         <span class="village-name" id="city-name-quick">Village</span>
                         <span class="village-coords" id="city-coords-quick">(0|0)</span>
                         <span class="village-tier" id="city-tier-quick"></span>
                     </div>
-                    <button class="bnav-village-arrow" onclick="switchToNextCity()">›</button>
+                    <button class="bnav-village-arrow" onclick="switchToNextCity()"><img src="assets/images/ui/right.svg" alt="›"></button>
                 </div>
                 <div class="bnav-separator"></div>
-                <button class="bnav-tab" data-tab="inventory" onclick="showTab('inventory')"><span class="bnav-icon">🎒</span><span class="bnav-label">Sac</span></button>
-                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')"><span class="bnav-icon">🦸</span><span class="bnav-label">Heros</span></button>
-                <button class="bnav-tab" data-tab="alliance" onclick="showTab('alliance')"><span class="bnav-icon">🤝</span><span class="bnav-label">Alliance</span></button>
-                <button class="bnav-tab" data-tab="market" onclick="showTab('market')"><span class="bnav-icon">🏪</span><span class="bnav-label">Marche</span></button>
+                <button class="bnav-tab" data-tab="inventory" onclick="showTab('inventory')"><img class="bnav-icon" src="assets/images/ui/inventory.svg" alt=""><span class="bnav-label">Sac</span></button>
+                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')"><img class="bnav-icon" src="assets/images/ui/hero.svg" alt=""><span class="bnav-label">Heros</span></button>
+                <button class="bnav-tab" data-tab="alliance" onclick="showTab('alliance')"><img class="bnav-icon" src="assets/images/ui/alliance.svg" alt=""><span class="bnav-label">Alliance</span></button>
+                <button class="bnav-tab" data-tab="market" onclick="showTab('market')"><img class="bnav-icon" src="assets/images/ui/market.svg" alt=""><span class="bnav-label">Marche</span></button>
             </div>
         </nav>
     </div>
@@ -390,6 +390,7 @@
     <script src="js/app/02-city-render.js"></script>
     <script src="js/app/03-fields-render.js"></script>
     <script src="js/app/04-buildings-render.js"></script>
+    <script src="js/app/04b-iso-scene.js"></script>
     <script src="js/app/05-panels.js"></script>
     <script src="js/app/06-city-ui.js"></script>
     <script src="js/app/07-army.js"></script>

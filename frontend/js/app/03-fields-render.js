@@ -4,150 +4,11 @@
 // l'ordre de chargement dans index.html doit être respecté.
 // ============================================================
 // ========== VUE CHAMPS DE RESSOURCES ==========
-function renderFieldsView() {
-  if (!cityCanvas || !cityCtx) return;
-
-  const w = cityViewW;
-  const h = cityViewH;
-  const centerX = w / 2;
-  const centerY = h / 2 + 30;
-  const nightMode = isNightMode();
-
-  // Clear
-  cityCtx.clearRect(0, 0, w, h);
-
-  // ========== SKY (Day/Night) ==========
-  const skyGrad = cityCtx.createLinearGradient(0, 0, 0, h * 0.45);
-  if (nightMode) {
-    skyGrad.addColorStop(0, '#0a1020');
-    skyGrad.addColorStop(0.5, '#152040');
-    skyGrad.addColorStop(1, '#203050');
-  } else {
-    skyGrad.addColorStop(0, '#5a9ac2');
-    skyGrad.addColorStop(0.5, '#7bc8e0');
-    skyGrad.addColorStop(1, '#a8e4f0');
-  }
-  cityCtx.fillStyle = skyGrad;
-  cityCtx.fillRect(0, 0, w, h * 0.45);
-
-  // Sun/Moon
-  if (nightMode) {
-    drawMoon(w - 100, 70, 30);
-    drawStars(w, h * 0.42);
-  } else {
-    drawSun(w - 100, 70, 35);
-    // Clouds
-    drawCloud(cityCtx, 100, 55, 40);
-    drawCloud(cityCtx, w - 180, 70, 45);
-  }
-
-  // ========== GROUND - FARMLAND ==========
-  const groundY = h * 0.42;
-
-  // Background hills (biome colour)
-  const biome = cityBiome();
-  const scene = biomeScene(biome);
-  cityCtx.fillStyle = nightMode ? scene.hillsNight : scene.hills;
-  cityCtx.beginPath();
-  cityCtx.moveTo(0, groundY);
-  cityCtx.quadraticCurveTo(w * 0.25, groundY - 30, w * 0.5, groundY);
-  cityCtx.quadraticCurveTo(w * 0.75, groundY - 20, w, groundY);
-  cityCtx.lineTo(w, h);
-  cityCtx.lineTo(0, h);
-  cityCtx.closePath();
-  cityCtx.fill();
-
-  // Main ground: prairie, sand or snow texture + day/night gradient of the biome
-  const groundGrad = biomeGroundGradient(cityCtx, 0, groundY, 0, h, biome, nightMode);
-  cityCtx.beginPath();
-  cityCtx.rect(0, groundY, w, h - groundY);
-  fillTextured(cityCtx, scene.texture, groundGrad, nightMode ? 0.88 : 0.5);
-
-  // ========== SCATTERED TREES AROUND ==========
-  const treesPos = [
-    { x: 40, y: groundY + 50, size: 35 },
-    { x: w - 50, y: groundY + 60, size: 38 },
-    { x: 30, y: h - 60, size: 30 },
-    { x: w - 40, y: h - 50, size: 32 }
-  ];
-  treesPos.forEach((t, i) => { if (!drawProp(cityCtx, scene.props.trees[i % 2], t.x, t.y + 4, t.size * 1.6, spriteVariant(false))) drawTree(t.x, t.y, t.size, nightMode); });
-
-  // ========== PATHS TO FIELDS ==========
-  cityCtx.strokeStyle = nightMode ? '#3a3028' : '#8a7050';
-  cityCtx.lineWidth = 10;
-  cityCtx.lineCap = 'round';
-
-  // Paths from center to fields (beaten earth texture under the colour)
-  cityCtx.beginPath();
-  citySlots.filter(s => s.isField).forEach(slot => {
-    cityCtx.moveTo(centerX, centerY);
-    cityCtx.lineTo(slot.x, slot.y);
-  });
-  strokeTextured(cityCtx, 'dirt', cityCtx.strokeStyle, nightMode ? 0.85 : 0.4);
-  
-  // ========== VILLAGE CENTER (click to return to city view) ==========
-  const villageSlot = citySlots.find(s => s.isVillageCenter);
-  if (villageSlot) {
-    drawVillageCenter(villageSlot, cityHoveredSlot === -1);
-  }
-  
-  // ========== RESOURCE FIELDS ==========
-  // Sort by Y for proper layering
-  const sortedFields = citySlots.filter(s => s.isField).sort((a, b) => a.y - b.y);
-  
-  sortedFields.forEach(slot => {
-    const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
-    const isHovered = cityHoveredSlot === slot.slot;
-    const isBuilding = currentCity?.buildQueue?.some(q =>
-      q.buildingKey === slot.fieldType && q.slot === slot.slot + 100 && q.status === 'RUNNING'
-    );
-    
-    drawFieldSlot(slot, building, isHovered, isBuilding);
-  });
-  
-  // ========== ANIMATED DECORATIONS ==========
-  drawFieldAnimations(w, h, centerX, centerY);
-}
 
 // ========== FIELD ANIMATIONS ==========
 let fieldAnimals = [];
 let fieldButterflies = [];
 
-function drawFieldAnimations(w, h, centerX, centerY) {
-  const time = Date.now() / 1000;
-  const nightMode = isNightMode();
-
-  // ========== ANIMATED BIRDS/FIREFLIES ==========
-  if (nightMode) {
-    drawFireflies(w, h, time);
-  } else {
-    drawAnimatedBirds(w, h, time);
-  }
-
-  // ========== ANIMATED WHEAT WAVES ==========
-  if (!nightMode) {
-    drawWheatWaves(w, h, time);
-  }
-
-  // ========== FARM ANIMALS (day only) ==========
-  if (!nightMode) {
-    drawFarmAnimals(w, h, time);
-  }
-
-  // ========== BUTTERFLIES (day) / FIREFLIES (night) ==========
-  if (!nightMode) {
-    drawButterflies(w, h, time);
-  }
-
-  // ========== DUST/MIST PARTICLES ==========
-  drawFieldDust(w, h, time);
-
-  // ========== NIGHT AMBIENT OVERLAY ==========
-  if (nightMode) {
-    cityCtx.fillStyle = 'rgba(10, 15, 30, 0.15)';
-    cityCtx.fillRect(0, 0, w, h);
-  }
-}
 
 function drawWheatWaves(w, h, time) {
   // Draw animated wheat stalks along paths
@@ -366,55 +227,6 @@ function drawFieldDust(w, h, time) {
   }
 }
 
-function drawVillageCenter(slot, isHovered) {
-  const { x, y, size } = slot;
-  
-  // Shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x + 5, y + 8, size * 0.6, size * 0.3, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  
-  // Glow if hovered
-  if (isHovered) {
-    cityCtx.shadowColor = '#ffd700';
-    cityCtx.shadowBlur = 25;
-  }
-  
-  // Village base (circular wall)
-  cityCtx.fillStyle = '#7a7a7a';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.55, size * 0.3, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  
-  // Village ground
-  cityCtx.fillStyle = '#c4a060';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size * 0.45, size * 0.25, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  
-  cityCtx.shadowBlur = 0;
-  
-  // Mini buildings
-  drawMapBuilding(x, y - 8, size * 0.2, '#d4a84b', '#8b6914');
-  drawMapBuilding(x - size * 0.2, y + 3, size * 0.12, '#8b7355', '#5a4030');
-  drawMapBuilding(x + size * 0.2, y + 3, size * 0.12, '#8b7355', '#5a4030');
-  
-  // Label
-  cityCtx.font = 'bold 12px Cinzel, serif';
-  cityCtx.textAlign = 'center';
-  cityCtx.fillStyle = '#fff';
-  cityCtx.shadowColor = '#000';
-  cityCtx.shadowBlur = 3;
-  cityCtx.fillText('🏰 Ville', x, y + size * 0.5);
-  cityCtx.shadowBlur = 0;
-  
-  if (isHovered) {
-    cityCtx.font = '10px Arial';
-    cityCtx.fillStyle = '#ffd700';
-    cityCtx.fillText('Cliquez pour voir la ville', x, y + size * 0.65);
-  }
-}
 
 // ========== TRAVIAN-STYLE RESOURCE FIELD ==========
 function drawFieldSlot(slot, building, isHovered, isBuilding) {
@@ -543,6 +355,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
   }
 
   // ========== PRODUCTION INDICATOR (animated) ==========
+  isoOverlay(() => {
   if (level > 0 && !isBuilding) {
     const prodY = y - size * (sprite ? 0.75 : 0.5) + Math.sin(time * 2) * 3;
     cityCtx.globalAlpha = 0.7 + Math.sin(time * 3) * 0.2;
@@ -562,36 +375,10 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.fillText('+', x, y);
   }
 
-  // ========== LEVEL BADGE (Travian-style) ==========
+  // ========== LEVEL BADGE (même style que les bâtiments) ==========
   if (level > 0) {
-    // Au coin droit du losange au sol, taille proportionnelle à l'emplacement
-    const badgeR = Math.max(8, Math.min(13, size * 0.26));
-    const badgeX = x + size * (sprite ? 0.6 : 0.55);
-    const badgeY = y + size * (sprite ? 0.08 : -0.2);
-
-    // Badge shadow
-    cityCtx.fillStyle = 'rgba(0,0,0,0.5)';
-    cityCtx.beginPath();
-    cityCtx.arc(badgeX + 2, badgeY + 2, badgeR, 0, Math.PI * 2);
-    cityCtx.fill();
-
-    // Badge background
-    cityCtx.fillStyle = isHovered ? '#2a2a2a' : '#1a1a1a';
-    cityCtx.beginPath();
-    cityCtx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
-    cityCtx.fill();
-
-    // Gold ring
-    cityCtx.strokeStyle = isHovered ? '#ffd700' : '#c9a227';
-    cityCtx.lineWidth = isHovered ? 3 : 2;
-    cityCtx.stroke();
-
-    // Level number
-    cityCtx.fillStyle = isHovered ? '#ffd700' : '#e8c547';
-    cityCtx.font = `bold ${Math.round(badgeR * 0.85)}px Cinzel, serif`;
-    cityCtx.textAlign = 'center';
-    cityCtx.textBaseline = 'middle';
-    cityCtx.fillText(level.toString(), badgeX, badgeY + 1);
+    const spec = sprite && typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.73, size * 0.37) : { x: x + size * (sprite ? 0.6 : 0.55), y: y + size * (sprite ? 0.08 : -0.2), radius: Math.max(8, Math.min(13, size * 0.26)) };
+    drawTravianLevelBadge(x, y, 0, 0, level, isHovered, true, spec);
   }
 
   // ========== CONSTRUCTION INDICATOR ==========
@@ -615,6 +402,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
 
     cityCtx.globalAlpha = 1;
   }
+  });
 }
 
 // ========== FARM FIELD DETAILS ==========
@@ -849,15 +637,6 @@ function getFieldBuildingAtSlot(slotNum, fieldType) {
 }
 
 
-function drawCloud(ctx, x, y, size) {
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.beginPath();
-  ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
-  ctx.arc(x + size * 0.4, y - size * 0.1, size * 0.4, 0, Math.PI * 2);
-  ctx.arc(x + size * 0.8, y, size * 0.5, 0, Math.PI * 2);
-  ctx.arc(x + size * 0.4, y + size * 0.2, size * 0.35, 0, Math.PI * 2);
-  ctx.fill();
-}
 
 function drawCityRoads(centerX, centerY) {
   const nightMode = isNightMode();
@@ -929,62 +708,6 @@ function drawCityRoads(centerX, centerY) {
   });
 }
 
-function drawResourceField(slot) {
-  const { x, y, size, fieldType } = slot;
-  const building = getBuildingAtSlot(slot.slot);
-  const level = building?.level || 0;
-  const isHovered = cityHoveredSlot === slot.slot;
-  
-  // Field colors by type
-  const fieldColors = {
-    FARM: { bg: '#7a9a40', detail: '#5a7a20', icon: '🌾' },
-    LUMBER: { bg: '#4a6a3a', detail: '#3a5a2a', icon: '🌲' },
-    QUARRY: { bg: '#7a7a7a', detail: '#5a5a5a', icon: '⛰️' },
-    IRON_MINE: { bg: '#5a5a6a', detail: '#4a4a5a', icon: '⛏️' }
-  };
-  
-  const colors = fieldColors[fieldType] || fieldColors.FARM;
-  
-  // Shadow
-  cityCtx.fillStyle = 'rgba(0,0,0,0.3)';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x + 3, y + 5, size, size * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  
-  // Field base
-  cityCtx.fillStyle = colors.bg;
-  if (isHovered) {
-    cityCtx.shadowColor = '#ffd700';
-    cityCtx.shadowBlur = 20;
-  }
-  cityCtx.beginPath();
-  cityCtx.ellipse(x, y, size, size * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-  cityCtx.shadowBlur = 0;
-  
-  // Field border
-  cityCtx.strokeStyle = isHovered ? '#ffd700' : colors.detail;
-  cityCtx.lineWidth = isHovered ? 3 : 2;
-  cityCtx.stroke();
-  
-  // Icon
-  cityCtx.font = `${size * 0.7}px Arial`;
-  cityCtx.textAlign = 'center';
-  cityCtx.textBaseline = 'middle';
-  cityCtx.fillText(colors.icon, x, y - 5);
-  
-  // Level badge
-  if (level > 0) {
-    cityCtx.fillStyle = 'rgba(0,0,0,0.7)';
-    cityCtx.beginPath();
-    cityCtx.arc(x + size * 0.6, y + size * 0.2, 12, 0, Math.PI * 2);
-    cityCtx.fill();
-    
-    cityCtx.fillStyle = '#ffd700';
-    cityCtx.font = 'bold 11px Cinzel, serif';
-    cityCtx.fillText(level, x + size * 0.6, y + size * 0.2 + 1);
-  }
-}
 
 function drawBuildingSlot(slot, building, isHovered, isBuilding) {
   const { x, y, size, fixed, fixedKey } = slot;

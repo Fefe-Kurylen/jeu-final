@@ -4372,3 +4372,31 @@ body.offline .top-bar::after {
 .legal h2 { color: #6a4a1a; }
 .legal th { background: rgba(201,162,39,0.18); }
 .legal .meta { color: #7a6a4a; }
+/* Scène iso : gestes au doigt sans défilement de la page */
+#city-canvas { touch-action: none; cursor: grab; }
+
+/* ========== ICÔNES PEINTES DU HUD (assets/images/ui) ========== */
+img.res-icon { width: 30px; height: 30px; object-fit: contain; }
+img.bnav-icon { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5)) saturate(0.85); opacity: 0.85; transition: transform 0.15s, opacity 0.15s; }
+.bnav-tab.active img.bnav-icon { opacity: 1; filter: drop-shadow(0 0 6px rgba(255,215,0,0.55)) saturate(1.05); transform: translateY(-2px) scale(1.08); }
+img.qs-icon { width: 20px; height: 20px; object-fit: contain; }
+.btn-settings img, .map-btn img, .bnav-village-arrow img { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
+.map-btn img { width: 20px; height: 20px; }
+.bnav-village-arrow img { width: 16px; height: 16px; }
+img.dn-icon { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; }
+.gold-box img.res-icon { width: 32px; height: 32px; }
+@media (max-width: 480px) {
+  img.res-icon { width: 26px; height: 26px; }
+  img.bnav-icon { width: 28px; height: 28px; }
+}
+/* Pas de sélection de texte ni de menu contextuel long-press sur l'interface de jeu */
+#game-screen, .bottom-nav, .game-header, canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#game-screen input, #game-screen textarea { -webkit-user-select: text; user-select: text; }
+/* Barre de ressources sur petit écran : tout tient sur la largeur, l'or reste visible */
+@media (max-width: 480px) {
+  .resources-container { width: 100%; }
+  .resource-box { min-width: 0; flex: 1 1 0; padding: 3px 4px 2px; }
+  .gold-box { flex: 0 0 auto; min-width: 48px; padding: 3px 5px; }
+  .gold-box img.res-icon { width: 22px; height: 22px; }
+  img.res-icon { width: 22px; height: 22px; }
+}

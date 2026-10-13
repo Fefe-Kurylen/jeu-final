@@ -659,6 +659,56 @@ function buildMapSprites() {
 // Logo, icon and splash
 // ---------------------------------------------------------------------------
 // Laurel branch: an arc with pairs of tangent leaves, from the base up to the top (side = 1 right, -1 left)
+// ---------------------------------------------------------------------------
+// UI icons (64×64, painted style, used by the HUD instead of emoji) -> frontend/assets/images/ui/<name>.svg
+// ---------------------------------------------------------------------------
+const GOLD = '#e8c547', GOLD_D = '#9a6a14', LEATHER = '#8a5a30';
+const I = {};
+const ring = (x, y, r, c, w = 2) => circ(x, y, r, 'none', `stroke="${c}" stroke-width="${w}"`);
+I.wood = () => {
+  const log = (x, y, a) => `<g transform="rotate(${a} ${x} ${y})">` + rect(x - 18, y - 7, 32, 14, grad('#b07a44', '#6e4622', 0, 0, 0, 1), OL(1.6) + ' rx="3"') + line(x - 10, y - 3, x + 8, y - 3, '#d8a870', 1.2, 'opacity="0.6"') + ell(x + 14, y, 5, 7, '#e0b47c', OL(1.4)) + ell(x + 14, y, 2.5, 3.5, '#b8864c', OL(1)) + `</g>`;
+  return log(30, 40, -18) + log(34, 24, -18);
+};
+I.stone = () => poly([[14, 28], [36, 18], [54, 28], [32, 40]], grad('#c9c3b6', '#9a948a', 0, 0, 0, 1), OL(1.6)) + poly([[14, 28], [32, 40], [32, 54], [14, 42]], '#8a8478', OL(1.6)) + poly([[32, 40], [54, 28], [54, 42], [32, 54]], '#6e6860', OL(1.6)) + line(22, 31, 29, 27, '#f4f0e8', 1.4, 'opacity="0.6"');
+I.iron = () => poly([[12, 44], [20, 26], [50, 26], [56, 44]], grad('#c8d0dc', '#6c7684', 0, 0, 0, 1), OL(1.6)) + poly([[20, 26], [50, 26], [46, 20], [24, 20]], '#dfe5ee', OL(1.4)) + line(20, 30, 46, 30, '#ffffff', 1.5, 'opacity="0.5"');
+I.food = () => { let o = ''; for (const [x, a] of [[22, -14], [32, 0], [42, 14]]) { o += `<g transform="rotate(${a} ${x} 52)">` + line(x, 52, x, 24, '#b88a34', 2.2); for (let i = 0; i < 4; i++) { const y = 26 + i * 6; o += ell(x - 4, y, 4, 2.6, grad('#f4d868', '#c9a227', 0, 0, 0, 1), OL(1) + ` transform="rotate(-30 ${x - 4} ${y})"`) + ell(x + 4, y, 4, 2.6, grad('#f4d868', '#c9a227', 0, 0, 0, 1), OL(1) + ` transform="rotate(30 ${x + 4} ${y})"`); } o += '</g>'; } return o; };
+I.gold = () => { let o = ''; for (let i = 0; i < 3; i++) o += ell(28, 48 - i * 6, 16, 6, grad('#ffe08a', '#c9a227', 0, 0, 0, 1), OL(1.4)); return o + circ(42, 26, 11, rgrad('#ffe9a0', '#d4af37', 0.4, 0.35, 0.7), OL(1.5)) + ring(42, 26, 7, '#9a6a14', 1.2) + `<path d="M42,21 l1.5,3.3 3.6,0.3 -2.7,2.4 0.8,3.5 -3.2,-1.9 -3.2,1.9 0.8,-3.5 -2.7,-2.4 3.6,-0.3 z" fill="#9a6a14"/>`; };
+I.population = () => circ(24, 22, 7, '#e8c8a0', OL(1.4)) + `<path d="M10,46 q0,-14 14,-14 q14,0 14,14 z" fill="${grad('#b22a22', '#7a1a14', 0, 0, 0, 1)}" ${OL(1.4)}/>` + circ(42, 26, 6, '#e8c8a0', OL(1.4)) + `<path d="M30,50 q0,-12 12,-12 q12,0 12,12 z" fill="${grad('#2d5c9c', '#1c3a68', 0, 0, 0, 1)}" ${OL(1.4)}/>`;
+I.build = () => `<g transform="rotate(-40 32 32)">` + rect(29, 24, 6, 32, grad('#b07a44', '#6e4622', 0, 0, 1, 0), OL(1.4) + ' rx="2"') + rect(16, 10, 32, 16, grad('#8a94a0', '#4e5660', 0, 0, 0, 1), OL(1.6) + ' rx="3"') + line(20, 14, 44, 14, '#dfe5ee', 1.5, 'opacity="0.6"') + '</g>';
+I.army = () => { const sword = (f) => `<g transform="scale(${f},1) translate(${f === -1 ? -64 : 0},0)">` + poly([[18, 50], [42, 14], [46, 18], [22, 54]], grad('#e6ecf2', '#8a94a0', 0, 0, 1, 0), OL(1.4)) + line(14, 46, 26, 58, '#9a6a14', 4) + circ(13, 59, 3, GOLD, OL(1)) + '</g>'; return sword(1) + sword(-1); };
+I.recruit = I.army;
+I.city = () => poly([[12, 30], [32, 12], [52, 30]], grad('#e45c2c', '#a83a1a', 0, 0, 0, 1), OL(1.6)) + rect(16, 30, 32, 24, grad('#ecd9ac', '#c0a070', 0, 0, 0, 1), OL(1.6)) + rect(28, 40, 8, 14, '#3a2414') + rect(20, 34, 6, 6, '#f6e4a6', OL(1)) + rect(38, 34, 6, 6, '#f6e4a6', OL(1)) + rect(40, 14, 6, 10, '#8a5a30', OL(1.2));
+I.fields = () => poly([[6, 40], [32, 26], [58, 40], [32, 54]], grad('#8ac656', '#4e8a2a', 0, 0, 0, 1), OL(1.6)) + (() => { let o = ''; for (const [x, y] of [[20, 40], [32, 34], [44, 40], [32, 46]]) { o += line(x, y, x, y - 14, '#b88a34', 2) + ell(x, y - 15, 4, 5, grad('#f4d868', '#c9a227', 0, 0, 0, 1), OL(1)); } return o; })();
+I.map = () => `<path d="M10,14 q12,-6 22,0 q10,6 22,0 v36 q-12,6 -22,0 q-10,-6 -22,0 z" fill="${grad('#f2e2b8', '#c9ad78', 0, 0, 0, 1)}" ${OL(1.6)}/>` + `<path d="M18,44 q8,-10 14,-4 t14,-10" stroke="#8a5a30" stroke-width="1.8" fill="none" stroke-dasharray="3 2"/>` + line(42, 26, 48, 32, '#b22a22', 2.4) + line(48, 26, 42, 32, '#b22a22', 2.4) + circ(22, 24, 3, '#2a6fb5', OL(1));
+I.reports = () => rect(16, 14, 32, 40, grad('#f6ecd0', '#d8c190', 0, 0, 0, 1), OL(1.6) + ' rx="3"') + ell(32, 14, 16, 5, '#c9a66a', OL(1.4)) + ell(32, 54, 16, 5, '#c9a66a', OL(1.4)) + line(22, 26, 42, 26, '#8a6a30', 1.6) + line(22, 33, 42, 33, '#8a6a30', 1.6) + line(22, 40, 36, 40, '#8a6a30', 1.6);
+I.ranking = () => `<path d="M18,12 h28 v12 q0,14 -14,16 q-14,-2 -14,-16 z" fill="${grad('#ffe08a', '#c9a227', 0, 0, 0, 1)}" ${OL(1.6)}/>` + `<path d="M18,16 q-10,0 -8,10 q2,8 10,8" fill="none" stroke="#3a2414" stroke-width="5" stroke-opacity="0.6"/><path d="M18,16 q-10,0 -8,10 q2,8 10,8" fill="none" stroke="#c9a227" stroke-width="3"/>` + `<path d="M46,16 q10,0 8,10 q-2,8 -10,8" fill="none" stroke="#3a2414" stroke-width="5" stroke-opacity="0.6"/><path d="M46,16 q10,0 8,10 q-2,8 -10,8" fill="none" stroke="#c9a227" stroke-width="3"/>` + rect(28, 40, 8, 8, '#9a6a14', OL(1.2)) + rect(20, 48, 24, 6, grad('#c9a227', '#8a5a10', 0, 0, 0, 1), OL(1.4) + ' rx="2"') + line(26, 18, 26, 30, '#fff6d8', 2, 'opacity="0.6"');
+I.inventory = () => `<path d="M16,28 q16,-10 32,0 l4,22 q-20,10 -40,0 z" fill="${grad('#b07a44', '#6e4622', 0, 0, 0, 1)}" ${OL(1.6)}/>` + `<path d="M22,26 q10,-12 20,0" fill="none" stroke="#3a2414" stroke-width="2.2"/>` + line(20, 30, 44, 30, '#f0c940', 2.4) + circ(32, 42, 4, '#f0c940', OL(1));
+I.hero = () => helmet(32, 36, 32);
+I.alliance = () => shield(26, 48, 24, '#2d5c9c') + shield(40, 50, 24, '#b22a22');
+I.market = () => line(32, 12, 32, 54, '#8a5a30', 3) + line(12, 20, 52, 20, '#8a5a30', 3) + rect(22, 50, 20, 6, '#8a5a30', OL(1.2) + ' rx="2"') + line(18, 20, 18, 36, '#3a2414', 1.2) + line(46, 20, 46, 36, '#3a2414', 1.2) + `<path d="M8,36 h20 q0,8 -10,8 q-10,0 -10,-8 z" fill="${grad('#ffe08a', '#c9a227', 0, 0, 0, 1)}" ${OL(1.3)}/>` + `<path d="M36,36 h20 q0,8 -10,8 q-10,0 -10,-8 z" fill="${grad('#ffe08a', '#c9a227', 0, 0, 0, 1)}" ${OL(1.3)}/>`;
+I.settings = () => { let d = ''; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; d += rect(-4, -26, 8, 10, '#9aa4b0', OL(1.2) + ` rx="2" transform="rotate(${i * 45} 32 32) translate(32 32)"`); } return d + circ(32, 32, 17, grad('#c8d0dc', '#6c7684', 0, 0, 0, 1), OL(1.6)) + circ(32, 32, 7, '#3a2414') + circ(32, 32, 4, '#9aa4b0'); };
+I.attack = () => shield(26, 50, 26, '#b22a22') + poly([[30, 48], [52, 12], [56, 16], [34, 52]], grad('#e6ecf2', '#8a94a0', 0, 0, 1, 0), OL(1.4)) + line(26, 44, 38, 56, '#9a6a14', 4);
+I.defense = () => shield(32, 52, 34, '#2d5c9c') + line(32, 24, 32, 44, '#f0c940', 2);
+I.clock = () => rect(18, 10, 28, 5, '#8a5a30', OL(1.2) + ' rx="1.5"') + rect(18, 49, 28, 5, '#8a5a30', OL(1.2) + ' rx="1.5"') + `<path d="M21,15 h22 q0,12 -8,17 q8,5 8,17 h-22 q0,-12 8,-17 q-8,-5 -8,-17 z" fill="rgba(240,230,200,0.5)" ${OL(1.5)}/>` + `<path d="M24,18 h16 q0,8 -8,12 q-8,-4 -8,-12 z" fill="#e8c547"/>` + `<path d="M26,47 h12 q-2,-6 -6,-8 q-4,2 -6,8 z" fill="#e8c547"/>`;
+I.expedition = () => circ(32, 32, 22, grad('#f2e2b8', '#c9ad78', 0, 0, 0, 1), OL(1.8)) + ring(32, 32, 17, '#8a5a30', 1.2) + poly([[32, 14], [36, 32], [32, 36], [28, 32]], '#b22a22', OL(1.2)) + poly([[32, 50], [28, 32], [32, 28], [36, 32]], '#e6ecf2', OL(1.2)) + circ(32, 32, 3, GOLD, OL(1));
+I.home = () => poly([[10, 32], [32, 12], [54, 32]], '#b22a22', OL(1.6)) + rect(16, 32, 32, 22, grad('#ecd9ac', '#c0a070', 0, 0, 0, 1), OL(1.6)) + rect(27, 40, 10, 14, '#3a2414');
+I.close = () => circ(32, 32, 22, grad('#c0241e', '#7a1a14', 0, 0, 0, 1), OL(1.8)) + line(22, 22, 42, 42, '#fff6d8', 4.5) + line(42, 22, 22, 42, '#fff6d8', 4.5);
+I.left = () => `<path d="M40,12 L18,32 L40,52" fill="none" stroke="${STYLE.line}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M40,12 L18,32 L40,52" fill="none" stroke="${GOLD}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+I.right = () => `<path d="M24,12 L46,32 L24,52" fill="none" stroke="${STYLE.line}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M24,12 L46,32 L24,52" fill="none" stroke="${GOLD}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+I.menu = () => { let o = ''; for (const [x, y] of [[20, 20], [44, 20], [20, 44], [44, 44]]) o += rect(x - 8, y - 8, 16, 16, grad('#ffe08a', '#c9a227', 0, 0, 0, 1), OL(1.6) + ' rx="4"'); return o; };
+I.sun = () => { let o = ''; for (let i = 0; i < 8; i++) o += line(32 + Math.cos(i * Math.PI / 4) * 20, 32 + Math.sin(i * Math.PI / 4) * 20, 32 + Math.cos(i * Math.PI / 4) * 27, 32 + Math.sin(i * Math.PI / 4) * 27, '#f0c940', 3.5); return o + circ(32, 32, 14, rgrad('#fff4b0', '#f0b020', 0.4, 0.35, 0.7), OL(1.6)); };
+I.moon = () => `<path d="M34,8 A24,24 0 1 0 34,56 A30,30 0 1 1 34,8 z" fill="${grad('#f6f0d8', '#c8c0a0', 0, 0, 0, 1)}" ${OL(1.6)}/>` + circ(50, 14, 2, '#fff6d8') + circ(56, 28, 1.5, '#fff6d8') + circ(48, 44, 1.2, '#fff6d8');
+I.plus = () => circ(32, 32, 22, grad('#5ab040', '#2f7a2a', 0, 0, 0, 1), OL(1.8)) + line(20, 32, 44, 32, '#fff6d8', 5) + line(32, 20, 32, 44, '#fff6d8', 5);
+I.minus = () => circ(32, 32, 22, grad('#c0241e', '#7a1a14', 0, 0, 0, 1), OL(1.8)) + line(20, 32, 44, 32, '#fff6d8', 5);
+I.info = () => circ(32, 32, 22, grad('#4a7fb8', '#2d5c9c', 0, 0, 0, 1), OL(1.8)) + circ(32, 21, 3.5, '#fff6d8') + rect(28.5, 28, 7, 20, '#fff6d8', 'rx="2"');
+function iconDoc(inner) { return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" shape-rendering="geometricPrecision">${DEFS}<defs>${takeDefs()}</defs>${inner}</svg>\n`; }
+function buildIcons() {
+  let n = 0;
+  for (const [name, fn] of Object.entries(I)) { resetSeed(13); CUR = null; const inner = fn(); writeFile(path.join(OUT, 'ui', `${name}.svg`), iconDoc(inner)); n++; }
+  writeFile(path.join(OUT, 'ui', 'manifest.json'), JSON.stringify({ icons: Object.keys(I), size: 64 }, null, 2));
+  return n;
+}
+
 function laurel(cx, cy, r, side) {
   const a0 = 100 * Math.PI / 180, a1 = -40 * Math.PI / 180;
   const px = (a) => cx + side * r * Math.cos(a), py = (a) => cy + r * Math.sin(a);
@@ -766,6 +816,8 @@ async function renderPngs(mapManifest) {
 
 (async () => {
   const nCity = buildCitySprites();
+  const nIcons = buildIcons();
+  console.log(`${nIcons} icônes d'interface (SVG)`);
   const mapManifest = buildMapSprites();
   writeFile(path.join(OUT, 'logo.svg'), logoSvg(240, false, true));
   writeFile(path.join(OUT, 'logo-text.svg'), logoSvg(400, true, true));

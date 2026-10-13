@@ -406,13 +406,14 @@ function updateServerTime() {
 
   // Update body class for global theme
   document.body.classList.toggle('night-mode', isNight);
+  if (iconEl && iconEl.tagName === 'IMG') { const want = isNight ? 'assets/images/ui/moon.svg' : 'assets/images/ui/sun.svg'; if (!iconEl.getAttribute('src').endsWith(want.split('/').pop())) iconEl.setAttribute('src', want); }
 
   if (indicator) {
     indicator.classList.toggle('night', isNight);
     indicator.classList.toggle('day', !isNight);
   }
 
-  if (iconEl) {
+  if (iconEl && iconEl.tagName !== 'IMG') {
     iconEl.textContent = isNight ? '🌙' : '☀️';
   }
 
