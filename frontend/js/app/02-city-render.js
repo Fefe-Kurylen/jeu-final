@@ -88,8 +88,9 @@ function initCityCanvas() {
   const container = cityCanvas.parentElement;
   const width = container.clientWidth || 800;
   const height = container.clientHeight || 600;
-  cityCanvas.width = Math.max(width, 300);
-  cityCanvas.height = Math.max(height, 200);
+  cityViewW = Math.max(width, 300);
+  cityViewH = Math.max(height, 200);
+  sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);   // net sur écrans haute densité
 
   // Only add events once
   if (!cityCanvas.hasAttribute('data-events-attached')) {
@@ -157,8 +158,8 @@ function initFieldsCanvas() {
 function calculateCitySlots() {
   if (!cityCanvas) return;
   
-  const w = cityCanvas.width;
-  const h = cityCanvas.height;
+  const w = cityViewW;
+  const h = cityViewH;
   const centerX = w / 2;
   const centerY = h / 2 + 20;
   
@@ -211,8 +212,8 @@ function calculateCitySlots() {
 function calculateFieldSlots() {
   if (!cityCanvas) return;
   
-  const w = cityCanvas.width;
-  const h = cityCanvas.height;
+  const w = cityViewW;
+  const h = cityViewH;
   const centerX = w / 2;
   const centerY = h / 2 + 30;
   
@@ -332,16 +333,18 @@ function switchCityView(view) {
 }
 
 function renderCityView() {
-  const w = cityCanvas.width;
-  const h = cityCanvas.height;
+  const w = cityViewW;
+  const h = cityViewH;
   const centerX = w / 2;
   const centerY = h / 2 + 20;
   const nightMode = isNightMode();
+  const biome = cityBiome();
+  const scene = biomeScene(biome);
 
   // Clear
   cityCtx.clearRect(0, 0, w, h);
 
-  // ========== SKY (Day/Night) ==========
+  // ========== SKY (Day/Night, biome tint by day) ==========
   const skyGrad = cityCtx.createLinearGradient(0, 0, 0, h * 0.5);
   if (nightMode) {
     // Night sky - deep blue/purple
@@ -350,10 +353,9 @@ function renderCityView() {
     skyGrad.addColorStop(0.7, '#203050');
     skyGrad.addColorStop(1, '#304060');
   } else {
-    // Day sky - bright blue
-    skyGrad.addColorStop(0, '#4a90c2');
-    skyGrad.addColorStop(0.5, '#7bb8e0');
-    skyGrad.addColorStop(1, '#a8d4f0');
+    skyGrad.addColorStop(0, scene.sky[0]);
+    skyGrad.addColorStop(0.5, scene.sky[1]);
+    skyGrad.addColorStop(1, scene.sky[2]);
   }
   cityCtx.fillStyle = skyGrad;
   cityCtx.fillRect(0, 0, w, h * 0.5);
@@ -380,34 +382,22 @@ function renderCityView() {
   }
   
   // ========== DISTANT MOUNTAINS ==========
-  drawMountains(w, h, nightMode);
+  drawMountains(w, h, nightMode, biome);
 
   // ========== PLAINS / GROUND ==========
   const groundY = h * 0.45;
 
-  // Far grass (Day/Night colors)
-  const farGrassGrad = cityCtx.createLinearGradient(0, groundY, 0, h);
-  if (nightMode) {
-    // Night grass - darker, blue-tinted
-    farGrassGrad.addColorStop(0, '#2a4030');
-    farGrassGrad.addColorStop(0.3, '#1a3020');
-    farGrassGrad.addColorStop(0.7, '#152818');
-    farGrassGrad.addColorStop(1, '#102010');
-  } else {
-    // Day grass - vibrant green
-    farGrassGrad.addColorStop(0, '#6a9a4a');
-    farGrassGrad.addColorStop(0.3, '#5a8a3a');
-    farGrassGrad.addColorStop(0.7, '#4a7a2a');
-    farGrassGrad.addColorStop(1, '#3a6a1a');
-  }
-  cityCtx.fillStyle = farGrassGrad;
-  cityCtx.fillRect(0, groundY, w, h - groundY);
+  // Far ground: prairie, sand or snow according to the city's biome (texture + day/night gradient)
+  const farGrassGrad = biomeGroundGradient(cityCtx, 0, groundY, 0, h, biome, nightMode);
+  cityCtx.beginPath();
+  cityCtx.rect(0, groundY, w, h - groundY);
+  fillTextured(cityCtx, scene.texture, farGrassGrad, nightMode ? 0.88 : 0.5);
 
   // ========== DISTANT TREES (forest line) ==========
-  drawForestLine(w, groundY, nightMode);
+  if (biome !== 'desert') drawForestLine(w, groundY, nightMode);
 
-  // ========== RIVER ==========
-  drawRiver(w, h, groundY, nightMode);
+  // ========== RIVER (none in the desert) ==========
+  if (biome !== 'desert') drawRiver(w, h, groundY, nightMode);
 
   // ========== SCATTERED TREES ==========
   drawScatteredTrees(w, h, groundY, centerX, centerY, nightMode);
@@ -448,23 +438,11 @@ function renderCityView() {
   const pathWidth = 16;
   const roadRadius = innerRadius * 0.72; // Circular road where buildings sit
 
-  // Step 1: Draw grass background (bright green like Travian)
-  const grassGrad = cityCtx.createRadialGradient(centerX, centerY - 20, 0, centerX, centerY, innerRadius);
-  if (nightMode) {
-    grassGrad.addColorStop(0, '#3a5030');
-    grassGrad.addColorStop(0.5, '#2a4020');
-    grassGrad.addColorStop(1, '#1a3015');
-  } else {
-    grassGrad.addColorStop(0, '#82bc48');
-    grassGrad.addColorStop(0.2, '#74b03a');
-    grassGrad.addColorStop(0.5, '#68a430');
-    grassGrad.addColorStop(0.8, '#5c9828');
-    grassGrad.addColorStop(1, '#508c20');
-  }
-  cityCtx.fillStyle = grassGrad;
+  // Step 1: Draw the city ground (grass, sand or snow by biome, textured)
+  const grassGrad = biomeInnerGradient(cityCtx, centerX, centerY, innerRadius, biome, nightMode);
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, innerRadius, innerRadius * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.fill();
+  fillTextured(cityCtx, scene.texture, grassGrad, nightMode ? 0.88 : 0.45);
 
   // Step 2: Grass texture (natural patches)
   if (!nightMode) {
@@ -505,12 +483,11 @@ function renderCityView() {
   cityCtx.ellipse(centerX, centerY, roadRadius, roadRadius * 0.5, 0, 0, Math.PI * 2);
   cityCtx.stroke();
 
-  // Road surface
-  cityCtx.strokeStyle = roadColor;
+  // Road surface (beaten earth texture under the colour)
   cityCtx.lineWidth = pathWidth;
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, roadRadius, roadRadius * 0.5, 0, 0, Math.PI * 2);
-  cityCtx.stroke();
+  strokeTextured(cityCtx, 'dirt', roadColor, nightMode ? 0.85 : 0.4);
 
   // Road inner highlight
   cityCtx.strokeStyle = roadLight;
@@ -526,21 +503,20 @@ function renderCityView() {
 
   // Vertical path (N-S)
   const pw = pathWidth * 0.8;
-  cityCtx.fillStyle = pathColor;
-  cityCtx.fillRect(centerX - pw / 2, centerY - roadRadius * 0.5, pw, roadRadius);
-
+  cityCtx.beginPath();
+  cityCtx.rect(centerX - pw / 2, centerY - roadRadius * 0.5, pw, roadRadius);
   // Horizontal path (E-W)
-  cityCtx.fillRect(centerX - roadRadius, centerY - pw * 0.35, roadRadius * 2, pw * 0.7);
+  cityCtx.rect(centerX - roadRadius, centerY - pw * 0.35, roadRadius * 2, pw * 0.7);
+  fillTextured(cityCtx, 'dirt', pathColor, nightMode ? 0.85 : 0.4);
 
   // Center plaza (circular platform)
   const plazaGrad = cityCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, pathWidth * 2);
   plazaGrad.addColorStop(0, pathLight);
   plazaGrad.addColorStop(0.7, pathColor);
   plazaGrad.addColorStop(1, roadDark);
-  cityCtx.fillStyle = plazaGrad;
   cityCtx.beginPath();
   cityCtx.ellipse(centerX, centerY, pathWidth * 2, pathWidth * 1.1, 0, 0, Math.PI * 2);
-  cityCtx.fill();
+  fillTextured(cityCtx, 'dirt', plazaGrad, nightMode ? 0.85 : 0.5);
   cityCtx.strokeStyle = roadDark;
   cityCtx.lineWidth = 2;
   cityCtx.stroke();
@@ -674,11 +650,12 @@ function drawNightCloud(ctx, x, y, size) {
   ctx.fill();
 }
 
-function drawMountains(w, h, nightMode = false) {
+function drawMountains(w, h, nightMode = false, biome = 'forest') {
   const mountainY = h * 0.45;
 
-  // Far mountains (blue/purple - darker at night)
-  cityCtx.fillStyle = nightMode ? '#2a3040' : '#8090a8';
+  // Far mountains (blue/purple, sandy in the desert, pale in the snow - darker at night)
+  const dayColor = biome === 'desert' ? '#b89a6a' : biome === 'snow' ? '#b9c7d6' : '#8090a8';
+  cityCtx.fillStyle = nightMode ? '#2a3040' : dayColor;
   cityCtx.beginPath();
   cityCtx.moveTo(0, mountainY);
   cityCtx.lineTo(w * 0.15, mountainY - 60);
@@ -793,18 +770,21 @@ function drawScatteredTrees(w, h, groundY, centerX, centerY, nightMode = false) 
     { x: w - 180, y: groundY + 170, size: 20 }
   ];
 
+  // Sprites de décor du biome (assets/images/props) quand ils sont chargés, dessin procédural sinon
+  const variant = spriteVariant(false);
+  const props = biomeScene(cityBiome()).props;
   rocks.forEach(rock => {
     const dx = rock.x - centerX;
     const dy = rock.y - centerY;
     if (Math.sqrt(dx*dx + dy*dy) < 200) return;
-    drawRock(rock.x, rock.y, rock.size, nightMode);
+    if (!drawProp(cityCtx, props.rock, rock.x, rock.y + 3, rock.size * 1.5, variant)) drawRock(rock.x, rock.y, rock.size, nightMode);
   });
 
   trees.forEach(tree => {
     const dx = tree.x - centerX;
     const dy = tree.y - centerY;
     if (Math.sqrt(dx*dx + dy*dy) < 200) return;
-    drawTree(tree.x, tree.y, tree.size, nightMode);
+    if (!drawProp(cityCtx, tree.type === 'pine' ? props.trees[0] : props.trees[1], tree.x, tree.y + 4, tree.size * 1.6, variant)) drawTree(tree.x, tree.y, tree.size, nightMode);
   });
 }
 
@@ -898,7 +878,13 @@ function drawCropFields(w, h, centerX, centerY, nightMode = false) {
     { x: w - 100, y: h - 110, w: 60, h: 35, colorIdx: 3 }
   ];
 
+  // Sprite de champ de blé (même style que les champs de ressources) quand il est chargé
+  const cropSprite = getSprite(fieldSpriteUrl('FARM', 8));
   fields.forEach(field => {
+    if (cropSprite) {
+      drawSprite(cityCtx, cropSprite, field.x + field.w / 2, field.y + field.h / 2, field.w * 1.35, spriteVariant(false));
+      return;
+    }
     // Field base
     cityCtx.fillStyle = nightMode ? nightColors[field.colorIdx] : dayColors[field.colorIdx];
     cityCtx.beginPath();
@@ -1621,7 +1607,7 @@ function drawAnimatedBirds(w, h, time) {
 
 // ========== ANIMATED WATER ==========
 function drawWaterAnimation(centerX, centerY, time) {
-  const cityRadius = Math.min(cityCanvas.width, cityCanvas.height) * 0.25;
+  const cityRadius = Math.min(cityViewW, cityViewH) * 0.25;
   
   // Water sparkles/reflections
   cityCtx.fillStyle = 'rgba(255,255,255,0.6)';
@@ -1661,7 +1647,7 @@ function drawWaterAnimation(centerX, centerY, time) {
 let villagersState = [];
 function initVillagers(centerX, centerY) {
   villagersState = [];
-  const cityRadius = Math.min(cityCanvas.width, cityCanvas.height) * 0.20;
+  const cityRadius = Math.min(cityViewW, cityViewH) * 0.20;
   
   for (let i = 0; i < 6; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -1683,7 +1669,7 @@ function initVillagers(centerX, centerY) {
 function drawAnimatedVillagers(centerX, centerY, time) {
   if (villagersState.length === 0) initVillagers(centerX, centerY);
   
-  const cityRadius = Math.min(cityCanvas.width, cityCanvas.height) * 0.20;
+  const cityRadius = Math.min(cityViewW, cityViewH) * 0.20;
   
   villagersState.forEach(v => {
     // Update movement
@@ -1795,7 +1781,7 @@ function drawAnimatedSmoke(x, y, time, intensity = 1) {
 
 // ========== ANIMATED FLAGS ==========
 function drawAnimatedFlags(centerX, centerY, time) {
-  const cityRadius = Math.min(cityCanvas.width, cityCanvas.height) * 0.25;
+  const cityRadius = Math.min(cityViewW, cityViewH) * 0.25;
   
   // Flag positions (on towers)
   const flagPositions = [

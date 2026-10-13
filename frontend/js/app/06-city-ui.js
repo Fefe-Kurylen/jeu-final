@@ -135,8 +135,9 @@ function showTab(tabName) {
     if (cityCanvas) {
       const container = cityCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        cityCanvas.width = Math.max(container.clientWidth, 300);
-        cityCanvas.height = Math.max(container.clientHeight, 200);
+        cityViewW = Math.max(container.clientWidth, 300);
+        cityViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
     }
     if (tabName === 'fields') calculateFieldSlots();

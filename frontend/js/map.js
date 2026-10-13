@@ -44,7 +44,8 @@ let mapSpriteAnchor = { x: 0.5, y: 0.8 };   // point de l'image posé sur le cen
 const tileImages = {
   cities: {},      // rome gaul greek egypt hun sultan capital default
   units: {},       // hoplite archer cavalry catapult merchant
-  resources: {}    // wood stone iron food gold
+  resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
+  terrain: {}      // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
 };
 
 // Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
@@ -355,8 +356,9 @@ function initMapCanvas() {
   const container = mapCanvas.parentElement;
   const width = container.clientWidth || 800;
   const height = container.clientHeight || 600;
-  mapCanvas.width = Math.max(width, 300);
-  mapCanvas.height = Math.max(height, 200);
+  mapViewW = Math.max(width, 300);
+  mapViewH = Math.max(height, 200);
+  sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);   // net sur écrans haute densité
 
   // Only add events once
   if (!mapCanvas.hasAttribute('data-events-attached')) {
@@ -842,8 +844,8 @@ async function loadMap() {
 function renderMap() {
   if (!mapCtx) return;
 
-  const w = mapCanvas.width;
-  const h = mapCanvas.height;
+  const w = mapViewW;
+  const h = mapViewH;
   const nightMode = isNightMode();
 
   // Tile size based on zoom
@@ -1013,7 +1015,12 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
     mapCtx.stroke();
   }
 
-  // Draw terrain features based on biome
+  // Draw terrain features based on biome: sprite when the manifest provides one, procedural otherwise
+  if (feature && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis' && tileImages.terrain[`${biome}_${feature}`]) {
+    const fsize = Math.max(tw, th * 2) * (feature === 'mountain' || feature === 'icemountain' ? 1.35 : 1.15);
+    drawTileImage(mapCtx, 'terrain', `${biome}_${feature}`, x, y, fsize, fsize);
+    return;
+  }
   if (biome === 'forest') {
     if (feature === 'tree') {
       drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
@@ -1948,8 +1955,9 @@ function drawIsoResource(x, y, tw, th, tile) {
   const size = Math.min(tw, th * 2) * 0.5;
   const imgSize = Math.max(tw, th * 2) * 1.3;
 
-  // Try to draw from individual image first
-  if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
+  // Try to draw from individual image first (biome variant when it exists: wood_desert, stone_snow…)
+  const biomeVariant = `${resType}_${getBiome(tile.x, tile.y)}`;
+  if (drawTileImage(mapCtx, 'resources', tileImages.resources[biomeVariant] ? biomeVariant : resType, x, y, imgSize, imgSize)) {
     // Draw resource level indicator
     if (tile.amount && mapZoomLevel > 0.6) {
       mapCtx.font = 'bold 9px Arial';
@@ -2305,8 +2313,8 @@ function renderMinimap() {
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
     const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
     // Estimate visible tiles in each direction
-    const visTilesX = mapCanvas.width / tileW;
-    const visTilesY = mapCanvas.height / tileH;
+    const visTilesX = mapViewW / tileW;
+    const visTilesY = mapViewH / tileH;
     // Convert to minimap pixels
     const vpW = visTilesX * scale;
     const vpH = visTilesY * scale;
@@ -2436,8 +2444,8 @@ function onMapMouseMove(e) {
     scheduleMapRender(true);
   } else {
     // Update hovered tile using isometric conversion
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
+    const centerX = mapViewW / 2;
+    const centerY = mapViewH / 2;
     const dx = mouseX - centerX;
     const dy = mouseY - centerY;
     const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
@@ -2466,8 +2474,8 @@ function onMapMouseUp() {
 function pickMapTile(mouseX, mouseY) {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const dx = mouseX - mapCanvas.width / 2;
-  const dy = mouseY - mapCanvas.height / 2;
+  const dx = mouseX - mapViewW / 2;
+  const dy = mouseY - mapViewH / 2;
   const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
   const entityAt = (x, y) => mapData.find(t => t.x === x && t.y === y && (t.type === 'CITY' || t.type === 'RESOURCE' || t.type === 'ARMY'));
@@ -3306,8 +3314,9 @@ window.addEventListener('resize', () => {
     if (mapCanvas && mapTab && mapTab.classList.contains('active')) {
       const container = mapCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        mapCanvas.width = Math.max(container.clientWidth, 300);
-        mapCanvas.height = Math.max(container.clientHeight, 200);
+        mapViewW = Math.max(container.clientWidth, 300);
+        mapViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);
       }
       renderMap();
       renderMinimap();
@@ -3316,8 +3325,9 @@ window.addEventListener('resize', () => {
     if (cityCanvas) {
       const container = cityCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        cityCanvas.width = Math.max(container.clientWidth, 300);
-        cityCanvas.height = Math.max(container.clientHeight, 200);
+        cityViewW = Math.max(container.clientWidth, 300);
+        cityViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
       calculateCitySlots();
       if (currentCityView === 'fields') calculateFieldSlots();

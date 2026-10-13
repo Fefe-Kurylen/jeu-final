@@ -14,7 +14,12 @@
     "stone",
     "iron",
     "food",
-    "gold"
+    "gold",
+    "wood_desert",
+    "wood_snow",
+    "stone_snow",
+    "stone_desert",
+    "food_desert"
   ],
   "units": [
     "hoplite",
@@ -23,10 +28,24 @@
     "catapult",
     "merchant"
   ],
+  "terrain": [
+    "forest_tree",
+    "forest_mountain",
+    "desert_dunes",
+    "desert_ruins",
+    "desert_rocks",
+    "snow_snowtree",
+    "snow_icemountain"
+  ],
   "format": "png",
-  "size": 256,
+  "size": 512,
   "anchor": {
     "x": 0.5,
     "y": 0.796875
-  }
+  },
+  "biomes": [
+    "forest",
+    "desert",
+    "snow"
+  ]
 }

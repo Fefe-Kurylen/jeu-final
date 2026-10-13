@@ -606,6 +606,21 @@ function renderCity() {
 }
 
 
+// ========== CANVAS HAUTE DENSITÉ ==========
+// Les canvas de jeu dessinent en pixels CSS (taille logique) sur un backing store × devicePixelRatio,
+// pour un rendu net sur mobile. Taille logique courante de la vue ville / champs :
+let cityViewW = 800, cityViewH = 600;
+function canvasScale() { return Math.min(Math.max(window.devicePixelRatio || 1, 1), 3); }
+// Dimensionne un canvas : taille logique (CSS) + backing store à l'échelle, transformation posée sur le contexte
+function sizeCanvasForDpr(canvas, ctx, cssW, cssH) {
+  const scale = canvasScale();
+  canvas.width = Math.round(cssW * scale);
+  canvas.height = Math.round(cssH * scale);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+}
+
 // ========== SPRITES (images générées par tools/build-assets.cjs) ==========
 // Cadre commun des sprites ville/champs : 130×132, centre du losange au sol à l'ancre (0.5, 0.697)
 const SPRITE_FRAME = { w: 130, h: 132, ax: 0.5, ay: 0.697 };
@@ -648,30 +663,120 @@ function spriteVariant(isHovered) {
   return night ? (isHovered ? 'night-hover' : 'night') : (isHovered ? 'hover' : 'day');
 }
 
-// Dessine un sprite ville/champ de largeur w, le centre de son losange au sol en (x, y)
-function drawSprite(ctx, img, x, y, w, variant = 'day') {
-  const cw = Math.max(1, Math.round(w));
-  const ch = Math.max(1, Math.round(w * SPRITE_FRAME.h / SPRITE_FRAME.w));
-  const key = img.src + '@' + cw + '@' + variant;
+// Rasterise une image SVG à la résolution de l'écran (w × h logiques, × devicePixelRatio), une fois par
+// taille et par variante, puis la renvoie pour un simple blit
+function spriteRaster(img, w, h, variant) {
+  const scale = canvasScale();
+  const key = img.src + '@' + Math.round(w) + '@' + variant + '@' + scale;
   let raster = _spriteRasters.get(key);
   if (!raster) {
     if (_spriteRasters.size > 600) _spriteRasters.clear();   // tailles obsolètes après redimensionnement
     raster = document.createElement('canvas');
-    raster.width = cw;
-    raster.height = ch;
+    raster.width = Math.max(1, Math.round(w * scale));
+    raster.height = Math.max(1, Math.round(h * scale));
     const rc = raster.getContext('2d');
     const filter = SPRITE_VARIANTS[variant] || '';
     if (filter && 'filter' in rc) rc.filter = filter;
-    rc.drawImage(img, 0, 0, cw, ch);
+    rc.drawImage(img, 0, 0, raster.width, raster.height);
     _spriteRasters.set(key, raster);
   }
-  ctx.drawImage(raster, Math.round(x - cw * SPRITE_FRAME.ax), Math.round(y - ch * SPRITE_FRAME.ay));
+  return raster;
+}
+
+// Dessine un sprite ville/champ de largeur w, le centre de son losange au sol en (x, y)
+function drawSprite(ctx, img, x, y, w, variant = 'day') {
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(w * SPRITE_FRAME.h / SPRITE_FRAME.w));
+  const raster = spriteRaster(img, cw, ch, variant);
+  ctx.drawImage(raster, Math.round(x - cw * SPRITE_FRAME.ax), Math.round(y - ch * SPRITE_FRAME.ay), cw, ch);
+}
+
+// Décor (arbre, rocher…) : cadre 64×84, ancre bas-centre (0.5, 0.952) ; h = hauteur logique
+const PROP_FRAME = { w: 64, h: 84, ax: 0.5, ay: 80 / 84 };
+function drawProp(ctx, name, x, y, h, variant = 'day') {
+  const img = getSprite(`assets/images/props/${name}.svg`);
+  if (!img) return false;
+  const ch = Math.max(1, Math.round(h));
+  const cw = Math.max(1, Math.round(h * PROP_FRAME.w / PROP_FRAME.h));
+  const raster = spriteRaster(img, cw, ch, variant);
+  ctx.drawImage(raster, Math.round(x - cw * PROP_FRAME.ax), Math.round(y - ch * PROP_FRAME.ay), cw, ch);
+  return true;
+}
+
+// ========== TEXTURES DE TERRAIN (tuiles 128×128 répétables : assets/images/terrain/<nom>.svg) ==========
+const _terrainPatterns = new Map();
+function getTerrainPattern(ctx, name) {
+  const img = getSprite(`assets/images/terrain/${name}.svg`);
+  if (!img) return null;
+  const scale = canvasScale();
+  const key = name + '@' + scale;
+  let pattern = _terrainPatterns.get(key);
+  if (!pattern) {
+    // Tuile rasterisée à la résolution de l'écran, puis ramenée à 128 px logiques
+    const tile = document.createElement('canvas');
+    tile.width = Math.round(128 * scale);
+    tile.height = Math.round(128 * scale);
+    tile.getContext('2d').drawImage(img, 0, 0, tile.width, tile.height);
+    pattern = ctx.createPattern(tile, 'repeat');
+    if (scale !== 1 && pattern && typeof pattern.setTransform === 'function' && typeof DOMMatrix === 'function') {
+      pattern.setTransform(new DOMMatrix().scale(1 / scale));
+    }
+    _terrainPatterns.set(key, pattern);
+  }
+  return pattern;
+}
+// Remplit (ou trace) le chemin courant avec la texture, puis le style d'origine par-dessus à overlayAlpha
+// pour garder le modelé (dégradés, nuit). Sans texture chargée : style d'origine seul.
+function fillTextured(ctx, name, style, overlayAlpha) {
+  const pattern = getTerrainPattern(ctx, name);
+  if (pattern) { ctx.fillStyle = pattern; ctx.fill(); ctx.globalAlpha = overlayAlpha; }
+  ctx.fillStyle = style;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+function strokeTextured(ctx, name, style, overlayAlpha) {
+  const pattern = getTerrainPattern(ctx, name);
+  if (pattern) { ctx.strokeStyle = pattern; ctx.stroke(); ctx.globalAlpha = overlayAlpha; }
+  ctx.strokeStyle = style;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// ========== BIOMES (prairie / désert / neige) ==========
+// Le biome d'une ville découle de sa position (même règle que la carte : getBiome dans map.js)
+const BIOME_SCENE = {
+  forest: { texture: 'grass', day: ['#6a9a4a', '#5a8a3a', '#4a7a2a', '#3a6a1a'], night: ['#2a4030', '#1a3020', '#152818', '#102010'],
+    inner: ['#82bc48', '#74b03a', '#68a430', '#5c9828', '#508c20'], innerNight: ['#3a5030', '#2a4020', '#1a3015'],
+    sky: ['#4a90c2', '#7bb8e0', '#a8d8f0'], hills: '#5a8a4a', hillsNight: '#1a2a18', props: { trees: ['pine', 'oak'], rock: 'rock' } },
+  desert: { texture: 'sand', day: ['#e2c88e', '#d4b876', '#c4a660', '#b0924e'], night: ['#4a3e2a', '#3a3020', '#2e2618', '#241e12'],
+    inner: ['#f0dca4', '#e6cf92', '#dcc484', '#d2b874', '#c8ae68'], innerNight: ['#4a4030', '#3a3222', '#2a2418'],
+    sky: ['#5f9ed8', '#9ec6e8', '#f0d9a8'], hills: '#c9ad6e', hillsNight: '#3a3020', props: { trees: ['palm', 'cactus'], rock: 'dune' } },
+  snow: { texture: 'snow', day: ['#eef3f8', '#dfe8f0', '#cfdbe6', '#bccbd8'], night: ['#2e3a4a', '#243040', '#1c2634', '#161e2a'],
+    inner: ['#ffffff', '#f3f7fb', '#e8eef4', '#dde6ee', '#d0dbe6'], innerNight: ['#3a4656', '#2c3848', '#202a38'],
+    sky: ['#8fb3d1', '#b8d0e4', '#dbe6ef'], hills: '#c8d4e0', hillsNight: '#242e3c', props: { trees: ['snowpine', 'snowpine'], rock: 'snowrock' } }
+};
+function cityBiome() {
+  return (typeof getBiome === 'function' && currentCity) ? getBiome(currentCity.x, currentCity.y) : 'forest';
+}
+function biomeScene(biome) { return BIOME_SCENE[biome] || BIOME_SCENE.forest; }
+function biomeGroundGradient(ctx, x0, y0, x1, y1, biome, night) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  const stops = night ? biomeScene(biome).night : biomeScene(biome).day;
+  [0, 0.3, 0.7, 1].forEach((p, i) => g.addColorStop(p, stops[i]));
+  return g;
+}
+function biomeInnerGradient(ctx, cx, cy, r, biome, night) {
+  const g = ctx.createRadialGradient(cx, cy - 20, 0, cx, cy, r);
+  const sc = biomeScene(biome);
+  if (night) [0, 0.5, 1].forEach((p, i) => g.addColorStop(p, sc.innerNight[i]));
+  else [0, 0.2, 0.5, 0.8, 1].forEach((p, i) => g.addColorStop(p, sc.inner[i]));
+  return g;
 }
 
 function buildingSpriteUrl(key) {
-  return `assets/images/buildings/${player?.faction || 'ROME'}/${key}.svg`;
+  return `assets/images/buildings/${player?.faction || 'ROME'}/${cityBiome()}/${key}.svg`;
 }
-// Paliers visuels des champs : niveaux 1-6, 7-13, 14-20
+// Paliers visuels des champs : niveaux 1-6, 7-13, 14-20 ; cultures et arbres propres à la faction et au biome
 function fieldSpriteUrl(type, level) {
-  return `assets/images/fields/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.svg`;
+  return `assets/images/fields/${player?.faction || 'ROME'}/${cityBiome()}/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.svg`;
 }

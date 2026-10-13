@@ -7,8 +7,8 @@
 function renderFieldsView() {
   if (!cityCanvas || !cityCtx) return;
 
-  const w = cityCanvas.width;
-  const h = cityCanvas.height;
+  const w = cityViewW;
+  const h = cityViewH;
   const centerX = w / 2;
   const centerY = h / 2 + 30;
   const nightMode = isNightMode();
@@ -44,8 +44,10 @@ function renderFieldsView() {
   // ========== GROUND - FARMLAND ==========
   const groundY = h * 0.42;
 
-  // Background hills
-  cityCtx.fillStyle = nightMode ? '#1a2a18' : '#5a8a4a';
+  // Background hills (biome colour)
+  const biome = cityBiome();
+  const scene = biomeScene(biome);
+  cityCtx.fillStyle = nightMode ? scene.hillsNight : scene.hills;
   cityCtx.beginPath();
   cityCtx.moveTo(0, groundY);
   cityCtx.quadraticCurveTo(w * 0.25, groundY - 30, w * 0.5, groundY);
@@ -55,21 +57,11 @@ function renderFieldsView() {
   cityCtx.closePath();
   cityCtx.fill();
 
-  // Main ground
-  const groundGrad = cityCtx.createLinearGradient(0, groundY, 0, h);
-  if (nightMode) {
-    groundGrad.addColorStop(0, '#2a3a28');
-    groundGrad.addColorStop(0.3, '#1a2a18');
-    groundGrad.addColorStop(0.7, '#152515');
-    groundGrad.addColorStop(1, '#102010');
-  } else {
-    groundGrad.addColorStop(0, '#6a9a5a');
-    groundGrad.addColorStop(0.3, '#5a8a4a');
-    groundGrad.addColorStop(0.7, '#4a7a3a');
-    groundGrad.addColorStop(1, '#3a6a2a');
-  }
-  cityCtx.fillStyle = groundGrad;
-  cityCtx.fillRect(0, groundY, w, h - groundY);
+  // Main ground: prairie, sand or snow texture + day/night gradient of the biome
+  const groundGrad = biomeGroundGradient(cityCtx, 0, groundY, 0, h, biome, nightMode);
+  cityCtx.beginPath();
+  cityCtx.rect(0, groundY, w, h - groundY);
+  fillTextured(cityCtx, scene.texture, groundGrad, nightMode ? 0.88 : 0.5);
 
   // ========== SCATTERED TREES AROUND ==========
   const treesPos = [
@@ -78,20 +70,20 @@ function renderFieldsView() {
     { x: 30, y: h - 60, size: 30 },
     { x: w - 40, y: h - 50, size: 32 }
   ];
-  treesPos.forEach(t => drawTree(t.x, t.y, t.size, nightMode));
+  treesPos.forEach((t, i) => { if (!drawProp(cityCtx, scene.props.trees[i % 2], t.x, t.y + 4, t.size * 1.6, spriteVariant(false))) drawTree(t.x, t.y, t.size, nightMode); });
 
   // ========== PATHS TO FIELDS ==========
   cityCtx.strokeStyle = nightMode ? '#3a3028' : '#8a7050';
   cityCtx.lineWidth = 10;
   cityCtx.lineCap = 'round';
 
-  // Paths from center to fields
+  // Paths from center to fields (beaten earth texture under the colour)
+  cityCtx.beginPath();
   citySlots.filter(s => s.isField).forEach(slot => {
-    cityCtx.beginPath();
     cityCtx.moveTo(centerX, centerY);
     cityCtx.lineTo(slot.x, slot.y);
-    cityCtx.stroke();
   });
+  strokeTextured(cityCtx, 'dirt', cityCtx.strokeStyle, nightMode ? 0.85 : 0.4);
   
   // ========== VILLAGE CENTER (click to return to city view) ==========
   const villageSlot = citySlots.find(s => s.isVillageCenter);
@@ -230,8 +222,8 @@ function drawChicken(chicken, time) {
       if (Math.random() < 0.3) {
         chicken.peckTimer = 1 + Math.random() * 2;
       } else {
-        chicken.targetX = 80 + Math.random() * (cityCanvas.width - 160);
-        chicken.targetY = cityCanvas.height * 0.55 + Math.random() * (cityCanvas.height * 0.35);
+        chicken.targetX = 80 + Math.random() * (cityViewW - 160);
+        chicken.targetY = cityViewH * 0.55 + Math.random() * (cityViewH * 0.35);
         chicken.direction = chicken.targetX > chicken.x ? 1 : -1;
       }
     } else {
@@ -869,7 +861,7 @@ function drawCloud(ctx, x, y, size) {
 
 function drawCityRoads(centerX, centerY) {
   const nightMode = isNightMode();
-  const cityRadius = Math.min(cityCanvas.width, cityCanvas.height) * 0.32;
+  const cityRadius = Math.min(cityViewW, cityViewH) * 0.32;
 
   // Travian-style cross roads (N, E, S, W)
   const roadColor = nightMode ? '#3a3028' : '#8a7050';

@@ -6,11 +6,15 @@ Playwright/Chromium). Ne pas retoucher les fichiers à la main : modifier le gé
 
 ```
 map/
-├── manifest.json      # listes cities / resources / units, format, taille, ancre
+├── manifest.json      # listes cities / resources / units / terrain, format, taille, ancre, biomes
 ├── cities/            # rome gaul greek egypt hun sultan capital default  (.svg + .png)
-├── resources/         # wood stone iron food gold
-└── units/             # hoplite archer cavalry catapult merchant
+├── resources/         # wood stone iron food gold + variantes par biome (wood_desert, stone_snow…)
+├── units/             # hoplite archer cavalry catapult merchant
+└── terrain/           # <biome>_<élément> : forest_tree forest_mountain desert_dunes desert_ruins
+                       #   desert_rocks snow_snowtree snow_icemountain
 ```
+
+Les PNG sont rendus en 512 px (deviceScaleFactor 2) pour rester nets sur mobile.
 
 ## Spécifications
 

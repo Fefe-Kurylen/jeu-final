@@ -964,8 +964,8 @@ function getBuildingAtSlot(slotNum) {
 
 function onCityMouseMove(e) {
   const rect = cityCanvas.getBoundingClientRect();
-  const mouseX = (e.clientX - rect.left) * (cityCanvas.width / rect.width);
-  const mouseY = (e.clientY - rect.top) * (cityCanvas.height / rect.height);
+  const mouseX = (e.clientX - rect.left) * (cityViewW / rect.width);
+  const mouseY = (e.clientY - rect.top) * (cityViewH / rect.height);
 
   // Find hovered slot - correct ellipse collision detection
   let foundSlot = null;

@@ -54,6 +54,12 @@
     "QUARRY",
     "IRON_MINE"
   ],
+  "fieldsPerFaction": true,
+  "biomes": [
+    "forest",
+    "desert",
+    "snow"
+  ],
   "tiers": 3,
   "viewBox": "35 -22 130 132",
   "anchor": {
