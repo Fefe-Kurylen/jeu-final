@@ -13,79 +13,88 @@
   document.body.classList.add('native-app');
 
   // ========== CAPACITOR PLUGINS ==========
+  // The page is not bundled: plugins come from the native bridge (window.Capacitor.Plugins),
+  // bare `import('@capacitor/...')` specifiers cannot resolve in a WebView.
+  const Plugins = () => (window.Capacitor && window.Capacitor.Plugins) || {};
+  const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
   async function initNativePlugins() {
+    if (!isNative()) return;
+    const { StatusBar, SplashScreen, Keyboard, App: CapApp, Network } = Plugins();
+
     // Status Bar
     try {
-      const { StatusBar, Style } = await import('@capacitor/status-bar');
-      await StatusBar.setStyle({ style: Style.Dark });
-      await StatusBar.setBackgroundColor({ color: '#1a1510' });
-      await StatusBar.setOverlaysWebView({ overlay: false });
+      if (StatusBar) {
+        await StatusBar.setStyle({ style: 'DARK' });
+        await StatusBar.setBackgroundColor({ color: '#1a1510' });
+        await StatusBar.setOverlaysWebView({ overlay: false });
+      }
     } catch (e) {}
 
-    // Splash Screen - cacher apres initialisation
+    // Splash Screen - hide once the web layer is up
     try {
-      const { SplashScreen } = await import('@capacitor/splash-screen');
-      // Attendre que l'app soit prete avant de cacher
-      setTimeout(() => SplashScreen.hide(), 500);
+      if (SplashScreen) setTimeout(() => SplashScreen.hide(), 500);
     } catch (e) {}
 
     // Keyboard
     try {
-      const { Keyboard } = await import('@capacitor/keyboard');
-      Keyboard.addListener('keyboardWillShow', (info) => {
-        document.body.classList.add('keyboard-open');
-        document.body.style.setProperty('--keyboard-height', info.keyboardHeight + 'px');
-      });
-      Keyboard.addListener('keyboardWillHide', () => {
-        document.body.classList.remove('keyboard-open');
-        document.body.style.removeProperty('--keyboard-height');
-      });
+      if (Keyboard) {
+        Keyboard.addListener('keyboardWillShow', (info) => {
+          document.body.classList.add('keyboard-open');
+          document.body.style.setProperty('--keyboard-height', info.keyboardHeight + 'px');
+        });
+        Keyboard.addListener('keyboardWillHide', () => {
+          document.body.classList.remove('keyboard-open');
+          document.body.style.removeProperty('--keyboard-height');
+        });
+      }
     } catch (e) {}
 
-    // Back Button (Android)
+    // Back Button (Android) + foreground refresh
     try {
-      const { App: CapApp } = await import('@capacitor/app');
-      CapApp.addListener('backButton', ({ canGoBack }) => {
-        const modal = document.getElementById('modal');
-        const buildPanel = document.getElementById('build-panel');
-        const mapPanel = document.getElementById('map-info-panel');
+      if (CapApp) {
+        CapApp.addListener('backButton', ({ canGoBack }) => {
+          const modal = document.getElementById('modal');
+          const buildPanel = document.getElementById('build-panel');
+          const mapPanel = document.getElementById('map-info-panel');
 
-        if (modal && modal.style.display !== 'none') {
-          closeModal();
-        } else if (buildPanel && buildPanel.style.display !== 'none') {
-          closeBuildPanel();
-        } else if (mapPanel && mapPanel.style.display !== 'none') {
-          closeMapPanel();
-        } else if (canGoBack) {
-          window.history.back();
-        } else {
-          CapApp.exitApp();
-        }
-      });
+          if (modal && modal.style.display !== 'none') {
+            closeModal();
+          } else if (buildPanel && buildPanel.style.display !== 'none') {
+            closeBuildPanel();
+          } else if (mapPanel && mapPanel.style.display !== 'none') {
+            closeMapPanel();
+          } else if (canGoBack) {
+            window.history.back();
+          } else {
+            CapApp.exitApp();
+          }
+        });
 
-      // Refresh quand l'app revient au premier plan
-      CapApp.addListener('appStateChange', ({ isActive }) => {
-        if (isActive && localStorage.getItem('token')) {
-          if (typeof refreshData === 'function') refreshData(true);
-        }
-      });
+        CapApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive && localStorage.getItem('token')) {
+            if (typeof refreshData === 'function') refreshData(true);
+          }
+        });
+      }
     } catch (e) {}
 
     // Network - detection connexion
     try {
-      const { Network } = await import('@capacitor/network');
-      Network.addListener('networkStatusChange', (status) => {
-        if (!status.connected) {
-          showToast('Connexion perdue', 'error');
-          document.body.classList.add('offline');
-        } else {
-          document.body.classList.remove('offline');
-          showToast('Connexion retablie', 'success');
-          if (localStorage.getItem('token') && typeof refreshData === 'function') {
-            refreshData(true);
+      if (Network) {
+        Network.addListener('networkStatusChange', (status) => {
+          if (!status.connected) {
+            showToast('Connexion perdue', 'error');
+            document.body.classList.add('offline');
+          } else {
+            document.body.classList.remove('offline');
+            showToast('Connexion retablie', 'success');
+            if (localStorage.getItem('token') && typeof refreshData === 'function') {
+              refreshData(true);
+            }
           }
-        }
-      });
+        });
+      }
     } catch (e) {}
   }
 
@@ -120,9 +129,10 @@
   // ========== HAPTICS ==========
   window.haptic = async function(style) {
     try {
-      const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
-      const map = { light: ImpactStyle.Light, heavy: ImpactStyle.Heavy, medium: ImpactStyle.Medium };
-      await Haptics.impact({ style: map[style] || ImpactStyle.Medium });
+      const { Haptics } = Plugins();
+      if (!Haptics) return;
+      const map = { light: 'LIGHT', heavy: 'HEAVY', medium: 'MEDIUM' };
+      await Haptics.impact({ style: map[style] || 'MEDIUM' });
     } catch (e) {}
   };
 

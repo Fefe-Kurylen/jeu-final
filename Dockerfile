@@ -1,7 +1,7 @@
-FROM node:18-slim AS base
+FROM node:20-slim AS base
 
-# Install OpenSSL (required by Prisma)
-RUN apt-get update && apt-get install -y openssl libssl3 && rm -rf /var/lib/apt/lists/*
+# OpenSSL is required by the Prisma engine
+RUN apt-get update && apt-get install -y --no-install-recommends openssl libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -17,11 +17,12 @@ RUN npx prisma generate
 # --- Production stage ---
 FROM base AS production
 
+ENV NODE_ENV=production
 COPY --from=deps /app/node_modules /app/node_modules
-COPY . .
-
-# Re-generate Prisma client in final image
-RUN npx prisma generate
+COPY package*.json ./
+COPY prisma ./prisma/
+COPY data ./data/
+COPY src ./src/
 
 EXPOSE 3000
 

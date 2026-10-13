@@ -23,17 +23,28 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # Build
 dist/
 build/
 
-# Project specific
+# Not needed by the API image
 .git
 .gitignore
 *.md
 docker-compose.yml
 wetransfer_content
+wetransfer_files.zip
 tools
-game
+frontend
+android
+ios
+capacitor.config.ts
+simulate-2years.js
+DEPLOY_GITHUB.sh
+start.sh
+Procfile
+fly.toml
+render.yaml
 .fly

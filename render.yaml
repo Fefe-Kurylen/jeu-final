@@ -1,16 +1,17 @@
 databases:
   - name: imperium-db
-    plan: free
+    plan: free            # expires after 90 days: upgrade before going live with real players
     databaseName: imperium
     region: frankfurt
 
 services:
   - type: web
     name: imperium-antiquitas-api
-    plan: free
+    plan: free            # free instances sleep after 15 min: the game tick stops with them (use starter for a live world)
     runtime: node
     region: frankfurt
-    buildCommand: npm install --omit=dev && npx prisma generate && npx prisma db push --skip-generate
+    # The schema is synchronised by the server at boot (prisma db push), not at build time
+    buildCommand: npm ci --omit=dev && npx prisma generate
     startCommand: node src/server.js
     healthCheckPath: /api/health
     envVars:

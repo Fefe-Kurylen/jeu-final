@@ -8,13 +8,14 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
-    // Allow all navigation (API calls to server)
-    allowNavigation: ['*'],
+    // Only the game API may be navigated to from the WebView
+    allowNavigation: ['imperium-antiquitas.onrender.com', '*.onrender.com', '*.fly.dev'],
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      launchAutoHide: false, // Hide manually after app init
+      // The web layer hides it once initialised; auto-hide guarantees the app never stays stuck on it
+      launchAutoHide: true,
       backgroundColor: '#1a1510',
       showSpinner: true,
       spinnerColor: '#c9a227',
