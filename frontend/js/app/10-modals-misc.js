@@ -273,6 +273,7 @@ function formatEffectName(key) {
 function closeModal() {
   const modal = document.getElementById('modal');
   if (modal) modal.style.display = 'none';
+  if (typeof stopBattleReplay === 'function') stopBattleReplay();
 }
 
 function showModal(title, content) {

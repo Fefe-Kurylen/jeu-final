@@ -50,7 +50,7 @@ async function loadHero() {
             <div class="hero-identity">
               <div class="hero-portrait-large">⚔️</div>
               <div class="hero-name-level">
-                <h3>${hero.name}</h3>
+                <h3>${escapeHtml(hero.name)}</h3>
                 <span class="hero-level-badge">Niv. ${hero.level}</span>
               </div>
             </div>
@@ -291,7 +291,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         <div class="hero-profile-section">
           <div class="hero-avatar-large">⚔️</div>
           <div class="hero-profile-info">
-            <h3 class="hero-name-large">${hero.name}</h3>
+            <h3 class="hero-name-large">${escapeHtml(hero.name)}</h3>
             <div class="hero-level-badge">Niveau ${hero.level}</div>
             <div class="hero-xp-bar-container">
               <div class="hero-xp-bar">

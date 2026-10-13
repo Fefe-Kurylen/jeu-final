@@ -80,7 +80,7 @@ function renderArmies() {
         <div class="hero-assignment-card">
           <div class="hero-card-header">
             <span class="hero-icon-mini">👤</span>
-            <span class="hero-name-mini">${heroData?.name || 'Héros'}</span>
+            <span class="hero-name-mini">${escapeHtml(heroData?.name || 'Héros')}</span>
             <span class="hero-level-mini">Niv.${heroData?.level || 1}</span>
           </div>
           <div class="hero-stats-row">
@@ -90,7 +90,7 @@ function renderArmies() {
           </div>
           <div class="hero-assign-status">
             ${heroAssignedToArmy 
-              ? `<span class="assigned-to">➡️ ${heroAssignedToArmy.name}</span>
+              ? `<span class="assigned-to">➡️ ${escapeHtml(heroAssignedToArmy.name)}</span>
                  <button class="btn-unassign-small" onclick="unassignHero('${heroAssignedToArmy.id}')">Retirer</button>`
               : `<span class="hero-available">✓ Disponible</span>`
             }
@@ -187,7 +187,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
       <div class="army-card-top">
         <div class="army-name-section">
           <span class="slot-num">#${slotNum}</span>
-          <input type="text" class="army-name-input-new" value="${army.name || `Armée ${slotNum}`}" 
+          <input type="text" class="army-name-input-new" value="${escapeHtml(army.name || `Armée ${slotNum}`)}" 
                  onchange="renameArmy('${army.id}', this.value)" onclick="event.stopPropagation()">
         </div>
         <span class="status-pill ${status.cls}">${status.icon} ${status.label}</span>
@@ -198,7 +198,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
            onclick="${!hasHero && army.status === 'IDLE' ? `assignHeroToArmy('${army.id}')` : ''}">
         ${hasHero ? `
           <span class="hero-mini-icon">👤</span>
-          <span class="hero-mini-name">${heroData?.name || 'Héros'}</span>
+          <span class="hero-mini-name">${escapeHtml(heroData?.name || 'Héros')}</span>
           ${army.status === 'IDLE' ? `<button class="btn-x-small" onclick="event.stopPropagation(); unassignHero('${army.id}')" title="Retirer">✕</button>` : ''}
         ` : `
           <span class="hero-placeholder-text">${army.status === 'IDLE' ? '+ Ajouter héros' : 'Sans héros'}</span>
@@ -235,7 +235,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           </div>
           <div class="harvest-carry">
             <span class="carry-label">Transporté:</span>
-            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}</span>
+            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}${army.carryGold ? ` + 💰 ${formatNum(army.carryGold)}` : ''}</span>
           </div>
         </div>
       ` : ''}
@@ -288,7 +288,7 @@ function showArmyActionsMenu(armyId) {
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
-      <h3>⚙️ Actions - ${army.name}</h3>
+      <h3>⚙️ Actions - ${escapeHtml(army.name)}</h3>
       ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">⚠️ ${disabledReason}</p>` : ''}
       <div class="actions-grid">
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
@@ -378,7 +378,7 @@ function openArmyComposition(armyId) {
       <div class="comp-header">
         <div class="comp-header-left">
           <span class="comp-slot-badge">#${army.slot}</span>
-          <h2>${army.name}</h2>
+          <h2>${escapeHtml(army.name)}</h2>
         </div>
         <div class="comp-header-right">
           <span class="comp-power" id="comp-power">⚔️ ${formatNum(calculateArmyPower(army))}</span>
@@ -391,7 +391,7 @@ function openArmyComposition(armyId) {
           <span class="hero-icon-comp">👤</span>
           <div class="hero-info-comp">
             ${hasHero ? `
-              <span class="hero-name-comp">${heroData?.name || 'Héros'}</span>
+              <span class="hero-name-comp">${escapeHtml(heroData?.name || 'Héros')}</span>
               <span class="hero-stats-comp">⚔️${heroData?.attack} 🛡️${heroData?.defense} ⚡${heroData?.speed}</span>
             ` : `
               <span class="hero-placeholder-comp">Aucun héros assigné</span>
@@ -705,16 +705,22 @@ async function createArmy(slotNum) {
 // Rename army
 async function renameArmy(armyId, newName) {
   try {
-    await fetch(`${API}/api/army/${armyId}/rename`, {
+    const res = await fetch(`${API}/api/army/${armyId}/rename`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: newName })
     });
-    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || 'Nom refusé', 'error');
+      renderArmies();
+      return;
+    }
     const army = armies.find(a => a.id === armyId);
-    if (army) army.name = newName;
+    if (army) army.name = data.name || newName;
   } catch (e) {
     console.error('Rename error', e);
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -725,10 +731,10 @@ async function assignHeroToArmy(armyId) {
     return;
   }
   
-  // Check if hero is already assigned elsewhere
-  const armyWithHero = armies.find(a => a.heroId && a.id !== armyId);
+  // The server moves the hero between armies of the same city; it can't be pulled out of a mission
+  const armyWithHero = armies.find(a => a.heroId && a.id !== armyId && a.status !== 'IDLE');
   if (armyWithHero) {
-    showToast(`Le héros est déjà assigné à ${armyWithHero.name}. Retirez-le d'abord.`, 'warning');
+    showToast(`Le héros est en mission avec ${armyWithHero.name}.`, 'warning');
     return;
   }
   

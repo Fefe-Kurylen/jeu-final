@@ -12,6 +12,11 @@ let currentCity = null;
 let cities = [];
 let armies = [];
 
+// Escape player-provided text before interpolating it into innerHTML
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // ========== CACHE SYSTEM ==========
 const cache = {
   units: null,
@@ -48,23 +53,13 @@ const requestManager = {
   // Évite les requêtes dupliquées simultanées
   async fetch(url, options = {}) {
     const key = url + JSON.stringify(options);
-    
-    if (this.pending.has(key)) {
-      return this.pending.get(key);
+    let promise = this.pending.get(key);
+    if (!promise) {
+      promise = fetch(url, options).finally(() => this.pending.delete(key));
+      this.pending.set(key, promise);
     }
-    
-    const promise = fetch(url, options)
-      .then(res => {
-        this.pending.delete(key);
-        return res;
-      })
-      .catch(err => {
-        this.pending.delete(key);
-        throw err;
-      });
-    
-    this.pending.set(key, promise);
-    return promise;
+    // Each caller gets its own copy: a Response body can only be read once
+    return promise.then(res => res.clone());
   },
   
   // Fetch avec retry automatique
@@ -284,6 +279,7 @@ async function loadPlayer() {
     });
     if (res.ok) {
       player = await res.json();
+      player.allianceId = player.alliance?.allianceId || null;
       document.getElementById('player-name').textContent = player.name;
       document.getElementById('player-faction').textContent = player.faction;
       document.getElementById('player-pop').textContent = player.population || 0;
@@ -349,7 +345,7 @@ function updateCitySelector() {
   const select = document.getElementById('city-select');
   if (select) {
     select.innerHTML = cities.map(c =>
-      `<option value="${c.id}" ${c.id === currentCity?.id ? 'selected' : ''}>${c.name} ${c.isCapital ? '👑' : ''}</option>`
+      `<option value="${c.id}" ${c.id === currentCity?.id ? 'selected' : ''}>${escapeHtml(c.name)} ${c.isCapital ? '👑' : ''}</option>`
     ).join('');
   }
   // Update bottom-nav village selector

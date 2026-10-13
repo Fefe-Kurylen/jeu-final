@@ -275,8 +275,7 @@ function openBuildPanel(slotNum) {
               <h4>📋 Prérequis</h4>
               <div class="prereq-list">
                 ${def.prereq.map(p => {
-                  const prereqBuilding = currentCity?.buildings?.find(b => b.key === p.key);
-                  const met = prereqBuilding && prereqBuilding.level >= p.level;
+                  const met = (p.key === 'MAIN_HALL' && p.level <= 1) || (currentCity?.buildings || []).some(b => b.key === p.key && b.level >= p.level);
                   return `<div class="prereq-item ${met ? 'met' : 'unmet'}">
                     <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
                     <span>${getBuildingName(p.key)} Niv.${p.level}</span>
@@ -643,8 +642,8 @@ function checkBuildingPrerequisites(buildingDef) {
   const missingPrereqs = [];
 
   for (const prereq of buildingDef.prereq) {
-    const existingBuilding = currentCity?.buildings?.find(b => b.key === prereq.key);
-    const currentLevel = existingBuilding?.level || 0;
+    // Same rule as the server: best level across slots, Main Hall counts as at least level 1
+    const currentLevel = (currentCity?.buildings || []).reduce((m, b) => (b.key === prereq.key && b.level > m ? b.level : m), prereq.key === 'MAIN_HALL' ? 1 : 0);
 
     if (currentLevel < prereq.level) {
       const prereqDef = buildingsData?.find(b => b.key === prereq.key);
@@ -1553,7 +1552,7 @@ function renderMovingArmies() {
       activityEl.classList.add('active');
       activityEl.innerHTML = `
         <span class="activity-icon">${icon}</span>
-        <span class="activity-text">${first.name || 'Armée'}</span>
+        <span class="activity-text">${escapeHtml(first.name || 'Armée')}</span>
         <span class="activity-timer" data-ends-at="${first.arrivalAt || ''}">${first.arrivalAt ? formatTime(first.arrivalAt) : '-'}</span>
         ${moving.length > 1 ? `<span class="activity-more">+${moving.length - 1}</span>` : ''}
       `;
@@ -1576,7 +1575,7 @@ function renderMovingArmies() {
         <div class="queue-item">
           <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '🚶'}</span>
           <div class="queue-info">
-            <span class="queue-name">${a.name || 'Armée'}</span>
+            <span class="queue-name">${escapeHtml(a.name || 'Armée')}</span>
             <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
           </div>
         </div>

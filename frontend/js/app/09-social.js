@@ -4,39 +4,42 @@
 // l'ordre de chargement dans index.html doit être respecté.
 // ============================================================
 // ========== ALLIANCE ==========
+async function fetchJson(path) {
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  return res.json();
+}
+
+function renderLoadError(el, retryFn) {
+  if (el) el.innerHTML = `<div class="empty-state">Impossible de charger les données. <button class="btn btn-secondary" onclick="${retryFn}">Réessayer</button></div>`;
+}
+
 async function loadAlliance() {
-  const res = await fetch(`${API}/api/player/me`, { headers: { Authorization: `Bearer ${token}` } });
   const content = document.getElementById('alliance-content');
-  
-  if (res.ok) {
-    const p = await res.json();
-    
-    if (p.allianceMember) {
-      const allianceRes = await fetch(`${API}/api/alliances`, { headers: { Authorization: `Bearer ${token}` } });
-      const alliances = await allianceRes.json();
-      const myAlliance = alliances.find(a => a.members.some(m => m.playerId === p.id));
-      
-      if (myAlliance) {
-        const myRole = myAlliance.members.find(m => m.playerId === p.id)?.role;
-        const isLeaderOrOfficer = ['LEADER', 'OFFICER'].includes(myRole);
-        
-        // Get diplomacy
-        const diplomacyRes = await fetch(`${API}/api/alliance/diplomacy`, { headers: { Authorization: `Bearer ${token}` } });
-        const diplomacyData = await diplomacyRes.json();
-        
-        // Get other alliances for diplomacy management
-        const otherAlliances = alliances.filter(a => a.id !== myAlliance.id);
-        
-        const showSub = (id) => currentAllianceTab === id ? 'block' : 'none';
-        content.innerHTML = `
+  try {
+    const [p, alliances] = await Promise.all([fetchJson('/api/player/me'), fetchJson('/api/alliances')]);
+    const myAllianceId = p.alliance?.allianceId;
+    const myAlliance = myAllianceId ? alliances.find(a => a.id === myAllianceId) : null;
+
+    if (myAlliance) {
+      const myRole = p.alliance.role;
+      const isLeaderOrOfficer = ['LEADER', 'OFFICER'].includes(myRole);
+      const isLeader = myRole === 'LEADER';
+      const diplomacyData = await fetchJson('/api/alliance/diplomacy').catch(() => ({ diplomacy: [] }));
+      const otherAlliances = alliances.filter(a => a.id !== myAlliance.id);
+      const roleLabel = (role) => role === 'LEADER' ? '👑 Leader' : role === 'OFFICER' ? '⭐ Officier' : '🛡️ Membre';
+
+      const showSub = (id) => currentAllianceTab === id ? 'block' : 'none';
+      content.innerHTML = `
           <div class="alliance-container">
             <div id="alliance-sub-overview" class="alliance-sub-section" style="display:${showSub('overview')}">
               <div class="alliance-section">
                 <div class="alliance-header">
                   <div class="alliance-emblem">🛡️</div>
                   <div class="alliance-info">
-                    <h3>[${myAlliance.tag}] ${myAlliance.name}</h3>
-                    <div class="alliance-tag">${myAlliance.members.length} membres</div>
+                    <h3>[${escapeHtml(myAlliance.tag)}] ${escapeHtml(myAlliance.name)}</h3>
+                    <div class="alliance-tag">${myAlliance.members.length} membres · ${roleLabel(myRole)}</div>
+                    ${myAlliance.description ? `<p style="font-size:12px;color:var(--text-muted)">${escapeHtml(myAlliance.description)}</p>` : ''}
                   </div>
                 </div>
                 <button onclick="leaveAlliance()" class="btn btn-danger" style="margin-top:20px">Quitter l'alliance</button>
@@ -46,12 +49,18 @@ async function loadAlliance() {
             <div id="alliance-sub-members" class="alliance-sub-section" style="display:${showSub('members')}">
               <div class="alliance-section">
                 <h4>👥 Membres (${myAlliance.members.length})</h4>
-                ${myAlliance.members.map(m => `
+                ${myAlliance.members.map(m => {
+                  const isMe = m.playerId === p.id;
+                  const canPromote = isLeader && !isMe && m.role !== 'LEADER';
+                  const canKick = !isMe && m.role !== 'LEADER' && (isLeader || (myRole === 'OFFICER' && m.role === 'MEMBER'));
+                  return `
                   <div class="member-row">
-                    <span class="member-name">${m.player.name}</span>
-                    <span class="member-role ${m.role.toLowerCase()}">${m.role === 'LEADER' ? '👑 Leader' : m.role === 'OFFICER' ? '⭐ Officier' : '🛡️ Membre'}</span>
-                  </div>
-                `).join('')}
+                    <span class="member-name">${escapeHtml(m.player.name)}</span>
+                    <span class="member-role ${m.role.toLowerCase()}">${roleLabel(m.role)}</span>
+                    ${canPromote ? `<button class="btn btn-secondary" style="margin:0 0 0 6px;padding:4px 8px" onclick="promoteMember('${m.playerId}', '${m.role}')">${m.role === 'OFFICER' ? 'Céder le leadership' : 'Promouvoir'}</button>` : ''}
+                    ${canKick ? `<button class="btn btn-danger" style="margin:0 0 0 6px;padding:4px 8px" onclick="kickMember('${m.playerId}')">Exclure</button>` : ''}
+                  </div>`;
+                }).join('')}
               </div>
             </div>
 
@@ -66,7 +75,7 @@ async function loadAlliance() {
                     return `
                       <div class="diplomacy-row">
                         <div class="diplomacy-alliance">
-                          <strong>[${a.tag}]</strong> ${a.name}
+                          <strong>[${escapeHtml(a.tag)}]</strong> ${escapeHtml(a.name)}
                           <span style="font-size:11px;color:var(--text-muted)">(${a.members.length} membres)</span>
                         </div>
                         <div class="diplomacy-status">
@@ -85,14 +94,9 @@ async function loadAlliance() {
             </div>
           </div>
         `;
-        return;
-      }
+      return;
     }
-    
-    // No alliance
-    const alliancesRes = await fetch(`${API}/api/alliances`, { headers: { Authorization: `Bearer ${token}` } });
-    const alliances = await alliancesRes.json();
-    
+
     content.innerHTML = `
       <div style="margin-bottom:30px">
         <h3 style="color:var(--gold);margin-bottom:15px">Créer une alliance</h3>
@@ -103,11 +107,35 @@ async function loadAlliance() {
       <h3 style="color:var(--gold);margin-bottom:15px">Rejoindre une alliance</h3>
       ${alliances.slice(0, 10).map(a => `
         <div class="member-row">
-          <span class="member-name">[${a.tag}] ${a.name} (${a.members.length} membres)</span>
+          <span class="member-name">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)} (${a.members.length} membres)</span>
           <button onclick="joinAlliance('${a.id}')" class="btn btn-secondary" style="margin:0;padding:6px 12px">Rejoindre</button>
         </div>
       `).join('') || '<p style="color:var(--text-muted)">Aucune alliance</p>'}
     `;
+  } catch (e) {
+    console.warn('loadAlliance error:', e);
+    renderLoadError(content, 'loadAlliance()');
+  }
+}
+
+async function promoteMember(playerId, role) {
+  if (role === 'OFFICER' && !confirm('Céder le leadership à ce membre ? Vous deviendrez officier.')) return;
+  await allianceAction(`/api/alliance/promote/${playerId}`, role === 'OFFICER' ? 'Leadership transféré' : 'Membre promu');
+}
+
+async function kickMember(playerId) {
+  if (!confirm('Exclure ce membre de l\'alliance ?')) return;
+  await allianceAction(`/api/alliance/kick/${playerId}`, 'Membre exclu');
+}
+
+async function allianceAction(path, okMessage) {
+  try {
+    const res = await fetch(`${API}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { showToast(data.message || okMessage, 'success'); loadAlliance(); }
+    else showToast(data.error || 'Erreur', 'error');
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -180,40 +208,32 @@ async function joinAlliance(id) {
 }
 
 async function leaveAlliance() {
-  const res = await fetch(`${API}/api/alliance/leave`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  if (res.ok) {
-    showToast('Alliance quittée', 'success');
-    loadAlliance();
-  }
+  if (!confirm('Quitter l\'alliance ?')) return;
+  await allianceAction('/api/alliance/leave', 'Alliance quittée');
 }
 
 // ========== RANKING ==========
 async function loadRanking(type) {
   document.querySelectorAll('.rank-tab').forEach(t => t.classList.remove('active'));
   document.querySelector(`.rank-tab:${type === 'players' ? 'first-child' : 'last-child'}`)?.classList.add('active');
-  
-  const endpoint = type === 'players' ? '/api/ranking/players' : '/api/ranking/alliances';
-  const res = await fetch(`${API}${endpoint}`, { headers: { Authorization: `Bearer ${token}` } });
-  
-  if (res.ok) {
-    const data = await res.json();
-    const content = document.getElementById('ranking-content');
-    
+  const content = document.getElementById('ranking-content');
+
+  try {
+    const data = await fetchJson(type === 'players' ? '/api/ranking/players' : '/api/ranking/alliances');
     content.innerHTML = `
       <div class="ranking-list">
         ${data.map((item, i) => `
           <div class="ranking-row">
             <span class="ranking-position ${i < 3 ? 'top' + (i + 1) : ''}">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</span>
-            <span class="ranking-name">${type === 'players' ? item.name : `[${item.tag}] ${item.name}`}</span>
+            <span class="ranking-name">${type === 'players' ? escapeHtml(item.name) : `[${escapeHtml(item.tag)}] ${escapeHtml(item.name)}`}</span>
             <span class="ranking-value">${formatNum(item.population || 0)} pop</span>
           </div>
         `).join('')}
       </div>
     `;
+  } catch (e) {
+    console.warn('loadRanking error:', e);
+    renderLoadError(content, `loadRanking('${type}')`);
   }
 }
 
@@ -223,47 +243,54 @@ function showRanking(type) {
 
 // ========== REPORTS ==========
 async function loadReports() {
-  const res = await fetch(`${API}/api/reports/battles`, { headers: { Authorization: `Bearer ${token}` } });
-  
-  if (res.ok) {
-    const reports = await res.json();
-    const list = document.getElementById('reports-list');
-    
+  const list = document.getElementById('reports-list');
+  let reports;
+  try {
+    reports = await fetchJson('/api/reports/battles');
+  } catch (e) {
+    console.warn('loadReports error:', e);
+    renderLoadError(list, 'loadReports()');
+    return;
+  }
+  {
     if (reports.length === 0) {
       list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun rapport de bataille</p>';
       return;
     }
-    
+
     list.innerHTML = reports.map((r, idx) => {
       const hasRounds = r.loot?.rounds && r.loot.rounds.length > 0;
-      const attackerName = r.loot?.attackerName || 'Attaquant';
-      const defenderName = r.loot?.defenderName || 'Défenseur';
-      const cityName = r.loot?.cityName || `(${r.x}, ${r.y})`;
+      const attackerName = escapeHtml(r.loot?.attackerName || 'Attaquant');
+      const defenderName = escapeHtml(r.loot?.defenderName || 'Défenseur');
+      const cityName = escapeHtml(r.loot?.cityName || `(${r.x}, ${r.y})`);
       const duration = r.loot?.duration || 1;
-      const isAttacker = r.winner === 'ATTACKER';
-      
+      // Reports are per player: result says whether the reader won; older rows only have the winner side
+      const iAttacked = r.attackerId === player?.id;
+      const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
+      const title = r.loot?.type === 'RAID' ? 'Pillage' : (r.rounds?.type === 'TRIBE_RAID' ? 'Combat contre une tribu' : 'Bataille');
+
       return `
-        <div class="report-card ${isAttacker ? 'report-victory' : 'report-defeat'}">
+        <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
           <div class="report-header">
             <div class="report-title-section">
-              <span class="report-icon">${isAttacker ? '⚔️' : '🛡️'}</span>
+              <span class="report-icon">${iAttacked ? '⚔️' : '🛡️'}</span>
               <div class="report-title-info">
-                <span class="report-title">Bataille à ${cityName}</span>
+                <span class="report-title">${title} à ${cityName}</span>
                 <span class="report-date">${new Date(r.createdAt).toLocaleString('fr-FR')}</span>
               </div>
             </div>
-            <span class="report-result ${isAttacker ? 'victory' : 'defeat'}">
-              ${isAttacker ? '🏆 VICTOIRE' : '💀 DÉFAITE'}
+            <span class="report-result ${won ? 'victory' : 'defeat'}">
+              ${won ? '🏆 VICTOIRE' : '💀 DÉFAITE'}
             </span>
           </div>
-          
+
           <div class="report-summary">
             <div class="report-side attacker">
               <h4>⚔️ ${attackerName}</h4>
               <div class="units-list">
                 ${(r.attackerUnits || []).map(u => `
                   <div class="unit-line">
-                    <span class="unit-name">${u.name || u.key}</span>
+                    <span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
                     <span class="unit-count">${u.count}</span>
                   </div>
                 `).join('')}
@@ -282,7 +309,7 @@ async function loadReports() {
               <div class="units-list">
                 ${(r.defenderUnits || []).map(u => `
                   <div class="unit-line">
-                    <span class="unit-name">${u.name || u.key}</span>
+                    <span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
                     <span class="unit-count">${u.count}</span>
                   </div>
                 `).join('')}
@@ -340,7 +367,7 @@ function showBattleReplay(reportIndex) {
   modalBody.innerHTML = `
     <div class="battle-replay">
       <h2>⚔️ Replay de la Bataille</h2>
-      <p class="replay-subtitle">${attackerName} vs ${defenderName}</p>
+      <p class="replay-subtitle">${escapeHtml(attackerName)} vs ${escapeHtml(defenderName)}</p>
       
       <div class="replay-arena">
         <div class="replay-side attacker-side">
@@ -394,6 +421,7 @@ function showBattleReplay(reportIndex) {
   modal.style.display = 'flex';
   
   // Initialize replay state
+  stopBattleReplay();
   window.replayState = {
     report,
     rounds,
@@ -401,8 +429,8 @@ function showBattleReplay(reportIndex) {
     playing: false,
     speed: 1,
     intervalId: null,
-    attackerInitial: report.attackerUnits.reduce((s, u) => s + u.count, 0),
-    defenderInitial: report.defenderUnits.reduce((s, u) => s + u.count, 0)
+    attackerInitial: (report.attackerUnits || []).reduce((s, u) => s + u.count, 0),
+    defenderInitial: (report.defenderUnits || []).reduce((s, u) => s + u.count, 0)
   };
   
   // Show initial state
@@ -434,8 +462,8 @@ function renderReplayState() {
   document.getElementById('defender-count').textContent = `${defenderRemaining} / ${state.defenderInitial}`;
   
   // Update HP bars
-  const attackerPct = (attackerRemaining / state.attackerInitial) * 100;
-  const defenderPct = (defenderRemaining / state.defenderInitial) * 100;
+  const attackerPct = state.attackerInitial > 0 ? (attackerRemaining / state.attackerInitial) * 100 : 0;
+  const defenderPct = state.defenderInitial > 0 ? (defenderRemaining / state.defenderInitial) * 100 : 0;
   document.getElementById('attacker-hp-bar').style.width = `${attackerPct}%`;
   document.getElementById('defender-hp-bar').style.width = `${defenderPct}%`;
   
@@ -485,13 +513,19 @@ function replayNextRound() {
 function replayPrevRound() {
   const state = window.replayState;
   if (!state || state.currentRound <= 0) return;
-  state.currentRound--;
+  const target = state.currentRound - 1;
   document.getElementById('replay-log').innerHTML = '';
-  // Re-render all rounds up to current
-  for (let i = 0; i <= state.currentRound; i++) {
+  // Rebuild the log by replaying rounds 0..target
+  for (let i = 0; i <= target; i++) {
     state.currentRound = i;
-    if (i === state.currentRound) renderReplayState();
+    renderReplayState();
   }
+}
+
+function stopBattleReplay() {
+  const state = window.replayState;
+  if (state?.intervalId) clearInterval(state.intervalId);
+  window.replayState = null;
 }
 
 function replayTogglePlay() {

@@ -2850,7 +2850,7 @@ function showMapInfoPanel(x, y, tile) {
     
     if (isMyCity) {
       content.innerHTML = `
-        <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+        <h3>${tile.isCapital ? '👑 ' : '🏰 '}${escapeHtml(tile.name || 'Ville')}</h3>
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
         <div class="panel-actions">
@@ -2966,9 +2966,9 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
   const statusLabel = statusLabels[diplomacyStatus] || 'Inconnu';
   
   content.innerHTML = `
-    <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+    <h3>${tile.isCapital ? '👑 ' : '🏰 '}${escapeHtml(tile.name || 'Ville')}</h3>
     <p>Position: (${x}, ${y})</p>
-    <p>Propriétaire: <strong>${tile.playerName || 'Inconnu'}</strong></p>
+    <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
     <div class="panel-actions player-actions">
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">👤 Profil</button>
@@ -2981,7 +2981,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
         <button class="btn btn-raid" disabled title="Impossible de piller un allié">💰 Piller</button>
       `}
       ${canTransport ? `
-        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', '${tile.name}')" ${!hasArmy ? 'disabled' : ''}>📦 Envoyer ressources</button>
+        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>📦 Envoyer ressources</button>
       ` : `
         <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">📦 Envoyer</button>
       `}
@@ -3013,13 +3013,13 @@ async function viewPlayerProfile(playerId) {
   
   document.getElementById('modal-body').innerHTML = `
     <div class="player-profile">
-      <h2>👤 ${p.name}</h2>
+      <h2>👤 ${escapeHtml(p.name)}</h2>
       <div class="profile-info">
         <div class="profile-stat"><span>Faction:</span> <strong>${p.faction}</strong></div>
         <div class="profile-stat"><span>Population:</span> <strong>${formatNum(p.population)}</strong></div>
         <div class="profile-stat"><span>Villes:</span> <strong>${p.citiesCount}</strong></div>
-        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${p.alliance.tag}] ${p.alliance.name}</strong></div>` : ''}
-        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${p.hero.name} (Niv.${p.hero.level})</strong></div>` : ''}
+        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${escapeHtml(p.alliance.tag)}] ${escapeHtml(p.alliance.name)}</strong></div>` : ''}
+        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${escapeHtml(p.hero.name)} (Niv.${p.hero.level})</strong></div>` : ''}
         ${p.stats ? `
           <div class="profile-stat"><span>Attaques gagnées:</span> <strong>${p.stats.attacksWon}</strong></div>
           <div class="profile-stat"><span>Défenses gagnées:</span> <strong>${p.stats.defensesWon}</strong></div>
@@ -3029,7 +3029,7 @@ async function viewPlayerProfile(playerId) {
       <div class="profile-cities">
         ${p.cities.map(c => `
           <div class="profile-city">
-            ${c.isCapital ? '👑' : '🏰'} ${c.name} (${c.x}, ${c.y})
+            ${c.isCapital ? '👑' : '🏰'} ${escapeHtml(c.name)} (${c.x}, ${c.y})
           </div>
         `).join('')}
       </div>
@@ -3051,7 +3051,7 @@ function spyFromMap(cityId) {
   
   document.getElementById('modal-body').innerHTML = `
     <h3>🔍 Espionner</h3>
-    <p>Envoyer <strong>${army.name}</strong> espionner cette ville ?</p>
+    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> espionner cette ville ?</p>
     <p style="font-size:12px;color:#888">L'espionnage révèle les bâtiments, armées et ressources de l'ennemi.</p>
     <div style="margin-top:15px">
       <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">🔍 Espionner</button>
@@ -3104,8 +3104,8 @@ function sendResourcesFromMap(cityId, cityName) {
   
   document.getElementById('modal-body').innerHTML = `
     <h3>📦 Envoyer des ressources</h3>
-    <p>Vers: <strong>${cityName}</strong></p>
-    <p>Armée: <strong>${army.name}</strong></p>
+    <p>Vers: <strong>${escapeHtml(cityName)}</strong></p>
+    <p>Armée: <strong>${escapeHtml(army.name)}</strong></p>
     <p>Capacité: <strong>${formatNum(capacity)}</strong></p>
     
     <div class="resource-inputs">
@@ -3197,7 +3197,7 @@ function attackFromMap(cityId, x, y) {
   
   document.getElementById('modal-body').innerHTML = `
     <h3>Confirmer l'attaque</h3>
-    <p>Envoyer <strong>${army.name}</strong> attaquer la ville à (${x}, ${y}) ?</p>
+    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> attaquer la ville à (${x}, ${y}) ?</p>
     <button onclick="confirmAttackFromMap('${army.id}', '${cityId}')" class="btn btn-danger">Attaquer!</button>
     <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
   `;
@@ -3235,7 +3235,7 @@ function raidFromMap(cityId) {
   if (army) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
-      <p>Envoyer <strong>${army.name}</strong> piller cette ville ?</p>
+      <p>Envoyer <strong>${escapeHtml(army.name)}</strong> piller cette ville ?</p>
       <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller!</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     `;
@@ -3284,8 +3284,8 @@ function raidResource(nodeId, x, y) {
 
   // Build army selection
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    return `<option value="${a.id}">${a.name} (${totalUnits} unités)</option>`;
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.count, 0) || 0;
+    return `<option value="${a.id}">${escapeHtml(a.name)} (${totalUnits} unités)</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
@@ -3314,27 +3314,22 @@ async function confirmRaidResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
-
-  if (res.ok) {
-    const data = await res.json();
-    if (data.combatResult) {
-      showRaidResourceResult(data);
-    } else {
-      showToast('Armée en route vers la ressource', 'success');
-    }
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Erreur lors du raid', 'error'); return; }
+    if (data.combatResult) showRaidResourceResult(data);
+    else showToast('Armée en route vers la ressource', 'success');
     await loadArmies();
     loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur lors du raid', 'error');
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -3371,9 +3366,8 @@ function collectResource(nodeId, x, y) {
 
   const tile = mapData.find(t => t.id === nodeId);
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    const carryCapacity = totalUnits * 50; // Assume 50 carry per unit
-    return `<option value="${a.id}">${a.name} (capacité: ${formatNum(carryCapacity)})</option>`;
+    const carryCapacity = (a.units || []).reduce((sum, u) => sum + u.count * (unitsData.find(d => d.key === u.unitKey)?.stats?.transport || 50), 0);
+    return `<option value="${a.id}">${escapeHtml(a.name)} (capacité: ${formatNum(carryCapacity)})</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
@@ -3406,17 +3400,22 @@ async function confirmCollectResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
+  let res, data;
+  try {
+    res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+    return;
+  }
 
   if (res.ok) {
-    const data = await res.json();
     if (data.status === 'HARVESTING') {
       // Récolte progressive
       showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
@@ -3430,30 +3429,30 @@ async function confirmCollectResource(nodeId) {
     await loadArmies();
     loadMap();
   } else {
-    const data = await res.json();
     showToast(data.error || 'Erreur lors de la collecte', 'error');
   }
 }
 
 async function sendArmyTo(x, y) {
-  const army = armies.find(a => a.status === 'IDLE');
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
-  
-  const res = await fetch(`${API}/api/army/${army.id}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ x, y })
-  });
-  
   closeMapPanel();
-  
-  if (res.ok) {
+  try {
+    const res = await fetch(`${API}/api/army/${army.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ x, y })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Déplacement impossible', 'error'); return; }
     showToast('Armée en route!', 'success');
     await loadArmies();
     loadMap();
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 

@@ -35,7 +35,7 @@ function renderMarketOffers() {
     const isMyOffer = offer.sellerId === player?.id;
     return `
       <div class="market-offer ${isMyOffer ? 'my-offer' : ''}">
-        <div class="offer-seller">${isMyOffer ? '👤 Votre offre' : `👤 ${offer.seller?.name || 'Inconnu'}`}</div>
+        <div class="offer-seller">${isMyOffer ? '👤 Votre offre' : `👤 ${escapeHtml(offer.player?.name || 'Inconnu')}`}</div>
         <div class="offer-exchange">
           <span class="offer-sell">${resourceIcons[offer.sellResource]} ${formatNum(offer.sellAmount)}</span>
           <span class="offer-arrow">➡️</span>
@@ -194,7 +194,9 @@ function renderTradeReports() {
   const resIcons = { wood: '🪵', stone: '🪨', iron: '⚒️', food: '🌾' };
 
   container.innerHTML = tradeReports.map(t => {
-    const isSeller = t.sellerId === gameState?.player?.id;
+    const isSeller = t.sellerId === player?.id;
+    const gave = isSeller ? { res: t.sellResource, amount: t.sellAmount } : { res: t.buyResource, amount: t.buyAmount };
+    const got = isSeller ? { res: t.buyResource, amount: t.buyAmount } : { res: t.sellResource, amount: t.sellAmount };
     const date = new Date(t.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     return `
       <div class="report-item" style="padding:10px;margin-bottom:6px;background:var(--bg-tertiary);border-radius:8px;">
@@ -203,9 +205,9 @@ function renderTradeReports() {
           <span style="color:var(--text-secondary);font-size:0.85em;">${date}</span>
         </div>
         <div style="margin-top:4px;">
-          <span style="color:var(--error)">${resIcons[t.sellResource] || ''} -${formatNum(t.sellAmount)} ${resNames[t.sellResource] || t.sellResource}</span>
+          <span style="color:var(--error)">${resIcons[gave.res] || ''} -${formatNum(gave.amount)} ${resNames[gave.res] || gave.res}</span>
           →
-          <span style="color:var(--success)">${resIcons[t.buyResource] || ''} +${formatNum(t.buyAmount)} ${resNames[t.buyResource] || t.buyResource}</span>
+          <span style="color:var(--success)">${resIcons[got.res] || ''} +${formatNum(got.amount)} ${resNames[got.res] || got.res}</span>
         </div>
       </div>
     `;
@@ -247,7 +249,7 @@ function renderSpyReports() {
             <span class="report-title">🔍 Espionnage échoué</span>
             <span class="report-date">${date}</span>
           </div>
-          <p>Votre espion n'a pas réussi à infiltrer <strong>${report.cityName}</strong> à (${report.x}, ${report.y})</p>
+          <p>Votre espion n'a pas réussi à infiltrer <strong>${escapeHtml(report.cityName)}</strong> à (${report.x}, ${report.y})</p>
         </div>
       `;
     }
@@ -258,7 +260,7 @@ function renderSpyReports() {
           <span class="report-title">🔍 Espionnage réussi</span>
           <span class="report-date">${date}</span>
         </div>
-        <p><strong>${report.cityName}</strong> à (${report.x}, ${report.y})</p>
+        <p><strong>${escapeHtml(report.cityName)}</strong> à (${report.x}, ${report.y})</p>
         
         <div class="spy-section">
           <h4>💰 Ressources</h4>
@@ -283,7 +285,7 @@ function renderSpyReports() {
           ${(report.armies || []).length === 0 ? '<p>Aucune armée détectée</p>' : 
             report.armies.map(a => `
               <div class="spy-army">
-                <strong>${a.name}</strong>: 
+                <strong>${escapeHtml(a.name)}</strong>: 
                 ${a.units.map(u => `${getUnitName(u.key)} x${u.count}`).join(', ')}
               </div>
             `).join('')
@@ -331,7 +333,7 @@ function openVillageList() {
       <div class="village-list-item ${isActive ? 'active' : ''}" onclick="selectCity('${city.id}'); closeModal();">
         <span class="village-icon">${city.isCapital ? '👑' : '🏘️'}</span>
         <div class="village-details">
-          <span class="village-name">${city.name}</span>
+          <span class="village-name">${escapeHtml(city.name)}</span>
           <span class="village-coords">(${city.x}|${city.y})</span>
         </div>
         <span class="village-pop">Pop: ${city.population || 0}</span>

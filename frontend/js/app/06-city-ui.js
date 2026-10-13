@@ -128,11 +128,6 @@ function showTab(tabName) {
     stopCityAnimation();
   }
 
-  // Stop map animation if not on map
-  if (tabName !== 'map' && typeof stopMapAnimation === 'function') {
-    stopMapAnimation();
-  }
-
   // Special handling for fields/city tabs - they share the city-canvas
   if (tabName === 'fields' || tabName === 'city') {
     // Show city tab container (both use city-canvas)

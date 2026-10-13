@@ -117,23 +117,6 @@
     setTimeout(() => window.dispatchEvent(new Event('resize')), 250);
   });
 
-  // ========== PERFORMANCE ==========
-
-  // Limiter a 30fps pour economiser la batterie
-  let lastFrameTime = 0;
-  const FRAME_INTERVAL = 33; // ~30fps
-  const originalRAF = window.requestAnimationFrame;
-  window.requestAnimationFrame = function(callback) {
-    return originalRAF(function(timestamp) {
-      if (timestamp - lastFrameTime >= FRAME_INTERVAL) {
-        lastFrameTime = timestamp;
-        callback(timestamp);
-      } else {
-        originalRAF(callback);
-      }
-    });
-  };
-
   // ========== HAPTICS ==========
   window.haptic = async function(style) {
     try {
