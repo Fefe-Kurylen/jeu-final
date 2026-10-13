@@ -785,3 +785,6 @@ function buildingSpriteUrl(key) {
 function fieldSpriteUrl(type, level) {
   return `assets/images/fields/${player?.faction || 'ROME'}/${cityBiome()}/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.svg`;
 }
+
+// Icône peinte d'une ressource (assets/images/ui) pour les panneaux générés en HTML
+function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="assets/images/ui/${key}.svg" alt="">`; }

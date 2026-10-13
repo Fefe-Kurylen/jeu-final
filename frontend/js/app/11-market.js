@@ -24,7 +24,7 @@ function renderMarketOffers() {
   const container = document.getElementById('market-offers');
   if (!container) return;
   
-  const resourceIcons = { wood: '🪵', stone: '🪨', iron: '⛏️', food: '🌾' };
+  const resourceIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
   
   if (marketOffers.length === 0) {
     container.innerHTML = '<p class="empty-state">Aucune offre disponible</p>';
@@ -191,7 +191,7 @@ function renderTradeReports() {
   }
 
   const resNames = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
-  const resIcons = { wood: '🪵', stone: '🪨', iron: '⚒️', food: '🌾' };
+  const resIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
 
   container.innerHTML = tradeReports.map(t => {
     const isSeller = t.sellerId === player?.id;
@@ -237,7 +237,7 @@ function renderSpyReports() {
     return;
   }
   
-  const resourceIcons = { wood: '🪵', stone: '🪨', iron: '⛏️', food: '🌾' };
+  const resourceIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
   
   container.innerHTML = spyReports.map(report => {
     const date = new Date(report.createdAt).toLocaleString('fr-FR');

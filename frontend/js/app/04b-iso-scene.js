@@ -310,6 +310,54 @@ function drawIsoNight(ctx, lit) {
 
 function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key === 'WALL')?.level || 0; }
 
+// ---------- Animations légères (12 i/s) : fumée des cheminées, reflets d'eau, oiseaux, torches ----------
+// Position (ix, iy, iz) dans le repère du sprite (tools/build-assets.cjs : P()) -> écran, pour un sprite de
+// largeur w dont le centre du losange est en (x, y)
+function spritePointToScreen(x, y, w, ix, iy, iz) {
+  const px = 100 + (ix - iy) * 25, py = 70 + (ix + iy) * 12.5 - iz * 24;
+  return { x: x + ((px - 100) / 130) * w, y: y + ((py - 70) / 130) * w };
+}
+const ISO_CHIMNEYS = { WORKSHOP: [-0.5, -0.4, 1.2], FORGE: [0.2, -0.3, 1.0], BAKERY: [0.3, -0.4, 0.9], FOUNDRY: [0.2, -0.4, 1.1], GALLIC_BREWERY: [0.2, -0.4, 0.9] };
+const ISO_WATER = { MOAT: [0, 0, 0, 0.9], ROMAN_THERMAE: [0, 0.5, 0, 0.4], EGYPTIAN_IRRIGATION: [0, 0, 0, 0.8] };   // ix, iy, iz, rayon (cellules)
+const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0 };
+function isoAnimate(ctx, built, W, night) {
+  const now = performance.now() / 1000;
+  const dt = Math.min(0.2, now - (isoAnim.last || now)); isoAnim.last = now;
+  // fumée
+  for (const b of built) {
+    const ch = ISO_CHIMNEYS[b.key];
+    if (!ch) continue;
+    const p = spritePointToScreen(b.x, b.y, b.w, ch[0], ch[1], ch[2]);
+    if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.16, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0 });
+  }
+  for (const pf of isoAnim.smoke) { pf.life += dt; pf.x += (pf.vx + Math.sin(pf.life * 3) * W * 0.02) * dt; pf.y += pf.vy * dt; pf.r += W * 0.05 * dt; pf.a -= 0.19 * dt; }
+  isoAnim.smoke = isoAnim.smoke.filter(pf => pf.a > 0.02);
+  for (const pf of isoAnim.smoke) { ctx.fillStyle = night ? `rgba(200,200,220,${pf.a * 0.5})` : `rgba(245,240,232,${pf.a})`; ctx.beginPath(); ctx.arc(pf.x, pf.y, pf.r, 0, Math.PI * 2); ctx.fill(); }
+  // reflets d'eau
+  for (const b of built) {
+    const wt = ISO_WATER[b.key];
+    if (!wt) continue;
+    const p = spritePointToScreen(b.x, b.y, b.w, wt[0], wt[1], wt[2]);
+    const rr = wt[3] * b.w * 0.27;
+    for (let i = 0; i < 3; i++) {
+      const t = now * 0.7 + i * 2.1, k = (t % 2) / 2;
+      ctx.fillStyle = `rgba(255,255,255,${(1 - k) * (night ? 0.22 : 0.35)})`;
+      ctx.beginPath(); ctx.ellipse(p.x + Math.cos(i * 2.1) * rr * 0.4 * k, p.y + Math.sin(i * 2.1) * rr * 0.2 * k, rr * (0.15 + k * 0.35), rr * (0.06 + k * 0.14), 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // vol d'oiseaux toutes les ~25 s
+  if (!isoAnim.birds && now > isoAnim.nextBirds) { const fromLeft = Math.random() < 0.5; isoAnim.birds = { x: fromLeft ? -40 : cityViewW + 40, y: cityViewH * (0.12 + Math.random() * 0.25), dir: fromLeft ? 1 : -1, t: 0 }; }
+  if (isoAnim.birds) {
+    const bd = isoAnim.birds; bd.t += dt; bd.x += bd.dir * dt * Math.max(60, cityViewW * 0.09);
+    ctx.strokeStyle = night ? 'rgba(20,24,40,0.6)' : 'rgba(40,30,20,0.6)'; ctx.lineWidth = 1.4;
+    for (let i = 0; i < 5; i++) {
+      const bx = bd.x - bd.dir * i * 11 + (i % 2) * 3, by = bd.y + Math.abs(i - 2) * 6 + Math.sin(bd.t * 2 + i) * 2, flap = Math.sin(bd.t * 10 + i) * 2.5;
+      ctx.beginPath(); ctx.moveTo(bx - 5, by + flap); ctx.quadraticCurveTo(bx, by - 2, bx + 5, by + flap); ctx.stroke();
+    }
+    if (bd.x < -60 || bd.x > cityViewW + 60) { isoAnim.birds = null; isoAnim.nextBirds = now + 18 + Math.random() * 20; }
+  }
+}
+
 // ---------- Rendu ----------
 function renderCityView() {
   setupCityGestures();
@@ -327,7 +375,7 @@ function renderCityView() {
   drawIsoPlaza(ctx, cx, cy, W, night);
   const wallLevel = cityWallLevel();
   if (wallLevel > 0) items.push(...isoWallItems(ctx, cx, cy, W, wallLevel, night));
-  const lit = [];
+  const lit = [], built = [];
   isoOverlayQueue = [];
   for (const s of citySlots) {
     const building = getBuildingAtSlot(s.slot);
@@ -340,13 +388,15 @@ function renderCityView() {
       if (hovered) drawIsoHoverCell(ctx, s);
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);
     } });
-    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.32 });
+    if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7 });
+    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.3 + Math.sin(performance.now() / 180 + s.slot) * 0.03 });
   }
   // cellule libre : un arbre d'agrément
   const spare = isoPos(ISO_CITY_SPARE[0], ISO_CITY_SPARE[1], W, cx, cy);
   items.push({ depth: ISO_CITY_SPARE[0] + ISO_CITY_SPARE[1], y: spare.y, draw: () => drawProp(ctx, biomeScene(biome).props.trees[1], spare.x, spare.y + W * 0.1, W * 0.8, spriteVariant(false)) });
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
+  isoAnimate(ctx, built, W, night);
   if (night) drawIsoNight(ctx, lit);
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
   for (const fn of overlay) fn();

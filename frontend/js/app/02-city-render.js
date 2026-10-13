@@ -173,8 +173,9 @@ function animateCityView() {
 
   // Économie de batterie : 20 i/s seulement quand quelque chose bouge (construction en cours, geste en
   // cours) ; sinon un rafraîchissement toutes les 2 s suffit (les sprites sont statiques)
-  const busy = (currentCity?.buildQueue?.some(q => q.status === 'RUNNING')) || (typeof cityGesture !== 'undefined' && cityGesture.pointers.size > 0);
-  const interval = busy ? CITY_FRAME_INTERVAL : 2000;
+  const gesture = typeof cityGesture !== 'undefined' && cityGesture.pointers.size > 0;
+  const visible = document.visibilityState === 'visible';
+  const interval = !visible ? 2000 : gesture ? CITY_FRAME_INTERVAL : 83;   // 12 i/s : fumée, reflets, oiseaux
   const now = performance.now();
   if (now - lastCityFrameTime >= interval) {
     lastCityFrameTime = now;

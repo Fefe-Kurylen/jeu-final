@@ -72,19 +72,19 @@ async function loadHero() {
             <!-- Stats -->
             <div class="hero-stats-grid">
               <div class="hero-stat-row">
-                <span class="stat-icon">⚔️</span>
+                <span class="stat-icon"><img class="ico" src="assets/images/ui/attack.svg" alt=""></span>
                 <span class="stat-label">Attaque</span>
                 <span class="stat-val">${hero.attack + hero.atkPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('atk')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
-                <span class="stat-icon">🛡️</span>
+                <span class="stat-icon"><img class="ico" src="assets/images/ui/defense.svg" alt=""></span>
                 <span class="stat-label">Defense</span>
                 <span class="stat-val">${hero.defense + hero.defPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('def')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
-                <span class="stat-icon">🏃</span>
+                <span class="stat-icon"><img class="ico" src="assets/images/ui/expedition.svg" alt=""></span>
                 <span class="stat-label">Vitesse</span>
                 <span class="stat-val">${hero.speed + hero.spdPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('spd')">+</button>` : ''}
@@ -317,19 +317,19 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
           <h4>📊 Statistiques</h4>
           <div class="hero-stats-grid">
             <div class="hero-stat-card">
-              <span class="stat-icon">⚔️</span>
+              <span class="stat-icon"><img class="ico" src="assets/images/ui/attack.svg" alt=""></span>
               <span class="stat-name">Attaque</span>
               <span class="stat-value">${hero.atkPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('atk')">+</button>` : ''}
             </div>
             <div class="hero-stat-card">
-              <span class="stat-icon">🛡️</span>
+              <span class="stat-icon"><img class="ico" src="assets/images/ui/defense.svg" alt=""></span>
               <span class="stat-name">Défense</span>
               <span class="stat-value">${hero.defPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('def')">+</button>` : ''}
             </div>
             <div class="hero-stat-card">
-              <span class="stat-icon">🏃</span>
+              <span class="stat-icon"><img class="ico" src="assets/images/ui/expedition.svg" alt=""></span>
               <span class="stat-name">Vitesse</span>
               <span class="stat-value">${hero.spdPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('spd')">+</button>` : ''}

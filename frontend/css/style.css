@@ -4400,3 +4400,7 @@ img.dn-icon { width: 20px; height: 20px; object-fit: contain; vertical-align: mi
   .gold-box img.res-icon { width: 22px; height: 22px; }
   img.res-icon { width: 22px; height: 22px; }
 }
+/* Icônes peintes dans les panneaux (coûts, stats, marché) */
+img.ico { width: 1.35em; height: 1.35em; object-fit: contain; vertical-align: -0.3em; }
+.cost-icon img.ico { width: 28px; height: 28px; display: block; margin: 0 auto 2px; }
+.stat-icon img.ico { width: 24px; height: 24px; }

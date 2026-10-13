@@ -148,10 +148,10 @@ function showNpcMerchant() {
   if (!container) return;
 
   const resources = [
-    { key: 'wood', icon: '🪵', name: 'Bois', current: Math.floor(currentCity?.wood || 0) },
-    { key: 'stone', icon: '🧱', name: 'Argile', current: Math.floor(currentCity?.stone || 0) },
-    { key: 'iron', icon: '⛏️', name: 'Fer', current: Math.floor(currentCity?.iron || 0) },
-    { key: 'food', icon: '🌾', name: 'Ble', current: Math.floor(currentCity?.food || 0) }
+    { key: 'wood', icon: resIconHtml('wood'), name: 'Bois', current: Math.floor(currentCity?.wood || 0) },
+    { key: 'stone', icon: resIconHtml('stone'), name: 'Argile', current: Math.floor(currentCity?.stone || 0) },
+    { key: 'iron', icon: resIconHtml('iron'), name: 'Fer', current: Math.floor(currentCity?.iron || 0) },
+    { key: 'food', icon: resIconHtml('food'), name: 'Ble', current: Math.floor(currentCity?.food || 0) }
   ];
 
   // NPC exchange rate: give X resources, receive Y of another type

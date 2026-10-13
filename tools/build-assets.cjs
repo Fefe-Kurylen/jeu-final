@@ -639,17 +639,22 @@ M.resources.stone_snow = () => shadow(40, 18) + snowRock(P(-0.4, -0.2)[0], P(-0.
 M.resources.stone_desert = () => shadow(40, 18) + rock(P(-0.4, -0.2)[0], P(-0.4, -0.2)[1], 40, '#b8865a') + rock(P(0.45, 0.25)[0], P(0.45, 0.25)[1], 34, '#c9966a') + rock(P(0.1, -0.7)[0], P(0.1, -0.7)[1], 24, '#d4a070') + rock(P(-0.5, 0.6)[0], P(-0.5, 0.6)[1], 20, '#a07048');
 M.resources.food_desert = () => shadow(40, 18) + poly([P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)], '#b8a040') + channels(-1, -1, 2, 2, 6) + wheatRows(-1, -1, 2, 2, 6, '#e8c84a') + palm(P(0.9, -0.9)[0], P(0.9, -0.9)[1], 30);
 const soldier = (x, y, s, c) => ell(x, y, s * 0.45, s * 0.18, '#000', 'opacity="0.3"') + rect(x - s * 0.22, y - s * 0.95, s * 0.44, s * 0.7, c, 'rx="3"') + circ(x, y - s * 1.1, s * 0.18, '#e8c8a0') + rect(x - s * 0.3, y - s * 1.3, s * 0.6, s * 0.16, '#a8a8b0', 'rx="2"');
+const UC = () => (CUR ? CUR.accent : '#8b1a1a'), US = () => (CUR ? CUR.roof : '#b8502a');
 M.units = {
-  hoplite: () => soldier(P(-0.2, 0.2)[0], P(-0.2, 0.2)[1], 42, '#8b1a1a') + shield(P(-0.2, 0.2)[0] - 16, P(-0.2, 0.2)[1] - 24, 18, '#b8502a') + line(P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1], P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1] - 60, '#8a6a3a', 3) + poly([[P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1] - 70], [P(-0.2, 0.2)[0] + 14, P(-0.2, 0.2)[1] - 58], [P(-0.2, 0.2)[0] + 22, P(-0.2, 0.2)[1] - 58]], '#c0c0c8'),
-  archer: () => soldier(P(-0.2, 0.2)[0], P(-0.2, 0.2)[1], 42, '#2f5f2a') + `<path d="M${f1(P(-0.2, 0.2)[0] + 16)},${f1(P(-0.2, 0.2)[1] - 52)} q22,20 0,40" stroke="#8a6a3a" stroke-width="3" fill="none"/>` + line(P(-0.2, 0.2)[0] + 16, P(-0.2, 0.2)[1] - 52, P(-0.2, 0.2)[0] + 16, P(-0.2, 0.2)[1] - 12, '#ddd', 1.2),
-  cavalry: () => horse(P(-0.3, 0.3)[0] - 10, P(-0.3, 0.3)[1], 46, '#6a4a2a') + rect(P(-0.3, 0.3)[0] - 4, P(-0.3, 0.3)[1] - 62, 16, 26, '#8b1a1a', 'rx="3"') + circ(P(-0.3, 0.3)[0] + 4, P(-0.3, 0.3)[1] - 68, 7, '#e8c8a0') + line(P(-0.3, 0.3)[0] + 14, P(-0.3, 0.3)[1] - 40, P(-0.3, 0.3)[0] + 26, P(-0.3, 0.3)[1] - 80, '#8a6a3a', 3),
+  hoplite: () => soldier(P(-0.2, 0.2)[0], P(-0.2, 0.2)[1], 42, UC()) + shield(P(-0.2, 0.2)[0] - 16, P(-0.2, 0.2)[1] - 24, 18, US()) + line(P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1], P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1] - 60, '#8a6a3a', 3) + poly([[P(-0.2, 0.2)[0] + 18, P(-0.2, 0.2)[1] - 70], [P(-0.2, 0.2)[0] + 14, P(-0.2, 0.2)[1] - 58], [P(-0.2, 0.2)[0] + 22, P(-0.2, 0.2)[1] - 58]], '#c0c0c8'),
+  archer: () => soldier(P(-0.2, 0.2)[0], P(-0.2, 0.2)[1], 42, CUR ? shade(CUR.accent, -18) : '#2f5f2a') + `<path d="M${f1(P(-0.2, 0.2)[0] + 16)},${f1(P(-0.2, 0.2)[1] - 52)} q22,20 0,40" stroke="#8a6a3a" stroke-width="3" fill="none"/>` + line(P(-0.2, 0.2)[0] + 16, P(-0.2, 0.2)[1] - 52, P(-0.2, 0.2)[0] + 16, P(-0.2, 0.2)[1] - 12, '#ddd', 1.2),
+  cavalry: () => horse(P(-0.3, 0.3)[0] - 10, P(-0.3, 0.3)[1], 46, '#6a4a2a') + rect(P(-0.3, 0.3)[0] - 4, P(-0.3, 0.3)[1] - 62, 16, 26, UC(), 'rx="3"') + circ(P(-0.3, 0.3)[0] + 4, P(-0.3, 0.3)[1] - 68, 7, '#e8c8a0') + line(P(-0.3, 0.3)[0] + 14, P(-0.3, 0.3)[1] - 40, P(-0.3, 0.3)[0] + 26, P(-0.3, 0.3)[1] - 80, '#8a6a3a', 3),
   catapult: () => ell(P(0, 0)[0], P(0, 0)[1], 40, 16, '#000', 'opacity="0.3"') + rect(P(0, 0)[0] - 30, P(0, 0)[1] - 18, 60, 10, '#7a5a30') + wheel(P(0, 0)[0] - 22, P(0, 0)[1] - 6, 10) + wheel(P(0, 0)[0] + 22, P(0, 0)[1] - 6, 10) + poly([[P(0, 0)[0] - 10, P(0, 0)[1] - 18], [P(0, 0)[0] + 10, P(0, 0)[1] - 18], [P(0, 0)[0], P(0, 0)[1] - 46]], '#8a6a3a') + line(P(0, 0)[0] - 26, P(0, 0)[1] - 22, P(0, 0)[0] + 18, P(0, 0)[1] - 60, '#6a4a2a', 4) + circ(P(0, 0)[0] + 20, P(0, 0)[1] - 62, 8, '#555'),
   merchant: () => cart(P(0, 0.2)[0], P(0, 0.2)[1], 44) + crate(P(0, 0.2)[0] - 8, P(0, 0.2)[1] - 24, 12) + crate(P(0, 0.2)[0] + 6, P(0, 0.2)[1] - 24, 10) + horse(P(0.6, -0.3)[0] + 6, P(0.6, -0.3)[1] + 4, 30, '#8a6a4a')
 };
 function buildMapSprites() {
   const manifest = { cities: [], resources: [], units: [], terrain: [] };
   const FACTION_OF = { rome: 'ROME', gaul: 'GAUL', greek: 'GREEK', egypt: 'EGYPT', hun: 'HUN', sultan: 'SULTAN' };
-  for (const cat of Object.keys(M)) for (const [name, fn] of Object.entries(M[cat])) { resetSeed(11); CUR = cat === 'cities' ? (PALETTES[FACTION_OF[name]] || null) : null; const inner = fn(); writeFile(path.join(OUT, 'map', cat, `${name}.svg`), mapSvg(inner)); manifest[cat].push(name); }
+  for (const cat of Object.keys(M)) for (const [name, fn] of Object.entries(M[cat])) {
+    resetSeed(11); CUR = cat === 'cities' ? (PALETTES[FACTION_OF[name]] || null) : null;
+    const inner = fn(); writeFile(path.join(OUT, 'map', cat, `${name}.svg`), mapSvg(inner)); manifest[cat].push(name);
+    if (cat === 'units' && name !== 'merchant') for (const [faction, palette] of Object.entries(PALETTES)) { resetSeed(11); CUR = palette; const v = fn(); writeFile(path.join(OUT, 'map', cat, `${name}_${faction}.svg`), mapSvg(v)); manifest[cat].push(`${name}_${faction}`); }
+  }
   CUR = null;
   writeFile(path.join(OUT, 'map', 'manifest.json'), JSON.stringify({ ...manifest, format: 'png', size: 512, anchor: { x: 0.5, y: MAP_CY / 256 }, biomes: Object.keys(BIOME_GROUND) }, null, 2));
   return manifest;

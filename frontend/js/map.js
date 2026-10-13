@@ -85,6 +85,34 @@ async function _loadTilesetAssetsOnce() {
   console.log(`🎨 ${loadedCount}/${jobs.length} sprites de carte chargés`);
 }
 
+// ---- Textures de terrain (assets/images/terrain) pour les tuiles de la carte ----
+// Ancrées sur l'origine du monde (elles ne glissent pas quand on déplace la carte) et mises à l'échelle du zoom.
+const _mapTerrainPatterns = new Map();
+let mapFramePatterns = null;   // { grass, sand, snow } préparés une fois par image
+function mapTerrainPattern(name, zoom, originX, originY) {
+  if (typeof getSprite !== 'function' || typeof DOMMatrix !== 'function') return null;
+  const img = getSprite(`assets/images/terrain/${name}.svg`);
+  if (!img || !mapCtx) return null;
+  const scale = canvasScale();
+  const key = name + '@' + scale;
+  let entry = _mapTerrainPatterns.get(key);
+  if (!entry) {
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = Math.round(128 * scale);
+    tile.getContext('2d').drawImage(img, 0, 0, tile.width, tile.height);
+    const pattern = mapCtx.createPattern(tile, 'repeat');
+    if (!pattern || typeof pattern.setTransform !== 'function') return null;
+    entry = { pattern };
+    _mapTerrainPatterns.set(key, entry);
+  }
+  const period = 128 * zoom;
+  try { entry.pattern.setTransform(new DOMMatrix().translate(originX % period, originY % period).scale(zoom / scale)); } catch (e) { return null; }
+  return entry.pattern;
+}
+function prepareMapTerrainPatterns(originX, originY) {
+  mapFramePatterns = { grass: mapTerrainPattern('grass', mapZoomLevel, originX, originY), sand: mapTerrainPattern('sand', mapZoomLevel, originX, originY), snow: mapTerrainPattern('snow', mapZoomLevel, originX, originY) };
+}
+
 // Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
@@ -920,7 +948,9 @@ function renderMap() {
   // Sort by Y for proper layering (painter's algorithm)
   drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  // Draw terrain tiles
+  // Draw terrain tiles (textures ancrées sur l'origine du monde)
+  const origin = worldToScreen(0, 0);
+  prepareMapTerrainPatterns(origin.x, origin.y);
   drawOrder.forEach(tile => {
     drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
   });
@@ -1004,13 +1034,21 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
     const groundColors = nightMode && biomeColors.groundNight
       ? biomeColors.groundNight
       : biomeColors.ground;
-    mapCtx.fillStyle = groundColors[colorVariant];
+    const pattern = mapFramePatterns && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'];
+    if (pattern) {
+      // texture + voile de couleur (variation par tuile, nuit)
+      mapCtx.fillStyle = pattern; mapCtx.fill();
+      // voile de couleur très léger : la texture fait le relief, la variation par tuile reste discrète
+      mapCtx.fillStyle = groundColors[colorVariant]; mapCtx.globalAlpha = nightMode ? 0.78 : 0.12; mapCtx.fill(); mapCtx.globalAlpha = 1;
+    } else {
+      mapCtx.fillStyle = groundColors[colorVariant];
+    }
   }
-  mapCtx.fill();
+  if (!(mapFramePatterns && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis' && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
 
   // Subtle grid lines
   if (mapZoomLevel > 0.5 && showMapGrid) {
-    mapCtx.strokeStyle = 'rgba(0,0,0,0.1)';
+    mapCtx.strokeStyle = mapFramePatterns ? 'rgba(0,0,0,0.045)' : 'rgba(0,0,0,0.1)';
     mapCtx.lineWidth = 0.5;
     mapCtx.stroke();
   }
@@ -2142,8 +2180,11 @@ function drawIsoArmy(x, y, tw, th, army) {
   const isMoving = army.status !== 'IDLE';
   const imgSize = Math.max(tw, th * 2) * 1.2;
 
-  // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées
-  const mainUnitType = armySpriteName(army);
+  // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées,
+  // aux couleurs de la faction quand la variante existe (hoplite_ROME, cavalry_HUN…)
+  let mainUnitType = armySpriteName(army);
+  const faction = String(army.faction || player?.faction || '').toUpperCase();
+  if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
   if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
     // Draw army name label
     if (mapZoomLevel > 0.8 && army.name) {
