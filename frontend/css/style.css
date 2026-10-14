@@ -4690,3 +4690,15 @@ img.unit-figure { height: 96px; width: auto; object-fit: contain; vertical-align
 img.unit-figure.unit-figure-lg { height: 120px; }
 .unit-card-header { padding: 6px 8px 0; }
 .unit-info-icon { width: auto; height: auto; min-width: 72px; padding: 4px 8px; }
+
+/* Vignettes 3D des bâtiments dans les panneaux (titres, options de construction, files, infobulles) */
+img.b-ico { height: 1.8em; width: auto; max-width: 2.2em; object-fit: contain; vertical-align: -0.5em; }
+img.b-ico-md { height: 50px; width: auto; max-width: 56px; object-fit: contain; }
+img.b-ico-lg { height: 96px; width: auto; max-width: 110px; object-fit: contain; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.3)); }
+.build-option-icon-large { width: 58px; height: 58px; overflow: hidden; }
+.building-image, .field-icon-large { display: flex; align-items: center; justify-content: center; }
+
+/* Icônes 3D des objets du héros (emplacements, inventaire, fiches) */
+img.item-ico { width: 1em; height: 1em; object-fit: contain; vertical-align: middle; }
+.equip-slot-icon img.item-ico { width: 32px; height: 32px; }
+.item-icon img.item-ico { width: 34px; height: 34px; }

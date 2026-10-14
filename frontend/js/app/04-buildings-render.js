@@ -186,7 +186,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const effect = getBuildingEffect(building.key, building.level);
 
       html = `
-        <h4><span class="tt-icon">${BUILDING_ICONS[building.key] || '🏠'}</span> ${getBuildingName(building.key)}</h4>
+        <h4><span class="tt-icon">${buildingIconHtml(building.key)}</span> ${getBuildingName(building.key)}</h4>
         <p class="tt-level">Niveau ${building.level}/${ttEffectiveMax}</p>
         ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
         ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}

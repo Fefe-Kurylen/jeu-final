@@ -174,7 +174,7 @@ function openBuildPanel(slotNum) {
 
     title.innerHTML = `
       <div class="building-title-header">
-        <span class="building-detail-icon">${BUILDING_ICONS[key] || '🏠'}</span>
+        <span class="building-detail-icon">${buildingIconHtml(key)}</span>
         <span>${getBuildingName(key)}</span>
         <span class="building-level-badge">Niv. ${level}/${maxLevel}</span>
       </div>
@@ -271,7 +271,7 @@ function openBuildPanel(slotNum) {
                 ${def.prereq.map(p => {
                   const met = (p.key === 'MAIN_HALL' && p.level <= 1) || (currentCity?.buildings || []).some(b => b.key === p.key && b.level >= p.level);
                   return `<div class="prereq-item ${met ? 'met' : 'unmet'}">
-                    <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
+                    <span>${buildingIconHtml(p.key)}</span>
                     <span>${getBuildingName(p.key)} Niv.${p.level}</span>
                     <span class="prereq-status">${met ? '✓' : '✗'}</span>
                   </div>`;
@@ -296,12 +296,12 @@ function openBuildPanel(slotNum) {
     const resourceType = fieldKey === 'FARM' ? 'nourriture' : fieldKey === 'LUMBER' ? 'bois' : fieldKey === 'QUARRY' ? 'pierre' : 'fer';
     const resourceIcon = fieldKey === 'FARM' ? '🌾' : fieldKey === 'LUMBER' ? '🪵' : fieldKey === 'QUARRY' ? '🪨' : '⛏️';
     
-    title.innerHTML = `<span class="building-detail-icon">${BUILDING_ICONS[fieldKey] || '🌾'}</span> ${getBuildingName(fieldKey)}`;
+    title.innerHTML = `<span class="building-detail-icon">${buildingIconHtml(fieldKey)}</span> ${getBuildingName(fieldKey)}`;
     
     content.innerHTML = `
       <div class="building-detail-card field-card">
         <div class="field-header">
-          <div class="field-icon-large">${BUILDING_ICONS[fieldKey]}</div>
+          <div class="field-icon-large">${buildingIconHtml(fieldKey, 'b-ico-lg')}</div>
           <div class="field-info">
             <h3>${getBuildingName(fieldKey)}</h3>
             <p class="field-type">Champ de ${resourceType}</p>
@@ -385,7 +385,7 @@ function openBuildPanel(slotNum) {
                   <div class="build-option-card ${!hasPrereqs ? 'locked' : ''} ${!hasResources ? 'insufficient' : ''} ${blocked ? 'already-built' : ''}"
                        onclick="${canBuild && !blocked ? `buildAtSlot('${b.key}', ${slotNum})` : ''}"
                        ${!canBuild || blocked ? 'style="cursor: not-allowed"' : ''}>
-                    <div class="build-option-icon-large">${BUILDING_ICONS[b.key] || '🏠'}</div>
+                    <div class="build-option-icon-large">${buildingIconHtml(b.key, 'b-ico-md')}</div>
                     <div class="build-option-details">
                       <h5>${b.name}</h5>
                       ${blocked ? `
@@ -1179,7 +1179,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
     currentCity.iron >= nextCost.iron &&
     currentCity.food >= nextCost.food;
   
-  title.innerHTML = `${BUILDING_ICONS[buildingKey]} ${getBuildingName(buildingKey)} - Amélioration`;
+  title.innerHTML = `${buildingIconHtml(buildingKey)} ${getBuildingName(buildingKey)} - Amélioration`;
   
   content.innerHTML = `
     <div class="building-detail-card">
@@ -1189,7 +1189,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
           <span class="level-label">Niveau</span>
         </div>
         <div class="building-image-container">
-          <div class="building-image">${BUILDING_ICONS[buildingKey]}</div>
+          <div class="building-image">${buildingIconHtml(buildingKey, 'b-ico-lg')}</div>
         </div>
         <div class="building-max-level">
           <span class="max-label">Max</span>
@@ -1472,7 +1472,7 @@ function renderBuildQueue() {
         running.forEach((q, i) => {
           html += `<div class="qd-item running">
             <span class="qd-num">${i + 1}</span>
-            <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+            <span class="qd-name">${buildingIconHtml(q.buildingKey)} ${getBuildingName(q.buildingKey)}</span>
             <span class="qd-level">Niv.${q.targetLevel}</span>
             <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
           </div>`;
@@ -1483,7 +1483,7 @@ function renderBuildQueue() {
         queued.forEach((q, i) => {
           html += `<div class="qd-item queued">
             <span class="qd-num">${i + 1}</span>
-            <span class="qd-name">${BUILDING_ICONS[q.buildingKey] || '🏠'} ${getBuildingName(q.buildingKey)}</span>
+            <span class="qd-name">${buildingIconHtml(q.buildingKey)} ${getBuildingName(q.buildingKey)}</span>
             <span class="qd-level">Niv.${q.targetLevel}</span>
             <span class="qd-status">En attente</span>
           </div>`;

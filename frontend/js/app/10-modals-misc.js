@@ -111,7 +111,7 @@ function showUnitInfoModal(unitKey) {
         <h4>📦 Capacités</h4>
         <div class="unit-capacity-grid">
           <div class="capacity-item">
-            <span class="capacity-icon">🎒</span>
+            <span class="capacity-icon">${resIconHtml('inventory')}</span>
             <span class="capacity-label">Transport</span>
             <span class="capacity-value">${transport}</span>
           </div>
@@ -172,7 +172,7 @@ function showBuildingInfoModal(buildingKey) {
     <div class="building-info-modal">
       <!-- Header -->
       <div class="building-info-header">
-        <div class="building-info-icon">${BUILDING_ICONS[buildingKey] || '🏠'}</div>
+        <div class="building-info-icon">${buildingIconHtml(buildingKey, 'b-ico-md')}</div>
         <div class="building-info-title">
           <h3>${building.name}</h3>
           <span class="building-category-badge">${building.category}</span>
@@ -220,7 +220,7 @@ function showBuildingInfoModal(buildingKey) {
           <div class="prereq-list">
             ${building.prereq.map(p => `
               <div class="prereq-item">
-                <span>${BUILDING_ICONS[p.key] || '🏠'}</span>
+                <span>${buildingIconHtml(p.key)}</span>
                 <span>${getBuildingName(p.key)} Niv.${p.level}</span>
               </div>
             `).join('')}

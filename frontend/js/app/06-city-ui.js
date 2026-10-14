@@ -220,7 +220,7 @@ function renderBuildings(filter) {
 
     return `
       <div class="card">
-        <h3>${BUILDING_ICONS[b.key] || '🏠'} ${b.name}</h3>
+        <h3>${buildingIconHtml(b.key)} ${b.name}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
           Coût: 🪵${formatNum(b.costL1?.wood || 50)} 🪨${formatNum(b.costL1?.stone || 50)} ⛏️${formatNum(b.costL1?.iron || 50)} 🌾${formatNum(b.costL1?.food || 50)}

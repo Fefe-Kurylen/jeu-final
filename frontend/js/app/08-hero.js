@@ -6,15 +6,16 @@
 // ========== HERO ==========
 
 // Equipment slots definition
+// Emplacements d'équipement : position sur la scène du héros et objet de référence (icône 3D de l'emplacement vide)
 const EQUIPMENT_SLOTS = {
-  head: { name: 'Tete', icon: '🪖', x: 50, y: 5 },
-  chest: { name: 'Torse', icon: '🛡️', x: 50, y: 28 },
-  weapon: { name: 'Arme', icon: '⚔️', x: 15, y: 35 },
-  shield: { name: 'Bouclier', icon: '🛡️', x: 85, y: 35 },
-  legs: { name: 'Jambes', icon: '👖', x: 50, y: 55 },
-  boots: { name: 'Bottes', icon: '👢', x: 50, y: 78 },
-  ring: { name: 'Anneau', icon: '💍', x: 15, y: 60 },
-  amulet: { name: 'Amulette', icon: '📿', x: 85, y: 60 }
+  head: { name: 'Tete', item: 'bronze_helm', x: 50, y: 5 },
+  chest: { name: 'Torse', item: 'leather_armor', x: 50, y: 28 },
+  weapon: { name: 'Arme', item: 'iron_sword', x: 15, y: 35 },
+  shield: { name: 'Bouclier', item: 'wooden_shield', x: 85, y: 35 },
+  legs: { name: 'Jambes', item: 'leather_pants', x: 50, y: 55 },
+  boots: { name: 'Bottes', item: 'iron_boots', x: 50, y: 78 },
+  ring: { name: 'Anneau', item: 'gold_ring', x: 15, y: 60 },
+  amulet: { name: 'Amulette', item: 'war_amulet', x: 85, y: 60 }
 };
 
 let heroData = null;
@@ -121,7 +122,7 @@ async function loadHero() {
                          style="left:${info.x}%;top:${info.y}%"
                          onclick="onEquipSlotClick('${slot}')"
                          title="${info.name}${equipped ? ': ' + equipped.itemKey : ' (vide)'}">
-                      <span class="equip-slot-icon">${equipped ? getItemIcon(equipped.itemKey) : info.icon}</span>
+                      <span class="equip-slot-icon">${equipped ? getItemIcon(equipped.itemKey) : getItemIcon(info.item)}</span>
                       ${!isEmpty ? '<span class="equip-slot-badge">!</span>' : ''}
                     </div>
                   `;
@@ -147,14 +148,10 @@ async function loadHero() {
   }
 }
 
+// Icône 3D d'un objet (assets/images/3d/ui/item_<clé>.webp), caisse pour les objets sans icône dédiée
+const ITEM_ICON_KEYS = new Set(['iron_sword', 'steel_sword', 'bronze_helm', 'iron_helm', 'leather_armor', 'chain_mail', 'iron_boots', 'war_boots', 'gold_ring', 'war_amulet', 'wooden_shield', 'iron_shield', 'leather_pants', 'chain_legs']);
 function getItemIcon(itemKey) {
-  const icons = {
-    'iron_sword': '🗡️', 'steel_sword': '⚔️', 'bronze_helm': '🪖', 'iron_helm': '⛑️',
-    'leather_armor': '🧥', 'chain_mail': '🛡️', 'iron_boots': '👢', 'war_boots': '🥾',
-    'gold_ring': '💍', 'war_amulet': '📿', 'wooden_shield': '🛡️', 'iron_shield': '🔰',
-    'leather_pants': '👖', 'chain_legs': '🦿'
-  };
-  return icons[itemKey] || '📦';
+  return `<img class="item-ico" src="assets/images/3d/ui/item_${ITEM_ICON_KEYS.has(itemKey) ? itemKey : 'crate'}.webp" alt="">`;
 }
 
 function onEquipSlotClick(slotKey) {
@@ -183,7 +180,7 @@ function onEquipSlotClick(slotKey) {
     // Show empty slot info
     showModal(`${slotInfo.name} - Vide`, `
       <div style="text-align:center;">
-        <div style="font-size:48px;margin:10px 0;opacity:0.3;">${slotInfo.icon}</div>
+        <div style="font-size:48px;margin:10px 0;opacity:0.35;">${getItemIcon(slotInfo.item)}</div>
         <p style="color:var(--text-muted)">Emplacement vide</p>
         <p style="color:var(--text-muted);font-size:12px;">Trouvez des objets en expedition ou au combat.</p>
       </div>
@@ -340,7 +337,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         <!-- Actions Section -->
         <div class="hero-actions-section">
           <button class="btn btn-secondary" onclick="renameHero()">✏️ Renommer</button>
-          <button class="btn btn-info" onclick="showHeroEquipment()">🎒 Équipement</button>
+          <button class="btn btn-info" onclick="showHeroEquipment()">${resIconHtml('inventory')} Équipement</button>
           <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();">📜 Expéditions</button>
         </div>
       </div>

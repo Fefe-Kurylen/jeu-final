@@ -288,7 +288,7 @@ function renderInventory(items) {
   if (filteredItems.length === 0) {
     container.innerHTML = `
       <div class="inventory-empty">
-        <div style="font-size:48px;margin-bottom:12px;">🎒</div>
+        <div style="font-size:48px;margin-bottom:12px;">${resIconHtml('inventory')}</div>
         <h3>Inventaire vide</h3>
         <p style="color:var(--text-muted)">Trouvez des objets en expedition, en pillant des tribus locales ou au combat.</p>
         <p style="color:var(--text-muted);font-size:12px;margin-top:8px;">

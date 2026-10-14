@@ -832,6 +832,8 @@ function fieldSpriteUrl(type, level) {
 // Parcelle au sol du biome (sous chaque bâtiment et pour les emplacements vides), deux variantes
 function plotSpriteUrl(variant = 0) { return `assets/images/3d/plots/${cityBiome()}_${variant & 1}.webp`; }
 
+// Vignette 3D d'un bâtiment (sprite de la vue ville, architecture de la faction) pour les panneaux générés en HTML
+function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }
 // Icône 3D d'une ressource / d'une action (assets/images/3d/ui) pour les panneaux générés en HTML
 function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="assets/images/3d/ui/${key}.webp" alt="">`; }
 
