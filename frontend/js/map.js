@@ -1017,11 +1017,24 @@ function renderMapCore() {
 }
 
 // Draw a single isometric tile with biome support
+// Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
+// sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
+const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
+function terrainSpriteName(wx, wy, biome, feature) {
+  const base = WATER_FEATURES[feature] ? feature : `${biome}_${feature}`;
+  if (!tileImages.terrain[base]) return null;
+  const same = (dx, dy) => { const t = getTerrainType(wx + dx, wy + dy); return t.feature === feature || (WATER_FEATURES[feature] && WATER_FEATURES[t.feature]); };
+  const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
+  const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
+  return suffix && tileImages.terrain[base + suffix] ? base + suffix : base;
+}
 function drawIsoTile(x, y, tw, th, wx, wy) {
   const terrain = getTerrainType(wx, wy);
   const biome = terrain.biome;
   const feature = terrain.feature;
   const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
+  const featureSprite = feature ? terrainSpriteName(wx, wy, biome, feature) : null;
+  const waterAsGround = featureSprite && WATER_FEATURES[feature];   // lac / oasis / lac gelé dessinés en sprite : sol du biome dessous
   const biomeColors = BIOMES[biome];
   const nightMode = isNightMode();
 
@@ -1034,13 +1047,13 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   mapCtx.closePath();
 
   // Fill based on biome, feature and day/night
-  if (feature === 'water' || feature === 'frozen') {
+  if ((feature === 'water' || feature === 'frozen') && !waterAsGround) {
     if (nightMode) {
       mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
     } else {
       mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
     }
-  } else if (feature === 'oasis') {
+  } else if (feature === 'oasis' && !waterAsGround) {
     mapCtx.fillStyle = nightMode ? '#1a3a2a' : '#4a9a6a';
   } else {
     // Use night ground colors if available
@@ -1057,7 +1070,7 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
       mapCtx.fillStyle = groundColors[colorVariant];
     }
   }
-  if (!(mapFramePatterns && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis' && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
+  if (!(mapFramePatterns && (waterAsGround || (feature !== 'water' && feature !== 'frozen' && feature !== 'oasis')) && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
 
   // Subtle grid lines
   if (mapZoomLevel > 0.5 && showMapGrid) {
@@ -1067,9 +1080,12 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   }
 
   // Draw terrain features based on biome: sprite when the manifest provides one, procedural otherwise
-  if (feature && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis' && tileImages.terrain[`${biome}_${feature}`]) {
-    const fsize = Math.max(tw, th * 2) * (feature === 'mountain' || feature === 'icemountain' ? 1.35 : 1.15);
-    drawTileImage(mapCtx, 'terrain', `${biome}_${feature}`, x, y, fsize, fsize);
+  if (featureSprite) {
+    const big = feature === 'mountain' || feature === 'icemountain';
+    const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
+    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : WATER_FEATURES[feature] ? (massif ? 1.9 : joined ? 1.75 : 1.25) : (joined ? 1.6 : 1.15);
+    const fsize = Math.max(tw, th * 2) * k;
+    drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
     return;
   }
   if (biome === 'forest') {

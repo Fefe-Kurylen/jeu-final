@@ -30,10 +30,13 @@ const R_PLAZA = 2.75, R_WALL = 2.75;   // l'enceinte se dresse sur le bord du pl
 
 // ---------- Caméra ----------
 const cityCam = { x: 0, y: 0, zoom: 1, auto: true };   // auto : zoom par défaut recalculé pour que les cellules restent lisibles
-const ISO_ZOOM_MIN = 0.6, ISO_ZOOM_MAX = 2.4;
-const ISO_MIN_CELL = 118;   // largeur de cellule (px logiques) visée par le cadrage par défaut : la ville déborde et se déplace au doigt
-// Parcelles à 80 % du pas de grille : des chemins de terre restent visibles entre les bâtiments
-const ISO_PLOT = 0.68;
+const ISO_ZOOM_MIN = 0.45, ISO_ZOOM_MAX = 3.2;
+// Largeur de cellule (px logiques) visée par le cadrage par défaut : la ville déborde de l'écran et se déplace au doigt
+function isoMinCell() { return cityViewW < 500 ? 118 : 104; }
+// Espacement de la grille : les cellules sont à 1,3 largeur de cellule les unes des autres (chemins, air entre les
+// bâtiments, enceinte éloignée des maisons) ; les parcelles font 0,74 largeur de cellule
+const ISO_SP = 1.3;
+const ISO_PLOT = 0.74;
 let isoCellW = 96;          // largeur de cellule (px logiques) au dernier rendu
 // Badge de niveau adapté à la taille des cellules (petit, au coin droit de la parcelle, lisible dès 2× DPR)
 function isoBadgeSpec(x, y, hw, hh) { const r = Math.max(6.5, Math.min(10, isoCellW * 0.11)); return { x: x + hw * 0.62, y: y + hh * 0.35, radius: r }; }
@@ -46,15 +49,16 @@ function isoSceneExtent(view) {
   return view === 'fields' ? { hw: R_FIELD + (tight ? 0.3 : 0.55), top: (R_FIELD + 0.5) * 0.5 + 0.8, bottom: (R_FIELD + 0.5) * 0.5 + 0.3 } : { hw: R_WALL + (tight ? 0.12 : 0.35), top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
 }
 function isoLayout(view) {
-  const ext = isoSceneExtent(view);
+  const e0 = isoSceneExtent(view);
+  const ext = { hw: e0.hw * ISO_SP, top: e0.top * ISO_SP, bottom: e0.bottom * ISO_SP };
   const padX = cityViewW < 500 ? 4 : 40, padY = cityViewW < 500 ? 16 : 40;
   const fitW = Math.min((cityViewW - padX * 2) / (ext.hw * 2), (cityViewH - padY * 2) / (ext.top + ext.bottom));
-  if (cityCam.auto) cityCam.zoom = Math.min(ISO_ZOOM_MAX, Math.max(1, ISO_MIN_CELL / fitW));
+  if (cityCam.auto) cityCam.zoom = Math.min(ISO_ZOOM_MAX, Math.max(1, isoMinCell() / fitW));
   const W = Math.max(26, Math.min(190, fitW * cityCam.zoom));
   const cx = cityViewW / 2 + cityCam.x, cy = cityViewH / 2 + cityCam.y + (ext.top - ext.bottom) * W / 2;
   return { W, cx, cy, ext };
 }
-function isoPos(gx, gy, W, cx, cy) { return { x: cx + (gx - gy) * W / 2, y: cy + (gx + gy) * W / 4 }; }
+function isoPos(gx, gy, W, cx, cy) { return { x: cx + (gx - gy) * W * ISO_SP / 2, y: cy + (gx + gy) * W * ISO_SP / 4 }; }
 function clampCam(view) {
   const { W, ext } = isoLayout(view);
   const lx = ext.hw * W, ly = (ext.top + ext.bottom) * W / 2;
@@ -81,7 +85,7 @@ function calculateFieldSlots() {
   const { W, cx, cy } = isoLayout('fields');
   isoCellW = W; isoOrigin = { x: cx, y: cy };
   citySlots = [];
-  citySlots.push({ slot: -1, gx: 0, gy: 0, x: cx, y: cy, size: W * 2.5, hw: W * R_PLAZA, hh: W * R_PLAZA / 2, isVillageCenter: true });
+  citySlots.push({ slot: -1, gx: 0, gy: 0, x: cx, y: cy, size: W * 2.5, hw: W * R_PLAZA * ISO_SP, hh: W * R_PLAZA * ISO_SP / 2, isVillageCenter: true });
   for (const [slot, [gx, gy]] of Object.entries(ISO_FIELD_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
@@ -127,7 +131,7 @@ function drawIsoTerrain(ctx, biome, night) {
 
 // Plaza de terre battue sous la ville : plateau en relief (faces avant sombres) avec ombre portée douce
 function drawIsoPlaza(ctx, cx, cy, W, night) {
-  const hw = R_PLAZA * W, hh = R_PLAZA * W / 2, th = W * 0.14;
+  const hw = R_PLAZA * W * ISO_SP, hh = R_PLAZA * W * ISO_SP / 2, th = W * 0.14;
   ctx.save();
   ctx.shadowColor = night ? 'rgba(0,0,0,0.7)' : 'rgba(20,12,4,0.45)'; ctx.shadowBlur = W * 0.5; ctx.shadowOffsetY = W * 0.12;
   ctx.fillStyle = night ? '#2a1e14' : '#6a4a2c';
@@ -189,12 +193,12 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   isoWallFlags = [];
   const edge = (from, to, high, along) => {
     const sprite = img[`seg_${along}${high && !lowAll ? '' : '_low'}`];
-    const sw = W * L / SPRITE_PLOT_W * 1.03;
+    const sw = W * ISO_SP * L / SPRITE_PLOT_W * 1.03;
     for (let k = 0; k < N; k++) {
       const t = (k + 0.5) / N;
       const g = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
       const p = isoPos(g[0], g[1], W, cx, cy);
-      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, sw, variant) });
+      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, sw, variant) });   // sw ci-dessus : un tronçon couvre L cellules espacées
       if (tier === 3 && high && !lowAll) isoWallFlags.push(isoFlagAt(p.x, p.y, sw, 0, 0, WALL_SEG_FLAG_Z[faction] || 1.35, 0.6, faction));
     }
   };
@@ -204,7 +208,7 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   edge([R, R], [-R, R], false, 'x');     // avant gauche
   for (const [gx, gy, scale] of [[-R, -R, 1], [-R, R, 1], [R, -R, 1], [R, R, 0.85]]) {
     const p = isoPos(gx, gy, W, cx, cy);
-    const tw = W / SPRITE_PLOT_W * scale * (lowAll ? 0.8 : 1);
+    const tw = W * ISO_SP * 1.12 / SPRITE_PLOT_W * scale * (lowAll ? 0.8 : 1);   // tours d'angle plus imposantes
     items.push({ depth: gx + gy + 0.01, y: p.y, draw: () => drawSprite(ctx, img.tower, p.x, p.y, tw, variant) });
     if (tier === 3 && !lowAll) isoWallFlags.push(isoFlagAt(p.x, p.y, tw, 0, 0, WALL_TOWER_FLAG_Z[faction] || 3.2, 0.6, faction));
   }
@@ -214,10 +218,10 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
 
 // Route de terre qui quitte la ville par le sud (sous la tour avant) et sort de l'écran
 function drawIsoRoad(ctx, cx, cy, W, night) {
-  const x0 = cx, y0 = cy + R_PLAZA * W / 2 + W * 0.14;
+  const x0 = cx, y0 = cy + R_PLAZA * W * ISO_SP / 2 + W * 0.14;
   ctx.lineCap = 'round'; ctx.lineWidth = W * 0.34;
   ctx.beginPath(); ctx.moveTo(x0, y0);
-  ctx.bezierCurveTo(x0 + W * 0.2, y0 + W * 1.2, x0 - W * 0.9, cityViewH - W * 0.5, x0 - W * 0.6, cityViewH + W);
+  ctx.bezierCurveTo(x0 + W * 0.2, y0 + W * 1.4, x0 - W * 0.9, cityViewH - W * 0.5, x0 - W * 0.6, cityViewH + W);
   strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
   ctx.strokeStyle = night ? 'rgba(0,0,0,0.25)' : 'rgba(90,60,30,0.28)'; ctx.lineWidth = W * 0.36; ctx.globalCompositeOperation = 'multiply';
   ctx.beginPath(); ctx.moveTo(x0, y0); ctx.bezierCurveTo(x0 + W * 0.2, y0 + W * 1.2, x0 - W * 0.9, cityViewH - W * 0.5, x0 - W * 0.6, cityViewH + W); ctx.stroke();
@@ -463,7 +467,7 @@ function renderFieldsStatic(ctx, W, cx, cy, night, biome) {
     const key = s === 0 ? 'MAIN_HALL' : building?.key;
     if (!key) continue;
     const p = isoPos(gx * 0.9, gy * 0.9, W, cx, cy);
-    const w = s === 0 ? W * 1.15 : W * 0.78;
+    const w = (s === 0 ? W * 1.15 : W * 0.78) * ISO_SP;
     items.push({ depth: gx + gy, y: p.y, draw: () => {
       const sprite = getSprite(buildingSpriteUrl(key, building?.level || 1));
       if (sprite) drawSprite(ctx, sprite, p.x, p.y, w, spriteVariant(centerHovered));   // silhouette : pas de repli procédural ni de badge
@@ -485,7 +489,7 @@ function renderFieldsStatic(ctx, W, cx, cy, night, biome) {
   for (const [gx, gy] of ISO_FIELD_SPARE) { const p = isoPos(gx, gy, W, cx, cy); items.push({ depth: gx + gy, y: p.y, draw: () => drawProp(ctx, biomeScene(biome).props.trees[0], p.x, p.y + W * 0.1, W * 0.85, spriteVariant(false)) }); }
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
-  if (centerHovered) { ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 14; isoDiamondPath(ctx, cx, cy, R_PLAZA * W, R_PLAZA * W / 2); ctx.stroke(); ctx.shadowBlur = 0; }
+  if (centerHovered) { ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 14; isoDiamondPath(ctx, cx, cy, R_PLAZA * W * ISO_SP, R_PLAZA * W * ISO_SP / 2); ctx.stroke(); ctx.shadowBlur = 0; }
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
   return { overlay, lit };
 }

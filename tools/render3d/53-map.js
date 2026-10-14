@@ -36,15 +36,74 @@
   MP.res_food = (g, biome) => { P.plot(g, biome === 'snow' ? 'snow' : 'crop', 1.0, { th: 0.06 }); P.cropRows(g, -0.95, -0.95, 1.9, 1.9, 6, material('wheat', '#e8c84a'), { channels: biome === 'desert', h: 0.2 }); P.fence(g, -1, -1, 2, 2); if (biome === 'desert') P.palm(g, 0.9, -0.9, 0.8); return { extent: 3 }; };
   MP.res_gold = (g, biome) => { P.rock(g, -0.3, -0.2, 1.4, '#8a7a5a', biome === 'snow'); P.rock(g, 0.45, 0.3, 1.1, '#9a8a6a', biome === 'snow'); const gold = material('gold', '#e8c547', { rough: 0.3, metal: 0.5 }); for (let i = 0; i < 6; i++) { const n = new T.Mesh(new T.OctahedronGeometry(0.07 + (i % 3) * 0.02), gold); n.position.set(-0.6 + i * 0.22, 0.06 + (i % 2) * 0.03, 0.55 + (i % 3) * 0.1); g.add(P.setShadow(n)); } const vein = new T.Mesh(new T.SphereGeometry(0.1, 8, 6), gold); vein.position.set(-0.35, 0.45, 0.05); g.add(vein); return { extent: 3 }; };
 
-  function mountain(g, icy) { const geo = new T.ConeGeometry(1.3, 2.0, 7); const pos = geo.attributes.position; for (let i = 0; i < pos.count; i++) { if (pos.getY(i) < 0.5) { pos.setX(i, pos.getX(i) * (0.85 + Math.random() * 0.3)); pos.setZ(i, pos.getZ(i) * (0.85 + Math.random() * 0.3)); } } geo.computeVertexNormals(); const m = new T.Mesh(geo, material('stone', icy ? '#b8c8d8' : '#8a8478', { flat: true })); m.position.y = 1.0; g.add(P.setShadow(m)); const cap = new T.Mesh(new T.ConeGeometry(0.5, 0.8, 7), material('snow', '#f4f8fc', { flat: true })); cap.position.y = 1.62; g.add(P.setShadow(cap)); return { extent: 4 }; }
+  // ---- Relief de carte : chaînes de montagnes, lacs, dunes qui se raccordent d'une tuile à l'autre ----
+  // Chaque élément existe en quatre variantes selon ses voisins : isolé, allongé le long de x, le long de y,
+  // massif (x et y) ; le client choisit la variante d'après les tuiles voisines (auto-raccordement).
+  function peak(g, cx, cy, r, h, icy, seed) {
+    window.TEX.resetSeed(seed);
+    const rnd = window.TEX.rnd;
+    const geo = new T.ConeGeometry(r, h, 9, 3);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < h * 0.45) { const k = 0.78 + rnd() * 0.45; pos.setX(i, pos.getX(i) * k); pos.setZ(i, pos.getZ(i) * (0.78 + rnd() * 0.45)); } else if (y < h * 0.49) { pos.setX(i, pos.getX(i) * (0.9 + rnd() * 0.2)); pos.setZ(i, pos.getZ(i) * (0.9 + rnd() * 0.2)); } }
+    geo.computeVertexNormals();
+    const rock = material('stone', icy ? '#a9b7c6' : '#8a8274', { flat: true });
+    const m = new T.Mesh(geo, rock); m.position.set(cx, h / 2, cy); m.rotation.y = rnd() * 2; g.add(P.setShadow(m));
+    // calotte de neige (chapeau conique un peu plus large que la pointe)
+    const capH = h * (icy ? 0.62 : 0.36);
+    const cap = new T.Mesh(new T.ConeGeometry(r * (icy ? 0.74 : 0.42) * 1.04, capH, 9), material('snow', '#f4f8fc', { flat: true })); cap.position.set(cx, h - capH / 2 + 0.02, cy); cap.rotation.y = m.rotation.y; g.add(P.setShadow(cap));
+    // éboulis au pied
+    for (let i = 0; i < 3; i++) { const an = rnd() * Math.PI * 2, rr = r * (0.75 + rnd() * 0.35); P.rock(g, cx + Math.cos(an) * rr, cy + Math.sin(an) * rr, 0.45 + rnd() * 0.4, icy ? '#9aa6b4' : '#7d766a', icy); }
+  }
+  const RIDGE = {
+    '': [[0, 0, 1.25, 2.0], [0.85, 0.55, 0.7, 1.0]],
+    x: [[-1.15, 0.05, 1.1, 1.85], [0.95, -0.1, 1.05, 1.65], [-0.1, 0.35, 0.8, 1.15], [1.9, 0.5, 0.55, 0.7]],
+    y: [[0.05, -1.15, 1.1, 1.85], [-0.1, 0.95, 1.05, 1.65], [0.35, -0.1, 0.8, 1.15], [0.5, 1.9, 0.55, 0.7]],
+    xy: [[-0.95, -0.7, 1.15, 1.9], [0.85, -0.95, 1.0, 1.65], [0.25, 0.85, 1.05, 1.5], [-0.75, 0.95, 0.75, 1.05], [1.4, 0.6, 0.6, 0.8]]
+  };
+  function mountain(g, icy, variant = '') {
+    const peaks = RIDGE[variant] || RIDGE[''];
+    peaks.forEach(([x, y, r, h], i) => peak(g, x, y, r, h, icy, 500 + i * 13 + (variant.length * 7)));
+    if (!icy) { const spots = variant === '' ? [[-1.2, 0.9], [1.3, -0.4]] : variant === 'x' ? [[-2.2, 0.9], [0.6, 1.2], [2.3, -0.5]] : variant === 'y' ? [[0.9, -2.2], [1.2, 0.6], [-0.5, 2.3]] : [[-2.1, 0.3], [2.0, 1.4], [-0.3, 2.2]]; spots.forEach(([x, y], i) => i % 2 ? P.pine(g, x, y, 0.75) : P.oak(g, x, y, 0.7)); }
+    return { extent: variant ? 6 : 4 };
+  }
+  // Plan d'eau : disque d'eau dans une berge, roseaux ; variantes allongées ; gelé = glace craquelée et neige
+  function pond(g, kind, variant = '') {
+    const sx = variant === 'x' || variant === 'xy' ? 1.85 : 1.0, sz = variant === 'y' || variant === 'xy' ? 1.85 : 1.0;
+    const shoreMat = kind === 'frozen' ? material('snow', '#eef3f8') : kind === 'oasis' ? material('grass', '#7cb64a') : material('dirt', '#a88a5c');
+    const shore = new T.Mesh(new T.CylinderGeometry(1.12, 1.18, 0.1, 40), shoreMat); shore.scale.set(sx, 1, sz); shore.position.y = 0.05; g.add(P.setShadow(shore));
+    const waterMat = kind === 'frozen' ? material('flat', '#cfe6f2', { rough: 0.25, metal: 0.05 }) : material('water', '#2f78c2', { rough: 0.2, emissive: '#0c2a4a', emissiveIntensity: 0.25 });
+    const water = new T.Mesh(new T.CylinderGeometry(0.98, 0.98, 0.04, 40), waterMat); water.scale.set(sx, 1, sz); water.position.y = 0.11; water.receiveShadow = true; g.add(water);
+    window.TEX.resetSeed(kind === 'frozen' ? 77 : kind === 'oasis' ? 88 : 99);
+    const rnd = window.TEX.rnd;
+    if (kind === 'frozen') {   // craquelures et plaques de neige sur la glace
+      const crack = material('flat', '#8fb3c8');
+      for (let i = 0; i < 6; i++) { const an = rnd() * Math.PI * 2, len = 0.5 + rnd() * 0.8; const c = new T.Mesh(new T.BoxGeometry(len, 0.01, 0.025), crack); c.position.set((rnd() - 0.5) * 1.2 * sx, 0.135, (rnd() - 0.5) * 1.2 * sz); c.rotation.y = an; g.add(c); }
+      for (let i = 0; i < 4; i++) { const d = new T.Mesh(new T.SphereGeometry(0.18 + rnd() * 0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), material('snow', '#f4f8fc')); d.scale.y = 0.35; d.position.set((rnd() - 0.5) * 1.5 * sx, 0.13, (rnd() - 0.5) * 1.5 * sz); g.add(d); }
+    } else {   // roseaux et nénuphars
+      const reed = material('flat', '#5f8e3a');
+      for (let i = 0; i < 8; i++) { const an = rnd() * Math.PI * 2, rr = 0.92 + rnd() * 0.15; const x = Math.cos(an) * rr * sx, z = Math.sin(an) * rr * sz; for (let k = 0; k < 3; k++) { const r = new T.Mesh(new T.CylinderGeometry(0.012, 0.018, 0.3 + rnd() * 0.2, 5), reed); r.position.set(x + (rnd() - 0.5) * 0.08, 0.26, z + (rnd() - 0.5) * 0.08); g.add(P.setShadow(r)); } }
+      for (let i = 0; i < 4; i++) { const pad = new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.01, 10), material('flat', '#4f9a48')); pad.position.set((rnd() - 0.5) * 1.3 * sx, 0.135, (rnd() - 0.5) * 1.3 * sz); g.add(pad); }
+      if (kind === 'oasis') { P.palm(g, -0.95 * sx, 0.7 * sz, 1.0); P.palm(g, 0.9 * sx, -0.6 * sz, 0.85); P.rock(g, 0.7 * sx, 0.85 * sz, 0.6, '#c9b48a'); }
+      else { P.rock(g, -0.9 * sx, -0.75 * sz, 0.55, '#8f8f8f'); P.bush(g, 0.95 * sx, 0.6 * sz, 0.7); }
+    }
+    return { extent: variant ? 5 : 3, shadowCatcher: false };
+  }
+  function dunes(g, variant = '') {
+    const list = variant === '' ? [[-0.3, 0.25, 1.1, 0.3], [0.45, -0.15, 0.85, -0.4]] : variant === 'x' ? [[-1.5, 0.3, 1.1, 0.3], [-0.2, -0.1, 1.0, -0.2], [1.2, 0.3, 1.05, 0.35], [2.1, -0.3, 0.7, -0.4]] : variant === 'y' ? [[0.3, -1.5, 1.1, 1.2], [-0.1, -0.2, 1.0, 1.4], [0.3, 1.2, 1.05, 1.1], [-0.3, 2.1, 0.7, 1.5]] : [[-1.2, -0.9, 1.1, 0.4], [0.9, -1.1, 1.0, 1.0], [-0.9, 1.0, 1.0, 0.2], [1.0, 0.9, 1.1, 0.9], [0.0, 0.0, 0.8, 0.6]];
+    for (const [x, y, sc, rot] of list) { const m = new T.Mesh(new T.SphereGeometry(0.8 * sc, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), material('sand', '#e2c98a')); m.scale.set(1.2, 0.35, 0.7); m.rotation.y = rot; m.position.set(x, 0, y); g.add(P.setShadow(m)); }
+    return { extent: variant ? 5 : 3, outline: false };
+  }
   MP.terrain = {
-    forest_tree: (g) => { P.pine(g, -0.35, 0.15, 1.2); P.oak(g, 0.4, -0.2, 1.1); P.pine(g, 0.15, 0.55, 0.95); P.bush(g, -0.5, -0.5, 0.8); return { extent: 3 }; },
-    forest_mountain: (g) => mountain(g, false),
-    desert_dunes: (g) => { for (const [x, y, s, r] of [[-0.3, 0.25, 1.1, 0.3], [0.45, -0.15, 0.85, -0.4]]) { const m = new T.Mesh(new T.SphereGeometry(0.8 * s, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), material('sand', '#e2c98a')); m.scale.set(1.2, 0.35, 0.7); m.rotation.y = r; m.position.set(x, 0, y); g.add(P.setShadow(m)); } return { extent: 3, outline: false }; },
-    desert_ruins: (g) => { const sm = material('sandstone', '#e4d4b0'); for (const [x, y, h] of [[-0.6, 0.3, 0.9], [-0.2, 0.3, 0.5], [0.2, 0.3, 1.1], [0.6, 0.3, 0.3]]) P.column(g, x, y, h, sm, 0, { r: 0.09, capMat: material('sandstone', '#c9ad80') }); P.box(g, -0.1, -0.7, 0.9, 0.35, 0.3, material('sandstone', '#d4c096')); P.rock(g, 0.5, -0.6, 0.8, '#c9b48a'); return { extent: 3 }; },
-    desert_rocks: (g) => { P.rock(g, -0.35, 0, 1.4, '#b07a52'); P.rock(g, 0.4, 0.35, 1.0, '#c48a5e'); P.cactus(g, 0.45, -0.5, 0.9); return { extent: 3 }; },
-    snow_snowtree: (g) => { P.pine(g, -0.35, 0.15, 1.2, '#2f6a3a', true); P.pine(g, 0.4, -0.2, 1.05, '#2f6a3a', true); P.rock(g, 0.3, 0.6, 0.7, '#8a93a0', true); return { extent: 3 }; },
-    snow_icemountain: (g) => mountain(g, true)
+    forest_tree: (g) => { P.pine(g, -0.45, 0.1, 1.25); P.oak(g, 0.45, -0.3, 1.15); P.pine(g, 0.1, 0.6, 1.0); P.oak(g, -0.2, -0.75, 0.85); P.bush(g, -0.7, -0.45, 0.8); P.bush(g, 0.75, 0.45, 0.7); return { extent: 3 }; },
+    forest_mountain: (g) => mountain(g, false, ''), forest_mountain_x: (g) => mountain(g, false, 'x'), forest_mountain_y: (g) => mountain(g, false, 'y'), forest_mountain_xy: (g) => mountain(g, false, 'xy'),
+    desert_dunes: (g) => dunes(g, ''), desert_dunes_x: (g) => dunes(g, 'x'), desert_dunes_y: (g) => dunes(g, 'y'), desert_dunes_xy: (g) => dunes(g, 'xy'),
+    desert_ruins: (g) => { const sm = material('sandstone', '#e4d4b0'); for (const [x, y, h] of [[-0.6, 0.3, 0.9], [-0.2, 0.3, 0.5], [0.2, 0.3, 1.1], [0.6, 0.3, 0.3]]) P.column(g, x, y, h, sm, 0, { r: 0.09, capMat: material('sandstone', '#c9ad80') }); P.box(g, -0.1, -0.7, 0.9, 0.35, 0.3, material('sandstone', '#d4c096')); P.rock(g, 0.5, -0.6, 0.8, '#c9b48a'); P.box(g, -0.8, -0.2, 0.3, 0.3, 0.2, material('sandstone', '#d4c096')); return { extent: 3 }; },
+    desert_rocks: (g) => { P.rock(g, -0.35, 0, 1.4, '#b07a52'); P.rock(g, 0.4, 0.35, 1.0, '#c48a5e'); P.cactus(g, 0.45, -0.5, 0.9); P.rock(g, -0.1, 0.7, 0.6, '#a86e48'); return { extent: 3 }; },
+    snow_snowtree: (g) => { P.pine(g, -0.45, 0.1, 1.25, '#2f6a3a', true); P.pine(g, 0.45, -0.3, 1.1, '#2f6a3a', true); P.pine(g, 0.1, 0.6, 0.9, '#2f6a3a', true); P.rock(g, -0.3, -0.7, 0.7, '#8a93a0', true); return { extent: 3 }; },
+    snow_icemountain: (g) => mountain(g, true, ''), snow_icemountain_x: (g) => mountain(g, true, 'x'), snow_icemountain_y: (g) => mountain(g, true, 'y'), snow_icemountain_xy: (g) => mountain(g, true, 'xy'),
+    water: (g) => pond(g, 'water', ''), water_x: (g) => pond(g, 'water', 'x'), water_y: (g) => pond(g, 'water', 'y'), water_xy: (g) => pond(g, 'water', 'xy'),
+    frozen: (g) => pond(g, 'frozen', ''), frozen_x: (g) => pond(g, 'frozen', 'x'), frozen_y: (g) => pond(g, 'frozen', 'y'), frozen_xy: (g) => pond(g, 'frozen', 'xy'),
+    oasis: (g) => pond(g, 'oasis', ''), oasis_x: (g) => pond(g, 'oasis', 'x'), oasis_y: (g) => pond(g, 'oasis', 'y'), oasis_xy: (g) => pond(g, 'oasis', 'xy')
   };
 
   window.MODELS = window.MODELS || {};
