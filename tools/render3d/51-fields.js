@@ -1,0 +1,22 @@
+// ============================================================================
+// 51-fields.js — parcelles de ressources (3 paliers × 3 biomes) et parcelles au sol
+// ============================================================================
+(function () {
+  const T = window.THREE;
+  const P = window.P3;
+  const { material, solid } = window.TEX;
+  const F = {};
+  const treeFor = (g, biome, x, y, s, i) => biome === 'desert' ? (i % 3 === 2 ? P.cactus(g, x, y, s * 0.8) : P.palm(g, x, y, s * 0.9)) : biome === 'snow' ? P.pine(g, x, y, s, '#2f6a3a', true) : (i % 2 ? P.oak(g, x, y, s * 0.9) : P.pine(g, x, y, s));
+  const groundKind = (biome) => biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass';
+
+  F.FARM = (g, tier, biome) => { P.plot(g, biome === 'snow' ? 'snow' : 'crop', 1.0, { th: 0.08 }); const rows = 2 + tier * 2; P.cropRows(g, -0.9, -0.9, 1.8, 1.8, rows, material('wheat', biome === 'snow' ? '#c8b870' : '#e8c248'), { channels: biome === 'desert', h: 0.14 + tier * 0.04 }); if (tier >= 2) P.fence(g, -1, -1, 2, 2); if (tier >= 3) { P.box(g, 0.42, -0.98, 0.5, 0.4, 0.45, material('planks', '#8a6a3a')); P.gable(g, 0.42, -0.98, 0.5, 0.4, 0.3, material('tiles', '#b8502a'), 0.45, 0.1, 0.06); } };
+  F.LUMBER = (g, tier, biome) => { P.plot(g, groundKind(biome), 1.0, { th: 0.08 }); const spots = [[-0.6, -0.6, 1.0], [0.5, -0.7, 0.9], [-0.1, 0.1, 1.1], [0.6, 0.4, 0.85], [-0.7, 0.5, 0.8], [0.1, -0.95, 0.7]]; spots.slice(0, 2 + Math.floor(tier * 1.4)).forEach(([x, y, s], i) => treeFor(g, biome, x, y, s, i)); if (tier >= 2) { const log = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 0.7, 10), material('bark', '#8a5a30')); log.rotation.z = Math.PI / 2; log.position.set(0.6, 0.08 + 0.08, 0.85); g.add(P.setShadow(log)); const log2 = log.clone(); log2.position.set(0.6, 0.08, 0.72); g.add(log2); } if (tier >= 3) { P.box(g, -0.98, 0.5, 0.5, 0.4, 0.4, material('planks', '#6a4a2a'), 0.08); P.gable(g, -0.98, 0.5, 0.5, 0.4, 0.25, material('planks', '#4a3a2a'), 0.48, 0.08, 0.05); } };
+  F.QUARRY = (g, tier, biome) => { P.plot(g, 'stone', 1.0, { th: 0.08 }); P.rock(g, -0.4, -0.3, 1.1 + tier * 0.25, '#8f8f8f', biome === 'snow'); if (tier >= 2) { P.rock(g, 0.4, 0.2, 1.1, '#9a9a9a', biome === 'snow'); P.rock(g, 0.1, -0.7, 0.8, '#a4a4a4', biome === 'snow'); } if (tier >= 3) { const crane = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 1.0, 8), material('planks', '#6a4a2a')); crane.position.set(-0.6, 0.58, 0.6); g.add(P.setShadow(crane)); const arm = new T.Mesh(new T.BoxGeometry(0.8, 0.05, 0.05), material('planks', '#6a4a2a')); arm.position.set(-0.3, 1.03, 0.5); arm.rotation.y = 0.5; g.add(P.setShadow(arm)); P.crate(g, 0.7, 0.7, 0.24, 0.08); } };
+  F.IRON_MINE = (g, tier, biome) => { P.plot(g, biome === 'snow' ? 'snow' : 'dirt', 1.0, { th: 0.08 }); P.box(g, -0.9, -0.9, 1.8, 0.9, 0.9, material('stone', '#6a5a4a'), 0.08); P.box(g, -0.9, -0.9, 1.8, 0.2, 0.9 + tier * 0.2, material('stone', '#7a6a5a'), 0.08); const mouth = new T.Mesh(new T.CylinderGeometry(0.24, 0.24, 0.1, 16, 1, false, 0, Math.PI), solid('#15100a')); mouth.rotation.x = Math.PI / 2; mouth.position.set(-0.1, 0.08, 0.02); g.add(mouth); P.box(g, -0.3, -0.05, 0.4, 0.1, 0.48, solid('#15100a'), 0.08); if (tier >= 2) { for (const y of [0.5, 0.7]) P.box(g, -0.8, y, 1.6, 0.04, 0.03, material('metal', '#5a4a3a'), 0.08); P.cart(g, 0.3, 0.6, 0.08, 0.55); } if (tier >= 3) { P.rock(g, 0.7, -0.4, 0.8, '#7a7a8a', biome === 'snow'); P.rock(g, -0.75, 0.2, 0.6, '#8a8a9a', biome === 'snow'); } if (biome === 'snow') P.box(g, -0.95, -0.95, 1.9, 0.95, 0.05, material('snow', '#f4f8fc'), 0.98); };
+
+  window.MODELS = window.MODELS || {};
+  for (const [key, fn] of Object.entries(F)) window.MODELS['field:' + key] = (g, tier, biome) => { fn(g, tier, biome); return { extent: 4 }; };
+  window.FIELD_KEYS = Object.keys(F);
+  // Parcelles au sol (deux variantes par biome)
+  window.MODELS.plot = (g, biome, variant) => { P.plot(g, groundKind(biome), 1.0, { th: 0.1 }); window.TEX.resetSeed(100 + variant * 7); if (biome !== 'snow') for (let i = 0; i < 3 + variant; i++) { const a = Math.random() * Math.PI * 2, r = 0.45 + Math.random() * 0.4; if (biome === 'desert') { const pebble = new T.Mesh(new T.SphereGeometry(0.03, 6, 5), material('flat', '#c4a65e')); pebble.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r * 0.5); g.add(pebble); } else P.bush(g, Math.cos(a) * r, Math.sin(a) * r * 0.5, 0.25 + Math.random() * 0.2, '#5e9a32'); } return { extent: 3, shadowCatcher: false, outline: false }; };
+})();

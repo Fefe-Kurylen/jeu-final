@@ -263,18 +263,17 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
     cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;
   }
 
-  // ========== SHADOW ==========
-  cityCtx.fillStyle = 'rgba(0,0,0,0.4)';
-  cityCtx.beginPath();
-  cityCtx.ellipse(x + 5, y + 8, bw * 0.9, bw * 0.45, 0, 0, Math.PI * 2);
-  cityCtx.fill();
-
-  // ========== SPRITE (assets/images/buildings/<faction>/<key>.svg, généré par tools/build-assets.cjs) ==========
-  // Le losange au sol du sprite (±0.56·size × ±0.28·size) recouvre l'emplacement ; sinon rendu procédural
+  // ========== SPRITE 2.5D (assets/images/3d/buildings/<faction>/<key>.webp, rendu par tools/build-3d.cjs) ==========
+  // Largeur 1,7·size : le losange de parcelle du sprite (100/130 de sa largeur) recouvre la cellule ; l'ombre
+  // portée fait partie du rendu. Sans sprite (chargement en cours) : rendu procédural avec ombre
   const sprite = getSprite(buildingSpriteUrl(key));
   if (sprite) {
     drawSprite(cityCtx, sprite, x, y, size * 1.7, spriteVariant(isHovered));
   } else {
+    cityCtx.fillStyle = 'rgba(0,0,0,0.4)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(x + 5, y + 8, bw * 0.9, bw * 0.45, 0, 0, Math.PI * 2);
+    cityCtx.fill();
     // ========== BASE PLATFORM ==========
     cityCtx.fillStyle = '#6a5a4a';
     cityCtx.beginPath();

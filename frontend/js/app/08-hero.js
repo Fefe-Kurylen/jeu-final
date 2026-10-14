@@ -72,19 +72,19 @@ async function loadHero() {
             <!-- Stats -->
             <div class="hero-stats-grid">
               <div class="hero-stat-row">
-                <span class="stat-icon"><img class="ico" src="assets/images/ui/attack.svg" alt=""></span>
+                <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
                 <span class="stat-label">Attaque</span>
                 <span class="stat-val">${hero.attack + hero.atkPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('atk')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
-                <span class="stat-icon"><img class="ico" src="assets/images/ui/defense.svg" alt=""></span>
+                <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
                 <span class="stat-label">Defense</span>
                 <span class="stat-val">${hero.defense + hero.defPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('def')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
-                <span class="stat-icon"><img class="ico" src="assets/images/ui/expedition.svg" alt=""></span>
+                <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
                 <span class="stat-label">Vitesse</span>
                 <span class="stat-val">${hero.speed + hero.spdPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('spd')">+</button>` : ''}
@@ -110,7 +110,7 @@ async function loadHero() {
             <div class="hero-body-container">
               <!-- Body silhouette -->
               <div class="hero-body-silhouette">
-                <img class="body-sprite" src="assets/images/map/units/hoplite_${player?.faction || 'ROME'}.svg" alt="">
+                <img class="body-sprite" src="${heroStageUrl(player?.faction)}" alt="">
 
                 <!-- Equipment slot overlays -->
                 ${Object.entries(EQUIPMENT_SLOTS).map(([slot, info]) => {
@@ -301,19 +301,19 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
           <h4>📊 Statistiques</h4>
           <div class="hero-stats-grid">
             <div class="hero-stat-card">
-              <span class="stat-icon"><img class="ico" src="assets/images/ui/attack.svg" alt=""></span>
+              <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
               <span class="stat-name">Attaque</span>
               <span class="stat-value">${hero.atkPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('atk')">+</button>` : ''}
             </div>
             <div class="hero-stat-card">
-              <span class="stat-icon"><img class="ico" src="assets/images/ui/defense.svg" alt=""></span>
+              <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
               <span class="stat-name">Défense</span>
               <span class="stat-value">${hero.defPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('def')">+</button>` : ''}
             </div>
             <div class="hero-stat-card">
-              <span class="stat-icon"><img class="ico" src="assets/images/ui/expedition.svg" alt=""></span>
+              <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
               <span class="stat-name">Vitesse</span>
               <span class="stat-value">${hero.spdPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('spd')">+</button>` : ''}

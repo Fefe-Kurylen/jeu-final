@@ -34,8 +34,8 @@ function updateWorldSize(playerCount, serverWorldSize) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
-// ========== MAP SPRITES (PNG générés par tools/build-assets.cjs --png) ==========
-// assets/images/map/manifest.json liste les sprites disponibles ; sans manifest ou sans image,
+// ========== MAP SPRITES (WebP rendus en 3D par tools/build-3d.cjs) ==========
+// assets/images/3d/map/manifest.json liste les sprites disponibles ; sans manifest ou sans image,
 // le rendu procédural (formes géométriques) prend le relais sprite par sprite.
 let tilesetLoaded = false;       // manifest lu et images chargées
 let tilesetLoadFailed = false;   // manifest absent : ne jamais retenter
@@ -58,7 +58,7 @@ function loadTilesetAssets() {
 async function _loadTilesetAssetsOnce() {
   let manifest;
   try {
-    const res = await fetch('assets/images/map/manifest.json');
+    const res = await fetch('assets/images/3d/map/manifest.json');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     manifest = await res.json();
   } catch (e) {
@@ -67,7 +67,7 @@ async function _loadTilesetAssetsOnce() {
     return;
   }
   if (manifest.anchor && typeof manifest.anchor.y === 'number') mapSpriteAnchor = manifest.anchor;
-  const ext = manifest.format === 'svg' ? 'svg' : 'png';
+  const ext = manifest.format || 'png';
   const jobs = [];
   for (const category of Object.keys(tileImages)) {
     for (const name of manifest[category] || []) {
@@ -75,7 +75,7 @@ async function _loadTilesetAssetsOnce() {
         const img = new Image();
         img.onload = () => { tileImages[category][name] = img; resolve(); };
         img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
-        img.src = `assets/images/map/${category}/${name}.${ext}`;
+        img.src = `assets/images/3d/map/${category}/${name}.${ext}`;
       }));
     }
   }

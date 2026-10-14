@@ -4545,7 +4545,7 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 .replay-controls .btn { min-height: 40px; }
 .replay-speed { display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 8px; font-size: 13px; color: #5a4020; }
 .replay-speed input[type=range] { flex: 0 1 160px; }
-.hero-body-silhouette img.body-sprite { position: absolute; left: 50%; top: 50%; width: 78%; height: 78%; transform: translate(-50%, -50%); object-fit: contain; opacity: 0.85; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); pointer-events: none; }
+.hero-body-silhouette img.body-sprite { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; transform: translate(-50%, -50%); object-fit: contain; opacity: 1; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); pointer-events: none; }
 
 /* ========== GRILLE D'ENTRAÎNEMENT : CARTES D'UNITÉS PEINTES ========== */
 #units-grid, .units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -4563,3 +4563,106 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 .army-content, .army-management-layout, .armies-column, .armies-list, .army-card-new, .garrison-column { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .army-card-top { flex-wrap: wrap; }
 .army-card-top .status-pill { margin-left: auto; }
+
+
+/* ========== HABILLAGE 2.5D : cadres, boutons, plaques et scènes rendus en 3D (assets/images/3d) ========== */
+/* Boutons : plaque bombée 160×56 (rendu 2×), tranches 24/28 px, liseré d'or ; enfoncé = variante « pressed » */
+.btn-primary, .upgrade-building-btn, .recruit-btn, .btn-secondary, .btn-danger,
+.panel-actions .btn-primary, .panel-actions .btn-secondary, .panel-actions .btn-danger, .panel-actions .btn-warning,
+.panel-actions .btn-raid, .panel-actions .btn-success, .panel-actions .btn-info {
+  background: none;
+  border: 12px solid transparent;
+  border-width: 12px 14px;
+  border-image-slice: 24 28 fill;
+  border-image-width: 12px 14px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  padding: 3px 8px;
+  min-height: 42px;
+  line-height: 1.15;
+  color: #fff6e0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  box-shadow: none;
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+}
+.btn-primary, .upgrade-building-btn, .recruit-btn, .panel-actions .btn-primary, .panel-actions .btn-success { border-image-source: url(../assets/images/3d/ui/btn-primary.webp); }
+.btn-secondary, .panel-actions .btn-secondary { border-image-source: url(../assets/images/3d/ui/btn-secondary.webp); color: #f5e6c8; }
+.btn-danger, .panel-actions .btn-danger { border-image-source: url(../assets/images/3d/ui/btn-danger.webp); }
+.panel-actions .btn-warning, .panel-actions .btn-raid { border-image-source: url(../assets/images/3d/ui/btn-gold.webp); color: #2a1a08; text-shadow: 0 1px 0 rgba(255,255,255,0.35); }
+.panel-actions .btn-info { border-image-source: url(../assets/images/3d/ui/btn-info.webp); }
+.btn-primary:hover, .upgrade-building-btn:hover, .recruit-btn:hover, .btn-secondary:hover, .btn-danger:hover,
+.panel-actions .btn:hover { background: none; filter: brightness(1.08) drop-shadow(0 4px 6px rgba(0,0,0,0.45)); transform: translateY(-1px); box-shadow: none; }
+.btn-primary:active, .upgrade-building-btn:active, .recruit-btn:active, .panel-actions .btn-primary:active, .panel-actions .btn-success:active { border-image-source: url(../assets/images/3d/ui/btn-primary-pressed.webp); }
+.btn-secondary:active, .panel-actions .btn-secondary:active { border-image-source: url(../assets/images/3d/ui/btn-secondary-pressed.webp); }
+.btn-danger:active, .panel-actions .btn-danger:active { border-image-source: url(../assets/images/3d/ui/btn-danger-pressed.webp); }
+.panel-actions .btn-warning:active, .panel-actions .btn-raid:active { border-image-source: url(../assets/images/3d/ui/btn-gold-pressed.webp); }
+.panel-actions .btn-info:active { border-image-source: url(../assets/images/3d/ui/btn-info-pressed.webp); }
+.btn-primary:active, .upgrade-building-btn:active, .recruit-btn:active, .btn-secondary:active, .btn-danger:active, .panel-actions .btn:active { transform: translateY(1px); filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); box-shadow: none; }
+.btn-primary:disabled, .upgrade-building-btn:disabled, .recruit-btn:disabled, .btn-secondary:disabled, .btn-danger:disabled, .panel-actions .btn:disabled { filter: grayscale(0.6) opacity(0.55); transform: none; }
+.btn-large { min-height: 48px; font-size: 14px; }
+
+/* Modales et panneaux : cadre de bois sombre à liseré d'or, fond parchemin (frame-modal 192 px, tranche 52 px) */
+.modal-box, .build-panel {
+  background: none;
+  border: 20px solid transparent;
+  border-image: url(../assets/images/3d/ui/frame-modal.webp) 52 fill / 20px stretch;
+  border-radius: 0;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.6);
+}
+.modal-box::before, .build-panel::before { display: none; }
+.modal-header, .panel-header { margin-top: 0; border-radius: 3px 3px 0 0; }
+.map-info-panel {
+  background: linear-gradient(180deg, rgba(74,60,42,0.98) 0%, rgba(42,36,24,0.98) 100%);
+  background-clip: padding-box;
+  border: 14px solid transparent;
+  border-image: url(../assets/images/3d/ui/frame-panel.webp) 68 / 14px stretch;
+  border-radius: 0;
+}
+
+/* Barres : planches de bois (bar-wood) ; boîtes de ressources : plaques de parchemin (plate-parchment) */
+.top-bar, .bottom-nav { background: url(../assets/images/3d/ui/bar-wood.webp) left center / auto 100% repeat-x, #2a2418; }
+.resource-box, .resource-box.gold-box {
+  background: none;
+  border: 7px solid transparent;
+  border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 7px stretch;
+  border-radius: 0;
+  padding: 0 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+}
+
+/* Bandeau d'onglet : plaque parchemin, titre et scène 3D de l'écran (marché, alliance, classement, inventaire, rapports) */
+.tab-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 78px;
+  margin: 0 0 8px;
+  padding: 0 14px;
+  border: 8px solid transparent;
+  border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 8px stretch;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+.tab-banner h2 { position: relative; z-index: 1; margin: 0; font-family: 'Cinzel', serif; font-size: 20px; letter-spacing: 1px; color: #3a2a14; text-shadow: 0 1px 0 rgba(255,255,255,0.5); }
+.tab-banner::after { content: ''; position: absolute; right: 4px; top: -4px; bottom: -4px; width: 180px; background: right center / contain no-repeat; pointer-events: none; }
+#tab-reports .tab-banner::after { background-image: url(../assets/images/3d/scenes/header-reports.webp); }
+#tab-ranking .tab-banner::after { background-image: url(../assets/images/3d/scenes/header-ranking.webp); }
+#tab-inventory .tab-banner::after { background-image: url(../assets/images/3d/scenes/header-inventory.webp); }
+#tab-alliance .tab-banner::after { background-image: url(../assets/images/3d/scenes/header-alliance.webp); }
+#tab-market .tab-banner::after { background-image: url(../assets/images/3d/scenes/header-market.webp); }
+@media (max-width: 480px) { .tab-banner { height: 64px; } .tab-banner h2 { font-size: 17px; } .tab-banner::after { width: 140px; } }
+
+/* Écran de connexion : panorama 3D (île des six civilisations) sous un ciel, portrait ou paysage */
+#auth-screen { background: linear-gradient(180deg, #8fb8e0 0%, #cfe0ee 48%, #d8c89a 100%); }
+#auth-screen::before {
+  background: url(../assets/images/3d/scenes/auth-portrait.webp) center 55% / cover no-repeat;
+  opacity: 1;
+  animation: none;
+}
+@media (orientation: landscape) { #auth-screen::before { background-image: url(../assets/images/3d/scenes/auth-landscape.webp); background-position: center 60%; } }
+#auth-screen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,8,4,0.22) 0%, rgba(10,8,4,0.12) 45%, rgba(10,8,4,0.5) 100%); pointer-events: none; }
+.auth-decorations, .auth-bg { display: none; }
+.auth-container { z-index: 1; }
+
+/* Carte de connexion translucide : le panorama reste visible au travers */
+.auth-box { background: linear-gradient(180deg, rgba(74,60,42,0.88) 0%, rgba(58,46,32,0.9) 50%, rgba(42,34,24,0.92) 100%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }

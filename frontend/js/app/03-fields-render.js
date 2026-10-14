@@ -264,16 +264,17 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.fill();
   }
 
-  // ========== SPRITE (assets/images/fields/<TYPE>_<palier>.svg, généré par tools/build-assets.cjs) ==========
+  // ========== SPRITE 2.5D (assets/images/3d/fields/<biome>/<TYPE>_<palier>.webp, rendu par tools/build-3d.cjs) ==========
   // Largeur 1.5·size : losange au sol de ±0.577·size en x et ±0.288·size en y ; sinon rendu procédural
   const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : null;
 
-  // ========== SHADOW ==========
-  cityCtx.fillStyle = 'rgba(0,0,0,0.35)';
-  cityCtx.beginPath();
-  if (sprite) cityCtx.ellipse(x + 4, y + 5, size * 0.6, size * 0.3, 0, 0, Math.PI * 2);
-  else cityCtx.ellipse(x + 4, y + 6, size * 0.72, size * 0.38, 0, 0, Math.PI * 2);
-  cityCtx.fill();
+  // ========== SHADOW (rendu procédural seulement : l'ombre portée fait partie des sprites 3D) ==========
+  if (!sprite && level > 0) {
+    cityCtx.fillStyle = 'rgba(0,0,0,0.35)';
+    cityCtx.beginPath();
+    cityCtx.ellipse(x + 4, y + 6, size * 0.72, size * 0.38, 0, 0, Math.PI * 2);
+    cityCtx.fill();
+  }
 
   if (sprite) {
     drawSprite(cityCtx, sprite, x, y, size * 1.5, spriteVariant(isHovered));
@@ -294,9 +295,11 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
       cityCtx.shadowBlur = 0;
     }
   } else if (level === 0) {
-    // ========== EMPTY PLOT (losange de terre, même gabarit que les sprites) ==========
+    // ========== EMPTY PLOT (parcelle 3D du biome au gabarit des sprites, puis losange pointillé) ==========
     const night = isNightMode();
-    cityCtx.fillStyle = night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)';
+    const plot = getSprite(plotSpriteUrl((Math.round(slot.gx || 0) * 3 + Math.round(slot.gy || 0) * 5 + 10) & 1));
+    if (plot) drawSprite(cityCtx, plot, x, y, size * 1.5, spriteVariant(false));
+    cityCtx.fillStyle = plot ? (night ? 'rgba(40,36,30,0.45)' : 'rgba(110,88,60,0.22)') : (night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)');
     cityCtx.beginPath();
     cityCtx.moveTo(x - size * 0.577, y);
     cityCtx.lineTo(x, y - size * 0.288);

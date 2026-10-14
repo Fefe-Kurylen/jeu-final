@@ -68,8 +68,8 @@ function calculateCitySlots() {
   for (const [slot, [gx, gy]] of Object.entries(ISO_CITY_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
-    // size : le sprite (1,7 × size) remplit la cellule (largeur W) sans déborder sur ses voisines
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.6, hw: W * 0.47, hh: W * 0.235, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
+    // size : le sprite (1,7 × size = 1,22 W) pose son losange de parcelle (100/130 de sa largeur = 0,94 W) sur la cellule
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.72, hw: W * 0.47, hh: W * 0.235, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
   }
 }
 function calculateFieldSlots() {
@@ -81,7 +81,7 @@ function calculateFieldSlots() {
   for (const [slot, [gx, gy]] of Object.entries(ISO_FIELD_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.64, hw: W * 0.47, hh: W * 0.235, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.815, hw: W * 0.47, hh: W * 0.235, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size = 1,22 W
   }
 }
 
@@ -281,9 +281,14 @@ function isoSceneProps(view, W, cx, cy) {
   return out;
 }
 
+// Parcelle au sol (rendu 3D du biome) sous chaque cellule ; la variante dépend de la cellule
+function drawIsoPlot(ctx, s) {
+  const img = getSprite(plotSpriteUrl((s.gx * 3 + s.gy * 5 + 10) & 1));
+  if (img) drawSprite(ctx, img, s.x, s.y, s.hw * 2 / SPRITE_PLOT_W, spriteVariant(false));
+}
 // Parcelle vide : losange en pointillé + « + »
 function drawIsoEmptyCell(ctx, s, hovered, night, label = '+') {
-  ctx.fillStyle = night ? 'rgba(20,16,10,0.45)' : 'rgba(80,60,36,0.28)';
+  ctx.fillStyle = night ? 'rgba(20,16,10,0.35)' : 'rgba(80,60,36,0.14)';
   isoDiamondPath(ctx, s.x, s.y, s.hw, s.hh); ctx.fill();
   ctx.setLineDash([5, 4]); ctx.lineWidth = hovered ? 2.5 : 1.5; ctx.strokeStyle = hovered ? '#ffd700' : 'rgba(255,240,200,0.5)';
   if (hovered) { ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 12; }
@@ -319,11 +324,12 @@ function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key
 // Position (ix, iy, iz) dans le repère du sprite (tools/build-assets.cjs : P()) -> écran, pour un sprite de
 // largeur w dont le centre du losange est en (x, y)
 function spritePointToScreen(x, y, w, ix, iy, iz) {
-  const px = 100 + (ix - iy) * 25, py = 70 + (ix + iy) * 12.5 - iz * 24;
+  const px = 100 + (ix - iy) * 25, py = 70 + (ix + iy) * 12.5 - iz * 30.6;   // 1 unité = 25 px en x, 12,5 px en profondeur, 30,6 px en hauteur (cadre 130 px)
   return { x: x + ((px - 100) / 130) * w, y: y + ((py - 70) / 130) * w };
 }
-const ISO_CHIMNEYS = { WORKSHOP: [-0.5, -0.4, 1.2], FORGE: [0.2, -0.3, 1.0], BAKERY: [0.3, -0.4, 0.9], FOUNDRY: [0.2, -0.4, 1.1], GALLIC_BREWERY: [0.2, -0.4, 0.9] };
-const ISO_WATER = { MOAT: [0, 0, 0, 0.9], ROMAN_THERMAE: [0, 0.5, 0, 0.4], EGYPTIAN_IRRIGATION: [0, 0, 0, 0.8] };   // ix, iy, iz, rayon (cellules)
+// Sommets des cheminées des modèles 3D (ix, iy, iz) : la fumée part de là
+const ISO_CHIMNEYS = { WORKSHOP: [[-0.5, -0.3, 1.7]], FORGE: [[0.2, -0.3, 1.7]], BAKERY: [[0.3, -0.4, 1.75]], FOUNDRY: [[-0.4, -0.4, 1.85], [0.2, -0.4, 1.85]], GALLIC_BREWERY: [[0.2, -0.4, 1.7]] };
+const ISO_WATER = { MOAT: [0, 0, 0.02, 0.9], ROMAN_THERMAE: [0, 0.5, 0.14, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
 const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0, camKey: '' };
 function isoAnimate(ctx, built, W, night) {
   const now = performance.now() / 1000;
@@ -332,10 +338,10 @@ function isoAnimate(ctx, built, W, night) {
   const dt = Math.min(0.2, now - (isoAnim.last || now)); isoAnim.last = now;
   // fumée
   for (const b of built) {
-    const ch = ISO_CHIMNEYS[b.key];
-    if (!ch) continue;
-    const p = spritePointToScreen(b.x, b.y, b.w, ch[0], ch[1], ch[2]);
-    if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.16, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0 });
+    for (const ch of ISO_CHIMNEYS[b.key] || []) {
+      const p = spritePointToScreen(b.x, b.y, b.w, ch[0], ch[1], ch[2]);
+      if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0 });
+    }
   }
   for (const pf of isoAnim.smoke) { pf.life += dt; pf.x += (pf.vx + Math.sin(pf.life * 3) * W * 0.02) * dt; pf.y += pf.vy * dt; pf.r += W * 0.05 * dt; pf.a -= 0.19 * dt; }
   isoAnim.smoke = isoAnim.smoke.filter(pf => pf.a > 0.02);
@@ -423,6 +429,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
     const level = building?.level || (s.fixed ? 1 : 0);
     const isBuilding = currentCity?.buildQueue?.some(q => q.slot === s.slot && q.status === 'RUNNING');
     items.push({ depth: s.gx + s.gy, y: s.y, draw: () => {
+      drawIsoPlot(ctx, s);
       if (!key) { drawIsoEmptyCell(ctx, s, hovered, night); return; }
       if (hovered) drawIsoHoverCell(ctx, s);
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);

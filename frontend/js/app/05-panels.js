@@ -211,22 +211,22 @@ function openBuildPanel(slotNum) {
               <h4>Coût d'amélioration</h4>
               <div class="cost-grid">
                 <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
-                  <span class="cost-icon"><img class="ico" src="assets/images/ui/wood.svg" alt=""></span>
+                  <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.wood)}</span>
                   <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
                 </div>
                 <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
-                  <span class="cost-icon"><img class="ico" src="assets/images/ui/stone.svg" alt=""></span>
+                  <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.stone)}</span>
                   <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
                 </div>
                 <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
-                  <span class="cost-icon"><img class="ico" src="assets/images/ui/iron.svg" alt=""></span>
+                  <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.iron)}</span>
                   <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
                 </div>
                 <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
-                  <span class="cost-icon"><img class="ico" src="assets/images/ui/food.svg" alt=""></span>
+                  <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.food)}</span>
                   <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
                 </div>
@@ -315,19 +315,19 @@ function openBuildPanel(slotNum) {
         
         <div class="cost-grid compact">
           <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/ui/wood.svg" alt=""></span>
+            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
             <span class="cost-value">${formatNum(def?.costL1?.wood || 50)}</span>
           </div>
           <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/ui/stone.svg" alt=""></span>
+            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
             <span class="cost-value">${formatNum(def?.costL1?.stone || 50)}</span>
           </div>
           <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/ui/iron.svg" alt=""></span>
+            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
             <span class="cost-value">${formatNum(def?.costL1?.iron || 50)}</span>
           </div>
           <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/ui/food.svg" alt=""></span>
+            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
             <span class="cost-value">${formatNum(def?.costL1?.food || 0)}</span>
           </div>
         </div>
@@ -994,7 +994,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
         <h4>📊 Statistiques</h4>
         <div class="stats-grid">
           <div class="stat-item">
-            <span class="stat-icon"><img class="ico" src="assets/images/ui/attack.svg" alt=""></span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
             <span class="stat-label">Attaque</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.attack || 0)}%; background: #e74c3c"></div>
@@ -1002,7 +1002,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
             <span class="stat-value">${unit.stats?.attack || 0}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-icon"><img class="ico" src="assets/images/ui/defense.svg" alt=""></span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
             <span class="stat-label">Défense</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.defense || 0)}%; background: #3498db"></div>
@@ -1010,7 +1010,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
             <span class="stat-value">${unit.stats?.defense || 0}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-icon"><img class="ico" src="assets/images/ui/expedition.svg" alt=""></span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
             <span class="stat-label">Vitesse</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.speed || 0)}%; background: #f39c12"></div>
@@ -1217,22 +1217,22 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
           <h4>⬆️ Améliorer au niveau ${nextLevel}</h4>
           <div class="cost-grid">
             <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
-              <span class="cost-icon"><img class="ico" src="assets/images/ui/wood.svg" alt=""></span>
+              <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.wood)}</span>
               <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
             </div>
             <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
-              <span class="cost-icon"><img class="ico" src="assets/images/ui/stone.svg" alt=""></span>
+              <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.stone)}</span>
               <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
             </div>
             <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
-              <span class="cost-icon"><img class="ico" src="assets/images/ui/iron.svg" alt=""></span>
+              <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.iron)}</span>
               <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
             </div>
             <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
-              <span class="cost-icon"><img class="ico" src="assets/images/ui/food.svg" alt=""></span>
+              <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.food)}</span>
               <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
             </div>

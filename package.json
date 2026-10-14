@@ -15,7 +15,9 @@
     "ios": "npx cap sync ios && npx cap open ios",
     "android": "npx cap sync android && npx cap open android",
     "ios:build": "npx cap sync ios && npx cap copy ios",
-    "android:build": "npx cap sync android && npx cap copy android"
+    "android:build": "npx cap sync android && npx cap copy android",
+    "build:3d": "node tools/build-3d.cjs",
+    "build:assets": "node tools/build-assets.cjs --png"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -41,6 +43,7 @@
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
     "@revenuecat/purchases-capacitor": "^13.7.4",
+    "three": "^0.170.0",
     "typescript": "^5.9.3"
   }
 }

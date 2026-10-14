@@ -38,3 +38,6 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 *.apk
 *.ipa
+
+# planches de contrôle du rendu 3D
+tools/render3d/out/

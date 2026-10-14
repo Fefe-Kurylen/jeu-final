@@ -76,18 +76,14 @@ const battleScene = {
     if (!ctx) return;
     const night = isNightMode();
     ctx.clearRect(0, 0, w, h);
-    // terrain : herbe texturée + losanges iso discrets + vignette
-    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, night ? '#2a3a28' : '#6a9a4a'); g.addColorStop(1, night ? '#1a2a18' : '#4a7a2a');
-    ctx.beginPath(); ctx.rect(0, 0, w, h); fillTextured(ctx, 'grass', g, night ? 0.85 : 0.45);
-    ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 1;
-    const tw = 64, th = 32;
-    for (let i = -6; i < 14; i++) { ctx.beginPath(); ctx.moveTo(i * tw - w, h); ctx.lineTo(i * tw + w, -h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(i * tw - w, -h + th * 2); ctx.lineTo(i * tw + w, h + th * 2); ctx.stroke(); }
-    // chemin de terre au centre
-    ctx.beginPath(); ctx.moveTo(w * 0.5, 0); ctx.quadraticCurveTo(w * 0.47, h * 0.5, w * 0.52, h); ctx.lineWidth = 26; strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
+    // terrain : scène 3D du champ de bataille (cadrage « cover »), sinon herbe texturée ; puis vignette
+    const bg = getSprite('assets/images/3d/scenes/battlefield.webp');
+    if (bg) { const k = Math.max(w / 640, h / 240); const bw = 640 * k, bh = 240 * k; ctx.drawImage(bg, (w - bw) / 2, (h - bh) / 2, bw, bh); }
+    else { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, night ? '#2a3a28' : '#6a9a4a'); g.addColorStop(1, night ? '#1a2a18' : '#4a7a2a'); ctx.beginPath(); ctx.rect(0, 0, w, h); fillTextured(ctx, 'grass', g, night ? 0.85 : 0.45); }
     const v = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.7); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
     // mur du défenseur
-    if (this.hasWall) { const wall = getSprite(`assets/images/buildings/${this.dFaction}/forest/WALL.svg`); if (wall) { drawSprite(ctx, wall, w * 0.86, h * 0.42, 150, night ? 'night' : 'day'); } }
+    if (this.hasWall) { const wall = getSprite(`assets/images/3d/buildings/${this.dFaction}/WALL.webp`); if (wall) { drawSprite(ctx, wall, w * 0.86, h * 0.42, 150, night ? 'night' : 'day'); } }
 
     const from = this.anim ? this.anim.from : this.shown, to = this.shown;
     const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
@@ -119,7 +115,7 @@ const battleScene = {
       const perFig = Math.max(1, Math.ceil(u.initial / 6));
       const figs = count > 0 ? Math.max(1, Math.min(6, Math.ceil(count / perFig))) : 0;
       const figsFrom = cFrom > 0 ? Math.max(1, Math.min(6, Math.ceil(cFrom / perFig))) : 0;
-      const sprite = getSprite(`assets/images/map/units/${({ INFANTRY: 'hoplite', ARCHER: 'archer', CAVALRY: 'cavalry', SIEGE: 'catapult' })[u.cls]}_${u.faction}.svg`);
+      const sprite = getSprite(`assets/images/3d/map/units/${({ INFANTRY: 'hoplite', ARCHER: 'archer', CAVALRY: 'cavalry', SIEGE: 'catapult' })[u.cls]}_${u.faction}.webp`);
       const p = pos[i], fh = u.cls === 'SIEGE' ? 40 : 34;
       // formation 2 rangs décalés, les figurines perdues s'estompent
       for (let k = 0; k < Math.max(figs, figsFrom); k++) {
@@ -129,7 +125,7 @@ const battleScene = {
         ctx.save();
         if (dying) ctx.globalAlpha = Math.max(0, 1 - progress);
         if (side === 'right') { ctx.translate(fx, 0); ctx.scale(-1, 1); ctx.translate(-fx, 0); }   // le défenseur regarde vers la gauche
-        if (sprite) { const sc = fh / 108; ctx.drawImage(sprite, fx - 128 * sc, fy - 204 * sc, 256 * sc, 256 * sc); }
+        if (sprite) { const sc = fh / 83; ctx.drawImage(sprite, fx - 128 * sc, fy - 204 * sc, 256 * sc, 256 * sc); }   // cadre carte 256 px, ancre (128, 204), figurines ≈ 83 px
         else { ctx.fillStyle = '#8b1a1a'; ctx.fillRect(fx - 5, fy - 20, 10, 20); }
         ctx.restore();
       }
@@ -177,7 +173,7 @@ const battleScene = {
 
   drawBanner(x, y, faction, label) {
     const ctx = this.ctx;
-    const tok = getSprite(`assets/images/heroes/${faction}.svg`);
+    const tok = getSprite(`assets/images/3d/heroes/${faction}_bust.webp`);
     ctx.fillStyle = 'rgba(20,12,4,0.65)'; ctx.beginPath(); ctx.roundRect(x - 54, y - 14, 108, 28, 14); ctx.fill();
     if (tok) ctx.drawImage(tok, x - 50, y - 12, 24, 24);
     ctx.fillStyle = '#ffd700'; ctx.font = 'bold 12px Cinzel, serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, x - 22, y + 1);
