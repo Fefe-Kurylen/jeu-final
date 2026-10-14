@@ -4779,3 +4779,8 @@ html.painted-ui .modal-header, html.painted-ui .panel-header { background-image:
 
 /* Barre haute : la plaque de ressources occupe la largeur disponible sur grand écran */
 @media (min-width: 769px) { .top-bar .resources-container { flex: 1 1 auto; max-width: 760px; margin-right: 16px; } .top-bar .resource-box { padding: 4px 12px 5px; } }
+
+/* Cadres peints : bordure plus fine que les cadres 3D, tranches adaptées */
+html.painted-ui .modal-box, html.painted-ui .build-panel { border-width: 16px; border-image-slice: 40 fill; border-image-width: 16px; }
+html.painted-ui .map-info-panel { border-width: 16px; border-image-slice: 44; border-image-width: 16px; }
+html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .list-item, html.painted-ui .queue-item { border-image-slice: 20 fill; }

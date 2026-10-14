@@ -133,7 +133,11 @@ async function callApi(prompt, guideB64, size) {
     const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form });
     if (res.ok) { const j = await res.json(); const u = j.usage || {}; usage.in += (u.input_tokens_details && u.input_tokens_details.image_tokens) || 0; usage.inText += (u.input_tokens_details && u.input_tokens_details.text_tokens) || 0; usage.out += u.output_tokens || 0; usage.n++; return j.data[0].b64_json; }
     const txt = await res.text();
-    if ((res.status === 429 || res.status >= 500) && attempt < 6) { await sleep(3000 * 2 ** attempt); continue; }
+    if ((res.status === 429 || res.status >= 500) && attempt < 15) {   // limitation de débit : on patiente (en-tête retry-after, sinon progressif, 10 s à 120 s)
+      const ra = parseFloat(res.headers.get('retry-after')) || 0;
+      await sleep(Math.min(120000, Math.max(10000, ra * 1000 || 3000 * 2 ** Math.min(attempt, 5))));
+      continue;
+    }
     throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
   }
 }
