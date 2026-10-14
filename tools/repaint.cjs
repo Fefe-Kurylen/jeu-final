@@ -235,7 +235,17 @@ async function importUserImages(dir) {
       if (opaque > d.length / 4 * 0.98) {   // pas de transparence : détourage du fond uni (couleur des coins)
         const cs = [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]].map(([px, py]) => { const i = (py * W + px) * 4; return [d[i], d[i + 1], d[i + 2]]; });
         const bg = cs[0].map((_, j) => cs.reduce((s, c) => s + c[j], 0) / 4);
-        for (let i = 0; i < d.length; i += 4) { const dist = Math.hypot(d[i] - bg[0], d[i + 1] - bg[1], d[i + 2] - bg[2]); d[i + 3] = Math.max(0, Math.min(255, Math.round((dist - 22) / 36 * 255))); }
+        const magenta = bg[0] > 170 && bg[2] > 170 && bg[1] < 100, green = bg[1] > 170 && bg[0] < 100 && bg[2] < 100;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          let al;
+          if (magenta || green) {   // incrustation chromatique : les pixels mêlés au fond (ombres, bords) gardent une transparence partielle
+            const m = magenta ? (Math.min(r, b) - g) / 255 : (g - Math.max(r, b)) / 255;
+            al = Math.max(0, Math.min(1, (1 - m) * 1.08 - 0.08));
+            if (al > 0 && al < 1) { for (let c = 0; c < 3; c++) d[i + c] = Math.max(0, Math.min(255, Math.round((d[i + c] - (1 - al) * bg[c]) / al))); }   // couleur « démêlée » du fond
+          } else { const dist = Math.hypot(r - bg[0], g - bg[1], b - bg[2]); al = Math.max(0, Math.min(1, (dist - 22) / 36)); }
+          d[i + 3] = Math.round(al * 255);
+        }
         x.putImageData(id, 0, 0);
       }
       return c.toDataURL('image/png').split(',')[1];
