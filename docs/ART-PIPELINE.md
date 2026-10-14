@@ -12,7 +12,7 @@ composition** à l'étape 2.
 
 ## 2. Repeinture par IA dans le style de référence — `node tools/repaint.cjs`
 
-`tools/repaint.cjs` envoie chaque rendu 3D à l'API d'images d'OpenAI (modèle `gpt-image-1`, édition guidée)
+`tools/repaint.cjs` envoie chaque rendu 3D à l'API d'images d'OpenAI (modèle `gpt-image-2.5-sunburst` par défaut, `--model=` pour en changer ; édition guidée)
 avec l'illustration de référence `tools/repaint/style-ref.png` (marché égyptien peint) et un prompt qui
 décrit le sujet (`tools/repaint/prompts.cjs` : style, grammaire architecturale par faction, description de
 chaque bâtiment, champ, parcelle, décor, icône de carte, figurine, scène). Le résultat (fond transparent) est
@@ -28,6 +28,7 @@ icônes, habillage de l'interface, bustes (jetons) et figurines de carte.
 
 ```
 OPENAI_API_KEY=sk-… node tools/repaint.cjs                       # toutes les cibles manquantes (qualité high)
+node tools/repaint.cjs --tag=essai --model=gpt-image-2.5-flare --only='^buildings/EGYPT/MARKET'   # essai dans tools/repaint/out/essai/, rien dans painted/
 node tools/repaint.cjs --dry --limit=8                            # sans appel : guides + prompts dans tools/repaint/out/
 node tools/repaint.cjs --only='^buildings/ROME/' --quality=medium # un sous-ensemble (regex sur le chemin)
 node tools/repaint.cjs --cats=buildings,fields --workers=2        # catégories choisies, 2 requêtes en parallèle
@@ -35,15 +36,15 @@ node tools/repaint.cjs --force --only='^buildings/EGYPT/MARKET'   # refaire un s
 node tools/repaint.cjs --reprocess                                # recalage seul depuis les réponses brutes (tools/repaint/raw/)
 ```
 
-### Coût (tarif public gpt-image-1, ~630 images)
+### Coût (~600 images)
 
-| Qualité | Coût estimé |
-|---|---|
-| low | ≈ 7 $ |
-| medium | ≈ 27 $ |
-| high | ≈ 108 $ |
+La facturation est au jeton (8 $/M en entrée image, 5 $/M en entrée texte, 30 $/M en sortie) ; l'outil affiche la
+consommation réelle et le coût en fin de lot. Ordres de grandeur par image carrée : low ≈ 0,006 $, medium ≈ 0,05 $,
+high ≈ 0,2 $ (soit ≈ 4 $, 30 $ ou 125 $ pour tout) ; `xhigh` et `max` existent sur les modèles 2.5 et coûtent plus.
 
-Les réponses brutes sont conservées dans `tools/repaint/raw/` (ignoré par git) : un re-traitement ne coûte rien.
+La clé ne doit jamais être écrite dans le dépôt : variable d'environnement `OPENAI_API_KEY` (secret de l'environnement
+Claude Code, ou fichier hors dépôt chargé avant l'appel). Les requêtes sortantes passent par le proxy d'environnement
+(`NODE_USE_ENV_PROXY`, activé automatiquement). Les réponses brutes sont conservées dans `tools/repaint/raw/` (ignoré par git) : un re-traitement ne coûte rien.
 Pour un sprite raté, `--force --only=…` le régénère (un nouvel appel) ; le rendu 3D reste le repli.
 
 ### Qualité du résultat

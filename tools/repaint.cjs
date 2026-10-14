@@ -18,6 +18,10 @@
 // ============================================================================
 const fs = require('fs');
 const path = require('path');
+if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY) {   // fetch passe par le proxy d'environnement
+  const r = require('child_process').spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NODE_NO_WARNINGS: '1' } });
+  process.exit(r.status ?? 1);
+}
 const { promptFor } = require('./repaint/prompts.cjs');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.error('playwright requis : npm i -D playwright && npx playwright install chromium'); process.exit(1); }
@@ -29,12 +33,16 @@ const RAW = path.join(__dirname, 'repaint', 'raw');
 const DRY = path.join(__dirname, 'repaint', 'out');
 const STYLE_REF = path.join(__dirname, 'repaint', 'style-ref.png');
 const API = 'https://api.openai.com/v1/images/edits';
-const COST = { low: 0.011, medium: 0.042, high: 0.167 };   // $ par image 1024×1024 (tarif public gpt-image-1) ; ×1,5 en 1536×1024
+const COST = { low: 0.006, medium: 0.053, high: 0.211, xhigh: 0.4, max: 0.8 };   // $ par image 1024×1024 (tarif gpt-image-2 ; xhigh/max : ordre de grandeur) ; ×0,8 en format allongé
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
 const DEFAULT_CATS = ['buildings', 'fields', 'plots', 'props', 'map', 'heroes', 'figures', 'scenes'];
 const cats = args.cats ? String(args.cats).split(',') : DEFAULT_CATS;
-const quality = ['low', 'medium', 'high'].includes(args.quality) ? args.quality : 'high';
+const quality = ['low', 'medium', 'high', 'xhigh', 'max'].includes(args.quality) ? args.quality : 'high';
+const MODEL = args.model || 'gpt-image-2.5-sunburst';   // --model=gpt-image-2.5-flare | gpt-image-2 | gpt-image-1.5 …
+const TAG = args.tag ? String(args.tag) : null;   // --tag=essai : sorties dans tools/repaint/out/<tag>/ (comparaison), rien dans painted/
+const usage = { in: 0, inText: 0, out: 0, n: 0 };   // jetons consommés (tarif : 8 $/M image en entrée, 5 $/M texte, 30 $/M en sortie)
+const usageCost = () => usage.in / 1e6 * 8 + usage.inText / 1e6 * 5 + usage.out / 1e6 * 30;
 const workers = Math.max(1, Math.min(4, parseInt(args.workers, 10) || 2));
 const only = args.only ? new RegExp(args.only) : null;
 const limit = parseInt(args.limit, 10) || 0;
@@ -50,7 +58,7 @@ for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   targets.push({ cat: c, file: f });
 }
 if (only) targets = targets.filter(t => only.test(t.file));
-if (!args.force && !args.reprocess && !args['manifest-only']) targets = targets.filter(t => !fs.existsSync(path.join(OUT, t.file)));
+if (!args.force && !args.reprocess && !args['manifest-only'] && !TAG) targets = targets.filter(t => !fs.existsSync(path.join(OUT, t.file)));
 if (limit) targets = targets.slice(0, limit);
 
 // Taille de génération : carrée pour les sprites, portrait / paysage pour les scènes
@@ -111,12 +119,12 @@ async function postProcess(page, resultB64, meta, size, align) {
 async function callApi(prompt, guideB64, size) {
   for (let attempt = 1; ; attempt++) {
     const form = new FormData();
-    form.append('model', 'gpt-image-1'); form.append('prompt', prompt); form.append('size', size); form.append('quality', quality);
+    form.append('model', MODEL); form.append('prompt', prompt); form.append('size', size); form.append('quality', quality);
     form.append('background', 'transparent'); form.append('output_format', 'png'); form.append('n', '1');
     form.append('image[]', new Blob([fs.readFileSync(STYLE_REF)], { type: 'image/png' }), 'style-ref.png');
     form.append('image[]', new Blob([Buffer.from(guideB64, 'base64')], { type: 'image/png' }), 'guide.png');
     const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form });
-    if (res.ok) { const j = await res.json(); return j.data[0].b64_json; }
+    if (res.ok) { const j = await res.json(); const u = j.usage || {}; usage.in += (u.input_tokens_details && u.input_tokens_details.image_tokens) || 0; usage.inText += (u.input_tokens_details && u.input_tokens_details.text_tokens) || 0; usage.out += u.output_tokens || 0; usage.n++; return j.data[0].b64_json; }
     const txt = await res.text();
     if ((res.status === 429 || res.status >= 500) && attempt < 6) { await sleep(3000 * 2 ** attempt); continue; }
     throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
@@ -129,7 +137,7 @@ function writeManifest() {
   walk(OUT);
   files.sort();
   fs.mkdirSync(OUT, { recursive: true });
-  fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify({ generatedAt: new Date().toISOString(), model: 'gpt-image-1', styleRef: 'tools/repaint/style-ref.png', files }, null, 1));
+  fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify({ generatedAt: new Date().toISOString(), model: MODEL, styleRef: 'tools/repaint/style-ref.png', files }, null, 1));
   return files.length;
 }
 
@@ -140,8 +148,8 @@ function writeManifest() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.setContent('<!doctype html><html><body></body></html>');
-  const est = targets.reduce((s, t) => s + COST[quality] * (sizeFor(t) === '1024x1024' ? 1 : 1.5), 0);
-  console.log(`${targets.length} sprites à ${args.dry ? 'préparer' : args.reprocess ? 're-traiter' : 'repeindre'} (qualité ${quality}${args.dry || args.reprocess ? '' : `, coût estimé ≈ ${est.toFixed(2)} $`})`);
+  const est = targets.reduce((s, t) => s + COST[quality] * (sizeFor(t) === '1024x1024' ? 1 : 0.8), 0);
+  console.log(`${targets.length} sprites à ${args.dry ? 'préparer' : args.reprocess ? 're-traiter' : 'repeindre'} (${MODEL}, qualité ${quality}${args.dry || args.reprocess ? '' : `, coût estimé ≈ ${est.toFixed(2)} $`})`);
   let next = 0, done = 0; const failures = [], drifts = [];
   async function worker() {
     while (next < targets.length) {
@@ -156,14 +164,14 @@ function writeManifest() {
           fs.writeFileSync(path.join(DRY, safe + '.guide.png'), Buffer.from(meta.png, 'base64'));
           fs.writeFileSync(path.join(DRY, safe + '.prompt.txt'), `[${size}] ${prompt}\n`);
         } else {
-          const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
+          const rawFile = path.join(TAG ? RAW + '-' + TAG : RAW, t.file.replace(/\.webp$/, '.png'));
           let b64;
           if (args.mock) b64 = meta.png;
           else if (fs.existsSync(rawFile)) b64 = fs.readFileSync(rawFile).toString('base64');
           else if (args.reprocess) throw new Error('réponse brute absente');
           else { b64 = await callApi(prompt, meta.png, size); fs.mkdirSync(path.dirname(rawFile), { recursive: true }); fs.writeFileSync(rawFile, Buffer.from(b64, 'base64')); }
           const r = await postProcess(page, b64, meta, size, t.cat !== 'scenes');
-          const outFile = path.join(args.mock ? DRY : OUT, t.file);
+          const outFile = path.join(args.mock ? DRY : TAG ? path.join(DRY, TAG) : OUT, t.file);
           fs.mkdirSync(path.dirname(outFile), { recursive: true });
           fs.writeFileSync(outFile, Buffer.from(r.webp, 'base64'));
           drifts.push(r.drift);
@@ -176,7 +184,9 @@ function writeManifest() {
   await Promise.all(Array.from({ length: Math.min(workers, targets.length) }, worker));
   console.log('');
   await browser.close();
+  if (usage.n) console.log(`${usage.n} appels : ${usage.in + usage.inText} jetons en entrée, ${usage.out} en sortie ≈ ${usageCost().toFixed(2)} $ (${(usageCost() / usage.n).toFixed(3)} $/image)`);
   if (args.mock) console.log(`résultats du test de recalage dans ${DRY} (dérive moyenne ${drifts.length ? Math.round(drifts.reduce((a, b) => a + b, 0) / drifts.length) : 0} px)`);
+  else if (TAG) console.log(`essai « ${TAG} » (${MODEL}) : résultats dans ${path.join(DRY, TAG)} ; recalage moyen ${drifts.length ? Math.round(drifts.reduce((a, b) => a + b, 0) / drifts.length) : 0} px`);
   else if (!args.dry) { const n = writeManifest(); console.log(`${n} sprites peints dans le manifeste ; recalage moyen ${drifts.length ? Math.round(drifts.reduce((a, b) => a + b, 0) / drifts.length) : 0} px`); }
   else console.log(`guides et prompts écrits dans ${DRY}`);
   if (failures.length) { console.error('Échecs :\n  ' + failures.join('\n  ')); process.exit(1); }
