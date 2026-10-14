@@ -52,24 +52,23 @@ data class ToolbarConfig(val bar: List<ToolbarSlot>, val menu: List<ToolbarSlot>
     }
     companion object {
         private fun s(a: ToolbarAction, size: ButtonSize = ButtonSize.MEDIUM, label: Boolean = true) = ToolbarSlot(action = a, size = size, showsLabel = label)
-        private val A = ToolbarAction
         fun preset(p: Preset): ToolbarConfig = when (p) {
             Preset.COMPLETE -> ToolbarConfig(
-                bar = listOf(s(A.BACK), s(A.FORWARD), s(A.SHARE), s(A.BOOKMARKS), s(A.TABS), s(A.MENU)),
-                menu = listOf(s(A.NEW_TAB), s(A.NEW_PRIVATE_TAB), s(A.SEPARATOR),
-                    s(A.HISTORY, label = false), s(A.ADD_BOOKMARK, label = false), s(A.JAVASCRIPT, label = false), s(A.SHARE, label = false), s(A.SEPARATOR),
-                    s(A.BLOCKER), s(A.DARKEN), s(A.READER), s(A.DESKTOP_SITE), s(A.FIND), s(A.SEPARATOR),
-                    s(A.CLOSE_TAB), s(A.CLOSE_ALL_TABS), s(A.SEPARATOR), s(A.BACK, label = false), s(A.FORWARD, label = false), s(A.RELOAD, label = false)))
+                bar = listOf(s(ToolbarAction.BACK), s(ToolbarAction.FORWARD), s(ToolbarAction.SHARE), s(ToolbarAction.BOOKMARKS), s(ToolbarAction.TABS), s(ToolbarAction.MENU)),
+                menu = listOf(s(ToolbarAction.NEW_TAB), s(ToolbarAction.NEW_PRIVATE_TAB), s(ToolbarAction.SEPARATOR),
+                    s(ToolbarAction.HISTORY, label = false), s(ToolbarAction.ADD_BOOKMARK, label = false), s(ToolbarAction.JAVASCRIPT, label = false), s(ToolbarAction.SHARE, label = false), s(ToolbarAction.SEPARATOR),
+                    s(ToolbarAction.BLOCKER), s(ToolbarAction.DARKEN), s(ToolbarAction.READER), s(ToolbarAction.DESKTOP_SITE), s(ToolbarAction.FIND), s(ToolbarAction.SEPARATOR),
+                    s(ToolbarAction.CLOSE_TAB), s(ToolbarAction.CLOSE_ALL_TABS), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BACK, label = false), s(ToolbarAction.FORWARD, label = false), s(ToolbarAction.RELOAD, label = false)))
             Preset.MINIMAL -> ToolbarConfig(
-                bar = listOf(s(A.TABS, ButtonSize.LARGE), s(A.MENU, ButtonSize.LARGE)),
-                menu = listOf(s(A.NEW_TAB), s(A.NEW_PRIVATE_TAB), s(A.SEPARATOR), s(A.BOOKMARKS), s(A.HISTORY), s(A.SHARE), s(A.SEPARATOR),
-                    s(A.BLOCKER), s(A.DARKEN), s(A.READER), s(A.SEPARATOR), s(A.CLOSE_TAB), s(A.CLOSE_ALL_TABS), s(A.SEPARATOR), s(A.BACK, label = false), s(A.FORWARD, label = false), s(A.RELOAD, label = false)))
+                bar = listOf(s(ToolbarAction.TABS, ButtonSize.LARGE), s(ToolbarAction.MENU, ButtonSize.LARGE)),
+                menu = listOf(s(ToolbarAction.NEW_TAB), s(ToolbarAction.NEW_PRIVATE_TAB), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BOOKMARKS), s(ToolbarAction.HISTORY), s(ToolbarAction.SHARE), s(ToolbarAction.SEPARATOR),
+                    s(ToolbarAction.BLOCKER), s(ToolbarAction.DARKEN), s(ToolbarAction.READER), s(ToolbarAction.SEPARATOR), s(ToolbarAction.CLOSE_TAB), s(ToolbarAction.CLOSE_ALL_TABS), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BACK, label = false), s(ToolbarAction.FORWARD, label = false), s(ToolbarAction.RELOAD, label = false)))
             Preset.GESTURES -> ToolbarConfig(
-                bar = listOf(s(A.READER), s(A.JAVASCRIPT), s(A.TABS), s(A.NEW_TAB), s(A.MENU)),
-                menu = listOf(s(A.NEW_PRIVATE_TAB), s(A.BOOKMARKS), s(A.HISTORY), s(A.SHARE), s(A.SEPARATOR), s(A.BLOCKER), s(A.DARKEN), s(A.DESKTOP_SITE), s(A.FIND), s(A.SEPARATOR), s(A.CLOSE_TAB), s(A.CLOSE_ALL_TABS)))
+                bar = listOf(s(ToolbarAction.READER), s(ToolbarAction.JAVASCRIPT), s(ToolbarAction.TABS), s(ToolbarAction.NEW_TAB), s(ToolbarAction.MENU)),
+                menu = listOf(s(ToolbarAction.NEW_PRIVATE_TAB), s(ToolbarAction.BOOKMARKS), s(ToolbarAction.HISTORY), s(ToolbarAction.SHARE), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BLOCKER), s(ToolbarAction.DARKEN), s(ToolbarAction.DESKTOP_SITE), s(ToolbarAction.FIND), s(ToolbarAction.SEPARATOR), s(ToolbarAction.CLOSE_TAB), s(ToolbarAction.CLOSE_ALL_TABS)))
             Preset.READING -> ToolbarConfig(
-                bar = listOf(s(A.BACK), s(A.READER, ButtonSize.LARGE), s(A.DARKEN), s(A.SCROLL_TOP), s(A.TABS), s(A.MENU)),
-                menu = listOf(s(A.NEW_TAB), s(A.NEW_PRIVATE_TAB), s(A.SEPARATOR), s(A.BOOKMARKS), s(A.HISTORY), s(A.SHARE), s(A.FIND), s(A.SEPARATOR), s(A.BLOCKER), s(A.JAVASCRIPT), s(A.DESKTOP_SITE), s(A.SEPARATOR), s(A.CLOSE_TAB), s(A.CLOSE_ALL_TABS)))
+                bar = listOf(s(ToolbarAction.BACK), s(ToolbarAction.READER, ButtonSize.LARGE), s(ToolbarAction.DARKEN), s(ToolbarAction.SCROLL_TOP), s(ToolbarAction.TABS), s(ToolbarAction.MENU)),
+                menu = listOf(s(ToolbarAction.NEW_TAB), s(ToolbarAction.NEW_PRIVATE_TAB), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BOOKMARKS), s(ToolbarAction.HISTORY), s(ToolbarAction.SHARE), s(ToolbarAction.FIND), s(ToolbarAction.SEPARATOR), s(ToolbarAction.BLOCKER), s(ToolbarAction.JAVASCRIPT), s(ToolbarAction.DESKTOP_SITE), s(ToolbarAction.SEPARATOR), s(ToolbarAction.CLOSE_TAB), s(ToolbarAction.CLOSE_ALL_TABS)))
         }
     }
 }

@@ -10,6 +10,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -115,8 +119,8 @@ fun FindBar(store: BrowserStore, tabId: String, onClose: () -> Unit) {
     var text by remember { mutableStateOf("") }
     Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(value = text, onValueChange = { text = it; store.tabManager.find(tabId, it) }, singleLine = true, placeholder = { Text("Rechercher dans la page") }, modifier = Modifier.weight(1f))
-        IconButton(onClick = { store.tabManager.findNext(tabId, false) }) { Icon(androidx.compose.material.icons.Icons.Filled.KeyboardArrowUp, "Précédent") }
-        IconButton(onClick = { store.tabManager.findNext(tabId, true) }) { Icon(androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown, "Suivant") }
-        IconButton(onClick = onClose) { Icon(androidx.compose.material.icons.Icons.Filled.Close, "Fermer") }
+        IconButton(onClick = { store.tabManager.findNext(tabId, false) }) { Icon(Icons.Filled.KeyboardArrowUp, "Précédent") }
+        IconButton(onClick = { store.tabManager.findNext(tabId, true) }) { Icon(Icons.Filled.KeyboardArrowDown, "Suivant") }
+        IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Fermer") }
     }
 }
