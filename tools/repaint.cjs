@@ -13,6 +13,9 @@
 //   node tools/repaint.cjs --cats=buildings,fields --workers=2 --force
 //   node tools/repaint.cjs --reprocess                               -> recalage seul, à partir des réponses brutes conservées
 //   node tools/repaint.cjs --manifest-only                           -> réécrit painted/manifest.json
+//   node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…]      -> kit pour peindre ailleurs : guides, prompts, référence, index
+//   node tools/repaint.cjs --import=<dossier>                        -> importe des images peintes ailleurs (même nom que le guide,
+//                                                                       png/jpg/webp, fond transparent ou uni), les recale et les publie
 //   node tools/repaint.cjs --tiers --only='^buildings/'              -> inclut les paliers 1 et 3 des bâtiments (_t1, _t3)
 //   node tools/repaint.cjs --mock --only=…                           -> sans appel API : le guide tient lieu de réponse (test du recalage)
 // Les réponses brutes de l'API sont conservées dans tools/repaint/raw/ (pas de nouvel appel pour re-traiter).
@@ -60,6 +63,7 @@ for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
 }
+const allTargets = targets.slice();
 if (only) targets = targets.filter(t => only.test(t.file));
 if (!args.force && !args.reprocess && !args['manifest-only'] && !TAG) targets = targets.filter(t => !fs.existsSync(path.join(OUT, t.file)));
 if (limit) targets = targets.slice(0, limit);
@@ -153,8 +157,103 @@ function writeManifest() {
   return files.length;
 }
 
+// ---- Kit pour peindre avec une autre application : guides (le rendu 3D composé dans le canevas 1024), prompts, référence ----
+async function exportKit(dir) {
+  const browser = await chromium.launch(); const page = await browser.newPage(); await page.setContent('<!doctype html><html><body></body></html>');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(STYLE_REF, path.join(dir, 'style-ref.png'));
+  const exDir = path.join(dir, 'exemples-resultats'); fs.mkdirSync(exDir, { recursive: true });
+  for (const ex of ['buildings/EGYPT/MARKET.webp', 'buildings/ROME/MAIN_HALL.webp', 'buildings/GAUL/BARRACKS.webp', 'fields/forest/FARM_2.webp', 'walls/ROME/3_tower.webp']) { const p = path.join(OUT, ex); if (fs.existsSync(p)) fs.copyFileSync(p, path.join(exDir, ex.replace(/\//g, '__'))); }
+  const rows = [];
+  let n = 0;
+  for (const t of targets) {
+    const size = sizeFor(t);
+    const meta = await compose(page, path.join(SRC, t.file), size);
+    const rel = t.file.replace(/\.webp$/, '');
+    const gFile = path.join(dir, 'guides', rel + '.webp'), pFile = path.join(dir, 'prompts', rel + '.txt');
+    fs.mkdirSync(path.dirname(gFile), { recursive: true }); fs.mkdirSync(path.dirname(pFile), { recursive: true });
+    const webp = await page.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL('image/webp', 0.85).split(',')[1]; }, meta.png);
+    fs.writeFileSync(gFile, Buffer.from(webp, 'base64'));
+    const prompt = promptFor(t.file, { bg: BG });
+    fs.writeFileSync(pFile, prompt + '\n');
+    rows.push({ file: rel, size, prompt });
+    n++;
+    if (n % 50 === 0) process.stdout.write(`\r  ${n}/${targets.length}`);
+  }
+  await browser.close();
+  const byCat = {}; for (const r of rows) { const c = r.file.split('/')[0]; (byCat[c] = byCat[c] || []).push(r); }
+  let md = '# Kit de peinture — ' + rows.length + ' images\n\nVoir LISEZMOI.txt pour la marche à suivre. Pour chaque ligne : guide = guides/<fichier>.webp, prompt = prompts/<fichier>.txt, résultat attendu = <fichier>.png (' + 'même nom, fond transparent).\n\n';
+  for (const [c, list] of Object.entries(byCat)) { md += `## ${c} (${list.length})\n\n| Fichier | Taille | Sujet |\n|---|---|---|\n`; for (const r of list) md += `| ${r.file} | ${r.size} | ${(r.prompt.split('Subject: ')[1] || '').replace(/\|/g, '/').slice(0, 160)} |\n`; md += '\n'; }
+  fs.writeFileSync(path.join(dir, 'INDEX.md'), md);
+  fs.writeFileSync(path.join(dir, 'LISEZMOI.txt'), `KIT DE PEINTURE — ${rows.length} images à produire avec l'application de ton choix
+=====================================================================================
+
+Pour chaque image, dans l'ordre :
+  1. Ouvre prompts/<fichier>.txt et copie le texte (c'est le prompt complet).
+  2. Donne à l'application DEUX images : style-ref.png (le style à imiter, toujours la même) puis guides/<fichier>.webp
+     (le rendu 3D : il fixe l'angle, la position et la taille ; l'application doit le repeindre, pas l'inventer).
+     Dans ChatGPT : joins les deux images au message et colle le prompt ; demande une image carrée 1024×1024 à fond transparent.
+     Dans Midjourney : /imagine avec les deux images en référence (--sref pour le style, --cref/--iw élevé pour le guide).
+  3. Enregistre le résultat en PNG sous EXACTEMENT le même nom que le guide, extension .png :
+       guides/buildings/HUN/MAIN_HALL.webp  ->  buildings/HUN/MAIN_HALL.png
+     Fond transparent de préférence ; sinon un fond uni magenta (#FF00FF) ou vert pur (#00FF00) que je détoure.
+     Taille : 1024×1024 pour les sprites, 1024×1536 ou 1536×1024 pour les scènes (indiqué dans INDEX.md).
+     Le sujet doit rester à la même place et à la même taille que sur le guide (je recale les petits écarts).
+  4. Mets tous les .png dans un dossier (ou un zip) en gardant les sous-dossiers, et envoie-le moi :
+     je les importe (node tools/repaint.cjs --import=<dossier>), je les recale sur le cadre du jeu et ils sont utilisés
+     automatiquement. Les images manquantes gardent la version 3D ; tu peux envoyer par petits lots.
+
+Conseils : commence par les plus visibles (buildings/<faction>/MAIN_HALL, BARRACKS, MARKET…) ; exemples-resultats/
+montre ce que donne le pipeline automatique pour comparer ; INDEX.md résume chaque image (fichier, taille, sujet).
+`);
+  console.log(`\nkit : ${rows.length} guides et prompts dans ${dir}`);
+}
+
+// ---- Import d'images peintes ailleurs : conversion en PNG avec transparence (détourage d'un fond uni au besoin) ----
+async function importUserImages(dir) {
+  const files = [];
+  const walk = (d) => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (/\.(png|jpe?g|webp)$/i.test(f)) files.push(p); } };
+  walk(dir);
+  const byRel = new Map(allTargets.map(t => [t.file.replace(/\.webp$/, '').toLowerCase(), t]));
+  const browser = await chromium.launch(); const page = await browser.newPage(); await page.setContent('<!doctype html><html><body></body></html>');
+  const found = []; let skipped = 0;
+  for (const f of files) {
+    // correspondance par chemin relatif, ou par nom plat (buildings__HUN__MAIN_HALL.png), insensible à la casse
+    const rel = path.relative(dir, f).replace(/\\/g, '/').replace(/\.(png|jpe?g|webp)$/i, '').replace(/^guides\//, '').replace(/__/g, '/').toLowerCase();
+    const t = byRel.get(rel) || byRel.get(rel.replace(/^.*?\/(buildings|fields|plots|props|map|figures|heroes|scenes|walls|ui)\//, '$1/'));
+    if (!t) { skipped++; continue; }
+    const mime = /\.png$/i.test(f) ? 'image/png' : /\.webp$/i.test(f) ? 'image/webp' : 'image/jpeg';
+    const b64 = fs.readFileSync(f).toString('base64');
+    const [W, H] = sizeFor(t).split('x').map(Number);
+    const png = await page.evaluate(async ({ b64, mime, W, H }) => {
+      const img = new Image(); img.src = `data:${mime};base64,${b64}`; await img.decode();
+      const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+      // l'image est ajustée dans le canevas de génération (centrée, sans déformation)
+      const k = Math.min(W / img.width, H / img.height); x.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
+      const id = x.getImageData(0, 0, W, H), d = id.data;
+      let opaque = 0; for (let i = 3; i < d.length; i += 4) if (d[i] === 255) opaque++;
+      if (opaque > d.length / 4 * 0.98) {   // pas de transparence : détourage du fond uni (couleur des coins)
+        const cs = [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]].map(([px, py]) => { const i = (py * W + px) * 4; return [d[i], d[i + 1], d[i + 2]]; });
+        const bg = cs[0].map((_, j) => cs.reduce((s, c) => s + c[j], 0) / 4);
+        for (let i = 0; i < d.length; i += 4) { const dist = Math.hypot(d[i] - bg[0], d[i + 1] - bg[1], d[i + 2] - bg[2]); d[i + 3] = Math.max(0, Math.min(255, Math.round((dist - 22) / 36 * 255))); }
+        x.putImageData(id, 0, 0);
+      }
+      return c.toDataURL('image/png').split(',')[1];
+    }, { b64, mime, W, H });
+    const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
+    fs.mkdirSync(path.dirname(rawFile), { recursive: true });
+    fs.writeFileSync(rawFile, Buffer.from(png, 'base64'));
+    found.push(t);
+  }
+  await browser.close();
+  console.log(`import : ${found.length} image(s) reconnue(s), ${skipped} ignorée(s) (nom inconnu)`);
+  return found;
+}
+
 (async () => {
   if (args['manifest-only']) { console.log(`${writeManifest()} sprites peints dans le manifeste`); return; }
+  if (args.kit) { await exportKit(String(args.kit)); return; }
+  if (args.import) { targets = await importUserImages(String(args.import)); args.reprocess = true; }
   if (!args.dry && !args.reprocess && !args.mock && !process.env.OPENAI_API_KEY) { console.error('OPENAI_API_KEY manquante (ou utilisez --dry pour préparer guides et prompts sans appel)'); process.exit(1); }
   const t0 = Date.now();
   const browser = await chromium.launch();

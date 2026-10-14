@@ -56,6 +56,18 @@ Pour un sprite raté, `--force --only=…` le régénère (un nouvel appel) ; le
 - Vérifier chaque lot avec les captures (`scratchpad/gfx/shots.cjs`) ou dans le jeu ; refaire les sprites
   qui débordent de leur parcelle ou changent d'orientation.
 
+## Peindre avec une autre application (sans clé d'API)
+
+`node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…] [--only=…]` exporte un kit : `style-ref.png`, `guides/<chemin>.webp`
+(le rendu 3D composé dans le canevas de génération), `prompts/<chemin>.txt`, `INDEX.md`, `LISEZMOI.txt` et des
+exemples de résultats. Chaque image se génère dans ChatGPT, Midjourney ou tout autre outil image-à-image avec la
+référence de style + le guide + le prompt, puis se renomme comme le guide (`buildings/HUN/MAIN_HALL.png`).
+
+`node tools/repaint.cjs --import=<dossier>` reprend ces images (png/jpg/webp, sous-dossiers ou noms plats
+`buildings__HUN__MAIN_HALL.png`), détoure un fond uni si l'image n'a pas de transparence (couleur des coins : magenta
+ou vert pur conseillés), les recale sur le cadre du jeu et les publie dans `painted/` avec le manifeste. Les lots
+partiels sont acceptés : le reste garde la version 3D.
+
 ## Paliers des bâtiments
 
 Chaque bâtiment existe en trois paliers visuels selon son niveau, comme dans les jeux mobiles où un bâtiment évolue
