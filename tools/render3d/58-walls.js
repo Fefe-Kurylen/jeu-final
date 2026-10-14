@@ -44,7 +44,7 @@
     }
     if (f === 'EGYPT' && tier >= 2) P.box(g, -1, -TH / 2 - 0.02, 2, TH + 0.04, 0.06, S.gold, h - 0.2);   // frise dorée
     if (f === 'SULTAN' && tier >= 2) for (let i = 0; i < 4; i++) { const a = new T.Mesh(new T.TorusGeometry(0.11, 0.03, 8, 16, Math.PI), S.wall); a.position.set(-0.75 + i * 0.5, h * 0.5, TH / 2 + 0.01); g.add(a); }
-    if (tier >= 3 && !low) { S.flag(g, 0, 0, h, 0.6); P.torch(g, -0.6, TH / 2 + 0.05, h * 0.6, 0.22); P.torch(g, 0.6, TH / 2 + 0.05, h * 0.6, 0.22); }
+    if (tier >= 3 && !low) { P.torch(g, -0.6, TH / 2 + 0.05, h * 0.6, 0.22); P.torch(g, 0.6, TH / 2 + 0.05, h * 0.6, 0.22); }   // le drapeau est animé côté client
     if (snow) P.box(g, -1, -TH / 2 - 0.01, 2, TH + 0.02, 0.05, S.snow, h);
   }
 
@@ -58,7 +58,6 @@
       P.cylinder(g, 0, 0, r + 0.14, 0.08, material('planks', '#8a6a3a'), h, 10);
       for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; P.cylinder(g, Math.cos(a) * (r + 0.1), Math.sin(a) * (r + 0.1), 0.03, 0.3, log, h + 0.08, 6); }
       S.cone(g, 0, 0, r + 0.16, 0.6, h + 0.38, { snow });
-      if (tier >= 3) S.flag(g, 0, 0, h + 1.0, 0.6);
       return;
     }
     if (f === 'EGYPT') {   // pylône à quatre pans légèrement rentrants, merlons, frise
@@ -67,14 +66,12 @@
       P.box(g, -top - 0.02, -top - 0.02, (top + 0.02) * 2, (top + 0.02) * 2, 0.08, S.gold, h - 0.25);
       for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4; P.box(g, Math.cos(a) * top * 0.9 - 0.08, Math.sin(a) * top * 0.9 - 0.08, 0.16, 0.16, 0.2, S.wallDark, h); }
       if (snow) P.box(g, -top, -top, top * 2, top * 2, 0.05, S.snow, h);
-      if (tier >= 3) S.flag(g, 0, 0, h, 0.7);
       return;
     }
     if (f === 'GREEK') {   // tour carrée de marbre à corniche, toit d'ardoise en pavillon
       P.box(g, -r, -r, r * 2, r * 2, h, S.wallDark);
       P.box(g, -r - 0.04, -r - 0.04, r * 2 + 0.08, r * 2 + 0.08, 0.08, S.wallLight, h - 0.08);
       S.hip(g, -r, -r, r * 2, r * 2, 0.5, h, { snow });
-      if (tier >= 3) S.flag(g, 0, 0, h + 0.5, 0.6);
       return;
     }
     // ROME, SULTAN : tour ronde, anneau de merlons, toit de la faction
@@ -82,7 +79,6 @@
     P.cylinder(g, 0, 0, r + 0.06, 0.08, S.wall, h - 0.08, 24);
     if (f === 'ROME') for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; P.box(g, Math.cos(a) * r - 0.07, Math.sin(a) * r - 0.07, 0.14, 0.14, 0.16, S.wallDark, h); }
     S.cone(g, 0, 0, r * (f === 'SULTAN' ? 0.95 : 1.05), 0.7, h + (f === 'ROME' ? 0.14 : 0), { snow });
-    if (tier >= 3) S.flag(g, 0, 0, h + (f === 'SULTAN' ? 1.2 : 0.9), 0.6);
   }
 
   window.MODELS = window.MODELS || {};

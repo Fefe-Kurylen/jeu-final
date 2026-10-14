@@ -50,6 +50,7 @@
   window.MODELS = window.MODELS || {};
   for (const f of Object.keys(PALETTES)) window.MODELS['mapcity:' + f] = (g) => MP.city(g, f);
   window.MODELS['mapcity:capital'] = (g) => MP.capital(g, 'ROME');
+  for (const f of Object.keys(PALETTES)) window.MODELS['mapcity:capital:' + f] = (g) => MP.capital(g, f);
   window.MODELS['mapcity:default'] = (g) => MP.defaultCity(g);
   for (const r of ['wood', 'stone', 'iron', 'food', 'gold']) window.MODELS['mapres:' + r] = (g, biome) => MP['res_' + r](g, biome);
   for (const [k, fn] of Object.entries(MP.terrain)) window.MODELS['mapterrain:' + k] = fn;
@@ -57,6 +58,7 @@
     const jobs = [];
     for (const f of Object.keys(PALETTES)) jobs.push({ id: `map/cities/${f.toLowerCase()}`, category: 'map', out: `map/cities/${f.toLowerCase()}.webp`, frame: 'map', model: 'mapcity:' + f, args: [] });
     jobs.push({ id: 'map/cities/capital', category: 'map', out: 'map/cities/capital.webp', frame: 'map', model: 'mapcity:capital', args: [] });
+    for (const f of Object.keys(PALETTES)) jobs.push({ id: `map/cities/capital_${f.toLowerCase()}`, category: 'map', out: `map/cities/capital_${f.toLowerCase()}.webp`, frame: 'map', model: 'mapcity:capital:' + f, args: [] });
     jobs.push({ id: 'map/cities/default', category: 'map', out: 'map/cities/default.webp', frame: 'map', model: 'mapcity:default', args: [] });
     for (const r of ['wood', 'stone', 'iron', 'food', 'gold']) for (const b of ['forest', 'desert', 'snow']) jobs.push({ id: `map/resources/${r}_${b}`, category: 'map', out: `map/resources/${r}${b === 'forest' ? '' : '_' + b}.webp`, frame: 'map', model: 'mapres:' + r, args: [b] });
     for (const k of Object.keys(MP.terrain)) jobs.push({ id: `map/terrain/${k}`, category: 'map', out: `map/terrain/${k}.webp`, frame: 'map', model: 'mapterrain:' + k, args: [] });

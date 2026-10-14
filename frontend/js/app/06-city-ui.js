@@ -308,7 +308,7 @@ function renderUnits(filter) {
   grid.innerHTML = units.map(u => `
     <div class="unit-card" onclick="showUnitDetail('${u.key}')">
       <div class="unit-card-header" style="border-color: ${TIER_COLORS[u.tier]}">
-        <span class="unit-class-icon">${unitIconHtml(u.key, 'unit-ico-lg')}</span>
+        <span class="unit-class-icon">${unitFigureHtml(u.key, 'unit-figure', u.name)}</span>
         <div class="unit-tier-badge" style="background: ${TIER_COLORS[u.tier]}">${u.tier.charAt(0).toUpperCase()}</div>
       </div>
       <div class="unit-card-body">

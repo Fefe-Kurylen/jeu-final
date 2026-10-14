@@ -1554,7 +1554,7 @@ function drawIsoCity(x, y, tw, th, tile) {
   // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
   const fortified = (tile.cityTier || 0) >= 3;
   const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
-  const cityType = fortified ? 'capital' : faction.toLowerCase();
+  const cityType = fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : faction.toLowerCase();   // forteresse aux couleurs de la faction
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {

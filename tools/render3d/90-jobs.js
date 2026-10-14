@@ -8,8 +8,8 @@
     const jobs = [];
     // Bâtiments : faction × (normal, neige)
     for (const key of window.BUILDING_KEYS) for (const f of FACTIONS) {
-      jobs.push({ id: `building/${f}/${key}`, category: 'buildings', out: `buildings/${f}/${key}.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: false }] });
-      jobs.push({ id: `building/${f}/${key}_snow`, category: 'buildings', out: `buildings/${f}/${key}_snow.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: true, biome: 'snow' }] });
+      jobs.push({ id: `building/${f}/${key}`, category: 'buildings', out: `buildings/${f}/${key}.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: false, noFlag: true }] });
+      jobs.push({ id: `building/${f}/${key}_snow`, category: 'buildings', out: `buildings/${f}/${key}_snow.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: true, biome: 'snow', noFlag: true }] });
     }
     // Parcelles
     for (const b of BIOMES) for (const v of [0, 1]) jobs.push({ id: `plot/${b}/${v}`, category: 'plots', out: `plots/${b}_${v}.webp`, frame: 'plot', model: 'plot', args: [b, v] });
@@ -20,7 +20,7 @@
     // Carte
     if (window.MAP_JOBS) for (const j of window.MAP_JOBS()) jobs.push(j);
     // Figurines, icônes, UI, scènes
-    for (const src of ['FIGURE_JOBS', 'ICON_JOBS', 'UI_JOBS', 'SCENE_JOBS', 'WALL_JOBS']) if (window[src]) for (const j of window[src]()) jobs.push(j);
+    for (const src of ['FIGURE_JOBS', 'ICON_JOBS', 'UI_JOBS', 'SCENE_JOBS', 'WALL_JOBS', 'FLAG_JOBS']) if (window[src]) for (const j of window[src]()) jobs.push(j);
     return jobs;
   }
   window.JOBS = { list, FACTIONS, BIOMES };

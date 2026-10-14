@@ -164,6 +164,14 @@ function drawIsoFieldPaths(ctx, cx, cy, W, night) {
 // et quatre tours d'angle, selon la faction, le palier du Mur (niveaux 1-6, 7-13, 14-20) et le biome (neige),
 // triés en profondeur avec le reste de la scène. Tant que les images ne sont pas chargées, rien n'est dessiné
 // (le rendu est relancé à leur chargement).
+// Drapeaux animés : mât et étoffe rendus en 3D en 8 phases (props/flag_<faction|ally|gold>_<k>.webp), posés sur
+// les bâtiments qui en portent (mât en unités iso : ix, iy, iz, hauteur[, étoffe]) et sur l'enceinte au palier 3
+const ISO_FLAGS = { MAIN_HALL: [[0, 0, 2.28, 0.8]], BARRACKS: [[-0.95, -0.55, 1.1, 0.7]], GREAT_BARRACKS: [[1.05, -0.75, 1.4, 0.7]], EMBASSY: [[-0.9, -0.6, 2.05, 0.7], [0.9, -0.6, 2.05, 0.7, 'ally']], HERO_MANSION: [[0.75, -0.25, 2.35, 0.6]], HUN_WAR_TENT: [[0, 0, 1.6, 0.5]], RALLY_POINT: [[0, 0, 0.06, 1.4]], SULTAN_DESERT_OUTPOST: [[0.75, -0.55, 2.8, 0.4, 'gold']] };
+const WALL_SEG_FLAG_Z = { GAUL: 1.8, HUN: 1.8 }, WALL_TOWER_FLAG_Z = { ROME: 3.21, SULTAN: 3.51, GAUL: 3.31, HUN: 3.31, EGYPT: 2.31, GREEK: 2.81 };
+const FLAG_FRAMES = 8, FLAG_POLE_PX = 43 / 96;   // dans le cadre 64×96 du drapeau, le mât d'une unité mesure 43 px
+let isoWallFlags = [];
+// Ancre écran et hauteur (px) d'un drapeau porté par un sprite de largeur w (cadre 130 px : 1 unité de hauteur = 30,6 px)
+function isoFlagAt(x, y, w, ix, iy, iz, h, kind) { const p = spritePointToScreen(x, y, w, ix, iy, iz); return { x: p.x, y: p.y, hpx: h * w * (30.6 / 130) / FLAG_POLE_PX, kind, seed: Math.abs(Math.round(x + y)) }; }
 function wallSpriteUrl(name, tier) { return `assets/images/3d/walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`; }
 function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   const tier = wallLevel <= 6 ? 1 : wallLevel <= 13 ? 2 : 3;
@@ -172,14 +180,18 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   if (Object.values(img).some(i => !i)) return [];
   const R = R_WALL, N = 6, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
   const variant = spriteVariant(false);
+  const faction = player?.faction || 'ROME';
   const items = [];
+  isoWallFlags = [];
   const edge = (from, to, high, along) => {
     const sprite = img[`seg_${along}${high && !lowAll ? '' : '_low'}`];
+    const sw = W * L / SPRITE_PLOT_W * 1.03;
     for (let k = 0; k < N; k++) {
       const t = (k + 0.5) / N;
       const g = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
       const p = isoPos(g[0], g[1], W, cx, cy);
-      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, W * L / SPRITE_PLOT_W * 1.03, variant) });
+      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, sw, variant) });
+      if (tier === 3 && high && !lowAll) isoWallFlags.push(isoFlagAt(p.x, p.y, sw, 0, 0, WALL_SEG_FLAG_Z[faction] || 1.35, 0.6, faction));
     }
   };
   edge([-R, R], [-R, -R], true, 'z');    // arrière gauche (le long de iy)
@@ -188,7 +200,9 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   edge([R, R], [-R, R], false, 'x');     // avant gauche
   for (const [gx, gy, scale] of [[-R, -R, 1], [-R, R, 1], [R, -R, 1], [R, R, 0.85]]) {
     const p = isoPos(gx, gy, W, cx, cy);
-    items.push({ depth: gx + gy + 0.01, y: p.y, draw: () => drawSprite(ctx, img.tower, p.x, p.y, W / SPRITE_PLOT_W * scale * (lowAll ? 0.8 : 1), variant) });
+    const tw = W / SPRITE_PLOT_W * scale * (lowAll ? 0.8 : 1);
+    items.push({ depth: gx + gy + 0.01, y: p.y, draw: () => drawSprite(ctx, img.tower, p.x, p.y, tw, variant) });
+    if (tier === 3 && !lowAll) isoWallFlags.push(isoFlagAt(p.x, p.y, tw, 0, 0, WALL_TOWER_FLAG_Z[faction] || 3.2, 0.6, faction));
   }
   void night;
   return items;
@@ -274,8 +288,11 @@ function spritePointToScreen(x, y, w, ix, iy, iz) {
 const ISO_CHIMNEYS = { WORKSHOP: [[-0.5, -0.3, 1.7]], FORGE: [[0.2, -0.3, 1.7]], BAKERY: [[0.3, -0.4, 1.75]], FOUNDRY: [[-0.4, -0.4, 1.85], [0.2, -0.4, 1.85]], GALLIC_BREWERY: [[0.2, -0.4, 1.7]] };
 const ISO_WATER = { MOAT: [0, 0, 0.02, 0.9], ROMAN_THERMAE: [0, 0.5, 0.14, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
 const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0, camKey: '' };
-function isoAnimate(ctx, built, W, night) {
+function isoAnimate(ctx, built, W, night, flags = []) {
   const now = performance.now() / 1000;
+  // drapeaux : 8 phases à 10 i/s, décalées d'un mât à l'autre
+  const fv = spriteVariant(false);
+  for (const f of flags) drawProp(ctx, `flag_${f.kind}_${(Math.floor(now * 10) + f.seed) % FLAG_FRAMES}`, f.x, f.y, f.hpx, fv);
   const camKey = `${W}|${cityCam.x}|${cityCam.y}`;
   if (camKey !== isoAnim.camKey) { isoAnim.camKey = camKey; isoAnim.smoke = []; }   // les particules sont en pixels écran
   const dt = Math.min(0.2, now - (isoAnim.last || now)); isoAnim.last = now;
@@ -341,12 +358,12 @@ function renderCityView() {
     cityCtx = octx;
     let result;
     try { result = renderCityStatic(octx, W, cx, cy, night, biome); } finally { cityCtx = mainCtx; }
-    isoStatic = { key, canvas: off, overlay: result.overlay, built: result.built, lit: result.lit };
+    isoStatic = { key, canvas: off, overlay: result.overlay, built: result.built, lit: result.lit, flags: result.flags || [] };
   }
   mainCtx.clearRect(0, 0, cityViewW, cityViewH);
   mainCtx.drawImage(isoStatic.canvas, 0, 0, cityViewW, cityViewH);
   // Couches animées par-dessus : fumée, reflets, oiseaux, lueurs de nuit, puis badges et indicateurs
-  isoAnimate(mainCtx, isoStatic.built, W, night);
+  isoAnimate(mainCtx, isoStatic.built, W, night, isoStatic.flags);
   if (night) drawIsoNight(mainCtx, isoStatic.lit);
   for (const fn of isoStatic.overlay) fn();
 }
@@ -386,7 +403,9 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
-  return { overlay, built, lit };
+  const flags = wallLevel > 0 ? [...isoWallFlags] : [];
+  for (const b of built) for (const f of ISO_FLAGS[b.key] || []) flags.push(isoFlagAt(b.x, b.y, b.w, f[0], f[1], f[2], f[3], f[4] || player?.faction || 'ROME'));
+  return { overlay, built, lit, flags };
 }
 
 function renderFieldsView() {

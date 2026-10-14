@@ -980,7 +980,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   document.getElementById('modal-body').innerHTML = `
     <div class="unit-detail-modal">
       <div class="unit-detail-header" style="background: linear-gradient(135deg, ${tierColor}33 0%, transparent 100%); border-left: 4px solid ${tierColor}">
-        <div class="unit-detail-icon">${unitIconHtml(unit.key, 'unit-ico-lg')}</div>
+        <div class="unit-detail-icon">${unitFigureHtml(unit.key, 'unit-figure unit-figure-lg', unit.name)}</div>
         <div class="unit-detail-title">
           <h2>${unit.name}</h2>
           <div class="unit-badges">

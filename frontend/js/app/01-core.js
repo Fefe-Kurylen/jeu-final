@@ -854,6 +854,13 @@ function unitIconHtml(keyOrClass, cls = 'unit-ico', title = '') {
   const file = faction ? `${klass}_${faction}` : klass;
   return `<img class="${cls}" src="assets/images/3d/busts/${file}.webp" alt="" title="${escapeHtml(title)}">`;
 }
+// Figurine en pied (vue trois-quarts) d'une unité : assets/images/3d/figures/<CLASSE>_<FACTION>.webp
+function unitFigureHtml(keyOrClass, cls = 'unit-figure', title = '') {
+  const isClass = ['INFANTRY', 'ARCHER', 'CAVALRY', 'SIEGE'].includes(keyOrClass);
+  const klass = isClass ? keyOrClass : (unitClassOf(keyOrClass) || 'INFANTRY');
+  const faction = (isClass ? player?.faction : unitFactionOf(keyOrClass)) || player?.faction || 'ROME';
+  return `<img class="${cls}" src="assets/images/3d/figures/${klass}_${faction}.webp" alt="" title="${escapeHtml(title)}">`;
+}
 function unitIconUrl(keyOrClass) { const m = unitIconHtml(keyOrClass).match(/src="([^"]+)"/); return m ? m[1] : ''; }
 function heroPortraitHtml(faction, cls = 'hero-ico') { return `<img class="${cls}" src="assets/images/3d/heroes/${faction || player?.faction || 'ROME'}_bust.webp" alt="">`; }
 // Figurine du héros sur son estrade (scène 3D) pour l'écran du héros

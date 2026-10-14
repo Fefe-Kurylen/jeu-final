@@ -191,7 +191,8 @@
     const pole = new T.Mesh(new T.CylinderGeometry(0.025, 0.03, h, 8), solid('#6a4a2a')); pole.position.set(cx, z0 + h / 2, cy); grp.add(setShadow(pole));
     const fw = opts.w ?? 0.5, fh = opts.h ?? 0.3;
     const geo = new T.PlaneGeometry(fw, fh, 8, 2);
-    const pos = geo.attributes.position; for (let i = 0; i < pos.count; i++) { const x = pos.getX(i); pos.setZ(i, Math.sin((x / fw + 0.5) * Math.PI * 1.5) * 0.05 * (x / fw + 0.5)); }
+    const phase = opts.phase || 0;   // phase de l'ondulation (drapeaux animés rendus en plusieurs images)
+    const pos = geo.attributes.position; for (let i = 0; i < pos.count; i++) { const x = pos.getX(i); pos.setZ(i, Math.sin((x / fw + 0.5) * Math.PI * 1.5 - phase) * 0.06 * (x / fw + 0.5)); }
     geo.computeVertexNormals();
     const cloth = new T.Mesh(geo, clothMat); cloth.material.side = T.DoubleSide;
     cloth.position.set(cx + fw / 2 + 0.03, z0 + h - fh / 2 - 0.02, cy); grp.add(setShadow(cloth));

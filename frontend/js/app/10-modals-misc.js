@@ -58,7 +58,7 @@ function showUnitInfoModal(unitKey) {
       <!-- Header avec icône et tier -->
       <div class="unit-info-header">
         <div class="unit-info-icon" style="border-color: ${tierColor}">
-          ${unitIconHtml(unit.key, 'unit-ico-lg')}
+          ${unitFigureHtml(unit.key, 'unit-figure unit-figure-lg', unit.name)}
         </div>
         <div class="unit-info-title">
           <h3>${unit.name}</h3>
