@@ -48,8 +48,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project FurtifBrowser.xcodeproj -scheme FurtifBrowser \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log | grep -E --line-buffered "error:|warning:|BUILD|Compiling|Linking|CompileAssetCatalog" || true
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee xcodebuild.log | grep -E --line-buffered "error:|warning:|BUILD|Compiling|Linking|CompileAssetCatalog" || true
           grep -q "BUILD SUCCEEDED" xcodebuild.log
 
       - name: TestFlight / App Store
