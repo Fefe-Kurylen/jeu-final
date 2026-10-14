@@ -55,3 +55,22 @@ Pour un sprite raté, `--force --only=…` le régénère (un nouvel appel) ; le
   les petites dérives (la moyenne en pixels est affichée en fin de lot).
 - Vérifier chaque lot avec les captures (`scratchpad/gfx/shots.cjs`) ou dans le jeu ; refaire les sprites
   qui débordent de leur parcelle ou changent d'orientation.
+
+## Paliers des bâtiments
+
+Chaque bâtiment existe en trois paliers visuels selon son niveau : 1-6 (`<KEY>_t1`, modeste : réduit, sans ornement),
+7-13 (`<KEY>`, courant) et 14-20 (`<KEY>_t3`, prestigieux : agrandi, ornements, torches). Les rendus 3D des trois paliers
+sont produits par `build-3d.cjs` ; la repeinture des paliers 1 et 3 (≈ 936 images) se lance avec `--tiers`. Le client
+(`buildingSpriteUrl(key, level)`) prend la version peinte du palier, sinon la version peinte courante, sinon le rendu 3D.
+
+## Textures de sol et habillage
+
+`tools/repaint-textures.cjs` génère les textures de sol peintes et raccordables (`painted/terrain/<grass|dirt|sand|snow>.webp`,
+utilisées par les vues ville, champs et carte quand elles existent). Les icônes et cadres de l'interface
+(`--cats=icons,uiframes`) sont repeints de la même façon ; le client bascule les `<img>` et les `border-image` vers les
+versions peintes (classe `painted-ui`).
+
+## Vue ville
+
+Les parcelles occupent 68 % du pas de grille (chemins visibles entre les bâtiments) et le cadrage par défaut vise des
+cellules d'au moins 118 px : sur téléphone la ville déborde de l'écran et se déplace au doigt (pincement pour tout voir).

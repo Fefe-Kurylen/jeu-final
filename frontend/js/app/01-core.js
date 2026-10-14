@@ -637,17 +637,27 @@ function sizeCanvasForDpr(canvas, ctx, cssW, cssH) {
 const paintedSet = new Set();
 let _paintedPromise = null;
 function art(p) { return (paintedSet.has(p) ? 'assets/images/painted/' : 'assets/images/3d/') + p; }
+// Première version peinte parmi des candidats (du plus spécifique au plus général), sinon le rendu 3D du premier
+function artFirst(cands) { for (const c of cands) if (paintedSet.has(c)) return 'assets/images/painted/' + c; return 'assets/images/3d/' + cands[0]; }
 function loadPaintedManifest() {
   if (!_paintedPromise) _paintedPromise = fetch('assets/images/painted/manifest.json').then(r => r.ok ? r.json() : null).then(m => {
     for (const f of (m && m.files) || []) paintedSet.add(f);
     const root = document.documentElement;
     root.classList.toggle('painted-auth', paintedSet.has('scenes/auth-portrait.webp') && paintedSet.has('scenes/auth-landscape.webp'));
     root.classList.toggle('painted-headers', ['market', 'alliance', 'ranking', 'inventory', 'reports'].every(k => paintedSet.has(`scenes/header-${k}.webp`)));
-    if (paintedSet.size && typeof queueSpriteRedraw === 'function') queueSpriteRedraw();
+    root.classList.toggle('painted-ui', ['btn-primary', 'btn-secondary', 'btn-danger', 'btn-gold', 'btn-info', 'frame-modal', 'frame-panel', 'plate-parchment', 'bar-wood'].every(k => paintedSet.has(`ui/${k}.webp`)));
+    if (paintedSet.size) { repaintStaticIcons(document); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }
   }).catch(() => {});
   return _paintedPromise;
 }
 loadPaintedManifest();
+// Icônes écrites en dur (index.html, gabarits générés) : bascule vers la version peinte quand elle existe
+function repaintStaticIcons(root) {
+  if (!paintedSet.size || !root || !root.querySelectorAll) return;
+  for (const img of root.querySelectorAll('img[src^="assets/images/3d/ui/"]')) { const p = img.getAttribute('src').slice('assets/images/3d/'.length); if (paintedSet.has(p)) img.setAttribute('src', 'assets/images/painted/' + p); }
+}
+// Les panneaux sont régénérés en innerHTML : un observateur bascule leurs icônes à chaque mise à jour
+if (typeof MutationObserver === 'function') document.addEventListener('DOMContentLoaded', () => new MutationObserver(muts => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) repaintStaticIcons(n); }).observe(document.body, { childList: true, subtree: true }));
 
 // ========== SPRITES 2.5D (WebP rendus en 3D par tools/build-3d.cjs : assets/images/3d/**) ==========
 // Cadre commun des sprites ville/champs/parcelles : 130×180 (rendus en 2×), centre du losange au sol à
@@ -745,13 +755,15 @@ function drawProp(ctx, name, x, y, h, variant = 'day') {
   return true;
 }
 
-// ========== TEXTURES DE TERRAIN (tuiles 128×128 répétables : assets/images/terrain/<nom>.svg) ==========
+// ========== TEXTURES DE TERRAIN (tuiles répétables : peintes painted/terrain/<nom>.webp, sinon assets/images/terrain/<nom>.svg) ==========
+function terrainTextureUrl(name) { return paintedSet.has(`terrain/${name}.webp`) ? `assets/images/painted/terrain/${name}.webp` : `assets/images/terrain/${name}.svg`; }
 const _terrainPatterns = new Map();
 function getTerrainPattern(ctx, name) {
-  const img = getSprite(`assets/images/terrain/${name}.svg`);
+  const url = terrainTextureUrl(name);
+  const img = getSprite(url);
   if (!img) return null;
   const scale = canvasScale();
-  const key = name + '@' + scale;
+  const key = url + '@' + scale;
   let pattern = _terrainPatterns.get(key);
   if (!pattern) {
     // Tuile rasterisée à la résolution de l'écran, puis ramenée à 128 px logiques
@@ -815,9 +827,14 @@ function biomeInnerGradient(ctx, cx, cy, r, biome, night) {
   return g;
 }
 
-// Bâtiment : architecture de la faction du joueur, variante enneigée dans le biome neige
-function buildingSpriteUrl(key) {
-  return art(`buildings/${player?.faction || 'ROME'}/${key}${cityBiome() === 'snow' ? '_snow' : ''}.webp`);
+// Bâtiment : architecture de la faction du joueur, palier visuel selon le niveau (1-6 modeste, 7-13 courant,
+// 14-20 prestigieux ; le palier courant n'a pas de suffixe), variante enneigée dans le biome neige
+function buildingTier(level) { return !level || level <= 6 ? 1 : level <= 13 ? 2 : 3; }
+function buildingTierScale(level) { return [0, 0.84, 1, 1.08][buildingTier(level)]; }   // échelle des modèles 3D par palier (ancres des animations)
+function buildingSpriteUrl(key, level = 10) {
+  const f = player?.faction || 'ROME', snow = cityBiome() === 'snow' ? '_snow' : '', tier = buildingTier(level);
+  const cur = `buildings/${f}/${key}${snow}.webp`;
+  return tier === 2 ? art(cur) : artFirst([`buildings/${f}/${key}_t${tier}${snow}.webp`, cur]);
 }
 // Paliers visuels des champs : niveaux 1-6, 7-13, 14-20 ; cultures, arbres et sol propres au biome
 function fieldSpriteUrl(type, level) {
@@ -829,7 +846,7 @@ function plotSpriteUrl(variant = 0) { return art(`plots/${cityBiome()}_${variant
 // Vignette 3D d'un bâtiment (sprite de la vue ville, architecture de la faction) pour les panneaux générés en HTML
 function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }
 // Icône 3D d'une ressource / d'une action (assets/images/3d/ui) pour les panneaux générés en HTML
-function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="assets/images/3d/ui/${key}.webp" alt="">`; }
+function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="${art(`ui/${key}.webp`)}" alt="">`; }
 
 // Entrée / « OK » du clavier soumet les formulaires de connexion et d'inscription (auth-enter-submit)
 document.addEventListener('keydown', (e) => {

@@ -15,7 +15,7 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
     cityCtx.shadowBlur = 0;
   }
   if (isBuilding) cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;   // chantier : le bâtiment pulse
-  const sprite = getSprite(buildingSpriteUrl(key));
+  const sprite = getSprite(buildingSpriteUrl(key, level));
   if (sprite) drawSprite(cityCtx, sprite, x, y, size * 1.7, spriteVariant(isHovered));
   cityCtx.globalAlpha = 1;
   // Badge de niveau au coin droit de la parcelle, dans la couche d'overlay (jamais masqué par un voisin)

@@ -10,6 +10,10 @@
     for (const key of window.BUILDING_KEYS) for (const f of FACTIONS) {
       jobs.push({ id: `building/${f}/${key}`, category: 'buildings', out: `buildings/${f}/${key}.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: false, noFlag: true }] });
       jobs.push({ id: `building/${f}/${key}_snow`, category: 'buildings', out: `buildings/${f}/${key}_snow.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: true, biome: 'snow', noFlag: true }] });
+      for (const tier of [1, 3]) {
+        jobs.push({ id: `building/${f}/${key}_t${tier}`, category: 'buildings', out: `buildings/${f}/${key}_t${tier}.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: false, noFlag: true, tier }] });
+        jobs.push({ id: `building/${f}/${key}_t${tier}_snow`, category: 'buildings', out: `buildings/${f}/${key}_t${tier}_snow.webp`, frame: 'building', model: 'building:' + key, args: [f, { snow: true, biome: 'snow', noFlag: true, tier }] });
+      }
     }
     // Parcelles
     for (const b of BIOMES) for (const v of [0, 1]) jobs.push({ id: `plot/${b}/${v}`, category: 'plots', out: `plots/${b}_${v}.webp`, frame: 'plot', model: 'plot', args: [b, v] });

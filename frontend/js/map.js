@@ -92,10 +92,11 @@ const _mapTerrainPatterns = new Map();
 let mapFramePatterns = null;   // { grass, sand, snow } préparés une fois par image
 function mapTerrainPattern(name, zoom, originX, originY) {
   if (typeof getSprite !== 'function' || typeof DOMMatrix !== 'function') return null;
-  const img = getSprite(`assets/images/terrain/${name}.svg`);
+  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(name) : `assets/images/terrain/${name}.svg`;
+  const img = getSprite(url);
   if (!img || !mapCtx) return null;
   const scale = canvasScale();
-  const key = name + '@' + scale;
+  const key = url + '@' + scale;
   let entry = _mapTerrainPatterns.get(key);
   if (!entry) {
     const tile = document.createElement('canvas');
@@ -870,7 +871,18 @@ async function loadMap() {
   updateMapUI();
 }
 
+// Armées en marche : animation (pas cadencé, nuage de poussière) tant qu'une armée en mouvement est à l'écran
+let mapMovingOnScreen = false, mapAnimTimer = null;
+function scheduleArmyAnim() {
+  if (mapAnimTimer) return;
+  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, 110);
+}
 function renderMap() {
+  mapMovingOnScreen = false;
+  renderMapCore();
+  if (mapMovingOnScreen) scheduleArmyAnim();
+}
+function renderMapCore() {
   if (!mapCtx) return;
 
   const w = mapViewW;
@@ -2186,7 +2198,29 @@ function drawIsoArmy(x, y, tw, th, army) {
   let mainUnitType = armySpriteName(army);
   const faction = String(army.faction || player?.faction || '').toUpperCase();
   if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
-  if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
+  const hasSprite = !!tileImages.units[mainUnitType];
+  if (hasSprite && isMoving) {
+    // marche : l'armée regarde vers sa destination, trottine (petits bonds cadencés, léger balancement) et soulève la poussière
+    mapMovingOnScreen = true;
+    const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
+    const dir = army.targetX !== undefined && army.targetX !== null ? Math.sign(army.targetX - army.x) || 1 : 1;
+    const hop = Math.abs(Math.sin(t * 7 + ph)) * imgSize * 0.035, lean = Math.sin(t * 7 + ph) * 0.045;
+    for (let k = 0; k < 3; k++) {   // poussière derrière l'armée
+      const life = (t * 0.9 + k / 3 + ph) % 1;
+      const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+      if (!puff) break;
+      const ps = imgSize * (0.1 + life * 0.14);
+      mapCtx.globalAlpha = 0.45 * (1 - life);
+      mapCtx.drawImage(puff, x - dir * imgSize * (0.12 + life * 0.22) - ps / 2, y - imgSize * 0.02 - life * imgSize * 0.06 - ps / 2, ps, ps);
+    }
+    mapCtx.globalAlpha = 1;
+    mapCtx.save();
+    mapCtx.translate(x, y - hop); mapCtx.rotate(lean); if (dir < 0) mapCtx.scale(-1, 1);
+    drawTileImage(mapCtx, 'units', mainUnitType, 0, 0, imgSize, imgSize);
+    mapCtx.restore();
+  }
+  if (hasSprite && !isMoving) drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize);
+  if (hasSprite) {
     // Draw army name label
     if (mapZoomLevel > 0.8 && army.name) {
       mapCtx.font = 'bold 9px Arial';

@@ -61,6 +61,17 @@
   M.RALLY_POINT = (g, f, o) => { const S = style(f); P.box(g, -0.6, -0.6, 1.2, 1.2, 0.06, material('dirt', '#9a8a6a')); if (!o.noFlag) S.flag(g, 0, 0, 0.06, 1.4); P.torch(g, -0.7, 0.7, 0, 0.5); P.torch(g, 0.7, -0.7, 0, 0.5); P.shieldProp(g, 0.6, 0.4, 0, S.p.accent); P.spear(g, -0.5, 0.75, 0, 0.9, 0.2); P.spear(g, -0.35, 0.8, 0, 0.85, -0.1); if (f === 'HUN') P.campfire(g, 0.5, -0.4); };
 
   window.MODELS = window.MODELS || {};
-  for (const [key, fn] of Object.entries(M)) window.MODELS['building:' + key] = (g, faction, opts) => { fn(g, faction, opts || {}); style(faction).flourish(g, key); return { extent: 4 }; };
+  // Paliers visuels : 1 = modeste (réduit, sans ornement), 2 = courant, 3 = prestigieux (agrandi, ornements doublés, torches)
+  const TIER_SCALE = { 1: 0.84, 2: 1, 3: 1.08 };
+  for (const [key, fn] of Object.entries(M)) window.MODELS['building:' + key] = (g, faction, opts) => {
+    const o = opts || {}, tier = o.tier || 2, S = style(faction);
+    const b = new T.Group();
+    fn(b, faction, o);
+    if (tier !== 1) S.flourish(b, key);
+    if (tier === 3) { P.torch(b, -0.92, 0.92, 0, 0.42); P.torch(b, 0.92, 0.92, 0, 0.42); if (!['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT'].includes(key)) { P.amphora(b, 0.86, -0.9, 0, 0.2); S.tree(b, -0.9, -0.88, 0.55, 1, o.biome || 'forest'); } }
+    const k = TIER_SCALE[tier] || 1; b.scale.set(k, k, k);
+    g.add(b);
+    return { extent: 4 };
+  };
   window.BUILDING_KEYS = Object.keys(M);
 })();

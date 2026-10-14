@@ -4715,3 +4715,19 @@ html.painted-headers #tab-ranking .tab-banner::after { background-image: url(../
 html.painted-headers #tab-inventory .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-inventory.webp); }
 html.painted-headers #tab-alliance .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-alliance.webp); }
 html.painted-headers #tab-market .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-market.webp); }
+
+/* ========== HABILLAGE PEINT (tools/repaint.cjs, assets/images/painted/ui) : actif quand le manifeste le liste ========== */
+html.painted-ui .btn-primary, html.painted-ui .upgrade-building-btn, html.painted-ui .recruit-btn, html.painted-ui .panel-actions .btn-primary, html.painted-ui .panel-actions .btn-success, html.painted-ui .toolbar-btn.active { border-image-source: url(../assets/images/painted/ui/btn-primary.webp); }
+html.painted-ui .btn-secondary, html.painted-ui .panel-actions .btn-secondary, html.painted-ui .toolbar-btn { border-image-source: url(../assets/images/painted/ui/btn-secondary.webp); }
+html.painted-ui .btn-danger, html.painted-ui .panel-actions .btn-danger { border-image-source: url(../assets/images/painted/ui/btn-danger.webp); }
+html.painted-ui .panel-actions .btn-warning, html.painted-ui .panel-actions .btn-raid { border-image-source: url(../assets/images/painted/ui/btn-gold.webp); }
+html.painted-ui .panel-actions .btn-info { border-image-source: url(../assets/images/painted/ui/btn-info.webp); }
+html.painted-ui .btn-primary:active, html.painted-ui .upgrade-building-btn:active, html.painted-ui .recruit-btn:active, html.painted-ui .panel-actions .btn-primary:active, html.painted-ui .panel-actions .btn-success:active { border-image-source: url(../assets/images/painted/ui/btn-primary-pressed.webp); }
+html.painted-ui .btn-secondary:active, html.painted-ui .panel-actions .btn-secondary:active, html.painted-ui .toolbar-btn:active { border-image-source: url(../assets/images/painted/ui/btn-secondary-pressed.webp); }
+html.painted-ui .btn-danger:active, html.painted-ui .panel-actions .btn-danger:active { border-image-source: url(../assets/images/painted/ui/btn-danger-pressed.webp); }
+html.painted-ui .panel-actions .btn-warning:active, html.painted-ui .panel-actions .btn-raid:active { border-image-source: url(../assets/images/painted/ui/btn-gold-pressed.webp); }
+html.painted-ui .panel-actions .btn-info:active { border-image-source: url(../assets/images/painted/ui/btn-info-pressed.webp); }
+html.painted-ui .modal-box, html.painted-ui .build-panel { border-image-source: url(../assets/images/painted/ui/frame-modal.webp); }
+html.painted-ui .map-info-panel { border-image-source: url(../assets/images/painted/ui/frame-panel.webp); }
+html.painted-ui .top-bar, html.painted-ui .bottom-nav { background-image: url(../assets/images/painted/ui/bar-wood.webp); }
+html.painted-ui .resource-box, html.painted-ui .resource-box.gold-box, html.painted-ui .tab-banner { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }

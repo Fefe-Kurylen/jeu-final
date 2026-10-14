@@ -29,8 +29,11 @@ const ISO_FIELD_SPARE = [[-R_FIELD, 2], [-2, -R_FIELD], [-R_FIELD, -R_FIELD], [R
 const R_PLAZA = 2.75, R_WALL = 2.75;   // l'enceinte se dresse sur le bord du plateau
 
 // ---------- Caméra ----------
-const cityCam = { x: 0, y: 0, zoom: 1 };
+const cityCam = { x: 0, y: 0, zoom: 1, auto: true };   // auto : zoom par défaut recalculé pour que les cellules restent lisibles
 const ISO_ZOOM_MIN = 0.6, ISO_ZOOM_MAX = 2.4;
+const ISO_MIN_CELL = 118;   // largeur de cellule (px logiques) visée par le cadrage par défaut : la ville déborde et se déplace au doigt
+// Parcelles à 80 % du pas de grille : des chemins de terre restent visibles entre les bâtiments
+const ISO_PLOT = 0.68;
 let isoCellW = 96;          // largeur de cellule (px logiques) au dernier rendu
 // Badge de niveau adapté à la taille des cellules (petit, au coin droit de la parcelle, lisible dès 2× DPR)
 function isoBadgeSpec(x, y, hw, hh) { const r = Math.max(6.5, Math.min(10, isoCellW * 0.11)); return { x: x + hw * 0.62, y: y + hh * 0.35, radius: r }; }
@@ -46,6 +49,7 @@ function isoLayout(view) {
   const ext = isoSceneExtent(view);
   const padX = cityViewW < 500 ? 4 : 40, padY = cityViewW < 500 ? 16 : 40;
   const fitW = Math.min((cityViewW - padX * 2) / (ext.hw * 2), (cityViewH - padY * 2) / (ext.top + ext.bottom));
+  if (cityCam.auto) cityCam.zoom = Math.min(ISO_ZOOM_MAX, Math.max(1, ISO_MIN_CELL / fitW));
   const W = Math.max(26, Math.min(190, fitW * cityCam.zoom));
   const cx = cityViewW / 2 + cityCam.x, cy = cityViewH / 2 + cityCam.y + (ext.top - ext.bottom) * W / 2;
   return { W, cx, cy, ext };
@@ -57,7 +61,7 @@ function clampCam(view) {
   cityCam.x = Math.max(-lx, Math.min(lx, cityCam.x));
   cityCam.y = Math.max(-ly, Math.min(ly, cityCam.y));
 }
-function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; }
+function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; cityCam.auto = true; }
 
 // ---------- Emplacements (contrat citySlots conservé : slot, x, y, size, fixed, isField, fieldType…) ----------
 function calculateCitySlots() {
@@ -69,7 +73,7 @@ function calculateCitySlots() {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
     // size : le sprite (1,7 × size = 1,22 W) pose son losange de parcelle (100/130 de sa largeur = 0,94 W) sur la cellule
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.72, hw: W * 0.47, hh: W * 0.235, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.7, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
   }
 }
 function calculateFieldSlots() {
@@ -81,7 +85,7 @@ function calculateFieldSlots() {
   for (const [slot, [gx, gy]] of Object.entries(ISO_FIELD_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * 0.815, hw: W * 0.47, hh: W * 0.235, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size = 1,22 W
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
   }
 }
 
@@ -299,7 +303,7 @@ function isoAnimate(ctx, built, W, night, flags = []) {
   // fumée
   for (const b of built) {
     for (const ch of ISO_CHIMNEYS[b.key] || []) {
-      const p = spritePointToScreen(b.x, b.y, b.w, ch[0], ch[1], ch[2]);
+      const p = spritePointToScreen(b.x, b.y, b.w, ch[0] * (b.ts || 1), ch[1] * (b.ts || 1), ch[2] * (b.ts || 1));
       if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0, k: Math.floor(Math.random() * 4) });
     }
   }
@@ -312,8 +316,8 @@ function isoAnimate(ctx, built, W, night, flags = []) {
   for (const b of built) {
     const wt = ISO_WATER[b.key];
     if (!wt) continue;
-    const p = spritePointToScreen(b.x, b.y, b.w, wt[0], wt[1], wt[2]);
-    const rr = wt[3] * b.w * 0.27, sw = rr * 2.9, sh = sw * 64 / 96;
+    const p = spritePointToScreen(b.x, b.y, b.w, wt[0] * (b.ts || 1), wt[1] * (b.ts || 1), wt[2] * (b.ts || 1));
+    const rr = wt[3] * (b.ts || 1) * b.w * 0.27, sw = rr * 2.9, sh = sw * 64 / 96;
     for (let i = 0; i < 3; i++) {
       const t = (now * 0.45 + i / 3) % 1;
       const img = getSprite(`assets/images/3d/props/ripple_${Math.min(3, Math.floor(t * 4))}.webp`);
@@ -399,7 +403,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
       if (hovered) drawIsoHoverCell(ctx, s);
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);
     } });
-    if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7 });
+    if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7, ts: buildingTierScale(level) });
     if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.3, seed: s.slot });
   }
   // cellule libre : un arbre d'agrément
@@ -409,7 +413,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   for (const it of items) it.draw();
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
   const flags = wallLevel > 0 ? [...isoWallFlags] : [];
-  for (const b of built) for (const f of ISO_FLAGS[b.key] || []) flags.push(isoFlagAt(b.x, b.y, b.w, f[0], f[1], f[2], f[3], f[4] || player?.faction || 'ROME'));
+  for (const b of built) for (const f of ISO_FLAGS[b.key] || []) flags.push(isoFlagAt(b.x, b.y, b.w, f[0] * (b.ts || 1), f[1] * (b.ts || 1), f[2] * (b.ts || 1), f[3], f[4] || player?.faction || 'ROME'));
   return { overlay, built, lit, flags };
 }
 
@@ -461,7 +465,7 @@ function renderFieldsStatic(ctx, W, cx, cy, night, biome) {
     const p = isoPos(gx * 0.9, gy * 0.9, W, cx, cy);
     const w = s === 0 ? W * 1.15 : W * 0.78;
     items.push({ depth: gx + gy, y: p.y, draw: () => {
-      const sprite = getSprite(buildingSpriteUrl(key));
+      const sprite = getSprite(buildingSpriteUrl(key, building?.level || 1));
       if (sprite) drawSprite(ctx, sprite, p.x, p.y, w, spriteVariant(centerHovered));   // silhouette : pas de repli procédural ni de badge
     } });
     if (night) lit.push({ x: p.x, y: p.y - W * 0.2, r: W * 0.45, a: 0.26, seed: s });
@@ -534,7 +538,7 @@ function setupCityGestures() {
     const before = isoLayout(view());
     const z = Math.max(ISO_ZOOM_MIN, Math.min(ISO_ZOOM_MAX, cityCam.zoom * factor));
     if (z === cityCam.zoom) return;
-    cityCam.zoom = z;
+    cityCam.zoom = z; cityCam.auto = false;
     const ratio = isoLayout(view()).W / before.W;   // W est borné : le zoom peut ne rien changer
     if (ratio === 1) return;
     // garde le point sous le doigt immobile

@@ -13,6 +13,7 @@
 //   node tools/repaint.cjs --cats=buildings,fields --workers=2 --force
 //   node tools/repaint.cjs --reprocess                               -> recalage seul, à partir des réponses brutes conservées
 //   node tools/repaint.cjs --manifest-only                           -> réécrit painted/manifest.json
+//   node tools/repaint.cjs --tiers --only='^buildings/'              -> inclut les paliers 1 et 3 des bâtiments (_t1, _t3)
 //   node tools/repaint.cjs --mock --only=…                           -> sans appel API : le guide tient lieu de réponse (test du recalage)
 // Les réponses brutes de l'API sont conservées dans tools/repaint/raw/ (pas de nouvel appel pour re-traiter).
 // ============================================================================
@@ -36,7 +37,7 @@ const API = 'https://api.openai.com/v1/images/edits';
 const COST = { low: 0.024, medium: 0.045, high: 0.071, xhigh: 0.13, max: 0.25 };   // $ par image 1024×1024 mesurés avec gpt-image-2.5 (entrée ≈ 2 300 jetons + sortie) ; xhigh/max : ordre de grandeur
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
-const DEFAULT_CATS = ['buildings', 'fields', 'plots', 'props', 'map', 'heroes', 'figures', 'scenes'];
+const DEFAULT_CATS = ['buildings', 'fields', 'plots', 'props', 'map', 'heroes', 'figures', 'scenes', 'walls', 'effects', 'icons', 'uiframes'];
 const cats = args.cats ? String(args.cats).split(',') : DEFAULT_CATS;
 const quality = ['low', 'medium', 'high', 'xhigh', 'max'].includes(args.quality) ? args.quality : 'high';
 const MODEL = args.model || 'gpt-image-2.5-sunburst';   // --model=gpt-image-2.5-flare | gpt-image-2 | gpt-image-1.5 …
@@ -44,7 +45,7 @@ const BG = ['transparent', 'magenta', 'white'].includes(args.bg) ? args.bg : 'tr
 const TAG = args.tag ? String(args.tag) : null;   // --tag=essai : sorties dans tools/repaint/out/<tag>/ (comparaison), rien dans painted/
 const usage = { in: 0, inText: 0, out: 0, n: 0 };   // jetons consommés (tarif : 8 $/M image en entrée, 5 $/M texte, 30 $/M en sortie)
 const usageCost = () => usage.in / 1e6 * 8 + usage.inText / 1e6 * 5 + usage.out / 1e6 * 30;
-const workers = Math.max(1, Math.min(4, parseInt(args.workers, 10) || 2));
+const workers = Math.max(1, Math.min(8, parseInt(args.workers, 10) || 2));
 const only = args.only ? new RegExp(args.only) : null;
 const limit = parseInt(args.limit, 10) || 0;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -54,7 +55,7 @@ const manifest3d = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), '
 let targets = [];
 for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   if (c === 'map' && f.startsWith('map/units/')) continue;
-  if (c === 'walls' && !args.cats) continue;                      // enceinte : seulement sur demande (--cats=walls)          // figurines de carte : trop petites, restent en 3D
+  if (c === 'buildings' && /_t[13](_snow)?\.webp$/.test(f) && !args.tiers) continue;   // paliers 1 et 3 : sur demande (--tiers), ≈ 936 images
   if (c === 'heroes' && f.endsWith('_bust.webp')) continue;        // bustes (jetons) : restent en 3D
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
@@ -176,7 +177,7 @@ function writeManifest() {
           else if (fs.existsSync(rawFile)) b64 = fs.readFileSync(rawFile).toString('base64');
           else if (args.reprocess) throw new Error('réponse brute absente');
           else { b64 = await callApi(prompt, meta.png, size); fs.mkdirSync(path.dirname(rawFile), { recursive: true }); fs.writeFileSync(rawFile, Buffer.from(b64, 'base64')); }
-          const r = await postProcess(page, b64, meta, size, t.cat !== 'scenes');
+          const r = await postProcess(page, b64, meta, size, !['scenes', 'uiframes'].includes(t.cat));
           const outFile = path.join(args.mock ? DRY : TAG ? path.join(DRY, TAG) : OUT, t.file);
           fs.mkdirSync(path.dirname(outFile), { recursive: true });
           fs.writeFileSync(outFile, Buffer.from(r.webp, 'base64'));
