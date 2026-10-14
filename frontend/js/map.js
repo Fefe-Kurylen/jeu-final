@@ -366,18 +366,18 @@ function getTerrainType(x, y) {
 
   // Normal terrain generation (scattered features)
   if (biome === 'forest') {
-    if (hills > 0.72 && noise > 0.42) return { biome, feature: 'mountain' };   // massifs : chaînes de 3 à 10 sommets qui se raccordent
+    if (hills > 0.72 && noise > 0.5) return { biome, feature: 'mountain' };   // massifs : chaînes de 3 à 10 sommets qui se raccordent
     if (hills > 0.66 && noise > 0.85) return { biome, feature: 'mountain' };   // contreforts isolés en bordure des massifs
     if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
     if (noise < 0.02) return { biome, feature: 'water' };
   } else if (biome === 'desert') {
     if (noise > 0.95) return { biome, feature: 'ruins' };
-    if (hills > 0.7 && noise > 0.45) return { biome, feature: 'dunes' };   // champs de dunes raccordés
+    if (hills > 0.7 && noise > 0.5) return { biome, feature: 'dunes' };   // champs de dunes raccordés
     if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
     if (noise > 0.8 && noise2 > 0.6) return { biome, feature: 'dunes' };
     if (noise < 0.03) return { biome, feature: 'oasis' };
   } else if (biome === 'snow') {
-    if (hills > 0.72 && noise > 0.42) return { biome, feature: 'icemountain' };
+    if (hills > 0.72 && noise > 0.5) return { biome, feature: 'icemountain' };
     if (hills > 0.66 && noise > 0.85) return { biome, feature: 'icemountain' };
     if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
     if (noise < 0.03) return { biome, feature: 'frozen' };
@@ -977,6 +977,7 @@ function renderMapCore() {
   // Draw terrain tiles (textures ancrées sur l'origine du monde)
   const origin = worldToScreen(0, 0);
   prepareMapTerrainPatterns(origin.x, origin.y);
+  rebuildMapObjectCells();
   drawOrder.forEach(tile => {
     drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
   });
@@ -1033,10 +1034,22 @@ function renderMapCore() {
 // Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
 // sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
 const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
+let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
+function rebuildMapObjectCells() {
+  mapObjectCells = new Map();
+  for (const o of mapData) if (o.type === 'CITY' || o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type);
+  for (const c of cities) mapObjectCells.set(c.x + ',' + c.y, 'CITY');
+}
+function terrainBlockedAt(wx, wy) {
+  if (mapObjectCells.has(wx + ',' + wy)) return true;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (mapObjectCells.get((wx + dx) + ',' + (wy + dy)) === 'CITY') return true;
+  return false;
+}
 function terrainSpriteName(wx, wy, biome, feature) {
+  if (terrainBlockedAt(wx, wy)) return null;
   const base = WATER_FEATURES[feature] ? feature : `${biome}_${feature}`;
   if (!tileImages.terrain[base]) return null;
-  const same = (dx, dy) => { const t = getTerrainType(wx + dx, wy + dy); return t.feature === feature || (WATER_FEATURES[feature] && WATER_FEATURES[t.feature]); };
+  const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; const t = getTerrainType(wx + dx, wy + dy); return t.feature === feature || (WATER_FEATURES[feature] && WATER_FEATURES[t.feature]); };
   const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
   const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
   return suffix && tileImages.terrain[base + suffix] ? base + suffix : base;
@@ -1093,6 +1106,7 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   }
 
   // Draw terrain features based on biome: sprite when the manifest provides one, procedural otherwise
+  if (feature && !featureSprite && terrainBlockedAt(wx, wy) && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis') return;   // relief effacé autour des villes
   if (featureSprite) {
     const big = feature === 'mountain' || feature === 'icemountain';
     const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
