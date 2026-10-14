@@ -830,7 +830,7 @@ function biomeInnerGradient(ctx, cx, cy, r, biome, night) {
 // Bâtiment : architecture de la faction du joueur, palier visuel selon le niveau (1-6 modeste, 7-13 courant,
 // 14-20 prestigieux ; le palier courant n'a pas de suffixe), variante enneigée dans le biome neige
 function buildingTier(level) { return !level || level <= 6 ? 1 : level <= 13 ? 2 : 3; }
-function buildingTierScale(level) { return [0, 0.84, 1, 1.08][buildingTier(level)]; }   // échelle des modèles 3D par palier (ancres des animations)
+function buildingTierScale(level) { return [0, 0.74, 1, 1.14][buildingTier(level)]; }   // échelle des modèles 3D par palier (ancres des animations)
 function buildingSpriteUrl(key, level = 10) {
   const f = player?.faction || 'ROME', snow = cityBiome() === 'snow' ? '_snow' : '', tier = buildingTier(level);
   const cur = `buildings/${f}/${key}${snow}.webp`;

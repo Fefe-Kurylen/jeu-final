@@ -61,14 +61,66 @@
   M.RALLY_POINT = (g, f, o) => { const S = style(f); P.box(g, -0.6, -0.6, 1.2, 1.2, 0.06, material('dirt', '#9a8a6a')); if (!o.noFlag) S.flag(g, 0, 0, 0.06, 1.4); P.torch(g, -0.7, 0.7, 0, 0.5); P.torch(g, 0.7, -0.7, 0, 0.5); P.shieldProp(g, 0.6, 0.4, 0, S.p.accent); P.spear(g, -0.5, 0.75, 0, 0.9, 0.2); P.spear(g, -0.35, 0.8, 0, 0.85, -0.1); if (f === 'HUN') P.campfire(g, 0.5, -0.4); };
 
   window.MODELS = window.MODELS || {};
-  // Paliers visuels : 1 = modeste (réduit, sans ornement), 2 = courant, 3 = prestigieux (agrandi, ornements doublés, torches)
-  const TIER_SCALE = { 1: 0.84, 2: 1, 3: 1.08 };
+  // Paliers visuels, comme dans les jeux mobiles : le même bâtiment évolue avec son niveau.
+  //   1 (niv. 1-6)   : hutte modeste — réduit à 74 %, murs de torchis / planches / pisé, toits de chaume ou de bardeaux, sans ornement
+  //   2 (niv. 7-13)  : bâtiment courant (modèle de base)
+  //   3 (niv. 14-20) : édifice prestigieux — agrandi à 114 %, esplanade dallée bordée d'or, corniches dorées sur tous les murs,
+  //                    toits ravivés, torches aux quatre coins, balustrade de pierre, ornements de la faction
+  const TIER_SCALE = { 1: 0.74, 2: 1, 3: 1.14 };
+  const RUSTIC = {
+    ROME:   { wall: ['plaster', '#d4c2a0'], roof: ['planks', '#8a5a30'], column: ['planks', '#9a7340'] },
+    GAUL:   { wall: ['planks', '#8f7048'],  roof: ['thatch', '#a88a3e'], column: ['planks', '#7a5a30'] },
+    GREEK:  { wall: ['plaster', '#e0d8c4'], roof: ['planks', '#7a6a5a'], column: ['planks', '#a08a6a'] },
+    EGYPT:  { wall: ['plaster', '#c9ad80'], roof: ['planks', '#9a7a50'], column: ['planks', '#b09060'] },
+    HUN:    { wall: ['hide', '#8e7558'],    roof: ['hide', '#6e4a30'],   column: ['planks', '#7a5a30'] },
+    SULTAN: { wall: ['plaster', '#d8c8a4'], roof: ['planks', '#8a6a3a'], column: ['plaster', '#d8c8a4'] }
+  };
+  const GOLD_TRIM = material('gold', '#e2b93c', { rough: 0.35, metal: 0.5 });
+  const PAVING = material('stone', '#cfc6b4');
+  // Permutation des matériaux d'un modèle construit (les matériaux de faction sont des singletons : comparaison directe)
+  function swapMaterials(root, map) { root.traverse(o => { if (o.isMesh && map.has(o.material)) o.material = map.get(o.material); }); }
+  // Corniches dorées : un liseré au sommet de chaque mur (boîte) ou tour (cylindre) assez grand
+  function goldCornices(root, S) {
+    const walls = new Set([S.wall, S.wallDark, S.wallLight]);
+    root.updateMatrixWorld(true);
+    const add = [];
+    root.traverse(o => {
+      if (!o.isMesh || !walls.has(o.material) || !o.geometry.parameters) return;
+      const p = o.geometry.parameters, wp = new T.Vector3(); o.getWorldPosition(wp);
+      if (o.geometry.type === 'BoxGeometry' && p.height >= 0.5 && p.width >= 0.4 && p.depth >= 0.4) {
+        const top = wp.y + p.height / 2 - 0.04, w = p.width + 0.05, d = p.depth + 0.05, t = 0.055;
+        for (const [x, z, bw, bd] of [[0, -d / 2, w, t], [0, d / 2, w, t], [-w / 2, 0, t, d], [w / 2, 0, t, d]]) { const m = new T.Mesh(new T.BoxGeometry(bw, t, bd), GOLD_TRIM); m.position.set(wp.x + x, top, wp.z + z); add.push(m); }
+      } else if (o.geometry.type === 'CylinderGeometry' && p.height >= 0.6 && p.radiusTop >= 0.2) {
+        const m = new T.Mesh(new T.TorusGeometry(p.radiusTop + 0.02, 0.03, 8, 32), GOLD_TRIM); m.rotation.x = Math.PI / 2; m.position.set(wp.x, wp.y + p.height / 2 - 0.05, wp.z); add.push(m);
+      }
+    });
+    for (const m of add) root.add(P.setShadow(m));
+  }
+  const NO_KIT = new Set(['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT']);
   for (const [key, fn] of Object.entries(M)) window.MODELS['building:' + key] = (g, faction, opts) => {
     const o = opts || {}, tier = o.tier || 2, S = style(faction);
     const b = new T.Group();
     fn(b, faction, o);
-    if (tier !== 1) S.flourish(b, key);
-    if (tier === 3) { P.torch(b, -0.92, 0.92, 0, 0.42); P.torch(b, 0.92, 0.92, 0, 0.42); if (!['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT'].includes(key)) { P.amphora(b, 0.86, -0.9, 0, 0.2); S.tree(b, -0.9, -0.88, 0.55, 1, o.biome || 'forest'); } }
+    if (tier === 1) {
+      const r = RUSTIC[faction] || RUSTIC.ROME;
+      const wall = material(r.wall[0], r.wall[1]), roof = material(r.roof[0], r.roof[1]);
+      swapMaterials(b, new Map([[S.wall, wall], [S.wallLight, material(r.wall[0], shade(r.wall[1], 6))], [S.wallDark, material(r.wall[0], shade(r.wall[1], -10))], [S.roofMat, roof], [S.domeMat, material('plaster', shade(r.wall[1], -4))], [S.column, material(r.column[0], r.column[1])], [S.gold, material('planks', '#8a6a3a')]]));
+    } else {
+      S.flourish(b, key);
+    }
+    if (tier === 3) {
+      swapMaterials(b, new Map([[S.wall, S.wallLight], [S.roofMat, material(S.p.roofKind === 'flat' ? 'sandstone' : S.p.roofKind === 'dome' ? 'plaster' : S.p.roofKind, S.p.roofKind === 'flat' ? shade(S.p.wall, -6) : S.p.roofKind === 'dome' ? shade(S.p.wall, 10) : shade(S.p.roof, 8))]]));
+      goldCornices(b, S);
+      if (!NO_KIT.has(key)) {
+        // esplanade dallée bordée d'or, balustrade de pierre sur les deux faces avant, torches aux coins
+        b.position.y = 0.08;
+        P.box(g, -1.0, -1.0, 2.0, 2.0, 0.08, PAVING, 0);
+        for (const [x0, y0, w, d] of [[-1.0, -1.0, 2.0, 0.05], [-1.0, 0.95, 2.0, 0.05], [-1.0, -1.0, 0.05, 2.0], [0.95, -1.0, 0.05, 2.0]]) P.box(g, x0, y0, w, d, 0.03, GOLD_TRIM, 0.08);
+        for (const x of [-0.75, -0.45, 0.45, 0.75]) { P.box(g, x - 0.04, 0.9, 0.08, 0.08, 0.22, S.stone, 0.08); P.box(g, 0.9, x - 0.04, 0.08, 0.08, 0.22, S.stone, 0.08); }
+        P.box(g, -0.8, 0.92, 0.4, 0.04, 0.04, S.stone, 0.3); P.box(g, 0.4, 0.92, 0.4, 0.04, 0.04, S.stone, 0.3); P.box(g, 0.92, -0.8, 0.04, 0.4, 0.04, S.stone, 0.3); P.box(g, 0.92, 0.4, 0.04, 0.4, 0.04, S.stone, 0.3);
+        for (const [x, y] of [[-0.95, 0.95], [0.95, 0.95], [0.95, -0.95], [-0.95, -0.95]]) P.torch(g, x, y, 0.08, 0.45);
+      }
+    }
     const k = TIER_SCALE[tier] || 1; b.scale.set(k, k, k);
     g.add(b);
     return { extent: 4 };

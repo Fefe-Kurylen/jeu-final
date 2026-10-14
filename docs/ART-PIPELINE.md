@@ -58,8 +58,11 @@ Pour un sprite raté, `--force --only=…` le régénère (un nouvel appel) ; le
 
 ## Paliers des bâtiments
 
-Chaque bâtiment existe en trois paliers visuels selon son niveau : 1-6 (`<KEY>_t1`, modeste : réduit, sans ornement),
-7-13 (`<KEY>`, courant) et 14-20 (`<KEY>_t3`, prestigieux : agrandi, ornements, torches). Les rendus 3D des trois paliers
+Chaque bâtiment existe en trois paliers visuels selon son niveau, comme dans les jeux mobiles où un bâtiment évolue
+avec son niveau : 1-6 (`<KEY>_t1`, hutte modeste : 74 %, torchis / planches / pisé, chaume ou bardeaux, sans ornement),
+7-13 (`<KEY>`, courant) et 14-20 (`<KEY>_t3`, édifice prestigieux : 114 %, esplanade dallée bordée d'or, corniches dorées,
+balustrade, torches, ornements). Les prompts de repeinture décrivent explicitement la version « niveau 1 » (hutte de
+bois) et « niveau max » (étage ou tour en plus, marbre, or, bannières). Les rendus 3D des trois paliers
 sont produits par `build-3d.cjs` ; la repeinture des paliers 1 et 3 (≈ 936 images) se lance avec `--tiers`. Le client
 (`buildingSpriteUrl(key, level)`) prend la version peinte du palier, sinon la version peinte courante, sinon le rendu 3D.
 
