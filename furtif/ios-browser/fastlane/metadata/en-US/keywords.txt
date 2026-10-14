@@ -1,0 +1,1 @@
+browser,web,private,ad blocker,tabs,reader,dark mode,customizable,internet

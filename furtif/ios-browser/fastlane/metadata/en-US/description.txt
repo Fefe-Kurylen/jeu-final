@@ -1,0 +1,33 @@
+Furtif is a fast, private and fully customizable browser for iPhone.
+
+PUT EVERY BUTTON WHERE YOU WANT IT
+• Choose the buttons in the toolbar and in the menu, their order and size
+• Add separators to organize the menu into sections
+• Toolbar gallery with ready-made layouts: Complete, Minimal, Gestures, Reading
+• Toolbar at the bottom or top, Classic or Glass style
+
+BEAUTIFUL, TIDY TABS
+• Tabs grouped by site, as a list or a grid of thumbnails
+• Sort by date, reading time or title
+• Private tabs, never saved in history
+
+BROWSE WITHOUT BEING TRACKED
+• Built-in ad and tracker blocker
+• Cookie banner hiding
+• JavaScript on or off, per site
+• Automatic HTTPS upgrade
+• No data collection, no account, no third-party service
+
+READ COMFORTABLY
+• Dark mode for every website, globally or per site
+• Reader view that extracts the article
+• Estimated reading time in the address bar and the tab list
+• Bars hide while scrolling for full-screen reading
+• Desktop site, translation, find in page
+
+MAKE IT YOURS
+• Interface color that adapts to the website, 8 accent colors
+• Search engine of your choice: DuckDuckGo, Qwant, Kagi, Brave, SearXNG, Google, Bing or your own Furtif instance
+• Configurable new tab page
+
+Furtif uses WebKit, the engine behind Safari: websites render exactly as you expect. Every feature is free.

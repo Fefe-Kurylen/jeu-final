@@ -76,6 +76,7 @@ app.get('/opensearch.xml', (req, res) => {
 </OpenSearchDescription>`);
 });
 
+app.get('/confidentialite', (req, res) => res.sendFile(path.join(__dirname, 'public', 'confidentialite.html')));
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', extensions: ['html'] }));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 

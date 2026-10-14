@@ -1,0 +1,90 @@
+# Furtif Browser Android : compilation + tests à chaque push, bundle signé et envoi Google Play à la demande.
+name: Furtif Android
+
+on:
+  push:
+    branches: [main, claude/furtif-navigateur]
+    paths: ["furtif/android-browser/**", ".github/workflows/furtif-android.yml"]
+  pull_request:
+    paths: ["furtif/android-browser/**"]
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Piste Google Play"
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+
+concurrency:
+  group: furtif-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compiler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: furtif/android-browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+
+      - name: Compilation debug + lint
+        run: gradle assembleDebug lintDebug --no-daemon --console=plain
+
+      - name: Conserver l'APK debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: furtif-debug-apk
+          path: furtif/android-browser/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    name: Publier sur Google Play (${{ github.event.inputs.track }})
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: furtif/android-browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+
+      - name: Restaurer le keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/furtif.jks
+
+      - name: Bundle release signé
+        run: gradle bundleRelease --no-daemon --console=plain
+        env:
+          KEYSTORE_FILE: /tmp/furtif.jks
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+
+      - name: Envoyer sur Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: fr.furtif.browser
+          releaseFiles: furtif/android-browser/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ github.event.inputs.track }}
+          status: completed
+          whatsNewDirectory: furtif/android-browser/play/whatsnew
+          mappingFile: furtif/android-browser/app/build/outputs/mapping/release/mapping.txt
+
+      - name: Conserver le bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: furtif-release-aab
+          path: furtif/android-browser/app/build/outputs/bundle/release/app-release.aab
