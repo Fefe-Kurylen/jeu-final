@@ -170,7 +170,8 @@ class BrowserStore(app: Application) : AndroidViewModel(app) {
         if (!settings.haptics) return
         val app = getApplication<Application>()
         val v = if (Build.VERSION.SDK_INT >= 31) (app.getSystemService(VibratorManager::class.java)).defaultVibrator else @Suppress("DEPRECATION") app.getSystemService(Vibrator::class.java)
-        v?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+        val effect = if (Build.VERSION.SDK_INT >= 29) VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK) else VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE)
+        v?.vibrate(effect)
     }
 
     fun handleIntent(intent: Intent?) {
