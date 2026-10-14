@@ -52,6 +52,6 @@ export async function search({ q, page = 1, lang }) {
     tokens.set(`${kl}|${q}`, tok);
   }
   const body = new URLSearchParams({ q, s: String((page - 1) * 10), nextParams: '', v: 'l', o: 'json', dc: String((page - 1) * 10 + 1), api: 'd.js', vqd: tok.vqd || '', kl });
-  const html = await fetchText(BASE, { headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' }, method: 'POST', body: body.toString() });
+  const html = await fetchText(`${BASE}?kl=${kl}`, { headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded', Cookie: `kl=${kl}` }, method: 'POST', body: body.toString() });
   return parse(html).results;
 }

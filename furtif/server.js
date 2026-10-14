@@ -6,7 +6,7 @@ import { config } from './src/config.js';
 import { search, status } from './src/providers/index.js';
 import { suggest } from './src/suggest.js';
 import { instantAnswer } from './src/instant.js';
-import { imageProxy } from './src/imageProxy.js';
+import { imageProxy, faviconProxy } from './src/imageProxy.js';
 import { rateLimit } from './src/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,6 +57,7 @@ api.get('/suggest', searchLimit, async (req, res) => {
 });
 
 api.get('/img', imageLimit, imageProxy);
+api.get('/fav', imageLimit, faviconProxy);
 api.get('/status', (req, res) => res.json({ ok: true, providers: status(), lang: config.defaultLang }));
 app.use('/api', api);
 

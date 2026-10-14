@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { fetchJSON, hostOf } from '../http.js';
 
 export const name = 'brave';
-export const categories = ['web', 'images', 'news'];
+export const categories = ['web', 'images', 'news', 'videos'];
 export const available = () => Boolean(config.braveApiKey);
 
 const BASE = 'https://api.search.brave.com/res/v1';
@@ -39,6 +39,13 @@ export async function search({ q, category, page = 1, lang }) {
     return (data.results || []).map(r => ({
       title: r.title, url: r.url, host: hostOf(r.url), snippet: r.description || '',
       source: r.meta_url?.hostname || hostOf(r.url), date: r.age || '', thumbnail: r.thumbnail?.src || '',
+    }));
+  }
+  if (category === 'videos') {
+    const data = await call('videos/search', { ...common, count: 20, offset: page - 1 });
+    return (data.results || []).map(r => ({
+      title: r.title, url: r.url, host: hostOf(r.url), snippet: r.description || '', thumbnail: r.thumbnail?.src || '',
+      duration: r.video?.duration || '', source: r.meta_url?.hostname || hostOf(r.url), channel: r.video?.creator || r.video?.publisher || '', views: r.video?.views ? `${r.video.views} vues` : '', date: r.age || '',
     }));
   }
   return [];

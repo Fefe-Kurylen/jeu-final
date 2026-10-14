@@ -4,7 +4,7 @@ import * as cheerio from 'cheerio';
 import { fetchText, hostOf, decodeEntities } from '../http.js';
 
 export const name = 'bing';
-export const categories = ['web', 'images', 'news'];
+export const categories = ['web', 'images', 'news', 'videos'];
 export const available = () => true;
 
 function decodeBingRedirect(href = '') {
@@ -34,6 +34,7 @@ export async function search({ q, category, page = 1, lang }) {
   if (category === 'web') return web(q, page, lang);
   if (category === 'images') return images(q, page, lang);
   if (category === 'news') return news(q, page, lang);
+  if (category === 'videos') return videos(q, page, lang);
   return [];
 }
 
@@ -99,6 +100,32 @@ async function news(q, page, lang) {
       source: $it.find('News\\:Source, Source').first().text().trim(),
       date: $it.find('pubDate').text().trim(),
       thumbnail: img ? `${img}&w=240&h=135&c=14` : '',
+    });
+  });
+  return out;
+}
+
+async function videos(q, page, lang) {
+  const first = 1 + (page - 1) * 20;
+  const url = `https://www.bing.com/videos/search?q=${encodeURIComponent(q)}&first=${first}`;
+  const html = await fetchText(url);
+  const $ = cheerio.load(html);
+  const out = [];
+  $('.mc_vtvc_con_rc').each((_, el) => {
+    const $el = $(el);
+    const href = $el.attr('ourl') || '';
+    const title = $el.find('.mc_vtvc_title').attr('title') || $el.find('.mc_vtvc_title').text().trim();
+    if (!/^https?:/.test(href) || !title) return;
+    const rows = $el.find('.mc_vtvc_meta_row');
+    const views = rows.eq(0).find('.meta_vc_content').text().trim();
+    const date = rows.eq(0).find('.meta_pd_content').text().trim();
+    const platform = rows.eq(1).find('span').first().text().trim();
+    const channel = rows.eq(1).find('.mc_vtvc_meta_row_channel').text().trim();
+    out.push({
+      title, url: href, host: hostOf(href), snippet: '',
+      thumbnail: $el.find('.rms_iac').attr('data-src') || $el.find('img').attr('src') || '',
+      duration: $el.find('.mc_bc_rc.items').first().text().trim(),
+      source: platform || hostOf(href), channel, views, date,
     });
   });
   return out;

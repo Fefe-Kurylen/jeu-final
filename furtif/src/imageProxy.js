@@ -5,6 +5,8 @@ import net from 'node:net';
 import { config } from './config.js';
 
 const MAX_BYTES = 5 * 1024 * 1024;
+const favCache = new Map(); // host -> { buf, type, expires } (null = absent)
+const FAV_TTL = 24 * 3600 * 1000;
 
 function isPrivate(ip) {
   if (net.isIPv6(ip)) {
@@ -41,4 +43,34 @@ export async function imageProxy(req, res) {
   } catch {
     if (!res.headersSent) res.status(502).end();
   } finally { clearTimeout(timer); }
+}
+
+// Favicon d'un domaine, récupérée côté serveur (l'utilisateur ne contacte jamais le site). 204 si introuvable.
+export async function faviconProxy(req, res) {
+  const host = String(req.query.host || '').toLowerCase().replace(/[^a-z0-9.-]/g, '');
+  if (!host || host.length > 253) return res.status(400).end();
+  const hit = favCache.get(host);
+  if (hit && hit.expires > Date.now()) return hit.buf ? res.set({ 'Content-Type': hit.type, 'Cache-Control': 'public, max-age=86400' }).end(hit.buf) : res.status(204).end();
+  if (net.isIP(host) && isPrivate(host)) return res.status(403).end();
+  try {
+    const addrs = await dns.lookup(host, { all: true });
+    if (!addrs.length || addrs.some(a => isPrivate(a.address))) return res.status(403).end();
+  } catch { return res.status(204).end(); }
+  for (const url of [`https://${host}/favicon.ico`, `https://www.${host}/favicon.ico`, `https://icons.duckduckgo.com/ip3/${host}.ico`]) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    try {
+      const up = await fetch(url, { headers: { 'User-Agent': config.browserUA, Accept: 'image/*' }, signal: ctrl.signal, redirect: 'follow' });
+      const type = up.headers.get('content-type') || '';
+      if (up.ok && /image\//.test(type)) {
+        const buf = Buffer.from(await up.arrayBuffer());
+        if (buf.length > 0 && buf.length < 512 * 1024) {
+          favCache.set(host, { buf, type, expires: Date.now() + FAV_TTL });
+          return res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=86400' }).end(buf);
+        }
+      }
+    } catch { /* essai suivant */ } finally { clearTimeout(timer); }
+  }
+  favCache.set(host, { buf: null, expires: Date.now() + FAV_TTL });
+  res.status(204).end();
 }

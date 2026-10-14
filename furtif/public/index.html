@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Furtif — Recherche privée</title>
+  <title>Furtif — Le moteur de recherche qui ne vous regarde pas</title>
   <meta name="description" content="Furtif : moteur de recherche privé. Pas de pisteurs, pas de profil, pas de publicité.">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#6d5dfc">
+  <meta name="theme-color" content="#ffffff">
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="search" type="application/opensearchdescription+xml" title="Furtif" href="/opensearch.xml">
@@ -15,54 +15,73 @@
 </head>
 <body data-view="home">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Accueil Furtif">
-      <img src="/logo.svg" alt="" width="36" height="36">
-      <span class="brand-name">Furtif</span>
-    </a>
+    <a class="brand" href="/" aria-label="Accueil Furtif"><span class="wordmark">Furtif<span class="spark">✦</span></span></a>
     <form class="searchbox" id="searchform" role="search" autocomplete="off">
-      <span class="icon-search" aria-hidden="true">🔍</span>
-      <input id="q" name="q" type="search" placeholder="Rechercher sans être suivi…" aria-label="Rechercher" enterkeyhint="search" autocapitalize="off" spellcheck="false">
-      <button type="button" class="clear" id="clear" aria-label="Effacer" hidden>✕</button>
-      <button type="submit" class="go" aria-label="Lancer la recherche">→</button>
+      <input id="q" name="q" type="search" placeholder="Rechercher" aria-label="Rechercher" enterkeyhint="search" autocapitalize="off" spellcheck="false">
+      <button type="button" class="clear" id="clear" aria-label="Effacer" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      </button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="submit" class="go" aria-label="Lancer la recherche">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <ul id="suggest" class="suggest" role="listbox" hidden></ul>
     </form>
     <div class="top-actions">
-      <button class="iconbtn" id="themebtn" title="Thème clair / sombre" aria-label="Changer de thème">🌙</button>
-      <button class="iconbtn" id="settingsbtn" title="Réglages" aria-label="Réglages">⚙️</button>
+      <button class="iconbtn" id="themebtn" title="Thème clair / sombre" aria-label="Changer de thème">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.4A5.5 5.5 0 0 1 13.4 3.1C13 3 12.5 3 12 3z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="iconbtn" id="settingsbtn" title="Paramètres" aria-label="Paramètres">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+      </button>
     </div>
   </header>
 
   <section class="home" id="home">
     <div class="hero">
-      <img src="/logo.svg" alt="" class="hero-logo" width="88" height="88">
-      <h1>Furtif</h1>
-      <p class="tagline">Cherchez. Personne ne regarde.</p>
+      <div class="wordmark big">Furtif<span class="spark">✦</span></div>
+      <h1 class="tagline">Le moteur de recherche qui ne vous regarde pas</h1>
     </div>
-    <ul class="pledges">
-      <li>🚫 Aucun pisteur, aucun cookie publicitaire</li>
-      <li>🕵️ Votre adresse IP n'est jamais transmise aux sites</li>
-      <li>🧹 Aucune requête conservée</li>
-    </ul>
-    <div class="shortcuts" id="shortcuts" aria-label="Raccourcis"></div>
-    <p class="hint">Astuce : <code>!w chat</code> ouvre Wikipédia, <code>!yt</code> YouTube, <code>!maps</code> un plan. <code>12*8</code> ou <code>10 km en miles</code> sont calculés sans quitter Furtif.</p>
+    <div class="shortcuts-wrap">
+      <div class="shortcuts" id="shortcuts" aria-label="Raccourcis"></div>
+      <p class="shortcuts-note">Raccourcis <span class="info" title="Sans publicité ni partenariat : ces raccourcis sont de simples liens.">ⓘ</span></p>
+    </div>
+    <section class="promo">
+      <div class="promo-text">
+        <h2>Découvrez <span class="grad">l'application Furtif,</span><br>disponible sur iOS et Android.</h2>
+        <p>Profitez de Furtif sur votre smartphone, sans collecte de vos données personnelles.</p>
+        <a class="btn-dark" href="#" id="aboutlink">En savoir plus</a>
+      </div>
+      <div class="promo-art" aria-hidden="true">
+        <div class="phone"><div class="phone-screen"><span class="wordmark">Furtif<span class="spark">✦</span></span><span class="phone-tag">Le moteur de recherche qui ne vous regarde pas</span><span class="phone-bar">Rechercher</span></div></div>
+        <span class="star s1">✦</span><span class="star s2">✦</span>
+      </div>
+    </section>
   </section>
 
   <section class="results" id="resultsview" hidden>
     <nav class="tabs" aria-label="Type de résultats">
-      <button data-type="web" class="tab active">Web</button>
+      <button data-type="web" class="tab active">Tous</button>
       <button data-type="images" class="tab">Images</button>
-      <button data-type="news" class="tab">Actus</button>
+      <button data-type="videos" class="tab">Vidéos</button>
+      <button data-type="news" class="tab">Actualités</button>
+      <span class="tabs-sep" aria-hidden="true"></span>
+      <button class="filters" id="filtersbtn" type="button">Filtres</button>
     </nav>
+    <div class="filters-panel" id="filtersPanel" hidden>
+      <label>Région <select id="fLang"></select></label>
+      <label>Ouvrir dans <select id="fTab"><option value="same">le même onglet</option><option value="new">un nouvel onglet</option></select></label>
+    </div>
     <div class="layout">
       <main class="main" id="results" aria-live="polite"></main>
       <aside class="side" id="side"></aside>
     </div>
-    <nav class="pager" id="pager" aria-label="Pages"></nav>
+    <div class="more-wrap" id="pager"></div>
   </section>
 
   <dialog id="settings" class="settings">
     <form method="dialog">
-      <h2>Réglages</h2>
+      <h2>Paramètres</h2>
       <label>Région des résultats
         <select id="setLang">
           <option value="fr-FR">France (français)</option>
@@ -85,21 +104,20 @@
   </dialog>
 
   <footer class="foot">
-    <span>Furtif · recherche privée</span>
-    <a href="/opensearch.xml" id="addEngine">Ajouter Furtif à mon navigateur</a>
-    <a href="#" id="aboutlink">Confidentialité</a>
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <span class="wordmark foot-logo">F<span class="spark">✦</span></span>
+        <p class="foot-tagline">Le moteur de recherche qui ne vous regarde pas</p>
+        <a class="btn-outline" href="#" id="aboutlink2">Découvrir le service</a>
+      </div>
+      <div class="foot-cols">
+        <div><h3>Services</h3><a href="/">Recherche</a><a href="#" data-bang="!img ">Images</a><a href="#" data-bang="!actus ">Actualités</a></div>
+        <div><h3>À propos de Furtif</h3><a href="#" class="about">Confidentialité</a><a href="/opensearch.xml" id="addEngine">Ajouter à mon navigateur</a><a href="https://github.com/Fefe-Kurylen/jeu-final/tree/claude/furtif-navigateur/furtif" data-ext>Code source</a></div>
+        <div><h3>Applications</h3><span class="store">▶ Google Play</span><span class="store"> App Store</span></div>
+      </div>
+    </div>
+    <div class="foot-bottom"><span>Aucune donnée collectée · Aucune requête conservée</span><span>© 2026 Furtif</span></div>
   </footer>
-
-  <template id="tpl-web">
-    <article class="r">
-      <a class="r-head" rel="noopener">
-        <span class="favicon" aria-hidden="true"></span>
-        <span class="r-meta"><span class="r-host"></span><span class="r-url"></span></span>
-      </a>
-      <h3><a class="r-title" rel="noopener"></a></h3>
-      <p class="r-snippet"></p>
-    </article>
-  </template>
 
   <script src="/app.js" defer></script>
 </body>

@@ -3,22 +3,26 @@
 Furtif est un moteur de recherche privé **type Qwant** : une page de recherche sans pisteur, des résultats
 agrégés depuis plusieurs sources, et une coque mobile (Capacitor) qui ouvre les sites dans un navigateur intégré.
 
+L'interface reprend les codes de Qwant : logo serif avec étincelle, barre de recherche en pilule à halo lavande,
+onglets **Tous / Images / Vidéos / Actualités** en pilules, cartes de résultats avec favicon rond, trait vertical et
+titre bleu, bouton « Plus de résultats », grille d'images justifiée, pied de page sombre, thème clair/sombre.
+
 ## Fonctionnalités
 
-- 🔍 Recherche **Web / Images / Actus**, pagination, suggestions de saisie
+- 🔍 Recherche **Tous / Images / Vidéos / Actualités**, « Plus de résultats », suggestions de saisie, filtres (région, ouverture)
 - 🧮 Réponses instantanées locales : calculatrice, conversions d'unités, date/heure
 - ⚡ Raccourcis `!w`, `!yt`, `!maps`, `!gh`, `!amz`, `!lbc`, `!img`, `!actus`
-- 🕵️ Confidentialité : aucune requête journalisée, `Referrer-Policy: no-referrer`, vignettes servies via un proxy
+- 🕵️ Confidentialité : aucune requête journalisée, `Referrer-Policy: no-referrer`, vignettes et favicons servies via un proxy
   (l'IP de l'utilisateur n'atteint jamais les sites tiers), liens de redirection des moteurs décodés, publicités retirées
 - 🌙 Thème clair/sombre, PWA installable, OpenSearch (ajout comme moteur par défaut dans Chrome/Firefox/Safari)
 - 🔁 Plusieurs **fournisseurs de résultats** avec bascule automatique :
 
 | Fournisseur | Clé requise | Catégories | Remarque |
 |---|---|---|---|
-| `brave` | `BRAVE_API_KEY` ([gratuit 2000 req/mois](https://brave.com/search/api/)) | web, images, actus | Index indépendant, meilleure qualité |
-| `searxng` | `SEARXNG_URL` (inclus dans `docker-compose.yml`) | web, images, actus | Métamoteur open-source auto-hébergé |
+| `brave` | `BRAVE_API_KEY` ([gratuit 2000 req/mois](https://brave.com/search/api/)) | web, images, vidéos, actus | Index indépendant, meilleure qualité |
+| `searxng` | `SEARXNG_URL` (inclus dans `docker-compose.yml`) | web, images, vidéos, actus | Métamoteur open-source auto-hébergé |
 | `ddg` | aucune | web | DuckDuckGo lite |
-| `bing` | aucune | web, images, actus | Lecture directe, filtré anti-« leurres » |
+| `bing` | aucune | web, images, vidéos, actus | Lecture directe, filtré anti-« leurres » |
 | `openverse` | aucune | images | Images libres (Creative Commons), dernier recours |
 
 ## Démarrage rapide
@@ -57,9 +61,10 @@ npm run android                         # ou : npm run ios (macOS + Xcode requis
 
 | Route | Description |
 |---|---|
-| `GET /api/search?q=…&type=web\|images\|news&page=1&lang=fr-FR` | Résultats normalisés `{ provider, results[], infobox, instant, suggestions }` |
+| `GET /api/search?q=…&type=web\|images\|videos\|news&page=1&lang=fr-FR` | Résultats normalisés `{ provider, results[], infobox, instant, suggestions }` |
 | `GET /api/suggest?q=…` | Suggestions de saisie |
 | `GET /api/img?u=…` | Proxy d'images (https, anti-SSRF, 5 Mo max) |
+| `GET /api/fav?host=…` | Favicon d'un domaine, récupérée côté serveur (204 si absente) |
 | `GET /api/status` | État des fournisseurs |
 | `GET /opensearch.xml` | Descripteur OpenSearch |
 
