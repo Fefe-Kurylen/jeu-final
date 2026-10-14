@@ -213,6 +213,7 @@ function renderFieldsCanvas() {
 
 function switchCityView(view) {
   currentCityView = view;
+  cityHoveredSlot = null;
 
   // Update button states (if buttons exist)
   document.getElementById('btn-view-city')?.classList.toggle('active', view === 'city');

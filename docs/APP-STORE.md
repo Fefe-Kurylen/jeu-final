@@ -11,7 +11,8 @@ préparées pour les questionnaires. Les points marqués 🔧 demandent une acti
 | Jeu web → Capacitor | ✅ `capacitor.config.ts`, projets `ios/` et `android/`, plugins App, Haptics, Keyboard, Network, SplashScreen, StatusBar, **PushNotifications**, **RevenueCat (purchases-capacitor)** |
 | Backend sur un vrai serveur avec HTTPS | ✅ `DEPLOIEMENT.md` : Render, Fly.io, Docker, et section VPS (Docker + Caddy, HTTPS automatique) |
 | Vraies fonctions natives (piège n°1) | ✅ notifications push (attaque en approche, bataille, construction terminée), achats intégrés, haptique, barre d'état, clavier, interface mobile (barre de navigation basse, rendu haute densité) |
-| Interface pensée mobile | ✅ navigation basse, rendu au devicePixelRatio, sprites nets ; 🔧 pass HUD « Rise of Kingdoms » en cours |
+| Interface pensée mobile | ✅ navigation basse (10 onglets qui tiennent sur 360 px, sélecteur de ville dans la barre des files), rendu au devicePixelRatio, scène de ville isométrique avec gestes (déplacement, pincement, double tap), icônes peintes, polices embarquées (aucun appel réseau au lancement), écrans verrouillés en **portrait** (iOS et Android), bouton Retour Android (ferme le panneau, revient au village, puis « appuyez encore pour quitter »), dialogues de confirmation dans le style du jeu, haptique sur succès/erreur |
+| Audit mobile (octobre 2026) | ✅ mesuré à 360/375/390 px : barre d'onglets et en-tête tiennent sans débordement, onglets défilables, inscription utilisable clavier ouvert, cibles ≥ 44 px, rendu groupé pendant les gestes, charge utile de /api/player/me réduite |
 
 ## Phase 2 — Compte Apple 🔧
 

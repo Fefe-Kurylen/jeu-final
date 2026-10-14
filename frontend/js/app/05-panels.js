@@ -1397,19 +1397,7 @@ function getBuildingDescription(key) {
 
 // (resize handler consolidated below in map section)
 
-// Animation loop for construction (250ms = 4 FPS, sufficient for progress bars)
-let constructionAnimInterval = null;
-function startConstructionAnimation() {
-  if (constructionAnimInterval) return;
-  constructionAnimInterval = setInterval(() => {
-    if (document.visibilityState !== 'visible') return;
-    if (document.getElementById('tab-city')?.classList.contains('active') &&
-        currentCity?.buildQueue?.some(q => q.status === 'RUNNING')) {
-      renderCityCanvas();
-    }
-  }, 250);
-}
-startConstructionAnimation();
+// L'animation de construction est rendue par la boucle rAF de la ville (02-city-render.js)
 
 // ========== QUEUE STATUS BAR & DROPDOWNS ==========
 function toggleQueueDropdown(type) {

@@ -18,6 +18,7 @@
   const Plugins = () => (window.Capacitor && window.Capacitor.Plugins) || {};
   const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
+  let lastBackPress = 0;
   async function initNativePlugins() {
     if (!isNative()) return;
     const { StatusBar, SplashScreen, Keyboard, App: CapApp, Network } = Plugins();
@@ -31,9 +32,14 @@
       }
     } catch (e) {}
 
-    // Splash Screen - hide once the web layer is up
+    // Splash Screen : masqué au premier rendu du jeu (window.onGameReady), au plus tard après 4 s
     try {
-      if (SplashScreen) setTimeout(() => SplashScreen.hide(), 500);
+      if (SplashScreen) {
+        let hidden = false;
+        const hide = () => { if (!hidden) { hidden = true; SplashScreen.hide().catch(() => {}); } };
+        window.onGameReady = hide;
+        setTimeout(hide, 4000);
+      }
     } catch (e) {}
 
     // Keyboard
@@ -58,21 +64,25 @@
           const buildPanel = document.getElementById('build-panel');
           const mapPanel = document.getElementById('map-info-panel');
 
+          const activeTab = document.querySelector('.tab.active')?.id || '';
           if (modal && modal.style.display !== 'none') {
             closeModal();
           } else if (buildPanel && buildPanel.style.display !== 'none') {
             closeBuildPanel();
           } else if (mapPanel && mapPanel.style.display !== 'none') {
             closeMapPanel();
-          } else if (canGoBack) {
-            window.history.back();
-          } else {
+          } else if (document.getElementById('game-screen')?.style.display === 'flex' && activeTab && activeTab !== 'tab-city') {
+            showTab('city');   // retour : d'abord vers le village
+          } else if (Date.now() - lastBackPress < 2000) {
             CapApp.exitApp();
+          } else {
+            lastBackPress = Date.now();
+            showToast('Appuyez encore pour quitter', 'info');
           }
         });
 
         CapApp.addListener('appStateChange', ({ isActive }) => {
-          if (isActive && localStorage.getItem('token')) {
+          if (isActive && (window.safeStorage || localStorage).getItem('token')) {
             if (typeof refreshData === 'function') refreshData(true);
           }
         });
@@ -89,7 +99,7 @@
           } else {
             document.body.classList.remove('offline');
             showToast('Connexion retablie', 'success');
-            if (localStorage.getItem('token') && typeof refreshData === 'function') {
+            if ((window.safeStorage || localStorage).getItem('token') && typeof refreshData === 'function') {
               refreshData(true);
             }
           }
@@ -98,28 +108,10 @@
     } catch (e) {}
   }
 
-  // ========== TOUCH OPTIMIZATIONS ==========
-
-  // Empecher double-tap zoom
-  let lastTouchEnd = 0;
-  document.addEventListener('touchend', (e) => {
-    const now = Date.now();
-    if (now - lastTouchEnd < 300 && !e.target.matches('input, textarea, select')) {
-      e.preventDefault();
-    }
-    lastTouchEnd = now;
-  }, { passive: false });
-
-  // Empecher pull-to-refresh / overscroll
-  document.addEventListener('touchmove', (e) => {
-    const gameScreen = document.getElementById('game-screen');
-    if (gameScreen && gameScreen.style.display === 'flex') {
-      const scrollable = e.target.closest('.tab-inner, .list-container, .panel-body, .modal-body, .buildings-grid, .army-content, .hero-content, .market-content, .inventory-content');
-      if (!scrollable && !e.target.matches('canvas')) {
-        e.preventDefault();
-      }
-    }
-  }, { passive: false });
+  // ========== TOUCH ==========
+  // Le zoom au double-tap et le rebond sont déjà neutralisés par le viewport (user-scalable=no),
+  // touch-action: manipulation et overscroll-behavior: none (CSS) : aucun handler global qui
+  // avalerait un tap rapide ou bloquerait le défilement des listes et de la barre d'onglets.
 
   // Gerer changement d'orientation
   window.addEventListener('orientationchange', () => {
@@ -132,8 +124,8 @@
   let pushListenersReady = false;
   async function sendPushToken(token) {
     try {
-      const res = await fetch(`${window.API_SERVER}/api/push/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ token, platform: window.Capacitor.getPlatform() }) });
-      if (res.ok) localStorage.setItem('push_token', token);
+      const res = await fetch(`${window.API_SERVER}/api/push/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (window.safeStorage || localStorage).getItem('token') }, body: JSON.stringify({ token, platform: window.Capacitor.getPlatform() }) });
+      if (res.ok) (window.safeStorage || localStorage).setItem('push_token', token);
     } catch (e) {}
   }
   window.registerPush = async function () {
@@ -160,13 +152,13 @@
     } catch (e) { console.warn('push:', e.message); return false; }
   };
   window.unregisterPush = async function () {
-    const t = localStorage.getItem('push_token');
+    const t = (window.safeStorage || localStorage).getItem('push_token');
     if (!t) return;
-    localStorage.removeItem('push_token');
-    try { await fetch(`${window.API_SERVER}/api/push/register`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('token') }, body: JSON.stringify({ token: t }) }); } catch (e) {}
+    (window.safeStorage || localStorage).removeItem('push_token');
+    try { await fetch(`${window.API_SERVER}/api/push/register`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (window.safeStorage || localStorage).getItem('token') }, body: JSON.stringify({ token: t }) }); } catch (e) {}
   };
   window.togglePush = async function () {
-    if (localStorage.getItem('push_token')) { await window.unregisterPush(); showToast('Notifications désactivées', 'info'); }
+    if ((window.safeStorage || localStorage).getItem('push_token')) { await window.unregisterPush(); showToast('Notifications désactivées', 'info'); }
     else { const ok = await window.registerPush(); showToast(ok ? 'Notifications activées' : 'Autorisation refusée : activez-les dans les réglages du téléphone', ok ? 'success' : 'error'); }
     if (typeof openSettings === 'function') openSettings();
   };
@@ -174,13 +166,16 @@
   // Quand le joueur est chargé : boutique (RevenueCat) et notifications
   window.onPlayerReady = function (player) {
     if (window.Store) window.Store.configure(player.id);
-    if (localStorage.getItem('push_token') || !localStorage.getItem('push_asked')) {
-      localStorage.setItem('push_asked', '1');
+    if ((window.safeStorage || localStorage).getItem('push_token') || !(window.safeStorage || localStorage).getItem('push_asked')) {
+      (window.safeStorage || localStorage).setItem('push_asked', '1');
       window.registerPush();
     }
   };
 
   // ========== HAPTICS ==========
+  window.hapticNotify = async function(type) {
+    try { const { Haptics } = Plugins(); if (Haptics) await Haptics.notification({ type: type || 'SUCCESS' }); } catch (e) {}
+  };
   window.haptic = async function(style) {
     try {
       const { Haptics } = Plugins();

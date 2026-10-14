@@ -8,7 +8,7 @@
   function flush() {
     if (!queue.length) return;
     const batch = queue.splice(0, 50);
-    const token = localStorage.getItem('token');
+    const token = (window.safeStorage || localStorage).getItem('token');
     const base = window.API_SERVER || '';
     fetch(`${base}/api/analytics/events`, {
       method: 'POST', keepalive: true,
@@ -25,8 +25,8 @@
   window.trackOnce = function (event, props) {
     try {
       const key = 'track_once_' + event;
-      if (localStorage.getItem(key)) return;
-      localStorage.setItem(key, '1');
+      if ((window.safeStorage || localStorage).getItem(key)) return;
+      (window.safeStorage || localStorage).setItem(key, '1');
     } catch (e) { /* stockage indisponible : on envoie quand même */ }
     window.track(event, props);
   };

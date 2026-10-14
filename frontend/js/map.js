@@ -2579,9 +2579,7 @@ function onMapTouchMove(e) {
     );
 
     mapZoomLevel = Math.max(0.15, Math.min(3, touchStartZoom * (dist / touchStartDist)));
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    scheduleMapRender(true);
   } else if (e.touches.length === 1 && mapDragging) {
     // Use isometric tile dimensions
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2600,9 +2598,7 @@ function onMapTouchMove(e) {
     mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
 
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    scheduleMapRender(true);
   }
 }
 

@@ -300,12 +300,15 @@ function drawIsoHoverCell(ctx, s) {
 function drawIsoNight(ctx, lit) {
   ctx.fillStyle = 'rgba(12,16,46,0.42)'; ctx.fillRect(0, 0, cityViewW, cityViewH);
   ctx.globalCompositeOperation = 'lighter';
-  for (const l of lit) {
-    const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-    g.addColorStop(0, `rgba(255,170,60,${l.a})`); g.addColorStop(1, 'rgba(255,140,40,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.globalCompositeOperation = 'source-over';
+  try {
+    const t = performance.now() / 180;
+    for (const l of lit) {
+      const a = l.a + (l.seed !== undefined ? Math.sin(t + l.seed) * 0.03 : 0);
+      const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+      g.addColorStop(0, `rgba(255,170,60,${a})`); g.addColorStop(1, 'rgba(255,140,40,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
+    }
+  } finally { ctx.globalCompositeOperation = 'source-over'; }
 }
 
 function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key === 'WALL')?.level || 0; }
@@ -319,9 +322,11 @@ function spritePointToScreen(x, y, w, ix, iy, iz) {
 }
 const ISO_CHIMNEYS = { WORKSHOP: [-0.5, -0.4, 1.2], FORGE: [0.2, -0.3, 1.0], BAKERY: [0.3, -0.4, 0.9], FOUNDRY: [0.2, -0.4, 1.1], GALLIC_BREWERY: [0.2, -0.4, 0.9] };
 const ISO_WATER = { MOAT: [0, 0, 0, 0.9], ROMAN_THERMAE: [0, 0.5, 0, 0.4], EGYPTIAN_IRRIGATION: [0, 0, 0, 0.8] };   // ix, iy, iz, rayon (cellules)
-const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0 };
+const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0, camKey: '' };
 function isoAnimate(ctx, built, W, night) {
   const now = performance.now() / 1000;
+  const camKey = `${W}|${cityCam.x}|${cityCam.y}`;
+  if (camKey !== isoAnim.camKey) { isoAnim.camKey = camKey; isoAnim.smoke = []; }   // les particules sont en pixels écran
   const dt = Math.min(0.2, now - (isoAnim.last || now)); isoAnim.last = now;
   // fumée
   for (const b of built) {
@@ -359,12 +364,44 @@ function isoAnimate(ctx, built, W, night) {
 }
 
 // ---------- Rendu ----------
+// Signature de tout ce qui change le fond statique de la ville (bâtiments, files, survol, caméra, sprites chargés)
+let isoStatic = { key: '', canvas: null, overlay: [], built: [], lit: [] };
+function isoStaticKey(view, W, cx, cy, night, biome) {
+  const b = (currentCity?.buildings || []).map(x => x.key + x.slot + ':' + x.level).join(',');
+  const q = (currentCity?.buildQueue || []).map(x => x.slot + x.status).join(',');
+  let ready = 0; for (const s of _sprites.values()) if (s.ready) ready++;
+  return [view, currentCity?.id, W.toFixed(2), cx.toFixed(1), cy.toFixed(1), cityViewW, cityViewH, night, biome, cityHoveredSlot, b, q, ready, canvasScale(), player?.faction].join('|');
+}
+
 function renderCityView() {
   setupCityGestures();
   clampCam('city');
   calculateCitySlots();
-  const ctx = cityCtx, night = isNightMode(), biome = cityBiome();
+  const mainCtx = cityCtx, night = isNightMode(), biome = cityBiome();
   const { W, cx, cy } = isoLayout('city');
+  const key = isoStaticKey('city', W, cx, cy, night, biome);
+  if (isoStatic.key !== key) {
+    // Rendu complet dans un canvas hors écran (les fonctions de dessin écrivent dans cityCtx : on le détourne)
+    const scale = canvasScale();
+    const off = isoStatic.canvas && isoStatic.canvas.width === Math.round(cityViewW * scale) && isoStatic.canvas.height === Math.round(cityViewH * scale) ? isoStatic.canvas : document.createElement('canvas');
+    off.width = Math.round(cityViewW * scale); off.height = Math.round(cityViewH * scale);
+    const octx = off.getContext('2d');
+    octx.setTransform(scale, 0, 0, scale, 0, 0);
+    cityCtx = octx;
+    let result;
+    try { result = renderCityStatic(octx, W, cx, cy, night, biome); } finally { cityCtx = mainCtx; }
+    isoStatic = { key, canvas: off, overlay: result.overlay, built: result.built, lit: result.lit };
+  }
+  mainCtx.clearRect(0, 0, cityViewW, cityViewH);
+  mainCtx.drawImage(isoStatic.canvas, 0, 0, cityViewW, cityViewH);
+  // Couches animées par-dessus : fumée, reflets, oiseaux, lueurs de nuit, puis badges et indicateurs
+  isoAnimate(mainCtx, isoStatic.built, W, night);
+  if (night) drawIsoNight(mainCtx, isoStatic.lit);
+  for (const fn of isoStatic.overlay) fn();
+}
+
+// Fond statique de la vue ville ; renvoie les éléments à dessiner chaque image (overlay, bâtiments, lumières)
+function renderCityStatic(ctx, W, cx, cy, night, biome) {
   ctx.clearRect(0, 0, cityViewW, cityViewH);
   drawIsoTerrain(ctx, biome, night);
   drawIsoRoad(ctx, cx, cy, W, night);
@@ -389,17 +426,15 @@ function renderCityView() {
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);
     } });
     if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7 });
-    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.3 + Math.sin(performance.now() / 180 + s.slot) * 0.03 });
+    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.3, seed: s.slot });
   }
   // cellule libre : un arbre d'agrément
   const spare = isoPos(ISO_CITY_SPARE[0], ISO_CITY_SPARE[1], W, cx, cy);
   items.push({ depth: ISO_CITY_SPARE[0] + ISO_CITY_SPARE[1], y: spare.y, draw: () => drawProp(ctx, biomeScene(biome).props.trees[1], spare.x, spare.y + W * 0.1, W * 0.8, spriteVariant(false)) });
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
-  isoAnimate(ctx, built, W, night);
-  if (night) drawIsoNight(ctx, lit);
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
-  for (const fn of overlay) fn();
+  return { overlay, built, lit };
 }
 
 function renderFieldsView() {
@@ -407,8 +442,27 @@ function renderFieldsView() {
   setupCityGestures();
   clampCam('fields');
   calculateFieldSlots();
-  const ctx = cityCtx, night = isNightMode(), biome = cityBiome();
+  const mainCtx = cityCtx, night = isNightMode(), biome = cityBiome();
   const { W, cx, cy } = isoLayout('fields');
+  const key = isoStaticKey('fields', W, cx, cy, night, biome);
+  if (isoStatic.key !== key) {
+    const scale = canvasScale();
+    const off = isoStatic.canvas && isoStatic.canvas.width === Math.round(cityViewW * scale) && isoStatic.canvas.height === Math.round(cityViewH * scale) ? isoStatic.canvas : document.createElement('canvas');
+    off.width = Math.round(cityViewW * scale); off.height = Math.round(cityViewH * scale);
+    const octx = off.getContext('2d');
+    octx.setTransform(scale, 0, 0, scale, 0, 0);
+    cityCtx = octx;
+    let result;
+    try { result = renderFieldsStatic(octx, W, cx, cy, night, biome); } finally { cityCtx = mainCtx; }
+    isoStatic = { key, canvas: off, overlay: result.overlay, built: [], lit: result.lit };
+  }
+  mainCtx.clearRect(0, 0, cityViewW, cityViewH);
+  mainCtx.drawImage(isoStatic.canvas, 0, 0, cityViewW, cityViewH);
+  if (night) drawIsoNight(mainCtx, isoStatic.lit);
+  for (const fn of isoStatic.overlay) fn();
+}
+
+function renderFieldsStatic(ctx, W, cx, cy, night, biome) {
   ctx.clearRect(0, 0, cityViewW, cityViewH);
   drawIsoTerrain(ctx, biome, night);
   drawIsoRoad(ctx, cx, cy, W, night);
@@ -432,10 +486,9 @@ function renderFieldsView() {
     const w = s === 0 ? W * 1.15 : W * 0.78;
     items.push({ depth: gx + gy, y: p.y, draw: () => {
       const sprite = getSprite(buildingSpriteUrl(key));
-      if (sprite) drawSprite(ctx, sprite, p.x, p.y, w, spriteVariant(centerHovered));
-      else draw25DBuilding(p.x, p.y, w * 0.59, key, building?.level || 1, centerHovered, false);
+      if (sprite) drawSprite(ctx, sprite, p.x, p.y, w, spriteVariant(centerHovered));   // silhouette : pas de repli procédural ni de badge
     } });
-    if (night) lit.push({ x: p.x, y: p.y - W * 0.2, r: W * 0.45, a: 0.26 });
+    if (night) lit.push({ x: p.x, y: p.y - W * 0.2, r: W * 0.45, a: 0.26, seed: s });
   }
   isoOverlayQueue = [];
   for (const s of citySlots) {
@@ -453,9 +506,8 @@ function renderFieldsView() {
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
   if (centerHovered) { ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 14; isoDiamondPath(ctx, cx, cy, R_PLAZA * W, R_PLAZA * W / 2); ctx.stroke(); ctx.shadowBlur = 0; }
-  if (night) drawIsoNight(ctx, lit);
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
-  for (const fn of overlay) fn();
+  return { overlay, lit };
 }
 
 // ---------- Détection du survol / clic (cellule au sol ou corps du bâtiment au-dessus) ----------
@@ -493,7 +545,7 @@ function onCityMouseMove(e) {
 }
 
 // ---------- Gestes : déplacement, pincement, molette, double tap ----------
-const cityGesture = { ready: false, pointers: new Map(), panning: false, startDist: 0, startZoom: 1, last: null, moved: 0, tapAt: 0, swallowClickUntil: 0, lastPointerType: 'mouse' };
+const cityGesture = { ready: false, pointers: new Map(), panning: false, startDist: 0, startZoom: 1, last: null, moved: 0, tapAt: 0, swallowClickUntil: 0, lastPointerType: 'mouse', multi: false };
 // Le click synthétisé après un tap (ou après un déplacement) ne doit pas rouvrir / rouvrir ailleurs
 function isoIgnoreClick() { return cityGesture.panning || Date.now() - cityGesture.tapAt < 600; }
 function setupCityGestures() {
@@ -502,17 +554,18 @@ function setupCityGestures() {
   cityCanvas.style.touchAction = 'none';
   const view = () => currentCityView === 'fields' ? 'fields' : 'city';
   const pos = (e) => { const r = cityCanvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cityViewW / r.width), y: (e.clientY - r.top) * (cityViewH / r.height) }; };
-  const zoomAt = (factor, px, py) => {
+  const zoomAt = (factor, px, py, render = true) => {
     const before = isoLayout(view());
     const z = Math.max(ISO_ZOOM_MIN, Math.min(ISO_ZOOM_MAX, cityCam.zoom * factor));
     if (z === cityCam.zoom) return;
-    const ratio = z / cityCam.zoom;
     cityCam.zoom = z;
+    const ratio = isoLayout(view()).W / before.W;   // W est borné : le zoom peut ne rien changer
+    if (ratio === 1) return;
     // garde le point sous le doigt immobile
     cityCam.x = px - cityViewW / 2 - (px - before.cx) * ratio;
     cityCam.y = (py - (py - (before.cy)) * ratio) - cityViewH / 2 - (isoSceneExtent(view()).top - isoSceneExtent(view()).bottom) * isoLayout(view()).W / 2;
     clampCam(view());
-    renderCityCanvas();
+    if (render) renderCityCanvas();
   };
   cityCanvas.addEventListener('click', (e) => { if (isoIgnoreClick()) e.stopPropagation(); }, true);
   // Le click synthétisé après un tap est dispatché sur l'élément désormais sous le doigt (souvent le
@@ -524,7 +577,9 @@ function setupCityGestures() {
     cityGesture.lastPointerType = e.pointerType || 'mouse';
     cityGesture.pointers.set(e.pointerId, pos(e));
     cityGesture.moved = 0;
+    cityGesture.swallowClickUntil = 0;   // un nouveau contact désarme l'absorption du click précédent
     if (cityGesture.pointers.size === 2) {
+      cityGesture.multi = true;
       const [a, b] = [...cityGesture.pointers.values()];
       cityGesture.startDist = Math.hypot(a.x - b.x, a.y - b.y); cityGesture.startZoom = cityCam.zoom;
     }
@@ -532,6 +587,7 @@ function setupCityGestures() {
     try { cityCanvas.setPointerCapture(e.pointerId); } catch (err) {}
   });
   cityCanvas.addEventListener('pointermove', (e) => {
+    cityGesture.lastPointerType = e.pointerType || cityGesture.lastPointerType;
     if (!cityGesture.pointers.has(e.pointerId)) return;
     const p = pos(e);
     const prev = cityGesture.pointers.get(e.pointerId);
@@ -539,7 +595,7 @@ function setupCityGestures() {
     if (cityGesture.pointers.size === 2) {
       const [a, b] = [...cityGesture.pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (cityGesture.startDist > 0) { const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; const target = cityGesture.startZoom * d / cityGesture.startDist; zoomAt(target / cityCam.zoom, mid.x, mid.y); }
+      if (cityGesture.startDist > 0) { const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; const target = cityGesture.startZoom * d / cityGesture.startDist; zoomAt(target / cityCam.zoom, mid.x, mid.y, false); }
       cityGesture.panning = true; cityHoveredSlot = null;
       return;
     }
@@ -548,21 +604,24 @@ function setupCityGestures() {
     if (cityGesture.moved > 8) {
       cityGesture.panning = true; cityHoveredSlot = null; hideCityTooltip();
       cityCam.x += dx; cityCam.y += dy; clampCam(view());
-      cityCanvas.style.cursor = 'grabbing';
-      renderCityCanvas();
+      cityCanvas.style.cursor = 'grabbing';   // le rendu est fait par la boucle rAF (20 i/s pendant le geste)
     }
   });
   const end = (e) => {
     const wasSingle = cityGesture.pointers.size === 1;
     cityGesture.pointers.delete(e.pointerId);
     if (cityGesture.pointers.size === 0) {
-      if (cityGesture.panning) {
+      const wasMulti = cityGesture.multi; cityGesture.multi = false;
+      if (cityGesture.panning || wasMulti) {
         // un déplacement ne doit pas déclencher le clic synthétisé qui suit
         setTimeout(() => { cityGesture.panning = false; cityCanvas.style.cursor = 'grab'; }, 80);
       } else if (wasSingle && e.pointerType === 'touch' && e.type === 'pointerup') {
         // tap tactile : sélection + action immédiates (le click synthétisé est ignoré via tapAt)
         const p = pos(e);
         cityHoveredSlot = isoHitSlot(p.x, p.y);
+        // double tap sur le terrain : recadrage
+        if (cityHoveredSlot === null && Date.now() - cityGesture.tapAt < 350 && Math.hypot(p.x - (cityGesture.lastTap?.x || -999), p.y - (cityGesture.lastTap?.y || -999)) < 40) { resetCityCamera(); renderCityCanvas(); cityGesture.tapAt = 0; return; }
+        cityGesture.lastTap = p;
         cityGesture.tapAt = Date.now();
         cityGesture.swallowClickUntil = cityGesture.tapAt + 350;
         renderCityCanvas();

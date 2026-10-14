@@ -36,7 +36,7 @@
                     </div>
                     <div class="form-group">
                         <label>Mot de passe</label>
-                        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go">
                     </div>
                     <button onclick="login()" class="btn-primary btn-large">Entrer dans l'Empire</button>
                     <p class="auth-link">Nouveau conquerant ? <a href="#" onclick="showRegister(); return false;">Creer un compte</a></p>
@@ -181,6 +181,11 @@
 
         <main class="game-content">
             <div class="queue-status-bar" id="queue-status-bar">
+                <div class="village-quick-mobile" id="village-quick-mobile">
+                    <button class="vq-arrow" onclick="switchToPreviousCity()" aria-label="Ville précédente"><img src="assets/images/ui/left.svg" alt=""></button>
+                    <button class="vq-name" onclick="openVillageList()"><span id="city-name-quick-m">Village</span></button>
+                    <button class="vq-arrow" onclick="switchToNextCity()" aria-label="Ville suivante"><img src="assets/images/ui/right.svg" alt=""></button>
+                </div>
                 <div class="queue-status-item" id="build-status" onclick="toggleQueueDropdown('build')">
                     <img class="qs-icon" src="assets/images/ui/build.svg" alt="">
                     <span class="qs-text" id="build-status-text">Aucune construction</span>
@@ -297,7 +302,7 @@
                             <div id="market-section-send" class="market-section">
                                 <h3>Envoyer des ressources</h3>
                                 <div class="send-form">
-                                    <div class="form-row"><label>Destination</label><input type="text" id="send-target" placeholder="Coordonnees (x|y) ou nom" autocapitalize="none"></div>
+                                    <div class="form-row"><label>Destination</label><div class="coord-pair"><input type="number" id="send-target-x" placeholder="X" inputmode="numeric" pattern="-?[0-9]*"><span class="coord-sep">|</span><input type="number" id="send-target-y" placeholder="Y" inputmode="numeric" pattern="-?[0-9]*"></div></div>
                                     <div class="resources-input">
                                         <div class="res-input"><span>🪵</span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
                                         <div class="res-input"><span>🧱</span><input type="number" id="send-stone" value="0" min="0" inputmode="numeric"></div>

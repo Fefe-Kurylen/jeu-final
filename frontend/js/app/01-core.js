@@ -6,7 +6,30 @@
 // Imperium Antiquitas v1.0 - Application Mobile Native
 // API_SERVER est defini dans mobile.js (charge avant app.js)
 const API = window.API_SERVER || '';
-let token = localStorage.getItem('token');
+// Stockage local tolérant : une WebView en navigation privée ou un quota dépassé ne doit pas bloquer le jeu
+const safeStorage = (() => {
+  const mem = new Map();
+  let ok = false;
+  try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); ok = true; } catch (e) { ok = false; }
+  return {
+    getItem: (k) => { try { return ok ? localStorage.getItem(k) : (mem.has(k) ? mem.get(k) : null); } catch (e) { return mem.has(k) ? mem.get(k) : null; } },
+    setItem: (k, v) => { mem.set(k, String(v)); try { if (ok) localStorage.setItem(k, v); } catch (e) {} },
+    removeItem: (k) => { mem.delete(k); try { if (ok) localStorage.removeItem(k); } catch (e) {} },
+    clear: () => { mem.clear(); try { if (ok) localStorage.clear(); } catch (e) {} }
+  };
+})();
+// Polyfill roundRect (iOS < 16)
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    const rr = Math.min(Array.isArray(r) ? r[0] : (r || 0), w / 2, h / 2);
+    this.moveTo(x + rr, y); this.lineTo(x + w - rr, y); this.quadraticCurveTo(x + w, y, x + w, y + rr);
+    this.lineTo(x + w, y + h - rr); this.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    this.lineTo(x + rr, y + h); this.quadraticCurveTo(x, y + h, x, y + h - rr);
+    this.lineTo(x, y + rr); this.quadraticCurveTo(x, y, x + rr, y);
+  };
+}
+window.safeStorage = safeStorage;
+let token = safeStorage.getItem('token');
 let player = null;
 let currentCity = null;
 let cities = [];
@@ -215,7 +238,7 @@ async function login() {
     
     if (res.ok) {
       token = data.token;
-      localStorage.setItem('token', token);
+      safeStorage.setItem('token', token);
       showGame();
       if (typeof track === 'function') track('login_success');
     } else {
@@ -247,7 +270,7 @@ async function register() {
     
     if (res.ok) {
       token = data.token;
-      localStorage.setItem('token', token);
+      safeStorage.setItem('token', token);
       showGame();
       if (typeof track === 'function') track('register_success', { faction: document.getElementById('register-faction')?.value || '' });
     } else {
@@ -262,12 +285,13 @@ function logout() {
   if (typeof window.unregisterPush === 'function' && token) window.unregisterPush();
   if (typeof flushAnalytics === 'function') flushAnalytics();
   token = null;
-  localStorage.removeItem('token');
+  safeStorage.removeItem('token');
   // Stop every background activity started by showGame()
   if (typeof refreshInterval !== 'undefined' && refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
   if (attackCheckInterval) { clearInterval(attackCheckInterval); attackCheckInterval = null; }
   if (typeof stopCityAnimation === 'function') stopCityAnimation();
   if (typeof stopBattleReplay === 'function') stopBattleReplay();
+  if (typeof stopGameTimers === 'function') stopGameTimers();
   player = null; currentCity = null; cities = []; armies = []; incomingAttacks = [];
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
@@ -284,16 +308,19 @@ async function showGame() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
   await loadWorldInfo(); // Load world size first
-  await Promise.all([loadPlayer(), loadBuildings(), loadUnits()]);
+  // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
+  await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies()]);
   await loadCities();
-  await loadArmies();
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
   initFieldsCanvas();
   renderCityCanvas();
   if (typeof startCityAnimation === 'function') startCityAnimation();
+  if (typeof startServerTime === 'function') startServerTime();
+  if (typeof startCountdowns === 'function') startCountdowns();
   startAttackCheck();
-  startRefresh();
+  startRefresh(false);
+  if (typeof window.onGameReady === 'function') window.onGameReady();   // masque le splash natif
 }
 
 // Load world info to get dynamic world size
@@ -398,6 +425,8 @@ function selectCity(id) {
 }
 
 function updateQuicklinksCity() {
+  const nameElM = document.getElementById('city-name-quick-m');
+  if (nameElM && currentCity) nameElM.textContent = currentCity.name;
   const nameEl = document.getElementById('city-name-quick');
   const coordsEl = document.getElementById('city-coords-quick');
   const tierEl = document.getElementById('city-tier-quick');
@@ -607,7 +636,7 @@ function renderCity() {
 
   // Update sidebar stats
   updateCityStats();
-  loadWounded();
+  if (document.getElementById('wounded-list')) loadWounded();   // seulement quand le panneau de la tente de soins est ouvert
 }
 
 
@@ -673,10 +702,12 @@ function spriteVariant(isHovered) {
 // Budget mémoire des rasters (octets) : au-delà, les plus anciens sont libérés (Map = ordre d'insertion)
 const SPRITE_RASTER_BUDGET = 40 * 1024 * 1024;
 let _spriteRasterBytes = 0;
+// Paliers de rasterisation : le sprite est rasterisé au palier supérieur puis réduit au dessin (réduction
+// bilinéaire peu coûteuse) ; un pincement ne crée donc jamais plus de quelques rasters par sprite
+const SPRITE_BUCKETS = [32, 48, 64, 96, 128, 192, 256, 384, 512];
 function spriteRaster(img, w, h, variant) {
   const scale = canvasScale();
-  // largeurs quantifiées (pas de 4 px) : un pincement ne crée pas un raster par pixel de zoom
-  const qw = Math.max(4, Math.round(w / 4) * 4), qh = Math.max(1, Math.round(qw * h / w));
+  const qw = SPRITE_BUCKETS.find(b => b >= w) || SPRITE_BUCKETS[SPRITE_BUCKETS.length - 1], qh = Math.max(1, Math.round(qw * h / w));
   const key = img.src + '@' + qw + '@' + variant + '@' + scale;
   let raster = _spriteRasters.get(key);
   if (raster) { _spriteRasters.delete(key); _spriteRasters.set(key, raster); return raster; }   // LRU : remonte en fin
@@ -798,3 +829,10 @@ function fieldSpriteUrl(type, level) {
 
 // Icône peinte d'une ressource (assets/images/ui) pour les panneaux générés en HTML
 function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="assets/images/ui/${key}.svg" alt="">`; }
+
+// Entrée / « OK » du clavier soumet les formulaires de connexion et d'inscription (auth-enter-submit)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+  if (e.target.closest('#login-form')) { e.preventDefault(); login(); }
+  else if (e.target.closest('#register-form')) { e.preventDefault(); register(); }
+});

@@ -106,6 +106,7 @@ function updateCityStats() {
 // ========== TABS ==========
 function showTab(tabName) {
   if (typeof track === 'function') track('tab_view', { tab: String(tabName) });
+  if (typeof cityHoveredSlot !== 'undefined') cityHoveredSlot = null;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -115,7 +116,8 @@ function showTab(tabName) {
   if (tabEl) tabEl.classList.add('active');
   // Activate both old nav-tab and new bnav-tab
   document.querySelector(`.nav-tab[data-tab="${tabName}"]`)?.classList.add('active');
-  document.querySelector(`.bnav-tab[data-tab="${tabName}"]`)?.classList.add('active');
+  const bnavActive = document.querySelector(`.bnav-tab[data-tab="${tabName}"]`);
+  if (bnavActive) { bnavActive.classList.add('active'); try { bnavActive.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
   
   // Start/stop animations based on tab
   if (tabName === 'city' || tabName === 'fields') {

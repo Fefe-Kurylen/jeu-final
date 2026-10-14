@@ -5,7 +5,7 @@
 // ============================================================
 // ========== SEND RESOURCES ==========
 async function sendResources() {
-  const target = document.getElementById('send-target')?.value;
+  const target = readCoordPair('send-target');
   const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
   const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
   const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
@@ -81,7 +81,7 @@ function renderSendTroopsForm() {
       </div>
       <div class="form-row">
         <label>Destination</label>
-        <input type="text" id="troops-target" placeholder="x|y" inputmode="numeric">
+        <div class="coord-pair"><input type="number" id="troops-target-x" placeholder="X" inputmode="numeric" pattern="-?[0-9]*" enterkeyhint="next"><span class="coord-sep">|</span><input type="number" id="troops-target-y" placeholder="Y" inputmode="numeric" pattern="-?[0-9]*" enterkeyhint="done"></div>
       </div>
       <div class="form-row">
         <label>Mission</label>
@@ -98,7 +98,7 @@ function renderSendTroopsForm() {
 }
 
 async function sendTroops() {
-  const target = document.getElementById('troops-target')?.value?.trim();
+  const target = readCoordPair('troops-target');
   const mission = document.getElementById('troops-mission')?.value || 'ATTACK';
   const armyId = document.getElementById('troops-army')?.value;
 
@@ -351,7 +351,7 @@ function showItemDetails(itemId) {
       ` : '<p style="color:var(--text-muted)">Aucun bonus</p>'}
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
         <button class="btn-primary" onclick="equipItem('${item.id}');closeModal();">Equiper</button>
-        <button class="btn btn-danger btn-small" onclick="dropItem('${item.id}');closeModal();" style="padding:8px 16px;">Jeter</button>
+        <button class="btn btn-danger btn-small" onclick="confirmDropItem('${item.id}')" style="padding:8px 16px;">Jeter</button>
       </div>
     </div>
   `);
@@ -408,3 +408,15 @@ document.getElementById('modal')?.addEventListener('click', (e) => {
   if (e.target.id === 'modal') closeModal();
 });
 
+
+// Lit une paire de champs numériques <id>-x / <id>-y (ou l'ancien champ texte "x|y") et renvoie "x|y"
+function readCoordPair(id) {
+  const xEl = document.getElementById(id + '-x'), yEl = document.getElementById(id + '-y');
+  if (xEl && yEl) return (xEl.value.trim() === '' || yEl.value.trim() === '') ? '' : `${parseInt(xEl.value, 10)}|${parseInt(yEl.value, 10)}`;
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+async function confirmDropItem(itemId) {
+  closeModal();
+  if (await confirmModal('Jeter définitivement cet objet ?', { title: 'Jeter', okLabel: 'Jeter', danger: true })) dropItem(itemId);
+}

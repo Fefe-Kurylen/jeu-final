@@ -389,7 +389,7 @@ async function assignPointFromPanel(stat) {
 
 // Create hero (placeholder)
 async function createHero() {
-  const name = prompt('Nom de votre héros:');
+  const name = await promptModal('Comment s\'appelle votre héros ?', { title: 'Nom du héros', placeholder: 'Nom', maxLength: 30 });
   if (!name) return;
 
   try {
@@ -416,7 +416,7 @@ async function createHero() {
 
 // Rename hero
 async function renameHero() {
-  const newName = prompt('Nouveau nom du héros:');
+  const newName = await promptModal('Nouveau nom du héros', { title: 'Renommer le héros', placeholder: 'Nom', maxLength: 30 });
   if (!newName) return;
 
   try {

@@ -152,12 +152,12 @@ async function declineInvite(inviteId) {
 }
 
 async function promoteMember(playerId, role) {
-  if (role === 'OFFICER' && !confirm('Céder le leadership à ce membre ? Vous deviendrez officier.')) return;
+  if (role === 'OFFICER' && !(await confirmModal('Céder le leadership à ce membre ? Vous deviendrez officier.', { title: 'Transférer le leadership', okLabel: 'Céder', danger: true }))) return;
   await allianceAction(`/api/alliance/promote/${playerId}`, role === 'OFFICER' ? 'Leadership transféré' : 'Membre promu');
 }
 
 async function kickMember(playerId) {
-  if (!confirm('Exclure ce membre de l\'alliance ?')) return;
+  if (!(await confirmModal('Exclure ce membre de l\'alliance ?', { title: 'Exclure', okLabel: 'Exclure', danger: true }))) return;
   await allianceAction(`/api/alliance/kick/${playerId}`, 'Membre exclu');
 }
 
@@ -241,7 +241,7 @@ async function joinAlliance(id) {
 }
 
 async function leaveAlliance() {
-  if (!confirm('Quitter l\'alliance ?')) return;
+  if (!(await confirmModal('Quitter l\'alliance ?', { title: 'Quitter l\'alliance', okLabel: 'Quitter', danger: true }))) return;
   await allianceAction('/api/alliance/leave', 'Alliance quittée');
 }
 

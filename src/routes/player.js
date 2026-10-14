@@ -9,11 +9,13 @@ router.get('/me', auth, async (req, res) => {
   try {
     const player = await prisma.player.findUnique({
       where: { id: req.user.playerId },
+      // Charge utile réduite (rafraîchie toutes les 15 s sur mobile) : les villes détaillées viennent de /api/cities,
+      // les membres d'alliance de /api/alliance/mine
       include: {
-        cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } },
+        cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
         hero: { include: { items: true } },
         stats: true,
-        alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
+        alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
         expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
       }
     });

@@ -4404,3 +4404,53 @@ img.dn-icon { width: 20px; height: 20px; object-fit: contain; vertical-align: mi
 img.ico { width: 1.35em; height: 1.35em; object-fit: contain; vertical-align: -0.3em; }
 .cost-icon img.ico { width: 28px; height: 28px; display: block; margin: 0 auto 2px; }
 .stat-icon img.ico { width: 24px; height: 24px; }
+
+/* ========== AUDIT MOBILE : défilement, clavier, navigation, cibles ========== */
+html, body { overscroll-behavior: none; }
+/* Onglets : le contenu défile toujours (hauteur limitée par le flex, jamais rogné) */
+.tab-inner { overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
+.hero-content, .army-content, .market-content, .inventory-content, #alliance-content, .list-container, .panel-body, .modal-body, .map-info-panel, .queue-dropdown { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.hero-content, .army-content, .market-content, .inventory-content, #alliance-content { flex: 1 1 auto; }
+/* Écran de connexion : défile quand le clavier réduit la hauteur, centré sinon */
+#auth-screen { overflow-y: auto; align-items: flex-start; justify-content: center; -webkit-overflow-scrolling: touch; }
+#auth-screen .auth-container { margin: auto; max-height: none; }
+body.keyboard-open #auth-screen .auth-container { margin: 8px auto; }
+/* Barre d'onglets : défilable au doigt (aucun handler global ne l'en empêche), onglet actif recentré */
+.bottom-nav-inner { touch-action: pan-x; }
+/* Sélecteur de ville compact pour petit écran (dans la barre des files) */
+.village-quick-mobile { display: none; }
+@media (max-width: 480px) {
+  .bnav-village-selector, .bnav-separator { display: none; }
+  .bnav-tab { flex: 1 1 0; min-width: 0; padding: 6px 2px; }
+  .village-quick-mobile { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+  .queue-status-bar { display: flex; align-items: stretch; gap: 4px; }
+  .queue-status-item { flex: 1 1 0; min-width: 0; min-height: 44px; }
+  .queue-status-item .qs-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vq-arrow, .vq-name { background: linear-gradient(180deg, #4a3c2a 0%, #3a2e20 100%); border: 1px solid #6a5a3a; border-radius: 6px; color: #ffd700; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .vq-arrow { width: 36px; } .vq-arrow img { width: 14px; height: 14px; }
+  .vq-name { padding: 0 8px; font-family: 'Cinzel', serif; font-size: 12px; max-width: 110px; }
+  .vq-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* En-tête : tout tient sur 390 px, alerte d'attaque compacte */
+  .top-bar { gap: 4px; padding-left: 6px; padding-right: 6px; }
+  .resources-container { flex: 1 1 auto; min-width: 0; }
+  .attack-notif { padding: 2px 5px; font-size: 11px; gap: 2px; }
+  .attack-notif .attack-timer { font-size: 11px; }
+  .player-section { flex: 0 0 auto; }
+  .res-timer { font-size: 10px; }
+}
+/* Cibles tactiles */
+.bnav-village-info { min-height: 44px; }
+.queue-status-item { min-height: 44px; }
+/* Lisibilité */
+.qs-text, .qs-timer { font-size: 12px; }
+.shop-legal { font-size: 12px; }
+.faction-bonus { font-size: 11px; }
+/* Paire de coordonnées X | Y */
+.coord-pair { display: flex; align-items: center; gap: 6px; }
+.coord-pair input { flex: 1 1 0; min-width: 0; width: auto; }
+.coord-sep { color: #c9a227; font-weight: 700; }
+/* Formulaires d'envoi : les champs restent dans la largeur de l'écran */
+.form-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.form-row > label { flex: 0 0 auto; }
+.form-row > select, .form-row > input, .form-row > .coord-pair { flex: 1 1 140px; min-width: 0; max-width: 100%; }
+.form-row > select { width: auto; }

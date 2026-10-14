@@ -271,6 +271,7 @@ function formatEffectName(key) {
 }
 
 function closeModal() {
+  if (window._modalResolve) { const r = window._modalResolve; window._modalResolve = null; r(false); return; }   // dialogue fermé = annulé
   const modal = document.getElementById('modal');
   if (modal) modal.style.display = 'none';
   if (typeof stopBattleReplay === 'function') stopBattleReplay();
@@ -313,6 +314,32 @@ function showToast(msg, type = 'info') {
   toast.textContent = msg;
   toast.className = `toast ${type} show`;
   setTimeout(() => toast.classList.remove('show'), 3000);
+  if (type === 'success' && typeof haptic === 'function') haptic('light');
+  if (type === 'error' && typeof hapticNotify === 'function') hapticNotify('ERROR');
+}
+
+// Boîtes de dialogue dans le style du jeu (remplacent confirm() / prompt() natifs)
+function confirmModal(message, { title = 'Confirmer', okLabel = 'Confirmer', cancelLabel = 'Annuler', danger = false } = {}) {
+  return new Promise((resolve) => {
+    window._modalResolve = (v) => { window._modalResolve = null; closeModal(); resolve(v); };
+    showModal(title, `<div class="settings"><p>${escapeHtml(message)}</p>
+      <div class="settings-actions">
+        <button class="${danger ? 'btn-danger' : 'btn-primary'}" onclick="window._modalResolve && window._modalResolve(true)">${escapeHtml(okLabel)}</button>
+        <button class="btn-secondary" onclick="window._modalResolve && window._modalResolve(false)">${escapeHtml(cancelLabel)}</button>
+      </div></div>`);
+  });
+}
+function promptModal(message, { title = 'Saisie', value = '', placeholder = '', maxLength = 30, okLabel = 'Valider' } = {}) {
+  return new Promise((resolve) => {
+    window._modalResolve = (ok) => { const v = ok ? (document.getElementById('prompt-modal-input')?.value || '').trim() : null; window._modalResolve = null; closeModal(); resolve(v || null); };
+    showModal(title, `<div class="settings"><p>${escapeHtml(message)}</p>
+      <div class="form-group"><input type="text" id="prompt-modal-input" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" maxlength="${maxLength}" enterkeyhint="done" onkeydown="if(event.key==='Enter'){event.preventDefault();window._modalResolve && window._modalResolve(true);}"></div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="window._modalResolve && window._modalResolve(true)">${escapeHtml(okLabel)}</button>
+        <button class="btn-secondary" onclick="window._modalResolve && window._modalResolve(false)">Annuler</button>
+      </div></div>`);
+    setTimeout(() => document.getElementById('prompt-modal-input')?.focus(), 50);
+  });
 }
 
 // ========== AUTO REFRESH ==========
@@ -357,7 +384,7 @@ async function refreshData(force = false) {
   }
 }
 
-function startRefresh() {
+function startRefresh(immediate = false) {
   // Nettoyer l'ancien interval si existant
   if (refreshInterval) {
     clearInterval(refreshInterval);
@@ -368,8 +395,8 @@ function startRefresh() {
     if (document.visibilityState === 'visible') refreshData();
   }, 15000);
   
-  // Refresh immédiat au démarrage
-  refreshData(true);
+  // Refresh immédiat seulement à la demande (showGame vient de tout charger)
+  if (immediate) refreshData(true);
 }
 
 // Refresh quand la fenêtre redevient visible
@@ -488,17 +515,17 @@ function startCountdowns() {
   }, 500);
 }
 
-// Initialize server time when game starts
-document.addEventListener('DOMContentLoaded', () => {
-  startServerTime();
-  startCountdowns();
-});
+// Horloge et comptes à rebours : démarrés par showGame(), arrêtés par logout()
+function stopGameTimers() {
+  if (serverTimeInterval) { clearInterval(serverTimeInterval); serverTimeInterval = null; }
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+}
 
 
 // ========== PARAMÈTRES : compte, notifications, boutique, confidentialité, suppression ==========
 function openSettings() {
   const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  const pushOn = !!localStorage.getItem('push_token');
+  const pushOn = !!safeStorage.getItem('push_token');
   const version = (window.APP_VERSION || '1.0');
   showModal('Paramètres', `
     <div class="settings">
@@ -548,7 +575,7 @@ async function deleteAccount() {
     const res = await fetch(`${API}/api/auth/account`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ password }) });
     if (res.status === 204) {
       if (typeof track === 'function') { track('account_deleted'); if (typeof flushAnalytics === 'function') flushAnalytics(); }
-      try { localStorage.clear(); } catch (e) {}
+      try { safeStorage.clear(); } catch (e) {}
       closeModal();
       logout();
       showToast('Compte supprimé. À bientôt peut-être !', 'info');
