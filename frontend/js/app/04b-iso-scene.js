@@ -300,23 +300,28 @@ function isoAnimate(ctx, built, W, night, flags = []) {
   for (const b of built) {
     for (const ch of ISO_CHIMNEYS[b.key] || []) {
       const p = spritePointToScreen(b.x, b.y, b.w, ch[0], ch[1], ch[2]);
-      if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0 });
+      if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0, k: Math.floor(Math.random() * 4) });
     }
   }
   for (const pf of isoAnim.smoke) { pf.life += dt; pf.x += (pf.vx + Math.sin(pf.life * 3) * W * 0.02) * dt; pf.y += pf.vy * dt; pf.r += W * 0.05 * dt; pf.a -= 0.19 * dt; }
   isoAnim.smoke = isoAnim.smoke.filter(pf => pf.a > 0.02);
-  for (const pf of isoAnim.smoke) { ctx.fillStyle = night ? `rgba(200,200,220,${pf.a * 0.5})` : `rgba(245,240,232,${pf.a})`; ctx.beginPath(); ctx.arc(pf.x, pf.y, pf.r, 0, Math.PI * 2); ctx.fill(); }
-  // reflets d'eau
+  // volutes rendues en 3D (props/puff_<k>.webp), dimensionnées sur le rayon de la particule
+  for (const pf of isoAnim.smoke) { const img = getSprite(`assets/images/3d/props/puff_${pf.k}.webp`); if (!img) continue; ctx.globalAlpha = pf.a * (night ? 0.55 : 1); const s = pf.r * 3.2; ctx.drawImage(img, pf.x - s / 2, pf.y - s / 2, s, s); }
+  ctx.globalAlpha = 1;
+  // ondes d'eau : anneaux rendus en 3D en 4 phases (props/ripple_<k>.webp), trois ondes décalées par plan d'eau
   for (const b of built) {
     const wt = ISO_WATER[b.key];
     if (!wt) continue;
     const p = spritePointToScreen(b.x, b.y, b.w, wt[0], wt[1], wt[2]);
-    const rr = wt[3] * b.w * 0.27;
+    const rr = wt[3] * b.w * 0.27, sw = rr * 2.9, sh = sw * 64 / 96;
     for (let i = 0; i < 3; i++) {
-      const t = now * 0.7 + i * 2.1, k = (t % 2) / 2;
-      ctx.fillStyle = `rgba(255,255,255,${(1 - k) * (night ? 0.22 : 0.35)})`;
-      ctx.beginPath(); ctx.ellipse(p.x + Math.cos(i * 2.1) * rr * 0.4 * k, p.y + Math.sin(i * 2.1) * rr * 0.2 * k, rr * (0.15 + k * 0.35), rr * (0.06 + k * 0.14), 0, 0, Math.PI * 2); ctx.fill();
+      const t = (now * 0.45 + i / 3) % 1;
+      const img = getSprite(`assets/images/3d/props/ripple_${Math.min(3, Math.floor(t * 4))}.webp`);
+      if (!img) continue;
+      ctx.globalAlpha = (night ? 0.5 : 0.85) * (1 - t * 0.5);
+      ctx.drawImage(img, p.x + Math.cos(i * 2.1) * rr * 0.25 - sw / 2, p.y + Math.sin(i * 2.1) * rr * 0.12 - sh / 2, sw, sh);
     }
+    ctx.globalAlpha = 1;
   }
   // vol d'oiseaux toutes les ~25 s
   if (!isoAnim.birds && now > isoAnim.nextBirds) { const fromLeft = Math.random() < 0.5; isoAnim.birds = { x: fromLeft ? -40 : cityViewW + 40, y: cityViewH * (0.12 + Math.random() * 0.25), dir: fromLeft ? 1 : -1, t: 0 }; }

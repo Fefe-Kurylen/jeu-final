@@ -161,7 +161,7 @@ function showNpcMerchant() {
 
   container.innerHTML = `
     <div class="npc-merchant">
-      <h3>🏪 Marchand Itinerant</h3>
+      <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand Itinerant</h3>
       <p style="color:var(--text-muted);margin-bottom:12px;">
         Echangez vos ressources entre elles. Taux: <strong>${NPC_RATE_GIVE} → ${NPC_RATE_RECEIVE}</strong> (le marchand prend sa part)
       </p>
@@ -293,7 +293,7 @@ function renderInventory(items) {
         <p style="color:var(--text-muted)">Trouvez des objets en expedition, en pillant des tribus locales ou au combat.</p>
         <p style="color:var(--text-muted);font-size:12px;margin-top:8px;">
           Accedez a vos troupes via la
-          <strong style="color:var(--gold)">Place de rassemblement</strong> 🚩 dans votre village.
+          <strong style="color:var(--gold)">Place de rassemblement</strong> <img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> dans votre village.
         </p>
       </div>
     `;
@@ -319,7 +319,7 @@ function renderInventory(items) {
     </div>
     <div class="inventory-hint" style="margin-top:16px;padding:12px;background:var(--bg-dark);border-radius:6px;text-align:center;">
       <p style="color:var(--text-muted);font-size:12px;">
-        Gerez vos troupes via la <strong style="color:var(--gold)">Place de rassemblement</strong> 🚩 dans votre village.
+        Gerez vos troupes via la <strong style="color:var(--gold)">Place de rassemblement</strong> <img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> dans votre village.
       </p>
     </div>
   `;
@@ -335,7 +335,7 @@ function showItemDetails(itemId) {
   const item = heroData?.items?.find(i => i.id === itemId);
   if (!item) return;
 
-  const slotInfo = EQUIPMENT_SLOTS[item.slot] || { name: item.slot, icon: '📦' };
+  const slotInfo = EQUIPMENT_SLOTS[item.slot] || { name: item.slot, item: 'crate' };
   showModal(`${item.itemKey.replace(/_/g, ' ')}`, `
     <div style="text-align:center;">
       <div style="font-size:48px;margin:10px 0;">${getItemIcon(item.itemKey)}</div>

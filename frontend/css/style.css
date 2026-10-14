@@ -4702,3 +4702,7 @@ img.b-ico-lg { height: 96px; width: auto; max-width: 110px; object-fit: contain;
 img.item-ico { width: 1em; height: 1em; object-fit: contain; vertical-align: middle; }
 .equip-slot-icon img.item-ico { width: 32px; height: 32px; }
 .item-icon img.item-ico { width: 34px; height: 34px; }
+
+/* Emblèmes de faction (bustes des héros) dans le choix de civilisation */
+.faction-icon img.faction-ico { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #c9a227; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background: #2a2418; }
+.toolbar-btn img.ico, .qd-header img.ico, .category-header img.ico { width: 1.7em; height: 1.7em; vertical-align: -0.45em; margin-right: 2px; }

@@ -62,7 +62,7 @@ function showFieldsTooltip(mouseX, mouseY, slotNum) {
 
   if (slot?.isVillageCenter) {
     html = `
-      <h4><span class="tt-icon">🏰</span> Centre du Village</h4>
+      <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Centre du Village</h4>
       <p class="tt-hint">Cliquez pour voir les bâtiments</p>
     `;
   } else if (slot?.isField) {
@@ -78,7 +78,7 @@ function showFieldsTooltip(mouseX, mouseY, slotNum) {
     const fEffectiveMax = Math.min(fieldMax, fMainHallLevel);
 
     html = `
-      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '<img class="ico" src="assets/images/3d/ui/fields.webp" alt="">'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
       <p class="tt-level">Niveau ${level}/${fEffectiveMax}</p>
       ${level > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
       <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= fEffectiveMax ? (level >= fieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${fMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
@@ -185,7 +185,7 @@ function openBuildPanel(slotNum) {
         <!-- Tabs Navigation -->
         <div class="building-tabs">
           <button class="building-tab active" onclick="switchBuildingTab('upgrade', this)">⬆️ Améliorer</button>
-          <button class="building-tab" onclick="switchBuildingTab('info', this)">📖 Information</button>
+          <button class="building-tab" onclick="switchBuildingTab('info', this)"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Information</button>
           ${specialTabs.map(t => `<button class="building-tab" onclick="switchBuildingTab('${t.id}', this)">${t.icon} ${t.name}</button>`).join('')}
         </div>
 
@@ -235,12 +235,12 @@ function openBuildPanel(slotNum) {
             <div class="upgrade-action">
               <div class="build-time"><span class="time-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span> ${timeStr}</div>
               <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-                ${isBuildQueueFull() ? '⏳ File de construction pleine' : hasResources ? '🔨 Ameliorer' : '❌ Ressources insuffisantes'}
+                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Ameliorer' : '❌ Ressources insuffisantes'}
               </button>
             </div>
           ` : `
             <div class="max-level-notice">
-              <span class="max-icon">${level >= maxLevel ? '🏆' : '🔒'}</span>
+              <span class="max-icon">${level >= maxLevel ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/lock.webp" alt="">'}</span>
               <p>${level >= maxLevel ? 'Niveau maximum atteint !' : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
               ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
               <p class="bonus-max">${bonus}</p>
@@ -251,22 +251,22 @@ function openBuildPanel(slotNum) {
         <!-- Tab Content: Information -->
         <div class="building-tab-content" id="tab-info" style="display:none">
           <div class="info-section">
-            <h4>📜 Description</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Description</h4>
             <p class="info-description">${getBuildingDescription(key)}</p>
           </div>
           <div class="info-section">
-            <h4>📊 Bonus actuel (Niveau ${level})</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Bonus actuel (Niveau ${level})</h4>
             <div class="info-bonus">${bonus}</div>
           </div>
           ${['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(key) ? `
             <div class="info-section">
-              <h4>📈 Production</h4>
+              <h4><img class="ico" src="assets/images/3d/ui/ranking.webp" alt=""> Production</h4>
               <p class="info-production">+${formatNum(getProductionAtLevel(key, level))} par heure</p>
             </div>
           ` : ''}
           ${def?.prereq && def.prereq.length > 0 ? `
             <div class="info-section">
-              <h4>📋 Prérequis</h4>
+              <h4><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Prérequis</h4>
               <div class="prereq-list">
                 ${def.prereq.map(p => {
                   const met = (p.key === 'MAIN_HALL' && p.level <= 1) || (currentCity?.buildings || []).some(b => b.key === p.key && b.level >= p.level);
@@ -350,10 +350,10 @@ function openBuildPanel(slotNum) {
 
     // Group by category
     const categories = {
-      'BASE': { name: 'Infrastructure', icon: '🏛️', buildings: [] },
-      'INTERMEDIATE': { name: 'Militaire', icon: '⚔️', buildings: [] },
-      'ADVANCED': { name: 'Avancé', icon: '🏰', buildings: [] },
-      'FACTION': { name: 'Bâtiment de faction', icon: '🏟️', buildings: [] }
+      'BASE': { name: 'Infrastructure', icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', buildings: [] },
+      'INTERMEDIATE': { name: 'Militaire', icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', buildings: [] },
+      'ADVANCED': { name: 'Avancé', icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', buildings: [] },
+      'FACTION': { name: 'Bâtiment de faction', icon: '<img class="ico" src="assets/images/3d/ui/medal.webp" alt="">', buildings: [] }
     };
 
     availableBuildings.forEach(b => {
@@ -406,7 +406,7 @@ function openBuildPanel(slotNum) {
                     <div class="build-option-action">
                       ${blocked ? `<span class="built-badge">✓</span>` :
                         canBuild ? `<button class="mini-build-btn"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""></button>` :
-                        `<button class="mini-build-btn disabled">🔒</button>`}
+                        `<button class="mini-build-btn disabled"><img class="ico" src="assets/images/3d/ui/lock.webp" alt=""></button>`}
                     </div>
                   </div>
                 `;
@@ -495,11 +495,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'MARKET':
       tabs.push({
         id: 'trade',
-        icon: '📦',
+        icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
         name: 'Commerce',
         content: `
           <div class="special-tab-content">
-            <h4>🏪 Place du marché</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Place du marché</h4>
             <p>Capacité de transport: <strong>${100 + level * 50}</strong> unités</p>
             <p>Marchands disponibles: <strong>${Math.floor(level / 5) + 1}</strong></p>
             <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
@@ -511,11 +511,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'ACADEMY':
       tabs.push({
         id: 'research',
-        icon: '🔬',
+        icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">',
         name: 'Recherche',
         content: `
           <div class="special-tab-content">
-            <h4>🎓 Académie</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Académie</h4>
             <p>Bonus recherche: <strong>-${level}%</strong> temps</p>
             <p>Technologies disponibles selon le niveau de l'académie.</p>
             <button class="btn-secondary" onclick="showToast('Recherches bientôt disponibles', 'info')">Voir les recherches</button>
@@ -527,11 +527,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'EMBASSY':
       tabs.push({
         id: 'diplomacy',
-        icon: '🤝',
+        icon: '<img class="ico" src="assets/images/3d/ui/alliance.webp" alt="">',
         name: 'Diplomatie',
         content: `
           <div class="special-tab-content">
-            <h4>🏛️ Ambassade</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Ambassade</h4>
             <p>Permet de créer ou rejoindre une alliance.</p>
             ${level >= 3 ? `<p>Niveau ${level}: Peut accueillir jusqu'à <strong>${level * 3}</strong> membres.</p>` : ''}
             <button class="btn-primary" onclick="showTab('alliance'); closeBuildPanel();">Accéder à l'alliance</button>
@@ -543,11 +543,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'RALLY_POINT':
       tabs.push({
         id: 'armies',
-        icon: '⚔️',
+        icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">',
         name: 'Armées',
         content: `
           <div class="special-tab-content">
-            <h4>🎯 Point de ralliement</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/target.webp" alt=""> Point de ralliement</h4>
             <p>Armées simultanées: <strong>${level >= 10 ? 3 : level >= 5 ? 2 : 1}</strong> (2 au niveau 5, 3 au niveau 10)</p>
             <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
             <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
@@ -559,11 +559,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'HEALING_TENT':
       tabs.push({
         id: 'heal',
-        icon: '💊',
+        icon: '<img class="ico" src="assets/images/3d/ui/endurance.webp" alt="">',
         name: 'Soins',
         content: `
           <div class="special-tab-content">
-            <h4>🏥 Tente de soins</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""> Tente de soins</h4>
             <p>${Math.min(70, 30 + level * 3)}% des pertes reviennent blessées et guérissent en ${Math.round(30 * Math.pow(0.95, level - 1))} min. Soin immédiat : 1 or par unité.</p>
             <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
@@ -575,11 +575,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'GREAT_WAREHOUSE':
       tabs.push({
         id: 'storage',
-        icon: '📦',
+        icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
         name: 'Stockage',
         content: `
           <div class="special-tab-content">
-            <h4>🏪 Capacité de stockage</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Capacité de stockage</h4>
             <div class="storage-bars">
               <div class="storage-row">
                 <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> Bois:</span>
@@ -606,7 +606,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'GREAT_SILO':
       tabs.push({
         id: 'food-storage',
-        icon: '🌾',
+        icon: '<img class="ico" src="assets/images/3d/ui/food.webp" alt="">',
         name: 'Stockage',
         content: `
           <div class="special-tab-content">
@@ -626,11 +626,11 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'WATCHTOWER':
       tabs.push({
         id: 'watch',
-        icon: '👁️',
+        icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">',
         name: 'Surveillance',
         content: `
           <div class="special-tab-content">
-            <h4>🗼 Tour de guet</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Tour de guet</h4>
             <p>Portée de détection: <strong>${level * 2}</strong> cases</p>
             <p>Temps d'alerte: <strong>${Math.max(1, 10 - level)}</strong> minutes avant l'arrivée</p>
             <p class="info-note">Les attaques ennemies seront détectées à l'avance.</p>
@@ -699,10 +699,10 @@ function openFieldBuildPanel(slotNum) {
   };
   
   const fieldIcons = {
-    FARM: '🌾',
-    LUMBER: '🌲',
-    QUARRY: '⛰️',
-    IRON_MINE: '⛏️'
+    FARM: '<img class="ico" src="assets/images/3d/ui/food.webp" alt="">',
+    LUMBER: '<img class="ico" src="assets/images/3d/ui/tree.webp" alt="">',
+    QUARRY: '<img class="ico" src="assets/images/3d/ui/stone.webp" alt="">',
+    IRON_MINE: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">'
   };
   
   // Create overlay
@@ -798,7 +798,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   // Building configurations
   const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier' };
-  const buildingIcons = { BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️' };
+  const buildingIcons = { BARRACKS: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', STABLE: '<img class="ico" src="assets/images/3d/ui/horse.webp" alt="">', WORKSHOP: '<img class="ico" src="assets/images/3d/ui/settings.webp" alt="">' };
   const allowedClasses = {
     BARRACKS: ['INFANTRY', 'ARCHER'],
     STABLE: ['CAVALRY'],
@@ -863,7 +863,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
             <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${unitCost.iron}</span>
           </div>
         </div>
-        ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
+        ${isRecruiting ? '<div class="unit-blocked"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En cours...</div>' : ''}
       </div>
     `;
   };
@@ -934,7 +934,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
       <!-- Available units by class -->
       <div class="available-units">
-        <h4>🎖️ Recruter des unités</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter des unités</h4>
         <p class="recruit-hint">💡 Cliquez sur l'icône d'une unité pour voir ses statistiques détaillées</p>
         ${unitsHtml || `
           <div class="no-units-available">
@@ -991,7 +991,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
       </div>
       
       <div class="unit-stats-full">
-        <h4>📊 Statistiques</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Statistiques</h4>
         <div class="stats-grid">
           <div class="stat-item">
             <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
@@ -1044,7 +1044,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
       </div>
       
       <div class="recruit-section">
-        <h4>🎖️ Recruter</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter</h4>
         <div class="recruit-row">
           <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input"
                  data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 
@@ -1198,7 +1198,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
       </div>
       
       <div class="tier-unlock-info">
-        <h4>🎖️ Unités débloquées</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Unités débloquées</h4>
         <div class="tier-list">
           <div class="tier-item ${level >= 1 ? 'unlocked' : 'locked'}">
             <span>Niv. 1+</span> Base
@@ -1242,13 +1242,13 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
             <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}"
                     onclick="upgradeBuilding('${buildingKey}', ${slotNum})"
                     ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-              ${isBuildQueueFull() ? '⏳ File pleine' : hasResources ? '🔨 Ameliorer' : '❌ Ressources insuffisantes'}
+              ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Ameliorer' : '❌ Ressources insuffisantes'}
             </button>
           </div>
         </div>
       ` : `
         <div class="max-level-notice">
-          <span class="max-icon">${level >= maxLevel ? '🏆' : '🔒'}</span>
+          <span class="max-icon">${level >= maxLevel ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/lock.webp" alt="">'}</span>
           <p>${level >= maxLevel ? 'Niveau maximum atteint!' : `Limité par le Bâtiment principal (Niv.${upMainHallLevel})`}</p>
           ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
         </div>
@@ -1479,7 +1479,7 @@ function renderBuildQueue() {
         });
       }
       if (queued.length > 0) {
-        html += '<div class="qd-section-header">⏳ En attente (${queued.length}/2)</div>'.replace('${queued.length}', queued.length);
+        html += '<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En attente (${queued.length}/2)</div>'.replace('${queued.length}', queued.length);
         queued.forEach((q, i) => {
           html += `<div class="qd-item queued">
             <span class="qd-num">${i + 1}</span>
@@ -1541,13 +1541,13 @@ function renderMovingArmies() {
   const moving = armies.filter(a => a.status !== 'IDLE');
 
   const missionIcons = {
-    'ATTACK': '⚔️',
-    'RAID': '💰',
-    'SUPPORT': '🛡️',
-    'SPY': '🔍',
-    'TRANSPORT': '📦',
-    'RETURNING': '🏠',
-    'MOVING': '🚶'
+    'ATTACK': '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">',
+    'RAID': '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">',
+    'SUPPORT': '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">',
+    'SPY': '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">',
+    'TRANSPORT': '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
+    'RETURNING': '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">',
+    'MOVING': '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">'
   };
 
   // Update activity bar
@@ -1566,7 +1566,7 @@ function renderMovingArmies() {
     } else {
       activityEl.classList.remove('active');
       activityEl.innerHTML = `
-        <span class="activity-icon">🚶</span>
+        <span class="activity-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
         <span class="activity-text">Aucun mouvement</span>
       `;
     }
@@ -1580,7 +1580,7 @@ function renderMovingArmies() {
     } else {
       legacyEl.innerHTML = moving.map(a => `
         <div class="queue-item">
-          <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '🚶'}</span>
+          <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">'}</span>
           <div class="queue-info">
             <span class="queue-name">${escapeHtml(a.name || 'Armée')}</span>
             <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>

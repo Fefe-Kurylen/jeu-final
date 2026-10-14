@@ -108,7 +108,7 @@ function showUnitInfoModal(unitKey) {
 
       <!-- Capacités -->
       <div class="unit-capacity-section">
-        <h4>📦 Capacités</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""> Capacités</h4>
         <div class="unit-capacity-grid">
           <div class="capacity-item">
             <span class="capacity-icon">${resIconHtml('inventory')}</span>
@@ -116,13 +116,13 @@ function showUnitInfoModal(unitKey) {
             <span class="capacity-value">${transport}</span>
           </div>
           <div class="capacity-item">
-            <span class="capacity-icon">🍖</span>
+            <span class="capacity-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
             <span class="capacity-label">Nourriture/h</span>
             <span class="capacity-value">${unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15}</span>
           </div>
           ${unit.class === 'SIEGE' ? `
           <div class="capacity-item">
-            <span class="capacity-icon">🏰</span>
+            <span class="capacity-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span>
             <span class="capacity-label">Dégâts muraille</span>
             <span class="capacity-value">${unit.stats?.buildingDamage || unit.buildingDamage || 5}</span>
           </div>
@@ -146,7 +146,7 @@ function showUnitInfoModal(unitKey) {
 
       <!-- Bâtiment requis -->
       <div class="unit-building-section">
-        <h4>🏗️ Formation</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Formation</h4>
         <p>Entraîné dans: <strong>${getBuildingName({ INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' }[unit.class] || 'BARRACKS')}</strong>${unit.class === 'SIEGE' ? ' (niveau 5)' : unit.tier === 'intermediate' ? ' (niveau 7)' : unit.tier === 'elite' ? ' (niveau 15)' : ''}</p>
       </div>
     </div>
@@ -186,7 +186,7 @@ function showBuildingInfoModal(buildingKey) {
 
       <!-- Stats -->
       <div class="building-stats-section">
-        <h4>📊 Informations</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Informations</h4>
         <div class="building-info-grid">
           <div class="info-item">
             <span class="info-label">Niveau max</span>
@@ -216,7 +216,7 @@ function showBuildingInfoModal(buildingKey) {
       <!-- Prérequis -->
       ${building.prereq && building.prereq.length > 0 ? `
         <div class="building-prereq-section">
-          <h4>📋 Prérequis</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Prérequis</h4>
           <div class="prereq-list">
             ${building.prereq.map(p => `
               <div class="prereq-item">

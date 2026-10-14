@@ -39,6 +39,7 @@ avec transparence rendue en 2× (écrans haute densité). Modules dans `tools/re
 | `heroes/<FACTION>.webp`, `heroes/<FACTION>_bust.webp` | héros sur son socle, buste (`heroPortraitHtml()`) | 256×384, 64×64 | |
 | `ui/<nom>.webp` | icônes 3D : wood stone iron food gold population build army recruit city fields map reports ranking inventory hero alliance market settings attack defense expedition clock home | 64×64 | |
 | `ui/btn-*.webp`, `ui/frame-*.webp`, `ui/plate-*.webp`, `ui/bar-wood.webp` | habillage de l'interface, utilisé en `border-image` 9-slice (voir la section « Habillage 2.5D » de `css/style.css`) | 160×56, 192×192, 160×96 | |
+| `logo/medallion.webp`, `logo/medallion.png`, `logo/icon.png` | emblème : casque de légionnaire doré, laurier, médaillon ; version opaque 1024 px pour l'icône d'application | 512×512 (1024 px) | |
 | `scenes/*.webp` | `auth-portrait`, `auth-landscape` (île des six civilisations), `hero-<FACTION>` (estrade), `header-<écran>` (marché, alliance, classement, inventaire, rapports), `battlefield` | | |
 
 `3d/manifest.json` donne les cadres (`w h ax ay ppu`) et la liste des fichiers par catégorie.
@@ -53,4 +54,4 @@ Côté client : `SPRITE_FRAME`, `SPRITE_PLOT_W`, `PROP_FRAME` (`js/app/01-core.j
 
 - `terrain/<grass|dirt|sand|snow>.svg` : tuiles 128×128 répétables (textures de sol des vues ville, champs et carte)
 - `ui/<close|info|left|right|menu|minus|plus|moon|sun>.svg` : glyphes d'interface (`ui/manifest.json`)
-- `logo.svg`, `logo-text.svg`, `splash.svg` ; avec `--png` : `icon-1024.png`, icônes de lanceur Android/iOS et splashs
+- avec `--png` : `icon-1024.png`, `favicon.png`, icônes de lanceur Android/iOS et écrans de démarrage (médaillon 3D + titre en Cinzel), `splash-preview.png`

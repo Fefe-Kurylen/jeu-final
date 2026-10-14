@@ -36,7 +36,7 @@ function renderWounded(wounded) {
 
     return `
       <div class="wounded-item">
-        <span class="wounded-icon">🩹</span>
+        <span class="wounded-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
         <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}</span>
         <span class="wounded-time">${minutes}:${seconds.toString().padStart(2, '0')}</span>
         <button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner (${w.count} or)"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></button>
@@ -225,9 +225,9 @@ function renderBuildings(filter) {
         <div class="stats">
           Coût: <img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 50)} <img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 50)} <img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 50)} <img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 50)}
         </div>
-        ${isBuildQueueFull() ? '<p style="padding:10px;color:var(--error);">⏳ File de construction pleine (4/4)</p>' :
+        ${isBuildQueueFull() ? '<p style="padding:10px;color:var(--error);"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine (4/4)</p>' :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
-          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">🔒 Bat. principal Niv.${rbMainHallLevel} requis</p>` :
+          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;"><img class="ico" src="assets/images/3d/ui/lock.webp" alt=""> Bat. principal Niv.${rbMainHallLevel} requis</p>` :
           '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
       </div>
     `;
@@ -373,7 +373,7 @@ function showUnitDetail(unitKey) {
       
       <!-- Stats complètes -->
       <div class="unit-stats-full">
-        <h4>📊 Statistiques</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Statistiques</h4>
         <div class="stats-grid">
           <div class="stat-item attack">
             <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
@@ -408,7 +408,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.speed || 0}</span>
           </div>
           <div class="stat-item transport">
-            <span class="stat-icon">📦</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""></span>
             <span class="stat-label">Transport</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.transport || 0)}%; background: #9b59b6"></div>
@@ -442,7 +442,7 @@ function showUnitDetail(unitKey) {
           <span class="info-value">${foodUpkeep}</span>
         </div>
         <div class="info-box">
-          <span class="info-icon">👥</span>
+          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/population.webp" alt=""></span>
           <span class="info-label">Pop. (score)</span>
           <span class="info-value">${unit.tier === 'siege' ? 4 : unit.tier === 'elite' ? 3 : unit.tier === 'intermediate' ? 2 : 1}</span>
         </div>
@@ -456,7 +456,7 @@ function showUnitDetail(unitKey) {
       
       <!-- Section recrutement -->
       <div class="recruit-section">
-        <h4>🎖️ Recruter</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter</h4>
         <div class="recruit-row">
           <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input" 
                  data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 

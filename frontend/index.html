@@ -8,7 +8,7 @@
     <title>Imperium Antiquitas</title>
     <link rel="stylesheet" href="assets/fonts/fonts.css">
     <link rel="stylesheet" href="css/style.css">
-    <link rel="icon" type="image/svg+xml" href="assets/images/logo.svg">
+    <link rel="icon" type="image/png" href="assets/images/favicon.png">
     <link rel="apple-touch-icon" href="assets/images/icon-1024.png">
 </head>
 <body>
@@ -23,7 +23,7 @@
             <div class="auth-box">
                 <div class="auth-header">
                     <div class="auth-logo">
-                        <img src="assets/images/logo.svg" width="96" height="96" alt="Imperium Antiquitas">
+                        <img src="assets/images/3d/logo/medallion.webp" width="112" height="112" alt="Imperium Antiquitas">
                     </div>
                     <h1>Imperium Antiquitas</h1>
                     <p class="auth-subtitle">Conquerez. Dominez. Regnez.</p>
@@ -59,32 +59,32 @@
                         <label>Faction</label>
                         <div class="faction-grid">
                             <div class="faction-option" data-faction="ROME" onclick="selectFaction('ROME')">
-                                <span class="faction-icon">🏛️</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/ROME_bust.webp" alt=""></span>
                                 <span class="faction-name">Rome</span>
                                 <span class="faction-bonus">+5% Defense</span>
                             </div>
                             <div class="faction-option" data-faction="GAUL" onclick="selectFaction('GAUL')">
-                                <span class="faction-icon">🌲</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GAUL_bust.webp" alt=""></span>
                                 <span class="faction-name">Gaule</span>
                                 <span class="faction-bonus">+10% Cachette</span>
                             </div>
                             <div class="faction-option" data-faction="GREEK" onclick="selectFaction('GREEK')">
-                                <span class="faction-icon">🏺</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GREEK_bust.webp" alt=""></span>
                                 <span class="faction-name">Grece</span>
                                 <span class="faction-bonus">-10% Construction</span>
                             </div>
                             <div class="faction-option" data-faction="EGYPT" onclick="selectFaction('EGYPT')">
-                                <span class="faction-icon">🏜️</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/EGYPT_bust.webp" alt=""></span>
                                 <span class="faction-name">Egypte</span>
                                 <span class="faction-bonus">+20% Murs</span>
                             </div>
                             <div class="faction-option" data-faction="HUN" onclick="selectFaction('HUN')">
-                                <span class="faction-icon">🐎</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/HUN_bust.webp" alt=""></span>
                                 <span class="faction-name">Huns</span>
                                 <span class="faction-bonus">+15% Vitesse</span>
                             </div>
                             <div class="faction-option" data-faction="SULTAN" onclick="selectFaction('SULTAN')">
-                                <span class="faction-icon">🌙</span>
+                                <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/SULTAN_bust.webp" alt=""></span>
                                 <span class="faction-name">Sultanat</span>
                                 <span class="faction-bonus">+20% Siege</span>
                             </div>
@@ -158,7 +158,7 @@
                 </div>
             </div>
             <div class="attack-notif" id="attack-notif" style="display:none">
-                <span class="attack-icon">⚔️</span>
+                <span class="attack-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
                 <span class="attack-timer" id="attack-timer">00:00:00</span>
             </div>
             <div class="server-time-section">
@@ -200,11 +200,11 @@
                 </div>
             </div>
             <div class="queue-dropdown" id="build-queue-dropdown">
-                <div class="qd-header">🏗️ File de construction</div>
+                <div class="qd-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> File de construction</div>
                 <div class="qd-content" id="build-queue-list"><div class="qd-empty">Aucune construction en cours</div></div>
             </div>
             <div class="queue-dropdown" id="recruit-queue-dropdown">
-                <div class="qd-header">⚔️ File de recrutement</div>
+                <div class="qd-header"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> File de recrutement</div>
                 <div class="qd-content" id="recruit-queue-list"><div class="qd-empty">Aucun recrutement en cours</div></div>
             </div>
 
@@ -242,9 +242,9 @@
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Rapports</h2></div>
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showReportsTab('battles')">⚔️ Combats</button>
-                            <button class="toolbar-btn" onclick="showReportsTab('spy')">🔍 Espionnage</button>
-                            <button class="toolbar-btn" onclick="showReportsTab('trade')">📦 Commerce</button>
+                            <button class="toolbar-btn active" onclick="showReportsTab('battles')"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Combats</button>
+                            <button class="toolbar-btn" onclick="showReportsTab('spy')"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espionnage</button>
+                            <button class="toolbar-btn" onclick="showReportsTab('trade')"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""> Commerce</button>
                         </div>
                         <div id="reports-list" class="list-container"></div>
                     </div>
@@ -253,10 +253,10 @@
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Classement</h2></div>
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showRanking('players')">👤 Joueurs</button>
-                            <button class="toolbar-btn" onclick="showRanking('alliances')">🤝 Alliances</button>
-                            <button class="toolbar-btn" onclick="showRanking('attackers')">⚔️ Attaquants</button>
-                            <button class="toolbar-btn" onclick="showRanking('defenders')">🛡️ Defenseurs</button>
+                            <button class="toolbar-btn active" onclick="showRanking('players')"><img class="ico" src="assets/images/3d/ui/player.webp" alt=""> Joueurs</button>
+                            <button class="toolbar-btn" onclick="showRanking('alliances')"><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Alliances</button>
+                            <button class="toolbar-btn" onclick="showRanking('attackers')"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquants</button>
+                            <button class="toolbar-btn" onclick="showRanking('defenders')"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Defenseurs</button>
                         </div>
                         <div id="ranking-content" class="list-container"></div>
                     </div>
@@ -265,8 +265,8 @@
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Inventaire</h2></div>
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showInventoryTab('items')">📦 Objets</button>
-                            <button class="toolbar-btn" onclick="showInventoryTab('materials')">🔧 Materiaux</button>
+                            <button class="toolbar-btn active" onclick="showInventoryTab('items')"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""> Objets</button>
+                            <button class="toolbar-btn" onclick="showInventoryTab('materials')"><img class="ico" src="assets/images/3d/ui/tools.webp" alt=""> Materiaux</button>
                         </div>
                         <div id="inventory-content" class="inventory-content"></div>
                     </div>
@@ -274,9 +274,9 @@
                 <div id="tab-army" class="tab">
                     <div class="tab-inner">
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showArmyTab('overview')">📊 Apercu</button>
-                            <button class="toolbar-btn" onclick="showArmyTab('train')">⚔️ Entrainer</button>
-                            <button class="toolbar-btn" onclick="showArmyTab('send')">📤 Envoyer</button>
+                            <button class="toolbar-btn active" onclick="showArmyTab('overview')"><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Apercu</button>
+                            <button class="toolbar-btn" onclick="showArmyTab('train')"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Entrainer</button>
+                            <button class="toolbar-btn" onclick="showArmyTab('send')"><img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Envoyer</button>
                         </div>
                         <div id="armies-management" class="army-content"></div>
                     </div>
@@ -288,9 +288,9 @@
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Alliance</h2></div>
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showAllianceTab('overview')">📊 Apercu</button>
-                            <button class="toolbar-btn" onclick="showAllianceTab('members')">👥 Membres</button>
-                            <button class="toolbar-btn" onclick="showAllianceTab('diplomacy')">🤝 Diplomatie</button>
+                            <button class="toolbar-btn active" onclick="showAllianceTab('overview')"><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Apercu</button>
+                            <button class="toolbar-btn" onclick="showAllianceTab('members')"><img class="ico" src="assets/images/3d/ui/population.webp" alt=""> Membres</button>
+                            <button class="toolbar-btn" onclick="showAllianceTab('diplomacy')"><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Diplomatie</button>
                         </div>
                         <div id="alliance-content"></div>
                     </div>
@@ -299,9 +299,9 @@
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Marché</h2></div>
                         <div class="tab-toolbar">
-                            <button class="toolbar-btn active" onclick="showMarketTab('send')">📤 Envoyer</button>
-                            <button class="toolbar-btn" onclick="showMarketTab('offers')">📋 Offres</button>
-                            <button class="toolbar-btn" onclick="showMarketTab('npc')">🏪 Marchand</button>
+                            <button class="toolbar-btn active" onclick="showMarketTab('send')"><img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Envoyer</button>
+                            <button class="toolbar-btn" onclick="showMarketTab('offers')"><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Offres</button>
+                            <button class="toolbar-btn" onclick="showMarketTab('npc')"><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand</button>
                         </div>
                         <div id="market-content" class="market-content">
                             <div id="market-section-send" class="market-section">
@@ -309,10 +309,10 @@
                                 <div class="send-form">
                                     <div class="form-row"><label>Destination</label><div class="coord-pair"><input type="number" id="send-target-x" placeholder="X" inputmode="numeric" pattern="-?[0-9]*"><span class="coord-sep">|</span><input type="number" id="send-target-y" placeholder="Y" inputmode="numeric" pattern="-?[0-9]*"></div></div>
                                     <div class="resources-input">
-                                        <div class="res-input"><span>🪵</span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
-                                        <div class="res-input"><span>🧱</span><input type="number" id="send-stone" value="0" min="0" inputmode="numeric"></div>
-                                        <div class="res-input"><span>⛏️</span><input type="number" id="send-iron" value="0" min="0" inputmode="numeric"></div>
-                                        <div class="res-input"><span>🌾</span><input type="number" id="send-food" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span><input type="number" id="send-stone" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span><input type="number" id="send-iron" value="0" min="0" inputmode="numeric"></div>
+                                        <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span><input type="number" id="send-food" value="0" min="0" inputmode="numeric"></div>
                                     </div>
                                     <button onclick="sendResources()" class="btn-primary">Envoyer</button>
                                 </div>
@@ -337,10 +337,10 @@
                     <div class="tab-inner">
                         <div class="tab-toolbar">
                             <button class="toolbar-btn active" onclick="filterBuildings('all')">Tous</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('BASE')">🏛️ Infra</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('INTERMEDIATE')">⚔️ Militaire</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('ADVANCED')">🏰 Avance</button>
-                            <button class="toolbar-btn" onclick="filterBuildings('FACTION')">🏟️ Faction</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('BASE')"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Infra</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('INTERMEDIATE')"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Militaire</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('ADVANCED')"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Avance</button>
+                            <button class="toolbar-btn" onclick="filterBuildings('FACTION')"><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Faction</button>
                         </div>
                         <div id="buildings-grid" class="buildings-grid"></div>
                     </div>

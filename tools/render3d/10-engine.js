@@ -37,7 +37,10 @@
     battlefield: { w: 640, h: 240, ax: 0.5, ay: 0.62, cam: 'iso', ppu: PX_PER_UNIT_ISO * 0.9 },
     button:   { w: 160, h: 56,  ax: 0.5, ay: 0.5,  cam: 'front', ppu: 1 },
     frame:    { w: 192, h: 192, ax: 0.5, ay: 0.5,  cam: 'front', ppu: 1 },
-    plate:    { w: 160, h: 96,  ax: 0.5, ay: 0.5,  cam: 'front', ppu: 1 }
+    plate:    { w: 160, h: 96,  ax: 0.5, ay: 0.5,  cam: 'front', ppu: 1 },
+    puff:     { w: 64,  h: 64,  ax: 0.5, ay: 0.5,  cam: 'front', ppu: 30 },
+    ripple:   { w: 96,  h: 64,  ax: 0.5, ay: 0.5,  cam: 'iso', ppu: PX_PER_UNIT_ISO * 1.1 },
+    logo:     { w: 512, h: 512, ax: 0.5, ay: 0.5,  cam: 'front', ppu: 200 }
   };
   const SCALE = 2;   // rendu 2× (écrans haute densité)
 
@@ -140,7 +143,7 @@
     else c2.drawImage(canvas, 0, 0);
     // nettoyage GPU
     content.traverse(o => { if (o.geometry) o.geometry.dispose(); });
-    return twoD.toDataURL('image/webp', job.quality || 0.9);
+    return job.format === 'png' ? twoD.toDataURL('image/png') : twoD.toDataURL('image/webp', job.quality || 0.9);
   }
 
   window.R3D = { T, scene, renderer, FRAMES, SCALE, renderJob, makeCamera };

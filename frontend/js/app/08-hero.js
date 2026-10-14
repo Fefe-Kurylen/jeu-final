@@ -91,7 +91,7 @@ async function loadHero() {
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('spd')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
-                <span class="stat-icon">📦</span>
+                <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""></span>
                 <span class="stat-label">Logistique</span>
                 <span class="stat-val">${hero.logistics + hero.logPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('log')">+</button>` : ''}
@@ -133,7 +133,7 @@ async function loadHero() {
 
           <!-- Expeditions -->
           <div class="hero-expeditions">
-            <h4 class="equipment-title">🧭 Expéditions</h4>
+            <h4 class="equipment-title"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> Expéditions</h4>
             <p style="font-size:12px;color:var(--text-muted)">Envoyez une armée (hors garnison) en expédition : XP pour le héros qui l'accompagne, or en récompense, quelques pertes selon la difficulté.</p>
             <div id="expeditions-available" class="expeditions-grid"><p style="color:var(--text-muted)">Chargement…</p></div>
             <h4 class="equipment-title" style="margin-top:12px">Historique</h4>
@@ -252,22 +252,22 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
   const xpBonus = buildingLevel * 2;
   const statBonus = buildingLevel * 1;
 
-  title.innerHTML = `<span class="building-detail-icon">🏛️</span> Domus du héros`;
+  title.innerHTML = `<span class="building-detail-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Domus du héros`;
 
   if (!hero) {
     content.innerHTML = `
       <div class="hero-management-panel">
         <div class="hero-empty-state">
-          <div class="hero-empty-icon">👤</div>
+          <div class="hero-empty-icon"><img class="ico" src="assets/images/3d/ui/player.webp" alt=""></div>
           <h3>Aucun héros</h3>
           <p>Votre héros n'a pas encore été créé.</p>
           <button class="btn btn-primary" onclick="createHero()">Créer un héros</button>
         </div>
         <div class="building-bonus-section">
-          <h4>📊 Bonus du bâtiment (Niv.${buildingLevel})</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Bonus du bâtiment (Niv.${buildingLevel})</h4>
           <div class="bonus-grid">
-            <div class="bonus-item"><span>⚡ XP Bonus:</span><span>+${xpBonus}%</span></div>
-            <div class="bonus-item"><span>💪 Stats Bonus:</span><span>+${statBonus}%</span></div>
+            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""> XP Bonus:</span><span>+${xpBonus}%</span></div>
+            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Stats Bonus:</span><span>+${statBonus}%</span></div>
           </div>
         </div>
       </div>
@@ -295,7 +295,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
 
         <!-- Stats Section -->
         <div class="hero-stats-section">
-          <h4>📊 Statistiques</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Statistiques</h4>
           <div class="hero-stats-grid">
             <div class="hero-stat-card">
               <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
@@ -316,21 +316,21 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('spd')">+</button>` : ''}
             </div>
             <div class="hero-stat-card">
-              <span class="stat-icon">📦</span>
+              <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""></span>
               <span class="stat-name">Logistique</span>
               <span class="stat-value">${hero.logPoints}</span>
               ${canAssignPoints ? `<button class="stat-plus-btn" onclick="assignPointFromPanel('log')">+</button>` : ''}
             </div>
           </div>
-          ${canAssignPoints ? `<div class="points-available-banner">🎯 ${hero.statPoints} points à distribuer</div>` : ''}
+          ${canAssignPoints ? `<div class="points-available-banner"><img class="ico" src="assets/images/3d/ui/target.webp" alt=""> ${hero.statPoints} points à distribuer</div>` : ''}
         </div>
 
         <!-- Building Bonus Section -->
         <div class="building-bonus-section">
-          <h4>🏛️ Bonus du Domus (Niv.${buildingLevel})</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Bonus du Domus (Niv.${buildingLevel})</h4>
           <div class="bonus-grid">
-            <div class="bonus-item"><span>⚡ XP Bonus:</span><span class="bonus-value">+${xpBonus}%</span></div>
-            <div class="bonus-item"><span>💪 Stats Bonus:</span><span class="bonus-value">+${statBonus}%</span></div>
+            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""> XP Bonus:</span><span class="bonus-value">+${xpBonus}%</span></div>
+            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Stats Bonus:</span><span class="bonus-value">+${statBonus}%</span></div>
           </div>
         </div>
 
@@ -338,7 +338,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         <div class="hero-actions-section">
           <button class="btn btn-secondary" onclick="renameHero()">✏️ Renommer</button>
           <button class="btn btn-info" onclick="showHeroEquipment()">${resIconHtml('inventory')} Équipement</button>
-          <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();">📜 Expéditions</button>
+          <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Expéditions</button>
         </div>
       </div>
     `;
@@ -451,13 +451,13 @@ async function loadExpeditions() {
     availableEl.innerHTML = [
       ...inProgress.map(e => `
           <div class="expedition-card in-progress">
-            <div class="exp-difficulty"><span class="exp-stars">${'⭐'.repeat(e.difficulty)}</span></div>
+            <div class="exp-difficulty"><span class="exp-stars">${'<img class="ico" src="assets/images/3d/ui/star.webp" alt="">'.repeat(e.difficulty)}</span></div>
             <h4>En cours</h4>
             <p>Retour: <span class="qd-timer" data-ends-at="${e.endsAt}">${formatTime(e.endsAt)}</span></p>
           </div>`),
       ...available.map(e => `
           <div class="expedition-card">
-            <div class="exp-difficulty"><span class="exp-stars">${'⭐'.repeat(e.difficulty)}</span></div>
+            <div class="exp-difficulty"><span class="exp-stars">${'<img class="ico" src="assets/images/3d/ui/star.webp" alt="">'.repeat(e.difficulty)}</span></div>
             <h4>Expédition ${e.difficulty > 2 ? 'Difficile' : 'Standard'}</h4>
             <p>Puissance ennemie: ${e.enemyPower}</p>
             <p>Durée: ${Math.floor(e.duration / 60)} min</p>

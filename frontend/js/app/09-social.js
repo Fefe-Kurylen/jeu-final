@@ -27,7 +27,7 @@ async function loadAlliance() {
       const isLeader = myRole === 'LEADER';
       const diplomacyData = await fetchJson('/api/alliance/diplomacy').catch(() => ({ diplomacy: [] }));
       const otherAlliances = alliances.filter(a => a.id !== myAlliance.id);
-      const roleLabel = (role) => role === 'LEADER' ? '👑 Leader' : role === 'OFFICER' ? '⭐ Officier' : '🛡️ Membre';
+      const roleLabel = (role) => role === 'LEADER' ? '<img class="ico" src="assets/images/3d/ui/crown.webp" alt=""> Leader' : role === 'OFFICER' ? '<img class="ico" src="assets/images/3d/ui/star.webp" alt=""> Officier' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Membre';
 
       const showSub = (id) => currentAllianceTab === id ? 'block' : 'none';
       content.innerHTML = `
@@ -54,7 +54,7 @@ async function loadAlliance() {
 
             <div id="alliance-sub-members" class="alliance-sub-section" style="display:${showSub('members')}">
               <div class="alliance-section">
-                <h4>👥 Membres (${myAlliance.members.length})</h4>
+                <h4><img class="ico" src="assets/images/3d/ui/population.webp" alt=""> Membres (${myAlliance.members.length})</h4>
                 ${myAlliance.members.map(m => {
                   const isMe = m.playerId === p.id;
                   const canPromote = isLeader && !isMe && m.role !== 'LEADER';
@@ -73,7 +73,7 @@ async function loadAlliance() {
             <div id="alliance-sub-diplomacy" class="alliance-sub-section" style="display:${showSub('diplomacy')}">
             ${isLeaderOrOfficer ? `
               <div class="alliance-section">
-                <h4>🤝 Diplomatie</h4>
+                <h4><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Diplomatie</h4>
                 <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Definissez vos relations avec les autres alliances (max 3 allies)</p>
                 <div class="diplomacy-list">
                   ${otherAlliances.map(a => {
@@ -259,7 +259,7 @@ async function loadRanking(type) {
       <div class="ranking-list">
         ${data.map((item, i) => `
           <div class="ranking-row ${item.id === player?.id ? 'me' : ''}" ${type !== 'alliances' && item.id ? `onclick="viewPlayerProfile('${item.id}')"` : ''}>
-            <span class="ranking-position ${i < 3 ? 'top' + (i + 1) : ''}">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</span>
+            <span class="ranking-position ${i < 3 ? 'top' + (i + 1) : ''}">${i === 0 ? '<img class="ico" src="assets/images/3d/ui/medal.webp" alt="">' : i === 1 ? '<img class="ico" src="assets/images/3d/ui/medal_silver.webp" alt="">' : i === 2 ? '<img class="ico" src="assets/images/3d/ui/medal_bronze.webp" alt="">' : i + 1}</span>
             <span class="ranking-name">${type === 'alliances' ? `[${escapeHtml(item.tag)}] ${escapeHtml(item.name)}` : `${item.alliance?.alliance?.tag ? `[${escapeHtml(item.alliance.alliance.tag)}] ` : ''}${escapeHtml(item.name)}`}</span>
             <span class="ranking-value">${valueOf(item)}</span>
           </div>
@@ -315,7 +315,7 @@ async function loadReports() {
               </div>
             </div>
             <span class="report-result ${won ? 'victory' : 'defeat'}">
-              ${won ? '🏆 VICTOIRE' : '💀 DÉFAITE'}
+              ${won ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt=""> VICTOIRE' : '<img class="ico" src="assets/images/3d/ui/skull.webp" alt=""> DÉFAITE'}
             </span>
           </div>
 
@@ -538,7 +538,7 @@ function renderReplayState() {
   if (round >= state.rounds.length && state.playing) {
     replayTogglePlay();
     const winner = state.report.winner === 'ATTACKER' ? 'Attaquant' : 'Défenseur';
-    log.innerHTML = `<div class="log-winner">🏆 ${winner} remporte la bataille!</div>` + log.innerHTML;
+    log.innerHTML = `<div class="log-winner"><img class="ico" src="assets/images/3d/ui/ranking.webp" alt=""> ${winner} remporte la bataille!</div>` + log.innerHTML;
   }
 }
 

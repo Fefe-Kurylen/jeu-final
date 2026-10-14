@@ -35,7 +35,7 @@ function renderMarketOffers() {
     const isMyOffer = offer.sellerId === player?.id;
     return `
       <div class="market-offer ${isMyOffer ? 'my-offer' : ''}">
-        <div class="offer-seller">${isMyOffer ? '👤 Votre offre' : `👤 ${escapeHtml(offer.player?.name || 'Inconnu')}`}</div>
+        <div class="offer-seller">${isMyOffer ? '<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> Votre offre' : `<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> ${escapeHtml(offer.player?.name || 'Inconnu')}`}</div>
         <div class="offer-exchange">
           <span class="offer-sell">${resourceIcons[offer.sellResource]} ${formatNum(offer.sellAmount)}</span>
           <span class="offer-arrow">➡️</span>
@@ -201,7 +201,7 @@ function renderTradeReports() {
     return `
       <div class="report-item" style="padding:10px;margin-bottom:6px;background:var(--bg-tertiary);border-radius:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>${isSeller ? '📤 Vendu' : '📥 Achet\u00e9'}</span>
+          <span>${isSeller ? '<img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Vendu' : '<img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Achet\u00e9'}</span>
           <span style="color:var(--text-secondary);font-size:0.85em;">${date}</span>
         </div>
         <div style="margin-top:4px;">
@@ -246,7 +246,7 @@ function renderSpyReports() {
       return `
         <div class="report-card report-defeat">
           <div class="report-header">
-            <span class="report-title">🔍 Espionnage échoué</span>
+            <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espionnage échoué</span>
             <span class="report-date">${date}</span>
           </div>
           <p>Votre espion n'a pas réussi à infiltrer <strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
@@ -257,7 +257,7 @@ function renderSpyReports() {
     return `
       <div class="report-card report-victory">
         <div class="report-header">
-          <span class="report-title">🔍 Espionnage réussi</span>
+          <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espionnage réussi</span>
           <span class="report-date">${date}</span>
         </div>
         <p><strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
@@ -272,7 +272,7 @@ function renderSpyReports() {
         </div>
         
         <div class="spy-section">
-          <h4>🏛️ Bâtiments</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Bâtiments</h4>
           <div class="spy-buildings">
             ${(report.buildings || []).map(b => 
               `<span class="spy-building">${getBuildingName(b.key)} Niv.${b.level}</span>`
@@ -331,7 +331,7 @@ function openVillageList() {
     const isActive = city.id === currentCity?.id;
     html += `
       <div class="village-list-item ${isActive ? 'active' : ''}" onclick="selectCity('${city.id}'); closeModal();">
-        <span class="village-icon">${city.isCapital ? '👑' : '🏘️'}</span>
+        <span class="village-icon">${city.isCapital ? '<img class="ico" src="assets/images/3d/ui/crown.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">'}</span>
         <div class="village-details">
           <span class="village-name">${escapeHtml(city.name)}</span>
           <span class="village-coords">(${city.x}|${city.y})</span>

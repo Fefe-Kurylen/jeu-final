@@ -48,11 +48,11 @@ function renderArmies() {
   gsSummary.innerHTML = `
     <div class="army-header-compact">
       <div class="header-left-info">
-        <span class="rally-badge">🚩 Rally Niv.${rallyLevel}</span>
+        <span class="rally-badge"><img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> Rally Niv.${rallyLevel}</span>
         <span class="army-count-badge">${cityArmies.length}/${maxArmies} armées</span>
       </div>
       <div class="header-right-info">
-        <span class="garrison-badge-compact">🏰 ${totalGarrison} en garnison</span>
+        <span class="garrison-badge-compact"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> ${totalGarrison} en garnison</span>
       </div>
     </div>
   `;
@@ -86,7 +86,7 @@ function renderArmies() {
           <div class="hero-stats-row">
             <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${(heroData?.attack || 5) + (heroData?.atkPoints || 0)}</span>
             <span><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${(heroData?.defense || 5) + (heroData?.defPoints || 0)}</span>
-            <span>⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
+            <span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt="">${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
           </div>
           <div class="hero-assign-status">
             ${heroAssignedToArmy 
@@ -100,7 +100,7 @@ function renderArmies() {
         <!-- Garrison Panel -->
         <div class="garrison-panel-compact">
           <div class="garrison-header-compact">
-            <span>🏰 Garnison</span>
+            <span><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Garnison</span>
             <span class="garrison-count-compact">${totalGarrison} unités</span>
           </div>
           ${garrisonUnits.length > 0 ? `
@@ -139,7 +139,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
       <div class="army-card-new locked">
         <div class="army-card-top locked">
           <span class="slot-num">#${slotNum}</span>
-          <span class="lock-icon">🔒</span>
+          <span class="lock-icon"><img class="ico" src="assets/images/3d/ui/lock.webp" alt=""></span>
         </div>
         <div class="army-card-body-locked">
           <p>Rally Niv.${requiredLevel} requis</p>
@@ -170,15 +170,15 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   const armyPower = army.power ?? calculateArmyPower(army);
   
   const statusMap = {
-    'IDLE': { icon: '🏠', label: 'En ville', cls: 'idle' },
-    'MOVING': { icon: '🚶', label: 'En route', cls: 'moving' },
-    'ATTACKING': { icon: '⚔️', label: 'Attaque', cls: 'attacking' },
+    'IDLE': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'En ville', cls: 'idle' },
+    'MOVING': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'En route', cls: 'moving' },
+    'ATTACKING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Attaque', cls: 'attacking' },
     'RETURNING': { icon: '↩️', label: 'Retour', cls: 'returning' },
-    'RAIDING': { icon: '💰', label: 'Pillage', cls: 'raiding' },
-    'SPYING': { icon: '🔍', label: 'Espionnage', cls: 'moving' },
-    'TRANSPORTING': { icon: '📦', label: 'Transport', cls: 'moving' },
-    'EXPEDITION': { icon: '🧭', label: 'Expédition', cls: 'moving' },
-    'HARVESTING': { icon: '⛏️', label: 'Récolte', cls: 'harvesting' }
+    'RAIDING': { icon: '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">', label: 'Pillage', cls: 'raiding' },
+    'SPYING': { icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">', label: 'Espionnage', cls: 'moving' },
+    'TRANSPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">', label: 'Transport', cls: 'moving' },
+    'EXPEDITION': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'Expédition', cls: 'moving' },
+    'HARVESTING': { icon: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">', label: 'Récolte', cls: 'harvesting' }
   };
   const status = statusMap[army.status] || { icon: '❓', label: army.status, cls: 'unknown' };
   
@@ -254,14 +254,14 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Arrêter & Rentrer
           </button>
-          <span class="destination-badge">📍 (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
         ` : army.status === 'EXPEDITION' ? `
-          <span class="destination-badge">🧭 En expédition, retour automatique</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
           </button>
-          <span class="destination-badge">📍 (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
         `}
       </div>
     </div>
@@ -292,11 +292,11 @@ function showArmyActionsMenu(armyId) {
   const modal = document.getElementById('modal');
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
-      <h3>⚙️ Actions - ${escapeHtml(army.name)}</h3>
+      <h3><img class="ico" src="assets/images/3d/ui/settings.webp" alt=""> Actions - ${escapeHtml(army.name)}</h3>
       ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">⚠️ ${disabledReason}</p>` : ''}
       <div class="actions-grid">
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
-          <span class="action-icon">🚶</span>
+          <span class="action-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
           <span class="action-label">Déplacer</span>
         </button>
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showAttackModal('${armyId}')"` : 'disabled'}>
@@ -392,11 +392,11 @@ function openArmyComposition(armyId) {
       <!-- Hero Assignment -->
       <div class="comp-hero-section">
         <div class="comp-hero-card ${hasHero ? 'assigned' : ''}">
-          <span class="hero-icon-comp">👤</span>
+          <span class="hero-icon-comp"><img class="ico" src="assets/images/3d/ui/player.webp" alt=""></span>
           <div class="hero-info-comp">
             ${hasHero ? `
               <span class="hero-name-comp">${escapeHtml(heroData?.name || 'Héros')}</span>
-              <span class="hero-stats-comp"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${(heroData?.attack || 5) + (heroData?.atkPoints || 0)} <img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${(heroData?.defense || 5) + (heroData?.defPoints || 0)} ⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
+              <span class="hero-stats-comp"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${(heroData?.attack || 5) + (heroData?.atkPoints || 0)} <img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${(heroData?.defense || 5) + (heroData?.defPoints || 0)} <img class="ico" src="assets/images/3d/ui/bolt.webp" alt="">${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
             ` : `
               <span class="hero-placeholder-comp">Aucun héros assigné</span>
             `}
@@ -413,7 +413,7 @@ function openArmyComposition(armyId) {
       <!-- Units Composition -->
       <div class="comp-units-section">
         <div class="comp-units-header">
-          <h3>📋 Composition</h3>
+          <h3><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Composition</h3>
           <div class="comp-actions">
             <button class="comp-btn" onclick="setAllUnitsToArmy('${armyId}')">Tout ajouter</button>
             <button class="comp-btn" onclick="removeAllUnitsFromArmy('${armyId}')">Tout retirer</button>

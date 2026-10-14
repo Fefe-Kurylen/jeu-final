@@ -191,7 +191,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const mainHall = getBuildingAtSlot(0);
       const level = mainHall?.level || 1;
       html = `
-        <h4><span class="tt-icon">🏛️</span> Bâtiment principal</h4>
+        <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Bâtiment principal</h4>
         <p class="tt-level">Niveau ${level}/30</p>
         <p class="tt-hint">Cliquez pour améliorer</p>
       `;

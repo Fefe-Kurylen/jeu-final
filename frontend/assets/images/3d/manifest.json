@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-14T12:33:00.395Z",
+ "generatedAt": "2026-10-14T12:56:01.288Z",
  "scale": 2,
  "frames": {
   "building": {
@@ -145,6 +145,30 @@
    "ay": 0.5,
    "cam": "front",
    "ppu": 1
+  },
+  "puff": {
+   "w": 64,
+   "h": 64,
+   "ax": 0.5,
+   "ay": 0.5,
+   "cam": "front",
+   "ppu": 30
+  },
+  "ripple": {
+   "w": 96,
+   "h": 64,
+   "ax": 0.5,
+   "ay": 0.5,
+   "cam": "iso",
+   "ppu": 38.89087296526011
+  },
+  "logo": {
+   "w": 512,
+   "h": 512,
+   "ax": 0.5,
+   "ay": 0.5,
+   "cam": "front",
+   "ppu": 200
   }
  },
  "categories": {
@@ -819,11 +843,15 @@
   ],
   "icons": [
    "ui/alliance.webp",
+   "ui/amphora.webp",
    "ui/army.webp",
    "ui/attack.webp",
+   "ui/bolt.webp",
+   "ui/bow.webp",
    "ui/build.webp",
    "ui/city.webp",
    "ui/clock.webp",
+   "ui/crown.webp",
    "ui/defense.webp",
    "ui/endurance.webp",
    "ui/expedition.webp",
@@ -832,6 +860,7 @@
    "ui/gold.webp",
    "ui/hero.webp",
    "ui/home.webp",
+   "ui/horse.webp",
    "ui/inventory.webp",
    "ui/iron.webp",
    "ui/item_bronze_helm.webp",
@@ -849,14 +878,30 @@
    "ui/item_war_amulet.webp",
    "ui/item_war_boots.webp",
    "ui/item_wooden_shield.webp",
+   "ui/list.webp",
+   "ui/lock.webp",
    "ui/map.webp",
    "ui/market.webp",
+   "ui/medal.webp",
+   "ui/medal_bronze.webp",
+   "ui/medal_silver.webp",
+   "ui/pin.webp",
+   "ui/player.webp",
    "ui/population.webp",
+   "ui/rally.webp",
    "ui/ranking.webp",
    "ui/recruit.webp",
    "ui/reports.webp",
+   "ui/send.webp",
    "ui/settings.webp",
+   "ui/skull.webp",
+   "ui/spy.webp",
+   "ui/star.webp",
+   "ui/stats.webp",
    "ui/stone.webp",
+   "ui/target.webp",
+   "ui/tools.webp",
+   "ui/tree.webp",
    "ui/wood.webp"
   ],
   "uiframes": [
@@ -1139,6 +1184,21 @@
    "props/flag_gold_5.webp",
    "props/flag_gold_6.webp",
    "props/flag_gold_7.webp"
+  ],
+  "effects": [
+   "props/puff_0.webp",
+   "props/puff_1.webp",
+   "props/puff_2.webp",
+   "props/puff_3.webp",
+   "props/ripple_0.webp",
+   "props/ripple_1.webp",
+   "props/ripple_2.webp",
+   "props/ripple_3.webp"
+  ],
+  "logo": [
+   "logo/icon.png",
+   "logo/medallion.png",
+   "logo/medallion.webp"
   ]
  }
 }

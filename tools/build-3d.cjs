@@ -64,7 +64,7 @@ async function makePage(browser) {
         const data = await page.evaluate(async (j) => {
           const fn = window.MODELS[j.model];
           if (!fn) throw new Error('modèle inconnu ' + j.model);
-          return await window.R3D.renderJob({ frame: j.frame, build: (g) => fn(g, ...(j.args || [])), cam: j.cam, quality: j.quality });
+          return await window.R3D.renderJob({ frame: j.frame, build: (g) => fn(g, ...(j.args || [])), cam: j.cam, quality: j.quality, format: j.format });
         }, job);
         const file = path.join(OUT, job.out);
         fs.mkdirSync(path.dirname(file), { recursive: true });
