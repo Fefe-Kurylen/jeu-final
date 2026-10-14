@@ -1,0 +1,81 @@
+# 🦊 Furtif — recherche privée et navigateur mobile
+
+Furtif est un moteur de recherche privé **type Qwant** : une page de recherche sans pisteur, des résultats
+agrégés depuis plusieurs sources, et une coque mobile (Capacitor) qui ouvre les sites dans un navigateur intégré.
+
+## Fonctionnalités
+
+- 🔍 Recherche **Web / Images / Actus**, pagination, suggestions de saisie
+- 🧮 Réponses instantanées locales : calculatrice, conversions d'unités, date/heure
+- ⚡ Raccourcis `!w`, `!yt`, `!maps`, `!gh`, `!amz`, `!lbc`, `!img`, `!actus`
+- 🕵️ Confidentialité : aucune requête journalisée, `Referrer-Policy: no-referrer`, vignettes servies via un proxy
+  (l'IP de l'utilisateur n'atteint jamais les sites tiers), liens de redirection des moteurs décodés, publicités retirées
+- 🌙 Thème clair/sombre, PWA installable, OpenSearch (ajout comme moteur par défaut dans Chrome/Firefox/Safari)
+- 🔁 Plusieurs **fournisseurs de résultats** avec bascule automatique :
+
+| Fournisseur | Clé requise | Catégories | Remarque |
+|---|---|---|---|
+| `brave` | `BRAVE_API_KEY` ([gratuit 2000 req/mois](https://brave.com/search/api/)) | web, images, actus | Index indépendant, meilleure qualité |
+| `searxng` | `SEARXNG_URL` (inclus dans `docker-compose.yml`) | web, images, actus | Métamoteur open-source auto-hébergé |
+| `ddg` | aucune | web | DuckDuckGo lite |
+| `bing` | aucune | web, images, actus | Lecture directe, filtré anti-« leurres » |
+| `openverse` | aucune | images | Images libres (Creative Commons), dernier recours |
+
+## Démarrage rapide
+
+```bash
+cd furtif
+npm install
+cp .env.example .env     # facultatif : clé Brave, URL SearXNG…
+npm start                # http://localhost:4000
+npm test                 # tests de fumée (SMOKE_NETWORK=1 npm test pour tester une vraie recherche)
+```
+
+### Avec Docker (Furtif + SearXNG auto-hébergé)
+
+```bash
+docker compose up -d     # http://localhost:4000
+```
+
+Modifiez `searxng/settings.yml` (clé `secret_key`) avant une mise en production.
+
+### Déploiement (Railway, Fly.io, Render…)
+
+Le `Dockerfile` suffit. Variables utiles : `PORT`, `PROVIDERS`, `BRAVE_API_KEY`, `SEARXNG_URL`, `DEFAULT_LANG`.
+
+## Appli mobile (iOS / Android)
+
+La coque Capacitor affiche l'interface (`public/`) et ouvre les sites dans un navigateur intégré natif.
+
+```bash
+npm install --include=optional          # Capacitor + @capgo/inappbrowser
+# Dans public/app.js, remplacer https://furtif.example.com par l'URL de votre instance déployée
+npm run android                         # ou : npm run ios (macOS + Xcode requis)
+```
+
+## API
+
+| Route | Description |
+|---|---|
+| `GET /api/search?q=…&type=web\|images\|news&page=1&lang=fr-FR` | Résultats normalisés `{ provider, results[], infobox, instant, suggestions }` |
+| `GET /api/suggest?q=…` | Suggestions de saisie |
+| `GET /api/img?u=…` | Proxy d'images (https, anti-SSRF, 5 Mo max) |
+| `GET /api/status` | État des fournisseurs |
+| `GET /opensearch.xml` | Descripteur OpenSearch |
+
+## Architecture
+
+```
+server.js                 Express : routes, en-têtes de confidentialité, fichiers statiques
+src/providers/*.js        Un module par source (search(), categories, available())
+src/providers/index.js    Orchestrateur : ordre, bascule, cache, dédoublonnage, filtre anti-leurres
+src/instant.js            Réponses instantanées (sans réseau)
+src/imageProxy.js         Proxy d'images avec protection SSRF
+public/                   Interface (HTML/CSS/JS sans framework, PWA)
+```
+
+## Limites connues
+
+- Les sources sans clé (`ddg`, `bing`) peuvent limiter les requêtes depuis certaines IP de centres de données.
+  Pour une mise en production, utilisez `brave` et/ou `searxng`.
+- Pas de synchronisation entre appareils : l'historique, s'il est activé, reste local.

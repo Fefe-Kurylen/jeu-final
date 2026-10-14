@@ -1,0 +1,15 @@
+# Configuration minimale SearXNG pour Furtif : API JSON activée, aucune journalisation des requêtes.
+use_default_settings: true
+general:
+  instance_name: "Furtif (SearXNG)"
+  debug: false
+server:
+  secret_key: "changez-moi-par-une-longue-chaine-aleatoire"
+  limiter: false
+  image_proxy: false
+search:
+  safe_search: 1
+  default_lang: "fr-FR"
+  formats: [html, json]
+ui:
+  static_use_hash: true

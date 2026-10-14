@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Furtif — Recherche privée</title>
+  <meta name="description" content="Furtif : moteur de recherche privé. Pas de pisteurs, pas de profil, pas de publicité.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#6d5dfc">
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="search" type="application/opensearchdescription+xml" title="Furtif" href="/opensearch.xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body data-view="home">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Accueil Furtif">
+      <img src="/logo.svg" alt="" width="36" height="36">
+      <span class="brand-name">Furtif</span>
+    </a>
+    <form class="searchbox" id="searchform" role="search" autocomplete="off">
+      <span class="icon-search" aria-hidden="true">🔍</span>
+      <input id="q" name="q" type="search" placeholder="Rechercher sans être suivi…" aria-label="Rechercher" enterkeyhint="search" autocapitalize="off" spellcheck="false">
+      <button type="button" class="clear" id="clear" aria-label="Effacer" hidden>✕</button>
+      <button type="submit" class="go" aria-label="Lancer la recherche">→</button>
+      <ul id="suggest" class="suggest" role="listbox" hidden></ul>
+    </form>
+    <div class="top-actions">
+      <button class="iconbtn" id="themebtn" title="Thème clair / sombre" aria-label="Changer de thème">🌙</button>
+      <button class="iconbtn" id="settingsbtn" title="Réglages" aria-label="Réglages">⚙️</button>
+    </div>
+  </header>
+
+  <section class="home" id="home">
+    <div class="hero">
+      <img src="/logo.svg" alt="" class="hero-logo" width="88" height="88">
+      <h1>Furtif</h1>
+      <p class="tagline">Cherchez. Personne ne regarde.</p>
+    </div>
+    <ul class="pledges">
+      <li>🚫 Aucun pisteur, aucun cookie publicitaire</li>
+      <li>🕵️ Votre adresse IP n'est jamais transmise aux sites</li>
+      <li>🧹 Aucune requête conservée</li>
+    </ul>
+    <div class="shortcuts" id="shortcuts" aria-label="Raccourcis"></div>
+    <p class="hint">Astuce : <code>!w chat</code> ouvre Wikipédia, <code>!yt</code> YouTube, <code>!maps</code> un plan. <code>12*8</code> ou <code>10 km en miles</code> sont calculés sans quitter Furtif.</p>
+  </section>
+
+  <section class="results" id="resultsview" hidden>
+    <nav class="tabs" aria-label="Type de résultats">
+      <button data-type="web" class="tab active">Web</button>
+      <button data-type="images" class="tab">Images</button>
+      <button data-type="news" class="tab">Actus</button>
+    </nav>
+    <div class="layout">
+      <main class="main" id="results" aria-live="polite"></main>
+      <aside class="side" id="side"></aside>
+    </div>
+    <nav class="pager" id="pager" aria-label="Pages"></nav>
+  </section>
+
+  <dialog id="settings" class="settings">
+    <form method="dialog">
+      <h2>Réglages</h2>
+      <label>Région des résultats
+        <select id="setLang">
+          <option value="fr-FR">France (français)</option>
+          <option value="be-FR">Belgique (français)</option>
+          <option value="ch-FR">Suisse (français)</option>
+          <option value="ca-FR">Canada (français)</option>
+          <option value="en-US">États-Unis (anglais)</option>
+          <option value="en-GB">Royaume-Uni (anglais)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="setNewTab"> Ouvrir les résultats dans un nouvel onglet</label>
+      <label class="check"><input type="checkbox" id="setSuggest" checked> Suggestions pendant la saisie</label>
+      <label class="check"><input type="checkbox" id="setHistory"> Garder un historique local (sur cet appareil uniquement)</label>
+      <p class="muted" id="providerInfo"></p>
+      <menu>
+        <button value="cancel" class="btn ghost">Fermer</button>
+        <button value="save" class="btn">Enregistrer</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <footer class="foot">
+    <span>Furtif · recherche privée</span>
+    <a href="/opensearch.xml" id="addEngine">Ajouter Furtif à mon navigateur</a>
+    <a href="#" id="aboutlink">Confidentialité</a>
+  </footer>
+
+  <template id="tpl-web">
+    <article class="r">
+      <a class="r-head" rel="noopener">
+        <span class="favicon" aria-hidden="true"></span>
+        <span class="r-meta"><span class="r-host"></span><span class="r-url"></span></span>
+      </a>
+      <h3><a class="r-title" rel="noopener"></a></h3>
+      <p class="r-snippet"></p>
+    </article>
+  </template>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

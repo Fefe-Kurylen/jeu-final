@@ -1,0 +1,11 @@
+{
+  "name": "Furtif — Recherche privée",
+  "short_name": "Furtif",
+  "description": "Moteur de recherche privé : pas de pisteurs, pas de profil, pas de publicité.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1020",
+  "theme_color": "#6d5dfc",
+  "lang": "fr",
+  "icons": [{ "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
