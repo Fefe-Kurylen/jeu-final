@@ -46,9 +46,11 @@ jobs:
       - name: Compilation de vérification (simulateur, sans signature)
         if: ${{ (github.event.inputs.lane || 'build') == 'build' }}
         run: |
+          set -o pipefail
           xcodebuild -project FurtifBrowser.xcodeproj -scheme FurtifBrowser \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build | xcpretty && exit ${PIPESTATUS[0]}
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log | grep -E --line-buffered "error:|warning:|BUILD|Compiling|Linking|CompileAssetCatalog" || true
+          grep -q "BUILD SUCCEEDED" xcodebuild.log
 
       - name: TestFlight / App Store
         if: ${{ github.event.inputs.lane == 'beta' || github.event.inputs.lane == 'release' }}
@@ -72,6 +74,7 @@ jobs:
         with:
           name: ios-logs
           path: |
+            furtif/ios-browser/xcodebuild.log
             ~/Library/Logs/gym/*.log
             ~/Library/Logs/fastlane/**
           if-no-files-found: ignore
