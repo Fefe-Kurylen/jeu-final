@@ -285,7 +285,7 @@ async function showGame() {
   document.getElementById('game-screen').style.display = 'flex';
   await loadWorldInfo(); // Load world size first
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
-  await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies()]);
+  await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest()]);
   await loadCities();
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
@@ -631,6 +631,24 @@ function sizeCanvasForDpr(canvas, ctx, cssW, cssH) {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 }
 
+// ========== DIRECTION ARTISTIQUE : sprites peints par IA (painted/) ou rendus 3D (3d/) ==========
+// tools/repaint.cjs repeint les rendus 3D dans le style de l'illustration de référence et liste les fichiers
+// obtenus dans assets/images/painted/manifest.json ; art(chemin) renvoie la version peinte quand elle existe.
+const paintedSet = new Set();
+let _paintedPromise = null;
+function art(p) { return (paintedSet.has(p) ? 'assets/images/painted/' : 'assets/images/3d/') + p; }
+function loadPaintedManifest() {
+  if (!_paintedPromise) _paintedPromise = fetch('assets/images/painted/manifest.json').then(r => r.ok ? r.json() : null).then(m => {
+    for (const f of (m && m.files) || []) paintedSet.add(f);
+    const root = document.documentElement;
+    root.classList.toggle('painted-auth', paintedSet.has('scenes/auth-portrait.webp') && paintedSet.has('scenes/auth-landscape.webp'));
+    root.classList.toggle('painted-headers', ['market', 'alliance', 'ranking', 'inventory', 'reports'].every(k => paintedSet.has(`scenes/header-${k}.webp`)));
+    if (paintedSet.size && typeof queueSpriteRedraw === 'function') queueSpriteRedraw();
+  }).catch(() => {});
+  return _paintedPromise;
+}
+loadPaintedManifest();
+
 // ========== SPRITES 2.5D (WebP rendus en 3D par tools/build-3d.cjs : assets/images/3d/**) ==========
 // Cadre commun des sprites ville/champs/parcelles : 130×180 (rendus en 2×), centre du losange au sol à
 // l'ancre (0.5, 0.75) ; le losange d'une parcelle (2×2 unités) fait 100 px de large dans ce cadre
@@ -718,7 +736,7 @@ function drawSprite(ctx, img, x, y, w, variant = 'day') {
 // Décor (arbre, rocher…) : cadre 64×96, ancre bas-centre (0.5, 0.92) ; h = hauteur logique
 const PROP_FRAME = { w: 64, h: 96, ax: 0.5, ay: 0.92 };
 function drawProp(ctx, name, x, y, h, variant = 'day') {
-  const img = getSprite(`assets/images/3d/props/${name}.webp`);
+  const img = getSprite(art(`props/${name}.webp`));
   if (!img) return false;
   const ch = Math.max(1, Math.round(h));
   const cw = Math.max(1, Math.round(h * PROP_FRAME.w / PROP_FRAME.h));
@@ -799,14 +817,14 @@ function biomeInnerGradient(ctx, cx, cy, r, biome, night) {
 
 // Bâtiment : architecture de la faction du joueur, variante enneigée dans le biome neige
 function buildingSpriteUrl(key) {
-  return `assets/images/3d/buildings/${player?.faction || 'ROME'}/${key}${cityBiome() === 'snow' ? '_snow' : ''}.webp`;
+  return art(`buildings/${player?.faction || 'ROME'}/${key}${cityBiome() === 'snow' ? '_snow' : ''}.webp`);
 }
 // Paliers visuels des champs : niveaux 1-6, 7-13, 14-20 ; cultures, arbres et sol propres au biome
 function fieldSpriteUrl(type, level) {
-  return `assets/images/3d/fields/${cityBiome()}/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.webp`;
+  return art(`fields/${cityBiome()}/${type}_${level <= 6 ? 1 : level <= 13 ? 2 : 3}.webp`);
 }
 // Parcelle au sol du biome (sous chaque bâtiment et pour les emplacements vides), deux variantes
-function plotSpriteUrl(variant = 0) { return `assets/images/3d/plots/${cityBiome()}_${variant & 1}.webp`; }
+function plotSpriteUrl(variant = 0) { return art(`plots/${cityBiome()}_${variant & 1}.webp`); }
 
 // Vignette 3D d'un bâtiment (sprite de la vue ville, architecture de la faction) pour les panneaux générés en HTML
 function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }
@@ -837,9 +855,9 @@ function unitFigureHtml(keyOrClass, cls = 'unit-figure', title = '') {
   const isClass = ['INFANTRY', 'ARCHER', 'CAVALRY', 'SIEGE'].includes(keyOrClass);
   const klass = isClass ? keyOrClass : (unitClassOf(keyOrClass) || 'INFANTRY');
   const faction = (isClass ? player?.faction : unitFactionOf(keyOrClass)) || player?.faction || 'ROME';
-  return `<img class="${cls}" src="assets/images/3d/figures/${klass}_${faction}.webp" alt="" title="${escapeHtml(title)}">`;
+  return `<img class="${cls}" src="${art(`figures/${klass}_${faction}.webp`)}" alt="" title="${escapeHtml(title)}">`;
 }
 function unitIconUrl(keyOrClass) { const m = unitIconHtml(keyOrClass).match(/src="([^"]+)"/); return m ? m[1] : ''; }
 function heroPortraitHtml(faction, cls = 'hero-ico') { return `<img class="${cls}" src="assets/images/3d/heroes/${faction || player?.faction || 'ROME'}_bust.webp" alt="">`; }
 // Figurine du héros sur son estrade (scène 3D) pour l'écran du héros
-function heroStageUrl(faction) { return `assets/images/3d/scenes/hero-${faction || player?.faction || 'ROME'}.webp`; }
+function heroStageUrl(faction) { return art(`scenes/hero-${faction || player?.faction || 'ROME'}.webp`); }

@@ -56,6 +56,7 @@ function loadTilesetAssets() {
 }
 
 async function _loadTilesetAssetsOnce() {
+  if (typeof loadPaintedManifest === 'function') await loadPaintedManifest();   // sprites peints par IA quand ils existent
   let manifest;
   try {
     const res = await fetch('assets/images/3d/map/manifest.json');
@@ -75,7 +76,7 @@ async function _loadTilesetAssetsOnce() {
         const img = new Image();
         img.onload = () => { tileImages[category][name] = img; resolve(); };
         img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
-        img.src = `assets/images/3d/map/${category}/${name}.${ext}`;
+        img.src = typeof art === 'function' ? art(`map/${category}/${name}.${ext}`) : `assets/images/3d/map/${category}/${name}.${ext}`;
       }));
     }
   }

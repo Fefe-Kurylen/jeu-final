@@ -41,3 +41,7 @@ android/capacitor-cordova-android-plugins/build/
 
 # planches de contrôle du rendu 3D
 tools/render3d/out/
+
+# repeinture par IA : réponses brutes et guides de vérification
+tools/repaint/raw/
+tools/repaint/out/

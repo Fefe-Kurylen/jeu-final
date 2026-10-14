@@ -77,13 +77,13 @@ const battleScene = {
     const night = isNightMode();
     ctx.clearRect(0, 0, w, h);
     // terrain : scène 3D du champ de bataille (cadrage « cover »), sinon herbe texturée ; puis vignette
-    const bg = getSprite('assets/images/3d/scenes/battlefield.webp');
+    const bg = getSprite(art('scenes/battlefield.webp'));
     if (bg) { const k = Math.max(w / 640, h / 240); const bw = 640 * k, bh = 240 * k; ctx.drawImage(bg, (w - bw) / 2, (h - bh) / 2, bw, bh); }
     else { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, night ? '#2a3a28' : '#6a9a4a'); g.addColorStop(1, night ? '#1a2a18' : '#4a7a2a'); ctx.beginPath(); ctx.rect(0, 0, w, h); fillTextured(ctx, 'grass', g, night ? 0.85 : 0.45); }
     const v = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.7); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
     // mur du défenseur
-    if (this.hasWall) { const wall = getSprite(`assets/images/3d/buildings/${this.dFaction}/WALL.webp`); if (wall) { drawSprite(ctx, wall, w * 0.86, h * 0.42, 150, night ? 'night' : 'day'); } }
+    if (this.hasWall) { const wall = getSprite(art(`buildings/${this.dFaction}/WALL.webp`)); if (wall) { drawSprite(ctx, wall, w * 0.86, h * 0.42, 150, night ? 'night' : 'day'); } }
 
     const from = this.anim ? this.anim.from : this.shown, to = this.shown;
     const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;

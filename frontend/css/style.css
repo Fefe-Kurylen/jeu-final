@@ -4706,3 +4706,12 @@ img.item-ico { width: 1em; height: 1em; object-fit: contain; vertical-align: mid
 /* Emblèmes de faction (bustes des héros) dans le choix de civilisation */
 .faction-icon img.faction-ico { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #c9a227; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background: #2a2418; }
 .toolbar-btn img.ico, .qd-header img.ico, .category-header img.ico { width: 1.7em; height: 1.7em; vertical-align: -0.45em; margin-right: 2px; }
+
+/* Scènes peintes par IA (tools/repaint.cjs) : activées par classes sur <html> quand painted/manifest.json les liste */
+html.painted-auth #auth-screen::before { background-image: url(../assets/images/painted/scenes/auth-portrait.webp); }
+@media (orientation: landscape) { html.painted-auth #auth-screen::before { background-image: url(../assets/images/painted/scenes/auth-landscape.webp); } }
+html.painted-headers #tab-reports .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-reports.webp); }
+html.painted-headers #tab-ranking .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-ranking.webp); }
+html.painted-headers #tab-inventory .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-inventory.webp); }
+html.painted-headers #tab-alliance .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-alliance.webp); }
+html.painted-headers #tab-market .tab-banner::after { background-image: url(../assets/images/painted/scenes/header-market.webp); }
