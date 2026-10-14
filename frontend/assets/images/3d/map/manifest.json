@@ -72,10 +72,31 @@
  "terrain": [
   "forest_tree",
   "forest_mountain",
+  "forest_mountain_x",
+  "forest_mountain_y",
+  "forest_mountain_xy",
   "desert_dunes",
+  "desert_dunes_x",
+  "desert_dunes_y",
+  "desert_dunes_xy",
   "desert_ruins",
   "desert_rocks",
   "snow_snowtree",
-  "snow_icemountain"
+  "snow_icemountain",
+  "snow_icemountain_x",
+  "snow_icemountain_y",
+  "snow_icemountain_xy",
+  "water",
+  "water_x",
+  "water_y",
+  "water_xy",
+  "frozen",
+  "frozen_x",
+  "frozen_y",
+  "frozen_xy",
+  "oasis",
+  "oasis_x",
+  "oasis_y",
+  "oasis_xy"
  ]
 }

@@ -133,6 +133,7 @@ async function callApi(prompt, guideB64, size) {
     const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form });
     if (res.ok) { const j = await res.json(); const u = j.usage || {}; usage.in += (u.input_tokens_details && u.input_tokens_details.image_tokens) || 0; usage.inText += (u.input_tokens_details && u.input_tokens_details.text_tokens) || 0; usage.out += u.output_tokens || 0; usage.n++; return j.data[0].b64_json; }
     const txt = await res.text();
+    if (res.status === 429 && /insufficient_quota|credit_balance_exhausted/.test(txt)) { console.error('\nCrédit API épuisé : ajoutez des crédits sur platform.openai.com (Billing) puis relancez la même commande, elle reprend où elle s\'est arrêtée.'); process.exit(3); }
     if ((res.status === 429 || res.status >= 500) && attempt < 15) {   // limitation de débit : on patiente (en-tête retry-after, sinon progressif, 10 s à 120 s)
       const ra = parseFloat(res.headers.get('retry-after')) || 0;
       await sleep(Math.min(120000, Math.max(10000, ra * 1000 || 3000 * 2 ** Math.min(attempt, 5))));
