@@ -47,7 +47,13 @@ Modifiez `searxng/settings.yml` (clé `secret_key`) avant une mise en production
 
 Le `Dockerfile` suffit. Variables utiles : `PORT`, `PROVIDERS`, `BRAVE_API_KEY`, `SEARXNG_URL`, `DEFAULT_LANG`.
 
-## Appli mobile (iOS / Android)
+## Navigateur iPhone natif (dans l'esprit de Quiche)
+
+Le dossier [`ios-browser/`](ios-browser/) contient **Furtif Browser**, un navigateur SwiftUI + WKWebView avec barre d'outils et menu
+entièrement personnalisables, galerie de barres, onglets groupés par site, bloqueur, mode sombre pour tous les sites, JavaScript par site,
+lecteur et temps de lecture. Compilation : `xcodegen generate` puis Xcode (voir son README).
+
+## Coque mobile Capacitor (iOS / Android)
 
 La coque Capacitor affiche l'interface (`public/`) et ouvre les sites dans un navigateur intégré natif.
 
