@@ -20,7 +20,7 @@
     // Carte
     if (window.MAP_JOBS) for (const j of window.MAP_JOBS()) jobs.push(j);
     // Figurines, icônes, UI, scènes
-    for (const src of ['FIGURE_JOBS', 'ICON_JOBS', 'UI_JOBS', 'SCENE_JOBS']) if (window[src]) for (const j of window[src]()) jobs.push(j);
+    for (const src of ['FIGURE_JOBS', 'ICON_JOBS', 'UI_JOBS', 'SCENE_JOBS', 'WALL_JOBS']) if (window[src]) for (const j of window[src]()) jobs.push(j);
     return jobs;
   }
   window.JOBS = { list, FACTIONS, BIOMES };

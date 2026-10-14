@@ -7,6 +7,7 @@
 //   node tools/build-3d.cjs --only=ROME/MAIN  (filtre regex sur l'identifiant du travail)
 //   node tools/build-3d.cjs --sheet          (planche de contrôle PNG dans tools/render3d/out/)
 //   node tools/build-3d.cjs --workers=3
+//   node tools/build-3d.cjs --manifest-only (réécrit 3d/manifest.json et 3d/map/manifest.json sans rendre)
 // Prérequis : npm i -D playwright three ; npx playwright install chromium
 // ============================================================================
 const fs = require('fs');
@@ -49,14 +50,16 @@ async function makePage(browser) {
   let jobs = await first.evaluate(() => window.JOBS.list());
   if (only) jobs = jobs.filter(j => only.test(j.id));
   console.log(`${jobs.length} sprites à rendre (${workers} rendus en parallèle)`);
+  const manifestOnly = !!args['manifest-only'];   // ne rend rien : réécrit seulement les manifestes à partir de la liste des rendus
   const pages = [first];
-  for (let i = 1; i < Math.min(workers, jobs.length); i++) pages.push(await makePage(browser));
+  if (!manifestOnly) for (let i = 1; i < Math.min(workers, jobs.length); i++) pages.push(await makePage(browser));
   const manifest = {};
   let done = 0, next = 0;
   const failures = [];
   async function worker(page) {
     while (next < jobs.length) {
       const job = jobs[next++];
+      if (manifestOnly) { if (fs.existsSync(path.join(OUT, job.out))) (manifest[job.category] = manifest[job.category] || []).push(job.out); else failures.push(job.id + ': fichier absent'); done++; continue; }
       try {
         const data = await page.evaluate(async (j) => {
           const fn = window.MODELS[j.model];

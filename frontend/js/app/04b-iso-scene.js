@@ -91,35 +91,6 @@ function isoShade(hex, pct) { return shadeColor(hex, pct); }
 function isoDiamondPath(ctx, x, y, hw, hh) {
   ctx.beginPath(); ctx.moveTo(x - hw, y); ctx.lineTo(x, y - hh); ctx.lineTo(x + hw, y); ctx.lineTo(x, y + hh); ctx.closePath();
 }
-// Boîte iso : centre au sol (x, y), demi-largeur hw (px), profondeur en cellules dx/dy, hauteur h px
-function isoBox(ctx, x, y, wx, wy, h, color) {
-  // wx, wy : demi-étendue le long des axes iso (px écran le long de +gx et +gy)
-  const ax = { x: wx, y: wx / 2 }, ay = { x: -wy, y: wy / 2 };
-  const A = { x: x - ax.x - ay.x, y: y - ax.y - ay.y }, B = { x: x + ax.x - ay.x, y: y + ax.y - ay.y }, C = { x: x + ax.x + ay.x, y: y + ax.y + ay.y }, D = { x: x - ax.x + ay.x, y: y - ax.y + ay.y };
-  const up = (p) => ({ x: p.x, y: p.y - h });
-  const [A2, B2, C2, D2] = [A, B, C, D].map(up);
-  // face gauche (D-C), face droite (C-B), dessus
-  let g = ctx.createLinearGradient(0, C2.y, 0, C.y); g.addColorStop(0, isoShade(color, 10)); g.addColorStop(1, isoShade(color, -14));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(D.x, D.y); ctx.lineTo(C.x, C.y); ctx.lineTo(C2.x, C2.y); ctx.lineTo(D2.x, D2.y); ctx.closePath(); ctx.fill();
-  g = ctx.createLinearGradient(0, C2.y, 0, C.y); g.addColorStop(0, isoShade(color, -16)); g.addColorStop(1, isoShade(color, -34));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(C.x, C.y); ctx.lineTo(B.x, B.y); ctx.lineTo(B2.x, B2.y); ctx.lineTo(C2.x, C2.y); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = isoShade(color, 26); ctx.beginPath(); ctx.moveTo(A2.x, A2.y); ctx.lineTo(B2.x, B2.y); ctx.lineTo(C2.x, C2.y); ctx.lineTo(D2.x, D2.y); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = ISO_LINE; ctx.lineWidth = 1; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.moveTo(D.x, D.y); ctx.lineTo(C.x, C.y); ctx.lineTo(B.x, B.y); ctx.lineTo(B2.x, B2.y); ctx.lineTo(A2.x, A2.y); ctx.lineTo(D2.x, D2.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(C.x, C.y); ctx.lineTo(C2.x, C2.y); ctx.lineTo(D2.x, D2.y); ctx.moveTo(C2.x, C2.y); ctx.lineTo(B2.x, B2.y); ctx.stroke();
-}
-// Tour ronde : base (x, y), rayon r px, hauteur h px, toit conique
-function isoTower(ctx, x, y, r, h, wall, roof) {
-  const ry = r / 2;
-  let g = ctx.createLinearGradient(x - r, 0, x + r, 0); g.addColorStop(0, isoShade(wall, 14)); g.addColorStop(0.55, wall); g.addColorStop(1, isoShade(wall, -30));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - r, y - h); ctx.lineTo(x - r, y); ctx.ellipse(x, y, r, ry, 0, Math.PI, 0, true); ctx.lineTo(x + r, y - h); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = ISO_LINE; ctx.lineWidth = 1; ctx.stroke();
-  // créneaux
-  ctx.fillStyle = isoShade(wall, -8); ctx.beginPath(); ctx.ellipse(x, y - h, r, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // toit
-  g = ctx.createLinearGradient(x - r, 0, x + r, 0); g.addColorStop(0, isoShade(roof, 14)); g.addColorStop(1, isoShade(roof, -26));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - r * 1.15, y - h); ctx.lineTo(x, y - h - r * 1.6); ctx.lineTo(x + r * 1.15, y - h); ctx.ellipse(x, y - h, r * 1.15, ry * 1.15, 0, 0, Math.PI, false); ctx.closePath(); ctx.fill(); ctx.stroke();
-}
 function isoShadowEllipse(ctx, x, y, rx, ry, alpha = 0.25) { ctx.fillStyle = `rgba(20,12,4,${alpha})`; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
 
 // ---------- Scène ----------
@@ -188,66 +159,38 @@ function drawIsoFieldPaths(ctx, cx, cy, W, night) {
   strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
 }
 
-// Tronçon de courtine entre deux points au sol (a → b) : face visible + chemin de ronde + créneaux.
-// Les tronçons voisins se raccordent sans trait de jonction (seules les arêtes haute et basse sont tracées).
-function isoCurtain(ctx, a, b, thick, h, wall, crenels = true) {
-  // direction le long du mur et épaisseur perpendiculaire (vers l'extérieur, en bas-écran)
-  const n = { x: 0, y: thick };
-  const A = a, B = b, C = { x: b.x + n.x, y: b.y + n.y }, D = { x: a.x + n.x, y: a.y + n.y };
-  const up = (p) => ({ x: p.x, y: p.y - h });
-  const [A2, B2, C2, D2] = [A, B, C, D].map(up);
-  const lit = (b.x - a.x) * (b.y - a.y) < 0;   // mur orienté comme la face gauche (éclairée)
-  let g = ctx.createLinearGradient(0, C2.y, 0, C.y); g.addColorStop(0, isoShade(wall, lit ? 8 : -14)); g.addColorStop(1, isoShade(wall, lit ? -16 : -34));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(D.x, D.y); ctx.lineTo(C.x, C.y); ctx.lineTo(C2.x, C2.y); ctx.lineTo(D2.x, D2.y); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = ISO_LINE; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(D.x, D.y); ctx.lineTo(C.x, C.y); ctx.moveTo(D2.x, D2.y); ctx.lineTo(C2.x, C2.y); ctx.stroke();
-  // joints de pierre
-  ctx.strokeStyle = 'rgba(58,36,20,0.18)';
-  const rows = Math.max(2, Math.round(h / (thick * 1.3)));
-  for (let i = 1; i < rows; i++) { const t = i / rows; ctx.beginPath(); ctx.moveTo(D2.x, D2.y + (D.y - D2.y) * t); ctx.lineTo(C2.x, C2.y + (C.y - C2.y) * t); ctx.stroke(); }
-  // chemin de ronde
-  ctx.fillStyle = isoShade(wall, 24); ctx.beginPath(); ctx.moveTo(A2.x, A2.y); ctx.lineTo(B2.x, B2.y); ctx.lineTo(C2.x, C2.y); ctx.lineTo(D2.x, D2.y); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = ISO_LINE; ctx.beginPath(); ctx.moveTo(A2.x, A2.y); ctx.lineTo(B2.x, B2.y); ctx.stroke();
-  if (crenels) {
-    const len = Math.hypot(B2.x - A2.x, B2.y - A2.y), count = Math.max(3, Math.floor(len / (thick * 2.2)));
-    const ch = thick * 0.9;
-    for (let i = 0; i < count; i++) {
-      if (i % 2) continue;
-      const t0 = i / count, t1 = (i + 0.85) / count;
-      const p0 = { x: A2.x + (B2.x - A2.x) * t0, y: A2.y + (B2.y - A2.y) * t0 }, p1 = { x: A2.x + (B2.x - A2.x) * t1, y: A2.y + (B2.y - A2.y) * t1 };
-      ctx.fillStyle = isoShade(wall, lit ? 2 : -18);
-      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p1.x + n.x, p1.y + n.y); ctx.lineTo(p0.x + n.x, p0.y + n.y); ctx.lineTo(p0.x + n.x, p0.y + n.y - ch); ctx.lineTo(p1.x + n.x, p1.y + n.y - ch); ctx.lineTo(p1.x, p1.y - ch); ctx.lineTo(p0.x, p0.y - ch); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = isoShade(wall, 20); ctx.beginPath(); ctx.moveTo(p0.x, p0.y - ch); ctx.lineTo(p1.x, p1.y - ch); ctx.lineTo(p1.x + n.x, p1.y + n.y - ch); ctx.lineTo(p0.x + n.x, p0.y + n.y - ch); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = ISO_LINE; ctx.lineWidth = 0.8; ctx.stroke();
-    }
-  }
-}
-// Murs (si le Mur est construit) : enceinte sur le bord du plateau, découpée en tronçons d'une cellule
-// triés en profondeur avec le reste de la scène (hautes courtines à l'arrière, murets devant), tours d'angle
+// Enceinte (si le Mur est construit) : sprites rendus en 3D (assets/images/3d/walls/<faction>/<palier>_*.webp) :
+// un tronçon de courtine par sixième de côté (hauts à l'arrière, murets à l'avant pour laisser voir la ville)
+// et quatre tours d'angle, selon la faction, le palier du Mur (niveaux 1-6, 7-13, 14-20) et le biome (neige),
+// triés en profondeur avec le reste de la scène. Tant que les images ne sont pas chargées, rien n'est dessiné
+// (le rendu est relancé à leur chargement).
+function wallSpriteUrl(name, tier) { return `assets/images/3d/walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`; }
 function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
-  const theme = getCultureTheme();
-  const wall = night ? isoShade(theme.stone, -42) : theme.stone, roof = night ? isoShade(theme.roof, -42) : theme.roof;
-  const hHigh = W * (0.2 + Math.min(wallLevel, 20) * 0.011), hLow = hHigh * 0.42, thick = W * 0.09;
-  const R = R_WALL, N = 6, step = 2 * R / N;
+  const tier = wallLevel <= 6 ? 1 : wallLevel <= 13 ? 2 : 3;
+  const img = {};
+  for (const n of ['seg_x', 'seg_x_low', 'seg_z', 'seg_z_low', 'tower']) img[n] = getSprite(wallSpriteUrl(n, tier));
+  if (Object.values(img).some(i => !i)) return [];
+  const R = R_WALL, N = 6, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
+  const variant = spriteVariant(false);
   const items = [];
-  const edge = (from, to, high) => {
+  const edge = (from, to, high, along) => {
+    const sprite = img[`seg_${along}${high && !lowAll ? '' : '_low'}`];
     for (let k = 0; k < N; k++) {
-      const t0 = k / N, t1 = (k + 1) / N;
-      const g0 = [from[0] + (to[0] - from[0]) * t0, from[1] + (to[1] - from[1]) * t0], g1 = [from[0] + (to[0] - from[0]) * t1, from[1] + (to[1] - from[1]) * t1];
-      const a = isoPos(g0[0], g0[1], W, cx, cy), b = isoPos(g1[0], g1[1], W, cx, cy);
-      const mid = [(g0[0] + g1[0]) / 2, (g0[1] + g1[1]) / 2];
-      items.push({ depth: mid[0] + mid[1], y: (a.y + b.y) / 2, draw: () => isoCurtain(ctx, a, b, thick, high && !lowAll ? hHigh : hLow, wall, high && !lowAll) });
+      const t = (k + 0.5) / N;
+      const g = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+      const p = isoPos(g[0], g[1], W, cx, cy);
+      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, W * L / SPRITE_PLOT_W * 1.03, variant) });
     }
   };
-  edge([-R, R], [-R, -R], true);     // arrière gauche
-  edge([-R, -R], [R, -R], true);     // arrière droit
-  edge([R, -R], [R, R], false);      // avant droit
-  edge([R, R], [-R, R], false);      // avant gauche
-  for (const [gx, gy, scale] of [[-R, -R, 1.45], [-R, R, 1.45], [R, -R, 1.45], [R, R, 1.15]]) {
+  edge([-R, R], [-R, -R], true, 'z');    // arrière gauche (le long de iy)
+  edge([-R, -R], [R, -R], true, 'x');    // arrière droit (le long de ix)
+  edge([R, -R], [R, R], false, 'z');     // avant droit
+  edge([R, R], [-R, R], false, 'x');     // avant gauche
+  for (const [gx, gy, scale] of [[-R, -R, 1], [-R, R, 1], [R, -R, 1], [R, R, 0.85]]) {
     const p = isoPos(gx, gy, W, cx, cy);
-    items.push({ depth: gx + gy + 0.01, y: p.y + thick, draw: () => isoTower(ctx, p.x, p.y + thick, W * (scale > 1.2 ? 0.2 : 0.18), hHigh * (lowAll ? 0.8 : scale), wall, roof) });
+    items.push({ depth: gx + gy + 0.01, y: p.y, draw: () => drawSprite(ctx, img.tower, p.x, p.y, W / SPRITE_PLOT_W * scale * (lowAll ? 0.8 : 1), variant) });
   }
-  void step;
+  void night;
   return items;
 }
 

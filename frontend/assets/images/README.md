@@ -23,6 +23,7 @@ avec transparence rendue en 2× (écrans haute densité). Modules dans `tools/re
 | `55-icons.js` | icônes 3D de l'interface |
 | `56-ui.js` | boutons, cadres, plaques, barres (9-slice) |
 | `57-scenes.js` | panorama de connexion, estrades de héros, en-têtes d'écrans, champ de bataille |
+| `58-walls.js` | enceinte : courtines et tours d'angle par faction et palier du Mur |
 | `90-jobs.js` | liste des rendus |
 
 | Dossier | Contenu | Cadre (1×) | Ancre |
@@ -30,6 +31,7 @@ avec transparence rendue en 2× (écrans haute densité). Modules dans `tools/re
 | `buildings/<FACTION>/<KEY>[_snow].webp` | 39 bâtiments × ROME GAUL GREEK EGYPT HUN SULTAN, variante enneigée | 130×180 | (0.5, 0.75) = centre du losange au sol, qui fait 100 px de large |
 | `plots/<biome>_<0\|1>.webp` | parcelle au sol du biome, sous chaque cellule de la ville et sous les emplacements vides | 130×180 | idem |
 | `fields/<biome>/<TYPE>_<1\|2\|3>.webp` | FARM LUMBER QUARRY IRON_MINE × paliers (nv 1-6, 7-13, 14-20) × forest desert snow | 130×180 | idem |
+| `walls/<FACTION>/<palier>_<seg_x\|seg_z>[_low][_snow].webp`, `walls/<FACTION>/<palier>_tower[_snow].webp` | enceinte : tronçon de courtine d'une cellule le long de x ou de z, haut ou muret (avant de la ville), tour d'angle ; paliers 1-3 selon le niveau du Mur (1-6, 7-13, 14-20), variante enneigée | 130×180 | (0.5, 0.75) = milieu du tronçon au sol |
 | `props/<nom>.webp` | pine pine2 oak oak2 bush rock rock2 palm cactus dune snowpine snowrock stump flowers | 64×96 | bas-centre (0.5, 0.92) |
 | `map/{cities,resources,terrain,units}/*.webp`, `map/manifest.json` | carte du monde (villes par faction + capital + default, ressources avec variantes `_desert` `_snow`, terrain par biome, unités `<type>_<FACTION>`, merchant) | 256×256 | (0.5, 0.797) |
 | `figures/<CLASSE>_<FACTION>.webp` | figurines en vue trois-quarts (cartes d'unités) | 128×192 | pieds (0.5, 0.94) |
@@ -41,7 +43,7 @@ avec transparence rendue en 2× (écrans haute densité). Modules dans `tools/re
 
 `3d/manifest.json` donne les cadres (`w h ax ay ppu`) et la liste des fichiers par catégorie.
 Options : `--only=<regex sur l'identifiant du rendu>`, `--workers=N` (défaut 3), `--sheet[=nom]` (planche de contrôle
-PNG dans `tools/render3d/out/`). Un rendu complet (~700 sprites) prend environ 90 s avec 4 rendus en parallèle.
+PNG dans `tools/render3d/out/`), `--manifest-only` (réécrit les manifestes sans rendre). Un rendu complet (~700 sprites) prend environ 90 s avec 4 rendus en parallèle.
 
 Côté client : `SPRITE_FRAME`, `SPRITE_PLOT_W`, `PROP_FRAME` (`js/app/01-core.js`) décrivent les cadres ;
 `buildingSpriteUrl`, `fieldSpriteUrl`, `plotSpriteUrl`, `unitIconHtml`, `heroPortraitHtml`, `heroStageUrl`,
