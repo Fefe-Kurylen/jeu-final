@@ -327,10 +327,20 @@ function isOnMountainRange(x, y) {
 }
 
 // Check if tile has features based on noise, biome, and multi-tile formations
+// Bruit lisse à petite échelle (~7 cases) : régions de collines où les montagnes se regroupent en massifs
+const HILL_SCALE = 7;
+function hillNoise(x, y, seed = 4242) {
+  const gx = Math.floor(x / HILL_SCALE), gy = Math.floor(y / HILL_SCALE);
+  const fx = (x / HILL_SCALE) - gx, fy = (y / HILL_SCALE) - gy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const n00 = seededRandom(gx, gy, seed), n10 = seededRandom(gx + 1, gy, seed), n01 = seededRandom(gx, gy + 1, seed), n11 = seededRandom(gx + 1, gy + 1, seed);
+  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
+}
 function getTerrainType(x, y) {
   const biome = getBiome(x, y);
   const noise = seededRandom(x, y);
   const noise2 = seededRandom(x * 2, y * 2, 54321);
+  const hills = hillNoise(x, y);   // > 0.72 : région de collines (≈ 12 % des terres) où les montagnes forment des massifs
 
   // Check multi-tile terrain first (rivers, lakes, mountains)
   // These override normal terrain generation
@@ -356,16 +366,19 @@ function getTerrainType(x, y) {
 
   // Normal terrain generation (scattered features)
   if (biome === 'forest') {
-    if (noise > 0.94 && noise2 > 0.6) return { biome, feature: 'mountain' };
+    if (hills > 0.72 && noise > 0.42) return { biome, feature: 'mountain' };   // massifs : chaînes de 3 à 10 sommets qui se raccordent
+    if (hills > 0.66 && noise > 0.85) return { biome, feature: 'mountain' };   // contreforts isolés en bordure des massifs
     if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
     if (noise < 0.02) return { biome, feature: 'water' };
   } else if (biome === 'desert') {
     if (noise > 0.95) return { biome, feature: 'ruins' };
+    if (hills > 0.7 && noise > 0.45) return { biome, feature: 'dunes' };   // champs de dunes raccordés
     if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
-    if (noise > 0.72 && noise2 > 0.6) return { biome, feature: 'dunes' };
+    if (noise > 0.8 && noise2 > 0.6) return { biome, feature: 'dunes' };
     if (noise < 0.03) return { biome, feature: 'oasis' };
   } else if (biome === 'snow') {
-    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'icemountain' };
+    if (hills > 0.72 && noise > 0.42) return { biome, feature: 'icemountain' };
+    if (hills > 0.66 && noise > 0.85) return { biome, feature: 'icemountain' };
     if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
     if (noise < 0.03) return { biome, feature: 'frozen' };
   }
