@@ -63,6 +63,43 @@ const UI_BUTTON = { primary: 'bright green', secondary: 'warm brown leather', da
 const ICON_DESC = { wood: 'a bundle of cut logs', stone: 'a block of grey stone', iron: 'a stack of iron ingots', food: 'a sheaf of golden wheat', gold: 'a pile of gold coins', population: 'two villagers side by side', build: 'a wooden mallet', army: 'two crossed swords', recruit: 'two crossed swords', city: 'a small house with a terracotta roof', fields: 'a small square plot of wheat', map: 'an unrolled parchment map on two wooden rods', reports: 'a parchment scroll', ranking: 'a golden trophy cup', inventory: 'a wooden treasure chest with brass fittings', hero: 'a golden Roman helmet with a red crest', alliance: 'two overlapping shields, one blue and one red', market: 'a brass balance scale', settings: 'an iron cogwheel', attack: 'a red shield with a crossed sword', defense: 'a blue shield with a golden boss', expedition: 'a brass compass rose', clock: 'an hourglass with golden sand', home: 'a small house', endurance: 'a red heart', stats: 'three bar-chart columns of bronze, gold and silver', spy: 'a magnifying glass', crown: 'a golden crown with red gems', player: 'a villager figure on a stone base', lock: 'a golden padlock', list: 'a clipboard with a parchment list', star: 'a golden five-pointed star', horse: 'a brown horse', medal: 'a gold medal on a red and blue ribbon', medal_silver: 'a silver medal on a red and blue ribbon', medal_bronze: 'a bronze medal on a red and blue ribbon', bolt: 'a golden lightning bolt', bow: 'a wooden bow with an arrow', rally: 'a red flag on a pole on a stone base', send: 'a parchment letter with a golden arrow', target: 'an archery target with an arrow', pin: 'a red map pin', skull: 'a bone skull', tree: 'a pine tree', amphora: 'a clay amphora', tools: 'a crossed hammer and pickaxe' };
 const KEEP_T1 = 'Repaint the subject shown in the second image (a plain 3D render used as a layout guide). Keep exactly the same camera angle and the same position in the frame; the building is a smaller, humbler early version, so it may be simpler and lower than the guide, but it must stay centered on the same spot and fit inside the same footprint. Do not add anything outside the footprint except small props at its base and a soft cast shadow to the right.';
 const KEEP_T3 = 'Repaint the subject shown in the second image (a plain 3D render used as a layout guide). Keep exactly the same camera angle and the same position and footprint in the frame; the building is a grander developed version, so it may be taller than the guide with an extra storey or a tower, but it must keep the same footprint and the same position. Do not add anything outside the footprint except small props at its base and a soft cast shadow to the right.';
+// Composition de chaque type de cadre, pour les outils qui ne peuvent pas recevoir l'image guide (la silhouette
+// doit tomber au même endroit que sur le guide pour que le sprite se pose correctement dans le jeu)
+const COMPOSITION = {
+  building: 'Composition: square image. The building stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center is at 73% of the image height and its bottom corner at 86%; the building rises from the plot toward the top and never goes outside the plot footprint.',
+  prop: 'Composition: square image, the prop centered horizontally, its base at 89% of the image height, about 60% of the width.',
+  map: 'Composition: square image, the subject on a small square ground plot seen as a 2:1 diamond centered horizontally, diamond width about 57% of the image, center at 77% of the height.',
+  mapunit: 'Composition: square image, the marching figures centered, feet at about 77% of the image height, overall height about 45% of the image.',
+  figure: 'Composition: square image, a full-body character centered, feet at 90% of the image height, head near 12%, three-quarter view slightly from above, facing the viewer\'s right.',
+  bust: 'Composition: square image, head and shoulders filling about 80% of the frame, centered, slightly turned to the right.',
+  icon: 'Composition: square image, a single object centered filling about 70% of the frame, three-quarter view from slightly above.',
+  ui: 'Composition: the element fills the whole square image edge to edge, front view, no perspective.',
+  stage: 'Composition: portrait image (2:3), the hero centered, feet at 90% of the height, standing on a round platform, banners and torches behind.',
+  header: 'Composition: wide image, the scene centered, ground at 70% of the height, nothing cut at the edges.',
+  scene: 'Composition: the panorama fills the whole image, isometric view from the front at 30 degrees, sky transparent above the island.'
+};
+// Textures de sol répétables (sans guide) et emblème
+const TEXTURE = {
+  grass: 'a seamless, tileable top-down texture of lush painted meadow grass: soft green tufts, a few tiny flowers and pebbles',
+  dirt: 'a seamless, tileable top-down texture of packed earth and dirt path: warm brown, small pebbles, faint cart tracks',
+  sand: 'a seamless, tileable top-down texture of desert sand: pale ochre, gentle wind ripples, a few small stones',
+  snow: 'a seamless, tileable top-down texture of fresh snow: white with soft blue shadows, light drifts and sparkles'
+};
+const UNIT_NAME = { hoplite: 'INFANTRY', archer: 'ARCHER', cavalry: 'CAVALRY', catapult: 'SIEGE' };
+function frameOf(file) {
+  if (/^(buildings|fields|plots|walls)\//.test(file)) return 'building';
+  if (/^props\//.test(file)) return 'prop';
+  if (/^map\/units\//.test(file)) return 'mapunit';
+  if (/^map\//.test(file)) return 'map';
+  if (/^figures\//.test(file)) return 'figure';
+  if (/^(busts\/|heroes\/[A-Z]+_bust)/.test(file)) return 'bust';
+  if (/^heroes\//.test(file) || /^scenes\/hero-/.test(file)) return 'stage';
+  if (/^scenes\/header-/.test(file)) return 'header';
+  if (/^scenes\//.test(file)) return 'scene';
+  if (/^ui\/(btn|frame|plate|bar)/.test(file)) return 'ui';
+  if (/^(ui|logo)\//.test(file)) return 'icon';
+  return 'building';
+}
 function promptFor(file, opts = {}) {
   const bg = BG[opts.bg || 'transparent'] || BG.transparent;
   let m, subject = '';
@@ -81,6 +118,11 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^map\/resources\/(\w+?)(?:_(desert|snow))?\.webp$/))) subject = `a world-map resource icon: ${RES[m[1]]}${m[2] === 'desert' ? ', desert variant with sand and a palm tree' : m[2] === 'snow' ? ', snowy variant covered with snow' : ''}`;
   else if ((m = file.match(/^map\/terrain\/(\w+)\.webp$/))) subject = `a world-map terrain icon: ${TERRAIN[m[1]]}`;
   else if ((m = file.match(/^figures\/([A-Z]+)_([A-Z]+)\.webp$/))) subject = `a full-body character sprite in three-quarter view: ${CLASS[m[1]]}, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]} and ${FACTION[m[2]].split(':')[0].replace(' architecture', '')} colors, standing on a small round base`;
+  else if ((m = file.match(/^heroes\/([A-Z]+)_bust\.webp$/))) subject = `a round token portrait, head and shoulders, of the ${m[1].toLowerCase()} hero: ${HEAD[m[1]]}, golden armor, cape, proud expression`;
+  else if ((m = file.match(/^busts\/([A-Z]+)(?:_([A-Z]+))?\.webp$/))) subject = `a round token portrait, head and shoulders, of ${CLASS[m[1]]}${m[2] ? `, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]}` : ', Roman style'}, with a small class emblem (${m[1] === 'ARCHER' ? 'bow and arrow' : m[1] === 'CAVALRY' ? 'horseshoe' : m[1] === 'SIEGE' ? 'wheel and stone' : 'crossed swords'}) on a dark round badge by the shoulder`;
+  else if ((m = file.match(/^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(?:_([A-Z]+))?\.webp$/))) subject = m[1] === 'merchant' ? 'a small world-map marker of a merchant: a wooden cart loaded with crates pulled by a horse, marching toward the lower right' : `a small world-map army marker: ${m[1] === 'cavalry' || m[1] === 'catapult' ? '' : 'two '}${CLASS[UNIT_NAME[m[1]]]}${m[2] ? `, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]} and faction colors` : ', Roman style'}, marching toward the lower right`;
+  else if ((m = file.match(/^logo\/medallion\.webp$/))) subject = 'the game emblem: a golden Roman legionary helmet with a red horsehair crest, seen in three-quarter view, inside a dark bronze medallion rimmed with gold and framed by two golden laurel branches; front view, centered';
+  else if ((m = file.match(/^terrain\/(\w+)\.webp$/))) return `${STYLE.replace(/No text[^.]*\./, '')} ${TEXTURE[m[1]]}. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque.`;
   else if ((m = file.match(/^heroes\/([A-Z]+)\.webp$/))) subject = `a full-body hero character sprite in three-quarter view: ${m[1].toLowerCase()} hero with ${HEAD[m[1]]}, cape, sword and round shield, standing on a round stone plinth`;
   else if ((m = file.match(/^scenes\/([\w-]+)\.webp$/))) subject = SCENE[m[1]] || 'an isometric scene';
   else if ((m = file.match(/^ui\/btn-(\w+?)(-pressed)?\.webp$/))) subject = `a wide rounded rectangular game button, front view, flat, filling the frame edge to edge: ${UI_BUTTON[m[1]] || 'brown'} enamel-like surface with a soft glossy highlight along the top, a thin golden rim and a dark outline${m[2] ? ', in its pressed state: darker, flatter, no highlight' : ''}. No text, no symbol on it.`;
@@ -90,6 +132,7 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^walls\/([A-Z]+)\/(\d)_seg_([xz])(_low)?(_snow)?\.webp$/))) subject = `one straight segment of a city wall, ${m[4] ? 'a low knee-high parapet' : 'a tall curtain wall'}: ${WALL_KIND[m[1]]}, ${WALL_TIER[m[3 + 1 - 1] && m[2]]}. It runs diagonally exactly like the guide and is cut flat and square at both ends so that identical copies can be joined end to end seamlessly; both ends must look the same. No tower, no gate.${m[5] ? ' Snow covers the top.' : ''}`;
   else if ((m = file.match(/^walls\/([A-Z]+)\/(\d)_tower(_snow)?\.webp$/))) subject = `a corner tower of the city wall: ${TOWER_KIND[m[1]]}, ${WALL_TIER[m[2]]}, standing alone.${m[3] ? ' Snow covers the roof.' : ''}`;
   else return null;
-  return `${STYLE} ${bg}\n\n${keep}\n\nSubject: ${subject}`;
+  const comp = COMPOSITION[frameOf(file)] || '';
+  return `${STYLE} ${bg}\n\n${keep}\n\n${comp}\n\nSubject: ${subject}`;
 }
-module.exports = { promptFor, STYLE, KEEP };
+module.exports = { promptFor, frameOf, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE };

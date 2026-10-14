@@ -13,7 +13,8 @@
 //   node tools/repaint.cjs --cats=buildings,fields --workers=2 --force
 //   node tools/repaint.cjs --reprocess                               -> recalage seul, à partir des réponses brutes conservées
 //   node tools/repaint.cjs --manifest-only                           -> réécrit painted/manifest.json
-//   node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…]      -> kit pour peindre ailleurs : guides, prompts, référence, index
+//   node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…]      -> kit pour peindre ailleurs : guides, prompts, référence, index, CSV
+//   node tools/repaint.cjs --kit=<dossier> --everything             -> kit complet (toutes catégories, paliers, bustes, unités de carte, emblème)
 //   node tools/repaint.cjs --import=<dossier>                        -> importe des images peintes ailleurs (même nom que le guide,
 //                                                                       png/jpg/webp, fond transparent ou uni), les recale et les publie
 //   node tools/repaint.cjs --tiers --only='^buildings/'              -> inclut les paliers 1 et 3 des bâtiments (_t1, _t3)
@@ -26,7 +27,7 @@ if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_US
   const r = require('child_process').spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NODE_NO_WARNINGS: '1' } });
   process.exit(r.status ?? 1);
 }
-const { promptFor } = require('./repaint/prompts.cjs');
+const { promptFor, TEXTURE: TEXTURES_LIST } = require('./repaint/prompts.cjs');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.error('playwright requis : npm i -D playwright && npx playwright install chromium'); process.exit(1); }
 
@@ -41,7 +42,9 @@ const COST = { low: 0.024, medium: 0.045, high: 0.071, xhigh: 0.13, max: 0.25 };
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
 const DEFAULT_CATS = ['buildings', 'fields', 'plots', 'props', 'map', 'heroes', 'figures', 'scenes', 'walls', 'effects', 'icons', 'uiframes'];
-const cats = args.cats ? String(args.cats).split(',') : DEFAULT_CATS;
+const EVERYTHING = args.everything;   // --everything : toutes les catégories (bustes, unités de carte, emblème, paliers compris)
+if (EVERYTHING) { args.tiers = true; args.force = args.force ?? true; }
+const cats = args.cats ? String(args.cats).split(',') : EVERYTHING ? [...DEFAULT_CATS, 'busts', 'logo'] : DEFAULT_CATS;
 const quality = ['low', 'medium', 'high', 'xhigh', 'max'].includes(args.quality) ? args.quality : 'high';
 const MODEL = args.model || 'gpt-image-2.5-sunburst';   // --model=gpt-image-2.5-flare | gpt-image-2 | gpt-image-1.5 …
 const BG = ['transparent', 'magenta', 'white'].includes(args.bg) ? args.bg : 'transparent';   // --bg=magenta : fond uni détouré après coup
@@ -57,9 +60,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const manifest3d = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
 let targets = [];
 for (const c of cats) for (const f of manifest3d.categories[c] || []) {
-  if (c === 'map' && f.startsWith('map/units/')) continue;
+  if (c === 'map' && f.startsWith('map/units/') && !EVERYTHING) continue;
   if (c === 'buildings' && /_t[13](_snow)?\.webp$/.test(f) && !args.tiers) continue;   // paliers 1 et 3 : sur demande (--tiers), ≈ 936 images
-  if (c === 'heroes' && f.endsWith('_bust.webp')) continue;        // bustes (jetons) : restent en 3D
+  if (c === 'heroes' && f.endsWith('_bust.webp') && !EVERYTHING) continue;        // bustes (jetons) : restent en 3D sauf --everything
+  if (!f.endsWith('.webp')) continue;
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
 }
@@ -185,6 +189,14 @@ async function exportKit(dir) {
   let md = '# Kit de peinture — ' + rows.length + ' images\n\nVoir LISEZMOI.txt pour la marche à suivre. Pour chaque ligne : guide = guides/<fichier>.webp, prompt = prompts/<fichier>.txt, résultat attendu = <fichier>.png (' + 'même nom, fond transparent).\n\n';
   for (const [c, list] of Object.entries(byCat)) { md += `## ${c} (${list.length})\n\n| Fichier | Taille | Sujet |\n|---|---|---|\n`; for (const r of list) md += `| ${r.file} | ${r.size} | ${(r.prompt.split('Subject: ')[1] || '').replace(/\|/g, '/').slice(0, 160)} |\n`; md += '\n'; }
   fs.writeFileSync(path.join(dir, 'INDEX.md'), md);
+  // CSV prêt à filtrer (Excel / Numbers / Sheets) : une ligne par image avec le prompt complet
+  const esc = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = ['fichier;categorie;taille;guide;prompt'];
+  for (const r of rows) lines.push([r.file + '.png', r.file.split('/')[0], r.size, 'guides/' + r.file + '.webp', r.prompt].map(esc).join(';'));
+  for (const name of Object.keys(TEXTURES_LIST)) lines.push([`terrain/${name}.png`, 'terrain', '1024x1024', '', promptFor(`terrain/${name}.webp`)].map(esc).join(';'));
+  fs.writeFileSync(path.join(dir, 'PROMPTS.csv'), '\ufeff' + lines.join('\n') + '\n');
+  const tDir = path.join(dir, 'prompts', 'terrain'); fs.mkdirSync(tDir, { recursive: true });
+  for (const name of Object.keys(TEXTURES_LIST)) fs.writeFileSync(path.join(tDir, name + '.txt'), promptFor(`terrain/${name}.webp`) + '\n');
   fs.writeFileSync(path.join(dir, 'LISEZMOI.txt'), `KIT DE PEINTURE — ${rows.length} images à produire avec l'application de ton choix
 =====================================================================================
 
