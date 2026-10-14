@@ -4621,14 +4621,7 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 
 /* Barres : planches de bois (bar-wood) ; boîtes de ressources : plaques de parchemin (plate-parchment) */
 .top-bar, .bottom-nav { background: url(../assets/images/3d/ui/bar-wood.webp) left center / auto 100% repeat-x, #2a2418; }
-.resource-box, .resource-box.gold-box {
-  background: none;
-  border: 7px solid transparent;
-  border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 7px stretch;
-  border-radius: 0;
-  padding: 0 3px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.35);
-}
+/* (boîtes de ressources : voir « Barre de ressources façon Travian » en fin de feuille) */
 
 /* Bandeau d'onglet : plaque parchemin, titre et scène 3D de l'écran (marché, alliance, classement, inventaire, rapports) */
 .tab-banner {
@@ -4730,4 +4723,59 @@ html.painted-ui .panel-actions .btn-info:active { border-image-source: url(../as
 html.painted-ui .modal-box, html.painted-ui .build-panel { border-image-source: url(../assets/images/painted/ui/frame-modal.webp); }
 html.painted-ui .map-info-panel { border-image-source: url(../assets/images/painted/ui/frame-panel.webp); }
 html.painted-ui .top-bar, html.painted-ui .bottom-nav { background-image: url(../assets/images/painted/ui/bar-wood.webp); }
-html.painted-ui .resource-box, html.painted-ui .resource-box.gold-box, html.painted-ui .tab-banner { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }
+html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }
+
+/* ========== BARRE DE RESSOURCES FAÇON TRAVIAN : une seule plaque de parchemin, colonnes compactes ========== */
+.top-bar .resources-container {
+  display: flex; align-items: stretch; gap: 0;
+  padding: 2px 4px; margin: 0;
+  border: 9px solid transparent;
+  border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 9px stretch;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+}
+.top-bar .resource-box, .top-bar .resource-box.gold-box {
+  background: none; border: 0; border-image: none; box-shadow: none; border-radius: 0;
+  flex: 1 1 0; min-width: 0; padding: 2px 8px 3px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "icon detail" "bar bar"; align-items: center; column-gap: 6px; row-gap: 3px;
+  position: relative; cursor: default;
+}
+.top-bar .resource-box.gold-box { grid-template-areas: "icon detail"; cursor: pointer; flex: 0 0 auto; padding-right: 10px; }
+.top-bar .resource-box + .resource-box::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 1px; background: linear-gradient(180deg, transparent, rgba(90,60,30,0.45), transparent); }
+.top-bar .resource-box::after { display: none; }
+.top-bar img.res-icon { grid-area: icon; width: 30px; height: 30px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+.top-bar .res-detail { grid-area: detail; display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; }
+.top-bar .res-current { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; color: #2e2010; line-height: 1.1; text-align: left; }
+.top-bar .res-timer { display: block; background: none; color: #6a5a3a; font-family: 'Crimson Text', serif; font-size: 10px; font-weight: 400; padding: 0; letter-spacing: 0; text-align: left; line-height: 1.1; }
+.top-bar .res-sub { display: flex; flex-direction: row; gap: 6px; align-items: baseline; }
+.top-bar .res-prod { color: #3a6a1e; font-size: 10px; font-weight: 700; font-family: 'Crimson Text', serif; }
+.top-bar .res-max { display: none; }
+.top-bar .res-bar { grid-area: bar; height: 4px; background: rgba(60,40,20,0.35); border-radius: 2px; box-shadow: inset 0 1px 1px rgba(0,0,0,0.35); }
+.top-bar .gold-value { color: #7a5a10; }
+@media (max-width: 768px) {
+  .top-bar .resources-container { border-width: 7px; border-image-width: 7px; padding: 1px 2px; }
+  .top-bar .resource-box, .top-bar .resource-box.gold-box { padding: 2px 5px 3px; column-gap: 4px; row-gap: 2px; }
+  .top-bar img.res-icon { width: 24px; height: 24px; }
+  .top-bar .res-current { font-size: 13px; }
+  .top-bar .res-timer, .top-bar .res-sub { display: none; }
+  .top-bar .res-bar { display: block; height: 3px; }
+}
+@media (max-width: 420px) {
+  .top-bar .resource-box, .top-bar .resource-box.gold-box { padding: 2px 3px 3px; column-gap: 3px; }
+  .top-bar img.res-icon { width: 20px; height: 20px; }
+  .top-bar .res-current { font-size: 12px; }
+}
+/* Cartes et options : plaques de parchemin peintes, liseré brun fin (façon Travian) */
+.build-option-card, .army-card-new, .unit-card, .hero-stat-card, .card, .list-item, .queue-item {
+  border: 8px solid transparent;
+  border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 8px stretch;
+  border-radius: 0; background: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .list-item, html.painted-ui .queue-item { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }
+.army-card-top, .unit-card-header { border-radius: 0; }
+/* En-têtes de panneaux et de modales : bandeau de bois peint, titre doré centré */
+.modal-header, .panel-header { background: url(../assets/images/3d/ui/bar-wood.webp) left center / auto 100% repeat-x, #3a2e22; border-bottom: 2px solid #c9a227; }
+html.painted-ui .modal-header, html.painted-ui .panel-header { background-image: url(../assets/images/painted/ui/bar-wood.webp); }
+.modal-close, .panel-close { border-radius: 50%; width: 30px; height: 30px; font-size: 18px; line-height: 1; border: 2px solid #5a4010; box-shadow: 0 1px 3px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.35); }
+
+/* Barre haute : la plaque de ressources occupe la largeur disponible sur grand écran */
+@media (min-width: 769px) { .top-bar .resources-container { flex: 1 1 auto; max-width: 760px; margin-right: 16px; } .top-bar .resource-box { padding: 4px 12px 5px; } }

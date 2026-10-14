@@ -1511,46 +1511,40 @@ const CULTURE_STYLES = {
 };
 
 // Draw city labels (name, flag, population badge) - used for both image and procedural rendering
+// Plaque de nom façon Travian : parchemin arrondi, liseré, texte brun en Crimson Text
+function drawMapNamePlate(x, top, text, px, border) {
+  mapCtx.font = `700 ${px}px 'Crimson Text', Georgia, serif`;
+  mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+  const w = mapCtx.measureText(text).width + px * 1.2, h = px * 1.5;
+  mapCtx.fillStyle = 'rgba(240,224,186,0.92)';
+  mapCtx.strokeStyle = border; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.roundRect(x - w / 2, top, w, h, h / 2); mapCtx.fill(); mapCtx.stroke();
+  mapCtx.fillStyle = '#2e2010';
+  mapCtx.fillText(text, x, top + h / 2 + 0.5);
+}
 function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
   const citySize = Math.min(tw, th * 2) * 0.8;
 
-  // Banner/flag
+  // Drapeau planté devant la ville : or pour les nôtres, bleu pour les alliés, couleurs de la faction sinon (sprite 3D, phase fixe)
   const flagY = y - citySize * 0.55;
-  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
-  mapCtx.fillStyle = bannerColor;
-  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + 1, flagY - 12);
-  mapCtx.lineTo(x + 10, flagY - 8);
-  mapCtx.lineTo(x + 1, flagY - 4);
-  mapCtx.closePath();
-  mapCtx.fill();
+  const kind = isMyCity ? 'gold' : isAlly ? 'ally' : String(tile.faction || 'ROME').toUpperCase();
+  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${kind}_0.webp`) : null;
+  if (flag) { const fh = citySize * 0.55, fw = fh * 64 / 96; mapCtx.drawImage(flag, x - fw / 2, flagY - fh * 0.92, fw, fh); }
+  else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
-  // City name label
-  if (mapZoomLevel > 0.5 && tile.name) {
-    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'top';
-    mapCtx.fillStyle = '#fff';
-    mapCtx.shadowColor = '#000';
-    mapCtx.shadowBlur = 3;
-    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
-    mapCtx.shadowBlur = 0;
-  }
+  // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
+  if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
 
   // Power level badge
   if (mapZoomLevel > 0.7 && tile.population) {
     const badgeX = x + citySize * 0.4;
     const badgeY = y - citySize * 0.5;
-    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
-    mapCtx.beginPath();
-    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+    mapCtx.fillStyle = '#e8c547'; mapCtx.strokeStyle = '#5a4010'; mapCtx.lineWidth = 1.2;
+    mapCtx.beginPath(); mapCtx.arc(badgeX, badgeY, 11, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+    mapCtx.fillStyle = '#2e2010';
+    mapCtx.font = "700 9px 'Crimson Text', Georgia, serif";
+    mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
   }
 }
 
@@ -2222,15 +2216,7 @@ function drawIsoArmy(x, y, tw, th, army) {
   if (hasSprite && !isMoving) drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize);
   if (hasSprite) {
     // Draw army name label
-    if (mapZoomLevel > 0.8 && army.name) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(army.name, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
-    }
+    if (mapZoomLevel > 0.8 && army.name) drawMapNamePlate(x, y + size * 0.45, army.name, 9, army.ownerId && player && army.ownerId !== player.id ? '#8a2a1a' : '#c9a227');
     // Movement indicator
     if (isMoving) {
       mapCtx.fillStyle = '#ffaa00';
