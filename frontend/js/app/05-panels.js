@@ -856,7 +856,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <div class="unit-mini-stats">
             <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack}</span>
             <span><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${u.stats?.defense}</span>
-            <span>🏃${u.stats?.speed}</span>
+            <span><img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">${u.stats?.speed}</span>
           </div>
           <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
             <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${unitCost.wood}</span>

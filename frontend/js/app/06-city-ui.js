@@ -39,7 +39,7 @@ function renderWounded(wounded) {
         <span class="wounded-icon">🩹</span>
         <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}</span>
         <span class="wounded-time">${minutes}:${seconds.toString().padStart(2, '0')}</span>
-        <button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner (${w.count} or)">💰</button>
+        <button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner (${w.count} or)"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></button>
       </div>
     `;
   }).join('');
@@ -314,10 +314,10 @@ function renderUnits(filter) {
       <div class="unit-card-body">
         <h3 class="unit-name">${u.name}</h3>
         <div class="unit-stats-mini">
-          <span title="Attaque">⚔️${u.stats?.attack || 0}</span>
-          <span title="Défense">🛡️${u.stats?.defense || 0}</span>
-          <span title="Endurance">❤️${u.stats?.endurance || 0}</span>
-          <span title="Vitesse">🏃${u.stats?.speed || 0}</span>
+          <span title="Attaque"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack || 0}</span>
+          <span title="Défense"><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${u.stats?.defense || 0}</span>
+          <span title="Endurance"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt="">${u.stats?.endurance || 0}</span>
+          <span title="Vitesse"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">${u.stats?.speed || 0}</span>
         </div>
       </div>
       <div class="unit-card-footer">
@@ -392,7 +392,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.defense || 0}</span>
           </div>
           <div class="stat-item endurance">
-            <span class="stat-icon">❤️</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
             <span class="stat-label">Endurance</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.endurance || 0)}%; background: #2ecc71"></div>
@@ -400,7 +400,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.endurance || 0}</span>
           </div>
           <div class="stat-item speed">
-            <span class="stat-icon">🏃</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
             <span class="stat-label">Vitesse</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.speed || 0)}%; background: #f39c12"></div>

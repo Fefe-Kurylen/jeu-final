@@ -96,7 +96,7 @@ function showUnitInfoModal(unitKey) {
             <span class="stat-value">${speed}</span>
           </div>
           <div class="stat-bar-row">
-            <span class="stat-icon">❤️</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
             <span class="stat-label">Endurance</span>
             <div class="stat-bar-container">
               <div class="stat-bar endurance" style="width: ${Math.min(endurance, 100)}%"></div>
