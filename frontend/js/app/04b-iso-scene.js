@@ -32,7 +32,7 @@ const R_PLAZA = 2.75, R_WALL = 2.75;   // l'enceinte se dresse sur le bord du pl
 const cityCam = { x: 0, y: 0, zoom: 1, auto: true };   // auto : zoom par défaut recalculé pour que les cellules restent lisibles
 const ISO_ZOOM_MIN = 0.45, ISO_ZOOM_MAX = 3.2;
 // Largeur de cellule (px logiques) visée par le cadrage par défaut : la ville déborde de l'écran et se déplace au doigt
-function isoMinCell() { return cityViewW < 500 ? 118 : 104; }
+function isoMinCell() { return cityViewW < 500 ? 118 : cityViewW < 900 ? 96 : 0; }   // grand écran : la ville entière tient dans la vue
 // Espacement de la grille : les cellules sont à 1,3 largeur de cellule les unes des autres (chemins, air entre les
 // bâtiments, enceinte éloignée des maisons) ; les parcelles font 0,74 largeur de cellule
 const ISO_SP = 1.3;
