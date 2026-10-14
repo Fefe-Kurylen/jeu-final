@@ -131,6 +131,14 @@
     scene.add(content);
     const built = job.build(content) || {};
     const extent = built.extent || 6;
+    if (job.glb) {   // export glTF binaire (textures incluses) pour un rendu externe (Blender) : pas de rendu ici
+      content.updateMatrixWorld(true);
+      const info = { frame: job.frame, cam: Object.assign({}, job.cam || {}, built.cam || {}), extent, shadowCatcher: built.shadowCatcher !== false, outline: built.outline !== false, outlinePx: built.outlinePx || 1.4 };
+      const buf = await new Promise((res, rej) => new window.GLTFExporter().parse(content, res, rej, { binary: true, embedImages: true, onlyVisible: true }));
+      let bin = ''; const bytes = new Uint8Array(buf); for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      content.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      return { glb: btoa(bin), info };
+    }
     const preset = frame.cam;
     setupLights(preset, extent);
     catcher.visible = built.shadowCatcher !== false;

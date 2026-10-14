@@ -7,6 +7,7 @@
 //   node tools/build-3d.cjs --only=ROME/MAIN  (filtre regex sur l'identifiant du travail)
 //   node tools/build-3d.cjs --sheet          (planche de contrôle PNG dans tools/render3d/out/)
 //   node tools/build-3d.cjs --workers=3
+//   node tools/build-3d.cjs --glb=<dossier> --only=…   -> exporte les scènes en .glb + .json (caméra, cadre) pour tools/blender/render.py
 //   node tools/build-3d.cjs --manifest-only (réécrit 3d/manifest.json et 3d/map/manifest.json sans rendre)
 // Prérequis : npm i -D playwright three ; npx playwright install chromium
 // ============================================================================
@@ -29,6 +30,14 @@ function threeShim() {
   const names = src.slice(i).replace(/^export \{/, '').replace(/\};?\s*$/, '').split(',').map(s => s.trim()).filter(Boolean).map(s => s.split(' as ').pop());
   return src.slice(0, i) + `\nwindow.THREE = { ${names.join(', ')} };\n`;
 }
+// GLTFExporter (module ESM de three) exposé en global, comme three lui-même
+function exporterShim() {
+  let src = fs.readFileSync(path.join(ROOT, 'node_modules', 'three', 'examples', 'jsm', 'exporters', 'GLTFExporter.js'), 'utf8');
+  src = src.replace(/import\s*\{([^}]*)\}\s*from\s*'three';/g, (m, names) => 'const {' + names + '} = window.THREE;');
+  src = src.replace(/export\s*\{\s*GLTFExporter\s*\};?/g, 'window.GLTFExporter = GLTFExporter;').replace(/export class GLTFExporter/g, 'class GLTFExporter');
+  if (!/window\.GLTFExporter = GLTFExporter/.test(src)) src += '\nwindow.GLTFExporter = GLTFExporter;\n';
+  return src;
+}
 const PAGE = `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent"><canvas id="c" width="260" height="360"></canvas></body></html>`;
 
 async function makePage(browser) {
@@ -38,6 +47,7 @@ async function makePage(browser) {
   await page.setContent(PAGE);
   await page.addScriptTag({ content: threeShim(), type: 'module' });
   await page.waitForFunction(() => !!window.THREE);
+  await page.addScriptTag({ content: exporterShim() });
   for (const f of fs.readdirSync(SRC).filter(f => /^\d\d-.*\.js$/.test(f)).sort()) await page.addScriptTag({ content: fs.readFileSync(path.join(SRC, f), 'utf8') });
   await page.waitForFunction(() => !!window.JOBS && !!window.R3D);
   return page;
@@ -61,6 +71,15 @@ async function makePage(browser) {
       const job = jobs[next++];
       if (manifestOnly) { if (fs.existsSync(path.join(OUT, job.out))) (manifest[job.category] = manifest[job.category] || []).push(job.out); else failures.push(job.id + ': fichier absent'); done++; continue; }
       try {
+        if (args.glb) {
+          const r = await page.evaluate(async (j) => { const fn = window.MODELS[j.model]; if (!fn) throw new Error('modèle inconnu ' + j.model); return await window.R3D.renderJob({ frame: j.frame, build: (g) => fn(g, ...(j.args || [])), cam: j.cam, glb: true }); }, job);
+          const base = path.join(String(args.glb), job.out.replace(/\.(webp|png)$/, ''));
+          fs.mkdirSync(path.dirname(base), { recursive: true });
+          fs.writeFileSync(base + '.glb', Buffer.from(r.glb, 'base64'));
+          fs.writeFileSync(base + '.json', JSON.stringify(Object.assign({ out: job.out, id: job.id, category: job.category }, r.info)));
+          done++; if (done % 25 === 0 || done === jobs.length) process.stdout.write(`\r  ${done}/${jobs.length}  ${Math.round((Date.now() - t0) / 1000)} s`);
+          continue;
+        }
         const data = await page.evaluate(async (j) => {
           const fn = window.MODELS[j.model];
           if (!fn) throw new Error('modèle inconnu ' + j.model);
@@ -78,7 +97,7 @@ async function makePage(browser) {
   await Promise.all(pages.map(worker));
   console.log('');
   const frames = await first.evaluate(() => window.R3D.FRAMES);
-  if (!only) {
+  if (!only && !args.glb) {
     fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify({ generatedAt: new Date().toISOString(), scale: 2, frames, categories: Object.fromEntries(Object.entries(manifest).map(([k, v]) => [k, v.sort()])) }, null, 1));
     // Manifeste de la carte (lu par frontend/js/map.js) : noms disponibles par catégorie, ancre du cadre
     const map = { format: 'webp', scale: 2, anchor: { x: frames.map.ax, y: frames.map.ay }, cities: [], resources: [], units: [], terrain: [] };
