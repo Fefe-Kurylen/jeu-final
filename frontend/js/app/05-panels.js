@@ -848,7 +848,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     return `
       <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}">
         <div class="unit-recruit-header" style="border-color: ${tierColor}">
-          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitStatsPopup('${u.key}')" title="Voir les stats détaillées">${UNIT_ICONS[u.class] || '⚔️'}</span>
+          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitStatsPopup('${u.key}')" title="Voir les stats détaillées">${unitIconHtml(u.key)}</span>
           <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
         </div>
         <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
@@ -980,7 +980,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   document.getElementById('modal-body').innerHTML = `
     <div class="unit-detail-modal">
       <div class="unit-detail-header" style="background: linear-gradient(135deg, ${tierColor}33 0%, transparent 100%); border-left: 4px solid ${tierColor}">
-        <div class="unit-detail-icon">${UNIT_ICONS[unit.class] || '⚔️'}</div>
+        <div class="unit-detail-icon">${unitIconHtml(unit.key, 'unit-ico-lg')}</div>
         <div class="unit-detail-title">
           <h2>${unit.name}</h2>
           <div class="unit-badges">

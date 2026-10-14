@@ -79,7 +79,7 @@ function renderArmies() {
         <!-- Hero Card -->
         <div class="hero-assignment-card">
           <div class="hero-card-header">
-            <span class="hero-icon-mini">👤</span>
+            <span class="hero-icon-mini">${heroPortraitHtml(player?.faction, 'hero-ico-sm')}</span>
             <span class="hero-name-mini">${escapeHtml(heroData?.name || 'Héros')}</span>
             <span class="hero-level-mini">Niv.${heroData?.level || 1}</span>
           </div>
@@ -110,7 +110,7 @@ function renderArmies() {
                 const tierColor = TIER_COLORS[unit?.tier] || '#888';
                 return `
                   <div class="garrison-unit-compact" title="${unit?.name || u.unitKey}" onclick="showUnitInfoModal('${u.unitKey}')">
-                    <span class="g-unit-icon" style="border-color: ${tierColor}">${UNIT_ICONS[unit?.class] || '⚔️'}</span>
+                    <span class="g-unit-icon" style="border-color: ${tierColor}">${unitIconHtml(u.unitKey, 'unit-ico', unit?.name || '')}</span>
                     <span class="g-unit-count">×${u.count}</span>
                   </div>
                 `;
@@ -198,7 +198,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
       <div class="army-hero-row ${hasHero ? 'has-hero' : 'no-hero'}" 
            onclick="${!hasHero && army.status === 'IDLE' ? `assignHeroToArmy('${army.id}')` : ''}">
         ${hasHero ? `
-          <span class="hero-mini-icon">👤</span>
+          <span class="hero-mini-icon">${heroPortraitHtml(player?.faction, 'hero-ico-xs')}</span>
           <span class="hero-mini-name">${escapeHtml(heroData?.name || 'Héros')}</span>
           ${army.status === 'IDLE' ? `<button class="btn-x-small" onclick="event.stopPropagation(); unassignHero('${army.id}')" title="Retirer">✕</button>` : ''}
         ` : `
@@ -220,7 +220,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <div class="units-icons-mini">
             ${army.units.slice(0, 4).map(u => {
               const unit = unitsData.find(ud => ud.key === u.unitKey);
-              return `<span class="unit-icon-tiny" title="${unit?.name}: ${u.count}">${UNIT_ICONS[unit?.class] || '⚔️'}</span>`;
+              return `<span class="unit-icon-tiny" title="${unit?.name}: ${u.count}">${unitIconHtml(u.unitKey, 'unit-ico-sm')}<b>${u.count}</b></span>`;
             }).join('')}
             ${army.units.length > 4 ? `<span class="more-badge">+${army.units.length - 4}</span>` : ''}
           </div>
@@ -458,7 +458,7 @@ function renderCompositionUnitRow(armyId, unitData) {
   return `
     <div class="comp-unit-row" data-unit="${unitKey}">
       <div class="comp-unit-info">
-        <span class="comp-unit-icon" style="border-color: ${tierColor}">${UNIT_ICONS[unit?.class] || '⚔️'}</span>
+        <span class="comp-unit-icon" style="border-color: ${tierColor}">${unitIconHtml(u.unitKey || unit?.key || '', 'unit-ico')}</span>
         <div class="comp-unit-details">
           <span class="comp-unit-name">${unit?.name || unitKey}</span>
           <span class="comp-unit-tier" style="color: ${tierColor}">${unit?.tier?.toUpperCase() || ''}</span>

@@ -836,3 +836,18 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('#login-form')) { e.preventDefault(); login(); }
   else if (e.target.closest('#register-form')) { e.preventDefault(); register(); }
 });
+
+// ========== PORTRAITS (assets/images/units, assets/images/heroes) ==========
+const UNIT_KEY_FACTION = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function unitFactionOf(unitKey) { return UNIT_KEY_FACTION[String(unitKey || '').split('_')[0]] || null; }
+function unitClassOf(unitKey) { const d = (typeof unitsData !== 'undefined' ? unitsData : []).find(u => u.key === unitKey); return d?.class || null; }
+// Portrait d'une unité (clé d'unité ou classe) : <img class="unit-ico">, faction déduite de la clé
+function unitIconHtml(keyOrClass, cls = 'unit-ico', title = '') {
+  const isClass = ['INFANTRY', 'ARCHER', 'CAVALRY', 'SIEGE'].includes(keyOrClass);
+  const klass = isClass ? keyOrClass : (unitClassOf(keyOrClass) || 'INFANTRY');
+  const faction = isClass ? (player?.faction || null) : unitFactionOf(keyOrClass);
+  const file = faction ? `${klass}_${faction}` : klass;
+  return `<img class="${cls}" src="assets/images/units/${file}.svg" alt="" title="${escapeHtml(title)}">`;
+}
+function unitIconUrl(keyOrClass) { const m = unitIconHtml(keyOrClass).match(/src="([^"]+)"/); return m ? m[1] : ''; }
+function heroPortraitHtml(faction, cls = 'hero-ico') { return `<img class="${cls}" src="assets/images/heroes/${faction || player?.faction || 'ROME'}.svg" alt="">`; }

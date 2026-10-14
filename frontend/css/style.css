@@ -4454,3 +4454,112 @@ body.keyboard-open #auth-screen .auth-container { margin: 8px auto; }
 .form-row > label { flex: 0 0 auto; }
 .form-row > select, .form-row > input, .form-row > .coord-pair { flex: 1 1 140px; min-width: 0; max-width: 100%; }
 .form-row > select { width: auto; }
+
+/* ========== PORTRAITS D'UNITÉS ET DE HÉROS ========== */
+img.unit-ico { width: 34px; height: 34px; object-fit: contain; vertical-align: middle; }
+img.unit-ico-sm { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+img.unit-ico-lg { width: 56px; height: 56px; object-fit: contain; }
+img.hero-ico-lg { width: 100%; height: 100%; object-fit: contain; }
+img.hero-ico-sm { width: 40px; height: 40px; object-fit: contain; vertical-align: middle; }
+img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align: middle; }
+.hero-portrait-large, .hero-avatar-large { padding: 0; overflow: hidden; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0; }
+.hero-portrait-large { width: 84px; height: 84px; }
+.unit-line { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.unit-line .unit-name { flex: 1; }
+.unit-detail-icon, .unit-class-icon { display: flex; align-items: center; justify-content: center; }
+
+/* ========== ONGLET ARMÉE : CARTES PEINTES ========== */
+.army-header-compact { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 10px; background: linear-gradient(180deg, rgba(74,60,42,0.9), rgba(42,34,24,0.9)); border: 1px solid #6a5a3a; border-radius: 8px; color: #e8d8b0; font-size: 13px; }
+.army-header-compact span { white-space: nowrap; }
+.army-count-badge, .rally-badge, .garrison-badge-compact { padding: 3px 8px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(201,162,39,0.35); }
+.army-management-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.column-header h3 { font-family: 'Cinzel', serif; color: #ffd700; font-size: 15px; margin: 0 0 8px; }
+.armies-list { display: flex; flex-direction: column; gap: 10px; }
+.army-card-new { background: linear-gradient(180deg, #f3e6c8 0%, #e6d4ab 100%); border: 2px solid #8b6914; border-radius: 10px; overflow: hidden; color: #3a2a14; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.army-card-new.empty { cursor: pointer; border-style: dashed; background: rgba(243,230,200,0.55); }
+.army-card-new.empty:active { transform: scale(0.99); }
+.army-card-new.locked { opacity: 0.6; }
+.army-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: linear-gradient(180deg, #5a4a32, #3a2e20); color: #ffd700; font-family: 'Cinzel', serif; border-bottom: 1px solid #8b6914; }
+.army-card-top .slot-num { font-weight: 700; opacity: 0.85; }
+.army-card-top.empty, .army-card-top.locked { color: #c9b07a; }
+.army-name-section { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.army-name-input-new { flex: 1; min-width: 0; background: rgba(0,0,0,0.25); border: 1px solid rgba(201,162,39,0.4); border-radius: 6px; color: #ffd700; font-family: 'Cinzel', serif; font-size: 14px; padding: 4px 8px; height: 32px; }
+.status-pill { padding: 3px 9px; border-radius: 12px; font-size: 12px; font-family: 'Crimson Text', Georgia, serif; white-space: nowrap; background: #2f6a3a; color: #fff; border: 1px solid rgba(255,255,255,0.25); }
+.status-pill.moving, .status-pill.returning { background: #2d5c9c; } .status-pill.attacking, .status-pill.raiding { background: #b22a22; } .status-pill.harvesting { background: #7a6a14; }
+.army-hero-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid rgba(139,105,20,0.3); font-size: 14px; }
+.army-hero-row.no-hero { color: #7a6a4a; font-style: italic; cursor: pointer; }
+.army-hero-row .hero-mini-name { font-weight: 600; }
+.btn-x-small { margin-left: auto; width: 28px; height: 28px; border-radius: 6px; border: 1px solid #8b6914; background: #e6d4ab; color: #6a1a14; cursor: pointer; }
+.army-units-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; flex-wrap: wrap; }
+.units-stat { display: flex; flex-direction: column; min-width: 54px; }
+.units-stat .stat-label { font-size: 11px; color: #7a6a4a; text-transform: uppercase; letter-spacing: 0.5px; }
+.units-stat .stat-value { font-weight: 700; font-size: 16px; color: #3a2a14; }
+.units-icons-mini { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.unit-icon-tiny { display: inline-flex; align-items: center; gap: 2px; background: rgba(0,0,0,0.08); border: 1px solid rgba(139,105,20,0.35); border-radius: 14px; padding: 2px 7px 2px 2px; font-size: 12px; }
+.unit-icon-tiny b { color: #3a2a14; }
+.more-badge, .no-units-badge { font-size: 12px; color: #7a6a4a; }
+.army-card-body-empty, .army-card-body-locked { padding: 14px; text-align: center; color: #7a6a4a; }
+.army-card-body-empty .create-plus { font-size: 26px; display: block; }
+.army-actions-row { display: flex; gap: 8px; padding: 8px 10px 10px; flex-wrap: wrap; align-items: center; }
+.army-btn { padding: 8px 12px; border-radius: 8px; border: 1px solid #8b6914; background: linear-gradient(180deg, #f6e9cc, #dcc89a); color: #3a2a14; cursor: pointer; font-family: 'Cinzel', serif; font-size: 12px; min-height: 40px; }
+.army-btn.primary { background: linear-gradient(180deg, #5ab040, #2f7a2a); color: #fff; border-color: #2f5a2a; }
+.army-btn.secondary { background: linear-gradient(180deg, #4a7fb8, #2d5c9c); color: #fff; border-color: #1c3a68; }
+.army-btn.icon-only { padding: 8px 10px; }
+.destination-badge { font-size: 12px; color: #5a4020; }
+.harvest-progress-row { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 12px; color: #5a4020; background: rgba(122,106,20,0.12); }
+.garrison-column { display: flex; flex-direction: column; gap: 12px; }
+.hero-assignment-card, .garrison-panel-compact { background: linear-gradient(180deg, #f3e6c8 0%, #e6d4ab 100%); border: 2px solid #8b6914; border-radius: 10px; padding: 10px; color: #3a2a14; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.hero-card-header { display: flex; align-items: center; gap: 8px; font-family: 'Cinzel', serif; font-weight: 600; }
+.hero-level-mini { margin-left: auto; font-size: 12px; background: #8b6914; color: #fff; padding: 2px 8px; border-radius: 10px; }
+.hero-stats-row { display: flex; gap: 12px; margin: 8px 0; font-size: 14px; }
+.hero-assign-status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.hero-available { color: #2f7a2a; font-weight: 600; }
+.btn-unassign-small { margin-left: auto; padding: 4px 10px; border-radius: 6px; border: 1px solid #8b6914; background: #e6d4ab; cursor: pointer; }
+.garrison-header-compact { display: flex; justify-content: space-between; font-family: 'Cinzel', serif; font-weight: 600; margin-bottom: 8px; }
+.garrison-units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.garrison-unit-compact { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; background: rgba(0,0,0,0.07); border: 1px solid rgba(139,105,20,0.35); border-radius: 8px; cursor: pointer; }
+.garrison-unit-compact .g-unit-icon { border: 2px solid; border-radius: 50%; display: inline-flex; padding: 1px; background: #2a2018; }
+.garrison-unit-compact .g-unit-count { font-size: 12px; font-weight: 700; }
+.garrison-empty-compact { text-align: center; color: #7a6a4a; font-size: 13px; }
+.garrison-empty-compact .hint-small { font-size: 11px; }
+@media (max-width: 700px) {
+  .army-management-layout { grid-template-columns: 1fr; }
+}
+
+/* ========== REPLAY DE BATAILLE ========== */
+.battle-replay h2 { font-family: 'Cinzel', serif; color: #8a5a10; font-size: 18px; margin: 0 0 2px; text-align: center; }
+.replay-subtitle { text-align: center; color: #5a4020; margin: 0 0 8px; font-size: 14px; }
+#replay-canvas { display: block; width: 100%; height: 240px; border: 2px solid #8b6914; border-radius: 10px; background: #3a5a2a; box-shadow: inset 0 0 30px rgba(0,0,0,0.45); }
+.replay-arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; margin-top: 10px; }
+.replay-side h4 { margin: 0 0 4px; font-size: 13px; color: #3a2a14; font-family: 'Cinzel', serif; }
+.replay-units { display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; }
+.replay-hp-bar { height: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; margin: 6px 0 2px; }
+.hp-fill { height: 100%; transition: width 0.4s; } .attacker-hp { background: #b22a22; } .defender-hp { background: #2d5c9c; }
+.replay-count { font-size: 12px; color: #5a4020; }
+.replay-center { text-align: center; min-width: 70px; }
+.replay-round-info { font-family: 'Cinzel', serif; color: #3a2a14; } .round-number { font-size: 22px; font-weight: 700; color: #8a5a10; }
+.damage-arrow { font-size: 12px; color: #5a4020; transition: transform 0.2s; } .damage-arrow.flash { transform: scale(1.15); color: #b22a22; }
+.replay-log { max-height: 110px; overflow-y: auto; font-size: 12px; color: #3a2a14; background: rgba(0,0,0,0.06); border-radius: 6px; padding: 6px 8px; margin-top: 8px; }
+.log-round { font-weight: 700; margin-top: 4px; } .log-winner { font-weight: 700; color: #8a5a10; font-family: 'Cinzel', serif; }
+.replay-controls { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+.replay-controls .btn { min-height: 40px; }
+.replay-speed { display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 8px; font-size: 13px; color: #5a4020; }
+.replay-speed input[type=range] { flex: 0 1 160px; }
+.hero-body-silhouette img.body-sprite { position: absolute; left: 50%; top: 50%; width: 78%; height: 78%; transform: translate(-50%, -50%); object-fit: contain; opacity: 0.85; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); pointer-events: none; }
+
+/* ========== GRILLE D'ENTRAÎNEMENT : CARTES D'UNITÉS PEINTES ========== */
+#units-grid, .units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.unit-card { background: linear-gradient(180deg, #f3e6c8 0%, #e6d4ab 100%); border: 2px solid #8b6914; border-radius: 10px; overflow: hidden; color: #3a2a14; box-shadow: 0 2px 6px rgba(0,0,0,0.35); display: flex; flex-direction: column; cursor: pointer; }
+.unit-card-header { display: flex; align-items: center; justify-content: center; position: relative; padding: 10px 8px 4px; border-bottom: 2px solid; background: linear-gradient(180deg, rgba(74,60,42,0.12), rgba(0,0,0,0)); }
+.unit-card-header img.unit-ico-lg { width: 62px; height: 62px; }
+.unit-tier-badge { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(0,0,0,0.3); }
+.unit-card-body { padding: 6px 10px; flex: 1; }
+.unit-card-body .unit-name { font-family: 'Cinzel', serif; font-size: 13px; margin: 0 0 4px; color: #3a2a14; }
+.unit-stats-mini { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; color: #5a4020; }
+.unit-card-footer { padding: 6px 10px 10px; }
+.recruit-btn { width: 100%; min-height: 40px; border-radius: 8px; border: 1px solid #2f5a2a; background: linear-gradient(180deg, #5ab040, #2f7a2a); color: #fff; font-family: 'Cinzel', serif; font-weight: 600; cursor: pointer; }
+@media (max-width: 480px) { #units-grid, .units-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+/* Cartes d'armée : jamais plus larges que l'écran */
+.army-content, .army-management-layout, .armies-column, .armies-list, .army-card-new, .garrison-column { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.army-card-top { flex-wrap: wrap; }
+.army-card-top .status-pill { margin-left: auto; }

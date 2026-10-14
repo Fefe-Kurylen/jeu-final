@@ -308,7 +308,7 @@ function renderUnits(filter) {
   grid.innerHTML = units.map(u => `
     <div class="unit-card" onclick="showUnitDetail('${u.key}')">
       <div class="unit-card-header" style="border-color: ${TIER_COLORS[u.tier]}">
-        <span class="unit-class-icon">${UNIT_ICONS[u.class] || '⚔️'}</span>
+        <span class="unit-class-icon">${unitIconHtml(u.key, 'unit-ico-lg')}</span>
         <div class="unit-tier-badge" style="background: ${TIER_COLORS[u.tier]}">${u.tier.charAt(0).toUpperCase()}</div>
       </div>
       <div class="unit-card-body">
@@ -360,7 +360,7 @@ function showUnitDetail(unitKey) {
     <div class="unit-detail-modal">
       <!-- Header avec couleur tier -->
       <div class="unit-detail-header" style="background: linear-gradient(135deg, ${tierColor}33 0%, transparent 100%); border-left: 4px solid ${tierColor}">
-        <div class="unit-detail-icon">${UNIT_ICONS[unit.class] || '⚔️'}</div>
+        <div class="unit-detail-icon">${unitIconHtml(unit.key, 'unit-ico-lg')}</div>
         <div class="unit-detail-title">
           <h2>${unit.name}</h2>
           <div class="unit-badges">

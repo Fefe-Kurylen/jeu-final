@@ -42,3 +42,13 @@ rangées de tuiles, ombres de contact. Le trait, les sols et les palettes sont c
 Le biome d'une ville découle de sa position (`getBiome` de la carte). Il change la parcelle au sol
 (herbe, sable, neige), les arbres (pins/chênes, palmiers/cactus, sapins enneigés) et, côté canvas,
 le ciel, le sol texturé, les montagnes, la rivière et les décors de la scène.
+
+## Portraits (`units/`, `heroes/`) et replay de bataille
+
+- `units/<CLASSE>_<FACTION>.svg` (et `units/<CLASSE>.svg` neutre) : jetons 64×64 des quatre classes
+  (INFANTRY, ARCHER, CAVALRY, SIEGE) aux couleurs de la faction, utilisés dans les panneaux (armées,
+  entraînement, garnison, rapports, fiches d'unité) via `unitIconHtml()` (01-core.js), la faction étant
+  déduite du préfixe de la clé d'unité (ROM, GAU, GRE, EGY, HUN, SUL).
+- `heroes/<FACTION>.svg` : bustes de héros 128×128 (`heroPortraitHtml()`), coiffe propre à chaque faction.
+- Le replay de bataille (`frontend/js/app/09b-battle-scene.js`) dessine un champ isométrique avec les
+  sprites de carte des unités (`map/units/*_<FACTION>.svg`), le mur du défenseur et ces portraits.

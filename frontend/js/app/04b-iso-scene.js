@@ -38,11 +38,13 @@ let isoOrigin = { x: 0, y: 0 };
 
 function isoSceneExtent(view) {
   // demi-largeur (cellules) et marges verticales (cellules) de la scène à cadrer
-  return view === 'fields' ? { hw: R_FIELD + 0.55, top: (R_FIELD + 0.5) * 0.5 + 0.8, bottom: (R_FIELD + 0.5) * 0.5 + 0.3 } : { hw: R_WALL + 0.35, top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
+  // Sur téléphone, le cadrage par défaut colle à l'enceinte (la ville remplit la largeur ; on peut dézoomer)
+  const tight = cityViewW < 500;
+  return view === 'fields' ? { hw: R_FIELD + (tight ? 0.3 : 0.55), top: (R_FIELD + 0.5) * 0.5 + 0.8, bottom: (R_FIELD + 0.5) * 0.5 + 0.3 } : { hw: R_WALL + (tight ? 0.12 : 0.35), top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
 }
 function isoLayout(view) {
   const ext = isoSceneExtent(view);
-  const padX = cityViewW < 500 ? 10 : 40, padY = cityViewW < 500 ? 16 : 40;
+  const padX = cityViewW < 500 ? 4 : 40, padY = cityViewW < 500 ? 16 : 40;
   const fitW = Math.min((cityViewW - padX * 2) / (ext.hw * 2), (cityViewH - padY * 2) / (ext.top + ext.bottom));
   const W = Math.max(26, Math.min(190, fitW * cityCam.zoom));
   const cx = cityViewW / 2 + cityCam.x, cy = cityViewH / 2 + cityCam.y + (ext.top - ext.bottom) * W / 2;

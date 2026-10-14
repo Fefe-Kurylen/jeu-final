@@ -325,7 +325,7 @@ async function loadReports() {
               <div class="units-list">
                 ${(r.attackerUnits || []).map(u => `
                   <div class="unit-line">
-                    <span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
+                    ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
                     <span class="unit-count">${u.count}</span>
                   </div>
                 `).join('')}
@@ -344,7 +344,7 @@ async function loadReports() {
               <div class="units-list">
                 ${(r.defenderUnits || []).map(u => `
                   <div class="unit-line">
-                    <span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
+                    ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
                     <span class="unit-count">${u.count}</span>
                   </div>
                 `).join('')}
@@ -403,7 +403,7 @@ function showBattleReplay(reportIndex) {
     <div class="battle-replay">
       <h2>⚔️ Replay de la Bataille</h2>
       <p class="replay-subtitle">${escapeHtml(attackerName)} vs ${escapeHtml(defenderName)}</p>
-      
+      <canvas id="replay-canvas" aria-label="Champ de bataille"></canvas>
       <div class="replay-arena">
         <div class="replay-side attacker-side">
           <h4>⚔️ Attaquant</h4>
@@ -469,6 +469,7 @@ function showBattleReplay(reportIndex) {
   };
   
   // Show initial state
+  if (typeof battleScene !== 'undefined') battleScene.attach(window.replayState);
   renderReplayState();
 }
 
@@ -530,6 +531,9 @@ function renderReplayState() {
     log.innerHTML = logHtml + log.innerHTML;
   }
   
+  // Scène 2.5D
+  if (typeof battleScene !== 'undefined') battleScene.render(state);
+
   // Check if battle ended
   if (round >= state.rounds.length && state.playing) {
     replayTogglePlay();
@@ -558,6 +562,7 @@ function replayPrevRound() {
 }
 
 function stopBattleReplay() {
+  if (typeof battleScene !== 'undefined') battleScene.stop();
   const state = window.replayState;
   if (state?.intervalId) clearInterval(state.intervalId);
   window.replayState = null;

@@ -48,7 +48,7 @@ async function loadHero() {
           <!-- Left: Hero info + Stats -->
           <div class="hero-left-col">
             <div class="hero-identity">
-              <div class="hero-portrait-large">⚔️</div>
+              <div class="hero-portrait-large">${heroPortraitHtml(player?.faction, 'hero-ico-lg')}</div>
               <div class="hero-name-level">
                 <h3>${escapeHtml(hero.name)}</h3>
                 <span class="hero-level-badge">Niv. ${hero.level}</span>
@@ -110,23 +110,7 @@ async function loadHero() {
             <div class="hero-body-container">
               <!-- Body silhouette -->
               <div class="hero-body-silhouette">
-                <svg viewBox="0 0 100 100" class="body-svg">
-                  <!-- Head -->
-                  <circle cx="50" cy="15" r="10" fill="rgba(200,160,80,0.3)" stroke="rgba(200,160,80,0.5)" stroke-width="1"/>
-                  <!-- Neck -->
-                  <line x1="50" y1="25" x2="50" y2="30" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
-                  <!-- Torso -->
-                  <rect x="35" y="30" width="30" height="25" rx="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
-                  <!-- Arms -->
-                  <line x1="35" y1="33" x2="20" y2="48" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
-                  <line x1="65" y1="33" x2="80" y2="48" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
-                  <!-- Legs -->
-                  <line x1="42" y1="55" x2="38" y2="75" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
-                  <line x1="58" y1="55" x2="62" y2="75" stroke="rgba(200,160,80,0.3)" stroke-width="3"/>
-                  <!-- Feet -->
-                  <ellipse cx="36" cy="80" rx="6" ry="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
-                  <ellipse cx="64" cy="80" rx="6" ry="3" fill="rgba(200,160,80,0.2)" stroke="rgba(200,160,80,0.4)" stroke-width="1"/>
-                </svg>
+                <img class="body-sprite" src="assets/images/map/units/hoplite_${player?.faction || 'ROME'}.svg" alt="">
 
                 <!-- Equipment slot overlays -->
                 ${Object.entries(EQUIPMENT_SLOTS).map(([slot, info]) => {
@@ -299,7 +283,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
       <div class="hero-management-panel">
         <!-- Hero Profile Section -->
         <div class="hero-profile-section">
-          <div class="hero-avatar-large">⚔️</div>
+          <div class="hero-avatar-large">${heroPortraitHtml(player?.faction, 'hero-ico-lg')}</div>
           <div class="hero-profile-info">
             <h3 class="hero-name-large">${escapeHtml(hero.name)}</h3>
             <div class="hero-level-badge">Niveau ${hero.level}</div>

@@ -714,6 +714,87 @@ function buildIcons() {
   return n;
 }
 
+// ---------------------------------------------------------------------------
+// Portraits (64×64 tokens) : unités par classe × faction, et bustes de héros (128×128) par faction
+// ---------------------------------------------------------------------------
+const SKIN = '#e8c49c', SKIN_D = '#c9a070';
+function token(cx, cy, r, rim) {
+  return circ(cx, cy, r, rgrad('#4a3a28', '#1e160e', 0.4, 0.35, 0.8), OL(1.6)) + circ(cx, cy, r - 2.5, 'none', `stroke="${rim}" stroke-width="1.6" opacity="0.9"`);
+}
+// Buste de face : épaules/tunique, cou, tête, casque selon la faction (couvre-chef), options de classe
+function bust(cx, cy, s, tunic, f, opts = {}) {
+  let o = '';
+  // épaules
+  o += `<path d="M${f1(cx - s * 0.62)},${f1(cy + s * 0.75)} q0,${f1(-s * 0.45)} ${f1(s * 0.42)},${f1(-s * 0.5)} h${f1(s * 0.4)} q${f1(s * 0.42)},${f1(s * 0.05)} ${f1(s * 0.42)},${f1(s * 0.5)} z" fill="${grad(shade(tunic, 14), shade(tunic, -14), 0, 0, 0, 1)}" ${OL(1.3)}/>`;
+  if (opts.armor) o += `<path d="M${f1(cx - s * 0.3)},${f1(cy + s * 0.75)} v${f1(-s * 0.36)} q${f1(s * 0.3)},${f1(-s * 0.12)} ${f1(s * 0.6)},0 v${f1(s * 0.36)} z" fill="${grad('#c8d0dc', '#6c7684', 0, 0, 0, 1)}" ${OL(1.1)}/>`;
+  // cou + tête
+  o += rect(cx - s * 0.12, cy + s * 0.05, s * 0.24, s * 0.26, SKIN_D, OL(1));
+  o += `<path d="M${f1(cx - s * 0.3)},${f1(cy - s * 0.05)} q0,${f1(s * 0.3)} ${f1(s * 0.3)},${f1(s * 0.32)} q${f1(s * 0.3)},${f1(-s * 0.02)} ${f1(s * 0.3)},${f1(-s * 0.32)} v${f1(-s * 0.3)} q0,${f1(-s * 0.3)} ${f1(-s * 0.3)},${f1(-s * 0.3)} q${f1(-s * 0.3)},0 ${f1(-s * 0.3)},${f1(s * 0.3)} z" fill="${grad(SKIN, SKIN_D, 0, 0, 0, 1)}" ${OL(1.2)}/>`;
+  // yeux, bouche
+  o += ell(cx - s * 0.11, cy + s * 0.02, s * 0.035, s * 0.03, '#2a1a0a') + ell(cx + s * 0.11, cy + s * 0.02, s * 0.035, s * 0.03, '#2a1a0a') + `<path d="M${f1(cx - s * 0.07)},${f1(cy + s * 0.17)} q${f1(s * 0.07)},${f1(s * 0.05)} ${f1(s * 0.14)},0" stroke="#8a5a40" stroke-width="${f1(s * 0.025)}" fill="none"/>`;
+  if (opts.beard) o += `<path d="M${f1(cx - s * 0.26)},${f1(cy + s * 0.06)} q${f1(s * 0.02)},${f1(s * 0.3)} ${f1(s * 0.26)},${f1(s * 0.32)} q${f1(s * 0.24)},${f1(-s * 0.02)} ${f1(s * 0.26)},${f1(-s * 0.32)} q${f1(-s * 0.1)},${f1(s * 0.12)} ${f1(-s * 0.26)},${f1(s * 0.14)} q${f1(-s * 0.16)},${f1(-s * 0.02)} ${f1(-s * 0.26)},${f1(-s * 0.14)} z" fill="${opts.beard}" ${OL(1)}/>`;
+  // couvre-chef par faction
+  const metal = grad('#dfe5ee', '#8a94a0', 0, 0, 0, 1), goldG = grad('#ffe08a', '#c9a227', 0, 0, 0, 1);
+  const top = cy - s * 0.35;
+  if (f === 'ROME') {   // galea : dôme, couvre-nuque, cimier rouge
+    o += `<path d="M${f1(cx - s * 0.34)},${f1(cy - s * 0.1)} q0,${f1(-s * 0.42)} ${f1(s * 0.34)},${f1(-s * 0.42)} q${f1(s * 0.34)},0 ${f1(s * 0.34)},${f1(s * 0.42)} z" fill="${metal}" ${OL(1.2)}/>`;
+    o += `<path d="M${f1(cx - s * 0.08)},${f1(top - s * 0.17)} q${f1(s * 0.08)},${f1(-s * 0.3)} ${f1(s * 0.16)},0 q${f1(-s * 0.02)},${f1(s * 0.1)} ${f1(-s * 0.16)},0 z" fill="#c0241e" ${OL(1)}/>`;
+    o += rect(cx - s * 0.36, cy - s * 0.12, s * 0.72, s * 0.06, '#9a6a14', OL(0.8));
+  } else if (f === 'GAUL') {   // casque simple, cheveux longs, moustache
+    o += `<path d="M${f1(cx - s * 0.36)},${f1(cy + s * 0.2)} q${f1(-s * 0.04)},${f1(-s * 0.5)} ${f1(s * 0.14)},${f1(-s * 0.62)} h${f1(s * 0.44)} q${f1(s * 0.18)},${f1(s * 0.12)} ${f1(s * 0.14)},${f1(s * 0.62)} q${f1(-s * 0.08)},${f1(-s * 0.3)} ${f1(-s * 0.36)},${f1(-s * 0.34)} q${f1(-s * 0.28)},${f1(s * 0.04)} ${f1(-s * 0.36)},${f1(s * 0.34)} z" fill="#c8862e" ${OL(1.1)}/>`;
+    o += `<path d="M${f1(cx - s * 0.33)},${f1(cy - s * 0.08)} q0,${f1(-s * 0.38)} ${f1(s * 0.33)},${f1(-s * 0.38)} q${f1(s * 0.33)},0 ${f1(s * 0.33)},${f1(s * 0.38)} z" fill="${metal}" ${OL(1.2)}/>`;
+    o += `<path d="M${f1(cx - s * 0.33)},${f1(cy - s * 0.2)} q${f1(-s * 0.15)},${f1(-s * 0.1)} ${f1(-s * 0.1)},${f1(-s * 0.3)} M${f1(cx + s * 0.33)},${f1(cy - s * 0.2)} q${f1(s * 0.15)},${f1(-s * 0.1)} ${f1(s * 0.1)},${f1(-s * 0.3)}" stroke="#dfe5ee" stroke-width="${f1(s * 0.06)}" fill="none" stroke-linecap="round"/>`;
+    o += `<path d="M${f1(cx - s * 0.18)},${f1(cy + s * 0.14)} q${f1(s * 0.18)},${f1(-s * 0.08)} ${f1(s * 0.36)},0 q${f1(-s * 0.06)},${f1(s * 0.1)} ${f1(-s * 0.18)},${f1(s * 0.06)} q${f1(-s * 0.12)},${f1(s * 0.04)} ${f1(-s * 0.18)},${f1(-s * 0.06)} z" fill="#c8862e" ${OL(0.9)}/>`;
+  } else if (f === 'GREEK') {   // corinthien : couvre-joues, nasal, cimier
+    o += `<path d="M${f1(cx - s * 0.36)},${f1(cy + s * 0.22)} v${f1(-s * 0.32)} q0,${f1(-s * 0.42)} ${f1(s * 0.36)},${f1(-s * 0.42)} q${f1(s * 0.36)},0 ${f1(s * 0.36)},${f1(s * 0.42)} v${f1(s * 0.32)} l${f1(-s * 0.14)},${f1(s * 0.02)} v${f1(-s * 0.3)} h${f1(-s * 0.1)} l${f1(-s * 0.12)},${f1(s * 0.22)} l${f1(-s * 0.12)},${f1(-s * 0.22)} h${f1(-s * 0.1)} v${f1(s * 0.3)} z" fill="${goldG}" ${OL(1.2)}/>`;
+    o += `<path d="M${f1(cx - s * 0.1)},${f1(top - s * 0.12)} q${f1(s * 0.1)},${f1(-s * 0.36)} ${f1(s * 0.2)},0 q${f1(-s * 0.02)},${f1(s * 0.12)} ${f1(-s * 0.2)},0 z" fill="#2d5c9c" ${OL(1)}/>`;
+  } else if (f === 'EGYPT') {   // némès rayé + collier
+    o += `<path d="M${f1(cx - s * 0.5)},${f1(cy + s * 0.55)} q${f1(-s * 0.05)},${f1(-s * 0.6)} ${f1(s * 0.2)},${f1(-s * 0.95)} h${f1(s * 0.6)} q${f1(s * 0.25)},${f1(s * 0.35)} ${f1(s * 0.2)},${f1(s * 0.95)} l${f1(-s * 0.2)},${f1(-s * 0.1)} q${f1(-s * 0.12)},${f1(-s * 0.45)} ${f1(-s * 0.3)},${f1(-s * 0.55)} q${f1(-s * 0.18)},${f1(s * 0.1)} ${f1(-s * 0.3)},${f1(s * 0.55)} z" fill="${grad('#2f9e98', '#1f6e6a', 0, 0, 0, 1)}" ${OL(1.2)}/>`;
+    for (let i = 1; i <= 4; i++) o += `<path d="M${f1(cx - s * 0.46)},${f1(cy - s * 0.3 + i * s * 0.18)} q${f1(s * 0.1)},${f1(s * 0.02)} ${f1(s * 0.14)},${f1(s * 0.06)} M${f1(cx + s * 0.46)},${f1(cy - s * 0.3 + i * s * 0.18)} q${f1(-s * 0.1)},${f1(s * 0.02)} ${f1(-s * 0.14)},${f1(s * 0.06)}" stroke="#e8c547" stroke-width="${f1(s * 0.05)}" fill="none"/>`;
+    o += `<path d="M${f1(cx - s * 0.5)},${f1(cy + s * 0.5)} q${f1(s * 0.5)},${f1(s * 0.28)} ${f1(s)},0 q${f1(-s * 0.5)},${f1(s * 0.14)} ${f1(-s)},0 z" fill="${goldG}" ${OL(1)}/>`;
+    o += `<path d="M${f1(cx - s * 0.06)},${f1(cy - s * 0.4)} l${f1(s * 0.06)},${f1(-s * 0.16)} l${f1(s * 0.06)},${f1(s * 0.16)} z" fill="#e8c547" ${OL(0.8)}/>`;
+  } else if (f === 'HUN') {   // bonnet pointu bordé de fourrure, tresses
+    o += `<path d="M${f1(cx - s * 0.36)},${f1(cy - s * 0.1)} q${f1(s * 0.1)},${f1(-s * 0.52)} ${f1(s * 0.36)},${f1(-s * 0.68)} q${f1(s * 0.26)},${f1(s * 0.16)} ${f1(s * 0.36)},${f1(s * 0.68)} z" fill="${grad('#b8341c', '#7a2210', 0, 0, 0, 1)}" ${OL(1.2)}/>`;
+    o += `<path d="M${f1(cx - s * 0.4)},${f1(cy - s * 0.02)} q${f1(s * 0.4)},${f1(-s * 0.2)} ${f1(s * 0.8)},0 q${f1(-s * 0.4)},${f1(s * 0.14)} ${f1(-s * 0.8)},0 z" fill="${grad('#c4b092', '#8a7a5c', 0, 0, 0, 1)}" ${OL(1)}/>`;
+    o += `<path d="M${f1(cx - s * 0.3)},${f1(cy + s * 0.05)} q${f1(-s * 0.12)},${f1(s * 0.3)} ${f1(-s * 0.04)},${f1(s * 0.5)} M${f1(cx + s * 0.3)},${f1(cy + s * 0.05)} q${f1(s * 0.12)},${f1(s * 0.3)} ${f1(s * 0.04)},${f1(s * 0.5)}" stroke="#2a1a0a" stroke-width="${f1(s * 0.07)}" fill="none" stroke-linecap="round"/>`;
+  } else if (f === 'SULTAN') {   // turban + joyau
+    o += `<path d="M${f1(cx - s * 0.42)},${f1(cy - s * 0.05)} q0,${f1(-s * 0.5)} ${f1(s * 0.42)},${f1(-s * 0.55)} q${f1(s * 0.42)},${f1(s * 0.05)} ${f1(s * 0.42)},${f1(s * 0.55)} z" fill="${grad('#f6f0e2', '#c8bca4', 0, 0, 0, 1)}" ${OL(1.2)}/>`;
+    o += `<path d="M${f1(cx - s * 0.4)},${f1(cy - s * 0.12)} q${f1(s * 0.2)},${f1(-s * 0.22)} ${f1(s * 0.6)},${f1(-s * 0.1)} M${f1(cx - s * 0.2)},${f1(cy - s * 0.4)} q${f1(s * 0.3)},${f1(-s * 0.1)} ${f1(s * 0.55)},${f1(s * 0.14)}" stroke="#b8ac94" stroke-width="${f1(s * 0.03)}" fill="none"/>`;
+    o += rect(cx - s * 0.44, cy - s * 0.1, s * 0.88, s * 0.08, '#259a86', OL(0.9) + ' rx="2"');
+    o += `<path d="M${f1(cx)},${f1(cy - s * 0.44)} l${f1(s * 0.07)},${f1(s * 0.1)} l${f1(-s * 0.07)},${f1(s * 0.1)} l${f1(-s * 0.07)},${f1(-s * 0.1)} z" fill="#e8c547" ${OL(0.8)}/>`;
+  } else {   // neutre : casque rond
+    o += `<path d="M${f1(cx - s * 0.34)},${f1(cy - s * 0.1)} q0,${f1(-s * 0.42)} ${f1(s * 0.34)},${f1(-s * 0.42)} q${f1(s * 0.34)},0 ${f1(s * 0.34)},${f1(s * 0.42)} z" fill="${metal}" ${OL(1.2)}/>`;
+  }
+  return o;
+}
+const CLASS_BADGE = {
+  INFANTRY: (cx, cy, s) => shield(cx - s * 0.62, cy + s * 0.8, s * 0.5, CUR ? CUR.roof : '#b8502a') + line(cx + s * 0.62, cy + s * 0.9, cx + s * 0.62, cy - s * 0.3, STYLE.line, s * 0.09) + line(cx + s * 0.62, cy + s * 0.9, cx + s * 0.62, cy - s * 0.3, '#dfe5ee', s * 0.045) + poly([[cx + s * 0.55, cy - s * 0.3], [cx + s * 0.69, cy - s * 0.3], [cx + s * 0.62, cy - s * 0.5]], '#dfe5ee', OL(0.8)),
+  ARCHER: (cx, cy, s) => `<path d="M${f1(cx + s * 0.5)},${f1(cy - s * 0.35)} q${f1(s * 0.4)},${f1(s * 0.5)} 0,${f1(s)}" stroke="${STYLE.line}" stroke-width="${f1(s * 0.11)}" fill="none" stroke-linecap="round"/><path d="M${f1(cx + s * 0.5)},${f1(cy - s * 0.35)} q${f1(s * 0.4)},${f1(s * 0.5)} 0,${f1(s)}" stroke="#a0783c" stroke-width="${f1(s * 0.06)}" fill="none" stroke-linecap="round"/>` + line(cx + s * 0.5, cy - s * 0.35, cx + s * 0.5, cy + s * 0.65, '#e8e0d0', s * 0.025),
+  CAVALRY: (cx, cy, s) => `<path d="M${f1(cx + s * 0.4)},${f1(cy + s * 0.75)} v${f1(-s * 0.5)} q0,${f1(-s * 0.3)} ${f1(s * 0.22)},${f1(-s * 0.36)} l${f1(s * 0.1)},${f1(-s * 0.18)} l${f1(s * 0.14)},${f1(s * 0.1)} l${f1(s * 0.12)},${f1(s * 0.04)} q${f1(s * 0.04)},${f1(s * 0.26)} ${f1(-s * 0.18)},${f1(s * 0.3)} v${f1(s * 0.6)} z" fill="${grad('#8a5a30', '#5a3a1e', 0, 0, 0, 1)}" ${OL(1.1)}/>` + circ(cx + s * 0.78, cy + s * 0.02, s * 0.035, '#1a0e04'),
+  SIEGE: (cx, cy, s) => wheel(cx + s * 0.6, cy + s * 0.6, s * 0.2) + line(cx + s * 0.6, cy + s * 0.5, cx + s * 0.9, cy - s * 0.2, STYLE.line, s * 0.1) + line(cx + s * 0.6, cy + s * 0.5, cx + s * 0.9, cy - s * 0.2, '#8a6230', s * 0.05) + circ(cx + s * 0.92, cy - s * 0.24, s * 0.09, '#555', OL(0.8))
+};
+function unitPortrait(cls, faction) {
+  const pal = PALETTES[faction] || null;
+  const tunic = pal ? (cls === 'ARCHER' ? shade(pal.accent, -18) : pal.accent) : '#8b1a1a';
+  const rim = pal ? pal.accent : '#c9a227';
+  return `<g clip-path="url(#tok)">` + token(32, 32, 30, rim) + bust(32, 32, 24, tunic, faction || 'NONE', { armor: cls === 'INFANTRY' || cls === 'CAVALRY' }) + (CLASS_BADGE[cls] ? CLASS_BADGE[cls](32, 32, 24) : '') + `</g>` + circ(32, 32, 30, 'none', OL(1.8));
+}
+function heroPortrait(faction) {
+  const pal = PALETTES[faction] || PALETTES.ROME;
+  return `<g clip-path="url(#tokh)">` + token(64, 64, 60, '#e8c547') + bust(64, 66, 46, pal.accent, faction, { armor: true, beard: faction === 'GAUL' || faction === 'HUN' ? '#5a3a1a' : null }) + `</g>` + circ(64, 64, 60, 'none', `stroke="#e8c547" stroke-width="3"`) + circ(64, 64, 60, 'none', OL(1.8));
+}
+function portraitDoc(inner, size, clip) { return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" shape-rendering="geometricPrecision">${DEFS}<defs><clipPath id="${clip}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}"/></clipPath>${takeDefs()}</defs>${inner}</svg>\n`; }
+function buildPortraits() {
+  let n = 0;
+  for (const cls of ['INFANTRY', 'ARCHER', 'CAVALRY', 'SIEGE']) {
+    CUR = null; writeFile(path.join(OUT, 'units', `${cls}.svg`), portraitDoc(unitPortrait(cls, null), 64, 'tok')); n++;
+    for (const [faction, palette] of Object.entries(PALETTES)) { CUR = palette; writeFile(path.join(OUT, 'units', `${cls}_${faction}.svg`), portraitDoc(unitPortrait(cls, faction), 64, 'tok')); n++; }
+  }
+  for (const [faction, palette] of Object.entries(PALETTES)) { CUR = palette; writeFile(path.join(OUT, 'heroes', `${faction}.svg`), portraitDoc(heroPortrait(faction), 128, 'tokh')); n++; }
+  CUR = null;
+  return n;
+}
+
 function laurel(cx, cy, r, side) {
   const a0 = 100 * Math.PI / 180, a1 = -40 * Math.PI / 180;
   const px = (a) => cx + side * r * Math.cos(a), py = (a) => cy + r * Math.sin(a);
@@ -822,6 +903,7 @@ async function renderPngs(mapManifest) {
 (async () => {
   const nCity = buildCitySprites();
   const nIcons = buildIcons();
+  console.log(`${buildPortraits()} portraits (unités, héros)`);
   console.log(`${nIcons} icônes d'interface (SVG)`);
   const mapManifest = buildMapSprites();
   writeFile(path.join(OUT, 'logo.svg'), logoSvg(240, false, true));
