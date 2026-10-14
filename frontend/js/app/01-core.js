@@ -127,30 +127,6 @@ const requestManager = {
   }
 };
 
-// Building icons mapping (39 bâtiments)
-const BUILDING_ICONS = {
-  // Base buildings
-  MAIN_HALL: '🏛️', FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️',
-  WAREHOUSE: '📦', SILO: '🏺',
-  // Intermediate buildings
-  RALLY_POINT: '🚩', BARRACKS: '⚔️', STABLE: '🐎', WORKSHOP: '⚙️',
-  ACADEMY: '📚', FORGE: '🔨', HIDEOUT: '🕳️', HEALING_TENT: '⛺',
-  // Advanced buildings
-  MARKET: '🏪', WALL: '🏰', MOAT: '💧',
-  // Production bonus
-  MILL: '🌀', BAKERY: '🥖', SAWMILL: '🪚', STONEMASON: '🗿', FOUNDRY: '🔥',
-  // Protected storage
-  GREAT_SILO: '🏛️', GREAT_WAREHOUSE: '🏗️',
-  // Military advanced
-  GREAT_BARRACKS: '🏟️', GREAT_STABLE: '🐴', WATCHTOWER: '🗼',
-  // Special buildings
-  EMBASSY: '🏰', TREASURE_CHAMBER: '💎', HERO_MANSION: '👤', RESIDENCE: '🏠', TRADE_OFFICE: '📊',
-  // Faction buildings
-  ROMAN_THERMAE: '🛁', GALLIC_BREWERY: '🍺', GREEK_TEMPLE: '⛩️',
-  EGYPTIAN_IRRIGATION: '💦', HUN_WAR_TENT: '⛺', SULTAN_DESERT_OUTPOST: '🏜️',
-  // Legacy
-  HERO_HOME: '👤'
-};
 
 // ========== PRODUCTION INTERPOLATION (L1 → L10 → L20) ==========
 function lerpExp(a, b, t) {

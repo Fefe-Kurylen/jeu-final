@@ -140,16 +140,11 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
     // Vue champs - style Travian
     if (slot?.isVillageCenter) {
       html = `
-        <h4><span class="tt-icon">🏰</span> Centre du Village</h4>
+        <h4><span class="tt-icon">${resIconHtml('city')}</span> Centre du Village</h4>
         <p class="tt-hint">Cliquez pour voir les bâtiments</p>
       `;
     } else if (slot?.isField) {
-      const fieldIcons = {
-        FARM: '🌾',
-        LUMBER: '🪵',
-        QUARRY: '🪨',
-        IRON_MINE: '⛏️'
-      };
+      const fieldIcons = { FARM: resIconHtml('food'), LUMBER: resIconHtml('wood'), QUARRY: resIconHtml('stone'), IRON_MINE: resIconHtml('iron') };
       const fieldNames = {
         FARM: 'Champ de blé',
         LUMBER: 'Scierie',
@@ -166,7 +161,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const cvEffectiveMax = Math.min(cvFieldMax, cvMainHallLevel);
 
       html = `
-        <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '🏭'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+        <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || resIconHtml('fields')}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
         <p class="tt-level">Niveau ${level}/${cvEffectiveMax}</p>
         ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
         <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= cvEffectiveMax ? (level >= cvFieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${cvMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
@@ -202,7 +197,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       `;
     } else {
       html = `
-        <h4><span class="tt-icon">🔨</span> Emplacement libre</h4>
+        <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""></span> Emplacement libre</h4>
         <p class="tt-hint">Cliquez pour construire un bâtiment</p>
       `;
     }

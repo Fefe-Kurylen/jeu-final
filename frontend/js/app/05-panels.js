@@ -66,7 +66,7 @@ function showFieldsTooltip(mouseX, mouseY, slotNum) {
       <p class="tt-hint">Cliquez pour voir les bâtiments</p>
     `;
   } else if (slot?.isField) {
-    const fieldIcons = { FARM: '🌾', LUMBER: '🪵', QUARRY: '🪨', IRON_MINE: '⛏️' };
+    const fieldIcons = { FARM: buildingIconHtml('FARM', 'b-ico-md'), LUMBER: buildingIconHtml('LUMBER', 'b-ico-md'), QUARRY: buildingIconHtml('QUARRY', 'b-ico-md'), IRON_MINE: buildingIconHtml('IRON_MINE', 'b-ico-md') };
     const fieldNames = { FARM: 'Champ de blé', LUMBER: 'Scierie', QUARRY: 'Carrière de pierre', IRON_MINE: 'Mine de fer' };
     const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
     const level = building?.level || 0;
@@ -233,7 +233,7 @@ function openBuildPanel(slotNum) {
               </div>
             </div>
             <div class="upgrade-action">
-              <div class="build-time"><span class="time-icon">⏱️</span> ${timeStr}</div>
+              <div class="build-time"><span class="time-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span> ${timeStr}</div>
               <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
                 ${isBuildQueueFull() ? '⏳ File de construction pleine' : hasResources ? '🔨 Ameliorer' : '❌ Ressources insuffisantes'}
               </button>
@@ -294,7 +294,7 @@ function openBuildPanel(slotNum) {
     const fieldKey = slot.fieldType;
     const def = buildingsData.find(b => b.key === fieldKey);
     const resourceType = fieldKey === 'FARM' ? 'nourriture' : fieldKey === 'LUMBER' ? 'bois' : fieldKey === 'QUARRY' ? 'pierre' : 'fer';
-    const resourceIcon = fieldKey === 'FARM' ? '🌾' : fieldKey === 'LUMBER' ? '🪵' : fieldKey === 'QUARRY' ? '🪨' : '⛏️';
+    const resourceIcon = resIconHtml(fieldKey === 'FARM' ? 'food' : fieldKey === 'LUMBER' ? 'wood' : fieldKey === 'QUARRY' ? 'stone' : 'iron');
     
     title.innerHTML = `<span class="building-detail-icon">${buildingIconHtml(fieldKey)}</span> ${getBuildingName(fieldKey)}`;
     
@@ -396,16 +396,16 @@ function openBuildPanel(slotNum) {
                         <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
                       `}
                       <div class="build-option-costs ${!hasPrereqs ? 'dimmed' : ''}">
-                        <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}">🪵${formatNum(b.costL1?.wood || 0)}</span>
-                        <span class="${currentCity?.stone >= (b.costL1?.stone || 0) ? '' : 'missing'}">🪨${formatNum(b.costL1?.stone || 0)}</span>
-                        <span class="${currentCity?.iron >= (b.costL1?.iron || 0) ? '' : 'missing'}">⛏️${formatNum(b.costL1?.iron || 0)}</span>
-                        <span class="${currentCity?.food >= (b.costL1?.food || 0) ? '' : 'missing'}">🌾${formatNum(b.costL1?.food || 0)}</span>
+                        <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 0)}</span>
+                        <span class="${currentCity?.stone >= (b.costL1?.stone || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 0)}</span>
+                        <span class="${currentCity?.iron >= (b.costL1?.iron || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 0)}</span>
+                        <span class="${currentCity?.food >= (b.costL1?.food || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 0)}</span>
                       </div>
-                      <div class="build-option-time">⏱️ ${formatDuration(b.timeL1Sec || 60)}</div>
+                      <div class="build-option-time"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(b.timeL1Sec || 60)}</div>
                     </div>
                     <div class="build-option-action">
                       ${blocked ? `<span class="built-badge">✓</span>` :
-                        canBuild ? `<button class="mini-build-btn">🔨</button>` :
+                        canBuild ? `<button class="mini-build-btn"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""></button>` :
                         `<button class="mini-build-btn disabled">🔒</button>`}
                     </div>
                   </div>
@@ -582,17 +582,17 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
             <h4>🏪 Capacité de stockage</h4>
             <div class="storage-bars">
               <div class="storage-row">
-                <span>🪵 Bois:</span>
+                <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> Bois:</span>
                 <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / (1200 + level * 8000)) * 100)}%"></div></div>
                 <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(1200 + level * 8000)}</span>
               </div>
               <div class="storage-row">
-                <span>🪨 Pierre:</span>
+                <span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> Pierre:</span>
                 <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / (1200 + level * 8000)) * 100)}%"></div></div>
                 <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(1200 + level * 8000)}</span>
               </div>
               <div class="storage-row">
-                <span>⛏️ Fer:</span>
+                <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> Fer:</span>
                 <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / (1200 + level * 8000)) * 100)}%"></div></div>
                 <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(1200 + level * 8000)}</span>
               </div>
@@ -610,10 +610,10 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         name: 'Stockage',
         content: `
           <div class="special-tab-content">
-            <h4>🌾 Capacité de stockage nourriture</h4>
+            <h4><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> Capacité de stockage nourriture</h4>
             <div class="storage-bars">
               <div class="storage-row">
-                <span>🌾 Nourriture:</span>
+                <span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> Nourriture:</span>
                 <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / (1200 + level * 8000)) * 100)}%"></div></div>
                 <span>${formatNum(currentCity?.food || 0)} / ${formatNum(1200 + level * 8000)}</span>
               </div>
@@ -723,12 +723,12 @@ function openFieldBuildPanel(slotNum) {
   const queueFull = isBuildQueueFull();
   const canAfford = currentCity && currentCity.wood >= cost.wood && currentCity.stone >= cost.stone && currentCity.iron >= cost.iron && currentCity.food >= cost.food;
   const costHtml = `<div class="upgrade-cost">
-            <span class="${currentCity?.wood >= cost.wood ? '' : 'missing'}">🪵 ${formatNum(cost.wood)}</span>
-            <span class="${currentCity?.stone >= cost.stone ? '' : 'missing'}">🪨 ${formatNum(cost.stone)}</span>
-            <span class="${currentCity?.iron >= cost.iron ? '' : 'missing'}">⛏️ ${formatNum(cost.iron)}</span>
-            <span class="${currentCity?.food >= cost.food ? '' : 'missing'}">🌾 ${formatNum(cost.food)}</span>
+            <span class="${currentCity?.wood >= cost.wood ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(cost.wood)}</span>
+            <span class="${currentCity?.stone >= cost.stone ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(cost.stone)}</span>
+            <span class="${currentCity?.iron >= cost.iron ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(cost.iron)}</span>
+            <span class="${currentCity?.food >= cost.food ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(cost.food)}</span>
           </div>
-          <p style="font-size:12px;color:#888">⏱️ ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
+          <p style="font-size:12px;color:#888"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
   const buttonLabel = queueFull ? '⏳ File pleine' : targetLevel > mainHallLevel ? `🔒 Bât. principal Niv.${targetLevel} requis` : !canAfford ? '❌ Ressources insuffisantes' : null;
 
   if (level > 0) {
@@ -854,13 +854,13 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
         <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
           <h5>${u.name}</h5>
           <div class="unit-mini-stats">
-            <span>⚔️${u.stats?.attack}</span>
-            <span>🛡️${u.stats?.defense}</span>
+            <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack}</span>
+            <span><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${u.stats?.defense}</span>
             <span>🏃${u.stats?.speed}</span>
           </div>
           <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
-            <span>🪵${unitCost.wood}</span>
-            <span>⛏️${unitCost.iron}</span>
+            <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${unitCost.wood}</span>
+            <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${unitCost.iron}</span>
           </div>
         </div>
         ${isRecruiting ? '<div class="unit-blocked">⏳ En cours...</div>' : ''}
@@ -1021,23 +1021,23 @@ function openUnitRecruitModal(unitKey, buildingKey) {
       </div>
       
       <div class="unit-costs">
-        <h4>💰 Coût par unité</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût par unité</h4>
         <div class="cost-row">
-          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}">🪵 ${unitCost.wood}</span>
-          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}">🪨 ${unitCost.stone}</span>
-          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}">⛏️ ${unitCost.iron}</span>
-          <span class="cost-item ${getResourceClass(unitCost.food, food)}">🌾 ${unitCost.food}</span>
+          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${unitCost.wood}</span>
+          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${unitCost.stone}</span>
+          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${unitCost.iron}</span>
+          <span class="cost-item ${getResourceClass(unitCost.food, food)}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${unitCost.food}</span>
         </div>
       </div>
       
       <div class="unit-info-row">
         <div class="info-box">
-          <span class="info-icon">⏱️</span>
+          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span>
           <span class="info-label">Formation</span>
           <span class="info-value">${formatDuration(baseTime)}</span>
         </div>
         <div class="info-box upkeep">
-          <span class="info-icon">🌾</span>
+          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
           <span class="info-label">Céréales/h</span>
           <span class="info-value">${foodUpkeep}</span>
         </div>
@@ -1076,10 +1076,10 @@ function openUnitRecruitModal(unitKey, buildingKey) {
     
     totalDiv.innerHTML = `
       <span class="cost-label">Coût total:</span>
-      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}">🪵 ${formatNum(totalWood)}</span>
-      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}">🪨 ${formatNum(totalStone)}</span>
-      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}">⛏️ ${formatNum(totalIron)}</span>
-      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}">🌾 ${formatNum(totalFood)}</span>
+      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(totalWood)}</span>
+      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(totalStone)}</span>
+      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(totalIron)}</span>
+      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(totalFood)}</span>
     `;
     
     btn.classList.toggle('disabled', !canAfford);
@@ -1238,7 +1238,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
             </div>
           </div>
           <div class="upgrade-footer">
-            <div class="build-time">⏱️ ${formatDuration(buildTime)}</div>
+            <div class="build-time"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(buildTime)}</div>
             <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}"
                     onclick="upgradeBuilding('${buildingKey}', ${slotNum})"
                     ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
@@ -1468,7 +1468,7 @@ function renderBuildQueue() {
     if (running.length > 0 || queued.length > 0) {
       let html = '';
       if (running.length > 0) {
-        html += '<div class="qd-section-header">🔨 En cours (${running.length}/2)</div>'.replace('${running.length}', running.length);
+        html += '<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> En cours (${running.length}/2)</div>'.replace('${running.length}', running.length);
         running.forEach((q, i) => {
           html += `<div class="qd-item running">
             <span class="qd-num">${i + 1}</span>
@@ -1526,7 +1526,7 @@ function renderRecruitQueue() {
     if (queue.length > 0) {
       listEl.innerHTML = queue.map(q => `
         <div class="qd-item running">
-          <span>⚔️</span>
+          <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
           <span class="qd-name">${q.count}x ${getUnitName(q.unitKey)}</span>
           <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
         </div>

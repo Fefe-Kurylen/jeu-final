@@ -263,7 +263,7 @@ function renderSpyReports() {
         <p><strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
         
         <div class="spy-section">
-          <h4>💰 Ressources</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Ressources</h4>
           <div class="spy-resources">
             ${Object.entries(report.resources || {}).map(([res, val]) => 
               `<span>${resourceIcons[res] || res} ${formatNum(val)}</span>`
@@ -281,7 +281,7 @@ function renderSpyReports() {
         </div>
         
         <div class="spy-section">
-          <h4>⚔️ Armées</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Armées</h4>
           ${(report.armies || []).length === 0 ? '<p>Aucune armée détectée</p>' : 
             report.armies.map(a => `
               <div class="spy-army">

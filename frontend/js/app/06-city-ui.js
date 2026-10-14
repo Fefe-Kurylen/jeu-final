@@ -223,7 +223,7 @@ function renderBuildings(filter) {
         <h3>${buildingIconHtml(b.key)} ${b.name}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
-          Coût: 🪵${formatNum(b.costL1?.wood || 50)} 🪨${formatNum(b.costL1?.stone || 50)} ⛏️${formatNum(b.costL1?.iron || 50)} 🌾${formatNum(b.costL1?.food || 50)}
+          Coût: <img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 50)} <img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 50)} <img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 50)} <img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 50)}
         </div>
         ${isBuildQueueFull() ? '<p style="padding:10px;color:var(--error);">⏳ File de construction pleine (4/4)</p>' :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
@@ -376,7 +376,7 @@ function showUnitDetail(unitKey) {
         <h4>📊 Statistiques</h4>
         <div class="stats-grid">
           <div class="stat-item attack">
-            <span class="stat-icon">⚔️</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
             <span class="stat-label">Attaque</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.attack || 0)}%; background: #e74c3c"></div>
@@ -384,7 +384,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.attack || 0}</span>
           </div>
           <div class="stat-item defense">
-            <span class="stat-icon">🛡️</span>
+            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
             <span class="stat-label">Défense</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.defense || 0)}%; background: #3498db"></div>
@@ -420,24 +420,24 @@ function showUnitDetail(unitKey) {
       
       <!-- Coûts d'entraînement (avec couleurs selon ressources) -->
       <div class="unit-costs">
-        <h4>💰 Coût par unité</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût par unité</h4>
         <div class="cost-row">
-          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}">🪵 ${unitCost.wood}</span>
-          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}">🪨 ${unitCost.stone}</span>
-          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}">⛏️ ${unitCost.iron}</span>
-          <span class="cost-item ${getResourceClass(unitCost.food, food)}">🌾 ${unitCost.food}</span>
+          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${unitCost.wood}</span>
+          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${unitCost.stone}</span>
+          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${unitCost.iron}</span>
+          <span class="cost-item ${getResourceClass(unitCost.food, food)}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${unitCost.food}</span>
         </div>
       </div>
       
       <!-- Temps et consommation -->
       <div class="unit-info-row">
         <div class="info-box">
-          <span class="info-icon">⏱️</span>
+          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span>
           <span class="info-label">Formation</span>
           <span class="info-value">${formatDuration(trainTime)}</span>
         </div>
         <div class="info-box upkeep">
-          <span class="info-icon">🌾</span>
+          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
           <span class="info-label">Céréales/h</span>
           <span class="info-value">${foodUpkeep}</span>
         </div>
@@ -487,10 +487,10 @@ function showUnitDetail(unitKey) {
     
     totalDiv.innerHTML = `
       <span class="cost-label">Coût total:</span>
-      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}">🪵 ${formatNum(totalWood)}</span>
-      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}">🪨 ${formatNum(totalStone)}</span>
-      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}">⛏️ ${formatNum(totalIron)}</span>
-      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}">🌾 ${formatNum(totalFood)}</span>
+      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(totalWood)}</span>
+      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(totalStone)}</span>
+      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(totalIron)}</span>
+      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(totalFood)}</span>
     `;
     
     btn.classList.toggle('disabled', !canAfford);

@@ -35,7 +35,7 @@ async function loadAlliance() {
             <div id="alliance-sub-overview" class="alliance-sub-section" style="display:${showSub('overview')}">
               <div class="alliance-section">
                 <div class="alliance-header">
-                  <div class="alliance-emblem">🛡️</div>
+                  <div class="alliance-emblem"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></div>
                   <div class="alliance-info">
                     <h3>[${escapeHtml(myAlliance.tag)}] ${escapeHtml(myAlliance.name)}</h3>
                     <div class="alliance-tag">${myAlliance.members.length} membres · ${roleLabel(myRole)}</div>
@@ -308,7 +308,7 @@ async function loadReports() {
         <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
           <div class="report-header">
             <div class="report-title-section">
-              <span class="report-icon">${iAttacked ? '⚔️' : '🛡️'}</span>
+              <span class="report-icon">${iAttacked ? '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">'}</span>
               <div class="report-title-info">
                 <span class="report-title">${title} à ${cityName}</span>
                 <span class="report-date">${new Date(r.createdAt).toLocaleString('fr-FR')}</span>
@@ -321,7 +321,7 @@ async function loadReports() {
 
           <div class="report-summary">
             <div class="report-side attacker">
-              <h4>⚔️ ${attackerName}</h4>
+              <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> ${attackerName}</h4>
               <div class="units-list">
                 ${(r.attackerUnits || []).map(u => `
                   <div class="unit-line">
@@ -340,7 +340,7 @@ async function loadReports() {
             <div class="report-vs">VS</div>
             
             <div class="report-side defender">
-              <h4>🛡️ ${defenderName}</h4>
+              <h4><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> ${defenderName}</h4>
               <div class="units-list">
                 ${(r.defenderUnits || []).map(u => `
                   <div class="unit-line">
@@ -368,10 +368,10 @@ async function loadReports() {
           ${r.loot?.wood || r.loot?.stone || r.loot?.iron || r.loot?.food ? `
             <div class="report-loot">
               <span class="loot-label">Butin pillé:</span>
-              ${r.loot.wood ? `<span>🪵 ${formatNum(r.loot.wood)}</span>` : ''}
-              ${r.loot.stone ? `<span>🪨 ${formatNum(r.loot.stone)}</span>` : ''}
-              ${r.loot.iron ? `<span>⛏️ ${formatNum(r.loot.iron)}</span>` : ''}
-              ${r.loot.food ? `<span>🌾 ${formatNum(r.loot.food)}</span>` : ''}
+              ${r.loot.wood ? `<span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(r.loot.wood)}</span>` : ''}
+              ${r.loot.stone ? `<span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(r.loot.stone)}</span>` : ''}
+              ${r.loot.iron ? `<span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(r.loot.iron)}</span>` : ''}
+              ${r.loot.food ? `<span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(r.loot.food)}</span>` : ''}
             </div>
           ` : ''}
         </div>
@@ -401,12 +401,12 @@ function showBattleReplay(reportIndex) {
   
   modalBody.innerHTML = `
     <div class="battle-replay">
-      <h2>⚔️ Replay de la Bataille</h2>
+      <h2><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Replay de la Bataille</h2>
       <p class="replay-subtitle">${escapeHtml(attackerName)} vs ${escapeHtml(defenderName)}</p>
       <canvas id="replay-canvas" aria-label="Champ de bataille"></canvas>
       <div class="replay-arena">
         <div class="replay-side attacker-side">
-          <h4>⚔️ Attaquant</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquant</h4>
           <div class="replay-units" id="replay-attacker-units"></div>
           <div class="replay-hp-bar">
             <div class="hp-fill attacker-hp" id="attacker-hp-bar" style="width:100%"></div>
@@ -427,7 +427,7 @@ function showBattleReplay(reportIndex) {
         </div>
         
         <div class="replay-side defender-side">
-          <h4>🛡️ Défenseur</h4>
+          <h4><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Défenseur</h4>
           <div class="replay-units" id="replay-defender-units"></div>
           <div class="replay-hp-bar">
             <div class="hp-fill defender-hp" id="defender-hp-bar" style="width:100%"></div>
@@ -523,10 +523,10 @@ function renderReplayState() {
   if (roundData) {
     let logHtml = `<div class="log-round">Round ${round}:</div>`;
     if (roundData.attackerKills.length > 0) {
-      logHtml += `<div class="log-kills attacker-kills">⚔️ Attaquant tue: ${roundData.attackerKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
+      logHtml += `<div class="log-kills attacker-kills"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquant tue: ${roundData.attackerKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
     }
     if (roundData.defenderKills.length > 0) {
-      logHtml += `<div class="log-kills defender-kills">🛡️ Défenseur tue: ${roundData.defenderKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
+      logHtml += `<div class="log-kills defender-kills"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Défenseur tue: ${roundData.defenderKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
     }
     log.innerHTML = logHtml + log.innerHTML;
   }

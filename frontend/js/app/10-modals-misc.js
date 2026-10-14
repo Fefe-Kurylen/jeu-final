@@ -69,7 +69,7 @@ function showUnitInfoModal(unitKey) {
 
       <!-- Stats de combat avec barres visuelles -->
       <div class="unit-stats-section">
-        <h4>⚔️ Statistiques de combat</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Statistiques de combat</h4>
         <div class="unit-stats-bars">
           <div class="stat-bar-row">
             <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
@@ -132,7 +132,7 @@ function showUnitInfoModal(unitKey) {
 
       <!-- Coût de recrutement -->
       <div class="unit-cost-section">
-        <h4>💰 Coût de recrutement</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût de recrutement</h4>
         <div class="unit-cost-grid">
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span><span>${unit.recruitCost?.wood || 0}</span></div>
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span><span>${unit.recruitCost?.stone || 0}</span></div>
@@ -140,7 +140,7 @@ function showUnitInfoModal(unitKey) {
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span><span>${unit.recruitCost?.food || 0}</span></div>
         </div>
         <div class="train-time">
-          <span>⏱️ Temps: ${formatDuration(unit.recruitTimeSec || 360)}</span>
+          <span><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> Temps: ${formatDuration(unit.recruitTimeSec || 360)}</span>
         </div>
       </div>
 
@@ -201,7 +201,7 @@ function showBuildingInfoModal(buildingKey) {
 
       <!-- Coût niveau 1 -->
       <div class="building-cost-section">
-        <h4>💰 Coût niveau 1</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût niveau 1</h4>
         <div class="building-cost-grid">
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span><span>${building.costL1?.wood || 0}</span></div>
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span><span>${building.costL1?.stone || 0}</span></div>
@@ -209,7 +209,7 @@ function showBuildingInfoModal(buildingKey) {
           <div class="cost-item"><span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span><span>${building.costL1?.food || 0}</span></div>
         </div>
         <div class="build-time">
-          <span>⏱️ Temps: ${formatDuration(building.timeL1Sec || 60)}</span>
+          <span><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> Temps: ${formatDuration(building.timeL1Sec || 60)}</span>
         </div>
       </div>
 

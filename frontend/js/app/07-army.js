@@ -63,7 +63,7 @@ function renderArmies() {
       <!-- Left: Armies Grid -->
       <div class="armies-column">
         <div class="column-header">
-          <h3>⚔️ Mes Armées</h3>
+          <h3><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Mes Armées</h3>
         </div>
         <div class="armies-list">
           ${[1, 2, 3].map(slotNum => {
@@ -84,8 +84,8 @@ function renderArmies() {
             <span class="hero-level-mini">Niv.${heroData?.level || 1}</span>
           </div>
           <div class="hero-stats-row">
-            <span>⚔️${(heroData?.attack || 5) + (heroData?.atkPoints || 0)}</span>
-            <span>🛡️${(heroData?.defense || 5) + (heroData?.defPoints || 0)}</span>
+            <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${(heroData?.attack || 5) + (heroData?.atkPoints || 0)}</span>
+            <span><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${(heroData?.defense || 5) + (heroData?.defPoints || 0)}</span>
             <span>⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
           </div>
           <div class="hero-assign-status">
@@ -214,7 +214,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
         </div>
         <div class="units-stat">
           <span class="stat-label">Force</span>
-          <span class="stat-value">⚔️${formatNum(armyPower)}</span>
+          <span class="stat-value"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${formatNum(armyPower)}</span>
         </div>
         ${army.units?.length > 0 ? `
           <div class="units-icons-mini">
@@ -231,12 +231,12 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
       ${army.status === 'HARVESTING' ? `
         <div class="harvest-progress-row">
           <div class="harvest-info">
-            <span class="harvest-type">⛏️ ${army.harvestResourceType || '?'}</span>
+            <span class="harvest-type"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${army.harvestResourceType || '?'}</span>
             <span class="harvest-rate">+100/min</span>
           </div>
           <div class="harvest-carry">
             <span class="carry-label">Transporté:</span>
-            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}${army.carryGold ? ` + 💰 ${formatNum(army.carryGold)}` : ''}</span>
+            <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}${army.carryGold ? ` + <img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> ${formatNum(army.carryGold)}` : ''}</span>
           </div>
         </div>
       ` : ''}
@@ -300,11 +300,11 @@ function showArmyActionsMenu(armyId) {
           <span class="action-label">Déplacer</span>
         </button>
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showAttackModal('${armyId}')"` : 'disabled'}>
-          <span class="action-icon">⚔️</span>
+          <span class="action-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
           <span class="action-label">Attaquer</span>
         </button>
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showRaidModal('${armyId}')"` : 'disabled'}>
-          <span class="action-icon">💰</span>
+          <span class="action-icon"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></span>
           <span class="action-label">Piller</span>
         </button>
         <button class="action-card danger" onclick="closeModal(); confirmDisbandArmy('${armyId}')">
@@ -385,7 +385,7 @@ function openArmyComposition(armyId) {
           <h2>${escapeHtml(army.name)}</h2>
         </div>
         <div class="comp-header-right">
-          <span class="comp-power" id="comp-power">⚔️ ${formatNum(calculateArmyPower(army))}</span>
+          <span class="comp-power" id="comp-power"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> ${formatNum(calculateArmyPower(army))}</span>
         </div>
       </div>
       
@@ -396,7 +396,7 @@ function openArmyComposition(armyId) {
           <div class="hero-info-comp">
             ${hasHero ? `
               <span class="hero-name-comp">${escapeHtml(heroData?.name || 'Héros')}</span>
-              <span class="hero-stats-comp">⚔️${(heroData?.attack || 5) + (heroData?.atkPoints || 0)} 🛡️${(heroData?.defense || 5) + (heroData?.defPoints || 0)} ⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
+              <span class="hero-stats-comp"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${(heroData?.attack || 5) + (heroData?.atkPoints || 0)} <img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${(heroData?.defense || 5) + (heroData?.defPoints || 0)} ⚡${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
             ` : `
               <span class="hero-placeholder-comp">Aucun héros assigné</span>
             `}
