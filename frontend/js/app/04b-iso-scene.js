@@ -172,7 +172,7 @@ const FLAG_FRAMES = 8, FLAG_POLE_PX = 43 / 96;   // dans le cadre 64×96 du drap
 let isoWallFlags = [];
 // Ancre écran et hauteur (px) d'un drapeau porté par un sprite de largeur w (cadre 130 px : 1 unité de hauteur = 30,6 px)
 function isoFlagAt(x, y, w, ix, iy, iz, h, kind) { const p = spritePointToScreen(x, y, w, ix, iy, iz); return { x: p.x, y: p.y, hpx: h * w * (30.6 / 130) / FLAG_POLE_PX, kind, seed: Math.abs(Math.round(x + y)) }; }
-function wallSpriteUrl(name, tier) { return `assets/images/3d/walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`; }
+function wallSpriteUrl(name, tier) { return art(`walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`); }
 function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   const tier = wallLevel <= 6 ? 1 : wallLevel <= 13 ? 2 : 3;
   const img = {};

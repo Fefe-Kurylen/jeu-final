@@ -33,13 +33,14 @@ const RAW = path.join(__dirname, 'repaint', 'raw');
 const DRY = path.join(__dirname, 'repaint', 'out');
 const STYLE_REF = path.join(__dirname, 'repaint', 'style-ref.png');
 const API = 'https://api.openai.com/v1/images/edits';
-const COST = { low: 0.006, medium: 0.053, high: 0.211, xhigh: 0.4, max: 0.8 };   // $ par image 1024×1024 (tarif gpt-image-2 ; xhigh/max : ordre de grandeur) ; ×0,8 en format allongé
+const COST = { low: 0.024, medium: 0.045, high: 0.071, xhigh: 0.13, max: 0.25 };   // $ par image 1024×1024 mesurés avec gpt-image-2.5 (entrée ≈ 2 300 jetons + sortie) ; xhigh/max : ordre de grandeur
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); return m ? [m[1], m[2] ?? true] : [a, true]; }));
 const DEFAULT_CATS = ['buildings', 'fields', 'plots', 'props', 'map', 'heroes', 'figures', 'scenes'];
 const cats = args.cats ? String(args.cats).split(',') : DEFAULT_CATS;
 const quality = ['low', 'medium', 'high', 'xhigh', 'max'].includes(args.quality) ? args.quality : 'high';
 const MODEL = args.model || 'gpt-image-2.5-sunburst';   // --model=gpt-image-2.5-flare | gpt-image-2 | gpt-image-1.5 …
+const BG = ['transparent', 'magenta', 'white'].includes(args.bg) ? args.bg : 'transparent';   // --bg=magenta : fond uni détouré après coup
 const TAG = args.tag ? String(args.tag) : null;   // --tag=essai : sorties dans tools/repaint/out/<tag>/ (comparaison), rien dans painted/
 const usage = { in: 0, inText: 0, out: 0, n: 0 };   // jetons consommés (tarif : 8 $/M image en entrée, 5 $/M texte, 30 $/M en sortie)
 const usageCost = () => usage.in / 1e6 * 8 + usage.inText / 1e6 * 5 + usage.out / 1e6 * 30;
@@ -52,7 +53,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const manifest3d = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
 let targets = [];
 for (const c of cats) for (const f of manifest3d.categories[c] || []) {
-  if (c === 'map' && f.startsWith('map/units/')) continue;          // figurines de carte : trop petites, restent en 3D
+  if (c === 'map' && f.startsWith('map/units/')) continue;
+  if (c === 'walls' && !args.cats) continue;                      // enceinte : seulement sur demande (--cats=walls)          // figurines de carte : trop petites, restent en 3D
   if (c === 'heroes' && f.endsWith('_bust.webp')) continue;        // bustes (jetons) : restent en 3D
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
@@ -81,7 +83,7 @@ async function compose(page, srcPath, size) {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d'); x.drawImage(img, ox, oy, dw, dh);
     const d = x.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
-    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 40) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 200) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
     return { png: c.toDataURL('image/png').split(',')[1], k, ox, oy, sw: img.width, sh: img.height, bbox: [x0, y0, x1, y1] };
   }, { b64, W, H });
 }
@@ -94,10 +96,14 @@ async function postProcess(page, resultB64, meta, size, align) {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d'); x.drawImage(img, 0, 0, W, H);
+    const id = x.getImageData(0, 0, W, H); const d = id.data;
+    let halo = 0;
+    for (let k = 0; k < d.length; k += 4) { const a = d[k + 3]; if (a > 0 && a < 200) { const lum = 0.3 * d[k] + 0.59 * d[k + 1] + 0.11 * d[k + 2]; if (lum > 140 || a < 24) { d[k + 3] = 0; halo++; } else if (a > 110) d[k + 3] = 110; } }   // halo lumineux et poussière → transparents ; ombre portée plafonnée
+    if (halo) x.putImageData(id, 0, 0);
     let tx = 0, ty = 0, s = 1, drift = 0;
     if (align) {
-      const d = x.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
-      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 40) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 200) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
       if (x1 > x0) {
         const [gx0, gy0, gx1, gy1] = meta.bbox;
         s = Math.max(0.8, Math.min(1.25, (gx1 - gx0) / (x1 - x0)));
@@ -120,7 +126,7 @@ async function callApi(prompt, guideB64, size) {
   for (let attempt = 1; ; attempt++) {
     const form = new FormData();
     form.append('model', MODEL); form.append('prompt', prompt); form.append('size', size); form.append('quality', quality);
-    form.append('background', 'transparent'); form.append('output_format', 'png'); form.append('n', '1');
+    form.append('background', BG === 'transparent' ? 'transparent' : 'opaque'); form.append('output_format', 'png'); form.append('n', '1');
     form.append('image[]', new Blob([fs.readFileSync(STYLE_REF)], { type: 'image/png' }), 'style-ref.png');
     form.append('image[]', new Blob([Buffer.from(guideB64, 'base64')], { type: 'image/png' }), 'guide.png');
     const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body: form });
@@ -157,7 +163,7 @@ function writeManifest() {
       try {
         const size = sizeFor(t);
         const meta = await compose(page, path.join(SRC, t.file), size);
-        const prompt = promptFor(t.file);
+        const prompt = promptFor(t.file, { bg: BG });
         const safe = t.file.replace(/\.webp$/, '').replace(/\//g, '__');
         if (args.dry) {
           fs.mkdirSync(DRY, { recursive: true });

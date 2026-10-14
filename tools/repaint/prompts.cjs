@@ -2,7 +2,12 @@
 // prompts.cjs — texte des demandes de repeinture : style de référence + grammaire architecturale par faction
 // + description de chaque sujet (bâtiment, champ, parcelle, décor, icône de carte, figurine, scène)
 // ============================================================================
-const STYLE = 'Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left. No text, no letters, no watermark, no ground tile under the subject and no background: fully transparent background.';
+const STYLE = 'Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left. No text, no letters, no watermark, no ground tile under the subject.';
+const BG = {
+  transparent: 'The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque.',
+  magenta: 'The background must be a perfectly flat, uniform, pure magenta color (#FF00FF) everywhere around the subject: no vignette, no glow, no gradient, no texture, no shadow on the magenta except the subject\'s own small cast shadow on the right.',
+  white: 'The background must be a perfectly flat, uniform, pure white (#FFFFFF) everywhere around the subject: no vignette, no glow, no gradient, no texture.'
+};
 const KEEP = 'Repaint the subject shown in the second image (a plain 3D render used as a layout guide). Keep exactly the same camera angle, the same position in the frame, the same footprint, proportions and overall silhouette as the second image. Do not add anything outside its silhouette except small props at its base and a soft cast shadow to the right.';
 const FACTION = {
   ROME: 'Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae',
@@ -34,7 +39,11 @@ const SCENE = {
   'header-market': 'a market stall with a red awning, crates, barrels, sacks and amphorae', 'header-alliance': 'a sandstone wall with three colored banners, shields and torches', 'header-ranking': 'a three-step stone podium with a golden trophy on top and two banners', 'header-inventory': 'an open wooden treasure chest full of gold coins, with an amphora, a spear and a shield', 'header-reports': 'an unrolled parchment scroll with a quill, an ink pot and a torch'
 };
 for (const f of Object.keys(FACTION)) SCENE['hero-' + f] = `a ${f.toLowerCase()} hero with ${HEAD[f]}, cape, sword and round shield standing on a round paved stone platform, with two torches and two banners of the faction behind him, three-quarter view`;
-function promptFor(file) {
+const WALL_TIER = { 1: 'early and simple', 2: 'reinforced, with crenellations', 3: 'fully developed, with crenellations, torches and banners' };
+const WALL_KIND = { ROME: 'ashlar stone curtain wall with battlements', GAUL: 'wooden palisade of sharpened logs with a plank walkway', GREEK: 'white marble wall with a cornice', EGYPT: 'sandstone wall with merlons and a gold frieze', HUN: 'rough timber palisade with hides and shields', SULTAN: 'whitewashed plaster wall with battlements and small arches' };
+const TOWER_KIND = { ROME: 'round stone tower with a conical terracotta roof', GAUL: 'wooden watchtower on log posts with a thatched roof', GREEK: 'square marble tower with a blue slate hip roof', EGYPT: 'tapered sandstone pylon tower with merlons and a gold frieze', HUN: 'wooden watchtower with a felt conical roof', SULTAN: 'round whitewashed tower topped by a small teal mosaic dome' };
+function promptFor(file, opts = {}) {
+  const bg = BG[opts.bg || 'transparent'] || BG.transparent;
   let m, subject = '';
   if ((m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(_snow)?\.webp$/))) subject = `${BUILDING[m[2]] || 'an ancient building'}. ${FACTION[m[1]]}.${m[3] ? ' Everything is covered with a layer of snow: snow on the roofs, ledges and ground.' : ''}`;
   else if ((m = file.match(/^fields\/(\w+)\/([A-Z_]+)_(\d)\.webp$/))) subject = `${FIELD[m[2]]} ${TIER[m[3]]}, ${BIOME[m[1]]}. The plot itself is part of the subject: a rounded square slab of ground.`;
@@ -46,7 +55,9 @@ function promptFor(file) {
   else if ((m = file.match(/^figures\/([A-Z]+)_([A-Z]+)\.webp$/))) subject = `a full-body character sprite in three-quarter view: ${CLASS[m[1]]}, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]} and ${FACTION[m[2]].split(':')[0].replace(' architecture', '')} colors, standing on a small round base`;
   else if ((m = file.match(/^heroes\/([A-Z]+)\.webp$/))) subject = `a full-body hero character sprite in three-quarter view: ${m[1].toLowerCase()} hero with ${HEAD[m[1]]}, cape, sword and round shield, standing on a round stone plinth`;
   else if ((m = file.match(/^scenes\/([\w-]+)\.webp$/))) subject = SCENE[m[1]] || 'an isometric scene';
+  else if ((m = file.match(/^walls\/([A-Z]+)\/(\d)_seg_([xz])(_low)?(_snow)?\.webp$/))) subject = `one straight segment of a city wall, ${m[4] ? 'a low knee-high parapet' : 'a tall curtain wall'}: ${WALL_KIND[m[1]]}, ${WALL_TIER[m[3 + 1 - 1] && m[2]]}. It runs diagonally exactly like the guide and is cut flat and square at both ends so that identical copies can be joined end to end seamlessly; both ends must look the same. No tower, no gate.${m[5] ? ' Snow covers the top.' : ''}`;
+  else if ((m = file.match(/^walls\/([A-Z]+)\/(\d)_tower(_snow)?\.webp$/))) subject = `a corner tower of the city wall: ${TOWER_KIND[m[1]]}, ${WALL_TIER[m[2]]}, standing alone.${m[3] ? ' Snow covers the roof.' : ''}`;
   else return null;
-  return `${STYLE}\n\n${KEEP}\n\nSubject: ${subject}`;
+  return `${STYLE} ${bg}\n\n${KEEP}\n\nSubject: ${subject}`;
 }
 module.exports = { promptFor, STYLE, KEEP };
