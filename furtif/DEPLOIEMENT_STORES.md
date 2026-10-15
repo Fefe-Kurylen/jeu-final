@@ -9,8 +9,11 @@ exigent **vos** comptes développeur. Suivez les cases dans l'ordre.
 - [ ] Déployer le site Furtif (dossier `furtif/`) pour que la politique de confidentialité soit en ligne :
       `https://<votre-domaine>/confidentialite` (page déjà incluse). Remplacer `furtif.example.com` par votre domaine dans
       `ios-browser/fastlane/metadata/*/privacy_url.txt`, `marketing_url.txt` et `android-browser/play/listing/fr-FR.md`.
-- [ ] Captures d'écran : lancer l'app sur un appareil ou un simulateur et capturer **accueil, page + menu, onglets, éditeur de barre, réglages**
-      (App Store : iPhone 6,7" 1290×2796 obligatoire ; Google Play : au moins 2 captures 16:9 ou 9:16, 320 à 3840 px).
+- [x] Captures d'écran : **déjà prêtes**, générées par le workflow *Furtif captures stores* (vraie appli dans un simulateur iPhone 16 Pro Max
+      et un émulateur Android) et rangées dans le dépôt :
+      `ios-browser/fastlane/screenshots/fr-FR/` (6 × 1320×2868, format 6,9" — envoyées automatiquement par la lane `release`)
+      et `android-browser/play/screenshots/phone/` (6 × 1080×1920, format 9:16 — à glisser dans la Play Console).
+      Elles se régénèrent à chaque modification du code des applis (artefacts `store-screenshots-ios` / `-android`).
 
 ## 1. App Store (iOS)
 
@@ -36,7 +39,7 @@ exigent **vos** comptes développeur. Suivez les cases dans l'ordre.
       et compile réellement le projet contre le SDK iOS. S'il remonte des erreurs, collez-les moi, je corrige.
 - [ ] **TestFlight** : *Run workflow* → lane `beta`. Le build apparaît dans App Store Connect → TestFlight en 10 à 30 min ; installez-le sur votre iPhone via l'app TestFlight.
 - [ ] **App Store** : *Run workflow* → lane `release`. Les métadonnées FR/EN (`ios-browser/fastlane/metadata`) sont envoyées et l'app est soumise à la validation.
-      Ajoutez les captures d'écran dans App Store Connect avant de valider la soumission (ou dans `fastlane/metadata/fr-FR/screenshots`).
+      Les captures de `fastlane/screenshots/fr-FR` sont envoyées en même temps.
 - [ ] Questionnaire *Confidentialité de l'app* dans App Store Connect : répondre « **Aucune donnée collectée** » (conforme au `PrivacyInfo.xcprivacy`).
 - [ ] Classification : 17+ n'est pas nécessaire ; cocher « Accès web sans restriction » (navigateur), ce qui donne **17+** automatiquement comme pour Quiche (16+ en France).
 
@@ -66,10 +69,21 @@ Sans Mac, tout passe par GitHub Actions. Avec un Mac : `cd ios-browser && brew i
       → piste `internal`, récupérer l'artefact `furtif-release-aab` et le glisser dans Play Console → *Tests internes* → *Créer une version*.
       (Si l'envoi automatique échoue avec « applicationNotFound », c'est ce cas.) Les envois suivants sont automatiques.
 - [ ] Remplir la fiche depuis `android-browser/play/listing/fr-FR.md` : titre, descriptions, icône 512 (`play/icon-512.png`),
-      visuel de présentation (`play/feature-graphic-1024x500.png`), captures d'écran.
+      visuel de présentation (`play/feature-graphic-1024x500.png`), captures d'écran (`play/screenshots/phone/`).
 - [ ] *Contenu de l'application* : politique de confidentialité (URL), **Sécurité des données** → « Aucune donnée collectée ni partagée »,
       questionnaire de classification (type *Autre* → navigateur avec accès web non contrôlé), publicités : non, application de navigation web : oui.
 - [ ] Promouvoir de *Tests internes* vers *Production* une fois satisfait.
+
+## Vérifié dans le dépôt
+
+| Vérification | Résultat |
+|---|---|
+| Compilation iOS (Xcode, macOS GitHub) | ✅ |
+| Lancement réel dans un simulateur iPhone 16 Pro Max | ✅ captures générées |
+| Compilation Android debug + lint | ✅ |
+| Bundle **release** Android minifié et signé (clé de test) | ✅ AAB 3,1 Mo, APK 1,3 Mo, API cible 35 |
+| Lancement réel dans un émulateur Android 13 | ✅ captures générées |
+| Envoi TestFlight / App Store / Google Play | ⏳ nécessite vos comptes et secrets |
 
 ## 3. Après publication
 
