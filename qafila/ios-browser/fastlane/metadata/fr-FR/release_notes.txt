@@ -1,0 +1,1 @@
+Première version de Qafila : barre d'outils personnalisable, onglets groupés par site, bloqueur intégré, mode sombre pour tous les sites, lecteur.

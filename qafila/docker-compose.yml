@@ -1,0 +1,25 @@
+# Qafila + SearXNG auto-hébergé : `docker compose up -d` puis http://localhost:4000
+services:
+  qafila:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      PROVIDERS: ${PROVIDERS:-brave,searxng,ddg,bing}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      SEARXNG_URL: http://searxng:8080
+      DEFAULT_LANG: ${DEFAULT_LANG:-fr-FR}
+    depends_on:
+      - searxng
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    restart: unless-stopped

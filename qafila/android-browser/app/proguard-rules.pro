@@ -1,0 +1,4 @@
+-keepclassmembers class fr.qafila.browser.web.** { @android.webkit.JavascriptInterface <methods>; }
+-keep,includedescriptorclasses class fr.qafila.browser.**$$serializer { *; }
+-keepclassmembers class fr.qafila.browser.** { *** Companion; }
+-keepclasseswithmembers class fr.qafila.browser.** { kotlinx.serialization.KSerializer serializer(...); }

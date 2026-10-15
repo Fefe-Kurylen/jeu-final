@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Qafila — Le moteur de recherche qui ne vous regarde pas</title>
+  <meta name="description" content="Qafila : moteur de recherche privé. Pas de pisteurs, pas de profil, pas de publicité.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="search" type="application/opensearchdescription+xml" title="Qafila" href="/opensearch.xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body data-view="home">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Accueil Qafila"><span class="wordmark">Qafila<span class="spark">✦</span></span></a>
+    <form class="searchbox" id="searchform" role="search" autocomplete="off">
+      <input id="q" name="q" type="search" placeholder="Rechercher" aria-label="Rechercher" enterkeyhint="search" autocapitalize="off" spellcheck="false">
+      <button type="button" class="clear" id="clear" aria-label="Effacer" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      </button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="submit" class="go" aria-label="Lancer la recherche">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <ul id="suggest" class="suggest" role="listbox" hidden></ul>
+    </form>
+    <div class="top-actions">
+      <button class="iconbtn" id="themebtn" title="Thème clair / sombre" aria-label="Changer de thème">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.4A5.5 5.5 0 0 1 13.4 3.1C13 3 12.5 3 12 3z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="iconbtn" id="settingsbtn" title="Paramètres" aria-label="Paramètres">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="home" id="home">
+    <div class="hero">
+      <div class="wordmark big">Qafila<span class="spark">✦</span></div>
+      <div class="arabic" lang="ar" dir="rtl" title="« Caravane » en arabe">قافلة</div>
+      <h1 class="tagline">Le moteur de recherche qui ne vous regarde pas</h1>
+    </div>
+    <div class="shortcuts-wrap">
+      <div class="shortcuts" id="shortcuts" aria-label="Raccourcis"></div>
+      <p class="shortcuts-note">Raccourcis <span class="info" title="Sans publicité ni partenariat : ces raccourcis sont de simples liens.">ⓘ</span></p>
+    </div>
+    <section class="promo">
+      <div class="promo-text">
+        <h2>Découvrez <span class="grad">l'application Qafila,</span><br>disponible sur iOS et Android.</h2>
+        <p>Profitez de Qafila sur votre smartphone, sans collecte de vos données personnelles.</p>
+        <a class="btn-dark" href="#" id="aboutlink">En savoir plus</a>
+      </div>
+      <div class="promo-art" aria-hidden="true">
+        <div class="phone"><div class="phone-screen"><span class="wordmark">Qafila<span class="spark">✦</span></span><span class="phone-tag">Le moteur de recherche qui ne vous regarde pas</span><span class="phone-bar">Rechercher</span></div></div>
+        <span class="star s1">✦</span><span class="star s2">✦</span>
+      </div>
+    </section>
+  </section>
+
+  <section class="results" id="resultsview" hidden>
+    <nav class="tabs" aria-label="Type de résultats">
+      <button data-type="web" class="tab active">Tous</button>
+      <button data-type="images" class="tab">Images</button>
+      <button data-type="videos" class="tab">Vidéos</button>
+      <button data-type="news" class="tab">Actualités</button>
+      <span class="tabs-sep" aria-hidden="true"></span>
+      <button class="filters" id="filtersbtn" type="button">Filtres</button>
+    </nav>
+    <div class="filters-panel" id="filtersPanel" hidden>
+      <label>Région <select id="fLang"></select></label>
+      <label>Ouvrir dans <select id="fTab"><option value="same">le même onglet</option><option value="new">un nouvel onglet</option></select></label>
+    </div>
+    <div class="layout">
+      <main class="main" id="results" aria-live="polite"></main>
+      <aside class="side" id="side"></aside>
+    </div>
+    <div class="more-wrap" id="pager"></div>
+  </section>
+
+  <dialog id="settings" class="settings">
+    <form method="dialog">
+      <h2>Paramètres</h2>
+      <label>Région des résultats
+        <select id="setLang">
+          <option value="fr-FR">France (français)</option>
+          <option value="be-FR">Belgique (français)</option>
+          <option value="ch-FR">Suisse (français)</option>
+          <option value="ca-FR">Canada (français)</option>
+          <option value="en-US">États-Unis (anglais)</option>
+          <option value="en-GB">Royaume-Uni (anglais)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="setNewTab"> Ouvrir les résultats dans un nouvel onglet</label>
+      <label class="check"><input type="checkbox" id="setSuggest" checked> Suggestions pendant la saisie</label>
+      <label class="check"><input type="checkbox" id="setHistory"> Garder un historique local (sur cet appareil uniquement)</label>
+      <p class="muted" id="providerInfo"></p>
+      <menu>
+        <button value="cancel" class="btn ghost">Fermer</button>
+        <button value="save" class="btn">Enregistrer</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <footer class="foot">
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <span class="wordmark foot-logo">F<span class="spark">✦</span></span>
+        <p class="foot-tagline">Le moteur de recherche qui ne vous regarde pas</p>
+        <a class="btn-outline" href="#" id="aboutlink2">Découvrir le service</a>
+      </div>
+      <div class="foot-cols">
+        <div><h3>Services</h3><a href="/">Recherche</a><a href="#" data-bang="!img ">Images</a><a href="#" data-bang="!actus ">Actualités</a></div>
+        <div><h3>À propos de Qafila</h3><a href="#" class="about">Confidentialité</a><a href="/opensearch.xml" id="addEngine">Ajouter à mon navigateur</a><a href="https://github.com/Fefe-Kurylen/jeu-final/tree/claude/furtif-navigateur/qafila" data-ext>Code source</a></div>
+        <div><h3>Applications</h3><span class="store">▶ Google Play</span><span class="store"> App Store</span></div>
+      </div>
+    </div>
+    <div class="foot-bottom"><span>Aucune donnée collectée · Aucune requête conservée</span><span>© 2026 Qafila</span></div>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

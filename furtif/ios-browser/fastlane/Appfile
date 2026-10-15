@@ -1,3 +1,0 @@
-app_identifier("fr.furtif.FurtifBrowser")
-# Renseignés par variables d'environnement en CI : APPLE_TEAM_ID, APP_STORE_CONNECT_API_KEY_*
-team_id(ENV["APPLE_TEAM_ID"])
