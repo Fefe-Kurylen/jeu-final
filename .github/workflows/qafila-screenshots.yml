@@ -62,10 +62,14 @@ jobs:
           shoot page 1-page
           shoot menu 2-menu
           shoot tabs 3-onglets
-          shoot editor 4-personnaliser
-          shoot settings 5-reglages
+          shoot appearance 4-apparence
+          shoot gallery 5-galerie
+          shoot settings 6-reglages
+          shoot start 7-accueil
           xcrun simctl ui "$UDID" appearance dark
-          shoot page 6-page-sombre
+          shoot page 8-page-sombre
+          shoot menu 9-menu-sombre
+          shoot grid 10-grille-sombre
           sips -g pixelWidth -g pixelHeight "$OUT"/*.png
 
       - uses: actions/upload-artifact@v4

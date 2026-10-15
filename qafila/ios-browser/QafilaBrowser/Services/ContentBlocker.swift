@@ -3,7 +3,8 @@ import WebKit
 
 /// Règles de blocage compilées pour WKWebView : publicités, traqueurs, et bandeaux de cookies (sélecteurs CSS masqués).
 enum ContentBlocker {
-    static let adsIdentifier = "qafila-ads-trackers"
+    static let adsIdentifier = "qafila-ads"
+    static let trackersIdentifier = "qafila-trackers"
     static let cookiesIdentifier = "qafila-cookie-banners"
 
     /// Domaines publicitaires et de traçage les plus répandus (liste volontairement courte et lisible ; extensible).
@@ -34,9 +35,22 @@ enum ContentBlocker {
         "#taboola-below-article-thumbnails", ".OUTBRAIN", ".trc_related_container", ".ad-wrapper", "[aria-label='Publicité']", "[aria-label='Advertisement']",
     ]
 
-    static func adsRules() -> String {
-        // Toute ressource tierce (script, image, requête) servie par un domaine publicitaire ou de traçage est bloquée.
-        let rules: [[String: Any]] = blockedDomains.map { domain in
+    /// Domaines de mesure d'audience et de traçage (le reste de la liste est publicitaire).
+    static let trackerDomains: Set<String> = [
+        "google-analytics.com", "googletagmanager.com", "facebook.net", "connect.facebook.net", "snap.licdn.com", "analytics.twitter.com",
+        "scorecardresearch.com", "quantserve.com", "chartbeat.com", "hotjar.com", "mouseflow.com", "fullstory.com", "crazyegg.com", "mixpanel.com",
+        "segment.io", "segment.com", "amplitude.com", "newrelic.com", "nr-data.net", "sentry.io", "bugsnag.com", "optimizely.com", "yandex.ru/metrika",
+        "mc.yandex.ru", "bat.bing.com", "clarity.ms", "xiti.com", "ati-host.net", "at-o.net", "cedexis.com", "branch.io", "appsflyer.com", "adjust.com",
+        "onesignal.com", "pushwoosh.com", "tapad.com", "bluekai.com", "demdex.net", "omtrdc.net", "everesttech.net", "krxd.net", "rlcdn.com",
+        "exelator.com", "eyeota.net", "agkn.com", "mathtag.com", "cxense.com", "permutive.com", "piano.io", "tinypass.com",
+    ]
+
+    static func adsRules() -> String { domainRules(blockedDomains.filter { !trackerDomains.contains($0) }) }
+    static func trackerRules() -> String { domainRules(Array(trackerDomains)) }
+
+    private static func domainRules(_ domains: [String]) -> String {
+        // Toute ressource tierce (script, image, requête) servie par l'un de ces domaines est bloquée.
+        let rules: [[String: Any]] = domains.map { domain in
             let escaped = domain.replacingOccurrences(of: ".", with: "\\.")
             return ["trigger": ["url-filter": "^https?://([a-z0-9-]+\\.)*" + escaped + "/", "load-type": ["third-party"]], "action": ["type": "block"]]
         }
@@ -53,11 +67,13 @@ enum ContentBlocker {
     }
 
     /// Compile (ou recharge depuis le cache de WebKit) les deux listes.
-    static func compile(completion: @escaping (WKContentRuleList?, WKContentRuleList?) -> Void) {
+    static func compile(completion: @escaping (WKContentRuleList?, WKContentRuleList?, WKContentRuleList?) -> Void) {
         let store = WKContentRuleListStore.default()
         store?.compileContentRuleList(forIdentifier: adsIdentifier, encodedContentRuleList: adsRules()) { ads, _ in
-            store?.compileContentRuleList(forIdentifier: cookiesIdentifier, encodedContentRuleList: cookieRules()) { cookies, _ in
-                completion(ads, cookies)
+            store?.compileContentRuleList(forIdentifier: trackersIdentifier, encodedContentRuleList: trackerRules()) { trackers, _ in
+                store?.compileContentRuleList(forIdentifier: cookiesIdentifier, encodedContentRuleList: cookieRules()) { cookies, _ in
+                    completion(ads, trackers, cookies)
+                }
             }
         }
     }

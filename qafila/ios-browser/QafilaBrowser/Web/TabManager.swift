@@ -15,14 +15,15 @@ final class TabManager: NSObject, ObservableObject {
     private var views: [UUID: WKWebView] = [:]
     private var observers: [UUID: [NSKeyValueObservation]] = [:]
     private var adsRules: WKContentRuleList?
+    private var trackerRules: WKContentRuleList?
     private var cookieRules: WKContentRuleList?
     private let processPool = WKProcessPool()
     private lazy var privateDataStore = WKWebsiteDataStore.nonPersistent()
 
     override init() {
         super.init()
-        ContentBlocker.compile { [weak self] ads, cookies in
-            Task { @MainActor in self?.adsRules = ads; self?.cookieRules = cookies; self?.applyRules() }
+        ContentBlocker.compile { [weak self] ads, trackers, cookies in
+            Task { @MainActor in self?.adsRules = ads; self?.trackerRules = trackers; self?.cookieRules = cookies; self?.applyRules() }
         }
     }
 
@@ -43,12 +44,13 @@ final class TabManager: NSObject, ObservableObject {
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = self
         web.uiDelegate = self
-        web.allowsBackForwardNavigationGestures = true
+        web.allowsBackForwardNavigationGestures = store?.settings.edgeSwipeNavigation ?? true
         web.allowsLinkPreview = true
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.isFindInteractionEnabled = true
         web.backgroundColor = .systemBackground
         web.isOpaque = false
+        web.pageZoom = store?.settings.textZoom ?? 1
         views[id] = web
         observe(web, id: id)
         applyRules(to: web)
@@ -78,7 +80,7 @@ final class TabManager: NSObject, ObservableObject {
             web.observe(\.canGoBack) { [weak self] w, _ in Task { @MainActor in self?.navState[id] = (w.canGoBack, w.canGoForward) } },
             web.observe(\.canGoForward) { [weak self] w, _ in Task { @MainActor in self?.navState[id] = (w.canGoBack, w.canGoForward) } },
             web.observe(\.themeColor) { [weak self] w, _ in Task { @MainActor in
-                guard let store = self?.store, store.settings.adaptToSiteColor, store.selectedTabID == id else { return }
+                guard let store = self?.store, store.selectedTabID == id else { return }
                 store.siteThemeColor = w.themeColor.map { Color(uiColor: $0) }
             } },
         ]
@@ -92,7 +94,28 @@ final class TabManager: NSObject, ObservableObject {
     }
 
     private func loadStartPage(_ web: WKWebView) {
-        web.loadHTMLString(StartPage.html(dark: UITraitCollection.current.userInterfaceStyle == .dark), baseURL: URL(string: "about:start"))
+        let marks = (store?.bookmarks ?? []).prefix(12).map { (title: $0.title, url: $0.url.absoluteString) }
+        web.loadHTMLString(StartPage.html(dark: store?.isDarkScheme ?? false, bookmarks: Array(marks)), baseURL: URL(string: "about:start"))
+    }
+
+    /// Réglages qui s'appliquent à toutes les pages ouvertes : zoom du texte, gestes de bord d'écran.
+    func applySettings() {
+        guard let s = store?.settings else { return }
+        for web in views.values {
+            if web.pageZoom != s.textZoom { web.pageZoom = s.textZoom }
+            web.allowsBackForwardNavigationGestures = s.edgeSwipeNavigation
+        }
+    }
+
+    func refreshDarken() {
+        guard let store else { return }
+        for (id, _) in views { if let tab = store.tabs.first(where: { $0.id == id }) { applyDarken(id, enabled: store.isDarkened(tab)) } }
+    }
+
+    /// Mode économie d'énergie : les onglets en arrière-plan libèrent leur page (rechargée à l'ouverture).
+    func suspendBackgroundIfNeeded(keeping id: UUID) {
+        guard store?.settings.suspendTabsInLowPower == true, ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        for other in views.keys where other != id { discard(other) }
     }
 
     func findInPage(_ id: UUID) {
@@ -114,12 +137,14 @@ final class TabManager: NSObject, ObservableObject {
 
     // MARK: Règles, mode sombre, user agent
     func applyRules() { views.values.forEach { applyRules(to: $0) } }
-    private func applyRules(to web: WKWebView) {
+    /// Listes séparées (pubs, traqueurs, bandeaux de cookies) ; un site en exception n'a aucune règle.
+    private func applyRules(to web: WKWebView, url: URL? = nil) {
         let c = web.configuration.userContentController
         c.removeAllContentRuleLists()
-        guard let store, store.settings.blockerEnabled else { return }
-        if let ads = adsRules { c.add(ads) }
-        if store.settings.blockCookieBanners, let cookies = cookieRules { c.add(cookies) }
+        guard let store, store.isBlockerActive(for: url ?? web.url) else { return }
+        if store.settings.blockAds, let l = adsRules { c.add(l) }
+        if store.settings.blockTrackers, let l = trackerRules { c.add(l) }
+        if store.settings.blockCookieBanners, let l = cookieRules { c.add(l) }
     }
 
     func applyDarken(_ id: UUID, enabled: Bool) {
@@ -139,6 +164,8 @@ final class TabManager: NSObject, ObservableObject {
         }
     }
 
+    func applyUserAgentToOpenTabs() { for id in views.keys { applyUserAgent(id) } }
+
     func snapshot(_ id: UUID, completion: @escaping (UIImage?) -> Void) {
         guard let web = views[id] else { completion(nil); return }
         let config = WKSnapshotConfiguration()
@@ -154,6 +181,7 @@ extension TabManager: WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
         let url = navigationAction.request.url
         preferences.allowsContentJavaScript = store?.isJavaScriptEnabled(for: url) ?? true
+        if navigationAction.targetFrame?.isMainFrame == true { applyRules(to: webView, url: url) }
         // Passage automatique en HTTPS
         if let store, store.settings.upgradeToHTTPS, let u = url, u.scheme == "http", navigationAction.targetFrame?.isMainFrame == true,
            var comps = URLComponents(url: u, resolvingAgainstBaseURL: false) {
@@ -209,7 +237,7 @@ extension TabManager: WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler
         let color = body["color"] as? String ?? ""
         let icon = body["icon"] as? String ?? ""
         store?.update(id) { $0.readingMinutes = minutes; if !color.isEmpty { $0.themeColorHex = color } }
-        if let store, store.settings.adaptToSiteColor, store.selectedTabID == id, !color.isEmpty { store.siteThemeColor = Color(hex: color) }
+        if let store, store.selectedTabID == id, !color.isEmpty { store.siteThemeColor = Color(hex: color) }
         fetchFavicon(icon, host: web.url?.host, id: id)
     }
 

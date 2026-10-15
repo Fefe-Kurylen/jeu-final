@@ -1,122 +1,151 @@
 import SwiftUI
 
-/// Écran principal : page web + barre d'adresse + barre d'outils personnalisable. Les barres se masquent au défilement (lecture plein écran).
+/// Écran principal : la page occupe tout l'écran, la barre de Quiche flotte en bas (ou en haut), le menu s'ouvre en carte ancrée.
 struct BrowserView: View {
     @EnvironmentObject var store: BrowserStore
     @Environment(\.colorScheme) private var scheme
-    @State private var addressText = ""
+    @Environment(\.verticalSizeClass) private var vClass
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var editor = AddressEditModel()
+    @State private var chromeHeight: CGFloat = 100
+    @State private var menuAnchor: CGRect = .zero
 
-    /// Clair ou sombre selon la luminance de la couleur du site, pour que les icônes restent lisibles.
-    private var barScheme: ColorScheme? {
-        guard store.settings.adaptToSiteColor, store.settings.toolbar.style == .classic, let c = store.siteThemeColor else { return nil }
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        UIColor(c).getRed(&r, green: &g, blue: &b, alpha: &a)
-        return (0.299 * r + 0.587 * g + 0.114 * b) > 0.6 ? .light : .dark
-    }
-
-    private var barTint: Color {
-        if store.settings.adaptToSiteColor, let c = store.siteThemeColor { return c }
-        return Color(.systemBackground)
-    }
+    private var s: Settings { store.settings }
+    private var landscape: Bool { vClass == .compact }
+    private var atTop: Bool { s.toolbar.position == .top || (landscape && s.landscapeTopBar) }
+    private var palette: ChromePalette { ChromePalette.make(s, scheme: scheme, site: store.siteThemeColor) }
+    private var collapsed: Bool { store.barsHidden && !store.isEditingAddress && !store.showMenu }
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                if let tab = store.selectedTab {
-                    WebContainer(tabID: tab.id, topInset: topHeight(geo), bottomInset: bottomHeight(geo), onScroll: handleScroll)
-                        .ignoresSafeArea()
-                        .id(tab.id)
-                }
+            let safe = geo.safeAreaInsets
+            ZStack {
+                web(safe)
                 VStack(spacing: 0) {
-                    if store.settings.toolbar.position == .top { topBars(geo) } else { addressBarSection(geo) }
+                    if atTop { chrome(safe) }
                     Spacer(minLength: 0)
-                    if store.settings.toolbar.position == .bottom { bottomBars(geo) }
+                    if !atTop { chrome(safe) }
                 }
+                if store.showMenu { menuLayer(geo) }
+                if let t = store.toast { toast(t) }
             }
+            .coordinateSpace(name: "browser")
+            .onPreferenceChange(MenuAnchorKey.self) { menuAnchor = $0 }
         }
-        .animation(.easeInOut(duration: 0.22), value: store.barsHidden)
-        .sheet(isPresented: $store.showMenu) { MenuSheet().environmentObject(store) }
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: store.barsHidden)
+        .animation(.spring(response: 0.3), value: store.toast)
+        .animation(.spring(response: 0.3, dampingFraction: 0.86), value: store.isEditingAddress)
         .fullScreenCover(isPresented: $store.showTabs) { TabsView().environmentObject(store) }
-        .sheet(isPresented: $store.showSettings) { SettingsView().environmentObject(store) }
+        .sheet(isPresented: $store.showSettings, onDismiss: { store.settingsRoute = nil }) { SettingsView().environmentObject(store) }
         .sheet(isPresented: $store.showBookmarks) { BookmarksView().environmentObject(store) }
         .sheet(isPresented: $store.showHistory) { HistoryView().environmentObject(store) }
         .sheet(isPresented: $store.showToolbarEditor) { ToolbarEditorView().environmentObject(store) }
         .sheet(isPresented: $store.showToolbarGallery) { ToolbarGalleryView().environmentObject(store) }
-        .onChange(of: store.selectedTabID) { _, _ in store.siteThemeColor = nil; store.barsHidden = false }
+        .onChange(of: store.selectedTabID) { _, _ in store.siteThemeColor = nil; store.barsHidden = false; store.showMenu = false }
+        .onAppear { store.isDarkScheme = scheme == .dark }
+        .onChange(of: scheme) { _, v in store.isDarkScheme = v == .dark }
+        .onChange(of: scenePhase) { _, p in if p == .active { store.closeExpiredTabs() } }
+        .onChange(of: s) { old, new in applyChanges(old, new) }
     }
 
-    // MARK: Dispositions
-    @ViewBuilder private func addressBarSection(_ geo: GeometryProxy) -> some View {
-        AddressBar(text: $addressText)
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
-            .background(barTint.opacity(store.barsHidden ? 0 : 1).ignoresSafeArea(edges: .top))
-            .modifier(SchemeOverride(scheme: barScheme))
-            .offset(y: store.barsHidden ? -(topHeight(geo) + 20) : 0)
-    }
+    // MARK: Couches
 
-    @ViewBuilder private func bottomBars(_ geo: GeometryProxy) -> some View {
-        VStack(spacing: 0) {
-            ProgressLine()
-            ToolbarView(slots: store.settings.toolbar.bar)
+    private func web(_ safe: EdgeInsets) -> some View {
+        Group {
+            if let tab = store.selectedTab {
+                WebContainer(tabID: tab.id,
+                             topInset: atTop ? chromeHeight + safe.top : safe.top,
+                             bottomInset: atTop ? safe.bottom : chromeHeight + safe.bottom,
+                             onScroll: handleScroll)
+                    .id(tab.id)
+            }
         }
-        .background(barBackground.ignoresSafeArea(edges: .bottom))
-        .modifier(SchemeOverride(scheme: barScheme))
-        .offset(y: store.barsHidden ? bottomHeight(geo) + 20 : 0)
-    }
-
-    @ViewBuilder private func topBars(_ geo: GeometryProxy) -> some View {
-        VStack(spacing: 4) {
-            AddressBar(text: $addressText).padding(.horizontal, 12).padding(.top, 6)
-            ToolbarView(slots: store.settings.toolbar.bar)
-            ProgressLine()
-        }
-        .background(barBackground.ignoresSafeArea(edges: .top))
-        .modifier(SchemeOverride(scheme: barScheme))
-        .offset(y: store.barsHidden ? -(topHeight(geo) + 40) : 0)
-    }
-
-    @ViewBuilder private var barBackground: some View {
-        switch store.settings.toolbar.style {
-        case .classic: barTint.overlay(Divider(), alignment: .top)
-        case .glass: Rectangle().fill(.ultraThinMaterial)
+        .ignoresSafeArea()
+        .overlay(alignment: atTop ? .bottom : .top) {
+            // Bande derrière la barre d'état (ou l'indicateur d'accueil) pour que la page ne s'y mélange pas.
+            ChromeBackground(palette: palette, style: s.toolbar.style)
+                .frame(height: atTop ? safe.bottom : safe.top)
+                .ignoresSafeArea()
+                .opacity(atTop && collapsed && s.scrollBehavior == .hide ? 0 : 1)
         }
     }
 
-    private func topHeight(_ geo: GeometryProxy) -> CGFloat {
-        store.settings.toolbar.position == .top ? geo.safeAreaInsets.top + 112 : geo.safeAreaInsets.top + 58
+    @ViewBuilder private func chrome(_ safe: EdgeInsets) -> some View {
+        VStack(spacing: 8) {
+            if store.isEditingAddress && !atTop { SuggestionsPanel(editor: editor).padding(.horizontal, 10).transition(.move(edge: .bottom).combined(with: .opacity)) }
+            Group {
+                if collapsed && s.scrollBehavior == .shrink {
+                    MiniChrome()
+                } else {
+                    ChromeBar(editor: editor, singleRow: landscape, atTop: atTop)
+                }
+            }
+            .padding(.bottom, atTop ? 6 : 0)
+            .background(GeometryReader { g in Color.clear.onAppear { chromeHeight = g.size.height }.onChange(of: g.size.height) { _, h in if !collapsed { chromeHeight = h } } })
+            .environment(\.chromeCard, palette.card)
+            .modifier(SchemeOverride(scheme: palette.contentScheme))
+            .background(ChromeBackground(palette: palette, style: s.toolbar.style).ignoresSafeArea(edges: atTop ? .top : .bottom))
+            .overlay(alignment: atTop ? .bottom : .top) { Rectangle().fill(Color.black.opacity(palette.contentScheme == .dark ? 0.35 : 0.07)).frame(height: 0.5) }
+            .offset(y: hideOffset(safe))
+            if store.isEditingAddress && atTop { SuggestionsPanel(editor: editor).padding(.horizontal, 10) }
+        }
     }
-    private func bottomHeight(_ geo: GeometryProxy) -> CGFloat {
-        store.settings.toolbar.position == .bottom ? geo.safeAreaInsets.bottom + 54 : geo.safeAreaInsets.bottom
+
+    private func hideOffset(_ safe: EdgeInsets) -> CGFloat {
+        guard collapsed, s.scrollBehavior == .hide else { return 0 }
+        return atTop ? -(chromeHeight + safe.top + 10) : chromeHeight + safe.bottom + 10
     }
+
+    private func menuLayer(_ geo: GeometryProxy) -> some View {
+        let width = geo.size.width
+        let anchorX = menuAnchor == .zero ? width - 30 : menuAnchor.midX - geo.frame(in: .global).minX
+        let x = min(max(anchorX + 26 - FloatingMenu.width, 10), width - FloatingMenu.width - 10)
+        let available = geo.size.height - chromeHeight - 24
+        return ZStack(alignment: atTop ? .topLeading : .bottomLeading) {
+            Color.black.opacity(0.1).ignoresSafeArea()
+                .onTapGesture { withAnimation(.easeOut(duration: 0.18)) { store.showMenu = false } }
+            FloatingMenu()
+                .frame(maxHeight: max(200, available))
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.leading, x)
+                .padding(atTop ? .top : .bottom, chromeHeight + 8)
+                .transition(.scale(scale: 0.85, anchor: atTop ? .topTrailing : .bottomTrailing).combined(with: .opacity))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: atTop ? .topLeading : .bottomLeading)
+    }
+
+    private func toast(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14, weight: .medium))
+            .padding(.horizontal, 16).padding(.vertical, 9)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    // MARK: Comportements
 
     private func handleScroll(_ delta: CGFloat) {
-        guard store.settings.hideBarsOnScroll, !store.isEditingAddress else { return }
+        guard s.scrollBehavior != .fixed, !store.isEditingAddress, !store.showMenu else { return }
         if delta > 8, !store.barsHidden { store.barsHidden = true }
         else if delta < -8, store.barsHidden { store.barsHidden = false }
     }
-}
 
-/// Force le thème clair ou sombre d'une barre (sinon laisse celui du système).
-struct SchemeOverride: ViewModifier {
-    let scheme: ColorScheme?
-    func body(content: Content) -> some View {
-        if let scheme { content.environment(\.colorScheme, scheme) } else { content }
-    }
-}
-
-/// Fine barre de progression bleue, comme dans les navigateurs iOS.
-struct ProgressLine: View {
-    @EnvironmentObject var store: BrowserStore
-    var body: some View {
-        let id = store.selectedTabID
-        let p = id.flatMap { store.tabManager.progress[$0] } ?? 0
-        let loading = id.map { store.tabManager.loading.contains($0) } ?? false
-        GeometryReader { g in
-            Rectangle().fill(Color.accentColor).frame(width: g.size.width * p).opacity(loading && p < 1 ? 1 : 0)
+    /// Les réglages modifiés s'appliquent immédiatement aux pages ouvertes.
+    private func applyChanges(_ old: Settings, _ new: Settings) {
+        let tm = store.tabManager
+        if old.textZoom != new.textZoom || old.edgeSwipeNavigation != new.edgeSwipeNavigation { tm.applySettings() }
+        if old.blockAds != new.blockAds || old.blockTrackers != new.blockTrackers || old.blockCookieBanners != new.blockCookieBanners
+            || old.blockerDisabledHosts != new.blockerDisabledHosts { tm.applyRules() }
+        if old.darkenSites != new.darkenSites || old.darkenOnlyInDarkMode != new.darkenOnlyInDarkMode { tm.refreshDarken() }
+        if old.desktopByDefault != new.desktopByDefault || old.customUserAgent != new.customUserAgent {
+            tm.applyUserAgentToOpenTabs()
         }
-        .frame(height: 2)
-        .animation(.linear(duration: 0.2), value: p)
+        if old.appIcon != new.appIcon, UIApplication.shared.supportsAlternateIcons {
+            UIApplication.shared.setAlternateIconName(new.appIcon.iconName) { _ in }
+        }
+        if old.scrollBehavior != new.scrollBehavior { store.barsHidden = false }
     }
 }
