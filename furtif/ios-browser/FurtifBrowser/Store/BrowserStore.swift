@@ -30,6 +30,7 @@ final class BrowserStore: ObservableObject {
     init() {
         tabManager = TabManager()
         load()
+        applyDemoIfRequested()
         if tabs.isEmpty { newTab() }
         if selectedTabID == nil { selectedTabID = tabs.first?.id }
         tabManager.store = self
@@ -186,6 +187,38 @@ final class BrowserStore: ObservableObject {
     func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard settings.haptics else { return }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    // MARK: Mode démo (captures d'écran des stores) : lancer avec -FurtifDemo page|menu|tabs|editor|settings|gallery
+    private func applyDemoIfRequested() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-FurtifDemo"), i + 1 < args.count else { return }
+        let screen = args[i + 1]
+        let demo: [(String, String, Int)] = [
+            ("https://fr.wikipedia.org/wiki/Tour_Eiffel", "Tour Eiffel — Wikipédia", 24),
+            ("https://fr.wikipedia.org/wiki/Gustave_Eiffel", "Gustave Eiffel — Wikipédia", 15),
+            ("https://fr.wikipedia.org/wiki/Paris", "Paris — Wikipédia", 41),
+            ("https://www.marmiton.org/recettes/recette_pate-a-crepes_12372.aspx", "La meilleure recette de pâte à crêpes - Marmiton", 4),
+            ("https://www.marmiton.org/recettes/recette_gateau-au-chocolat-fondant-rapide_166352.aspx", "Gâteau au chocolat fondant rapide - Marmiton", 3),
+            ("https://github.com/Fefe-Kurylen/jeu-final", "Fefe-Kurylen/jeu-final - GitHub", 2),
+            ("https://www.openstreetmap.org", "OpenStreetMap", 1),
+        ]
+        tabs = demo.map { BrowserTab(url: URL(string: $0.0), title: $0.1, readingMinutes: $0.2) }
+        selectedTabID = tabs.first?.id
+        settings.toolbar = .preset(.complete)
+        settings.tabsLayout = .list
+        settings.groupTabsByDomain = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            guard let self else { return }
+            switch screen {
+            case "menu": self.showMenu = true
+            case "tabs": self.showTabs = true
+            case "editor": self.showToolbarEditor = true
+            case "settings": self.showSettings = true
+            case "gallery": self.showToolbarGallery = true
+            default: break
+            }
+        }
     }
 
     // MARK: Persistance

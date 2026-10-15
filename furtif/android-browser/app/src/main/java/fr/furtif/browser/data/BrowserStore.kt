@@ -183,6 +183,32 @@ class BrowserStore(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ----- Mode démo (captures d'écran des stores) : extra « demo » = page|menu|tabs|editor|settings|gallery -----
+    fun applyDemo(screen: String) {
+        tabs.forEach { tabManager.discard(it.id) }
+        val demo = listOf(
+            Triple("https://fr.wikipedia.org/wiki/Tour_Eiffel", "Tour Eiffel — Wikipédia", 24),
+            Triple("https://fr.wikipedia.org/wiki/Gustave_Eiffel", "Gustave Eiffel — Wikipédia", 15),
+            Triple("https://fr.wikipedia.org/wiki/Paris", "Paris — Wikipédia", 41),
+            Triple("https://www.marmiton.org/recettes/recette_pate-a-crepes_12372.aspx", "La meilleure recette de pâte à crêpes - Marmiton", 4),
+            Triple("https://www.marmiton.org/recettes/recette_gateau-au-chocolat-fondant-rapide_166352.aspx", "Gâteau au chocolat fondant rapide - Marmiton", 3),
+            Triple("https://github.com/Fefe-Kurylen/jeu-final", "Fefe-Kurylen/jeu-final - GitHub", 2),
+            Triple("https://www.openstreetmap.org", "OpenStreetMap", 1),
+        )
+        val list = demo.map { (u, t, m) -> BrowserTab(url = u, title = t, readingMinutes = m) }
+        mutate { it.copy(tabs = list, selectedTabId = list.first().id, settings = it.settings.copy(toolbar = ToolbarConfig.preset(ToolbarConfig.Preset.COMPLETE), tabsLayout = TabsLayout.LIST, groupTabsByDomain = true)) }
+        viewModelScope.launch {
+            delay(7000)
+            when (screen) {
+                "menu" -> showMenu.value = true
+                "tabs" -> showTabs.value = true
+                "editor" -> showToolbarEditor.value = true
+                "settings" -> showSettings.value = true
+                "gallery" -> showToolbarGallery.value = true
+            }
+        }
+    }
+
     // ----- Persistance -----
     private fun load(): PersistedState = runCatching { json.decodeFromString<PersistedState>(file.readText()) }
         .map { it.copy(tabs = it.tabs.filterNot { t -> t.isPrivate }) }   // les onglets privés ne survivent pas au redémarrage

@@ -1,0 +1,113 @@
+# Furtif Browser : captures d'écran pour l'App Store (iPhone 6,9") et Google Play (téléphone 9:16).
+# Lance chaque appli en « mode démo » (onglets pré-remplis, menu / onglets / éditeur / réglages ouverts)
+# et dépose les images en artefacts : store-screenshots-ios et store-screenshots-android.
+name: Furtif captures stores
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/furtif-navigateur]
+    paths: [".github/workflows/furtif-screenshots.yml", "furtif/android-browser/play/capture-screenshots.sh"]
+
+jobs:
+  ios:
+    name: Captures iPhone
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: furtif/ios-browser
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Générer le projet
+        run: brew install xcodegen && xcodegen generate
+
+      - name: Démarrer un simulateur iPhone Pro Max
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          c = sorted((rt, x["udid"]) for rt, l in d.items() if "iOS" in rt for x in l if "Pro Max" in x["name"])
+          print(c[-1][1])')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 --operatorName ""
+
+      - name: Compiler pour le simulateur
+        run: |
+          set -o pipefail
+          xcodebuild -project FurtifBrowser.xcodeproj -scheme FurtifBrowser \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -3
+
+      - name: Prendre les captures
+        run: |
+          UDID=${{ steps.sim.outputs.udid }}
+          BUNDLE=fr.furtif.FurtifBrowser
+          OUT=store-screenshots/ios
+          mkdir -p "$OUT"
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/FurtifBrowser.app
+          shoot() {
+            xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$BUNDLE" -FurtifDemo "$1"
+            sleep 16
+            xcrun simctl io "$UDID" screenshot "$OUT/$2.png"
+          }
+          shoot page 1-page
+          shoot menu 2-menu
+          shoot tabs 3-onglets
+          shoot editor 4-personnaliser
+          shoot settings 5-reglages
+          xcrun simctl ui "$UDID" appearance dark
+          shoot page 6-page-sombre
+          sips -g pixelWidth -g pixelHeight "$OUT"/*.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-ios
+          path: furtif/ios-browser/store-screenshots/ios/*.png
+
+  android:
+    name: Captures Android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: furtif/android-browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+
+      - name: Activer KVM (accélération de l'émulateur)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: SDK Android
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+
+      - name: Compiler l'APK
+        run: gradle assembleDebug --no-daemon --console=plain
+
+      - name: Émulateur + captures
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 5X
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          working-directory: furtif/android-browser
+          script: ./play/capture-screenshots.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-android
+          path: furtif/android-browser/store-screenshots/android/*.png

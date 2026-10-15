@@ -16,7 +16,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (savedInstanceState == null) store.handleIntent(intent)
+        if (savedInstanceState == null) {
+            intent?.getStringExtra("demo")?.let { store.applyDemo(it) } ?: store.handleIntent(intent)
+        }
         setContent { FurtifTheme(store) { BrowserScreen(store) } }
     }
 
