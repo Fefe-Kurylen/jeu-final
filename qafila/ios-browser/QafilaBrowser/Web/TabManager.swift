@@ -50,7 +50,7 @@ final class TabManager: NSObject, ObservableObject {
         web.isFindInteractionEnabled = true
         web.backgroundColor = .systemBackground
         web.isOpaque = false
-        web.pageZoom = store?.settings.textZoom ?? 1
+        web.pageZoom = CGFloat(store?.settings.textZoom ?? 1)
         views[id] = web
         observe(web, id: id)
         applyRules(to: web)
@@ -102,7 +102,8 @@ final class TabManager: NSObject, ObservableObject {
     func applySettings() {
         guard let s = store?.settings else { return }
         for web in views.values {
-            if web.pageZoom != s.textZoom { web.pageZoom = s.textZoom }
+            let zoom = CGFloat(s.textZoom)
+            if web.pageZoom != zoom { web.pageZoom = zoom }
             web.allowsBackForwardNavigationGestures = s.edgeSwipeNavigation
         }
     }
