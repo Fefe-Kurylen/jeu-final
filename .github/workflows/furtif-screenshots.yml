@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
   push:
     branches: [claude/furtif-navigateur]
-    paths: [".github/workflows/furtif-screenshots.yml", "furtif/android-browser/play/capture-screenshots.sh"]
+    paths: [".github/workflows/furtif-screenshots.yml", "furtif/ios-browser/FurtifBrowser/**", "furtif/android-browser/app/src/**", "furtif/android-browser/play/capture-screenshots.sh"]
+
+concurrency:
+  group: furtif-screenshots-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ios:
