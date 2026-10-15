@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -57,8 +58,16 @@ fun BrowserScreen(store: BrowserStore) {
     // Bouton Retour système : revient dans la page, sinon ferme les panneaux.
     BackHandler(enabled = tab != null && navStates[tab.id]?.canBack == true) { tab?.let { store.tabManager.goBack(it.id) } }
 
-    val barColor = if (settings.adaptToSiteColor && siteColor != null) Color(siteColor!!) else MaterialTheme.colorScheme.background
+    val adapt = settings.adaptToSiteColor && siteColor != null && settings.toolbar.style == ToolbarStyle.CLASSIC
+    val barColor = if (adapt) Color(siteColor!!) else MaterialTheme.colorScheme.background
     val barBg = if (settings.toolbar.style == ToolbarStyle.GLASS) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f) else barColor
+    // Icônes et textes lisibles quelle que soit la couleur du site : thème clair ou sombre selon sa luminance.
+    val siteLight = if (adapt) barColor.luminance() > 0.5f else null
+    val barScheme = when (siteLight) {
+        true -> MaterialTheme.colorScheme.copy(onSurface = Color(0xFF17191C), onSurfaceVariant = Color(0xFF4D596A), surfaceVariant = Color(0x1A000000), primary = if (settings.accent == fr.furtif.browser.data.AccentColor.MONO) Color(0xFF17191C) else MaterialTheme.colorScheme.primary)
+        false -> MaterialTheme.colorScheme.copy(onSurface = Color(0xFFF2F4F7), onSurfaceVariant = Color(0xFFC1CAD7), surfaceVariant = Color(0x26FFFFFF), primary = if (settings.accent == fr.furtif.browser.data.AccentColor.MONO) Color(0xFFF2F4F7) else MaterialTheme.colorScheme.primary)
+        null -> MaterialTheme.colorScheme
+    }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (tab != null) {
@@ -76,7 +85,7 @@ fun BrowserScreen(store: BrowserStore) {
                 }
             )
         }
-        Column(Modifier.fillMaxSize()) {
+        MaterialTheme(colorScheme = barScheme) { Column(Modifier.fillMaxSize()) {
             if (settings.toolbar.position == ToolbarPosition.TOP) {
                 AnimatedVisibility(!barsHidden, enter = slideInVertically { -it }, exit = slideOutVertically { -it }) {
                     Column(Modifier.background(barBg).statusBarsPadding()) { AddressBar(store); ToolbarRow(store, settings.toolbar.bar); ProgressLine(store) }
@@ -93,7 +102,7 @@ fun BrowserScreen(store: BrowserStore) {
                     Column(Modifier.background(barBg).navigationBarsPadding()) { ProgressLine(store); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant); ToolbarRow(store, settings.toolbar.bar) }
                 }
             } else Spacer(Modifier.navigationBarsPadding())
-        }
+        } }
     }
 
     if (showMenu) MenuSheet(store) { store.showMenu.value = false }

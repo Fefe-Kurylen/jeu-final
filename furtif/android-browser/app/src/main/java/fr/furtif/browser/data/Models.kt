@@ -105,7 +105,7 @@ enum class SearchEngine(val label: String, val needsBaseUrl: Boolean = false) {
 }
 @Serializable enum class TabsLayout(val label: String) { LIST("Liste"), GRID("Grille") }
 @Serializable enum class TabsSort(val label: String) { DATE("Date"), READING_TIME("Temps de lecture"), TITLE("Titre") }
-@Serializable enum class NewTabPage(val label: String) { START("Page de démarrage"), SEARCH("Moteur de recherche"), BLANK("Page vide"), CUSTOM("Site personnalisé") }
+@Serializable enum class NewTabPage(val label: String) { START("Démarrage"), SEARCH("Moteur de recherche"), BLANK("Page vide"), CUSTOM("Site personnalisé") }
 
 @Serializable
 data class Settings(

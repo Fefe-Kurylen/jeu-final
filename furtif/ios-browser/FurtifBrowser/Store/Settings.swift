@@ -89,7 +89,7 @@ enum ThumbnailSize: String, Codable, CaseIterable, Identifiable {
 enum NewTabPage: String, Codable, CaseIterable, Identifiable {
     case start, search, blank, custom
     var id: String { rawValue }
-    var label: String { switch self { case .start: return "Page de démarrage"; case .search: return "Moteur de recherche"; case .blank: return "Page vide"; case .custom: return "Site personnalisé" } }
+    var label: String { switch self { case .start: return "Démarrage"; case .search: return "Moteur de recherche"; case .blank: return "Page vide"; case .custom: return "Site personnalisé" } }
 }
 
 struct Settings: Codable, Equatable {

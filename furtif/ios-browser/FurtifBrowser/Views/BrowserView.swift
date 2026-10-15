@@ -6,6 +6,14 @@ struct BrowserView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var addressText = ""
 
+    /// Clair ou sombre selon la luminance de la couleur du site, pour que les icônes restent lisibles.
+    private var barScheme: ColorScheme? {
+        guard store.settings.adaptToSiteColor, store.settings.toolbar.style == .classic, let c = store.siteThemeColor else { return nil }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(c).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 0.6 ? .light : .dark
+    }
+
     private var barTint: Color {
         if store.settings.adaptToSiteColor, let c = store.siteThemeColor { return c }
         return Color(.systemBackground)
@@ -44,6 +52,7 @@ struct BrowserView: View {
             .padding(.top, 6)
             .padding(.bottom, 8)
             .background(barTint.opacity(store.barsHidden ? 0 : 1).ignoresSafeArea(edges: .top))
+            .modifier(SchemeOverride(scheme: barScheme))
             .offset(y: store.barsHidden ? -(topHeight(geo) + 20) : 0)
     }
 
@@ -53,6 +62,7 @@ struct BrowserView: View {
             ToolbarView(slots: store.settings.toolbar.bar)
         }
         .background(barBackground.ignoresSafeArea(edges: .bottom))
+        .modifier(SchemeOverride(scheme: barScheme))
         .offset(y: store.barsHidden ? bottomHeight(geo) + 20 : 0)
     }
 
@@ -63,6 +73,7 @@ struct BrowserView: View {
             ProgressLine()
         }
         .background(barBackground.ignoresSafeArea(edges: .top))
+        .modifier(SchemeOverride(scheme: barScheme))
         .offset(y: store.barsHidden ? -(topHeight(geo) + 40) : 0)
     }
 
@@ -84,6 +95,14 @@ struct BrowserView: View {
         guard store.settings.hideBarsOnScroll, !store.isEditingAddress else { return }
         if delta > 8, !store.barsHidden { store.barsHidden = true }
         else if delta < -8, store.barsHidden { store.barsHidden = false }
+    }
+}
+
+/// Force le thème clair ou sombre d'une barre (sinon laisse celui du système).
+struct SchemeOverride: ViewModifier {
+    let scheme: ColorScheme?
+    func body(content: Content) -> some View {
+        if let scheme { content.environment(\.colorScheme, scheme) } else { content }
     }
 }
 

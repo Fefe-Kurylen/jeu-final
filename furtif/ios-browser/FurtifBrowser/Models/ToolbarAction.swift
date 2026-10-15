@@ -51,7 +51,7 @@ enum ToolbarAction: String, Codable, CaseIterable, Identifiable {
         case .stop: return "xmark"
         case .tabs: return "square.on.square"
         case .newTab: return "plus.square.on.square"
-        case .newPrivateTab: return "plus.square.on.square.dashed"
+        case .newPrivateTab: return "plus.square.dashed"
         case .closeTab: return "xmark"
         case .closeAllTabs: return "xmark.square.fill"
         case .bookmarks: return "star"
