@@ -48,11 +48,11 @@ fun qColors(dark: Boolean, accent: AccentColor): QColors {
     return if (dark) QColors(
         dark = true, groupedBg = Color(0xFF000000), card = Color(0xFF1C1C1E), page = Color(0xFF000000), text = Color(0xFFF2F2F7), secondary = Color(0xFF8E8E93),
         tertiary = Color(0xFF48484A), separator = Color(0xFF38383A), fill = Color(0xFF2C2C2E), accent = acc, onAccent = if (accent == AccentColor.MONO) Color(0xFF111111) else Color.White,
-        destructive = Color(0xFFFF453A), barDefault = Color(0xFF1C1C1E), menuBg = Color(0xF22C2C2E),
+        destructive = Color(0xFFFF453A), barDefault = Color(0xFF1C1C1E), menuBg = Color(0xFF2C2C2E),
     ) else QColors(
         dark = false, groupedBg = Color(0xFFF2F2F7), card = Color.White, page = Color.White, text = Color(0xFF111111), secondary = Color(0xFF8E8E93),
         tertiary = Color(0xFFC7C7CC), separator = Color(0xFFD1D1D6), fill = Color(0xFFE9E9EE), accent = acc, onAccent = Color.White,
-        destructive = Color(0xFFFF3B30), barDefault = Color(0xFFF2F2F7), menuBg = Color(0xF5F9F9F9),
+        destructive = Color(0xFFFF3B30), barDefault = Color(0xFFF2F2F7), menuBg = Color(0xFFFAFAFA),
     )
 }
 
