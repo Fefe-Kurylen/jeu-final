@@ -98,8 +98,8 @@ jobs:
       - name: Émulateur + captures
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 33
+          target: default
           arch: x86_64
           profile: Nexus 5X
           disable-animations: true
