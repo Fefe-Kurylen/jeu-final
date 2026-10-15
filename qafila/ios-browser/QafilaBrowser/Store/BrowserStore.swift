@@ -259,7 +259,9 @@ final class BrowserStore: ObservableObject {
     private func applyDemoIfRequested() {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-QafilaDemo"), i + 1 < args.count else { return }
-        let screen = args[i + 1]
+        var screen = args[i + 1]
+        let forceDark = screen.hasSuffix("-dark")
+        if forceDark { screen = String(screen.dropLast(5)) }
         let now = Date()
         let demo: [(String, String, Int)] = [
             ("https://fr.wikipedia.org/wiki/Caravane_(convoi)", "Caravane (convoi) — Wikipédia", 19),
@@ -282,6 +284,7 @@ final class BrowserStore: ObservableObject {
                      ("GitHub", "https://github.com"), ("Marmiton", "https://www.marmiton.org"), ("Arte", "https://www.arte.tv")]
             .map { Bookmark(title: $0.0, url: URL(string: $0.1)!) }
         settings = Settings()
+        if forceDark { settings.appearance = .dark }
         if screen == "grid" { settings.tabsLayout = .grid }
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
             guard let self else { return }

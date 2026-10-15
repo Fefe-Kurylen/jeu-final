@@ -73,7 +73,7 @@ final class TabManager: NSObject, ObservableObject {
             web.observe(\.isLoading) { [weak self] w, _ in Task { @MainActor in if w.isLoading { self?.loading.insert(id) } else { self?.loading.remove(id) } } },
             web.observe(\.title) { [weak self] w, _ in Task { @MainActor in self?.store?.update(id) { $0.title = w.title ?? "" } } },
             web.observe(\.url) { [weak self] w, _ in Task { @MainActor in
-                guard let u = w.url, !u.absoluteString.hasPrefix("about:blank") else { return }
+                guard let u = w.url, u.scheme != "about" else { return }
                 self?.store?.update(id) { $0.url = u; $0.lastVisited = Date() }
                 self?.readerActive.remove(id)
             } },
@@ -95,7 +95,7 @@ final class TabManager: NSObject, ObservableObject {
 
     private func loadStartPage(_ web: WKWebView) {
         let marks = (store?.bookmarks ?? []).prefix(12).map { (title: $0.title, url: $0.url.absoluteString) }
-        web.loadHTMLString(StartPage.html(dark: store?.isDarkScheme ?? false, bookmarks: Array(marks)), baseURL: URL(string: "about:start"))
+        web.loadHTMLString(StartPage.html(dark: store?.isDarkScheme ?? false, bookmarks: Array(marks)), baseURL: nil)
     }
 
     /// Réglages qui s'appliquent à toutes les pages ouvertes : zoom du texte, gestes de bord d'écran.

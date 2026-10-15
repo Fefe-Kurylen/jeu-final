@@ -10,15 +10,16 @@ enum StartPage {
         return """
         <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-        :root { color-scheme: \(dark ? "dark" : "light"); }
+        :root { color-scheme: light dark; --bg: #ffffff; --fg: #1c1c1e; --tile: #f2f2f7; --tilefg: #3a3a3c; }
+        @media (prefers-color-scheme: dark) { :root { --bg: #000000; --fg: #f2f2f7; --tile: #1c1c1e; --tilefg: #d1d1d6; } }
         * { -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; font-family: -apple-system, system-ui; background: \(dark ? "#000000" : "#ffffff"); color: \(dark ? "#f2f2f7" : "#1c1c1e"); }
+        body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; font-family: -apple-system, system-ui; background: var(--bg); color: var(--fg); }
         .head { margin-top: 26vh; text-align: center; }
         h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 40px; letter-spacing: -.02em; margin: 0; }
         .ar { font-family: "Geeza Pro", "Damascus", serif; font-size: 19px; color: #8e8e93; margin-top: 2px; }
         .grid { display: grid; grid-template-columns: repeat(4, 72px); gap: 18px 14px; margin-top: 44px; }
         .tile { display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; color: inherit; }
-        .ic { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font: 500 22px "New York", Georgia, serif; background: \(dark ? "#1c1c1e" : "#f2f2f7"); color: \(dark ? "#d1d1d6" : "#3a3a3c"); }
+        .ic { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font: 500 22px "New York", Georgia, serif; background: var(--tile); color: var(--tilefg); }
         .t { font-size: 11px; color: #8e8e93; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         </style></head><body><div class="head"><h1>Qafila</h1><div class="ar" lang="ar" dir="rtl">قافلة</div></div>
         <div class="grid">\(tiles)</div></body></html>

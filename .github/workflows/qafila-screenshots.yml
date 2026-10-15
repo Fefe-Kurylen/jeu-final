@@ -67,9 +67,9 @@ jobs:
           shoot settings 6-reglages
           shoot start 7-accueil
           xcrun simctl ui "$UDID" appearance dark
-          shoot page 8-page-sombre
-          shoot menu 9-menu-sombre
-          shoot grid 10-grille-sombre
+          shoot page-dark 8-page-sombre
+          shoot menu-dark 9-menu-sombre
+          shoot grid-dark 10-grille-sombre
           sips -g pixelWidth -g pixelHeight "$OUT"/*.png
 
       - uses: actions/upload-artifact@v4
