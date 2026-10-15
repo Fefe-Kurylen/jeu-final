@@ -1,134 +1,174 @@
 package fr.qafila.browser.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import fr.qafila.browser.data.*
+import fr.qafila.browser.data.BrowserStore
+import fr.qafila.browser.data.ButtonSize
+import fr.qafila.browser.data.ToolbarAction
+import fr.qafila.browser.data.ToolbarConfig
+import fr.qafila.browser.data.ToolbarSlot
 
-/** Éditeur : chaque bouton peut être dans la barre, dans le menu, dans les deux ou nulle part ; ordre, taille, séparateurs. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Éditeur : barre et menu — ordre, taille, intitulé dans le menu, séparateurs, ajout / retrait. Aperçu en direct en haut. */
 @Composable
-fun ToolbarEditorScreen(store: BrowserStore, onDismiss: () -> Unit) {
+fun ToolbarEditorPage(store: BrowserStore, backLabel: String, onBack: () -> Unit, openGallery: () -> Unit) {
     val state by store.state.collectAsState()
-    val cfg = state.settings.toolbar
+    val s = state.settings
+    val cfg = s.toolbar
+    val q = LocalQ.current
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     fun set(c: ToolbarConfig) = store.updateSettings { it.copy(toolbar = c) }
-    var gallery by remember { mutableStateOf(false) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Personnaliser") }, navigationIcon = { IconButton(onDismiss) { Icon(Icons.Filled.Close, "Fermer") } }, actions = { TextButton(onDismiss) { Text("OK", fontWeight = FontWeight.SemiBold) } }) }) { pad ->
-            LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
-                item { SectionTitle("Aperçu"); Card { ToolbarRow(store, cfg.bar, interactive = false) }; Spacer(Modifier.height(16.dp)) }
-                item { SectionTitle("Barre d'outils (${cfg.bar.count { it.action != ToolbarAction.SEPARATOR }} boutons)") }
-                item { SlotList(cfg.bar, inMenu = false, onChange = { set(cfg.copy(bar = it)) }) }
-                item { Text("Au-delà de 6 boutons, la barre devient serrée.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)); Spacer(Modifier.height(8.dp)) }
-                item { SectionTitle("Menu") }
-                item { SlotList(cfg.menu, inMenu = true, onChange = { set(cfg.copy(menu = it)) }) }
-                item { Text("Les éléments « icône seule » consécutifs forment une rangée d'icônes ; les séparateurs créent des sections.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp)); Spacer(Modifier.height(8.dp)) }
-                item { SectionTitle("Style") }
-                item {
-                    Card {
-                        EnumRow("Style", ToolbarStyle.entries, cfg.style, { it.label }) { set(cfg.copy(style = it)) }
-                        HorizontalDivider()
-                        EnumRow("Position", ToolbarPosition.entries, cfg.position, { it.label }) { set(cfg.copy(position = it)) }
-                        HorizontalDivider()
-                        Row(Modifier.fillMaxWidth().clickable { gallery = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.GridView, null); Spacer(Modifier.width(12.dp)); Text("Galerie de barres prêtes à l'emploi") }
-                        HorizontalDivider()
-                        Row(Modifier.fillMaxWidth().clickable { set(ToolbarConfig.preset(ToolbarConfig.Preset.COMPLETE)) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.RestartAlt, null, tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(12.dp)); Text("Rétablir la barre par défaut", color = MaterialTheme.colorScheme.error) }
-                    }
-                }
-            }
-        }
-    }
-    if (gallery) ToolbarGalleryScreen(store) { gallery = false }
-}
-
-@Composable
-fun SectionTitle(t: String) = Text(t.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, bottom = 6.dp, top = 6.dp))
-
-@Composable
-fun Card(content: @Composable ColumnScope.() -> Unit) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant), content = content)
-
-@Composable
-fun <T> EnumRow(title: String, values: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().clickable { open = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f)); Text(label(selected), color = MaterialTheme.colorScheme.onSurfaceVariant); Icon(Icons.Filled.ArrowDropDown, null)
-        DropdownMenu(open, { open = false }) { values.forEach { v -> DropdownMenuItem({ Text((if (v == selected) "✓ " else "") + label(v)) }, { onSelect(v); open = false }) } }
-    }
-}
-
-@Composable
-private fun SlotList(slots: List<ToolbarSlot>, inMenu: Boolean, onChange: (List<ToolbarSlot>) -> Unit) {
-    var addOpen by remember { mutableStateOf(false) }
+    val slots = if (tab == 0) cfg.bar else cfg.menu
+    fun change(list: List<ToolbarSlot>) = set(if (tab == 0) cfg.copy(bar = list) else cfg.copy(menu = list))
     val used = slots.map { it.action }.toSet()
-    val available = ToolbarAction.entries.filter { it != ToolbarAction.SEPARATOR && it !in used }
-    Card {
-        slots.forEachIndexed { i, slot ->
-            var sizeOpen by remember(slot.id) { mutableStateOf(false) }
-            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onChange(slots - slot) }, Modifier.size(36.dp)) { Icon(Icons.Filled.RemoveCircle, "Retirer", tint = Color(0xFFE5484D)) }
-                Icon(slot.action.icon(), null, Modifier.size(22.dp), tint = if (slot.action.destructive) Color(0xFFE5484D) else MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.width(12.dp))
-                Text(slot.action.label, Modifier.weight(1f))
-                if (slot.action != ToolbarAction.SEPARATOR) {
-                    TextButton(onClick = { sizeOpen = true }) { Text(if (inMenu && !slot.showsLabel) "Icône · ${slot.size.label}" else slot.size.label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    DropdownMenu(sizeOpen, { sizeOpen = false }) {
-                        ButtonSize.entries.forEach { sz -> DropdownMenuItem({ Text((if (slot.size == sz) "✓ " else "") + sz.label) }, { onChange(slots.map { if (it.id == slot.id) it.copy(size = sz) else it }); sizeOpen = false }) }
-                        if (inMenu) { HorizontalDivider(); DropdownMenuItem({ Text((if (slot.showsLabel) "✓ " else "") + "Afficher l'intitulé") }, { onChange(slots.map { if (it.id == slot.id) it.copy(showsLabel = !it.showsLabel) else it }); sizeOpen = false }) }
-                    }
+    val available = ToolbarAction.entries.filter { a ->
+        a != ToolbarAction.SEPARATOR && a !in used && !(tab == 1 && (a == ToolbarAction.ADDRESS || a == ToolbarAction.MENU || a == ToolbarAction.STOP))
+    }
+
+    QPage("Personnaliser", onBack, backLabel = backLabel, header = {
+        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)) { ChromePreview(s, compact = true) }
+        Segmented(listOf("Barre", "Menu"), tab, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) { tab = it }
+    }) {
+        item {
+            SectionHeader(if (tab == 0) "Barre · ${slots.count { it.action != ToolbarAction.SEPARATOR }} éléments" else "Menu · ${slots.count { it.action != ToolbarAction.SEPARATOR }} éléments")
+            GroupCard {
+                if (slots.isEmpty()) Text("Aucun élément.", Modifier.padding(16.dp), color = q.secondary, fontSize = 14.sp)
+                slots.forEachIndexed { i, slot ->
+                    SlotRow(slot, inMenu = tab == 1, first = i == 0, last = i == slots.lastIndex,
+                        onRemove = { change(slots - slot) },
+                        onMove = { d -> change(slots.toMutableList().apply { add(i + d, removeAt(i)) }) },
+                        onUpdate = { u -> change(slots.map { if (it.id == slot.id) u else it }) })
+                    if (i < slots.lastIndex) RowDivider(52.dp)
                 }
-                IconButton(onClick = { if (i > 0) onChange(slots.toMutableList().apply { add(i - 1, removeAt(i)) }) }, Modifier.size(32.dp), enabled = i > 0) { Icon(Icons.Filled.KeyboardArrowUp, "Monter") }
-                IconButton(onClick = { if (i < slots.lastIndex) onChange(slots.toMutableList().apply { add(i + 1, removeAt(i)) }) }, Modifier.size(32.dp), enabled = i < slots.lastIndex) { Icon(Icons.Filled.KeyboardArrowDown, "Descendre") }
             }
-            HorizontalDivider(Modifier.padding(start = 52.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            SectionFooter(if (tab == 0) "« Adresse (en ligne) » place l'adresse dans la rangée d'icônes. Au-delà de 7 boutons, la barre devient serrée. Appui long sur un bouton de la barre : ce même éditeur."
+                else "Les éléments sans intitulé qui se suivent forment une rangée de tuiles ; les séparateurs créent des sections. Les actions de fermeture s'affichent en rouge.")
         }
-        Row(Modifier.fillMaxWidth().clickable { addOpen = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.AddCircle, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(12.dp)); Text("Ajouter un bouton", color = MaterialTheme.colorScheme.primary)
-            DropdownMenu(addOpen, { addOpen = false }) {
-                available.forEach { a -> DropdownMenuItem({ Row(verticalAlignment = Alignment.CenterVertically) { Icon(a.icon(), null, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)); Text(a.label) } }, { onChange(slots + ToolbarSlot(action = a)); addOpen = false }) }
-                HorizontalDivider()
-                DropdownMenuItem({ Text("Séparateur") }, { onChange(slots + ToolbarSlot(action = ToolbarAction.SEPARATOR)); addOpen = false })
+        item {
+            SectionHeader("Ajouter")
+            GroupCard {
+                (available + ToolbarAction.SEPARATOR).forEachIndexed { i, a ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).rowClick { change(slots + ToolbarSlot(action = a, showsLabel = tab == 0 || a.destructive || a == ToolbarAction.SEPARATOR || slots.lastOrNull()?.showsLabel != false)) }
+                        .padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(22.dp).clip(CircleShape).background(q.text), contentAlignment = Alignment.Center) { QIconView(QIcon.PLUS, "Ajouter", q.card, 14.dp) }
+                        Spacer(Modifier.width(12.dp))
+                        QIconView(a.qicon(menuIcon = s.menuIcon), null, if (a.destructive) q.destructive else q.text, 19.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(a.label, color = q.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (i < available.size) RowDivider(52.dp)
+                }
+            }
+        }
+        item {
+            Spacer(Modifier.height(24.dp))
+            GroupCard {
+                NavRow("Galerie de barres", icon = QIcon.GRID, onClick = openGallery); RowDivider(50.dp)
+                ActionRow("Rétablir la barre et le menu par défaut", q.destructive) { set(ToolbarConfig.preset(ToolbarConfig.Preset.COMPLETE).copy(style = cfg.style, position = cfg.position)) }
             }
         }
     }
 }
 
-/** Galerie de barres prêtes à l'emploi, points de départ à ajuster ensuite. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ToolbarGalleryScreen(store: BrowserStore, onDismiss: () -> Unit) {
-    val state by store.state.collectAsState()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Galerie de barres") }, navigationIcon = { IconButton(onDismiss) { Icon(Icons.Filled.Close, "Fermer") } }) }) { pad ->
-            LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                items(ToolbarConfig.Preset.entries.size) { i ->
-                    val p = ToolbarConfig.Preset.entries[i]
-                    val cfg = ToolbarConfig.preset(p)
-                    val current = state.settings.toolbar.bar.map { it.action to it.size } == cfg.bar.map { it.action to it.size }
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable {
-                        store.updateSettings { it.copy(toolbar = cfg.copy(style = it.toolbar.style, position = it.toolbar.position)) }; store.haptic(); onDismiss()
-                    }.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) { Text(p.label, fontWeight = FontWeight.SemiBold, fontSize = 17.sp); Spacer(Modifier.weight(1f)); if (current) Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) }
-                        Text(p.description, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
-                        Box(Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.background)) { ToolbarRow(store, cfg.bar, interactive = false) }
-                    }
+private fun SlotRow(slot: ToolbarSlot, inMenu: Boolean, first: Boolean, last: Boolean, onRemove: () -> Unit, onMove: (Int) -> Unit, onUpdate: (ToolbarSlot) -> Unit) {
+    val q = LocalQ.current
+    val a = slot.action
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(28.dp).pressFade(onClick = onRemove), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(20.dp).clip(CircleShape).background(q.destructive), contentAlignment = Alignment.Center) { Box(Modifier.width(9.dp).height(1.6.dp).background(Color.White)) }
+        }
+        Spacer(Modifier.width(8.dp))
+        if (a == ToolbarAction.SEPARATOR) {
+            Box(Modifier.weight(1f).height(20.dp), contentAlignment = Alignment.CenterStart) { Hairline(Modifier.padding(end = 12.dp), q.secondary) }
+        } else {
+            QIconView(a.qicon(), null, if (a.destructive) q.destructive else q.text, 20.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(a.label, color = q.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!inMenu && a != ToolbarAction.ADDRESS) MiniSegment(ButtonSize.entries.map { it.label.take(1) }, slot.size.ordinal) { onUpdate(slot.copy(size = ButtonSize.entries[it])) }
+                    if (inMenu) Chip(if (slot.showsLabel) "Ligne avec intitulé" else "Tuile", selected = slot.showsLabel) { onUpdate(slot.copy(showsLabel = !slot.showsLabel)) }
                 }
             }
         }
+        Box(Modifier.size(34.dp).pressFade(enabled = !first) { onMove(-1) }, contentAlignment = Alignment.Center) { QIconView(QIcon.CHEVRON_UP, "Monter", q.text.copy(alpha = if (first) 0.25f else 1f), 16.dp) }
+        Box(Modifier.size(34.dp).pressFade(enabled = !last) { onMove(1) }, contentAlignment = Alignment.Center) { QIconView(QIcon.CHEVRON_DOWN, "Descendre", q.text.copy(alpha = if (last) 0.25f else 1f), 16.dp) }
+    }
+}
+
+@Composable
+private fun MiniSegment(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val q = LocalQ.current
+    Row(Modifier.clip(RoundedCornerShape(7.dp)).background(q.fill).padding(2.dp)) {
+        options.forEachIndexed { i, o ->
+            val sel = i == selected
+            Box(Modifier.size(28.dp, 20.dp).clip(RoundedCornerShape(5.dp)).background(if (sel) q.card else Color.Transparent).pressFade { onSelect(i) }, contentAlignment = Alignment.Center) {
+                Text(o, color = if (sel) q.text else q.secondary, fontSize = 11.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val q = LocalQ.current
+    Text(text, Modifier.clip(RoundedCornerShape(50)).border(0.5.dp, if (selected) q.text else q.separator, RoundedCornerShape(50)).pressFade(onClick = onClick).padding(horizontal = 9.dp, vertical = 3.dp),
+        color = if (selected) q.text else q.secondary, fontSize = 11.sp)
+}
+
+/** Galerie de barres (DESIGN.md §7) : six barres prêtes à l'emploi, avec aperçu. */
+@Composable
+fun ToolbarGalleryPage(store: BrowserStore, backLabel: String, onBack: () -> Unit) {
+    val state by store.state.collectAsState()
+    val s = state.settings
+    val q = LocalQ.current
+    QPage("Galerie de barres", onBack, backLabel = backLabel) {
+        item { SectionFooter("Touchez une barre pour l'adopter ; vous pourrez ensuite l'ajuster dans Personnaliser."); Spacer(Modifier.height(6.dp)) }
+        ToolbarConfig.Preset.entries.forEach { p ->
+            item(p.name) {
+                val cfg = ToolbarConfig.preset(p).copy(style = s.toolbar.style, position = s.toolbar.position)
+                val current = s.toolbar.bar.map { it.action } == cfg.bar.map { it.action }
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 7.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(q.card)
+                    .border(if (current) 1.5.dp else 0.dp, if (current) q.text else Color.Transparent, RoundedCornerShape(16.dp))
+                    .rowClick { store.applyPreset(p) }.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(p.label, color = q.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        if (current) QIconView(QIcon.CHECK, "Barre actuelle", q.text, 18.dp)
+                    }
+                    Text(p.description, color = q.secondary, fontSize = 13.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 3.dp, bottom = 12.dp))
+                    ChromePreview(s.copy(menuIcon = p.menuIcon ?: s.menuIcon), toolbar = cfg, compact = true)
+                }
+            }
+        }
+        item { Spacer(Modifier.height(8.dp)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { Text("Style, couleurs et position sont conservés.", color = q.secondary, fontSize = 12.sp) } }
     }
 }

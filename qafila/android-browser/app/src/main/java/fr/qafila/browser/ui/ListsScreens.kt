@@ -1,79 +1,115 @@
 package fr.qafila.browser.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import fr.qafila.browser.data.BrowserStore
 import java.text.DateFormat
 import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchField(value: String, placeholder: String, onChange: (String) -> Unit) {
+    val q = LocalQ.current
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().height(38.dp).clip(RoundedCornerShape(10.dp)).background(q.fill).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        QIconView(QIcon.SEARCH, null, q.secondary, 16.dp)
+        Spacer(Modifier.width(8.dp))
+        BasicTextField(value, onChange, Modifier.weight(1f), singleLine = true, textStyle = TextStyle(color = q.text, fontSize = 15.sp), cursorBrush = SolidColor(q.text),
+            decorationBox = { inner -> Box(contentAlignment = Alignment.CenterStart) { if (value.isEmpty()) Text(placeholder, color = q.secondary, fontSize = 15.sp); inner() } })
+    }
+}
+
+@Composable
+private fun SiteRow(store: BrowserStore, title: String, url: String, trailing: String?, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val q = LocalQ.current
+    val icons by store.tabManager.favicons.icons.collectAsState()
+    Row(Modifier.fillMaxWidth().rowClick(onClick = onOpen).padding(start = 14.dp, end = 4.dp, top = 9.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Favicon(icons[store.tabManager.favicons.keyOf(url)], store.hostOf(url), 26.dp, corner = 6.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title.ifBlank { url }, color = q.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+            Text((store.hostOf(url) ?: url).uppercase(), color = q.secondary, fontSize = 10.sp, letterSpacing = 0.5.sp, maxLines = 1)
+        }
+        if (trailing != null) Text(trailing, color = q.secondary, fontSize = 12.sp)
+        Box(Modifier.size(40.dp).pressFade(onClick = onDelete), contentAlignment = Alignment.Center) { QIconView(QIcon.CLOSE, "Supprimer", q.secondary, 14.dp) }
+    }
+}
+
 @Composable
 fun BookmarksScreen(store: BrowserStore, onDismiss: () -> Unit) {
     val state by store.state.collectAsState()
+    val q = LocalQ.current
     var query by remember { mutableStateOf("") }
     val tab = state.tabs.firstOrNull { it.id == state.selectedTabId }
     val items = state.bookmarks.filter { query.isBlank() || it.title.contains(query, true) || it.url.contains(query, true) }
-    fun open(url: String) { tab?.let { store.tabManager.load(url, it.id) }; onDismiss() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Favoris") }, navigationIcon = { IconButton(onDismiss) { Icon(Icons.Filled.Close, "Fermer") } }) }) { pad ->
-            Column(Modifier.padding(pad)) {
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), placeholder = { Text("Rechercher dans les favoris") }, singleLine = true)
-                if (tab?.url != null && !store.isBookmarked(tab)) TextButton(onClick = { store.toggleBookmark(tab) }, Modifier.padding(horizontal = 12.dp)) { Icon(Icons.Filled.Star, null); Spacer(Modifier.width(8.dp)); Text("Ajouter « ${tab.displayTitle} »", maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                    if (items.isEmpty()) item { Text("Aucun favori pour l'instant.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    items.forEach { b -> item(b.id) {
-                        Row(Modifier.fillMaxWidth().clickable { open(b.url) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) { Text(b.title, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis); Text(store.hostOf(b.url) ?: b.url, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            IconButton(onClick = { store.removeBookmark(b.id) }) { Icon(Icons.Filled.Delete, "Supprimer") }
-                        }
-                    } }
+    fun open(url: String) { onDismiss(); store.navigate(url) }
+    BackHandler(onBack = onDismiss)
+    QPage("Favoris", onDismiss, backLabel = "OK", header = { SearchField(query, "Rechercher dans les favoris") { query = it } }) {
+        if (tab?.url != null && !store.isBookmarked(tab)) item {
+            Spacer(Modifier.height(10.dp))
+            GroupCard { ActionRow("Ajouter « ${tab.displayTitle} »", icon = QIcon.STAR) { store.toggleBookmark(tab) } }
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            GroupCard {
+                if (items.isEmpty()) Text("Aucun favori pour l'instant.", Modifier.padding(16.dp), color = q.secondary, fontSize = 14.sp)
+                items.forEachIndexed { i, b ->
+                    SiteRow(store, b.title, b.url, null, { open(b.url) }) { store.removeBookmark(b.id) }
+                    if (i < items.lastIndex) RowDivider(52.dp)
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(store: BrowserStore, onDismiss: () -> Unit) {
     val state by store.state.collectAsState()
+    val q = LocalQ.current
     var query by remember { mutableStateOf("") }
-    val tab = state.tabs.firstOrNull { it.id == state.selectedTabId }
-    val items = state.history.filter { query.isBlank() || it.title.contains(query, true) || it.url.contains(query, true) }
+    var confirm by remember { mutableStateOf(false) }
+    val items = state.history.filter { query.isBlank() || it.title.contains(query, true) || it.url.contains(query, true) }.take(500)
     val dayFmt = remember { DateFormat.getDateInstance(DateFormat.FULL) }
     val timeFmt = remember { DateFormat.getTimeInstance(DateFormat.SHORT) }
     val sections = items.groupBy { dayFmt.format(Date(it.visitedAt)) }
-    fun open(url: String) { tab?.let { store.tabManager.load(url, it.id) }; onDismiss() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Historique") }, navigationIcon = { IconButton(onDismiss) { Icon(Icons.Filled.Close, "Fermer") } }, actions = { TextButton(onClick = { store.clearHistory() }, enabled = state.history.isNotEmpty()) { Text("Effacer", color = MaterialTheme.colorScheme.error) } }) }) { pad ->
-            Column(Modifier.padding(pad)) {
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), placeholder = { Text("Rechercher dans l'historique") }, singleLine = true)
-                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                    if (items.isEmpty()) item { Text("Aucun historique. Les onglets privés n'y sont jamais enregistrés.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    sections.forEach { (day, entries) ->
-                        item(day) { Text(day, Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        entries.forEach { e -> item(e.id) {
-                            Row(Modifier.fillMaxWidth().clickable { open(e.url) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) { Text(e.title, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis); Text(store.hostOf(e.url) ?: "", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Text(timeFmt.format(Date(e.visitedAt)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                IconButton(onClick = { store.removeHistory(e.id) }) { Icon(Icons.Filled.Delete, "Supprimer") }
-                            }
-                        } }
+    fun open(url: String) { onDismiss(); store.navigate(url) }
+    BackHandler(onBack = onDismiss)
+    QPage("Historique", onDismiss, backLabel = "OK",
+        trailing = { TextAction(if (confirm) "Confirmer" else "Effacer", q.destructive, bold = confirm, enabled = state.history.isNotEmpty()) { if (confirm) { store.clearHistory(); confirm = false } else confirm = true } },
+        header = { SearchField(query, "Rechercher dans l'historique") { query = it } }) {
+        if (items.isEmpty()) item { SectionFooter("Aucun historique. Les onglets privés n'y sont jamais enregistrés.") }
+        sections.forEach { (day, entries) ->
+            item(day) {
+                SectionHeader(day)
+                GroupCard {
+                    entries.forEachIndexed { i, e ->
+                        SiteRow(store, e.title, e.url, timeFmt.format(Date(e.visitedAt)), { open(e.url) }) { store.removeHistory(e.id) }
+                        if (i < entries.lastIndex) RowDivider(52.dp)
                     }
                 }
             }

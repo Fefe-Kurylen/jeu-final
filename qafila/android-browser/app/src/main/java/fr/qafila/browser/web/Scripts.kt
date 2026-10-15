@@ -1,12 +1,19 @@
 package fr.qafila.browser.web
 
-/** Scripts injectés : temps de lecture + couleur du site, mode sombre, masquage CSS, lecteur. */
+/** Scripts injectés : temps de lecture + couleur du site, mode sombre, masquage CSS, lecteur, page d'erreur. */
 object Scripts {
+    /** Temps de lecture (200 mots/min) + couleur du site : theme-color (selon le mode clair/sombre), sinon fond de la page, normalisée en rgb(). */
     val pageInfo = """
         (function(){ try {
           var words = (document.body && document.body.innerText || '').split(/\s+/).filter(Boolean).length;
-          var meta = document.querySelector('meta[name="theme-color"]');
-          window.Qafila.pageInfo(Math.max(0, Math.round(words / 200)), meta ? (meta.getAttribute('content') || '') : '');
+          function norm(c){ if (!c) return ''; var d = document.createElement('div'); d.style.color = c; (document.body || document.documentElement).appendChild(d); var r = getComputedStyle(d).color; d.remove(); return r; }
+          function empty(c){ return !c || c === 'transparent' || /^rgba\(\s*0,\s*0,\s*0,\s*0\s*\)$/.test(c); }
+          var c = '', metas = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < metas.length; i++) { var m = metas[i].getAttribute('media'); if (!m || window.matchMedia(m).matches) { c = metas[i].getAttribute('content') || ''; break; } }
+          c = norm(c);
+          if (empty(c) && document.body) { c = getComputedStyle(document.body).backgroundColor; if (empty(c)) c = getComputedStyle(document.documentElement).backgroundColor; }
+          if (empty(c)) c = '';
+          window.Qafila.pageInfo(Math.max(0, Math.round(words / 200)), c);
         } catch (e) {} })();
     """.trimIndent()
 
@@ -41,13 +48,6 @@ img, video, canvas, picture, svg, iframe, [style*="background-image"] { filter: 
         body{margin:0 auto;padding:24px 20px 60px;font:19px/1.6 Georgia,serif;background:${if (dark) "#141416" else "#fbfaf7"};color:${if (dark) "#ececec" else "#1b1b1b"};max-width:680px}
         h1{font:700 30px/1.2 sans-serif;margin:0 0 8px}.meta{color:#888;font:14px sans-serif;margin-bottom:28px}img,video{max-width:100%;height:auto;border-radius:10px}a{color:${if (dark) "#8fb0ff" else "#004fd6"}}pre{white-space:pre-wrap;font-size:15px}</style>
         </head><body><h1>$title</h1><div class="meta">${if (byline.isEmpty()) "" else "$byline · "}$host</div>$html</body></html>
-    """.trimIndent()
-
-    fun startPage(dark: Boolean): String = """
-        <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>:root{color-scheme:${if (dark) "dark" else "light"}}body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;background:${if (dark) "#17191c" else "#fff"};color:${if (dark) "#f2f4f7" else "#17191c"}}
-        .ring{width:96px;height:96px;border-radius:50%;border:20px solid currentColor;box-sizing:border-box;opacity:.9}h1{font-family:Georgia,serif;font-size:44px;letter-spacing:-.03em;margin:22px 0 6px}p{margin:0;color:#8395af;font-size:15px}.ar{font-family:'Noto Naskh Arabic',serif;font-size:26px;font-weight:600;color:#8395af;margin:0 0 14px}</style>
-        </head><body><div class="ring"></div><h1>Qafila</h1><div class="ar" lang="ar" dir="rtl">قافلة</div><p>Touchez la barre d'adresse pour commencer.</p></body></html>
     """.trimIndent()
 
     fun errorPage(message: String, url: String): String = """

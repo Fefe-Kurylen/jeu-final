@@ -23,11 +23,20 @@ Voir [`../DEPLOIEMENT_STORES.md`](../DEPLOIEMENT_STORES.md) : keystore (`./scrip
 
 ```
 app/src/main/java/fr/qafila/browser/
-  MainActivity.kt              Hôte Compose, intents VIEW / WEB_SEARCH / SEND
-  data/Models.kt               Onglets, favoris, historique, actions de barre + presets, réglages (kotlinx.serialization)
-  data/BrowserStore.kt         ViewModel : état global, actions, persistance JSON
-  web/TabManager.kt            Une WebView par onglet, bloqueur (shouldInterceptRequest), scripts, user agent, lecteur
-  web/ContentBlocker.kt        Domaines bloqués + sélecteurs de bandeaux cookies
-  web/Scripts.kt               Temps de lecture, assombrir, lecteur, page de démarrage, page d'erreur
-  ui/                          BrowserScreen, AddressBar, ToolbarRow, MenuSheet, TabsScreen, ToolbarEditorScreen (+ galerie), SettingsScreen, ListsScreens
+  MainActivity.kt              Hôte Compose (bord à bord), intents VIEW / WEB_SEARCH / SEND, mode démo (extra « demo »)
+  data/Models.kt               Onglets, favoris, historique, actions de barre + galerie (6 barres), réglages (kotlinx.serialization)
+  data/BrowserStore.kt         ViewModel : état global, actions, réglages par site, veille des onglets, persistance JSON, démo
+  web/TabManager.kt            Une WebView par onglet, bloqueur (pubs / traqueurs / cookies, exceptions par site), taille du texte, lecteur
+  web/ContentBlocker.kt        Listes de domaines (pubs, traqueurs, bandeaux de cookies) + sélecteurs CSS masqués
+  web/Favicons.kt              Favicons par domaine (WebView, sinon le site lui-même), cache disque
+  web/Scripts.kt               Temps de lecture + couleur du site, assombrir, lecteur, page d'erreur
+  ui/Theme.kt                  Palette neutre (DESIGN.md §1), couleurs de barre (Auto / palette clair-sombre)
+  ui/Icons.kt                  Icônes au trait fin dessinées à la main (graisse Fine / Normale / Grasse)
+  ui/Chrome.kt                 Barre du bas : 6 styles d'adresse, adresse en ligne, rangée d'icônes, mini-adresse, saisie, aperçu
+  ui/MenuCard.kt               Menu flottant (tuiles, lignes, actions rouges, séparateurs)
+  ui/TabsScreen.kt             Onglets : liste groupée, grille 2/3 colonnes, carrousels par site
+  ui/SettingsScreen.kt         Réglages à sous-pages ; ToolbarEditorScreen.kt : éditeur barre/menu + galerie
+  ui/StartPage.kt, ListsScreens.kt, Components.kt, BrowserScreen.kt
 ```
+
+La spécification de design commune iOS / Android est dans [`../DESIGN.md`](../DESIGN.md).
