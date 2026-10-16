@@ -64,7 +64,7 @@ struct BrowserView: View {
         .ignoresSafeArea()
         .overlay(alignment: atTop ? .bottom : .top) {
             // Bande derrière la barre d'état (ou l'indicateur d'accueil) pour que la page ne s'y mélange pas.
-            ChromeBackground(palette: palette, style: s.toolbar.style)
+            ChromeBackground(palette: palette, style: floating ? .classic : s.toolbar.style)
                 .frame(height: atTop ? safe.bottom : safe.top)
                 .ignoresSafeArea()
                 .opacity((atTop && collapsed && s.scrollBehavior == .hide) || (atTop && floating) ? 0 : 1)
