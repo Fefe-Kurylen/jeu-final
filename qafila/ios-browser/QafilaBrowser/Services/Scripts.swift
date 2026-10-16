@@ -7,7 +7,10 @@ enum Scripts {
     (function(){
       try {
         var root = document.querySelector('#mw-content-text, article, main, [role=main]') || document.body;
-        var words = (root && root.textContent || '').split(/\\s+/).filter(Boolean).length;
+        var count = function(t){ return (t || '').split(/\\s+/).filter(Boolean).length; };
+        // Seuls les paragraphes comptent (pas les références, tableaux ni menus).
+        var words = count(Array.prototype.map.call(root.querySelectorAll('p'), function(p){ return p.textContent; }).join(' '));
+        if (words < 60) words = count(root.textContent);
         var meta = document.querySelector('meta[name="theme-color"]');
         var color = meta ? meta.getAttribute('content') : '';
         var icon = '';
