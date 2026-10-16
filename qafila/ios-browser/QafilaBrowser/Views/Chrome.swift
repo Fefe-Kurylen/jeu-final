@@ -263,6 +263,13 @@ struct ReadingPill: View {
 }
 
 struct Favicon: View {
+    /// Initiale du nom du site : « fr.m.wikipedia.org » → « W ».
+    static func brandLetter(_ host: String) -> String {
+        let labels = host.lowercased().split(separator: ".")
+        let name = labels.count >= 2 ? labels[labels.count - 2] : (labels.first ?? "q")
+        return String(name.prefix(1)).uppercased()
+    }
+
     let tab: BrowserTab?
     var size: CGFloat = 20
     var body: some View {
@@ -272,7 +279,7 @@ struct Favicon: View {
             } else if tab?.isPrivate == true {
                 Image(systemName: "hand.raised.fill").font(.system(size: size * 0.55)).foregroundStyle(.secondary)
             } else {
-                Text(String((tab?.host ?? "Q").prefix(1)).uppercased())
+                Text(Self.brandLetter(tab?.host ?? "qafila"))
                     .font(.system(size: size * 0.55, weight: .semibold, design: .serif)).foregroundStyle(.secondary)
             }
         }
@@ -367,7 +374,7 @@ struct ToolbarButton: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ToolbarPressStyle())
         .disabled(!isEnabled)
         .accessibilityLabel(slot.action.label)
         .background {
@@ -396,11 +403,22 @@ struct ToolbarButton: View {
     }
 }
 
+/// Appui sur une icône de la barre : léger rétrécissement et atténuation, comme les boutons système.
+struct ToolbarPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.86 : 1)
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
 /// Icône d'une action, avec son état (actif / inactif) et le style choisi (graisse, icône du menu, compteur d'onglets).
 struct ActionGlyph: View {
     @EnvironmentObject var store: BrowserStore
     let action: ToolbarAction
     var size: CGFloat = 20
+    var tint: Color? = nil
 
     private var weight: ButtonWeight { store.settings.buttonWeight }
 
@@ -410,7 +428,7 @@ struct ActionGlyph: View {
         } else {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: weight.fontWeight))
-                .foregroundStyle(isActive ? Color.accentColor : Color.primary)
+                .foregroundStyle(tint ?? (isActive ? Color.accentColor : Color.primary))
                 .symbolRenderingMode(.monochrome)
         }
     }

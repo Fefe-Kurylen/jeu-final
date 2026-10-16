@@ -5,7 +5,7 @@ object Scripts {
     /** Temps de lecture (200 mots/min) + couleur du site : theme-color (selon le mode clair/sombre), sinon fond de la page, normalisée en rgb(). */
     val pageInfo = """
         (function(){ try {
-          var words = (document.body && document.body.innerText || '').split(/\s+/).filter(Boolean).length;
+          var root = document.querySelector('#mw-content-text, article, main, [role=main]') || document.body; var words = (root && root.textContent || '').split(/\s+/).filter(Boolean).length;
           function norm(c){ if (!c) return ''; var d = document.createElement('div'); d.style.color = c; (document.body || document.documentElement).appendChild(d); var r = getComputedStyle(d).color; d.remove(); return r; }
           function empty(c){ return !c || c === 'transparent' || /^rgba\(\s*0,\s*0,\s*0,\s*0\s*\)$/.test(c); }
           var c = '', metas = document.querySelectorAll('meta[name="theme-color"]');

@@ -165,6 +165,12 @@ final class TabManager: NSObject, ObservableObject {
         }
     }
 
+    /// Icônes des onglets restaurés mais pas encore ouverts (pour la liste des onglets).
+    func prefetchFavicons() {
+        guard let store else { return }
+        for t in store.tabs where t.faviconData == nil && !t.isPrivate { if let h = t.url?.host { fetchFavicon("", host: h, id: t.id) } }
+    }
+
     func applyUserAgentToOpenTabs() { for id in views.keys { applyUserAgent(id) } }
 
     func snapshot(_ id: UUID, completion: @escaping (UIImage?) -> Void) {
@@ -242,7 +248,7 @@ extension TabManager: WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler
         fetchFavicon(icon, host: web.url?.host, id: id)
     }
 
-    private func fetchFavicon(_ icon: String, host: String?, id: UUID) {
+    func fetchFavicon(_ icon: String, host: String?, id: UUID) {
         let candidates = [icon, host.map { "https://\($0)/apple-touch-icon.png" } ?? "", host.map { "https://\($0)/favicon.ico" } ?? ""].filter { !$0.isEmpty }
         Task.detached {
             for c in candidates {

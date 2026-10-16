@@ -6,7 +6,8 @@ enum Scripts {
     static let pageInfo = """
     (function(){
       try {
-        var words = (document.body && document.body.innerText || '').split(/\\s+/).filter(Boolean).length;
+        var root = document.querySelector('#mw-content-text, article, main, [role=main]') || document.body;
+        var words = (root && root.textContent || '').split(/\\s+/).filter(Boolean).length;
         var meta = document.querySelector('meta[name="theme-color"]');
         var color = meta ? meta.getAttribute('content') : '';
         var icon = '';

@@ -268,7 +268,7 @@ fun Favicon(bitmap: Bitmap?, host: String?, size: Dp, corner: Dp = size / 4.5f, 
         when {
             private -> QIconView(QIcon.PRIVATE, null, fg, size * 0.66f)
             bitmap != null -> Image(bitmap.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            host != null -> Text(host.removePrefix("m.").take(1).uppercase(), color = fg, fontSize = (size.value * 0.5f).sp, fontWeight = FontWeight.SemiBold)
+            host != null -> Text(brandLetter(host), color = fg, fontSize = (size.value * 0.5f).sp, fontWeight = FontWeight.SemiBold)
             else -> QIconView(QIcon.GLOBE, null, fg, size * 0.7f)
         }
     }
@@ -301,4 +301,11 @@ fun MenuLine(title: String, icon: QIcon?, color: Color = LocalQ.current.text, ch
         Text(title, Modifier.weight(1f), color = color, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (icon != null) QIconView(icon, null, color, 17.dp)
     }
+}
+
+/** Initiale du nom du site : « fr.m.wikipedia.org » → « W ». */
+fun brandLetter(host: String): String {
+    val labels = host.lowercase().split('.').filter { it.isNotEmpty() }
+    val name = if (labels.size >= 2) labels[labels.size - 2] else labels.firstOrNull() ?: "q"
+    return name.take(1).uppercase()
 }

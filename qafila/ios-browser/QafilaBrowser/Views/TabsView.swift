@@ -235,7 +235,7 @@ struct TabsView: View {
                     .aspectRatio(3 / 4, contentMode: .fit)
                     .overlay {
                         if let img = snapshots[tab.id] { Image(uiImage: img).resizable().scaledToFill() }
-                        else { Text(String(tab.host.prefix(1)).uppercased()).font(.system(size: 30, weight: .medium, design: .serif)).foregroundStyle(.tertiary) }
+                        else { Text(Favicon.brandLetter(tab.host)).font(.system(size: 30, weight: .medium, design: .serif)).foregroundStyle(.tertiary) }
                     }
                     .clipped()
             }

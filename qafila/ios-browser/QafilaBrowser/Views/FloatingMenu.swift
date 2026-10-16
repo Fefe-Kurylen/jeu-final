@@ -66,7 +66,7 @@ struct FloatingMenu: View {
                 if i > 0 { Divider().frame(height: labelled ? 36 : 24) }
                 Button { act(slot.action) } label: {
                     VStack(spacing: 5) {
-                        ActionGlyph(action: slot.action, size: labelled ? 19 : 18)
+                        ActionGlyph(action: slot.action, size: labelled ? 19 : 18, tint: slot.action.isDestructive ? .red : nil)
                         if labelled { Text(slot.action.label).font(.system(size: 12)).foregroundStyle(.primary).lineLimit(1) }
                     }
                     .frame(maxWidth: .infinity).frame(height: labelled ? 62 : 48)

@@ -56,6 +56,7 @@ final class BrowserStore: ObservableObject {
             .sink { [weak self] _ in guard let self, let id = self.selectedTabID else { return }; self.tabManager.suspendBackgroundIfNeeded(keeping: id) }
             .store(in: &cancellables)
         closeExpiredTabs()
+        tabManager.prefetchFavicons()
     }
 
     /// Fermeture automatique des onglets inactifs (Réglages › Onglets).
