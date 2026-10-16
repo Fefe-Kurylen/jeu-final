@@ -27,6 +27,7 @@ shoot menu 2-menu
 shoot tabs 3-onglets
 shoot editor 4-personnaliser
 shoot settings 5-reglages
+shoot floating 7-flottante
 adb shell cmd uimode night yes
 shoot page 6-page-sombre
 adb shell cmd uimode night no

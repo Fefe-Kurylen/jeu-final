@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -104,7 +105,15 @@ fun ChromeContent(
 ) {
     val glass = toolbar.style == ToolbarStyle.GLASS
     val q = LocalQ.current
-    Box(modifier.fillMaxWidth().animateContentSize(tween(180)).then(if (background) Modifier.background(if (glass) colors.bg.copy(alpha = 0.80f) else colors.bg) else Modifier)) {
+    val floating = toolbar.style == ToolbarStyle.FLOATING
+    val bgMod = when {
+        !background -> Modifier
+        floating -> Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            .shadow(10.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.2f))
+            .clip(RoundedCornerShape(22.dp)).background(colors.bg).padding(bottom = 4.dp)
+        else -> Modifier.background(if (glass) colors.bg.copy(alpha = 0.80f) else colors.bg)
+    }
+    Box(modifier.fillMaxWidth().animateContentSize(tween(180)).then(bgMod)) {
         Column(Modifier.fillMaxWidth()) {
             if (glass) Box(Modifier.fillMaxWidth().height(0.5.dp).background(colors.hairline))
             when {

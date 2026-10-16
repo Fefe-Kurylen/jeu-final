@@ -14,6 +14,7 @@ struct BrowserView: View {
     private var landscape: Bool { vClass == .compact }
     private var atTop: Bool { s.toolbar.position == .top || (landscape && s.landscapeTopBar) }
     private var palette: ChromePalette { ChromePalette.make(s, scheme: scheme, site: store.siteThemeColor) }
+    private var floating: Bool { s.toolbar.style == .floating }
     private var collapsed: Bool { store.barsHidden && !store.isEditingAddress && !store.showMenu }
 
     var body: some View {
@@ -66,7 +67,7 @@ struct BrowserView: View {
             ChromeBackground(palette: palette, style: s.toolbar.style)
                 .frame(height: atTop ? safe.bottom : safe.top)
                 .ignoresSafeArea()
-                .opacity(atTop && collapsed && s.scrollBehavior == .hide ? 0 : 1)
+                .opacity((atTop && collapsed && s.scrollBehavior == .hide) || (atTop && floating) ? 0 : 1)
         }
     }
 
@@ -80,12 +81,21 @@ struct BrowserView: View {
                     ChromeBar(editor: editor, singleRow: landscape, atTop: atTop)
                 }
             }
-            .padding(.bottom, atTop ? 6 : 0)
-            .background(GeometryReader { g in Color.clear.onAppear { chromeHeight = g.size.height }.onChange(of: g.size.height) { _, h in if !collapsed { chromeHeight = h } } })
+            .padding(.bottom, atTop ? 6 : (floating ? 4 : 0))
+            .padding(.top, floating && atTop ? 2 : 0)
             .environment(\.chromeCard, palette.card)
             .modifier(SchemeOverride(scheme: palette.contentScheme))
-            .background(ChromeBackground(palette: palette, style: s.toolbar.style).ignoresSafeArea(edges: atTop ? .top : .bottom))
-            .overlay(alignment: atTop ? .bottom : .top) { Rectangle().fill(Color.black.opacity(palette.contentScheme == .dark ? 0.35 : 0.07)).frame(height: 0.5) }
+            .background {
+                if floating {
+                    FloatingBarShape(palette: palette)
+                } else {
+                    ChromeBackground(palette: palette, style: s.toolbar.style).ignoresSafeArea(edges: atTop ? .top : .bottom)
+                        .overlay(alignment: atTop ? .bottom : .top) { Rectangle().fill(Color.black.opacity(palette.contentScheme == .dark ? 0.35 : 0.07)).frame(height: 0.5) }
+                }
+            }
+            .padding(.horizontal, floating ? 10 : 0)
+            .padding(atTop ? .top : .bottom, floating ? 6 : 0)
+            .background(GeometryReader { g in Color.clear.onAppear { chromeHeight = g.size.height }.onChange(of: g.size.height) { _, h in if !collapsed { chromeHeight = h } } })
             .offset(y: hideOffset(safe))
             if store.isEditingAddress && atTop { SuggestionsPanel(editor: editor).padding(.horizontal, 10) }
         }

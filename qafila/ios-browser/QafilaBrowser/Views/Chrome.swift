@@ -37,7 +37,20 @@ struct ChromeBackground: View {
         switch style {
         case .classic: palette.bar
         case .glass: Rectangle().fill(.ultraThinMaterial).overlay(palette.bar.opacity(0.55))
+        case .floating: FloatingBarShape(palette: palette)
         }
+    }
+}
+
+/// Barre flottante (comme Quiche) : capsule arrondie détachée des bords, verre teinté et ombre douce.
+struct FloatingBarShape: View {
+    let palette: ChromePalette
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+        shape.fill(.regularMaterial)
+            .overlay(shape.fill(palette.bar.opacity(0.78)))
+            .overlay(shape.strokeBorder(Color.primary.opacity(palette.contentScheme == .dark ? 0.14 : 0.07), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.16), radius: 20, y: 6)
     }
 }
 

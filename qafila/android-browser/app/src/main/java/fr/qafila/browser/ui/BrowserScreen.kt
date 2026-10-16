@@ -55,6 +55,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -155,6 +157,7 @@ fun BrowserScreen(store: BrowserStore) {
     val barBg = resolveBarColor(s, q.dark, siteColor, tab?.isPrivate == true, darkened)
     val bar = barColorsFor(barBg)
     val glass = s.toolbar.style == ToolbarStyle.GLASS
+    val floating = s.toolbar.style == ToolbarStyle.FLOATING
     val statusColor = when {
         tab?.url == null -> q.page
         siteColor != null && !darkened && (!q.dark || siteColor.luminance() < 0.5f) -> siteColor
@@ -217,7 +220,7 @@ fun BrowserScreen(store: BrowserStore) {
         val statusInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val chromeDp = with(density) { chromeHeightPx.toDp() }
-        val reserve = when { hidden -> 0.dp; glass && s.scrollBehavior != ScrollBehavior.FIXED -> 0.dp; else -> chromeDp }
+        val reserve = when { hidden -> 0.dp; (glass || floating) && s.scrollBehavior != ScrollBehavior.FIXED -> 0.dp; else -> chromeDp }
         val contentPad = if (top) Modifier.padding(top = if (hidden) statusInset else reserve.coerceAtLeast(statusInset)).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime).only(WindowInsetsSides.Bottom))
             else Modifier.padding(top = statusInset, bottom = reserve)
 
@@ -266,7 +269,15 @@ fun BrowserScreen(store: BrowserStore) {
             enter = slideInVertically(tween(200)) { if (top) -it else it }, exit = slideOutVertically(tween(200)) { if (top) -it else it },
         ) {
             Column(
-                Modifier.fillMaxWidth().onSizeChanged { chromeHeightPx = it.height }.background(if (glass) bar.bg.copy(alpha = 0.80f) else bar.bg)
+                if (floating) {
+                    // Barre flottante (comme Quiche) : détachée des bords, arrondie, avec une ombre douce.
+                    Modifier.fillMaxWidth().onSizeChanged { chromeHeightPx = it.height }
+                        .then(if (top) Modifier.statusBarsPadding() else Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime).only(WindowInsetsSides.Bottom)))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.22f))
+                        .clip(RoundedCornerShape(24.dp)).background(bar.bg.copy(alpha = 0.96f)).border(0.5.dp, bar.hairline, RoundedCornerShape(24.dp))
+                        .padding(bottom = if (top) 0.dp else 4.dp, top = if (top) 4.dp else 0.dp)
+                } else Modifier.fillMaxWidth().onSizeChanged { chromeHeightPx = it.height }.background(if (glass) bar.bg.copy(alpha = 0.80f) else bar.bg)
                     .then(if (top) Modifier.statusBarsPadding() else Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime).only(WindowInsetsSides.Bottom))),
             ) {
                 if (showFind && tab != null && !top) FindBar(store, tab.id, bar) { showFind = false; store.tabManager.clearFind(tab.id) }

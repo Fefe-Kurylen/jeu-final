@@ -134,11 +134,13 @@ struct ChromePreview: View {
     }
 
     private func bar(_ palette: ChromePalette) -> some View {
-        ChromeBar(editor: editor, singleRow: false, atTop: store.settings.toolbar.position == .top)
+        let floating = store.settings.toolbar.style == .floating
+        return ChromeBar(editor: editor, singleRow: false, atTop: store.settings.toolbar.position == .top)
             .padding(.bottom, 6)
             .environment(\.chromeCard, palette.card)
             .modifier(SchemeOverride(scheme: palette.contentScheme))
             .background(ChromeBackground(palette: palette, style: store.settings.toolbar.style))
+            .padding(floating ? 8 : 0)
     }
 
     private var page: some View {
@@ -275,9 +277,11 @@ struct AppearanceSettings: View {
             Section {
                 SwatchRow(items: BarColor.allCases, selection: $store.settings.barColorDark, color: { $0.color }, label: { $0 == .auto ? "Site" : $0.label })
             } header: { Text("Barre — mode sombre") } footer: { Text("« Site » reprend la couleur de thème du site visité. Les icônes passent en clair ou en sombre automatiquement.") }
-            Section("Matière de la barre") {
+            Section {
                 Picker("Style", selection: $store.settings.toolbar.style) { ForEach(ToolbarStyle.allCases) { Text($0.label).tag($0) } }
                     .pickerStyle(.segmented)
+            } header: { Text("Style de la barre") } footer: {
+                Text("Classique : couleur pleine. Verre : translucide. Flottante : barre arrondie détachée des bords, la page passe autour.")
             }
             Section("Icône de l'app") {
                 HStack(spacing: 0) {

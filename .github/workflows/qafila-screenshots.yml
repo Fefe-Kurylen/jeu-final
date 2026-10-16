@@ -60,16 +60,16 @@ jobs:
             xcrun simctl io "$UDID" screenshot "$OUT/$2.png"
           }
           shoot page 1-page
-          shoot menu 2-menu
-          shoot tabs 3-onglets
-          shoot appearance 4-apparence
-          shoot gallery 5-galerie
-          shoot settings 6-reglages
-          shoot start 7-accueil
+          shoot floating 2-flottante
+          shoot menu 3-menu
+          shoot tabs 4-onglets
+          shoot appearance 5-apparence
+          shoot gallery 6-galerie
+          shoot settings 7-reglages
+          shoot start 8-accueil
           xcrun simctl ui "$UDID" appearance dark
-          shoot page-dark 8-page-sombre
-          shoot menu-dark 9-menu-sombre
-          shoot grid-dark 10-grille-sombre
+          shoot page-dark 9-page-sombre
+          shoot floating-dark 10-flottante-sombre
           sips -g pixelWidth -g pixelHeight "$OUT"/*.png
 
       - uses: actions/upload-artifact@v4

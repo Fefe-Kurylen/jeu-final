@@ -182,7 +182,7 @@ private fun AppearancePage(store: BrowserStore) {
         BarColorSection("Couleur de la barre — mode sombre", s.barColorDark, dark = true) { c -> up { it.copy(barColorDark = c) } }
 
         SegmentedSection("Style de la barre", ToolbarStyle.entries.map { it.label }, s.toolbar.style.ordinal,
-            "Classique : couleur pleine. Verre : barre translucide, la page reste visible dessous.") { i -> up { it.copy(toolbar = it.toolbar.copy(style = ToolbarStyle.entries[i])) } }
+            "Classique : couleur pleine. Verre : barre translucide. Flottante : barre arrondie détachée des bords, la page passe autour.") { i -> up { it.copy(toolbar = it.toolbar.copy(style = ToolbarStyle.entries[i])) } }
 
         SectionHeader("Icône de l'application")
         GroupCard {

@@ -49,7 +49,7 @@ enum class ToolbarAction(val label: String, val destructive: Boolean = false, va
 data class ToolbarSlot(val id: String = UUID.randomUUID().toString(), val action: ToolbarAction, val size: ButtonSize = ButtonSize.MEDIUM, val showsLabel: Boolean = true)
 
 /** Matériau de la barre : couleur pleine ou translucide. */
-@Serializable enum class ToolbarStyle(val label: String) { CLASSIC("Classique"), GLASS("Verre") }
+@Serializable enum class ToolbarStyle(val label: String) { CLASSIC("Classique"), GLASS("Verre"), FLOATING("Flottante") }
 @Serializable enum class ToolbarPosition(val label: String) { BOTTOM("En bas"), TOP("En haut") }
 
 @Serializable

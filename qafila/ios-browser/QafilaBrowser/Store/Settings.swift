@@ -109,9 +109,9 @@ enum BarColor: String, Codable, CaseIterable, Identifiable {
 }
 
 enum ToolbarStyle: String, Codable, CaseIterable, Identifiable {
-    case classic, glass
+    case classic, glass, floating
     var id: String { rawValue }
-    var label: String { self == .classic ? "Classique" : "Verre" }
+    var label: String { switch self { case .classic: return "Classique"; case .glass: return "Verre"; case .floating: return "Flottante" } }
 }
 
 enum ToolbarPosition: String, Codable, CaseIterable, Identifiable {

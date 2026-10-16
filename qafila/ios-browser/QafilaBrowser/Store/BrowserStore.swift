@@ -286,6 +286,7 @@ final class BrowserStore: ObservableObject {
         settings = Settings()
         if forceDark { settings.appearance = .dark }
         if screen == "grid" { settings.tabsLayout = .grid }
+        if screen == "floating" { settings.toolbar.style = .floating }
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
             guard let self else { return }
             switch screen {
