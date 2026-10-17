@@ -324,7 +324,7 @@ function renderBattleReportCard(r, idx) {
     const killed = fin ? fin.killed : Math.floor(before * rate(side));
     const after = fin ? fin.remaining : before - killed;
     return `<div class="unit-line${after === 0 ? ' wiped' : ''}">
-      ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
+      <span class="unit-name unit-link" onclick="showUnitInfoModal('${sheetKey(u.key)}')" title="Fiche de l'unité">${unitIconHtml(u.key, 'unit-ico-sm')}${escapeHtml(u.name || getUnitName(u.key))}</span>
       <span class="unit-before">${formatNum(before)}</span>
       <span class="unit-arrow">→</span>
       <span class="unit-after">${formatNum(after)}</span>

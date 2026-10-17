@@ -177,6 +177,7 @@ function openBuildPanel(slotNum) {
         <span class="building-detail-icon">${buildingIconHtml(key)}</span>
         <span>${getBuildingName(key)}</span>
         <span class="building-level-badge">Niv. ${level}/${maxLevel}</span>
+        ${infoBtnHtml('building', key)}
       </div>
     `;
 
@@ -253,6 +254,7 @@ function openBuildPanel(slotNum) {
           <div class="info-section">
             <h4><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Description</h4>
             <p class="info-description">${getBuildingDescription(key)}</p>
+            <button type="button" class="btn-secondary sheet-open-btn" onclick="showBuildingInfoModal('${key}')">Fiche complète : niveaux, coûts et effets</button>
           </div>
           <div class="info-section">
             <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Bonus actuel (Niveau ${level})</h4>
@@ -303,7 +305,7 @@ function openBuildPanel(slotNum) {
         <div class="field-header">
           <div class="field-icon-large">${buildingIconHtml(fieldKey, 'b-ico-lg')}</div>
           <div class="field-info">
-            <h3>${getBuildingName(fieldKey)}</h3>
+            <h3>${getBuildingName(fieldKey)} ${infoBtnHtml('building', fieldKey)}</h3>
             <p class="field-type">Champ de ${resourceType}</p>
           </div>
         </div>
@@ -393,7 +395,7 @@ function openBuildPanel(slotNum) {
                       ` : !hasPrereqs ? `
                         <p class="build-option-prereq">⚠️ ${prereqStatus.missing}</p>
                       ` : `
-                        <p class="build-option-desc">${getBuildingDescription(b.key)}</p>
+                        <p class="build-option-desc">${getBuildingShortDescription(b.key)}</p>
                       `}
                       <div class="build-option-costs ${!hasPrereqs ? 'dimmed' : ''}">
                         <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 0)}</span>
@@ -404,6 +406,7 @@ function openBuildPanel(slotNum) {
                       <div class="build-option-time"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(b.timeL1Sec || 60)}</div>
                     </div>
                     <div class="build-option-action">
+                      ${infoBtnHtml('building', b.key)}
                       ${blocked ? `<span class="built-badge">✓</span>` :
                         canBuild ? `<button class="mini-build-btn"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""></button>` :
                         `<button class="mini-build-btn disabled"><img class="ico" src="assets/images/3d/ui/lock.webp" alt=""></button>`}
@@ -457,32 +460,7 @@ function formatDuration(seconds) {
 
 // Helper: Get building bonus text
 function getBuildingBonus(key, level) {
-  const bonuses = {
-    MAIN_HALL: `Réduction temps construction: -${(level * 2.5).toFixed(1)}%`,
-    BARRACKS: `Réduction temps entraînement: -${(level * 0.5).toFixed(1)}%`,
-    STABLE: `Réduction temps entraînement cavalerie: -${(level * 0.5).toFixed(1)}%`,
-    WORKSHOP: `Réduction temps entraînement siège: -${(level * 4).toFixed(1)}%`,
-    ACADEMY: `Réduction temps recherche: -${level}%`,
-    FORGE: `Bonus défense globale: +${(level * 0.5).toFixed(1)}%`,
-    MARKET: `Réduction taxe marché: -${level}%, Capacité transport: +${level * 5}%`,
-    WAREHOUSE: `Stockage ressources: ${formatNum(getStorageAtLevel(level))}`,
-    SILO: `Stockage nourriture: ${formatNum(getStorageAtLevel(level))}`,
-    MILL: `Production nourriture: +${level * 5}%`,
-    BAKERY: `Production nourriture: +${level * 5}%`,
-    SAWMILL: `Production bois: +${level * 5}%`,
-    STONEMASON: `Production pierre: +${level * 5}%`,
-    FOUNDRY: `Production fer: +${level * 5}%`,
-    FARM: `Production nourriture: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
-    LUMBER: `Production bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
-    QUARRY: `Production pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
-    IRON_MINE: `Production fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
-    WALL: `Défense des défenseurs: +${level}%, PV du mur: ${formatNum(level * 1000)}`,
-    MOAT: `Bonus ATK/DEF défenseur: +${(level * 0.5).toFixed(1)}%`,
-    HEALING_TENT: `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes, soins en ${Math.round(30 * Math.pow(0.95, level - 1))} min`,
-    RALLY_POINT: `Armées max: ${level >= 10 ? 3 : level >= 5 ? 2 : 1}`,
-    HIDEOUT: `Ressources cachées: ${Math.min(20, level)}%`
-  };
-  return bonuses[key] || 'Aucun bonus spécial';
+  return (typeof getBuildingEffect === 'function' && getBuildingEffect(key, level)) || 'Aucun bonus spécial';
 }
 
 // Helper: Switch building panel tabs
@@ -842,7 +820,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
   const isRecruiting = false;
 
-  title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel})`;
+  title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel}) ${infoBtnHtml('building', buildingKey)}`;
 
   // Helper function to render a unit card
   const renderUnitCard = (u, isRecruiting, buildingKey) => {
@@ -858,7 +836,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     return `
       <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}">
         <div class="unit-recruit-header" style="border-color: ${tierColor}">
-          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitStatsPopup('${u.key}')" title="Voir les stats détaillées">${unitIconHtml(u.key)}</span>
+          <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitInfoModal('${u.key}')" title="Fiche de l'unité">${unitIconHtml(u.key)}</span>
+          ${infoBtnHtml('unit', u.key, 'info-btn-corner')}
           <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
         </div>
         <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
@@ -945,7 +924,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
       <!-- Available units by class -->
       <div class="available-units">
         <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter des unités</h4>
-        <p class="recruit-hint">💡 Cliquez sur l'icône d'une unité pour voir ses statistiques détaillées</p>
+        <p class="recruit-hint">${resIconHtml('reports')} Le bouton <b class="info-btn info-btn-sm" style="pointer-events:none">i</b> ouvre la fiche d'une unité : statistiques, forces et faiblesses, coût, formation.</p>
         ${unitsHtml || `
           <div class="no-units-available">
             <p>Aucune unité disponible</p>
@@ -992,10 +971,10 @@ function openUnitRecruitModal(unitKey, buildingKey) {
       <div class="unit-detail-header" style="background: linear-gradient(135deg, ${tierColor}33 0%, transparent 100%); border-left: 4px solid ${tierColor}">
         <div class="unit-detail-icon">${unitFigureHtml(unit.key, 'unit-figure unit-figure-lg', unit.name)}</div>
         <div class="unit-detail-title">
-          <h2>${unit.name}</h2>
+          <h2>${unit.name} ${infoBtnHtml('unit', unit.key)}</h2>
           <div class="unit-badges">
-            <span class="tier-badge" style="background: ${tierColor}">${unit.tier.toUpperCase()}</span>
-            <span class="class-badge">${unit.class}</span>
+            <span class="tier-badge" style="background: ${tierColor}">${SHEET_TIER_NAMES[unit.tier] || unit.tier}</span>
+            <span class="class-badge">${SHEET_CLASS_NAMES[unit.class] || unit.class}</span>
           </div>
         </div>
       </div>
@@ -1394,6 +1373,13 @@ function getBuildingDescription(key) {
     HERO_HOME: 'Gestion du héros'
   };
   return descriptions[key] || 'Bâtiment';
+}
+
+// Première phrase de la description (cartes compactes de la liste de construction)
+function getBuildingShortDescription(key) {
+  const full = getBuildingDescription(key);
+  const cut = full.indexOf('. ');
+  return cut > 0 ? full.slice(0, cut + 1) : full;
 }
 
 // (resize handler consolidated below in map section)

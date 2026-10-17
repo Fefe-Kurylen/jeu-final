@@ -220,7 +220,7 @@ function renderBuildings(filter) {
 
     return `
       <div class="card">
-        <h3>${buildingIconHtml(b.key)} ${b.name}</h3>
+        <h3>${buildingIconHtml(b.key)} ${b.name} ${infoBtnHtml('building', b.key)}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
           Coût: <img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 50)} <img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 50)} <img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 50)} <img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 50)}
@@ -309,6 +309,7 @@ function renderUnits(filter) {
     <div class="unit-card" onclick="showUnitDetail('${u.key}')">
       <div class="unit-card-header" style="border-color: ${TIER_COLORS[u.tier]}">
         <span class="unit-class-icon">${unitFigureHtml(u.key, 'unit-figure', u.name)}</span>
+        ${infoBtnHtml('unit', u.key, 'info-btn-corner')}
         <div class="unit-tier-badge" style="background: ${TIER_COLORS[u.tier]}">${u.tier.charAt(0).toUpperCase()}</div>
       </div>
       <div class="unit-card-body">
@@ -362,11 +363,11 @@ function showUnitDetail(unitKey) {
       <div class="unit-detail-header" style="background: linear-gradient(135deg, ${tierColor}33 0%, transparent 100%); border-left: 4px solid ${tierColor}">
         <div class="unit-detail-icon">${unitIconHtml(unit.key, 'unit-ico-lg')}</div>
         <div class="unit-detail-title">
-          <h2>${unit.name}</h2>
+          <h2>${unit.name} ${infoBtnHtml('unit', unit.key)}</h2>
           <div class="unit-badges">
-            <span class="tier-badge" style="background: ${tierColor}">${unit.tier.toUpperCase()}</span>
-            <span class="class-badge">${unit.class}</span>
-            <span class="faction-badge">${unit.faction}</span>
+            <span class="tier-badge" style="background: ${tierColor}">${SHEET_TIER_NAMES[unit.tier] || unit.tier}</span>
+            <span class="class-badge">${SHEET_CLASS_NAMES[unit.class] || unit.class}</span>
+            <span class="faction-badge">${SHEET_FACTION_NAMES[unit.faction] || unit.faction}</span>
           </div>
         </div>
       </div>

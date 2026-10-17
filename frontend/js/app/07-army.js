@@ -220,7 +220,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <div class="units-icons-mini">
             ${army.units.slice(0, 4).map(u => {
               const unit = unitsData.find(ud => ud.key === u.unitKey);
-              return `<span class="unit-icon-tiny" title="${unit?.name}: ${u.count}">${unitIconHtml(u.unitKey, 'unit-ico-sm')}<b>${u.count}</b></span>`;
+              return `<span class="unit-icon-tiny clickable" title="${unit?.name}: ${u.count}" onclick="event.stopPropagation(); showUnitInfoModal('${sheetKey(u.unitKey)}')">${unitIconHtml(u.unitKey, 'unit-ico-sm')}<b>${u.count}</b></span>`;
             }).join('')}
             ${army.units.length > 4 ? `<span class="more-badge">+${army.units.length - 4}</span>` : ''}
           </div>
@@ -460,7 +460,7 @@ function renderCompositionUnitRow(armyId, unitData) {
       <div class="comp-unit-info">
         <span class="comp-unit-icon" style="border-color: ${tierColor}">${unitIconHtml(unitKey || unit?.key || '', 'unit-ico')}</span>
         <div class="comp-unit-details">
-          <span class="comp-unit-name">${unit?.name || unitKey}</span>
+          <span class="comp-unit-name">${unit?.name || unitKey} ${infoBtnHtml('unit', unitKey, 'info-btn-sm')}</span>
           <span class="comp-unit-tier" style="color: ${tierColor}">${unit?.tier?.toUpperCase() || ''}</span>
         </div>
       </div>

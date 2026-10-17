@@ -3154,8 +3154,8 @@ function raidResource(nodeId, x, y) {
 
   // Find the resource tile to show defender info
   const tile = mapData.find(t => t.id === nodeId);
-  const defenderInfo = tile && tile.defenderUnits ? Object.entries(tile.defenderUnits)
-    .map(([unit, count]) => `${unit}: ${count}`).join(', ') : 'Inconnu';
+  const defenderInfo = tile && tile.defenderUnits && Object.keys(tile.defenderUnits).length ? Object.entries(tile.defenderUnits)
+    .map(([unit, count]) => `<span class="unit-chip">${unitIconHtml(unit, 'unit-ico-sm')} ${escapeHtml(getUnitName(unit))} ×${formatNum(count)} ${infoBtnHtml('unit', unit, 'info-btn-sm')}</span>`).join(' ') : 'Inconnu';
 
   // Build army selection
   const armyOptions = availableArmies.map(a => {

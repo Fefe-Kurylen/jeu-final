@@ -13,4 +13,4 @@ Règles :
 - par lots : ce qui manque garde le rendu 3D.
 
 Commande d'intégration : `node tools/repaint.cjs --import=art/incoming` puis vérification et commit.
-Référence complète des sujets et prompts : `docs/PROMPTS-GRAPHIQUES.md`.
+Référence complète des sujets et prompts : `docs/PROMPTS-GRAPHIQUES.md` ; inventaire et état de chaque image (peinte ou encore en rendu 3D), ordre conseillé : `docs/LISTE-GRAPHISMES.md`.

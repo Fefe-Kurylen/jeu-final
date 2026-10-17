@@ -247,6 +247,11 @@ function getBuildingEffect(key, level) {
     'GREAT_WAREHOUSE': `Ressources à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
     'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
     'WATCHTOWER': `Contre-espionnage: ${(Math.min(20, level) * 3.5).toFixed(1)}% · attaquant révélé niv. 10, effectifs niv. 15`,
+    // Resource fields
+    'FARM': `Céréales: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
+    'LUMBER': `Bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
+    'QUARRY': `Pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
+    'IRON_MINE': `Fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
     // Economy
     'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
     'SILO': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
