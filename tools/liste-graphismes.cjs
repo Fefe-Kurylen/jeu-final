@@ -150,15 +150,38 @@ Icônes restantes : ${missingIcons.length ? missingIcons.join(', ') : 'aucune'}.
 
 ## 4. Compléments non couverts par les manifestes (nouveaux besoins)
 
-À produire après l'inventaire ci-dessus, si l'on veut aller plus loin (voir aussi \`docs/ETAT-DES-SYSTEMES.md\` § Animations) :
+Vérifié en octobre 2026 en relevant toutes les images que le client référence (icônes, scènes, carte, ville, héros, replay,
+boutique) : **tout ce qui s'affiche en jeu est dans l'inventaire ci-dessus**. Restent des éléments dessinés par le code,
+quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). À produire après l'inventaire, par ordre d'intérêt :
 
 | Besoin | Images | Taille | Pourquoi |
 |---|---|---|---|
-| Porte de la ville par civilisation \`walls/<CIV>/gate[_snow].png\` | 6 (+ 6 neige) | 1024², cadre building | la porte sud-ouest est aujourd'hui dessinée par le code ; une porte peinte par style d'architecture serait plus belle |
+| Porte de la ville par civilisation \`walls/<CIV>/gate.png\` (neige reportée) | 6 | 1024², cadre building | le vantail de la porte sud-ouest est dessiné par le code ; une porte peinte par style d'architecture serait plus belle |
+| Chantier (échafaudage) en trois tailles \`props/scaffold_<1|2|3>.png\` | 3 | 1024², cadre building | aujourd'hui le bâtiment en travaux clignote avec un marteau ; un échafaudage posé dessus fait plus « Rise of Kingdoms » |
+| Panneau « construire ici » \`props/sign_build.png\` | 1 | 1024², cadre prop | l'emplacement libre est un losange pointillé avec un « + » dessiné par le code |
 | Cycle de marche des unités de carte (4 images par classe + marchand), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |
 | Poses de combat (frappe, garde) par classe pour le replay de bataille | 8 | 1024², cadre figure | replay plus lisible |
-| Fond de scène de ville par biome (horizon : forêt, désert, neige, rivage) | 4 | 1536×512 | arrière-plan derrière la ville (aujourd'hui tuiles de carte + décors) |
+| Projectiles et impacts du replay : flèche, pierre de catapulte, éclat d'impact, nuage de poussière | 4 | 256², sans guide | aujourd'hui tracés par le code (traits et ronds) |
+| Emblème (blason) de chaque civilisation \`ui/crest_<CIV>.png\` | 6 | 1024², cadre icon | choix de civilisation, alliance, étiquettes de carte ; aujourd'hui on réutilise le buste du héros |
+| Vignettes des destinations d'expédition (forêt, désert, montagne, ruines) | 4 | 1536×1024, cadre header | l'écran des expéditions n'a que des icônes |
+| Boutons ronds des bulles d'action (normal, appuyé) \`ui/btn-round[-pressed].png\` | 2 | 1024², cadre ui | les bulles d'action utilisent un dégradé CSS |
+| Fond de scène de ville par biome (horizon : forêt, désert, neige, rivage) | 4 | 1536×512 | facultatif : la ville a maintenant son propre sol et son décor |
 | Portraits de héros supplémentaires (un héros par civilisation existe déjà) | 0 à 6 | 1024², cadre bust | seulement si l'on veut plusieurs héros par civilisation |
+
+Glyphes vectoriels conservés tels quels (fonctionnels, sans guide) : \`ui/sun.svg\`, \`moon.svg\` (jour / nuit), \`left.svg\`, \`right.svg\` (sélecteur de ville), \`plus.svg\`, \`minus.svg\` (zoom), \`close.svg\`, \`info.svg\`, \`menu.svg\` (fermer, information, menu). À repeindre seulement par souci d'unité : 9 images 1024², cadre icon.
+
+Dans l'inventaire mais jamais affichées (peuvent être ignorées) : icônes \`amphora\`, \`bow\`, plaque \`plate-dark\`.
+
+### 4 bis. Hors jeu : boutique et application native
+
+| Besoin | État | Taille |
+|---|---|---|
+| Icône de l'application (iOS, Android adaptatif : premier plan + fond) | ✅ générée depuis l'emblème (\`frontend/assets/images/icon-1024.png\`, \`android/.../ic_launcher*\`, \`ios/.../AppIcon\`) | 1024² |
+| Écran de démarrage (splash) iOS et Android | ✅ généré (\`splash-2732x2732.png\`, \`drawable-*/splash.png\`) | 2732² |
+| Captures d'écran des fiches App Store / Google Play | ✅ générées par \`node tools/store-screenshots.cjs\` | 1290×2796, 1242×2688 |
+| **Icône de notification Android** (monochrome blanc sur fond transparent, \`ic_stat_notify\`) | ❌ à produire : sans elle Android affiche un carré blanc pour les notifications push | 96×96 (xxxhdpi) + 72, 48, 36, 24 |
+| **Bannière Google Play** (feature graphic) | ❌ à produire : obligatoire sur la fiche Play | 1024×500, JPG ou PNG sans transparence |
+| Image de promotion App Store (facultative) et vidéo d'aperçu | 🔧 facultatif (vidéo : enregistrer le simulateur, 15-30 s) | 1080×1920 |
 
 ## 5. Livraison et intégration
 
