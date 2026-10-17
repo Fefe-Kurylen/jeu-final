@@ -64,19 +64,25 @@ for (const d of [0, DELTA]) {
 console.log('\n=== 4. Pillage (résolution par puissance) : multiplicateur de défense de ville dû à la faction ===');
 for (const d of [0, DELTA]) { setDelta(d); console.log((d === 0 ? 'actuel' : `+${DELTA}    `) + ' : ' + F.map(f => { const r = resolveCombat(army('ROME', 100), army('ROME', 100), 0, null, null, { defenderFaction: f }); return `${f} ×${(r.defenderPower / r.attackerPower).toFixed(3)}`; }).join(' | ')); }
 
-console.log('\n=== 5. Économie et logistique ===');
-const gb = (f, t) => { const b = factionsData[f].bonuses.find(x => x.type === t); return b ? b.value : 0; };
+console.log('\n=== 5. Économie et logistique : chaque bonus de chaque civilisation ===');
+const hours20 = Array.from({ length: 20 }, (_, i) => 1800 * Math.pow(config.build.timeMultiplierBase, i)).reduce((a, b) => a + b, 0) / 3600;
+const t100 = calculateTravelTime(0, 0, 100, 0, 50, null, null, 100);
+const FMT = {
+  buildTimeReduction: v => `temps de construction ×${(1 - v / 100).toFixed(2)} (bâtiment L1 30 min → 20 niveaux : ${(hours20 * (1 - v / 100)).toFixed(0)} h au lieu de ${hours20.toFixed(0)})`,
+  woundedConversion: v => { const w = l => Math.min(config.wounded.maxRate, config.wounded.baseRate + l * config.wounded.bonusPerHealingLevel + v / 100); return `blessés tente L1/L5/L10 : ${pct(w(1))}/${pct(w(5))}/${pct(w(10))} (plafond ${pct(config.wounded.maxRate)})`; },
+  hideoutCapacity: v => { const h = l => Math.min(config.hideout.maxProtection, l * config.hideout.protectionPerLevel * (1 + v / 100)); return `cachette L5/L10/L15/L20 : ${pct(h(5))}/${pct(h(10))}/${pct(h(15))}/${pct(h(20))} (plafond ${pct(config.hideout.maxProtection)})`; },
+  transportCapacity: v => `transport ×${(1 + v / 100).toFixed(2)} (butin des pillages, envois par armée, convois marchands)`,
+  wallHealth: v => `mur ${Math.round(config.combat.wallHpPerLevel * (1 + v / 100))} PV/niv. (${config.combat.wallHpPerLevel} ailleurs) → ${Math.ceil(config.combat.wallHpPerLevel * (1 + v / 100) / config.combat.siegeWallDamagePerUnit)} catapultes par niveau au lieu de ${Math.ceil(config.combat.wallHpPerLevel / config.combat.siegeWallDamagePerUnit)}`,
+  armySpeed: v => `100 cases à vitesse 50 en ${(t100 / (1 + v / 100) / 60).toFixed(1)} min (${(t100 / 60).toFixed(1)} min sans bonus)`,
+  siegeAttack: v => `attaque en siège ×${(1 + v / 100).toFixed(2)}`,
+  siegeEngineAttack: v => `dégâts des engins ${Math.round(config.combat.siegeWallDamagePerUnit * (1 + v / 100))} PV/engin (${config.combat.siegeWallDamagePerUnit} ailleurs) → ${Math.ceil(config.combat.wallHpPerLevel / (config.combat.siegeWallDamagePerUnit * (1 + v / 100)))} engins par niveau de mur au lieu de ${Math.ceil(config.combat.wallHpPerLevel / config.combat.siegeWallDamagePerUnit)}`,
+  defendingCityAttack: v => `attaque en défendant sa ville ×${(1 + v / 100).toFixed(2)}`,
+  unitDefense: v => `défense ×${(1 + v / 100).toFixed(2)} partout`,
+  siegeLossReduction: v => `PV en siège ×${(1 + v / 100).toFixed(2)} (des deux côtés)`,
+  cityDefense: v => `défense chez soi ×${(1 + v / 100).toFixed(2)}`
+};
 for (const d of [0, DELTA]) {
   setDelta(d); const tag = d === 0 ? 'actuel' : `+${DELTA}    `;
-  const greek = gb('GREEK', 'buildTimeReduction'); const hours = Array.from({ length: 20 }, (_, i) => 1800 * Math.pow(config.build.timeMultiplierBase, i)).reduce((a, b) => a + b, 0) / 3600;
-  const hide = l => Math.min(config.hideout.maxProtection, l * config.hideout.protectionPerLevel * (1 + gb('GAUL', 'hideoutCapacity') / 100));
-  const wounded = l => Math.min(config.wounded.maxRate, config.wounded.baseRate + l * config.wounded.bonusPerHealingLevel + gb('GREEK', 'woundedConversion') / 100);
-  const t100 = calculateTravelTime(0, 0, 100, 0, 50, 'HUN', factionsData, 100);
-  console.log(`${tag} Grèce : temps de construction ×${(1 - greek / 100).toFixed(2)} (bâtiment L1 30 min → 20 niveaux : ${(hours * (1 - greek / 100)).toFixed(0)} h au lieu de ${hours.toFixed(0)}) ; blessés tente L1/L5/L10 : ${pct(wounded(1))}/${pct(wounded(5))}/${pct(wounded(10))} (plafond ${pct(config.wounded.maxRate)})`);
-  console.log(`${tag} Gaule : cachette L5/L10/L15/L20 : ${pct(hide(5))}/${pct(hide(10))}/${pct(hide(15))}/${pct(hide(20))} (plafond ${pct(config.hideout.maxProtection)})`);
-  console.log(`${tag} Égypte : transport ×${(1 + gb('EGYPT', 'transportCapacity') / 100).toFixed(2)} ; mur ${Math.round(config.combat.wallHpPerLevel * (1 + gb('EGYPT', 'wallHealth') / 100))} PV/niv. (${config.combat.wallHpPerLevel} ailleurs) → ${Math.ceil(config.combat.wallHpPerLevel * (1 + gb('EGYPT', 'wallHealth') / 100) / config.combat.siegeWallDamagePerUnit)} catapultes par niveau au lieu de ${Math.ceil(config.combat.wallHpPerLevel / config.combat.siegeWallDamagePerUnit)}`);
-  console.log(`${tag} Huns : 100 cases à vitesse 50 en ${(t100 / 60).toFixed(1)} min (${(100 * 30 / 60).toFixed(1)} min sans bonus) ; attaque en siège ×${(1 + gb('HUN', 'siegeAttack') / 100).toFixed(2)}`);
-  console.log(`${tag} Sultanat : dégâts des engins ${Math.round(config.combat.siegeWallDamagePerUnit * (1 + gb('SULTAN', 'siegeEngineAttack') / 100))} PV/engin (${config.combat.siegeWallDamagePerUnit} ailleurs) → ${Math.ceil(config.combat.wallHpPerLevel / (config.combat.siegeWallDamagePerUnit * (1 + gb('SULTAN', 'siegeEngineAttack') / 100)))} engins par niveau de mur ; attaque en défense ×${(1 + gb('SULTAN', 'defendingCityAttack') / 100).toFixed(2)}`);
-  console.log(`${tag} Rome : défense ×${(1 + gb('ROME', 'unitDefense') / 100).toFixed(2)} partout ; PV en siège ×${(1 + gb('ROME', 'siegeLossReduction') / 100).toFixed(2)} (des deux côtés)`);
+  for (const f of F) console.log(`${tag} ${factionsData[f].name.padEnd(8)} : ` + factionsData[f].bonuses.map(b => (FMT[b.type] ? FMT[b.type](b.value) : `${b.type} ${b.value} %`)).join(' ; '));
 }
 setDelta(0);
