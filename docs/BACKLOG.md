@@ -19,5 +19,6 @@ Points identifiés par l'audit du socle et volontairement non traités. Rien ici
 | Ligne rouge des attaques entrantes sur la carte | `frontend/js/map.js` (`drawArmyRoute`), données de `GET /api/city/incoming-attacks` | La ligne verte de ses propres armées existe ; la rouge est une évolution d'interface |
 | Cycles de marche par faction (sprites) | `frontend/js/map.js` (`drawIsoArmy`), images à produire | Voir `docs/ETAT-DES-SYSTEMES.md` : série neutre recommandée (16 images) |
 | Quêtes à objectifs pour le héros (construire, recruter, piller) | nouveau modèle, événements analytics déjà émis côté client | Les expéditions tiennent ce rôle pour l'instant |
+| Graphismes du biome neige : bâtiments et enceinte `_snow`, champs, parcelles et décors enneigés (808 images, voir `docs/LISTE-GRAPHISMES.md` § 6) | `art/incoming/`, `node tools/repaint.cjs --import` ; le client bascule déjà sur les variantes `_snow` quand elles existent | Décision d'octobre 2026 : à produire plus tard ; seules les villes fondées dans la neige les voient, elles gardent leur rendu 3D |
 
 Les constats complets sont dans `docs/AUDIT-SOCLE.md` ; l'état de chaque système dans `docs/ETAT-DES-SYSTEMES.md`.

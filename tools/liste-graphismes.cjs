@@ -16,10 +16,15 @@ const walls = cat('walls'), fields = cat('fields'), plots = cat('plots'), props 
 const map = cat('map'), mapCities = map.filter(x => x.startsWith('map/cities/')), mapRes = map.filter(x => x.startsWith('map/resources/')), mapTerrain = map.filter(x => x.startsWith('map/terrain/')), mapUnits = map.filter(x => x.startsWith('map/units/'));
 const figures = cat('figures'), busts = cat('busts'), heroes = cat('heroes'), scenes = cat('scenes'), icons = cat('icons'), frames = cat('uiframes');
 const terrain = ['terrain/grass.webp', 'terrain/dirt.webp', 'terrain/sand.webp', 'terrain/snow.webp'];
-const all = [...b, ...walls, ...fields, ...plots, ...props, ...map, ...figures, ...busts, ...heroes, ...scenes, ...icons, ...frames, ...terrain];
+// Variantes du biome neige (hors carte du monde, visible par tous) : reportées
+const isSnow = (x) => !x.startsWith('map/') && (/_snow\.webp$/.test(x) || /^fields\/snow\//.test(x) || /^plots\/snow_/.test(x) || /^props\/snow/.test(x));
+const everything = [...b, ...walls, ...fields, ...plots, ...props, ...map, ...figures, ...busts, ...heroes, ...scenes, ...icons, ...frames, ...terrain];
+const snow = everything.filter(isSnow);
+const all = everything.filter(x => !isSnow(x));
+const bNoSnow = b.filter(x => !isSnow(x)), wallsNoSnow = walls.filter(x => !isSnow(x)), fieldsNoSnow = fields.filter(x => !isSnow(x)), plotsNoSnow = plots.filter(x => !isSnow(x)), propsNoSnow = props.filter(x => !isSnow(x));
 const missingIcons = icons.filter(f => !painted.has(f)).map(f => f.replace('ui/', '').replace('.webp', ''));
 const missingFrames = frames.filter(f => !painted.has(f)).map(f => f.replace('ui/', '').replace('.webp', ''));
-const missingProps = props.filter(f => !painted.has(f)).map(f => f.replace('props/', '').replace('.webp', ''));
+const missingProps = propsNoSnow.filter(f => !painted.has(f)).map(f => f.replace('props/', '').replace('.webp', ''));
 const missingWalls = walls.filter(f => !painted.has(f));
 
 let md = `# Liste de tous les graphismes du jeu
@@ -36,13 +41,15 @@ Généré par \`node tools/liste-graphismes.cjs\` à partir des manifestes \`fro
 
 | | Images |
 |---|---|
-| Visuels affichés par le jeu (hors animations qui restent en 3D) | **${n(all)}** |
+| Visuels affichés par le jeu, hors neige et animations | **${n(all)}** |
 | Déjà peints | ${p(all)} |
 | Restant à produire | **${n(all) - p(all)}** |
+| Variantes du biome neige, **reportées à plus tard** (bâtiments et enceinte \`_snow\`, champs, parcelles et décors enneigés) | ${n(snow)} (dont ${p(snow)} déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | ${n(cat('flags')) + n(cat('effects'))} |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
 
 Rien ne bloque le jeu : chaque image manquante garde son rendu 3D. Produire par lots, dans l'ordre de la section 2.
+Les variantes enneigées ne sont pas à produire pour l'instant (décision d'octobre 2026) : elles ne concernent que les villes du biome neige et gardent leur rendu 3D ; voir § 6.
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
@@ -52,7 +59,7 @@ Rien ne bloque le jeu : chaque image manquante garde son rendu 3D. Produire par 
 4. **Carte du monde** : villes (${n(mapCities)}), ressources (${n(mapRes)}), relief et eau (${n(mapTerrain)}), armées en marche (${n(mapUnits)}).
 5. **Unités et héros** : figurines en pied (${n(figures)}), bustes-jetons (${n(busts)}), héros sur estrade et bustes (${n(heroes)}) ; ils apparaissent dans toutes les listes, les rapports et l'écran du héros.
 6. **Scènes** : connexion (portrait + paysage), 6 estrades de héros, 5 bandeaux d'écran, champ de bataille (${n(scenes)} au total).
-7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20) puis **variantes neige** de tout (bâtiments, champs, murs) : seulement pour les villes du biome neige.
+7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20). Les **variantes neige** sont reportées (§ 6).
 8. **Compléments** (§ 4) : porte de la ville par civilisation, cycles de marche, poses de combat, fonds de scène par biome.
 
 ## 3. Inventaire détaillé
@@ -61,39 +68,39 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — \`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`
 
-39 bâtiments (liste dans \`docs/PROMPTS-GRAPHIQUES.md\` § 3), chacun en 4 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
-**_t3** (niveaux 14-20, monumentale), et chacune des trois en **_snow** (ville du biome neige). Taille 1024×1024, cadre « building ».
+39 bâtiments (liste dans \`docs/PROMPTS-GRAPHIQUES.md\` § 3), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+**_t3** (niveaux 14-20, monumentale). La version **_snow** de chacune (ville du biome neige) est reportée. Taille 1024×1024, cadre « building ».
 
-| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Neige (_snow, les 3 paliers) | Restant |
+| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant (hors neige) | Neige (_snow, reportée) |
 |---|---|---|---|---|---|
 `;
 for (const f of FACTIONS) {
   const cur = bsel(f, 'cur'), t1 = bsel(f, 't1'), t3 = bsel(f, 't3'), snow = bsel(f, 'snow');
-  const tot = [...cur, ...t1, ...t3, ...snow];
-  md += `| ${FN[f]} | ${cell(cur)} | ${cell(t1)} | ${cell(t3)} | ${cell(snow)} | **${n(tot) - p(tot)}** |\n`;
+  const tot = [...cur, ...t1, ...t3];
+  md += `| ${FN[f]} | ${cell(cur)} | ${cell(t1)} | ${cell(t3)} | **${n(tot) - p(tot)}** | ${cell(snow)} |\n`;
 }
-md += `| **Total** | ${cell(b.filter(x => !/_t1|_t3|_snow/.test(x)))} | ${cell(b.filter(x => /_t1\.webp$/.test(x)))} | ${cell(b.filter(x => /_t3\.webp$/.test(x)))} | ${cell(b.filter(x => /_snow\.webp$/.test(x)))} | **${n(b) - p(b)}** |
+md += `| **Total** | ${cell(b.filter(x => !/_t1|_t3|_snow/.test(x)))} | ${cell(b.filter(x => /_t1\.webp$/.test(x)))} | ${cell(b.filter(x => /_t3\.webp$/.test(x)))} | **${n(bNoSnow) - p(bNoSnow)}** | ${cell(b.filter(x => /_snow\.webp$/.test(x)))} |
 
-Priorité : le palier courant des 6 civilisations (${n(b.filter(x => !/_t1|_t3|_snow/.test(x))) - p(b.filter(x => !/_t1|_t3|_snow/.test(x)))} restants), puis _t1, puis _t3, et la neige en dernier.
+Priorité : le palier courant des 6 civilisations (${n(b.filter(x => !/_t1|_t3|_snow/.test(x))) - p(b.filter(x => !/_t1|_t3|_snow/.test(x)))} restants), puis _t1, puis _t3. Neige reportée.
 
 ### 3.2 Champs, parcelles, décors, textures de sol
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
-${row('Champs `fields/<forest|desert|snow>/<FARM|LUMBER|QUARRY|IRON_MINE>_<1|2|3>.png`', fields, '1024², cadre building', 'couronne de champs autour de la ville, 3 paliers de niveau, 3 biomes')}
-${row('Parcelles vides `plots/<biome>_<0|1>.png`', plots, '1024², cadre building', 'emplacements libres de la ville et des champs')}
-${row('Décors `props/<nom>.png` (arbres, rochers, buissons, palmiers, cactus, dunes, souche, fleurs)', props, '1024², cadre prop', 'autour de la ville et des champs selon le biome')}
+${row('Champs `fields/<forest|desert>/<FARM|LUMBER|QUARRY|IRON_MINE>_<1|2|3>.png` (neige reportée)', fieldsNoSnow, '1024², cadre building', 'couronne de champs autour de la ville, 3 paliers de niveau, biomes prairie et désert')}
+${row('Parcelles vides `plots/<forest|desert>_<0|1>.png` (neige reportée)', plotsNoSnow, '1024², cadre building', 'emplacements libres de la ville et des champs')}
+${row('Décors `props/<nom>.png` (arbres, rochers, buissons, palmiers, cactus, dunes, souche, fleurs ; neige reportée)', propsNoSnow, '1024², cadre prop', 'autour de la ville et des champs selon le biome')}
 ${row('Textures de sol `terrain/<grass|dirt|sand|snow>.png` (répétables)', terrain, '1024², sans guide', 'sol de la ville, chemins, sable, neige')}
 
 Décors restants : ${missingProps.length ? missingProps.join(', ') : 'aucun'}.
 
-### 3.3 Enceinte — \`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low][_snow].png\`, \`walls/<CIV>/<1|2|3>_tower[_snow].png\`
+### 3.3 Enceinte — \`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low].png\`, \`walls/<CIV>/<1|2|3>_tower.png\` (variantes _snow reportées)
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
-${row('Courtines hautes (2 orientations), murets (2) et tour d\'angle, × 3 paliers du Mur, × 6 civilisations, × neige', walls, '1024², cadre building', 'mur d\'enceinte de la ville, change avec le niveau du Mur (1-6, 7-13, 14-20)')}
+${row('Courtines hautes (2 orientations), murets (2) et tour d\'angle, × 3 paliers du Mur, × 6 civilisations', wallsNoSnow, '1024², cadre building', 'mur d\'enceinte de la ville, change avec le niveau du Mur (1-6, 7-13, 14-20)')}
 
-Peints : ${walls.filter(f => painted.has(f)).map(f => f.replace('walls/', '').replace('.webp', '')).join(', ') || 'aucun'} (Rome, palier 3). Ordre conseillé : palier 2 puis 3 puis 1 de chaque civilisation ; neige en dernier.
+Peints : ${walls.filter(f => painted.has(f)).map(f => f.replace('walls/', '').replace('.webp', '')).join(', ') || 'aucun'} (Rome, palier 3). Ordre conseillé : palier 2 puis 3 puis 1 de chaque civilisation.
 
 ### 3.4 Carte du monde — \`map/…\`
 
@@ -154,6 +161,18 @@ Icônes restantes : ${missingIcons.length ? missingIcons.join(', ') : 'aucune'}.
 2. Fond transparent (sinon magenta #FF00FF ou vert #00FF00), sujet à la place et à la taille du guide.
 3. Déposer les fichiers (ou un zip) dans \`art/incoming/\`, par lots ; ce qui manque garde le rendu 3D.
 4. Intégration : \`node tools/repaint.cjs --import=art/incoming\`, vérification en jeu (bureau + mobile), commit.
+
+## 6. Reporté : les variantes du biome neige
+
+Mises de côté pour l'instant (elles ne concernent que les villes fondées dans la neige et gardent leur rendu 3D) :
+
+| Catégorie | Images | Déjà peintes |
+|---|---|---|
+| Bâtiments \`buildings/<CIV>/<CLÉ>[_t1|_t3]_snow.png\` | ${n(b.filter(isSnow))} | ${p(b.filter(isSnow))} |
+| Enceinte \`walls/<CIV>/…_snow.png\` | ${n(walls.filter(isSnow))} | ${p(walls.filter(isSnow))} |
+| Champs \`fields/snow/…\`, parcelles \`plots/snow_<0|1>.png\`, décors \`props/snowpine.png\` et \`props/snowrock.png\` | ${n([...fields, ...plots, ...props].filter(isSnow))} | ${p([...fields, ...plots, ...props].filter(isSnow))} |
+
+Le relief enneigé de la carte du monde (\`map/terrain/snow_*\`, \`frozen*\`) et les ressources \`_snow\` restent dans l'inventaire : tout le monde les voit sur la carte.
 `;
 fs.writeFileSync(root + 'docs/LISTE-GRAPHISMES.md', md);
 console.log('docs/LISTE-GRAPHISMES.md écrit :', n(all), 'visuels,', p(all), 'peints,', n(all) - p(all), 'restants');

@@ -12,13 +12,15 @@ Généré par `node tools/liste-graphismes.cjs` à partir des manifestes `fronte
 
 | | Images |
 |---|---|
-| Visuels affichés par le jeu (hors animations qui restent en 3D) | **1884** |
-| Déjà peints | 283 |
-| Restant à produire | **1601** |
+| Visuels affichés par le jeu, hors neige et animations | **1076** |
+| Déjà peints | 200 |
+| Restant à produire | **876** |
+| Variantes du biome neige, **reportées à plus tard** (bâtiments et enceinte `_snow`, champs, parcelles et décors enneigés) | 808 (dont 83 déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | 72 |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
 
 Rien ne bloque le jeu : chaque image manquante garde son rendu 3D. Produire par lots, dans l'ordre de la section 2.
+Les variantes enneigées ne sont pas à produire pour l'instant (décision d'octobre 2026) : elles ne concernent que les villes du biome neige et gardent leur rendu 3D ; voir § 6.
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
@@ -28,7 +30,7 @@ Rien ne bloque le jeu : chaque image manquante garde son rendu 3D. Produire par 
 4. **Carte du monde** : villes (14), ressources (15), relief et eau (28), armées en marche (29).
 5. **Unités et héros** : figurines en pied (24), bustes-jetons (28), héros sur estrade et bustes (12) ; ils apparaissent dans toutes les listes, les rapports et l'écran du héros.
 6. **Scènes** : connexion (portrait + paysage), 6 estrades de héros, 5 bandeaux d'écran, champ de bataille (14 au total).
-7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20) puis **variantes neige** de tout (bâtiments, champs, murs) : seulement pour les villes du biome neige.
+7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20). Les **variantes neige** sont reportées (§ 6).
 8. **Compléments** (§ 4) : porte de la ville par civilisation, cycles de marche, poses de combat, fonds de scène par biome.
 
 ## 3. Inventaire détaillé
@@ -37,39 +39,39 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — `buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png`
 
-39 bâtiments (liste dans `docs/PROMPTS-GRAPHIQUES.md` § 3), chacun en 4 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
-**_t3** (niveaux 14-20, monumentale), et chacune des trois en **_snow** (ville du biome neige). Taille 1024×1024, cadre « building ».
+39 bâtiments (liste dans `docs/PROMPTS-GRAPHIQUES.md` § 3), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+**_t3** (niveaux 14-20, monumentale). La version **_snow** de chacune (ville du biome neige) est reportée. Taille 1024×1024, cadre « building ».
 
-| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Neige (_snow, les 3 paliers) | Restant |
+| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant (hors neige) | Neige (_snow, reportée) |
 |---|---|---|---|---|---|
-| Rome | 20 / 39 | 0 / 39 | 0 / 39 | 0 / 117 | **214** |
-| Gaule | 39 / 39 | 0 / 39 | 0 / 39 | 37 / 117 | **158** |
-| Grèce | 5 / 39 | 0 / 39 | 0 / 39 | 7 / 117 | **222** |
-| Égypte | 39 / 39 | 0 / 39 | 0 / 39 | 39 / 117 | **156** |
-| Huns | 0 / 39 | 0 / 39 | 0 / 39 | 0 / 117 | **234** |
-| Sultanat | 0 / 39 | 0 / 39 | 0 / 39 | 0 / 117 | **234** |
-| **Total** | 103 / 234 | 0 / 234 | 0 / 234 | 83 / 702 | **1218** |
+| Rome | 20 / 39 | 0 / 39 | 0 / 39 | **97** | 0 / 117 |
+| Gaule | 39 / 39 | 0 / 39 | 0 / 39 | **78** | 37 / 117 |
+| Grèce | 5 / 39 | 0 / 39 | 0 / 39 | **112** | 7 / 117 |
+| Égypte | 39 / 39 | 0 / 39 | 0 / 39 | **78** | 39 / 117 |
+| Huns | 0 / 39 | 0 / 39 | 0 / 39 | **117** | 0 / 117 |
+| Sultanat | 0 / 39 | 0 / 39 | 0 / 39 | **117** | 0 / 117 |
+| **Total** | 103 / 234 | 0 / 234 | 0 / 234 | **599** | 83 / 702 |
 
-Priorité : le palier courant des 6 civilisations (131 restants), puis _t1, puis _t3, et la neige en dernier.
+Priorité : le palier courant des 6 civilisations (131 restants), puis _t1, puis _t3. Neige reportée.
 
 ### 3.2 Champs, parcelles, décors, textures de sol
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
-| Champs `fields/<forest|desert|snow>/<FARM|LUMBER|QUARRY|IRON_MINE>_<1|2|3>.png` | 36 | 4 | **32** | 1024², cadre building | couronne de champs autour de la ville, 3 paliers de niveau, 3 biomes |
-| Parcelles vides `plots/<biome>_<0|1>.png` | 6 | 2 | **4** | 1024², cadre building | emplacements libres de la ville et des champs |
-| Décors `props/<nom>.png` (arbres, rochers, buissons, palmiers, cactus, dunes, souche, fleurs) | 14 | 7 | **7** | 1024², cadre prop | autour de la ville et des champs selon le biome |
+| Champs `fields/<forest|desert>/<FARM|LUMBER|QUARRY|IRON_MINE>_<1|2|3>.png` (neige reportée) | 24 | 4 | **20** | 1024², cadre building | couronne de champs autour de la ville, 3 paliers de niveau, biomes prairie et désert |
+| Parcelles vides `plots/<forest|desert>_<0|1>.png` (neige reportée) | 4 | 2 | **2** | 1024², cadre building | emplacements libres de la ville et des champs |
+| Décors `props/<nom>.png` (arbres, rochers, buissons, palmiers, cactus, dunes, souche, fleurs ; neige reportée) | 12 | 7 | **5** | 1024², cadre prop | autour de la ville et des champs selon le biome |
 | Textures de sol `terrain/<grass|dirt|sand|snow>.png` (répétables) | 4 | 4 | **0** | 1024², sans guide | sol de la ville, chemins, sable, neige |
 
-Décors restants : cactus, dune, flowers, palm, snowpine, snowrock, stump.
+Décors restants : cactus, dune, flowers, palm, stump.
 
-### 3.3 Enceinte — `walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low][_snow].png`, `walls/<CIV>/<1|2|3>_tower[_snow].png`
+### 3.3 Enceinte — `walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low].png`, `walls/<CIV>/<1|2|3>_tower.png` (variantes _snow reportées)
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
-| Courtines hautes (2 orientations), murets (2) et tour d'angle, × 3 paliers du Mur, × 6 civilisations, × neige | 180 | 5 | **175** | 1024², cadre building | mur d'enceinte de la ville, change avec le niveau du Mur (1-6, 7-13, 14-20) |
+| Courtines hautes (2 orientations), murets (2) et tour d'angle, × 3 paliers du Mur, × 6 civilisations | 90 | 5 | **85** | 1024², cadre building | mur d'enceinte de la ville, change avec le niveau du Mur (1-6, 7-13, 14-20) |
 
-Peints : ROME/3_seg_x, ROME/3_seg_x_low, ROME/3_seg_z, ROME/3_seg_z_low, ROME/3_tower (Rome, palier 3). Ordre conseillé : palier 2 puis 3 puis 1 de chaque civilisation ; neige en dernier.
+Peints : ROME/3_seg_x, ROME/3_seg_x_low, ROME/3_seg_z, ROME/3_seg_z_low, ROME/3_tower (Rome, palier 3). Ordre conseillé : palier 2 puis 3 puis 1 de chaque civilisation.
 
 ### 3.4 Carte du monde — `map/…`
 
@@ -130,3 +132,15 @@ Icônes restantes : aucune. Habillage restant : plate-parchment.
 2. Fond transparent (sinon magenta #FF00FF ou vert #00FF00), sujet à la place et à la taille du guide.
 3. Déposer les fichiers (ou un zip) dans `art/incoming/`, par lots ; ce qui manque garde le rendu 3D.
 4. Intégration : `node tools/repaint.cjs --import=art/incoming`, vérification en jeu (bureau + mobile), commit.
+
+## 6. Reporté : les variantes du biome neige
+
+Mises de côté pour l'instant (elles ne concernent que les villes fondées dans la neige et gardent leur rendu 3D) :
+
+| Catégorie | Images | Déjà peintes |
+|---|---|---|
+| Bâtiments `buildings/<CIV>/<CLÉ>[_t1|_t3]_snow.png` | 702 | 83 |
+| Enceinte `walls/<CIV>/…_snow.png` | 90 | 0 |
+| Champs `fields/snow/…`, parcelles `plots/snow_<0|1>.png`, décors `props/snowpine.png` et `props/snowrock.png` | 16 | 0 |
+
+Le relief enneigé de la carte du monde (`map/terrain/snow_*`, `frozen*`) et les ressources `_snow` restent dans l'inventaire : tout le monde les voit sur la carte.
