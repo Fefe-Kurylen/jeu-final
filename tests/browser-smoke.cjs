@@ -52,6 +52,22 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
       out.push(`${label} field ${sn}: view=` + (await page.evaluate(() => currentCityView)) + ` bubble=[${bubble}] panel=` + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 30))));
       await page.evaluate(() => closeBuildPanel());
     }
+    // fiches : galerie d'aperçu, « Voir dans la ville » (recentrage + bulle), navigation par les boutons « i », raccourci Recruter
+    await page.evaluate(() => { showTab('city'); showBuildingInfoModal('BARRACKS'); }); await page.waitForTimeout(500);
+    const gal = await page.evaluate(() => ({ main: !!document.getElementById('sheet-gallery-main')?.getAttribute('src'), tiers: document.querySelectorAll('#modal-body .sheet-tier').length, locate: !!document.querySelector('#modal-body button[onclick^="locateBuildingInCity"]') }));
+    await page.evaluate(() => document.querySelector('#modal-body button[onclick^="locateBuildingInCity"]')?.click()); await page.waitForTimeout(700);
+    const loc = await page.evaluate(() => ({ tab: document.getElementById('tab-city')?.classList.contains('active'), bubble: document.getElementById('city-actions')?.style.display !== 'none' && document.getElementById('city-actions')?.innerText.includes('Caserne'), zoom: Math.round(cityCam.zoom * 10) / 10, modal: document.getElementById('modal')?.style.display }));
+    out.push(`${label} fiche bâtiment: galerie=${gal.main} paliers=${gal.tiers} voir=${gal.locate} -> ville=${loc.tab} bulle=${loc.bubble} zoom=${loc.zoom} modale=${loc.modal}`);
+    await page.evaluate(() => { hideCityActions(); resetCityCamera(); renderCityCanvas(); });
+    await page.evaluate(() => showBuildingInfoModal('STABLE')); await page.waitForTimeout(400);
+    await page.evaluate(() => document.querySelector('#modal-body .sheet-chip .info-btn')?.click()); await page.waitForTimeout(400);
+    const nav = await page.evaluate(() => document.getElementById('modal-title')?.innerText);
+    await page.evaluate(() => showUnitInfoModal(unitsData.find(u => u.faction === player.faction && u.tier === 'base' && u.class === 'INFANTRY').key)); await page.waitForTimeout(400);
+    const unitGal = await page.evaluate(() => ({ figure: !!document.querySelector('#modal-body .sheet-gallery.unit img'), recruit: !!document.querySelector('#modal-body button[onclick^="openUnitRecruitModal"]') }));
+    await page.evaluate(() => document.querySelector('#modal-body button[onclick^="openUnitRecruitModal"]')?.click()); await page.waitForTimeout(500);
+    const rec = await page.evaluate(() => !!document.getElementById('recruit-count'));
+    out.push(`${label} fiche unité: galerie=${unitGal.figure} recruter=${unitGal.recruit} -> modale recrutement=${rec} | navigation prérequis: ${nav}`);
+    await page.evaluate(() => closeModal());
     // map click on own city
     await page.evaluate(() => showTab('map')); await page.waitForTimeout(2000);
     const mp = await page.evaluate(() => { const p = window.mapWorldToScreen(currentCity.x, currentCity.y); const rect = mapCanvas.getBoundingClientRect(); return { x: rect.left + p.x, y: rect.top + p.y - 0.6 * 32 * mapZoomLevel }; });

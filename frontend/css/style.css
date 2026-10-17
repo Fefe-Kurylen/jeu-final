@@ -4935,3 +4935,29 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
   .city-actions .ca-btn .ca-ico { width: 48px; height: 48px; } .city-actions .ca-btn .ca-ico img { width: 28px; height: 28px; }
   .city-actions .ca-buttons { gap: 8px; } .city-actions .ca-btn { min-width: 52px; }
 }
+
+/* Galerie d'aperçu des fiches : grande image du bâtiment / de l'unité et vignettes (paliers, jeton, marqueur de carte) */
+.sheet-gallery { display: flex; gap: 12px; align-items: stretch; padding: 10px; border: 1px solid rgba(90,60,20,0.3); border-radius: 6px; background: radial-gradient(ellipse at 50% 70%, rgba(255,255,255,0.45), rgba(90,60,20,0.08) 70%); }
+.sheet-gallery-main { flex: 1 1 auto; display: flex; align-items: flex-end; justify-content: center; min-height: 150px; }
+.sheet-gallery-img, img.sheet-gallery-img { max-height: 170px; max-width: 100%; width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.35)); }
+.sheet-gallery.unit .sheet-gallery-img { height: 170px; }
+.sheet-tiers { display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.sheet-tier { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 74px; padding: 4px; border-radius: 6px; border: 1px solid rgba(90,60,20,0.3); background: rgba(90,60,20,0.07); cursor: pointer; min-height: 0; color: #5a4630; font-family: 'Crimson Text', serif; font-size: 10px; }
+.sheet-tier.static { cursor: default; }
+.sheet-tier img { height: 44px; width: auto; max-width: 64px; object-fit: contain; }
+.sheet-tier.current { border-color: #c9a227; background: rgba(201,162,39,0.22); box-shadow: 0 0 0 1px #c9a227 inset; }
+.sheet-tier:hover { background: rgba(201,162,39,0.14); }
+@media (max-width: 600px) { .sheet-gallery { gap: 8px; padding: 8px; } .sheet-gallery-main { min-height: 120px; } .sheet-gallery-img, img.sheet-gallery-img { max-height: 140px; } .sheet-gallery.unit .sheet-gallery-img { height: 140px; } .sheet-tier { width: 62px; } .sheet-tier img { height: 36px; } }
+
+/* Fonctions d'un bâtiment et leur niveau d'activation */
+.sheet-fns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sheet-fn { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; background: rgba(90,60,20,0.07); border: 1px solid rgba(90,60,20,0.22); border-left-width: 4px; border-left-color: rgba(90,60,20,0.35); font-size: 13px; }
+.sheet-fn.active { border-left-color: #4a8c3a; }
+.sheet-fn.soon { opacity: 0.75; border-left-color: #a89878; }
+.sheet-fn-label { flex: 1 1 auto; }
+.sheet-fn-state { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+.sheet-fn-state.on { background: rgba(74,140,58,0.2); color: #2f6a1a; border: 1px solid rgba(74,140,58,0.5); }
+.sheet-fn-state.off { background: rgba(90,60,20,0.1); color: #7a6648; border: 1px solid rgba(90,60,20,0.3); }
+.sheet-fn-state.soon { background: rgba(90,60,20,0.08); color: #8a7a60; border: 1px dashed rgba(90,60,20,0.35); }
+.info-btn-text { min-height: 0; padding: 3px 10px; border-radius: 10px; border: 1px solid #7a5a1a; background: linear-gradient(180deg, #f3e4c0, #d9c08e); color: #4a2f0a; font-family: 'Cinzel', serif; font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.info-btn-text:hover { filter: brightness(1.06); }

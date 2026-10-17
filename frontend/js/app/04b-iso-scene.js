@@ -79,6 +79,23 @@ function clampCam(view) {
   cityCam.y = Math.max(-ly, Math.min(ly, cityCam.y));
 }
 function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; cityCam.auto = true; }
+// Recentre la vue sur un emplacement (bâtiment 0-19 ou champ 101-118), zoome si besoin et ouvre sa bulle d'action :
+// « Voir dans la ville » des fiches, façon Rise of Kingdoms
+function focusCitySlot(slot, zoom = 1.7) {
+  if (!cityCanvas) return false;
+  const cell = slot >= 100 ? ISO_FIELD_CELLS[slot - 100] : ISO_CITY_CELLS[slot];
+  if (!cell) return false;
+  cityCam.auto = false;
+  cityCam.zoom = Math.max(cityCam.zoom, zoom);
+  const { W, ext } = isoLayout('city');
+  cityCam.x = -(cell[0] - cell[1]) * W * ISO_SP / 2;
+  cityCam.y = -(cell[0] + cell[1]) * W * ISO_SP / 4 - (ext.top - ext.bottom) * W / 2;
+  clampCam('city');
+  renderCityCanvas();
+  cityHoveredSlot = slot;
+  showCityActions(slot);
+  return true;
+}
 
 // ---------- Emplacements (contrat citySlots conservé : slot, x, y, size, fixed, isField, fieldType…) ----------
 // Une seule liste : les bâtiments (slots 0-19) et les champs (slots 101-118, numérotation du serveur)

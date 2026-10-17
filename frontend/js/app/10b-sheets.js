@@ -47,6 +47,43 @@ function openSheetModal(title, html) {
 }
 
 const SHEET_RES = ['wood', 'stone', 'iron', 'food'];
+const SHEET_MAP_UNIT = { INFANTRY: 'hoplite', ARCHER: 'archer', CAVALRY: 'cavalry', SIEGE: 'catapult' };
+// Aperçu visuel d'un bâtiment ou d'un champ : grande image du palier concerné et les trois paliers (niveaux 1-6, 7-13, 14-20)
+function sheetBuildingGallery(key, level, isField) {
+  const url = (lvl) => isField ? fieldSpriteUrl(key, Math.max(1, lvl)) : buildingSpriteUrl(key, Math.max(1, lvl));
+  const tiers = [[1, 'Niv. 1-6'], [10, 'Niv. 7-13'], [20, 'Niv. 14-20']];
+  const cur = level <= 0 ? 1 : level <= 6 ? 1 : level <= 13 ? 10 : 20;
+  return `<div class="sheet-gallery">
+    <div class="sheet-gallery-main"><img id="sheet-gallery-main" class="sheet-gallery-img" src="${url(cur)}" alt=""></div>
+    <div class="sheet-tiers">${tiers.map(([lvl, label]) => `<button type="button" class="sheet-tier${lvl === cur ? ' current' : ''}" onclick="sheetGalleryShow(this, '${url(lvl)}')" title="${label}"><img src="${url(lvl)}" alt=""><span>${label}</span></button>`).join('')}</div>
+  </div>`;
+}
+function sheetGalleryShow(btn, src) {
+  const main = document.getElementById('sheet-gallery-main');
+  if (main) main.src = src;
+  btn.parentElement.querySelectorAll('.sheet-tier').forEach(b => b.classList.toggle('current', b === btn));
+}
+// Aperçu d'une unité : figurine en pied, jeton des listes et marqueur tel qu'il marche sur la carte
+function sheetUnitGallery(unit) {
+  const mapName = SHEET_MAP_UNIT[unit.class] || 'hoplite';
+  const mapUrl = `assets/images/3d/map/units/${mapName}_${unit.faction}.webp`;
+  return `<div class="sheet-gallery unit">
+    <div class="sheet-gallery-main">${unitFigureHtml(unit.key, 'sheet-gallery-img unit-figure', unit.name)}</div>
+    <div class="sheet-tiers">
+      <span class="sheet-tier static">${unitIconHtml(unit.key, 'unit-ico-lg', unit.name)}<span>Jeton</span></span>
+      <span class="sheet-tier static"><img src="${mapUrl}" alt="" onerror="this.style.display='none'"><span>Sur la carte</span></span>
+    </div>
+  </div>`;
+}
+// « Voir dans la ville » : ferme la fiche, affiche la ville, recentre sur le bâtiment et ouvre sa bulle
+function locateBuildingInCity(key) {
+  const b = key === 'MAIN_HALL' ? { slot: 0 } : (currentCity?.buildings || []).filter(x => x.key === key).sort((a, c) => c.level - a.level)[0];
+  if (!b) { showToast('Ce bâtiment n\'est pas construit dans cette ville', 'info'); return; }
+  closeModal();
+  if (typeof closeBuildPanel === 'function') closeBuildPanel();
+  showTab('city');
+  setTimeout(() => { if (typeof focusCitySlot === 'function') focusCitySlot(b.slot); }, 60);
+}
 function sheetCostHtml(cost, city) {
   return SHEET_RES.map(r => `<span class="sheet-cost${city && (city[r] || 0) < (cost[r] || 0) ? ' missing' : ''}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('');
 }
@@ -107,8 +144,10 @@ function showUnitInfoModal(unitKey) {
     if (req.ok) {
       status = `<p class="sheet-status ok">Recrutable à ${escapeHtml(currentCity.name || 'votre ville')} — ${getBuildingName(req.building.key)} niveau ${req.building.level}.</p>`;
       if (typeof openUnitRecruitModal === 'function') action = `<button type="button" class="btn-primary" onclick="openUnitRecruitModal('${sheetKey(unit.key)}', '${sheetKey(req.building.key)}')">Recruter</button>`;
+      action = `<button type="button" class="btn-secondary" onclick="locateBuildingInCity('${sheetKey(req.building.key)}')">Voir ${escapeHtml(getBuildingName(req.building.key))} dans la ville</button>` + action;
     } else if (req.building) {
       status = `<p class="sheet-status warn">${getBuildingName(req.building.key)} niveau ${req.level} requis (actuellement niveau ${req.building.level}).</p>`;
+      action = `<button type="button" class="btn-secondary" onclick="locateBuildingInCity('${sheetKey(req.building.key)}')">Voir ${escapeHtml(getBuildingName(req.building.key))} dans la ville</button>`;
     } else {
       status = `<p class="sheet-status warn">Construisez ${reqName} (niveau ${req.level}) pour recruter cette unité.</p>`;
     }
@@ -125,7 +164,6 @@ function showUnitInfoModal(unitKey) {
   const html = `
     <div class="sheet unit-sheet">
       <div class="sheet-head" style="--tier: ${tierColor}">
-        <div class="sheet-figure">${unitFigureHtml(unit.key, 'unit-figure unit-figure-lg', unit.name)}</div>
         <div class="sheet-title">
           <h3>${escapeHtml(unit.name)}</h3>
           <div class="sheet-badges">
@@ -136,6 +174,7 @@ function showUnitInfoModal(unitKey) {
           ${unit.description ? `<p class="sheet-desc">${escapeHtml(unit.description)}</p>` : ''}
         </div>
       </div>
+      ${sheetUnitGallery(unit)}
 
       <div class="sheet-section">
         <h4>${resIconHtml('stats')} Statistiques</h4>
@@ -181,6 +220,61 @@ function showUnitInfoModal(unitKey) {
 }
 
 // ========== BÂTIMENTS ==========
+// Fonctions de chaque bâtiment et niveau auquel elles s'activent (mêmes seuils que le serveur), avec le raccourci qui
+// l'ouvre quand elle est disponible. `fx` = effets du bâtiment dans les données.
+function buildingFunctions(key, fx) {
+  const tab = (t) => () => showTab(t);
+  const F = {
+    MAIN_HALL: [['Construction plus rapide (−2,5 % par niveau, plafond 60 %)', 1], ['Fixe le niveau maximal des autres bâtiments', 1]],
+    RALLY_POINT: [['1 armée en campagne', 1, tab('army')], ['2 armées', 5], ['3 armées', 10], ['4 armées', 15], ['5 armées', 20]],
+    BARRACKS: [['Recruter infanterie et archers de base', fx.unlockBaseTier || 1, 'recruit'], ['Unités intermédiaires', fx.unlockIntermediateTier || 7], ['Unités d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
+    STABLE: [['Recruter la cavalerie de base', fx.unlockBaseTier || 1, 'recruit'], ['Cavalerie intermédiaire', fx.unlockIntermediateTier || 7], ['Cavalerie d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
+    WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1]],
+    ACADEMY: [['Construction plus rapide (−1 % par niveau)', 1], ['Recherche', null]],
+    FORGE: [['Défense de toutes les troupes de la ville (+0,5 % par niveau)', 1]],
+    FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],
+    SILO: [['Capacité de stockage des céréales', 1]], WAREHOUSE: [['Capacité de stockage du bois, de la pierre et du fer', 1]],
+    HIDEOUT: [['Ressources à l\'abri des pillages (1 % par niveau, max 20 %)', 1]],
+    HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés', 1, 'panel']],
+    MARKET: [['Échanges avec le marchand itinérant', 1, tab('market')], ['Échanges entre joueurs', 1, tab('market')], ['Envoi de ressources par armée', 1, tab('army')], ['Convois plus grands (+5 % par niveau)', 1]],
+    WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Réparation plus rapide', 1]],
+    MOAT: [['Attaque et défense des défenseurs (+0,5 % par niveau)', 1]],
+    MILL: [['Céréales +5 % par niveau', 1]], BAKERY: [['Céréales +5 % par niveau', 1]], SAWMILL: [['Bois +5 % par niveau', 1]], STONEMASON: [['Pierre +5 % par niveau', 1]], FOUNDRY: [['Fer +5 % par niveau', 1]],
+    GREAT_SILO: [['Céréales impossibles à piller', 1]], GREAT_WAREHOUSE: [['Bois, pierre et fer impossibles à piller', 1]],
+    GREAT_BARRACKS: [['Recruter infanterie et archers', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]], GREAT_STABLE: [['Recruter la cavalerie', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]],
+    EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')], ['Aide d\'alliance', null]],
+    TREASURE_CHAMBER: [['Or chaque jour (10 → 200)', 1, tab('inventory')]],
+    HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')]],
+    WATCHTOWER: [['Alertes des attaques en approche', 1, tab('reports')], ['Attaquant révélé', fx.alertArmyWhoWhenLevel || 10], ['Effectifs révélés', fx.alertArmyDetailsLevel || 15], ['Contre-espionnage (3,5 % par niveau)', 1], ['Espions et portée de vision', null]],
+    RESIDENCE: [['Construction plus rapide (−0,25 % par niveau)', 1], ['Colons et villes secondaires', null]],
+    TRADE_OFFICE: [['Convois et transport par armée (+1 % par niveau)', 1]],
+    ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
+    GALLIC_BREWERY: [['Défense de la ville (+1 % par niveau)', 1]],
+    GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide', null]],
+    EGYPTIAN_IRRIGATION: [['Toute la production (+1 % par niveau)', 1], ['Vitesse de marche', null]],
+    HUN_WAR_TENT: [['Entretien réduit (−0,5 % par niveau)', 1], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
+    SULTAN_DESERT_OUTPOST: [['Entretien réduit (−0,5 % par niveau)', 1], ['Taxe entre villes', null]]
+  };
+  return F[key] || [];
+}
+function sheetFunctionsHtml(key, level, existing, fx) {
+  const list = buildingFunctions(key, fx);
+  if (!list.length) return '';
+  const rows = list.map(([label, at, run]) => {
+    const soon = at === null;
+    const active = !soon && existing && level >= at;
+    const state = soon ? '<span class="sheet-fn-state soon">à venir</span>' : active ? '<span class="sheet-fn-state on">active</span>' : `<span class="sheet-fn-state off">niveau ${at}</span>`;
+    let btn = '';
+    if (active && run) {
+      if (run === 'recruit') btn = `<button type="button" class="info-btn-text" onclick="closeModal(); openRecruitmentPanel('${sheetKey(key)}', ${level}, ${existing.slot})">Recruter</button>`;
+      else if (run === 'panel') btn = `<button type="button" class="info-btn-text" onclick="closeModal(); openBuildPanel(${existing.slot})">Ouvrir</button>`;
+      else if (typeof run === 'function') { const id = 'fn' + Math.random().toString(36).slice(2, 8); window[id] = () => { closeModal(); run(); }; btn = `<button type="button" class="info-btn-text" onclick="${id}()">Ouvrir</button>`; }
+    }
+    return `<li class="sheet-fn${active ? ' active' : ''}${soon ? ' soon' : ''}"><span class="sheet-fn-label">${escapeHtml(label)}</span>${state}${btn}</li>`;
+  }).join('');
+  return `<div class="sheet-section"><h4>${resIconHtml('build')} Fonctions et activation</h4><ul class="sheet-fns">${rows}</ul></div>`;
+}
+
 function showBuildingInfoModal(buildingKey) {
   const def = sheetBuildings().find(b => b.key === buildingKey);
   if (!def) { showToast('Bâtiment non trouvé', 'error'); return; }
@@ -237,7 +331,6 @@ function showBuildingInfoModal(buildingKey) {
   const html = `
     <div class="sheet building-sheet">
       <div class="sheet-head">
-        <div class="sheet-figure">${buildingIconHtml(key, 'b-ico-md')}</div>
         <div class="sheet-title">
           <h3>${escapeHtml(def.name)}</h3>
           <div class="sheet-badges">
@@ -248,7 +341,10 @@ function showBuildingInfoModal(buildingKey) {
           <p class="sheet-desc">${escapeHtml(description)}</p>
         </div>
       </div>
+      ${sheetBuildingGallery(key, level, ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE'].includes(key))}
       ${cityLine}
+      ${currentCity && (existing || key === 'MAIN_HALL') ? `<div class="sheet-actions"><button type="button" class="btn-secondary" onclick="locateBuildingInCity('${sheetKey(key)}')">Voir dans la ville</button></div>` : ''}
+      ${sheetFunctionsHtml(key, level, existing || (key === 'MAIN_HALL' ? { slot: 0 } : null), fx)}
 
       <div class="sheet-section">
         <h4>${resIconHtml('list')} Prérequis</h4>

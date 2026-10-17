@@ -74,6 +74,8 @@ const FACTION_BUILDING = { ROME: 'ROMAN_THERMAE', GAUL: 'GALLIC_BREWERY', GREEK:
     await page.evaluate(() => showTab('market')); await page.waitForTimeout(1200); await shot('08-marche');
     await page.evaluate(() => { showTab('city'); openBuildPanel(21); }); await page.waitForTimeout(800); await shot('09-liste-construction');
     await page.evaluate(() => { closeBuildPanel(); showUnitInfoModal(unitsData.find(u => u.faction === player.faction)?.key); }); await page.waitForTimeout(600); await shot('10-fiche-unite');
+    await page.evaluate(() => showBuildingInfoModal('BARRACKS')); await page.waitForTimeout(600); await shot('11-fiche-batiment');
+    await page.evaluate(() => closeModal());
     await ctx.close();
   }
   await browser.close();
