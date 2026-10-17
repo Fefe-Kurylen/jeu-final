@@ -185,7 +185,7 @@ Le code les pose le long des bords (plateau, rivage, routes). `A seamless horizo
 | `terrain/edge_cliff` | grass edge → a short brown earth cliff face (seen slightly from the front) |
 | `terrain/edge_road` | cobblestone road → grass verge |
 
-**Ce que je branche côté code** : choix de la variante selon le biome et la zone (enceinte, plaza par civilisation, avenues, alentours, carte), décalques semés au hasard avec une graine fixe par ville (jamais sur les parcelles ni les avenues), eau texturée pour les étangs, les douves et les lacs de la carte avec les ondes existantes par-dessus, bordures posées le long des rives et des routes.
+**Déjà branché dans le code** (octobre 2026) : chaque texture est utilisée dès qu'elle est déposée, avec repli automatique sur une variante plus générale puis sur les quatre sols de base tant qu'elle manque. Alentours (`grass_dry`, `sand_rocky`, `tundra`), sol de l'enceinte (`grass_lawn`, `sand_ripples`, `snow_fresh`), plaza par civilisation (`plaza_<CIV>`), avenues (`cobble`, `snow_trampled` dans la neige), route (`road_dirt`, `path_sand`), champs vides (`soil_tilled`), étangs et lacs (`water_lake`, `water_shallow`, `ice`) en ville comme sur la carte, sols de carte (`grass_hills`, `sand_ripples`, `tundra`), décalques du biome semés à graine fixe hors parcelles, avenues et plaza. Les bordures (T6) seront posées le long des rives et des routes dans une étape suivante. Import : `node tools/repaint.cjs --import=art/incoming` reconnaît `terrain/<nom>.png` et `decals/<nom>.png` (sans guide, sans recalage) ; le kit (`--kit`) fournit leurs prompts.
 
 ### S7. Glyphes (facultatif) — `ui/<nom>.png` (9)
 

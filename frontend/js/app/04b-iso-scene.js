@@ -113,13 +113,53 @@ function isoShadowEllipse(ctx, x, y, rx, ry, alpha = 0.25) { ctx.fillStyle = `rg
 // ---------- Scène ----------
 function isoSeeded(n) { const x = Math.sin(n * 9301 + 49297) * 233280; return x - Math.floor(x); }
 
+// Textures par zone (chaque nom se replie sur une variante plus générale tant que l'image peinte manque, voir 01-core.js) :
+// alentours, sol de l'enceinte, plaza (par civilisation), avenues, route extérieure
+const ISO_TEXTURES = {
+  forest: { outer: 'grass_dry', inner: 'grass_lawn', lane: 'cobble', road: 'road_dirt' },
+  desert: { outer: 'sand_rocky', inner: 'sand_ripples', lane: 'cobble', road: 'path_sand' },
+  snow: { outer: 'tundra', inner: 'snow_fresh', lane: 'snow_trampled', road: 'snow_trampled' }
+};
+function isoTextures(biome) {
+  const t = ISO_TEXTURES[biome] || ISO_TEXTURES.forest;
+  return { ...t, plaza: `plaza_${player?.faction || 'ROME'}` };
+}
+// Décalques au sol du biome, semés à graine fixe dans l'enceinte (hors parcelles, avenues et plaza) et aux alentours ;
+// dessinés seulement quand l'image existe (painted/decals/<nom>.webp)
+const ISO_DECALS = {
+  forest: ['grass_tuft', 'flowers_red', 'flowers_white', 'clover', 'pebbles', 'leaves', 'moss', 'mushrooms', 'branches', 'puddle'],
+  desert: ['pebbles', 'cracks', 'sand_ripple', 'branches', 'hoof_prints'],
+  snow: ['snow_drift', 'ice_patch', 'pebbles', 'branches', 'hoof_prints']
+};
+function drawIsoDecals(ctx, W, cx, cy, biome) {
+  const names = ISO_DECALS[biome] || ISO_DECALS.forest;
+  if (!names.some(n => paintedSet.has(`decals/${n}.webp`))) return;
+  const lanesX = ISO_GATE_GX, laneY = 0.5;
+  for (let gx = -5; gx <= 5; gx++) for (let gy = -5; gy <= 5; gy++) {
+    const seed = (gx + 30) * 71 + (gy + 30) * 17 + 2400;
+    if (isoSeeded(seed) > 0.42) continue;
+    const px = gx + 0.5 + (isoSeeded(seed + 1) - 0.5) * 0.5, py = gy + 0.5 + (isoSeeded(seed + 2) - 0.5) * 0.5;
+    const inside = Math.max(Math.abs(px), Math.abs(py)) < R_WALL - 0.3;
+    if (inside) {
+      if (Math.abs(px - lanesX) < 0.25 || Math.abs(py - laneY) < 0.25) continue;        // avenues
+      if (Math.abs(px) + Math.abs(py) < R_PLAZA + 0.5) continue;                           // plaza
+      const onPlot = Object.values(ISO_CITY_CELLS).concat(Object.values(ISO_FIELD_CELLS)).some(([cx2, cy2]) => Math.abs(px - cx2) < 0.45 && Math.abs(py - cy2) < 0.45);
+      if (onPlot) continue;
+    } else if (Math.max(Math.abs(px), Math.abs(py)) > R_WALL + 3.5) continue;
+    const name = names[Math.floor(isoSeeded(seed + 3) * names.length)];
+    const p = isoPos(px, py, W, cx, cy);
+    drawDecal(ctx, name, p.x, p.y, W * (0.35 + isoSeeded(seed + 4) * 0.3), 0.9);
+  }
+}
+
 // Terrain plein écran : texture du biome + modelé doux + vignette, rendu une fois par taille/biome/nuit puis blitté
 let isoTerrainCache = { key: '', canvas: null };
 function drawIsoTerrain(ctx, biome, night) {
   const scene = biomeScene(biome);
   const scale = canvasScale();
-  const textureReady = !!getTerrainPattern(ctx, scene.texture);
-  const key = `${cityViewW}x${cityViewH}@${biome}@${night}@${scale}@${textureReady}`;
+  const outerTex = isoTextures(biome).outer;
+  const textureReady = !!getTerrainPattern(ctx, outerTex);
+  const key = `${cityViewW}x${cityViewH}@${biome}@${night}@${scale}@${textureReady}@${paintedSet.size}`;
   if (isoTerrainCache.key !== key) {
     const off = document.createElement('canvas');
     off.width = Math.round(cityViewW * scale); off.height = Math.round(cityViewH * scale);
@@ -129,7 +169,7 @@ function drawIsoTerrain(ctx, biome, night) {
     const ramp = night ? scene.night : scene.day;
     grad.addColorStop(0, ramp[1]); grad.addColorStop(1, ramp[3]);
     oc.beginPath(); oc.rect(0, 0, cityViewW, cityViewH);
-    fillTextured(oc, scene.texture, grad, night ? 0.86 : 0.42);
+    fillTextured(oc, outerTex, grad, night ? 0.86 : 0.42);
     const v = oc.createRadialGradient(cityViewW / 2, cityViewH / 2, Math.min(cityViewW, cityViewH) * 0.35, cityViewW / 2, cityViewH / 2, Math.max(cityViewW, cityViewH) * 0.78);
     v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, night ? 'rgba(0,0,0,0.55)' : 'rgba(30,20,10,0.3)');
     oc.fillStyle = v; oc.fillRect(0, 0, cityViewW, cityViewH);
@@ -147,7 +187,7 @@ function drawIsoGround(ctx, cx, cy, W, biome, night) {
   isoDiamondPath(ctx, cx, cy + W * 0.06, hw, hh); ctx.fill();
   ctx.restore();
   isoDiamondPath(ctx, cx, cy, hw, hh);
-  fillTextured(ctx, biomeScene(biome).texture, biomeInnerGradient(ctx, cx, cy, hw, biome, night), night ? 0.8 : 0.3);
+  fillTextured(ctx, isoTextures(biome).inner, biomeInnerGradient(ctx, cx, cy, hw, biome, night), night ? 0.8 : (hasPaintedTexture(isoTextures(biome).inner) ? 0.18 : 0.3));
   ctx.strokeStyle = night ? 'rgba(20,12,4,0.7)' : 'rgba(90,70,40,0.55)'; ctx.lineWidth = Math.max(1.5, W * 0.035);
   isoDiamondPath(ctx, cx, cy, hw, hh); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,250,220,0.22)'; ctx.lineWidth = 1;
@@ -160,11 +200,12 @@ function drawIsoPlaza(ctx, cx, cy, W, night) {
   isoDiamondPath(ctx, cx, cy, hw, hh);
   const g = ctx.createRadialGradient(cx, cy - hh * 0.2, W * 0.2, cx, cy, hw);
   g.addColorStop(0, night ? '#4a4034' : '#dccba2'); g.addColorStop(1, night ? '#2e2618' : '#b89c70');
-  fillTextured(ctx, 'dirt', g, night ? 0.82 : 0.38);
+  const plazaTex = isoTextures(cityBiome()).plaza;
+  const paved = hasPaintedTexture(plazaTex);
+  fillTextured(ctx, plazaTex, g, night ? 0.82 : (paved ? 0.12 : 0.38));
   ctx.strokeStyle = night ? 'rgba(20,12,4,0.8)' : 'rgba(90,60,30,0.6)'; ctx.lineWidth = Math.max(1.5, W * 0.03);
   isoDiamondPath(ctx, cx, cy, hw, hh); ctx.stroke();
-  ctx.strokeStyle = night ? 'rgba(0,0,0,0.18)' : 'rgba(90,60,30,0.16)'; ctx.lineWidth = 1;
-  for (const f of [0.66, 0.33]) { isoDiamondPath(ctx, cx, cy, hw * f, hh * f); ctx.stroke(); }
+  if (!paved) { ctx.strokeStyle = night ? 'rgba(0,0,0,0.18)' : 'rgba(90,60,30,0.16)'; ctx.lineWidth = 1; for (const f of [0.66, 0.33]) { isoDiamondPath(ctx, cx, cy, hw * f, hh * f); ctx.stroke(); } }
   ctx.strokeStyle = 'rgba(255,240,200,0.28)'; ctx.lineWidth = 1;
   isoDiamondPath(ctx, cx, cy, hw - 3, hh - 1.5); ctx.stroke();
 }
@@ -183,7 +224,8 @@ function drawIsoAvenues(ctx, cx, cy, W, night) {
   const lanes = isoAvenueLanes(W, cx, cy);
   const trace = () => { ctx.beginPath(); for (const [a, b] of lanes) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); } };
   ctx.lineCap = 'round'; ctx.lineWidth = W * 0.3;
-  trace(); strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#c8a878', night ? 0.85 : 0.5);
+  const laneTex = isoTextures(cityBiome()).lane;
+  trace(); strokeTextured(ctx, laneTex, night ? '#3a2c1e' : '#c8a878', night ? 0.85 : (hasPaintedTexture(laneTex) ? 0.15 : 0.5));
   ctx.strokeStyle = night ? 'rgba(0,0,0,0.22)' : 'rgba(90,60,30,0.24)'; ctx.lineWidth = W * 0.32; ctx.globalCompositeOperation = 'multiply';
   trace(); ctx.stroke();
   ctx.globalCompositeOperation = 'source-over';
@@ -292,7 +334,8 @@ function drawIsoRoad(ctx, cx, cy, W, night) {
   const { p0, p1, p2, p3 } = isoRoadPoints(cx, cy, W);
   const trace = () => { ctx.beginPath(); ctx.moveTo(p0.x, p0.y - W * 0.3); ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); };
   ctx.lineCap = 'round'; ctx.lineWidth = W * 0.36;
-  trace(); strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
+  const roadTex = isoTextures(cityBiome()).road;
+  trace(); strokeTextured(ctx, roadTex, night ? '#3a2c1e' : '#b89468', night ? 0.85 : (hasPaintedTexture(roadTex) ? 0.2 : 0.5));
   // bords adoucis, ornières
   ctx.strokeStyle = night ? 'rgba(0,0,0,0.25)' : 'rgba(90,60,30,0.28)'; ctx.lineWidth = W * 0.38; ctx.globalCompositeOperation = 'multiply';
   trace(); ctx.stroke();
@@ -370,8 +413,8 @@ function drawIsoScenePonds(ctx, water, W, night) {
     else { g.addColorStop(0, night ? '#24405a' : '#5e9ec8'); g.addColorStop(1, night ? '#142a40' : '#2f6c9a'); }
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = W * 0.15;
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, Math.PI * 2);
+    fillTextured(ctx, ice ? 'ice' : oasis ? 'water_shallow' : 'water_lake', g, night ? 0.75 : 0.35);   // texture d'eau peinte quand elle existe, sinon dégradé
     ctx.restore();
     ctx.strokeStyle = ice ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.28)'; ctx.lineWidth = Math.max(1, W * 0.02);
     ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx * 0.92, w.ry * 0.9, 0, 0, Math.PI * 2); ctx.stroke();
@@ -577,6 +620,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   drawIsoGround(ctx, cx, cy, W, biome, night);
   drawIsoAvenues(ctx, cx, cy, W, night);
   drawIsoPlaza(ctx, cx, cy, W, night);
+  drawIsoDecals(ctx, W, cx, cy, biome);
   // Objets triés de l'arrière vers l'avant (profondeur gx+gy, puis y écran) ; l'enceinte est poussée avant
   // les bâtiments pour qu'à profondeur égale elle reste derrière eux
   const items = [];

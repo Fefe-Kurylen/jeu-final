@@ -27,8 +27,10 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     const night = isNightMode();
     const plot = getSprite(plotSpriteUrl((Math.round(slot.gx || 0) * 3 + Math.round(slot.gy || 0) * 5 + 10) & 1));
     if (plot) drawSprite(cityCtx, plot, x, y, size * 1.5, spriteVariant(false));
-    cityCtx.fillStyle = plot ? (night ? 'rgba(40,36,30,0.45)' : 'rgba(110,88,60,0.22)') : (night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)');
-    cityCtx.beginPath(); cityCtx.moveTo(x - size * 0.577, y); cityCtx.lineTo(x, y - size * 0.288); cityCtx.lineTo(x + size * 0.577, y); cityCtx.lineTo(x, y + size * 0.288); cityCtx.closePath(); cityCtx.fill();
+    cityCtx.beginPath(); cityCtx.moveTo(x - size * 0.577, y); cityCtx.lineTo(x, y - size * 0.288); cityCtx.lineTo(x + size * 0.577, y); cityCtx.lineTo(x, y + size * 0.288); cityCtx.closePath();
+    const soil = typeof hasPaintedTexture === 'function' && hasPaintedTexture('soil_tilled');   // terre labourée peinte quand elle existe
+    if (soil) fillTextured(cityCtx, 'soil_tilled', night ? 'rgba(20,16,10,0.5)' : 'rgba(110,88,60,0.1)', 1);
+    else { cityCtx.fillStyle = plot ? (night ? 'rgba(40,36,30,0.45)' : 'rgba(110,88,60,0.22)') : (night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)'); cityCtx.fill(); }
     if (isHovered) { cityCtx.shadowColor = '#ffd700'; cityCtx.shadowBlur = 15; }
     cityCtx.strokeStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.45)';
     cityCtx.lineWidth = isHovered ? 3 : 2;

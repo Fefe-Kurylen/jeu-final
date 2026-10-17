@@ -926,10 +926,40 @@ function drawProp(ctx, name, x, y, h, variant = 'day') {
 }
 
 // ========== TEXTURES DE TERRAIN (tuiles répétables : peintes painted/terrain/<nom>.webp, sinon assets/images/terrain/<nom>.svg) ==========
-function terrainTextureUrl(name) { return paintedSet.has(`terrain/${name}.webp`) ? `assets/images/painted/terrain/${name}.webp` : `assets/images/terrain/${name}.svg`; }
+// Jeu complet de textures (docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § T) : chaque variante peinte est utilisée dès qu'elle existe
+// (painted/terrain/<nom>.webp), sinon on se replie sur une variante plus générale, jusqu'aux quatre sols de base
+// (grass, dirt, sand, snow : peints ou SVG). Les textures d'eau n'ont pas de repli : sans image, le code dessine l'eau.
+const TEXTURE_FALLBACK = {
+  grass_lawn: 'grass', grass_dark: 'grass', grass_dry: 'grass', grass_flowers: 'grass', grass_hills: 'grass',
+  dirt_packed: 'dirt', mud: 'dirt', gravel: 'dirt', cobble: 'dirt', flagstone: 'cobble', road_dirt: 'dirt_packed', road_paved: 'cobble', path_sand: 'sand',
+  sand_ripples: 'sand', sand_rocky: 'sand', cracked_earth: 'sand', snow_fresh: 'snow', snow_trampled: 'snow', tundra: 'snow',
+  plaza_ROME: 'flagstone', plaza_GAUL: 'dirt_packed', plaza_GREEK: 'flagstone', plaza_EGYPT: 'flagstone', plaza_HUN: 'dirt_packed', plaza_SULTAN: 'flagstone',
+  soil_tilled: 'dirt', wheat: 'grass', orchard: 'grass',
+  water_lake: null, water_deep: 'water_lake', water_river: 'water_lake', water_shallow: 'water_lake', ice: null
+};
+const TEXTURE_BASE = { grass: 1, dirt: 1, sand: 1, snow: 1 };
+function hasPaintedTexture(name) { return paintedSet.has(`terrain/${name}.webp`); }
+function terrainTextureUrl(name) {
+  for (let n = name, guard = 0; n && guard < 8; n = TEXTURE_FALLBACK[n], guard++) {
+    if (paintedSet.has(`terrain/${n}.webp`)) return `assets/images/painted/terrain/${n}.webp`;
+    if (TEXTURE_BASE[n]) return `assets/images/terrain/${n}.svg`;
+  }
+  return null;
+}
+// Décalques au sol (painted/decals/<nom>.webp, fond transparent) : seulement quand l'image existe
+function drawDecal(ctx, name, x, y, w, alpha = 1) {
+  if (!paintedSet.has(`decals/${name}.webp`)) return false;
+  const img = getSprite(`assets/images/painted/decals/${name}.webp`);
+  if (!img) return false;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, x - w / 2, y - w / 4, w, w / 2);   // vu de dessus en projection iso : écrasé de moitié
+  ctx.globalAlpha = 1;
+  return true;
+}
 const _terrainPatterns = new Map();
 function getTerrainPattern(ctx, name) {
   const url = terrainTextureUrl(name);
+  if (!url) return null;
   const img = getSprite(url);
   if (!img) return null;
   const scale = canvasScale();

@@ -94,6 +94,7 @@ let mapFramePatterns = null;   // { grass, sand, snow } préparés une fois par 
 function mapTerrainPattern(name, zoom, originX, originY) {
   if (typeof getSprite !== 'function' || typeof DOMMatrix !== 'function') return null;
   const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(name) : `assets/images/terrain/${name}.svg`;
+  if (!url) return null;
   const img = getSprite(url);
   if (!img || !mapCtx) return null;
   const scale = canvasScale();
@@ -113,7 +114,9 @@ function mapTerrainPattern(name, zoom, originX, originY) {
   return entry.pattern;
 }
 function prepareMapTerrainPatterns(originX, originY) {
-  mapFramePatterns = { grass: mapTerrainPattern('grass', mapZoomLevel, originX, originY), sand: mapTerrainPattern('sand', mapZoomLevel, originX, originY), snow: mapTerrainPattern('snow', mapZoomLevel, originX, originY) };
+  // variantes de carte (collines, sable ondulé, toundra) avec repli sur les sols de base ; eau, glace et oasis seulement si peintes
+  const pat = (n) => mapTerrainPattern(n, mapZoomLevel, originX, originY);
+  mapFramePatterns = { grass: pat('grass_hills'), sand: pat('sand_ripples'), snow: pat('tundra'), water: pat('water_lake'), ice: pat('ice'), oasis: pat('water_shallow') };
 }
 
 // Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
@@ -917,7 +920,11 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   mapCtx.closePath();
 
   // Fill based on biome, feature and day/night
-  if ((feature === 'water' || feature === 'frozen') && !waterAsGround) {
+  const waterPattern = mapFramePatterns && !waterAsGround && (feature === 'water' ? mapFramePatterns.water : feature === 'frozen' ? mapFramePatterns.ice : feature === 'oasis' ? mapFramePatterns.oasis : null);
+  if (waterPattern) {   // eau, glace ou oasis peintes : texture + voile de nuit
+    mapCtx.fillStyle = waterPattern; mapCtx.fill();
+    if (nightMode) { mapCtx.fillStyle = '#101c30'; mapCtx.globalAlpha = 0.6; mapCtx.fill(); mapCtx.globalAlpha = 1; }
+  } else if ((feature === 'water' || feature === 'frozen') && !waterAsGround) {
     if (nightMode) {
       mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
     } else {
@@ -940,7 +947,7 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
       mapCtx.fillStyle = groundColors[colorVariant];
     }
   }
-  if (!(mapFramePatterns && (waterAsGround || (feature !== 'water' && feature !== 'frozen' && feature !== 'oasis')) && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
+  if (!waterPattern && !(mapFramePatterns && (waterAsGround || (feature !== 'water' && feature !== 'frozen' && feature !== 'oasis')) && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
 
   // Subtle grid lines
   if (mapZoomLevel > 0.5 && showMapGrid) {

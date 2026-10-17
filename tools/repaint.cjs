@@ -27,7 +27,7 @@ if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_US
   const r = require('child_process').spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1', NODE_NO_WARNINGS: '1' } });
   process.exit(r.status ?? 1);
 }
-const { promptFor, TEXTURE: TEXTURES_LIST } = require('./repaint/prompts.cjs');
+const { promptFor, TEXTURE: TEXTURES_LIST, DECAL: DECALS_LIST, EDGE: EDGES_LIST } = require('./repaint/prompts.cjs');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.error('playwright requis : npm i -D playwright && npx playwright install chromium'); process.exit(1); }
 
@@ -67,7 +67,13 @@ for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
 }
-const allTargets = targets.slice();
+// Textures de sol, décalques et bordures : pas de rendu 3D ni de guide ; importables tels quels (--import) et présents dans le kit
+const flatTargets = [
+  ...Object.keys(TEXTURES_LIST).map(n => ({ cat: 'terrain', file: `terrain/${n}.webp`, flat: '1024x1024', opaque: true })),
+  ...Object.keys(EDGES_LIST).map(n => ({ cat: 'terrain', file: `terrain/${n}.webp`, flat: '1024x256', opaque: true })),
+  ...Object.keys(DECALS_LIST).map(n => ({ cat: 'decals', file: `decals/${n}.webp`, flat: '1024x1024', opaque: false }))
+];
+const allTargets = [...targets, ...flatTargets];
 if (only) targets = targets.filter(t => only.test(t.file));
 if (!args.force && !args.reprocess && !args['manifest-only'] && !TAG) targets = targets.filter(t => !fs.existsSync(path.join(OUT, t.file)));
 if (limit) targets = targets.slice(0, limit);
@@ -194,9 +200,13 @@ async function exportKit(dir) {
   const lines = ['fichier;categorie;taille;guide;prompt'];
   for (const r of rows) lines.push([r.file + '.png', r.file.split('/')[0], r.size, 'guides/' + r.file + '.webp', r.prompt].map(esc).join(';'));
   for (const name of Object.keys(TEXTURES_LIST)) lines.push([`terrain/${name}.png`, 'terrain', '1024x1024', '', promptFor(`terrain/${name}.webp`)].map(esc).join(';'));
+  for (const name of Object.keys(EDGES_LIST)) lines.push([`terrain/${name}.png`, 'terrain', '1024x256', '', promptFor(`terrain/${name}.webp`)].map(esc).join(';'));
+  for (const name of Object.keys(DECALS_LIST)) lines.push([`decals/${name}.png`, 'decals', '1024x1024', '', promptFor(`decals/${name}.webp`)].map(esc).join(';'));
   fs.writeFileSync(path.join(dir, 'PROMPTS.csv'), '\ufeff' + lines.join('\n') + '\n');
   const tDir = path.join(dir, 'prompts', 'terrain'); fs.mkdirSync(tDir, { recursive: true });
-  for (const name of Object.keys(TEXTURES_LIST)) fs.writeFileSync(path.join(tDir, name + '.txt'), promptFor(`terrain/${name}.webp`) + '\n');
+  for (const name of [...Object.keys(TEXTURES_LIST), ...Object.keys(EDGES_LIST)]) fs.writeFileSync(path.join(tDir, name + '.txt'), promptFor(`terrain/${name}.webp`) + '\n');
+  const dDir = path.join(dir, 'prompts', 'decals'); fs.mkdirSync(dDir, { recursive: true });
+  for (const name of Object.keys(DECALS_LIST)) fs.writeFileSync(path.join(dDir, name + '.txt'), promptFor(`decals/${name}.webp`) + '\n');
   fs.writeFileSync(path.join(dir, 'LISEZMOI.txt'), `KIT DE PEINTURE — ${rows.length} images à produire avec l'application de ton choix
 =====================================================================================
 
@@ -232,11 +242,11 @@ async function importUserImages(dir) {
   for (const f of files) {
     // correspondance par chemin relatif, ou par nom plat (buildings__HUN__MAIN_HALL.png), insensible à la casse
     const rel = path.relative(dir, f).replace(/\\/g, '/').replace(/\.(png|jpe?g|webp)$/i, '').replace(/^guides\//, '').replace(/__/g, '/').toLowerCase();
-    const t = byRel.get(rel) || byRel.get(rel.replace(/^.*?\/(buildings|fields|plots|props|map|figures|heroes|scenes|walls|ui)\//, '$1/'));
+    const t = byRel.get(rel) || byRel.get(rel.replace(/^.*?\/(buildings|fields|plots|props|map|figures|heroes|scenes|walls|ui|terrain|decals)\//, '$1/'));
     if (!t) { skipped++; continue; }
     const mime = /\.png$/i.test(f) ? 'image/png' : /\.webp$/i.test(f) ? 'image/webp' : 'image/jpeg';
     const b64 = fs.readFileSync(f).toString('base64');
-    const [W, H] = sizeFor(t).split('x').map(Number);
+    const [W, H] = (t.flat || sizeFor(t)).split('x').map(Number);
     const png = await page.evaluate(async ({ b64, mime, W, H }) => {
       const img = new Image(); img.src = `data:${mime};base64,${b64}`; await img.decode();
       const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
@@ -288,6 +298,22 @@ async function importUserImages(dir) {
     while (next < targets.length) {
       const t = targets[next++];
       try {
+        if (t.flat) {   // texture, décalque ou bordure : image brute importée → WebP à la taille finale, sans recalage
+          const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
+          if (!fs.existsSync(rawFile)) throw new Error('image absente (à déposer via --import)');
+          const [W, H] = t.flat.split('x').map(Number);
+          const webp = await page.evaluate(async ({ b64, W, H, opaque }) => {
+            const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+            const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+            if (opaque) { x.fillStyle = '#808080'; x.fillRect(0, 0, W, H); }
+            x.drawImage(img, 0, 0, W, H);
+            return c.toDataURL('image/webp', 0.9).split(',')[1];
+          }, { b64: fs.readFileSync(rawFile).toString('base64'), W, H, opaque: t.opaque });
+          const outFile = path.join(OUT, t.file);
+          fs.mkdirSync(path.dirname(outFile), { recursive: true });
+          fs.writeFileSync(outFile, Buffer.from(webp, 'base64'));
+          done++; continue;
+        }
         const size = sizeFor(t);
         const meta = await compose(page, path.join(SRC, t.file), size);
         const prompt = promptFor(t.file, { bg: BG });

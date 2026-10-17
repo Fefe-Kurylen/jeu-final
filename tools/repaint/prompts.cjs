@@ -79,11 +79,62 @@ const COMPOSITION = {
   scene: 'Composition: the panorama fills the whole image, isometric view from the front at 30 degrees, sky transparent above the island.'
 };
 // Textures de sol répétables (sans guide) et emblème
+// Textures de sol répétables (vue de dessus) : les quatre de base, puis le jeu complet (docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § T)
 const TEXTURE = {
   grass: 'a seamless, tileable top-down texture of lush painted meadow grass: soft green tufts, a few tiny flowers and pebbles',
   dirt: 'a seamless, tileable top-down texture of packed earth and dirt path: warm brown, small pebbles, faint cart tracks',
   sand: 'a seamless, tileable top-down texture of desert sand: pale ochre, gentle wind ripples, a few small stones',
-  snow: 'a seamless, tileable top-down texture of fresh snow: white with soft blue shadows, light drifts and sparkles'
+  snow: 'a seamless, tileable top-down texture of fresh snow: white with soft blue shadows, light drifts and sparkles',
+  // sols de base, variantes par biome
+  grass_lawn: 'a seamless, tileable top-down texture of short well-kept green lawn, fine blades, a few tiny daisies',
+  grass_dark: 'a seamless, tileable top-down texture of dense dark-green undergrowth with moss and small ferns',
+  grass_dry: 'a seamless, tileable top-down texture of dry yellow-green summer grass with some bare earth',
+  grass_flowers: 'a seamless, tileable top-down texture of meadow grass dotted with small red, white and yellow wildflowers',
+  grass_hills: 'a seamless, tileable top-down texture of rolling meadow grass with lighter crests and darker hollows',
+  dirt_packed: 'a seamless, tileable top-down texture of packed brown earth with small pebbles and faint footprints',
+  mud: 'a seamless, tileable top-down texture of wet dark mud with shallow puddles reflecting the sky',
+  gravel: 'a seamless, tileable top-down texture of small grey and beige gravel stones',
+  sand_ripples: 'a seamless, tileable top-down texture of pale ochre desert sand with gentle wind ripples',
+  sand_rocky: 'a seamless, tileable top-down texture of sand with scattered small dark stones and a few dry tufts',
+  cracked_earth: 'a seamless, tileable top-down texture of dry cracked clay ground in warm ochre',
+  snow_fresh: 'a seamless, tileable top-down texture of fresh untouched snow, soft blue shadows, a few sparkles',
+  snow_trampled: 'a seamless, tileable top-down texture of trampled grey-white snow with footprints and dirt showing through',
+  tundra: 'a seamless, tileable top-down texture of frosted short grass and frozen earth, white edges on the blades',
+  // eau et glace
+  water_lake: 'a seamless, tileable top-down texture of calm clear blue lake water, soft ripples, a few light reflections',
+  water_deep: 'a seamless, tileable top-down texture of deep dark-blue water with slow swells',
+  water_river: 'a seamless, tileable top-down texture of flowing water with diagonal streaks and small white foam lines',
+  water_shallow: 'a seamless, tileable top-down texture of shallow turquoise water with a sandy bottom visible',
+  ice: 'a seamless, tileable top-down texture of pale blue cracked ice with white frost lines',
+  // dallages et chemins
+  plaza_ROME: 'a seamless, tileable top-down texture of large pale sandstone flagstones with thin dark joints and a faint mosaic meander border',
+  plaza_GAUL: 'a seamless, tileable top-down texture of rough wooden planks and packed earth with straw',
+  plaza_GREEK: 'a seamless, tileable top-down texture of white marble slabs with grey veins and thin joints',
+  plaza_EGYPT: 'a seamless, tileable top-down texture of golden sandstone tiles with a few carved hieroglyph bands',
+  plaza_HUN: 'a seamless, tileable top-down texture of trampled dark earth with hoof prints and scattered straw',
+  plaza_SULTAN: 'a seamless, tileable top-down texture of teal, white and gold geometric mosaic tiles',
+  cobble: 'a seamless, tileable top-down texture of worn rounded cobblestones in warm beige and grey, thin dark joints, tufts of grass in the cracks',
+  flagstone: 'a seamless, tileable top-down texture of irregular flat grey flagstones with moss in the joints',
+  road_dirt: 'a seamless, tileable top-down texture of a packed dirt road with two cart ruts and grass at the sides, the road running vertically',
+  road_paved: 'a seamless, tileable top-down texture of an ancient paved road of large basalt stones, the road running vertically',
+  path_sand: 'a seamless, tileable top-down texture of a sandy trail with camel tracks, the trail running vertically',
+  // champs
+  soil_tilled: 'a seamless, tileable top-down texture of tilled brown soil in straight furrows',
+  wheat: 'a seamless, tileable top-down texture of golden ripe wheat seen from above in neat rows',
+  orchard: 'a seamless, tileable top-down texture of green grass with rows of small round tree crowns'
+};
+// Décalques au sol (fond transparent, bords fondus, non répétables) semés par le code pour casser la répétition
+const DECAL = {
+  grass_tuft: 'a tuft of taller grass', flowers_red: 'a small patch of red poppies', flowers_white: 'a small patch of white and yellow daisies',
+  clover: 'a patch of clover and small leaves', pebbles: 'a scatter of small grey pebbles', cracks: 'thin dry cracks in the earth',
+  puddle: 'a shallow puddle reflecting the sky', leaves: 'scattered fallen autumn leaves', moss: 'a soft patch of green moss',
+  mushrooms: 'a small cluster of brown mushrooms', branches: 'a few fallen dry branches', cart_tracks: 'two parallel cart ruts',
+  hoof_prints: 'a trail of hoof prints', snow_drift: 'a small drift of snow', ice_patch: 'a patch of thin ice', sand_ripple: 'a patch of wind ripples in sand'
+};
+// Bordures et transitions : bandes 1024×256 répétables horizontalement, A en haut fondu vers B en bas
+const EDGE = {
+  edge_grass_sand: ['green grass', 'ochre sand'], edge_grass_snow: ['green grass', 'white snow'], edge_shore: ['sandy shore', 'shallow clear water'],
+  edge_grass_water: ['green grass with reeds', 'lake water'], edge_cliff: ['grass', 'a short brown earth cliff face seen slightly from the front'], edge_road: ['cobblestone road', 'grass verge']
 };
 const UNIT_NAME = { hoplite: 'INFANTRY', archer: 'ARCHER', cavalry: 'CAVALRY', catapult: 'SIEGE' };
 function frameOf(file) {
@@ -122,7 +173,9 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^busts\/([A-Z]+)(?:_([A-Z]+))?\.webp$/))) subject = `a round token portrait, head and shoulders, of ${CLASS[m[1]]}${m[2] ? `, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]}` : ', Roman style'}, with a small class emblem (${m[1] === 'ARCHER' ? 'bow and arrow' : m[1] === 'CAVALRY' ? 'horseshoe' : m[1] === 'SIEGE' ? 'wheel and stone' : 'crossed swords'}) on a dark round badge by the shoulder`;
   else if ((m = file.match(/^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(?:_([A-Z]+))?\.webp$/))) subject = m[1] === 'merchant' ? 'a small world-map marker of a merchant: a wooden cart loaded with crates pulled by a horse, marching toward the lower right' : `a small world-map army marker: ${m[1] === 'cavalry' || m[1] === 'catapult' ? '' : 'two '}${CLASS[UNIT_NAME[m[1]]]}${m[2] ? `, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]} and faction colors` : ', Roman style'}, marching toward the lower right`;
   else if ((m = file.match(/^logo\/medallion\.webp$/))) subject = 'the game emblem: a golden Roman legionary helmet with a red horsehair crest, seen in three-quarter view, inside a dark bronze medallion rimmed with gold and framed by two golden laurel branches; front view, centered';
-  else if ((m = file.match(/^terrain\/(\w+)\.webp$/))) return `${STYLE.replace(/No text[^.]*\./, '')} ${TEXTURE[m[1]]}. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque.`;
+  else if ((m = file.match(/^terrain\/(edge_\w+)\.webp$/)) && EDGE[m[1]]) return `${STYLE.replace(/No text[^.]*\./, '')} A seamless horizontally tileable top-down strip: the top half is ${EDGE[m[1]][0]} blending softly into ${EDGE[m[1]][1]} in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque.`;
+  else if ((m = file.match(/^terrain\/(\w+)\.webp$/)) && TEXTURE[m[1]]) return `${STYLE.replace(/No text[^.]*\./, '')} ${TEXTURE[m[1]]}. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque.`;
+  else if ((m = file.match(/^decals\/(\w+)\.webp$/)) && DECAL[m[1]]) return `${STYLE.replace(/No text[^.]*\./, '')} A single ground decal seen from above: ${DECAL[m[1]]}, soft edges that fade into transparency, nothing else. ${BG[opts.bg || 'transparent']}`;
   else if ((m = file.match(/^heroes\/([A-Z]+)\.webp$/))) subject = `a full-body hero character sprite in three-quarter view: ${m[1].toLowerCase()} hero with ${HEAD[m[1]]}, cape, sword and round shield, standing on a round stone plinth`;
   else if ((m = file.match(/^scenes\/([\w-]+)\.webp$/))) subject = SCENE[m[1]] || 'an isometric scene';
   else if ((m = file.match(/^ui\/btn-(\w+?)(-pressed)?\.webp$/))) subject = `a wide rounded rectangular game button, front view, flat, filling the frame edge to edge: ${UI_BUTTON[m[1]] || 'brown'} enamel-like surface with a soft glossy highlight along the top, a thin golden rim and a dark outline${m[2] ? ', in its pressed state: darker, flatter, no highlight' : ''}. No text, no symbol on it.`;
@@ -135,4 +188,4 @@ function promptFor(file, opts = {}) {
   const comp = COMPOSITION[frameOf(file)] || '';
   return `${STYLE} ${bg}\n\n${keep}\n\n${comp}\n\nSubject: ${subject}`;
 }
-module.exports = { promptFor, frameOf, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE };
+module.exports = { promptFor, frameOf, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE, DECAL, EDGE };
