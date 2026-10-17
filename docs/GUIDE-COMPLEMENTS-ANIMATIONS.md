@@ -43,7 +43,12 @@ Hand-painted isometric game asset in exactly the art style of the first referenc
 | S3 | Blasons des civilisations | `ui/crest_<CIV>` | 6 | 1024×1024 | ★★☆ |
 | S4 | Vignettes des destinations d'expédition | `scenes/expedition-<forest|desert|mountain|ruins>` | 4 | 1536×1024 | ★☆☆ |
 | S5 | Boutons ronds des bulles d'action | `ui/btn-round`, `ui/btn-round-pressed` | 2 | 1024×1024 | ★☆☆ |
-| S6 | Textures de pavés et d'eau | `terrain/cobble`, `terrain/water` | 2 | 1024×1024 répétable | ★★☆ |
+| T1 | Sols de base, variantes par biome | `terrain/<grass_*|dirt_*|sand_*|snow_*>` | 14 | 1024×1024 répétable | ★★★ |
+| T2 | Eau et glace | `terrain/water_<lake|deep|river|shallow>`, `terrain/ice` | 5 | 1024×1024 répétable | ★★★ |
+| T3 | Dallages et chemins (plaza par civilisation, avenues, routes) | `terrain/plaza_<CIV>`, `terrain/cobble`, `terrain/flagstone`, `terrain/road_*` | 11 | 1024×1024 répétable | ★★★ |
+| T4 | Sols des champs | `terrain/soil_tilled`, `terrain/wheat`, `terrain/orchard` | 3 | 1024×1024 répétable | ★★☆ |
+| T5 | Décalques au sol (non répétables, fond transparent) | `decals/<nom>` | 16 | 1024×1024 | ★★☆ |
+| T6 | Bordures et transitions (bandes répétables sur un axe) | `terrain/edge_<nom>` | 6 | 1024×256 | ★☆☆ |
 | S7 | Glyphes (facultatif) | `ui/sun`, `moon`, `left`, `right`, `plus`, `minus`, `close`, `info`, `menu` | 9 | 1024×1024 | ☆☆☆ |
 | N1 | Icône de notification Android | `store/ic_stat_notify` | 1 (+ déclinaisons automatiques) | 96×96 | ★★★ |
 | N2 | Bannière Google Play | `store/feature-graphic` | 1 | 1024×500 | ★★★ |
@@ -81,11 +86,106 @@ forest `a deep green forest with mossy rocks and a stream` ; desert `golden dune
 
 `Composition: the element fills the whole square image edge to edge, front view, no perspective. Subject: a round game button of dark polished wood with a thin golden rim and a soft highlight at the top, completely empty in the middle (no icon).` Version `-pressed` : `darker and flat, no highlight`.
 
-### S6. Textures de pavés et d'eau — `terrain/cobble.png`, `terrain/water.png` (2, répétables)
+### T. Textures de sol — le jeu complet (55 images)
 
-Sans guide, sans perspective, vue de dessus, **répétable sans raccord visible** :
-cobble `a seamless, tileable top-down texture of worn ancient cobblestones: irregular rounded stones of warm beige and grey, thin dark joints, a few tufts of grass in the cracks` ;
-water `a seamless, tileable top-down texture of calm clear blue water: soft ripples, a few light reflections, no shore`.
+Les quatre sols actuels (`terrain/grass`, `dirt`, `sand`, `snow`) sont peints ; tout le reste est dessiné par le code avec
+des dégradés. Pour obtenir la richesse de Rise of Kingdoms, voici le jeu complet. **Toutes vues de dessus, sans perspective,
+sans ombre portée, répétables sans raccord visible** (le motif se continue d'un bord à l'autre), 1024×1024, sauf indication.
+
+Prompt commun (remplace le style isométrique) :
+`A seamless, tileable top-down ground texture for a hand-painted strategy game, in the art style of the first reference image: flat painted textures with soft shading, clean subtle dark-brown outlines on details, warm palette, no perspective, no cast shadow, no vignette, uniform lighting, the pattern continues across all four edges so the tile repeats without visible seams. Subject: <SUJET>.`
+
+#### T1. Sols de base (14)
+
+| Fichier | Sujet | Où |
+|---|---|---|
+| `terrain/grass_lawn` | short well-kept green lawn, fine blades, a few tiny daisies | sol de l'enceinte (prairie) |
+| `terrain/grass_dark` | dense dark-green undergrowth with moss and small ferns | lisières, sous les bosquets |
+| `terrain/grass_dry` | dry yellow-green summer grass with some bare earth | alentours de la ville, carte |
+| `terrain/grass_flowers` | meadow grass dotted with small red, white and yellow wildflowers | parcelles libres, bords des avenues |
+| `terrain/grass_hills` | rolling meadow grass with lighter crests and darker hollows | carte du monde (prairie) |
+| `terrain/dirt_packed` | packed brown earth with small pebbles and faint footprints | plaza hunnique, chantiers |
+| `terrain/mud` | wet dark mud with shallow puddles reflecting the sky | abords des étangs, pluie |
+| `terrain/gravel` | small grey and beige gravel stones | cours des ateliers, carrières |
+| `terrain/sand_ripples` | pale ochre desert sand with gentle wind ripples | sol de l'enceinte (désert), dunes de carte |
+| `terrain/sand_rocky` | sand with scattered small dark stones and a few dry tufts | alentours désertiques |
+| `terrain/cracked_earth` | dry cracked clay ground in warm ochre | oasis asséchées, routes du désert |
+| `terrain/snow_fresh` | fresh untouched snow, soft blue shadows, a few sparkles | sol de l'enceinte (neige) |
+| `terrain/snow_trampled` | trampled grey-white snow with footprints and dirt showing through | avenues et plaza en biome neige |
+| `terrain/tundra` | frosted short grass and frozen earth, white edges on the blades | alentours en biome neige, carte |
+
+#### T2. Eau et glace (5)
+
+| Fichier | Sujet | Où |
+|---|---|---|
+| `terrain/water_lake` | calm clear blue lake water, soft ripples, a few light reflections | étangs de la ville, lacs de carte |
+| `terrain/water_deep` | deep dark-blue water with slow swells | mers et grands lacs de carte |
+| `terrain/water_river` | flowing water with diagonal streaks and small white foam lines | rivières (le code oriente le courant) |
+| `terrain/water_shallow` | shallow turquoise water with a sandy bottom visible | oasis, rives, douves |
+| `terrain/ice` | pale blue cracked ice with white frost lines | lacs gelés, douves en biome neige |
+
+#### T3. Dallages et chemins (11)
+
+| Fichier | Sujet | Où |
+|---|---|---|
+| `terrain/plaza_ROME` | large pale sandstone flagstones with thin dark joints, a faint mosaic meander border | plaza romaine |
+| `terrain/plaza_GAUL` | rough wooden planks and packed earth with straw | plaza gauloise |
+| `terrain/plaza_GREEK` | white marble slabs with grey veins and thin joints | plaza grecque |
+| `terrain/plaza_EGYPT` | golden sandstone tiles with a few carved hieroglyph bands | plaza égyptienne |
+| `terrain/plaza_HUN` | trampled dark earth with hoof prints and scattered straw | plaza hunnique |
+| `terrain/plaza_SULTAN` | teal, white and gold geometric mosaic tiles | plaza du Sultanat |
+| `terrain/cobble` | worn rounded cobblestones in warm beige and grey, thin dark joints, tufts of grass in the cracks | avenues de la ville |
+| `terrain/flagstone` | irregular flat grey flagstones with moss in the joints | abords des bâtiments avancés |
+| `terrain/road_dirt` | a packed dirt road with two cart ruts and grass at the sides, running vertically | route hors de la ville (le code l'oriente) |
+| `terrain/road_paved` | an ancient paved road of large basalt stones, running vertically | routes entre villes sur la carte |
+| `terrain/path_sand` | a sandy trail with camel tracks, running vertically | chemins du désert |
+
+#### T4. Sols des champs (3)
+
+| Fichier | Sujet | Où |
+|---|---|---|
+| `terrain/soil_tilled` | tilled brown soil in straight furrows | champs en chantier, niveaux 1-6 |
+| `terrain/wheat` | golden ripe wheat seen from above in neat rows | fermes développées |
+| `terrain/orchard` | green grass with rows of small round tree crowns | vergers, fermes de haut niveau |
+
+#### T5. Décalques au sol (16, fond transparent, non répétables)
+
+Petits motifs posés par le code au hasard (graine fixe) pour casser la répétition, 1024×1024 avec transparence autour :
+`A single ground decal on a fully transparent background, seen from above, soft edges that fade into transparency, hand-painted style of the first reference image. Subject: <SUJET>.`
+
+| Fichier | Sujet |
+|---|---|
+| `decals/grass_tuft` | a tuft of taller grass |
+| `decals/flowers_red` | a small patch of red poppies |
+| `decals/flowers_white` | a small patch of white and yellow daisies |
+| `decals/clover` | a patch of clover and small leaves |
+| `decals/pebbles` | a scatter of small grey pebbles |
+| `decals/cracks` | thin dry cracks in the earth |
+| `decals/puddle` | a shallow puddle reflecting the sky |
+| `decals/leaves` | scattered fallen autumn leaves |
+| `decals/moss` | a soft patch of green moss |
+| `decals/mushrooms` | a small cluster of brown mushrooms |
+| `decals/branches` | a few fallen dry branches |
+| `decals/cart_tracks` | two parallel cart ruts |
+| `decals/hoof_prints` | a trail of hoof prints |
+| `decals/snow_drift` | a small drift of snow |
+| `decals/ice_patch` | a patch of thin ice |
+| `decals/sand_ripple` | a patch of wind ripples in sand |
+
+#### T6. Bordures et transitions (6, bandes de 1024×256 répétables horizontalement)
+
+Le code les pose le long des bords (plateau, rivage, routes). `A seamless horizontally tileable top-down strip, the top half is <A> blending softly into <B> in the bottom half, hand-painted style of the first reference image.`
+
+| Fichier | Transition |
+|---|---|
+| `terrain/edge_grass_sand` | green grass → ochre sand |
+| `terrain/edge_grass_snow` | green grass → white snow |
+| `terrain/edge_shore` | sandy shore → shallow clear water |
+| `terrain/edge_grass_water` | green grass with reeds → lake water |
+| `terrain/edge_cliff` | grass edge → a short brown earth cliff face (seen slightly from the front) |
+| `terrain/edge_road` | cobblestone road → grass verge |
+
+**Ce que je branche côté code** : choix de la variante selon le biome et la zone (enceinte, plaza par civilisation, avenues, alentours, carte), décalques semés au hasard avec une graine fixe par ville (jamais sur les parcelles ni les avenues), eau texturée pour les étangs, les douves et les lacs de la carte avec les ondes existantes par-dessus, bordures posées le long des rives et des routes.
 
 ### S7. Glyphes (facultatif) — `ui/<nom>.png` (9)
 
