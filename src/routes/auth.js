@@ -11,6 +11,7 @@ const { createExpedition } = require('../services/expeditionService');
 const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
+const { isBlockedTile, noteObjectCell } = require('../utils/pathfinding');
 const path = require('path');
 const fs = require('fs');
 
@@ -74,7 +75,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
           const hero = await tx.hero.create({ data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 } });
           await tx.army.create({ data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
           for (let i = 0; i < 3; i++) await createExpedition(player.id, tx);
-          return { account, player };
+          return { account, player, city };
         }, { timeout: 20000 });
       } catch (e) {
         const target = String(e.meta?.target || '');
@@ -85,6 +86,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
       }
     }
     if (!created) return res.status(503).json({ error: 'Carte saturée, réessayez' });
+    if (created.city) noteObjectCell(created.city.x, created.city.y, 'CITY');
 
     // The verification link leaves in the background: a mail outage never blocks a sign-up
     sendVerificationMail(created.account, name).catch(e => console.error('[MAIL] verification:', e.message));
@@ -116,7 +118,7 @@ async function findFreeSpawn() {
       prisma.city.findUnique({ where: { x_y: pos }, select: { id: true } }),
       prisma.resourceNode.findUnique({ where: { x_y: pos }, select: { id: true } })
     ]);
-    if (!city && !node) return pos;
+    if (!city && !node && !(await isBlockedTile(pos.x, pos.y))) return pos;
     pos = randomEdgePosition();
   }
   return pos;

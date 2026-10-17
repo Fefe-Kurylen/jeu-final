@@ -121,7 +121,7 @@ async function loadHero() {
                     <div class="equip-slot ${isEmpty ? 'empty' : 'filled'}"
                          style="left:${info.x}%;top:${info.y}%"
                          onclick="onEquipSlotClick('${slot}')"
-                         title="${escapeHtml(info.name)}${equipped ? ': ' + escapeHtml(equipped.itemKey) : ' (vide)'}">
+                         title="${escapeHtml(info.name)}${equipped ? ': ' + escapeHtml(getItemName(equipped.itemKey)) : ' (vide)'}">
                       <span class="equip-slot-icon">${equipped ? getItemIcon(equipped.itemKey) : getItemIcon(info.item)}</span>
                       ${!isEmpty ? '<span class="equip-slot-badge">!</span>' : ''}
                     </div>
@@ -149,6 +149,21 @@ async function loadHero() {
 }
 
 // Icône 3D d'un objet (assets/images/3d/ui/item_<clé>.webp), caisse pour les objets sans icône dédiée
+// Catalogue des objets (data/items.json, servi par /api/items) : nom, emplacement et bonus
+let itemsData = [];
+async function loadItems() {
+  if (itemsData.length) return itemsData;
+  try { const res = await fetch(`${API}/api/items`); if (res.ok) itemsData = await res.json(); } catch (e) { /* catalogue absent : clés brutes */ }
+  return itemsData;
+}
+function itemDef(key) { return itemsData.find(i => i.key === key) || null; }
+function getItemName(key) { return itemDef(key)?.name || String(key || '').replace(/_/g, ' '); }
+const STAT_LABELS = { attack: 'Attaque', defense: 'Défense', speed: 'Vitesse', logistics: 'Logistique' };
+function itemStatsHtml(stats) {
+  const entries = Object.entries(stats || {}).filter(([, v]) => v);
+  if (!entries.length) return '<span class="item-stats muted">Sans bonus</span>';
+  return `<span class="item-stats">${entries.map(([k, v]) => `+${v} ${STAT_LABELS[k] || k}`).join(' · ')}</span>`;
+}
 const ITEM_ICON_KEYS = new Set(['iron_sword', 'steel_sword', 'bronze_helm', 'iron_helm', 'leather_armor', 'chain_mail', 'iron_boots', 'war_boots', 'gold_ring', 'war_amulet', 'wooden_shield', 'iron_shield', 'leather_pants', 'chain_legs']);
 function getItemIcon(itemKey) {
   return `<img class="item-ico" src="assets/images/3d/ui/item_${ITEM_ICON_KEYS.has(itemKey) ? itemKey : 'crate'}.webp" alt="">`;
@@ -160,10 +175,11 @@ function onEquipSlotClick(slotKey) {
 
   if (equipped) {
     // Show equipped item details
-    showModal(`${slotInfo.name} - ${equipped.itemKey}`, `
+    showModal(`${slotInfo.name} - ${getItemName(equipped.itemKey)}`, `
       <div style="text-align:center;">
         <div style="font-size:48px;margin:10px 0;">${getItemIcon(equipped.itemKey)}</div>
-        <h4>${equipped.itemKey.replace(/_/g, ' ')}</h4>
+        <h4>${escapeHtml(getItemName(equipped.itemKey))}</h4>
+        <p>${itemStatsHtml(equipped.stats || itemDef(equipped.itemKey)?.stats)}</p>
         ${equipped.stats ? `
           <div style="margin-top:10px;text-align:left;">
             ${Object.entries(equipped.stats).map(([k, v]) => `
@@ -470,7 +486,7 @@ async function loadExpeditions() {
     historyEl.innerHTML = history.slice(0, 10).map(e => `
       <div class="queue-item">
         <span>${e.status === 'EXPIRED' ? '⌛ Expirée' : e.won ? '✅ Victoire' : '❌ Défaite'} · Difficulté ${e.difficulty}</span>
-        <span class="loot-badge ${e.lootTier}">${e.xpGained || 0} XP${e.lootGained?.gold ? ` · ${e.lootGained.gold} or` : ''}</span>
+        <span class="loot-badge ${e.lootTier}">${e.xpGained || 0} XP${e.lootGained?.gold ? ` · ${e.lootGained.gold} or` : ''}${e.lootGained?.item ? ` · ${getItemIcon(e.lootGained.item)} ${escapeHtml(getItemName(e.lootGained.item))}` : ''}</span>
       </div>
     `).join('') || '<p style="color:var(--text-muted)">Aucun historique</p>';
   } else {

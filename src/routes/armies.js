@@ -12,15 +12,19 @@ const { resolveTribeCombat } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
+const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
+const { pointAlongPath } = require('../utils/calculations');
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: true, hero: true, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: true, hero: { include: { items: true } }, ...include } });
 
-const travelTo = (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero);
-const spyTravelTo = (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData);
+// Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
+const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY));
+const spyTravelTo = async (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData, await routeLength(army.x, army.y, toX, toY));
+const noRoute = (res, e) => (e && e.code === 'NO_ROUTE' ? res.status(400).json({ error: e.message }) : null);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
 
 // Common checks before a field army leaves: the garrison never leaves the city
@@ -61,10 +65,10 @@ async function checkHostileTarget(army, targetCity, mission) {
 }
 
 async function launchCityMission(army, targetCity, mission) {
-  const travelTime = mission === 'SPY' ? spyTravelTo(army, targetCity.x, targetCity.y) : travelTo(army, targetCity.x, targetCity.y);
+  const travelTime = mission === 'SPY' ? await spyTravelTo(army, targetCity.x, targetCity.y) : await travelTo(army, targetCity.x, targetCity.y);
   const arrivalAt = new Date(Date.now() + travelTime * 1000);
   const status = { ATTACK: 'ATTACKING', RAID: 'RAIDING', SPY: 'SPYING' }[mission];
-  const ok = await transition(prisma, 'army', army.id, 'IDLE', { status, targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: mission });
+  const ok = await transition(prisma, 'army', army.id, 'IDLE', { status, targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: mission });
   return ok ? { travelTime, arrivalAt } : null;
 }
 
@@ -265,11 +269,11 @@ router.post('/:id/move', auth, async (req, res) => {
     const army = await loadArmy(req.params.id, req.user.playerId);
     const err = readyToLeave(army, 'se déplacer');
     if (err) return res.status(err.status).json({ error: err.error });
-    const travelTime = travelTo(army, x, y);
+    const travelTime = await travelTo(army, x, y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: x, targetY: y, arrivalAt, missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: x, targetY: y, arrivalAt, departedAt: new Date(), missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: 'Armee en mouvement', travelTime, arrivalAt });
-  } catch (e) { sendError(res, e); }
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
 // POST /api/army/:id/attack | /raid | /spy
@@ -288,7 +292,7 @@ function cityMissionRoute(mission, messages) {
       const launched = await launchCityMission(army, targetCity, mission);
       if (!launched) return res.status(409).json({ error: 'Armée déjà en mission' });
       res.json({ message: messages.ok, ...launched, target: targetCity.name });
-    } catch (e) { sendError(res, e); }
+    } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
   };
 }
 router.post('/:id/attack', auth, cityMissionRoute('ATTACK', { verb: 'attaquer', ok: 'Attaque lancee' }));
@@ -300,7 +304,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body;
     if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
-    const army = await loadArmy(req.params.id, req.user.playerId, { hero: true, city: true });
+    const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true });
     const err = readyToLeave(army, 'attaquer');
     if (err) return res.status(err.status).json({ error: err.error });
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
@@ -333,11 +337,11 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
       if (result.error) return res.status(result.status || 400).json(result);
       return res.json(result);
     }
-    const travelTime = travelTo(army, node.x, node.y);
+    const travelTime = await travelTo(army, node.x, node.y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'RAIDING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'RAID_RESOURCE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'RAIDING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, departedAt: new Date(), missionType: 'RAID_RESOURCE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: 'Armée en route', travelTime, arrivalAt, target: `${node.resourceType} (${node.x}, ${node.y})` });
-  } catch (e) { sendError(res, e); }
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
 // POST /api/army/:id/collect-resource
@@ -357,9 +361,9 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       if (node.hasPlayerArmy) return { error: 'Une armée récolte déjà ce point', status: 409 };
       const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
       if (distance > 1.5) {
-        const travelTime = travelTo(army, node.x, node.y);
+        const travelTime = await travelTo(army, node.x, node.y);
         const arrivalAt = new Date(Date.now() + travelTime * 1000);
-        await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
+        await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, departedAt: new Date(), missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
         return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
       }
       const carryCapacity = getArmyCarryCapacity(army.units, unitsData, army.hero);
@@ -371,7 +375,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { sendError(res, e); }
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
 // POST /api/army/:id/return — also recalls an army that is still on its way
@@ -388,12 +392,13 @@ router.post('/:id/return', auth, async (req, res) => {
 
       let fromX = army.x, fromY = army.y;
       if (OUTBOUND.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
-        // Position is only written on arrival: interpolate where the army is on its route right now
-        const total = army.status === 'SPYING' ? spyTravelTo(army, army.targetX, army.targetY) : travelTo(army, army.targetX, army.targetY);
+        // Position is only written on arrival: find where the army is on its route right now
+        const total = army.departedAt ? (new Date(army.arrivalAt).getTime() - new Date(army.departedAt).getTime()) / 1000 : 0;
         const remaining = Math.max(0, (new Date(army.arrivalAt).getTime() - Date.now()) / 1000);
         const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
-        fromX = army.x + (army.targetX - army.x) * progress;
-        fromY = army.y + (army.targetY - army.y) * progress;
+        const route = await findRoute(army.x, army.y, army.targetX, army.targetY);
+        const at = route ? pointAlongPath(route.path, progress) : { x: army.x + (army.targetX - army.x) * progress, y: army.y + (army.targetY - army.y) * progress };
+        fromX = Math.round(at.x); fromY = Math.round(at.y);
       } else if (army.status === 'IDLE' && isHome(army, army.city)) {
         return { message: 'Armee deja a la maison' };
       }
@@ -401,11 +406,11 @@ router.post('/:id/return', auth, async (req, res) => {
         await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 
-      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero);
+      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y).catch(() => null));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: {
         status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
-        arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestResourceType: null
+        arrivalAt, departedAt: new Date(), missionType: 'RETURN', targetResourceId: null, harvestResourceType: null
       } });
       return { message: 'Retour en cours', travelTime, arrivalAt };
     });
@@ -441,9 +446,9 @@ router.post('/:id/transport', auth, async (req, res) => {
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      const travelTime = travelTo(army, targetCity.x, targetCity.y);
+      const travelTime = await travelTo(army, targetCity.x, targetCity.y);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
-      if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food }))) throw new Error('army busy');
+      if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food }))) throw new Error('army busy');
       return { message: `Transport lancé vers ${targetCity.name}`, travelTime, arrivalAt, resources: { wood, stone, iron, food } };
     });
 
@@ -451,6 +456,7 @@ router.post('/:id/transport', auth, async (req, res) => {
     res.json(result);
   } catch (e) {
     if (e.message === 'army busy') return res.status(409).json({ error: 'Armée déjà en mission' });
+    if (noRoute(res, e)) return;
     sendError(res, e);
   }
 });
@@ -479,17 +485,18 @@ router.post('/send', auth, async (req, res) => {
       const label = { ATTACK: 'Attaque lancée', RAID: 'Raid lancé', SPY: 'Espionnage lancé' }[mission];
       return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, ...launched });
     }
-    const travelTime = travelTo(army, parsedX, parsedY);
+    if (await isBlockedTile(parsedX, parsedY)) return res.status(400).json({ error: 'Une armée ne peut pas se rendre sur une montagne ou dans l\'eau' });
+    const travelTime = await travelTo(army, parsedX, parsedY);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
-    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'MOVING', targetX: parsedX, targetY: parsedY, arrivalAt, departedAt: new Date(), missionType: 'MOVE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     res.json({ message: `Armee en mouvement vers (${parsedX}, ${parsedY})`, travelTime, arrivalAt });
-  } catch (e) { sendError(res, e); }
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
 // GET /api/army/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true, hero: true } });
+    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true, hero: { include: { items: true } } } });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     res.json({ ...army, power: calculateArmyPower(army.units, unitsData) });
   } catch (e) { sendError(res, e); }
@@ -498,7 +505,7 @@ router.get('/:id', auth, async (req, res) => {
 // GET /api/armies
 router.get('/', auth, async (req, res) => {
   try {
-    const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: true } });
+    const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: { include: { items: true } } } });
     res.json(armies.map(a => ({ ...a, power: calculateArmyPower(a.units, unitsData) })));
   } catch (e) { sendError(res, e); }
 });

@@ -3,7 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { unitsData, buildingsData } = require('../config/gamedata');
+const { unitsData, buildingsData, itemsData } = require('../config/gamedata');
 const config = require('../config');
 const { getCityTier, getCityTierName } = require('../utils/calculations');
 
@@ -81,7 +81,7 @@ router.get('/map/viewport', auth, async (req, res) => {
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
           ]
         },
-        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, ownerId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
+        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })
     ]);
     const armies = movingArmies.map(({ units, ...a }) => ({ ...a, mainUnit: mainUnitSprite(a, units) }));
@@ -106,6 +106,10 @@ router.get('/buildings', auth, (req, res) => {
 router.get('/units', auth, (req, res) => {
   res.set('Cache-Control', 'private, max-age=3600');
   res.json(unitsData);
+});
+router.get('/items', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json(itemsData);
 });
 
 module.exports = router;

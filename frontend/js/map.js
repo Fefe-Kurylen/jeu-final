@@ -197,206 +197,20 @@ const TERRAIN_MOVEMENT = {
   snowtree: 1.3      // Sapin enneigé
 };
 
-// Pseudo-random based on coordinates for consistent terrain
-function seededRandom(x, y, seed = 12345) {
-  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-  return n - Math.floor(n);
-}
-
-// Biomes en taches (patches ~30-50 cases) avec biais centre -> bord
-// Le centre reste majoritairement forêt (riche), le bord majoritairement neige (rude),
-// mais plusieurs biomes sont visibles dans un même viewport.
-const BIOME_SCALE = 36; // taille caractéristique d'une tache de biome (en cases)
-
-// Bruit de valeur lissé (interpolation bilinéaire de seededRandom sur une grille grossière)
-function smoothNoise(x, y, seed) {
-  const gx = Math.floor(x / BIOME_SCALE), gy = Math.floor(y / BIOME_SCALE);
-  const fx = (x / BIOME_SCALE) - gx, fy = (y / BIOME_SCALE) - gy;
-  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy); // smoothstep
-  const n00 = seededRandom(gx, gy, seed), n10 = seededRandom(gx + 1, gy, seed);
-  const n01 = seededRandom(gx, gy + 1, seed), n11 = seededRandom(gx + 1, gy + 1, seed);
-  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
-}
-
-function getBiome(x, y) {
-  const dx = x - WORLD_CENTER;
-  const dy = y - WORLD_CENTER;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const maxDist = WORLD_SIZE / 2 * 1.4;
-  const normalizedDist = distance / maxDist; // 0 au centre -> ~1 au bord
-
-  // Valeur de "climat" : bruit (taches) + biais de distance (centre chaud/fertile, bord froid)
-  const climate = smoothNoise(x, y, 77777) * 0.65 + normalizedDist * 0.55;
-
-  if (climate < 0.50) return 'forest';
-  if (climate < 0.80) return 'desert';
-  return 'snow';
-}
-
-// ========== MULTI-TILE TERRAIN GENERATION ==========
-// Rivers, lakes, and mountain ranges that span multiple tiles (max 30 length)
-
-// Cache for multi-tile terrain to avoid recalculating
-const multiTileTerrainCache = new Map();
-
-// Generate river paths (sinuous lines across the map)
-function isOnRiver(x, y) {
-  // Multiple river sources spread across the map
-  const riverSeeds = [
-    { sx: -100, sy: -50, dir: 0.3, length: 30 },
-    { sx: 50, sy: -120, dir: -0.2, length: 25 },
-    { sx: -80, sy: 80, dir: 0.4, length: 28 },
-    { sx: 120, sy: 30, dir: -0.35, length: 22 },
-    { sx: -30, sy: 100, dir: 0.25, length: 20 }
-  ];
-
-  for (const river of riverSeeds) {
-    let rx = river.sx;
-    let ry = river.sy;
-    let dir = river.dir;
-
-    for (let i = 0; i < river.length; i++) {
-      // River width of 1-2 tiles
-      if (Math.abs(x - Math.round(rx)) <= 1 && Math.abs(y - Math.round(ry)) <= 1) {
-        const dist = Math.sqrt((x - rx) ** 2 + (y - ry) ** 2);
-        if (dist < 1.2) return true;
-      }
-
-      // Move river forward with some meandering
-      rx += Math.cos(dir * Math.PI) * 2;
-      ry += Math.sin(dir * Math.PI) * 2;
-      dir += (seededRandom(Math.floor(rx), Math.floor(ry), 11111) - 0.5) * 0.3;
-    }
-  }
-  return false;
-}
-
-// Generate lake clusters (circular formations)
-function isOnLake(x, y) {
-  // Lake centers
-  const lakeSeeds = [
-    { cx: -60, cy: -30, radius: 8 },
-    { cx: 80, cy: -70, radius: 6 },
-    { cx: -90, cy: 60, radius: 10 },
-    { cx: 40, cy: 90, radius: 7 },
-    { cx: 100, cy: -20, radius: 5 },
-    { cx: -20, cy: -100, radius: 9 }
-  ];
-
-  for (const lake of lakeSeeds) {
-    const dist = Math.sqrt((x - lake.cx) ** 2 + (y - lake.cy) ** 2);
-    // Irregular lake shape using noise
-    const irregularity = seededRandom(x, y, 22222) * 3;
-    if (dist < lake.radius + irregularity - 2) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Generate mountain ranges (linear chains with branches)
-function isOnMountainRange(x, y) {
-  // Mountain range spines
-  const mountainRanges = [
-    { sx: -150, sy: 0, ex: -50, ey: -80, width: 4 },
-    { sx: 50, sy: -150, ex: 100, ey: -50, width: 3 },
-    { sx: -100, sy: 100, ex: 0, ey: 150, width: 5 },
-    { sx: 80, sy: 50, ex: 150, ey: 100, width: 4 }
-  ];
-
-  for (const range of mountainRanges) {
-    // Calculate distance to line segment
-    const dx = range.ex - range.sx;
-    const dy = range.ey - range.sy;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    const t = Math.max(0, Math.min(1,
-      ((x - range.sx) * dx + (y - range.sy) * dy) / (len * len)
-    ));
-
-    const nearX = range.sx + t * dx;
-    const nearY = range.sy + t * dy;
-    const dist = Math.sqrt((x - nearX) ** 2 + (y - nearY) ** 2);
-
-    // Add some width variation using noise
-    const widthVar = seededRandom(x, y, 33333) * 2;
-    if (dist < range.width + widthVar) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Check if tile has features based on noise, biome, and multi-tile formations
-// Bruit lisse à petite échelle (~7 cases) : régions de collines où les montagnes se regroupent en massifs
-const HILL_SCALE = 7;
-function hillNoise(x, y, seed = 4242) {
-  const gx = Math.floor(x / HILL_SCALE), gy = Math.floor(y / HILL_SCALE);
-  const fx = (x / HILL_SCALE) - gx, fy = (y / HILL_SCALE) - gy;
-  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-  const n00 = seededRandom(gx, gy, seed), n10 = seededRandom(gx + 1, gy, seed), n01 = seededRandom(gx, gy + 1, seed), n11 = seededRandom(gx + 1, gy + 1, seed);
-  return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
-}
-// The terrain is deterministic: every tile is computed once (rivers, lakes, ranges, noise) then served from the cache
+// ========== TERRAIN ==========
+// The procedural terrain (biomes, rivers, lakes, ranges, scattered features) lives in js/shared/terrain.js,
+// shared with the server so that armies walk the same world the player sees.
+const seededRandom = Terrain.seededRandom;
+const smoothNoise = Terrain.smoothNoise;
+const hillNoise = Terrain.hillNoise;
+const getBiome = Terrain.getBiome;
+const isOnRiver = Terrain.isOnRiver;
+const isOnLake = Terrain.isOnLake;
+const isOnMountainRange = Terrain.isOnMountainRange;
+const computeTerrainType = Terrain.computeTerrainType;
+const getTerrainType = Terrain.getTerrainType;
+const multiTileTerrainCache = Terrain._cache;
 const terrainSpriteCache = new Map();
-function getTerrainType(x, y) {
-  const k = x + ',' + y;
-  let t = multiTileTerrainCache.get(k);
-  if (t) return t;
-  t = computeTerrainType(x, y);
-  if (multiTileTerrainCache.size > 250000) multiTileTerrainCache.clear();
-  multiTileTerrainCache.set(k, t);
-  return t;
-}
-function computeTerrainType(x, y) {
-  const biome = getBiome(x, y);
-  const noise = seededRandom(x, y);
-  const noise2 = seededRandom(x * 2, y * 2, 54321);
-  const hills = hillNoise(x, y);   // > 0.72 : région de collines (≈ 12 % des terres) où les montagnes forment des massifs
-
-  // Check multi-tile terrain first (rivers, lakes, mountains)
-  // These override normal terrain generation
-
-  // Rivers in forest and desert biomes
-  if ((biome === 'forest' || biome === 'desert') && isOnRiver(x, y)) {
-    return { biome, feature: biome === 'desert' ? 'oasis' : 'water', isMultiTile: true };
-  }
-
-  // Lakes - different types per biome
-  if (isOnLake(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'frozen', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'oasis', isMultiTile: true };
-    return { biome, feature: 'water', isMultiTile: true };
-  }
-
-  // Mountain ranges
-  if (isOnMountainRange(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'icemountain', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'rocks', isMultiTile: true };
-    return { biome, feature: 'mountain', isMultiTile: true };
-  }
-
-  // Normal terrain generation (scattered features)
-  if (biome === 'forest') {
-    if (hills > 0.72 && noise > 0.5) return { biome, feature: 'mountain' };   // massifs : chaînes de 3 à 10 sommets qui se raccordent
-    if (hills > 0.66 && noise > 0.85) return { biome, feature: 'mountain' };   // contreforts isolés en bordure des massifs
-    if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
-    if (noise < 0.02) return { biome, feature: 'water' };
-  } else if (biome === 'desert') {
-    if (noise > 0.95) return { biome, feature: 'ruins' };
-    if (hills > 0.7 && noise > 0.5) return { biome, feature: 'dunes' };   // champs de dunes raccordés
-    if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
-    if (noise > 0.8 && noise2 > 0.6) return { biome, feature: 'dunes' };
-    if (noise < 0.03) return { biome, feature: 'oasis' };
-  } else if (biome === 'snow') {
-    if (hills > 0.72 && noise > 0.5) return { biome, feature: 'icemountain' };
-    if (hills > 0.66 && noise > 0.85) return { biome, feature: 'icemountain' };
-    if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
-    if (noise < 0.03) return { biome, feature: 'frozen' };
-  }
-
-  return { biome, feature: null };
-}
 
 let _mapCanvasInitialized = false;
 function initMapCanvas() {
@@ -853,6 +667,7 @@ async function loadMap() {
               targetX: a.targetX,
               targetY: a.targetY,
               arrivalAt: a.arrivalAt,
+              departedAt: a.departedAt,
               ownerId: a.ownerId,
               ownerName: a.owner?.name || 'Inconnu',
               faction: a.owner?.faction || 'ROME'
@@ -1005,13 +820,21 @@ function renderMapCore() {
     }
   });
 
-  // Add armies to draw order
+  // Routes of the player's own moving armies (seen by nobody else), drawn on the ground before every object
+  for (const army of armies) {
+    if (army.isGarrison || !MOVING_STATUSES[army.status]) continue;
+    if (army.ownerId && player && army.ownerId !== player.id) continue;
+    drawArmyRoute(army, worldToScreen, tileW);
+    mapMovingOnScreen = true;
+  }
+  // Add armies to draw order, each at its current point on its route
   armies.forEach(army => {
     if (army.isGarrison) return;   // la garnison ne quitte jamais la ville : le sprite de ville la représente
-    const pos = worldToScreen(army.x, army.y);
+    const cur = armyCurrentPosition(army);
+    const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir });
     }
   });
 
@@ -2233,6 +2056,82 @@ function drawIsoRock(x, y, size) {
   mapCtx.fill();
 }
 
+// ========== ARMY ROUTES ==========
+// A moving army follows the same route the server computed (shared terrain): the sprite walks along it
+// between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
+const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
+const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
+function armyRoute(army) {
+  if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
+  const key = `${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;
+  if (armyRouteCache.has(key)) return armyRouteCache.get(key);
+  if (armyRouteCache.size > 300) armyRouteCache.clear();
+  const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000);
+  const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
+  armyRouteCache.set(key, path);
+  return path;
+}
+function armyProgress(army) {
+  if (!army.arrivalAt) return 0;
+  const now = typeof serverNow === 'function' ? serverNow() : Date.now();
+  const end = new Date(army.arrivalAt).getTime();
+  const start = army.departedAt ? new Date(army.departedAt).getTime() : null;
+  if (!start || end <= start) return now >= end ? 1 : 0;
+  return Math.max(0, Math.min(1, (now - start) / (end - start)));
+}
+function pointAlongRoute(path, fraction) {
+  if (!path || !path.length) return null;
+  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+  let total = 0; const seg = [];
+  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+  let target = fraction * total;
+  for (let i = 1; i < path.length; i++) {
+    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+    target -= seg[i - 1];
+  }
+  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+}
+// Where the army is right now (world coordinates, fractional) and which way it walks
+function armyCurrentPosition(army) {
+  if (!MOVING_STATUSES[army.status]) return { x: army.x, y: army.y, dir: 1 };
+  const path = armyRoute(army);
+  const p = armyProgress(army);
+  const at = pointAlongRoute(path, p) || { x: army.x, y: army.y };
+  const ahead = pointAlongRoute(path, Math.min(1, p + 0.02)) || at;
+  // screen direction: +x on screen when (dx - dy) grows
+  const dir = (ahead.x - ahead.y) - (at.x - at.y) < -1e-6 ? -1 : 1;
+  return { x: at.x, y: at.y, dir };
+}
+// Dotted light-green route with an arrow head, for the player's own armies only
+function drawArmyRoute(army, worldToScreen, tileW) {
+  const path = armyRoute(army);
+  if (!path || path.length < 2) return;
+  const pts = path.map(([x, y]) => worldToScreen(x, y));
+  mapCtx.save();
+  mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
+  mapCtx.strokeStyle = 'rgba(150, 235, 140, 0.75)';
+  mapCtx.lineWidth = Math.max(1.5, tileW * 0.045);
+  mapCtx.setLineDash([tileW * 0.18, tileW * 0.16]);
+  mapCtx.lineDashOffset = -((performance.now() / 60) % (tileW * 0.34));   // marching ants, slow
+  mapCtx.shadowColor = 'rgba(0, 40, 0, 0.5)'; mapCtx.shadowBlur = 2;
+  mapCtx.beginPath();
+  pts.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y)));
+  mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  // arrow head at the destination, pointing along the last segment
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const ang = Math.atan2(b.y - a.y, b.x - a.x), L = Math.max(6, tileW * 0.22);
+  mapCtx.fillStyle = 'rgba(150, 235, 140, 0.85)';
+  mapCtx.beginPath();
+  mapCtx.moveTo(b.x, b.y);
+  mapCtx.lineTo(b.x - L * Math.cos(ang - 0.45), b.y - L * Math.sin(ang - 0.45));
+  mapCtx.lineTo(b.x - L * Math.cos(ang + 0.45), b.y - L * Math.sin(ang + 0.45));
+  mapCtx.closePath(); mapCtx.fill();
+  mapCtx.restore();
+}
+
 // Nom du sprite de carte d'une armée : marchand pour les transports, sinon la classe de
 // l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
 const ARMY_CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
@@ -2261,7 +2160,7 @@ function drawIsoArmy(x, y, tw, th, army) {
     // marche : l'armée regarde vers sa destination, trottine (petits bonds cadencés, léger balancement) et soulève la poussière
     mapMovingOnScreen = true;
     const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
-    const dir = army.targetX !== undefined && army.targetX !== null ? Math.sign(army.targetX - army.x) || 1 : 1;
+    const dir = army.walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
     const hop = Math.abs(Math.sin(t * 7 + ph)) * imgSize * 0.035, lean = Math.sin(t * 7 + ph) * 0.045;
     for (let k = 0; k < 3; k++) {   // poussière derrière l'armée
       const life = (t * 0.9 + k / 3 + ph) % 1;

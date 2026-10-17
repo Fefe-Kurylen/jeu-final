@@ -2,7 +2,17 @@
 
 const prisma = require('../../config/database');
 const config = require('../../config');
-const { unitsData } = require('../../config/gamedata');
+const { unitsData, itemsData } = require('../../config/gamedata');
+
+// Item found at the end of a won expedition: the loot tier decides the odds and the quality
+const DROP_CHANCE = { COMMON: 0.35, RARE: 0.5, EPIC: 0.7, LEGENDARY: 0.9 };
+function rollItem(lootTier) {
+  if (Math.random() >= (DROP_CHANCE[lootTier] || 0.35)) return null;
+  const r = Math.random();
+  const wanted = lootTier === 'EPIC' || lootTier === 'LEGENDARY' ? (r < 0.5 ? 'EPIC' : 'RARE') : lootTier === 'RARE' ? (r < 0.7 ? 'RARE' : 'COMMON') : 'COMMON';
+  const pool = itemsData.filter(i => i.tier === wanted);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
 const { calculateArmyPower } = require('../../utils/calculations');
 const { awardHeroXp } = require('../../services/heroXpService');
 
@@ -14,7 +24,7 @@ async function processExpeditions(now) {
   });
   for (const exp of expeditions) {
     try {
-      const army = exp.armyId ? await prisma.army.findUnique({ where: { id: exp.armyId }, include: { units: true } }) : null;
+      const army = exp.armyId ? await prisma.army.findUnique({ where: { id: exp.armyId }, include: { units: true, hero: { include: { items: true } } } }) : null;
       // Real unit stats decide the outcome (≈ 10 per base unit, 20 per elite), not a flat 10 per head
       const playerPower = army ? calculateArmyPower(army.units, unitsData) / config.expedition.powerDivisor : 0;
       const won = playerPower > exp.enemyPower * 0.7;
@@ -22,10 +32,14 @@ async function processExpeditions(now) {
       const lossRate = config.expedition.lossPctPerDifficulty * exp.difficulty * (won ? 1 : 2);
 
       const applied = await prisma.$transaction(async (tx) => {
+        let item = null;
         if (won) {
           xpGained = Math.max(5, Math.floor(exp.enemyPower * 0.25));
           const lootChance = { COMMON: 0.5, RARE: 0.3, EPIC: 0.15, LEGENDARY: 0.05 }[exp.lootTier] || 0.5;
           if (Math.random() < lootChance) lootGained = { gold: Math.floor(50 + Math.random() * 100 * exp.difficulty) };
+          // Only a hero on the expedition brings an item back
+          item = army?.heroId ? rollItem(exp.lootTier) : null;
+          if (item) lootGained = { ...(lootGained || {}), item: item.key, itemName: item.name };
         }
         // The expedition is consumed first: a second executor (or a retry) changes nothing
         const claimed = await tx.expedition.updateMany({ where: { id: exp.id, status: 'IN_PROGRESS' }, data: { status: 'COMPLETED', won, xpGained, lootGained } });
@@ -39,7 +53,8 @@ async function processExpeditions(now) {
           }
           await tx.army.updateMany({ where: { id: army.id, status: 'EXPEDITION' }, data: { status: 'IDLE' } });
         }
-        if (lootGained) await tx.player.update({ where: { id: exp.playerId }, data: { gold: { increment: lootGained.gold } } });
+        if (lootGained?.gold) await tx.player.update({ where: { id: exp.playerId }, data: { gold: { increment: lootGained.gold } } });
+        if (item && army?.heroId) await tx.heroItem.create({ data: { heroId: army.heroId, itemKey: item.key, slot: 'inventory', stats: item.stats } });
         // Only a hero who went on the expedition gains its experience
         if (won && army?.heroId) await awardHeroXp(army.heroId, xpGained, tx);
         return true;

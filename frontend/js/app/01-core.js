@@ -429,7 +429,7 @@ async function showGame() {
   setConnectOverlay('loading');
   await loadWorldInfo(); // Load world size first
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
-  const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest()]);
+  const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest(), typeof loadItems === 'function' ? loadItems() : null]);
   if (!token) { setConnectOverlay(null); return; }   // session refusée : logout() a déjà remis l'écran de connexion
   if (!playerOk) { setConnectOverlay('error'); return; }
   await loadCities();

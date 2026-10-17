@@ -13,6 +13,7 @@ const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, collectResourceLoot } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
+const { findRoute } = require('../../utils/pathfinding');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'];
 const TX = { timeout: 15000 };
@@ -21,7 +22,7 @@ async function processArmyMovements(now) {
   // Arrivals whose resolution started long ago and never ended: send them home instead of replaying them
   const stale = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, claimedAt: { lt: new Date(now.getTime() - config.tick.claimTimeoutMinutes * 60000) } },
-    include: { units: true, owner: true, city: true, hero: true }
+    include: { units: true, owner: true, city: true, hero: { include: { items: true } } }
   });
   for (const army of stale) {
     console.error(`[ARMY] resolution of ${army.id} (${army.status}) never completed: sending it home`);
@@ -30,7 +31,7 @@ async function processArmyMovements(now) {
 
   const movingArmies = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, arrivalAt: { lte: now }, claimedAt: null },
-    include: { units: true, owner: true, city: true, hero: true },
+    include: { units: true, owner: true, city: true, hero: { include: { items: true } } },
     orderBy: { arrivalAt: 'asc' },
     take: 500
   });
@@ -85,10 +86,12 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
     return;
   }
   const faction = army.owner?.faction;
+  const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y).catch(() => null);
+  const distance = route ? route.length : null;
   const travelTime = fixedSpeed
-    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData)
-    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero);
-  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), claimedAt: null, ...extraData } });
+    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance)
+    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance);
+  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
 // Armies physically standing in the city defend it; armies away on missions do not
@@ -159,7 +162,7 @@ async function applyLosses(tx, units, finalUnits) {
 
 // The target city as it stands at the moment of the fight, read under its row lock so that no
 // unit transfer, recruit or other battle changes it between the read and the write of the losses.
-const CITY_FOR_BATTLE = { armies: { include: { units: true, hero: true } }, buildings: true, player: true };
+const CITY_FOR_BATTLE = { armies: { include: { units: true, hero: { include: { items: true } } } }, buildings: true, player: true };
 async function lockTargetCity(tx, cityId) {
   if (!cityId) return null;
   await lockCity(tx, cityId);

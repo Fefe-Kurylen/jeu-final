@@ -4,6 +4,8 @@ import { execSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+const Terrain = createRequire(import.meta.url)('../frontend/js/shared/terrain.js');
 
 const BASE = process.env.API_BASE || 'http://localhost:3000';
 const DB = process.env.DATABASE_URL || 'postgresql://monjeu:monjeu123@localhost:5432/monjeu';
@@ -204,7 +206,19 @@ await waitTick('spy report', () => Number(sql(`SELECT count(*) FROM "SpyReport" 
 await call('reports/spy A', 'GET', '/api/reports/spy', tA);
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}' AND status<>'IDLE'`);
 await waitTick('army idle after spy', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
+{
+  // Terrain: a destination on a mountain or in water is refused; a valid move records the departure time
+  let blockedTile = null;
+  for (let r = 2; r < 60 && !blockedTile; r++) for (let dx = -r; dx <= r && !blockedTile; dx++) for (let dy = -r; dy <= r; dy++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const x = cityA.x + dx, y = cityA.y + dy;
+    if (Terrain.inWorld(x, y) && Terrain.isBlocked(x, y)) { blockedTile = { x, y }; break; }
+  }
+  if (blockedTile) await call('army move onto mountain/water -> 400', 'POST', `/api/army/${armyId}/move`, tA, blockedTile, 400);
+  else assert('a blocked tile exists near the city', false, 'none within 60 tiles');
+}
 await call('army move', 'POST', `/api/army/${armyId}/move`, tA, { x: cityA.x + 3, y: cityA.y + 3 });
+assert('departure time recorded for the march', sql(`SELECT ("departedAt" IS NOT NULL)::text FROM "Army" WHERE id='${armyId}'`) === 'true');
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 await waitTick('army arrived at move target', () => sql(`SELECT x||','||y FROM "Army" WHERE id='${armyId}'`) === `${cityA.x + 3},${cityA.y + 3}`);
 await call('army return home', 'POST', `/api/army/${armyId}/return`, tA, {});

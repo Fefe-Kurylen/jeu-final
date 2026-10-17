@@ -84,9 +84,10 @@ function getMinSiegeEngines(cityTier) {
   return found ? found.minSiege : 1;
 }
 
-// Calculate travel time
-function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null) {
-  const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+// Calculate travel time; `distance` is the length of the route actually walked (A* around mountains and
+// water, see utils/pathfinding.js) — the straight line is only a fallback
+function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null, distance = null) {
+  if (typeof distance !== 'number' || !(distance >= 0)) distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
   let timePerTile = 30 * (50 / armySpeed);
 
   if (faction && factionsData) {
@@ -136,15 +137,33 @@ function getArmyMinSpeed(units, unitsData) {
 // Hero bonus on a non-combat stat: base points + assigned points, +0.5 %/point capped at +5 % (GDD)
 function heroStatMultiplier(hero, stat, pointsField) {
   if (!hero) return 1;
-  const points = (hero[stat] || 0) + (hero[pointsField] || 0);
+  let equipped = 0;
+  for (const item of hero.items || []) if (item && item.slot !== 'inventory' && item.stats) equipped += Number(item.stats[stat]) || 0;
+  const points = (hero[stat] || 0) + (hero[pointsField] || 0) + equipped;
   return 1 + Math.min(config.combat.heroBonusMax, points * config.combat.heroBonusPerPoint);
 }
 
 // Travel time for a concrete army: slowest unit, owner's faction speed bonus, hero speed bonus
-function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null) {
+function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null, distance = null) {
   const { unitsData, factionsData } = require('../config/gamedata');
   const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed', 'spdPoints');
-  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData);
+  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData, distance);
+}
+
+// Point reached after `fraction` (0..1) of a route (list of [x, y] tiles)
+function pointAlongPath(path, fraction) {
+  if (!path || !path.length) return null;
+  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+  let total = 0;
+  const seg = [];
+  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+  let target = fraction * total;
+  for (let i = 1; i < path.length; i++) {
+    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+    target -= seg[i - 1];
+  }
+  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
 }
 
 // Carry capacity of an army (hero logistics bonus when a hero rides with it)
@@ -172,5 +191,6 @@ module.exports = {
   getArmyMinSpeed,
   getArmyTravelTime,
   getArmyCarryCapacity,
-  heroStatMultiplier
+  heroStatMultiplier,
+  pointAlongPath
 };

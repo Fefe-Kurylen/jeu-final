@@ -184,6 +184,7 @@ model Army {
   targetCityId     String?
   targetResourceId String?
   arrivalAt        DateTime?
+  departedAt       DateTime? // start of the current move: the client animates the march between departedAt and arrivalAt
   claimedAt        DateTime? // set by the tick while an arrival is being resolved (never twice)
 
   missionType String?

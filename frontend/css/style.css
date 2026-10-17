@@ -4810,3 +4810,23 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 
 /* ========== TOUCH TARGETS ========== */
 .comp-btn-adjust, .stat-plus-btn { min-width: 36px; min-height: 36px; }
+
+
+/* ========== BATTLE REPORTS (readable table + summary strip) ========== */
+.report-strip { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; margin: 6px 0 4px; background: rgba(0, 0, 0, 0.18); border-radius: 6px; font-size: 13px; }
+.report-strip .strip-item { display: inline-flex; align-items: center; gap: 5px; }
+.report-strip .strip-item.loot span { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; }
+.units-head, .report-card .unit-line { display: grid; grid-template-columns: minmax(0, 1fr) 52px 16px 52px 56px; align-items: center; gap: 4px; }
+.units-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #a89878); padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.units-head span:nth-child(n+2), .report-card .unit-line .unit-before, .report-card .unit-line .unit-after, .report-card .unit-line .unit-lost, .report-card .unit-line .unit-arrow { text-align: right; }
+.report-card .unit-line .unit-name { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-card .unit-line .unit-arrow { color: var(--text-muted, #a89878); }
+.report-card .unit-line .unit-lost { color: #e06060; font-weight: bold; }
+.report-card .unit-line.wiped .unit-after { color: #e06060; }
+.report-card .unit-line.empty { grid-template-columns: 1fr; color: var(--text-muted, #a89878); font-style: italic; }
+@media (max-width: 600px) {
+  .units-head, .report-card .unit-line { grid-template-columns: minmax(0, 1fr) 44px 12px 44px 48px; font-size: 12px; }
+}
+
+.item-stats { color: #9fd38a; font-size: 12px; }
+.item-stats.muted { color: var(--text-muted, #a89878); }

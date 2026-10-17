@@ -293,94 +293,87 @@ async function loadReports() {
       return;
     }
 
-    list.innerHTML = reports.map((r, idx) => {
-      const hasRounds = r.loot?.rounds && r.loot.rounds.length > 0;
-      const attackerName = escapeHtml(r.loot?.attackerName || 'Attaquant');
-      const defenderName = escapeHtml(r.loot?.defenderName || 'Défenseur');
-      const cityName = escapeHtml(r.loot?.cityName || `(${r.x}, ${r.y})`);
-      const duration = r.loot?.duration || 1;
-      // Reports are per player: result says whether the reader won; older rows only have the winner side
-      const iAttacked = r.attackerId === player?.id;
-      const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
-      const title = r.loot?.type === 'RAID' ? 'Pillage' : (r.rounds?.type === 'TRIBE_RAID' ? 'Combat contre une tribu' : 'Bataille');
-
-      return `
-        <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
-          <div class="report-header">
-            <div class="report-title-section">
-              <span class="report-icon">${iAttacked ? '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">'}</span>
-              <div class="report-title-info">
-                <span class="report-title">${title} à ${cityName}</span>
-                <span class="report-date">${new Date(r.createdAt).toLocaleString('fr-FR')}</span>
-              </div>
-            </div>
-            <span class="report-result ${won ? 'victory' : 'defeat'}">
-              ${won ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt=""> VICTOIRE' : '<img class="ico" src="assets/images/3d/ui/skull.webp" alt=""> DÉFAITE'}
-            </span>
-          </div>
-
-          <div class="report-summary">
-            <div class="report-side attacker">
-              <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> ${attackerName}</h4>
-              <div class="units-list">
-                ${(r.attackerUnits || []).map(u => `
-                  <div class="unit-line">
-                    ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
-                    <span class="unit-count">${u.count}</span>
-                  </div>
-                `).join('')}
-              </div>
-              <div class="losses">
-                <span class="loss-label">Pertes:</span>
-                <span class="loss-value">${Math.round((r.attackerLosses?.rate || 0) * 100)}%</span>
-                <span class="loss-count">(${r.attackerLosses?.totalKilled ?? r.attackerLosses?.totalAttackerLosses ?? 0} unités)</span>
-              </div>
-            </div>
-            
-            <div class="report-vs">VS</div>
-            
-            <div class="report-side defender">
-              <h4><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> ${defenderName}</h4>
-              <div class="units-list">
-                ${(r.defenderUnits || []).map(u => `
-                  <div class="unit-line">
-                    ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
-                    <span class="unit-count">${u.count}</span>
-                  </div>
-                `).join('')}
-              </div>
-              <div class="losses">
-                <span class="loss-label">Pertes:</span>
-                <span class="loss-value">${Math.round((r.defenderLosses?.rate || 0) * 100)}%</span>
-                <span class="loss-count">(${r.defenderLosses?.totalKilled ?? r.defenderLosses?.totalDefenderLosses ?? 0} unités)</span>
-              </div>
-            </div>
-          </div>
-          
-          ${hasRounds ? `
-            <div class="report-actions">
-              <button class="btn btn-replay" onclick="showBattleReplay(${idx})">
-                ▶️ Voir le combat (${duration} rounds)
-              </button>
-            </div>
-          ` : ''}
-          
-          ${r.loot?.wood || r.loot?.stone || r.loot?.iron || r.loot?.food ? `
-            <div class="report-loot">
-              <span class="loot-label">Butin pillé:</span>
-              ${r.loot.wood ? `<span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(r.loot.wood)}</span>` : ''}
-              ${r.loot.stone ? `<span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(r.loot.stone)}</span>` : ''}
-              ${r.loot.iron ? `<span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(r.loot.iron)}</span>` : ''}
-              ${r.loot.food ? `<span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(r.loot.food)}</span>` : ''}
-            </div>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
+    list.innerHTML = reports.map((r, idx) => renderBattleReportCard(r, idx)).join('');
     
     // Store reports for replay
     window.battleReports = reports;
   }
+}
+
+// One battle report, readable at a glance: who, where, when, the outcome, both sides unit by unit
+// (before -> after), what was taken and what the wall suffered. Travian-style table, Rise of Kingdoms-style summary.
+function renderBattleReportCard(r, idx) {
+  const hasRounds = r.loot?.rounds && r.loot.rounds.length > 0;
+  const attackerName = escapeHtml(r.loot?.attackerName || 'Attaquant');
+  const defenderName = escapeHtml(r.loot?.defenderName || 'Défenseur');
+  const cityName = escapeHtml(r.loot?.cityName || `(${r.x}, ${r.y})`);
+  const duration = r.loot?.duration || 1;
+  const iAttacked = r.attackerId === player?.id;
+  const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
+  const isRaid = r.loot?.type === 'RAID', isTribe = r.rounds?.type === 'TRIBE_RAID';
+  const kind = isRaid ? 'Pillage' : isTribe ? 'Tribu' : iAttacked ? 'Attaque' : 'Défense';
+  const title = isTribe ? `Combat contre la tribu de ${cityName}` : iAttacked ? `${kind} de ${cityName}` : `${kind} de ${cityName} par ${attackerName}`;
+  const date = new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  // Per-unit outcome: detailed reports carry initial/remaining per unit, raids only a global rate
+  const finals = (side) => (side === 'A' ? r.attackerLosses?.units : r.defenderLosses?.units) || null;
+  const rate = (side) => Number((side === 'A' ? r.attackerLosses : r.defenderLosses)?.rate || 0);
+  const unitRows = (units, side) => (units || []).map(u => {
+    const fin = finals(side)?.find(f => f.key === u.key);
+    const before = u.count || 0;
+    const killed = fin ? fin.killed : Math.floor(before * rate(side));
+    const after = fin ? fin.remaining : before - killed;
+    return `<div class="unit-line${after === 0 ? ' wiped' : ''}">
+      ${unitIconHtml(u.key, 'unit-ico-sm')}<span class="unit-name">${escapeHtml(u.name || getUnitName(u.key))}</span>
+      <span class="unit-before">${formatNum(before)}</span>
+      <span class="unit-arrow">→</span>
+      <span class="unit-after">${formatNum(after)}</span>
+      <span class="unit-lost">${killed > 0 ? '−' + formatNum(killed) : ''}</span>
+    </div>`;
+  }).join('') || '<div class="unit-line empty">Aucune unité</div>';
+  const killedA = r.attackerLosses?.totalKilled ?? r.attackerLosses?.totalAttackerLosses ?? 0;
+  const killedD = r.defenderLosses?.totalKilled ?? r.defenderLosses?.totalDefenderLosses ?? 0;
+  const mine = iAttacked ? killedA : killedD, theirs = iAttacked ? killedD : killedA;
+  const lootRes = isTribe ? (r.loot?.resources || {}) : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
+  const lootHtml = ['wood', 'stone', 'iron', 'food'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
+  const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
+
+  return `
+    <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
+      <div class="report-header">
+        <div class="report-title-section">
+          <span class="report-icon">${iAttacked || isTribe ? '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">'}</span>
+          <div class="report-title-info">
+            <span class="report-title">${title}</span>
+            <span class="report-date">${escapeHtml(kind)} · ${date}</span>
+          </div>
+        </div>
+        <span class="report-result ${won ? 'victory' : 'defeat'}">
+          ${won ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt=""> VICTOIRE' : '<img class="ico" src="assets/images/3d/ui/skull.webp" alt=""> DÉFAITE'}
+        </span>
+      </div>
+      <div class="report-strip">
+        <span class="strip-item"><img class="ico" src="assets/images/3d/ui/skull.webp" alt=""> Vos pertes : <strong>${formatNum(mine)}</strong></span>
+        <span class="strip-item"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Pertes adverses : <strong>${formatNum(theirs)}</strong></span>
+        ${lootHtml ? `<span class="strip-item loot">${iAttacked || isTribe ? 'Butin' : 'Pillé'} : ${lootHtml}</span>` : ''}
+        ${wall}
+        ${hasRounds ? `<span class="strip-item">${duration} round${duration > 1 ? 's' : ''}</span>` : ''}
+      </div>
+      <div class="report-summary">
+        <div class="report-side attacker">
+          <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> ${attackerName}</h4>
+          <div class="units-head"><span></span><span>Avant</span><span></span><span>Après</span><span>Pertes</span></div>
+          <div class="units-list">${unitRows(r.attackerUnits, 'A')}</div>
+        </div>
+        <div class="report-vs">VS</div>
+        <div class="report-side defender">
+          <h4><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> ${defenderName}</h4>
+          <div class="units-head"><span></span><span>Avant</span><span></span><span>Après</span><span>Pertes</span></div>
+          <div class="units-list">${unitRows(r.defenderUnits, 'D')}</div>
+        </div>
+      </div>
+      ${hasRounds ? `<div class="report-actions"><button class="btn btn-replay" onclick="showBattleReplay(${idx})">▶ Revoir le combat</button></div>` : ''}
+    </div>`;
 }
 
 // Battle replay system

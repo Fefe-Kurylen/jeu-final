@@ -4,6 +4,8 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { cleanText } = require('../utils/validation');
+const { itemsData } = require('../config/gamedata');
+const EQUIP_SLOTS = new Set(['head', 'chest', 'weapon', 'shield', 'legs', 'boots', 'ring', 'amulet']);
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -45,7 +47,9 @@ router.post('/equip', auth, async (req, res) => {
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });
     const item = hero.items.find(i => i.id === itemId);
     if (!item) return res.status(404).json({ error: 'Objet non trouve' });
-    const equipSlot = slot || item.slot || 'main';
+    const catalogSlot = itemsData.find(d => d.key === item.itemKey)?.slot;
+    const equipSlot = catalogSlot || (EQUIP_SLOTS.has(slot) ? slot : null) || (EQUIP_SLOTS.has(item.slot) ? item.slot : null);
+    if (!equipSlot) return res.status(400).json({ error: 'Cet objet ne s\'équipe pas' });
     // Unequip any item currently in that slot
     const currentlyEquipped = hero.items.find(i => i.slot === equipSlot && i.id !== itemId);
     if (currentlyEquipped) {

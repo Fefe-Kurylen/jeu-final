@@ -10,6 +10,7 @@ const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
 const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
+const { routeLength } = require('../utils/pathfinding');
 
 // When a real mail provider is configured, trading with other players needs a verified address
 // (the cheapest barrier against throw-away accounts feeding a main one)
@@ -64,7 +65,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       await lockCity(tx, sourceCity.id);
       if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
-      const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: true } });
+      const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: { include: { items: true } } } });
       const army = candidates.find(a => a.units.length > 0 && a.x === sourceCity.x && a.y === sourceCity.y);
       if (!army) return { error: 'Aucune armée disponible pour transporter (créez une armée au point de ralliement)', status: 400 };
       const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } });
@@ -72,9 +73,9 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero);
+      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
-      const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
+      const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
       if (!ok) throw new Error('army busy');
       return { message: `Ressources envoyees vers ${targetCity.name}`, travelTime, arrivalAt };
     });
@@ -83,6 +84,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     res.json(result);
   } catch (e) {
     if (e.message === 'army busy') return res.status(409).json({ error: 'Armée déjà en mission' });
+    if (e.code === 'NO_ROUTE') return res.status(400).json({ error: e.message });
     sendError(res, e);
   }
 });

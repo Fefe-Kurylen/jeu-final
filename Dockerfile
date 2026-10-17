@@ -23,6 +23,8 @@ COPY --chown=node:node package*.json ./
 COPY --chown=node:node prisma ./prisma/
 COPY --chown=node:node data ./data/
 COPY --chown=node:node src ./src/
+# Procedural terrain shared with the client (army routes are computed on the same world)
+COPY --chown=node:node frontend/js/shared ./frontend/js/shared/
 
 # The API never needs root
 USER node

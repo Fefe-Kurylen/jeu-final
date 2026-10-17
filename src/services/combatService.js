@@ -5,10 +5,19 @@ const { calculateArmyPower, getFactionBonus } = require('../utils/calculations')
 // Multiplicateur depuis un bonus de faction en % (1 si absent)
 function fb(faction, type) { return faction ? 1 + (getFactionBonus(faction, type, factionsData) || 0) / 100 : 1; }
 
-// Hero as it fights: base stats plus the points the player assigned
+// Hero as it fights: base stats, the points the player assigned and the equipment worn
+function equipmentStats(hero) {
+  const total = { attack: 0, defense: 0, speed: 0, logistics: 0 };
+  for (const item of hero?.items || []) {
+    if (!item || item.slot === 'inventory' || !item.stats) continue;
+    for (const k of Object.keys(total)) total[k] += Number(item.stats[k]) || 0;
+  }
+  return total;
+}
 function heroCombatStats(hero) {
   if (!hero) return null;
-  return { ...hero, attack: (hero.attack || 0) + (hero.atkPoints || 0), defense: (hero.defense || 0) + (hero.defPoints || 0) };
+  const eq = equipmentStats(hero);
+  return { ...hero, attack: (hero.attack || 0) + (hero.atkPoints || 0) + eq.attack, defense: (hero.defense || 0) + (hero.defPoints || 0) + eq.defense };
 }
 
 // GDD: +0.5% per hero point, capped at +5%
@@ -179,4 +188,4 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   };
 }
 
-module.exports = { resolveCombat, resolveCombatDetailed, heroCombatStats, heroBonus };
+module.exports = { resolveCombat, resolveCombatDetailed, heroCombatStats, heroBonus, equipmentStats };

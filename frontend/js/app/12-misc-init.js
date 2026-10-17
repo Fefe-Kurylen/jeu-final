@@ -306,8 +306,8 @@ function renderInventory(items) {
         <div class="inventory-item" onclick="showItemDetails('${item.id}')">
           <div class="item-icon">${getItemIcon(item.itemKey)}</div>
           <div class="item-info">
-            <div class="item-name">${escapeHtml(item.itemKey.replace(/_/g, ' '))}</div>
-            <div class="item-slot">${EQUIPMENT_SLOTS[item.slot]?.name || item.slot}</div>
+            <div class="item-name">${escapeHtml(getItemName(item.itemKey))}</div>
+            <div class="item-slot">${EQUIPMENT_SLOTS[item.slot]?.name || (item.slot === 'inventory' ? 'Dans le sac' : item.slot)} · ${itemStatsHtml(item.stats || itemDef(item.itemKey)?.stats)}</div>
           </div>
           ${item.stats ? `
             <div class="item-stats-mini">
@@ -336,7 +336,7 @@ function showItemDetails(itemId) {
   if (!item) return;
 
   const slotInfo = EQUIPMENT_SLOTS[item.slot] || { name: item.slot, item: 'crate' };
-  showModal(`${item.itemKey.replace(/_/g, ' ')}`, `
+  showModal(`${getItemName(item.itemKey)}`, `
     <div style="text-align:center;">
       <div style="font-size:48px;margin:10px 0;">${getItemIcon(item.itemKey)}</div>
       <p style="color:var(--text-muted);">Emplacement: ${slotInfo.name}</p>
