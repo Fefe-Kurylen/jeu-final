@@ -1,43 +1,109 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { validateAllianceName, validateAllianceTag, sanitizeString } = require('../utils/validation');
+const { validateAllianceTag, cleanText } = require('../utils/validation');
+const { getRelation } = require('../services/diplomacyService');
+const fx = require('../utils/buildingEffects');
+
+// Highest Embassy level among the player's cities (the Embassy is a capital building)
+async function embassyLevelOf(playerId, db = prisma) {
+  const rows = await db.cityBuilding.findMany({ where: { key: 'EMBASSY', city: { playerId } }, select: { level: true } });
+  return rows.reduce((m, r) => Math.max(m, r.level), 0);
+}
+
+const memberInclude = { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } };
 
 router.get('/', auth, async (req, res) => {
   try {
-    const alliances = await prisma.alliance.findMany({ include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const alliances = await prisma.alliance.findMany({ include: memberInclude, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json(alliances);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
+});
+
+// GET /api/alliance/mine — the caller's alliance with members, whatever the size of the alliance list
+router.get('/mine', auth, async (req, res) => {
+  try {
+    const member = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: { include: memberInclude } } });
+    res.json(member ? { role: member.role, alliance: member.alliance } : null);
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/create', auth, async (req, res) => {
   try {
-    let { name, tag, description } = req.body;
-    if (!validateAllianceName(name)) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
+    let { tag } = req.body;
+    const name = cleanText(req.body.name, 3, 30);
+    if (!name) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
     if (!validateAllianceTag(tag)) return res.status(400).json({ error: 'Tag invalide (2-5 caractères alphanumériques)' });
-    name = sanitizeString(name);
-    description = description ? sanitizeString(description).substring(0, 200) : '';
-    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
-    if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
-    const alliance = await prisma.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
-    await prisma.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' } });
-    res.json({ message: 'Alliance creee', alliance });
+    const description = req.body.description ? (cleanText(String(req.body.description).substring(0, 400), 0, 200) || '') : '';
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+      if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
+      const needed = fx.allianceCreateLevel();
+      if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour fonder une alliance`, status: 400 };
+      const alliance = await tx.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
+      await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' } });
+      await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
+      return { message: 'Alliance creee', alliance };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
   } catch (e) {
     if (e.code === 'P2002') return res.status(400).json({ error: 'Nom ou tag deja pris' });
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
+});
+
+// Invitations: joining requires one, otherwise anyone could join a target's alliance to become immune
+router.post('/invite', auth, async (req, res) => {
+  try {
+    const myMember = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+    if (!myMember || !['LEADER', 'OFFICER'].includes(myMember.role)) return res.status(403).json({ error: 'Officier requis' });
+    const playerName = typeof req.body.playerName === 'string' ? req.body.playerName.trim() : '';
+    const target = playerName ? await prisma.player.findUnique({ where: { name: playerName }, include: { alliance: true } }) : null;
+    if (!target) return res.status(404).json({ error: 'Joueur introuvable' });
+    if (target.alliance) return res.status(400).json({ error: 'Ce joueur est déjà dans une alliance' });
+    await prisma.allianceInvite.upsert({
+      where: { allianceId_playerId: { allianceId: myMember.allianceId, playerId: target.id } },
+      update: {}, create: { allianceId: myMember.allianceId, playerId: target.id }
+    });
+    res.json({ message: `Invitation envoyée à ${target.name}` });
+  } catch (e) { sendError(res, e); }
+});
+
+router.get('/invites', auth, async (req, res) => {
+  try {
+    const invites = await prisma.allianceInvite.findMany({ where: { playerId: req.user.playerId }, include: { alliance: { select: { id: true, name: true, tag: true } } }, orderBy: { createdAt: 'desc' } });
+    res.json(invites);
+  } catch (e) { sendError(res, e); }
+});
+
+router.post('/invites/:id/decline', auth, async (req, res) => {
+  try {
+    await prisma.allianceInvite.deleteMany({ where: { id: req.params.id, playerId: req.user.playerId } });
+    res.json({ message: 'Invitation refusée' });
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/:id/join', auth, async (req, res) => {
   try {
-    const alliance = await prisma.alliance.findUnique({ where: { id: req.params.id } });
-    if (!alliance) return res.status(404).json({ error: 'Alliance non trouvee' });
-    const existing = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
-    if (existing) return res.status(400).json({ error: 'Vous etes deja dans une alliance' });
-    await prisma.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
-    res.json({ message: 'Alliance rejoint' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const result = await prisma.$transaction(async (tx) => {
+      const alliance = await tx.alliance.findUnique({ where: { id: req.params.id } });
+      if (!alliance) return { error: 'Alliance non trouvee', status: 404 };
+      const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
+      if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
+      const invite = await tx.allianceInvite.findUnique({ where: { allianceId_playerId: { allianceId: alliance.id, playerId: req.user.playerId } } });
+      if (!invite) return { error: 'Cette alliance recrute sur invitation', status: 403 };
+      const needed = fx.allianceJoinLevel();
+      if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour rejoindre une alliance`, status: 400 };
+      await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
+      await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
+      return { message: 'Alliance rejointe' };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/leave', auth, async (req, res) => {
@@ -48,7 +114,6 @@ router.post('/leave', auth, async (req, res) => {
       if (member.role === 'LEADER') {
         const otherMembers = await tx.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
         if (otherMembers > 0) return { error: 'Transferez le leadership avant de partir', status: 400 };
-        // Delete in correct order: diplomacy first (FK refs alliance), then member, then alliance
         await tx.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
         await tx.allianceMember.delete({ where: { id: member.id } });
         await tx.alliance.delete({ where: { id: member.allianceId } });
@@ -59,7 +124,7 @@ router.post('/leave', auth, async (req, res) => {
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/promote/:playerId', auth, async (req, res) => {
@@ -68,10 +133,19 @@ router.post('/promote/:playerId', auth, async (req, res) => {
     if (!myMember || myMember.role !== 'LEADER') return res.status(403).json({ error: 'Leader requis' });
     const target = await prisma.allianceMember.findUnique({ where: { playerId: req.params.playerId } });
     if (!target || target.allianceId !== myMember.allianceId) return res.status(404).json({ error: 'Membre non trouve' });
-    const newRole = target.role === 'MEMBER' ? 'OFFICER' : target.role;
-    await prisma.allianceMember.update({ where: { id: target.id }, data: { role: newRole } });
-    res.json({ message: 'Membre promu' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    if (target.role === 'OFFICER') {
+      // Promoting an officer hands over leadership; the old leader steps down to officer
+      await prisma.$transaction([
+        prisma.allianceMember.update({ where: { id: target.id }, data: { role: 'LEADER' } }),
+        prisma.allianceMember.update({ where: { id: myMember.id }, data: { role: 'OFFICER' } }),
+        prisma.alliance.update({ where: { id: myMember.allianceId }, data: { leaderId: target.playerId } })
+      ]);
+      return res.json({ message: 'Leadership transféré', role: 'LEADER' });
+    }
+    if (target.role !== 'MEMBER') return res.status(400).json({ error: 'Ce membre ne peut pas être promu' });
+    await prisma.allianceMember.update({ where: { id: target.id }, data: { role: 'OFFICER' } });
+    res.json({ message: 'Membre promu', role: 'OFFICER' });
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/kick/:playerId', auth, async (req, res) => {
@@ -84,7 +158,7 @@ router.post('/kick/:playerId', auth, async (req, res) => {
     if (myMember.role === 'OFFICER' && target.role === 'OFFICER') return res.status(403).json({ error: 'Un officier ne peut pas exclure un autre officier' });
     await prisma.allianceMember.delete({ where: { id: target.id } });
     res.json({ message: 'Membre exclus' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // Diplomacy
@@ -97,7 +171,7 @@ router.get('/diplomacy', auth, async (req, res) => {
       ...myMember.alliance.targetOf.map(d => ({ allianceId: d.allianceId, status: d.status, direction: 'to' }))
     ];
     res.json({ diplomacy: allDiplomacy, myAllianceId: myMember.allianceId });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
@@ -110,7 +184,7 @@ router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
     if (!targetAlliance) return res.status(404).json({ error: 'Alliance cible non trouvée' });
     if (targetAlliance.id === myMember.allianceId) return res.status(400).json({ error: 'Impossible de modifier la diplomatie avec vous-même' });
     if (status === 'ALLY') {
-      const currentAllies = await prisma.allianceDiplomacy.count({ where: { allianceId: myMember.allianceId, status: 'ALLY' } });
+      const currentAllies = await prisma.allianceDiplomacy.count({ where: { allianceId: myMember.allianceId, status: 'ALLY', NOT: { targetAllianceId: targetAlliance.id } } });
       if (currentAllies >= 3) return res.status(400).json({ error: 'Maximum 3 alliances alliées' });
     }
     await prisma.allianceDiplomacy.upsert({
@@ -119,24 +193,14 @@ router.post('/diplomacy/:targetAllianceId', auth, async (req, res) => {
       create: { allianceId: myMember.allianceId, targetAllianceId: req.params.targetAllianceId, status }
     });
     res.json({ message: `Statut diplomatique changé en ${status}` });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { sendError(res, e); }
 });
 
 // Diplomacy between players (mounted at /api/alliance AND /api/diplomacy)
 router.get('/player/:targetPlayerId', auth, async (req, res) => {
   try {
-    const targetPlayerId = req.params.targetPlayerId;
-    if (targetPlayerId === req.user.playerId) return res.json({ status: 'SELF', canTransport: true, canAttack: false });
-    const [myMember, targetMember] = await Promise.all([
-      prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }),
-      prisma.allianceMember.findUnique({ where: { playerId: targetPlayerId } })
-    ]);
-    if (myMember && targetMember && myMember.allianceId === targetMember.allianceId) return res.json({ status: 'SAME_ALLIANCE', canTransport: true, canAttack: false });
-    if (!myMember || !targetMember) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
-    const diplomacy = await prisma.allianceDiplomacy.findFirst({ where: { OR: [{ allianceId: myMember.allianceId, targetAllianceId: targetMember.allianceId }, { allianceId: targetMember.allianceId, targetAllianceId: myMember.allianceId }] } });
-    if (!diplomacy) return res.json({ status: 'NEUTRAL', canTransport: true, canAttack: true });
-    return res.json({ status: diplomacy.status, canTransport: diplomacy.status !== 'ENEMY', canAttack: diplomacy.status !== 'ALLY' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json(await getRelation(req.user.playerId, req.params.targetPlayerId));
+  } catch (e) { sendError(res, e); }
 });
 
 module.exports = router;

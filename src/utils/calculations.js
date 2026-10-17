@@ -9,6 +9,18 @@ function lerpExp(a, b, t) {
   return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 }
 
+// Capacité de stockage donnée par un WAREHOUSE (storage) ou SILO (foodStorage) à un niveau
+// Même courbe exponentielle que la production, basée sur effects.storageL1/L20 de buildings.json
+function getStorageAtLevel(buildingKey, level, buildingsData) {
+  const def = buildingsData.find(b => b.key === buildingKey);
+  const prefix = buildingKey === 'SILO' ? 'foodStorage' : 'storage';
+  const L1 = def?.effects?.[prefix + 'L1'] || 1200;
+  const L20 = def?.effects?.[prefix + 'L20'] || 160000;
+  if (level <= 0) return 0;
+  if (level >= 20) return L20;
+  return Math.round(lerpExp(L1, L20, (level - 1) / 19));
+}
+
 // Get resource production at a given building level
 function getProductionAtLevel(buildingKey, level, buildingsData) {
   const def = buildingsData.find(b => b.key === buildingKey);
@@ -72,9 +84,10 @@ function getMinSiegeEngines(cityTier) {
   return found ? found.minSiege : 1;
 }
 
-// Calculate travel time
-function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null) {
-  const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+// Calculate travel time; `distance` is the length of the route actually walked (A* around mountains and
+// water, see utils/pathfinding.js) — the straight line is only a fallback
+function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null, distance = null) {
+  if (typeof distance !== 'number' || !(distance >= 0)) distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
   let timePerTile = 30 * (50 / armySpeed);
 
   if (faction && factionsData) {
@@ -121,20 +134,53 @@ function getArmyMinSpeed(units, unitsData) {
   return minSpeed;
 }
 
-// Calculate carry capacity of an army
-function getArmyCarryCapacity(units, unitsData) {
+// Hero bonus on a non-combat stat: base points + assigned points, +0.5 %/point capped at +5 % (GDD)
+function heroStatMultiplier(hero, stat, pointsField) {
+  if (!hero) return 1;
+  let equipped = 0;
+  for (const item of hero.items || []) if (item && item.slot !== 'inventory' && item.stats) equipped += Number(item.stats[stat]) || 0;
+  const points = (hero[stat] || 0) + (hero[pointsField] || 0) + equipped;
+  return 1 + Math.min(config.combat.heroBonusMax, points * config.combat.heroBonusPerPoint);
+}
+
+// Travel time for a concrete army: slowest unit, owner's faction speed bonus, hero speed bonus
+function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null, distance = null) {
+  const { unitsData, factionsData } = require('../config/gamedata');
+  const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed', 'spdPoints');
+  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData, distance);
+}
+
+// Point reached after `fraction` (0..1) of a route (list of [x, y] tiles)
+function pointAlongPath(path, fraction) {
+  if (!path || !path.length) return null;
+  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+  let total = 0;
+  const seg = [];
+  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+  let target = fraction * total;
+  for (let i = 1; i < path.length; i++) {
+    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+    target -= seg[i - 1];
+  }
+  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+}
+
+// Carry capacity of an army (hero logistics bonus when a hero rides with it)
+function getArmyCarryCapacity(units, unitsData, hero = null) {
   let total = 0;
   for (const unit of units) {
     const unitData = unitsData.find(u => u.key === unit.unitKey);
     const carryPerUnit = unitData?.stats?.carry || unitData?.stats?.transport || 50;
     total += unit.count * carryPerUnit;
   }
-  return total;
+  return Math.floor(total * heroStatMultiplier(hero, 'logistics', 'logPoints'));
 }
 
 module.exports = {
   lerpExp,
   getProductionAtLevel,
+  getStorageAtLevel,
   getFactionBonus,
   getCityTier,
   getCityTierName,
@@ -143,5 +189,8 @@ module.exports = {
   calculateArmyPower,
   countSiegeEngines,
   getArmyMinSpeed,
-  getArmyCarryCapacity
+  getArmyTravelTime,
+  getArmyCarryCapacity,
+  heroStatMultiplier,
+  pointAlongPath
 };

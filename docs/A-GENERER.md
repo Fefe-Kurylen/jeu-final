@@ -1,0 +1,952 @@
+# À générer — liste consolidée de tous les graphismes manquants
+
+Dans l'ordre conseillé (du plus visible au moins visible). Un fichier par ligne : nom exact à livrer (extension .png,
+fond transparent sauf textures), taille. Les variantes du biome neige sont reportées et absentes d'ici.
+Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (`node tools/repaint.cjs --import=art/incoming`).
+
+| Étape | Contenu | Images |
+|---|---|---|
+| 1 | Bâtiments, palier courant (niveaux 7-13), par civilisation | 112 |
+| 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
+| 3 | Champs, parcelles, décors de scène | 27 |
+| 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
+| 5 | Carte du monde (villes, ressources, relief et eau, armées en marche) | 86 |
+| 6 | Unités et héros (figurines, bustes, héros) | 64 |
+| 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
+| 8 | Habillage d'interface restant | 1 |
+| 9 | Compléments fixes et visuels de boutique | 7 |
+| 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
+| 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 169 |
+| 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
+| | **Total** | **1028** |
+
+## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
+
+Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (dossier `guides/` + `prompts/`) ou `docs/LISTE-BATIMENTS-PAR-FACTION.md`.
+
+- `buildings/ROME/FARM.png` — 1024×1024
+- `buildings/ROME/FOUNDRY.png` — 1024×1024
+- `buildings/ROME/GREAT_BARRACKS.png` — 1024×1024
+- `buildings/ROME/GREAT_SILO.png` — 1024×1024
+- `buildings/ROME/GREAT_STABLE.png` — 1024×1024
+- `buildings/ROME/GREAT_WAREHOUSE.png` — 1024×1024
+- `buildings/ROME/HIDEOUT.png` — 1024×1024
+- `buildings/ROME/IRON_MINE.png` — 1024×1024
+- `buildings/ROME/LUMBER.png` — 1024×1024
+- `buildings/ROME/MOAT.png` — 1024×1024
+- `buildings/ROME/QUARRY.png` — 1024×1024
+- `buildings/ROME/SAWMILL.png` — 1024×1024
+- `buildings/ROME/STONEMASON.png` — 1024×1024
+- `buildings/ROME/TRADE_OFFICE.png` — 1024×1024
+- `buildings/GREEK/FARM.png` — 1024×1024
+- `buildings/GREEK/FORGE.png` — 1024×1024
+- `buildings/GREEK/FOUNDRY.png` — 1024×1024
+- `buildings/GREEK/GREAT_BARRACKS.png` — 1024×1024
+- `buildings/GREEK/GREAT_SILO.png` — 1024×1024
+- `buildings/GREEK/GREAT_STABLE.png` — 1024×1024
+- `buildings/GREEK/GREAT_WAREHOUSE.png` — 1024×1024
+- `buildings/GREEK/GREEK_TEMPLE.png` — 1024×1024
+- `buildings/GREEK/HEALING_TENT.png` — 1024×1024
+- `buildings/GREEK/HERO_MANSION.png` — 1024×1024
+- `buildings/GREEK/HIDEOUT.png` — 1024×1024
+- `buildings/GREEK/IRON_MINE.png` — 1024×1024
+- `buildings/GREEK/LUMBER.png` — 1024×1024
+- `buildings/GREEK/MAIN_HALL.png` — 1024×1024
+- `buildings/GREEK/MARKET.png` — 1024×1024
+- `buildings/GREEK/MILL.png` — 1024×1024
+- `buildings/GREEK/MOAT.png` — 1024×1024
+- `buildings/GREEK/QUARRY.png` — 1024×1024
+- `buildings/GREEK/RALLY_POINT.png` — 1024×1024
+- `buildings/GREEK/RESIDENCE.png` — 1024×1024
+- `buildings/GREEK/SAWMILL.png` — 1024×1024
+- `buildings/GREEK/SILO.png` — 1024×1024
+- `buildings/GREEK/STABLE.png` — 1024×1024
+- `buildings/GREEK/STONEMASON.png` — 1024×1024
+- `buildings/GREEK/TRADE_OFFICE.png` — 1024×1024
+- `buildings/GREEK/TREASURE_CHAMBER.png` — 1024×1024
+- `buildings/GREEK/WALL.png` — 1024×1024
+- `buildings/GREEK/WAREHOUSE.png` — 1024×1024
+- `buildings/GREEK/WATCHTOWER.png` — 1024×1024
+- `buildings/GREEK/WORKSHOP.png` — 1024×1024
+- `buildings/HUN/ACADEMY.png` — 1024×1024
+- `buildings/HUN/BAKERY.png` — 1024×1024
+- `buildings/HUN/BARRACKS.png` — 1024×1024
+- `buildings/HUN/EMBASSY.png` — 1024×1024
+- `buildings/HUN/FARM.png` — 1024×1024
+- `buildings/HUN/FORGE.png` — 1024×1024
+- `buildings/HUN/FOUNDRY.png` — 1024×1024
+- `buildings/HUN/GREAT_BARRACKS.png` — 1024×1024
+- `buildings/HUN/GREAT_SILO.png` — 1024×1024
+- `buildings/HUN/GREAT_STABLE.png` — 1024×1024
+- `buildings/HUN/GREAT_WAREHOUSE.png` — 1024×1024
+- `buildings/HUN/HEALING_TENT.png` — 1024×1024
+- `buildings/HUN/HERO_MANSION.png` — 1024×1024
+- `buildings/HUN/HIDEOUT.png` — 1024×1024
+- `buildings/HUN/HUN_WAR_TENT.png` — 1024×1024
+- `buildings/HUN/IRON_MINE.png` — 1024×1024
+- `buildings/HUN/LUMBER.png` — 1024×1024
+- `buildings/HUN/MAIN_HALL.png` — 1024×1024
+- `buildings/HUN/MARKET.png` — 1024×1024
+- `buildings/HUN/MILL.png` — 1024×1024
+- `buildings/HUN/MOAT.png` — 1024×1024
+- `buildings/HUN/QUARRY.png` — 1024×1024
+- `buildings/HUN/RALLY_POINT.png` — 1024×1024
+- `buildings/HUN/RESIDENCE.png` — 1024×1024
+- `buildings/HUN/SAWMILL.png` — 1024×1024
+- `buildings/HUN/SILO.png` — 1024×1024
+- `buildings/HUN/STABLE.png` — 1024×1024
+- `buildings/HUN/STONEMASON.png` — 1024×1024
+- `buildings/HUN/TRADE_OFFICE.png` — 1024×1024
+- `buildings/HUN/TREASURE_CHAMBER.png` — 1024×1024
+- `buildings/HUN/WALL.png` — 1024×1024
+- `buildings/HUN/WAREHOUSE.png` — 1024×1024
+- `buildings/HUN/WATCHTOWER.png` — 1024×1024
+- `buildings/HUN/WORKSHOP.png` — 1024×1024
+- `buildings/SULTAN/ACADEMY.png` — 1024×1024
+- `buildings/SULTAN/BAKERY.png` — 1024×1024
+- `buildings/SULTAN/BARRACKS.png` — 1024×1024
+- `buildings/SULTAN/EMBASSY.png` — 1024×1024
+- `buildings/SULTAN/FARM.png` — 1024×1024
+- `buildings/SULTAN/FORGE.png` — 1024×1024
+- `buildings/SULTAN/FOUNDRY.png` — 1024×1024
+- `buildings/SULTAN/GREAT_BARRACKS.png` — 1024×1024
+- `buildings/SULTAN/GREAT_SILO.png` — 1024×1024
+- `buildings/SULTAN/GREAT_STABLE.png` — 1024×1024
+- `buildings/SULTAN/GREAT_WAREHOUSE.png` — 1024×1024
+- `buildings/SULTAN/HEALING_TENT.png` — 1024×1024
+- `buildings/SULTAN/HERO_MANSION.png` — 1024×1024
+- `buildings/SULTAN/HIDEOUT.png` — 1024×1024
+- `buildings/SULTAN/IRON_MINE.png` — 1024×1024
+- `buildings/SULTAN/LUMBER.png` — 1024×1024
+- `buildings/SULTAN/MAIN_HALL.png` — 1024×1024
+- `buildings/SULTAN/MARKET.png` — 1024×1024
+- `buildings/SULTAN/MILL.png` — 1024×1024
+- `buildings/SULTAN/MOAT.png` — 1024×1024
+- `buildings/SULTAN/QUARRY.png` — 1024×1024
+- `buildings/SULTAN/RALLY_POINT.png` — 1024×1024
+- `buildings/SULTAN/RESIDENCE.png` — 1024×1024
+- `buildings/SULTAN/SAWMILL.png` — 1024×1024
+- `buildings/SULTAN/SILO.png` — 1024×1024
+- `buildings/SULTAN/STABLE.png` — 1024×1024
+- `buildings/SULTAN/STONEMASON.png` — 1024×1024
+- `buildings/SULTAN/SULTAN_DESERT_OUTPOST.png` — 1024×1024
+- `buildings/SULTAN/TRADE_OFFICE.png` — 1024×1024
+- `buildings/SULTAN/TREASURE_CHAMBER.png` — 1024×1024
+- `buildings/SULTAN/WALL.png` — 1024×1024
+- `buildings/SULTAN/WAREHOUSE.png` — 1024×1024
+- `buildings/SULTAN/WATCHTOWER.png` — 1024×1024
+- `buildings/SULTAN/WORKSHOP.png` — 1024×1024
+
+## 2. Textures de sol de base et dallages (changent le plus l'aspect de la ville) (25)
+
+Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` § T1 et T3 (ou `--kit`).
+
+- `terrain/grass_lawn.png` — 1024×1024
+- `terrain/grass_dark.png` — 1024×1024
+- `terrain/grass_dry.png` — 1024×1024
+- `terrain/grass_flowers.png` — 1024×1024
+- `terrain/grass_hills.png` — 1024×1024
+- `terrain/dirt_packed.png` — 1024×1024
+- `terrain/mud.png` — 1024×1024
+- `terrain/gravel.png` — 1024×1024
+- `terrain/sand_ripples.png` — 1024×1024
+- `terrain/sand_rocky.png` — 1024×1024
+- `terrain/cracked_earth.png` — 1024×1024
+- `terrain/snow_fresh.png` — 1024×1024
+- `terrain/snow_trampled.png` — 1024×1024
+- `terrain/tundra.png` — 1024×1024
+- `terrain/plaza_ROME.png` — 1024×1024
+- `terrain/plaza_GAUL.png` — 1024×1024
+- `terrain/plaza_GREEK.png` — 1024×1024
+- `terrain/plaza_EGYPT.png` — 1024×1024
+- `terrain/plaza_HUN.png` — 1024×1024
+- `terrain/plaza_SULTAN.png` — 1024×1024
+- `terrain/cobble.png` — 1024×1024
+- `terrain/flagstone.png` — 1024×1024
+- `terrain/road_dirt.png` — 1024×1024
+- `terrain/road_paved.png` — 1024×1024
+- `terrain/path_sand.png` — 1024×1024
+
+## 3. Champs, parcelles, décors de scène (27)
+
+`--kit`.
+
+- `fields/desert/FARM_1.png` — 1024×1024
+- `fields/desert/FARM_2.png` — 1024×1024
+- `fields/desert/FARM_3.png` — 1024×1024
+- `fields/desert/IRON_MINE_1.png` — 1024×1024
+- `fields/desert/IRON_MINE_2.png` — 1024×1024
+- `fields/desert/IRON_MINE_3.png` — 1024×1024
+- `fields/desert/LUMBER_1.png` — 1024×1024
+- `fields/desert/LUMBER_2.png` — 1024×1024
+- `fields/desert/LUMBER_3.png` — 1024×1024
+- `fields/desert/QUARRY_1.png` — 1024×1024
+- `fields/desert/QUARRY_2.png` — 1024×1024
+- `fields/desert/QUARRY_3.png` — 1024×1024
+- `fields/forest/FARM_1.png` — 1024×1024
+- `fields/forest/FARM_3.png` — 1024×1024
+- `fields/forest/IRON_MINE_1.png` — 1024×1024
+- `fields/forest/IRON_MINE_3.png` — 1024×1024
+- `fields/forest/LUMBER_1.png` — 1024×1024
+- `fields/forest/LUMBER_3.png` — 1024×1024
+- `fields/forest/QUARRY_1.png` — 1024×1024
+- `fields/forest/QUARRY_3.png` — 1024×1024
+- `plots/desert_0.png` — 1024×1024
+- `plots/desert_1.png` — 1024×1024
+- `props/cactus.png` — 1024×1024
+- `props/dune.png` — 1024×1024
+- `props/flowers.png` — 1024×1024
+- `props/palm.png` — 1024×1024
+- `props/stump.png` — 1024×1024
+
+## 4. Enceinte (courtines, murets, tours) par civilisation et palier du Mur (85)
+
+`--kit`.
+
+- `walls/EGYPT/1_seg_x.png` — 1024×1024
+- `walls/EGYPT/1_seg_x_low.png` — 1024×1024
+- `walls/EGYPT/1_seg_z.png` — 1024×1024
+- `walls/EGYPT/1_seg_z_low.png` — 1024×1024
+- `walls/EGYPT/1_tower.png` — 1024×1024
+- `walls/EGYPT/2_seg_x.png` — 1024×1024
+- `walls/EGYPT/2_seg_x_low.png` — 1024×1024
+- `walls/EGYPT/2_seg_z.png` — 1024×1024
+- `walls/EGYPT/2_seg_z_low.png` — 1024×1024
+- `walls/EGYPT/2_tower.png` — 1024×1024
+- `walls/EGYPT/3_seg_x.png` — 1024×1024
+- `walls/EGYPT/3_seg_x_low.png` — 1024×1024
+- `walls/EGYPT/3_seg_z.png` — 1024×1024
+- `walls/EGYPT/3_seg_z_low.png` — 1024×1024
+- `walls/EGYPT/3_tower.png` — 1024×1024
+- `walls/GAUL/1_seg_x.png` — 1024×1024
+- `walls/GAUL/1_seg_x_low.png` — 1024×1024
+- `walls/GAUL/1_seg_z.png` — 1024×1024
+- `walls/GAUL/1_seg_z_low.png` — 1024×1024
+- `walls/GAUL/1_tower.png` — 1024×1024
+- `walls/GAUL/2_seg_x.png` — 1024×1024
+- `walls/GAUL/2_seg_x_low.png` — 1024×1024
+- `walls/GAUL/2_seg_z.png` — 1024×1024
+- `walls/GAUL/2_seg_z_low.png` — 1024×1024
+- `walls/GAUL/2_tower.png` — 1024×1024
+- `walls/GAUL/3_seg_x.png` — 1024×1024
+- `walls/GAUL/3_seg_x_low.png` — 1024×1024
+- `walls/GAUL/3_seg_z.png` — 1024×1024
+- `walls/GAUL/3_seg_z_low.png` — 1024×1024
+- `walls/GAUL/3_tower.png` — 1024×1024
+- `walls/GREEK/1_seg_x.png` — 1024×1024
+- `walls/GREEK/1_seg_x_low.png` — 1024×1024
+- `walls/GREEK/1_seg_z.png` — 1024×1024
+- `walls/GREEK/1_seg_z_low.png` — 1024×1024
+- `walls/GREEK/1_tower.png` — 1024×1024
+- `walls/GREEK/2_seg_x.png` — 1024×1024
+- `walls/GREEK/2_seg_x_low.png` — 1024×1024
+- `walls/GREEK/2_seg_z.png` — 1024×1024
+- `walls/GREEK/2_seg_z_low.png` — 1024×1024
+- `walls/GREEK/2_tower.png` — 1024×1024
+- `walls/GREEK/3_seg_x.png` — 1024×1024
+- `walls/GREEK/3_seg_x_low.png` — 1024×1024
+- `walls/GREEK/3_seg_z.png` — 1024×1024
+- `walls/GREEK/3_seg_z_low.png` — 1024×1024
+- `walls/GREEK/3_tower.png` — 1024×1024
+- `walls/HUN/1_seg_x.png` — 1024×1024
+- `walls/HUN/1_seg_x_low.png` — 1024×1024
+- `walls/HUN/1_seg_z.png` — 1024×1024
+- `walls/HUN/1_seg_z_low.png` — 1024×1024
+- `walls/HUN/1_tower.png` — 1024×1024
+- `walls/HUN/2_seg_x.png` — 1024×1024
+- `walls/HUN/2_seg_x_low.png` — 1024×1024
+- `walls/HUN/2_seg_z.png` — 1024×1024
+- `walls/HUN/2_seg_z_low.png` — 1024×1024
+- `walls/HUN/2_tower.png` — 1024×1024
+- `walls/HUN/3_seg_x.png` — 1024×1024
+- `walls/HUN/3_seg_x_low.png` — 1024×1024
+- `walls/HUN/3_seg_z.png` — 1024×1024
+- `walls/HUN/3_seg_z_low.png` — 1024×1024
+- `walls/HUN/3_tower.png` — 1024×1024
+- `walls/ROME/1_seg_x.png` — 1024×1024
+- `walls/ROME/1_seg_x_low.png` — 1024×1024
+- `walls/ROME/1_seg_z.png` — 1024×1024
+- `walls/ROME/1_seg_z_low.png` — 1024×1024
+- `walls/ROME/1_tower.png` — 1024×1024
+- `walls/ROME/2_seg_x.png` — 1024×1024
+- `walls/ROME/2_seg_x_low.png` — 1024×1024
+- `walls/ROME/2_seg_z.png` — 1024×1024
+- `walls/ROME/2_seg_z_low.png` — 1024×1024
+- `walls/ROME/2_tower.png` — 1024×1024
+- `walls/SULTAN/1_seg_x.png` — 1024×1024
+- `walls/SULTAN/1_seg_x_low.png` — 1024×1024
+- `walls/SULTAN/1_seg_z.png` — 1024×1024
+- `walls/SULTAN/1_seg_z_low.png` — 1024×1024
+- `walls/SULTAN/1_tower.png` — 1024×1024
+- `walls/SULTAN/2_seg_x.png` — 1024×1024
+- `walls/SULTAN/2_seg_x_low.png` — 1024×1024
+- `walls/SULTAN/2_seg_z.png` — 1024×1024
+- `walls/SULTAN/2_seg_z_low.png` — 1024×1024
+- `walls/SULTAN/2_tower.png` — 1024×1024
+- `walls/SULTAN/3_seg_x.png` — 1024×1024
+- `walls/SULTAN/3_seg_x_low.png` — 1024×1024
+- `walls/SULTAN/3_seg_z.png` — 1024×1024
+- `walls/SULTAN/3_seg_z_low.png` — 1024×1024
+- `walls/SULTAN/3_tower.png` — 1024×1024
+
+## 5. Carte du monde (villes, ressources, relief et eau, armées en marche) (86)
+
+`--kit`.
+
+- `map/cities/capital.png` — 1024×1024
+- `map/cities/capital_egypt.png` — 1024×1024
+- `map/cities/capital_gaul.png` — 1024×1024
+- `map/cities/capital_greek.png` — 1024×1024
+- `map/cities/capital_hun.png` — 1024×1024
+- `map/cities/capital_rome.png` — 1024×1024
+- `map/cities/capital_sultan.png` — 1024×1024
+- `map/cities/default.png` — 1024×1024
+- `map/cities/egypt.png` — 1024×1024
+- `map/cities/gaul.png` — 1024×1024
+- `map/cities/greek.png` — 1024×1024
+- `map/cities/hun.png` — 1024×1024
+- `map/cities/rome.png` — 1024×1024
+- `map/cities/sultan.png` — 1024×1024
+- `map/resources/food.png` — 1024×1024
+- `map/resources/food_desert.png` — 1024×1024
+- `map/resources/food_snow.png` — 1024×1024
+- `map/resources/gold.png` — 1024×1024
+- `map/resources/gold_desert.png` — 1024×1024
+- `map/resources/gold_snow.png` — 1024×1024
+- `map/resources/iron.png` — 1024×1024
+- `map/resources/iron_desert.png` — 1024×1024
+- `map/resources/iron_snow.png` — 1024×1024
+- `map/resources/stone.png` — 1024×1024
+- `map/resources/stone_desert.png` — 1024×1024
+- `map/resources/stone_snow.png` — 1024×1024
+- `map/resources/wood.png` — 1024×1024
+- `map/resources/wood_desert.png` — 1024×1024
+- `map/resources/wood_snow.png` — 1024×1024
+- `map/terrain/desert_dunes.png` — 1024×1024
+- `map/terrain/desert_dunes_x.png` — 1024×1024
+- `map/terrain/desert_dunes_xy.png` — 1024×1024
+- `map/terrain/desert_dunes_y.png` — 1024×1024
+- `map/terrain/desert_rocks.png` — 1024×1024
+- `map/terrain/desert_ruins.png` — 1024×1024
+- `map/terrain/forest_mountain.png` — 1024×1024
+- `map/terrain/forest_mountain_x.png` — 1024×1024
+- `map/terrain/forest_mountain_xy.png` — 1024×1024
+- `map/terrain/forest_mountain_y.png` — 1024×1024
+- `map/terrain/forest_tree.png` — 1024×1024
+- `map/terrain/frozen.png` — 1024×1024
+- `map/terrain/frozen_x.png` — 1024×1024
+- `map/terrain/frozen_xy.png` — 1024×1024
+- `map/terrain/frozen_y.png` — 1024×1024
+- `map/terrain/oasis.png` — 1024×1024
+- `map/terrain/oasis_x.png` — 1024×1024
+- `map/terrain/oasis_xy.png` — 1024×1024
+- `map/terrain/oasis_y.png` — 1024×1024
+- `map/terrain/snow_icemountain.png` — 1024×1024
+- `map/terrain/snow_icemountain_x.png` — 1024×1024
+- `map/terrain/snow_icemountain_xy.png` — 1024×1024
+- `map/terrain/snow_icemountain_y.png` — 1024×1024
+- `map/terrain/snow_snowtree.png` — 1024×1024
+- `map/terrain/water.png` — 1024×1024
+- `map/terrain/water_x.png` — 1024×1024
+- `map/terrain/water_xy.png` — 1024×1024
+- `map/terrain/water_y.png` — 1024×1024
+- `map/units/archer.png` — 1024×1024
+- `map/units/archer_EGYPT.png` — 1024×1024
+- `map/units/archer_GAUL.png` — 1024×1024
+- `map/units/archer_GREEK.png` — 1024×1024
+- `map/units/archer_HUN.png` — 1024×1024
+- `map/units/archer_ROME.png` — 1024×1024
+- `map/units/archer_SULTAN.png` — 1024×1024
+- `map/units/catapult.png` — 1024×1024
+- `map/units/catapult_EGYPT.png` — 1024×1024
+- `map/units/catapult_GAUL.png` — 1024×1024
+- `map/units/catapult_GREEK.png` — 1024×1024
+- `map/units/catapult_HUN.png` — 1024×1024
+- `map/units/catapult_ROME.png` — 1024×1024
+- `map/units/catapult_SULTAN.png` — 1024×1024
+- `map/units/cavalry.png` — 1024×1024
+- `map/units/cavalry_EGYPT.png` — 1024×1024
+- `map/units/cavalry_GAUL.png` — 1024×1024
+- `map/units/cavalry_GREEK.png` — 1024×1024
+- `map/units/cavalry_HUN.png` — 1024×1024
+- `map/units/cavalry_ROME.png` — 1024×1024
+- `map/units/cavalry_SULTAN.png` — 1024×1024
+- `map/units/hoplite.png` — 1024×1024
+- `map/units/hoplite_EGYPT.png` — 1024×1024
+- `map/units/hoplite_GAUL.png` — 1024×1024
+- `map/units/hoplite_GREEK.png` — 1024×1024
+- `map/units/hoplite_HUN.png` — 1024×1024
+- `map/units/hoplite_ROME.png` — 1024×1024
+- `map/units/hoplite_SULTAN.png` — 1024×1024
+- `map/units/merchant.png` — 1024×1024
+
+## 6. Unités et héros (figurines, bustes, héros) (64)
+
+`--kit`.
+
+- `figures/ARCHER_EGYPT.png` — 1024×1024
+- `figures/ARCHER_GAUL.png` — 1024×1024
+- `figures/ARCHER_GREEK.png` — 1024×1024
+- `figures/ARCHER_HUN.png` — 1024×1024
+- `figures/ARCHER_ROME.png` — 1024×1024
+- `figures/ARCHER_SULTAN.png` — 1024×1024
+- `figures/CAVALRY_EGYPT.png` — 1024×1024
+- `figures/CAVALRY_GAUL.png` — 1024×1024
+- `figures/CAVALRY_GREEK.png` — 1024×1024
+- `figures/CAVALRY_HUN.png` — 1024×1024
+- `figures/CAVALRY_ROME.png` — 1024×1024
+- `figures/CAVALRY_SULTAN.png` — 1024×1024
+- `figures/INFANTRY_EGYPT.png` — 1024×1024
+- `figures/INFANTRY_GAUL.png` — 1024×1024
+- `figures/INFANTRY_GREEK.png` — 1024×1024
+- `figures/INFANTRY_HUN.png` — 1024×1024
+- `figures/INFANTRY_ROME.png` — 1024×1024
+- `figures/INFANTRY_SULTAN.png` — 1024×1024
+- `figures/SIEGE_EGYPT.png` — 1024×1024
+- `figures/SIEGE_GAUL.png` — 1024×1024
+- `figures/SIEGE_GREEK.png` — 1024×1024
+- `figures/SIEGE_HUN.png` — 1024×1024
+- `figures/SIEGE_ROME.png` — 1024×1024
+- `figures/SIEGE_SULTAN.png` — 1024×1024
+- `busts/ARCHER.png` — 1024×1024
+- `busts/ARCHER_EGYPT.png` — 1024×1024
+- `busts/ARCHER_GAUL.png` — 1024×1024
+- `busts/ARCHER_GREEK.png` — 1024×1024
+- `busts/ARCHER_HUN.png` — 1024×1024
+- `busts/ARCHER_ROME.png` — 1024×1024
+- `busts/ARCHER_SULTAN.png` — 1024×1024
+- `busts/CAVALRY.png` — 1024×1024
+- `busts/CAVALRY_EGYPT.png` — 1024×1024
+- `busts/CAVALRY_GAUL.png` — 1024×1024
+- `busts/CAVALRY_GREEK.png` — 1024×1024
+- `busts/CAVALRY_HUN.png` — 1024×1024
+- `busts/CAVALRY_ROME.png` — 1024×1024
+- `busts/CAVALRY_SULTAN.png` — 1024×1024
+- `busts/INFANTRY.png` — 1024×1024
+- `busts/INFANTRY_EGYPT.png` — 1024×1024
+- `busts/INFANTRY_GAUL.png` — 1024×1024
+- `busts/INFANTRY_GREEK.png` — 1024×1024
+- `busts/INFANTRY_HUN.png` — 1024×1024
+- `busts/INFANTRY_ROME.png` — 1024×1024
+- `busts/INFANTRY_SULTAN.png` — 1024×1024
+- `busts/SIEGE.png` — 1024×1024
+- `busts/SIEGE_EGYPT.png` — 1024×1024
+- `busts/SIEGE_GAUL.png` — 1024×1024
+- `busts/SIEGE_GREEK.png` — 1024×1024
+- `busts/SIEGE_HUN.png` — 1024×1024
+- `busts/SIEGE_ROME.png` — 1024×1024
+- `busts/SIEGE_SULTAN.png` — 1024×1024
+- `heroes/EGYPT.png` — 1024×1024
+- `heroes/EGYPT_bust.png` — 1024×1024
+- `heroes/GAUL.png` — 1024×1024
+- `heroes/GAUL_bust.png` — 1024×1024
+- `heroes/GREEK.png` — 1024×1024
+- `heroes/GREEK_bust.png` — 1024×1024
+- `heroes/HUN.png` — 1024×1024
+- `heroes/HUN_bust.png` — 1024×1024
+- `heroes/ROME.png` — 1024×1024
+- `heroes/ROME_bust.png` — 1024×1024
+- `heroes/SULTAN.png` — 1024×1024
+- `heroes/SULTAN_bust.png` — 1024×1024
+
+## 7. Scènes (connexion, estrades des héros, bandeaux, champ de bataille) (14)
+
+`--kit`.
+
+- `scenes/auth-landscape.png` — 1536×1024
+- `scenes/auth-portrait.png` — 1024×1536
+- `scenes/battlefield.png` — 1536×1024
+- `scenes/header-alliance.png` — 1536×1024
+- `scenes/header-inventory.png` — 1536×1024
+- `scenes/header-market.png` — 1536×1024
+- `scenes/header-ranking.png` — 1536×1024
+- `scenes/header-reports.png` — 1536×1024
+- `scenes/hero-EGYPT.png` — 1024×1536
+- `scenes/hero-GAUL.png` — 1024×1536
+- `scenes/hero-GREEK.png` — 1024×1536
+- `scenes/hero-HUN.png` — 1024×1536
+- `scenes/hero-ROME.png` — 1024×1536
+- `scenes/hero-SULTAN.png` — 1024×1536
+
+## 8. Habillage d'interface restant (1)
+
+Sans la plaque parchemin, l'habillage peint ne s'active pas.
+
+- `ui/plate-parchment.png` — 1024×1024
+
+## 9. Compléments fixes et visuels de boutique (7)
+
+Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
+
+- walls/<CIV>/gate.png × 6 (ROME, GAUL, GREEK, EGYPT, HUN, SULTAN) — 1024×1024 — guide § S1
+- props/sign_build.png — 512×768 — guide § S2
+- ui/crest_<CIV>.png × 6 — 1024×1024 — guide § S3
+- scenes/expedition-<forest|desert|mountain|ruins>.png × 4 — 1536×1024 — guide § S4
+- ui/btn-round.png, ui/btn-round-pressed.png — 1024×1024 — guide § S5
+- store/ic_stat_notify.png (icône de notification Android, blanc sur transparent) — 96×96 — guide § N1
+- store/feature-graphic.png (bannière Google Play) — 1024×500 — guide § N2
+
+## 10. Eau et glace, sols des champs, décalques, bordures (30)
+
+Guide § T2, T4, T5, T6.
+
+- `terrain/water_lake.png` — 1024×1024
+- `terrain/water_deep.png` — 1024×1024
+- `terrain/water_river.png` — 1024×1024
+- `terrain/water_shallow.png` — 1024×1024
+- `terrain/ice.png` — 1024×1024
+- `terrain/soil_tilled.png` — 1024×1024
+- `terrain/wheat.png` — 1024×1024
+- `terrain/orchard.png` — 1024×1024
+- `decals/grass_tuft.png` (fond transparent) — 1024×1024
+- `decals/flowers_red.png` (fond transparent) — 1024×1024
+- `decals/flowers_white.png` (fond transparent) — 1024×1024
+- `decals/clover.png` (fond transparent) — 1024×1024
+- `decals/pebbles.png` (fond transparent) — 1024×1024
+- `decals/cracks.png` (fond transparent) — 1024×1024
+- `decals/puddle.png` (fond transparent) — 1024×1024
+- `decals/leaves.png` (fond transparent) — 1024×1024
+- `decals/moss.png` (fond transparent) — 1024×1024
+- `decals/mushrooms.png` (fond transparent) — 1024×1024
+- `decals/branches.png` (fond transparent) — 1024×1024
+- `decals/cart_tracks.png` (fond transparent) — 1024×1024
+- `decals/hoof_prints.png` (fond transparent) — 1024×1024
+- `decals/snow_drift.png` (fond transparent) — 1024×1024
+- `decals/ice_patch.png` (fond transparent) — 1024×1024
+- `decals/sand_ripple.png` (fond transparent) — 1024×1024
+- `terrain/edge_grass_sand.png` (1024×256) — 1024×256
+- `terrain/edge_grass_snow.png` (1024×256) — 1024×256
+- `terrain/edge_shore.png` (1024×256) — 1024×256
+- `terrain/edge_grass_water.png` (1024×256) — 1024×256
+- `terrain/edge_cliff.png` (1024×256) — 1024×256
+- `terrain/edge_road.png` (1024×256) — 1024×256
+
+## 11. Animations (bandes de phases, voir guide § 0 et § A1-A11) (169)
+
+169 images au total ; livrer une bande par animation, je découpe.
+
+- A1 — props/villager_<a|b|c>_<0..5>.png — 18 images — cases 512×768 — villageois qui marchent dans la ville
+- A2 — props/flame_<0..3>.png, props/brazier_<0..3>.png — 8 images — cases 512×768 — flammes des torches et braseros
+- A3 — props/scaffold_<1|2|3>.png, props/worker_<0..3>.png — 7 images — cases 512×768 — chantier : échafaudage et ouvrier
+- A4 — anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png — 14 images — cases 512×512 — moulin, forge, fonderie
+- A5 — map/units/<hoplite|archer|cavalry|catapult|merchant>_walk_<0..5>.png — 30 images — cases 512×512 — cycles de marche sur la carte
+- A6 — map/units/<classe>_attack_<0..2>.png, <classe>_hit_<0..1>.png, fx/arrow.png, fx/stone.png, fx/impact_<0..2>.png — 25 images — cases 512×512 — replay de bataille
+- A7 — map/fx/battle_<0..3>.png, map/fx/fire_<0..3>.png, map/fx/campfire_<0..3>.png — 12 images — cases 512×512 — combat, ville en feu, feu de camp
+- A8 — ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png — 16 images — cases 512×512 — effets d'interface
+- A9 — props/snowflake_<0..2>.png, props/leaf_<0..2>.png, props/dust_devil_<0..3>.png, props/bird_<0..2>.png — 13 images — cases 512×512 — ambiance
+- A10 — heroes/<CIV>_idle_<0..2>.png — 18 images — cases 512×768 — héros en pose d'attente
+- A11 — props/cart_<0..3>.png, props/horse_idle_<0..3>.png — 8 images — cases 512×768 — charrette et chevaux
+
+## 12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) (408)
+
+`--kit --tiers`. Après tout le reste.
+
+- `buildings/ROME/ACADEMY_t1.png` — 1024×1024
+- `buildings/ROME/BAKERY_t1.png` — 1024×1024
+- `buildings/ROME/BARRACKS_t1.png` — 1024×1024
+- `buildings/ROME/EMBASSY_t1.png` — 1024×1024
+- `buildings/ROME/FARM_t1.png` — 1024×1024
+- `buildings/ROME/FORGE_t1.png` — 1024×1024
+- `buildings/ROME/FOUNDRY_t1.png` — 1024×1024
+- `buildings/ROME/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/ROME/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/ROME/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/ROME/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/ROME/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/ROME/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/ROME/HIDEOUT_t1.png` — 1024×1024
+- `buildings/ROME/IRON_MINE_t1.png` — 1024×1024
+- `buildings/ROME/LUMBER_t1.png` — 1024×1024
+- `buildings/ROME/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/ROME/MARKET_t1.png` — 1024×1024
+- `buildings/ROME/MILL_t1.png` — 1024×1024
+- `buildings/ROME/MOAT_t1.png` — 1024×1024
+- `buildings/ROME/QUARRY_t1.png` — 1024×1024
+- `buildings/ROME/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/ROME/RESIDENCE_t1.png` — 1024×1024
+- `buildings/ROME/ROMAN_THERMAE_t1.png` — 1024×1024
+- `buildings/ROME/SAWMILL_t1.png` — 1024×1024
+- `buildings/ROME/SILO_t1.png` — 1024×1024
+- `buildings/ROME/STABLE_t1.png` — 1024×1024
+- `buildings/ROME/STONEMASON_t1.png` — 1024×1024
+- `buildings/ROME/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/ROME/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/ROME/WALL_t1.png` — 1024×1024
+- `buildings/ROME/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/ROME/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/ROME/WORKSHOP_t1.png` — 1024×1024
+- `buildings/GAUL/ACADEMY_t1.png` — 1024×1024
+- `buildings/GAUL/BAKERY_t1.png` — 1024×1024
+- `buildings/GAUL/BARRACKS_t1.png` — 1024×1024
+- `buildings/GAUL/EMBASSY_t1.png` — 1024×1024
+- `buildings/GAUL/FARM_t1.png` — 1024×1024
+- `buildings/GAUL/FORGE_t1.png` — 1024×1024
+- `buildings/GAUL/FOUNDRY_t1.png` — 1024×1024
+- `buildings/GAUL/GALLIC_BREWERY_t1.png` — 1024×1024
+- `buildings/GAUL/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/GAUL/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/GAUL/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/GAUL/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/GAUL/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/GAUL/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/GAUL/HIDEOUT_t1.png` — 1024×1024
+- `buildings/GAUL/IRON_MINE_t1.png` — 1024×1024
+- `buildings/GAUL/LUMBER_t1.png` — 1024×1024
+- `buildings/GAUL/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/GAUL/MARKET_t1.png` — 1024×1024
+- `buildings/GAUL/MILL_t1.png` — 1024×1024
+- `buildings/GAUL/MOAT_t1.png` — 1024×1024
+- `buildings/GAUL/QUARRY_t1.png` — 1024×1024
+- `buildings/GAUL/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/GAUL/RESIDENCE_t1.png` — 1024×1024
+- `buildings/GAUL/SAWMILL_t1.png` — 1024×1024
+- `buildings/GAUL/SILO_t1.png` — 1024×1024
+- `buildings/GAUL/STABLE_t1.png` — 1024×1024
+- `buildings/GAUL/STONEMASON_t1.png` — 1024×1024
+- `buildings/GAUL/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/GAUL/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/GAUL/WALL_t1.png` — 1024×1024
+- `buildings/GAUL/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/GAUL/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/GAUL/WORKSHOP_t1.png` — 1024×1024
+- `buildings/GREEK/ACADEMY_t1.png` — 1024×1024
+- `buildings/GREEK/BAKERY_t1.png` — 1024×1024
+- `buildings/GREEK/BARRACKS_t1.png` — 1024×1024
+- `buildings/GREEK/EMBASSY_t1.png` — 1024×1024
+- `buildings/GREEK/FARM_t1.png` — 1024×1024
+- `buildings/GREEK/FORGE_t1.png` — 1024×1024
+- `buildings/GREEK/FOUNDRY_t1.png` — 1024×1024
+- `buildings/GREEK/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/GREEK/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/GREEK/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/GREEK/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/GREEK/GREEK_TEMPLE_t1.png` — 1024×1024
+- `buildings/GREEK/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/GREEK/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/GREEK/HIDEOUT_t1.png` — 1024×1024
+- `buildings/GREEK/IRON_MINE_t1.png` — 1024×1024
+- `buildings/GREEK/LUMBER_t1.png` — 1024×1024
+- `buildings/GREEK/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/GREEK/MARKET_t1.png` — 1024×1024
+- `buildings/GREEK/MILL_t1.png` — 1024×1024
+- `buildings/GREEK/MOAT_t1.png` — 1024×1024
+- `buildings/GREEK/QUARRY_t1.png` — 1024×1024
+- `buildings/GREEK/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/GREEK/RESIDENCE_t1.png` — 1024×1024
+- `buildings/GREEK/SAWMILL_t1.png` — 1024×1024
+- `buildings/GREEK/SILO_t1.png` — 1024×1024
+- `buildings/GREEK/STABLE_t1.png` — 1024×1024
+- `buildings/GREEK/STONEMASON_t1.png` — 1024×1024
+- `buildings/GREEK/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/GREEK/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/GREEK/WALL_t1.png` — 1024×1024
+- `buildings/GREEK/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/GREEK/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/GREEK/WORKSHOP_t1.png` — 1024×1024
+- `buildings/EGYPT/ACADEMY_t1.png` — 1024×1024
+- `buildings/EGYPT/BAKERY_t1.png` — 1024×1024
+- `buildings/EGYPT/BARRACKS_t1.png` — 1024×1024
+- `buildings/EGYPT/EGYPTIAN_IRRIGATION_t1.png` — 1024×1024
+- `buildings/EGYPT/EMBASSY_t1.png` — 1024×1024
+- `buildings/EGYPT/FARM_t1.png` — 1024×1024
+- `buildings/EGYPT/FORGE_t1.png` — 1024×1024
+- `buildings/EGYPT/FOUNDRY_t1.png` — 1024×1024
+- `buildings/EGYPT/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/EGYPT/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/EGYPT/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/EGYPT/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/EGYPT/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/EGYPT/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/EGYPT/HIDEOUT_t1.png` — 1024×1024
+- `buildings/EGYPT/IRON_MINE_t1.png` — 1024×1024
+- `buildings/EGYPT/LUMBER_t1.png` — 1024×1024
+- `buildings/EGYPT/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/EGYPT/MARKET_t1.png` — 1024×1024
+- `buildings/EGYPT/MILL_t1.png` — 1024×1024
+- `buildings/EGYPT/MOAT_t1.png` — 1024×1024
+- `buildings/EGYPT/QUARRY_t1.png` — 1024×1024
+- `buildings/EGYPT/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/EGYPT/RESIDENCE_t1.png` — 1024×1024
+- `buildings/EGYPT/SAWMILL_t1.png` — 1024×1024
+- `buildings/EGYPT/SILO_t1.png` — 1024×1024
+- `buildings/EGYPT/STABLE_t1.png` — 1024×1024
+- `buildings/EGYPT/STONEMASON_t1.png` — 1024×1024
+- `buildings/EGYPT/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/EGYPT/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/EGYPT/WALL_t1.png` — 1024×1024
+- `buildings/EGYPT/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/EGYPT/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/EGYPT/WORKSHOP_t1.png` — 1024×1024
+- `buildings/HUN/ACADEMY_t1.png` — 1024×1024
+- `buildings/HUN/BAKERY_t1.png` — 1024×1024
+- `buildings/HUN/BARRACKS_t1.png` — 1024×1024
+- `buildings/HUN/EMBASSY_t1.png` — 1024×1024
+- `buildings/HUN/FARM_t1.png` — 1024×1024
+- `buildings/HUN/FORGE_t1.png` — 1024×1024
+- `buildings/HUN/FOUNDRY_t1.png` — 1024×1024
+- `buildings/HUN/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/HUN/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/HUN/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/HUN/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/HUN/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/HUN/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/HUN/HIDEOUT_t1.png` — 1024×1024
+- `buildings/HUN/HUN_WAR_TENT_t1.png` — 1024×1024
+- `buildings/HUN/IRON_MINE_t1.png` — 1024×1024
+- `buildings/HUN/LUMBER_t1.png` — 1024×1024
+- `buildings/HUN/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/HUN/MARKET_t1.png` — 1024×1024
+- `buildings/HUN/MILL_t1.png` — 1024×1024
+- `buildings/HUN/MOAT_t1.png` — 1024×1024
+- `buildings/HUN/QUARRY_t1.png` — 1024×1024
+- `buildings/HUN/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/HUN/RESIDENCE_t1.png` — 1024×1024
+- `buildings/HUN/SAWMILL_t1.png` — 1024×1024
+- `buildings/HUN/SILO_t1.png` — 1024×1024
+- `buildings/HUN/STABLE_t1.png` — 1024×1024
+- `buildings/HUN/STONEMASON_t1.png` — 1024×1024
+- `buildings/HUN/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/HUN/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/HUN/WALL_t1.png` — 1024×1024
+- `buildings/HUN/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/HUN/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/HUN/WORKSHOP_t1.png` — 1024×1024
+- `buildings/SULTAN/ACADEMY_t1.png` — 1024×1024
+- `buildings/SULTAN/BAKERY_t1.png` — 1024×1024
+- `buildings/SULTAN/BARRACKS_t1.png` — 1024×1024
+- `buildings/SULTAN/EMBASSY_t1.png` — 1024×1024
+- `buildings/SULTAN/FARM_t1.png` — 1024×1024
+- `buildings/SULTAN/FORGE_t1.png` — 1024×1024
+- `buildings/SULTAN/FOUNDRY_t1.png` — 1024×1024
+- `buildings/SULTAN/GREAT_BARRACKS_t1.png` — 1024×1024
+- `buildings/SULTAN/GREAT_SILO_t1.png` — 1024×1024
+- `buildings/SULTAN/GREAT_STABLE_t1.png` — 1024×1024
+- `buildings/SULTAN/GREAT_WAREHOUSE_t1.png` — 1024×1024
+- `buildings/SULTAN/HEALING_TENT_t1.png` — 1024×1024
+- `buildings/SULTAN/HERO_MANSION_t1.png` — 1024×1024
+- `buildings/SULTAN/HIDEOUT_t1.png` — 1024×1024
+- `buildings/SULTAN/IRON_MINE_t1.png` — 1024×1024
+- `buildings/SULTAN/LUMBER_t1.png` — 1024×1024
+- `buildings/SULTAN/MAIN_HALL_t1.png` — 1024×1024
+- `buildings/SULTAN/MARKET_t1.png` — 1024×1024
+- `buildings/SULTAN/MILL_t1.png` — 1024×1024
+- `buildings/SULTAN/MOAT_t1.png` — 1024×1024
+- `buildings/SULTAN/QUARRY_t1.png` — 1024×1024
+- `buildings/SULTAN/RALLY_POINT_t1.png` — 1024×1024
+- `buildings/SULTAN/RESIDENCE_t1.png` — 1024×1024
+- `buildings/SULTAN/SAWMILL_t1.png` — 1024×1024
+- `buildings/SULTAN/SILO_t1.png` — 1024×1024
+- `buildings/SULTAN/STABLE_t1.png` — 1024×1024
+- `buildings/SULTAN/STONEMASON_t1.png` — 1024×1024
+- `buildings/SULTAN/SULTAN_DESERT_OUTPOST_t1.png` — 1024×1024
+- `buildings/SULTAN/TRADE_OFFICE_t1.png` — 1024×1024
+- `buildings/SULTAN/TREASURE_CHAMBER_t1.png` — 1024×1024
+- `buildings/SULTAN/WALL_t1.png` — 1024×1024
+- `buildings/SULTAN/WAREHOUSE_t1.png` — 1024×1024
+- `buildings/SULTAN/WATCHTOWER_t1.png` — 1024×1024
+- `buildings/SULTAN/WORKSHOP_t1.png` — 1024×1024
+- `buildings/ROME/ACADEMY_t3.png` — 1024×1024
+- `buildings/ROME/BAKERY_t3.png` — 1024×1024
+- `buildings/ROME/BARRACKS_t3.png` — 1024×1024
+- `buildings/ROME/EMBASSY_t3.png` — 1024×1024
+- `buildings/ROME/FARM_t3.png` — 1024×1024
+- `buildings/ROME/FORGE_t3.png` — 1024×1024
+- `buildings/ROME/FOUNDRY_t3.png` — 1024×1024
+- `buildings/ROME/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/ROME/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/ROME/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/ROME/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/ROME/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/ROME/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/ROME/HIDEOUT_t3.png` — 1024×1024
+- `buildings/ROME/IRON_MINE_t3.png` — 1024×1024
+- `buildings/ROME/LUMBER_t3.png` — 1024×1024
+- `buildings/ROME/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/ROME/MARKET_t3.png` — 1024×1024
+- `buildings/ROME/MILL_t3.png` — 1024×1024
+- `buildings/ROME/MOAT_t3.png` — 1024×1024
+- `buildings/ROME/QUARRY_t3.png` — 1024×1024
+- `buildings/ROME/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/ROME/RESIDENCE_t3.png` — 1024×1024
+- `buildings/ROME/ROMAN_THERMAE_t3.png` — 1024×1024
+- `buildings/ROME/SAWMILL_t3.png` — 1024×1024
+- `buildings/ROME/SILO_t3.png` — 1024×1024
+- `buildings/ROME/STABLE_t3.png` — 1024×1024
+- `buildings/ROME/STONEMASON_t3.png` — 1024×1024
+- `buildings/ROME/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/ROME/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/ROME/WALL_t3.png` — 1024×1024
+- `buildings/ROME/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/ROME/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/ROME/WORKSHOP_t3.png` — 1024×1024
+- `buildings/GAUL/ACADEMY_t3.png` — 1024×1024
+- `buildings/GAUL/BAKERY_t3.png` — 1024×1024
+- `buildings/GAUL/BARRACKS_t3.png` — 1024×1024
+- `buildings/GAUL/EMBASSY_t3.png` — 1024×1024
+- `buildings/GAUL/FARM_t3.png` — 1024×1024
+- `buildings/GAUL/FORGE_t3.png` — 1024×1024
+- `buildings/GAUL/FOUNDRY_t3.png` — 1024×1024
+- `buildings/GAUL/GALLIC_BREWERY_t3.png` — 1024×1024
+- `buildings/GAUL/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/GAUL/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/GAUL/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/GAUL/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/GAUL/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/GAUL/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/GAUL/HIDEOUT_t3.png` — 1024×1024
+- `buildings/GAUL/IRON_MINE_t3.png` — 1024×1024
+- `buildings/GAUL/LUMBER_t3.png` — 1024×1024
+- `buildings/GAUL/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/GAUL/MARKET_t3.png` — 1024×1024
+- `buildings/GAUL/MILL_t3.png` — 1024×1024
+- `buildings/GAUL/MOAT_t3.png` — 1024×1024
+- `buildings/GAUL/QUARRY_t3.png` — 1024×1024
+- `buildings/GAUL/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/GAUL/RESIDENCE_t3.png` — 1024×1024
+- `buildings/GAUL/SAWMILL_t3.png` — 1024×1024
+- `buildings/GAUL/SILO_t3.png` — 1024×1024
+- `buildings/GAUL/STABLE_t3.png` — 1024×1024
+- `buildings/GAUL/STONEMASON_t3.png` — 1024×1024
+- `buildings/GAUL/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/GAUL/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/GAUL/WALL_t3.png` — 1024×1024
+- `buildings/GAUL/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/GAUL/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/GAUL/WORKSHOP_t3.png` — 1024×1024
+- `buildings/GREEK/ACADEMY_t3.png` — 1024×1024
+- `buildings/GREEK/BAKERY_t3.png` — 1024×1024
+- `buildings/GREEK/BARRACKS_t3.png` — 1024×1024
+- `buildings/GREEK/EMBASSY_t3.png` — 1024×1024
+- `buildings/GREEK/FARM_t3.png` — 1024×1024
+- `buildings/GREEK/FORGE_t3.png` — 1024×1024
+- `buildings/GREEK/FOUNDRY_t3.png` — 1024×1024
+- `buildings/GREEK/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/GREEK/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/GREEK/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/GREEK/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/GREEK/GREEK_TEMPLE_t3.png` — 1024×1024
+- `buildings/GREEK/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/GREEK/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/GREEK/HIDEOUT_t3.png` — 1024×1024
+- `buildings/GREEK/IRON_MINE_t3.png` — 1024×1024
+- `buildings/GREEK/LUMBER_t3.png` — 1024×1024
+- `buildings/GREEK/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/GREEK/MARKET_t3.png` — 1024×1024
+- `buildings/GREEK/MILL_t3.png` — 1024×1024
+- `buildings/GREEK/MOAT_t3.png` — 1024×1024
+- `buildings/GREEK/QUARRY_t3.png` — 1024×1024
+- `buildings/GREEK/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/GREEK/RESIDENCE_t3.png` — 1024×1024
+- `buildings/GREEK/SAWMILL_t3.png` — 1024×1024
+- `buildings/GREEK/SILO_t3.png` — 1024×1024
+- `buildings/GREEK/STABLE_t3.png` — 1024×1024
+- `buildings/GREEK/STONEMASON_t3.png` — 1024×1024
+- `buildings/GREEK/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/GREEK/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/GREEK/WALL_t3.png` — 1024×1024
+- `buildings/GREEK/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/GREEK/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/GREEK/WORKSHOP_t3.png` — 1024×1024
+- `buildings/EGYPT/ACADEMY_t3.png` — 1024×1024
+- `buildings/EGYPT/BAKERY_t3.png` — 1024×1024
+- `buildings/EGYPT/BARRACKS_t3.png` — 1024×1024
+- `buildings/EGYPT/EGYPTIAN_IRRIGATION_t3.png` — 1024×1024
+- `buildings/EGYPT/EMBASSY_t3.png` — 1024×1024
+- `buildings/EGYPT/FARM_t3.png` — 1024×1024
+- `buildings/EGYPT/FORGE_t3.png` — 1024×1024
+- `buildings/EGYPT/FOUNDRY_t3.png` — 1024×1024
+- `buildings/EGYPT/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/EGYPT/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/EGYPT/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/EGYPT/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/EGYPT/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/EGYPT/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/EGYPT/HIDEOUT_t3.png` — 1024×1024
+- `buildings/EGYPT/IRON_MINE_t3.png` — 1024×1024
+- `buildings/EGYPT/LUMBER_t3.png` — 1024×1024
+- `buildings/EGYPT/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/EGYPT/MARKET_t3.png` — 1024×1024
+- `buildings/EGYPT/MILL_t3.png` — 1024×1024
+- `buildings/EGYPT/MOAT_t3.png` — 1024×1024
+- `buildings/EGYPT/QUARRY_t3.png` — 1024×1024
+- `buildings/EGYPT/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/EGYPT/RESIDENCE_t3.png` — 1024×1024
+- `buildings/EGYPT/SAWMILL_t3.png` — 1024×1024
+- `buildings/EGYPT/SILO_t3.png` — 1024×1024
+- `buildings/EGYPT/STABLE_t3.png` — 1024×1024
+- `buildings/EGYPT/STONEMASON_t3.png` — 1024×1024
+- `buildings/EGYPT/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/EGYPT/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/EGYPT/WALL_t3.png` — 1024×1024
+- `buildings/EGYPT/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/EGYPT/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/EGYPT/WORKSHOP_t3.png` — 1024×1024
+- `buildings/HUN/ACADEMY_t3.png` — 1024×1024
+- `buildings/HUN/BAKERY_t3.png` — 1024×1024
+- `buildings/HUN/BARRACKS_t3.png` — 1024×1024
+- `buildings/HUN/EMBASSY_t3.png` — 1024×1024
+- `buildings/HUN/FARM_t3.png` — 1024×1024
+- `buildings/HUN/FORGE_t3.png` — 1024×1024
+- `buildings/HUN/FOUNDRY_t3.png` — 1024×1024
+- `buildings/HUN/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/HUN/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/HUN/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/HUN/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/HUN/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/HUN/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/HUN/HIDEOUT_t3.png` — 1024×1024
+- `buildings/HUN/HUN_WAR_TENT_t3.png` — 1024×1024
+- `buildings/HUN/IRON_MINE_t3.png` — 1024×1024
+- `buildings/HUN/LUMBER_t3.png` — 1024×1024
+- `buildings/HUN/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/HUN/MARKET_t3.png` — 1024×1024
+- `buildings/HUN/MILL_t3.png` — 1024×1024
+- `buildings/HUN/MOAT_t3.png` — 1024×1024
+- `buildings/HUN/QUARRY_t3.png` — 1024×1024
+- `buildings/HUN/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/HUN/RESIDENCE_t3.png` — 1024×1024
+- `buildings/HUN/SAWMILL_t3.png` — 1024×1024
+- `buildings/HUN/SILO_t3.png` — 1024×1024
+- `buildings/HUN/STABLE_t3.png` — 1024×1024
+- `buildings/HUN/STONEMASON_t3.png` — 1024×1024
+- `buildings/HUN/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/HUN/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/HUN/WALL_t3.png` — 1024×1024
+- `buildings/HUN/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/HUN/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/HUN/WORKSHOP_t3.png` — 1024×1024
+- `buildings/SULTAN/ACADEMY_t3.png` — 1024×1024
+- `buildings/SULTAN/BAKERY_t3.png` — 1024×1024
+- `buildings/SULTAN/BARRACKS_t3.png` — 1024×1024
+- `buildings/SULTAN/EMBASSY_t3.png` — 1024×1024
+- `buildings/SULTAN/FARM_t3.png` — 1024×1024
+- `buildings/SULTAN/FORGE_t3.png` — 1024×1024
+- `buildings/SULTAN/FOUNDRY_t3.png` — 1024×1024
+- `buildings/SULTAN/GREAT_BARRACKS_t3.png` — 1024×1024
+- `buildings/SULTAN/GREAT_SILO_t3.png` — 1024×1024
+- `buildings/SULTAN/GREAT_STABLE_t3.png` — 1024×1024
+- `buildings/SULTAN/GREAT_WAREHOUSE_t3.png` — 1024×1024
+- `buildings/SULTAN/HEALING_TENT_t3.png` — 1024×1024
+- `buildings/SULTAN/HERO_MANSION_t3.png` — 1024×1024
+- `buildings/SULTAN/HIDEOUT_t3.png` — 1024×1024
+- `buildings/SULTAN/IRON_MINE_t3.png` — 1024×1024
+- `buildings/SULTAN/LUMBER_t3.png` — 1024×1024
+- `buildings/SULTAN/MAIN_HALL_t3.png` — 1024×1024
+- `buildings/SULTAN/MARKET_t3.png` — 1024×1024
+- `buildings/SULTAN/MILL_t3.png` — 1024×1024
+- `buildings/SULTAN/MOAT_t3.png` — 1024×1024
+- `buildings/SULTAN/QUARRY_t3.png` — 1024×1024
+- `buildings/SULTAN/RALLY_POINT_t3.png` — 1024×1024
+- `buildings/SULTAN/RESIDENCE_t3.png` — 1024×1024
+- `buildings/SULTAN/SAWMILL_t3.png` — 1024×1024
+- `buildings/SULTAN/SILO_t3.png` — 1024×1024
+- `buildings/SULTAN/STABLE_t3.png` — 1024×1024
+- `buildings/SULTAN/STONEMASON_t3.png` — 1024×1024
+- `buildings/SULTAN/SULTAN_DESERT_OUTPOST_t3.png` — 1024×1024
+- `buildings/SULTAN/TRADE_OFFICE_t3.png` — 1024×1024
+- `buildings/SULTAN/TREASURE_CHAMBER_t3.png` — 1024×1024
+- `buildings/SULTAN/WALL_t3.png` — 1024×1024
+- `buildings/SULTAN/WAREHOUSE_t3.png` — 1024×1024
+- `buildings/SULTAN/WATCHTOWER_t3.png` — 1024×1024
+- `buildings/SULTAN/WORKSHOP_t3.png` — 1024×1024
+

@@ -7,8 +7,42 @@ const config = {
   // Server
   port: parseInt(process.env.PORT, 10) || 3000,
   isProduction: IS_PRODUCTION,
-  jwtSecret: process.env.JWT_SECRET || 'monjeu-secret-change-this',
+  jwtSecret: process.env.JWT_SECRET || '',   // validated below: mandatory and >= 32 chars outside development
   jwtExpiry: '7d',
+
+  // Notifications push (APNs via HTTP/2 + JWT ES256, FCM v1 via compte de service) : inactif sans clés
+  push: {
+    apns: {
+      keyId: process.env.APNS_KEY_ID || '',
+      teamId: process.env.APNS_TEAM_ID || '',
+      privateKey: (process.env.APNS_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+      bundleId: process.env.APNS_BUNDLE_ID || 'com.imperiumantiquitas.app',
+      production: process.env.APNS_PRODUCTION === 'true'
+    },
+    fcm: { serviceAccount: process.env.FCM_SERVICE_ACCOUNT || '' },
+    // Intervalle minimal entre deux notifications du même type pour un joueur
+    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000 }
+  },
+
+  // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
+  purchases: {
+    revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || '',
+    webhookAuth: process.env.REVENUECAT_WEBHOOK_AUTH || '',
+    premiumEntitlement: process.env.PREMIUM_ENTITLEMENT || 'plus',
+    perks: { extraBuildQueue: 1, productionBonus: 0.05 }
+  },
+
+  // E-mail (address verification, password reset). provider: log (dev/tests) | smtp | resend.
+  // When a real provider is configured, trading with other players requires a verified address.
+  email: {
+    provider: process.env.EMAIL_PROVIDER || 'log',
+    from: process.env.EMAIL_FROM || 'Imperium Antiquitas <no-reply@imperium-antiquitas.local>',
+    smtpUrl: process.env.SMTP_URL || '',
+    resendKey: process.env.RESEND_API_KEY || '',
+    logFile: process.env.EMAIL_LOG_FILE || '',
+    publicUrl: process.env.PUBLIC_URL || `http://localhost:${parseInt(process.env.PORT, 10) || 3000}`,
+    enforce: ['smtp', 'resend'].includes(process.env.EMAIL_PROVIDER || 'log') && process.env.REQUIRE_VERIFIED_EMAIL !== 'false'
+  },
 
   // Map
   map: {
@@ -20,11 +54,38 @@ const config = {
     spawnEdgeDelta: 100
   },
 
-  // Rate limiting
+  // Rate limiting (keyed by player once authenticated, by IP otherwise — mobile carriers share IPs)
   rateLimit: {
     windowMs: 60 * 1000,
-    maxAuth: 5,   // 5 login attempts per minute (was 10 - too weak)
-    maxApi: 60    // 60 API requests per minute (was 100)
+    maxAuth: parseInt(process.env.RATE_MAX_AUTH, 10) || 20,
+    maxRegister: parseInt(process.env.RATE_MAX_REGISTER, 10) || 10,   // sign-ups per IP per minute
+    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240,
+    loginMaxFailures: 10,        // failed logins on one e-mail before it is locked...
+    loginLockMinutes: 15         // ...for this long (same 429 whether the account exists or not)
+  },
+
+  // Market rules (anti multi-account feeding): offers need a Market, bounded ratios, bounded count
+  market: {
+    maxRatio: 3,                 // 1:3 ... 3:1 between the two sides of an offer
+    maxActiveOffers: 10,
+    requireBuilding: true        // MARKET level >= 1 to post / accept offers and to send resources
+  },
+
+  // Generic input bounds
+  limits: {
+    maxAmount: 1e9,
+    maxRecruitCount: 10000
+  },
+
+  // City layout: ring slots 1-19 (0 = Main Hall), typed field slots 101-118
+  city: {
+    maxSlot: 19,
+    fieldSlots: {
+      LUMBER: [101, 102, 103, 104],
+      QUARRY: [105, 106, 107, 108],
+      IRON_MINE: [109, 110, 111, 112],
+      FARM: [113, 114, 115, 116, 117, 118]
+    }
   },
 
   // Build queue
@@ -54,34 +115,60 @@ const config = {
       SIEGE: 1200
     },
     // Tier time multipliers (GDD unit_training_times.json)
-    tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 }
+    tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 },
+    siegeWorkshopLevel: 5,
+    maxBatchesPerBuilding: 5     // recruit batches waiting in one building (each batch is paid up front)
   },
 
-  // Combat
+  // Combat (GDD combat_config.json + formulas)
   combat: {
-    maxRounds: 10,
-    wallBonusPerLevel: 0.03,
-    moatBonusPerLevel: 0.02,
-    heroBonusPerPoint: 0.01,
+    maxRounds: 15,
+    roundDamageFactor: 0.18,     // fraction of the damage applied per round (otherwise mutual annihilation in 1-2 rounds)
+    defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT: damage per hit = ATK × mods − 0.55 × DEF
+    minDamageRatio: 0.2,         // a hit always deals at least 20% of the raw attack
+    targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
+    siegeWallDamagePerUnit: 40,  // wall HP destroyed per surviving siege engine
+    wallHpPerLevel: 1000,
+    wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
+    wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level
+    moatBonusPerLevel: 0.005,    // GDD: +0.5% defender attack and defense per moat level
+    heroBonusPerPoint: 0.005,    // GDD: +0.5% per hero point...
+    heroBonusMax: 0.05,          // ...capped at +5%
+    heroXpPerKill: 0.25,         // GDD: XP per enemy unit destroyed
+    heroXpPerTribeKill: 1,       // XP per tribe unit destroyed when clearing a resource node
+    heroMaxLevel: 30,
     winnerLossMultiplier: 0.3,
-    loserLossBase: 0.7,
-    loserLossRandom: 0.3,
+    loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
+    raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
+    raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
     tierCoefficients: { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 },
-    // Combat triangle (GDD combat_config.json)
+    // Combat triangle (GDD combat_config.json), applied per attacker class / target class pair
     triangle: {
-      INFANTRY_vs_CAVALRY: 1.20,   // INF has +20% attack bonus vs CAV
-      CAVALRY_vs_ARCHER: 1.20,     // CAV has +20% attack bonus vs ARCH
-      ARCHER_vs_INFANTRY: 1.20     // ARCH has +20% attack bonus vs INF
+      INFANTRY_vs_CAVALRY: 1.20,
+      CAVALRY_vs_ARCHER: 1.20,
+      ARCHER_vs_INFANTRY: 1.20
     }
+  },
+
+  // Expeditions
+  expedition: {
+    powerDivisor: 7,             // army power / 7 ≈ 10 per base unit, 20 per elite
+    lossPctPerDifficulty: 0.02   // 2% of each unit group lost per difficulty level
   },
 
   // Tick (game loop)
   tick: {
     intervalMs: 30000,
     tickHours: 30 / 3600,
-    harvestPerTick: 50,   // 100/min at 30s ticks
+    leaseMs: 90000,              // only one process runs the tick: lease stored in the TickLock table
+    maxCatchUpHours: 6,          // after a restart or a late tick, production is caught up on real elapsed time, up to this
+    claimTimeoutMinutes: 5,      // an arrival whose resolution did not finish in this time is sent home
+    populationIntervalMinutes: 10,
+    expeditionsForActiveDays: 7, // new expeditions only for players seen in the last N days
+    harvestPerTick: 50,          // 100/min at 30s ticks
     regenDelayMinutes: 5,
-    tribeRespawnDelayMinutes: 10
+    tribeRespawnDelayMinutes: 10,
+    retentionDays: { reports: 30, expeditions: 7, offers: 30, analytics: 90 }
   },
 
   // Army
@@ -89,7 +176,8 @@ const config = {
     baseSpeedTilesPerSec: 1 / 30,  // 1 tile per 30 seconds at speed 50
     baseSpeed: 50,
     upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
-    starvationLossRate: 0.1
+    starvationLossRate: 0.1,       // per hour, armies standing in a city without food
+    starvationIntervalHours: 1
   },
 
   // Wounded
@@ -108,10 +196,10 @@ const config = {
     { minWall: 15, tier: 3, name: 'Ville Fortifiée', minSiege: 20 }
   ],
 
-  // Hideout
+  // Hideout (GDD: 1% of the stock hidden per level, 20% max)
   hideout: {
-    protectionPerLevel: 0.05,
-    maxProtection: 1.0,
+    protectionPerLevel: 0.01,
+    maxProtection: 0.20,
     raidStealRate: 0.5
   },
 
@@ -119,10 +207,18 @@ const config = {
   validFactions: ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN']
 };
 
-// Security: Crash if JWT secret is default in production
-if (config.isProduction && config.jwtSecret === 'monjeu-secret-change-this') {
-  console.error('FATAL: Using default JWT secret in production! Set JWT_SECRET environment variable.');
-  process.exit(1);
+// Security: the JWT secret is mandatory and must be strong, whatever the environment (a server deployed
+// without NODE_ENV=production must not silently fall back to a public default). Only an explicit
+// NODE_ENV=development or test may run without one.
+const DEV_ENV = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+if (!config.jwtSecret || config.jwtSecret.length < 32) {
+  if (DEV_ENV && !config.jwtSecret) {
+    config.jwtSecret = 'dev-only-secret-not-for-production-use-0000000000';
+    console.warn('WARN: JWT_SECRET absent, secret de développement utilisé (NODE_ENV=' + process.env.NODE_ENV + ')');
+  } else {
+    console.error(`FATAL: JWT_SECRET doit être défini et faire au moins 32 caractères (NODE_ENV=${process.env.NODE_ENV || 'non défini'}). Exemple : openssl rand -hex 32`);
+    process.exit(1);
+  }
 }
 
 module.exports = config;

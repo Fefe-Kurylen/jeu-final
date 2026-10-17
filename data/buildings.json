@@ -3,6 +3,7 @@
     {
       "key": "MAIN_HALL",
       "name": "Bâtiment principal",
+      "description": "Siège du pouvoir de la ville : chaque niveau réduit le temps de construction de tous les bâtiments et fixe le niveau maximal des autres bâtiments. Le seul bâtiment qui monte jusqu'au niveau 30.",
       "category": "BASE",
       "maxLevel": 30,
       "prereq": [],
@@ -27,6 +28,7 @@
     {
       "key": "RALLY_POINT",
       "name": "Place de rassemblement",
+      "description": "Les armées se rassemblent ici avant de partir. Son niveau détermine combien d'armées peuvent être en campagne en même temps.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -60,6 +62,7 @@
     {
       "key": "MARKET",
       "name": "Place du marché",
+      "description": "Place d'échanges avec les autres joueurs et le marchand itinérant. Chaque niveau abaisse la taxe du marchand et agrandit les convois.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -99,6 +102,7 @@
     {
       "key": "BARRACKS",
       "name": "Caserne",
+      "description": "Forme l'infanterie et les archers. Les unités intermédiaires se débloquent au niveau 7, l'élite au niveau 15, et chaque niveau accélère l'entraînement.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -137,6 +141,7 @@
     {
       "key": "STABLE",
       "name": "Écurie",
+      "description": "Élève et équipe la cavalerie. Cavalerie intermédiaire au niveau 7, élite au niveau 15 ; chaque niveau accélère l'entraînement.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -174,6 +179,7 @@
     {
       "key": "WORKSHOP",
       "name": "Atelier",
+      "description": "Construit les engins de siège, disponibles à partir du niveau 5. Chaque niveau accélère nettement leur fabrication.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -207,6 +213,7 @@
     {
       "key": "ACADEMY",
       "name": "Académie",
+      "description": "Lieu de savoir qui réduit le temps de construction et prépare les recherches. Requise pour l'Écurie et l'Atelier.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -237,6 +244,7 @@
     {
       "key": "FORGE",
       "name": "Forge",
+      "description": "Affûte les armes et renforce les armures : chaque niveau augmente la défense de toutes les troupes qui défendent la ville.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -267,6 +275,7 @@
     {
       "key": "FARM",
       "name": "Ferme",
+      "description": "Champ de céréales qui nourrit la population et les troupes. Plus son niveau est élevé, plus la récolte horaire est importante.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -298,6 +307,7 @@
     {
       "key": "LUMBER",
       "name": "Bûcheron",
+      "description": "Camp de bûcherons qui produit le bois de construction, heure après heure.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -329,6 +339,7 @@
     {
       "key": "QUARRY",
       "name": "Carrière de pierre",
+      "description": "Carrière d'où l'on extrait la pierre des murs et des monuments.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -360,6 +371,7 @@
     {
       "key": "IRON_MINE",
       "name": "Mine de fer",
+      "description": "Mine d'où l'on tire le fer des armes et des outils.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -391,6 +403,7 @@
     {
       "key": "SILO",
       "name": "Silo à céréales",
+      "description": "Réserve de céréales : fixe la quantité maximale de nourriture que la ville peut stocker.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -421,6 +434,7 @@
     {
       "key": "WAREHOUSE",
       "name": "Dépôt de ressources",
+      "description": "Entrepôt de bois, de pierre et de fer : fixe la capacité de stockage de ces trois ressources.",
       "category": "BASE",
       "maxLevel": 20,
       "prereq": [
@@ -451,6 +465,7 @@
     {
       "key": "HIDEOUT",
       "name": "Cachette",
+      "description": "Cache secrète qui soustrait une part des ressources aux pillards, jusqu'à 20 % au niveau 20.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -480,6 +495,7 @@
     {
       "key": "HEALING_TENT",
       "name": "Tente de soins",
+      "description": "Soigne une partie des soldats tombés au combat : plus son niveau est élevé, plus de blessés reviennent dans les rangs.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -509,6 +525,7 @@
     {
       "key": "WALL",
       "name": "Mur",
+      "description": "Rempart de la ville : donne un bonus de défense aux troupes et doit être abattu par les engins de siège avant un assaut. Il se répare avec le temps.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -539,6 +556,7 @@
     {
       "key": "MOAT",
       "name": "Douves",
+      "description": "Fossé rempli d'eau au pied du mur : renforce l'attaque et la défense des défenseurs.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -573,6 +591,7 @@
     {
       "key": "MILL",
       "name": "Moulin",
+      "description": "Moulin à vent qui augmente la production de céréales de toute la ville (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -591,6 +610,7 @@
     {
       "key": "BAKERY",
       "name": "Boulangerie",
+      "description": "Fournil qui augmente encore la production de céréales (5 niveaux). Demande un Moulin au niveau 5.",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -611,6 +631,7 @@
     {
       "key": "GREAT_SILO",
       "name": "Grand Silo",
+      "description": "Réserve fortifiée de céréales : la part qu'elle protège ne peut jamais être pillée.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -630,6 +651,7 @@
     {
       "key": "GREAT_WAREHOUSE",
       "name": "Grand Dépôt",
+      "description": "Entrepôt fortifié : le bois, la pierre et le fer qu'il protège ne peuvent jamais être pillés.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -649,6 +671,7 @@
     {
       "key": "GREAT_BARRACKS",
       "name": "Grande Caserne",
+      "description": "Seconde caserne : recrute aussi l'infanterie et les archers et accélère leur formation de 4 % par niveau. Demande une Caserne au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -672,6 +695,7 @@
     {
       "key": "GREAT_STABLE",
       "name": "Grande Écurie",
+      "description": "Seconde écurie : recrute aussi la cavalerie et accélère sa formation de 4 % par niveau. Demande une Écurie au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -694,6 +718,7 @@
     {
       "key": "EMBASSY",
       "name": "Ambassade",
+      "description": "Siège de la diplomatie : permet de rejoindre une alliance au niveau 5 et d'en fonder une au niveau 7.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -718,6 +743,7 @@
     {
       "key": "TREASURE_CHAMBER",
       "name": "Chambre au Trésor",
+      "description": "Chambre forte qui frappe monnaie : produit de l'or chaque jour et conditionne le Grand Silo et le Grand Dépôt.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -738,6 +764,7 @@
     {
       "key": "HERO_MANSION",
       "name": "Domus du Héros",
+      "description": "Demeure du héros : donne accès à son équipement et à ses expéditions depuis la ville.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -759,6 +786,7 @@
     {
       "key": "WATCHTOWER",
       "name": "Tour de Guet",
+      "description": "Guette l'horizon : prévient des attaques en approche, révèle l'attaquant au niveau 10 et ses effectifs au niveau 15, et déjoue les espions.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -790,6 +818,7 @@
     {
       "key": "FOUNDRY",
       "name": "Fonderie",
+      "description": "Fonderie qui augmente la production de fer de la ville (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -810,6 +839,7 @@
     {
       "key": "STONEMASON",
       "name": "Tailleur de Pierre",
+      "description": "Atelier du tailleur de pierre qui augmente la production de pierre (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -830,6 +860,7 @@
     {
       "key": "SAWMILL",
       "name": "Scierie",
+      "description": "Scierie qui augmente la production de bois (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -850,6 +881,7 @@
     {
       "key": "RESIDENCE",
       "name": "Résidence",
+      "description": "Résidence du gouverneur : réduit le temps de construction et formera les colons des futures villes.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -877,6 +909,7 @@
     {
       "key": "TRADE_OFFICE",
       "name": "Comptoir de Commerce",
+      "description": "Comptoir des caravanes : agrandit la capacité de transport des armées et des convois marchands.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -896,6 +929,7 @@
     {
       "key": "ROMAN_THERMAE",
       "name": "Thermes",
+      "description": "Bains publics de Rome : les blessés guérissent plus vite et davantage de soldats survivent à leurs blessures.",
       "category": "FACTION",
       "faction": "ROME",
       "maxLevel": 20,
@@ -918,6 +952,7 @@
     {
       "key": "GALLIC_BREWERY",
       "name": "Brasserie",
+      "description": "Brasserie de cervoise : rend les défenseurs gaulois plus coriaces face aux assauts.",
       "category": "FACTION",
       "faction": "GAUL",
       "maxLevel": 20,
@@ -939,6 +974,7 @@
     {
       "key": "GREEK_TEMPLE",
       "name": "Temple",
+      "description": "Temple des dieux de l'Olympe : davantage de soldats grecs reviennent blessés plutôt que morts.",
       "category": "FACTION",
       "faction": "GREEK",
       "maxLevel": 20,
@@ -961,6 +997,7 @@
     {
       "key": "EGYPTIAN_IRRIGATION",
       "name": "Poste d'Irrigation",
+      "description": "Canaux d'irrigation du Nil : augmentent toute la production de la ville.",
       "category": "FACTION",
       "faction": "EGYPT",
       "maxLevel": 20,
@@ -983,6 +1020,7 @@
     {
       "key": "HUN_WAR_TENT",
       "name": "Tente de Guerre",
+      "description": "Tente du chef de guerre hun : réduit l'entretien des troupes et sauve davantage de blessés.",
       "category": "FACTION",
       "faction": "HUN",
       "maxLevel": 20,
@@ -1005,6 +1043,7 @@
     {
       "key": "SULTAN_DESERT_OUTPOST",
       "name": "Poste du Désert",
+      "description": "Poste caravanier du Sultanat : réduit l'entretien des troupes et facilite les échanges.",
       "category": "FACTION",
       "faction": "SULTAN",
       "maxLevel": 20,
