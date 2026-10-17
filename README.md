@@ -30,7 +30,7 @@ npm run test:smoke   # navigateur (Playwright), bureau et téléphone
 
 - `docs/DEPLOIEMENT.md` : variables, migrations, boucle de jeu, limites, plateformes
 - `docs/APP-STORE.md` : publication sur les stores
-- `docs/ART-PIPELINE.md`, `docs/PROMPTS-GRAPHIQUES.md` et `docs/LISTE-GRAPHISMES.md` (inventaire et état de chaque image, `node tools/liste-graphismes.cjs`) : production des graphismes
+- `docs/ART-PIPELINE.md`, `docs/PROMPTS-GRAPHIQUES.md`, `docs/LISTE-GRAPHISMES.md` (inventaire et état de chaque image, `node tools/liste-graphismes.cjs`) et `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (compléments, animations) : production des graphismes
 - `art/incoming/README.md` : déposer des images peintes à intégrer
 
 ## Principes du serveur

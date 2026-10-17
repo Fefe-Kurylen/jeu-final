@@ -152,7 +152,7 @@ Icônes restantes : ${missingIcons.length ? missingIcons.join(', ') : 'aucune'}.
 
 Vérifié en octobre 2026 en relevant toutes les images que le client référence (icônes, scènes, carte, ville, héros, replay,
 boutique) : **tout ce qui s'affiche en jeu est dans l'inventaire ci-dessus**. Restent des éléments dessinés par le code,
-quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). À produire après l'inventaire, par ordre d'intérêt :
+quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). Fiches détaillées, prompts et animations : \`docs/GUIDE-COMPLEMENTS-ANIMATIONS.md\`. À produire après l'inventaire, par ordre d'intérêt :
 
 | Besoin | Images | Taille | Pourquoi |
 |---|---|---|---|

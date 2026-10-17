@@ -13,4 +13,5 @@ Règles :
 - par lots : ce qui manque garde le rendu 3D.
 
 Commande d'intégration : `node tools/repaint.cjs --import=art/incoming` puis vérification et commit.
+Animations : une bande de phases dans une seule image (cases égales, même personnage), je la découpe en `nom_0.png`, `nom_1.png`… ; fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 Référence complète des sujets et prompts : `docs/PROMPTS-GRAPHIQUES.md` ; inventaire et état de chaque image (peinte ou encore en rendu 3D), ordre conseillé : `docs/LISTE-GRAPHISMES.md`.
