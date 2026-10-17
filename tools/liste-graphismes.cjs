@@ -4,12 +4,17 @@ const path = require('path');
 const root = path.join(__dirname, '..') + '/';
 const m3d = JSON.parse(fs.readFileSync(root + 'frontend/assets/images/3d/manifest.json', 'utf8'));
 const painted = new Set(JSON.parse(fs.readFileSync(root + 'frontend/assets/images/painted/manifest.json', 'utf8')).files);
+const buildingsData = JSON.parse(fs.readFileSync(root + 'data/buildings.json', 'utf8')).buildings;
+const { BUILDING: SUBJECT, FACTION: ARCHI } = require('./repaint/prompts.cjs');
+// Un bâtiment de faction (Thermes, Brasserie…) n'est jamais affiché chez une autre civilisation : ses rendus 3D
+// dans les autres dossiers ne sont pas à produire
+const foreignFaction = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3)?(?:_snow)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !!(d && d.faction && d.faction !== m[1]); };
 const cat = (c) => m3d.categories[c] || [];
 const n = (list) => list.length, p = (list) => list.filter(f => painted.has(f)).length;
 const row = (label, list, size, usage) => `| ${label} | ${n(list)} | ${p(list)} | **${n(list) - p(list)}** | ${size} | ${usage} |`;
 const FACTIONS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const FN = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
-const b = cat('buildings');
+const b = cat('buildings').filter(f => !foreignFaction(f));
 const bsel = (f, v) => b.filter(x => x.startsWith(`buildings/${f}/`) && (v === 'cur' ? !/_t1|_t3|_snow/.test(x) : v === 't1' ? /_t1\.webp$/.test(x) : v === 't3' ? /_t3\.webp$/.test(x) : /_snow\.webp$/.test(x)));
 const cell = (list) => `${p(list)} / ${n(list)}`;
 const walls = cat('walls'), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
@@ -53,7 +58,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
-1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 39 bâtiments × 6 civilisations. Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
+1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
 4. **Carte du monde** : villes (${n(mapCities)}), ressources (${n(mapRes)}), relief et eau (${n(mapTerrain)}), armées en marche (${n(mapUnits)}).
@@ -68,7 +73,7 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — \`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`
 
-39 bâtiments (liste dans \`docs/PROMPTS-GRAPHIQUES.md\` § 3), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+34 bâtiments par civilisation (33 communs + son bâtiment de faction ; liste détaillée par civilisation dans \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
 **_t3** (niveaux 14-20, monumentale). La version **_snow** de chacune (ville du biome neige) est reportée. Taille 1024×1024, cadre « building ».
 
 | Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant (hors neige) | Neige (_snow, reportée) |
@@ -175,4 +180,47 @@ Mises de côté pour l'instant (elles ne concernent que les villes fondées dans
 Le relief enneigé de la carte du monde (\`map/terrain/snow_*\`, \`frozen*\`) et les ressources \`_snow\` restent dans l'inventaire : tout le monde les voit sur la carte.
 `;
 fs.writeFileSync(root + 'docs/LISTE-GRAPHISMES.md', md);
+
+// ---- docs/LISTE-BATIMENTS-PAR-FACTION.md : les 34 bâtiments d'une civilisation, dans l'ordre où le joueur les voit
+const ORDER = ['MAIN_HALL', 'FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WAREHOUSE', 'SILO', 'RALLY_POINT', 'BARRACKS', 'MARKET', 'ACADEMY', 'FORGE', 'STABLE', 'WALL', 'HEALING_TENT', 'HIDEOUT', 'WATCHTOWER', 'EMBASSY', 'HERO_MANSION', 'RESIDENCE', 'WORKSHOP', 'MILL', 'SAWMILL', 'STONEMASON', 'FOUNDRY', 'BAKERY', 'TREASURE_CHAMBER', 'GREAT_SILO', 'GREAT_WAREHOUSE', 'MOAT', 'TRADE_OFFICE', 'GREAT_BARRACKS', 'GREAT_STABLE'];
+const factionBuilding = Object.fromEntries(buildingsData.filter(x => x.faction).map(x => [x.faction, x.key]));
+const unlockText = (d) => (d.prereq || []).length ? d.prereq.map(p => `${buildingsData.find(x => x.key === p.key)?.name || p.key} ${p.level}`).join(', ') : '—';
+const mark = (file) => painted.has(file) ? '✅' : '☐';
+let bf = `# Bâtiments à produire, civilisation par civilisation
+
+Chaque civilisation affiche **34 bâtiments** : 33 communs et son bâtiment de faction. Les cinq bâtiments des autres
+civilisations (Thermes, Brasserie, Temple, Poste d'irrigation, Tente de guerre, Poste du désert) ne sont jamais montrés
+chez elle : inutile de les peindre pour elle.
+
+Pour chaque bâtiment, trois images (1024×1024, fond transparent, cadre « building ») : **courant** (niveaux 7-13, fichier \`CLÉ.png\`),
+**palier 1** (niveaux 1-6, \`CLÉ_t1.png\`, version petite et simple) et **palier 3** (niveaux 14-20, \`CLÉ_t3.png\`, version monumentale).
+Soit 102 images par civilisation. Les versions enneigées (\`_snow\`) sont reportées. Les quatre champs (Ferme, Bûcheron, Carrière, Mine)
+ont en plus leurs sprites de champ (\`fields/…\`), listés dans \`docs/LISTE-GRAPHISMES.md\`.
+
+Prompt = style commun + consigne de cadrage + composition « building » + **sujet** ci-dessous + **architecture de la civilisation**
+(voir \`docs/PROMPTS-GRAPHIQUES.md\` § 1 et § 4 ; le kit \`node tools/repaint.cjs --kit=<dossier>\` fournit le prompt complet et l'image guide de chaque fichier).
+Ordre conseillé : celui du tableau (ce que le joueur construit et voit en premier). ✅ = déjà peint, ☐ = à produire.
+
+Généré par \`node tools/liste-graphismes.cjs\`.
+
+`;
+for (const civ of FACTIONS) {
+  const keys = [...ORDER, factionBuilding[civ]];
+  const files = keys.flatMap(k => [`buildings/${civ}/${k}.webp`, `buildings/${civ}/${k}_t1.webp`, `buildings/${civ}/${k}_t3.webp`]);
+  const done = files.filter(x => painted.has(x)).length;
+  bf += `## ${FN[civ]} (\`buildings/${civ}/\`) — ${files.length - done} images à produire sur ${files.length} (${done} peintes)
+
+Architecture à ajouter à chaque prompt : *${ARCHI[civ]}*
+
+| # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
+|---|---|---|---|---|---|---|---|
+`;
+  keys.forEach((k, i) => {
+    const d = buildingsData.find(x => x.key === k) || { name: k };
+    bf += `| ${i + 1} | \`${k}\` | ${d.name} | ${SUBJECT[k] || ''} | ${unlockText(d)} | ${mark(`buildings/${civ}/${k}.webp`)} | ${mark(`buildings/${civ}/${k}_t1.webp`)} | ${mark(`buildings/${civ}/${k}_t3.webp`)} |\n`;
+  });
+  bf += '\n';
+}
+fs.writeFileSync(root + 'docs/LISTE-BATIMENTS-PAR-FACTION.md', bf);
+console.log('docs/LISTE-BATIMENTS-PAR-FACTION.md écrit');
 console.log('docs/LISTE-GRAPHISMES.md écrit :', n(all), 'visuels,', p(all), 'peints,', n(all) - p(all), 'restants');

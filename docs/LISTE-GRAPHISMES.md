@@ -12,10 +12,10 @@ Généré par `node tools/liste-graphismes.cjs` à partir des manifestes `fronte
 
 | | Images |
 |---|---|
-| Visuels affichés par le jeu, hors neige et animations | **1076** |
-| Déjà peints | 200 |
-| Restant à produire | **876** |
-| Variantes du biome neige, **reportées à plus tard** (bâtiments et enceinte `_snow`, champs, parcelles et décors enneigés) | 808 (dont 83 déjà peintes) |
+| Visuels affichés par le jeu, hors neige et animations | **986** |
+| Déjà peints | 189 |
+| Restant à produire | **797** |
+| Variantes du biome neige, **reportées à plus tard** (bâtiments et enceinte `_snow`, champs, parcelles et décors enneigés) | 718 (dont 72 déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | 72 |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
 
@@ -24,7 +24,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
-1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 39 bâtiments × 6 civilisations. Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
+1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : `docs/LISTE-BATIMENTS-PAR-FACTION.md`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
 4. **Carte du monde** : villes (14), ressources (15), relief et eau (28), armées en marche (29).
@@ -39,20 +39,20 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — `buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png`
 
-39 bâtiments (liste dans `docs/PROMPTS-GRAPHIQUES.md` § 3), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+34 bâtiments par civilisation (33 communs + son bâtiment de faction ; liste détaillée par civilisation dans `docs/LISTE-BATIMENTS-PAR-FACTION.md`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
 **_t3** (niveaux 14-20, monumentale). La version **_snow** de chacune (ville du biome neige) est reportée. Taille 1024×1024, cadre « building ».
 
 | Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant (hors neige) | Neige (_snow, reportée) |
 |---|---|---|---|---|---|
-| Rome | 20 / 39 | 0 / 39 | 0 / 39 | **97** | 0 / 117 |
-| Gaule | 39 / 39 | 0 / 39 | 0 / 39 | **78** | 37 / 117 |
-| Grèce | 5 / 39 | 0 / 39 | 0 / 39 | **112** | 7 / 117 |
-| Égypte | 39 / 39 | 0 / 39 | 0 / 39 | **78** | 39 / 117 |
-| Huns | 0 / 39 | 0 / 39 | 0 / 39 | **117** | 0 / 117 |
-| Sultanat | 0 / 39 | 0 / 39 | 0 / 39 | **117** | 0 / 117 |
-| **Total** | 103 / 234 | 0 / 234 | 0 / 234 | **599** | 83 / 702 |
+| Rome | 20 / 34 | 0 / 34 | 0 / 34 | **82** | 0 / 102 |
+| Gaule | 34 / 34 | 0 / 34 | 0 / 34 | **68** | 32 / 102 |
+| Grèce | 4 / 34 | 0 / 34 | 0 / 34 | **98** | 6 / 102 |
+| Égypte | 34 / 34 | 0 / 34 | 0 / 34 | **68** | 34 / 102 |
+| Huns | 0 / 34 | 0 / 34 | 0 / 34 | **102** | 0 / 102 |
+| Sultanat | 0 / 34 | 0 / 34 | 0 / 34 | **102** | 0 / 102 |
+| **Total** | 92 / 204 | 0 / 204 | 0 / 204 | **520** | 72 / 612 |
 
-Priorité : le palier courant des 6 civilisations (131 restants), puis _t1, puis _t3. Neige reportée.
+Priorité : le palier courant des 6 civilisations (112 restants), puis _t1, puis _t3. Neige reportée.
 
 ### 3.2 Champs, parcelles, décors, textures de sol
 
@@ -139,7 +139,7 @@ Mises de côté pour l'instant (elles ne concernent que les villes fondées dans
 
 | Catégorie | Images | Déjà peintes |
 |---|---|---|
-| Bâtiments `buildings/<CIV>/<CLÉ>[_t1|_t3]_snow.png` | 702 | 83 |
+| Bâtiments `buildings/<CIV>/<CLÉ>[_t1|_t3]_snow.png` | 612 | 72 |
 | Enceinte `walls/<CIV>/…_snow.png` | 90 | 0 |
 | Champs `fields/snow/…`, parcelles `plots/snow_<0|1>.png`, décors `props/snowpine.png` et `props/snowrock.png` | 16 | 0 |
 
