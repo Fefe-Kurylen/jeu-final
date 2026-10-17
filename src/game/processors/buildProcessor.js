@@ -8,6 +8,8 @@ const { buildingsData } = require('../../config/gamedata');
 const { getStorageAtLevel } = require('../../utils/calculations');
 const { lockCity } = require('../../utils/db');
 const { updatePlayerPopulation } = require('./worldProcessor');
+const { getFactionBonus } = require('../../utils/calculations');
+const { factionsData } = require('../../config/gamedata');
 
 const BASE_STORAGE = 1000;
 
@@ -54,7 +56,10 @@ async function syncAllCityStorage() {
 
 // Wall HP scales with the wall level (GDD: HP in % of the level's max); the new level starts intact
 async function syncWallHp(cityId, wallLevel, db = prisma) {
-  const max = config.combat.wallHpPerLevel * Math.max(1, wallLevel);
+  // Bonus de faction « wallHealth » (Égypte +20 %) : points de vie du mur
+  const city = await db.city.findUnique({ where: { id: cityId }, select: { player: { select: { faction: true } } } });
+  const bonus = 1 + (getFactionBonus(city?.player?.faction, 'wallHealth', factionsData) || 0) / 100;
+  const max = Math.round(config.combat.wallHpPerLevel * Math.max(1, wallLevel) * bonus);
   await db.city.update({ where: { id: cityId }, data: { wallMaxHp: max, wallHp: max } });
 }
 
@@ -120,4 +125,4 @@ async function processBuilds(now, { playerId = null } = {}) {
   }
 }
 
-module.exports = { processBuilds, syncCityStorage, syncAllCityStorage };
+module.exports = { processBuilds, syncCityStorage, syncAllCityStorage, syncWallHp };

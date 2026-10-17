@@ -106,7 +106,7 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
 
   const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus;
-  const wallBonus = 1 + (defenderWallLevel * config.combat.wallBonusPerLevel) * fb(opts.defenderFaction, 'wallHealth');
+  const wallBonus = 1 + defenderWallLevel * config.combat.wallBonusPerLevel;   // « wallHealth » (Égypte) porte sur les points de vie du mur, pas sur ce bonus
   const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
   const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * fb(opts.defenderFaction, 'cityDefense') * fb(opts.defenderFaction, 'unitDefense');
   const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
@@ -128,9 +128,9 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 
 // Detailed round-by-round combat used for city attacks (replayable)
 function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0) {
-  // Wall: +1%/level to the defenders' defense (EGYPT wallHealth makes it more effective);
+  // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead);
   // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
-  const wallBonus = 1 + wallLevel * config.combat.wallBonusPerLevel * fb(defenderFaction, 'wallHealth');
+  const wallBonus = 1 + wallLevel * config.combat.wallBonusPerLevel;
   const moatBonus = 1 + moatLevel * config.combat.moatBonusPerLevel;
 
   const attackers = makeSide(attackerUnits, {

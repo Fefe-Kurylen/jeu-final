@@ -229,7 +229,7 @@ function getBuildingEffect(key, level) {
     'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     // Defence
     'FORGE': `Défense de la ville: +${(level * 0.5).toFixed(1)}%`,
-    'WALL': `Défense: +${level}% · réparation +${level}% plus rapide`,
+    'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (player?.faction === 'EGYPT' ? 1.2 : 1)))} PV${player?.faction === 'EGYPT' ? ' (+20 % Égypte)' : ''} · réparation +${level}% plus rapide`,
     'MOAT': `Défenseurs: +${(level * 0.5).toFixed(1)}% attaque et défense`,
     'HIDEOUT': `Ressources cachées des raids: ${Math.min(level, 20)}%`,
     'GREAT_SILO': `Nourriture à l'abri des raids: ${formatNum(curve(3600, 600000))}`,

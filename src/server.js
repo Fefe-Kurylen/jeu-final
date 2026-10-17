@@ -165,6 +165,7 @@ async function repairData() {
   // Recomputed from the stored units at every boot: idempotent, and respawned tribes already use this scale.
   {
     const { Prisma } = require('@prisma/client');
+    const { factionsData } = require('./config/gamedata');
     const rows = unitsData.map(u => Prisma.sql`(${u.key}, ${((u.stats?.attack || 0) + (u.stats?.defense || 0)) * (config.combat.tierCoefficients[u.tier] || 1)}::float)`);
     await prisma.$executeRaw`
       UPDATE "ResourceNode" n SET "defenderPower" = sub.power
@@ -179,10 +180,13 @@ async function repairData() {
       WHERE n.id = sub.id AND n."defenderPower" <> sub.power`;
   }
   // Wall HP follows the wall level
+  // (bonus de faction « wallHealth », Égypte +20 %, compris)
+  const wallBonusByFaction = Object.entries(factionsData).map(([f, d]) => [f, 1 + ((d.bonuses || []).find(b => b.type === 'wallHealth')?.value || 0) / 100]).filter(([, k]) => k !== 1);
+  const wallCase = wallBonusByFaction.length ? Prisma.sql`CASE ${Prisma.join(wallBonusByFaction.map(([f, k]) => Prisma.sql`WHEN p.faction = ${f} THEN ${k}::float`), ' ')} ELSE 1.0 END` : Prisma.sql`1.0`;
   await prisma.$executeRaw`
     UPDATE "City" c SET "wallMaxHp" = m.max, "wallHp" = LEAST(c."wallHp", m.max)
-    FROM (SELECT c2.id, ${config.combat.wallHpPerLevel} * GREATEST(1, COALESCE(w.level, 1)) AS max
-          FROM "City" c2 LEFT JOIN "CityBuilding" w ON w."cityId" = c2.id AND w.key = 'WALL') m
+    FROM (SELECT c2.id, ROUND(${config.combat.wallHpPerLevel} * GREATEST(1, COALESCE(w.level, 1)) * ${wallCase}) AS max
+          FROM "City" c2 JOIN "Player" p ON p.id = c2."playerId" LEFT JOIN "CityBuilding" w ON w."cityId" = c2.id AND w.key = 'WALL') m
     WHERE m.id = c.id AND c."wallMaxHp" <> m.max`;
 }
 
