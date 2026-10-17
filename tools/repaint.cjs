@@ -28,6 +28,7 @@ if ((process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_US
   process.exit(r.status ?? 1);
 }
 const { promptFor, TEXTURE: TEXTURES_LIST, DECAL: DECALS_LIST, EDGE: EDGES_LIST } = require('./repaint/prompts.cjs');
+const T = require('./repaint/targets.cjs');   // registre de toutes les images livrables (sprites, textures, compléments, animations)
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.error('playwright requis : npm i -D playwright && npx playwright install chromium'); process.exit(1); }
 
@@ -67,19 +68,16 @@ for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   if (!promptFor(f)) continue;
   targets.push({ cat: c, file: f });
 }
-// Textures de sol, décalques et bordures : pas de rendu 3D ni de guide ; importables tels quels (--import) et présents dans le kit
-const flatTargets = [
-  ...Object.keys(TEXTURES_LIST).map(n => ({ cat: 'terrain', file: `terrain/${n}.webp`, flat: '1024x1024', opaque: true })),
-  ...Object.keys(EDGES_LIST).map(n => ({ cat: 'terrain', file: `terrain/${n}.webp`, flat: '1024x256', opaque: true })),
-  ...Object.keys(DECALS_LIST).map(n => ({ cat: 'decals', file: `decals/${n}.webp`, flat: '1024x1024', opaque: false }))
-];
-const allTargets = [...targets, ...flatTargets];
+// Toutes les images livrables (sprites du manifeste 3D, textures, décalques, bordures, compléments, animations)
+const allTargets = T.buildAllTargets();
+const targetIndex = T.buildIndex(allTargets);
 if (only) targets = targets.filter(t => only.test(t.file));
 if (!args.force && !args.reprocess && !args['manifest-only'] && !TAG) targets = targets.filter(t => !fs.existsSync(path.join(OUT, t.file)));
 if (limit) targets = targets.slice(0, limit);
 
 // Taille de génération : carrée pour les sprites, portrait / paysage pour les scènes
 function sizeFor(t) {
+  if (!t.guide) return T.deliverySize(t);   // compléments et animations : taille de livraison de leur famille
   if (t.cat !== 'scenes') return '1024x1024';
   const n = path.basename(t.file, '.webp');
   if (n === 'auth-portrait' || n.startsWith('hero-')) return '1024x1536';
@@ -101,6 +99,15 @@ async function compose(page, srcPath, size) {
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (d[(j * W + i) * 4 + 3] > 200) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
     return { png: c.toDataURL('image/png').split(',')[1], k, ox, oy, sw: img.width, sh: img.height, bbox: [x0, y0, x1, y1] };
   }, { b64, W, H });
+}
+
+// ---- composition sans rendu 3D (compléments du guide) : le cadre du sprite centré dans le canevas, même règle que compose()
+function composeFrame([sw, sh], size) {
+  const [W, H] = size.split('x').map(Number);
+  const margin = 0.04;
+  const k = Math.min(W * (1 - 2 * margin) / sw, H * (1 - 2 * margin) / sh);
+  const dw = sw * k, dh = sh * k;
+  return { sw, sh, k, ox: (W - dw) / 2, oy: (H - dh) / 2, bbox: null, png: null };
 }
 
 // ---- recalage : le résultat est aligné sur la boîte alpha du guide (largeur et bas-centre, échelle bornée),
@@ -236,49 +243,61 @@ async function importUserImages(dir) {
   const files = [];
   const walk = (d) => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (/\.(png|jpe?g|webp)$/i.test(f)) files.push(p); } };
   walk(dir);
-  const byRel = new Map(allTargets.map(t => [t.file.replace(/\.webp$/, '').toLowerCase(), t]));
   const browser = await chromium.launch(); const page = await browser.newPage(); await page.setContent('<!doctype html><html><body></body></html>');
-  const found = []; let skipped = 0;
+  const found = []; const unknown = []; let stores = 0;
+  // Ajuste l'image (ou la case i/n d'une bande) dans un canevas W×H sans déformation, ancrée en bas pour les
+  // personnages et décors, centrée sinon ; détoure un fond uni (magenta, vert, ou couleur des coins) quand l'image n'a pas d'alpha
+  const fit = async (b64, mime, W, H, i, n, anchor, keepOpaque) => page.evaluate(async ({ b64, mime, W, H, i, n, anchor, keepOpaque }) => {
+    const img = new Image(); img.src = `data:${mime};base64,${b64}`; await img.decode();
+    const cw = img.width / n, sx = cw * i;
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+    const k = Math.min(W / cw, H / img.height), dw = cw * k, dh = img.height * k;
+    x.drawImage(img, sx, 0, cw, img.height, (W - dw) / 2, anchor === 'bottom' ? H - dh : (H - dh) / 2, dw, dh);
+    const id = x.getImageData(0, 0, W, H), d = id.data;
+    let opaque = 0; for (let j = 3; j < d.length; j += 4) if (d[j] === 255) opaque++;
+    if (!keepOpaque && opaque > d.length / 4 * 0.98) {   // pas de transparence : détourage du fond uni (couleur des coins)
+      const cs = [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]].map(([px, py]) => { const j = (py * W + px) * 4; return [d[j], d[j + 1], d[j + 2]]; });
+      const bg = cs[0].map((_, j) => cs.reduce((s, c) => s + c[j], 0) / 4);
+      const magenta = bg[0] > 170 && bg[2] > 170 && bg[1] < 100, green = bg[1] > 170 && bg[0] < 100 && bg[2] < 100;
+      for (let j = 0; j < d.length; j += 4) {
+        const r = d[j], g = d[j + 1], b = d[j + 2];
+        let al;
+        if (magenta || green) {   // incrustation chromatique : les pixels mêlés au fond (ombres, bords) gardent une transparence partielle
+          const m = magenta ? (Math.min(r, b) - g) / 255 : (g - Math.max(r, b)) / 255;
+          al = Math.max(0, Math.min(1, (1 - m) * 1.08 - 0.08));
+          if (al > 0 && al < 1) { for (let c2 = 0; c2 < 3; c2++) d[j + c2] = Math.max(0, Math.min(255, Math.round((d[j + c2] - (1 - al) * bg[c2]) / al))); }
+        } else { const dist = Math.hypot(r - bg[0], g - bg[1], b - bg[2]); al = Math.max(0, Math.min(1, (dist - 22) / 36)); }
+        d[j + 3] = Math.round(al * 255);
+      }
+      x.putImageData(id, 0, 0);
+    }
+    return c.toDataURL('image/png').split(',')[1];
+  }, { b64, mime, W, H, i, n, anchor, keepOpaque });
   for (const f of files) {
-    // correspondance par chemin relatif, ou par nom plat (buildings__HUN__MAIN_HALL.png), insensible à la casse
-    const rel = path.relative(dir, f).replace(/\\/g, '/').replace(/\.(png|jpe?g|webp)$/i, '').replace(/^guides\//, '').replace(/__/g, '/').toLowerCase();
-    const t = byRel.get(rel) || byRel.get(rel.replace(/^.*?\/(buildings|fields|plots|props|map|figures|heroes|scenes|walls|ui|terrain|decals)\//, '$1/'));
-    if (!t) { skipped++; continue; }
+    const rel = path.relative(dir, f).replace(/\\/g, '/');
+    const r = T.resolveDelivered(rel, targetIndex);
+    if (!r) { unknown.push(rel); continue; }
+    if (r.store) {   // visuel de boutique : copié tel quel dans store/
+      const dest = path.join(ROOT, r.store.file); fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.copyFileSync(f, dest); stores++; continue;
+    }
     const mime = /\.png$/i.test(f) ? 'image/png' : /\.webp$/i.test(f) ? 'image/webp' : 'image/jpeg';
     const b64 = fs.readFileSync(f).toString('base64');
-    const [W, H] = (t.flat || sizeFor(t)).split('x').map(Number);
-    const png = await page.evaluate(async ({ b64, mime, W, H }) => {
-      const img = new Image(); img.src = `data:${mime};base64,${b64}`; await img.decode();
-      const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
-      // l'image est ajustée dans le canevas de génération (centrée, sans déformation)
-      const k = Math.min(W / img.width, H / img.height); x.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
-      const id = x.getImageData(0, 0, W, H), d = id.data;
-      let opaque = 0; for (let i = 3; i < d.length; i += 4) if (d[i] === 255) opaque++;
-      if (opaque > d.length / 4 * 0.98) {   // pas de transparence : détourage du fond uni (couleur des coins)
-        const cs = [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]].map(([px, py]) => { const i = (py * W + px) * 4; return [d[i], d[i + 1], d[i + 2]]; });
-        const bg = cs[0].map((_, j) => cs.reduce((s, c) => s + c[j], 0) / 4);
-        const magenta = bg[0] > 170 && bg[2] > 170 && bg[1] < 100, green = bg[1] > 170 && bg[0] < 100 && bg[2] < 100;
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i], g = d[i + 1], b = d[i + 2];
-          let al;
-          if (magenta || green) {   // incrustation chromatique : les pixels mêlés au fond (ombres, bords) gardent une transparence partielle
-            const m = magenta ? (Math.min(r, b) - g) / 255 : (g - Math.max(r, b)) / 255;
-            al = Math.max(0, Math.min(1, (1 - m) * 1.08 - 0.08));
-            if (al > 0 && al < 1) { for (let c = 0; c < 3; c++) d[i + c] = Math.max(0, Math.min(255, Math.round((d[i + c] - (1 - al) * bg[c]) / al))); }   // couleur « démêlée » du fond
-          } else { const dist = Math.hypot(r - bg[0], g - bg[1], b - bg[2]); al = Math.max(0, Math.min(1, (dist - 22) / 36)); }
-          d[i + 3] = Math.round(al * 255);
-        }
-        x.putImageData(id, 0, 0);
-      }
-      return c.toDataURL('image/png').split(',')[1];
-    }, { b64, mime, W, H });
-    const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
-    fs.mkdirSync(path.dirname(rawFile), { recursive: true });
-    fs.writeFileSync(rawFile, Buffer.from(png, 'base64'));
-    found.push(t);
+    const list = r.strip ? r.strip.targets.map((t, i) => ({ t, i, n: r.strip.n })) : [{ t: r.target, i: 0, n: 1 }];
+    for (const { t, i, n } of list) {
+      // cibles « canvas » (sprites avec guide, porte, échafaudage) : image dans le canevas de génération, recalée ensuite ;
+      // cibles « direct » et « flat » : directement à la taille finale du fichier
+      const [W, H] = t.fit === 'canvas' ? sizeFor(t).split('x').map(Number) : T.frameSize(t);
+      const anchor = ['prop', 'figure', 'stage'].includes(t.frame) ? 'bottom' : 'center';
+      const png = await fit(b64, mime, W, H, i, n, anchor, !!t.opaque);
+      const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
+      fs.mkdirSync(path.dirname(rawFile), { recursive: true });
+      fs.writeFileSync(rawFile, Buffer.from(png, 'base64'));
+      found.push(t);
+    }
   }
   await browser.close();
-  console.log(`import : ${found.length} image(s) reconnue(s), ${skipped} ignorée(s) (nom inconnu)`);
+  console.log(`import : ${found.length} image(s) reconnue(s)${stores ? `, ${stores} visuel(s) de boutique copié(s)` : ''}, ${unknown.length} ignorée(s) (nom inconnu)`);
+  for (const u of unknown) console.log(`  ✖ ${u}${T.suggest(u, targetIndex).length ? ' — vouliez-vous dire : ' + T.suggest(u, targetIndex).join(', ') : ''}`);
   return found;
 }
 
@@ -298,10 +317,10 @@ async function importUserImages(dir) {
     while (next < targets.length) {
       const t = targets[next++];
       try {
-        if (t.flat) {   // texture, décalque ou bordure : image brute importée → WebP à la taille finale, sans recalage
+        if (t.fit === 'flat' || t.fit === 'direct') {   // texture, décalque, bordure, phase d'animation, icône… : image brute importée → WebP à la taille finale
           const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
           if (!fs.existsSync(rawFile)) throw new Error('image absente (à déposer via --import)');
-          const [W, H] = t.flat.split('x').map(Number);
+          const [W, H] = T.frameSize(t);
           const webp = await page.evaluate(async ({ b64, W, H, opaque }) => {
             const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
             const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
@@ -315,8 +334,8 @@ async function importUserImages(dir) {
           done++; continue;
         }
         const size = sizeFor(t);
-        const meta = await compose(page, path.join(SRC, t.file), size);
-        const prompt = promptFor(t.file, { bg: BG });
+        const meta = t.guide ? await compose(page, path.join(SRC, t.file), size) : composeFrame(T.frameSize(t), size);
+        const prompt = t.guide ? promptFor(t.file, { bg: BG }) : t.role;
         const safe = t.file.replace(/\.webp$/, '').replace(/\//g, '__');
         if (args.dry) {
           fs.mkdirSync(DRY, { recursive: true });
@@ -329,7 +348,7 @@ async function importUserImages(dir) {
           else if (fs.existsSync(rawFile)) b64 = fs.readFileSync(rawFile).toString('base64');
           else if (args.reprocess) throw new Error('réponse brute absente');
           else { b64 = await callApi(prompt, meta.png, size); fs.mkdirSync(path.dirname(rawFile), { recursive: true }); fs.writeFileSync(rawFile, Buffer.from(b64, 'base64')); }
-          const r = await postProcess(page, b64, meta, size, !['scenes', 'uiframes'].includes(t.cat));
+          const r = await postProcess(page, b64, meta, size, !!t.guide && !['scenes', 'uiframes'].includes(t.cat));
           const outFile = path.join(args.mock ? DRY : TAG ? path.join(DRY, TAG) : OUT, t.file);
           fs.mkdirSync(path.dirname(outFile), { recursive: true });
           fs.writeFileSync(outFile, Buffer.from(r.webp, 'base64'));

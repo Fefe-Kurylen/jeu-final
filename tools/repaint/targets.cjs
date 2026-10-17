@@ -1,0 +1,182 @@
+// ============================================================================
+// targets.cjs — registre de TOUTES les images que le jeu peut recevoir : sprites du manifeste 3D (avec guide),
+// textures / décalques / bordures (sans guide), compléments et animations du guide (docs/GUIDE-COMPLEMENTS-ANIMATIONS.md).
+// Utilisé par repaint.cjs (import, kit) et check-incoming.cjs (vérification des livraisons).
+// Chaque cible : { file (chemin final .webp dans painted/), cat, frame (famille → taille en pixels du fichier final),
+//                  fit ('canvas' : composition du kit sur un canevas 1024, 'direct' : mise à l'échelle dans le cadre,
+//                  'flat' : copie à taille fixe), anim { base, n, i } pour une phase d'animation, role (à quoi ça sert) }
+// ============================================================================
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..', '..');
+const prompts = require('./prompts.cjs');
+const { TEXTURE, DECAL, EDGE, ICON_DESC, BUILDING, PROP, MAP, RES, TERRAIN, CLASS, SCENE } = prompts;
+
+const CIVS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+const CIV_FR = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
+// Taille en pixels des fichiers finaux par famille (rendus 3D : cadre logique × 2)
+const FRAMES = { building: [260, 360], plot: [260, 360], field: [260, 360], prop: [128, 192], map: [512, 512], figure: [256, 384], bust: [128, 128], icon: [128, 128], stage: [512, 768], header: [480, 240], battlefield: [1280, 480], sceneP: [1080, 1920], sceneL: [1920, 1080], button: [320, 112], frame: [384, 384], plate: [320, 192], puff: [128, 128], fx: [256, 256], texture: [1024, 1024], edge: [1024, 256], decal: [1024, 1024], store: null };
+// Taille de livraison attendue (ce que le graphiste produit) par famille
+const DELIVERY = { building: '1024x1024', plot: '1024x1024', field: '1024x1024', prop: '512x768', map: '1024x1024', figure: '1024x1536', bust: '1024x1024', icon: '1024x1024', stage: '1024x1536', header: '1536x1024', battlefield: '1536x1024', sceneP: '1024x1536', sceneL: '1536x1024', button: '1024x1024', frame: '1024x1024', plate: '1024x1024', puff: '1024x1024', fx: '512x512', texture: '1024x1024', edge: '1024x256', decal: '1024x1024' };
+
+let buildingsData = null;
+try { buildingsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'buildings.json'), 'utf8')).buildings; } catch (e) { buildingsData = []; }
+const bName = (key) => buildingsData.find(b => b.key === key)?.name || key;
+
+// ---- famille d'un fichier du manifeste 3D ----
+function frameOfFile(file) {
+  if (file.startsWith('buildings/')) return 'building';
+  if (file.startsWith('plots/')) return 'plot';
+  if (file.startsWith('fields/')) return 'field';
+  if (file.startsWith('walls/')) return 'building';
+  if (file.startsWith('props/puff') || file.startsWith('props/ripple')) return 'puff';
+  if (file.startsWith('props/')) return 'prop';
+  if (file.startsWith('map/')) return 'map';
+  if (file.startsWith('figures/')) return 'figure';
+  if (file.startsWith('busts/') || /^heroes\/\w+_bust\.webp$/.test(file)) return 'bust';
+  if (file.startsWith('heroes/')) return 'stage';
+  if (/^scenes\/auth-portrait/.test(file)) return 'sceneP';
+  if (/^scenes\/auth-landscape/.test(file)) return 'sceneL';
+  if (/^scenes\/hero-/.test(file)) return 'stage';
+  if (/^scenes\/header-/.test(file)) return 'header';
+  if (/^scenes\/battlefield/.test(file)) return 'battlefield';
+  if (/^ui\/btn-/.test(file)) return 'button';
+  if (/^ui\/frame-/.test(file)) return 'frame';
+  if (/^ui\/(plate-|bar-)/.test(file)) return 'plate';
+  if (file.startsWith('ui/')) return 'icon';
+  if (file.startsWith('logo/')) return 'icon';
+  return 'icon';
+}
+
+// ---- rôle (à quoi sert l'image dans le jeu) ----
+function describe(file) {
+  let m;
+  if ((m = file.match(/^buildings\/(\w+)\/([A-Z_]+?)(_t1|_t3)?(_snow)?\.webp$/))) {
+    const tier = m[3] === '_t1' ? 'niveaux 1-6' : m[3] === '_t3' ? 'niveaux 14-20' : 'niveaux 7-13';
+    return `Bâtiment « ${bName(m[2])} » de ${CIV_FR[m[1]] || m[1]}, ${tier}${m[4] ? ', version enneigée' : ''} : vue ville, vignettes des panneaux et fiches`;
+  }
+  if ((m = file.match(/^walls\/(\w+)\/(\d)_(seg_x|seg_z|tower)(_low)?(_snow)?\.webp$/))) {
+    const what = m[3] === 'tower' ? 'tour d\'angle' : `courtine ${m[3] === 'seg_x' ? 'de face droite' : 'de face gauche'}${m[4] ? ' (muret bas, devant la ville)' : ' (haute, derrière)'}`;
+    return `Enceinte de ${CIV_FR[m[1]]}, palier ${m[2]} du Mur (${['1-6', '7-13', '14-20'][m[2] - 1]}) : ${what}${m[5] ? ', enneigée' : ''}`;
+  }
+  if ((m = file.match(/^fields\/(\w+)\/([A-Z_]+)_(\d)\.webp$/))) return `Champ « ${bName(m[2])} » niveaux ${['1-6', '7-13', '14-20'][m[3] - 1]}, biome ${m[1]} : troisième anneau de la ville`;
+  if ((m = file.match(/^plots\/(\w+)_(\d)\.webp$/))) return `Parcelle au sol (variante ${m[2]}) du biome ${m[1]} : sous chaque bâtiment et pour les emplacements libres`;
+  if ((m = file.match(/^props\/flag_(\w+)_(\d)\.webp$/))) return `Drapeau ${m[1]}, phase ${m[2]}/8 (animé, conservé en 3D)`;
+  if ((m = file.match(/^props\/(puff|ripple)_(\d)\.webp$/))) return `${m[1] === 'puff' ? 'Fumée' : 'Onde d\'eau'}, phase ${m[2]}/4 (animé)`;
+  if ((m = file.match(/^props\/(\w+)\.webp$/)) && PROP[m[1]]) return `Décor de scène « ${m[1]} » : autour de la ville et des champs (${PROP[m[1]]})`;
+  if ((m = file.match(/^map\/cities\/(\w+)\.webp$/))) return `Carte du monde : ville « ${m[1]} » (${MAP[m[1]] ? MAP[m[1]].slice(0, 60) : ''}…)`;
+  if ((m = file.match(/^map\/resources\/(\w+?)(_desert|_snow)?\.webp$/))) return `Carte du monde : point de ressource ${m[1]}${m[2] ? ` (${m[2].slice(1)})` : ''}`;
+  if ((m = file.match(/^map\/terrain\/(\w+)\.webp$/))) return `Carte du monde : relief « ${m[1]} » (${(TERRAIN[m[1]] || '').slice(0, 70)})`;
+  if ((m = file.match(/^map\/units\/(\w+?)(_[A-Z]+)?\.webp$/))) return `Carte du monde : armée en marche « ${m[1]} »${m[2] ? ' de ' + (CIV_FR[m[2].slice(1)] || m[2].slice(1)) : ''} (aussi dans le replay de bataille)`;
+  if ((m = file.match(/^figures\/([A-Z]+)_(\w+)\.webp$/))) return `Figurine en pied : ${CLASS[m[1]] || m[1]} de ${CIV_FR[m[2]]} (fiches d'unité, cartes de recrutement)`;
+  if ((m = file.match(/^busts\/([A-Z]+)(?:_(\w+))?\.webp$/))) return `Buste-jeton : ${CLASS[m[1]] || m[1]}${m[2] ? ' de ' + CIV_FR[m[2]] : ' (neutre)'} (listes, rapports, composition d'armée)`;
+  if ((m = file.match(/^heroes\/(\w+)_bust\.webp$/))) return `Buste du héros de ${CIV_FR[m[1]]} (cartes d'armée, choix de civilisation)`;
+  if ((m = file.match(/^heroes\/(\w+)\.webp$/))) return `Héros de ${CIV_FR[m[1]]} en pied`;
+  if ((m = file.match(/^scenes\/(\S+)\.webp$/))) return `Scène « ${m[1]} » : ${m[1].startsWith('auth') ? 'écran de connexion' : m[1].startsWith('hero-') ? 'estrade de l\'écran du héros' : m[1].startsWith('header-') ? 'bandeau en tête d\'écran' : 'fond du replay de bataille'}`;
+  if ((m = file.match(/^ui\/item_(\w+)\.webp$/))) return `Icône de l'objet du héros « ${m[1]} » (inventaire, équipement)`;
+  if ((m = file.match(/^ui\/btn-(\w+?)(-pressed)?\.webp$/))) return `Habillage : bouton ${m[1]}${m[2] ? ' enfoncé' : ''}`;
+  if ((m = file.match(/^ui\/(frame-\w+|plate-\w+|bar-\w+)\.webp$/))) return `Habillage : ${m[1]} (cadres, plaques, barres de l'interface)`;
+  if ((m = file.match(/^ui\/fx_(\w+)_(\d)\.webp$/))) return `Effet d'interface « ${m[1]} », phase ${m[2]}`;
+  if ((m = file.match(/^ui\/crest_(\w+)\.webp$/))) return `Blason de ${CIV_FR[m[1]]} (inscription, alliance, étiquettes de carte)`;
+  if ((m = file.match(/^ui\/(\w+)\.webp$/))) return `Icône d'interface « ${m[1]} »${ICON_DESC[m[1]] ? ` (${ICON_DESC[m[1]]})` : ''}`;
+  if ((m = file.match(/^terrain\/edge_(\w+)\.webp$/))) return `Bordure de transition « ${m[1]} » (rives, routes)`;
+  if ((m = file.match(/^terrain\/(\w+)\.webp$/))) return `Texture de sol « ${m[1]} » : ${TEXTURE_ROLE[m[1]] || 'sol'}`;
+  if ((m = file.match(/^decals\/(\w+)\.webp$/))) return `Décalque au sol « ${m[1]} » (${DECAL[m[1]] || ''}), semé dans la ville et aux alentours`;
+  if (file.startsWith('logo/')) return 'Emblème (icône de l\'application, favicon, splash)';
+  const ex = EXTRAS.find(t => t.file === file);
+  return ex ? ex.role : 'Image du jeu';
+}
+const TEXTURE_ROLE = {
+  grass: 'sol de base prairie', dirt: 'terre battue (plaza, avenues, route par défaut)', sand: 'sol de base désert', snow: 'sol de base neige',
+  grass_lawn: 'sol de l\'enceinte en prairie', grass_dark: 'sous-bois, lisières', grass_dry: 'alentours de la ville en prairie', grass_flowers: 'prairie fleurie', grass_hills: 'carte du monde (prairie)',
+  dirt_packed: 'terre battue, plaza hunnique', mud: 'boue', gravel: 'gravier', sand_ripples: 'sol de l\'enceinte en désert, carte', sand_rocky: 'alentours en désert', cracked_earth: 'terre craquelée',
+  snow_fresh: 'sol de l\'enceinte en neige', snow_trampled: 'avenues et plaza en neige', tundra: 'alentours en neige, carte',
+  water_lake: 'étangs de la ville, lacs de la carte', water_deep: 'mers et grands lacs', water_river: 'rivières', water_shallow: 'oasis, rives, douves', ice: 'lacs gelés, douves en neige',
+  plaza_ROME: 'plaza de Rome', plaza_GAUL: 'plaza de Gaule', plaza_GREEK: 'plaza de Grèce', plaza_EGYPT: 'plaza d\'Égypte', plaza_HUN: 'plaza des Huns', plaza_SULTAN: 'plaza du Sultanat',
+  cobble: 'avenues de la ville', flagstone: 'dallages', road_dirt: 'route hors de la ville', road_paved: 'routes de la carte', path_sand: 'pistes du désert',
+  soil_tilled: 'champs vides', wheat: 'fermes développées', orchard: 'vergers'
+};
+
+// ---- compléments et animations (sans guide 3D) ----
+const EXTRAS = [];
+const add = (file, frame, role, extra = {}) => EXTRAS.push({ file, cat: file.split('/')[0], frame, fit: frame === 'building' ? 'canvas' : 'direct', role, ...extra });
+const anim = (base, n, frame, role) => { for (let i = 0; i < n; i++) add(`${base}_${i}.webp`, frame, `${role} — phase ${i + 1}/${n}`, { anim: { base, n, i } }); };
+for (const c of CIVS) add(`walls/${c}/gate.webp`, 'building', `Porte de la ville de ${CIV_FR[c]} (arête sud-ouest de l'enceinte)`);
+add('props/sign_build.webp', 'prop', 'Panneau « construire ici » sur les emplacements libres');
+for (const c of CIVS) add(`ui/crest_${c}.webp`, 'icon', `Blason de ${CIV_FR[c]}`);
+for (const d of ['forest', 'desert', 'mountain', 'ruins']) add(`scenes/expedition-${d}.webp`, 'header', `Vignette de destination d'expédition : ${d}`);
+add('ui/btn-round.webp', 'frame', 'Bouton rond des bulles d\'action'); add('ui/btn-round-pressed.webp', 'frame', 'Bouton rond des bulles d\'action, enfoncé');
+for (const k of [1, 2, 3]) add(`props/scaffold_${k}.webp`, 'building', `Échafaudage de chantier, taille ${k} (paliers ${['1-6', '7-13', '14-20'][k - 1]})`);
+for (const v of ['a', 'b', 'c']) anim(`props/villager_${v}`, 6, 'prop', `Villageois ${v} qui marche dans la ville`);
+anim('props/flame', 4, 'prop', 'Flamme de torche (tours, porte, remparts)'); anim('props/brazier', 4, 'prop', 'Brasero de la plaza');
+anim('props/worker', 4, 'prop', 'Ouvrier de chantier au marteau');
+anim('anim/mill_sails', 6, 'fx', 'Ailes du moulin'); anim('anim/sparks', 4, 'fx', 'Étincelles de la forge'); anim('anim/furnace', 4, 'fx', 'Feu de la fonderie');
+for (const u of ['hoplite', 'archer', 'cavalry', 'catapult', 'merchant']) anim(`map/units/${u}_walk`, 6, 'map', `Cycle de marche sur la carte : ${u}`);
+for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
+add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx', 'Replay : pierre de catapulte'); anim('fx/impact', 3, 'fx', 'Replay : éclat d\'impact');
+anim('map/fx/battle', 4, 'fx', 'Carte : combat en cours'); anim('map/fx/fire', 4, 'fx', 'Carte : ville en feu'); anim('map/fx/campfire', 4, 'fx', 'Carte : feu de camp des tribus');
+anim('ui/fx_sparkle', 6, 'fx', 'Interface : construction terminée'); anim('ui/fx_levelup', 6, 'fx', 'Interface : niveau supérieur'); anim('ui/fx_coins', 4, 'fx', 'Interface : butin reçu');
+anim('props/snowflake', 3, 'fx', 'Ambiance : flocon'); anim('props/leaf', 3, 'fx', 'Ambiance : feuille'); anim('props/dust_devil', 4, 'fx', 'Ambiance : tourbillon de sable'); anim('props/bird', 3, 'fx', 'Ambiance : oiseau');
+for (const c of CIVS) anim(`heroes/${c}_idle`, 3, 'stage', `Héros de ${CIV_FR[c]} en pose d'attente`);
+anim('props/cart', 4, 'prop', 'Charrette sur la route'); anim('props/horse_idle', 4, 'prop', 'Chevaux devant l\'écurie');
+// Visuels hors jeu (copiés dans store/, pas dans painted/)
+const STORE = [
+  { file: 'store/ic_stat_notify.png', role: 'Icône de notification Android (blanc sur transparent)', size: [96, 96] },
+  { file: 'store/feature-graphic.png', role: 'Bannière Google Play', size: [1024, 500] }
+];
+
+// ---- toutes les cibles ----
+function buildAllTargets() {
+  const manifest3d = JSON.parse(fs.readFileSync(path.join(ROOT, 'frontend', 'assets', 'images', '3d', 'manifest.json'), 'utf8'));
+  const out = [];
+  for (const c of Object.keys(manifest3d.categories)) for (const f of manifest3d.categories[c]) {
+    if (!f.endsWith('.webp')) continue;
+    if (c === 'flags' || c === 'effects' || c === 'logo') continue;   // animés en 3D, emblème : conservés
+    if (!prompts.promptFor(f)) continue;
+    out.push({ cat: c, file: f, frame: frameOfFile(f), fit: 'canvas', guide: true, role: describe(f) });
+  }
+  for (const n of Object.keys(TEXTURE)) out.push({ cat: 'terrain', file: `terrain/${n}.webp`, frame: 'texture', fit: 'flat', opaque: true, role: describe(`terrain/${n}.webp`) });
+  for (const n of Object.keys(EDGE)) out.push({ cat: 'terrain', file: `terrain/${n}.webp`, frame: 'edge', fit: 'flat', opaque: true, role: describe(`terrain/${n}.webp`) });
+  for (const n of Object.keys(DECAL)) out.push({ cat: 'decals', file: `decals/${n}.webp`, frame: 'decal', fit: 'flat', opaque: false, role: describe(`decals/${n}.webp`) });
+  out.push(...EXTRAS);
+  return out;
+}
+function frameSize(t) { return FRAMES[t.frame] || [1024, 1024]; }
+function deliverySize(t) { return DELIVERY[t.frame] || '1024x1024'; }
+
+// ---- correspondance d'un fichier livré ----
+// Clé de recherche : chemin relatif sans extension, séparateurs « __ » acceptés, insensible à la casse, dossier guides/ ignoré,
+// préfixes parasites avant une catégorie connue retirés
+const CATS = 'buildings|fields|plots|props|map|figures|busts|heroes|scenes|walls|ui|terrain|decals|anim|fx|store';
+function lookupKey(rel) {
+  let k = rel.replace(/\\/g, '/').replace(/\.(png|jpe?g|webp)$/i, '').replace(/^guides\//, '').replace(/__/g, '/').toLowerCase();
+  const m = k.match(new RegExp(`(?:^|/)(${CATS})/(.*)$`));
+  if (m) k = `${m[1]}/${m[2]}`;
+  return k;
+}
+function buildIndex(all) {
+  const byKey = new Map();
+  for (const t of all) byKey.set(t.file.replace(/\.webp$/, '').toLowerCase(), t);
+  const anims = new Map();   // base -> { base, n, frame, fit, targets[] }
+  for (const t of all) if (t.anim) { const a = anims.get(t.anim.base) || { base: t.anim.base, n: t.anim.n, frame: t.frame, fit: t.fit, targets: [] }; a.targets[t.anim.i] = t; anims.set(t.anim.base, a); }
+  return { byKey, anims };
+}
+// Résout un fichier livré : { target } pour une image simple, { strip } pour une bande d'animation, { store } pour un visuel de boutique
+function resolveDelivered(rel, index) {
+  const k = lookupKey(rel);
+  if (index.byKey.has(k)) return { target: index.byKey.get(k) };
+  const k2 = k.replace(/_strip$/, '');
+  if (index.anims.has(k2)) return { strip: index.anims.get(k2) };
+  for (const s of STORE) if (s.file.replace(/\.png$/, '').toLowerCase() === k || s.file.replace(/^store\//, '').replace(/\.png$/, '').toLowerCase() === k) return { store: s };
+  return null;
+}
+// Suggestions de noms proches (distance de Levenshtein sur les clés)
+function suggest(rel, index, n = 3) {
+  const k = lookupKey(rel);
+  const keys = [...index.byKey.keys(), ...[...index.anims.keys()].map(b => b.toLowerCase())];
+  const lev = (a, b) => { const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]); for (let j = 1; j <= b.length; j++) dp[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return dp[a.length][b.length]; };
+  const base = k.split('/').pop();
+  return keys.map(x => ({ x, d: Math.min(lev(k, x), lev(base, x.split('/').pop()) + 1) })).sort((a, b) => a.d - b.d).slice(0, n).filter(s => s.d <= Math.max(4, base.length / 2)).map(s => s.x);
+}
+
+module.exports = { FRAMES, DELIVERY, EXTRAS, STORE, CIVS, buildAllTargets, buildIndex, resolveDelivered, suggest, lookupKey, frameSize, deliverySize, describe, frameOfFile };

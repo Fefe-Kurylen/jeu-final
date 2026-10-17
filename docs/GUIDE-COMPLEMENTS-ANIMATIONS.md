@@ -21,6 +21,8 @@ Hand-painted isometric game asset in exactly the art style of the first referenc
   `A sprite sheet: N equal frames side by side in a single row, the exact same character at the exact same size and position in every frame, only the pose changes from one frame to the next; frame 1 … frame N: (description des phases).`
 - **Tailles** : décors et personnages de ville : cases 2:3 (512×768) ; unités de carte et effets : cases carrées (512×512) ; icônes et habillage : 1024×1024 ; textures : 1024×1024 répétables.
 - **Livraison** : dossier ou zip dans `art/incoming/`, par lots. Ce qui manque garde le rendu actuel (3D ou dessin du code).
+  Vérification avant import : `node tools/check-incoming.cjs art/incoming` (noms, rôles, tailles, transparence, cases des bandes) ;
+  import : `node tools/repaint.cjs --import=art/incoming` ; aperçu en jeu : `node tools/preview-art.cjs <FACTION> <biome>`.
   Intégration : `node tools/repaint.cjs --import=art/incoming`, puis je branche les nouvelles animations dans le code (ancrages, cadence) et je vérifie en jeu.
 
 ## 1. Liste récapitulative
