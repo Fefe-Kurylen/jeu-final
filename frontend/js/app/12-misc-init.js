@@ -400,6 +400,8 @@ async function dropItem(itemId) {
 window.onload = () => {
   if (token) {
     showGame();
+  } else {
+    loadWorldInfo();   // écran d'inscription : bonus de civilisation tels que le serveur les applique
   }
 };
 

@@ -50,7 +50,8 @@ const SKIP_DB_SETUP = nWorkers > 1 && process.env.SKIP_DB_SETUP === 'true';
 
 const config = require('./config');
 const prisma = require('./config/database');
-const { buildingsData, unitsData } = require('./config/gamedata');
+const { buildingsData, unitsData, factionsData } = require('./config/gamedata');
+const { Prisma } = require('@prisma/client');   // Prisma.sql / Prisma.join for the data repair queries
 const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 const { startGameLoop, releaseTickLease } = require('./game/tick');
@@ -164,8 +165,6 @@ async function repairData() {
   // Tribe power on the same scale as an army's power (older seeds stored 100 × level × soldiers/100).
   // Recomputed from the stored units at every boot: idempotent, and respawned tribes already use this scale.
   {
-    const { Prisma } = require('@prisma/client');
-    const { factionsData } = require('./config/gamedata');
     const rows = unitsData.map(u => Prisma.sql`(${u.key}, ${((u.stats?.attack || 0) + (u.stats?.defense || 0)) * (config.combat.tierCoefficients[u.tier] || 1)}::float)`);
     await prisma.$executeRaw`
       UPDATE "ResourceNode" n SET "defenderPower" = sub.power
@@ -180,7 +179,7 @@ async function repairData() {
       WHERE n.id = sub.id AND n."defenderPower" <> sub.power`;
   }
   // Wall HP follows the wall level
-  // (bonus de faction « wallHealth », Égypte +20 %, compris)
+  // (bonus de faction « wallHealth » compris : points de vie du mur relevés pour l'Égypte, data/factions.json)
   const wallBonusByFaction = Object.entries(factionsData).map(([f, d]) => [f, 1 + ((d.bonuses || []).find(b => b.type === 'wallHealth')?.value || 0) / 100]).filter(([, k]) => k !== 1);
   const wallCase = wallBonusByFaction.length ? Prisma.sql`CASE ${Prisma.join(wallBonusByFaction.map(([f, k]) => Prisma.sql`WHEN p.faction = ${f} THEN ${k}::float`), ' ')} ELSE 1.0 END` : Prisma.sql`1.0`;
   await prisma.$executeRaw`

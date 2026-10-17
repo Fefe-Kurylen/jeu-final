@@ -14,6 +14,19 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
   for (const [k, slot, lvl] of [['BARRACKS', 3, 5], ['WALL', 11, 4], ['LUMBER', 101, 3], ['FARM', 113, 2]]) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
   const errors = [], failed = [], out = [];
   const b = await chromium.launch();
+  // Sign-up screen (no token): the civilization cards show the bonuses the server applies (/api/world/info -> factions)
+  {
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.addInitScript((a) => { window.API_SERVER = a.api; }, { api: API });
+    page.on('pageerror', e => errors.push(`[signup] PAGEERROR: ${e.message.slice(0, 200)}`));
+    await page.goto(WEB, { waitUntil: 'load', timeout: 60000 });
+    await page.waitForFunction(() => window.factionsData && Object.keys(window.factionsData).length >= 6, null, { timeout: 15000 }).catch(() => {});
+    const cards = await page.evaluate(() => Array.from(document.querySelectorAll('.faction-option[data-faction]')).map(c => [c.dataset.faction, c.querySelector('.faction-bonus')?.textContent || '', (window.factionsData?.[c.dataset.faction]?.bonuses || []).map(b => b.value)]));
+    const okCards = cards.length === 6 && cards.every(([, text, values]) => values.length === 2 && values.every(v => text.includes(`${v} %`)));
+    out.push(`signup faction cards: ${cards.length} cards, server values shown=${okCards}` + (okCards ? '' : ` contains "mismatch": ${JSON.stringify(cards).slice(0, 200)}`));
+    await ctx.close();
+  }
   for (const [label, vp] of [['desktop', { width: 1280, height: 800 }], ['mobile', { width: 390, height: 844, mobile: true }]]) {
     const ctx = await b.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.mobile ? 2 : 1, isMobile: !!vp.mobile, hasTouch: !!vp.mobile });
     const page = await ctx.newPage();

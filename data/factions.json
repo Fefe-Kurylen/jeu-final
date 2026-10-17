@@ -5,13 +5,13 @@
       "bonuses": [
         {
           "type": "siegeLossReduction",
-          "value": 10,
-          "description": "+10% réduction des pertes en siège (subi ou infligé)"
+          "value": 15,
+          "description": "+15% réduction des pertes en siège (subi ou infligé)"
         },
         {
           "type": "unitDefense",
-          "value": 5,
-          "description": "+5% défense des unités"
+          "value": 10,
+          "description": "+10% défense des unités"
         }
       ]
     },
@@ -20,13 +20,13 @@
       "bonuses": [
         {
           "type": "hideoutCapacity",
-          "value": 10,
-          "description": "+10% capacité de la cachette"
+          "value": 15,
+          "description": "+15% capacité de la cachette"
         },
         {
           "type": "cityDefense",
-          "value": 10,
-          "description": "+10% défense dans ses villes"
+          "value": 15,
+          "description": "+15% défense dans ses villes"
         }
       ]
     },
@@ -35,13 +35,13 @@
       "bonuses": [
         {
           "type": "buildTimeReduction",
-          "value": 10,
-          "description": "+10% réduction temps de construction"
+          "value": 15,
+          "description": "+15% réduction temps de construction"
         },
         {
           "type": "woundedConversion",
-          "value": 10,
-          "description": "+10% réduction des pertes (unités blessées au lieu de mortes)"
+          "value": 15,
+          "description": "+15% réduction des pertes (unités blessées au lieu de mortes)"
         }
       ]
     },
@@ -50,13 +50,13 @@
       "bonuses": [
         {
           "type": "transportCapacity",
-          "value": 10,
-          "description": "+10% capacité de transport des unités"
+          "value": 15,
+          "description": "+15% capacité de transport des unités"
         },
         {
           "type": "wallHealth",
-          "value": 20,
-          "description": "+20% santé des murs"
+          "value": 25,
+          "description": "+25% santé des murs"
         }
       ]
     },
@@ -65,13 +65,13 @@
       "bonuses": [
         {
           "type": "armySpeed",
-          "value": 15,
-          "description": "+15% vitesse armée"
+          "value": 20,
+          "description": "+20% vitesse armée"
         },
         {
           "type": "siegeAttack",
-          "value": 5,
-          "description": "+5% attaque lors des sièges"
+          "value": 10,
+          "description": "+10% attaque lors des sièges"
         }
       ]
     },
@@ -80,13 +80,13 @@
       "bonuses": [
         {
           "type": "siegeEngineAttack",
-          "value": 20,
-          "description": "+20% attaque aux bâtiments des engins de siège"
+          "value": 25,
+          "description": "+25% attaque aux bâtiments des engins de siège"
         },
         {
           "type": "defendingCityAttack",
-          "value": 10,
-          "description": "+10% attaque en défendant une de ses villes"
+          "value": 15,
+          "description": "+15% attaque en défendant une de ses villes"
         }
       ]
     }

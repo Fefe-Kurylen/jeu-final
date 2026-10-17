@@ -3,7 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { unitsData, buildingsData, itemsData } = require('../config/gamedata');
+const { unitsData, buildingsData, itemsData, factionsData } = require('../config/gamedata');
 const config = require('../config');
 const { getCityTier, getCityTierName } = require('../utils/calculations');
 
@@ -35,7 +35,9 @@ router.get('/world/info', async (req, res) => {
   try {
     const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
     const resourceCount = await prisma.resourceNode.count();
-    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount });
+    // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
+    const factions = Object.fromEntries(Object.entries(factionsData).map(([k, f]) => [k, { name: f.name, bonuses: (f.bonuses || []).map(b => ({ type: b.type, value: b.value, description: b.description })) }]));
+    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions });
   } catch (e) { sendError(res, e); }
 });
 

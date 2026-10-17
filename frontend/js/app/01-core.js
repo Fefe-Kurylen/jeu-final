@@ -449,6 +449,38 @@ async function showGame() {
   if (typeof window.onGameReady === 'function') window.onGameReady();   // masque le splash natif
 }
 
+// Bonus de civilisation tels que le serveur les applique (data/factions.json, reçus avec /api/world/info) :
+// valeur en % d'un bonus, avec repli sur la valeur connue si l'API n'a pas encore répondu
+function factionBonusPct(faction, type, fallback = 0) {
+  const b = window.factionsData?.[faction]?.bonuses?.find(x => x.type === type);
+  return b ? Number(b.value) || 0 : fallback;
+}
+const FACTION_BONUS_LABELS = {
+  unitDefense: v => `+${v} % défense des unités`,
+  siegeLossReduction: v => `−${v} % pertes en siège`,
+  cityDefense: v => `+${v} % défense chez soi`,
+  hideoutCapacity: v => `+${v} % cachette`,
+  buildTimeReduction: v => `−${v} % temps de construction`,
+  woundedConversion: v => `+${v} % blessés sauvés`,
+  wallHealth: v => `+${v} % points de vie des murs`,
+  transportCapacity: v => `+${v} % transport`,
+  armySpeed: v => `+${v} % vitesse des armées`,
+  siegeAttack: v => `+${v} % attaque en siège`,
+  siegeEngineAttack: v => `+${v} % dégâts des engins aux murs`,
+  defendingCityAttack: v => `+${v} % attaque en défense`
+};
+// Cartes de civilisation de l'inscription : les deux bonus, dans les termes du serveur
+function applyFactionBonusTexts() {
+  if (!window.factionsData) return;
+  document.querySelectorAll('.faction-option[data-faction]').forEach(card => {
+    const f = window.factionsData[card.dataset.faction];
+    const span = card.querySelector('.faction-bonus');
+    if (!f || !span) return;
+    const parts = (f.bonuses || []).map(b => (FACTION_BONUS_LABELS[b.type] ? FACTION_BONUS_LABELS[b.type](b.value) : b.description)).filter(Boolean);
+    if (parts.length) span.textContent = parts.join(' · ');
+  });
+}
+
 // Load world info to get dynamic world size
 async function loadWorldInfo() {
   try {
@@ -456,6 +488,7 @@ async function loadWorldInfo() {
     if (res.ok) {
       const info = await res.json();
       updateWorldSize(info.playerCount, info.worldSize);
+      if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }
   } catch (e) {

@@ -234,7 +234,8 @@ await call('viewport radius=999 (clamped)', 'GET', `/api/map/viewport?x=0&y=0&ra
 await call('viewport x=abc', 'GET', `/api/map/viewport?x=abc&y=0`, tA);
 const nodes = (view?.resourceNodes || []);
 console.log(`  viewport: cities=${(view?.cities || []).length} nodes=${nodes.length} armies=${(view?.armies || []).length}`);
-const defended = nodes.find(n => n.hasDefenders && !n.hasPlayerArmy && n.resourceType !== 'GOLD');
+// A defended node the army can actually walk to (the server refuses targets across water or mountains)
+const defended = nodes.find(n => n.hasDefenders && !n.hasPlayerArmy && n.resourceType !== 'GOLD' && Terrain.findPath(cityA.x, cityA.y, n.x, n.y));
 const undefendedId = sql(`SELECT id FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType"<>'GOLD' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 1`);
 sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0, amount=5000 WHERE id='${undefendedId}'`);
 await call('raid-resource on an undefended node -> 400', 'POST', `/api/army/${armyId}/raid-resource`, tA, { resourceNodeId: undefendedId }, 400);

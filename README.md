@@ -29,7 +29,7 @@ npm run test:smoke   # navigateur (Playwright), bureau et téléphone
 ## Documentation
 
 - `docs/DEPLOIEMENT.md` : variables, migrations, boucle de jeu, limites, plateformes
-- `docs/EQUILIBRAGE.md` : vérification de l'équilibrage (bonus de civilisation, unités, déplacements, courbes des bâtiments) et recommandations
+- `docs/EQUILIBRAGE.md` : vérification de l'équilibrage (bonus de civilisation, unités, déplacements, courbes des bâtiments) et réglages appliqués (coefficients de palier des unités)
 - `docs/APP-STORE.md` : publication sur les stores
 - `docs/ART-PIPELINE.md`, `docs/PROMPTS-GRAPHIQUES.md`, `docs/LISTE-GRAPHISMES.md` (inventaire et état de chaque image, `node tools/liste-graphismes.cjs`) et `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (compléments, animations) : production des graphismes
 - `art/incoming/README.md` : déposer des images peintes à intégrer
