@@ -458,7 +458,7 @@ function renderCompositionUnitRow(armyId, unitData) {
   return `
     <div class="comp-unit-row" data-unit="${unitKey}">
       <div class="comp-unit-info">
-        <span class="comp-unit-icon" style="border-color: ${tierColor}">${unitIconHtml(u.unitKey || unit?.key || '', 'unit-ico')}</span>
+        <span class="comp-unit-icon" style="border-color: ${tierColor}">${unitIconHtml(unitKey || unit?.key || '', 'unit-ico')}</span>
         <div class="comp-unit-details">
           <span class="comp-unit-name">${unit?.name || unitKey}</span>
           <span class="comp-unit-tier" style="color: ${tierColor}">${unit?.tier?.toUpperCase() || ''}</span>

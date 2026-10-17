@@ -7,7 +7,8 @@ const { unitsData } = require('../config/gamedata');
 const { getArmyCarryCapacity } = require('../utils/calculations');
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
-const { creditCity } = require('../utils/db');
+const config = require('../config');
+const { takeFromNode } = require('../utils/db');
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
 // raids on the same node from the same army cannot both be resolved.
@@ -48,7 +49,7 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
 
   if (combat.attackerWon) {
     await tx.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: newDefenderUnits, defenderPower: 0, lastDefeat: new Date() } });
-    if (army.heroId) await awardHeroXp(army.heroId, Math.floor(node.defenderPower * 0.5), tx);
+    if (army.heroId) await awardHeroXp(army.heroId, Math.floor(totalDefenderLosses * config.combat.heroXpPerTribeKill), tx);
   } else {
     await tx.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: newDefenderUnits, defenderPower: Math.floor(node.defenderPower * (1 - combat.defenderLossRate)) } });
   }
@@ -60,22 +61,20 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   return { success: combat.attackerWon, combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses: totalAttackerLosses, defenderLosses: totalDefenderLosses, attackerPower: combat.attackerPower, defenderPower: combat.defenderPower }, loot: null, message: combat.attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée' };
 }
 
-// Immediate loot after a tribe is beaten: the army fills its carry capacity from the node
+// Loot after a tribe is beaten: the army loads what it can carry and brings it home (deposited on return,
+// never teleported into the city); the node is debited atomically and never goes below zero.
+const CARRY_FIELD = { WOOD: 'carryWood', STONE: 'carryStone', IRON: 'carryIron', FOOD: 'carryFood', GOLD: 'carryGold' };
 async function collectResourceLoot(army, node, playerId, tx = prisma) {
-  const armyWithUnits = await tx.army.findUnique({ where: { id: army.id }, include: { units: true } });
-  const carryCapacity = getArmyCarryCapacity(armyWithUnits.units, unitsData);
-  const lootAmount = Math.min(carryCapacity, node.amount);
-  if (lootAmount <= 0) return {};
-  await tx.resourceNode.update({ where: { id: node.id }, data: { amount: { decrement: lootAmount } } });
-  if (node.resourceType === 'GOLD') {
-    await tx.player.update({ where: { id: playerId }, data: { gold: { increment: lootAmount } } });
-    return { GOLD: lootAmount };
-  }
-  const city = army.cityId
-    ? await tx.city.findUnique({ where: { id: army.cityId } })
-    : await tx.city.findFirst({ where: { playerId, isCapital: true } });
-  if (city) await creditCity(tx, city.id, { [node.resourceType.toLowerCase()]: lootAmount });
-  return { [node.resourceType]: lootAmount };
+  const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: true } });
+  if (!fresh) return {};
+  const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
+  const room = getArmyCarryCapacity(fresh.units, unitsData, fresh.hero) - carrying;
+  const field = CARRY_FIELD[node.resourceType];
+  if (!field || room <= 0) return {};
+  const taken = await takeFromNode(tx, node.id, room);
+  if (taken <= 0) return {};
+  await tx.army.update({ where: { id: army.id }, data: { [field]: { increment: taken } } });
+  return { [node.resourceType]: taken };
 }
 
 module.exports = { resolveTribeCombat, collectResourceLoot };

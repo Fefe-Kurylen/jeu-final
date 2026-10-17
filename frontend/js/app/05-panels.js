@@ -1100,15 +1100,13 @@ let _actionInProgress = false;
 // Recruit from building
 async function recruitFromBuilding(unitKey, buildingKey) {
   if (_actionInProgress) return;
-  _actionInProgress = true;
   const countInput = document.getElementById('recruit-count');
-  const count = parseInt(countInput?.value) || 1;
-  
-  if (count < 1) {
-    showToast('Nombre invalide', 'error');
+  const count = parseInt(countInput?.value);
+  if (!Number.isInteger(count) || count < 1 || count > 10000) {
+    showToast('Nombre invalide (1 à 10 000)', 'error');
     return;
   }
-  
+  _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
       method: 'POST',

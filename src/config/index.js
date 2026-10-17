@@ -7,7 +7,7 @@ const config = {
   // Server
   port: parseInt(process.env.PORT, 10) || 3000,
   isProduction: IS_PRODUCTION,
-  jwtSecret: process.env.JWT_SECRET || 'monjeu-secret-change-this',
+  jwtSecret: process.env.JWT_SECRET || '',   // validated below: mandatory and >= 32 chars outside development
   jwtExpiry: '7d',
 
   // Notifications push (APNs via HTTP/2 + JWT ES256, FCM v1 via compte de service) : inactif sans clés
@@ -46,7 +46,17 @@ const config = {
   rateLimit: {
     windowMs: 60 * 1000,
     maxAuth: parseInt(process.env.RATE_MAX_AUTH, 10) || 20,
-    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240
+    maxRegister: parseInt(process.env.RATE_MAX_REGISTER, 10) || 10,   // sign-ups per IP per minute
+    maxApi: parseInt(process.env.RATE_MAX_API, 10) || 240,
+    loginMaxFailures: 10,        // failed logins on one e-mail before it is locked...
+    loginLockMinutes: 15         // ...for this long (same 429 whether the account exists or not)
+  },
+
+  // Market rules (anti multi-account feeding): offers need a Market, bounded ratios, bounded count
+  market: {
+    maxRatio: 3,                 // 1:3 ... 3:1 between the two sides of an offer
+    maxActiveOffers: 10,
+    requireBuilding: true        // MARKET level >= 1 to post / accept offers and to send resources
   },
 
   // Generic input bounds
@@ -94,7 +104,8 @@ const config = {
     },
     // Tier time multipliers (GDD unit_training_times.json)
     tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 },
-    siegeWorkshopLevel: 5
+    siegeWorkshopLevel: 5,
+    maxBatchesPerBuilding: 5     // recruit batches waiting in one building (each batch is paid up front)
   },
 
   // Combat (GDD combat_config.json + formulas)
@@ -112,6 +123,7 @@ const config = {
     heroBonusPerPoint: 0.005,    // GDD: +0.5% per hero point...
     heroBonusMax: 0.05,          // ...capped at +5%
     heroXpPerKill: 0.25,         // GDD: XP per enemy unit destroyed
+    heroXpPerTribeKill: 1,       // XP per tribe unit destroyed when clearing a resource node
     heroMaxLevel: 30,
     winnerLossMultiplier: 0.3,
     loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
@@ -137,10 +149,14 @@ const config = {
     intervalMs: 30000,
     tickHours: 30 / 3600,
     leaseMs: 90000,              // only one process runs the tick: lease stored in the TickLock table
+    maxCatchUpHours: 6,          // after a restart or a late tick, production is caught up on real elapsed time, up to this
+    claimTimeoutMinutes: 5,      // an arrival whose resolution did not finish in this time is sent home
+    populationIntervalMinutes: 10,
+    expeditionsForActiveDays: 7, // new expeditions only for players seen in the last N days
     harvestPerTick: 50,          // 100/min at 30s ticks
     regenDelayMinutes: 5,
     tribeRespawnDelayMinutes: 10,
-    retentionDays: { reports: 30, expeditions: 7, offers: 30 }
+    retentionDays: { reports: 30, expeditions: 7, offers: 30, analytics: 90 }
   },
 
   // Army
@@ -179,10 +195,18 @@ const config = {
   validFactions: ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN']
 };
 
-// Security: Crash if JWT secret is default in production
-if (config.isProduction && config.jwtSecret === 'monjeu-secret-change-this') {
-  console.error('FATAL: Using default JWT secret in production! Set JWT_SECRET environment variable.');
-  process.exit(1);
+// Security: the JWT secret is mandatory and must be strong, whatever the environment (a server deployed
+// without NODE_ENV=production must not silently fall back to a public default). Only an explicit
+// NODE_ENV=development or test may run without one.
+const DEV_ENV = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+if (!config.jwtSecret || config.jwtSecret.length < 32) {
+  if (DEV_ENV && !config.jwtSecret) {
+    config.jwtSecret = 'dev-only-secret-not-for-production-use-0000000000';
+    console.warn('WARN: JWT_SECRET absent, secret de développement utilisé (NODE_ENV=' + process.env.NODE_ENV + ')');
+  } else {
+    console.error(`FATAL: JWT_SECRET doit être défini et faire au moins 32 caractères (NODE_ENV=${process.env.NODE_ENV || 'non défini'}). Exemple : openssl rand -hex 32`);
+    process.exit(1);
+  }
 }
 
 module.exports = config;

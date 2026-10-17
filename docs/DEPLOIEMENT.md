@@ -1,0 +1,86 @@
+# Déploiement et exploitation
+
+Ce document décrit comment l'API tourne en production et ce qu'il faut savoir pour la faire évoluer sans casser le monde.
+
+## Variables d'environnement
+
+Voir `.env.example` pour la liste commentée. Les deux obligatoires :
+
+| Variable | Rôle |
+|---|---|
+| `DATABASE_URL` | PostgreSQL. Ajouter `?sslmode=require` chez la plupart des hébergeurs. |
+| `JWT_SECRET` | Au moins 32 caractères (`openssl rand -hex 32`). Sans lui le serveur **refuse de démarrer**, quel que soit `NODE_ENV`. Seul `NODE_ENV=development` tolère son absence (secret de développement, avertissement au démarrage). |
+
+## Schéma de base de données : migrations versionnées
+
+Le schéma vit dans `prisma/schema.prisma` et son historique dans `prisma/migrations/` :
+
+- `0001_init` : le schéma tel qu'il existait quand le projet utilisait encore `prisma db push` ;
+- `0002_hardening` : cascades de suppression, colonnes mortes retirées, PV de mur fractionnaires, version de jeton, marqueur d'activité, réclamation des arrivées, horodatage du tick, index manquants. Chaque instruction tolère une base qui porte déjà une partie de ces changements (`IF EXISTS` / `IF NOT EXISTS`).
+
+Au démarrage, le serveur applique les migrations lui-même (`DB_SYNC=migrate`, valeur par défaut) :
+
+1. une base **vide** reçoit `0001_init` puis `0002_hardening` ;
+2. une base **créée autrefois par `db push`** (pas de table `_prisma_migrations` mais une table `Player`) est d'abord « baselinée » : `0001_init` est marquée appliquée, puis `0002_hardening` s'applique ;
+3. une base déjà migrée ne reçoit que les migrations manquantes.
+
+Les autres modes : `DB_SYNC=none` (la plateforme applique les migrations, par exemple `release_command = "npx prisma migrate deploy"` chez Fly) et `DB_SYNC=push` (prototypage local uniquement : `prisma db push`, jamais en production).
+
+### Modifier le schéma
+
+```bash
+# 1. éditer prisma/schema.prisma
+# 2. générer la migration à partir de la base de développement
+npx prisma migrate dev --name ma_modification
+# 3. relire prisma/migrations/<date>_ma_modification/migration.sql, ajouter les corrections de données si besoin
+# 4. commit ; au déploiement suivant le serveur l'applique
+```
+
+Ne jamais éditer une migration déjà déployée : en ajouter une nouvelle.
+
+### Si une migration échoue en production
+
+Le serveur s'arrête (`process.exit(1)`) plutôt que de servir un schéma incohérent. Lire le message, corriger la base ou la migration, puis :
+
+```bash
+npx prisma migrate resolve --rolled-back <nom>   # ou --applied si elle a été passée à la main
+npx prisma migrate deploy
+```
+
+## Processus et boucle de jeu
+
+- `CLUSTER_WORKERS=1` (défaut) : un processus sert l'API et exécute le tick. `CLUSTER_WORKERS=auto` ou `N` : un processus par CPU, le premier porte la boucle de jeu.
+- Le tick (30 s) est protégé par un **bail en base** (`TickLock`) : une seule instance l'exécute, même pendant un déploiement glissant. Le bail est renouvelé entre chaque étape ; s'il est perdu, le tick s'interrompt.
+- La durée de jeu de chaque tick est le **temps réellement écoulé** depuis le tick précédent (horloge de la base), plafonné à 6 h : un redémarrage ou un tick en retard ne perd ni ne double la production.
+- Une arrivée d'armée est **réclamée** (`Army.claimedAt`) avant d'être résolue ; une résolution interrompue est détectée au tick suivant et l'armée est renvoyée chez elle, jamais rejouée.
+- Les files de construction et de recrutement échues sont aussi réglées **à la lecture** (`GET /api/cities`), sans attendre le tick.
+- Arrêt : sur `SIGTERM`, le serveur cesse d'accepter des connexions, termine les requêtes en cours (10 s max), libère le bail du tick et quitte.
+
+## Limites et protections
+
+- Limite globale : 240 requêtes/min par joueur (ou par IP avant connexion) ; inscriptions : 10/min par IP ; connexions : 20/min par IP et **verrouillage de l'e-mail 15 min après 10 échecs**.
+- Les compteurs sont en mémoire : avec plusieurs processus ou machines, la limite effective est multipliée d'autant. Pour un vrai partage, les porter dans Postgres ou au reverse proxy.
+- Marché : un bâtiment Marché est requis, ratio borné à 1:3, 10 offres actives par joueur. Recrutement : 5 lots en attente par bâtiment.
+- Les textes libres sont bornés à 512 caractères avant tout traitement (anti ReDoS).
+
+## Santé et surveillance
+
+- `GET /api/health` : 200 quand la base répond et que le démarrage est terminé, 503 sinon (résultat mis en cache 5 s, hors limite de débit).
+- Les erreurs sont loguées côté serveur ; en production le client ne reçoit que « Erreur serveur ».
+- `GET /api/analytics/funnel` (en-tête `x-admin-key: $ADMIN_KEY`) : comptes d'événements des 7 derniers jours.
+
+## Plateformes
+
+- **Fly.io** (`fly.toml`) : `fly secrets set DATABASE_URL=... JWT_SECRET=...` ; une machine minimum toujours allumée (le tick doit tourner).
+- **Render** (`render.yaml`) : `JWT_SECRET` généré automatiquement ; attention, l'instance gratuite s'endort et le tick avec elle.
+- **Docker** : image `node:20-slim`, utilisateur non root, `HEALTHCHECK` intégré.
+
+## Tests
+
+```bash
+npm run test:unit    # moteur de combat, calculs, validation, tribus (sans base)
+npm run test:e2e     # partie complète contre une API locale (API_BASE, DATABASE_URL pour psql)
+npm run test:smoke   # navigateur (Playwright) : onglets, ville, carte, mobile
+```
+
+La CI GitHub (`.github/workflows/ci.yml`) lance les tests unitaires, applique les migrations sur un Postgres vierge, démarre l'API et joue les tests de bout en bout.

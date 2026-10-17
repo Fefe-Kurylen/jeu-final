@@ -1,5 +1,6 @@
 // ========== MAP - Rise of Kingdoms Style Canvas ==========
 let mapCanvas, mapCtx, minimapCanvas, minimapCtx;
+let mapViewW = 0, mapViewH = 0;   // CSS size of the map canvas (the backing store is scaled by the device pixel ratio)
 let mapData = [];
 let mapZoomLevel = 1;
 let mapOffsetX = 0, mapOffsetY = 0;
@@ -336,7 +337,18 @@ function hillNoise(x, y, seed = 4242) {
   const n00 = seededRandom(gx, gy, seed), n10 = seededRandom(gx + 1, gy, seed), n01 = seededRandom(gx, gy + 1, seed), n11 = seededRandom(gx + 1, gy + 1, seed);
   return (n00 * (1 - sx) + n10 * sx) * (1 - sy) + (n01 * (1 - sx) + n11 * sx) * sy;
 }
+// The terrain is deterministic: every tile is computed once (rivers, lakes, ranges, noise) then served from the cache
+const terrainSpriteCache = new Map();
 function getTerrainType(x, y) {
+  const k = x + ',' + y;
+  let t = multiTileTerrainCache.get(k);
+  if (t) return t;
+  t = computeTerrainType(x, y);
+  if (multiTileTerrainCache.size > 250000) multiTileTerrainCache.clear();
+  multiTileTerrainCache.set(k, t);
+  return t;
+}
+function computeTerrainType(x, y) {
   const biome = getBiome(x, y);
   const noise = seededRandom(x, y);
   const noise2 = seededRandom(x * 2, y * 2, 54321);
@@ -765,7 +777,7 @@ async function loadMap() {
 
   // Load all visible tiles from server
   const viewSize = Math.ceil(60 / mapZoomLevel);
-  const radius = Math.ceil(viewSize / 2);
+  const radius = Math.min(60, Math.ceil(viewSize / 2));   // the server answers in full detail up to 60; beyond, cities only
 
   try {
     const res = await fetch(
@@ -888,7 +900,7 @@ async function loadMap() {
 let mapMovingOnScreen = false, mapAnimTimer = null;
 function scheduleArmyAnim() {
   if (mapAnimTimer) return;
-  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, 110);
+  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (token && document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, 110);
 }
 function renderMap() {
   mapMovingOnScreen = false;
@@ -1036,6 +1048,7 @@ function renderMapCore() {
 const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
 let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
 function rebuildMapObjectCells() {
+  terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
   mapObjectCells = new Map();
   for (const o of mapData) if (o.type === 'CITY' || o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type);
   for (const c of cities) mapObjectCells.set(c.x + ',' + c.y, 'CITY');
@@ -1046,6 +1059,14 @@ function terrainBlockedAt(wx, wy) {
   return false;
 }
 function terrainSpriteName(wx, wy, biome, feature) {
+  const k = wx + ',' + wy;
+  if (terrainSpriteCache.has(k)) return terrainSpriteCache.get(k);
+  const name = computeTerrainSpriteName(wx, wy, biome, feature);
+  if (terrainSpriteCache.size > 250000) terrainSpriteCache.clear();
+  terrainSpriteCache.set(k, name);
+  return name;
+}
+function computeTerrainSpriteName(wx, wy, biome, feature) {
   if (terrainBlockedAt(wx, wy)) return null;
   const base = WATER_FEATURES[feature] ? feature : `${biome}_${feature}`;
   if (!tileImages.terrain[base]) return null;
@@ -2449,14 +2470,17 @@ function onMinimapMouseDown(e) {
 function onMinimapMouseMove(e) {
   if (!minimapDragging) return;
   e.stopPropagation();
-  navigateMinimapToPosition(e);
+  navigateMinimapToPosition(e, false);
 }
 
 function onMinimapMouseUp(e) {
+  if (!minimapDragging) return;
   minimapDragging = false;
+  clearTimeout(mapReloadTimeout);
+  mapReloadTimeout = setTimeout(() => loadMap(), 150);
 }
 
-function navigateMinimapToPosition(e) {
+function navigateMinimapToPosition(e, reload = true) {
   if (!minimapCanvas) return;
 
   const rect = minimapCanvas.getBoundingClientRect();
@@ -2477,8 +2501,8 @@ function navigateMinimapToPosition(e) {
   mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, worldX));
   mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, worldY));
 
-  // Re-render
-  loadMap(); // Reload map data for new viewport
+  // Draw at once with what is loaded; the viewport is fetched when the gesture ends
+  if (reload) loadMap(); else scheduleMapRender(true);
 }
 
 function updateMapUI() {
@@ -2610,6 +2634,7 @@ function onMapClick(e) {
 // Touch handlers for mobile
 let touchStartDist = 0;
 let touchStartZoom = 1;
+let touchPinched = false;
 let touchDragDistance = 0;
 let touchStartPos = null;
 
@@ -2642,7 +2667,8 @@ function onMapTouchMove(e) {
       e.touches[0].clientY - e.touches[1].clientY
     );
 
-    mapZoomLevel = Math.max(0.15, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+    mapZoomLevel = Math.max(0.3, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+    touchPinched = true;
     scheduleMapRender(true);
   } else if (e.touches.length === 1 && mapDragging) {
     // Use isometric tile dimensions
@@ -2678,12 +2704,13 @@ function onMapTouchEnd(e) {
     renderMap();
   }
 
-  // Reload map data after significant touch drag (debounced)
-  if (touchDragDistance >= 10) {
+  // Reload map data after a significant drag or a pinch (debounced)
+  if (touchDragDistance >= 10 || touchPinched) {
     clearTimeout(mapReloadTimeout);
     mapReloadTimeout = setTimeout(() => loadMap(), 300);
   }
 
+  touchPinched = false;
   touchDragDistance = 0;
   touchStartPos = null;
 }
@@ -2702,8 +2729,8 @@ function onMapWheel(e) {
   // Dimensions de tuile isométrique avant zoom
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
+  const centerX = mapViewW / 2;
+  const centerY = mapViewH / 2;
   const dx = mouseX - centerX;
   const dy = mouseY - centerY;
 
@@ -2858,7 +2885,7 @@ function showMapInfoPanel(x, y, tile) {
     content.innerHTML = `
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
-      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(tile.level - 1)}${'☆'.repeat(3 - tile.level)}</strong> (${tile.level}/3)</p>
+      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}${'☆'.repeat(Math.max(0, 3 - tile.level))}</strong> (${tile.level}/3)</p>
       <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
       <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
       ${defendersHtml}

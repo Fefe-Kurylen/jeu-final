@@ -8,6 +8,20 @@ const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
 const { lockCity, debitCity } = require('../utils/db');
+const { processBuilds } = require('../game/processors/buildProcessor');
+const { processRecruits } = require('../game/processors/recruitProcessor');
+
+// Queue items that are due are applied when the player looks at their cities, so a level never shows
+// "finished" on the client while the server still waits for the next tick (both processors are idempotent)
+async function settleDueQueues(playerId) {
+  const now = new Date();
+  const [builds, recruits] = await Promise.all([
+    prisma.buildQueueItem.count({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { playerId } } }),
+    prisma.recruitQueueItem.count({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { playerId } } })
+  ]);
+  if (builds > 0) await processBuilds(now, { playerId }).catch(e => console.error('[SETTLE builds]', e.message));
+  if (recruits > 0) await processRecruits(now, { playerId }).catch(e => console.error('[SETTLE recruits]', e.message));
+}
 
 const FIELD_KEYS = Object.keys(config.city.fieldSlots);
 const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
@@ -22,6 +36,9 @@ function resolveSlot(buildingKey, slot, existing, city) {
   if (existing) return existing.slot;
   if (FIELD_KEYS.includes(buildingKey)) return config.city.fieldSlots[buildingKey].includes(slot) ? slot : null;
   if (buildingKey === 'MAIN_HALL') return 0;
+  // Level 2 of a building whose level 1 is still in the queue goes to the same slot (never a second copy)
+  const queued = city.buildQueue.find(q => q.buildingKey === buildingKey);
+  if (queued) return queued.slot;
   const used = new Set(city.buildings.map(b => b.slot));
   city.buildQueue.forEach(q => used.add(q.slot));
   if (slot !== null) return slot >= 1 && slot <= config.city.maxSlot && !used.has(slot) ? slot : null;
@@ -38,6 +55,7 @@ function buildCost(buildingDef, targetLevel) {
 // GET /api/cities
 router.get('/', auth, async (req, res) => {
   try {
+    await settleDueQueues(req.user.playerId);
     const cities = await prisma.city.findMany({
       where: { playerId: req.user.playerId },
       include: { buildings: true, buildQueue: { orderBy: { startedAt: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
@@ -193,6 +211,9 @@ router.post('/:id/recruit', auth, async (req, res) => {
         if (workshop.level < config.recruit.siegeWorkshopLevel) return { error: `Atelier niveau ${config.recruit.siegeWorkshopLevel} requis`, status: 400 };
       }
 
+      const recruitBuildingKey = RECRUIT_BUILDING[unit.class] || 'BARRACKS';
+      if (city.recruitQueue.filter(q => q.buildingKey === recruitBuildingKey).length >= config.recruit.maxBatchesPerBuilding) return { error: `File de recrutement pleine (max ${config.recruit.maxBatchesPerBuilding} lots)`, status: 400 };
+
       // Per-class base costs with tier multiplier (GDD formulas.json)
       const classCosts = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
       const tierCostMult = config.recruit.tierCostMultipliers[unit.tier] || 1.0;
@@ -210,7 +231,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
       const timePerUnit = Math.round(classBaseTime * tierTimeMult);
       const totalTime = timePerUnit * count;
       // Batches in the same building train one after another, not in parallel
-      const buildingKey = RECRUIT_BUILDING[unit.class] || 'BARRACKS';
+      const buildingKey = recruitBuildingKey;
       const lastEnd = city.recruitQueue.filter(q => q.buildingKey === buildingKey).reduce((m, q) => Math.max(m, new Date(q.endsAt).getTime()), 0);
       const startAt = new Date(Math.max(Date.now(), lastEnd));
       const endsAt = new Date(startAt.getTime() + totalTime * 1000);

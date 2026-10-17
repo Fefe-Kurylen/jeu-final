@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
     iosScheme: 'https',
     // Only the game API may be navigated to from the WebView
-    allowNavigation: ['imperium-antiquitas.onrender.com', '*.onrender.com', '*.fly.dev'],
+    allowNavigation: ['imperium-antiquitas.onrender.com'],
   },
   plugins: {
     SplashScreen: {

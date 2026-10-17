@@ -548,6 +548,7 @@ function openSettings() {
 async function openLegalPage(name) {
   try {
     const res = await fetch(`${name}.html`);
+    if (!res.ok) throw new Error(String(res.status));
     const html = await res.text();
     const body = html.replace(/^[\s\S]*<main>/, '').replace(/<\/main>[\s\S]*$/, '');
     showModal(name === 'privacy' ? 'Confidentialité' : 'Assistance', `<div class="legal">${body}</div>`);

@@ -356,6 +356,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
   overlay.classList.add('fade-in');
 
   panel.classList.add('open');
+  panel.style.display = 'flex';
 }
 
 // Assign point from hero panel and refresh

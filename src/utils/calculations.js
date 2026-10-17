@@ -133,21 +133,29 @@ function getArmyMinSpeed(units, unitsData) {
   return minSpeed;
 }
 
-// Travel time for a concrete army: slowest unit + owner's faction speed bonus
-function getArmyTravelTime(units, fromX, fromY, toX, toY, faction) {
-  const { unitsData, factionsData } = require('../config/gamedata');
-  return calculateTravelTime(fromX, fromY, toX, toY, getArmyMinSpeed(units, unitsData), faction, factionsData);
+// Hero bonus on a non-combat stat: base points + assigned points, +0.5 %/point capped at +5 % (GDD)
+function heroStatMultiplier(hero, stat, pointsField) {
+  if (!hero) return 1;
+  const points = (hero[stat] || 0) + (hero[pointsField] || 0);
+  return 1 + Math.min(config.combat.heroBonusMax, points * config.combat.heroBonusPerPoint);
 }
 
-// Calculate carry capacity of an army
-function getArmyCarryCapacity(units, unitsData) {
+// Travel time for a concrete army: slowest unit, owner's faction speed bonus, hero speed bonus
+function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null) {
+  const { unitsData, factionsData } = require('../config/gamedata');
+  const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed', 'spdPoints');
+  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData);
+}
+
+// Carry capacity of an army (hero logistics bonus when a hero rides with it)
+function getArmyCarryCapacity(units, unitsData, hero = null) {
   let total = 0;
   for (const unit of units) {
     const unitData = unitsData.find(u => u.key === unit.unitKey);
     const carryPerUnit = unitData?.stats?.carry || unitData?.stats?.transport || 50;
     total += unit.count * carryPerUnit;
   }
-  return total;
+  return Math.floor(total * heroStatMultiplier(hero, 'logistics', 'logPoints'));
 }
 
 module.exports = {
@@ -163,5 +171,6 @@ module.exports = {
   countSiegeEngines,
   getArmyMinSpeed,
   getArmyTravelTime,
-  getArmyCarryCapacity
+  getArmyCarryCapacity,
+  heroStatMultiplier
 };

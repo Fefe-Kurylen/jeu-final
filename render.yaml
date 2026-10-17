@@ -10,7 +10,7 @@ services:
     plan: free            # free instances sleep after 15 min: the game tick stops with them (use starter for a live world)
     runtime: node
     region: frankfurt
-    # The schema is synchronised by the server at boot (prisma db push), not at build time
+    # The versioned migrations are applied by the server at boot (DB_SYNC=migrate), not at build time
     buildCommand: npm ci --omit=dev && npx prisma generate
     startCommand: node src/server.js
     healthCheckPath: /api/health

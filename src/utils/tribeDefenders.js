@@ -85,8 +85,10 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
     units[factionUnits.cavalry.elite] = Math.floor(eliteCount * cavRatio);
   }
 
-  const basePower = isGold ? 140 : 100;
-  const power = basePower * level * (totalSoldiers / 100);
+  // Power on the same scale as an army's power (GET /api/army/:id -> power), so the map shows what the fight uses
+  const { unitsData } = require('../config/gamedata');
+  const { calculateArmyPower } = require('./calculations');
+  const power = Math.round(calculateArmyPower(Object.entries(units).map(([unitKey, count]) => ({ unitKey, count, tier: unitsData.find(u => u.key === unitKey)?.tier || 'base' })), unitsData) * (isGold ? 1.4 : 1));
 
   return { power, units, faction };
 }

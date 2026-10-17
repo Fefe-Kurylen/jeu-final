@@ -3,12 +3,15 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const cluster = require('cluster');
 const os = require('os');
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 require('dotenv').config();
 
 // ========== MODE CLUSTER ==========
@@ -25,11 +28,21 @@ if (cluster.isPrimary && nWorkers > 1) {
   };
   // Seul le worker de tick execute le game loop et le seed (évite les doubles ticks)
   for (let i = 0; i < nWorkers; i++) fork(i === 0, i !== 0);
+  let stopping = false;
   cluster.on('exit', (worker, code) => {
+    if (stopping) { if (Object.keys(cluster.workers).length === 0) process.exit(0); return; }
     const wasTick = worker.id === tickWorkerId;
     console.error(`[CLUSTER] Worker ${worker.process.pid} mort (code ${code}), redemarrage${wasTick ? ' (worker de tick)' : ''}...`);
     fork(wasTick, true);
   });
+  // Graceful stop: every worker gets the signal, finishes its requests and releases the tick lease
+  const stopAll = (signal) => {
+    stopping = true;
+    for (const w of Object.values(cluster.workers)) w.process.kill(signal);
+    setTimeout(() => process.exit(0), 15000).unref();
+  };
+  process.on('SIGTERM', () => stopAll('SIGTERM'));
+  process.on('SIGINT', () => stopAll('SIGINT'));
   return; // le primaire ne sert pas de HTTP
 }
 const IS_TICK_WORKER = nWorkers <= 1 || process.env.IS_TICK_WORKER === 'true';
@@ -53,7 +66,7 @@ app.set('trust proxy', 1);
 // ========== CORS - Accept all origins (mobile apps use capacitor://, ionic://) ==========
 app.use(cors({
   origin: true,
-  credentials: true,
+  credentials: false,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -65,13 +78,14 @@ app.use(compression());
 app.use(express.json({ limit: '200kb' }));  // aucune requête légitime ne dépasse ça
 
 // ========== HEALTH CHECK (503 tant que la base n'est pas prête : le déploiement attend) ==========
+let healthCache = { at: 0, dbOk: false };
 app.get('/api/health', async (req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.status(dbReady ? 200 : 503).json({ status: dbReady ? 'ok' : 'starting', db: 'ok', uptime: process.uptime() });
-  } catch (e) {
-    res.status(503).json({ status: 'degraded', db: 'down', uptime: process.uptime() });
+  if (Date.now() - healthCache.at > 5000) {
+    try { await prisma.$queryRaw`SELECT 1`; healthCache = { at: Date.now(), dbOk: true }; }
+    catch (e) { healthCache = { at: Date.now(), dbOk: false }; }
   }
+  if (!healthCache.dbOk) return res.status(503).json({ status: 'degraded', db: 'down', uptime: process.uptime() });
+  res.status(dbReady ? 200 : 503).json({ status: dbReady ? 'ok' : 'starting', db: 'ok', uptime: process.uptime() });
 });
 
 // ========== GLOBAL RATE LIMIT ==========
@@ -146,6 +160,23 @@ async function repairData() {
   await prisma.$executeRaw`
     UPDATE "ResourceNode" SET "regenRate" = GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)
     WHERE "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)`;
+  // Tribe power on the same scale as an army's power (older seeds stored 100 × level × soldiers/100).
+  // Recomputed from the stored units at every boot: idempotent, and respawned tribes already use this scale.
+  {
+    const { Prisma } = require('@prisma/client');
+    const rows = unitsData.map(u => Prisma.sql`(${u.key}, ${((u.stats?.attack || 0) + (u.stats?.defense || 0)) * (config.combat.tierCoefficients[u.tier] || 1)}::float)`);
+    await prisma.$executeRaw`
+      UPDATE "ResourceNode" n SET "defenderPower" = sub.power
+      FROM (
+        SELECT n2.id, ROUND(COALESCE(SUM((v.value)::int * p.power), 0) * CASE WHEN n2."resourceType" = 'GOLD' THEN 1.4 ELSE 1 END)::int AS power
+        FROM "ResourceNode" n2
+        CROSS JOIN LATERAL jsonb_each_text(COALESCE(n2."defenderUnits", '{}'::jsonb)) v
+        LEFT JOIN (VALUES ${Prisma.join(rows)}) AS p(key, power) ON p.key = v.key
+        WHERE n2."hasDefenders" = true
+        GROUP BY n2.id
+      ) sub
+      WHERE n.id = sub.id AND n."defenderPower" <> sub.power`;
+  }
   // Wall HP follows the wall level
   await prisma.$executeRaw`
     UPDATE "City" c SET "wallMaxHp" = m.max, "wallHp" = LEAST(c."wallHp", m.max)
@@ -176,16 +207,15 @@ async function startServer() {
       await prisma.$queryRaw`SELECT 1`;
       console.log('Connexion a la base de donnees reussie!');
 
-      // Sync schema (désactivable via AUTO_DB_PUSH=false — recommandé en prod stable,
-      // utiliser des migrations Prisma versionnées à la place)
-      if (process.env.AUTO_DB_PUSH !== 'false' && !SKIP_DB_SETUP) {
-        console.log('Synchronisation du schema...');
+      // Schema: DB_SYNC=migrate (défaut) applique les migrations versionnées de prisma/migrations ;
+      // DB_SYNC=push force "prisma db push" (prototypage) ; DB_SYNC=none ne touche pas à la base
+      // (migrations lancées par la plateforme, ex. release_command). Voir docs/DEPLOIEMENT.md.
+      if (!SKIP_DB_SETUP) {
         try {
-          execSync('npx prisma db push --skip-generate', { stdio: 'inherit', env: { ...process.env }, timeout: 120000 });
-          console.log('Schema synchronise!');
-        } catch (dbPushError) {
+          await syncSchema();
+        } catch (schemaError) {
           // Serving requests on a schema that differs from the client only produces Prisma errors
-          console.error('Erreur sync schema:', dbPushError.message);
+          console.error('Erreur sync schema:', schemaError.message);
           if (config.isProduction) process.exit(1);
         }
       }
@@ -248,9 +278,16 @@ async function startServer() {
   return server;
 }
 
-// Graceful shutdown: release the tick lease so the next instance can start ticking immediately
+// Graceful shutdown: stop accepting connections, let in-flight requests finish (10 s max), release the
+// tick lease so the next instance can start ticking immediately
+let httpServer = null;
+let shuttingDown = false;
 async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} recu, arret...`);
+  const closed = new Promise((resolve) => { if (httpServer) httpServer.close(() => resolve()); else resolve(); });
+  await Promise.race([closed, new Promise(r => setTimeout(r, 10000))]);
   try { if (IS_TICK_WORKER) await releaseTickLease(); } catch (e) { /* lease expires on its own */ }
   try { await prisma.$disconnect(); } catch (e) { /* already closed */ }
   process.exit(0);
@@ -258,4 +295,31 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-startServer().catch(e => { console.error('Erreur au demarrage:', e); process.exit(1); });
+// ========== SCHEMA SYNC ==========
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'prisma', 'migrations');
+const BASELINE_MIGRATION = '0001_init';
+async function tableExists(name) {
+  const rows = await prisma.$queryRaw`SELECT to_regclass(${'public."' + name + '"'})::text AS r`;
+  return !!rows[0]?.r;
+}
+async function runPrisma(args) {
+  console.log(`> prisma ${args}`);
+  const { stdout, stderr } = await execAsync(`npx prisma ${args}`, { env: { ...process.env }, timeout: 180000, maxBuffer: 10 * 1024 * 1024 });
+  if (stdout.trim()) console.log(stdout.trim());
+  if (stderr.trim()) console.error(stderr.trim());
+}
+async function syncSchema() {
+  const mode = process.env.DB_SYNC || (process.env.AUTO_DB_PUSH === 'false' ? 'none' : 'migrate');
+  if (mode === 'none') { console.log('Schema: aucune synchronisation (DB_SYNC=none)'); return; }
+  if (mode === 'push') { await runPrisma('db push --skip-generate'); console.log('Schema synchronise (db push)'); return; }
+  if (!fs.existsSync(MIGRATIONS_DIR)) throw new Error('prisma/migrations absent : impossible d\'appliquer les migrations');
+  // A database created by "prisma db push" before migrations existed: mark the baseline as applied once
+  if (!(await tableExists('_prisma_migrations')) && (await tableExists('Player'))) {
+    console.log(`Base existante sans historique de migrations : baseline ${BASELINE_MIGRATION}`);
+    await runPrisma(`migrate resolve --applied ${BASELINE_MIGRATION}`);
+  }
+  await runPrisma('migrate deploy');
+  console.log('Schema a jour (migrations)');
+}
+
+startServer().then((server) => { httpServer = server; }).catch(e => { console.error('Erreur au demarrage:', e); process.exit(1); });

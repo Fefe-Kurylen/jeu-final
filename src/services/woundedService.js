@@ -58,10 +58,17 @@ async function processHealedUnits() {
   const garrisons = await prisma.army.findMany({ where: { cityId: { in: cityIds }, isGarrison: true }, select: { id: true, cityId: true } });
   const garrisonByCity = new Map(garrisons.map(g => [g.cityId, g.id]));
 
-  await prisma.$transaction(async (tx) => {
-    for (const wounded of healedUnits) {
-      const garrisonId = garrisonByCity.get(wounded.cityId);
-      if (garrisonId) {
+  let healed = 0;
+  for (let i = 0; i < healedUnits.length; i += 50) {
+    const batch = healedUnits.slice(i, i + 50);
+    await prisma.$transaction(async (tx) => {
+      for (const wounded of batch) {
+        // The row is consumed first: a second executor finds nothing to delete and credits nothing
+        const taken = await tx.woundedUnit.deleteMany({ where: { id: wounded.id, healsAt: wounded.healsAt } });
+        if (taken.count !== 1) continue;
+        healed++;
+        const garrisonId = garrisonByCity.get(wounded.cityId);
+        if (!garrisonId) continue;
         const unitDef = unitsData.find(u => u.key === wounded.unitKey);
         await tx.armyUnit.upsert({
           where: { armyId_unitKey: { armyId: garrisonId, unitKey: wounded.unitKey } },
@@ -69,10 +76,9 @@ async function processHealedUnits() {
           create: { armyId: garrisonId, unitKey: wounded.unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
         });
       }
-    }
-    await tx.woundedUnit.deleteMany({ where: { id: { in: healedUnits.map(w => w.id) } } });
-  });
-  return healedUnits.length;
+    }, { timeout: 15000 });
+  }
+  return healed;
 }
 
 module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits };

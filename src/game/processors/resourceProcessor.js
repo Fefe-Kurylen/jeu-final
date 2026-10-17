@@ -50,7 +50,7 @@ async function processResourceProduction(TICK_HOURS) {
         SUM(CASE WHEN cb.key = ANY(${BONUS.stone.keys}) THEN cb.level * ${BONUS.stone.pct} ELSE 0 END) AS sb,
         SUM(CASE WHEN cb.key = ANY(${BONUS.iron.keys})  THEN cb.level * ${BONUS.iron.pct}  ELSE 0 END) AS ib,
         SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb,
-        MAX(CASE WHEN pl."premiumUntil" > NOW() THEN 1 ELSE 0 END) AS prem
+        MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem
       FROM "CityBuilding" cb
       JOIN "City" ci ON ci.id = cb."cityId"
       LEFT JOIN "Player" pl ON pl.id = ci."playerId"
@@ -108,7 +108,7 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
     UPDATE "ArmyUnit" AS au
     SET count = au.count - GREATEST(1, FLOOR(au.count * ${rate}))
     FROM "Army" a, "City" c
-    WHERE au."armyId" = a.id AND a."cityId" = c.id AND a.x = c.x AND a.y = c.y AND c.food <= 0
+    WHERE au."armyId" = a.id AND a."cityId" = c.id AND a.x = c.x AND a.y = c.y AND a.status = 'IDLE' AND c.food <= 0
   `;
   if (starvedGroups > 0) {
     const deleted = await prisma.armyUnit.deleteMany({ where: { count: { lte: 0 } } });
@@ -134,7 +134,7 @@ async function processResourceRegen(now, TICK_HOURS) {
 // GDD: a damaged wall fully regenerates in 24h
 async function processWallRegen(TICK_HOURS) {
   await prisma.$executeRaw`
-    UPDATE "City" SET "wallHp" = LEAST("wallHp" + CEIL("wallMaxHp" * ${TICK_HOURS} / ${config.combat.wallRegenHours}), "wallMaxHp")
+    UPDATE "City" SET "wallHp" = LEAST("wallHp" + "wallMaxHp" * ${TICK_HOURS} / ${config.combat.wallRegenHours}, "wallMaxHp")
     WHERE "wallHp" < "wallMaxHp" AND "isSieged" = false
   `;
 }

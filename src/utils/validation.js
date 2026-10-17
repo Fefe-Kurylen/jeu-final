@@ -8,7 +8,7 @@ const validateEmail = (email) => {
 
 const validatePassword = (password) => {
   if (!password || typeof password !== 'string') return false;
-  return password.length >= 6 && password.length <= 100;
+  return password.length >= 8 && password.length <= 100;
 };
 
 const validateName = (name) => {
@@ -29,8 +29,9 @@ const validateCoordinates = (x, y) => {
 
 // Player-visible free text: strips markup-significant characters and control chars,
 // returns null when the cleaned result is outside [minLen, maxLen].
+const MAX_TEXT_INPUT = 512;
 const cleanText = (str, minLen = 1, maxLen = 30) => {
-  if (typeof str !== 'string') return null;
+  if (typeof str !== 'string' || str.length > MAX_TEXT_INPUT) return null;
   const cleaned = str.replace(/<[^>]*>/g, '').replace(/[<>"'`\\]/g, '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim();
   return cleaned.length >= minLen && cleaned.length <= maxLen ? cleaned : null;
 };
@@ -40,6 +41,14 @@ const isNonNegInt = (v) => Number.isInteger(v) && v >= 0;
 // Resource amount accepted from a client: integer within [0, maxAmount]
 const isAmount = (v) => Number.isInteger(v) && v >= 0 && v <= config.limits.maxAmount;
 
+// Constant-time comparison of two secrets (header value vs configured key)
+const safeEqual = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const crypto = require('crypto');
+  const ha = crypto.createHash('sha256').update(a).digest(), hb = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
+};
+
 // Validate alliance tag (2-5 uppercase alphanumeric)
 const validateAllianceTag = (tag) => {
   if (!tag || typeof tag !== 'string') return false;
@@ -48,6 +57,7 @@ const validateAllianceTag = (tag) => {
 };
 
 module.exports = {
+  MAX_TEXT_INPUT,
   validateEmail,
   validatePassword,
   validateName,
@@ -56,5 +66,6 @@ module.exports = {
   cleanText,
   isNonNegInt,
   isAmount,
+  safeEqual,
   validateAllianceTag
 };

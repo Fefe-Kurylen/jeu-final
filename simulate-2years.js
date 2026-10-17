@@ -188,7 +188,7 @@ async function simulate() {
     const garrison = await prisma.army.create({data:{ownerId:player.id,playerId:player.id,cityId:city.id,name:'Garnison',x,y,isGarrison:true,status:'IDLE'}});
     const hero = await prisma.hero.create({data:{playerId:player.id,name:`Héros ${name}`,level:1,xp:0,xpToNextLevel:100,statPoints:0,atkPoints:2,defPoints:2,spdPoints:1}});
     for (let i=0;i<3;i++) {
-      await prisma.expedition.create({data:{playerId:player.id,ownerId:player.id,difficulty:1+Math.floor(Math.random()*3),enemyPower:50+Math.floor(Math.random()*100),duration:300+Math.floor(Math.random()*600),lootTier:'COMMON',rewards:{xp:20,gold:5},expiresAt:new global.Date(simulatedTime+86400000),status:'AVAILABLE'}});
+      await prisma.expedition.create({data:{playerId:player.id,difficulty:1+Math.floor(Math.random()*3),enemyPower:50+Math.floor(Math.random()*100),duration:300+Math.floor(Math.random()*600),lootTier:'COMMON',expiresAt:new global.Date(simulatedTime+86400000),status:'AVAILABLE'}});
     }
     players.push({id:player.id,faction,name,cityId:city.id,garrisonId:garrison.id,heroId:hero.id,x,y});
     stats[faction] = {builds:0,recruits:0,attacks:0,expeditions:0};

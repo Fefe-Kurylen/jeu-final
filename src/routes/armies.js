@@ -10,15 +10,15 @@ const { validateCoordinates, cleanText, isAmount } = require('../utils/validatio
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const { resolveTribeCombat } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
-const { lockArmy, lockCity, debitCity, transition, isId } = require('../utils/db');
+const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: true, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: true, hero: true, ...include } });
 
-const travelTo = (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction);
+const travelTo = (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero);
 const spyTravelTo = (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
 
@@ -53,6 +53,8 @@ async function checkHostileTarget(army, targetCity, mission) {
       const hoursLeft = Math.ceil((recent.createdAt.getTime() + config.combat.raidCooldownHours * 3600000 - Date.now()) / 3600000);
       return `Cette ville a déjà été pillée récemment : nouveau raid possible dans ${hoursLeft} h`;
     }
+    const inFlight = await prisma.army.count({ where: { ownerId: army.ownerId, status: 'RAIDING', missionType: 'RAID', targetCityId: targetCity.id } });
+    if (inFlight > 0) return 'Un de vos raids est déjà en route vers cette ville';
   }
   return null;
 }
@@ -157,7 +159,10 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
       prisma.army.update({ where: { id: army.id }, data: { heroId: hero.id } })
     ]);
     res.json({ message: 'Héros assigné' });
-  } catch (e) { sendError(res, e); }
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Héros déjà assigné, réessayez' });
+    sendError(res, e);
+  }
 });
 
 // POST /api/army/:id/unassign-hero
@@ -297,27 +302,31 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     if (err) return res.status(err.status).json({ error: err.error });
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
-    if (node.lastDefeat) {
-      const respawnTime = new Date(node.lastDefeat.getTime() + node.respawnMinutes * 60000);
-      if (new Date() < respawnTime && !node.hasDefenders) return res.status(400).json({ error: 'Tribu en respawn - collectez directement' });
-    }
+    // A raid is a fight: an undefended node is simply collected, an occupied node is somebody else's
+    if (!node.hasDefenders || node.defenderPower <= 0) return res.status(400).json({ error: 'Aucune tribu sur ce point : lancez une collecte' });
+    if (node.hasPlayerArmy) return res.status(409).json({ error: 'Une armée récolte déjà ce point' });
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
     if (distance <= 1.5) {
       // Adjacent: the fight is resolved now, under the army row lock so it cannot be resolved twice
       const result = await prisma.$transaction(async (tx) => {
         await lockArmy(tx, army.id);
-        const fresh = await loadArmy(army.id, req.user.playerId, { hero: true }, tx);
+        const fresh = await loadArmy(army.id, req.user.playerId, {}, tx);
         if (!fresh || fresh.status !== 'IDLE' || fresh.units.length === 0) return { error: 'Armée déjà en mission', status: 409 };
-        const freshNode = await tx.resourceNode.findUnique({ where: { id: node.id } });
+        const freshNode = await tx.$queryRaw`SELECT * FROM "ResourceNode" WHERE id = ${node.id} FOR UPDATE`.then(r => r[0]);
+        if (!freshNode) return { error: 'Ressource non trouvée', status: 404 };
+        if (!freshNode.hasDefenders || freshNode.hasPlayerArmy) return { error: 'Ce point a changé entre-temps, rafraîchissez la carte', status: 409 };
         const r = await resolveTribeCombat(fresh, freshNode, req.user.playerId, tx);
         if (r.success) {
-          await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
-          await tx.resourceNode.update({ where: { id: node.id }, data: { hasPlayerArmy: true } });
-          r.message = 'Tribu vaincue! Récolte démarrée (100/min)';
-          r.status = 'HARVESTING';
+          if (await claimNode(tx, node.id)) {
+            await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
+            r.message = 'Tribu vaincue! Récolte démarrée (100/min)';
+            r.status = 'HARVESTING';
+          } else {
+            r.message = 'Tribu vaincue, mais le point est déjà occupé';
+          }
         }
         return r;
-      });
+      }, { timeout: 15000 });
       if (result.error) return res.status(result.status || 400).json(result);
       return res.json(result);
     }
@@ -342,7 +351,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
-      if (node.hasPlayerArmy) return { error: 'Une armée récolte déjà ce point', status: 400 };
+      if (node.hasPlayerArmy) return { error: 'Une armée récolte déjà ce point', status: 409 };
       const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
       if (distance > 1.5) {
         const travelTime = travelTo(army, node.x, node.y);
@@ -350,9 +359,10 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
         await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
         return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
       }
-      const carryCapacity = getArmyCarryCapacity(army.units, unitsData);
-      await tx.resourceNode.update({ where: { id: node.id }, data: { hasPlayerArmy: true } });
-      await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestStartedAt: new Date(), harvestResourceType: node.resourceType } });
+      const carryCapacity = getArmyCarryCapacity(army.units, unitsData, army.hero);
+      // One harvesting army per node: the flag is taken conditionally
+      if (!(await claimNode(tx, node.id))) return { error: 'Une armée récolte déjà ce point', status: 409 };
+      await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
       return { success: true, status: 'HARVESTING', resourceType: node.resourceType, nodeAmount: node.amount, carryCapacity, harvestRate: 100, message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})` };
     });
 
@@ -371,6 +381,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (!army.city) return { error: 'Armee sans ville d\'origine', status: 400 };
       if (army.status === 'RETURNING') return { message: 'Armée déjà sur le chemin du retour', arrivalAt: army.arrivalAt };
       if (army.status === 'EXPEDITION') return { error: 'Armée en expédition : impossible de la rappeler', status: 400 };
+      if (army.claimedAt) return { error: 'Arrivée en cours de résolution, réessayez dans quelques secondes', status: 409 };
 
       let fromX = army.x, fromY = army.y;
       if (OUTBOUND.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
@@ -387,11 +398,11 @@ router.post('/:id/return', auth, async (req, res) => {
         await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 
-      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction);
+      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: {
         status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
-        arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestStartedAt: null, harvestResourceType: null
+        arrivalAt, missionType: 'RETURN', targetResourceId: null, harvestResourceType: null
       } });
       return { message: 'Retour en cours', travelTime, arrivalAt };
     });
@@ -421,8 +432,9 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (err) return { error: err.error, status: err.status };
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
+      if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
       const transportMultiplier = 1 + (getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100);
-      const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData) * transportMultiplier);
+      const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
       const travelTime = travelTo(army, targetCity.x, targetCity.y);

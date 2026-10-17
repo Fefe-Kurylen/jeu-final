@@ -60,6 +60,22 @@ async function plunderCity(tx, cityId, want) {
   return { wood: Math.floor(Number(taken.wood) || 0), stone: Math.floor(Number(taken.stone) || 0), iron: Math.floor(Number(taken.iron) || 0), food: Math.floor(Number(taken.food) || 0) };
 }
 
+// A resource node can host one harvesting army: the flag is taken conditionally (false = occupied or defended)
+async function claimNode(tx, nodeId) {
+  const r = await tx.resourceNode.updateMany({ where: { id: nodeId, hasPlayerArmy: false, hasDefenders: false }, data: { hasPlayerArmy: true } });
+  return r.count === 1;
+}
+
+// Takes up to `want` units from a node, never below zero; returns what was actually taken
+async function takeFromNode(tx, nodeId, want) {
+  const w = Math.max(0, Math.floor(Number(want) || 0));
+  if (w === 0) return 0;
+  const rows = await tx.$queryRaw`
+    UPDATE "ResourceNode" SET amount = amount - LEAST(amount, ${w}) WHERE id = ${nodeId} AND amount > 0
+    RETURNING LEAST(amount + LEAST(amount, ${w}), ${w}) AS taken`;
+  return rows.length ? Math.floor(Number(rows[0].taken) || 0) : 0;
+}
+
 // Status transition guarded by the expected current status; false when another request won the race
 async function transition(tx, model, id, fromStatus, data) {
   const res = await tx[model].updateMany({ where: { id, status: fromStatus }, data });
@@ -68,4 +84,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, plunderCity, transition, isId };
+module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, plunderCity, claimNode, takeFromNode, transition, isId };

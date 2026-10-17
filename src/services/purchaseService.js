@@ -12,7 +12,7 @@ function catalog() { return products; }
 async function fetchSubscriber(appUserId) {
   const key = config.purchases.revenuecatSecret;
   if (!key) return null;
-  const res = await fetch(`${RC_API}/subscribers/${encodeURIComponent(appUserId)}`, { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } });
+  const res = await fetch(`${RC_API}/subscribers/${encodeURIComponent(appUserId)}`, { headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000) });
   if (res.status === 404) return { entitlements: {}, subscriptions: {}, non_subscriptions: {} };
   if (!res.ok) throw new Error(`RevenueCat ${res.status}`);
   return (await res.json()).subscriber;

@@ -10,15 +10,31 @@ const Store = {
     return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases);
   },
 
+  playerId: null,
+
   async configure(playerId) {
-    if (!this.isNative() || this.configured) return;
-    const platform = window.Capacitor.getPlatform();
-    const apiKey = platform === 'ios' ? window.REVENUECAT_APPLE_KEY : window.REVENUECAT_GOOGLE_KEY;
-    if (!apiKey) return;
+    if (!this.isNative()) return;
+    const Purchases = window.Capacitor.Plugins.Purchases;
     try {
-      await window.Capacitor.Plugins.Purchases.configure({ apiKey, appUserID: playerId });
+      if (this.configured) {
+        // Another player on the same device: switch the RevenueCat identity instead of keeping the first one
+        if (this.playerId !== playerId) { await Purchases.logIn({ appUserID: playerId }); this.playerId = playerId; }
+        return;
+      }
+      const platform = window.Capacitor.getPlatform();
+      const apiKey = platform === 'ios' ? window.REVENUECAT_APPLE_KEY : window.REVENUECAT_GOOGLE_KEY;
+      if (!apiKey) return;
+      await Purchases.configure({ apiKey, appUserID: playerId });
       this.configured = true;
+      this.playerId = playerId;
     } catch (e) { console.warn('RevenueCat:', e.message); }
+  },
+
+  async logOut() {
+    this.entitlements = { premium: false, premiumUntil: null, cosmetics: [] };
+    if (!this.configured || !this.isNative()) return;
+    try { await window.Capacitor.Plugins.Purchases.logOut(); } catch (e) { /* anonymous already */ }
+    this.playerId = null;
   },
 
   async loadCatalog() {

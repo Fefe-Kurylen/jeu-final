@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 const rateLimit = require('../middleware/rateLimit');
 const { catalog, syncPlayer } = require('../services/purchaseService');
 const { entitlementsOf } = require('../services/entitlementService');
+const { safeEqual } = require('../utils/validation');
 
 // GET /api/purchases/catalog — produits proposés (les prix réels viennent des stores)
 router.get('/catalog', (req, res) => res.json({ products: catalog(), serverVerification: !!config.purchases.revenuecatSecret }));
@@ -31,12 +32,15 @@ router.post('/sync', auth, rateLimit(30, 'purchases'), async (req, res) => {
 });
 
 // POST /api/purchases/webhook — renouvellements, remboursements, expirations (RevenueCat → serveur)
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', rateLimit(60, 'webhook'), async (req, res) => {
   try {
     const expected = config.purchases.webhookAuth;
-    if (!expected || req.headers.authorization !== expected) return res.status(401).json({ error: 'Unauthorized' });
-    const appUserId = req.body?.event?.app_user_id;
-    if (typeof appUserId === 'string' && appUserId.length <= 64) {
+    if (!expected || !safeEqual(req.headers.authorization, expected)) return res.status(401).json({ error: 'Unauthorized' });
+    const event = req.body?.event || {};
+    // A TRANSFER moves purchases between two players: both sides are refreshed from RevenueCat
+    const ids = [event.app_user_id, ...(event.transferred_from || []), ...(event.transferred_to || [])]
+      .filter(v => typeof v === 'string' && v.length <= 64);
+    for (const appUserId of [...new Set(ids)]) {
       const exists = await prisma.player.findUnique({ where: { id: appUserId }, select: { id: true } });
       if (exists) await syncPlayer(appUserId);
     }

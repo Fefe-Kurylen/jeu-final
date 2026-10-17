@@ -18,22 +18,42 @@ let tickRunning = false;
 const LEASE_OWNER = `${os.hostname()}:${process.pid}`;
 
 // A single executor at a time, across processes and deployments: the lease lives in the DB.
-// Returns false when another live process holds it (e.g. the previous instance during a rollout).
+// Returns null when another live process holds it (e.g. the previous instance during a rollout),
+// otherwise the number of hours elapsed since the previous tick, measured on the database clock
+// and capped: production, upkeep and wall regeneration are computed on real time, so a late tick,
+// a restart or a deployment never loses (nor duplicates) production.
 async function acquireTickLease() {
   const until = new Date(Date.now() + config.tick.leaseMs);
-  const n = await prisma.$executeRaw`
-    INSERT INTO "TickLock" (id, owner, "lockedUntil") VALUES (1, ${LEASE_OWNER}, ${until})
-    ON CONFLICT (id) DO UPDATE SET owner = EXCLUDED.owner, "lockedUntil" = EXCLUDED."lockedUntil"
-    WHERE "TickLock".owner = EXCLUDED.owner OR "TickLock"."lockedUntil" < NOW()`;
+  const rows = await prisma.$queryRaw`
+    WITH prev AS (SELECT "lastTickAt" FROM "TickLock" WHERE id = 1)
+    INSERT INTO "TickLock" (id, owner, "lockedUntil", "lastTickAt") VALUES (1, ${LEASE_OWNER}, ${until}, (NOW() AT TIME ZONE 'UTC'))
+    ON CONFLICT (id) DO UPDATE SET owner = EXCLUDED.owner, "lockedUntil" = EXCLUDED."lockedUntil", "lastTickAt" = (NOW() AT TIME ZONE 'UTC')
+    WHERE "TickLock".owner = EXCLUDED.owner OR "TickLock"."lockedUntil" < (NOW() AT TIME ZONE 'UTC')
+    RETURNING (SELECT "lastTickAt" FROM prev) AS prev, (NOW() AT TIME ZONE 'UTC') AS now`;
+  if (rows.length !== 1) return null;
+  const prev = rows[0].prev ? new Date(rows[0].prev).getTime() : null;
+  const now = new Date(rows[0].now).getTime();
+  if (!prev) return config.tick.tickHours;
+  const elapsedHours = (now - prev) / 3600000;
+  return Math.min(config.tick.maxCatchUpHours, Math.max(0, elapsedHours));
+}
+
+// Renews the lease between two steps; false when another process took it over (this tick must stop)
+async function renewTickLease() {
+  const until = new Date(Date.now() + config.tick.leaseMs);
+  const n = await prisma.$executeRaw`UPDATE "TickLock" SET "lockedUntil" = ${until} WHERE id = 1 AND owner = ${LEASE_OWNER} AND "lockedUntil" >= ${new Date()}`;
   return n === 1;
 }
 
 async function releaseTickLease() {
-  await prisma.$executeRaw`UPDATE "TickLock" SET "lockedUntil" = NOW() WHERE id = 1 AND owner = ${LEASE_OWNER}`;
+  await prisma.$executeRaw`UPDATE "TickLock" SET "lockedUntil" = ${new Date()} WHERE id = 1 AND owner = ${LEASE_OWNER}`;
 }
 
-// Each step is isolated: a failure in one subsystem must not skip the others for this tick
+// Each step is isolated: a failure in one subsystem must not skip the others for this tick.
+// The lease is renewed first: if another process holds it now, the rest of this tick is abandoned.
+class LeaseLost extends Error {}
 async function step(name, fn) {
+  if (!(await renewTickLease())) throw new LeaseLost(`lease lost before step ${name}`);
   try { return await fn(); } catch (e) { console.error(`[TICK] ${name} error:`, e); }
 }
 
@@ -42,12 +62,12 @@ async function gameTick() {
   tickRunning = true;
 
   const now = new Date();
-  const TICK_HOURS = config.tick.tickHours;
 
   try {
-    let leased = false;
-    try { leased = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
-    if (!leased) { console.warn('[TICK] lease held by another process, skipping'); return; }
+    let TICK_HOURS = null;
+    try { TICK_HOURS = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
+    if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
+    if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
 
     const healedCount = await step('heal', () => processHealedUnits());
     if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
@@ -66,10 +86,13 @@ async function gameTick() {
     await step('harvest', () => processHarvesting(now));
 
     await step('flags', () => cleanupOrphanedFlags());
-    await step('population', () => updatePopulation());
+    await step('population', () => updatePopulation(now));
     await step('tribeRespawn', () => processTribeRespawn(now));
     await step('regen', () => processResourceRegen(now, TICK_HOURS));
     await step('purge', () => purgeOldRecords(now));
+  } catch (e) {
+    if (e instanceof LeaseLost) console.warn('[TICK]', e.message);
+    else console.error('[TICK] error:', e);
   } finally {
     tickRunning = false;
   }

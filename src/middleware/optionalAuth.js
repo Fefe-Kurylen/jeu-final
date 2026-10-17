@@ -1,11 +1,11 @@
-// Comme auth, mais laisse passer les requêtes sans jeton (req.user absent) : analytics avant connexion
-const jwt = require('jsonwebtoken');
-const config = require('../config');
+// Comme auth, mais laisse passer les requêtes sans jeton valide (req.user absent) : analytics avant connexion.
+// Un jeton d'un compte supprimé ou révoqué compte comme anonyme.
+const { verifyBearer } = require('./auth');
 
-module.exports = function optionalAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token) {
-    try { req.user = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }); } catch (e) { /* jeton invalide : anonyme */ }
-  }
+module.exports = async function optionalAuth(req, res, next) {
+  try {
+    const payload = await verifyBearer(req);
+    if (payload) req.user = payload;
+  } catch (e) { /* base indisponible : anonyme */ }
   next();
 };

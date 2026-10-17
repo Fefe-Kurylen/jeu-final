@@ -1,9 +1,12 @@
 # fly.toml app configuration file for Imperium Antiquitas (API only)
 # See https://fly.io/docs/reference/configuration/
 #
-# Secrets to set once:  fly secrets set DATABASE_URL=... JWT_SECRET=...
-# The server synchronises the Prisma schema itself at boot (AUTO_DB_PUSH), there is no
-# migrations folder yet, so no release_command.
+# Secrets to set once:  fly secrets set DATABASE_URL=... JWT_SECRET=...   (JWT_SECRET: 32+ chars)
+# The server applies the versioned migrations of prisma/migrations itself at boot (DB_SYNC=migrate).
+# To run them as a release step instead: set DB_SYNC=none below and uncomment the [deploy] section.
+#
+# [deploy]
+#   release_command = "npx prisma migrate deploy"
 
 app = 'jeu-final'
 primary_region = 'ams'

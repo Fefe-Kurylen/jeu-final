@@ -6,6 +6,7 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const optionalAuth = require('../middleware/optionalAuth');
 const rateLimit = require('../middleware/rateLimit');
+const { safeEqual } = require('../utils/validation');
 
 const EVENT_RE = /^[a-z0-9_.]{1,40}$/;
 function cleanProps(p) {
@@ -32,10 +33,10 @@ router.post('/events', optionalAuth, rateLimit(60, 'analytics'), async (req, res
 });
 
 // GET /api/analytics/funnel?days=7 — comptes d'événements par type (clé d'administration requise)
-router.get('/funnel', async (req, res) => {
+router.get('/funnel', rateLimit(5, 'admin'), async (req, res) => {
   try {
     const key = process.env.ADMIN_KEY;
-    if (!key || req.headers['x-admin-key'] !== key) return res.status(401).json({ error: 'Unauthorized' });
+    if (!key || !safeEqual(req.headers['x-admin-key'], key)) return res.status(401).json({ error: 'Unauthorized' });
     const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
     const since = new Date(Date.now() - days * 24 * 3600 * 1000);
     const rows = await prisma.analyticsEvent.groupBy({ by: ['event'], where: { createdAt: { gte: since } }, _count: { _all: true } });

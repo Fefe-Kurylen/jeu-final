@@ -29,6 +29,51 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
   };
 }
 window.safeStorage = safeStorage;
+
+// ========== API FETCH WRAPPER ==========
+// Every call to the game API goes through here (fetch is kept as the call site everywhere):
+//  - a 20 s timeout, so a dead connection never leaves a spinner for ever;
+//  - a 401 on an authenticated call means the session is over: one toast, one logout, no retry loop;
+//  - a 429 shows one throttling toast;
+//  - two identical mutations in flight (double tap on "Envoyer") share one request.
+const _nativeFetch = window.fetch.bind(window);
+const _inflightMutations = new Map();
+let _sessionEnded = false, _lastThrottleToast = 0;
+function _isApiUrl(url) { return API ? url.startsWith(API + '/api/') : url.startsWith('/api/'); }
+function _hasAuth(headers) {
+  if (!headers) return false;
+  if (typeof headers.get === 'function') return !!headers.get('Authorization');
+  return Object.keys(headers).some(k => k.toLowerCase() === 'authorization' && headers[k] && !/null|undefined$/.test(String(headers[k])));
+}
+function onSessionExpired() {
+  if (_sessionEnded || !token) return;
+  _sessionEnded = true;
+  if (typeof showToast === 'function') showToast('Session expirée, reconnectez-vous', 'error');
+  logout();
+}
+window.fetch = function apiFetch(input, init = {}) {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (!_isApiUrl(url)) return _nativeFetch(input, init);
+  const method = (init.method || 'GET').toUpperCase();
+  const key = method !== 'GET' && method !== 'HEAD' ? `${method} ${url} ${typeof init.body === 'string' ? init.body : ''}` : null;
+  if (key && _inflightMutations.has(key)) return _inflightMutations.get(key).then(r => r.clone());
+  let options = init;
+  let timer = null;
+  if (!init.signal && typeof AbortController !== 'undefined') {
+    const controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), init.timeoutMs || 20000);
+    options = { ...init, signal: controller.signal };
+  }
+  const authed = _hasAuth(init.headers);
+  const p = _nativeFetch(input, options).then(res => {
+    if (res.status === 401 && authed) onSessionExpired();
+    else if (res.status === 429 && Date.now() - _lastThrottleToast > 5000) { _lastThrottleToast = Date.now(); if (typeof showToast === 'function') showToast('Trop de requêtes, patientez un instant', 'error'); }
+    return res;
+  }).finally(() => { if (timer) clearTimeout(timer); if (key) _inflightMutations.delete(key); });
+  if (!key) return p;
+  _inflightMutations.set(key, p);
+  return p.then(r => r.clone());
+};
 let token = safeStorage.getItem('token');
 let player = null;
 let currentCity = null;
@@ -248,7 +293,7 @@ async function register() {
       token = data.token;
       safeStorage.setItem('token', token);
       showGame();
-      if (typeof track === 'function') track('register_success', { faction: document.getElementById('register-faction')?.value || '' });
+      if (typeof track === 'function') track('register_success', { faction: document.getElementById('reg-faction')?.value || '' });
     } else {
       showAuthError(data.error || 'Erreur d\'inscription');
     }
@@ -268,6 +313,9 @@ function logout() {
   if (typeof stopCityAnimation === 'function') stopCityAnimation();
   if (typeof stopBattleReplay === 'function') stopBattleReplay();
   if (typeof stopGameTimers === 'function') stopGameTimers();
+  if (typeof mapAnimTimer !== 'undefined' && mapAnimTimer) { clearTimeout(mapAnimTimer); mapAnimTimer = null; }
+  if (typeof mapReloadTimeout !== 'undefined' && mapReloadTimeout) { clearTimeout(mapReloadTimeout); mapReloadTimeout = null; }
+  if (typeof Store !== 'undefined' && typeof Store.logOut === 'function') Store.logOut();
   player = null; currentCity = null; cities = []; armies = []; incomingAttacks = [];
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
@@ -281,12 +329,15 @@ function showAuthError(msg) {
 
 // ========== GAME ==========
 async function showGame() {
+  _sessionEnded = false;
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
   await loadWorldInfo(); // Load world size first
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
-  await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest()]);
+  const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest()]);
+  if (!playerOk || !token) return;   // session refusée : logout() a déjà remis l'écran de connexion
   await loadCities();
+  if (!token) return;
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
   initFieldsCanvas();
@@ -326,11 +377,15 @@ async function loadPlayer() {
       document.getElementById('player-faction').textContent = player.faction;
       document.getElementById('player-pop').textContent = player.population || 0;
       document.getElementById('res-gold').textContent = formatNum(player.gold || 0);
+      return true;
     } else if (res.status === 401) {
-      logout();
+      onSessionExpired();
+      return false;
     }
+    return !!player;   // transient error: keep the current session
   } catch (e) {
     console.warn('loadPlayer error:', e);
+    return !!player;
   }
 }
 
@@ -467,8 +522,10 @@ function updateAttackNotification() {
 
   // Show count if multiple attacks
   const iconEl = notifEl.querySelector('.attack-icon');
-  if (iconEl) {
+  if (iconEl && iconEl.tagName !== 'IMG') {
     iconEl.textContent = active.length > 1 ? `⚔️ ${active.length}x` : '⚔️';
+  } else if (iconEl) {
+    iconEl.title = active.length > 1 ? `${active.length} attaques en approche` : 'Attaque en approche';
   }
 }
 
@@ -657,7 +714,20 @@ function repaintStaticIcons(root) {
   for (const img of root.querySelectorAll('img[src^="assets/images/3d/ui/"]')) { const p = img.getAttribute('src').slice('assets/images/3d/'.length); if (paintedSet.has(p)) img.setAttribute('src', 'assets/images/painted/' + p); }
 }
 // Les panneaux sont régénérés en innerHTML : un observateur bascule leurs icônes à chaque mise à jour
-if (typeof MutationObserver === 'function') document.addEventListener('DOMContentLoaded', () => new MutationObserver(muts => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) repaintStaticIcons(n); }).observe(document.body, { childList: true, subtree: true }));
+// (les nœuds ajoutés sont traités en une seule passe par image, et seulement s'il existe des icônes peintes)
+const _repaintQueue = new Set();
+let _repaintScheduled = false;
+if (typeof MutationObserver === 'function') document.addEventListener('DOMContentLoaded', () => new MutationObserver(muts => {
+  if (!paintedSet.size) return;
+  for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) _repaintQueue.add(n);
+  if (_repaintScheduled || !_repaintQueue.size) return;
+  _repaintScheduled = true;
+  requestAnimationFrame(() => {
+    _repaintScheduled = false;
+    const nodes = [..._repaintQueue]; _repaintQueue.clear();
+    for (const n of nodes) if (n.isConnected) repaintStaticIcons(n);
+  });
+}).observe(document.body, { childList: true, subtree: true }));
 
 // ========== SPRITES 2.5D (WebP rendus en 3D par tools/build-3d.cjs : assets/images/3d/**) ==========
 // Cadre commun des sprites ville/champs/parcelles : 130×180 (rendus en 2×), centre du losange au sol à
