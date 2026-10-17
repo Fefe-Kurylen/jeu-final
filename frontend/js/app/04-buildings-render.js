@@ -230,7 +230,7 @@ function getBuildingEffect(key, level) {
   const curve = (l1, l20) => (level <= 0 ? 0 : level >= 20 ? l20 : Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19)));
   const effects = {
     // Construction and training
-    'MAIN_HALL': `Construction: -${(level * 2.5).toFixed(1)}% de temps`,
+    'MAIN_HALL': `Construction: -${Math.min(60, level * 2.5).toFixed(1)}% de temps${level * 2.5 >= 60 ? ' (plafond 60 %)' : ''}`,
     'ACADEMY': `Construction: -${(level * 1).toFixed(0)}% de temps`,
     'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps (colons : à venir)`,
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
@@ -266,7 +266,7 @@ function getBuildingEffect(key, level) {
     // Military and social
     'RALLY_POINT': `Armées en campagne: ${level <= 0 ? 0 : Math.min(5, 1 + Math.floor(level / 5))}`,
     'EMBASSY': `Alliance: rejoindre dès le niv. 5, fonder dès le niv. 7`,
-    'HERO_MANSION': 'Gestion du héros',
+    'HERO_MANSION': 'Accès au héros depuis la ville (pas de bonus par niveau)',
     // Faction buildings
     'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% de temps · blessés +${(level * 0.5).toFixed(1)}%`,
     'GALLIC_BREWERY': `Défense de la ville: +${level}%`,

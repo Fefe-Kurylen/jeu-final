@@ -671,7 +671,7 @@
     {
       "key": "GREAT_BARRACKS",
       "name": "Grande Caserne",
-      "description": "Seconde caserne pour les villes secondaires. Demande une Caserne au niveau 20.",
+      "description": "Seconde caserne : recrute aussi l'infanterie et les archers et accélère leur formation de 4 % par niveau. Demande une Caserne au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -695,7 +695,7 @@
     {
       "key": "GREAT_STABLE",
       "name": "Grande Écurie",
-      "description": "Seconde écurie pour les villes secondaires. Demande une Écurie au niveau 20.",
+      "description": "Seconde écurie : recrute aussi la cavalerie et accélère sa formation de 4 % par niveau. Demande une Écurie au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -764,7 +764,7 @@
     {
       "key": "HERO_MANSION",
       "name": "Domus du Héros",
-      "description": "Demeure du héros : gère son équipement et ses expéditions, et accélère sa résurrection.",
+      "description": "Demeure du héros : donne accès à son équipement et à ses expéditions depuis la ville.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [

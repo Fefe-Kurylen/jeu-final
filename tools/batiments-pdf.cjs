@@ -29,7 +29,7 @@ function production(k, L) {
   return Math.round(lerpExp(L1, L20, (L - 1) / 19));
 }
 const EFFECT = {
-  MAIN_HALL: (L) => `Construction −${pct(L * 2.5)} % · plafonne les autres bâtiments au niv. ${L}`,
+  MAIN_HALL: (L) => `Construction −${pct(Math.min(60, L * 2.5))} %${L * 2.5 > 60 ? ' (plafond atteint)' : ''} · plafonne les autres bâtiments au niv. ${Math.min(20, L)}`,
   FARM: (L) => `+${fmt(production('FARM', L))} céréales/h`, LUMBER: (L) => `+${fmt(production('LUMBER', L))} bois/h`,
   QUARRY: (L) => `+${fmt(production('QUARRY', L))} pierre/h`, IRON_MINE: (L) => `+${fmt(production('IRON_MINE', L))} fer/h`,
   WAREHOUSE: (L) => `Capacité ${fmt(storage(L))} (bois, pierre, fer)`, SILO: (L) => `Capacité ${fmt(storage(L))} céréales`,
@@ -37,7 +37,7 @@ const EFFECT = {
   BARRACKS: (L) => `Entraînement −${pct(L * 0.5)} %${L >= 15 ? ' · élite' : L >= 7 ? ' · intermédiaires' : ' · unités de base'}`,
   STABLE: (L) => `Entraînement −${pct(L * 0.5)} %${L >= 15 ? ' · élite' : L >= 7 ? ' · intermédiaires' : ' · cavalerie de base'}`,
   WORKSHOP: (L) => `Entraînement −${L * 4} %${L >= 5 ? ' · engins de siège' : ' · (engins dès le niv. 5)'}`,
-  ACADEMY: (L) => `Construction −${L} %`, FORGE: (L) => `Défense de la ville +${pct(L * 0.5)} %`,
+  ACADEMY: (L) => `Construction −${L} % (plafond commun 60 %)`, FORGE: (L) => `Défense de la ville +${pct(L * 0.5)} %`,
   HIDEOUT: (L) => `${Math.min(L, 20)} % des ressources à l'abri des pillages`,
   HEALING_TENT: (L) => `${Math.min(70, 30 + L * 3)} % des pertes récupérées en blessés`,
   MARKET: (L) => `Taxe du marchand ${Math.max(5, 30 - Math.max(0, L - 1))} % · convois +${L * 5} %`,
@@ -45,13 +45,13 @@ const EFFECT = {
   MOAT: (L) => `Défenseurs +${pct(L * 0.5)} % attaque et défense`,
   MILL: (L) => `Céréales +${L * 5} %`, BAKERY: (L) => `Céréales +${L * 5} %`, SAWMILL: (L) => `Bois +${L * 5} %`, STONEMASON: (L) => `Pierre +${L * 5} %`, FOUNDRY: (L) => `Fer +${L * 5} %`,
   GREAT_SILO: (L) => `${fmt(curve(3600, 600000, L))} céréales impossibles à piller`, GREAT_WAREHOUSE: (L) => `${fmt(curve(3600, 600000, L))} de chaque ressource impossibles à piller`,
-  GREAT_BARRACKS: (L) => `Seconde file d'infanterie et d'archers · entraînement −${L * 4} %`, GREAT_STABLE: (L) => `Seconde file de cavalerie · entraînement −${L * 4} %`,
+  GREAT_BARRACKS: (L) => `Recrute aussi infanterie et archers · entraînement −${L * 4} % (cumulé avec la Caserne, max 60 %)`, GREAT_STABLE: (L) => `Recrute aussi la cavalerie · entraînement −${L * 4} % (cumulé avec l'Écurie, max 60 %)`,
   EMBASSY: (L) => L >= 7 ? 'Rejoindre et fonder une alliance' : L >= 5 ? 'Rejoindre une alliance (fonder au niv. 7)' : 'Alliance : rejoindre au niv. 5, fonder au niv. 7',
   TREASURE_CHAMBER: (L) => `${curve(10, 200, L)} or par jour`,
-  HERO_MANSION: () => 'Équipement et expéditions du héros',
+  HERO_MANSION: () => 'Accès au héros depuis la ville',
   WATCHTOWER: (L) => `Contre-espionnage ${pct(Math.min(20, L) * 3.5)} % · alerte des attaques${L >= 15 ? ' avec attaquant et effectifs' : L >= 10 ? ' avec attaquant' : ''}`,
   RESIDENCE: (L) => `Construction −${pct(L * 0.25)} %`,
-  TRADE_OFFICE: (L) => `Convois et butin +${L} % de capacité`,
+  TRADE_OFFICE: (L) => `Convois marchands et transport par armée +${L} % de capacité`,
   ROMAN_THERMAE: (L) => `Soins −${pct(L * 1.5)} % de temps · blessés +${pct(L * 0.5)} %`,
   GALLIC_BREWERY: (L) => `Défense de la ville +${L} %`,
   GREEK_TEMPLE: (L) => `Blessés au lieu de morts +${pct(L * 0.5)} %`,
@@ -59,7 +59,7 @@ const EFFECT = {
   HUN_WAR_TENT: (L) => `Entretien −${pct(L * 0.5)} % · blessés +${pct(L * 0.5)} %`,
   SULTAN_DESERT_OUTPOST: (L) => `Entretien −${pct(L * 0.5)} %`
 };
-const NOT_YET = { ACADEMY: 'recherche à venir', RESIDENCE: 'colons à venir', EMBASSY: 'aide d\'alliance à venir', WATCHTOWER: 'espions comme unités à venir', GREAT_BARRACKS: 'réservée aux villes secondaires à venir', GREAT_STABLE: 'réservée aux villes secondaires à venir', GREEK_TEMPLE: 'bonus de recherche à venir', EGYPTIAN_IRRIGATION: 'vitesse de marche à venir', SULTAN_DESERT_OUTPOST: 'taxe entre villes à venir', HERO_MANSION: 'résurrection accélérée à venir' };
+const NOT_YET = { ACADEMY: 'recherche à venir', RESIDENCE: 'colons à venir', EMBASSY: 'aide d\'alliance à venir', WATCHTOWER: 'espions comme unités à venir', GREAT_BARRACKS: 'réservée aux villes secondaires à venir', GREAT_STABLE: 'réservée aux villes secondaires à venir', GREEK_TEMPLE: 'bonus de recherche à venir', EGYPTIAN_IRRIGATION: 'vitesse de marche à venir', SULTAN_DESERT_OUTPOST: 'taxe entre villes à venir', HERO_MANSION: 'aucun effet de niveau pour l\'instant : le héros n\'a pas de mort ni de résurrection', WATCHTOWER_NOTE: '' };
 const prereq = (d) => (d.prereq || []).length ? d.prereq.map(p => `${name(p.key)} ${p.level}`).join(', ') : '—';
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const row = (d, extra = '') => {

@@ -59,6 +59,24 @@ Déjà en place, sans image supplémentaire (code) : marche des armées sur la c
 3. **Combat** : 2 images (frappe, garde) par classe pour le replay : 8 images.
 4. **Portrait du héros** : une pose, pas d'animation.
 
+## Bâtiments : effets et valeurs par niveau (vérification d'octobre 2026)
+
+Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.js`, `game/processors/*`, `services/combatService.js`, `services/woundedService.js`, `routes/market.js`, `routes/alliance.js`) et comparé aux données (`data/buildings.json`) et à l'affichage client (`getBuildingEffect`).
+
+**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv.), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv., réparation +1 %/niv.), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (3 600 → 600 000 protégés), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15, contre-espionnage 3,5 %/niv.), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (+1 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+
+**Écarts constatés** :
+
+| Bâtiment | Constat | Conséquence |
+|---|---|---|
+| Bâtiment principal 25-30 | Les réductions de construction (principal + Académie + Résidence) sont plafonnées à 60 % : atteint dès le niveau 24, les niveaux 25 à 30 n'apportent plus rien (sauf 5 points de population par niveau) | Affichage corrigé (plafond indiqué) ; à décider : relever le plafond ou donner un effet propre aux niveaux 25 et 30 |
+| Domus du héros | Aucun effet serveur : le héros (équipement, expéditions) est accessible sans elle, il n'a ni mort ni résurrection (`heroResurrection*` sans objet) | Textes corrigés ; à décider : lui donner un vrai effet (XP du héros, durée des expéditions…) |
+| Grande Caserne / Grande Écurie | Pas de seconde file de recrutement : même file que la Caserne/Écurie ; apporte seulement −4 %/niv. de temps (cumul plafonné à 60 %) et l'accès au recrutement sans Caserne | Textes corrigés |
+| Comptoir / Marché | Le bonus de capacité (Marché 5 %/niv. + Comptoir 1 %/niv.) s'applique ensemble aux convois marchands et au transport par armée, pas au butin des raids | Textes corrigés |
+| Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
+| Forge, Ambassade, Chambre, Domus, Résidence (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Non appliqué : une seule ville par joueur aujourd'hui | Sans effet tant que les villes secondaires n'existent pas |
+| Académie et Temple grec (recherche), Résidence (colons), Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+
 ## Interface
 
 Thème peint (cadres bois et parchemin, icônes 3D) en place sur toutes les vues ; rapports refaits en tableau ; file d'attente avec annulation ; bandeaux d'état.
