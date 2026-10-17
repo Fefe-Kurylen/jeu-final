@@ -131,8 +131,12 @@ quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). À produi
 | Emblème (blason) de chaque civilisation `ui/crest_<CIV>.png` | 6 | 1024², cadre icon | choix de civilisation, alliance, étiquettes de carte ; aujourd'hui on réutilise le buste du héros |
 | Vignettes des destinations d'expédition (forêt, désert, montagne, ruines) | 4 | 1536×1024, cadre header | l'écran des expéditions n'a que des icônes |
 | Boutons ronds des bulles d'action (normal, appuyé) `ui/btn-round[-pressed].png` | 2 | 1024², cadre ui | les bulles d'action utilisent un dégradé CSS |
+| Texture de pavés (répétable) `terrain/cobble.png` pour la plaza et les avenues de la ville | 1 | 1024², sans guide | aujourd'hui la plaza et les avenues utilisent la texture de terre battue |
+| Texture d'eau (répétable) `terrain/water.png` pour les étangs, la rivière et les douves | 1 | 1024², sans guide | aujourd'hui dégradés bleus dessinés par le code |
 | Fond de scène de ville par biome (horizon : forêt, désert, neige, rivage) | 4 | 1536×512 | facultatif : la ville a maintenant son propre sol et son décor |
 | Portraits de héros supplémentaires (un héros par civilisation existe déjà) | 0 à 6 | 1024², cadre bust | seulement si l'on veut plusieurs héros par civilisation |
+
+**Sols et ville** : tout ce qui compose la ville est dans l'inventaire (bâtiments, enceinte, champs, parcelles, décors, textures de sol herbe / terre / sable / neige, déjà peintes). Le sol de l'enceinte est la texture du biome éclaircie, la plaza et les avenues sont la texture de terre battue, la route extérieure aussi ; le vantail de la porte, les plans d'eau, les surlignages et les badges sont dessinés par le code. Les deux textures ci-dessus (pavés, eau) sont les seules images qui manquent pour que plus rien du sol ne soit dessiné par le code.
 
 Glyphes vectoriels conservés tels quels (fonctionnels, sans guide) : `ui/sun.svg`, `moon.svg` (jour / nuit), `left.svg`, `right.svg` (sélecteur de ville), `plus.svg`, `minus.svg` (zoom), `close.svg`, `info.svg`, `menu.svg` (fermer, information, menu). À repeindre seulement par souci d'unité : 9 images 1024², cadre icon.
 
@@ -144,7 +148,9 @@ Dans l'inventaire mais jamais affichées (peuvent être ignorées) : icônes `am
 |---|---|---|
 | Icône de l'application (iOS, Android adaptatif : premier plan + fond) | ✅ générée depuis l'emblème (`frontend/assets/images/icon-1024.png`, `android/.../ic_launcher*`, `ios/.../AppIcon`) | 1024² |
 | Écran de démarrage (splash) iOS et Android | ✅ généré (`splash-2732x2732.png`, `drawable-*/splash.png`) | 2732² |
-| Captures d'écran des fiches App Store / Google Play | ✅ générées par `node tools/store-screenshots.cjs` | 1290×2796, 1242×2688 |
+| Captures d'écran iPhone (App Store) et téléphone (Google Play) | ✅ générées par `node tools/store-screenshots.cjs` | 1290×2796 (6,7"), 1242×2688 (6,5") |
+| **Captures d'écran iPad** : l'application cible aussi l'iPad (`TARGETED_DEVICE_FAMILY = 1,2`), l'App Store les exige alors | ✅ générées par le même outil (taille ajoutée) ; sinon limiter l'app à l'iPhone dans Xcode | 2048×2732 (12,9") |
+| iPhone : icône (une seule image 1024, Xcode décline les tailles), écran de démarrage, pas d'icône de notification à fournir (iOS utilise l'icône de l'app) | ✅ rien à produire | — |
 | **Icône de notification Android** (monochrome blanc sur fond transparent, `ic_stat_notify`) | ❌ à produire : sans elle Android affiche un carré blanc pour les notifications push | 96×96 (xxxhdpi) + 72, 48, 36, 24 |
 | **Bannière Google Play** (feature graphic) | ❌ à produire : obligatoire sur la fiche Play | 1024×500, JPG ou PNG sans transparence |
 | Image de promotion App Store (facultative) et vidéo d'aperçu | 🔧 facultatif (vidéo : enregistrer le simulateur, 15-30 s) | 1080×1920 |

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Captures pour les fiches App Store / Google Play, prises dans le jeu réel (API locale + frontend servi).
 //   node tools/store-screenshots.cjs [apiUrl] [webUrl]
-// Sorties : store/screenshots/<taille>/<n>-<vue>.png (6,7" 1290×2796 et 6,5" 1242×2688), avec un bandeau titre.
+// Sorties : store/screenshots/<taille>/<n>-<vue>.png (iPhone 6,7" 1290×2796 et 6,5" 1242×2688, iPad 12,9" 2048×2732), avec un bandeau titre.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -11,7 +11,7 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.error('playw
 const API = process.argv[2] || 'http://localhost:3000';
 const WEB = process.argv[3] || 'http://localhost:8083/index.html';
 const OUT = path.join(__dirname, '..', 'store', 'screenshots');
-const SIZES = [{ name: '6.7', width: 430, height: 932, scale: 3 }, { name: '6.5', width: 414, height: 896, scale: 3 }];
+const SIZES = [{ name: '6.7', width: 430, height: 932, scale: 3 }, { name: '6.5', width: 414, height: 896, scale: 3 }, { name: 'ipad-12.9', width: 1024, height: 1366, scale: 2 }];   // l'app cible aussi l'iPad : l'App Store exige ses captures
 const SHOTS = [
   { tab: 'city', title: 'Bâtissez votre cité', sub: 'Six civilisations, chacune avec son architecture' },
   { tab: 'fields', title: 'Développez vos terres', sub: 'Fermes, forêts, carrières et mines' },

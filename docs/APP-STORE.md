@@ -79,7 +79,7 @@ Pas de données de localisation, contacts, santé, photos, ni de publicité. **A
 
 | Point du plan | État |
 |---|---|
-| Fiche store : icône, 5-10 captures, vidéo 30 s, description, mots-clés | ✅ icône 1024 (`frontend/assets/images/icon-1024.png`), captures générées par `node tools/store-screenshots.cjs` (6,7" 1290×2796 et 6,5" 1242×2688), textes ci-dessous ; 🔧 vidéo d'aperçu (enregistrer le simulateur, 15-30 s, format 886×1920 ou 1080×1920) |
+| Fiche store : icône, 5-10 captures, vidéo 30 s, description, mots-clés | ✅ icône 1024 (`frontend/assets/images/icon-1024.png`), captures générées par `node tools/store-screenshots.cjs` (iPhone 6,7" 1290×2796 et 6,5" 1242×2688, iPad 12,9" 2048×2732 car l'app cible aussi l'iPad), textes ci-dessous ; 🔧 vidéo d'aperçu (enregistrer le simulateur, 15-30 s, format 886×1920 ou 1080×1920) |
 | Soumettre à la review | 🔧 build archivée + fiche complète + compte de test pour la review (Notes for Review : e-mail/mot de passe d'un compte avec une ville développée) |
 | Si refus → corriger et resoumettre | — |
 | Date de sortie avec serveur neuf | 🔧 `npx prisma db push --force-reset` sur la base de production juste avant l'ouverture, puis redémarrer l'API (le monde se régénère) |
