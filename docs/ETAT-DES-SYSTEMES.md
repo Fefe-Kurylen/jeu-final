@@ -44,9 +44,18 @@ Manque, façon Rise of Kingdoms : camps de barbares itinérants avec niveau et r
 
 ## Scène de la ville
 
-- Porte au milieu de l'arête sud-ouest, flanquée de deux tourelles, vantail de bois ; route de terre qui part de la porte, descend la rampe du plateau et s'éloigne vers le sud-ouest.
-- Décor périphérique tiré des cases de la carte autour de la ville : forêt dense, rochers des massifs, dunes, plans d'eau (rivière, lac, oasis, lac gelé) du côté où la carte les place ; texture de sol et végétation du biome.
-- Grille carrée 5 × 5 à 1,3 largeur de cellule d'espacement, parcelles 0,74 : aucun chevauchement entre bâtiments ; les paliers 1/2/3 changent la taille (0,74 / 1 / 1,14) à l'intérieur de la parcelle.
+Refaite en octobre 2026 d'après les captures de Rise of Kingdoms fournies : **une seule scène** où tout tient dans l'enceinte.
+
+- Grille isométrique 2:1 : Bâtiment principal au centre (sprite 1,35 ×, plaza pavée autour), 19 emplacements de bâtiments sur deux anneaux, les 18 champs sur un troisième anneau le long des murs (bûcherons au fond à droite, carrières à droite, mines à gauche, fermes devant). Les numéros d'emplacement et l'API ne changent pas (champs = 101-118 côté serveur ; `citySlots` porte désormais ces numéros).
+- Enceinte carrée à tours d'angle (sprites par civilisation et par palier du Mur), murets bas sur les deux faces avant pour laisser voir la ville, porte sur l'arête sud-ouest dans l'axe de l'avenue, route de terre qui s'en éloigne. Une enceinte octogonale n'est pas possible avec la projection 2:1 et les sprites actuels (les pans coupés se projettent en lignes) ; la forme carrée est celle de la première capture.
+- Sol de l'enceinte plus clair (herbe, sable ou neige selon le biome), avenues de terre (porte → plaza → fond, et une transversale) dans les couloirs entre les parcelles.
+- Décor dense : bosquets sur les cellules libres, rangée d'arbres au pied des murs du fond et de buissons devant, petits décors (buissons, fleurs, rochers, cactus, souches) dans les interstices ; paysage extérieur tiré de la carte (forêt, rochers, dunes, lacs, oasis, glace).
+- Toucher / clic sur un bâtiment, un champ ou un emplacement libre : **bulle d'action** au-dessus (nom, niveau, boutons ronds : Améliorer ou Construire, Recruter pour Caserne/Écurie/Atelier, Marché, Armées, Héros, Alliance, Rapports, Sac, Blessés selon le bâtiment, Infos = fiche). Le bâtiment reste surligné tant que la bulle est ouverte ; déplacement, zoom, toucher sur le terrain, Échap ou changement d'onglet la referment. L'infobulle de survol reste sur bureau.
+- Badges de niveau et icônes de production affichés seulement en zoom rapproché (cellule ≥ 96 px) ou sur l'emplacement survolé, pour une vue d'ensemble épurée.
+- L'onglet Champs cadre la même ville et souligne les parcelles de champ.
+- Caméra : vue d'ensemble par défaut sur grand écran, cellules de 84 px sur téléphone (déplacement au doigt, pincement, double tap pour recadrer). Nuit : voile bleu, lueurs des bâtiments et torches de la porte.
+
+Fichiers : `frontend/js/app/04b-iso-scene.js` (scène, décor, bulles), `02-city-render.js`, `03-fields-render.js`, `04-buildings-render.js`, feuille de style `.city-actions`.
 
 ## Animations : ce dont on a besoin (léger)
 

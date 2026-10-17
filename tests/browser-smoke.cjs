@@ -31,7 +31,9 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
       const r = await page.evaluate((sn) => { const s = citySlots.find(x => x.slot === sn); const rect = cityCanvas.getBoundingClientRect(); return { x: rect.left + s.x, y: rect.top + s.y - 6 }; }, sn);
       if (vp.mobile) await page.touchscreen.tap(r.x, r.y); else { await page.mouse.move(r.x, r.y); await page.mouse.click(r.x, r.y); }
       await page.waitForTimeout(500);
-      out.push(`${label} city slot ${sn}: ` + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 40))) + ' | ' + (await page.evaluate(() => document.getElementById('build-panel')?.style.display)));
+      const bubble = await page.evaluate(() => { const el = document.getElementById('city-actions'); return el && el.style.display !== 'none' ? el.innerText.replace(/\s+/g, ' ').slice(0, 60) : 'none'; });
+      await page.evaluate(() => document.querySelector('#city-actions .ca-btn.primary')?.click()); await page.waitForTimeout(500);
+      out.push(`${label} city slot ${sn}: bubble=[${bubble}] -> ` + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 40))) + ' | ' + (await page.evaluate(() => document.getElementById('build-panel')?.style.display)));
       await page.evaluate(() => closeBuildPanel());
     }
     // pan: drag on empty terrain must not open a panel
@@ -39,15 +41,16 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
     if (vp.mobile) { await page.touchscreen.tap(c.x, c.y); } else { await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.mouse.move(c.x + 80, c.y + 40, { steps: 6 }); await page.mouse.up(); }
     await page.waitForTimeout(400);
     out.push(`${label} after pan/empty tap: panel=` + (await page.evaluate(() => document.getElementById('build-panel')?.style.display)) + ' cam=' + (await page.evaluate(() => JSON.stringify(cityCam))));
-    // fields: click field 1 (lumber) and the centre
+    // fields (same scene): tap field 101 (lumber) and 113 (farm), then the bubble's primary button
     await page.evaluate(() => showTab('fields')); await page.waitForTimeout(800);
-    for (const sn of [1, 13, -1]) {
-      const r = await page.evaluate((sn) => { const s = citySlots.find(x => x.slot === sn); const rect = cityCanvas.getBoundingClientRect(); return { x: rect.left + s.x, y: rect.top + s.y - (sn === -1 ? 0 : 4) }; }, sn);
+    for (const sn of [101, 113]) {
+      const r = await page.evaluate((sn) => { const s = citySlots.find(x => x.slot === sn); const rect = cityCanvas.getBoundingClientRect(); return { x: rect.left + s.x, y: rect.top + s.y - 4 }; }, sn);
       if (vp.mobile) await page.touchscreen.tap(r.x, r.y); else { await page.mouse.move(r.x, r.y); await page.mouse.click(r.x, r.y); }
       await page.waitForTimeout(500);
-      out.push(`${label} field ${sn}: view=` + (await page.evaluate(() => currentCityView)) + ' panel=' + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 30))));
+      const bubble = await page.evaluate(() => { const el = document.getElementById('city-actions'); return el && el.style.display !== 'none' ? el.innerText.replace(/\s+/g, ' ').slice(0, 40) : 'none'; });
+      await page.evaluate(() => document.querySelector('#city-actions .ca-btn.primary')?.click()); await page.waitForTimeout(500);
+      out.push(`${label} field ${sn}: view=` + (await page.evaluate(() => currentCityView)) + ` bubble=[${bubble}] panel=` + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 30))));
       await page.evaluate(() => closeBuildPanel());
-      if (sn === -1) { await page.evaluate(() => showTab('fields')); await page.waitForTimeout(500); }
     }
     // map click on own city
     await page.evaluate(() => showTab('map')); await page.waitForTimeout(2000);

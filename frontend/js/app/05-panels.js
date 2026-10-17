@@ -106,6 +106,7 @@ function hideFieldsTooltip() {
 let selectedBuildSlot = null;
 
 function openBuildPanel(slotNum) {
+  if (slotNum >= 100 && typeof openFieldBuildPanel === 'function') { openFieldBuildPanel(slotNum); return; }   // champ : panneau dédié
   selectedBuildSlot = slotNum;
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
@@ -670,6 +671,7 @@ function openFieldBuildPanel(slotNum) {
   if (!slot || !slot.isField) return;
   
   selectedBuildSlot = slotNum;
+  const serverSlot = slotNum >= 100 ? slotNum : slotNum + 100;   // emplacement côté serveur (101-118)
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
   const title = document.getElementById('build-panel-title');
@@ -703,7 +705,7 @@ function openFieldBuildPanel(slotNum) {
   }
   overlay.style.display = 'block';
   
-  const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === fieldType && q.slot === slotNum + 100).length;
+  const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === fieldType && q.slot === serverSlot).length;
   const targetLevel = level + inQueue + 1;
   const cost = getBuildCost(def, targetLevel);
   const time = getBuildTime(def, targetLevel);
@@ -741,7 +743,7 @@ function openFieldBuildPanel(slotNum) {
             Production: +${getProductionAtLevel(fieldType, targetLevel)}/h (+${getProductionAtLevel(fieldType, targetLevel) - getProductionAtLevel(fieldType, targetLevel - 1)}/h)
           </p>
           ${costHtml}
-          <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''} onclick="buildField('${fieldType}', ${slotNum + 100})">
+          <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''} onclick="buildField('${fieldType}', ${serverSlot})">
             ${buttonLabel || 'Améliorer'}
           </button>
         </div>
@@ -751,7 +753,7 @@ function openFieldBuildPanel(slotNum) {
     // Empty field - show build option
     title.textContent = 'Construire';
     content.innerHTML = `
-      <div class="build-option" onclick="${buttonLabel ? '' : `buildField('${fieldType}', ${slotNum + 100})`}">
+      <div class="build-option" onclick="${buttonLabel ? '' : `buildField('${fieldType}', ${serverSlot})`}">
         <div class="build-option-icon">${fieldIcons[fieldType]}</div>
         <div class="build-option-info">
           <h4>${fieldNames[fieldType]}</h4>

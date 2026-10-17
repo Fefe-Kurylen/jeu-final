@@ -106,6 +106,7 @@ function updateCityStats() {
 // ========== TABS ==========
 function showTab(tabName) {
   if (typeof track === 'function') track('tab_view', { tab: String(tabName) });
+  if (typeof hideCityActions === 'function') hideCityActions();
   if (typeof cityHoveredSlot !== 'undefined') cityHoveredSlot = null;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));

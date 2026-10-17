@@ -1,9 +1,9 @@
 // ============================================================
-// 04b-iso-scene.js — Vue ville et vue champs en vraie 2.5D isométrique.
-// Remplace la mise en page circulaire : une grille iso (cellule = losange de largeur W), la ville sur un
-// losange 5×5 de cellules (centre = Bâtiment principal, 8 cellules intérieures, 11 extérieures), les
-// 18 champs sur une couronne autour. Terrain texturé plein écran, plaza de terre battue, murs et tours,
-// caméra (déplacement au doigt, zoom pincé, molette, double tap pour recadrer), nuit avec lumières.
+// 04b-iso-scene.js — La ville en vraie 2.5D isométrique, façon Rise of Kingdoms : une seule scène où tout
+// tient dans l'enceinte (bâtiments au centre, champs le long des murs), sol clair, plaza pavée et avenues,
+// décor dense (bosquets, rangée d'arbres sous les murs, buissons entre les parcelles), murs et tours,
+// caméra (déplacement au doigt, zoom pincé, molette, double tap pour recadrer), nuit avec lumières,
+// et bulles d'action au toucher d'un bâtiment (Améliorer, Recruter, Infos…).
 // Chargé après 02/03/04 : redéfinit calculateCitySlots, calculateFieldSlots, renderCityView,
 // renderFieldsView et onCityMouseMove (le dessin des sprites reste dans 03/04).
 // ============================================================
@@ -15,43 +15,56 @@ const ISO_CITY_CELLS = {
   1: [0, -1], 2: [1, -1], 3: [1, 0], 4: [1, 1], 5: [0, 1], 6: [-1, 1], 7: [-1, 0], 8: [-1, -1],
   9: [0, -2], 10: [1, -2], 11: [2, -1], 12: [2, 0], 13: [2, 1], 14: [1, 2], 15: [0, 2], 16: [-1, 2], 17: [-2, 1], 18: [-2, 0], 19: [-2, -1]
 };
-const ISO_CITY_SPARE = [-1, -2];   // cellule libre de l'anneau extérieur : décor
-// Champs (slots clients 1-18 = emplacements serveur 101-118) : couronne à distance R_FIELD du centre, par type
-const R_FIELD = 3.4;
+// Champs (slots clients 101-118 = emplacements serveur) : troisième anneau, à l'intérieur de l'enceinte, par type
+const R_FIELD = 3;
 const ISO_FIELD_CELLS = {
-  1: [-1, -R_FIELD], 2: [0, -R_FIELD], 3: [1, -R_FIELD], 4: [2, -R_FIELD],                 // LUMBER : derrière
+  1: [-1, -R_FIELD], 2: [0, -R_FIELD], 3: [1, -R_FIELD], 4: [2, -R_FIELD],                 // LUMBER : fond droit
   5: [R_FIELD, -2], 6: [R_FIELD, -1], 7: [R_FIELD, 0], 8: [R_FIELD, 1],                    // QUARRY : côté droit
   9: [-R_FIELD, -2], 10: [-R_FIELD, -1], 11: [-R_FIELD, 0], 12: [-R_FIELD, 1],             // IRON_MINE : côté gauche
   13: [R_FIELD, 2], 14: [2, R_FIELD], 15: [1, R_FIELD], 16: [0, R_FIELD], 17: [-1, R_FIELD], 18: [-2, R_FIELD]   // FARM : devant
 };
 const ISO_FIELD_TYPE = (slot) => slot <= 4 ? 'LUMBER' : slot <= 8 ? 'QUARRY' : slot <= 12 ? 'IRON_MINE' : 'FARM';
-const ISO_FIELD_SPARE = [[-R_FIELD, 2], [-2, -R_FIELD], [-R_FIELD, -R_FIELD], [R_FIELD, R_FIELD]];
-const R_PLAZA = 2.75, R_WALL = 2.75;   // l'enceinte se dresse sur le bord du plateau
+// Cellules libres (anneau extérieur et coins du troisième anneau) : bosquets
+const ISO_SPARE_CELLS = [[-1, -2], [-2.7, -2.7], [-2, -3], [2.7, -2.7], [2.7, 2.7], [-3, 2], [-2.7, 2.7]];
+const R_WALL = 3.85;      // l'enceinte entoure bâtiments et champs
+const R_PLAZA = 0.7;      // plaza pavée autour du Bâtiment principal
+const ISO_MAIN_HALL_SCALE = 1.35;   // le Bâtiment principal domine la ville
+// Enceinte : 8 tronçons par côté ; la porte, sur l'arête sud-ouest, s'ouvre sur l'avenue qui passe entre les
+// colonnes 0 et 1 de la grille (gx = 0,5)
+const ISO_WALL_SEGMENTS = 8;
+const ISO_GATE_ALONG = 0.5;
+const ISO_GATE_INDEX = Math.round((R_WALL - ISO_GATE_ALONG) / (2 * R_WALL) * ISO_WALL_SEGMENTS - 0.5);
+const ISO_GATE_GX = R_WALL - 2 * R_WALL * (ISO_GATE_INDEX + 0.5) / ISO_WALL_SEGMENTS;
+const ISO_GATE_SEGMENTS = ISO_WALL_SEGMENTS;   // compatibilité : largeur de l'ouverture = 2R / segments
 
 // ---------- Caméra ----------
 const cityCam = { x: 0, y: 0, zoom: 1, auto: true };   // auto : zoom par défaut recalculé pour que les cellules restent lisibles
 const ISO_ZOOM_MIN = 0.45, ISO_ZOOM_MAX = 3.2;
-// Largeur de cellule (px logiques) visée par le cadrage par défaut : la ville déborde de l'écran et se déplace au doigt
-function isoMinCell() { return cityViewW < 500 ? 118 : cityViewW < 900 ? 96 : 0; }   // grand écran : la ville entière tient dans la vue
+// Largeur de cellule (px logiques) visée par le cadrage par défaut : sur téléphone la ville déborde et se déplace au doigt
+function isoMinCell() { return cityViewW < 500 ? 84 : cityViewW < 900 ? 66 : 0; }   // grand écran : la ville entière tient dans la vue
 // Espacement de la grille : les cellules sont à 1,3 largeur de cellule les unes des autres (chemins, air entre les
-// bâtiments, enceinte éloignée des maisons) ; les parcelles font 0,74 largeur de cellule
+// bâtiments) ; les parcelles font 0,74 largeur de cellule
 const ISO_SP = 1.3;
 const ISO_PLOT = 0.74;
 let isoCellW = 96;          // largeur de cellule (px logiques) au dernier rendu
+// Badges de niveau et icônes de production : affichés en zoom rapproché ou sur l'emplacement survolé / sélectionné,
+// pour une vue d'ensemble épurée (le niveau est toujours dans la bulle d'action et l'infobulle)
+const ISO_BADGE_MIN_W = 96;
+function isoShowBadges(hovered) { return !!hovered || isoCellW >= ISO_BADGE_MIN_W; }
 // Badge de niveau adapté à la taille des cellules (petit, au coin droit de la parcelle, lisible dès 2× DPR)
 function isoBadgeSpec(x, y, hw, hh) { const r = Math.max(6.5, Math.min(10, isoCellW * 0.11)); return { x: x + hw * 0.62, y: y + hh * 0.35, radius: r }; }
 let isoOrigin = { x: 0, y: 0 };
 
 function isoSceneExtent(view) {
   // demi-largeur (cellules) et marges verticales (cellules) de la scène à cadrer
-  // Sur téléphone, le cadrage par défaut colle à l'enceinte (la ville remplit la largeur ; on peut dézoomer)
+  void view;   // une seule scène désormais (la vue « champs » cadre la même ville)
   const tight = cityViewW < 500;
-  return view === 'fields' ? { hw: R_FIELD + (tight ? 0.3 : 0.55), top: (R_FIELD + 0.5) * 0.5 + 0.8, bottom: (R_FIELD + 0.5) * 0.5 + 0.3 } : { hw: R_WALL + (tight ? 0.12 : 0.35), top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
+  return { hw: R_WALL + (tight ? 0.12 : 0.35), top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
 }
 function isoLayout(view) {
   const e0 = isoSceneExtent(view);
   const ext = { hw: e0.hw * ISO_SP, top: e0.top * ISO_SP, bottom: e0.bottom * ISO_SP };
-  const padX = cityViewW < 500 ? 4 : 40, padY = cityViewW < 500 ? 16 : 40;
+  const padX = cityViewW < 500 ? 4 : 30, padY = cityViewW < 500 ? 12 : 24;
   const fitW = Math.min((cityViewW - padX * 2) / (ext.hw * 2), (cityViewH - padY * 2) / (ext.top + ext.bottom));
   if (cityCam.auto) cityCam.zoom = Math.min(ISO_ZOOM_MAX, Math.max(1, isoMinCell() / fitW));
   const W = Math.max(26, Math.min(190, fitW * cityCam.zoom));
@@ -68,6 +81,7 @@ function clampCam(view) {
 function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; cityCam.auto = true; }
 
 // ---------- Emplacements (contrat citySlots conservé : slot, x, y, size, fixed, isField, fieldType…) ----------
+// Une seule liste : les bâtiments (slots 0-19) et les champs (slots 101-118, numérotation du serveur)
 function calculateCitySlots() {
   if (!cityCanvas) return;
   const { W, cx, cy } = isoLayout('city');
@@ -76,22 +90,17 @@ function calculateCitySlots() {
   for (const [slot, [gx, gy]] of Object.entries(ISO_CITY_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
+    const k = s === 0 ? ISO_MAIN_HALL_SCALE : 1;
     // size : le sprite (1,7 × size = 1,22 W) pose son losange de parcelle (100/130 de sa largeur = 0,94 W) sur la cellule
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.7, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.7 * k, hw: W * ISO_PLOT / 2 * k, hh: W * ISO_PLOT / 4 * k, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
   }
-}
-function calculateFieldSlots() {
-  if (!cityCanvas) return;
-  const { W, cx, cy } = isoLayout('fields');
-  isoCellW = W; isoOrigin = { x: cx, y: cy };
-  citySlots = [];
-  citySlots.push({ slot: -1, gx: 0, gy: 0, x: cx, y: cy, size: W * 2.5, hw: W * R_PLAZA * ISO_SP, hh: W * R_PLAZA * ISO_SP / 2, isVillageCenter: true });
   for (const [slot, [gx, gy]] of Object.entries(ISO_FIELD_CELLS)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
+    citySlots.push({ slot: 100 + s, fieldSlot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
   }
 }
+function calculateFieldSlots() { calculateCitySlots(); }
 
 // ---------- Primitives canvas (style peint : dégradés + trait brun) ----------
 const ISO_LINE = 'rgba(58,36,20,0.75)';
@@ -129,49 +138,62 @@ function drawIsoTerrain(ctx, biome, night) {
   ctx.drawImage(isoTerrainCache.canvas, 0, 0, cityViewW, cityViewH);
 }
 
-// Plaza de terre battue sous la ville : plateau en relief (faces avant sombres) avec ombre portée douce
-function drawIsoPlaza(ctx, cx, cy, W, night) {
-  const hw = R_PLAZA * W * ISO_SP, hh = R_PLAZA * W * ISO_SP / 2, th = W * 0.14;
+// Sol de l'enceinte : le biome en plus clair et plus vif (herbe entretenue, sable ratissé, neige tassée), liseré au pied des murs
+function drawIsoGround(ctx, cx, cy, W, biome, night) {
+  const hw = R_WALL * W * ISO_SP, hh = hw / 2;
   ctx.save();
-  ctx.shadowColor = night ? 'rgba(0,0,0,0.7)' : 'rgba(20,12,4,0.45)'; ctx.shadowBlur = W * 0.5; ctx.shadowOffsetY = W * 0.12;
-  ctx.fillStyle = night ? '#2a1e14' : '#6a4a2c';
-  isoDiamondPath(ctx, cx, cy + th, hw, hh); ctx.fill();
+  ctx.shadowColor = night ? 'rgba(0,0,0,0.6)' : 'rgba(20,12,4,0.35)'; ctx.shadowBlur = W * 0.4; ctx.shadowOffsetY = W * 0.08;
+  ctx.fillStyle = night ? '#1e2a1a' : '#5f8f36';
+  isoDiamondPath(ctx, cx, cy + W * 0.06, hw, hh); ctx.fill();
   ctx.restore();
-  // faces du plateau
-  ctx.fillStyle = night ? '#3a2a1c' : '#8a6238';
-  ctx.beginPath(); ctx.moveTo(cx - hw, cy); ctx.lineTo(cx, cy + hh); ctx.lineTo(cx, cy + hh + th); ctx.lineTo(cx - hw, cy + th); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = night ? '#2e2016' : '#6e4c2a';
-  ctx.beginPath(); ctx.moveTo(cx, cy + hh); ctx.lineTo(cx + hw, cy); ctx.lineTo(cx + hw, cy + th); ctx.lineTo(cx, cy + hh + th); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = ISO_LINE; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(cx - hw, cy); ctx.lineTo(cx - hw, cy + th); ctx.lineTo(cx, cy + hh + th); ctx.lineTo(cx + hw, cy + th); ctx.lineTo(cx + hw, cy); ctx.stroke();
   isoDiamondPath(ctx, cx, cy, hw, hh);
-  const g = ctx.createRadialGradient(cx, cy - hh * 0.2, W * 0.5, cx, cy, hw);
-  g.addColorStop(0, night ? '#4a3a2a' : '#c9a876'); g.addColorStop(1, night ? '#2e2218' : '#a07a4c');
-  fillTextured(ctx, 'dirt', g, night ? 0.82 : 0.45);
-  ctx.strokeStyle = night ? 'rgba(20,12,4,0.8)' : 'rgba(90,60,30,0.7)'; ctx.lineWidth = Math.max(1.5, W * 0.03);
+  fillTextured(ctx, biomeScene(biome).texture, biomeInnerGradient(ctx, cx, cy, hw, biome, night), night ? 0.8 : 0.3);
+  ctx.strokeStyle = night ? 'rgba(20,12,4,0.7)' : 'rgba(90,70,40,0.55)'; ctx.lineWidth = Math.max(1.5, W * 0.035);
   isoDiamondPath(ctx, cx, cy, hw, hh); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,240,200,0.25)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,250,220,0.22)'; ctx.lineWidth = 1;
   isoDiamondPath(ctx, cx, cy, hw - 3, hh - 1.5); ctx.stroke();
 }
 
-// Chemins de terre entre la ville et les champs
-function drawIsoFieldPaths(ctx, cx, cy, W, night) {
-  ctx.lineCap = 'round';
-  ctx.lineWidth = W * 0.2;
-  ctx.beginPath();
-  for (const s of citySlots) {
-    if (!s.isField) continue;
-    const towards = isoPos(Math.sign(s.gx) * Math.min(Math.abs(s.gx), R_PLAZA - 0.3), Math.sign(s.gy) * Math.min(Math.abs(s.gy), R_PLAZA - 0.3), W, cx, cy);
-    ctx.moveTo(s.x, s.y); ctx.lineTo(towards.x, towards.y);
-  }
-  strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
+// Plaza pavée autour du Bâtiment principal
+function drawIsoPlaza(ctx, cx, cy, W, night) {
+  const hw = R_PLAZA * W * ISO_SP, hh = hw / 2;
+  isoDiamondPath(ctx, cx, cy, hw, hh);
+  const g = ctx.createRadialGradient(cx, cy - hh * 0.2, W * 0.2, cx, cy, hw);
+  g.addColorStop(0, night ? '#4a4034' : '#dccba2'); g.addColorStop(1, night ? '#2e2618' : '#b89c70');
+  fillTextured(ctx, 'dirt', g, night ? 0.82 : 0.38);
+  ctx.strokeStyle = night ? 'rgba(20,12,4,0.8)' : 'rgba(90,60,30,0.6)'; ctx.lineWidth = Math.max(1.5, W * 0.03);
+  isoDiamondPath(ctx, cx, cy, hw, hh); ctx.stroke();
+  ctx.strokeStyle = night ? 'rgba(0,0,0,0.18)' : 'rgba(90,60,30,0.16)'; ctx.lineWidth = 1;
+  for (const f of [0.66, 0.33]) { isoDiamondPath(ctx, cx, cy, hw * f, hh * f); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(255,240,200,0.28)'; ctx.lineWidth = 1;
+  isoDiamondPath(ctx, cx, cy, hw - 3, hh - 1.5); ctx.stroke();
 }
 
-// Enceinte (si le Mur est construit) : sprites rendus en 3D (assets/images/3d/walls/<faction>/<palier>_*.webp) :
-// un tronçon de courtine par sixième de côté (hauts à l'arrière, murets à l'avant pour laisser voir la ville)
-// et quatre tours d'angle, selon la faction, le palier du Mur (niveaux 1-6, 7-13, 14-20) et le biome (neige),
-// triés en profondeur avec le reste de la scène. Tant que les images ne sont pas chargées, rien n'est dessiné
-// (le rendu est relancé à leur chargement).
+// Avenues de terre battue : de la porte à la plaza, de la plaza vers le fond, et une transversale ; elles passent
+// dans les couloirs laissés entre les parcelles (gx = 0,5 et gy = 0,5)
+function isoAvenueLanes(W, cx, cy) {
+  const P = (gx, gy) => isoPos(gx, gy, W, cx, cy);
+  return [
+    [P(ISO_GATE_GX, R_WALL + 0.12), P(ISO_GATE_GX, R_PLAZA * 0.8)],
+    [P(ISO_GATE_GX, -R_PLAZA * 0.8), P(ISO_GATE_GX, -R_WALL + 0.62)],
+    [P(-R_WALL + 0.62, 0.5), P(R_WALL - 0.62, 0.5)]
+  ];
+}
+function drawIsoAvenues(ctx, cx, cy, W, night) {
+  const lanes = isoAvenueLanes(W, cx, cy);
+  const trace = () => { ctx.beginPath(); for (const [a, b] of lanes) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); } };
+  ctx.lineCap = 'round'; ctx.lineWidth = W * 0.3;
+  trace(); strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#c8a878', night ? 0.85 : 0.5);
+  ctx.strokeStyle = night ? 'rgba(0,0,0,0.22)' : 'rgba(90,60,30,0.24)'; ctx.lineWidth = W * 0.32; ctx.globalCompositeOperation = 'multiply';
+  trace(); ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// Enceinte : sprites rendus en 3D (assets/images/3d/walls/<faction>/<palier>_*.webp) : des tronçons de courtine
+// (hauts à l'arrière, murets à l'avant pour laisser voir la ville et les champs), quatre tours d'angle, deux
+// tourelles et un vantail à la porte, selon la faction, le palier du Mur (niveaux 1-6, 7-13, 14-20) et le biome
+// (neige), triés en profondeur avec le reste de la scène. Tant que les images ne sont pas chargées, rien n'est
+// dessiné (le rendu est relancé à leur chargement).
 // Drapeaux animés : mât et étoffe rendus en 3D en 8 phases (props/flag_<faction|ally|gold>_<k>.webp), posés sur
 // les bâtiments qui en portent (mât en unités iso : ix, iy, iz, hauteur[, étoffe]) et sur l'enceinte au palier 3
 const ISO_FLAGS = { MAIN_HALL: [[0, 0, 2.28, 0.8]], BARRACKS: [[-0.95, -0.55, 1.1, 0.7]], GREAT_BARRACKS: [[1.05, -0.75, 1.4, 0.7]], EMBASSY: [[-0.9, -0.6, 2.05, 0.7], [0.9, -0.6, 2.05, 0.7, 'ally']], HERO_MANSION: [[0.75, -0.25, 2.35, 0.6]], HUN_WAR_TENT: [[0, 0, 1.6, 0.5]], RALLY_POINT: [[0, 0, 0.06, 1.4]], SULTAN_DESERT_OUTPOST: [[0.75, -0.55, 2.8, 0.4, 'gold']] };
@@ -186,30 +208,29 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   const img = {};
   for (const n of ['seg_x', 'seg_x_low', 'seg_z', 'seg_z_low', 'tower']) img[n] = getSprite(wallSpriteUrl(n, tier));
   if (Object.values(img).some(i => !i)) return [];
-  const R = R_WALL, N = 6, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
+  const R = R_WALL, N = ISO_WALL_SEGMENTS, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
   const variant = spriteVariant(false);
   const faction = player?.faction || 'ROME';
   const items = [];
   isoWallFlags = [];
   const edge = (from, to, high, along, gate = false) => {
     const sprite = img[`seg_${along}${high && !lowAll ? '' : '_low'}`];
-    const n = gate ? ISO_GATE_SEGMENTS : N, len = 2 * R / n;
-    const sw = W * ISO_SP * len / SPRITE_PLOT_W * 1.03;
-    for (let k = 0; k < n; k++) {
-      if (gate && k === (n - 1) / 2) continue;   // l'ouverture de la porte
-      const t = (k + 0.5) / n;
+    const sw = W * ISO_SP * L / SPRITE_PLOT_W * 1.03;
+    for (let k = 0; k < N; k++) {
+      if (gate && k === ISO_GATE_INDEX) continue;   // l'ouverture de la porte
+      const t = (k + 0.5) / N;
       const g = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
       const p = isoPos(g[0], g[1], W, cx, cy);
-      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, sw, variant) });   // sw ci-dessus : un tronçon couvre len cellules espacées
-      if (tier === 3 && high && !lowAll) isoWallFlags.push(isoFlagAt(p.x, p.y, sw, 0, 0, WALL_SEG_FLAG_Z[faction] || 1.35, 0.6, faction));
+      items.push({ depth: g[0] + g[1], y: p.y, draw: () => drawSprite(ctx, sprite, p.x, p.y, sw, variant) });
+      if (tier === 3 && high && !lowAll && k % 2 === 1) isoWallFlags.push(isoFlagAt(p.x, p.y, sw, 0, 0, WALL_SEG_FLAG_Z[faction] || 1.35, 0.6, faction));
     }
   };
   edge([-R, R], [-R, -R], true, 'z');    // arrière gauche (le long de iy)
   edge([-R, -R], [R, -R], true, 'x');    // arrière droit (le long de ix)
   edge([R, -R], [R, R], false, 'z');     // avant droit
-  edge([R, R], [-R, R], false, 'x', true);   // avant gauche = sud-ouest : la porte au milieu
+  edge([R, R], [-R, R], false, 'x', true);   // avant gauche = sud-ouest : la porte
   // Porte : deux tourelles de part et d'autre de l'ouverture et un vantail de bois entre elles
-  const gw = 2 * R / ISO_GATE_SEGMENTS;   // largeur de l'ouverture (cellules)
+  const gw = L;   // largeur de l'ouverture (cellules)
   for (const side of [-1, 1]) {
     const g = isoGateCell(side * (gw / 2 + 0.08));
     const p = isoPos(g[0], g[1], W, cx, cy);
@@ -228,10 +249,9 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   return items;
 }
 
-// La porte de la ville est au milieu de l'arête sud-ouest de l'enceinte (bord inférieur gauche du losange) ;
-// `along` décale le long de cette arête (en cellules, + vers le coin sud)
-const ISO_GATE_SEGMENTS = 7;
-function isoGateCell(along = 0) { return [along, R_WALL]; }
+// La porte de la ville est sur l'arête sud-ouest de l'enceinte (bord inférieur gauche du losange), dans l'axe de
+// l'avenue ; `along` décale le long de cette arête (en cellules, + vers le coin sud)
+function isoGateCell(along = 0) { return [ISO_GATE_GX + along, R_WALL]; }
 // Vantail de bois cintré, à plat dans le plan de l'arête (côtés verticaux à l'écran)
 function drawIsoGateDoor(ctx, x, y, W, gw, low, night) {
   const half = isoPos(gw / 2 * 0.86, R_WALL, W, 0, 0), zero = isoPos(0, R_WALL, W, 0, 0);
@@ -255,14 +275,14 @@ function drawIsoGateDoor(ctx, x, y, W, gw, low, night) {
   ctx.restore();
 }
 
-// Route de terre : elle part de la porte (arête sud-ouest), descend la rampe du plateau et s'éloigne vers le
-// sud-ouest de l'écran en ondulant un peu, comme un chemin de campagne
+// Route de terre : elle part de la porte (arête sud-ouest) et s'éloigne vers le sud-ouest de l'écran en ondulant
+// un peu, comme un chemin de campagne
 function isoRoadPoints(cx, cy, W) {
   const gc = isoGateCell(0), gp = isoPos(gc[0], gc[1], W, cx, cy);
-  const th = W * 0.14;
+  const th = 0;
   // direction perpendiculaire à l'arête, vers l'extérieur (sud-ouest à l'écran = bas gauche)
   const out = { x: -0.62, y: 0.78 };
-  const p0 = { x: gp.x, y: gp.y + th * 0.9 };
+  const p0 = { x: gp.x, y: gp.y + W * 0.1 };
   const p1 = { x: p0.x + out.x * W * 0.8, y: p0.y + out.y * W * 0.8 };
   const p2 = { x: p0.x + out.x * W * 2.4 + W * 0.5, y: p0.y + out.y * W * 2.4 };
   const p3 = { x: p0.x + out.x * W * 4.6 - W * 0.4, y: Math.max(p0.y + out.y * W * 4.2, cityViewH + W * 0.5) };
@@ -270,7 +290,7 @@ function isoRoadPoints(cx, cy, W) {
 }
 function drawIsoRoad(ctx, cx, cy, W, night) {
   const { p0, p1, p2, p3 } = isoRoadPoints(cx, cy, W);
-  const trace = () => { ctx.beginPath(); ctx.moveTo(p0.x, p0.y - W * 0.05); ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); };
+  const trace = () => { ctx.beginPath(); ctx.moveTo(p0.x, p0.y - W * 0.3); ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); };
   ctx.lineCap = 'round'; ctx.lineWidth = W * 0.36;
   trace(); strokeTextured(ctx, 'dirt', night ? '#3a2c1e' : '#b89468', night ? 0.85 : 0.5);
   // bords adoucis, ornières
@@ -282,15 +302,7 @@ function drawIsoRoad(ctx, cx, cy, W, night) {
   for (const off of [-W * 0.08, W * 0.08]) { ctx.beginPath(); ctx.moveTo(p0.x + off, p0.y); ctx.bezierCurveTo(p1.x + off, p1.y, p2.x + off, p2.y, p3.x + off, p3.y); ctx.stroke(); }
   ctx.setLineDash([]);
 }
-// Rampe sur la face du plateau sous la porte (dessinée après le plateau)
-function drawIsoGateRamp(ctx, cx, cy, W, night) {
-  const { gp, th } = isoRoadPoints(cx, cy, W);
-  const half = isoPos(2 * R_WALL / ISO_GATE_SEGMENTS * 0.5, R_WALL, W, 0, 0), zero = isoPos(0, R_WALL, W, 0, 0);
-  const dx = half.x - zero.x, dy = half.y - zero.y;
-  ctx.fillStyle = night ? '#4a3626' : '#c4a070';
-  ctx.beginPath(); ctx.moveTo(gp.x - dx, gp.y - dy); ctx.lineTo(gp.x + dx, gp.y + dy); ctx.lineTo(gp.x + dx * 1.15, gp.y + dy * 1.15 + th); ctx.lineTo(gp.x - dx * 1.15, gp.y - dy * 1.15 + th); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(60,40,20,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-}
+function drawIsoGateRamp() { /* plus de plateau : la porte est de plain-pied */ }
 
 // Décors autour de la scène : la couronne de cellules hors de l'enceinte reflète les cases de la carte autour
 // de la ville (chaque groupe de trois cellules de scène = une case de carte). Forêt dense, rochers des massifs,
@@ -305,14 +317,14 @@ function isoMapFeatureAt(gx, gy) {
 function isoLandscape(view, W, cx, cy) {
   const props = biomeScene(cityBiome()).props;
   const out = [], water = [];
-  const rMin = view === 'fields' ? Math.ceil(R_FIELD) + 1 : Math.ceil(R_WALL) + 1, rMax = rMin + 2;
+  const rMin = Math.ceil(R_WALL) + 1, rMax = rMin + 2;
   const roadCell = isoGateCell(0);
   for (let gx = -rMax; gx <= rMax; gx++) for (let gy = -rMax; gy <= rMax; gy++) {
     const r = Math.max(Math.abs(gx), Math.abs(gy));
     if (r < rMin || r > rMax) continue;
     // la route sort par la porte vers le sud-ouest : on laisse ce couloir libre
     if (gy > roadCell[1] && Math.abs(gx - roadCell[0]) <= 1 && gy - gx > R_WALL) continue;
-    const seed = (gx + 50) * 97 + (gy + 50) * 13 + (view === 'fields' ? 7 : 0);
+    const seed = (gx + 50) * 97 + (gy + 50) * 13;
     const roll = isoSeeded(seed);
     const feature = isoMapFeatureAt(gx, gy);
     const jitter = (k) => (isoSeeded(seed + k) - 0.5) * 0.7;
@@ -331,19 +343,20 @@ function isoLandscape(view, W, cx, cy) {
       if (roll > 0.75) continue;
       kind = 'dune'; h = W * (0.5 + isoSeeded(seed + 4) * 0.3);
     } else if (feature === 'tree' || feature === 'snowtree') {
-      if (roll > 0.82) continue;
+      if (roll > 0.85) continue;
       kind = props.trees[Math.floor(isoSeeded(seed + 3) * props.trees.length)];
       h = W * (0.8 + isoSeeded(seed + 4) * 0.4);
     } else if (feature === 'ruins') {
       if (roll > 0.5) continue;
       kind = roll < 0.25 ? 'stump' : props.rock; h = W * 0.5;
     } else {
-      if (roll > 0.38) continue;
-      kind = roll < 0.07 ? props.rock : props.trees[Math.floor(isoSeeded(seed + 3) * props.trees.length)];
+      if (roll > 0.5) continue;
+      kind = roll < 0.08 ? props.rock : props.trees[Math.floor(isoSeeded(seed + 3) * props.trees.length)];
       h = W * (kind === props.rock ? 0.5 : 0.75 + isoSeeded(seed + 4) * 0.35);
     }
     out.push({ x: p.x, y: p.y, kind, h, depth: gx + gy });
   }
+  void view;
   return { props: out, water };
 }
 function isoSceneProps(view, W, cx, cy) { return isoLandscape(view, W, cx, cy).props; }
@@ -366,9 +379,54 @@ function drawIsoScenePonds(ctx, water, W, night) {
   }
 }
 
+// Décor intérieur, dense comme dans Rise of Kingdoms : bosquets sur les cellules libres, rangée d'arbres et de
+// buissons au pied des murs, petits décors dans les interstices entre les parcelles (hors avenues et plaza).
+// Positions stables (graine par emplacement), essences du biome.
+const ISO_DECOR = {
+  forest: { small: ['bush', 'flowers', 'bush', 'rock', 'flowers', 'stump'], tree: ['oak', 'pine', 'oak2', 'pine2'] },
+  desert: { small: ['cactus', 'rock', 'bush', 'rock2', 'cactus'], tree: ['palm', 'palm', 'cactus'] },
+  snow: { small: ['snowrock', 'stump', 'snowrock'], tree: ['snowpine', 'snowpine', 'pine2'] }
+};
+function isoInnerDecor(W, cx, cy, biome) {
+  const d = ISO_DECOR[biome] || ISO_DECOR.forest;
+  const out = [];
+  const pick = (arr, seed) => arr[Math.floor(isoSeeded(seed) * arr.length)];
+  const push = (gx, gy, kind, h, depthOff = 0) => { const p = isoPos(gx, gy, W, cx, cy); out.push({ x: p.x, y: p.y, kind, h, depth: gx + gy + depthOff }); };
+  // 1) bosquets sur les cellules libres
+  for (const [gx, gy] of ISO_SPARE_CELLS) {
+    const seed = Math.round((gx + 20) * 31 + (gy + 20) * 7);
+    push(gx, gy + 0.08, pick(d.tree, seed), W * (0.95 + isoSeeded(seed + 1) * 0.25));
+    push(gx - 0.32, gy + 0.22, pick(d.tree, seed + 2), W * 0.7, 0.05);
+    push(gx + 0.3, gy + 0.18, pick(d.small, seed + 3), W * 0.34, 0.06);
+    push(gx + 0.1, gy - 0.3, pick(d.tree, seed + 4), W * 0.62, -0.1);
+  }
+  // 2) rangée au pied des murs : arbres derrière (fond), buissons devant (pour ne pas cacher les champs)
+  const rb = R_WALL - 0.42;
+  for (let a = -3.1; a <= 3.1; a += 0.5) {
+    const seed = Math.round(a * 10) + 500;
+    const j = (k) => (isoSeeded(seed + k) - 0.5) * 0.25;
+    push(a + j(1), -rb + j(2), pick(d.tree, seed), W * (0.72 + isoSeeded(seed + 3) * 0.3));
+    push(-rb + j(4), a + j(5), pick(d.tree, seed + 6), W * (0.72 + isoSeeded(seed + 7) * 0.3));
+    push(rb + j(8), a + j(9), pick(d.small, seed + 10), W * 0.34);
+    if (Math.abs(a - ISO_GATE_GX) > 0.85) push(a + j(11), rb + j(12), pick(d.small, seed + 13), W * 0.34);
+  }
+  // 3) interstices entre parcelles
+  for (let gx = -3; gx <= 2; gx++) for (let gy = -3; gy <= 2; gy++) {
+    if (gx === 0 || gy === 0) continue;   // couloirs des avenues
+    const px = gx + 0.5, py = gy + 0.5;
+    if (Math.abs(px) + Math.abs(py) < R_PLAZA + 0.7) continue;
+    const seed = (gx + 10) * 53 + (gy + 10) * 11 + 900;
+    if (isoSeeded(seed) > 0.5) continue;
+    const kind = isoSeeded(seed + 1) < 0.2 ? pick(d.tree, seed + 2) : pick(d.small, seed + 2);
+    const tree = d.tree.includes(kind);
+    push(px + (isoSeeded(seed + 3) - 0.5) * 0.2, py + (isoSeeded(seed + 4) - 0.5) * 0.2, kind, W * (tree ? 0.5 : 0.3), 0.01);
+  }
+  return out;
+}
+
 // Parcelle au sol (rendu 3D du biome) sous chaque cellule ; la variante dépend de la cellule
 function drawIsoPlot(ctx, s) {
-  const img = getSprite(plotSpriteUrl((s.gx * 3 + s.gy * 5 + 10) & 1));
+  const img = getSprite(plotSpriteUrl((Math.round(s.gx) * 3 + Math.round(s.gy) * 5 + 10) & 1));
   if (img) drawSprite(ctx, img, s.x, s.y, s.hw * 2 / SPRITE_PLOT_W, spriteVariant(false));
 }
 // Parcelle vide : losange en pointillé + « + »
@@ -386,6 +444,11 @@ function drawIsoHoverCell(ctx, s) {
   ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 14;
   isoDiamondPath(ctx, s.x, s.y, s.hw + 2, s.hh + 1); ctx.stroke(); ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(255,215,0,0.12)'; ctx.fill();
+}
+// Onglet Champs : les parcelles de champ sont soulignées pour se repérer
+function drawIsoFieldFocus(ctx, s) {
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,215,0,0.55)'; ctx.lineWidth = 1.5;
+  isoDiamondPath(ctx, s.x, s.y, s.hw + 1, s.hh + 0.5); ctx.stroke(); ctx.setLineDash([]);
 }
 
 // Nuit : voile bleu + lueurs chaudes aux bâtiments habités
@@ -465,16 +528,17 @@ function isoAnimate(ctx, built, W, night, flags = []) {
 }
 
 // ---------- Rendu ----------
-// Signature de tout ce qui change le fond statique de la ville (bâtiments, files, survol, caméra, sprites chargés)
+// Signature de tout ce qui change le fond statique de la ville (bâtiments, files, survol, sélection, caméra, sprites chargés)
 let isoStatic = { key: '', canvas: null, overlay: [], built: [], lit: [] };
 function isoStaticKey(view, W, cx, cy, night, biome) {
   const b = (currentCity?.buildings || []).map(x => x.key + x.slot + ':' + x.level).join(',');
   const q = (currentCity?.buildQueue || []).map(x => x.slot + x.status).join(',');
   let ready = 0; for (const s of _sprites.values()) if (s.ready) ready++;
-  return [view, currentCity?.id, W.toFixed(2), cx.toFixed(1), cy.toFixed(1), cityViewW, cityViewH, night, biome, cityHoveredSlot, b, q, ready, paintedSet.size, canvasScale(), player?.faction].join('|');
+  return [view, currentCityView, currentCity?.id, W.toFixed(2), cx.toFixed(1), cy.toFixed(1), cityViewW, cityViewH, night, biome, cityHoveredSlot, citySelectedSlot, b, q, ready, paintedSet.size, canvasScale(), player?.faction].join('|');
 }
 
 function renderCityView() {
+  if (!cityCanvas || !cityCtx) return;
   setupCityGestures();
   clampCam('city');
   calculateCitySlots();
@@ -499,28 +563,43 @@ function renderCityView() {
   isoAnimate(mainCtx, isoStatic.built, W, night, isoStatic.flags);
   if (night) drawIsoNight(mainCtx, isoStatic.lit);
   for (const fn of isoStatic.overlay) fn();
+  positionCityActions();
 }
+function renderFieldsView() { renderCityView(); }
 
-// Fond statique de la vue ville ; renvoie les éléments à dessiner chaque image (overlay, bâtiments, lumières)
+// Fond statique de la ville ; renvoie les éléments à dessiner chaque image (overlay, bâtiments, lumières, drapeaux)
 function renderCityStatic(ctx, W, cx, cy, night, biome) {
   ctx.clearRect(0, 0, cityViewW, cityViewH);
   drawIsoTerrain(ctx, biome, night);
   const landscape = isoLandscape('city', W, cx, cy);
   drawIsoScenePonds(ctx, landscape.water, W, night);
   drawIsoRoad(ctx, cx, cy, W, night);
+  drawIsoGround(ctx, cx, cy, W, biome, night);
+  drawIsoAvenues(ctx, cx, cy, W, night);
+  drawIsoPlaza(ctx, cx, cy, W, night);
   // Objets triés de l'arrière vers l'avant (profondeur gx+gy, puis y écran) ; l'enceinte est poussée avant
   // les bâtiments pour qu'à profondeur égale elle reste derrière eux
   const items = [];
   for (const p of landscape.props) items.push({ depth: p.depth, y: p.y, draw: () => drawProp(ctx, p.kind, p.x, p.y, p.h, spriteVariant(false)) });
-  drawIsoPlaza(ctx, cx, cy, W, night);
-  drawIsoGateRamp(ctx, cx, cy, W, night);
   const wallLevel = cityWallLevel();
   if (wallLevel > 0) items.push(...isoWallItems(ctx, cx, cy, W, wallLevel, night));
+  for (const d of isoInnerDecor(W, cx, cy, biome)) items.push({ depth: d.depth, y: d.y, draw: () => drawProp(ctx, d.kind, d.x, d.y, d.h, spriteVariant(false)) });
   const lit = [], built = [];
+  const fieldsFocus = currentCityView === 'fields';
   isoOverlayQueue = [];
   for (const s of citySlots) {
+    const hovered = cityHoveredSlot === s.slot || citySelectedSlot === s.slot;
+    if (s.isField) {
+      const building = getFieldBuildingAtSlot(s.slot, s.fieldType);
+      const isBuilding = currentCity?.buildQueue?.some(q => q.buildingKey === s.fieldType && q.slot === s.slot && q.status === 'RUNNING');
+      items.push({ depth: s.gx + s.gy, y: s.y, draw: () => {
+        if (fieldsFocus && !hovered) drawIsoFieldFocus(ctx, s);
+        if (hovered) drawIsoHoverCell(ctx, s);
+        drawFieldSlot(s, building, hovered, isBuilding);
+      } });
+      continue;
+    }
     const building = getBuildingAtSlot(s.slot);
-    const hovered = cityHoveredSlot === s.slot;
     const key = s.fixed ? s.fixedKey : building?.key;
     const level = building?.level || (s.fixed ? 1 : 0);
     const isBuilding = currentCity?.buildQueue?.some(q => q.slot === s.slot && q.status === 'RUNNING');
@@ -531,11 +610,11 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);
     } });
     if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7, ts: buildingTierScale(level) });
-    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55, a: 0.3, seed: s.slot });
+    if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55 * (s.fixed ? 1.3 : 1), a: 0.3, seed: s.slot });
   }
-  // cellule libre : un arbre d'agrément
-  const spare = isoPos(ISO_CITY_SPARE[0], ISO_CITY_SPARE[1], W, cx, cy);
-  items.push({ depth: ISO_CITY_SPARE[0] + ISO_CITY_SPARE[1], y: spare.y, draw: () => drawProp(ctx, biomeScene(biome).props.trees[1], spare.x, spare.y + W * 0.1, W * 0.8, spriteVariant(false)) });
+  if (wallLevel > 0 && night) {   // torches de la porte
+    for (const side of [-1, 1]) { const g = isoGateCell(side * 0.6); const p = isoPos(g[0], g[1], W, cx, cy); lit.push({ x: p.x, y: p.y - W * 0.45, r: W * 0.42, a: 0.34, seed: 70 + side }); }
+  }
   items.sort((a, b) => a.depth - b.depth || a.y - b.y);
   for (const it of items) it.draw();
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
@@ -543,81 +622,68 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   for (const b of built) for (const f of ISO_FLAGS[b.key] || []) flags.push(isoFlagAt(b.x, b.y, b.w, f[0] * (b.ts || 1), f[1] * (b.ts || 1), f[2] * (b.ts || 1), f[3], f[4] || player?.faction || 'ROME'));
   return { overlay, built, lit, flags };
 }
+function renderFieldsStatic(ctx, W, cx, cy, night, biome) { return renderCityStatic(ctx, W, cx, cy, night, biome); }
 
-function renderFieldsView() {
-  if (!cityCanvas || !cityCtx) return;
-  setupCityGestures();
-  clampCam('fields');
-  calculateFieldSlots();
-  const mainCtx = cityCtx, night = isNightMode(), biome = cityBiome();
-  const { W, cx, cy } = isoLayout('fields');
-  const key = isoStaticKey('fields', W, cx, cy, night, biome);
-  if (isoStatic.key !== key) {
-    const scale = canvasScale();
-    const off = isoStatic.canvas && isoStatic.canvas.width === Math.round(cityViewW * scale) && isoStatic.canvas.height === Math.round(cityViewH * scale) ? isoStatic.canvas : document.createElement('canvas');
-    off.width = Math.round(cityViewW * scale); off.height = Math.round(cityViewH * scale);
-    const octx = off.getContext('2d');
-    octx.setTransform(scale, 0, 0, scale, 0, 0);
-    cityCtx = octx;
-    let result;
-    try { result = renderFieldsStatic(octx, W, cx, cy, night, biome); } finally { cityCtx = mainCtx; }
-    isoStatic = { key, canvas: off, overlay: result.overlay, built: [], lit: result.lit };
-  }
-  mainCtx.clearRect(0, 0, cityViewW, cityViewH);
-  mainCtx.drawImage(isoStatic.canvas, 0, 0, cityViewW, cityViewH);
-  if (night) drawIsoNight(mainCtx, isoStatic.lit);
-  for (const fn of isoStatic.overlay) fn();
+// ---------- Bulles d'action (façon Rise of Kingdoms) ----------
+// Un toucher sur un bâtiment, un champ ou un emplacement libre affiche son nom, son niveau et des boutons ronds
+// (Améliorer / Construire, Recruter, Marché…, Infos) au-dessus de lui ; le bâtiment reste surligné tant que la bulle est ouverte
+let citySelectedSlot = null;
+const cityActions = { slot: null, buttons: [] };
+function cityActionsEl() { return document.getElementById('city-actions'); }
+function hideCityActions() {
+  const el = cityActionsEl();
+  if (el) el.style.display = 'none';
+  const wasOpen = cityActions.slot !== null || citySelectedSlot !== null;
+  cityActions.slot = null; citySelectedSlot = null; cityActions.buttons = [];
+  if (wasOpen && cityCanvas && document.getElementById('tab-city')?.classList.contains('active')) renderCityCanvas();
 }
-
-function renderFieldsStatic(ctx, W, cx, cy, night, biome) {
-  ctx.clearRect(0, 0, cityViewW, cityViewH);
-  drawIsoTerrain(ctx, biome, night);
-  drawIsoRoad(ctx, cx, cy, W, night);
-  drawIsoFieldPaths(ctx, cx, cy, W, night);
-  drawIsoPlaza(ctx, cx, cy, W, night);
-  const items = [];
-  const landscape = isoLandscape('fields', W, cx, cy);
-  drawIsoScenePonds(ctx, landscape.water, W, night);
-  for (const p of landscape.props) items.push({ depth: p.depth, y: p.y, draw: () => drawProp(ctx, p.kind, p.x, p.y, p.h, spriteVariant(false)) });
-  const wallLevel = cityWallLevel();
-  if (wallLevel > 0) items.push(...isoWallItems(ctx, cx, cy, W, wallLevel, night, true));   // murets bas : les champs restent visibles
-  const lit = [];
-  const centerHovered = cityHoveredSlot === -1;
-  // La ville au centre, en silhouette compacte : les bâtiments de l'anneau intérieur à échelle réduite autour
-  // du Bâtiment principal (un clic sur le plateau ouvre la vue ville)
-  for (const [slot, [gx, gy]] of Object.entries(ISO_CITY_CELLS)) {
-    const s = Number(slot);
-    if (s > 8) continue;
-    const building = getBuildingAtSlot(s);
-    const key = s === 0 ? 'MAIN_HALL' : building?.key;
-    if (!key) continue;
-    const p = isoPos(gx * 0.9, gy * 0.9, W, cx, cy);
-    const w = (s === 0 ? W * 1.15 : W * 0.78) * ISO_SP;
-    items.push({ depth: gx + gy, y: p.y, draw: () => {
-      const sprite = getSprite(buildingSpriteUrl(key, building?.level || 1));
-      if (sprite) drawSprite(ctx, sprite, p.x, p.y, w, spriteVariant(centerHovered));   // silhouette : pas de repli procédural ni de badge
-    } });
-    if (night) lit.push({ x: p.x, y: p.y - W * 0.2, r: W * 0.45, a: 0.26, seed: s });
+function cityActionSpec(s) {
+  const ico = (k) => art(`ui/${k}.webp`);
+  const infos = (key) => ({ label: 'Infos', icon: ico('stats'), run: () => showBuildingInfoModal(key) });
+  if (s.isField) {
+    const b = getFieldBuildingAtSlot(s.slot, s.fieldType), level = b?.level || 0, name = getBuildingName(s.fieldType);
+    const main = { label: level > 0 ? 'Améliorer' : 'Construire', icon: ico('build'), primary: true, run: () => openFieldBuildPanel(s.slot) };
+    return { title: name, level, buttons: [main, infos(s.fieldType)] };
   }
-  isoOverlayQueue = [];
-  for (const s of citySlots) {
-    if (!s.isField) continue;
-    const building = getFieldBuildingAtSlot(s.slot, s.fieldType);
-    const hovered = cityHoveredSlot === s.slot;
-    const isBuilding = currentCity?.buildQueue?.some(q => q.buildingKey === s.fieldType && q.slot === s.slot + 100 && q.status === 'RUNNING');
-    items.push({ depth: s.gx + s.gy, y: s.y, draw: () => {
-      if (!building) { drawIsoEmptyCell(ctx, s, hovered, night); return; }
-      if (hovered) drawIsoHoverCell(ctx, s);
-      drawFieldSlot(s, building, hovered, isBuilding);
-    } });
-  }
-  for (const [gx, gy] of ISO_FIELD_SPARE) { const p = isoPos(gx, gy, W, cx, cy); items.push({ depth: gx + gy, y: p.y, draw: () => drawProp(ctx, biomeScene(biome).props.trees[0], p.x, p.y + W * 0.1, W * 0.85, spriteVariant(false)) }); }
-  items.sort((a, b) => a.depth - b.depth || a.y - b.y);
-  for (const it of items) it.draw();
-  if (centerHovered) { ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2.5; ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 14; isoDiamondPath(ctx, cx, cy, R_PLAZA * W * ISO_SP, R_PLAZA * W * ISO_SP / 2); ctx.stroke(); ctx.shadowBlur = 0; }
-  const overlay = isoOverlayQueue; isoOverlayQueue = null;
-  return { overlay, lit };
+  const building = getBuildingAtSlot(s.slot);
+  const key = s.fixed ? s.fixedKey : building?.key;
+  const level = building?.level || (s.fixed ? 1 : 0);
+  if (!key) return { title: 'Emplacement libre', level: 0, buttons: [{ label: 'Construire', icon: ico('build'), primary: true, run: () => openBuildPanel(s.slot) }] };
+  const buttons = [];
+  if (['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key)) buttons.push({ label: 'Recruter', icon: ico('recruit'), primary: true, run: () => openRecruitmentPanel(key, level, s.slot) });
+  else buttons.push({ label: 'Améliorer', icon: ico('build'), primary: true, run: () => openBuildPanel(s.slot) });
+  const extra = { MARKET: ['Marché', 'market', 'market'], RALLY_POINT: ['Armées', 'army', 'army'], HERO_MANSION: ['Héros', 'hero', 'hero'], EMBASSY: ['Alliance', 'alliance', 'alliance'], WATCHTOWER: ['Rapports', 'reports', 'reports'], TREASURE_CHAMBER: ['Sac', 'inventory', 'inventory'], HEALING_TENT: ['Blessés', 'endurance', null] }[key];
+  if (extra) buttons.push({ label: extra[0], icon: ico(extra[1]), run: () => (extra[2] ? showTab(extra[2]) : openBuildPanel(s.slot)) });
+  buttons.push(infos(key));
+  return { title: getBuildingName(key), level, buttons };
 }
+function showCityActions(slot) {
+  const el = cityActionsEl();
+  const s = citySlots.find(x => x.slot === slot);
+  if (!el || !s) return;
+  if (cityActions.slot === slot && el.style.display !== 'none') { hideCityActions(); return; }   // second toucher : referme
+  const spec = cityActionSpec(s);
+  cityActions.buttons = spec.buttons;
+  el.innerHTML = `<div class="ca-plate"><span class="ca-name">${escapeHtml(spec.title)}</span>${spec.level ? `<span class="ca-level">Niv. ${spec.level}</span>` : ''}</div>
+    <div class="ca-buttons">${spec.buttons.map((b, i) => `<button type="button" class="ca-btn${b.primary ? ' primary' : ''}" data-i="${i}"><span class="ca-ico"><img src="${b.icon}" alt=""></span><span>${b.label}</span></button>`).join('')}</div><div class="ca-tip"></div>`;
+  el.querySelectorAll('.ca-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); const b = cityActions.buttons[Number(btn.dataset.i)]; hideCityActions(); if (b) b.run(); }));
+  el.style.display = 'flex';
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  cityActions.slot = slot; citySelectedSlot = slot;
+  hideCityTooltip();
+  positionCityActions();
+  renderCityCanvas();
+}
+function positionCityActions() {
+  const el = cityActionsEl();
+  if (!el || cityActions.slot === null || el.style.display === 'none') return;
+  const s = citySlots.find(x => x.slot === cityActions.slot);
+  if (!s) { hideCityActions(); return; }
+  const lift = s.isField ? s.hw * 0.95 : s.hw * (s.fixed ? 1.45 : 1.25);
+  const x = Math.max(90, Math.min(cityViewW - 90, s.x)), y = Math.max(6, s.y - lift);
+  el.style.left = `${x}px`; el.style.top = `${y}px`;
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && typeof hideCityActions === 'function') hideCityActions(); });
 
 // ---------- Détection du survol / clic (cellule au sol ou corps du bâtiment au-dessus) ----------
 function isoHitSlot(mx, my) {
@@ -632,8 +698,6 @@ function isoHitSlot(mx, my) {
     const dx = Math.abs(mx - s.x), dy = my - s.y;
     if (dx <= s.hw * 0.6 && dy < 0 && -dy <= s.hw * 1.0) return s.slot;
   }
-  const centre = citySlots.find(s => s.isVillageCenter);
-  if (centre && Math.abs(mx - centre.x) / centre.hw + Math.abs(my - centre.y) / centre.hh <= 1) return -1;
   return null;
 }
 function onCityMouseMove(e) {
@@ -646,9 +710,9 @@ function onCityMouseMove(e) {
     cityHoveredSlot = foundSlot;
     renderCityCanvas();
     cityCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'grab';
-    if (foundSlot !== null) showCityTooltip(e.clientX, e.clientY, foundSlot);
+    if (foundSlot !== null && foundSlot !== cityActions.slot) showCityTooltip(e.clientX, e.clientY, foundSlot);
     else hideCityTooltip();
-  } else if (foundSlot !== null) {
+  } else if (foundSlot !== null && foundSlot !== cityActions.slot) {
     showCityTooltip(e.clientX, e.clientY, foundSlot);
   }
 }
@@ -661,13 +725,14 @@ function setupCityGestures() {
   if (cityGesture.ready || !cityCanvas) return;
   cityGesture.ready = true;
   cityCanvas.style.touchAction = 'none';
-  const view = () => currentCityView === 'fields' ? 'fields' : 'city';
+  const view = () => 'city';
   const pos = (e) => { const r = cityCanvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cityViewW / r.width), y: (e.clientY - r.top) * (cityViewH / r.height) }; };
   const zoomAt = (factor, px, py, render = true) => {
     const before = isoLayout(view());
     const z = Math.max(ISO_ZOOM_MIN, Math.min(ISO_ZOOM_MAX, cityCam.zoom * factor));
     if (z === cityCam.zoom) return;
     cityCam.zoom = z; cityCam.auto = false;
+    if (cityActions.slot !== null) hideCityActions();
     const ratio = isoLayout(view()).W / before.W;   // W est borné : le zoom peut ne rien changer
     if (ratio === 1) return;
     // garde le point sous le doigt immobile
@@ -711,6 +776,7 @@ function setupCityGestures() {
     const dx = p.x - prev.x, dy = p.y - prev.y;
     cityGesture.moved += Math.abs(dx) + Math.abs(dy);
     if (cityGesture.moved > 8) {
+      if (!cityGesture.panning && cityActions.slot !== null) hideCityActions();
       cityGesture.panning = true; cityHoveredSlot = null; hideCityTooltip();
       cityCam.x += dx; cityCam.y += dy; clampCam(view());
       cityCanvas.style.cursor = 'grabbing';   // le rendu est fait par la boucle rAF (20 i/s pendant le geste)
@@ -729,17 +795,19 @@ function setupCityGestures() {
         const p = pos(e);
         cityHoveredSlot = isoHitSlot(p.x, p.y);
         // double tap sur le terrain : recadrage
-        if (cityHoveredSlot === null && Date.now() - cityGesture.tapAt < 350 && Math.hypot(p.x - (cityGesture.lastTap?.x || -999), p.y - (cityGesture.lastTap?.y || -999)) < 40) { resetCityCamera(); renderCityCanvas(); cityGesture.tapAt = 0; return; }
+        if (cityHoveredSlot === null && Date.now() - cityGesture.tapAt < 350 && Math.hypot(p.x - (cityGesture.lastTap?.x || -999), p.y - (cityGesture.lastTap?.y || -999)) < 40) { hideCityActions(); resetCityCamera(); renderCityCanvas(); cityGesture.tapAt = 0; return; }
         cityGesture.lastTap = p;
         cityGesture.tapAt = Date.now();
         cityGesture.swallowClickUntil = cityGesture.tapAt + 350;
         renderCityCanvas();
-        if (cityHoveredSlot !== null) { hideCityTooltip(); if (typeof haptic === 'function') haptic('light'); onCityClick({ clientX: e.clientX, clientY: e.clientY }); }
+        hideCityTooltip();
+        if (cityHoveredSlot !== null && typeof haptic === 'function') haptic('light');
+        onCityClick({ clientX: e.clientX, clientY: e.clientY });
       }
     }
   };
   cityCanvas.addEventListener('pointerup', end);
   cityCanvas.addEventListener('pointercancel', end);
   cityCanvas.addEventListener('wheel', (e) => { e.preventDefault(); const p = pos(e); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, p.x, p.y); }, { passive: false });
-  cityCanvas.addEventListener('dblclick', () => { resetCityCamera(); renderCityCanvas(); });
+  cityCanvas.addEventListener('dblclick', () => { hideCityActions(); resetCityCamera(); renderCityCanvas(); });
 }

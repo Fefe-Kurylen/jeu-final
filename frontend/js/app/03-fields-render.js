@@ -36,9 +36,10 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.shadowBlur = 0;
   }
   // Couche d'overlay (dessinée après tous les sprites) : production, « + », badge de niveau, chantier
+  const showBadges = typeof isoShowBadges !== 'function' || isoShowBadges(isHovered);
   isoOverlay(() => {
     const time = Date.now() / 1000;   // lu à chaque image : les animations ne sont pas figées dans la couche statique
-    if (level > 0 && !isBuilding) {   // indicateur de production : icône 3D de la ressource, flottante
+    if (level > 0 && !isBuilding && showBadges) {   // indicateur de production : icône 3D de la ressource, flottante
       const icon = getSprite(`assets/images/3d/ui/${FIELD_RESOURCE_ICON[fieldType] || 'food'}.webp`);
       if (icon) {
         const s = Math.max(14, size * 0.3), prodY = y - size * 0.75 + Math.sin(time * 2) * 3;
@@ -52,7 +53,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
       cityCtx.font = `bold ${size * 0.4}px Arial`; cityCtx.textAlign = 'center'; cityCtx.textBaseline = 'middle';
       cityCtx.fillText('+', x, y);
     }
-    if (level > 0) {   // badge de niveau (même style que les bâtiments)
+    if (level > 0 && showBadges) {   // badge de niveau (même style que les bâtiments)
       const spec = typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.73, size * 0.37) : { x: x + size * 0.6, y: y + size * 0.08, radius: Math.max(8, Math.min(13, size * 0.26)) };
       drawTravianLevelBadge(x, y, 0, 0, level, isHovered, true, spec);
     }
@@ -70,9 +71,8 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
 function getFieldBuildingAtSlot(slotNum, fieldType) {
   // Les champs de ressources sont stockés différemment
   // On cherche le bâtiment de ce type avec ce numéro de slot
-  return currentCity?.buildings?.find(b => 
-    b.key === fieldType && b.slot === slotNum + 100 // Offset pour différencier des slots ville
-  );
+  const serverSlot = slotNum >= 100 ? slotNum : slotNum + 100;   // numérotation du serveur (101-118) ou ancienne (1-18)
+  return currentCity?.buildings?.find(b => b.key === fieldType && b.slot === serverSlot);
 }
 
 

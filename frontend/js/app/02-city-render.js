@@ -120,14 +120,9 @@ function renderCityCanvas() {
     if (!cityCtx) return;
   }
 
-  // Render based on current view mode
-  if (currentCityView === 'fields') {
-    calculateFieldSlots();
-    renderFieldsView();
-  } else {
-    calculateCitySlots();
-    renderCityView();
-  }
+  // Une seule scène : l'onglet Champs cadre la même ville (parcelles de champ soulignées)
+  calculateCitySlots();
+  renderCityView();
 }
 
 function renderFieldsCanvas() {

@@ -4915,3 +4915,23 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
   .sheet-table th, .sheet-table td { padding: 3px 4px; }
   .sheet-table td.eff, .sheet-table th.eff { min-width: 110px; font-size: 10px; }
 }
+
+/* ========== BULLES D'ACTION DE LA VILLE (façon Rise of Kingdoms, 04b-iso-scene.js) ========== */
+.view-canvas-container { position: relative; }
+.city-actions { position: absolute; z-index: 40; display: flex; flex-direction: column; align-items: center; gap: 7px; transform: translate(-50%, -100%); pointer-events: none; }
+.city-actions.pop { animation: caPop 0.18s ease-out; }
+@keyframes caPop { from { transform: translate(-50%, -100%) scale(0.7); opacity: 0; } to { transform: translate(-50%, -100%) scale(1); opacity: 1; } }
+.city-actions .ca-plate { pointer-events: auto; display: flex; align-items: baseline; gap: 8px; padding: 4px 14px; border-radius: 14px; background: rgba(30,22,14,0.9); border: 1px solid #c9a227; color: #f3e2b0; font-family: 'Cinzel', serif; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+.city-actions .ca-level { font-family: 'Crimson Text', serif; font-size: 12px; color: #e8c547; }
+.city-actions .ca-buttons { display: flex; gap: 12px; pointer-events: auto; }
+.city-actions .ca-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; min-width: 58px; min-height: 0; box-shadow: none; }
+.city-actions .ca-btn .ca-ico { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 35% 30%, #6a5838, #2e2416 72%); border: 2px solid #c9a227; box-shadow: 0 3px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18); transition: transform 0.12s; }
+.city-actions .ca-btn.primary .ca-ico { background: radial-gradient(circle at 35% 30%, #86cc52, #3d7a1e 72%); border-color: #e8c547; }
+.city-actions .ca-btn:hover .ca-ico, .city-actions .ca-btn:active .ca-ico { transform: scale(1.08); }
+.city-actions .ca-btn .ca-ico img { width: 32px; height: 32px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5)); }
+.city-actions .ca-btn > span:last-child { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; color: #f3e2b0; text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,0.8); white-space: nowrap; }
+.city-actions .ca-tip { width: 0; height: 0; border: 7px solid transparent; border-top-color: #c9a227; margin-top: -4px; }
+@media (max-width: 600px) {
+  .city-actions .ca-btn .ca-ico { width: 48px; height: 48px; } .city-actions .ca-btn .ca-ico img { width: 28px; height: 28px; }
+  .city-actions .ca-buttons { gap: 8px; } .city-actions .ca-btn { min-width: 52px; }
+}

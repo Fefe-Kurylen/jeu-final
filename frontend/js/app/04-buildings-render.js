@@ -19,7 +19,7 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   if (sprite) drawSprite(cityCtx, sprite, x, y, size * 1.7, spriteVariant(isHovered));
   cityCtx.globalAlpha = 1;
   // Badge de niveau au coin droit de la parcelle, dans la couche d'overlay (jamais masqué par un voisin)
-  if (level > 0) isoOverlay(() => drawTravianLevelBadge(x, y, bw, 0, level, isHovered, true, typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.78, size * 0.39) : { x: x + size * 0.62, y: y + size * 0.1, radius: Math.max(8, Math.min(13, size * 0.3)) }));
+  if (level > 0 && (typeof isoShowBadges !== 'function' || isoShowBadges(isHovered))) isoOverlay(() => drawTravianLevelBadge(x, y, bw, 0, level, isHovered, true, typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.78, size * 0.39) : { x: x + size * 0.62, y: y + size * 0.1, radius: Math.max(8, Math.min(13, size * 0.3)) }));
   if (isBuilding) isoOverlay(() => drawBuildIndicator(cityCtx, x, y - size * 1.05 + Math.sin(Date.now() / 200) * 3, Math.max(16, size * 0.36)));
 }
 
@@ -107,25 +107,14 @@ function showClickRipple(x, y) {
 function onCityClick(e) {
   if (!currentCity) return; // Guard: city data not loaded yet
   if (e && e.type === 'click' && typeof isoIgnoreClick === 'function' && isoIgnoreClick()) return;   // tap déjà traité ou déplacement
-  if (cityHoveredSlot !== null) {
-    // Feedback visuel de clic
-    const canvasRect = cityCanvas.getBoundingClientRect();
-    showClickRipple(e.clientX - canvasRect.left, e.clientY - canvasRect.top);
-
-    if (currentCityView === 'fields') {
-      // Vue champs
-      if (cityHoveredSlot === -1) {
-        // Clic sur le centre village -> retour vue ville
-        switchCityView('city');
-      } else {
-        // Clic sur un champ -> ouvrir panel construction champ
-        openFieldBuildPanel(cityHoveredSlot);
-      }
-    } else {
-      // Vue ville -> ouvrir panel construction normal
-      openBuildPanel(cityHoveredSlot);
-    }
-  }
+  if (cityHoveredSlot === null) { if (typeof hideCityActions === 'function') hideCityActions(); return; }   // toucher sur le terrain : referme la bulle
+  // Feedback visuel de clic
+  const canvasRect = cityCanvas.getBoundingClientRect();
+  showClickRipple(e.clientX - canvasRect.left, e.clientY - canvasRect.top);
+  // Bulles d'action au-dessus de l'emplacement (Améliorer / Construire, Recruter, Infos…), façon Rise of Kingdoms
+  if (typeof showCityActions === 'function') showCityActions(cityHoveredSlot);
+  else if (cityHoveredSlot >= 100) openFieldBuildPanel(cityHoveredSlot);
+  else openBuildPanel(cityHoveredSlot);
 }
 
 function showCityTooltip(mouseX, mouseY, slotNum) {
@@ -136,8 +125,8 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
 
   let html = '';
 
-  if (currentCityView === 'fields') {
-    // Vue champs - style Travian
+  if (slot?.isField || slot?.isVillageCenter) {
+    // Champ (même scène que la ville)
     if (slot?.isVillageCenter) {
       html = `
         <h4><span class="tt-icon">${resIconHtml('city')}</span> Centre du Village</h4>
