@@ -250,5 +250,76 @@ Architecture à ajouter à chaque prompt : *${ARCHI[civ]}*
   bf += '\n';
 }
 fs.writeFileSync(root + 'docs/LISTE-BATIMENTS-PAR-FACTION.md', bf);
+
+// ---- docs/A-GENERER.md : tout ce qui reste à produire, fichier par fichier, dans l'ordre conseillé ----
+const { TEXTURE, DECAL, EDGE } = require('./repaint/prompts.cjs');
+const remaining = (list) => list.filter(f => !painted.has(f));
+const asPng = (f) => f.replace(/\.webp$/, '.png');
+const sizeOf = (f) => f.startsWith('scenes/') ? (/auth-portrait|hero-/.test(f) ? '1024×1536' : '1536×1024') : '1024×1024';
+const civOrder = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+const bCur = (civ) => remaining(b.filter(x => x.startsWith(`buildings/${civ}/`) && !/_t1|_t3|_snow/.test(x)));
+const bT1 = (civ) => remaining(b.filter(x => x.startsWith(`buildings/${civ}/`) && /_t1\.webp$/.test(x)));
+const bT3 = (civ) => remaining(b.filter(x => x.startsWith(`buildings/${civ}/`) && /_t3\.webp$/.test(x)));
+const texRemaining = Object.keys(TEXTURE).filter(n => !painted.has(`terrain/${n}.webp`));
+const TEX_GROUP = { base: ['grass_lawn', 'grass_dark', 'grass_dry', 'grass_flowers', 'grass_hills', 'dirt_packed', 'mud', 'gravel', 'sand_ripples', 'sand_rocky', 'cracked_earth', 'snow_fresh', 'snow_trampled', 'tundra'], water: ['water_lake', 'water_deep', 'water_river', 'water_shallow', 'ice'], paving: ['plaza_ROME', 'plaza_GAUL', 'plaza_GREEK', 'plaza_EGYPT', 'plaza_HUN', 'plaza_SULTAN', 'cobble', 'flagstone', 'road_dirt', 'road_paved', 'path_sand'], fields: ['soil_tilled', 'wheat', 'orchard'] };
+const STATIC = [
+  ['walls/<CIV>/gate.png × 6 (ROME, GAUL, GREEK, EGYPT, HUN, SULTAN)', '1024×1024', 'guide § S1'],
+  ['props/sign_build.png', '512×768', 'guide § S2'],
+  ['ui/crest_<CIV>.png × 6', '1024×1024', 'guide § S3'],
+  ['scenes/expedition-<forest|desert|mountain|ruins>.png × 4', '1536×1024', 'guide § S4'],
+  ['ui/btn-round.png, ui/btn-round-pressed.png', '1024×1024', 'guide § S5'],
+  ['store/ic_stat_notify.png (icône de notification Android, blanc sur transparent)', '96×96', 'guide § N1'],
+  ['store/feature-graphic.png (bannière Google Play)', '1024×500', 'guide § N2']
+];
+const ANIM = [
+  ['A1', 'props/villager_<a|b|c>_<0..5>.png', 18, '512×768', 'villageois qui marchent dans la ville'],
+  ['A2', 'props/flame_<0..3>.png, props/brazier_<0..3>.png', 8, '512×768', 'flammes des torches et braseros'],
+  ['A3', 'props/scaffold_<1|2|3>.png, props/worker_<0..3>.png', 7, '512×768', 'chantier : échafaudage et ouvrier'],
+  ['A4', 'anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png', 14, '512×512', 'moulin, forge, fonderie'],
+  ['A5', 'map/units/<hoplite|archer|cavalry|catapult|merchant>_walk_<0..5>.png', 30, '512×512', 'cycles de marche sur la carte'],
+  ['A6', 'map/units/<classe>_attack_<0..2>.png, <classe>_hit_<0..1>.png, fx/arrow.png, fx/stone.png, fx/impact_<0..2>.png', 25, '512×512', 'replay de bataille'],
+  ['A7', 'map/fx/battle_<0..3>.png, map/fx/fire_<0..3>.png, map/fx/campfire_<0..3>.png', 12, '512×512', 'combat, ville en feu, feu de camp'],
+  ['A8', 'ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png', 16, '512×512', 'effets d\'interface'],
+  ['A9', 'props/snowflake_<0..2>.png, props/leaf_<0..2>.png, props/dust_devil_<0..3>.png, props/bird_<0..2>.png', 13, '512×512', 'ambiance'],
+  ['A10', 'heroes/<CIV>_idle_<0..2>.png', 18, '512×768', 'héros en pose d\'attente'],
+  ['A11', 'props/cart_<0..3>.png, props/horse_idle_<0..3>.png', 8, '512×768', 'charrette et chevaux']
+];
+const animTotal = ANIM.reduce((t, a) => t + a[2], 0);
+const staticTotal = 6 + 1 + 6 + 4 + 2 + 1 + 1;
+const sections = [];
+const sec = (title, files, note = '') => sections.push({ title, files, note });
+sec('1. Bâtiments, palier courant (niveaux 7-13), par civilisation', civOrder.flatMap(c => bCur(c)), 'Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (dossier `guides/` + `prompts/`) ou `docs/LISTE-BATIMENTS-PAR-FACTION.md`.');
+sec('2. Textures de sol de base et dallages (changent le plus l\'aspect de la ville)', [...TEX_GROUP.base, ...TEX_GROUP.paving].filter(n => texRemaining.includes(n)).map(n => `terrain/${n}.webp`), 'Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` § T1 et T3 (ou `--kit`).');
+sec('3. Champs, parcelles, décors de scène', [...remaining(fieldsNoSnow), ...remaining(plotsNoSnow), ...remaining(propsNoSnow)], '`--kit`.');
+sec('4. Enceinte (courtines, murets, tours) par civilisation et palier du Mur', remaining(wallsNoSnow), '`--kit`.');
+sec('5. Carte du monde (villes, ressources, relief et eau, armées en marche)', remaining(map), '`--kit`.');
+sec('6. Unités et héros (figurines, bustes, héros)', [...remaining(figures), ...remaining(busts), ...remaining(heroes)], '`--kit`.');
+sec('7. Scènes (connexion, estrades des héros, bandeaux, champ de bataille)', remaining(scenes), '`--kit`.');
+sec('8. Habillage d\'interface restant', remaining(frames), 'Sans la plaque parchemin, l\'habillage peint ne s\'active pas.');
+sec('9. Compléments fixes et visuels de boutique', STATIC.map(([f, sz, ref]) => `${f} — ${sz} — ${ref}`), 'Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.');
+sec('10. Eau et glace, sols des champs, décalques, bordures', [...TEX_GROUP.water.filter(n => texRemaining.includes(n)).map(n => `terrain/${n}.webp`), ...TEX_GROUP.fields.filter(n => texRemaining.includes(n)).map(n => `terrain/${n}.webp`), ...Object.keys(DECAL).filter(n => !painted.has(`decals/${n}.webp`)).map(n => `decals/${n}.webp (fond transparent)`), ...Object.keys(EDGE).filter(n => !painted.has(`terrain/${n}.webp`)).map(n => `terrain/${n}.webp (1024×256)`)], 'Guide § T2, T4, T5, T6.');
+sec('11. Animations (bandes de phases, voir guide § 0 et § A1-A11)', ANIM.map(([k, f, n, sz, w]) => `${k} — ${f} — ${n} images — cases ${sz} — ${w}`), `${animTotal} images au total ; livrer une bande par animation, je découpe.`);
+sec('12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20)', [...civOrder.flatMap(c => bT1(c)), ...civOrder.flatMap(c => bT3(c))], '`--kit --tiers`. Après tout le reste.');
+const countOf = (sct) => sct.files.length;
+let ag = `# À générer — liste consolidée de tous les graphismes manquants
+
+Dans l'ordre conseillé (du plus visible au moins visible). Un fichier par ligne : nom exact à livrer (extension .png,
+fond transparent sauf textures), taille. Les variantes du biome neige sont reportées et absentes d'ici.
+Généré par \`node tools/liste-graphismes.cjs\` ; s'actualise à chaque import (\`node tools/repaint.cjs --import=art/incoming\`).
+
+| Étape | Contenu | Images |
+|---|---|---|
+${sections.map((x, i) => `| ${i + 1} | ${x.title.replace(/^\d+\. /, '')} | ${i === 10 ? animTotal : countOf(x)} |`).join('\n')}
+| | **Total** | **${sections.reduce((t, x, i) => t + (i === 10 ? animTotal : countOf(x)), 0)}** |
+
+`;
+for (const x of sections) {
+  ag += `## ${x.title} (${x.title.startsWith('11.') ? animTotal : countOf(x)})\n\n${x.note ? x.note + '\n\n' : ''}`;
+  if (x.title.startsWith('9.') || x.title.startsWith('11.')) ag += x.files.map(f => `- ${f}`).join('\n') + '\n\n';
+  else ag += x.files.map(f => `- \`${asPng(f.replace(/ \(.*\)$/, ''))}\`${/\(.*\)$/.test(f) ? ' ' + f.match(/\(.*\)$/)[0] : ''} — ${f.startsWith('terrain/') || f.startsWith('decals/') ? (f.includes('1024×256') ? '1024×256' : '1024×1024') : sizeOf(f)}`).join('\n') + '\n\n';
+}
+fs.writeFileSync(root + 'docs/A-GENERER.md', ag);
+console.log('docs/A-GENERER.md écrit :', sections.reduce((t, x, i) => t + (i === 10 ? animTotal : countOf(x)), 0), 'images à générer');
+void staticTotal;
 console.log('docs/LISTE-BATIMENTS-PAR-FACTION.md écrit');
 console.log('docs/LISTE-GRAPHISMES.md écrit :', n(all), 'visuels,', p(all), 'peints,', n(all) - p(all), 'restants');
