@@ -82,9 +82,7 @@
         });
 
         CapApp.addListener('appStateChange', ({ isActive }) => {
-          if (isActive && (window.safeStorage || localStorage).getItem('token')) {
-            if (typeof refreshData === 'function') refreshData(true);
-          }
+          if (isActive && typeof onAppResume === 'function') onAppResume();
         });
       }
     } catch (e) {}
@@ -99,9 +97,7 @@
           } else {
             document.body.classList.remove('offline');
             showToast('Connexion retablie', 'success');
-            if ((window.safeStorage || localStorage).getItem('token') && typeof refreshData === 'function') {
-              refreshData(true);
-            }
+            if (typeof onAppResume === 'function') onAppResume();
           }
         });
       }
@@ -164,12 +160,19 @@
   };
 
   // Quand le joueur est chargé : boutique (RevenueCat) et notifications
+  // A device already registered re-registers silently. A new player is asked for the permission later,
+  // when the game has shown its value (first construction, or after a few minutes), never at the first screen.
   window.onPlayerReady = function (player) {
     if (window.Store) window.Store.configure(player.id);
-    if ((window.safeStorage || localStorage).getItem('push_token') || !(window.safeStorage || localStorage).getItem('push_asked')) {
-      (window.safeStorage || localStorage).setItem('push_asked', '1');
-      window.registerPush();
-    }
+    const store = window.safeStorage || localStorage;
+    if (store.getItem('push_token')) { window.registerPush(); return; }
+    if (!store.getItem('push_asked')) setTimeout(() => window.maybeAskPush && window.maybeAskPush(), 3 * 60 * 1000);
+  };
+  window.maybeAskPush = async function () {
+    const store = window.safeStorage || localStorage;
+    if (store.getItem('push_asked') || store.getItem('push_token') || !store.getItem('token')) return;
+    store.setItem('push_asked', '1');
+    await window.registerPush();
   };
 
   // ========== HAPTICS ==========

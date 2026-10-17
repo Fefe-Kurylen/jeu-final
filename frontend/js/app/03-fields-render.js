@@ -8,7 +8,6 @@ const FIELD_RESOURCE_ICON = { FARM: 'food', LUMBER: 'wood', QUARRY: 'stone', IRO
 function drawFieldSlot(slot, building, isHovered, isBuilding) {
   const { x, y, size, fieldType } = slot;
   const level = building?.level || 0;
-  const time = Date.now() / 1000;
   // Sprite 2.5D (assets/images/3d/fields/<biome>/<TYPE>_<palier>.webp) : largeur 1,5·size, losange au sol de
   // ±0.577·size en x et ±0.288·size en y qui recouvre la cellule ; l'ombre portée fait partie du rendu
   const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : null;
@@ -38,6 +37,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
   }
   // Couche d'overlay (dessinée après tous les sprites) : production, « + », badge de niveau, chantier
   isoOverlay(() => {
+    const time = Date.now() / 1000;   // lu à chaque image : les animations ne sont pas figées dans la couche statique
     if (level > 0 && !isBuilding) {   // indicateur de production : icône 3D de la ressource, flottante
       const icon = getSprite(`assets/images/3d/ui/${FIELD_RESOURCE_ICON[fieldType] || 'food'}.webp`);
       if (icon) {

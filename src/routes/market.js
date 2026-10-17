@@ -9,6 +9,15 @@ const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('..
 const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
 const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
+const fx = require('../utils/buildingEffects');
+
+// When a real mail provider is configured, trading with other players needs a verified address
+// (the cheapest barrier against throw-away accounts feeding a main one)
+async function tradeAllowed(tx, playerId) {
+  if (!config.email.enforce) return null;
+  const player = await tx.player.findUnique({ where: { id: playerId }, select: { account: { select: { emailVerifiedAt: true } } } });
+  return player?.account?.emailVerifiedAt ? null : { error: 'Confirmez votre adresse e-mail pour commercer avec les autres joueurs', status: 403 };
+}
 
 const tradeRouter = express.Router();
 
@@ -54,10 +63,12 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
       await lockCity(tx, sourceCity.id);
       if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
+      const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: true } });
       const army = candidates.find(a => a.units.length > 0 && a.x === sourceCity.x && a.y === sourceCity.y);
       if (!army) return { error: 'Aucune armée disponible pour transporter (créez une armée au point de ralliement)', status: 400 };
-      const transportMultiplier = 1 + (getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100);
+      const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } });
+      const transportMultiplier = (1 + getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
@@ -92,6 +103,7 @@ router.post('/offer', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
       await lockCity(tx, city.id);
       if (!(await hasMarket(tx, city.id))) return NO_MARKET;
+      const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const active = await tx.marketOffer.count({ where: { sellerId: req.user.playerId, status: 'ACTIVE' } });
       if (active >= config.market.maxActiveOffers) return { error: `Maximum ${config.market.maxActiveOffers} offres actives`, status: 400 };
       if (!(await debitCity(tx, city.id, { [sellResource]: sellAmount }))) return { error: `Ressources insuffisantes (${sellResource}: ${Math.floor(city[sellResource])})`, status: 400 };
@@ -118,6 +130,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       if (!buyerCity) return { error: 'Ville acheteur non trouvée', status: 404 };
       await lockCities(tx, [buyerCity.id, offer.cityId]);
       if (!(await hasMarket(tx, buyerCity.id))) return NO_MARKET;
+      const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const fresh = await tx.city.findUnique({ where: { id: buyerCity.id } });
       const cap = offer.sellResource === 'food' ? fresh.maxFoodStorage : fresh.maxStorage;
       if (fresh[offer.sellResource] + offer.sellAmount > cap) return { error: `Stockage insuffisant pour recevoir ${offer.sellAmount} ${offer.sellResource}`, status: 400 };
@@ -170,8 +183,11 @@ router.post('/npc-trade', auth, async (req, res) => {
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       await lockCity(tx, city.id);
-      if (!(await hasMarket(tx, city.id))) return { error: 'Construisez un marche (niveau 1 minimum)', status: 400 };
-      const receiveAmount = Math.floor(giveAmount * 2 / 3);
+      const market = await tx.cityBuilding.findFirst({ where: { cityId: city.id, key: 'MARKET' }, select: { level: true } });
+      if (!market || market.level < 1) return { error: 'Construisez un marche (niveau 1 minimum)', status: 400 };
+      // NPC merchant tax: 30 % at level 1, one point less per level (data: serverMarketTax*)
+      const taxPct = fx.npcMarketTaxPct(market.level);
+      const receiveAmount = Math.floor(giveAmount * (1 - taxPct / 100));
       if (receiveAmount <= 0) return { error: 'Quantite trop faible', status: 400 };
       const fresh = await tx.city.findUnique({ where: { id: city.id } });
       const maxStorage = receiveResource === 'food' ? fresh.maxFoodStorage : fresh.maxStorage;
@@ -179,10 +195,10 @@ router.post('/npc-trade', auth, async (req, res) => {
       if (free <= 0) return { error: 'Stockage plein pour cette ressource', status: 400 };
       // Never pay for what the warehouse cannot hold: the given amount is scaled down to the room left
       const actualReceived = Math.min(receiveAmount, free);
-      const actualGiven = actualReceived === receiveAmount ? giveAmount : Math.ceil(actualReceived * 3 / 2);
+      const actualGiven = actualReceived === receiveAmount ? giveAmount : Math.ceil(actualReceived / (1 - taxPct / 100));
       if (!(await debitCity(tx, city.id, { [giveResource]: actualGiven }))) return { error: `Pas assez de ${giveResource}`, status: 400 };
       await creditCity(tx, city.id, { [receiveResource]: actualReceived });
-      return { given: actualGiven, received: actualReceived, giveResource, receiveResource };
+      return { given: actualGiven, received: actualReceived, giveResource, receiveResource, taxPct };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);

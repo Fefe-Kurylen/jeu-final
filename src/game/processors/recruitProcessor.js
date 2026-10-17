@@ -2,6 +2,7 @@
 
 const prisma = require('../../config/database');
 const { unitsData } = require('../../config/gamedata');
+const { lockCity } = require('../../utils/db');
 
 async function processRecruits(now, { playerId = null } = {}) {
   const recruits = await prisma.recruitQueueItem.findMany({
@@ -13,6 +14,7 @@ async function processRecruits(now, { playerId = null } = {}) {
   for (const r of recruits) {
     try {
       await prisma.$transaction(async (tx) => {
+        await lockCity(tx, r.cityId);
         let garrison = await tx.army.findFirst({ where: { cityId: r.cityId, isGarrison: true } });
         if (!garrison) {
           garrison = await tx.army.create({ data: { ownerId: r.city.playerId, cityId: r.cityId, name: 'Garnison', x: r.city.x, y: r.city.y, status: 'IDLE', isGarrison: true } });

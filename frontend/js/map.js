@@ -459,7 +459,7 @@ document.addEventListener('keydown', onGlobalKeyDown);
 
 function onGlobalKeyDown(e) {
   // Don't capture if typing in input/textarea
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
   if (e.key === 'Escape') { closeAllPanels(); return; }
 
@@ -557,7 +557,7 @@ function onMapKeyDown(e) {
   if (!mapTab || !mapTab.classList.contains('active')) return;
   
   // Don't capture if typing in input
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
   const moveSpeed = e.shiftKey ? 15 : 5; // Shift = faster
   
@@ -3002,7 +3002,7 @@ async function viewPlayerProfile(playerId) {
       </div>
       <h4>🏰 Villes</h4>
       <div class="profile-cities">
-        ${p.cities.map(c => `
+        ${(p.cities || []).map(c => `
           <div class="profile-city">
             ${c.isCapital ? '👑' : '🏰'} ${escapeHtml(c.name)} (${c.x}, ${c.y})
           </div>

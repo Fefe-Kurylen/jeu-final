@@ -12,6 +12,7 @@ const { calculateWoundedUnits, addWoundedUnits } = require('../../services/wound
 const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, collectResourceLoot } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
+const fx = require('../../utils/buildingEffects');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'];
 const TX = { timeout: 15000 };
@@ -125,7 +126,7 @@ async function handleRaidResource(army) {
   }
   const won = await prisma.$transaction(async (tx) => {
     const result = await resolveTribeCombat(army, node, army.ownerId, tx);
-    if (result.success) await collectResourceLoot(army, node, army.ownerId, tx);
+    if (result.success) await collectResourceLoot(army, node, army.ownerId, tx, result.reportId);
     return result.success;
   }, TX);
   // A victorious army stays and harvests what is left when nobody else holds the node; otherwise it brings its loot home
@@ -175,7 +176,7 @@ async function handleAttack(army, now) {
     const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = defenders.find(a => a.hero)?.hero || null;
-    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction);
+    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, fx.defenseBonusPct(targetCity.buildings));
 
     // GDD: only siege engines damage the wall (30% efficiency when the assault fails)
     const siegeSurvivors = result.attackerFinalUnits.reduce((sum, u) => (unitsData.find(x => x.key === u.key)?.class === 'SIEGE' ? sum + u.remaining : sum), 0);
@@ -187,10 +188,11 @@ async function handleAttack(army, now) {
     if (wallDamageDone > 0) {
       const newHp = targetCity.wallHp - wallDamageDone;
       if (newHp <= 0) {
-        // Breached: the wall loses one level and its HP is reset for the new level
+        // Breached: the wall loses one level and its HP is reset for the new level (a level-0 wall is gone)
         const wallBuilding = targetCity.buildings.find(b => b.key === 'WALL');
         if (wallBuilding && wallBuilding.level > 0) {
-          await tx.cityBuilding.update({ where: { id: wallBuilding.id }, data: { level: wallBuilding.level - 1 } });
+          if (wallBuilding.level - 1 <= 0) await tx.cityBuilding.deleteMany({ where: { id: wallBuilding.id } });
+          else await tx.cityBuilding.update({ where: { id: wallBuilding.id }, data: { level: wallBuilding.level - 1 } });
           console.log(`[SIEGE] Mur de ${targetCity.name} percé ! Niveau ${wallBuilding.level} -> ${wallBuilding.level - 1}`);
         }
         const newMax = config.combat.wallHpPerLevel * Math.max(1, (wallBuilding?.level || 1) - 1);
@@ -263,8 +265,9 @@ async function handleRaid(army, now) {
     const defenders = defendingArmies(targetCity);
     const defenderUnits = defenders.flatMap(a => a.units);
     const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
+    const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = defenders.find(a => a.hero)?.hero || null;
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero));
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings) });
 
     const survivors = attackerUnits.map(u => ({ ...u, newCount: Math.floor(u.count * (1 - result.attackerLossRate)) }));
 
@@ -278,8 +281,10 @@ async function handleRaid(army, now) {
       let hideoutProtection = (hideout?.level || 0) * config.hideout.protectionPerLevel;
       hideoutProtection *= (1 + getFactionBonus(targetCity.player.faction, 'hideoutCapacity', factionsData) / 100);
       hideoutProtection = Math.min(hideoutProtection, config.hideout.maxProtection);
+      // Great Warehouse / Great Silo: an absolute amount no raid can touch, on top of the hideout share
+      const protectedStock = fx.protectedStorage(targetCity.buildings);
       const available = {};
-      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = Math.max(0, targetCity[r] * (1 - hideoutProtection) * config.hideout.raidStealRate);
+      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = Math.max(0, (targetCity[r] - protectedStock[r]) * (1 - hideoutProtection) * config.hideout.raidStealRate);
       const totalAvailable = Object.values(available).reduce((s, v) => s + v, 0);
       const want = {};
       for (const r of Object.keys(available)) want[r] = totalAvailable > 0 ? Math.floor(Math.min(available[r], budget * available[r] / totalAvailable)) : 0;
@@ -336,8 +341,16 @@ async function handleSpy(army, now) {
     const present = defendingArmies(targetCity);
     const spyPower = army.units.reduce((sum, u) => sum + u.count, 0);
     const defenderPower = present.flatMap(a => a.units).reduce((sum, u) => sum + u.count, 0);
+    // Watchtower: the spies may be caught; the defender then gets a report (who, from level 15)
+    const watchtower = fx.watchtowerLevel(targetCity.buildings);
+    const caught = Math.random() < fx.counterSpyChance(watchtower);
     const successChance = Math.min(0.9, 0.5 + (spyPower / Math.max(1, defenderPower)) * 0.3);
-    const success = Math.random() < successChance;
+    const success = !caught && Math.random() < successChance;
+    if (caught) {
+      const named = watchtower >= fx.watchtowerNamesSpyAt();
+      await prisma.spyReport.create({ data: { playerId: targetCity.playerId, targetPlayerId: named ? army.ownerId : null, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'COUNTER_SPY', targetName: named ? army.owner.name : null, cityName: targetCity.name, success: true, buildings: [], armies: [], resources: {}, data: { type: 'COUNTER_SPY', spies: spyPower, watchtower } } });
+      notify(targetCity.playerId, 'battle', '🔭 Espion intercepté', `La Tour de guet de ${targetCity.name} a repéré ${named ? 'les espions de ' + army.owner.name : 'des espions ennemis'}.`, { tab: 'reports' });
+    }
     const base = { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name };
     if (success) {
       await prisma.spyReport.create({ data: { ...base, success: true,

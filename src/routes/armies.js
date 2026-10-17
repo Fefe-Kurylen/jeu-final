@@ -11,6 +11,7 @@ const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, g
 const { resolveTribeCombat } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
+const fx = require('../utils/buildingEffects');
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
@@ -67,21 +68,18 @@ async function launchCityMission(army, targetCity, mission) {
   return ok ? { travelTime, arrivalAt } : null;
 }
 
-// Moves units between an army standing in its city and that city's garrison
+// Moves units between an army standing in its city and that city's garrison. Both rows move by
+// increments guarded by their current count, so a batch of recruits or a healed group landing at the
+// same moment is never overwritten by a stale absolute value.
 async function transferUnits(tx, army, garrison, unitKey, newCount, currentInArmy, currentInGarrison) {
   const delta = newCount - currentInArmy;
+  if (delta === 0) return 0;
   const tier = unitsData.find(u => u.key === unitKey)?.tier || 'base';
-  if (newCount > 0) {
-    await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: army.id, unitKey } }, update: { count: newCount }, create: { armyId: army.id, unitKey, tier, count: newCount } });
-  } else {
-    await tx.armyUnit.deleteMany({ where: { armyId: army.id, unitKey } });
-  }
-  const newGarrisonCount = currentInGarrison - delta;
-  if (newGarrisonCount > 0) {
-    await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: garrison.id, unitKey } }, update: { count: newGarrisonCount }, create: { armyId: garrison.id, unitKey, tier, count: newGarrisonCount } });
-  } else {
-    await tx.armyUnit.deleteMany({ where: { armyId: garrison.id, unitKey } });
-  }
+  const from = delta > 0 ? garrison : army, to = delta > 0 ? army : garrison, n = Math.abs(delta);
+  const taken = await tx.armyUnit.updateMany({ where: { armyId: from.id, unitKey, count: { gte: n } }, data: { count: { decrement: n } } });
+  if (taken.count !== 1) throw Object.assign(new Error('units changed'), { code: 'UNITS_CHANGED' });
+  await tx.armyUnit.upsert({ where: { armyId_unitKey: { armyId: to.id, unitKey } }, update: { count: { increment: n } }, create: { armyId: to.id, unitKey, tier, count: n } });
+  await tx.armyUnit.deleteMany({ where: { armyId: { in: [army.id, garrison.id] }, unitKey, count: { lte: 0 } } });
   return delta;
 }
 
@@ -112,9 +110,8 @@ router.post('/create', auth, async (req, res) => {
       await lockCity(tx, cityId);
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: true } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
-      const rallyLevel = city.buildings.find(b => b.key === 'RALLY_POINT')?.level || 0;
-      const maxArmies = rallyLevel >= 10 ? 3 : rallyLevel >= 5 ? 2 : rallyLevel >= 1 ? 1 : 0;
-      if (slot > maxArmies) return { error: `Slot ${slot} non débloqué. Rally Point Niv.${slot === 1 ? 1 : slot === 2 ? 5 : 10} requis.`, status: 400 };
+      const maxArmies = fx.maxArmies(city.buildings);
+      if (slot > maxArmies) return { error: `Emplacement ${slot} non débloqué : Place de rassemblement niveau ${fx.rallyLevelForArmies(slot)} requise.`, status: 400 };
       const existingArmy = await tx.army.findFirst({ where: { cityId, slot, isGarrison: false } });
       if (existingArmy) return { error: `Slot ${slot} déjà occupé`, status: 400 };
       const army = await tx.army.create({ data: { ownerId: req.user.playerId, cityId, slot, name, x: city.x, y: city.y, status: 'IDLE', isGarrison: false } });
@@ -203,7 +200,10 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { sendError(res, e); }
+  } catch (e) {
+    if (e.code === 'UNITS_CHANGED') return res.status(409).json({ error: 'Les effectifs ont changé, réessayez' });
+    sendError(res, e);
+  }
 });
 
 // POST /api/army/:id/set-unit (absolute count, clamped to what the garrison can provide)
@@ -226,7 +226,10 @@ router.post('/:id/set-unit', auth, async (req, res) => {
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
-  } catch (e) { sendError(res, e); }
+  } catch (e) {
+    if (e.code === 'UNITS_CHANGED') return res.status(409).json({ error: 'Les effectifs ont changé, réessayez' });
+    sendError(res, e);
+  }
 });
 
 // DELETE /api/army/:id/disband
@@ -433,7 +436,8 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
       if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
-      const transportMultiplier = 1 + (getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100);
+      const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: army.city.id }, select: { key: true, level: true } });
+      const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };

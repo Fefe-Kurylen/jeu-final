@@ -54,17 +54,17 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
     await tx.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: newDefenderUnits, defenderPower: Math.floor(node.defenderPower * (1 - combat.defenderLossRate)) } });
   }
 
-  await tx.battleReport.create({
+  const report = await tx.battleReport.create({
     data: { playerId, attackerId: playerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits, attackerLosses: { totalAttackerLosses, totalKilled: totalAttackerLosses, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses, totalKilled: totalDefenderLosses, rate: combat.defenderLossRate }, loot: { attackerName: army.owner?.name, defenderName: 'Tribu locale', cityName: `${node.resourceType} (${node.x}, ${node.y})`, type: 'TRIBE' }, rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType } }
   });
 
-  return { success: combat.attackerWon, combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses: totalAttackerLosses, defenderLosses: totalDefenderLosses, attackerPower: combat.attackerPower, defenderPower: combat.defenderPower }, loot: null, message: combat.attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée' };
+  return { success: combat.attackerWon, reportId: report.id, combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses: totalAttackerLosses, defenderLosses: totalDefenderLosses, attackerPower: combat.attackerPower, defenderPower: combat.defenderPower }, loot: null, message: combat.attackerWon ? 'Tribu vaincue! Démarrage de la récolte.' : 'Votre armée a été repoussée' };
 }
 
 // Loot after a tribe is beaten: the army loads what it can carry and brings it home (deposited on return,
 // never teleported into the city); the node is debited atomically and never goes below zero.
 const CARRY_FIELD = { WOOD: 'carryWood', STONE: 'carryStone', IRON: 'carryIron', FOOD: 'carryFood', GOLD: 'carryGold' };
-async function collectResourceLoot(army, node, playerId, tx = prisma) {
+async function collectResourceLoot(army, node, playerId, tx = prisma, reportId = null) {
   const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: true } });
   if (!fresh) return {};
   const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
@@ -74,6 +74,7 @@ async function collectResourceLoot(army, node, playerId, tx = prisma) {
   const taken = await takeFromNode(tx, node.id, room);
   if (taken <= 0) return {};
   await tx.army.update({ where: { id: army.id }, data: { [field]: { increment: taken } } });
+  if (reportId) await tx.$executeRaw`UPDATE "BattleReport" SET loot = COALESCE(loot, '{}'::jsonb) || jsonb_build_object('resources', jsonb_build_object(${node.resourceType.toLowerCase()}::text, ${taken}::int)) WHERE id = ${reportId}`;
   return { [node.resourceType]: taken };
 }
 

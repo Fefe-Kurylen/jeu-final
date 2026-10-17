@@ -26,34 +26,35 @@
                         <img src="assets/images/3d/logo/medallion.webp" width="112" height="112" alt="Imperium Antiquitas">
                     </div>
                     <h1>Imperium Antiquitas</h1>
-                    <p class="auth-subtitle">Conquerez. Dominez. Regnez.</p>
+                    <p class="auth-subtitle">Conquérez. Dominez. Régnez.</p>
                 </div>
 
                 <div id="login-form" class="auth-form">
                     <div class="form-group">
-                        <label>Email</label>
+                        <label for="login-email">Email</label>
                         <input type="email" id="login-email" placeholder="votre@email.com" autocomplete="email" autocapitalize="none">
                     </div>
                     <div class="form-group">
-                        <label>Mot de passe</label>
+                        <label for="login-password">Mot de passe</label>
                         <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go">
                     </div>
                     <button onclick="login()" class="btn-primary btn-large">Entrer dans l'Empire</button>
-                    <p class="auth-link">Nouveau conquerant ? <a href="#" onclick="showRegister(); return false;">Creer un compte</a></p>
+                    <p class="auth-link"><a href="#" onclick="forgotPassword(); return false;">Mot de passe oublié ?</a></p>
+                    <p class="auth-link">Nouveau conquérant ? <a href="#" onclick="showRegister(); return false;">Créer un compte</a></p>
                 </div>
 
                 <div id="register-form" class="auth-form" style="display:none">
                     <div class="form-group">
-                        <label>Email</label>
+                        <label for="reg-email">Email</label>
                         <input type="email" id="reg-email" placeholder="votre@email.com" autocomplete="email" autocapitalize="none">
                     </div>
                     <div class="form-group">
-                        <label>Nom d'Empire</label>
+                        <label for="reg-name">Nom d'Empire</label>
                         <input type="text" id="reg-name" placeholder="Votre nom glorieux" autocomplete="username" autocapitalize="words">
                     </div>
                     <div class="form-group">
-                        <label>Mot de passe</label>
-                        <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password">
+                        <label for="reg-password">Mot de passe (8 caractères minimum)</label>
+                        <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password" minlength="8">
                     </div>
                     <div class="form-group">
                         <label>Faction</label>
@@ -61,7 +62,7 @@
                             <div class="faction-option" data-faction="ROME" onclick="selectFaction('ROME')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/ROME_bust.webp" alt=""></span>
                                 <span class="faction-name">Rome</span>
-                                <span class="faction-bonus">+5% Defense</span>
+                                <span class="faction-bonus">+5% Défense</span>
                             </div>
                             <div class="faction-option" data-faction="GAUL" onclick="selectFaction('GAUL')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GAUL_bust.webp" alt=""></span>
@@ -70,12 +71,12 @@
                             </div>
                             <div class="faction-option" data-faction="GREEK" onclick="selectFaction('GREEK')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GREEK_bust.webp" alt=""></span>
-                                <span class="faction-name">Grece</span>
+                                <span class="faction-name">Grèce</span>
                                 <span class="faction-bonus">-10% Construction</span>
                             </div>
                             <div class="faction-option" data-faction="EGYPT" onclick="selectFaction('EGYPT')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/EGYPT_bust.webp" alt=""></span>
-                                <span class="faction-name">Egypte</span>
+                                <span class="faction-name">Égypte</span>
                                 <span class="faction-bonus">+20% Murs</span>
                             </div>
                             <div class="faction-option" data-faction="HUN" onclick="selectFaction('HUN')">
@@ -86,13 +87,13 @@
                             <div class="faction-option" data-faction="SULTAN" onclick="selectFaction('SULTAN')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/SULTAN_bust.webp" alt=""></span>
                                 <span class="faction-name">Sultanat</span>
-                                <span class="faction-bonus">+20% Siege</span>
+                                <span class="faction-bonus">+20% Siège</span>
                             </div>
                         </div>
                         <input type="hidden" id="reg-faction" value="">
                     </div>
                     <button onclick="register()" class="btn-primary btn-large">Fonder mon Empire</button>
-                    <p class="auth-link">Deja conquerant ? <a href="#" onclick="showLogin(); return false;">Se connecter</a></p>
+                    <p class="auth-link">Déjà conquérant ? <a href="#" onclick="showLogin(); return false;">Se connecter</a></p>
                 </div>
 
                 <div id="auth-error" class="auth-error"></div>
@@ -218,14 +219,14 @@
                 <div id="tab-map" class="tab">
                     <div class="map-view">
                         <div class="map-controls">
-                            <button onclick="mapZoom(-0.2)" class="map-btn"><img src="assets/images/ui/minus.svg" alt="−"></button>
+                            <button onclick="mapZoom(-0.2)" class="map-btn" aria-label="Zoom arrière"><img src="assets/images/ui/minus.svg" alt=""></button>
                             <span id="zoom-level">100%</span>
-                            <button onclick="mapZoom(0.2)" class="map-btn"><img src="assets/images/ui/plus.svg" alt="+"></button>
-                            <button onclick="centerOnCapital()" class="map-btn btn-home"><img src="assets/images/3d/ui/home.webp" alt="Capitale"></button>
+                            <button onclick="mapZoom(0.2)" class="map-btn" aria-label="Zoom avant"><img src="assets/images/ui/plus.svg" alt=""></button>
+                            <button onclick="centerOnCapital()" class="map-btn btn-home" aria-label="Centrer sur la capitale"><img src="assets/images/3d/ui/home.webp" alt=""></button>
                             <div class="map-goto">
-                                <input type="number" id="goto-x" placeholder="X" inputmode="numeric">
-                                <input type="number" id="goto-y" placeholder="Y" inputmode="numeric">
-                                <button onclick="gotoCoords()" class="map-btn">→</button>
+                                <input type="number" id="goto-x" placeholder="X" inputmode="numeric" aria-label="Coordonnée X">
+                                <input type="number" id="goto-y" placeholder="Y" inputmode="numeric" aria-label="Coordonnée Y">
+                                <button onclick="gotoCoords()" class="map-btn" aria-label="Aller aux coordonnées">→</button>
                             </div>
                         </div>
                         <div class="map-canvas-container">
@@ -318,12 +319,12 @@
                                 </div>
                             </div>
                             <div id="market-section-offers" class="market-section" style="display:none">
-                                <h3>Place du Marche</h3>
+                                <h3>Place du Marché</h3>
                                 <div class="market-create-offer">
-                                    <h4>Creer une offre</h4>
+                                    <h4>Créer une offre</h4>
                                     <div class="offer-form">
-                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">🪵 Bois</option><option value="stone">🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Ble</option></select><input type="number" id="market-sell-amount" placeholder="Quantite" min="1" inputmode="numeric"></div>
-                                        <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">🪵 Bois</option><option value="stone" selected>🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Ble</option></select><input type="number" id="market-buy-amount" placeholder="Quantite" min="1" inputmode="numeric"></div>
+                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">🪵 Bois</option><option value="stone">🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Blé</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue"></div>
+                                        <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">🪵 Bois</option><option value="stone" selected>🧱 Argile</option><option value="iron">⛏️ Fer</option><option value="food">🌾 Blé</option></select><input type="number" id="market-buy-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité demandée"></div>
                                         <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
                                     </div>
                                 </div>
@@ -368,9 +369,9 @@
                 </div>
                 <div class="bnav-separator"></div>
                 <button class="bnav-tab" data-tab="inventory" onclick="showTab('inventory')"><img class="bnav-icon" src="assets/images/3d/ui/inventory.webp" alt=""><span class="bnav-label">Sac</span></button>
-                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')"><img class="bnav-icon" src="assets/images/3d/ui/hero.webp" alt=""><span class="bnav-label">Heros</span></button>
+                <button class="bnav-tab" data-tab="hero" onclick="showTab('hero')"><img class="bnav-icon" src="assets/images/3d/ui/hero.webp" alt=""><span class="bnav-label">Héros</span></button>
                 <button class="bnav-tab" data-tab="alliance" onclick="showTab('alliance')"><img class="bnav-icon" src="assets/images/3d/ui/alliance.webp" alt=""><span class="bnav-label">Alliance</span></button>
-                <button class="bnav-tab" data-tab="market" onclick="showTab('market')"><img class="bnav-icon" src="assets/images/3d/ui/market.webp" alt=""><span class="bnav-label">Marche</span></button>
+                <button class="bnav-tab" data-tab="market" onclick="showTab('market')"><img class="bnav-icon" src="assets/images/3d/ui/market.webp" alt=""><span class="bnav-label">Marché</span></button>
             </div>
         </nav>
     </div>
@@ -378,14 +379,14 @@
     <div id="modal" class="modal" style="display:none">
         <div class="modal-backdrop" onclick="closeModal()"></div>
         <div class="modal-box">
-            <div class="modal-header"><h3 id="modal-title">Info</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+            <div class="modal-header"><h3 id="modal-title">Info</h3><button class="modal-close" onclick="closeModal()" aria-label="Fermer">×</button></div>
             <div id="modal-body" class="modal-body"></div>
             <div class="modal-footer" id="modal-footer"></div>
         </div>
     </div>
 
     <div id="build-panel" class="build-panel" style="display:none">
-        <div class="panel-header"><h3 id="build-panel-title">Construire</h3><button class="panel-close" onclick="closeBuildPanel()">×</button></div>
+        <div class="panel-header"><h3 id="build-panel-title">Construire</h3><button class="panel-close" onclick="closeBuildPanel()" aria-label="Fermer">×</button></div>
         <div id="build-panel-content" class="panel-body"></div>
     </div>
 

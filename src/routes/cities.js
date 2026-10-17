@@ -7,7 +7,8 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
-const { lockCity, debitCity } = require('../utils/db');
+const { lockCity, debitCity, creditCity } = require('../utils/db');
+const fx = require('../utils/buildingEffects');
 const { processBuilds } = require('../game/processors/buildProcessor');
 const { processRecruits } = require('../game/processors/recruitProcessor');
 
@@ -50,6 +51,31 @@ function buildCost(buildingDef, targetLevel) {
   const base = buildingDef.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
   const mult = Math.pow(config.build.costMultiplierBase, targetLevel - 1);
   return { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+}
+
+// Cost of a recruit batch (per-class base × tier × count, GDD formulas.json)
+function recruitCost(unit, count) {
+  const classCosts = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
+  const tierCostMult = config.recruit.tierCostMultipliers[unit.tier] || 1.0;
+  return {
+    wood: Math.ceil(classCosts.wood * tierCostMult * count),
+    stone: Math.ceil(classCosts.stone * tierCostMult * count),
+    iron: Math.ceil(classCosts.iron * tierCostMult * count),
+    food: Math.ceil(classCosts.food * tierCostMult * count)
+  };
+}
+const scaleCost = (cost, rate) => Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.floor(v * rate)]));
+
+// Starts queued items while running slots are free (same rule as the tick): the duration fixed at enqueue time is kept
+async function promoteQueued(tx, cityId, now) {
+  const running = await tx.buildQueueItem.count({ where: { cityId, status: 'RUNNING' } });
+  const free = config.build.maxRunning - running;
+  if (free <= 0) return;
+  const next = await tx.buildQueueItem.findMany({ where: { cityId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' }, take: free });
+  for (const item of next) {
+    const durationMs = Math.max(1000, new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime());
+    await tx.buildQueueItem.update({ where: { id: item.id }, data: { status: 'RUNNING', startedAt: now, endsAt: new Date(now.getTime() + durationMs) } });
+  }
 }
 
 // GET /api/cities
@@ -133,6 +159,8 @@ router.post('/:id/build', auth, async (req, res) => {
       let durationSec = Math.floor(baseTime * Math.pow(config.build.timeMultiplierBase, targetLevel - 1));
       const buildTimeBonus = getFactionBonus(city.player.faction, 'buildTimeReduction', factionsData);
       if (buildTimeBonus > 0) durationSec = Math.floor(durationSec * (1 - buildTimeBonus / 100));
+      // Main Hall, Academy, Residence: construction time reduction (data: buildTimeReductionPctPerLevel)
+      durationSec = Math.floor(durationSec * (1 - fx.buildTimeReductionPct(city.buildings) / 100));
       durationSec = Math.max(1, durationSec);
 
       const now = new Date();
@@ -215,20 +243,13 @@ router.post('/:id/recruit', auth, async (req, res) => {
       if (city.recruitQueue.filter(q => q.buildingKey === recruitBuildingKey).length >= config.recruit.maxBatchesPerBuilding) return { error: `File de recrutement pleine (max ${config.recruit.maxBatchesPerBuilding} lots)`, status: 400 };
 
       // Per-class base costs with tier multiplier (GDD formulas.json)
-      const classCosts = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
-      const tierCostMult = config.recruit.tierCostMultipliers[unit.tier] || 1.0;
-      const cost = {
-        wood: Math.ceil(classCosts.wood * tierCostMult * count),
-        stone: Math.ceil(classCosts.stone * tierCostMult * count),
-        iron: Math.ceil(classCosts.iron * tierCostMult * count),
-        food: Math.ceil(classCosts.food * tierCostMult * count)
-      };
+      const cost = recruitCost(unit, count);
       if (!(await debitCity(tx, city.id, cost))) return { error: 'Ressources insuffisantes', status: 400, cost };
 
-      // Per-class base time with tier multiplier (GDD unit_training_times.json)
+      // Per-class base time with tier multiplier (GDD unit_training_times.json), reduced by the training buildings
       const classBaseTime = config.recruit.baseTimeSec[unit.class] || 360;
       const tierTimeMult = config.recruit.tierTimeMultipliers[unit.tier] || 1.0;
-      const timePerUnit = Math.round(classBaseTime * tierTimeMult);
+      const timePerUnit = Math.max(1, Math.round(classBaseTime * tierTimeMult * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100)));
       const totalTime = timePerUnit * count;
       // Batches in the same building train one after another, not in parallel
       const buildingKey = recruitBuildingKey;
@@ -248,6 +269,63 @@ router.post('/:id/recruit', auth, async (req, res) => {
   } catch (e) {
     sendError(res, e);
   }
+});
+
+// DELETE /api/city/:id/build/:itemId — cancel a construction: full refund while queued, half once started.
+// Later levels of the same building in the queue depend on it and are cancelled (and refunded) too.
+router.delete('/:id/build/:itemId', auth, async (req, res) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, select: { id: true } });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
+      await lockCity(tx, city.id);
+      const queue = await tx.buildQueueItem.findMany({ where: { cityId: city.id } });
+      const item = queue.find(q => q.id === req.params.itemId);
+      if (!item) return { error: 'Construction introuvable (déjà terminée ?)', status: 404 };
+      const def = buildingsData.find(b => b.key === item.buildingKey);
+      const toCancel = queue.filter(q => q.buildingKey === item.buildingKey && q.slot === item.slot && q.targetLevel >= item.targetLevel);
+      const refund = { wood: 0, stone: 0, iron: 0, food: 0 };
+      for (const q of toCancel) {
+        const removed = await tx.buildQueueItem.deleteMany({ where: { id: q.id, status: q.status } });
+        if (removed.count !== 1) continue;   // finished meanwhile: nothing to refund
+        const part = scaleCost(def ? buildCost(def, q.targetLevel) : { wood: 0, stone: 0, iron: 0, food: 0 }, q.status === 'QUEUED' ? 1 : 0.5);
+        for (const k of Object.keys(refund)) refund[k] += part[k];
+      }
+      await creditCity(tx, city.id, refund);
+      await promoteQueued(tx, city.id, new Date());
+      return { message: 'Construction annulée', cancelled: toCancel.length, refund };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
+  } catch (e) { sendError(res, e); }
+});
+
+// DELETE /api/city/:id/recruit/:itemId — cancel a recruit batch: half of its cost comes back, the batches
+// scheduled after it in the same building start earlier
+router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, select: { id: true } });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
+      await lockCity(tx, city.id);
+      const item = await tx.recruitQueueItem.findFirst({ where: { id: req.params.itemId, cityId: city.id } });
+      if (!item) return { error: 'Recrutement introuvable (déjà terminé ?)', status: 404 };
+      const removed = await tx.recruitQueueItem.deleteMany({ where: { id: item.id, status: 'RUNNING' } });
+      if (removed.count !== 1) return { error: 'Recrutement déjà terminé', status: 409 };
+      const unit = unitsData.find(u => u.key === item.unitKey);
+      const refund = unit ? scaleCost(recruitCost(unit, item.count), 0.5) : { wood: 0, stone: 0, iron: 0, food: 0 };
+      await creditCity(tx, city.id, refund);
+      const durationMs = new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime();
+      const later = await tx.recruitQueueItem.findMany({ where: { cityId: city.id, buildingKey: item.buildingKey, startedAt: { gte: item.startedAt } } });
+      for (const q of later) {
+        const start = Math.max(Date.now(), new Date(q.startedAt).getTime() - durationMs);
+        await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(start), endsAt: new Date(new Date(q.endsAt).getTime() - durationMs) } });
+      }
+      return { message: 'Recrutement annulé', refund };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
+  } catch (e) { sendError(res, e); }
 });
 
 // GET /api/city/:id/wounded
@@ -314,19 +392,24 @@ router.get('/incoming-attacks', auth, async (req, res) => {
   try {
     const playerCities = await prisma.city.findMany({
       where: { playerId: req.user.playerId },
-      select: { id: true, name: true, x: true, y: true }
+      select: { id: true, name: true, x: true, y: true, buildings: { where: { key: 'WATCHTOWER' }, select: { level: true } } }
     });
     const cityIds = playerCities.map(c => c.id);
 
     const incomingArmies = await prisma.army.findMany({
       where: { targetCityId: { in: cityIds }, status: { in: ['ATTACKING', 'RAIDING'] }, arrivalAt: { gt: new Date() } },
-      select: { id: true, status: true, arrivalAt: true, targetCityId: true, missionType: true },
+      select: { id: true, status: true, arrivalAt: true, targetCityId: true, missionType: true, owner: { select: { name: true } }, units: { select: { count: true } } },
       orderBy: { arrivalAt: 'asc' }
     });
 
     const attacks = incomingArmies.map(a => {
       const targetCity = playerCities.find(c => c.id === a.targetCityId);
-      return { id: a.id, type: a.missionType || a.status, arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId };
+      const watchtower = targetCity?.buildings?.[0]?.level || 0;
+      return {
+        id: a.id, type: a.missionType || a.status, arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId,
+        attacker: watchtower >= fx.watchtowerShowsAttackerAt() ? a.owner?.name : null,
+        units: watchtower >= fx.watchtowerShowsDetailsAt() ? a.units.reduce((s, u) => s + u.count, 0) : null
+      };
     });
     res.json(attacks);
   } catch (e) {

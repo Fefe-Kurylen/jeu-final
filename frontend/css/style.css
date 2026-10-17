@@ -4108,8 +4108,8 @@ button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
 
   /* Larger close buttons on mobile */
   .panel-close, .modal-close {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     font-size: 24px;
   }
 
@@ -4240,20 +4240,22 @@ button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
   .top-bar { padding: 4px 8px; }
 }
 
-/* Landscape mobile */
+/* Landscape mobile: a compact tab bar stays available instead of disappearing */
 @media (max-height: 500px) and (orientation: landscape) {
   .top-bar { padding: 2px 12px; }
   .resource-box { padding: 2px 6px; }
   .res-sub, .res-bar { display: none; }
 
-  .bottom-nav { display: none; }
+  .bottom-nav { height: 44px; padding-bottom: 0; }
+  .bottom-nav .bnav-label { display: none; }
+  .bottom-nav .bnav-icon { font-size: 18px; }
 
   .game-content {
-    padding-bottom: 0;
+    padding-bottom: 44px;
   }
 
   .tab-content-area {
-    height: calc(100vh - 40px);
+    height: calc(100vh - 40px - 44px);
   }
 
   .auth-container { padding: 8px; }
@@ -4784,3 +4786,27 @@ html.painted-ui .modal-header, html.painted-ui .panel-header { background-image:
 html.painted-ui .modal-box, html.painted-ui .build-panel { border-width: 16px; border-image-slice: 40 fill; border-image-width: 16px; }
 html.painted-ui .map-info-panel { border-width: 16px; border-image-slice: 44; border-image-width: 16px; }
 html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .list-item, html.painted-ui .queue-item { border-image-slice: 20 fill; }
+
+
+/* ========== CONNECTION OVERLAY (first load, cold server) ========== */
+#connect-overlay { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; background: rgba(20, 16, 10, 0.92); padding: 24px; }
+#connect-overlay .connect-box { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; color: var(--text-light, #f0e2c0); max-width: 320px; }
+#connect-overlay p { margin: 0; font-size: 15px; }
+#connect-overlay #connect-retry, #connect-overlay .btn-secondary { display: none; min-width: 200px; }
+#connect-overlay.error #connect-retry, #connect-overlay.error .btn-secondary { display: inline-block; }
+#connect-overlay:not(.error) img { animation: connect-pulse 1.6s ease-in-out infinite; }
+@keyframes connect-pulse { 0%, 100% { opacity: 0.55; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1); } }
+
+/* ========== E-MAIL VERIFICATION BANNER ========== */
+#email-banner { display: none; align-items: center; gap: 10px; padding: 6px 12px; background: #5a3d12; color: #f6e7c1; font-size: 13px; border-bottom: 1px solid var(--gold, #c9a227); }
+#email-banner span { flex: 1; }
+#email-banner .btn-secondary { padding: 6px 10px; font-size: 12px; min-height: 36px; }
+#email-banner .banner-close { background: none; border: 0; color: inherit; font-size: 20px; min-width: 36px; min-height: 36px; cursor: pointer; }
+
+/* ========== QUEUE CANCEL BUTTONS ========== */
+.qd-item { position: relative; }
+.qd-cancel { margin-left: auto; min-width: 36px; min-height: 36px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(120, 30, 30, 0.6); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.qd-cancel:hover { background: rgba(170, 40, 40, 0.85); }
+
+/* ========== TOUCH TARGETS ========== */
+.comp-btn-adjust, .stat-plus-btn { min-width: 36px; min-height: 36px; }

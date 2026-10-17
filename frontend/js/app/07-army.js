@@ -254,7 +254,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Arrêter & Rentrer
           </button>
-          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX || army.x || '?'}, ${army.targetY || army.y || '?'})</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `

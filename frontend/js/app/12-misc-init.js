@@ -151,7 +151,7 @@ function showNpcMerchant() {
     { key: 'wood', icon: resIconHtml('wood'), name: 'Bois', current: Math.floor(currentCity?.wood || 0) },
     { key: 'stone', icon: resIconHtml('stone'), name: 'Argile', current: Math.floor(currentCity?.stone || 0) },
     { key: 'iron', icon: resIconHtml('iron'), name: 'Fer', current: Math.floor(currentCity?.iron || 0) },
-    { key: 'food', icon: resIconHtml('food'), name: 'Ble', current: Math.floor(currentCity?.food || 0) }
+    { key: 'food', icon: resIconHtml('food'), name: 'Blé', current: Math.floor(currentCity?.food || 0) }
   ];
 
   // NPC exchange rate: give X resources, receive Y of another type
@@ -161,9 +161,9 @@ function showNpcMerchant() {
 
   container.innerHTML = `
     <div class="npc-merchant">
-      <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand Itinerant</h3>
+      <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand itinérant</h3>
       <p style="color:var(--text-muted);margin-bottom:12px;">
-        Echangez vos ressources entre elles. Taux: <strong>${NPC_RATE_GIVE} → ${NPC_RATE_RECEIVE}</strong> (le marchand prend sa part)
+        Échangez vos ressources entre elles. Taux: <strong>${NPC_RATE_GIVE} → ${NPC_RATE_RECEIVE}</strong> (le marchand prend sa part)
       </p>
 
       <div class="npc-exchange-form">
@@ -172,18 +172,18 @@ function showNpcMerchant() {
           <select id="npc-give-resource">
             ${resources.map(r => `<option value="${r.key}">${r.icon} ${r.name} (${formatNum(r.current)})</option>`).join('')}
           </select>
-          <input type="number" id="npc-give-amount" placeholder="Quantite" min="1"
+          <input type="number" id="npc-give-amount" placeholder="Quantité" min="1"
                  oninput="updateNpcPreview()">
         </div>
         <div class="npc-arrow">⬇️</div>
         <div class="npc-row">
-          <label>Je recois</label>
+          <label>Je reçois</label>
           <select id="npc-receive-resource" onchange="updateNpcPreview()">
             ${resources.map((r, i) => `<option value="${r.key}" ${i === 1 ? 'selected' : ''}>${r.icon} ${r.name}</option>`).join('')}
           </select>
           <span id="npc-receive-preview" class="npc-preview">0</span>
         </div>
-        <button onclick="executeNpcTrade()" class="btn-primary" style="margin-top:12px;">Echanger</button>
+        <button onclick="executeNpcTrade()" class="btn-primary" style="margin-top:12px;">Échanger</button>
       </div>
 
       <div class="npc-stock" style="margin-top:16px;">
@@ -239,7 +239,7 @@ async function executeNpcTrade() {
 
     if (res.ok) {
       const data = await res.json();
-      showToast(`Echange reussi! -${formatNum(data.given)} ${giveResource} → +${formatNum(data.received)} ${receiveResource}`, 'success');
+      showToast(`Échange réussi ! -${formatNum(data.given)} ${giveResource} → +${formatNum(data.received)} ${receiveResource}`, 'success');
       await loadCities();
       showNpcMerchant(); // Refresh display
     } else {
@@ -247,7 +247,7 @@ async function executeNpcTrade() {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   } finally {
     _actionInProgress = false;
   }
@@ -279,10 +279,10 @@ function renderInventory(items) {
   // Define item categories
   const categories = {
     items: { name: 'Objets', filter: i => ['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) },
-    materials: { name: 'Materiaux', filter: i => !['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) }
+    materials: { name: 'Matériaux', filter: i => !['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) }
   };
 
-  const currentTab = document.querySelector('#tab-inventory .toolbar-btn.active')?.textContent?.includes('Materiaux') ? 'materials' : 'items';
+  const currentTab = document.querySelector('#tab-inventory .toolbar-btn.active')?.textContent?.includes('Matériaux') ? 'materials' : 'items';
   const filteredItems = items.filter(categories[currentTab]?.filter || (() => true));
 
   if (filteredItems.length === 0) {
@@ -292,7 +292,7 @@ function renderInventory(items) {
         <h3>Inventaire vide</h3>
         <p style="color:var(--text-muted)">Trouvez des objets en expedition, en pillant des tribus locales ou au combat.</p>
         <p style="color:var(--text-muted);font-size:12px;margin-top:8px;">
-          Accedez a vos troupes via la
+          Accédez à vos troupes via la
           <strong style="color:var(--gold)">Place de rassemblement</strong> <img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> dans votre village.
         </p>
       </div>
@@ -306,7 +306,7 @@ function renderInventory(items) {
         <div class="inventory-item" onclick="showItemDetails('${item.id}')">
           <div class="item-icon">${getItemIcon(item.itemKey)}</div>
           <div class="item-info">
-            <div class="item-name">${item.itemKey.replace(/_/g, ' ')}</div>
+            <div class="item-name">${escapeHtml(item.itemKey.replace(/_/g, ' '))}</div>
             <div class="item-slot">${EQUIPMENT_SLOTS[item.slot]?.name || item.slot}</div>
           </div>
           ${item.stats ? `
@@ -319,7 +319,7 @@ function renderInventory(items) {
     </div>
     <div class="inventory-hint" style="margin-top:16px;padding:12px;background:var(--bg-dark);border-radius:6px;text-align:center;">
       <p style="color:var(--text-muted);font-size:12px;">
-        Gerez vos troupes via la <strong style="color:var(--gold)">Place de rassemblement</strong> <img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> dans votre village.
+        Gérez vos troupes via la <strong style="color:var(--gold)">Place de rassemblement</strong> <img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> dans votre village.
       </p>
     </div>
   `;
@@ -350,7 +350,7 @@ function showItemDetails(itemId) {
         </div>
       ` : '<p style="color:var(--text-muted)">Aucun bonus</p>'}
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
-        <button class="btn-primary" onclick="equipItem('${item.id}');closeModal();">Equiper</button>
+        <button class="btn-primary" onclick="equipItem('${item.id}');closeModal();">Équiper</button>
         <button class="btn btn-danger btn-small" onclick="confirmDropItem('${item.id}')" style="padding:8px 16px;">Jeter</button>
       </div>
     </div>
@@ -365,7 +365,7 @@ async function equipItem(itemId) {
       body: JSON.stringify({ itemId })
     });
     if (res.ok) {
-      showToast('Objet equipe!', 'success');
+      showToast('Objet équipé !', 'success');
       loadInventory();
       loadHero();
     } else {
@@ -373,7 +373,7 @@ async function equipItem(itemId) {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -385,14 +385,14 @@ async function dropItem(itemId) {
       body: JSON.stringify({ itemId })
     });
     if (res.ok) {
-      showToast('Objet jete', 'success');
+      showToast('Objet jeté', 'success');
       loadInventory();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 

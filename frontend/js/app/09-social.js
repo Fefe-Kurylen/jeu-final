@@ -74,7 +74,7 @@ async function loadAlliance() {
             ${isLeaderOrOfficer ? `
               <div class="alliance-section">
                 <h4><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Diplomatie</h4>
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Definissez vos relations avec les autres alliances (max 3 allies)</p>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Définissez vos relations avec les autres alliances (3 alliés maximum)</p>
                 <div class="diplomacy-list">
                   ${otherAlliances.map(a => {
                     const dipStatus = diplomacyData.diplomacy?.find(d => d.allianceId === a.id)?.status || 'NEUTRAL';
@@ -96,7 +96,7 @@ async function loadAlliance() {
                   }).join('') || '<p style="color:var(--text-muted)">Aucune autre alliance</p>'}
                 </div>
               </div>
-            ` : '<div class="alliance-section"><p style="color:var(--text-muted)">Seuls les leaders et officiers peuvent gerer la diplomatie.</p></div>'}
+            ` : '<div class="alliance-section"><p style="color:var(--text-muted)">Seuls les leaders et officiers peuvent gérer la diplomatie.</p></div>'}
             </div>
           </div>
         `;
@@ -210,14 +210,14 @@ async function createAlliance() {
     });
 
     if (res.ok) {
-      showToast('Alliance creee!', 'success');
+      showToast('Alliance créée !', 'success');
       loadAlliance();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -236,7 +236,7 @@ async function joinAlliance(id) {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -522,11 +522,11 @@ function renderReplayState() {
   const log = document.getElementById('replay-log');
   if (roundData) {
     let logHtml = `<div class="log-round">Round ${round}:</div>`;
-    if (roundData.attackerKills.length > 0) {
-      logHtml += `<div class="log-kills attacker-kills"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquant tue: ${roundData.attackerKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
+    if ((roundData.attackerKills || []).length > 0) {
+      logHtml += `<div class="log-kills attacker-kills"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquant tue: ${roundData.attackerKills.map(k => `${k.killed}x ${escapeHtml(k.name)}`).join(', ')}</div>`;
     }
-    if (roundData.defenderKills.length > 0) {
-      logHtml += `<div class="log-kills defender-kills"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Défenseur tue: ${roundData.defenderKills.map(k => `${k.killed}x ${k.name}`).join(', ')}</div>`;
+    if ((roundData.defenderKills || []).length > 0) {
+      logHtml += `<div class="log-kills defender-kills"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Défenseur tue: ${roundData.defenderKills.map(k => `${k.killed}x ${escapeHtml(k.name)}`).join(', ')}</div>`;
     }
     log.innerHTML = logHtml + log.innerHTML;
   }

@@ -91,13 +91,16 @@ const remainingPower = (side) => side.reduce((s, u) => s + Math.max(0, u.count) 
 
 // Simple power-based resolution (raids, tribe fights). GDD raid rule: a fight stops once a side drops
 // below 70%, so the loser never loses more than 30%.
-function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null) {
+// opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each
+function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null, opts = {}) {
   const attackerHeroBonus = heroBonus(attackerHero, 'attack');
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
 
   const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus;
-  const wallBonus = 1 + (defenderWallLevel * config.combat.wallBonusPerLevel);
-  const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * defenderHeroBonus;
+  const wallBonus = 1 + (defenderWallLevel * config.combat.wallBonusPerLevel) * fb(opts.defenderFaction, 'wallHealth');
+  const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
+  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * fb(opts.defenderFaction, 'cityDefense') * fb(opts.defenderFaction, 'unitDefense');
+  const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
 
   const attackerWon = attackerPower > defenderPower;
   const ratio = attackerWon ? defenderPower / Math.max(1, attackerPower) : attackerPower / Math.max(1, defenderPower);
@@ -115,7 +118,7 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 }
 
 // Detailed round-by-round combat used for city attacks (replayable)
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null) {
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0) {
   // Wall: +1%/level to the defenders' defense (EGYPT wallHealth makes it more effective);
   // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
   const wallBonus = 1 + wallLevel * config.combat.wallBonusPerLevel * fb(defenderFaction, 'wallHealth');
@@ -128,7 +131,7 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   });
   const defenders = makeSide(defenderUnits, {
     atk: moatBonus * fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack'),
-    def: (wallBonus + moatBonus - 1) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense'),
+    def: (wallBonus + moatBonus - 1) * (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense'),
     hp: fb(defenderFaction, 'siegeLossReduction')
   });
 

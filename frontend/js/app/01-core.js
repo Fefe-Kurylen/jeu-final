@@ -29,6 +29,20 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
   };
 }
 window.safeStorage = safeStorage;
+// Debug output only when asked (?debug=1 or safeStorage debug=1): the console stays quiet in production
+const DEBUG = /[?&]debug=1/.test(location.search) || safeStorage.getItem('debug') === '1';
+if (!DEBUG) console.log = function () {};
+// Server clock: offset read from the Date header of API answers, so countdowns never depend on the phone's clock
+let serverOffset = 0;
+function serverNow() { return Date.now() + serverOffset; }
+function noteServerDate(res) {
+  const d = res && res.headers && res.headers.get && res.headers.get('date');
+  if (!d) return;
+  const t = Date.parse(d);
+  if (!t) return;
+  const offset = t + 500 - Date.now();   // the header has a one-second resolution
+  if (Math.abs(offset - serverOffset) > 2000) serverOffset = offset;
+}
 
 // ========== API FETCH WRAPPER ==========
 // Every call to the game API goes through here (fetch is kept as the call site everywhere):
@@ -66,6 +80,7 @@ window.fetch = function apiFetch(input, init = {}) {
   }
   const authed = _hasAuth(init.headers);
   const p = _nativeFetch(input, options).then(res => {
+    noteServerDate(res);
     if (res.status === 401 && authed) onSessionExpired();
     else if (res.status === 429 && Date.now() - _lastThrottleToast > 5000) { _lastThrottleToast = Date.now(); if (typeof showToast === 'function') showToast('Trop de requêtes, patientez un instant', 'error'); }
     return res;
@@ -302,6 +317,45 @@ async function register() {
   }
 }
 
+// "Mot de passe oublié" from the login screen: the server mails a reset link
+async function forgotPassword() {
+  const email = await promptModal('Votre adresse e-mail', { title: 'Mot de passe oublié', value: document.getElementById('login-email')?.value || '', placeholder: 'votre@email.com', maxLength: 255 });
+  if (!email) return;
+  try {
+    const res = await fetch(`${API}/api/auth/forgot-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) showAuthError(''), showToast(data.message || 'E-mail envoyé si le compte existe', 'success');
+    else showAuthError(data.error || 'Demande impossible');
+  } catch (e) { showAuthError('Erreur de connexion au serveur'); }
+}
+
+// Settings: change the password; every other device is logged out, this one gets a fresh token
+function openChangePassword() {
+  showModal('Changer le mot de passe', `
+    <div class="settings">
+      <div class="form-group"><label for="pw-current">Mot de passe actuel</label><input type="password" id="pw-current" autocomplete="current-password"></div>
+      <div class="form-group"><label for="pw-new">Nouveau mot de passe (8 caractères minimum)</label><input type="password" id="pw-new" autocomplete="new-password" minlength="8"></div>
+      <div class="form-group"><label for="pw-new2">Confirmer</label><input type="password" id="pw-new2" autocomplete="new-password" minlength="8"></div>
+      <div class="settings-actions">
+        <button class="btn-primary" onclick="changePassword()">Enregistrer</button>
+        <button class="btn-secondary" onclick="openSettings()">Retour</button>
+      </div>
+    </div>`);
+}
+async function changePassword() {
+  const current = document.getElementById('pw-current')?.value || '', next = document.getElementById('pw-new')?.value || '', next2 = document.getElementById('pw-new2')?.value || '';
+  if (next.length < 8) return showToast('8 caractères minimum', 'error');
+  if (next !== next2) return showToast('Les deux mots de passe ne correspondent pas', 'error');
+  try {
+    const res = await fetch(`${API}/api/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ currentPassword: current, newPassword: next }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return showToast(data.error || 'Changement impossible', 'error');
+    if (data.token) { token = data.token; safeStorage.setItem('token', token); }
+    closeModal();
+    showToast('Mot de passe modifié', 'success');
+  } catch (e) { showToast('Changement impossible (hors ligne ?)', 'error'); }
+}
+
 function logout() {
   if (typeof window.unregisterPush === 'function' && token) window.unregisterPush();
   if (typeof flushAnalytics === 'function') flushAnalytics();
@@ -317,6 +371,9 @@ function logout() {
   if (typeof mapReloadTimeout !== 'undefined' && mapReloadTimeout) { clearTimeout(mapReloadTimeout); mapReloadTimeout = null; }
   if (typeof Store !== 'undefined' && typeof Store.logOut === 'function') Store.logOut();
   player = null; currentCity = null; cities = []; armies = []; incomingAttacks = [];
+  window._emailBannerDismissed = false;
+  setConnectOverlay(null);
+  const banner = document.getElementById('email-banner'); if (banner) banner.style.display = 'none';
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
 }
@@ -328,16 +385,58 @@ function showAuthError(msg) {
 }
 
 // ========== GAME ==========
+// Overlay shown while the first data loads (a cold server can take a minute): state 'loading' | 'error' | null
+function setConnectOverlay(state) {
+  let el = document.getElementById('connect-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'connect-overlay';
+    el.innerHTML = '<div class="connect-box"><img src="assets/images/3d/logo/medallion.webp" width="72" height="72" alt=""><p id="connect-text"></p><button id="connect-retry" class="btn-primary" onclick="showGame()">Réessayer</button><button class="btn-secondary" onclick="logout()">Se déconnecter</button></div>';
+    document.body.appendChild(el);
+  }
+  if (!state) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  document.getElementById('connect-text').textContent = state === 'error' ? 'Le serveur ne répond pas. Vérifiez votre connexion puis réessayez.' : 'Connexion au serveur…';
+  el.classList.toggle('error', state === 'error');
+}
+
+// Banner asking to confirm the e-mail address (only when the server enforces it)
+function updateEmailBanner() {
+  let el = document.getElementById('email-banner');
+  const show = !!(player && player.emailVerificationRequired && player.emailVerified === false && !window._emailBannerDismissed);
+  if (!show) { if (el) el.style.display = 'none'; return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'email-banner';
+    el.innerHTML = '<span>Adresse e-mail non confirmée : le commerce avec les autres joueurs est bloqué.</span><button class="btn-secondary" onclick="resendVerification()">Renvoyer l\'e-mail</button><button class="banner-close" aria-label="Fermer" onclick="window._emailBannerDismissed=true;updateEmailBanner()">×</button>';
+    const screen = document.getElementById('game-screen');
+    screen.insertBefore(el, screen.querySelector('.top-bar')?.nextSibling || null);
+  }
+  el.style.display = 'flex';
+}
+async function resendVerification() {
+  try {
+    const res = await fetch(`${API}/api/auth/verify-email/resend`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? (data.message || 'E-mail envoyé') : (data.error || 'Envoi impossible'), res.ok ? 'success' : 'error');
+  } catch (e) { showToast('Envoi impossible (hors ligne ?)', 'error'); }
+}
+
 async function showGame() {
   _sessionEnded = false;
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('game-screen').style.display = 'flex';
+  setConnectOverlay('loading');
   await loadWorldInfo(); // Load world size first
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
   const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest()]);
-  if (!playerOk || !token) return;   // session refusée : logout() a déjà remis l'écran de connexion
+  if (!token) { setConnectOverlay(null); return; }   // session refusée : logout() a déjà remis l'écran de connexion
+  if (!playerOk) { setConnectOverlay('error'); return; }
   await loadCities();
-  if (!token) return;
+  if (!token) { setConnectOverlay(null); return; }
+  if (!cities.length) { setConnectOverlay('error'); return; }
+  setConnectOverlay(null);
+  updateEmailBanner();
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
   initFieldsCanvas();
@@ -495,8 +594,8 @@ function updateAttackNotification() {
   const notifEl = document.getElementById('attack-notif');
   if (!notifEl) return;
 
-  // Filter to attacks that haven't arrived yet
-  const now = new Date();
+  // Filter to attacks that haven't arrived yet (server clock)
+  const now = new Date(serverNow());
   const active = incomingAttacks.filter(a => new Date(a.arrivalAt) > now);
 
   if (active.length === 0) {
@@ -518,6 +617,7 @@ function updateAttackNotification() {
   const timerEl = document.getElementById('attack-timer');
   if (timerEl) {
     timerEl.textContent = timerStr;
+    timerEl.title = earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}` : `Armée inconnue en approche de ${earliest.targetCity}`;
   }
 
   // Show count if multiple attacks

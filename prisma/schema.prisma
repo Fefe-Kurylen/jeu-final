@@ -12,12 +12,36 @@ datasource db {
 // what other players must keep (battle reports) only loses its link to the deleted player.
 
 model Account {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  tokenVersion Int      @default(0) // bumped on password change: older tokens are refused
-  createdAt    DateTime @default(now())
-  player       Player?
+  id              String      @id @default(uuid())
+  email           String      @unique
+  passwordHash    String
+  tokenVersion    Int         @default(0) // bumped on password change: older tokens are refused
+  emailVerifiedAt DateTime? // set by the verification link (or a password reset, which proves the mailbox)
+  createdAt       DateTime    @default(now())
+  player          Player?
+  tokens          AuthToken[]
+}
+
+// One-time tokens sent by e-mail (address verification, password reset); only the hash is stored
+model AuthToken {
+  id        String    @id @default(uuid())
+  accountId String
+  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, type])
+}
+
+// Rate-limit counters shared by every process (login, sign-up, admin): one row per key and window
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
 }
 
 model Player {
@@ -80,6 +104,7 @@ model City {
 
   wallHp       Float     @default(1000) // fractional: regenerates continuously on real elapsed time
   wallMaxHp    Int       @default(1000)
+  goldAccrued  Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
   isSieged     Boolean   @default(false)
   siegeStarted DateTime?
 

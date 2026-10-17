@@ -11,12 +11,24 @@ Voir `.env.example` pour la liste commentée. Les deux obligatoires :
 | `DATABASE_URL` | PostgreSQL. Ajouter `?sslmode=require` chez la plupart des hébergeurs. |
 | `JWT_SECRET` | Au moins 32 caractères (`openssl rand -hex 32`). Sans lui le serveur **refuse de démarrer**, quel que soit `NODE_ENV`. Seul `NODE_ENV=development` tolère son absence (secret de développement, avertissement au démarrage). |
 
+## E-mail : vérification d'adresse et mot de passe oublié
+
+| Variable | Rôle |
+|---|---|
+| `EMAIL_PROVIDER` | `log` (défaut : rien n'est envoyé, le message est écrit dans les logs et dans `EMAIL_LOG_FILE` s'il est défini), `smtp` (via `SMTP_URL`, ex. `smtps://user:motdepasse@smtp.exemple.fr:465`) ou `resend` (via `RESEND_API_KEY`). |
+| `EMAIL_FROM` | Expéditeur affiché. |
+| `PUBLIC_URL` | Adresse publique de l'API, utilisée dans les liens (`/api/auth/verify-email?token=…`, `/reset-password?token=…`). |
+| `REQUIRE_VERIFIED_EMAIL` | Avec un vrai fournisseur, le commerce entre joueurs (offres, envois) exige une adresse confirmée ; `false` pour désactiver. |
+
+Les jetons envoyés sont à usage unique, stockés hachés, valables 24 h (confirmation) ou 1 h (réinitialisation). Une réinitialisation déconnecte tous les appareils et confirme l'adresse.
+
 ## Schéma de base de données : migrations versionnées
 
 Le schéma vit dans `prisma/schema.prisma` et son historique dans `prisma/migrations/` :
 
 - `0001_init` : le schéma tel qu'il existait quand le projet utilisait encore `prisma db push` ;
-- `0002_hardening` : cascades de suppression, colonnes mortes retirées, PV de mur fractionnaires, version de jeton, marqueur d'activité, réclamation des arrivées, horodatage du tick, index manquants. Chaque instruction tolère une base qui porte déjà une partie de ces changements (`IF EXISTS` / `IF NOT EXISTS`).
+- `0002_hardening` : cascades de suppression, colonnes mortes retirées, PV de mur fractionnaires, version de jeton, marqueur d'activité, réclamation des arrivées, horodatage du tick, index manquants. Chaque instruction tolère une base qui porte déjà une partie de ces changements (`IF EXISTS` / `IF NOT EXISTS`) ;
+- `0003_effects_email_limits` : jetons d'e-mail, adresse confirmée, compteurs de limite partagés, or accumulé de la Chambre au Trésor.
 
 Au démarrage, le serveur applique les migrations lui-même (`DB_SYNC=migrate`, valeur par défaut) :
 
@@ -58,8 +70,8 @@ npx prisma migrate deploy
 
 ## Limites et protections
 
-- Limite globale : 240 requêtes/min par joueur (ou par IP avant connexion) ; inscriptions : 10/min par IP ; connexions : 20/min par IP et **verrouillage de l'e-mail 15 min après 10 échecs**.
-- Les compteurs sont en mémoire : avec plusieurs processus ou machines, la limite effective est multipliée d'autant. Pour un vrai partage, les porter dans Postgres ou au reverse proxy.
+- Limite globale : 240 requêtes/min par joueur (ou par IP avant connexion), comptée en mémoire par processus.
+- Routes sensibles (connexion, inscription, administration, webhook) : compteurs **partagés en base** (`RateLimitBucket`), donc une seule limite quel que soit le nombre de processus ou de machines ; inscriptions 10/min par IP, connexions 20/min par IP et **verrouillage de l'e-mail 15 min après 10 échecs**.
 - Marché : un bâtiment Marché est requis, ratio borné à 1:3, 10 offres actives par joueur. Recrutement : 5 lots en attente par bâtiment.
 - Les textes libres sont bornés à 512 caractères avant tout traitement (anti ReDoS).
 

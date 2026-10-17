@@ -68,7 +68,7 @@ async function healWounded(unitKey) {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   } finally {
     _actionInProgress = false;
   }
@@ -528,14 +528,14 @@ async function recruit(unitKey) {
     closeModal();
 
     if (res.ok) {
-      showToast(`Recrutement de ${count}x ${unitKey} lancé!`, 'success');
+      showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé !`, 'success');
       await loadCities();
       renderCity();
     } else {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   } finally {
     _actionInProgress = false;
   }

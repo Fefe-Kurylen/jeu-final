@@ -400,11 +400,14 @@ function startRefresh(immediate = false) {
 }
 
 // Refresh quand la fenêtre redevient visible
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && token) {
-    refreshData(true);
-  }
-});
+// Coming back to the app (tab visible, native resume, network back) refreshes once, not once per signal
+let _resumeTimer = null;
+function onAppResume() {
+  if (!token) return;
+  clearTimeout(_resumeTimer);
+  _resumeTimer = setTimeout(() => refreshData(true), 400);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') onAppResume(); });
 
 // ========== CANVAS RESIZE HANDLER ==========
 // (resize handler consolidated in map section)
@@ -482,7 +485,7 @@ function updateAllCountdowns() {
     if (!endsAt) return;
 
     const endDate = new Date(endsAt);
-    const now = new Date();
+    const now = new Date(typeof serverNow === 'function' ? serverNow() : Date.now());
     const diff = Math.max(0, endDate - now);
 
     if (diff === 0) {
@@ -536,6 +539,8 @@ function openSettings() {
         <button class="btn-primary" onclick="Store.openShop()">Boutique et abonnement</button>
         <button class="btn-secondary" onclick="Store.restore()">Restaurer les achats</button>
         ${native ? `<button class="btn-secondary" onclick="togglePush()">${pushOn ? 'Désactiver' : 'Activer'} les notifications</button>` : ''}
+        <button class="btn-secondary" onclick="openChangePassword()">Changer le mot de passe</button>
+        ${player && player.emailVerificationRequired && player.emailVerified === false ? '<button class="btn-secondary" onclick="resendVerification()">Renvoyer l\'e-mail de confirmation</button>' : ''}
         <button class="btn-secondary" onclick="openLegalPage('privacy')">Politique de confidentialité</button>
         <button class="btn-secondary" onclick="openLegalPage('support')">Assistance</button>
         <button class="btn-secondary" onclick="logout()">Se déconnecter</button>

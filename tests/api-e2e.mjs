@@ -1,7 +1,7 @@
 // End-to-end API test: plays a real game session against a running server (API_BASE, default localhost:3000)
 // with direct database access to fast-forward timers (DATABASE_URL via psql).
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -14,6 +14,8 @@ const sql = (q) => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encodi
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const uid = Math.floor(performance.now() * 1000) % 1e7;
 const PASSWORD = 'Test1234!';
+const MAIL_LOG = process.env.EMAIL_LOG_FILE || '';
+const mailsTo = (email) => MAIL_LOG && existsSync(MAIL_LOG) ? readFileSync(MAIL_LOG, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(m => m.to === email) : [];
 
 async function call(name, method, path, token, body, expect = 'ok') {
   let status = 0, json = null, text = '';
@@ -82,6 +84,16 @@ await call('build FARM on a ring slot -> 400', 'POST', `/api/city/${cityA.id}/bu
 await call('build FARM slot 999 -> 400', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'FARM', slot: 999 }, 400);
 assert('new city has MAIN_HALL L1 at slot 0', sql(`SELECT slot||'@'||level FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='MAIN_HALL'`) === '0@1');
 await call('build unknown -> 400', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'NOPE' }, 400);
+{
+  const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  const q = await call('build QUARRY slot 105 (queued, to cancel)', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'QUARRY', slot: 105 });
+  const woodPaid = woodBefore - Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  const c = await call('cancel queued build (full refund)', 'DELETE', `/api/city/${cityA.id}/build/${q.queueItem.id}`, tA);
+  const woodAfter = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  assert('queued build fully refunded', Math.abs(woodAfter - woodBefore) <= 1 && c?.refund?.wood === q.cost.wood, `paid ${woodPaid}, refund ${c?.refund?.wood}`);
+  await call('cancel it again -> 404', 'DELETE', `/api/city/${cityA.id}/build/${q.queueItem.id}`, tA, null, 404);
+  await call('cancel on another player city -> 404', 'DELETE', `/api/city/${cityB.id}/build/${q.queueItem.id}`, tA, null, 404);
+}
 await call('build on B city with A token -> 404', 'POST', `/api/city/${cityB.id}/build`, tA, { buildingKey: 'MAIN_HALL' }, 404);
 await call('build GREAT_BARRACKS w/o prereqs -> 400', 'POST', `/api/city/${cityB.id}/build`, tB, { buildingKey: 'GREAT_BARRACKS' }, 400);
 // Lazy settlement: a due item is applied when the player reads their cities, without waiting for the tick
@@ -97,7 +109,7 @@ console.log('  A buildings:', citiesA[0].buildings.map(b => `${b.key}:${b.level}
 assert('population updated on build completion', Number(sql(`SELECT population FROM "Player" WHERE id='${A.player.id}'`)) > 0);
 
 // Setup for military tests (not under test): barracks, rally point, market, main hall level 10
-for (const cid of [cityA.id, cityB.id]) { addBuilding(cid, 'BARRACKS', 30, 10); addBuilding(cid, 'RALLY_POINT', 31, 10); addBuilding(cid, 'MARKET', 32, 1); }
+for (const cid of [cityA.id, cityB.id]) { addBuilding(cid, 'BARRACKS', 30, 10); addBuilding(cid, 'RALLY_POINT', 31, 10); addBuilding(cid, 'MARKET', 32, 1); addBuilding(cid, 'EMBASSY', 33, 7); }
 sql(`UPDATE "CityBuilding" SET level=10 WHERE "cityId" IN ('${cityA.id}','${cityB.id}') AND key='MAIN_HALL'`);
 
 // ---------- RECRUIT ----------
@@ -111,6 +123,14 @@ await call('recruit batch #3 same unit', 'POST', `/api/city/${cityA.id}/recruit`
 await call('recruit batch #4', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: infKey, count: 1 });
 await call('recruit batch #5', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: infKey, count: 1 });
 await call('recruit batch #6 -> 400 (queue cap)', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: infKey, count: 1 }, 400);
+{
+  const last = sql(`SELECT id FROM "RecruitQueueItem" WHERE "cityId"='${cityA.id}' ORDER BY "endsAt" DESC LIMIT 1`);
+  const ironBefore = Number(sql(`SELECT iron FROM "City" WHERE id='${cityA.id}'`));
+  const c = await call('cancel last recruit batch (half refund)', 'DELETE', `/api/city/${cityA.id}/recruit/${last}`, tA);
+  const ironAfter = Number(sql(`SELECT iron FROM "City" WHERE id='${cityA.id}'`));
+  assert('recruit cancel refunds half', c?.refund && ironAfter > ironBefore && Number(sql(`SELECT count(*) FROM "RecruitQueueItem" WHERE "cityId"='${cityA.id}'`)) === 4, `iron ${ironBefore} -> ${ironAfter}, refund ${JSON.stringify(c?.refund)}`);
+  await call('recruit batch #5 again after cancel', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: infKey, count: 1 });
+}
 sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE "cityId"='${cityA.id}'`);
 await waitTick('recruits complete', () => Number(sql(`SELECT count(*) FROM "RecruitQueueItem" WHERE "cityId"='${cityA.id}'`)) === 0);
 const garrisonCount = Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" WHERE a."cityId"='${cityA.id}' AND a."isGarrison" AND u."unitKey"='${infKey}'`));
@@ -127,6 +147,7 @@ sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random
 
 // ---------- ARMIES ----------
 await call('armies list A', 'GET', '/api/armies', tA);
+await call('army create slot 4 with rally 10 -> 400', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 4, name: 'Legio IV' }, 400);
 const armyNew = await call('army create', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 1, name: 'Legio I' });
 const armyId = armyNew?.army?.id || armyNew?.id;
 await call('army get', 'GET', `/api/army/${armyId}`, tA);
@@ -292,12 +313,16 @@ if (exp) {
 }
 
 // ---------- ALLIANCE ----------
+sql(`DELETE FROM "CityBuilding" WHERE "cityId"='${cityB.id}' AND key='EMBASSY'`);
+await call('alliance create without Embassy -> 400', 'POST', '/api/alliance/create', tB, { name: `NoEmb${uid}`, tag: 'NOE', description: '' }, 400);
 const al = await call('alliance create', 'POST', '/api/alliance/create', tA, { name: `Senatus${uid}`, tag: 'SPQR', description: 'Roma' });
 await call('alliances list', 'GET', '/api/alliances', tA);
 const alId = al?.alliance?.id || al?.id;
 await call('alliance join without invite -> 403', 'POST', `/api/alliance/${alId}/join`, tB, {}, 403);
 await call('alliance invite B', 'POST', '/api/alliance/invite', tA, { playerName: B.player.name });
 await call('B sees invite', 'GET', '/api/alliance/invites', tB);
+await call('alliance join without Embassy -> 400', 'POST', `/api/alliance/${alId}/join`, tB, {}, 400);
+addBuilding(cityB.id, 'EMBASSY', 33, 5);
 await call('alliance join by B', 'POST', `/api/alliance/${alId}/join`, tB, {});
 await call('alliance mine', 'GET', '/api/alliance/mine', tB);
 await call('alliance diplomacy get', 'GET', '/api/alliance/diplomacy', tA);
@@ -410,6 +435,36 @@ await call('npc-trade huge amount -> 400', 'POST', '/api/market/npc-trade', tA, 
   let last = 0;
   for (let i = 0; i < 11; i++) { const r = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `d${uid}@t.fr`, password: 'wrong-' + i }) }); last = r.status; if (last === 429) break; }
   assert('login lockout after repeated failures', last === 429, `last status ${last}`);
+}
+
+// ---------- E-MAIL FLOWS (log provider: the links are read from EMAIL_LOG_FILE) ----------
+if (MAIL_LOG) {
+  await sleep(500);
+  const verify = mailsTo(`d${uid}@t.fr`).find(m => /confirmez/i.test(m.subject));
+  assert('verification mail sent at sign-up', !!verify);
+  if (verify) {
+    const link = verify.text.match(/https?:\/\/\S+/)[0];
+    const r = await fetch(link);
+    assert('verification link confirms the address', r.status === 200 && (await r.text()).includes('Adresse confirmée'));
+    assert('verification link is single use', (await fetch(link)).status === 400);
+    const me = await call('player/me D (verified)', 'GET', '/api/player/me', D.token);
+    assert('player/me reports emailVerified', me?.emailVerified === true);
+  }
+  await call('forgot-password (unknown mail -> still 200)', 'POST', '/api/auth/forgot-password', null, { email: `nobody${uid}@t.fr` });
+  await call('forgot-password D', 'POST', '/api/auth/forgot-password', null, { email: `c${uid}@t.fr` });
+  await sleep(500);
+  const reset = mailsTo(`c${uid}@t.fr`).find(m => /initialisation/i.test(m.subject));
+  assert('reset mail sent', !!reset);
+  if (reset) {
+    const tok = reset.text.match(/token=([a-f0-9]+)/)[1];
+    await call('reset with short password -> 400', 'POST', '/api/auth/reset-password', null, { token: tok, newPassword: 'short' }, 400);
+    await call('reset password C', 'POST', '/api/auth/reset-password', null, { token: tok, newPassword: 'Reset1234!' });
+    await call('reset token reused -> 400', 'POST', '/api/auth/reset-password', null, { token: tok, newPassword: 'Reset1234!' }, 400);
+    await call('C old token refused after reset', 'GET', '/api/player/me', C.token, null, 401);
+    await call('C login with the new password', 'POST', '/api/auth/login', null, { email: `c${uid}@t.fr`, password: 'Reset1234!' });
+  }
+} else {
+  console.log('  (EMAIL_LOG_FILE not set: e-mail flows skipped)');
 }
 
 // ---------- WRAP UP ----------

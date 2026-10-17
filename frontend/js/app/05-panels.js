@@ -235,7 +235,7 @@ function openBuildPanel(slotNum) {
             <div class="upgrade-action">
               <div class="build-time"><span class="time-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span> ${timeStr}</div>
               <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Ameliorer' : '❌ Ressources insuffisantes'}
+                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : '❌ Ressources insuffisantes'}
               </button>
             </div>
           ` : `
@@ -429,9 +429,19 @@ function getBuildCost(def, targetLevel) {
   const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
   return { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
 }
+// Construction time reduction of the current city (Main Hall 2.5 %/level, Academy 1 %, Residence 0.25 %, max 60 %), from the data
+function getCityBuildTimeReductionPct() {
+  let total = 0;
+  for (const b of (currentCity?.buildings || [])) {
+    const pct = window.buildingsData?.find(d => d.key === b.key)?.effects?.buildTimeReductionPctPerLevel;
+    if (pct) total += b.level * pct;
+  }
+  return Math.min(60, total);
+}
 function getBuildTime(def, targetLevel) {
   let t = Math.floor((def?.timeL1Sec || 60) * Math.pow(1.2, targetLevel - 1));
   if (player?.faction === 'GREEK') t = Math.floor(t * 0.9);
+  t = Math.floor(t * (1 - getCityBuildTimeReductionPct() / 100));
   return Math.max(1, t);
 }
 
@@ -583,18 +593,18 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
             <div class="storage-bars">
               <div class="storage-row">
                 <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> Bois:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / (1200 + level * 8000)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(1200 + level * 8000)}</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / getStorageAtLevel(level)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
               </div>
               <div class="storage-row">
                 <span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> Pierre:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / (1200 + level * 8000)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(1200 + level * 8000)}</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / getStorageAtLevel(level)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
               </div>
               <div class="storage-row">
                 <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> Fer:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / (1200 + level * 8000)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(1200 + level * 8000)}</span>
+                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / getStorageAtLevel(level)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
               </div>
             </div>
           </div>
@@ -1158,18 +1168,10 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   }
   overlay.style.display = 'block';
   
-  // Cost formula must match backend: Math.pow(1.5, targetLevel - 1) where targetLevel = level + 1
-  const costMultiplier = Math.pow(1.28, level);
-  const nextCost = {
-    wood: Math.floor((def?.costL1?.wood || 50) * costMultiplier),
-    stone: Math.floor((def?.costL1?.stone || 50) * costMultiplier),
-    iron: Math.floor((def?.costL1?.iron || 50) * costMultiplier),
-    food: Math.floor((def?.costL1?.food || 30) * costMultiplier)
-  };
-
-  // Time formula must match backend: Math.pow(1.8, targetLevel - 1)
-  const baseDuration = def?.timeL1Sec || 60;
-  const buildTime = Math.floor(baseDuration * Math.pow(1.2, level));
+  // Same formulas as the server (and as openBuildPanel): next level counts the levels already queued
+  const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === buildingKey && (buildingKey === 'MAIN_HALL' ? true : q.slot === (building?.slot ?? slotNum))).length;
+  const nextCost = getBuildCost(def, level + inQueue + 1);
+  const buildTime = getBuildTime(def, level + inQueue + 1);
   
   const hasResources = currentCity && 
     currentCity.wood >= nextCost.wood &&
@@ -1201,8 +1203,8 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
           <div class="tier-item ${level >= 1 ? 'unlocked' : 'locked'}">
             <span>Niv. 1+</span> Base
           </div>
-          <div class="tier-item ${level >= 9 ? 'unlocked' : 'locked'}">
-            <span>Niv. 9+</span> Intermédiaire
+          <div class="tier-item ${level >= (window.buildingsData?.find(b => b.key === 'BARRACKS')?.effects?.unlockIntermediateTier || 7) ? 'unlocked' : 'locked'}">
+            <span>Niv. ${window.buildingsData?.find(b => b.key === 'BARRACKS')?.effects?.unlockIntermediateTier || 7}+</span> Intermédiaire
           </div>
           <div class="tier-item ${level >= 15 ? 'unlocked' : 'locked'}">
             <span>Niv. 15+</span> Elite
@@ -1240,7 +1242,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
             <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}"
                     onclick="upgradeBuilding('${buildingKey}', ${slotNum})"
                     ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-              ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Ameliorer' : '❌ Ressources insuffisantes'}
+              ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : '❌ Ressources insuffisantes'}
             </button>
           </div>
         </div>
@@ -1292,7 +1294,7 @@ async function buildField(buildingKey, slot) {
 
     if (res.ok) {
       closeBuildPanel();
-      showToast(`Construction de ${getBuildingName(buildingKey)} lancee!`, 'success');
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancée !`, 'success');
       await loadCities();
       renderCity();
     } else {
@@ -1300,7 +1302,7 @@ async function buildField(buildingKey, slot) {
     }
   } catch (e) {
     console.error('buildField error:', e);
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   } finally {
     _buildInProgress = false;
   }
@@ -1324,7 +1326,7 @@ async function buildAtSlot(buildingKey, slot) {
 
     if (res.ok) {
       closeBuildPanel();
-      showToast(`Construction de ${getBuildingName(buildingKey)} lancee!`, 'success');
+      showToast(`Construction de ${getBuildingName(buildingKey)} lancée !`, 'success');
       await loadCities();
       renderCity();
     } else {
@@ -1332,7 +1334,7 @@ async function buildAtSlot(buildingKey, slot) {
     }
   } catch (e) {
     console.error('buildAtSlot error:', e);
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   } finally {
     _buildInProgress = false;
   }
@@ -1341,6 +1343,7 @@ async function buildAtSlot(buildingKey, slot) {
 async function upgradeBuilding(buildingKey, slot) {
   if (typeof trackOnce === 'function') trackOnce('first_build', { key: String(buildingKey) });
   await buildAtSlot(buildingKey, slot);
+  if (typeof window.maybeAskPush === 'function') setTimeout(() => window.maybeAskPush(), 1500);
 }
 
 function getBuildingDescription(key) {
@@ -1466,24 +1469,26 @@ function renderBuildQueue() {
     if (running.length > 0 || queued.length > 0) {
       let html = '';
       if (running.length > 0) {
-        html += '<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> En cours (${running.length}/2)</div>'.replace('${running.length}', running.length);
+        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> En cours (${running.length}/2)</div>`;
         running.forEach((q, i) => {
           html += `<div class="qd-item running">
             <span class="qd-num">${i + 1}</span>
             <span class="qd-name">${buildingIconHtml(q.buildingKey)} ${getBuildingName(q.buildingKey)}</span>
             <span class="qd-level">Niv.${q.targetLevel}</span>
             <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+            <button class="qd-cancel" aria-label="Annuler (50 % remboursés)" title="Annuler (50 % remboursés)" onclick="event.stopPropagation(); cancelBuild('${q.id}', true)">×</button>
           </div>`;
         });
       }
       if (queued.length > 0) {
-        html += '<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En attente (${queued.length}/2)</div>'.replace('${queued.length}', queued.length);
+        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En attente (${queued.length}/2)</div>`;
         queued.forEach((q, i) => {
           html += `<div class="qd-item queued">
             <span class="qd-num">${i + 1}</span>
             <span class="qd-name">${buildingIconHtml(q.buildingKey)} ${getBuildingName(q.buildingKey)}</span>
             <span class="qd-level">Niv.${q.targetLevel}</span>
             <span class="qd-status">En attente</span>
+            <button class="qd-cancel" aria-label="Annuler (remboursement intégral)" title="Annuler (remboursement intégral)" onclick="event.stopPropagation(); cancelBuild('${q.id}', false)">×</button>
           </div>`;
         });
       }
@@ -1527,12 +1532,35 @@ function renderRecruitQueue() {
           <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
           <span class="qd-name">${q.count}x ${getUnitName(q.unitKey)}</span>
           <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+          <button class="qd-cancel" aria-label="Annuler (50 % remboursés)" title="Annuler (50 % remboursés)" onclick="event.stopPropagation(); cancelRecruit('${q.id}')">×</button>
         </div>
       `).join('');
     } else {
       listEl.innerHTML = '<div class="qd-empty">Aucun recrutement en cours</div>';
     }
   }
+}
+
+// Cancel a construction (full refund while queued, half once started) or a recruit batch (half)
+async function cancelBuild(itemId, running) {
+  const ok = await confirmModal(running ? 'Annuler cette construction ? La moitié des ressources sera remboursée.' : 'Annuler cette construction ? Les ressources seront remboursées.', { title: 'Annuler', okLabel: 'Annuler la construction', danger: true });
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/build/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? 'Construction annulée' : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
+    if (res.ok) { await loadCities(); renderCity(); }
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+}
+async function cancelRecruit(itemId) {
+  const ok = await confirmModal('Annuler ce recrutement ? La moitié des ressources sera remboursée.', { title: 'Annuler', okLabel: 'Annuler le recrutement', danger: true });
+  if (!ok) return;
+  try {
+    const res = await fetch(`${API}/api/city/${currentCity.id}/recruit/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => ({}));
+    showToast(res.ok ? 'Recrutement annulé' : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
+    if (res.ok) { await loadCities(); renderCity(); }
+  } catch (e) { showToast('Erreur réseau', 'error'); }
 }
 
 function renderMovingArmies() {

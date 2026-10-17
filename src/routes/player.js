@@ -3,6 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const config = require('../config');
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
@@ -16,11 +17,13 @@ router.get('/me', auth, async (req, res) => {
         hero: { include: { items: true } },
         stats: true,
         alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
-        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
+        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } },
+        account: { select: { emailVerifiedAt: true } }
       }
     });
     if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
-    res.json(player);
+    const { account, ...rest } = player;
+    res.json({ ...rest, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
   } catch (e) {
     sendError(res, e);
   }

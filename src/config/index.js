@@ -32,6 +32,18 @@ const config = {
     perks: { extraBuildQueue: 1, productionBonus: 0.05 }
   },
 
+  // E-mail (address verification, password reset). provider: log (dev/tests) | smtp | resend.
+  // When a real provider is configured, trading with other players requires a verified address.
+  email: {
+    provider: process.env.EMAIL_PROVIDER || 'log',
+    from: process.env.EMAIL_FROM || 'Imperium Antiquitas <no-reply@imperium-antiquitas.local>',
+    smtpUrl: process.env.SMTP_URL || '',
+    resendKey: process.env.RESEND_API_KEY || '',
+    logFile: process.env.EMAIL_LOG_FILE || '',
+    publicUrl: process.env.PUBLIC_URL || `http://localhost:${parseInt(process.env.PORT, 10) || 3000}`,
+    enforce: ['smtp', 'resend'].includes(process.env.EMAIL_PROVIDER || 'log') && process.env.REQUIRE_VERIFIED_EMAIL !== 'false'
+  },
+
   // Map
   map: {
     baseWorldSize: 374,

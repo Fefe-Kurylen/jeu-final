@@ -5,6 +5,13 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { validateAllianceTag, cleanText } = require('../utils/validation');
 const { getRelation } = require('../services/diplomacyService');
+const fx = require('../utils/buildingEffects');
+
+// Highest Embassy level among the player's cities (the Embassy is a capital building)
+async function embassyLevelOf(playerId, db = prisma) {
+  const rows = await db.cityBuilding.findMany({ where: { key: 'EMBASSY', city: { playerId } }, select: { level: true } });
+  return rows.reduce((m, r) => Math.max(m, r.level), 0);
+}
 
 const memberInclude = { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } };
 
@@ -33,6 +40,8 @@ router.post('/create', auth, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
       if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
+      const needed = fx.allianceCreateLevel();
+      if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour fonder une alliance`, status: 400 };
       const alliance = await tx.alliance.create({ data: { name, tag: tag.toUpperCase(), description, leaderId: req.user.playerId } });
       await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'LEADER' } });
       await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
@@ -86,6 +95,8 @@ router.post('/:id/join', auth, async (req, res) => {
       if (existing) return { error: 'Vous etes deja dans une alliance', status: 400 };
       const invite = await tx.allianceInvite.findUnique({ where: { allianceId_playerId: { allianceId: alliance.id, playerId: req.user.playerId } } });
       if (!invite) return { error: 'Cette alliance recrute sur invitation', status: 403 };
+      const needed = fx.allianceJoinLevel();
+      if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour rejoindre une alliance`, status: 400 };
       await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
       await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
       return { message: 'Alliance rejointe' };

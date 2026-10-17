@@ -1,6 +1,10 @@
 // End-to-end checks of the store-compliance endpoints: analytics, catalog, push tokens, entitlements, account deletion.
 // Needs a running API (API_BASE, default http://localhost:3000).
+import { execSync } from 'node:child_process';
 const API = process.env.API_BASE || 'http://localhost:3000';
+const DB = process.env.DATABASE_URL || 'postgresql://monjeu:monjeu123@localhost:5432/monjeu';
+const sql = (q) => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding: 'utf8' }).trim();
+const giveEmbassy = (playerId, level) => sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) SELECT gen_random_uuid(), id, 'EMBASSY', 33, ${level} FROM "City" WHERE "playerId"='${playerId}' ON CONFLICT DO NOTHING`);
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => { if (ok) { pass++; console.log('PASS', name, extra); } else { fail++; console.log('FAIL', name, extra); } };
 const j = async (path, opts = {}, token) => {
@@ -70,6 +74,7 @@ check('email reusable after deletion', reg2.status === 200);
 // alliance leadership handover on deletion
 const leader = await j('/api/auth/register', { method: 'POST', body: JSON.stringify({ email: `lead${uid}@t.fr`, password, name: `Lead${uid}`, faction: 'HUN' }) });
 const member = await j('/api/auth/register', { method: 'POST', body: JSON.stringify({ email: `memb${uid}@t.fr`, password, name: `Memb${uid}`, faction: 'GAUL' }) });
+giveEmbassy(leader.body.player.id, 7); giveEmbassy(member.body.player.id, 5);
 const al = await j('/api/alliance/create', { method: 'POST', body: JSON.stringify({ name: `Alliance${uid}`, tag: `A${String(uid).slice(0, 3)}` }) }, leader.body.token);
 check('alliance created', al.status === 200 || al.status === 201, 'status ' + al.status);
 const inv = await j('/api/alliance/invite', { method: 'POST', body: JSON.stringify({ playerName: `Memb${uid}` }) }, leader.body.token);

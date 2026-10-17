@@ -8,7 +8,7 @@
 // Equipment slots definition
 // Emplacements d'équipement : position sur la scène du héros et objet de référence (icône 3D de l'emplacement vide)
 const EQUIPMENT_SLOTS = {
-  head: { name: 'Tete', item: 'bronze_helm', x: 50, y: 5 },
+  head: { name: 'Tête', item: 'bronze_helm', x: 50, y: 5 },
   chest: { name: 'Torse', item: 'leather_armor', x: 50, y: 28 },
   weapon: { name: 'Arme', item: 'iron_sword', x: 15, y: 35 },
   shield: { name: 'Bouclier', item: 'wooden_shield', x: 85, y: 35 },
@@ -35,7 +35,7 @@ async function loadHero() {
     const hero = await res.json();
     heroData = hero;
     if (hero) {
-      const xpPct = Math.min(100, (hero.xp / hero.xpToNextLevel) * 100);
+      const xpPct = Math.min(100, (hero.xp / Math.max(1, hero.xpToNextLevel || 1)) * 100);
       const xpRemaining = hero.xpToNextLevel - hero.xp;
 
       // Build equipment map from hero items
@@ -59,7 +59,7 @@ async function loadHero() {
             <!-- XP Bar -->
             <div class="hero-xp-section">
               <div class="xp-label">
-                <span>Experience</span>
+                <span>Expérience</span>
                 <span class="xp-numbers">${formatNum(hero.xp)} / ${formatNum(hero.xpToNextLevel)}</span>
               </div>
               <div class="xp-bar-outer">
@@ -80,7 +80,7 @@ async function loadHero() {
               </div>
               <div class="hero-stat-row">
                 <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
-                <span class="stat-label">Defense</span>
+                <span class="stat-label">Défense</span>
                 <span class="stat-val">${hero.defense + hero.defPoints}</span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('def')">+</button>` : ''}
               </div>
@@ -99,7 +99,7 @@ async function loadHero() {
             </div>
             ${hero.statPoints > 0 ? `
               <div class="hero-free-points">
-                <span>Points a distribuer:</span>
+                <span>Points à distribuer :</span>
                 <span class="free-points-count">${hero.statPoints}</span>
               </div>
             ` : ''}
@@ -107,7 +107,7 @@ async function loadHero() {
 
           <!-- Right: Body Equipment -->
           <div class="hero-right-col">
-            <h4 class="equipment-title">Equipement</h4>
+            <h4 class="equipment-title">Équipement</h4>
             <div class="hero-body-container">
               <!-- Body silhouette -->
               <div class="hero-body-silhouette">
@@ -121,7 +121,7 @@ async function loadHero() {
                     <div class="equip-slot ${isEmpty ? 'empty' : 'filled'}"
                          style="left:${info.x}%;top:${info.y}%"
                          onclick="onEquipSlotClick('${slot}')"
-                         title="${info.name}${equipped ? ': ' + equipped.itemKey : ' (vide)'}">
+                         title="${escapeHtml(info.name)}${equipped ? ': ' + escapeHtml(equipped.itemKey) : ' (vide)'}">
                       <span class="equip-slot-icon">${equipped ? getItemIcon(equipped.itemKey) : getItemIcon(info.item)}</span>
                       ${!isEmpty ? '<span class="equip-slot-badge">!</span>' : ''}
                     </div>
@@ -143,7 +143,7 @@ async function loadHero() {
       `;
       loadExpeditions();
     } else {
-      panel.innerHTML = '<p style="color:var(--text-muted)">Aucun heros. Construisez une Demeure du Heros.</p>';
+      panel.innerHTML = '<p style="color:var(--text-muted)">Aucun héros. Construisez une Demeure du Héros.</p>';
     }
   }
 }
@@ -173,7 +173,7 @@ function onEquipSlotClick(slotKey) {
             `).join('')}
           </div>
         ` : '<p style="color:var(--text-muted)">Aucun bonus</p>'}
-        <button class="btn-primary" onclick="unequipItem('${equipped.id}');closeModal();" style="margin-top:12px;">Desequiper</button>
+        <button class="btn-primary" onclick="unequipItem('${equipped.id}');closeModal();" style="margin-top:12px;">Déséquiper</button>
       </div>
     `);
   } else {
@@ -196,14 +196,14 @@ async function unequipItem(itemId) {
       body: JSON.stringify({ itemId })
     });
     if (res.ok) {
-      showToast('Objet desequipe', 'success');
+      showToast('Objet déséquipé', 'success');
       loadHero();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -219,7 +219,7 @@ async function assignPoint(stat) {
     });
 
     if (res.ok) {
-      showToast('Point assigne!', 'success');
+      showToast('Point assigné !', 'success');
       loadHero();
     } else {
       const data = await res.json();
@@ -227,7 +227,7 @@ async function assignPoint(stat) {
     }
   } catch (e) {
     console.error('assignPoint error:', e);
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -409,7 +409,7 @@ async function renameHero() {
     });
 
     if (res.ok) {
-      showToast('Heros renomme!', 'success');
+      showToast('Héros renommé !', 'success');
       const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
@@ -419,7 +419,7 @@ async function renameHero() {
       showToast(data.error || 'Erreur lors du renommage', 'error');
     }
   } catch (e) {
-    showToast('Erreur reseau', 'error');
+    showToast('Erreur réseau', 'error');
   }
 }
 

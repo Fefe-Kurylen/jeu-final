@@ -134,6 +134,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 const PUBLIC_DIR = path.join(__dirname, 'public');
 app.get('/privacy', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'privacy.html')));
 app.get('/support', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'support.html')));
+app.get('/reset-password', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'reset-password.html')));
 
 // ========== 404 for unknown routes ==========
 app.use((req, res) => {

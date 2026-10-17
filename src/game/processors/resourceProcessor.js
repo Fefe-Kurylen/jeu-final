@@ -5,6 +5,7 @@ const { Prisma } = require('@prisma/client');
 const config = require('../../config');
 const { unitsData, buildingsData } = require('../../config/gamedata');
 const { getProductionAtLevel } = require('../../utils/calculations');
+const fx = require('../../utils/buildingEffects');
 
 // Table de production précalculée (clé, niveau 1-25) -> prod/h, envoyée une fois en VALUES SQL
 let _prodTableSql = null;
@@ -33,13 +34,15 @@ const BONUS = {
 const PREMIUM_BONUS = config.purchases.perks.productionBonus;
 
 async function processResourceProduction(TICK_HOURS) {
-  // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node
+  // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node.
+  // Multiplicateurs par ville : abonnement Plus, et bonus global de production des bâtiments (Irrigation égyptienne)
+  const [globalKey, globalPct] = fx.productionBonusKeys()[0];
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
-      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
-      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxStorage"),
-      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}), c."maxFoodStorage")
+      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
+      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
+      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
+      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxFoodStorage")
     FROM (
       SELECT cb."cityId",
         SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
@@ -50,6 +53,7 @@ async function processResourceProduction(TICK_HOURS) {
         SUM(CASE WHEN cb.key = ANY(${BONUS.stone.keys}) THEN cb.level * ${BONUS.stone.pct} ELSE 0 END) AS sb,
         SUM(CASE WHEN cb.key = ANY(${BONUS.iron.keys})  THEN cb.level * ${BONUS.iron.pct}  ELSE 0 END) AS ib,
         SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb,
+        SUM(CASE WHEN cb.key = ${globalKey} THEN cb.level * ${globalPct} ELSE 0 END) AS gb,
         MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem
       FROM "CityBuilding" cb
       JOIN "City" ci ON ci.id = cb."cityId"
@@ -86,9 +90,12 @@ function getUpkeepTableSql() {
 let lastStarvationAt = 0;
 
 async function processUpkeep(TICK_HOURS, now = new Date()) {
-  // 1) Décrément de nourriture : une seule requête SQL pour toutes les villes
+  // 1) Décrément de nourriture : une seule requête SQL pour toutes les villes, réduction d'entretien des
+  //    bâtiments de faction (Tente de guerre hun, Avant-poste du désert) comprise
+  const upkeepKeys = fx.upkeepReductionKeys();
+  const reductionTable = Prisma.join(upkeepKeys.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
   await prisma.$executeRaw`
-    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * ${TICK_HOURS})
+    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0)) / 100.0) * ${TICK_HOURS})
     FROM (
       SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
       FROM "Army" a
@@ -97,6 +104,11 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
       WHERE a."cityId" IS NOT NULL
       GROUP BY a."cityId"
     ) AS cons
+    LEFT JOIN (
+      SELECT cb."cityId", SUM(cb.level * r.pct) AS pct
+      FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key
+      GROUP BY cb."cityId"
+    ) AS red ON red."cityId" = cons."cityId"
     WHERE c.id = cons."cityId" AND cons.total > 0
   `;
 
@@ -131,12 +143,37 @@ async function processResourceRegen(now, TICK_HOURS) {
   if (regenResult > 0) console.log(`[REGEN] ${regenResult} resource nodes regenerated`);
 }
 
-// GDD: a damaged wall fully regenerates in 24h
+// GDD: a damaged wall fully regenerates in 24h, 1 % faster per wall level
 async function processWallRegen(TICK_HOURS) {
+  const bonusPerLevel = fx.wallRegenBonusPctPerLevel();
   await prisma.$executeRaw`
-    UPDATE "City" SET "wallHp" = LEAST("wallHp" + "wallMaxHp" * ${TICK_HOURS} / ${config.combat.wallRegenHours}, "wallMaxHp")
-    WHERE "wallHp" < "wallMaxHp" AND "isSieged" = false
+    UPDATE "City" c SET "wallHp" = LEAST(c."wallHp" + c."wallMaxHp" * ${TICK_HOURS} / ${config.combat.wallRegenHours}
+        * (1 + COALESCE((SELECT MAX(cb.level) FROM "CityBuilding" cb WHERE cb."cityId" = c.id AND cb.key = 'WALL'), 0) * ${bonusPerLevel} / 100.0), c."wallMaxHp")
+    WHERE c."wallHp" < c."wallMaxHp" AND c."isSieged" = false
   `;
 }
 
-module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen };
+// Treasure Chamber: gold per day, accrued continuously and paid to the player coin by coin
+let _goldTableSql = null;
+function getGoldTableSql() {
+  if (_goldTableSql) return _goldTableSql;
+  const rows = [];
+  for (let lvl = 1; lvl <= 25; lvl++) rows.push(Prisma.sql`(${lvl}, ${fx.goldPerDayAtLevel(Math.min(20, lvl))}::float)`);
+  _goldTableSql = Prisma.join(rows);
+  return _goldTableSql;
+}
+async function processGoldIncome(TICK_HOURS) {
+  await prisma.$transaction([
+    prisma.$executeRaw`
+      UPDATE "City" c SET "goldAccrued" = c."goldAccrued" + g.perday * ${TICK_HOURS} / 24.0
+      FROM "CityBuilding" cb JOIN (VALUES ${getGoldTableSql()}) AS g(level, perday) ON g.level = cb.level
+      WHERE cb."cityId" = c.id AND cb.key = 'TREASURE_CHAMBER' AND c."isSieged" = false`,
+    prisma.$executeRaw`
+      UPDATE "Player" p SET gold = p.gold + sub.coins
+      FROM (SELECT "playerId", SUM(FLOOR("goldAccrued"))::int AS coins FROM "City" WHERE "goldAccrued" >= 1 GROUP BY "playerId") sub
+      WHERE p.id = sub."playerId"`,
+    prisma.$executeRaw`UPDATE "City" SET "goldAccrued" = "goldAccrued" - FLOOR("goldAccrued") WHERE "goldAccrued" >= 1`
+  ]);
+}
+
+module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome };

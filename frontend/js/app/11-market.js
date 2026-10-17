@@ -186,7 +186,7 @@ function renderTradeReports() {
   if (!container) return;
 
   if (!tradeReports.length) {
-    container.innerHTML = '<div class="empty-state">Aucun echange effectue</div>';
+    container.innerHTML = '<div class="empty-state">Aucun échange effectué</div>';
     return;
   }
 
@@ -242,6 +242,17 @@ function renderSpyReports() {
   container.innerHTML = spyReports.map(report => {
     const date = new Date(report.createdAt).toLocaleString('fr-FR');
     
+    if (report.targetType === 'COUNTER_SPY') {
+      return `
+        <div class="report-card report-victory">
+          <div class="report-header">
+            <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espion intercepté</span>
+            <span class="report-date">${date}</span>
+          </div>
+          <p>Votre Tour de guet a repéré <strong>${report.targetName ? escapeHtml(report.targetName) : 'des espions inconnus'}</strong> aux abords de <strong>${escapeHtml(report.cityName)}</strong>.</p>
+        </div>
+      `;
+    }
     if (!report.success) {
       return `
         <div class="report-card report-defeat">
@@ -286,7 +297,7 @@ function renderSpyReports() {
             report.armies.map(a => `
               <div class="spy-army">
                 <strong>${escapeHtml(a.name)}</strong>: 
-                ${a.units.map(u => `${getUnitName(u.key)} x${u.count}`).join(', ')}
+                ${(a.units || []).map(u => `${escapeHtml(getUnitName(u.key))} x${u.count}`).join(', ')}
               </div>
             `).join('')
           }

@@ -49,14 +49,20 @@ L'architecture est saine et n'avait pas à être refaite : API Express fine, log
 ### Tests
 - `tests/unit` (node:test) : moteur de combat, formules, validation, tribus. `tests/api-e2e.mjs` : partie complète (plus de 150 vérifications dont concurrence). `tests/compliance-e2e.mjs` : analytics, achats, push, suppression de compte, mot de passe. `tests/browser-smoke.cjs` : navigateur bureau et téléphone. CI GitHub Actions avec Postgres.
 
-## Ce qui a été volontairement laissé en l'état
+## Second passage (ce qui restait)
 
-- **Compteurs en mémoire** (limites de débit, verrouillage de connexion) : par processus. Suffisant pour une machine ; à porter dans Postgres ou le reverse proxy si l'API tourne sur plusieurs machines.
-- **Pas de vérification d'e-mail ni de réinitialisation de mot de passe** : à ajouter avant l'ouverture publique (nécessite un envoi d'e-mails).
-- **Courbes de coût/temps** : le serveur utilise `coût L1 × 1,28^(n−1)` et ignore les colonnes `costL20/timeL20Sec` des données ; c'est un choix d'équilibrage à trancher, pas un bug.
-- **Effets de bâtiments non implémentés** mais présents dans les données (Chambre au Trésor, réductions de temps du Bâtiment principal, Tour de guet, colons, etc.) : à implémenter ou à retirer de l'interface, feature par feature.
-- **Espionnage sans contre-mesure, pas de renfort allié** : règles de jeu à concevoir.
-- **Blessés de l'attaquant** soignables à distance : règle à décider.
+- **Effets de bâtiments** lus dans les données et appliqués par le serveur (`src/utils/buildingEffects.js`) : réductions de temps de construction (Bâtiment principal, Académie, Résidence) et d'entraînement (Caserne, Écurie, Atelier, grandes casernes), défense de la ville (Forge, Brasserie gauloise), stockage protégé des raids (Grand Dépôt, Grand Silo), or quotidien de la Chambre au Trésor, réduction d'entretien (Tente de guerre, Avant-poste), production globale (Irrigation), bonus de convoi (Marché, Comptoir), armées en campagne selon la Place de rassemblement (1/3/5), Ambassade pour rejoindre (5) et fonder (7) une alliance, Tour de guet (contre-espionnage, attaquant et effectifs révélés), taxe du marchand, régénération du mur, soins et blessés des bâtiments de faction. L'affichage client des effets reprend exactement ces règles.
+- **Annulation** d'une construction (remboursement intégral en attente, moitié en cours, niveaux suivants annulés avec) et d'un recrutement (moitié, lots suivants avancés).
+- **Transferts d'unités** par incréments conditionnels et recrutement sous verrou de ville : plus de valeur absolue écrasée.
+- **E-mail** : confirmation d'adresse à l'inscription, « mot de passe oublié » avec page publique de réinitialisation, changement de mot de passe dans les paramètres ; fournisseurs `log`, `smtp`, `resend` ; avec un vrai fournisseur, le commerce exige une adresse confirmée.
+- **Limites partagées en base** pour les routes sensibles et le verrouillage de connexion.
+- **Client** : heure serveur pour tous les comptes à rebours, écran « Connexion au serveur… » avec réessai, bandeau d'adresse non confirmée, boutons d'annulation des files, formules identiques au serveur, barre d'onglets conservée en paysage, labels et cibles tactiles, permission des notifications demandée après la première construction, journal de débogage coupé hors `?debug=1`.
+
+## Ce qui reste volontairement en l'état
+
+- **Courbes de coût/temps** : le serveur utilise `coût L1 × 1,28^(n−1)` et ignore les colonnes `costL20/timeL20Sec` des données ; choix d'équilibrage à trancher en jouant, pas un bug.
+- **Colons et villes secondaires** (Résidence), **recherche** (Académie), **aide d'alliance** (Ambassade), **espions comme unités** (Tour de guet) : fonctionnalités entières, pas des réglages ; l'interface l'indique.
+- **Renfort allié** (mission SUPPORT) et **blessés de l'attaquant** soignables à distance : règles de jeu à concevoir.
 - **`bcryptjs`** (JavaScript pur) : coût CPU visible sous forte charge de connexions ; `bcrypt` natif ou argon2 si besoin.
 
 ## Comment vérifier

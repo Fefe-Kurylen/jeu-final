@@ -3,16 +3,17 @@ const config = require('../config');
 const { unitsData } = require('../config/gamedata');
 const { getFactionBonus } = require('../utils/calculations');
 const { factionsData } = require('../config/gamedata');
+const fx = require('../utils/buildingEffects');
 
 async function calculateWoundedUnits(cityId, killedUnits, faction) {
-  const healingTent = await prisma.cityBuilding.findFirst({
-    where: { cityId, key: 'HEALING_TENT' }
-  });
+  const buildings = await prisma.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
+  const healingTent = buildings.find(b => b.key === 'HEALING_TENT');
   if (!healingTent) return [];
 
   let woundedRate = config.wounded.baseRate + (healingTent.level * config.wounded.bonusPerHealingLevel);
   const greekBonus = getFactionBonus(faction, 'woundedConversion', factionsData);
   woundedRate += greekBonus / 100;
+  woundedRate += fx.woundedBonusPct(buildings) / 100;   // Thermes romains, Temple grec, Tente de guerre hun
   woundedRate = Math.min(config.wounded.maxRate, woundedRate);
 
   const woundedUnits = [];
@@ -30,12 +31,11 @@ async function calculateWoundedUnits(cityId, killedUnits, faction) {
 async function addWoundedUnits(cityId, woundedUnits) {
   if (!woundedUnits || woundedUnits.length === 0) return;
 
-  const healingTent = await prisma.cityBuilding.findFirst({
-    where: { cityId, key: 'HEALING_TENT' }
-  });
+  const buildings = await prisma.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
+  const healingTent = buildings.find(b => b.key === 'HEALING_TENT');
 
   const healingLevel = healingTent?.level || 1;
-  const baseHealTimeMinutes = config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1);
+  const baseHealTimeMinutes = config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1) * (1 - fx.healTimeReductionPct(buildings) / 100);
   const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
 
   for (const unit of woundedUnits) {

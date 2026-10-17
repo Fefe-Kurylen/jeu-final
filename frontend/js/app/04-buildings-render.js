@@ -192,7 +192,7 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
       const level = mainHall?.level || 1;
       html = `
         <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Bâtiment principal</h4>
-        <p class="tt-level">Niveau ${level}/30</p>
+        <p class="tt-level">Niveau ${level}/20</p>
         <p class="tt-hint">Cliquez pour améliorer</p>
       `;
     } else {
@@ -227,49 +227,48 @@ function showCityTooltip(mouseX, mouseY, slotNum) {
 
 // Helper pour obtenir l'effet d'un bâtiment (39 bâtiments)
 function getBuildingEffect(key, level) {
+  const curve = (l1, l20) => (level <= 0 ? 0 : level >= 20 ? l20 : Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19)));
   const effects = {
-    // Base & Intermediate
-    'MAIN_HALL': `Réduction construction: ${(level * 2.5).toFixed(1)}%`,
-    'BARRACKS': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
-    'STABLE': `Réduction entraînement: ${(level * 0.5).toFixed(1)}%`,
-    'WORKSHOP': `Réduction entraînement: ${(level * 4).toFixed(1)}%`,
-    'ACADEMY': `Réduction recherche: ${(level * 1).toFixed(1)}%`,
-    'FORGE': `Bonus défense global: ${(level * 0.5).toFixed(1)}%`,
-    'WALL': `Bonus défense: ${(level * 1).toFixed(1)}%`,
-    'MOAT': `Bonus ATK/DEF: ${(level * 0.5).toFixed(1)}%`,
-    'HIDEOUT': `Ressources cachées: ${Math.min(level * 1, 20)}%`,
-    'HEALING_TENT': `Capacité soins: ${level * 3} unités`,
-    'HERO_HOME': `Bonus XP héros: ${(level * 2).toFixed(0)}%`,
-    'HERO_MANSION': `Résurrection: -${(level * 2).toFixed(0)}% temps`,
-    'MARKET': `Taxe réduite: ${(30 - level).toFixed(0)}%`,
-    'RALLY_POINT': `Armées max: ${Math.min(1 + Math.floor(level / 5), 3)}`,
-    'WAREHOUSE': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`,
-    'SILO': `Capacité: ${formatNum(1200 + (160000 - 1200) * (level - 1) / 19)}`,
-    // Production bonus
-    'MILL': `Bonus céréales: +${(4 + (level - 1) * 4).toFixed(0)}%`,
-    'BAKERY': `Bonus céréales: +${(4 + (level - 1) * 4).toFixed(0)}%`,
-    'SAWMILL': `Bonus bois: +${(5 * level).toFixed(0)}%`,
-    'STONEMASON': `Bonus pierre: +${(5 * level).toFixed(0)}%`,
-    'FOUNDRY': `Bonus fer: +${(5 * level).toFixed(0)}%`,
-    // Protected storage
-    'GREAT_SILO': `Protégé: ${formatNum(3600 + (600000 - 3600) * (level - 1) / 19)}`,
-    'GREAT_WAREHOUSE': `Protégé: ${formatNum(3600 + (600000 - 3600) * (level - 1) / 19)}`,
-    // Military advanced
-    'GREAT_BARRACKS': `Réduction: -${(level * 4).toFixed(0)}% temps`,
-    'GREAT_STABLE': `Réduction: -${(level * 4).toFixed(0)}% temps`,
-    'WATCHTOWER': `Vision: ${5 + level * 6} cases`,
-    // Special buildings
-    'EMBASSY': `Aide alliance: ${Math.min(level, 20)} max`,
-    'TREASURE_CHAMBER': `Or/jour: ${10 + (level - 1) * 10}`,
-    'RESIDENCE': `Colons: ${level >= 20 ? 3 : level >= 15 ? 2 : level >= 10 ? 1 : 0}`,
-    'TRADE_OFFICE': `Taxe P2P: -${level}%`,
+    // Construction and training
+    'MAIN_HALL': `Construction: -${(level * 2.5).toFixed(1)}% de temps`,
+    'ACADEMY': `Construction: -${(level * 1).toFixed(0)}% de temps`,
+    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps (colons : à venir)`,
+    'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
+    'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
+    'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
+    'GREAT_BARRACKS': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
+    'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
+    // Defence
+    'FORGE': `Défense de la ville: +${(level * 0.5).toFixed(1)}%`,
+    'WALL': `Défense: +${level}% · réparation +${level}% plus rapide`,
+    'MOAT': `Défenseurs: +${(level * 0.5).toFixed(1)}% attaque et défense`,
+    'HIDEOUT': `Ressources cachées des raids: ${Math.min(level, 20)}%`,
+    'GREAT_SILO': `Nourriture à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
+    'GREAT_WAREHOUSE': `Ressources à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
+    'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
+    'WATCHTOWER': `Contre-espionnage: ${(Math.min(20, level) * 3.5).toFixed(1)}% · attaquant révélé niv. 10, effectifs niv. 15`,
+    // Economy
+    'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
+    'SILO': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
+    'MARKET': `Taxe du marchand: ${Math.max(5, 30 - Math.max(0, level - 1))}% · convois +${level * 5}%`,
+    'TRADE_OFFICE': `Convois: +${level}% de capacité`,
+    'MILL': `Céréales: +${level * 5}%`,
+    'BAKERY': `Céréales: +${level * 5}%`,
+    'SAWMILL': `Bois: +${level * 5}%`,
+    'STONEMASON': `Pierre: +${level * 5}%`,
+    'FOUNDRY': `Fer: +${level * 5}%`,
+    'TREASURE_CHAMBER': `Or: ${curve(10, 200)} par jour`,
+    // Military and social
+    'RALLY_POINT': `Armées en campagne: ${level <= 0 ? 0 : Math.min(5, 1 + Math.floor(level / 5))}`,
+    'EMBASSY': `Alliance: rejoindre dès le niv. 5, fonder dès le niv. 7`,
+    'HERO_MANSION': 'Gestion du héros',
     // Faction buildings
-    'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% temps`,
-    'GALLIC_BREWERY': `Défense siège: +${level}%`,
-    'GREEK_TEMPLE': `Recherche: -${level}%`,
+    'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% de temps · blessés +${(level * 0.5).toFixed(1)}%`,
+    'GALLIC_BREWERY': `Défense de la ville: +${level}%`,
+    'GREEK_TEMPLE': `Blessés au lieu de morts: +${(level * 0.5).toFixed(1)}%`,
     'EGYPTIAN_IRRIGATION': `Production: +${level}%`,
-    'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}%`,
-    'SULTAN_DESERT_OUTPOST': `Taxe inter-villes: -${(level * 0.5).toFixed(1)}%`
+    'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}% · blessés +${(level * 0.5).toFixed(1)}%`,
+    'SULTAN_DESERT_OUTPOST': `Entretien: -${(level * 0.5).toFixed(1)}%`
   };
   return effects[key] || null;
 }

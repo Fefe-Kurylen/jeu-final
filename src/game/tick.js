@@ -6,7 +6,7 @@ const os = require('os');
 const config = require('../config');
 const prisma = require('../config/database');
 const { processHealedUnits } = require('../services/woundedService');
-const { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen } = require('./processors/resourceProcessor');
+const { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome } = require('./processors/resourceProcessor');
 const { processBuilds, syncAllCityStorage } = require('./processors/buildProcessor');
 const { processRecruits } = require('./processors/recruitProcessor');
 const { processExpeditions, generateNewExpeditions } = require('./processors/expeditionProcessor');
@@ -75,6 +75,7 @@ async function gameTick() {
     await step('production', () => processResourceProduction(TICK_HOURS));
     await step('upkeep', () => processUpkeep(TICK_HOURS, now));
     await step('wallRegen', () => processWallRegen(TICK_HOURS));
+    await step('gold', () => processGoldIncome(TICK_HOURS));
 
     await step('builds', () => processBuilds(now));
     await step('recruits', () => processRecruits(now));
