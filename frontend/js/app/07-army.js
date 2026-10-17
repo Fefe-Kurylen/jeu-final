@@ -269,7 +269,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
 }
 
 // Army power like the server: (attack + defense) × tier coefficient × count
-const TIER_POWER = { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 };
+const TIER_POWER = { base: 1.0, intermediate: 1.25, elite: 1.55, siege: 0.75 };   // = config.combat.tierCoefficients
 function unitPower(unit, count) {
   return count * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0)) * (TIER_POWER[unit?.tier] || 1);
 }

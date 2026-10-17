@@ -25,7 +25,7 @@ async function processExpeditions(now) {
   for (const exp of expeditions) {
     try {
       const army = exp.armyId ? await prisma.army.findUnique({ where: { id: exp.armyId }, include: { units: true, hero: { include: { items: true } } } }) : null;
-      // Real unit stats decide the outcome (≈ 10 per base unit, 20 per elite), not a flat 10 per head
+      // Real unit stats decide the outcome (≈ 10 per base unit, 20 per intermediate, 35 per elite), not a flat 10 per head
       const playerPower = army ? calculateArmyPower(army.units, unitsData) / config.expedition.powerDivisor : 0;
       const won = playerPower > exp.enemyPower * 0.7;
       let xpGained = 0, lootGained = null;

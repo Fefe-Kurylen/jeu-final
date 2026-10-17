@@ -13,7 +13,7 @@ const SHEET_CATEGORY_NAMES = { BASE: 'Infrastructure', INTERMEDIATE: 'Militaire'
 const SHEET_RULES = {
   beats: { INFANTRY: 'CAVALRY', CAVALRY: 'ARCHER', ARCHER: 'INFANTRY' },
   triangleBonusPct: 20,
-  tierCoeff: { base: 1, intermediate: 1.1, elite: 1.21, siege: 0.75 },
+  tierCoeff: { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 },
   upkeep: { base: 5, intermediate: 10, elite: 15, siege: 15 },
   siegeWallDamage: 40,
   tilesPerHourFactor: 2.4, // 1 case en 30 s à vitesse 50 → 2,4 × vitesse cases par heure (calculations.js)

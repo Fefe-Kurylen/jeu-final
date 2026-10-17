@@ -141,7 +141,7 @@ const config = {
     loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
     raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
     raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
-    tierCoefficients: { base: 1.0, intermediate: 1.10, elite: 1.21, siege: 0.75 },
+    tierCoefficients: { base: 1.0, intermediate: 1.25, elite: 1.55, siege: 0.75 },  // équilibrage oct. 2026 : l'élite vaut plus par unité d'entretien (docs/EQUILIBRAGE.md)
     // Combat triangle (GDD combat_config.json), applied per attacker class / target class pair
     triangle: {
       INFANTRY_vs_CAVALRY: 1.20,
@@ -152,7 +152,7 @@ const config = {
 
   // Expeditions
   expedition: {
-    powerDivisor: 7,             // army power / 7 ≈ 10 per base unit, 20 per elite
+    powerDivisor: 7,             // army power / 7 ≈ 10 per base unit, 20 per intermediate, 35 per elite
     lossPctPerDifficulty: 0.02   // 2% of each unit group lost per difficulty level
   },
 
