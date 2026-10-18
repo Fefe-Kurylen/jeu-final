@@ -79,9 +79,9 @@
       "name": "Sultanat",
       "bonuses": [
         {
-          "type": "transportCapacity",
+          "type": "siegeEngineAttack",
           "value": 25,
-          "description": "+25% capacité de transport des unités"
+          "description": "+25% attaque aux bâtiments des engins de siège"
         },
         {
           "type": "defendingCityAttack",

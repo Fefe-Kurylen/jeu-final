@@ -17,7 +17,7 @@ courbes. Chiffres tirés de `data/*.json` et `src/config/index.js` ; calculs rep
 | Égypte | +25 % santé des murs | points de vie du mur (1 250 PV/niv. au lieu de 1 000), en construction comme à la réparation ; **corrigé** en octobre : portait auparavant sur le bonus de défense du mur | ✅ après correction |
 | Huns | +20 % vitesse des armées | tout déplacement | ✅ |
 | Huns | +10 % attaque en siège | attaques de ville | ✅ |
-| Sultanat | +25 % transport | butin des pillages, envoi par armée, convois marchands (a remplacé les dégâts des engins aux murs, voir § 7) | ✅ |
+| Sultanat | +25 % dégâts des engins aux murs | points de mur abattus par les engins | ✅ |
 | Sultanat | +15 % attaque en défendant sa ville | attaques de ville subies | ✅ |
 
 Les cartes de l'inscription n'affichaient qu'un bonus sur deux par civilisation : elles montrent maintenant les deux, avec les
@@ -140,17 +140,14 @@ depuis les données du serveur). Deux points à garder à l'œil :
 - Gaule (cachette) et Sultanat (engins) gagnent très peu en pratique, plafond et arrondis obligent : les bonus affichés sont
   exacts, leur effet est marginal.
 
-**Suite (même jour, décision du jeu)** : défense gauloise chez soi portée à **20 %**, et le bonus d'engins du Sultanat remplacé
-par **+25 % de transport** (identité « pillards et marchands » de ses unités, déjà rapides et bonnes porteuses). Re-simulation :
+**Suite (même jour, décision du jeu)** : défense gauloise chez soi portée à **20 %** ; le reste est inchangé. Re-simulation :
 
 | Civilisation | Défense de ville | Attaque de ville | Changement |
 |---|---|---|---|
 | Rome | 1,91 | 1,27 | — |
 | Gaule | 1,72 → **1,92** | 0,81 | redevient la meilleure défenseuse chez elle hors Sultanat (devant Rome 1,91) |
-| Sultanat | 2,17 | 0,81 | inchangé au combat ; transport ×1,25 (Égypte ×1,15) sur le butin des pillages, les envois et les convois |
+| Sultanat | 2,17 | 0,81 | — |
 
 Matrice réelle : aucun résultat ne bascule par rapport à l'étape précédente ; la Gaule attaquée par les Huns à effectifs égaux
 perd toujours sa garnison mais leur coûte 61,7 % au lieu de 59,0 % ; Rome prend encore une ville gauloise (54,0 % de pertes au
-lieu de 52,3 %). Le Sultanat devient la meilleure civilisation de pillage par unité envoyée (butin ×1,25 sur une capacité de
-transport déjà élevée), l'Égypte garde la seconde place et son mur. Les engins de siège n'ont plus de bonus de civilisation ;
-le code qui l'appliquait reste en place (`siegeEngineAttack`) si l'on veut le rendre à quelqu'un.
+lieu de 52,3 %).
