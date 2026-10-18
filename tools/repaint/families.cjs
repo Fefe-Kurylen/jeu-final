@@ -24,7 +24,7 @@ function classify(files, painted) {
       fam('Champs (4 types × 3 paliers × 3 biomes)', f => /^fields\/\w+\/[A-Z_]+_\d\.webp$/.test(f), 'anneau des champs', '§ 3.2', '★★★'),
       fam('Champs en chantier', f => /^fields\/.*_site\.webp$/.test(f), 'champ en première construction', 'guide § S10', '★☆☆'),
       fam('Enceinte : courtines, murets et tours, 3 paliers × 6 civilisations', f => /^walls\/[A-Z]+\/\d_/.test(f), 'autour de la ville (palier du Bâtiment principal)', '§ 3.3', '★★★'),
-      fam('Portes de la ville par civilisation', f => /^walls\/[A-Z]+\/gate\.webp$/.test(f), 'arête sud-ouest de l\'enceinte', 'guide § S1', '★★★'),
+      fam('Portes de la ville par civilisation', f => /^walls\/[A-Z]+\/gate\.webp$/.test(f), 'arête sud-est de l\'enceinte', 'guide § S1', '★★★'),
       fam('Enceinte en chantier', f => /^walls\/[A-Z]+\/site_/.test(f), 'Mur en travaux', 'guide § S10', '★☆☆'),
       fam('Douves par civilisation', f => /^walls\/[A-Z]+\/moat_/.test(f), 'bâtiment Douves (à brancher)', 'guide § S16', '★☆☆'),
       fam('Ornements de plaza par civilisation (statue, fontaine, étal)', f => /^props\/plaza_/.test(f), 'autour du Bâtiment principal', 'guide § S16', '★★☆'),

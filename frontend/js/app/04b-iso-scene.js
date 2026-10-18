@@ -29,13 +29,22 @@ const ISO_SPARE_CELLS = [[-1, -2], [-2.7, -2.7], [-2, -3], [2.7, -2.7], [2.7, 2.
 const R_WALL = 3.85;      // l'enceinte entoure bâtiments et champs
 const R_PLAZA = 0.7;      // plaza pavée autour du Bâtiment principal
 const ISO_MAIN_HALL_SCALE = 1.35;   // le Bâtiment principal domine la ville
-// Enceinte : 8 tronçons par côté ; la porte, sur l'arête sud-ouest, s'ouvre sur l'avenue qui passe entre les
-// colonnes 0 et 1 de la grille (gx = 0,5)
+// Enceinte : 8 tronçons par côté ; la porte, sur l'arête sud-est (bord inférieur droit du losange), s'ouvre sur
+// l'avenue qui passe entre les rangées 0 et 1 de la grille (à 0,5 cellule de l'axe).
+// Toute la géométrie liée à la porte (avenues, route, couloir du décor, buissons, torches) passe par le repère
+// « porte » : `along` = position le long de l'arête de la porte, `depth` = profondeur vers cette arête
+// (R_WALL sur l'arête). Changer ISO_GATE_SIDE ('SE' ou 'SW') bascule toute la ville d'un côté à l'autre.
+const ISO_GATE_SIDE = 'SE';
 const ISO_WALL_SEGMENTS = 8;
 const ISO_GATE_ALONG = 0.5;
-const ISO_GATE_INDEX = Math.round((R_WALL - ISO_GATE_ALONG) / (2 * R_WALL) * ISO_WALL_SEGMENTS - 0.5);
-const ISO_GATE_GX = R_WALL - 2 * R_WALL * (ISO_GATE_INDEX + 0.5) / ISO_WALL_SEGMENTS;
+// tronçon ouvert, compté dans le sens croissant de `along` (de -R_WALL à +R_WALL), et position de la porte sur l'arête
+const ISO_GATE_INDEX = Math.round((R_WALL + ISO_GATE_ALONG) / (2 * R_WALL) * ISO_WALL_SEGMENTS - 0.5);
+const ISO_GATE_POS = -R_WALL + 2 * R_WALL * (ISO_GATE_INDEX + 0.5) / ISO_WALL_SEGMENTS;
 const ISO_GATE_SEGMENTS = ISO_WALL_SEGMENTS;   // compatibilité : largeur de l'ouverture = 2R / segments
+// Repère « porte » -> grille (gx, gy) : au sud-est la porte est sur l'arête gx = R_WALL, au sud-ouest sur gy = R_WALL
+function isoGateGrid(along, depth) { return ISO_GATE_SIDE === 'SE' ? [depth, along] : [along, depth]; }
+// Grille (gx, gy) -> repère « porte » { along, depth }
+function isoGateFrame(gx, gy) { return ISO_GATE_SIDE === 'SE' ? { along: gy, depth: gx } : { along: gx, depth: gy }; }
 
 // ---------- Caméra ----------
 const cityCam = { x: 0, y: 0, zoom: 1, auto: true };   // auto : zoom par défaut recalculé pour que les cellules restent lisibles
@@ -151,14 +160,14 @@ const ISO_DECALS = {
 function drawIsoDecals(ctx, W, cx, cy, biome) {
   const names = ISO_DECALS[biome] || ISO_DECALS.forest;
   if (!names.some(n => paintedSet.has(`decals/${n}.webp`))) return;
-  const lanesX = ISO_GATE_GX, laneY = 0.5;
   for (let gx = -5; gx <= 5; gx++) for (let gy = -5; gy <= 5; gy++) {
     const seed = (gx + 30) * 71 + (gy + 30) * 17 + 2400;
     if (isoSeeded(seed) > 0.42) continue;
     const px = gx + 0.5 + (isoSeeded(seed + 1) - 0.5) * 0.5, py = gy + 0.5 + (isoSeeded(seed + 2) - 0.5) * 0.5;
     const inside = Math.max(Math.abs(px), Math.abs(py)) < R_WALL - 0.3;
     if (inside) {
-      if (Math.abs(px - lanesX) < 0.25 || Math.abs(py - laneY) < 0.25) continue;        // avenues
+      const f = isoGateFrame(px, py);
+      if (Math.abs(f.along - ISO_GATE_POS) < 0.25 || Math.abs(f.depth - 0.5) < 0.25) continue;   // avenues
       if (Math.abs(px) + Math.abs(py) < R_PLAZA + 0.5) continue;                           // plaza
       const onPlot = Object.values(ISO_CITY_CELLS).concat(Object.values(ISO_FIELD_CELLS)).some(([cx2, cy2]) => Math.abs(px - cx2) < 0.45 && Math.abs(py - cy2) < 0.45);
       if (onPlot) continue;
@@ -228,13 +237,13 @@ function drawIsoPlaza(ctx, cx, cy, W, night) {
 }
 
 // Avenues de terre battue : de la porte à la plaza, de la plaza vers le fond, et une transversale ; elles passent
-// dans les couloirs laissés entre les parcelles (gx = 0,5 et gy = 0,5)
+// dans les couloirs laissés entre les parcelles (à 0,5 cellule des deux axes), dans le repère de la porte
 function isoAvenueLanes(W, cx, cy) {
-  const P = (gx, gy) => isoPos(gx, gy, W, cx, cy);
+  const P = (along, depth) => { const [gx, gy] = isoGateGrid(along, depth); return isoPos(gx, gy, W, cx, cy); };
   return [
-    [P(ISO_GATE_GX, R_WALL + 0.12), P(ISO_GATE_GX, R_PLAZA * 0.8)],
-    [P(ISO_GATE_GX, -R_PLAZA * 0.8), P(ISO_GATE_GX, -R_WALL + 0.62)],
-    [P(-R_WALL + 0.62, 0.5), P(R_WALL - 0.62, 0.5)]
+    [P(ISO_GATE_POS, R_WALL + 0.12), P(ISO_GATE_POS, R_PLAZA * 0.8)],      // de la porte à la plaza
+    [P(ISO_GATE_POS, -R_PLAZA * 0.8), P(ISO_GATE_POS, -R_WALL + 0.62)],    // de la plaza vers le fond
+    [P(-R_WALL + 0.62, 0.5), P(R_WALL - 0.62, 0.5)]                        // transversale
   ];
 }
 function drawIsoAvenues(ctx, cx, cy, W, night) {
@@ -287,8 +296,11 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   };
   edge([-R, R], [-R, -R], true, 'z');    // arrière gauche (le long de iy)
   edge([-R, -R], [R, -R], true, 'x');    // arrière droit (le long de ix)
-  edge([R, -R], [R, R], false, 'z');     // avant droit
-  edge([R, R], [-R, R], false, 'x', true);   // avant gauche = sud-ouest : la porte
+  // Faces avant (murets bas) : celle de la porte, parcourue dans le sens croissant de `along` (tronçon ISO_GATE_INDEX
+  // ouvert), et l'autre face avant ; tronçons « z » le long de gy, « x » le long de gx
+  const gateAxis = ISO_GATE_SIDE === 'SE' ? 'z' : 'x', otherAxis = ISO_GATE_SIDE === 'SE' ? 'x' : 'z';
+  edge(isoGateGrid(-R, R), isoGateGrid(R, R), false, gateAxis, true);   // face de la porte (sud-est)
+  edge(isoGateGrid(R, -R), isoGateGrid(R, R), false, otherAxis);        // autre face avant (sud-ouest)
   // Porte : deux tourelles de part et d'autre de l'ouverture et un vantail de bois entre elles
   const gw = L;   // largeur de l'ouverture (cellules)
   for (const side of [-1, 1]) {
@@ -309,12 +321,12 @@ function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
   return items;
 }
 
-// La porte de la ville est sur l'arête sud-ouest de l'enceinte (bord inférieur gauche du losange), dans l'axe de
+// La porte de la ville est sur l'arête sud-est de l'enceinte (bord inférieur droit du losange), dans l'axe de
 // l'avenue ; `along` décale le long de cette arête (en cellules, + vers le coin sud)
-function isoGateCell(along = 0) { return [ISO_GATE_GX + along, R_WALL]; }
+function isoGateCell(along = 0) { return isoGateGrid(ISO_GATE_POS + along, R_WALL); }
 // Vantail de bois cintré, à plat dans le plan de l'arête (côtés verticaux à l'écran)
 function drawIsoGateDoor(ctx, x, y, W, gw, low, night) {
-  const half = isoPos(gw / 2 * 0.86, R_WALL, W, 0, 0), zero = isoPos(0, R_WALL, W, 0, 0);
+  const half = isoPos(...isoGateGrid(gw / 2 * 0.86, R_WALL), W, 0, 0), zero = isoPos(...isoGateGrid(0, R_WALL), W, 0, 0);
   const dx = half.x - zero.x, dy = half.y - zero.y;   // demi-vecteur le long de l'arête (vers le sud)
   const h = W * (low ? 0.62 : 0.8);
   ctx.save();
@@ -335,17 +347,19 @@ function drawIsoGateDoor(ctx, x, y, W, gw, low, night) {
   ctx.restore();
 }
 
-// Route de terre : elle part de la porte (arête sud-ouest) et s'éloigne vers le sud-ouest de l'écran en ondulant
+// Route de terre : elle part de la porte (arête sud-est) et s'éloigne vers le sud-est de l'écran en ondulant
 // un peu, comme un chemin de campagne
 function isoRoadPoints(cx, cy, W) {
   const gc = isoGateCell(0), gp = isoPos(gc[0], gc[1], W, cx, cy);
   const th = 0;
-  // direction perpendiculaire à l'arête, vers l'extérieur (sud-ouest à l'écran = bas gauche)
-  const out = { x: -0.62, y: 0.78 };
+  // sens de sortie à l'écran : vers la droite pour une porte au sud-est, vers la gauche au sud-ouest
+  const side = Math.sign(isoPos(...isoGateGrid(0, 1), 1, 0, 0).x - isoPos(...isoGateGrid(0, 0), 1, 0, 0).x) || 1;
+  // direction perpendiculaire à l'arête, vers l'extérieur (sud-est à l'écran = bas droit), plus plongeante que l'axe iso
+  const out = { x: 0.62 * side, y: 0.78 };
   const p0 = { x: gp.x, y: gp.y + W * 0.1 };
   const p1 = { x: p0.x + out.x * W * 0.8, y: p0.y + out.y * W * 0.8 };
-  const p2 = { x: p0.x + out.x * W * 2.4 + W * 0.5, y: p0.y + out.y * W * 2.4 };
-  const p3 = { x: p0.x + out.x * W * 4.6 - W * 0.4, y: Math.max(p0.y + out.y * W * 4.2, cityViewH + W * 0.5) };
+  const p2 = { x: p0.x + out.x * W * 2.4 - side * W * 0.5, y: p0.y + out.y * W * 2.4 };   // l'ondulation revient vers l'axe de la ville
+  const p3 = { x: p0.x + out.x * W * 4.6 + side * W * 0.4, y: Math.max(p0.y + out.y * W * 4.2, cityViewH + W * 0.5) };
   return { gp, th, p0, p1, p2, p3 };
 }
 function drawIsoRoad(ctx, cx, cy, W, night) {
@@ -379,12 +393,12 @@ function isoLandscape(view, W, cx, cy) {
   const props = biomeScene(cityBiome()).props;
   const out = [], water = [];
   const rMin = Math.ceil(R_WALL) + 1, rMax = rMin + 2;
-  const roadCell = isoGateCell(0);
   for (let gx = -rMax; gx <= rMax; gx++) for (let gy = -rMax; gy <= rMax; gy++) {
     const r = Math.max(Math.abs(gx), Math.abs(gy));
     if (r < rMin || r > rMax) continue;
-    // la route sort par la porte vers le sud-ouest : on laisse ce couloir libre
-    if (gy > roadCell[1] && Math.abs(gx - roadCell[0]) <= 1 && gy - gx > R_WALL) continue;
+    // la route sort par la porte vers le sud-est : on laisse ce couloir libre (repère de la porte)
+    const f = isoGateFrame(gx, gy);
+    if (f.depth > R_WALL && Math.abs(f.along - ISO_GATE_POS) <= 1 && f.depth - f.along > R_WALL) continue;
     const seed = (gx + 50) * 97 + (gy + 50) * 13;
     const roll = isoSeeded(seed);
     const feature = isoMapFeatureAt(gx, gy);
@@ -461,15 +475,17 @@ function isoInnerDecor(W, cx, cy, biome) {
     push(gx + 0.3, gy + 0.18, pick(d.small, seed + 3), W * 0.34, 0.06);
     push(gx + 0.1, gy - 0.3, pick(d.tree, seed + 4), W * 0.62, -0.1);
   }
-  // 2) rangée au pied des murs : arbres derrière (fond), buissons devant (pour ne pas cacher les champs)
+  // 2) rangée au pied des murs : arbres derrière (fond), buissons devant (pour ne pas cacher les champs) ; devant
+  // la porte, un passage est laissé libre
   const rb = R_WALL - 0.42;
   for (let a = -3.1; a <= 3.1; a += 0.5) {
     const seed = Math.round(a * 10) + 500;
     const j = (k) => (isoSeeded(seed + k) - 0.5) * 0.25;
     push(a + j(1), -rb + j(2), pick(d.tree, seed), W * (0.72 + isoSeeded(seed + 3) * 0.3));
     push(-rb + j(4), a + j(5), pick(d.tree, seed + 6), W * (0.72 + isoSeeded(seed + 7) * 0.3));
-    push(rb + j(8), a + j(9), pick(d.small, seed + 10), W * 0.34);
-    if (Math.abs(a - ISO_GATE_GX) > 0.85) push(a + j(11), rb + j(12), pick(d.small, seed + 13), W * 0.34);
+    const atGate = Math.abs(a - ISO_GATE_POS) <= 0.85;
+    if (!(atGate && ISO_GATE_SIDE === 'SE')) push(rb + j(8), a + j(9), pick(d.small, seed + 10), W * 0.34);    // avant droit (sud-est)
+    if (!(atGate && ISO_GATE_SIDE === 'SW')) push(a + j(11), rb + j(12), pick(d.small, seed + 13), W * 0.34);  // avant gauche (sud-ouest)
   }
   // 3) interstices entre parcelles
   for (let gx = -3; gx <= 2; gx++) for (let gy = -3; gy <= 2; gy++) {

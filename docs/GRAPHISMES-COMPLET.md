@@ -45,7 +45,7 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Champs (4 types × 3 paliers × 3 biomes) | 36 | 4 | anneau des champs | § 3.2 | ★★★ |
 | Champs en chantier | 12 | 0 | champ en première construction | guide § S10 | ★☆☆ |
 | Enceinte : courtines, murets et tours, 3 paliers × 6 civilisations | 90 | 5 | autour de la ville (palier du Bâtiment principal) | § 3.3 | ★★★ |
-| Portes de la ville par civilisation | 6 | 0 | arête sud-ouest de l'enceinte | guide § S1 | ★★★ |
+| Portes de la ville par civilisation | 6 | 0 | arête sud-est de l'enceinte | guide § S1 | ★★★ |
 | Enceinte en chantier | 18 | 0 | Mur en travaux | guide § S10 | ★☆☆ |
 | Douves par civilisation | 18 | 0 | bâtiment Douves (à brancher) | guide § S16 | ★☆☆ |
 | Ornements de plaza par civilisation (statue, fontaine, étal) | 18 | 0 | autour du Bâtiment principal | guide § S16 | ★★☆ |

@@ -105,7 +105,7 @@ const TEXTURE_ROLE = {
 const EXTRAS = [];
 const add = (file, frame, role, extra = {}) => EXTRAS.push({ file, cat: file.split('/')[0], frame, fit: frame === 'building' ? 'canvas' : 'direct', role, ...extra });
 const anim = (base, n, frame, role) => { for (let i = 0; i < n; i++) add(`${base}_${i}.webp`, frame, `${role} — phase ${i + 1}/${n}`, { anim: { base, n, i } }); };
-for (const c of CIVS) add(`walls/${c}/gate.webp`, 'building', `Porte de la ville de ${CIV_FR[c]} (arête sud-ouest de l'enceinte)`);
+for (const c of CIVS) add(`walls/${c}/gate.webp`, 'building', `Porte de la ville de ${CIV_FR[c]} (arête sud-est de l'enceinte)`);
 // Camps barbares de la carte (tribus des points de ressource) : niveau 1 à 3, variantes désert / neige, ruines, bannières
 for (const lvl of [1, 2, 3]) for (const b of ['', '_desert', '_snow']) add(`map/camps/camp${lvl}${b}.webp`, 'map', `Camp barbare de niveau ${lvl} sur la carte${b ? ` (${b.slice(1)})` : ''} : remplace l'icône de ressource tant que la tribu tient le point`);
 for (const b of ['', '_desert', '_snow']) add(`map/camps/ruins${b}.webp`, 'map', `Camp barbare détruit${b ? ` (${b.slice(1)})` : ''} : affiché jusqu'à la réapparition de la tribu`);

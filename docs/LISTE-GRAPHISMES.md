@@ -123,7 +123,7 @@ quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). Fiches d�
 
 | Besoin | Images | Taille | Pourquoi |
 |---|---|---|---|
-| Porte de la ville par civilisation `walls/<CIV>/gate.png` (neige reportée) | 6 | 1024², cadre building | le vantail de la porte sud-ouest est dessiné par le code ; une porte peinte par style d'architecture serait plus belle |
+| Porte de la ville par civilisation `walls/<CIV>/gate.png` (neige reportée) | 6 | 1024², cadre building | le vantail de la porte sud-est est dessiné par le code ; une porte peinte par style d'architecture serait plus belle |
 | Chantier (échafaudage) en trois tailles `props/scaffold_<1|2|3>.png` | 3 | 1024², cadre building | aujourd'hui le bâtiment en travaux clignote avec un marteau ; un échafaudage posé dessus fait plus « Rise of Kingdoms » |
 | Panneau « construire ici » `props/sign_build.png` | 1 | 1024², cadre prop | l'emplacement libre est un losange pointillé avec un « + » dessiné par le code |
 | Cycle de marche des unités de carte (4 images par classe + marchand), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |

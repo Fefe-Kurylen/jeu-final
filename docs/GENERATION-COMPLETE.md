@@ -1111,7 +1111,7 @@ Composition: square image. The building stands on a square ground plot seen as a
 
 #### Portes de la ville par civilisation — 6 images
 
-Où : arête sud-ouest de l'enceinte. Priorité ★★★.
+Où : arête sud-est de l'enceinte. Priorité ★★★.
 
 Début du prompt, commun à la famille :
 
@@ -1122,12 +1122,12 @@ Composition: square image. The building stands on a square ground plot seen as a
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `walls/ROME/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; ashlar stone curtain wall with battlements, Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae |
-| `walls/GAUL/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; wooden palisade of sharpened logs with a plank walkway, Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels |
-| `walls/GREEK/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; white marble wall with a cornice, Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae |
-| `walls/EGYPT/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; sandstone wall with merlons and a gold frieze, Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks |
-| `walls/HUN/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; rough timber palisade with hides and shields, Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires |
-| `walls/SULTAN/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left; whitewashed plaster wall with battlements and small arches, Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns |
+| `walls/ROME/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; ashlar stone curtain wall with battlements, Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae |
+| `walls/GAUL/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; wooden palisade of sharpened logs with a plank walkway, Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels |
+| `walls/GREEK/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; white marble wall with a cornice, Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae |
+| `walls/EGYPT/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; sandstone wall with merlons and a gold frieze, Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks |
+| `walls/HUN/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; rough timber palisade with hides and shields, Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires |
+| `walls/SULTAN/gate.png` | 1024×1024 | — | a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right; whitewashed plaster wall with battlements and small arches, Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns |
 
 #### Enceinte en chantier — 18 images
 

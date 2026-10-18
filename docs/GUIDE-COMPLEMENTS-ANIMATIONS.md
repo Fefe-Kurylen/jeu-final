@@ -70,10 +70,11 @@ Priorité ★★★ = visible dès la première minute de jeu ou obligatoire pou
 
 Aujourd'hui le vantail est dessiné par le code entre deux tourelles. La porte peinte remplace le vantail et les deux tourelles
 (elle tient sur un tronçon et demi de courtine). Même cadrage que les tours d'enceinte : un losange de parcelle 2:1, la porte vue de face
-gauche (arête sud-ouest), battants ouverts.
+droite (arête sud-est, ouverture vers le bas-droit), battants ouverts. Une seule porte par civilisation, valable pour
+tous les niveaux du Mur, dans le style du palier 2 de l'enceinte.
 
 Prompt (ajouter le style, puis) :
-`Composition: square image, the gate stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center at 73% of the image height. Subject: a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-left so that the opening faces the lower left, <ARCHITECTURE>.`
+`Composition: square image, the gate stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center at 73% of the image height. Subject: a fortified city gate with two small flanking turrets, an arched opening with open wooden doors, torches on each side, seen from the front-right so that the opening faces the lower right, <ARCHITECTURE>.`
 
 Architecture par civilisation (même phrases que le guide des bâtiments) : ROME `Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners` ; GAUL `Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners` ; GREEK `Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners` ; EGYPT `Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents` ; HUN `Hunnic steppe architecture: felt and hides over timber, pointed conical roofs, horsetail standards, red banners` ; SULTAN `Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, gold crescents, lanterns`.
 
