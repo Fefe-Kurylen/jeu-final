@@ -230,7 +230,7 @@ Pour chaque bâtiment, trois images (1024×1024, fond transparent, cadre « buil
 Soit 102 images par civilisation. Les versions enneigées (\`_snow\`) sont reportées. Les quatre champs (Ferme, Bûcheron, Carrière, Mine)
 ont en plus leurs sprites de champ (\`fields/…\`), listés dans \`docs/LISTE-GRAPHISMES.md\`.
 
-Prompt = style commun + consigne de cadrage + composition « building » + **sujet** ci-dessous + **architecture de la civilisation**
+Prompt = style commun + consigne de cadrage + composition « building » + **sujet** ci-dessous + **architecture de la civilisation** + **orientation**
 (voir \`docs/PROMPTS-GRAPHIQUES.md\` § 1 et § 4 ; le kit \`node tools/repaint.cjs --kit=<dossier>\` fournit le prompt complet et l'image guide de chaque fichier).
 Ordre conseillé : celui du tableau (ce que le joueur construit et voit en premier). ✅ = déjà peint, ☐ = à produire.
 
@@ -245,7 +245,7 @@ for (const civ of FACTIONS) {
 
 Architecture à ajouter à chaque prompt : *${ARCHI[civ]}*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *${require('./repaint/prompts.cjs').ENTRANCE}*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -386,7 +386,7 @@ ce qui est déjà peint, où ça se voit, la référence du prompt et la priorit
 l'enceinte ne sont plus demandées (le rendu 3D enneigé reste). Fichier par fichier : \`docs/A-GENERER.md\` ; prompts :
 \`docs/PROMPTS-GRAPHIQUES.md\` ; sujets et formats : \`docs/GUIDE-COMPLEMENTS-ANIMATIONS.md\` (références « guide § »).
 
-Règles : style de \`tools/repaint/style-ref.png\`, fond transparent, aucun texte ; sprites 1024×1024, figurines et estrades
+Règles : style de \`tools/repaint/style-ref.png\`, fond transparent, aucun texte ; bâtiments et chantiers avec l'entrée sur la face avant droite (sud-est) ; sprites 1024×1024, figurines et estrades
 1024×1536, vignettes et bandeaux 1536×1024, animations en bande de N cases (512×768 en ville, 512×512 sur la carte).
 Tout nom de cette liste est reconnu par l'import (\`node tools/check-incoming.cjs art/incoming\`) ; les accroches marquées
 « à brancher » demandent un petit travail de code à la livraison, les autres s'affichent dès l'import.

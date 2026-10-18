@@ -45,7 +45,9 @@ high ≈ 0,2 $ (soit ≈ 4 $, 30 $ ou 125 $ pour tout) ; `xhigh` et `max` existe
 La clé ne doit jamais être écrite dans le dépôt : variable d'environnement `OPENAI_API_KEY` (secret de l'environnement
 Claude Code, ou fichier hors dépôt chargé avant l'appel). Les requêtes sortantes passent par le proxy d'environnement
 (`NODE_USE_ENV_PROXY`, activé automatiquement). Les réponses brutes sont conservées dans `tools/repaint/raw/` (ignoré par git) : un re-traitement ne coûte rien.
-Pour un sprite raté, `--force --only=…` le régénère (un nouvel appel) ; le rendu 3D reste le repli.
+Pour un sprite raté, `--force --only=…` le régénère ; si une réponse brute existe déjà dans `tools/repaint/raw/`, elle est réutilisée
+(supprimez-la pour un nouvel appel) ; le rendu 3D reste le repli. Les réponses brutes des bâtiments ont été retournées avec les
+images peintes lors du passage des entrées au sud-est (`node tools/flip-painted.cjs`), un `--reprocess` reste donc cohérent.
 
 ### Qualité du résultat
 

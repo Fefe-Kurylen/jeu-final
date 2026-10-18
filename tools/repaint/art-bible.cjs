@@ -112,7 +112,7 @@ Armées en marche (\`map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png\`, 
 
 ### Chantiers (\`buildings/<CIV>/<CLÉ>_site.png\`, \`fields/<biome>/<TYPE>_site.png\`, \`walls/<CIV>/site_<seg_x|seg_z|tower>.png\`, \`props/scaffold_<CIV>_<1|2|3>.png\`, \`props/worker_<CIV>_<0..3>.png\`)
 
-Un chantier garde l'emprise et la silhouette du bâtiment fini (son rendu sert de guide), à moitié construit, avec les techniques de sa civilisation (\`docs/GRAPHISMES-MANQUANTS.md\` § 1) :
+Un chantier garde l'emprise et la silhouette du bâtiment fini (son rendu sert de guide), à moitié construit, avec les techniques de sa civilisation et la même phrase d'orientation que les bâtiments, entrée sur la face avant droite (\`docs/GRAPHISMES-MANQUANTS.md\` § 1) :
 
 ${table(['Civilisation', 'Chantier (ajouté au sujet du bâtiment)'], Object.entries(P.SITE))}
 ${table(['Civilisation', 'Échafaudage générique'], Object.entries(P.SCAFFOLD))}

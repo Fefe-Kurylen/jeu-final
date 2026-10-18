@@ -121,13 +121,16 @@
         for (const [x, y] of [[-0.95, 0.95], [0.95, 0.95], [0.95, -0.95], [-0.95, -0.95]]) P.torch(g, x, y, 0.08, 0.45);
       }
     }
-    const k = TIER_SCALE[tier] || 1; b.scale.set(k, k, k);
+    // paliers 3 trop larges pour le cadre (pignon coupé au bord) : légèrement réduits
+    const T3_FIT = { ROMAN_THERMAE: 0.92, FARM: 0.92 };
+    const k = (TIER_SCALE[tier] || 1) * (tier === 3 ? (T3_FIT[key] || 1) : 1); b.scale.set(k, k, k);
     g.add(b);
     // Entrées au sud-est (octobre 2026) : les modèles sont écrits entrée sur la face avant gauche (+z) ; on les
     // réfléchit par le plan vertical x = z, qui contient l'axe de la caméra iso (lacet 45°) : façade, porte et
     // portique passent sur la face avant droite (+x), sans rien décaler dans le cadre. La lumière reste à gauche.
     // (x, y, z) -> (z, y, x) = rotation de 90° autour de y après une symétrie en x ; Three.js inverse les faces seul.
-    if (o.mirror !== false && window.BUILDINGS_FACE_SE !== false) {
+    // Exception : le temple grec a déjà son fronton (son entrée) sur la face avant droite, il n'est pas réfléchi
+    if (o.mirror !== false && window.BUILDINGS_FACE_SE !== false && key !== 'GREEK_TEMPLE') {
       const kids = [...g.children], mir = new T.Group();
       mir.scale.x = -1; mir.rotation.y = Math.PI / 2;
       for (const c of kids) mir.add(c);

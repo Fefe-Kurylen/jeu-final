@@ -241,7 +241,7 @@ worker : `A sprite sheet: 4 equal frames in a row, the same <ouvrier de la civil
 ### A4. Bâtiments vivants — `anim/mill_sails_<0..5>`, `anim/sparks_<0..3>`, `anim/furnace_<0..3>` (14) ★★☆
 
 Superpositions posées sur le bâtiment (je règle l'ancrage par bâtiment et par civilisation, comme pour la fumée).
-mill_sails : `A sprite sheet: 6 equal frames in a row, the four canvas sails of a windmill seen from the front-left in isometric view, rotating by 15 degrees from one frame to the next, same hub position in every frame, nothing else (no tower).`
+mill_sails : `A sprite sheet: 6 equal frames in a row, the four canvas sails of a windmill seen from the front-right in isometric view (the mill faces south-east, like every building), rotating by 15 degrees from one frame to the next, same hub position in every frame, nothing else (no tower).`
 sparks : `A sprite sheet: 4 equal frames in a row, a burst of orange sparks flying up from an anvil, growing then fading, nothing else.`
 furnace : `A sprite sheet: 4 equal frames in a row, the glowing orange mouth of a stone furnace with flames flickering, same size and position, only the fire changes.`
 
@@ -284,7 +284,7 @@ Une charrette tirée par un cheval qui entre et sort par la porte (4 phases de m
 - A1, A11 : trajets aléatoires sur les avenues et la plaza, retournement selon le sens, 2 à 4 personnages visibles, cadence 8 i/s, pause quand l'onglet est caché.
 - A2 : torches sur chaque tour et tourelle de porte (nuit : lueur en plus), braseros aux coins de la plaza.
 - A3 : échafaudage à la place du clignotement du bâtiment en travaux, ouvrier devant ; retiré à la fin du chantier.
-- A4 : ancrages par bâtiment et civilisation (comme `ISO_CHIMNEYS`), cadence 10 i/s pour le moulin, 12 i/s pour les étincelles.
+- A4 : ancrages par bâtiment et civilisation (comme `ISO_CHIMNEYS`, écrits dans le repère des modèles et passés par `isoBuildingAnchor`), cadence 10 i/s pour le moulin, 12 i/s pour les étincelles.
 - A5, A6, A7 : marqueurs de carte et replay à partir des bandes découpées ; les effets jouent en boucle tant que l'état dure.
 - A8 : lecture unique à l'événement (construction terminée, niveau, butin).
 - A9 : particules selon le biome et l'heure ; A10 : écran du héros.

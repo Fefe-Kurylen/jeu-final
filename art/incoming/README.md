@@ -12,6 +12,8 @@ vérification des noms, recalage, détourage si besoin, publication, aperçu en 
 - Tailles de livraison : sprites et icônes 1024×1024 ; personnages et décors (props, figurines, héros) 1024×1536 ou cases 512×768 ;
   scènes 1024×1536 (portrait) ou 1536×1024 (paysage) ; textures 1024×1024 répétables ; bordures 1024×256 ; effets 512×512.
 - Le sujet à la même place et à la même taille que sur le guide (petits écarts corrigés automatiquement).
+- **Bâtiments et chantiers** : entrée principale sur la face avant droite (vers le bas à droite, le sud-est), comme le guide.
+  L'import produit une planche de contrôle (chaque bâtiment à côté de son guide) vérifiée avant publication.
 - **Animations** : une seule image contenant toutes les phases côte à côte, cases égales, même personnage, même taille
   (`props/villager_a.png` = 6 cases) ; je découpe en `villager_a_0.png` … `villager_a_5.png`. Les phases séparées sont acceptées aussi.
 - Visuels de boutique (`store/ic_stat_notify.png`, `store/feature-graphic.png`) : copiés tels quels dans `store/`.

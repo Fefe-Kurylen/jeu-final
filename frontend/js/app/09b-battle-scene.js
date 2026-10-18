@@ -83,7 +83,7 @@ const battleScene = {
     const v = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.7); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.45)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
     // mur du défenseur
-    if (this.hasWall) { const wall = getSprite(art(`buildings/${this.dFaction}/WALL.webp`)); if (wall) { drawSprite(ctx, wall, w * 0.86, h * 0.42, 150, night ? 'night' : 'day'); } }
+    if (this.hasWall) { const wall = getSprite(art(`buildings/${this.dFaction}/WALL.webp`)); if (wall) { const wx = w * 0.86; ctx.save(); ctx.translate(wx, 0); ctx.scale(-1, 1); ctx.translate(-wx, 0); drawSprite(ctx, wall, wx, h * 0.42, 150, night ? 'night' : 'day'); ctx.restore(); } }   // mur tourné vers l'attaquant, à gauche
 
     const from = this.anim ? this.anim.from : this.shown, to = this.shown;
     const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;

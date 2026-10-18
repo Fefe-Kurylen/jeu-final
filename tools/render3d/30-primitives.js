@@ -148,7 +148,8 @@
   // Porte en creux dans une face : encadrement + vantail sombre (face +z par défaut : wall à iy = y, porte en relief 0.02)
   function door(g, cx, y, w, h, mat, z0 = 0, opts = {}) {
     const grp = new T.Group();
-    const dir = opts.face || '+z';   // '+z' (face avant gauche) ou '+x' (face avant droite)
+    const dir = opts.face || '+z';   // '+z' (face avant gauche) ou '+x' (face avant droite), dans le repère du modèle ; les bâtiments
+    // sont ensuite réfléchis par x = z (50-buildings.js) : pour eux, +z finit sur la face avant droite et +x sur la gauche
     const dark = opts.leaf || solid('#2a1a0c');
     const frame = opts.frame || solid(shade('#8a6a3a', -10));
     const dd = 0.05;

@@ -9,7 +9,7 @@ Pour chaque bâtiment, trois images (1024×1024, fond transparent, cadre « buil
 Soit 102 images par civilisation. Les versions enneigées (`_snow`) sont reportées. Les quatre champs (Ferme, Bûcheron, Carrière, Mine)
 ont en plus leurs sprites de champ (`fields/…`), listés dans `docs/LISTE-GRAPHISMES.md`.
 
-Prompt = style commun + consigne de cadrage + composition « building » + **sujet** ci-dessous + **architecture de la civilisation**
+Prompt = style commun + consigne de cadrage + composition « building » + **sujet** ci-dessous + **architecture de la civilisation** + **orientation**
 (voir `docs/PROMPTS-GRAPHIQUES.md` § 1 et § 4 ; le kit `node tools/repaint.cjs --kit=<dossier>` fournit le prompt complet et l'image guide de chaque fichier).
 Ordre conseillé : celui du tableau (ce que le joueur construit et voit en premier). ✅ = déjà peint, ☐ = à produire.
 
@@ -19,7 +19,7 @@ Généré par `node tools/liste-graphismes.cjs`.
 
 Architecture à ajouter à chaque prompt : *Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -62,7 +62,7 @@ Orientation : entrée principale sur la face avant droite (sud-est), comme le gu
 
 Architecture à ajouter à chaque prompt : *Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -105,7 +105,7 @@ Orientation : entrée principale sur la face avant droite (sud-est), comme le gu
 
 Architecture à ajouter à chaque prompt : *Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -148,7 +148,7 @@ Orientation : entrée principale sur la face avant droite (sud-est), comme le gu
 
 Architecture à ajouter à chaque prompt : *Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -191,7 +191,7 @@ Orientation : entrée principale sur la face avant droite (sud-est), comme le gu
 
 Architecture à ajouter à chaque prompt : *Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -234,7 +234,7 @@ Orientation : entrée principale sur la face avant droite (sud-est), comme le gu
 
 Architecture à ajouter à chaque prompt : *Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns*
 
-Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|

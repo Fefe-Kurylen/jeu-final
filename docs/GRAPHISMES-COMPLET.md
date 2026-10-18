@@ -6,7 +6,7 @@ ce qui est déjà peint, où ça se voit, la référence du prompt et la priorit
 l'enceinte ne sont plus demandées (le rendu 3D enneigé reste). Fichier par fichier : `docs/A-GENERER.md` ; prompts :
 `docs/PROMPTS-GRAPHIQUES.md` ; sujets et formats : `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (références « guide § »).
 
-Règles : style de `tools/repaint/style-ref.png`, fond transparent, aucun texte ; sprites 1024×1024, figurines et estrades
+Règles : style de `tools/repaint/style-ref.png`, fond transparent, aucun texte ; bâtiments et chantiers avec l'entrée sur la face avant droite (sud-est) ; sprites 1024×1024, figurines et estrades
 1024×1536, vignettes et bandeaux 1536×1024, animations en bande de N cases (512×768 en ville, 512×512 sur la carte).
 Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs art/incoming`) ; les accroches marquées
 « à brancher » demandent un petit travail de code à la livraison, les autres s'affichent dès l'import.

@@ -16,6 +16,8 @@
     P.box(g, 0.2, 0.2, 0.7, 0.6, 0.55, S.wallDark, 0.08); S.roof(g, 0.2, 0.2, 0.7, 0.6, 0.3, 0.63);
     P.box(g, -0.4, -0.9, 1.1, 0.8, 0.95, S.wallLight, 0.08); S.columns(g, -0.3, -0.08, 0.9, 0.95, 4, 0.08, { r: 0.07 }); S.hip(g, -0.4, -0.9, 1.1, 0.8, 0.45, 1.03);
     S.flag(g, 0.15, -0.5, 1.5, 0.7); S.tree(g, -0.85, -0.8, 0.6, 0);
+    // entrée au sud-est comme les bâtiments de la ville : réflexion par le plan x = z (voir 50-buildings.js)
+    if (window.BUILDINGS_FACE_SE !== false) { const kids = [...g.children], mir = new T.Group(); mir.scale.x = -1; mir.rotation.y = Math.PI / 2; for (const c of kids) mir.add(c); g.add(mir); }
     return { extent: 3 };
   };
   MP.capital = (g, f) => {

@@ -136,6 +136,15 @@ const ANIM_DESC = {
 };
 // Orientation des bâtiments (octobre 2026) : entrée au sud-est, vers la porte de la ville (face avant droite)
 const ENTRANCE = 'Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.';
+// Pas d'entrée à orienter (champs, eau, place de rassemblement), ou une entrée qui n'est pas une porte
+const NO_ENTRANCE = new Set(['FARM', 'LUMBER', 'QUARRY', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT']);
+const ENTRANCE_FOR = {
+  WALL: 'The gate opening faces the lower right of the image (front-right face), exactly like the guide.',
+  IRON_MINE: 'The mine mouth faces the lower right of the image (front-right face), exactly like the guide.',
+  HIDEOUT: 'The hidden entrance (trapdoor or low opening) faces the lower right of the image (front-right face), exactly like the guide.',
+  GREEK_TEMPLE: 'The temple entrance, its pediment end with the columned porch, is on the front-RIGHT face, facing the lower right of the image, exactly like the guide.'
+};
+const entranceFor = (key) => NO_ENTRANCE.has(key) ? '' : ' ' + (ENTRANCE_FOR[key] || ENTRANCE);
 const COMPOSITION = {
   building: 'Composition: square image. The building stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center is at 73% of the image height and its bottom corner at 86%; the building rises from the plot toward the top and never goes outside the plot footprint.',
   prop: 'Composition: square image, the prop centered horizontally, its base at 89% of the image height, about 60% of the width.',
@@ -228,10 +237,10 @@ function promptFor(file, opts = {}) {
   let keep = KEEP;
   if ((m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t([13]))?(_snow)?\.webp$/))) {
     const tier = m[3];
-    subject = `${BUILDING[m[2]] || 'an ancient building'}. ${FACTION[m[1]]}.${tier === '1' ? ' This is the LEVEL 1 version of the building, as in a mobile strategy game where buildings evolve with their level: noticeably smaller and humbler, a single low storey of rough timber, wattle and plain plaster, a simple thatched or wooden-shingle roof, no decoration, a few crates, barrels or tools around, slightly worn.' : tier === '3' ? ' This is the MAX LEVEL version of the building, as in a mobile strategy game where buildings evolve with their level: larger and grander, with an additional storey or a tower, polished stone and marble, gold trims and finials, banners, torches, statues or carvings, a paved esplanade with a stone balustrade, impeccable and lush.' : ''}${m[4] ? ' Everything is covered with a layer of snow: snow on the roofs, ledges and ground.' : ''} ${ENTRANCE}`;
+    subject = `${BUILDING[m[2]] || 'an ancient building'}. ${FACTION[m[1]]}.${tier === '1' ? ' This is the LEVEL 1 version of the building, as in a mobile strategy game where buildings evolve with their level: noticeably smaller and humbler, a single low storey of rough timber, wattle and plain plaster, a simple thatched or wooden-shingle roof, no decoration, a few crates, barrels or tools around, slightly worn.' : tier === '3' ? ' This is the MAX LEVEL version of the building, as in a mobile strategy game where buildings evolve with their level: larger and grander, with an additional storey or a tower, polished stone and marble, gold trims and finials, banners, torches, statues or carvings, a paved esplanade with a stone balustrade, impeccable and lush.' : ''}${m[4] ? ' Everything is covered with a layer of snow: snow on the roofs, ledges and ground.' : ''}${entranceFor(m[2])}`;
     if (tier === '1') keep = KEEP_T1; else if (tier === '3') keep = KEEP_T3;
   }
-  else if ((m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+)_site\.webp$/))) subject = `${BUILDING[m[2]] || 'an ancient building'} as a CONSTRUCTION SITE, about half built, with the same footprint and the same silhouette as the finished building shown in the guide: ${SITE[m[1]]}, two or three workers at work, ${FACTION[m[1]]}. The lower walls are up, the upper part and the roof are still missing or only framed; no finished decoration. ${ENTRANCE}`;
+  else if ((m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+)_site\.webp$/))) subject = `${BUILDING[m[2]] || 'an ancient building'} as a CONSTRUCTION SITE, about half built, with the same footprint and the same silhouette as the finished building shown in the guide: ${SITE[m[1]]}, two or three workers at work, ${FACTION[m[1]]}. The lower walls are up, the upper part and the roof are still missing or only framed; no finished decoration.${entranceFor(m[2])}`;
   else if ((m = file.match(/^props\/villager_([A-Z]+)_([ab])_(\d)\.webp$/))) subject = `A sprite sheet frame: a ${m[2] === 'a' ? 'man' : 'woman'} villager of the ${m[1].toLowerCase()} people walking, ${CIVIL_DRESS[m[1]]}, ${CIVIL_HEAD[m[1]]}, walk cycle frame ${Number(m[3]) + 1} of 6`;
   else if ((m = file.match(/^props\/plaza_([A-Z]+)_(statue|fountain|stall)\.webp$/))) subject = `${m[2] === 'statue' ? 'a statue on a pedestal' : m[2] === 'fountain' ? 'a small fountain or well' : 'a small market stall with an awning'} for the main square of a city: ${FACTION[m[1]]}, a stand-alone prop`;
   else if ((m = file.match(/^props\/flagp_([A-Z]+)_(\d)\.webp$/))) subject = `a cloth banner on a wooden pole waving in the wind, in the colors and with the emblem of the ${m[1].toLowerCase()} people (${FACTION[m[1]].split(':')[0].replace(' architecture', '')}), wave cycle frame ${Number(m[2]) + 1} of 8`;
@@ -286,4 +295,4 @@ function promptFor(file, opts = {}) {
   const comp = COMPOSITION[frameOf(file)] || '';
   return `${STYLE} ${bg}\n\n${keep}\n\n${comp}\n\nSubject: ${subject}`;
 }
-module.exports = { promptFor, frameOf, ENTRANCE, ANIM_DESC, CIVIL_DRESS, TIER_LOOK, SITE, SCAFFOLD, SCAFFOLD_SIZE, WORKER, CIVIL_HEAD, FIELD_SITE, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, CAMP, CAMP_BIOME, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE, DECAL, EDGE };
+module.exports = { promptFor, frameOf, ENTRANCE, NO_ENTRANCE, ENTRANCE_FOR, ANIM_DESC, CIVIL_DRESS, TIER_LOOK, SITE, SCAFFOLD, SCAFFOLD_SIZE, WORKER, CIVIL_HEAD, FIELD_SITE, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, CAMP, CAMP_BIOME, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE, DECAL, EDGE };

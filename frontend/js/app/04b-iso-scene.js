@@ -271,11 +271,17 @@ const WALL_SEG_FLAG_Z = { GAUL: 1.8, HUN: 1.8 }, WALL_TOWER_FLAG_Z = { ROME: 3.2
 const FLAG_FRAMES = 8, FLAG_POLE_PX = 43 / 96;   // dans le cadre 64×96 du drapeau, le mât d'une unité mesure 43 px
 let isoWallFlags = [];
 // Ancre écran et hauteur (px) d'un drapeau porté par un sprite de largeur w (cadre 130 px : 1 unité de hauteur = 30,6 px)
-// Les sprites de bâtiments ont leur entrée au sud-est : modèles 3D réfléchis par le plan x = z (tools/render3d/50-buildings.js)
-// et images peintes de même orientation. Les accroches ci-dessous sont écrites dans le repère des modèles (entrée au
-// sud-ouest) : on échange ix et iy pour les poser sur les sprites. Doit rester égal à window.BUILDINGS_FACE_SE des rendus.
+// Les sprites de bâtiments ont leur entrée au sud-est : modèles 3D réfléchis par le plan x = z (tools/render3d/50-buildings.js,
+// sauf le temple grec, déjà ouvert au sud-est) et images peintes de même orientation. Les accroches ISO_FLAGS,
+// ISO_CHIMNEYS et ISO_WATER sont écrites dans le repère des modèles : on échange ix et iy pour les poser sur les sprites.
+// Doit rester accordé à window.BUILDINGS_FACE_SE des rendus.
 const ISO_BUILDINGS_FACE_SE = true;
 function isoBuildingAnchor(ix, iy) { return ISO_BUILDINGS_FACE_SE ? [iy, ix] : [ix, iy]; }
+// Le vent souffle vers la gauche de l'écran : les drapeaux et la fumée « cuits » dans les sprites réfléchis penchent à
+// gauche, les drapeaux et la fumée animés suivent
+const ISO_WIND = ISO_BUILDINGS_FACE_SE ? -1 : 1;
+// Surélévation de l'esplanade des bâtiments au palier 3 (tools/render3d/50-buildings.js, sauf NO_KIT)
+const ISO_T3_LIFT = 0.08, ISO_NO_KIT = ['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT'];
 function isoFlagAt(x, y, w, ix, iy, iz, h, kind) { const p = spritePointToScreen(x, y, w, ix, iy, iz); return { x: p.x, y: p.y, hpx: h * w * (30.6 / 130) / FLAG_POLE_PX, kind, seed: Math.abs(Math.round(x + y)) }; }
 function wallSpriteUrl(name, tier) { return art(`walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`); }
 function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
@@ -576,23 +582,29 @@ function spritePointToScreen(x, y, w, ix, iy, iz) {
   return { x: x + ((px - 100) / 130) * w, y: y + ((py - 70) / 130) * w };
 }
 // Sommets des cheminées des modèles 3D (ix, iy, iz) : la fumée part de là
-const ISO_CHIMNEYS = { WORKSHOP: [[-0.5, -0.3, 1.7]], FORGE: [[0.2, -0.3, 1.7]], BAKERY: [[0.3, -0.4, 1.75]], FOUNDRY: [[-0.4, -0.4, 1.85], [0.2, -0.4, 1.85]], GALLIC_BREWERY: [[0.2, -0.4, 1.7]] };
-const ISO_WATER = { MOAT: [0, 0, 0.02, 0.9], ROMAN_THERMAE: [0, 0.5, 0.14, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
+// (repère des modèles, voir isoBuildingAnchor ; hauteur = haut du chapeau de cheminée, mesurée sur les rendus)
+const ISO_CHIMNEYS = { WORKSHOP: [[-0.5, -0.3, 1.81]], FORGE: [[0.2, -0.3, 1.86]], BAKERY: [[0.3, -0.4, 1.81]], FOUNDRY: [[-0.4, -0.4, 2.11], [0.2, -0.4, 1.96]], GALLIC_BREWERY: [[0.2, -0.4, 1.66]] };
+const ISO_WATER = { MOAT: [0, 0, 0.02, 0.9], ROMAN_THERMAE: [0, 0.5, 0.035, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
 const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0, camKey: '' };
 function isoAnimate(ctx, built, W, night, flags = []) {
   const now = performance.now() / 1000;
   // drapeaux : 8 phases à 10 i/s, décalées d'un mât à l'autre
   const fv = spriteVariant(false);
-  for (const f of flags) drawProp(ctx, `flag_${f.kind}_${(Math.floor(now * 10) + f.seed) % FLAG_FRAMES}`, f.x, f.y, f.hpx, fv);
+  for (const f of flags) {
+    const name = `flag_${f.kind}_${(Math.floor(now * 10) + f.seed) % FLAG_FRAMES}`;
+    if (ISO_WIND < 0) { ctx.save(); ctx.translate(f.x, 0); ctx.scale(-1, 1); ctx.translate(-f.x, 0); drawProp(ctx, name, f.x, f.y, f.hpx, fv); ctx.restore(); }   // étoffe vers la gauche, mât en place
+    else drawProp(ctx, name, f.x, f.y, f.hpx, fv);
+  }
   const camKey = `${W}|${cityCam.x}|${cityCam.y}`;
   if (camKey !== isoAnim.camKey) { isoAnim.camKey = camKey; isoAnim.smoke = []; }   // les particules sont en pixels écran
   const dt = Math.min(0.2, now - (isoAnim.last || now)); isoAnim.last = now;
   // fumée
   for (const b of built) {
+    if (b.painted) continue;   // une image peinte porte sa propre fumée
     for (const ch of ISO_CHIMNEYS[b.key] || []) {
       const [ax, ay] = isoBuildingAnchor(ch[0], ch[1]);
-      const p = spritePointToScreen(b.x, b.y, b.w, ax * (b.ts || 1), ay * (b.ts || 1), ch[2] * (b.ts || 1));
-      if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: W * 0.025, vy: -W * 0.11, life: 0, k: Math.floor(Math.random() * 4) });
+      const p = spritePointToScreen(b.x, b.y, b.w, ax * (b.ts || 1), ay * (b.ts || 1), ch[2] * (b.ts || 1) + (b.lift || 0));
+      if (Math.random() < dt * 2.2 && isoAnim.smoke.length < 160) isoAnim.smoke.push({ x: p.x + (Math.random() - 0.5) * W * 0.03, y: p.y - W * 0.04, r: W * 0.03, a: 0.5, vx: ISO_WIND * W * 0.025, vy: -W * 0.11, life: 0, k: Math.floor(Math.random() * 4) });
     }
   }
   for (const pf of isoAnim.smoke) { pf.life += dt; pf.x += (pf.vx + Math.sin(pf.life * 3) * W * 0.02) * dt; pf.y += pf.vy * dt; pf.r += W * 0.05 * dt; pf.a -= 0.19 * dt; }
@@ -605,7 +617,7 @@ function isoAnimate(ctx, built, W, night, flags = []) {
     const wt = ISO_WATER[b.key];
     if (!wt) continue;
     const [wx, wy] = isoBuildingAnchor(wt[0], wt[1]);
-    const p = spritePointToScreen(b.x, b.y, b.w, wx * (b.ts || 1), wy * (b.ts || 1), wt[2] * (b.ts || 1));
+    const p = spritePointToScreen(b.x, b.y, b.w, wx * (b.ts || 1), wy * (b.ts || 1), wt[2] * (b.ts || 1) + (b.lift || 0));
     const rr = wt[3] * (b.ts || 1) * b.w * 0.27, sw = rr * 2.9, sh = sw * 64 / 96;
     for (let i = 0; i < 3; i++) {
       const t = (now * 0.45 + i / 3) % 1;
@@ -712,7 +724,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
       if (hovered) drawIsoHoverCell(ctx, s);
       draw25DBuilding(s.x, s.y, s.size, key, level, hovered, isBuilding);
     } });
-    if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7, ts: buildingTierScale(level) });
+    if (key) built.push({ key, x: s.x, y: s.y, w: s.size * 1.7, ts: buildingTierScale(level), lift: buildingTier(level) === 3 && !ISO_NO_KIT.includes(key) ? ISO_T3_LIFT : 0, painted: String(buildingSpriteUrl(key, level)).includes('/painted/') });
     if (key && night) lit.push({ x: s.x, y: s.y - W * 0.22, r: W * 0.55 * (s.fixed ? 1.3 : 1), a: 0.3, seed: s.slot });
   }
   if (wallLevel > 0 && night) {   // torches de la porte
@@ -723,8 +735,9 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   const overlay = isoOverlayQueue; isoOverlayQueue = null;
   const flags = wallLevel > 0 ? [...isoWallFlags] : [];
   for (const b of built) for (const f of ISO_FLAGS[b.key] || []) {
+    if (b.painted) continue;   // une image peinte porte ses propres bannières
     const [fx0, fy0] = isoBuildingAnchor(f[0], f[1]);
-    flags.push(isoFlagAt(b.x, b.y, b.w, fx0 * (b.ts || 1), fy0 * (b.ts || 1), f[2] * (b.ts || 1), f[3], f[4] || player?.faction || 'ROME'));
+    flags.push(isoFlagAt(b.x, b.y, b.w, fx0 * (b.ts || 1), fy0 * (b.ts || 1), f[2] * (b.ts || 1) + (b.lift || 0), f[3], f[4] || player?.faction || 'ROME'));
   }
   return { overlay, built, lit, flags };
 }

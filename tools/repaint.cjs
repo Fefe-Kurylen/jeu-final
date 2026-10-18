@@ -13,7 +13,7 @@
 //   node tools/repaint.cjs --cats=buildings,fields --workers=2 --force
 //   node tools/repaint.cjs --reprocess                               -> recalage seul, à partir des réponses brutes conservées
 //   node tools/repaint.cjs --manifest-only                           -> réécrit painted/manifest.json
-//   node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…]      -> kit pour peindre ailleurs : guides, prompts, référence, index, CSV
+//   node tools/repaint.cjs --kit=<dossier> [--tiers] [--cats=…] [--no-snow] [--own-faction]   -> kit pour peindre ailleurs : guides, prompts, référence, index, CSV
 //   node tools/repaint.cjs --kit=<dossier> --everything             -> kit complet (toutes catégories, paliers, bustes, unités de carte, emblème)
 //   node tools/repaint.cjs --import=<dossier>                        -> importe des images peintes ailleurs (même nom que le guide,
 //                                                                       png/jpg/webp, fond transparent ou uni), les recale et les publie
@@ -57,12 +57,16 @@ const only = args.only ? new RegExp(args.only) : null;
 const limit = parseInt(args.limit, 10) || 0;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+let buildingsDataAll = [];
+try { buildingsDataAll = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'buildings.json'), 'utf8')).buildings; } catch (e) { buildingsDataAll = []; }
 // ---- cibles : fichiers du manifeste 3D dans les catégories choisies ----
 const manifest3d = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8'));
 let targets = [];
 for (const c of cats) for (const f of manifest3d.categories[c] || []) {
   if (c === 'map' && f.startsWith('map/units/') && !EVERYTHING) continue;
   if (c === 'buildings' && /_t[13](_snow)?\.webp$/.test(f) && !args.tiers) continue;   // paliers 1 et 3 : sur demande (--tiers), ≈ 936 images
+  if (args['no-snow'] && /_snow\.webp$/.test(f)) continue;   // --no-snow : sans les variantes neige (plus demandées pour les bâtiments)
+  if (args['own-faction'] && c === 'buildings') { const m = f.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t[13])?(?:_snow)?\.webp$/); const d = m && buildingsDataAll.find(b => b.key === m[2]); if (d && d.faction && d.faction !== m[1]) continue; }   // --own-faction : pas le bâtiment propre d'une autre civilisation
   if (c === 'heroes' && f.endsWith('_bust.webp') && !EVERYTHING) continue;        // bustes (jetons) : restent en 3D sauf --everything
   if (!f.endsWith('.webp')) continue;
   if (!promptFor(f)) continue;
@@ -180,7 +184,9 @@ async function exportKit(dir) {
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(STYLE_REF, path.join(dir, 'style-ref.png'));
   const exDir = path.join(dir, 'exemples-resultats'); fs.mkdirSync(exDir, { recursive: true });
-  for (const ex of ['buildings/EGYPT/MARKET.webp', 'buildings/ROME/MAIN_HALL.webp', 'buildings/GAUL/BARRACKS.webp', 'fields/forest/FARM_2.webp', 'walls/ROME/3_tower.webp']) { const p = path.join(OUT, ex); if (fs.existsSync(p)) fs.copyFileSync(p, path.join(exDir, ex.replace(/\//g, '__'))); }
+  // Exemples de style : pas les bâtiments peints retournés vers le sud-est (leur lumière peinte est inversée : ombres à gauche)
+  const flippedSE = (() => { try { return new Set(JSON.parse(fs.readFileSync(path.join(__dirname, 'repaint', 'oriented-se.json'), 'utf8')).files); } catch (e) { return new Set(); } })();
+  for (const ex of ['buildings/EGYPT/MARKET.webp', 'buildings/ROME/MAIN_HALL.webp', 'buildings/GAUL/BARRACKS.webp', 'fields/forest/FARM_2.webp', 'walls/ROME/3_tower.webp'].filter(e => !flippedSE.has(e))) { const p = path.join(OUT, ex); if (fs.existsSync(p)) fs.copyFileSync(p, path.join(exDir, ex.replace(/\//g, '__'))); }
   const rows = [];
   let n = 0;
   for (const t of targets) {
@@ -228,6 +234,7 @@ Pour chaque image, dans l'ordre :
      Fond transparent de préférence ; sinon un fond uni magenta (#FF00FF) ou vert pur (#00FF00) que je détoure.
      Taille : 1024×1024 pour les sprites, 1024×1536 ou 1536×1024 pour les scènes (indiqué dans INDEX.md).
      Le sujet doit rester à la même place et à la même taille que sur le guide (je recale les petits écarts).
+     Bâtiments et chantiers : entrée principale sur la face avant droite (vers le bas à droite, le sud-est), comme le guide.
   4. Mets tous les .png dans un dossier (ou un zip) en gardant les sous-dossiers, et envoie-le moi :
      je les importe (node tools/repaint.cjs --import=<dossier>), je les recale sur le cadre du jeu et ils sont utilisés
      automatiquement. Les images manquantes gardent la version 3D ; tu peux envoyer par petits lots.
@@ -245,6 +252,7 @@ async function importUserImages(dir) {
   walk(dir);
   const browser = await chromium.launch(); const page = await browser.newPage(); await page.setContent('<!doctype html><html><body></body></html>');
   const found = []; const unknown = []; let stores = 0;
+  const orientPairs = [];   // bâtiments livrés et leur guide, pour la planche de contrôle d'orientation
   // Ajuste l'image (ou la case i/n d'une bande) dans un canevas W×H sans déformation, ancrée en bas pour les
   // personnages et décors, centrée sinon ; détoure un fond uni (magenta, vert, ou couleur des coins) quand l'image n'a pas d'alpha
   const fit = async (b64, mime, W, H, i, n, anchor, keepOpaque) => page.evaluate(async ({ b64, mime, W, H, i, n, anchor, keepOpaque }) => {
@@ -289,15 +297,30 @@ async function importUserImages(dir) {
       const [W, H] = t.fit === 'canvas' ? sizeFor(t).split('x').map(Number) : T.frameSize(t);
       const anchor = ['prop', 'figure', 'stage'].includes(t.frame) ? 'bottom' : 'center';
       const png = await fit(b64, mime, W, H, i, n, anchor, !!t.opaque);
+      // Bâtiments et chantiers : entrée au sud-est (face avant droite). Une comparaison automatique au guide n'est pas fiable
+      // (la lumière reste à gauche, les silhouettes sont presque symétriques) : planche de contrôle à vérifier à l'œil
+      if (t.cat === 'buildings' && t.guide) { const gp = path.join(SRC, t.guideFile || t.file); if (fs.existsSync(gp)) orientPairs.push({ rel, png, guide: fs.readFileSync(gp).toString('base64') }); }
       const rawFile = path.join(RAW, t.file.replace(/\.webp$/, '.png'));
       fs.mkdirSync(path.dirname(rawFile), { recursive: true });
       fs.writeFileSync(rawFile, Buffer.from(png, 'base64'));
       found.push(t);
     }
   }
+  // Planches de contrôle d'orientation : chaque bâtiment livré (à gauche) à côté de son guide 3D (à droite), 24 par planche
+  if (orientPairs.length) {
+    const od = path.join(DRY, 'orientation'); fs.mkdirSync(od, { recursive: true });
+    for (const f of fs.readdirSync(od)) if (/^planche-\d+\.png$/.test(f)) fs.unlinkSync(path.join(od, f));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    for (let k = 0; k < orientPairs.length; k += 24) {
+      const cells = orientPairs.slice(k, k + 24).map(p => `<div style="display:inline-block;width:310px;margin:4px;background:#6f8f4f;border:1px solid #333;text-align:center"><img src="data:image/png;base64,${p.png}" style="width:150px;height:150px;object-fit:contain"><img src="data:image/webp;base64,${p.guide}" style="width:150px;height:150px;object-fit:contain"><div style="font:11px sans-serif;color:#fff;background:#333">${p.rel}</div></div>`).join('');
+      await page.setContent(`<!doctype html><body style="margin:0;background:#2e2a24;font:13px sans-serif;color:#eee"><div style="padding:6px">Livré (gauche) / guide (droite) : l'entrée doit être sur la face avant droite dans les deux</div>${cells}</body>`);
+      await page.screenshot({ path: path.join(od, `planche-${String(k / 24 + 1).padStart(2, '0')}.png`), fullPage: true });
+    }
+  }
   await browser.close();
   console.log(`import : ${found.length} image(s) reconnue(s)${stores ? `, ${stores} visuel(s) de boutique copié(s)` : ''}, ${unknown.length} ignorée(s) (nom inconnu)`);
   for (const u of unknown) console.log(`  ✖ ${u}${T.suggest(u, targetIndex).length ? ' — vouliez-vous dire : ' + T.suggest(u, targetIndex).join(', ') : ''}`);
+  if (orientPairs.length) console.log(`Contrôle d'orientation : ${orientPairs.length} bâtiment(s) à vérifier, entrée attendue sur la face avant droite comme le guide ; planches : ${path.relative(ROOT, path.join(DRY, 'orientation'))}/`);
   return found;
 }
 
