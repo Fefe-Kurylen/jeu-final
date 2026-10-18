@@ -29,6 +29,9 @@ test('technology data: four branches, unique keys, known effects, existing prere
 
 test('research cost and time grow with the level; Academy and Greek Temple shorten the time up to the cap', () => {
   const t = T.techOf('AGRONOMY');
+  const config = require('../../src/config');
+  assert.equal(T.RULES.costGrowth, config.build.costMultiplierBase, 'research costs follow the construction curve');
+  assert.equal(T.RULES.timeGrowth, config.build.timeMultiplierBase, 'research times follow the construction curve');
   let prevCost = 0, prevTime = 0;
   for (let L = 1; L <= T.maxLevelOf(t); L++) {
     const c = T.researchCost(t, L), total = T.RESOURCES.reduce((s, r) => s + c[r], 0);
@@ -46,12 +49,12 @@ test('research cost and time grow with the level; Academy and Greek Temple short
 
 test('techPct sums level × effect over rows or a map, caps at the max level and ignores unknown keys', () => {
   assert.equal(T.techPct([], 'attackBonusPct'), 0);
-  assert.equal(T.techPct([{ techKey: 'TACTICS', level: 4 }], 'attackBonusPct'), 2);
+  assert.equal(T.techPct([{ techKey: 'TACTICS', level: 4 }], 'attackBonusPct'), 1);
   assert.equal(T.techPct({ TACTICS: 99 }, 'attackBonusPct'), 5);
-  assert.equal(T.techPct({ AGRONOMY: 3, NOPE: 7 }, 'productionBonusPct'), 3);
-  assert.equal(T.techBonusMult({ DISCIPLINE: 10 }, 'defenseBonusPct'), 1.05);
-  assert.equal(T.techReductionMult({ ENGINEERING: 10 }, 'buildCostReductionPct'), 0.9);
-  assert.deepEqual(T.sqlKeys('upkeepReductionPct'), [['SUPPLY', 1]]);
+  assert.equal(T.techPct({ AGRONOMY: 3, NOPE: 7 }, 'productionBonusPct'), 1.5);
+  assert.equal(T.techBonusMult({ DISCIPLINE: 20 }, 'defenseBonusPct'), 1.05);
+  assert.equal(T.techReductionMult({ ENGINEERING: 20 }, 'buildCostReductionPct'), 0.9);
+  assert.deepEqual(T.sqlKeys('upkeepReductionPct'), [['SUPPLY', 0.5]]);
 });
 
 test('researchBlocker: Academy required, technology never above the Academy, prerequisites, queue, max level', () => {
@@ -60,10 +63,10 @@ test('researchBlocker: Academy required, technology never above the Academy, pre
   assert.equal(T.researchBlocker(agro, {}, [{ key: 'ACADEMY', level: 1 }], []), null);
   assert.match(T.researchBlocker(agro, { AGRONOMY: 1 }, [{ key: 'ACADEMY', level: 1 }], []), /niveau 2 requise/);
   assert.match(T.researchBlocker(agro, {}, [{ key: 'ACADEMY', level: 1 }], [{ techKey: 'AGRONOMY', status: 'RUNNING' }]), /niveau 2 requise/);
-  assert.match(T.researchBlocker(eng, { AGRONOMY: 2 }, [{ key: 'ACADEMY', level: 5 }], []), /Agronomie niveau 3/);
-  assert.equal(T.researchBlocker(eng, { AGRONOMY: 3 }, [{ key: 'ACADEMY', level: 5 }], []), null);
+  assert.match(T.researchBlocker(eng, { AGRONOMY: 4 }, [{ key: 'ACADEMY', level: 5 }], []), /Agronomie niveau 5/);
+  assert.equal(T.researchBlocker(eng, { AGRONOMY: 5 }, [{ key: 'ACADEMY', level: 5 }], []), null);
   assert.match(T.researchBlocker(agro, {}, [{ key: 'ACADEMY', level: 5 }], [{ techKey: 'TRAINING', status: 'RUNNING' }, { techKey: 'DISCIPLINE', status: 'QUEUED' }]), /pleine/);
-  assert.match(T.researchBlocker(agro, { AGRONOMY: 10 }, [{ key: 'ACADEMY', level: 20 }], []), /maximum/);
+  assert.match(T.researchBlocker(agro, { AGRONOMY: 20 }, [{ key: 'ACADEMY', level: 20 }], []), /maximum/);
   assert.equal(T.nextLevelFor(agro, { AGRONOMY: 2 }, [{ techKey: 'AGRONOMY', status: 'RUNNING' }, { techKey: 'TRAINING', status: 'QUEUED' }]), 4);
 });
 

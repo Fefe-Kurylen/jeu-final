@@ -101,7 +101,8 @@ Reste à produire par l'utilisateur : les images listées dans `docs/LISTE-GRAPH
 ## Technologies (recherche à l'Académie) — octobre 2026
 
 Arbre de huit technologies en quatre branches (économie, militaire, défense, logistique), façon Travian : petits bonus par niveau
-(0,5 à 1 % ; +5 % au maximum pour le combat, +10 % pour l'économie), dix niveaux, une recherche à la fois (une seconde en attente),
+(0,25 à 0,5 % ; +5 % au maximum pour le combat, +10 % pour l'économie), vingt niveaux sur les courbes de coût et de temps des
+constructions, une recherche à la fois (une seconde en attente),
 niveau d'une technologie limité par celui de l'Académie, temps réduit par l'Académie et le Temple grec. Serveur : tables
 `PlayerTechnology` et `ResearchQueueItem` (migration `0005_research`), routes `GET /api/technologies`, `GET /api/research?cityId`,
 `POST /api/research/start`, `DELETE /api/research/:id`, étape `research` de la boucle de jeu, effets appliqués dans les coûts de
