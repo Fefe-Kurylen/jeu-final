@@ -1,7 +1,8 @@
 # Tout ce qu'il faut graphiquement — liste complète, écran par écran
 
 Le tour complet du jeu (octobre 2026) : chaque famille d'images que le jeu affiche ou affichera, avec le nombre d'images,
-ce qui est déjà peint, où ça se voit, la référence du prompt et la priorité. Les variantes neige des bâtiments et de
+ce qui est déjà peint, où ça se voit, la référence du prompt et la priorité. **Pour générer : `docs/GENERATION-COMPLETE.md`**
+(un seul fichier : règles, puis chaque image restante avec son prompt exact). Les variantes neige des bâtiments et de
 l'enceinte ne sont plus demandées (le rendu 3D enneigé reste). Fichier par fichier : `docs/A-GENERER.md` ; prompts :
 `docs/PROMPTS-GRAPHIQUES.md` ; sujets et formats : `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (références « guide § »).
 

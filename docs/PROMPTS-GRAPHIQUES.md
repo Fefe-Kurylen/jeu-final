@@ -319,12 +319,12 @@ Un chantier garde l'emprise et la silhouette du bâtiment fini (son rendu sert d
 
 Coiffes civiles (colons, chefs de tribu) : | Civilisation | Coiffe |
 |---|---|
-| ROME | a short Roman haircut and a wool tunic |
-| GAUL | long braided hair, a moustache and a checked cloak |
-| GREEK | curly hair with a headband and a chiton |
-| EGYPT | a black wig with kohl-lined eyes and a linen collar |
-| HUN | a fur-trimmed cap and a caftan |
-| SULTAN | a turban and a striped robe |
+| ROME | a short Roman haircut |
+| GAUL | long braided hair and a moustache |
+| GREEK | curly hair with a headband |
+| EGYPT | a black wig with kohl-lined eyes |
+| HUN | a fur-trimmed felt cap |
+| SULTAN | a turban |
 
 ### Enceinte (`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low][_snow].png`, `walls/<CIV>/<1|2|3>_tower[_snow].png`)
 

@@ -100,8 +100,8 @@ const WORKER = {
   HUN: 'a Hunnic builder in a belted caftan, trousers, boots and a fur-trimmed cap', SULTAN: 'a Sultanate builder in a striped robe with rolled sleeves and a turban'
 };
 const CIVIL_HEAD = {
-  ROME: 'a short Roman haircut and a wool tunic', GAUL: 'long braided hair, a moustache and a checked cloak', GREEK: 'curly hair with a headband and a chiton',
-  EGYPT: 'a black wig with kohl-lined eyes and a linen collar', HUN: 'a fur-trimmed cap and a caftan', SULTAN: 'a turban and a striped robe'
+  ROME: 'a short Roman haircut', GAUL: 'long braided hair and a moustache', GREEK: 'curly hair with a headband',
+  EGYPT: 'a black wig with kohl-lined eyes', HUN: 'a fur-trimmed felt cap', SULTAN: 'a turban'
 };
 const FIELD_SITE = { FARM: 'the first furrows being ploughed with an ox-drawn ard, a farmer sowing, stakes marking the plot', LUMBER: 'freshly felled trees and stumps, an axeman at work, a first stack of logs and a cart', QUARRY: 'a first cut into the rock face, wedges and mallets, a few extracted blocks on rollers', IRON_MINE: 'a mine entrance being dug into the rock, timber props being set, baskets of ore and a pick' };
 CLASS.SETTLER = 'a settler villager carrying a bundle on a stick over the shoulder and holding a wooden stake with a small flag';
@@ -251,7 +251,7 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^walls\/([A-Z]+)\/site_(seg_x|seg_z|tower)\.webp$/))) subject = `${m[2] === 'tower' ? 'a corner tower of the city wall' : 'one straight segment of a city wall'} under construction, same footprint as the guide: the lower courses laid, ${SCAFFOLD[m[1]]} along it, workers and materials; ${WALL_KIND[m[1]]}.${m[2] !== 'tower' ? ' It runs diagonally exactly like the guide and is cut flat and square at both ends.' : ''}`;
   else if ((m = file.match(/^props\/scaffold_([A-Z]+)_(\d)\.webp$/))) subject = `${SCAFFOLD[m[1]]}, ${SCAFFOLD_SIZE[m[2]]}, free-standing around an invisible building (nothing behind it), to be overlaid on a building under construction`;
   else if ((m = file.match(/^props\/worker_([A-Z]+)_(\d)\.webp$/))) subject = `${WORKER[m[1]]} swinging a wooden mallet, frame ${Number(m[2]) + 1} of 4 (raise, top, strike, rebound)`;
-  else if ((m = file.match(/^busts\/(SETTLER|TRIBE)_([A-Z]+)\.webp$/))) subject = `a round token portrait, head and shoulders, of ${CLASS[m[1]]}, ${m[2].toLowerCase()} people with ${CIVIL_HEAD[m[2]]}`;
+  else if ((m = file.match(/^busts\/(SETTLER|TRIBE)_([A-Z]+)\.webp$/))) subject = `a round token portrait, head and shoulders, of ${CLASS[m[1]]}, ${m[2].toLowerCase()} people with ${CIVIL_HEAD[m[2]]}, ${CIVIL_DRESS[m[2]]}`;
   else if ((m = file.match(/^map\/units\/settler(?:_([A-Z]+))?\.webp$/))) subject = `a small world-map marker of a settlers' party: a covered ox-wagon with a family walking beside it carrying bundles, a man holding a wooden stake with a small flag, marching toward the lower right${m[1] ? `, ${m[1].toLowerCase()} people with ${CIVIL_HEAD[m[1]]} and faction colors` : ''}`;
   else if ((m = file.match(/^map\/units\/settler_walk_(\d)\.webp$/))) subject = `a small world-map marker of a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame ${Number(m[1]) + 1} of 6`;
   else if ((m = file.match(/^fields\/(\w+)\/([A-Z_]+)_(\d)\.webp$/))) subject = `${FIELD[m[2]]} ${TIER[m[3]]}, ${BIOME[m[1]]}. The plot itself is part of the subject: a rounded square slab of ground.`;

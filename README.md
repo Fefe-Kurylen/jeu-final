@@ -32,6 +32,7 @@ npm run test:smoke   # navigateur (Playwright), bureau et téléphone
 - `docs/EQUILIBRAGE.md` : vérification de l'équilibrage (bonus de civilisation, unités, déplacements, courbes des bâtiments), réglages appliqués (coefficients de palier des unités) arbre de technologies (recherche à l'Académie, § 8), camps barbares (§ 9), villes secondaires (§ 10) et paliers de ville par Bâtiment principal (§ 11, `node tools/simulate-colonies.cjs`)
 - `docs/APP-STORE.md` : publication sur les stores
 - `docs/ART-PIPELINE.md`, `docs/PROMPTS-GRAPHIQUES.md`, `docs/LISTE-GRAPHISMES.md` (inventaire et état de chaque image, `node tools/liste-graphismes.cjs`) et `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (compléments, animations) : production des graphismes
+- `docs/GENERATION-COMPLETE.md` : **tout ce qu'il faut générer et comment**, un seul fichier autonome (règles, puis chaque image restante avec son prompt complet ; `docs/generation-complete.csv` pour un générateur automatique)
 - `docs/GRAPHISMES-COMPLET.md` : **tout ce qu'il faut graphiquement**, famille par famille, avec l'état et l'ordre conseillé (`node tools/liste-graphismes.cjs`)
 - `docs/GRAPHISMES-MANQUANTS.md` : chantiers par civilisation (avis historique), colons et villes secondaires, tribus, technologies, fiches : ce qui manque, où ça s'affiche, ordre conseillé
 - `art/incoming/README.md` : déposer des images peintes à intégrer
