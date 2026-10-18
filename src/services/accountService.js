@@ -30,10 +30,13 @@ async function deleteAccount(accountId) {
           }
         }
       }
+      // Nodes under the player's cities become free again: the tribe respawns after the usual delay (GDD)
+      await tx.$executeRaw`UPDATE "ResourceNode" n SET "cityId" = NULL, "hasDefenders" = false, "defenderPower" = 0, "lastDefeat" = NOW() AT TIME ZONE 'UTC', amount = 0
+        FROM "City" c WHERE c."playerId" = ${pid} AND n."cityId" = c.id`;
       // Harvesting armies free their resource node before the cascade removes them
       await tx.$executeRaw`UPDATE "ResourceNode" n SET "hasPlayerArmy" = false, "lastArmyDeparture" = NOW() AT TIME ZONE 'UTC'
-        FROM "Army" a WHERE a."ownerId" = ${pid} AND a.status = 'HARVESTING' AND a."targetResourceId" = n.id
-          AND NOT EXISTS (SELECT 1 FROM "Army" o WHERE o."targetResourceId" = n.id AND o.status = 'HARVESTING' AND o."ownerId" <> ${pid})`;
+        FROM "Army" a WHERE a."ownerId" = ${pid} AND a.status IN ('HARVESTING', 'FOUNDING') AND a."targetResourceId" = n.id
+          AND NOT EXISTS (SELECT 1 FROM "Army" o WHERE o."targetResourceId" = n.id AND o.status IN ('HARVESTING', 'FOUNDING') AND o."ownerId" <> ${pid})`;
     }
     await tx.account.delete({ where: { id: accountId } });   // cascades to the player and everything it owns
   }, { timeout: 30000 });

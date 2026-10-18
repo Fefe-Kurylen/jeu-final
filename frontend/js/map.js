@@ -50,7 +50,9 @@ const tileImages = {
   camps: {}        // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
 };
 // Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
-const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
+const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
+// Icône « tribu locale » peinte (guide § S14) quand elle existe, sinon l'icône de défense
+function tribeIconHtml() { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/tribe.webp') ? '<img class="ico" src="assets/images/painted/ui/tribe.webp" alt="">' : resIconHtml('defense'); }
 const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
 function tribeFactionOfUnits(units) { const k = Object.keys(units || {}).find(x => TRIBE_PREFIX[x.slice(0, 3)]); return k ? TRIBE_PREFIX[k.slice(0, 3)] : null; }
 
@@ -97,6 +99,14 @@ async function _loadTilesetAssetsOnce() {
         img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
         img.src = typeof art === 'function' ? art(`map/${category}/${name}.${ext}`) : `assets/images/3d/map/${category}/${name}.${ext}`;
       }));
+    }
+  }
+  // Sprites de carte peints sans rendu 3D (colonies, cortège de colons, guide § S12) : chargés depuis le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const p of paintedSet) {
+      const m = p.match(/^map\/(cities|units|resources|terrain)\/([\w-]+)\.webp$/);
+      if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
+      jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
     }
   }
   await Promise.all(jobs);
@@ -1474,7 +1484,8 @@ function drawIsoCity(x, y, tw, th, tile) {
   // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
   const fortified = (tile.cityTier || 0) >= 3;
   const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
-  const cityType = fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : faction.toLowerCase();   // forteresse aux couleurs de la faction
+  const colonyType = !fortified && tile.isCapital === false && tileImages.cities['colony_' + faction.toLowerCase()] ? 'colony_' + faction.toLowerCase() : null;   // colonie peinte (guide § S12)
+  const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : faction.toLowerCase());   // forteresse aux couleurs de la faction
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {
@@ -1933,6 +1944,13 @@ function drawIsoResource(x, y, tw, th, tile) {
   const biome = getBiome(tile.x, tile.y);
   const biomeVariant = `${resType}_${biome}`;
   const resName = tileImages.resources[biomeVariant] ? biomeVariant : resType;
+  // Campement de fondation peint (guide § S12) tant qu'une ville est en fondation sur le point, bannière du fondateur
+  const founder = (tile.holders || []).find(h => h.founding);
+  const foundName = founder ? (tileImages.camps[`foundation_${biome}`] ? `foundation_${biome}` : (tileImages.camps.foundation ? 'foundation' : null)) : null;
+  if (foundName && drawTileImage(mapCtx, 'camps', foundName, x, y, imgSize, imgSize)) {
+    if (founder.faction && tileImages.camps[`banner_${founder.faction}`]) drawTileImage(mapCtx, 'camps', `banner_${founder.faction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
+    return;
+  }
   const campBase = tile.hasDefenders ? `camp${Math.max(1, Math.min(3, Number(tile.level) || 1))}` : (tile.lastDefeat ? 'ruins' : null);
   const campName = campBase ? (tileImages.camps[`${campBase}_${biome}`] ? `${campBase}_${biome}` : (tileImages.camps[campBase] ? campBase : null)) : null;
   if (campName && drawTileImage(mapCtx, 'camps', campName, x, y, imgSize, imgSize)) {
@@ -2172,6 +2190,7 @@ function drawArmyRoute(army, worldToScreen, tileW) {
 // l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
 const ARMY_CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
 function armySpriteName(army) {
+  if (army.missionType === 'FOUND' || army.status === 'FOUNDING' || (army.settlers || 0) > 0) return 'settler';   // cortège de colons
   if (army.mainUnit) return String(army.mainUnit).toLowerCase();
   if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
   let best = null;
@@ -2191,6 +2210,7 @@ function drawIsoArmy(x, y, tw, th, army) {
   let mainUnitType = armySpriteName(army);
   const faction = String(army.faction || player?.faction || '').toUpperCase();
   if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
+  if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType]) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
   const hasSprite = !!tileImages.units[mainUnitType];
   if (hasSprite && isMoving) {
     // marche : l'armée regarde vers sa destination, trottine (petits bonds cadencés, léger balancement) et soulève la poussière
@@ -2800,7 +2820,7 @@ function showMapInfoPanel(x, y, tile) {
       };
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
-          <p style="margin: 0 0 5px 0; color: #f44;"><strong>${resIconHtml('defense')} Tribu locale</strong></p>
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>${tribeIconHtml()} Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
             `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
@@ -2822,7 +2842,7 @@ function showMapInfoPanel(x, y, tile) {
     const heldByOthers = holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId));
     const holdersHtml = holders.length ? `
         <div style="margin: 8px 0; padding: 8px; background: rgba(33,150,243,0.15); border-radius: 4px; border-left: 3px solid ${heldByOthers ? '#f44' : '#4caf50'};">
-          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Tenu par</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} ${holders.some(h => h.founding) ? 'Ville en fondation par' : 'Tenu par'}</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
         </div>` : '';
     content.innerHTML = `
       <h3>${resourceName}</h3>
@@ -2837,8 +2857,11 @@ function showMapInfoPanel(x, y, tile) {
           <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer la tribu</button>
         ` : heldByOthers ? `
           <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer l'armée qui tient le point</button>
+        ` : holders.some(h => h.founding) ? `
+          <p style="margin: 0; font-size: 12px; opacity: .85;">Fondation en cours : le point ne peut plus être récolté.</p>
         ` : `
           <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} ${holders.length ? 'Collecter (point partagé)' : 'Collecter'}</button>
+          ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
       </div>

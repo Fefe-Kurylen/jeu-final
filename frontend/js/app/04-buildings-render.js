@@ -14,10 +14,17 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
     cityCtx.beginPath(); cityCtx.ellipse(x, y, bw + 10, (bw + 10) * 0.55, 0, 0, Math.PI * 2); cityCtx.fill();
     cityCtx.shadowBlur = 0;
   }
-  if (isBuilding) cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;   // chantier : le bâtiment pulse
-  const sprite = getSprite(buildingSpriteUrl(key, level));
+  // Chantier peint (guide § S10-S11) : nouveau bâtiment → sprite du chantier de la civilisation ; amélioration → bâtiment
+  // + échafaudage de la civilisation ; sans image livrée, le bâtiment clignote comme avant
+  const siteUrl = isBuilding && level === 0 && typeof buildingSiteUrl === 'function' ? buildingSiteUrl(key) : null;
+  const site = siteUrl ? getSprite(siteUrl) : null;
+  const scaffoldSrc = isBuilding && !site && typeof scaffoldUrl === 'function' ? scaffoldUrl(level || 1) : null;
+  const scaffold = scaffoldSrc ? getSprite(scaffoldSrc) : null;
+  if (isBuilding && !site && !scaffold) cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;   // chantier : le bâtiment pulse
+  const sprite = site || getSprite(buildingSpriteUrl(key, level));
   if (sprite) drawSprite(cityCtx, sprite, x, y, size * 1.7, spriteVariant(isHovered));
   cityCtx.globalAlpha = 1;
+  if (scaffold) drawSprite(cityCtx, scaffold, x, y, size * 1.7, spriteVariant(false));
   // Badge de niveau au coin droit de la parcelle, dans la couche d'overlay (jamais masqué par un voisin)
   if (level > 0 && (typeof isoShowBadges !== 'function' || isoShowBadges(isHovered))) isoOverlay(() => drawTravianLevelBadge(x, y, bw, 0, level, isHovered, true, typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.78, size * 0.39) : { x: x + size * 0.62, y: y + size * 0.1, radius: Math.max(8, Math.min(13, size * 0.3)) }));
   if (isBuilding) isoOverlay(() => drawBuildIndicator(cityCtx, x, y - size * 1.05 + Math.sin(Date.now() / 200) * 3, Math.max(16, size * 0.36)));

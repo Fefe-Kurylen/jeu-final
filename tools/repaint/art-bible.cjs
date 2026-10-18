@@ -106,8 +106,18 @@ ${table(['Variante', 'Ajout au sujet'], Object.entries(P.CAMP_BIOME))}
 Relief (\`map/terrain/<nom>.png\`) — les variantes _x, _y s'allongent en diagonale comme le guide, _xy est un massif / un lac large :
 
 ${table(['Nom', 'Sujet'], Object.entries(P.TERRAIN))}
-Armées en marche (\`map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png\`, \`map/units/merchant.png\`) : petit marqueur de carte, deux fantassins / archers, un cavalier, un servant et sa catapulte, aux couleurs et coiffe de la civilisation, marchant vers le bas-droite ; marchand : charrette de caisses tirée par un cheval.
+Armées en marche (\`map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png\`, \`map/units/merchant.png\`, \`map/units/settler[_<CIV>].png\` : cortège de colons, chariot bâché et famille à pied) : petit marqueur de carte, deux fantassins / archers, un cavalier, un servant et sa catapulte, aux couleurs et coiffe de la civilisation, marchant vers le bas-droite ; marchand : charrette de caisses tirée par un cheval.
 
+### Chantiers (\`buildings/<CIV>/<CLÉ>_site.png\`, \`fields/<biome>/<TYPE>_site.png\`, \`walls/<CIV>/site_<seg_x|seg_z|tower>.png\`, \`props/scaffold_<CIV>_<1|2|3>.png\`, \`props/worker_<CIV>_<0..3>.png\`)
+
+Un chantier garde l'emprise et la silhouette du bâtiment fini (son rendu sert de guide), à moitié construit, avec les techniques de sa civilisation (\`docs/GRAPHISMES-MANQUANTS.md\` § 1) :
+
+${table(['Civilisation', 'Chantier (ajouté au sujet du bâtiment)'], Object.entries(P.SITE))}
+${table(['Civilisation', 'Échafaudage générique'], Object.entries(P.SCAFFOLD))}
+${table(['Taille', 'Ajout'], Object.entries(P.SCAFFOLD_SIZE))}
+${table(['Civilisation', 'Ouvrier'], Object.entries(P.WORKER))}
+${table(['Champ', 'Chantier'], Object.entries(P.FIELD_SITE))}
+Coiffes civiles (colons, chefs de tribu) : ${table(['Civilisation', 'Coiffe'], Object.entries(P.CIVIL_HEAD))}
 ### Enceinte (\`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low][_snow].png\`, \`walls/<CIV>/<1|2|3>_tower[_snow].png\`)
 
 ${table(['Civilisation', 'Courtine', 'Tour d\'angle'], Object.keys(P.WALL_KIND).map(k => [k, P.WALL_KIND[k], P.TOWER_KIND[k]]))}

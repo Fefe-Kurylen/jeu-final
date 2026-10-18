@@ -41,12 +41,13 @@ async function processResourceProduction(TICK_HOURS) {
   // Multiplicateurs par ville : abonnement Plus, et bonus global de production des bâtiments (Irrigation égyptienne)
   const [globalKey, globalPct] = fx.productionBonusKeys()[0];
   const prodTechTable = techTableSql('productionBonusPct');   // Agronomie : +1 %/niveau sur tous les champs
+  const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;   // GDD: a secondary city produces +20 %
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
-      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
-      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
-      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxFoodStorage")
+      wood  = GREATEST(c.wood, LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END), c."maxStorage")),
+      stone = GREATEST(c.stone, LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END), c."maxStorage")),
+      iron  = GREATEST(c.iron, LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END), c."maxStorage")),
+      food  = GREATEST(c.food, LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END), c."maxFoodStorage"))
     FROM (
       SELECT cb."cityId",
         SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
@@ -77,10 +78,10 @@ async function processResourceProduction(TICK_HOURS) {
   // Villes sans aucun bâtiment : production de base uniquement
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = LEAST(c.wood  + 5  * ${TICK_HOURS}, c."maxStorage"),
-      stone = LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage"),
-      iron  = LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage"),
-      food  = LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage")
+      wood  = GREATEST(c.wood, LEAST(c.wood  + 5  * ${TICK_HOURS}, c."maxStorage")),
+      stone = GREATEST(c.stone, LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage")),
+      iron  = GREATEST(c.iron, LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage")),
+      food  = GREATEST(c.food, LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage"))
     WHERE c."isSieged" = false AND NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id)
   `;
 }
@@ -153,7 +154,7 @@ async function processResourceRegen(now, TICK_HOURS) {
     UPDATE "ResourceNode" SET
       amount = LEAST(amount + FLOOR("regenRate" * EXTRACT(EPOCH FROM (${now}::timestamp - "lastRegen")) / 3600.0), "maxAmount"),
       "lastRegen" = ${now}::timestamp
-    WHERE amount < "maxAmount" AND "hasPlayerArmy" = false
+    WHERE amount < "maxAmount" AND "hasPlayerArmy" = false AND "cityId" IS NULL
       AND ("lastArmyDeparture" IS NULL OR "lastArmyDeparture" <= ${regenCutoff})
       AND FLOOR("regenRate" * EXTRACT(EPOCH FROM (${now}::timestamp - "lastRegen")) / 3600.0) >= 1
   `;

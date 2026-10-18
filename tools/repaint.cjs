@@ -185,7 +185,7 @@ async function exportKit(dir) {
   let n = 0;
   for (const t of targets) {
     const size = sizeFor(t);
-    const meta = await compose(page, path.join(SRC, t.file), size);
+    const meta = await compose(page, path.join(SRC, t.guideFile || t.file), size);
     const rel = t.file.replace(/\.webp$/, '');
     const gFile = path.join(dir, 'guides', rel + '.webp'), pFile = path.join(dir, 'prompts', rel + '.txt');
     fs.mkdirSync(path.dirname(gFile), { recursive: true }); fs.mkdirSync(path.dirname(pFile), { recursive: true });
@@ -334,7 +334,7 @@ async function importUserImages(dir) {
           done++; continue;
         }
         const size = sizeFor(t);
-        const meta = t.guide ? await compose(page, path.join(SRC, t.file), size) : composeFrame(T.frameSize(t), size);
+        const meta = t.guide ? await compose(page, path.join(SRC, t.guideFile || t.file), size) : composeFrame(T.frameSize(t), size);
         const prompt = t.guide ? promptFor(t.file, { bg: BG }) : t.role;
         const safe = t.file.replace(/\.webp$/, '').replace(/\//g, '__');
         if (args.dry) {

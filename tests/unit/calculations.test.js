@@ -65,3 +65,18 @@ test('city tiers follow the wall level', () => {
   assert.equal(calc.getCityTier(15), 3);
   assert.equal(calc.getMinSiegeEngines(3), 20);
 });
+
+test('secondary cities (GDD): settlers by Residence level, foundation time, colony production bonus, building restrictions', () => {
+  const fx = require('../../src/utils/buildingEffects');
+  assert.equal(fx.settlerSlots(0), 0);
+  assert.equal(fx.settlerSlots(9), 0);
+  assert.equal(fx.settlerSlots(10), 1);
+  assert.equal(fx.settlerSlots(15), 2);
+  assert.equal(fx.settlerSlots(20), 3);
+  assert.equal(fx.settlerTrainTimeSec(), 10800);
+  assert.equal(fx.cityFoundationTimeSec(), 86400);
+  assert.equal(fx.secondaryCityBonusPct(), 20);
+  assert.ok(fx.capitalOnly('RESIDENCE') && fx.capitalOnly('EMBASSY') && !fx.capitalOnly('BARRACKS'));
+  assert.ok(fx.notInCapital('GREAT_BARRACKS') && !fx.notInCapital('BARRACKS'));
+  assert.deepEqual(config.city.foundationTransport, { wood: 3000, stone: 3000, iron: 3000, food: 3000 });
+});

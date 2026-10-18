@@ -27,7 +27,7 @@ const transportBuildingsSql = () => Prisma.join(fx.transportBonusKeys().map(([k,
 async function leaveNode(army, node) {
   // Allies may share a node: it is released only when the last harvesting army leaves
   if (node) {
-    const others = await prisma.army.count({ where: { status: 'HARVESTING', targetResourceId: node.id, id: { not: army.id } } });
+    const others = await prisma.army.count({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id, id: { not: army.id } } });
     if (others === 0) await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: true }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
   }
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
@@ -61,7 +61,7 @@ async function processHarvesting(now) {
       FROM "Army" a
       JOIN cap ON cap.army_id = a.id
       JOIN "ResourceNode" n ON n.id = a."targetResourceId"
-      WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST' AND n."hasDefenders" = false
+      WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST' AND n."hasDefenders" = false AND n."cityId" IS NULL
       FOR UPDATE OF n
     ), upd_node AS (
       UPDATE "ResourceNode" n SET amount = GREATEST(0, n.amount - s.q) FROM (SELECT node_id, SUM(qty) AS q FROM take GROUP BY node_id) s WHERE n.id = s.node_id AND s.q > 0
@@ -99,7 +99,7 @@ let lastReinforceAt = 0;
 async function reinforceTribes(now) {
   if (now.getTime() - lastReinforceAt < config.tick.tribeReinforceMinutes * 60000) return 0;
   lastReinforceAt = now.getTime();
-  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null }, select: { id: true, x: true, y: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
+  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null, cityId: null }, select: { id: true, x: true, y: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
   let reinforced = 0;
   for (const node of guarded) {
     const soldiers = Object.values(node.defenderUnits || {}).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -117,7 +117,7 @@ async function reinforceTribes(now) {
 
 async function processTribeRespawn(now) {
   await reinforceTribes(now);
-  const defeatedNodes = await prisma.resourceNode.findMany({ where: { hasDefenders: false, lastDefeat: { not: null }, hasPlayerArmy: false } });
+  const defeatedNodes = await prisma.resourceNode.findMany({ where: { hasDefenders: false, lastDefeat: { not: null }, hasPlayerArmy: false, cityId: null } });
   for (const node of defeatedNodes) {
     let respawnTime;
     if (node.lastArmyDeparture) {

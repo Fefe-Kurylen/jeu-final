@@ -31,7 +31,7 @@ Hand-painted isometric game asset in exactly the art style of the first referenc
 |---|---|---|---|---|---|
 | A1 | Villageois qui marchent dans la ville | `props/villager_<a|b|c>_<0..5>` | 18 | 512×768 | ★★★ |
 | A2 | Flammes des torches et braseros | `props/flame_<0..3>`, `props/brazier_<0..3>` | 8 | 512×768 | ★★★ |
-| A3 | Chantier : échafaudage et ouvrier | `props/scaffold_<1|2|3>`, `props/worker_<0..3>` | 7 | 512×768 | ★★★ |
+| A3 | Chantier : ouvrier au marteau de chaque civilisation (échafaudages : § S11) | `props/worker_<CIV>_<0..3>` | 24 | 512×768 | ★★★ |
 | A4 | Bâtiments vivants : ailes du moulin, étincelles de la forge, feu de la fonderie, fumée du four | `anim/mill_sails_<0..5>`, `anim/sparks_<0..3>`, `anim/furnace_<0..3>` | 14 | 512×512 | ★★☆ |
 | A5 | Cycles de marche des armées sur la carte | `map/units/<hoplite|archer|cavalry|catapult|merchant>_walk_<0..5>` | 30 | 512×512 | ★★☆ |
 | A6 | Replay de bataille : poses et projectiles | `map/units/<classe>_<attack|hit>_<k>`, `fx/arrow`, `fx/stone`, `fx/impact_<0..2>` | 21 | 512×512 | ★★☆ |
@@ -219,9 +219,14 @@ Les torches des tours, de la porte et des remparts, les braseros de la plaza la 
 flame : `A sprite sheet: 4 equal frames in a row, a single torch flame on a short wooden torch head, same size and position, the flame flickers differently in each frame (lean left, upright, lean right, tall), warm orange and yellow with a soft inner glow.`
 brazier : `A sprite sheet: 4 equal frames in a row, a bronze brazier on three legs with a burning fire, same size and position, only the flames change.` Cadence : 8 i/s.
 
-### A3. Chantier — `props/scaffold_<1|2|3>.png` (3 tailles) + `props/worker_<0..3>.png` (4) ★★★
+### A3. Chantier — `props/worker_<CIV>_<0..3>.png` (6 civilisations × 4 phases) ★★★
 
-L'échafaudage se pose sur le bâtiment en construction (trois tailles pour les paliers 1-6, 7-13, 14-20) ; l'ouvrier frappe au marteau devant (4 phases). scaffold : `Composition: square image, the structure stands on a square ground plot seen as a 2:1 diamond, centered, diamond about 51% of the width, center at 73% of the height. Subject: a wooden scaffolding of poles and planks around an unfinished stone building, ropes and a pulley, piles of bricks and timber at the base, <small / medium / large>.` worker : `A sprite sheet: 4 equal frames in a row, the same ancient builder in a short tunic swinging a wooden mallet: raise, top, strike, rebound; same size and position in every frame.`
+L'ouvrier frappe au marteau devant le bâtiment en travaux (4 phases : lever, sommet, frappe, rebond), habillé comme sa
+civilisation : Rome tunique courte de laine ceinturée et sandales ; Gaule cheveux longs, moustache, braies de laine à carreaux ;
+Grèce chiton court agrafé à une épaule et bonnet de feutre ; Égypte pagne shendyt de lin blanc, crâne rasé ; Huns caftan
+ceinturé, pantalon, bottes, bonnet bordé de fourrure ; Sultanat robe rayée aux manches retroussées et turban. Les échafaudages
+(trois tailles par civilisation) sont des compléments fixes, § S11 ; les chantiers de chaque bâtiment, § S10.
+worker : `A sprite sheet: 4 equal frames in a row, the same <ouvrier de la civilisation> swinging a wooden mallet: raise, top, strike, rebound; same size and position in every frame.`
 
 ### A4. Bâtiments vivants — `anim/mill_sails_<0..5>`, `anim/sparks_<0..3>`, `anim/furnace_<0..3>` (14) ★★☆
 
@@ -299,7 +304,7 @@ Prompts complets : `node tools/repaint.cjs --kit=<dossier>` ou `docs/PROMPTS-GRA
 Un grand parchemin déroulé avec une plume, dressé comme un panneau, légèrement lumineux : il se pose au-dessus de l'Académie
 tant qu'une recherche est en cours, comme l'échafaudage sur un chantier. Même cadre et même ancre que `props/sign_build.png`.
 
-## S7. Icônes des technologies et des branches de recherche (`ui/tech_<CLÉ>.png` × 8, `ui/branch_<CLÉ>.png` × 4, 1024×1024, cadre icon)
+## S8. Icônes des technologies et des branches de recherche (`ui/tech_<CLÉ>.png` × 8, `ui/branch_<CLÉ>.png` × 4, 1024×1024, cadre icon)
 
 L'onglet Recherche de l'Académie et les fiches de technologie n'ont aujourd'hui aucune image propre (l'en-tête de branche
 réutilise une icône de ressource). Dès qu'elles sont livrées, l'icône de la technologie apparaît sur sa carte et en tête de sa
@@ -322,3 +327,83 @@ fiche, celle de la branche dans l'en-tête de la branche.
 
 Mêmes règles que les autres icônes d'interface (§ 3.7 de `docs/LISTE-GRAPHISMES.md`) ; prompts complets dans
 `docs/PROMPTS-GRAPHIQUES.md`.
+
+## S9. Icône du colon (`ui/settler.png`, 1024×1024, cadre icon)
+
+Les villes secondaires (octobre 2026) ont besoin d'une icône pour le colon : onglet « Colons » de la Résidence, ligne
+« 1 colon » sur la carte d'une armée en route, bouton « Fonder une ville » de la bulle d'un point libre, icône de mission.
+Tant qu'elle n'est pas livrée, le client affiche l'icône de ville (`ui/city`).
+
+| Fichier | Sujet |
+|---|---|
+| `ui/settler.png` | villageois qui marche, baluchon au bout d'un bâton sur l'épaule, piquet de bois à petit fanion dans l'autre main |
+
+Mêmes règles que les autres icônes d'interface ; prompt complet dans `docs/PROMPTS-GRAPHIQUES.md`.
+
+## S10. Chantiers : chaque bâtiment en construction (`buildings/<CIV>/<CLÉ>_site.png` × 168, `fields/<biome>/<TYPE>_site.png` × 12, `walls/<CIV>/site_<seg_x|seg_z|tower>.png` × 18, 1024×1024)
+
+Un sprite par bâtiment et par civilisation, affiché **à la place du bâtiment pendant sa première construction** (le code
+clignotait jusqu'ici) ; les améliorations gardent le bâtiment fini sous l'échafaudage générique (§ S11). Même emprise, même
+cadrage et même silhouette que le bâtiment fini : le kit (`node tools/repaint.cjs --kit=<dossier>`) donne le rendu du bâtiment
+comme image-guide, le chantier doit tenir dans sa silhouette, à moitié construit (murs bas montés, étage et toit absents ou
+seulement charpentés, aucune décoration finie), deux ou trois ouvriers, matériaux au sol.
+
+Avis historique, une technique par civilisation (c'est ce qui rend chaque chantier reconnaissable, plus que le bâtiment lui-même) :
+
+| Civilisation | Ce qu'on voit sur le chantier | Pourquoi |
+|---|---|---|
+| Rome | échafaudage de perches liées reposant dans des trous de boulin, grue à roue de cage (*polyspastos*) levant un bloc, murs de béton parementés de brique (*opus testaceum*) à mi-hauteur, cintre de bois sous un arc, auges de mortier de chaux, groma d'arpenteur, piles de tuiles et de blocs | la grue à roue et le béton de brique sont les deux signatures du chantier romain (Vitruve, colonne Trajane) |
+| Gaule | ossature de poteaux et poutres de chêne (lacis du *murus gallicus*), clayonnage en cours de torchis, lattis de toit attendant son chaume, bottes de roseau, échelles et perches liées, herminettes, paniers de terre ; **pas de grue** | architecture de bois, de terre et de chaume : rien de levé, tout est porté et lié |
+| Grèce | chèvre de levage à poulie soulevant un tambour de colonne par sa louve, tambours empilés, échafaudage de perches et planches, ciseaux et maillets de tailleurs de pierre, blocs aux bossages encore bruts, mur de marbre à mi-hauteur avec crampons, tuiles | le marbre monté tambour par tambour et fini en place |
+| Égypte | rampe de terre et de gravats jusqu'aux murs de grès et de brique crue à mi-hauteur, bloc sur traîneau de bois tiré à la corde sur du limon mouillé, leviers et berceaux à bascule, léger échafaudage de roseaux pour les enduiseurs, ciseaux de cuivre, fil à plomb, briques séchant au soleil ; **pas de grue** | la rampe et le traîneau, pas l'échafaudage : c'est l'Égypte |
+| Huns | treillis de bois rond en train d'être dressé et lié de lanières, panneaux de feutre et de peaux à moitié posés, palissade de rondins appointés plantée, charrettes de perches et de feutre roulé, cordes et piquets, un cheval attaché ; **ni maçonnerie ni grue** | peuple nomade : on monte, on tend, on attache |
+| Sultanat | murs de brique cuite à mi-hauteur au mortier de chaux, cintre de bois soutenant un arc brisé, échafaudage de troncs de palmier liés de corde, palan, piles de carreaux émaillés turquoise et de panneaux de stuc, auges, coupole sur coffrage | brique, arc et coupole sur cintre : le chantier des villes d'Orient |
+
+Champs en chantier (`fields/<biome>/<TYPE>_site`, guide = `<TYPE>_1`) : premiers sillons à l'araire et semeur (ferme), arbres
+fraîchement abattus et souches (bûcheron), première entaille dans la roche et blocs sur rouleaux (carrière), entrée de mine
+en cours d'étayage et paniers de minerai (mine). Enceinte en chantier (`walls/<CIV>/site_*`, guide = palier 1) : premières
+assises posées, échafaudage de la civilisation le long, ouvriers.
+
+Ordre conseillé : d'abord les 18 échafaudages génériques (§ S11) qui habillent tous les chantiers d'un coup, puis les
+chantiers des bâtiments les plus souvent construits (Hôtel de ville, champs, Dépôt, Silo, Caserne, Marché, Académie, Mur),
+puis le reste.
+
+## S11. Échafaudages génériques par civilisation (`props/scaffold_<CIV>_<1|2|3>.png` × 18, 1024×1024, cadre building)
+
+Posé par-dessus le bâtiment pendant une amélioration (ou un nouveau bâtiment sans sprite de chantier), trois tailles pour
+les paliers 1-6, 7-13 et 14-20, **rien derrière** (structure seule, le bâtiment reste visible à travers). Même cadrage que
+les bâtiments (losange 51 %, centre à 73 %). Rome : perches et boulins liés, passerelles de planches, petite grue à roue
+au sommet ; Gaule : perches brutes liées et claies d'osier, échelles de chêne, bottes de chaume ; Grèce : perches droites
+et planches, chèvre à poulie levant un bloc de marbre ; Égypte : rampe de terre, traîneau et cordes, léger échafaudage de
+roseaux, paniers de briques ; Huns : cadre de perches lié de lanières, feutre roulé, cordes et piquets, charrette ;
+Sultanat : troncs de palmier liés de corde, palan, cintre d'arc, briques et carreaux émaillés.
+
+## S12. Colons et villes secondaires (cortège, campement de fondation, colonie, portraits, vignette)
+
+| Fichier | Taille | Sujet | Où |
+|---|---|---|---|
+| `map/units/settler.png`, `map/units/settler_<CIV>.png` × 6 | 1024×1024 (cadre map) | cortège de colons : chariot bâché tiré par des bœufs, famille à pied portant des baluchons, un homme tenant un piquet à fanion, en marche vers le bas-droit ; variante aux couleurs et coiffes civiles de la civilisation | armée partie fonder une ville (charrette du marchand tant que ce sprite manque) |
+| `map/units/settler_walk_<0..5>.png` | bande 6 cases 512×512 | même cortège, cycle de marche | A5 |
+| `map/camps/foundation.png`, `_desert`, `_snow` | 1024×1024 (cadre map) | campement de fondation : trois tentes de toile, chariot bâché, piquets et cordes marquant la future enceinte, tranchée, piles de troncs et de pierres, feu, mât de bannière (la bannière de la civilisation du fondateur est ajoutée par le code) | point de ressource pendant les 24 h de fondation |
+| `map/cities/colony_<rome|gaul|greek|egypt|hun|sultan>.png` × 6 | 1024×1024 (cadre map) | colonie fraîchement fondée : palissade basse, trois ou quatre maisons modestes, un puits, une bannière, sol fraîchement défriché, architecture de la civilisation | villes secondaires sur la carte (sprite de ville ordinaire sinon) |
+| `busts/SETTLER_<CIV>.png` × 6 | 1024×1024 (cadre bust) | jeton tête-épaules du colon, coiffe civile de la civilisation (Rome cheveux courts et tunique, Gaule tresses et manteau à carreaux, Grèce bandeau et chiton, Égypte perruque noire et col de lin, Huns bonnet de fourrure et caftan, Sultanat turban et robe rayée) | onglet Colons, modale de fondation, carte d'armée |
+| `scenes/vignette-founding.png` | 1536×1024 (cadre header) | chariot déchargé, homme plantant un piquet à fanion, tentes, cordes et piquets, prêtre versant une libation, collines à l'aube | onglet Colons et modale (à brancher à la livraison) |
+
+## S13. Icône du colon : voir § S9
+
+## S14. Tribus locales (chefs, vignettes des rapports, icône)
+
+| Fichier | Taille | Sujet | Où |
+|---|---|---|---|
+| `busts/TRIBE_<CIV>.png` × 6 | 1024×1024 (cadre bust) | chef de la tribu locale : visage peint, manteau de fourrure, collier de dents, coiffe civile de la civilisation | rapports « Combat contre la tribu », bulle du point |
+| `scenes/vignette-tribe-<forest|desert|snow>.png` × 3 | 1536×1024 (cadre header) | camp de la tribu selon le biome : huttes rondes au toit de chaume et palissade dans une clairière / tentes de peaux, palmier et chameaux entre dunes et rochers rouges / huttes couvertes de fourrures dans une pinède enneigée ; totem à crâne, guerriers autour du feu | en tête des rapports de tribu (déjà branché : s'affiche dès la livraison) |
+| `ui/tribe.png` | 1024×1024 (cadre icon) | totem de bois surmonté d'un crâne et deux massues croisées | bulle « Tribu locale » (déjà branché), rapports, listes |
+
+Les 18 sprites de camps (`map/camps/`, section « Camps barbares de la carte ») restent la pièce principale.
+
+## S15. Fiches d'information
+
+Les fiches de bâtiments montrent les trois paliers du bâtiment (`buildings/<CIV>/<CLÉ>`, `_t1`, `_t3`), les fiches d'unités la
+figurine en pied (`figures/<CLASSE>_<CIV>`) et le jeton (`busts/`), la fiche d'une technologie son icône (§ S8). Tout cela
+existe en rendu 3D ; ce qui manque pour les fiches est donc la version peinte de ces images (`docs/A-GENERER.md` étapes 1,
+6 et 12), plus les icônes de technologies (§ S8), le portrait du colon (§ S12) et les chefs de tribu (§ S14).

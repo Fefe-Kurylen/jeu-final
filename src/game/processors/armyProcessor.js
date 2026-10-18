@@ -14,9 +14,10 @@ const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
-const { findRoute } = require('../../utils/pathfinding');
+const { updatePlayerPopulation } = require('./worldProcessor');
+const { findRoute, noteObjectCell } = require('../../utils/pathfinding');
 
-const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'];
+const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING'];   // FOUNDING: arrivalAt = end of the foundation
 const TX = { timeout: 15000 };
 
 async function processArmyMovements(now) {
@@ -43,7 +44,11 @@ async function processArmyMovements(now) {
       const claimed = await prisma.army.updateMany({ where: { id: army.id, status: army.status, arrivalAt: army.arrivalAt, claimedAt: null }, data: { x: army.targetX, y: army.targetY, claimedAt: now } });
       if (claimed.count !== 1) continue;
 
-      if (army.missionType === 'MOVE_TO_HARVEST') {
+      if (army.status === 'FOUNDING') {
+        await handleFoundComplete(army, now);
+      } else if (army.missionType === 'FOUND') {
+        await handleFoundArrival(army, now);
+      } else if (army.missionType === 'MOVE_TO_HARVEST') {
         await handleMoveToHarvest(army);
       } else if (army.missionType === 'RAID_RESOURCE') {
         await handleRaidResource(army);
@@ -103,7 +108,9 @@ function defendingArmies(city) {
 async function depositCarry(army, homeCity) {
   await creditCity(prisma, homeCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
   if ((army.carryGold || 0) > 0) await prisma.player.update({ where: { id: army.ownerId }, data: { gold: { increment: army.carryGold } } });
-  await prisma.army.update({ where: { id: army.id }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0 } });
+  // Settlers that did not found a city go back to the pool of their city (the capital)
+  if ((army.settlers || 0) > 0) await prisma.city.update({ where: { id: homeCity.id }, data: { settlers: { increment: army.settlers } } });
+  await prisma.army.update({ where: { id: army.id }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0 } });
 }
 
 // The node is taken conditionally: one harvesting army per node, never on a defended node
@@ -149,7 +156,52 @@ async function handleRaidResource(army) {
 async function handleReturn(army) {
   const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
   if (homeCity) await depositCarry(army, homeCity);
-  await setArmyIdle(army.id);
+  await setArmyIdle(army.id, { harvestResourceType: null });
+}
+
+// ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------
+async function handleFoundArrival(army, now) {
+  const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
+  const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0;
+  if (!free) {
+    await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
+    notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { tab: 'map' });
+    return;
+  }
+  const taken = await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
+  if (taken.count !== 1) { await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null }); return; }
+  const endsAt = new Date(now.getTime() + fx.cityFoundationTimeSec() * 1000);
+  await prisma.army.update({ where: { id: army.id }, data: { status: 'FOUNDING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, arrivalAt: endsAt, departedAt: now, claimedAt: null } });
+  notify(army.ownerId, 'build_done', '🏗️ Fondation commencée', `${army.name} fonde une ville en (${node.x}, ${node.y}) : elle sera prête dans ${Math.round(fx.cityFoundationTimeSec() / 3600)} h.`, { tab: 'map' });
+}
+
+async function handleFoundComplete(army, now) {
+  const created = await prisma.$transaction(async (tx) => {
+    const node = army.targetResourceId ? await tx.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
+    const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { owner: true } });
+    if (!node || node.cityId || !fresh || (fresh.settlers || 0) < 1) return null;
+    const colonies = await tx.city.count({ where: { playerId: army.ownerId, isCapital: false } });
+    const name = (fresh.harvestResourceType || '').trim() || `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`;
+    const city = await tx.city.create({ data: {
+      playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false,
+      wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood
+    } });
+    await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
+    await tx.army.create({ data: { ownerId: army.ownerId, cityId: city.id, name: 'Garnison', x: node.x, y: node.y, status: 'IDLE', isGarrison: true } });
+    // The node is the city's ground now: no tribe, no harvest, respawns if the city disappears
+    await tx.resourceNode.update({ where: { id: node.id }, data: { cityId: city.id, hasPlayerArmy: false, hasDefenders: false, defenderPower: 0, amount: 0, lastDefeat: null, lastArmyDeparture: null } });
+    await tx.army.update({ where: { id: army.id }, data: { settlers: 0, carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, harvestResourceType: null } });
+    return city;
+  }, TX);
+  if (!created) {
+    await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
+    return;
+  }
+  noteObjectCell(created.x, created.y, 'CITY');
+  try { await updatePlayerPopulation(prisma, army.ownerId); } catch (e) { /* population is recomputed by the tick */ }
+  notify(army.ownerId, 'build_done', '🏛️ Ville fondée', `${created.name} est fondée en (${created.x}, ${created.y}). ${army.name} rentre à la capitale.`, { tab: 'city', cityId: created.id });
+  console.log(`[FOUND] ${created.name} (${created.x}, ${created.y})`);
+  await sendArmyHome({ ...army, carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, settlers: 0 }, created.x, created.y, { targetResourceId: null, harvestResourceType: null });
 }
 
 function reportResult(reportOwnerIsAttacker, attackerWon) {

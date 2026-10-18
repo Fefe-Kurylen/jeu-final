@@ -374,6 +374,9 @@ function openBuildPanel(slotNum) {
               ${cat.buildings.map(b => {
                 // Check prerequisites
                 const prereqStatus = checkBuildingPrerequisites(b);
+                // Réservé à la capitale (Ambassade, Résidence, Chambre au trésor, Forge, Domus) ou aux colonies (Grandes caserne et écurie)
+                if (b.effects?.capitalOnly && currentCity && !currentCity.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé à la capitale'; }
+                if (b.effects?.notInCapital && currentCity?.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé aux villes secondaires'; }
                 const hasPrereqs = prereqStatus.met;
                 const hasResources = currentCity &&
                   currentCity.wood >= (b.costL1?.wood || 0) &&
@@ -513,6 +516,10 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           </div>
         `
       });
+      break;
+
+    case 'RESIDENCE':
+      tabs.push({ id: 'colonies', icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', name: 'Colons', content: typeof colonyTabHtml === 'function' ? colonyTabHtml(level) : '' });
       break;
 
     case 'EMBASSY':
@@ -1248,6 +1255,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
 
 // Get unit name helper
 function getUnitName(unitKey) {
+  if (unitKey === 'SETTLER') return 'Colon';
   const unit = unitsData.find(u => u.key === unitKey);
   return unit?.name || unitKey;
 }
@@ -1557,6 +1565,8 @@ function renderMovingArmies() {
   const moving = armies.filter(a => a.status !== 'IDLE');
 
   const missionIcons = {
+    'FOUND': '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">',
+    'FOUNDING': '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">',
     'ATTACK': '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">',
     'RAID': '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">',
     'SUPPORT': '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">',

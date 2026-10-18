@@ -86,6 +86,9 @@ const config = {
   // City layout: ring slots 1-19 (0 = Main Hall), typed field slots 101-118
   city: {
     maxSlot: 19,
+    // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
+    foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
+    maxSecondaryCities: 3,
     fieldSlots: {
       LUMBER: [101, 102, 103, 104],
       QUARRY: [105, 106, 107, 108],

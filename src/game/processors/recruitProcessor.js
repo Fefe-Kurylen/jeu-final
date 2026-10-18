@@ -22,6 +22,11 @@ async function processRecruits(now, { playerId = null } = {}) {
         // The item is consumed first (conditional): a second executor credits nothing
         const taken = await tx.recruitQueueItem.deleteMany({ where: { id: r.id, status: 'RUNNING' } });
         if (taken.count !== 1) throw Object.assign(new Error('already processed'), { _skip: true });
+        // A settler (Residence) is not a unit: it waits in the city until an army takes it to found a city
+        if (r.unitKey === 'SETTLER') {
+          await tx.city.update({ where: { id: r.cityId }, data: { settlers: { increment: r.count } } });
+          return;
+        }
         const tier = unitsData.find(u => u.key === r.unitKey)?.tier || 'base';
         // Increment in SQL so several batches finishing in the same tick all add up
         await tx.armyUnit.upsert({

@@ -311,9 +311,10 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     if (err) return res.status(err.status).json({ error: err.error });
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
+    if (node.cityId) return res.status(400).json({ error: 'Une ville occupe ce point' });
     // A raid is a fight: against the tribe, or against the army of another player holding the node (as on a Travian
     // oasis). An undefended, free node is simply collected; an ally's or one's own army is never attacked.
-    const holders = node.hasPlayerArmy ? await prisma.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id }, select: { ownerId: true } }) : [];
+    const holders = node.hasPlayerArmy ? await prisma.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id }, select: { ownerId: true } }) : [];
     const tribePresent = node.hasDefenders && node.defenderPower > 0;
     if (!tribePresent && !holders.length) return res.status(400).json({ error: 'Aucune tribu ni armée adverse sur ce point : lancez une collecte' });
     if (holders.some(h => h.ownerId === req.user.playerId)) return res.status(409).json({ error: 'Votre armée récolte déjà ce point' });
@@ -353,6 +354,51 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
+// POST /api/army/:id/found-city { resourceNodeId, name? } — send an army with a settler and the foundation resources
+// (GDD: 3 000 of each) from the capital to a free resource node; the city rises 24 h after the army arrives.
+router.post('/:id/found-city', auth, async (req, res) => {
+  try {
+    const { resourceNodeId } = req.body || {};
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 40) : '';
+    if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
+    const result = await prisma.$transaction(async (tx) => {
+      await lockArmy(tx, req.params.id);
+      const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true }, tx);
+      const err = readyToLeave(army, 'fonder une ville');
+      if (err) return { error: err.error, status: err.status };
+      if (!army.city || !army.city.isCapital) return { error: 'Seule une armée de la capitale peut fonder une ville', status: 400 };
+      if (!isHome(army, army.city)) return { error: 'L\'armée doit être dans la capitale', status: 400 };
+      await lockCity(tx, army.city.id);
+      const capital = await tx.city.findUnique({ where: { id: army.city.id }, include: { buildings: true } });
+      const residence = capital.buildings.find(b => b.key === 'RESIDENCE');
+      const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence?.level || 0));
+      const colonies = await tx.city.count({ where: { playerId: req.user.playerId, isCapital: false } });
+      if (colonies >= slots) return { error: slots ? `Limite atteinte : ${slots} ville(s) secondaire(s) avec cette Résidence` : 'Résidence niveau 10 requise', status: 400 };
+      if (capital.settlers < 1) return { error: 'Aucun colon disponible : formez-en un à la Résidence', status: 400 };
+      const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
+      if (!node) return { error: 'Ressource non trouvée', status: 404 };
+      if (node.cityId) return { error: 'Une ville occupe déjà ce point', status: 400 };
+      if (node.resourceType === 'GOLD') return { error: 'Impossible de fonder une ville sur un gisement d\'or', status: 400 };
+      if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente : chassez-la d\'abord', status: 400 };
+      if (node.hasPlayerArmy) return { error: 'Une armée occupe ce point', status: 409 };
+      const cost = config.city.foundationTransport;
+      if (!(await debitCity(tx, capital.id, cost))) return { error: `Il faut ${cost.wood} de chaque ressource dans la capitale pour fonder une ville`, status: 400, cost };
+      await tx.city.update({ where: { id: capital.id }, data: { settlers: { decrement: 1 } } });
+      const travelTime = await travelTo(army, node.x, node.y);
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+      const ok = await transition(tx, 'army', army.id, 'IDLE', {
+        status: 'MOVING', missionType: 'FOUND', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, departedAt: new Date(), settlers: 1,
+        carryWood: { increment: cost.wood }, carryStone: { increment: cost.stone }, carryIron: { increment: cost.iron }, carryFood: { increment: cost.food },
+        harvestResourceType: name || null   // the chosen name travels with the army (reused field, freed at arrival)
+      });
+      if (!ok) throw new Error('army busy');
+      return { message: `Colon en route : la ville sera fondée ${Math.round(fx.cityFoundationTimeSec() / 3600)} h après l'arrivée`, travelTime, arrivalAt, foundationTimeSec: fx.cityFoundationTimeSec() };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
+});
+
 // POST /api/army/:id/collect-resource
 router.post('/:id/collect-resource', auth, async (req, res) => {
   try {
@@ -366,10 +412,12 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       if (err) return { error: err.error, status: err.status };
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
+      if (node.cityId) return { error: 'Une ville occupe ce point', status: 400 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
       if (node.hasPlayerArmy) {
         // Shared with one's own or allied armies only
-        const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id }, select: { ownerId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+        const holders = await tx.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id }, select: { ownerId: true, status: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+        if (holders.some(h => h.status === 'FOUNDING')) return { error: 'Une ville est en cours de fondation sur ce point', status: 409 };
         const mine = army.owner?.alliance?.allianceId || null;
         if (holders.length && !holders.every(h => h.ownerId === req.user.playerId || (mine && h.owner?.alliance?.allianceId === mine))) return { error: 'Une armée adverse récolte déjà ce point : attaquez-la', status: 409 };
       }
@@ -416,9 +464,9 @@ router.post('/:id/return', auth, async (req, res) => {
       } else if (army.status === 'IDLE' && isHome(army, army.city)) {
         return { message: 'Armee deja a la maison' };
       }
-      if (army.status === 'HARVESTING' && army.targetResourceId) {
-        // Shared node: released only when this is the last harvesting army on it
-        const others = await tx.army.count({ where: { status: 'HARVESTING', targetResourceId: army.targetResourceId, id: { not: army.id } } });
+      if ((army.status === 'HARVESTING' || army.status === 'FOUNDING') && army.targetResourceId) {
+        // Shared node: released only when this is the last harvesting army on it (a recalled foundation is abandoned)
+        const others = await tx.army.count({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: army.targetResourceId, id: { not: army.id } } });
         if (others === 0) await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 

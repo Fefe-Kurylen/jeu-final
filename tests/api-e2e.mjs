@@ -495,6 +495,43 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityD.id}'), y=(SELECT y FROM "City" WHERE id='${cityD.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL, "carryWood"=0, "carryStone"=0, "carryIron"=0, "carryFood"=0 WHERE id='${ar.army.id}'`);
     sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL WHERE id='${ga}'`);
   }
+  // ---------- SECONDARY CITIES (GDD): settler at the Residence, foundation on a free node, restrictions ----------
+  {
+    await call('train settler without Residence -> 400', 'POST', `/api/city/${cityA.id}/settlers`, tA, {}, 400);
+    const resSlot = sql(`SELECT MIN(s) FROM generate_series(1,19) s WHERE s NOT IN (SELECT slot FROM "CityBuilding" WHERE "cityId"='${cityA.id}')`);
+    addBuilding(cityA.id, 'RESIDENCE', Number(resSlot), 10);
+    richCity(cityA.id);
+    const st = await call('train a settler (Residence L10)', 'POST', `/api/city/${cityA.id}/settlers`, tA, {});
+    assert('settler queued at the Residence', st?.queueItem?.unitKey === 'SETTLER' && st?.slots === 1, JSON.stringify(st)?.slice(0, 120));
+    await call('second settler -> 400 (one slot at L10)', 'POST', `/api/city/${cityA.id}/settlers`, tA, {}, 400);
+    sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE id='${st.queueItem.id}'`);
+    await waitTick('settler ready in the capital', () => sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1');
+    const freeNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE "resourceType"<>'GOLD' AND "cityId" IS NULL AND NOT "hasPlayerArmy" AND id<>'${undefendedId}' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 1`).split('|');
+    sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0 WHERE id='${freeNode[0]}'`);
+    await call('found-city with B token on A army -> 404', 'POST', `/api/army/${ga}/found-city`, tB, { resourceNodeId: freeNode[0] }, 404);
+    const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+    const fc = await call('found-city: settler army leaves the capital', 'POST', `/api/army/${ga}/found-city`, tA, { resourceNodeId: freeNode[0], name: `Colonia${uid}` });
+    assert('foundation resources debited and settler embarked', woodBefore - Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`)) === 3000 && sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '0' && sql(`SELECT settlers FROM "Army" WHERE id='${ga}'`) === '1', `wood -${woodBefore - Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`))}`);
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${ga}'`);
+    await waitTick('army founding on the node', () => sql(`SELECT status FROM "Army" WHERE id='${ga}'`) === 'FOUNDING');
+    assert('node reserved during the foundation', sql(`SELECT "hasPlayerArmy" FROM "ResourceNode" WHERE id='${freeNode[0]}'`) === 't');
+    await call('D cannot collect a node being founded -> 409', 'POST', `/api/army/${ar.army.id}/collect-resource`, D.token, { resourceNodeId: freeNode[0] }, 409);
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${ga}'`);
+    await waitTick('city founded', () => sql(`SELECT count(*) FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`) === '1', 90000);
+    const colony = sql(`SELECT id||'|'||name||'|'||x||'|'||y||'|'||wood::int FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`).split('|');
+    assert('colony stands on the node with the carried resources', colony[1] === `Colonia${uid}` && Number(colony[2]) === Number(freeNode[1]) && Number(colony[3]) === Number(freeNode[2]) && Number(colony[4]) >= 3000, colony.join(' '));
+    assert('node now belongs to the colony', sql(`SELECT "cityId" FROM "ResourceNode" WHERE id='${freeNode[0]}'`) === colony[0]);
+    assert('colony has a main hall and a garrison', sql(`SELECT count(*) FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE "cityId"='${colony[0]}' AND "isGarrison"`) === '1');
+    const citiesNow = await call('cities A (capital + colony)', 'GET', '/api/cities', tA);
+    assert('two cities listed', Array.isArray(citiesNow) && citiesNow.length === 2);
+    await call('build EMBASSY in the colony -> 400 (capital only)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'EMBASSY' }, 400);
+    await call('build GREAT_BARRACKS in the capital -> 400 (colonies only)', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'GREAT_BARRACKS' }, 400);
+    await call('D raid-resource on a node under a city -> 400', 'POST', `/api/army/${ar.army.id}/raid-resource`, D.token, { resourceNodeId: freeNode[0] }, 400);
+    assert('node under the colony hidden from the viewport', !((await call('viewport around the colony', 'GET', `/api/map/viewport?x=${colony[2]}&y=${colony[3]}&radius=2`, tA))?.resourceNodes || []).some(n => n.id === freeNode[0]));
+    await waitTick('founding army back home', () => sql(`SELECT status FROM "Army" WHERE id='${ga}'`) !== 'FOUNDING');
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${ga}' AND status='RETURNING'`);
+    await waitTick('founding army idle', () => sql(`SELECT status FROM "Army" WHERE id='${ga}'`) === 'IDLE');
+  }
   const exps = (await call('D expeditions', 'GET', '/api/expeditions', D.token)).filter(e => e.status === 'AVAILABLE');
   const rs = await Promise.all(exps.slice(0, 3).map(e => fetch(`${BASE}/api/expedition/${e.id}/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${D.token}` }, body: JSON.stringify({ armyId: ar.army.id }) })));
   const started = rs.filter(r => r.status === 200).length;

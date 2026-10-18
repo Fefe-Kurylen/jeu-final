@@ -32,7 +32,7 @@ async function cleanupOrphanedFlags() {
   const orphanedNodes = await prisma.$executeRaw`
     UPDATE "ResourceNode" SET "hasPlayerArmy" = false, "lastArmyDeparture" = ${new Date()}
     WHERE "hasPlayerArmy" = true AND NOT EXISTS (
-      SELECT 1 FROM "Army" a WHERE a."targetResourceId" = "ResourceNode".id AND a.status = 'HARVESTING'
+      SELECT 1 FROM "Army" a WHERE a."targetResourceId" = "ResourceNode".id AND a.status IN ('HARVESTING', 'FOUNDING')
     )
   `;
   if (orphanedNodes > 0) console.log(`[CLEANUP] ${orphanedNodes} orphaned hasPlayerArmy flags reset`);

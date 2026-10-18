@@ -95,6 +95,7 @@ model City {
   x         Int
   y         Int
   isCapital Boolean @default(false)
+  settlers  Int     @default(0) // colons formés à la Résidence, en attente dans la capitale
 
   wood  Float @default(500)
   stone Float @default(500)
@@ -198,6 +199,7 @@ model Army {
   carryGold   Int     @default(0)
 
   harvestResourceType String? // type de ressource en cours de récolte
+  settlers            Int     @default(0) // colons embarqués pour fonder une ville (mission FOUND, statut FOUNDING)
 
   owner Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
@@ -341,10 +343,12 @@ model ResourceNode {
   // Système de régénération lié aux armées
   lastArmyDeparture DateTime? // Quand la dernière armée a quitté le point
   hasPlayerArmy     Boolean   @default(false) // Une armée joueur est présente sur le point
+  cityId            String?   // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
 
   @@unique([x, y])
   @@index([hasDefenders, lastDefeat])
   @@index([hasPlayerArmy])
+  @@index([cityId])
 }
 
 model MarketOffer {

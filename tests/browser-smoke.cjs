@@ -11,7 +11,7 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `smk${uid}@t.fr`, password: 'Test1234!', name: `Smk${uid}`, faction: 'GAUL' }) })).json();
   const pid = reg.player.id, cityId = sql(`SELECT id FROM "City" WHERE "playerId"='${pid}'`);
   sql(`UPDATE "City" SET wood=50000,stone=50000,iron=50000,food=50000,"maxStorage"=100000,"maxFoodStorage"=100000 WHERE id='${cityId}'`);
-  for (const [k, slot, lvl] of [['BARRACKS', 3, 5], ['WALL', 11, 4], ['ACADEMY', 4, 3], ['LUMBER', 101, 3], ['FARM', 113, 2]]) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
+  for (const [k, slot, lvl] of [['BARRACKS', 3, 5], ['WALL', 11, 4], ['ACADEMY', 4, 3], ['RESIDENCE', 6, 10], ['LUMBER', 101, 3], ['FARM', 113, 2]]) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
   const errors = [], failed = [], out = [];
   const b = await chromium.launch();
   // Sign-up screen (no token): the civilization cards show the bonuses the server applies (/api/world/info -> factions)
@@ -56,6 +56,13 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
     const techCards = await page.evaluate(() => document.querySelectorAll('#research-panel .tech-card').length);
     const startable = await page.evaluate(() => Array.from(document.querySelectorAll('#research-panel .tc-btn')).filter(b => !b.disabled).length);
     out.push(`${label} academy research tab: ${techCards} technologies, ${startable} startable` + (techCards >= 8 && startable >= 4 ? '' : ' contains "research-tab-failure"'));
+    await page.evaluate(() => closeBuildPanel());
+    // Residence L10: the settlers tab shows one settler slot and lets the capital train one (GDD secondary cities)
+    await page.evaluate(() => openBuildPanel(6)); await page.waitForTimeout(400);
+    await page.evaluate(() => { const b = Array.from(document.querySelectorAll('.building-tab')).find(x => /Colons/.test(x.textContent)); if (b) b.click(); });
+    await page.waitForTimeout(300);
+    const colonsTab = await page.evaluate(() => ({ text: (document.getElementById('tab-colonies')?.innerText || '').replace(/\s+/g, ' '), canTrain: !!Array.from(document.querySelectorAll('#tab-colonies button')).find(b => /Former un colon/.test(b.textContent) && !b.disabled) }));
+    out.push(`${label} residence settlers tab: ${colonsTab.canTrain ? 'can train' : 'cannot train'}` + (/1 colon/.test(colonsTab.text) && colonsTab.canTrain ? '' : ' contains "settlers-tab-failure"'));
     await page.evaluate(() => closeBuildPanel());
     // pan: drag on empty terrain must not open a panel
     const c = await page.evaluate(() => { const rect = cityCanvas.getBoundingClientRect(); return { x: rect.left + 60, y: rect.top + 60 }; });

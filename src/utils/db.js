@@ -63,13 +63,13 @@ async function plunderCity(tx, cityId, want) {
 // A resource node hosts harvesting armies: the flag is taken conditionally on a free node; a node already held is open to
 // the holder's own armies and to those of its alliance (claimant = { playerId, allianceId }), never to anyone else
 async function claimNode(tx, nodeId, claimant = null) {
-  const r = await tx.resourceNode.updateMany({ where: { id: nodeId, hasPlayerArmy: false, hasDefenders: false }, data: { hasPlayerArmy: true } });
+  const r = await tx.resourceNode.updateMany({ where: { id: nodeId, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
   if (r.count === 1) return true;
   if (!claimant || !claimant.playerId) return false;
-  const node = await tx.resourceNode.findUnique({ where: { id: nodeId }, select: { hasDefenders: true, hasPlayerArmy: true } });
-  if (!node || node.hasDefenders || !node.hasPlayerArmy) return false;
-  const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: nodeId }, select: { ownerId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
-  if (!holders.length) return false;
+  const node = await tx.resourceNode.findUnique({ where: { id: nodeId }, select: { hasDefenders: true, hasPlayerArmy: true, cityId: true } });
+  if (!node || node.cityId || node.hasDefenders || !node.hasPlayerArmy) return false;
+  const holders = await tx.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: nodeId }, select: { ownerId: true, status: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+  if (!holders.length || holders.some(h => h.status === 'FOUNDING')) return false;
   return holders.every(h => h.ownerId === claimant.playerId || (claimant.allianceId && h.owner?.alliance?.allianceId === claimant.allianceId));
 }
 

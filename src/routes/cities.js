@@ -119,6 +119,8 @@ router.post('/:id/build', auth, async (req, res) => {
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
+      if (fx.capitalOnly(buildingKey) && !city.isCapital) return { error: 'Bâtiment réservé à la capitale', status: 400 };
+      if (fx.notInCapital(buildingKey) && city.isCapital) return { error: 'Bâtiment réservé aux villes secondaires', status: 400 };
 
       const MAX_RUNNING = config.build.maxRunning;
       const MAX_TOTAL = MAX_RUNNING + config.build.maxQueued + (isPremium(city.player) ? config.purchases.perks.extraBuildQueue : 0);
@@ -274,6 +276,41 @@ router.post('/:id/recruit', auth, async (req, res) => {
   } catch (e) {
     sendError(res, e);
   }
+});
+
+// POST /api/city/:id/settlers — train a settler at the Residence of the capital (GDD: 1 at L10, 2 at L15, 3 at L20,
+// each settler founds one secondary city). Counted against the slots: existing secondary cities, settlers waiting,
+// settlers travelling with armies and settlers in training.
+router.post('/:id/settlers', auth, async (req, res) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, req.params.id);
+      const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, include: { buildings: true, recruitQueue: true } });
+      if (!city) return { error: 'Ville non trouvee', status: 404 };
+      if (!city.isCapital) return { error: 'Les colons se forment à la Résidence de la capitale', status: 400 };
+      const residence = city.buildings.find(b => b.key === 'RESIDENCE');
+      if (!residence) return { error: 'Résidence requise', status: 400 };
+      const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence.level));
+      if (slots <= 0) return { error: 'Résidence niveau 10 requise pour former un colon', status: 400 };
+      const colonies = await tx.city.count({ where: { playerId: city.playerId, isCapital: false } });
+      const travelling = await tx.army.aggregate({ where: { ownerId: city.playerId }, _sum: { settlers: true } });
+      const training = city.recruitQueue.filter(q => q.unitKey === 'SETTLER').reduce((s, q) => s + q.count, 0);
+      const used = colonies + city.settlers + (travelling._sum.settlers || 0) + training;
+      if (used >= slots) {
+        const next = slots >= 3 ? null : slots === 2 ? 20 : 15;
+        return { error: next ? `Tous vos colons sont engagés (${slots}) : Résidence niveau ${next} pour le suivant` : `Limite atteinte : ${slots} villes secondaires au plus`, status: 400 };
+      }
+      const cost = fx.settlerCost();
+      if (!(await debitCity(tx, city.id, cost))) return { error: 'Ressources insuffisantes', status: 400, cost };
+      const lastEnd = city.recruitQueue.filter(q => q.buildingKey === 'RESIDENCE').reduce((m, q) => Math.max(m, new Date(q.endsAt).getTime()), 0);
+      const startAt = new Date(Math.max(Date.now(), lastEnd));
+      const durationSec = fx.settlerTrainTimeSec();
+      const queueItem = await tx.recruitQueueItem.create({ data: { cityId: city.id, unitKey: 'SETTLER', count: 1, buildingKey: 'RESIDENCE', startedAt: startAt, endsAt: new Date(startAt.getTime() + durationSec * 1000), status: 'RUNNING' } });
+      return { message: 'Formation d\'un colon lancée', queueItem, durationSec, cost, slots, used: used + 1 };
+    });
+    if (result.error) return res.status(result.status || 400).json(result);
+    res.json(result);
+  } catch (e) { sendError(res, e); }
 });
 
 // DELETE /api/city/:id/build/:itemId — cancel a construction: full refund while queued, half once started.

@@ -337,9 +337,12 @@ function renderBattleReportCard(r, idx) {
   const lootRes = isTribe ? (r.loot?.resources || {}) : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
   const lootHtml = ['wood', 'stone', 'iron', 'food'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
   const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
+  // Vignette peinte du camp de la tribu (scenes/vignette-tribe-<biome>, guide § S14) en tête des rapports de tribu
+  const tribeScene = isTribe && typeof paintedSet !== 'undefined' ? (() => { const p = `scenes/vignette-tribe-${typeof getBiome === 'function' ? getBiome(r.x, r.y) : 'forest'}.webp`; return paintedSet.has(p) ? `<img class="report-scene" src="assets/images/painted/${p}" alt="" style="width:100%; display:block; border-radius:6px 6px 0 0;">` : ''; })() : '';
 
   return `
     <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
+      ${tribeScene}
       <div class="report-header">
         <div class="report-title-section">
           <span class="report-icon">${iAttacked || isTribe ? '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">'}</span>

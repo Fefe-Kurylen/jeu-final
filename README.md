@@ -1,6 +1,6 @@
 # Imperium Antiquitas
 
-Jeu de stratégie MMO mobile (iOS et Android) dans l'esprit de **Travian** et de **Rise of Kingdoms** : six factions antiques, villes en 2.5D isométrique, carte du monde, armées, raids, alliances, héros et expéditions.
+Jeu de stratégie MMO mobile (iOS et Android) dans l'esprit de **Travian** et de **Rise of Kingdoms** : six factions antiques, villes en 2.5D isométrique, villes secondaires fondées par des colons, carte du monde, armées, raids, alliances, héros, expéditions et recherche.
 
 - **API** : Node 20, Express, Prisma 5, PostgreSQL (`src/`)
 - **Client** : vanilla JS + canvas, embarqué dans Capacitor (`frontend/`)
@@ -29,9 +29,10 @@ npm run test:smoke   # navigateur (Playwright), bureau et téléphone
 ## Documentation
 
 - `docs/DEPLOIEMENT.md` : variables, migrations, boucle de jeu, limites, plateformes
-- `docs/EQUILIBRAGE.md` : vérification de l'équilibrage (bonus de civilisation, unités, déplacements, courbes des bâtiments), réglages appliqués (coefficients de palier des unités) et arbre de technologies (recherche à l'Académie, § 8)
+- `docs/EQUILIBRAGE.md` : vérification de l'équilibrage (bonus de civilisation, unités, déplacements, courbes des bâtiments), réglages appliqués (coefficients de palier des unités) arbre de technologies (recherche à l'Académie, § 8), camps barbares (§ 9) et villes secondaires (§ 10)
 - `docs/APP-STORE.md` : publication sur les stores
 - `docs/ART-PIPELINE.md`, `docs/PROMPTS-GRAPHIQUES.md`, `docs/LISTE-GRAPHISMES.md` (inventaire et état de chaque image, `node tools/liste-graphismes.cjs`) et `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` (compléments, animations) : production des graphismes
+- `docs/GRAPHISMES-MANQUANTS.md` : chantiers par civilisation (avis historique), colons et villes secondaires, tribus, technologies, fiches : ce qui manque, où ça s'affiche, ordre conseillé
 - `art/incoming/README.md` : déposer des images peintes à intégrer
 
 ## Principes du serveur

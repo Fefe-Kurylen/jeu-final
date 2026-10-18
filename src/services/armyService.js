@@ -131,7 +131,7 @@ async function sendArmyHomeTx(tx, army) {
 // by power (no wall, no « défense chez soi »), the loser's losses follow the raid rule, the holders go home when beaten and
 // the node is released for the attacker. Runs inside `tx`. Returns the same shape as resolveTribeCombat.
 async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
-  const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id, NOT: { ownerId: playerId } }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true } });
+  const holders = await tx.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id, NOT: { ownerId: playerId } }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true } });
   const myAlliance = army.owner?.alliance?.allianceId || null;
   if (!holders.length) return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
   if (holders.every(h => myAlliance && h.owner?.alliance?.allianceId === myAlliance)) return { success: true, shared: true, combatResult: null, loot: null, message: 'Point partagé avec votre alliance' };
@@ -176,7 +176,8 @@ async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
 
   if (combat.attackerWon) {
     await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
-    for (const h of holders) await sendArmyHomeTx(tx, h);
+    // GDD: settlers are vulnerable — a founding party that is beaten loses its settler
+    for (const h of holders) { if (h.status === 'FOUNDING' && (h.settlers || 0) > 0) { await tx.army.update({ where: { id: h.id }, data: { settlers: 0 } }); h.settlers = 0; } await sendArmyHomeTx(tx, h); }
     for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '⚔️ Armée chassée', `${army.owner?.name || 'Un joueur'} a chassé votre armée du point ${where}. Rapport disponible.`, { tab: 'reports' });
   } else {
     for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '🛡️ Point défendu', `Votre armée a repoussé ${army.owner?.name || 'un joueur'} sur le point ${where}. Rapport disponible.`, { tab: 'reports' });

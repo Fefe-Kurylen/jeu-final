@@ -206,6 +206,12 @@ Villes (`map/cities/<nom>.png`) :
 | capital_egypt | a fortified capital icon for a world map: walls with corner towers around a palace, Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks |
 | capital_hun | a fortified capital icon for a world map: walls with corner towers around a palace, Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires |
 | capital_sultan | a fortified capital icon for a world map: walls with corner towers around a palace, Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns |
+| colony_rome | a small newly founded colony village: Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
+| colony_gaul | a small newly founded colony village: Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
+| colony_greek | a small newly founded colony village: Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
+| colony_egypt | a small newly founded colony village: Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
+| colony_hun | a small newly founded colony village: Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
+| colony_sultan | a small newly founded colony village: Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns, a low palisade, three or four modest houses, a well and a banner on a pole, freshly cleared ground around |
 
 Ressources (`map/resources/<res>[_desert|_snow].png`) :
 
@@ -225,6 +231,7 @@ Camps barbares (`map/camps/<camp1|camp2|camp3|ruins>[_desert|_snow].png`, `map/c
 | camp2 | a palisaded barbarian camp: a ring of sharpened log stakes with a gate, several hide tents, a wooden watchtower, a campfire and a tall banner |
 | camp3 | a barbarian wooden fort: a tall log palisade with two corner towers and a gate, a longhouse with a thatched roof inside, skull totems, several banners and a smoking fire |
 | ruins | the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke |
+| foundation | a settlers' camp where a new city is being founded: three canvas tents, a covered ox-wagon, wooden stakes and rope marking the future walls, a dug trench, piles of logs and stones, a small campfire and a banner pole |
 
 | Variante | Ajout au sujet |
 |---|---|
@@ -264,7 +271,60 @@ Relief (`map/terrain/<nom>.png`) — les variantes _x, _y s'allongent en diagona
 | oasis_y | an elongated desert oasis: a lake of blue water ringed with green grass, palm trees and rocks, stretched diagonally like the guide |
 | oasis_xy | a wide desert oasis: a lake of blue water ringed with green grass, palm trees and rocks |
 
-Armées en marche (`map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`) : petit marqueur de carte, deux fantassins / archers, un cavalier, un servant et sa catapulte, aux couleurs et coiffe de la civilisation, marchant vers le bas-droite ; marchand : charrette de caisses tirée par un cheval.
+Armées en marche (`map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`, `map/units/settler[_<CIV>].png` : cortège de colons, chariot bâché et famille à pied) : petit marqueur de carte, deux fantassins / archers, un cavalier, un servant et sa catapulte, aux couleurs et coiffe de la civilisation, marchant vers le bas-droite ; marchand : charrette de caisses tirée par un cheval.
+
+### Chantiers (`buildings/<CIV>/<CLÉ>_site.png`, `fields/<biome>/<TYPE>_site.png`, `walls/<CIV>/site_<seg_x|seg_z|tower>.png`, `props/scaffold_<CIV>_<1|2|3>.png`, `props/worker_<CIV>_<0..3>.png`)
+
+Un chantier garde l'emprise et la silhouette du bâtiment fini (son rendu sert de guide), à moitié construit, avec les techniques de sa civilisation (`docs/GRAPHISMES-MANQUANTS.md` § 1) :
+
+| Civilisation | Chantier (ajouté au sujet du bâtiment) |
+|---|---|
+| ROME | a Roman building site: a timber scaffold of lashed poles and planks resting in putlog holes, a treadwheel crane (polyspastos) lifting a stone block on a rope, brick-faced concrete walls (opus testaceum) half raised, wooden centering under an arch, troughs of lime mortar, a surveyor's groma, stacks of terracotta tiles and ashlar blocks |
+| GAUL | a Gallic building site: a frame of oak posts and horizontal beams (murus gallicus lacing) half raised, wattle panels being daubed with clay, a roof lattice waiting for its thatch, bundles of reed thatch, ladders and lashed poles instead of a scaffold, adzes, baskets of earth and rubble, no crane |
+| GREEK | a Greek building site: a wooden derrick crane with a pulley hoisting a marble drum by its lewis iron, column drums stacked and waiting, a wooden scaffold of poles and planks, masons' chisels and mallets, stone blocks with their bosses still unfinished, a half-raised marble wall with iron clamps, terracotta roof tiles |
+| EGYPT | an Egyptian building site: a sloping ramp of mud and rubble up to the half-raised sandstone and mud-brick walls, a stone block on a wooden sledge pulled with ropes over wetted silt, wooden levers and rocking cradles, light reed scaffolding only for the plasterers, copper chisels, plumb-bob and square, no crane, baskets of mud bricks drying in the sun |
+| HUN | a Hunnic steppe building site: a round timber lattice frame being raised and tied with leather straps, felt and hide panels half laid over it, a palisade of sharpened logs being planted, carts loaded with poles and rolled felt, ropes and stakes, a horse tethered nearby, no masonry, no crane |
+| SULTAN | a Sultanate building site: fired-brick walls half raised with lime mortar, a wooden centering supporting a pointed arch, a scaffold of palm trunks lashed with rope, a rope-and-pulley hoist, stacks of glazed teal tiles and stucco panels waiting, mortar troughs, a dome on wooden formwork |
+
+| Civilisation | Échafaudage générique |
+|---|---|
+| ROME | a Roman timber scaffold: upright poles and horizontal putlogs lashed with rope, plank walkways, a small treadwheel crane on top with a rope and pulley |
+| GAUL | a Gallic scaffold of rough lashed poles and wicker hurdles, oak ladders leaning on it, bundles of thatch and a basket of clay |
+| GREEK | a Greek scaffold of straight poles and planks with a wooden derrick and pulley hoisting a marble block |
+| EGYPT | an Egyptian earthen ramp with a wooden sledge and ropes, light reed scaffolding, baskets of mud bricks |
+| HUN | a Hunnic timber frame of poles tied with leather straps, rolled felt and hides, ropes and stakes, a cart of poles |
+| SULTAN | a Sultanate scaffold of palm trunks lashed with rope, a pulley, a wooden arch centering, stacks of fired bricks and glazed tiles |
+
+| Taille | Ajout |
+|---|---|
+| 1 | small, one storey high |
+| 2 | medium, two storeys high |
+| 3 | large, three storeys high |
+
+| Civilisation | Ouvrier |
+|---|---|
+| ROME | a Roman builder in a short belted wool tunic and sandals |
+| GAUL | a Gallic builder with long hair and a moustache, checked wool braies and a leather belt |
+| GREEK | a Greek builder in a short chiton pinned at one shoulder and a felt cap |
+| EGYPT | an Egyptian builder in a white linen shendyt kilt, shaved head, bare chest |
+| HUN | a Hunnic builder in a belted caftan, trousers, boots and a fur-trimmed cap |
+| SULTAN | a Sultanate builder in a striped robe with rolled sleeves and a turban |
+
+| Champ | Chantier |
+|---|---|
+| FARM | the first furrows being ploughed with an ox-drawn ard, a farmer sowing, stakes marking the plot |
+| LUMBER | freshly felled trees and stumps, an axeman at work, a first stack of logs and a cart |
+| QUARRY | a first cut into the rock face, wedges and mallets, a few extracted blocks on rollers |
+| IRON_MINE | a mine entrance being dug into the rock, timber props being set, baskets of ore and a pick |
+
+Coiffes civiles (colons, chefs de tribu) : | Civilisation | Coiffe |
+|---|---|
+| ROME | a short Roman haircut and a wool tunic |
+| GAUL | long braided hair, a moustache and a checked cloak |
+| GREEK | curly hair with a headband and a chiton |
+| EGYPT | a black wig with kohl-lined eyes and a linen collar |
+| HUN | a fur-trimmed cap and a caftan |
+| SULTAN | a turban and a striped robe |
 
 ### Enceinte (`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low][_snow].png`, `walls/<CIV>/<1|2|3>_tower[_snow].png`)
 
@@ -295,6 +355,8 @@ Classes (`figures/<CLASSE>_<CIV>.png` en pied, `busts/<CLASSE>[_<CIV>].png` en j
 | ARCHER | an archer with a bow and a quiver |
 | CAVALRY | a cavalryman riding a horse with a lance |
 | SIEGE | a siege engineer standing next to a catapult |
+| SETTLER | a settler villager carrying a bundle on a stick over the shoulder and holding a wooden stake with a small flag |
+| TRIBE | a fierce chieftain of a local tribe with a painted face, a fur cloak and a necklace of teeth |
 
 Héros (`heroes/<CIV>.png` sur estrade, `heroes/<CIV>_bust.png` en jeton) : héros de la civilisation avec sa coiffe, cape, épée et bouclier rond, sur un socle de pierre rond.
 
@@ -316,6 +378,10 @@ Héros (`heroes/<CIV>.png` sur estrade, `heroes/<CIV>_bust.png` en jeton) : hér
 | hero-EGYPT | a egypt hero with striped nemes headdress with a gold band, cape, sword and round shield standing on a round paved stone platform, with two torches and two banners of the faction behind him, three-quarter view |
 | hero-HUN | a hun hero with fur-trimmed pointed felt cap, cape, sword and round shield standing on a round paved stone platform, with two torches and two banners of the faction behind him, three-quarter view |
 | hero-SULTAN | a sultan hero with white turban with a gem, cape, sword and round shield standing on a round paved stone platform, with two torches and two banners of the faction behind him, three-quarter view |
+| vignette-founding | a wide painted vignette of settlers founding a new city: a covered ox-wagon being unloaded, a man planting a wooden stake with a small flag, tents, stakes and rope marking the future walls, a priest pouring a libation, green hills at dawn |
+| vignette-tribe-forest | a wide painted vignette of a local tribe camp in a forest clearing: round huts with thatched roofs, a palisade of stakes, a totem pole with a skull, warriors with painted faces around a campfire, smoke, late afternoon light |
+| vignette-tribe-desert | a wide painted vignette of a local tribe camp among dunes and red rocks: hide tents, a palm tree, camels, warriors with turbans and spears around a fire, a totem with a skull, dusk light |
+| vignette-tribe-snow | a wide painted vignette of a local tribe camp in a snowy pine forest: fur-covered huts, a frozen stream, warriors in furs around a fire, smoke rising, a totem with a skull, pale winter light |
 
 ### Icônes (`ui/<nom>.png`) — un seul objet centré, lisible en petit
 
@@ -333,6 +399,7 @@ Héros (`heroes/<CIV>.png` sur estrade, `heroes/<CIV>_bust.png` en jeton) : hér
 | branch_MILITARY | a bronze sword and a spear crossed (research branch: military) |
 | branch_DEFENSE | a tower shield with a crenellated wall behind (research branch: defense) |
 | branch_LOGISTICS | a loaded cart wheel and a signpost (research branch: logistics) |
+| settler | a villager walking with a bundle on a stick over the shoulder and a wooden stake with a small flag in the other hand (settler founding a new city) |
 | wood | a bundle of cut logs |
 | stone | a block of grey stone |
 | iron | a stack of iron ingots |
@@ -379,6 +446,7 @@ Héros (`heroes/<CIV>.png` sur estrade, `heroes/<CIV>_bust.png` en jeton) : hér
 | tree | a pine tree |
 | amphora | a clay amphora |
 | tools | a crossed hammer and pickaxe |
+| tribe | a wooden totem pole topped with a skull and two crossed clubs (local tribe) |
 
 Objets du héros (`ui/item_<clé>.png`) : iron_sword, steel_sword, bronze_helm, iron_helm, leather_armor, chain_mail, iron_boots, war_boots, gold_ring, war_amulet, wooden_shield, iron_shield, leather_pants, chain_legs, crate — l'objet seul, centré, vue trois-quarts.
 

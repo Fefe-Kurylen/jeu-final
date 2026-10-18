@@ -237,10 +237,10 @@ Réglages appliqués :
   ramenés au barème au démarrage.
 - Notification du résultat quand le combat se résout à l'arrivée de l'armée, comme pour les attaques de ville.
 
-Le cadre reste celui du GDD et de Travian (tribus fixes sur les points, décision confirmée). Écarts restants avec le GDD, à
-décider (`docs/BACKLOG.md`) : plusieurs alliés sur un même point, stock exact visible
-seulement après espionnage, ville secondaire fondée sur un point (Résidence et colons), et une armée qui tient un point est
-aujourd'hui inattaquable. Graphismes : les camps n'avaient aucun visuel prévu ; 18 sprites sont ajoutés aux listes
+Le cadre reste celui du GDD et de Travian (tribus fixes sur les points, décision confirmée). Les écarts relevés avec le GDD
+ont été tranchés depuis : alliés sur un même point, stock approximatif et armée tenant un point attaquable (§ 9 bis), ville
+secondaire fondée sur un point (§ 10) ; seul l'espionnage d'un point pour en connaître le stock exact reste au
+`docs/BACKLOG.md`. Graphismes : les camps n'avaient aucun visuel prévu ; 18 sprites sont ajoutés aux listes
 (`map/camps/`, niveaux 1 à 3 par biome, ruines, bannières de tribu) et la carte les affiche dès qu'ils sont livrés.
 
 ### 9 bis. Points de ressource : décisions appliquées (octobre 2026)
@@ -257,3 +257,25 @@ aujourd'hui inattaquable. Graphismes : les camps n'avaient aucun visuel prévu ;
   multipliée par 0,5 au bord de la carte et 1,3 au centre, linéairement avec la distance. Un premier camp de niveau 1 au
   bord demande ≈ 57 unités de base, un camp de niveau 3 au centre ≈ 3 900. Le renfort horaire des tribus et la
   réapparition suivent la même règle.
+
+## 10. Villes secondaires : colons, fondation, bonus (octobre 2026)
+
+Valeurs du GDD, appliquées sans changement (`data/buildings.json` RESIDENCE, `config.city.foundationTransport`).
+
+| Élément | Valeur | Ce que ça coûte au joueur |
+|---|---|---|
+| Résidence (capitale, Hôtel de ville 5) | niveau 1 : 700 bois, 500 pierre, 300 fer, 1 200 nourriture, 33 min ; courbes ×1,28 / ×1,2 | niveau 10 cumulé ≈ 104 000 ressources et 14 h de chantier ; niveau 15 ≈ 382 000 et 40 h ; niveau 20 ≈ 1 334 000 et 103 h |
+| Colons | 1 au niveau 10, 2 au 15, 3 au 20 (3 colonies au plus) ; formation 3 h, gratuite, un à la fois | la Résidence est le vrai prix de la colonie |
+| Fondation | 3 000 de chaque ressource transportées + 24 h sur place, l'armée immobilisée | 12 000 ressources, ≈ 2 jours de production des champs de départ |
+| Colonie | Hôtel de ville 1, garnison, 3 000 de chaque, +20 % de production | base 6 / 6 / 6 / 12 par heure avant les champs |
+
+Lecture : la première colonie arrive quand la capitale a déjà une Résidence 10, soit environ au moment où ses champs de
+niveau 8 à 10 produisent 1 000 à 1 500 de chaque ressource par heure ; les 12 000 de la fondation représentent alors moins
+d'une journée. Le +20 % d'une colonie développée comme la capitale (4 champs de niveau 10 par ressource ≈ 1 400/h) vaut
+≈ 280/h par ressource, soit le prix de la fondation en ≈ 11 h de production de la colonie elle-même ; la Résidence 10
+(104 000) est amortie en ≈ 4 jours par ce seul bonus, sans compter les champs supplémentaires. Le rythme reste celui de
+Travian : première colonie après plusieurs jours, troisième après plusieurs semaines (Résidence 20 ≈ 1,3 M).
+
+Risques : le colon est perdu si l'armée fondatrice est battue sur le point pendant les 24 h ; les 12 000 ressources
+rentrent avec l'armée si elle n'est pas battue. Rien n'est changé aux autres systèmes : les restrictions de bâtiments
+(capitale / colonie) suivent les données, le point occupé par une ville sort des tirages de tribus et de récolte.

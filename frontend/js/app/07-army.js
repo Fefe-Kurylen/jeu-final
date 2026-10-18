@@ -178,7 +178,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'SPYING': { icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">', label: 'Espionnage', cls: 'moving' },
     'TRANSPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">', label: 'Transport', cls: 'moving' },
     'EXPEDITION': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'Expédition', cls: 'moving' },
-    'HARVESTING': { icon: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">', label: 'Récolte', cls: 'harvesting' }
+    'HARVESTING': { icon: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">', label: 'Récolte', cls: 'harvesting' },
+    'FOUNDING': { icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', label: 'Fondation', cls: 'moving' }
   };
   const status = statusMap[army.status] || { icon: '', label: army.status, cls: 'unknown' };
   
@@ -236,6 +237,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           </div>
           <div class="harvest-carry">
             <span class="carry-label">Transporté:</span>
+            ${(army.settlers || 0) > 0 ? `<span class="carry-value">${typeof settlerIcon === 'function' ? settlerIcon() : resIconHtml('city')} ${army.settlers} colon${army.settlers > 1 ? 's' : ''}</span>` : ''}
             <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}${army.carryGold ? ` + <img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> ${formatNum(army.carryGold)}` : ''}</span>
           </div>
         </div>

@@ -48,8 +48,8 @@ d'une **même alliance partagent un point** (récolte partagée à parts égales
 **stock n'est connu que par quarts** (plein, bien garni, à moitié, entamé, presque vide ; jauge sur la carte), l'espionnage
 des points reste à faire ; les camps **varient de ± 20 %** d'un camp à l'autre (les « étoiles » du GDD) et leur taille suit
 la **difficulté de la position** : × 0,5 aux bords de la carte, où les joueurs apparaissent (camp de niveau 1 ≈ 50
-soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). La ville secondaire fondée sur un point viendra avec le
-chapitre des villes multiples. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
+soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). Une ville secondaire se fonde sur un point libéré de sa tribu
+(section « Villes secondaires ») : le point disparaît de la carte tant que la ville existe. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
 
 ## Héros
 
@@ -104,8 +104,41 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Bonus de civilisation | Relevés de 5 points en octobre 2026 à la demande (Rome −15 % pertes en siège et +10 % défense, Gaule +15 % cachette et +20 % défense chez soi, Grèce −15 % temps de construction et +15 % blessés, Égypte +15 % transport et +25 % PV des murs, Huns +20 % vitesse et +10 % attaque en siège, Sultanat +25 % dégâts des engins et +15 % attaque en défense) puis défense gauloise chez soi portée à 20 % et transport égyptien à 20 % | Simulation avant/après dans `docs/EQUILIBRAGE.md` § 7 : classement inchangé, Rome et le Sultanat renforcés ; textes client lus depuis les données |
 | Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; l'élite devient le meilleur rapport puissance / entretien, l'intermédiaire le meilleur rapport puissance / ressources, voir `docs/EQUILIBRAGE.md` |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
-| Forge, Ambassade, Chambre, Domus, Résidence (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Non appliqué : une seule ville par joueur aujourd'hui | Sans effet tant que les villes secondaires n'existent pas |
-| Résidence (colons), Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+| Forge, Ambassade, Chambre, Domus, Résidence (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction | Voir la section « Villes secondaires » |
+| Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
+| Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+
+## Villes secondaires (octobre 2026)
+
+Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
+`FOUND_SECONDARY_CITY`) :
+
+- **Colons** : la Résidence, réservée à la capitale (Hôtel de ville 5), forme des colons gratuits en 3 h
+  (`POST /api/city/:id/settlers`) : 1 colon au niveau 10, 2 au niveau 15, 3 au niveau 20, chaque colon valant une ville
+  secondaire (villes existantes + colons prêts + colons en route + colons en formation ≤ places). Le colon attend dans la
+  capitale (`City.settlers`), onglet « Colons » de la Résidence.
+- **Fondation** (`POST /api/army/:id/found-city { resourceNodeId, name }`) : une armée de la capitale (unités obligatoires)
+  emmène un colon et 3 000 de chaque ressource, prélevés dans la capitale, vers un point de ressource libre (ni tribu, ni
+  armée, ni ville). À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec
+  son Hôtel de ville niveau 1, sa garnison et les 3 000 de chaque ressource (le stock de départ reste disponible même au-dessus
+  du dépôt de 1 000 : la production ne fait jamais baisser un stock), et l'armée rentre. Si le point n'est plus libre à
+  l'arrivée, l'armée rentre avec le colon et les ressources.
+- **Vulnérabilité** : pendant les 24 h, l'armée fondatrice tient le point comme une récolteuse et peut être attaquée
+  (« Attaquer l'armée qui tient le point ») ; battue, elle rentre **sans le colon** (règle `settlerVulnerable`). Un rappel
+  volontaire ramène le colon et les ressources.
+- **Le point sous la ville** : il garde `cityId`, disparaît de la carte et des tirages (pas de récolte, de régénération, de
+  renfort de tribu ni de réapparition) ; il redevient libre, tribu comprise, quand la ville disparaît (suppression du compte).
+- **Bonus** : une ville secondaire produit +20 % (SQL de production et affichage client).
+- **Restrictions** : Forge, Ambassade, Chambre au trésor, Domus et Résidence seulement dans la capitale ; Grande Caserne et
+  Grande Écurie seulement dans les colonies (refus serveur, mention dans la liste de construction).
+- **Interface** : onglet « Colons » (places, colons prêts / en route / en formation, file, formation), bouton « Fonder une
+  ville » dans la bulle d'un point libre (choix de l'armée, nom), statut « Fondation » et nombre de colons sur la carte
+  d'armée, « Ville en fondation par … » dans la bulle du point, sélecteur de villes. Icône du colon à produire
+  (`ui/settler`, guide § S9), repli sur l'icône de ville en attendant ; cortège, campement de fondation, colonie et portrait du colon : guide § S12.
+- **Limites** : trois villes secondaires au plus (`config.city.maxSecondaryCities`) ; pas de déplacement de capitale ni de
+  conquête de colonie (`docs/BACKLOG.md`).
+- **Chantiers** : les sprites peints de bâtiment en construction, d'échafaudage par civilisation et de champ en chantier
+  (`docs/GRAPHISMES-MANQUANTS.md` § 1) sont branchés dans la scène de ville ; sans image livrée, le bâtiment clignote comme avant.
 
 ## Interface
 

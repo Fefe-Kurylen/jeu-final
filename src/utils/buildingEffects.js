@@ -75,6 +75,22 @@ const effects = {
   productionBonusKeys: () => [['EGYPTIAN_IRRIGATION', effectOf('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel')]],
   upkeepReductionKeys: () => [['HUN_WAR_TENT', effectOf('HUN_WAR_TENT', 'upkeepReductionPctPerLevel')], ['SULTAN_DESERT_OUTPOST', effectOf('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')]],
   transportBonusKeys: () => [['MARKET', effectOf('MARKET', 'playerTransportBonusPctPerLevel')], ['TRADE_OFFICE', effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')]],
+  // Secondary cities (GDD): settlers unlocked by the Residence (1 at L10, 2 at L15, 3 at L20), training time, foundation
+  // time, production bonus of a secondary city
+  settlerSlots: (residenceLevel) => {
+    const L = residenceLevel || 0;
+    if (L >= 20) return effectOf('RESIDENCE', 'unlockSettlerL20', 3);
+    if (L >= 15) return effectOf('RESIDENCE', 'unlockSettlerL15', 2);
+    if (L >= 10) return effectOf('RESIDENCE', 'unlockSettlerL10', 1);
+    return 0;
+  },
+  settlerTrainTimeSec: () => effectOf('RESIDENCE', 'settlerTrainTimeSec', 10800),
+  settlerCost: () => defOf('RESIDENCE')?.effects?.settlerCost || { wood: 0, stone: 0, iron: 0, food: 0 },
+  cityFoundationTimeSec: () => effectOf('RESIDENCE', 'cityFoundationTimeSec', 86400),
+  secondaryCityBonusPct: () => effectOf('RESIDENCE', 'secondaryCityBonusPct', 20),
+  // Buildings reserved to the capital or to secondary cities (data flags)
+  capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
+  notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
   levelOf
 };
 

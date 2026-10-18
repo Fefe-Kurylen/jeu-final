@@ -110,11 +110,13 @@ function getCityProduction(city) {
     if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
     if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
   });
+  // Ville secondaire : +20 % (données de la Résidence, comme le serveur)
+  const colony = city && city.isCapital === false ? 1 + ((window.buildingsData?.find(b => b.key === 'RESIDENCE')?.effects?.secondaryCityBonusPct) || 20) / 100 : 1;
   return {
-    wood: 5 + fields.wood * (1 + bonus.wood / 100),
-    stone: 5 + fields.stone * (1 + bonus.stone / 100),
-    iron: 5 + fields.iron * (1 + bonus.iron / 100),
-    food: 10 + fields.food * (1 + bonus.food / 100)
+    wood: (5 + fields.wood * (1 + bonus.wood / 100)) * colony,
+    stone: (5 + fields.stone * (1 + bonus.stone / 100)) * colony,
+    iron: (5 + fields.iron * (1 + bonus.iron / 100)) * colony,
+    food: (10 + fields.food * (1 + bonus.food / 100)) * colony
   };
 }
 
@@ -1076,6 +1078,12 @@ function fieldSpriteUrl(type, level) {
 }
 // Parcelle au sol du biome (sous chaque bâtiment et pour les emplacements vides), deux variantes
 function plotSpriteUrl(variant = 0) { return art(`plots/${cityBiome()}_${variant & 1}.webp`); }
+// Chantiers peints (docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § S10-S11) : bâtiment en construction, échafaudage de la civilisation,
+// champ en chantier ; null tant que l'image n'est pas livrée (le code garde alors le clignotement et le marteau)
+function paintedUrl(p) { return typeof paintedSet !== 'undefined' && paintedSet.has(p) ? 'assets/images/painted/' + p : null; }
+function buildingSiteUrl(key) { return paintedUrl(`buildings/${player?.faction || 'ROME'}/${key}_site.webp`); }
+function scaffoldUrl(level) { return paintedUrl(`props/scaffold_${player?.faction || 'ROME'}_${buildingTier(level)}.webp`); }
+function fieldSiteUrl(type) { return paintedUrl(`fields/${cityBiome()}/${type}_site.webp`); }
 
 // Vignette 3D d'un bâtiment (sprite de la vue ville, architecture de la faction) pour les panneaux générés en HTML
 function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }

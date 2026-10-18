@@ -10,7 +10,9 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
   const level = building?.level || 0;
   // Sprite 2.5D (assets/images/3d/fields/<biome>/<TYPE>_<palier>.webp) : largeur 1,5·size, losange au sol de
   // ±0.577·size en x et ±0.288·size en y qui recouvre la cellule ; l'ombre portée fait partie du rendu
-  const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : null;
+  // Champ en chantier peint (guide § S10) : à la place de la parcelle vide pendant la première construction
+  const siteUrl = isBuilding && level === 0 && typeof fieldSiteUrl === 'function' ? fieldSiteUrl(fieldType) : null;
+  const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : (siteUrl ? getSprite(siteUrl) : null);
   if (isHovered) {   // halo doré au sol
     cityCtx.fillStyle = 'rgba(255,215,0,0.2)';
     cityCtx.beginPath(); cityCtx.ellipse(x, y, size * 0.85, size * 0.45, 0, 0, Math.PI * 2); cityCtx.fill();

@@ -19,6 +19,7 @@ const UNIT_CLASS = Object.fromEntries((Array.isArray(unitsData) ? unitsData : (u
 const CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
 function mainUnitSprite(army, units) {
   if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
+  if (army.missionType === 'FOUND') return 'settler';   // settlers' party: painted sprite when delivered, the merchant cart otherwise
   let best = null;
   for (const u of units || []) if (!best || u.count > best.count) best = u;
   return (best && CLASS_SPRITE[UNIT_CLASS[best.unitKey]]) || 'hoplite';
@@ -74,10 +75,10 @@ router.get('/map/viewport', auth, async (req, res) => {
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
       select: { id: true, name: true, x: true, y: true, isCapital: true, playerId: true, buildings: { where: { key: 'WALL' }, select: { level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
-      liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } } }),
+      liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
         where: {
-          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING'] },
+          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING'] },
           OR: [
             { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
@@ -97,8 +98,8 @@ router.get('/map/viewport', auth, async (req, res) => {
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)
     const holdersByNode = {};
     if (nodes.length) {
-      const held = await prisma.army.findMany({ where: { status: 'HARVESTING', targetResourceId: { in: nodes.map(n => n.id) } }, select: { targetResourceId: true, ownerId: true, owner: { select: { name: true, alliance: { select: { allianceId: true } } } } } });
-      for (const a of held) (holdersByNode[a.targetResourceId] ||= []).push({ playerId: a.ownerId, name: a.owner?.name, allianceId: a.owner?.alliance?.allianceId || null });
+      const held = await prisma.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: { in: nodes.map(n => n.id) } }, select: { targetResourceId: true, ownerId: true, status: true, owner: { select: { name: true, faction: true, alliance: { select: { allianceId: true } } } } } });
+      for (const a of held) (holdersByNode[a.targetResourceId] ||= []).push({ playerId: a.ownerId, name: a.owner?.name, allianceId: a.owner?.alliance?.allianceId || null, founding: a.status === 'FOUNDING', faction: a.owner?.faction || null });
     }
     const quantize = (amount, max) => (max > 0 ? Math.round(Math.round(amount / max * 4) / 4 * max) : amount);
     const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [] }));

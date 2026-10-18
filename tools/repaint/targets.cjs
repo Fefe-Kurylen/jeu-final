@@ -38,7 +38,7 @@ function frameOfFile(file) {
   if (/^scenes\/auth-portrait/.test(file)) return 'sceneP';
   if (/^scenes\/auth-landscape/.test(file)) return 'sceneL';
   if (/^scenes\/hero-/.test(file)) return 'stage';
-  if (/^scenes\/header-/.test(file)) return 'header';
+  if (/^scenes\/(header|vignette)-/.test(file)) return 'header';
   if (/^scenes\/battlefield/.test(file)) return 'battlefield';
   if (/^ui\/btn-/.test(file)) return 'button';
   if (/^ui\/frame-/.test(file)) return 'frame';
@@ -113,13 +113,38 @@ add('props/scroll_research.webp', 'prop', 'Parchemin « recherche en cours » au
 // Technologies : une icône par technologie (cartes de l'onglet Recherche, fiches) et par branche
 for (const k of ['AGRONOMY', 'ENGINEERING', 'TRAINING', 'TACTICS', 'DISCIPLINE', 'MEDICINE', 'CARTOGRAPHY', 'SUPPLY']) add(`ui/tech_${k}.webp`, 'icon', `Icône de la technologie ${k} (onglet Recherche de l'Académie, fiche)`);
 for (const k of ['ECONOMY', 'MILITARY', 'DEFENSE', 'LOGISTICS']) add(`ui/branch_${k}.webp`, 'icon', `Icône de la branche de recherche ${k}`);
+add('ui/settler.webp', 'icon', 'Icône du colon (onglet Colons de la Résidence, carte d\'armée, bouton « Fonder une ville » de la carte)');
 for (const c of CIVS) add(`ui/crest_${c}.webp`, 'icon', `Blason de ${CIV_FR[c]}`);
+
+// ---- villes secondaires, tribus, chantiers (octobre 2026 ; docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § S10-S15) ----
+// Chantiers : chaque bâtiment en construction, par civilisation ; le guide de composition est le rendu 3D du bâtiment fini
+// (même emprise, même cadrage) ; les champs en chantier par biome ; l'enceinte en chantier
+const SITE_SKIP = ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WALL', 'MOAT'];
+for (const c of CIVS) for (const b of buildingsData) {
+  if (SITE_SKIP.includes(b.key) || (b.faction && b.faction !== c)) continue;
+  EXTRAS.push({ file: `buildings/${c}/${b.key}_site.webp`, cat: 'buildings', frame: 'building', fit: 'canvas', guide: true, guideFile: `buildings/${c}/${b.key}.webp`, site: true, role: `Chantier « ${b.name} » de ${CIV_FR[c]} : à la place du bâtiment pendant sa première construction (techniques de chantier de ${CIV_FR[c]})` });
+}
+for (const biome of ['forest', 'desert', 'snow']) for (const k of ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE']) add(`fields/${biome}/${k}_site.webp`, 'field', `Champ « ${bName(k)} » en chantier (biome ${biome}) : à la place de la parcelle vide pendant la première construction`, { fit: 'canvas', guide: true, guideFile: `fields/${biome}/${k}_1.webp`, site: true });
+for (const c of CIVS) for (const k of ['seg_x', 'seg_z', 'tower']) add(`walls/${c}/site_${k}.webp`, 'building', `Enceinte de ${CIV_FR[c]} en chantier : ${k === 'tower' ? 'tour d\'angle' : 'courtine'} en travaux (premier palier du Mur)`, { guide: true, guideFile: `walls/${c}/1_${k}.webp`, site: true });
+// Colons et villes secondaires : cortège sur la carte (+ cycle de marche), campement de fondation, colonie, portraits, vignette
+add('map/units/settler.webp', 'map', 'Carte du monde : cortège de colons en marche (armée partie fonder une ville ; charrette du marchand tant que ce sprite manque)');
+for (const c of CIVS) add(`map/units/settler_${c}.webp`, 'map', `Carte du monde : cortège de colons de ${CIV_FR[c]}`);
+anim('map/units/settler_walk', 6, 'map', 'Cycle de marche sur la carte : cortège de colons');
+for (const b of ['', '_desert', '_snow']) add(`map/camps/foundation${b}.webp`, 'map', `Carte du monde : campement de fondation${b ? ` (${b.slice(1)})` : ''} pendant les 24 h de fondation d'une ville (remplace l'icône du point)`);
+for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}.webp`, 'map', `Carte du monde : ville secondaire (colonie) de ${CIV_FR[c]}, plus petite que la ville de départ`);
+for (const c of CIVS) add(`busts/SETTLER_${c}.webp`, 'bust', `Portrait du colon de ${CIV_FR[c]} (onglet Colons de la Résidence, modale de fondation, carte d'armée)`);
+add('scenes/vignette-founding.webp', 'header', 'Vignette « fondation d\'une ville » (onglet Colons, modale de fondation)');
+// Tribus des points de ressource : chefs (rapports, bulle), vignettes des rapports, icône
+for (const c of CIVS) add(`busts/TRIBE_${c}.webp`, 'bust', `Chef de la tribu locale ${CIV_FR[c]} (rapports de combat contre une tribu, bulle du point)`);
+for (const b of ['forest', 'desert', 'snow']) add(`scenes/vignette-tribe-${b}.webp`, 'header', `Vignette du camp d'une tribu locale (${b}) en tête des rapports « Combat contre la tribu »`);
+add('ui/tribe.webp', 'icon', 'Icône « tribu locale » (bulle du point, rapports, listes)');
 for (const d of ['forest', 'desert', 'mountain', 'ruins']) add(`scenes/expedition-${d}.webp`, 'header', `Vignette de destination d'expédition : ${d}`);
 add('ui/btn-round.webp', 'frame', 'Bouton rond des bulles d\'action'); add('ui/btn-round-pressed.webp', 'frame', 'Bouton rond des bulles d\'action, enfoncé');
-for (const k of [1, 2, 3]) add(`props/scaffold_${k}.webp`, 'building', `Échafaudage de chantier, taille ${k} (paliers ${['1-6', '7-13', '14-20'][k - 1]})`);
+// Échafaudages génériques par civilisation (posés sur un bâtiment amélioré, ou sur un nouveau bâtiment sans sprite de chantier)
+for (const c of CIVS) for (const k of [1, 2, 3]) add(`props/scaffold_${c}_${k}.webp`, 'building', `Échafaudage de chantier de ${CIV_FR[c]}, taille ${k} (paliers ${['1-6', '7-13', '14-20'][k - 1]}) : posé sur le bâtiment en travaux`);
 for (const v of ['a', 'b', 'c']) anim(`props/villager_${v}`, 6, 'prop', `Villageois ${v} qui marche dans la ville`);
 anim('props/flame', 4, 'prop', 'Flamme de torche (tours, porte, remparts)'); anim('props/brazier', 4, 'prop', 'Brasero de la plaza');
-anim('props/worker', 4, 'prop', 'Ouvrier de chantier au marteau');
+for (const c of CIVS) anim(`props/worker_${c}`, 4, 'prop', `Ouvrier de chantier de ${CIV_FR[c]} au marteau`);
 anim('anim/mill_sails', 6, 'fx', 'Ailes du moulin'); anim('anim/sparks', 4, 'fx', 'Étincelles de la forge'); anim('anim/furnace', 4, 'fx', 'Feu de la fonderie');
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult', 'merchant']) anim(`map/units/${u}_walk`, 6, 'map', `Cycle de marche sur la carte : ${u}`);
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
@@ -168,7 +193,8 @@ function buildIndex(all) {
   const byKey = new Map();
   for (const t of all) byKey.set(t.file.replace(/\.webp$/, '').toLowerCase(), t);
   const anims = new Map();   // base -> { base, n, frame, fit, targets[] }
-  for (const t of all) if (t.anim) { const a = anims.get(t.anim.base) || { base: t.anim.base, n: t.anim.n, frame: t.frame, fit: t.fit, targets: [] }; a.targets[t.anim.i] = t; anims.set(t.anim.base, a); }
+  // Keyed by the lowercased base so that a delivered strip resolves whatever the case (props/worker_EGYPT, heroes/ROME_idle)
+  for (const t of all) if (t.anim) { const key = t.anim.base.toLowerCase(); const a = anims.get(key) || { base: t.anim.base, n: t.anim.n, frame: t.frame, fit: t.fit, targets: [] }; a.targets[t.anim.i] = t; anims.set(key, a); }
   return { byKey, anims };
 }
 // Résout un fichier livré : { target } pour une image simple, { strip } pour une bande d'animation, { store } pour un visuel de boutique
