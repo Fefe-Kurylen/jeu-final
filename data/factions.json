@@ -50,8 +50,8 @@
       "bonuses": [
         {
           "type": "transportCapacity",
-          "value": 15,
-          "description": "+15% capacité de transport des unités"
+          "value": 20,
+          "description": "+20% capacité de transport des unités"
         },
         {
           "type": "wallHealth",
