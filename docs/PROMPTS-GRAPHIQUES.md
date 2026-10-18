@@ -96,6 +96,8 @@ Palier 3 : `Repaint the subject shown in the second image (a plain 3D render use
 
 ### Les 39 bâtiments (`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png`)
 
+**Orientation** : l'entrée principale de chaque bâtiment est sur sa face avant droite, vers le bas à droite de l'image (sud-est, côté porte de la ville), comme dans le guide 3D. Phrase ajoutée à chaque prompt de bâtiment : « Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door. »
+
 | Clé | Sujet |
 |---|---|
 | MAIN_HALL | the main hall, the seat of power of the city, with a banner on top |
@@ -526,7 +528,7 @@ Repaint the subject shown in the second image (a plain 3D render used as a layou
 
 Composition: square image. The building stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center is at 73% of the image height and its bottom corner at 86%; the building rises from the plot toward the top and never goes outside the plot footprint.
 
-Subject: the main hall, the seat of power of the city, with a banner on top. Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires.
+Subject: the main hall, the seat of power of the city, with a banner on top. Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires. Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.
 ```
 
 Caserne gauloise, palier 1, enneigée :
@@ -537,7 +539,7 @@ Repaint the subject shown in the second image (a plain 3D render used as a layou
 
 Composition: square image. The building stands on a square ground plot seen as a 2:1 diamond, centered horizontally; the diamond is about 51% of the image width, its center is at 73% of the image height and its bottom corner at 86%; the building rises from the plot toward the top and never goes outside the plot footprint.
 
-Subject: a military barracks with a training yard, weapon racks and a banner. Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels. This is the LEVEL 1 version of the building, as in a mobile strategy game where buildings evolve with their level: noticeably smaller and humbler, a single low storey of rough timber, wattle and plain plaster, a simple thatched or wooden-shingle roof, no decoration, a few crates, barrels or tools around, slightly worn. Everything is covered with a layer of snow: snow on the roofs, ledges and ground.
+Subject: a military barracks with a training yard, weapon racks and a banner. Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels. This is the LEVEL 1 version of the building, as in a mobile strategy game where buildings evolve with their level: noticeably smaller and humbler, a single low storey of rough timber, wattle and plain plaster, a simple thatched or wooden-shingle roof, no decoration, a few crates, barrels or tools around, slightly worn. Everything is covered with a layer of snow: snow on the roofs, ledges and ground. Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.
 ```
 
 Chaîne de montagnes (variante _xy) :

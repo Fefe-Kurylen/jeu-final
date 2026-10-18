@@ -245,6 +245,8 @@ for (const civ of FACTIONS) {
 
 Architecture à ajouter à chaque prompt : *${ARCHI[civ]}*
 
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
 `;
@@ -348,6 +350,7 @@ Généré par \`node tools/liste-graphismes.cjs\` ; s'actualise à chaque import
 - **Animations** : **une seule image par animation**, bande horizontale de N cases égales côte à côte (N = nombre de phases), même personnage, même taille, même position dans chaque case, seule la pose change ; taille d'une case indiquée dans la ligne (512×768 pour les décors et personnages de ville, 512×512 pour les unités de carte et les effets) ; nommer la bande du nom de base sans numéro de phase (\`props/villager_a.png\` ou \`props/villager_a_strip.png\` pour \`villager_a_0..5\`), je découpe.
 - **Portes \`walls/<CIV>/gate.png\`** : une seule porte par civilisation, valable pour tous les niveaux du Mur ; style du palier 2 de l'enceinte (\`walls/<CIV>/2_tower\`, \`2_seg_z\`, la face sud-est où la porte s'insère) ; même cadrage que les tours (losange au sol 2:1 à 51 % de la largeur, centre à 73 % de la hauteur), porte vue de face droite (arête sud-est), ouverture vers le bas-droit, battants ouverts, deux tourelles, torches ; 1024×1024.
 - **Bannière Google Play \`store/feature-graphic.png\`** (1024×500, opaque) : ville fortifiée des six civilisations sur un plateau vert à l'heure dorée, un héros romain au casque à crête rouge au premier plan à gauche, bannières et soldats en marche, palette chaude ; le tiers droit reste calme pour le titre, que j'ajoute ensuite (aucun texte dans l'image).
+- **Bâtiments, orientation** : l'entrée principale (porte, porche, perron, portail) est sur la face avant droite, vers le bas à droite de l'image : le sud-est, côté porte de la ville. Les guides 3D sont orientés ainsi ; la face avant gauche n'a pas de porte principale.
 - **Chantiers** (\`<CLÉ>_site\`) : même emprise et même silhouette que le bâtiment fini (le kit fournit son rendu comme guide), à moitié construit, techniques de la civilisation (guide § S10).
 
 | Étape | Contenu | Images |

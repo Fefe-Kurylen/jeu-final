@@ -85,15 +85,17 @@ générateur automatique (une ligne par image ou par bande d'animation : fichier
 ${Object.entries(comp).map(([k, v]) => `| ${k} | ${v} |`).join('\n')}
 
 6. **Tailles de livraison** : ${Object.entries(T.DELIVERY).map(([k, v]) => `${k} ${v.replace('x', '×')}`).join(' · ')} ; les scènes de connexion et les estrades de héros 1024×1536, les bandeaux et vignettes 1536×1024 ; bannière Google Play 1024×500 ; icône de notification 96×96.
-7. **Nommage** : exactement le nom indiqué, extension \`.png\`, sous-dossiers respectés (\`buildings/ROME/MAIN_HALL.png\`).
-8. **Animations** : **une seule image par animation**, bande horizontale de N cases égales côte à côte (N = nombre de phases),
+7. **Orientation des bâtiments** : l'entrée principale de chaque bâtiment et de chaque chantier est sur sa face avant droite,
+   vers le bas à droite de l'image (sud-est, côté porte de la ville), comme dans les guides 3D ; la phrase est incluse dans leurs prompts.
+8. **Nommage** : exactement le nom indiqué, extension \`.png\`, sous-dossiers respectés (\`buildings/ROME/MAIN_HALL.png\`).
+9. **Animations** : **une seule image par animation**, bande horizontale de N cases égales côte à côte (N = nombre de phases),
    même personnage, même taille, même position dans chaque case, seule la pose change ; cases 512×768 (ville) ou 512×512
    (carte, effets) ; nommer la bande du nom de base sans numéro (\`props/villager_ROME_a.png\` pour \`villager_ROME_a_0..5\`),
    elle est découpée à l'import. Phrase incluse dans le prompt : « A sprite sheet: N equal frames side by side… ».
-9. **Livraison** : dossier ou zip dans \`art/incoming/\`, par lots ; vérification \`node tools/check-incoming.cjs art/incoming\`
+10. **Livraison** : dossier ou zip dans \`art/incoming/\`, par lots ; vérification \`node tools/check-incoming.cjs art/incoming\`
    (noms, tailles, transparence, cases des bandes) ; import \`node tools/repaint.cjs --import=art/incoming\` ; aperçu en jeu
    \`node tools/preview-art.cjs <CIV> <biome>\`. Ce qui manque garde son rendu 3D ou son dessin provisoire.
-10. **Ordre conseillé** : ce qui se voit tout le temps (bâtiments courants, champs, enceinte et portes, sols, interface, carte),
+11. **Ordre conseillé** : ce qui se voit tout le temps (bâtiments courants, champs, enceinte et portes, sols, interface, carte),
     puis la vie de la ville (échafaudages, ouvriers, villageois, flammes, bâtiments vivants), les systèmes récents (camps,
     colons, technologies, chantiers), les fiches (unités, héros), le reste (paliers 1 et 3, ambiance, météo, douves).
 

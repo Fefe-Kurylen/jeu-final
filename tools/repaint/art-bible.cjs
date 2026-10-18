@@ -75,6 +75,8 @@ ${table(['Clé', 'Architecture'], Object.entries(P.FACTION))}
 ${table(['Clé', 'Coiffe'], Object.entries(P.HEAD))}
 ### Les 39 bâtiments (\`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`)
 
+**Orientation** : l'entrée principale de chaque bâtiment est sur sa face avant droite, vers le bas à droite de l'image (sud-est, côté porte de la ville), comme dans le guide 3D. Phrase ajoutée à chaque prompt de bâtiment : « ${P.ENTRANCE} »
+
 ${table(['Clé', 'Sujet'], Object.entries(P.BUILDING))}
 Paliers : **_t1** (niveaux 1-6) « ${P.TIER[1]} », version niveau 1 de jeu mobile (hutte basse de bois, sans ornement) ;
 courant (7-13) ; **_t3** (14-20) version niveau max (étage ou tour en plus, marbre, or, bannières, esplanade). **_snow** : tout est enneigé.

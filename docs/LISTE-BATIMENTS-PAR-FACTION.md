@@ -19,6 +19,8 @@ Généré par `node tools/liste-graphismes.cjs`.
 
 Architecture à ajouter à chaque prompt : *Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae*
 
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
 | 1 | `MAIN_HALL` | Bâtiment principal | the main hall, the seat of power of the city, with a banner on top | — | ✅ | ☐ | ☐ |
@@ -59,6 +61,8 @@ Architecture à ajouter à chaque prompt : *Roman architecture: pale sandstone a
 ## Gaule (`buildings/GAUL/`) — 68 images à produire sur 102 (34 peintes)
 
 Architecture à ajouter à chaque prompt : *Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels*
+
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -101,6 +105,8 @@ Architecture à ajouter à chaque prompt : *Gallic architecture: timber and watt
 
 Architecture à ajouter à chaque prompt : *Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae*
 
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
 | 1 | `MAIN_HALL` | Bâtiment principal | the main hall, the seat of power of the city, with a banner on top | — | ☐ | ☐ | ☐ |
@@ -141,6 +147,8 @@ Architecture à ajouter à chaque prompt : *Greek architecture: white marble wal
 ## Égypte (`buildings/EGYPT/`) — 68 images à produire sur 102 (34 peintes)
 
 Architecture à ajouter à chaque prompt : *Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks*
+
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -183,6 +191,8 @@ Architecture à ajouter à chaque prompt : *Egyptian architecture: sandstone wal
 
 Architecture à ajouter à chaque prompt : *Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires*
 
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
+
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
 | 1 | `MAIN_HALL` | Bâtiment principal | the main hall, the seat of power of the city, with a banner on top | — | ☐ | ☐ | ☐ |
@@ -223,6 +233,8 @@ Architecture à ajouter à chaque prompt : *Hunnic steppe architecture: felt yur
 ## Sultanat (`buildings/SULTAN/`) — 102 images à produire sur 102 (0 peintes)
 
 Architecture à ajouter à chaque prompt : *Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns*
+
+Orientation : entrée principale sur la face avant droite (sud-est), comme le guide 3D.
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|

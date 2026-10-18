@@ -14,6 +14,8 @@ sont les mêmes que pour le reste du jeu (`docs/PROMPTS-GRAPHIQUES.md` § 1, `ar
 Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left. No text, no letters, no watermark, no ground tile under the subject.
 ```
 
+- **Orientation des bâtiments** : entrée principale sur la face avant droite (sud-est, vers la porte de la ville), comme dans les guides 3D ; phrase à ajouter aux prompts de bâtiments et de chantiers :
+  `Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.`
 - **Fond** : transparent de préférence, sinon magenta #FF00FF ou vert #00FF00 (détouré à l'import). Phrase à ajouter :
   `The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient.`
 - **Nommage** : exactement le nom indiqué, extension .png ; les phases d'une animation se numérotent `_0`, `_1`, … (comme les drapeaux `props/flag_ROME_0..7`).
