@@ -53,6 +53,8 @@ async function waitTick(label, cond, timeoutMs = 75000) {
 const unitKeyFor = (faction, cls, tier) => UNITS.find(z => z.faction === faction && z.class === cls && z.tier === tier)?.key || '';
 const addBuilding = (cityId, key, slot, level) => sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${key}',${slot},${level}) ON CONFLICT DO NOTHING`);
 const richCity = (cityId) => sql(`UPDATE "City" SET wood=50000, stone=50000, iron=50000, food=50000, "maxStorage"=100000, "maxFoodStorage"=100000 WHERE id='${cityId}'`);
+// Local test database: the shared sign-up limiter (10 per minute per address) must not fail a suite run right after another one
+try { sql('DELETE FROM "RateLimitBucket" WHERE key LIKE \'register:%\' OR key LIKE \'auth:%\''); } catch (e) { /* no SQL access */ }
 
 // ---------- AUTH ----------
 const A = await call('register A (ROME)', 'POST', '/api/auth/register', null, { email: `a${uid}@t.fr`, password: PASSWORD, name: `Alpha${uid}`, faction: 'ROME' });
@@ -188,7 +190,7 @@ const garA = sql(`SELECT id FROM "Army" WHERE "cityId"='${cityA.id}' AND "isGarr
 sql(`UPDATE "ArmyUnit" SET count=200 WHERE "armyId"='${garA}' AND "unitKey"='${infKey}'`);
 sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garA}','${unitKeyFor('ROME', 'CAVALRY', 'base')}','base',50) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=50`);
 const siegeKey = UNITS.find(z => z.faction === 'ROME' && z.class === 'SIEGE').key;
-sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garA}','${siegeKey}','siege',5) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=5`);
+sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garA}','${siegeKey}','siege',12) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=12`);
 
 // ---------- ARMIES ----------
 await call('armies list A', 'GET', '/api/armies', tA);
@@ -207,6 +209,10 @@ const clamp = await call('army set-unit 99999 (clamped to garrison)', 'POST', `/
 console.log('  clamp result:', JSON.stringify(clamp));
 await call('army set-unit back to 60', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: infKey, count: 60 });
 await call('army set-unit 2 siege', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: siegeKey, count: 2 });
+// City tiers follow the Main Hall: B (Main Hall 10) is a « Ville », 10 siege engines at least
+await call('attack a Ville (Main Hall 10) with 2 engines -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityB.id }, 400);
+assert('cities list carries the tier from the Main Hall', (await call('cities A (tier)', 'GET', '/api/cities', tA))?.find(c => c.id === cityA.id)?.cityTierName === 'Ville');
+await call('army set-unit 10 siege', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: siegeKey, count: 10 });
 await call('assign-hero (moves hero from garrison)', 'POST', `/api/army/${armyId}/assign-hero`, tA, {});
 assert('hero moved garrison -> army', sql(`SELECT count(*) FROM "Army" WHERE id='${armyId}' AND "heroId" IS NOT NULL`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE id='${garA}' AND "heroId" IS NOT NULL`) === '0');
 await call('army unassign-hero', 'POST', `/api/army/${armyId}/unassign-hero`, tA, {});
@@ -525,6 +531,15 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     const citiesNow = await call('cities A (capital + colony)', 'GET', '/api/cities', tA);
     assert('two cities listed', Array.isArray(citiesNow) && citiesNow.length === 2);
     await call('build EMBASSY in the colony -> 400 (capital only)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'EMBASSY' }, 400);
+    await call('build BARRACKS in the colony -> 400 (capital only: Great Barracks outside)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'BARRACKS' }, 400);
+    richCity(colony[0]);
+    await call('build GREAT_BARRACKS in the colony without Barracks 20 in the capital -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'GREAT_BARRACKS' }, 400);
+    sql(`UPDATE "CityBuilding" SET level=20 WHERE "cityId"='${cityA.id}' AND key='BARRACKS'`);
+    await call('build GREAT_BARRACKS in the colony (Barracks 20 in the capital) -> 200', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'GREAT_BARRACKS' });
+    sql(`UPDATE "CityBuilding" SET level=20 WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`);
+    await call('colony Main Hall above 20 -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'MAIN_HALL' }, 400);
+    assert('colony with Main Hall 20 is a Ville Fortifiée', (await call('cities A (colony tier)', 'GET', '/api/cities', tA))?.find(c => c.id === colony[0])?.cityTierName === 'Ville Fortifiée');
+    sql(`UPDATE "CityBuilding" SET level=1 WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`);
     await call('build GREAT_BARRACKS in the capital -> 400 (colonies only)', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'GREAT_BARRACKS' }, 400);
     await call('D raid-resource on a node under a city -> 400', 'POST', `/api/army/${ar.army.id}/raid-resource`, D.token, { resourceNodeId: freeNode[0] }, 400);
     assert('node under the colony hidden from the viewport', !((await call('viewport around the colony', 'GET', `/api/map/viewport?x=${colony[2]}&y=${colony[3]}&radius=2`, tA))?.resourceNodes || []).some(n => n.id === freeNode[0]));

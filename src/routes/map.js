@@ -5,7 +5,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { unitsData, buildingsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
-const { getCityTier, getCityTierName } = require('../utils/calculations');
+const { getCityTier, getCityTierName, mainHallLevelOf } = require('../utils/calculations');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 const EXPANSION_PER_PLAYER = config.map.expansionPerPlayer;
@@ -33,12 +33,14 @@ async function getWorldSize() {
 }
 
 router.get('/world/info', async (req, res) => {
+  // Rules the client displays (never computed client-side): city tiers by Main Hall level, Main Hall cap of a secondary city
+  const rules = { cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport };
   try {
     const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
     const resourceCount = await prisma.resourceNode.count();
     // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
     const factions = Object.fromEntries(Object.entries(factionsData).map(([k, f]) => [k, { name: f.name, bonuses: (f.bonuses || []).map(b => ({ type: b.type, value: b.value, description: b.description })) }]));
-    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions });
+    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules });
   } catch (e) { sendError(res, e); }
 });
 
@@ -73,7 +75,7 @@ router.get('/map/viewport', auth, async (req, res) => {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-      select: { id: true, name: true, x: true, y: true, isCapital: true, playerId: true, buildings: { where: { key: 'WALL' }, select: { level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
@@ -89,10 +91,11 @@ router.get('/map/viewport', auth, async (req, res) => {
     ]);
     const armies = movingArmies.map(({ units, ...a }) => ({ ...a, mainUnit: mainUnitSprite(a, units) }));
     const citiesWithTier = cities.map(city => {
-      const wallLevel = city.buildings[0]?.level || 0;
-      const cityTier = getCityTier(wallLevel);
+      const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
+      const mainHallLevel = mainHallLevelOf(city.buildings);
+      const cityTier = getCityTier(mainHallLevel);
       const allianceInfo = city.player?.alliance?.alliance;
-      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)

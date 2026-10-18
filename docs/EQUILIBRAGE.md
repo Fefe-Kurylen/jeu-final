@@ -279,3 +279,43 @@ Travian : première colonie après plusieurs jours, troisième après plusieurs 
 Risques : le colon est perdu si l'armée fondatrice est battue sur le point pendant les 24 h ; les 12 000 ressources
 rentrent avec l'armée si elle n'est pas battue. Rien n'est changé aux autres systèmes : les restrictions de bâtiments
 (capitale / colonie) suivent les données, le point occupé par une ville sort des tirages de tribus et de récolte.
+
+## 11. Villes secondaires : règles complètes du GDD, paliers de ville par Bâtiment principal (octobre 2026)
+
+Relecture complète du GDD (`GDD_MASTER`, `GDD_Tech_Dev_v2`, `GDD_COMPLET.md`, données des bâtiments) : le GDD ne
+plafonne pas explicitement les niveaux des villes secondaires, mais il réserve à la capitale la Forge, la Chambre au trésor,
+l'Ambassade et la Résidence, et décrit les Grandes caserne et écurie comme ce qui « permet de recruter hors capitale ».
+Règles appliquées, chiffrées par `node tools/simulate-colonies.cjs` :
+
+| Règle | Source | Effet |
+|---|---|---|
+| Caserne, Écurie, Atelier réservés à la capitale ; Grandes caserne / écurie seulement en colonie, prérequis (Caserne 20, Écurie 20) lus dans la capitale | GDD (descriptions « hors capitale ») | une colonie ne forme des troupes qu'après Caserne 20 dans la capitale : 360 777 ressources et 4,3 j de chantier cumulés ; jamais d'engins de siège hors capitale |
+| Bâtiment principal 20 au plus en colonie (30 dans la capitale) | décision (le GDD ne chiffre pas) | aucun effet sur la production (les autres bâtiments s'arrêtent à 20) ; les niveaux 21-30 restent le privilège de la capitale (population, réduction de temps déjà plafonnée) |
+| Palier de ville, enceinte et minimum d'engins de siège fixés par le Bâtiment principal (1-9 Village, 10-19 Ville, 20+ Ville Fortifiée) | décision (« le Bâtiment principal fait évoluer les murailles ») | voir ci-dessous |
+
+**Paliers de ville.** Ancienne règle : Ville = Mur 10 (15 442 ressources, 13 h), Ville Fortifiée = Mur 15 (56 525, 36 h).
+Nouvelle règle : Ville = Bâtiment principal 10 (23 157 ressources, 1,3 h de chantier brut), Ville Fortifiée = Bâtiment
+principal 20 (296 531, 9,3 h). Comme tout le monde monte le Bâtiment principal (il plafonne les autres bâtiments), le palier
+arrive dans le cours normal du développement, sans détour par un Mur que l'on ne voulait pas ; un joueur qui veut rester
+« Village » (1 engin suffit pour l'attaquer) se prive de tous les niveaux au-dessus de 9. L'attaquant d'une Ville doit
+aligner 10 engins (21 600 ressources, 10 h de fabrication sur une file, soit 93 % de ce que la cible a mis dans son
+Bâtiment principal), celui d'une Ville Fortifiée 20 engins (43 200, 15 % du Bâtiment principal 20) : l'exigence reste un
+ticket d'entrée, pas un mur de coût, et le Mur de la cible garde toute sa valeur (bonus de défense, points de vie à
+abattre, réparation). Une colonie au Bâtiment principal 20 est aussi une Ville Fortifiée.
+
+**Économie d'une colonie** (4 champs par ressource, bonus +20 %) :
+
+| Champs | Capitale, par ressource et par heure | Colonie | Gain du bonus | Coût cumulé des 16 champs |
+|---|---|---|---|---|
+| niveau 5 | 201 | 241 | +40/h | 35 144 |
+| niveau 10 | 1 405 | 1 686 | +281/h | 155 900 |
+| niveau 15 | 5 025 | 6 030 | +1 005/h | 570 840 |
+| niveau 20 | 18 005 | 21 606 | +3 601/h | 1 996 600 |
+
+Aux champs de niveau 10, le bonus seul rapporte 1 124 ressources de plus par heure : la fondation (12 000) est amortie en
+11 h, la Résidence 10 (104 201) en 3,9 j ; sans le bonus, une colonie reste une seconde ville complète. Trois colonies
+plafonnées à 20 valent donc 3 × 1,2 = 3,6 capitales en production, pour quatre fois les champs à payer : le jeu récompense
+l'expansion comme Travian, sans effet multiplicateur caché. La colonie est une ville économique ; le cœur militaire reste la
+capitale (Caserne, Écurie, Atelier, Forge, Résidence, Ambassade, Chambre au trésor, Domus), et les Grandes caserne et
+écurie n'ouvrent le recrutement en colonie qu'après plusieurs semaines. Les simulations précédentes (civilisations,
+recherche, camps) ne dépendent pas de ces règles et restent valables.

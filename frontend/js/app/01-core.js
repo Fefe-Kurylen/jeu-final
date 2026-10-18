@@ -492,6 +492,7 @@ async function loadWorldInfo() {
       const info = await res.json();
       updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
+      if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }
   } catch (e) {

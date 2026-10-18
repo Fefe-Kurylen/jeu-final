@@ -104,7 +104,8 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Bonus de civilisation | Relevés de 5 points en octobre 2026 à la demande (Rome −15 % pertes en siège et +10 % défense, Gaule +15 % cachette et +20 % défense chez soi, Grèce −15 % temps de construction et +15 % blessés, Égypte +15 % transport et +25 % PV des murs, Huns +20 % vitesse et +10 % attaque en siège, Sultanat +25 % dégâts des engins et +15 % attaque en défense) puis défense gauloise chez soi portée à 20 % et transport égyptien à 20 % | Simulation avant/après dans `docs/EQUILIBRAGE.md` § 7 : classement inchangé, Rome et le Sultanat renforcés ; textes client lus depuis les données |
 | Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; l'élite devient le meilleur rapport puissance / entretien, l'intermédiaire le meilleur rapport puissance / ressources, voir `docs/EQUILIBRAGE.md` |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
-| Forge, Ambassade, Chambre, Domus, Résidence (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction | Voir la section « Villes secondaires » |
+| Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
+| Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée et le minimum d'engins de siège suivent le Bâtiment principal (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
 | Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
 
@@ -129,8 +130,19 @@ Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/syst
 - **Le point sous la ville** : il garde `cityId`, disparaît de la carte et des tirages (pas de récolte, de régénération, de
   renfort de tribu ni de réapparition) ; il redevient libre, tribu comprise, quand la ville disparaît (suppression du compte).
 - **Bonus** : une ville secondaire produit +20 % (SQL de production et affichage client).
-- **Restrictions** : Forge, Ambassade, Chambre au trésor, Domus et Résidence seulement dans la capitale ; Grande Caserne et
-  Grande Écurie seulement dans les colonies (refus serveur, mention dans la liste de construction).
+- **Restrictions** (relecture complète du GDD, octobre 2026) : Forge (table du GDD), Chambre au trésor (`economy_config`),
+  Ambassade (`alliance.md` : « capitale uniquement »), Résidence (`resource_points.json`) et Domus seulement dans la
+  capitale ; **Caserne, Écurie et Atelier aussi** : le GDD décrit les Grandes caserne et écurie comme ce qui « permet de
+  recruter hors capitale », une colonie ne forme donc des troupes qu'avec elles (prérequis Caserne 20 / Écurie 20 lus dans
+  la capitale), et jamais d'engins de siège. Grande Caserne et Grande Écurie seulement dans les colonies. Refus serveur et
+  mention dans la liste de construction.
+- **Niveaux** : le Bâtiment principal d'une ville secondaire s'arrête au niveau 20 (`config.city.secondaryMainHallMaxLevel`,
+  la capitale seule monte à 30) ; comme il plafonne tous les autres bâtiments, une colonie ne dépasse 20 nulle part. Le GDD
+  ne chiffre pas ce plafond : décision d'octobre 2026, à ajuster en jouant.
+- **Paliers de ville et murailles** (décision d'octobre 2026) : le palier Village / Ville / Ville Fortifiée, l'aspect de
+  l'enceinte dans la scène de ville et sur la carte, et le minimum d'engins de siège de l'attaquant (1 / 10 / 20) suivent le
+  **niveau du Bâtiment principal** (1-9, 10-19, 20+ ; `config.cityTiers`), plus le niveau du Mur. Le Mur garde son rôle
+  défensif (bonus, points de vie à abattre, réparation) et reste nécessaire pour qu'une enceinte soit dessinée.
 - **Interface** : onglet « Colons » (places, colons prêts / en route / en formation, file, formation), bouton « Fonder une
   ville » dans la bulle d'un point libre (choix de l'armée, nom), statut « Fondation » et nombre de colons sur la carte
   d'armée, « Ville en fondation par … » dans la bulle du point, sélecteur de villes. Icône du colon à produire

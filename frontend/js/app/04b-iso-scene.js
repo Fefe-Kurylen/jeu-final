@@ -263,7 +263,8 @@ let isoWallFlags = [];
 function isoFlagAt(x, y, w, ix, iy, iz, h, kind) { const p = spritePointToScreen(x, y, w, ix, iy, iz); return { x: p.x, y: p.y, hpx: h * w * (30.6 / 130) / FLAG_POLE_PX, kind, seed: Math.abs(Math.round(x + y)) }; }
 function wallSpriteUrl(name, tier) { return art(`walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`); }
 function isoWallItems(ctx, cx, cy, W, wallLevel, night, lowAll = false) {
-  const tier = wallLevel <= 6 ? 1 : wallLevel <= 13 ? 2 : 3;
+  // Palier visuel de l'enceinte : celui de la ville, donné par le Bâtiment principal (1-9, 10-19, 20+) ; le Mur n'en fixe que l'existence
+  const tier = typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(cityMainHallLevel()) : (wallLevel <= 6 ? 1 : wallLevel <= 13 ? 2 : 3);
   const img = {};
   for (const n of ['seg_x', 'seg_x_low', 'seg_z', 'seg_z_low', 'tower']) img[n] = getSprite(wallSpriteUrl(n, tier));
   if (Object.values(img).some(i => !i)) return [];
@@ -527,6 +528,7 @@ function drawIsoNight(ctx, lit) {
 }
 
 function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key === 'WALL')?.level || 0; }
+function cityMainHallLevel() { return (currentCity?.buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1); }
 
 // ---------- Animations légères (12 i/s) : fumée des cheminées, reflets d'eau, oiseaux, torches ----------
 // Position (ix, iy, iz) dans le repère du sprite (tools/build-assets.cjs : P()) -> écran, pour un sprite de

@@ -7,7 +7,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { validateCoordinates, cleanText, isAmount } = require('../utils/validation');
-const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
+const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, mainHallLevelOf, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const T = require('../utils/techEffects');
 const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../services/armyService');
@@ -46,8 +46,7 @@ async function checkHostileTarget(army, targetCity, mission) {
     if (!relation.canAttack) return relation.status === 'SAME_ALLIANCE' ? 'Impossible d\'attaquer un membre de votre alliance' : 'Impossible d\'attaquer une alliance alliée';
   }
   if (mission === 'ATTACK') {
-    const wallLevel = targetCity.buildings?.find(b => b.key === 'WALL')?.level || 0;
-    const cityTier = getCityTier(wallLevel);
+    const cityTier = getCityTier(mainHallLevelOf(targetCity.buildings));   // the Main Hall sets the city's tier (walls' look, siege minimum)
     const minSiegeRequired = getMinSiegeEngines(cityTier);
     const siegeCount = countSiegeEngines(army.units, unitsData);
     if (siegeCount < minSiegeRequired) return `Pour assiéger une ${getCityTierName(cityTier)}, il faut minimum ${minSiegeRequired} engin(s) de siège. Vous en avez ${siegeCount}.`;

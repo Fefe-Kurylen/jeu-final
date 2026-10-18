@@ -89,6 +89,8 @@ const config = {
     // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
     foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
     maxSecondaryCities: 3,
+    // Main Hall cap in a secondary city (the capital alone goes to 30); every other building is capped by the Main Hall
+    secondaryMainHallMaxLevel: 20,
     fieldSlots: {
       LUMBER: [101, 102, 103, 104],
       QUARRY: [105, 106, 107, 108],
@@ -200,11 +202,12 @@ const config = {
     healLevelReduction: 0.95
   },
 
-  // City tiers
+  // City tiers follow the Main Hall level (October 2026: the main building makes the walls evolve); the Wall building keeps
+  // its defensive value (bonus, hit points, siege target) but no longer sets the city's look, tier or siege minimum
   cityTiers: [
-    { minWall: 0, tier: 1, name: 'Village', minSiege: 1 },
-    { minWall: 10, tier: 2, name: 'Ville', minSiege: 10 },
-    { minWall: 15, tier: 3, name: 'Ville Fortifiée', minSiege: 20 }
+    { minMainHall: 0, tier: 1, name: 'Village', minSiege: 1 },
+    { minMainHall: 10, tier: 2, name: 'Ville', minSiege: 10 },
+    { minMainHall: 20, tier: 3, name: 'Ville Fortifiée', minSiege: 20 }
   ],
 
   // Hideout (GDD: 1% of the stock hidden per level, 20% max)

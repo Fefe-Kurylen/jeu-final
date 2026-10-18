@@ -135,7 +135,8 @@ function openBuildPanel(slotNum) {
     // Other buildings cannot exceed MAIN_HALL level
     const mainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
     const mainHallLevel = mainHall?.level || 1;
-    const effectiveMax = key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, mainHallLevel);
+    const colonyCap = key === 'MAIN_HALL' && currentCity && currentCity.isCapital === false && typeof colonyMainHallMax === 'function' ? colonyMainHallMax() : Infinity;   // ville secondaire : Bâtiment principal 20 au plus
+    const effectiveMax = key === 'MAIN_HALL' ? Math.min(maxLevel, colonyCap) : Math.min(maxLevel, mainHallLevel);
     const canUpgrade = level < effectiveMax;
     const nextLevel = level + 1;
 
@@ -244,7 +245,7 @@ function openBuildPanel(slotNum) {
           ` : `
             <div class="max-level-notice">
               <span class="max-icon">${level >= maxLevel ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/lock.webp" alt="">'}</span>
-              <p>${level >= maxLevel ? 'Niveau maximum atteint !' : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
+              <p>${level >= maxLevel ? 'Niveau maximum atteint !' : key === 'MAIN_HALL' ? `Niveau ${effectiveMax} au plus dans une ville secondaire` : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
               ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
               <p class="bonus-max">${bonus}</p>
             </div>
@@ -273,7 +274,8 @@ function openBuildPanel(slotNum) {
               <h4><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Prérequis</h4>
               <div class="prereq-list">
                 ${def.prereq.map(p => {
-                  const met = (p.key === 'MAIN_HALL' && p.level <= 1) || (currentCity?.buildings || []).some(b => b.key === p.key && b.level >= p.level);
+                  const capB = currentCity && currentCity.isCapital === false && buildingsData?.find(x => x.key === p.key)?.effects?.capitalOnly ? ((cities || []).find(c => c.isCapital)?.buildings || []) : [];
+                  const met = (p.key === 'MAIN_HALL' && p.level <= 1) || [...(currentCity?.buildings || []), ...capB].some(b => b.key === p.key && b.level >= p.level);
                   return `<div class="prereq-item ${met ? 'met' : 'unmet'}">
                     <span>${buildingIconHtml(p.key)}</span>
                     <span>${getBuildingName(p.key)} Niv.${p.level}</span>
@@ -651,7 +653,10 @@ function checkBuildingPrerequisites(buildingDef) {
 
   for (const prereq of buildingDef.prereq) {
     // Same rule as the server: best level across slots, Main Hall counts as at least level 1
-    const currentLevel = (currentCity?.buildings || []).reduce((m, b) => (b.key === prereq.key && b.level > m ? b.level : m), prereq.key === 'MAIN_HALL' ? 1 : 0);
+    let currentLevel = (currentCity?.buildings || []).reduce((m, b) => (b.key === prereq.key && b.level > m ? b.level : m), prereq.key === 'MAIN_HALL' ? 1 : 0);
+    // Ville secondaire : un prérequis sur un bâtiment réservé à la capitale (Caserne 20 pour la Grande caserne…) se lit dans la capitale
+    const prereqDefC = buildingsData?.find(b => b.key === prereq.key);
+    if (currentCity && currentCity.isCapital === false && prereqDefC?.effects?.capitalOnly) { const cap = (cities || []).find(c => c.isCapital); currentLevel = Math.max(currentLevel, (cap?.buildings || []).reduce((m, b) => (b.key === prereq.key && b.level > m ? b.level : m), 0)); }
 
     if (currentLevel < prereq.level) {
       const prereqDef = buildingsData?.find(b => b.key === prereq.key);

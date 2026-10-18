@@ -2,7 +2,15 @@
 // GDD : la Résidence de la capitale forme des colons (1 au niveau 10, 2 au 15, 3 au 20) ; une armée emmène un colon et
 // 3 000 de chaque ressource sur un point de ressource libre, la ville est fondée 24 h après l'arrivée et produit +20 %.
 // Les règles affichées sont celles du serveur (routes/cities.js, routes/armies.js, utils/buildingEffects.js).
-const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 3 };
+const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 3, mainHallMax: 20 };
+// Plafond du Bâtiment principal hors capitale (règle du serveur : config.city.secondaryMainHallMaxLevel, transmise par /api/world/info)
+function colonyMainHallMax() { return Number(window.worldRules?.secondaryMainHallMaxLevel) || COLONY_RULES.mainHallMax; }
+// Palier de ville (Village / Ville / Ville Fortifiée) d'après le niveau du Bâtiment principal, comme le serveur
+function cityTierFromMainHall(level) {
+  const tiers = (window.worldRules?.cityTiers || [{ minMainHall: 0, tier: 1 }, { minMainHall: 10, tier: 2 }, { minMainHall: 20, tier: 3 }]);
+  let t = 1; for (const x of tiers) if ((level || 1) >= x.minMainHall) t = x.tier; return t;
+}
+const cityMainHallLevelOf = (city) => (city?.buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1);
 
 // Icône du colon : version peinte `ui/settler.webp` dès qu'elle est livrée, sinon l'icône de ville
 function settlerIcon(cls = 'ico') { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/settler.webp') ? `<img class="${cls}" src="assets/images/painted/ui/settler.webp" alt="">` : resIconHtml('city', cls); }

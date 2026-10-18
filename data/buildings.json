@@ -102,7 +102,7 @@
     {
       "key": "BARRACKS",
       "name": "Caserne",
-      "description": "Forme l'infanterie et les archers. Les unités intermédiaires se débloquent au niveau 7, l'élite au niveau 15, et chaque niveau accélère l'entraînement.",
+      "description": "Forme l'infanterie et les archers. Les unités intermédiaires se débloquent au niveau 7, l'élite au niveau 15, et chaque niveau accélère l'entraînement. Réservée à la capitale : hors capitale, c'est la Grande caserne qui forme l'infanterie et les archers.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -130,6 +130,7 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 64800,
       "effects": {
+        "capitalOnly": true,
         "trainTimeReductionPctPerLevel": 0.5,
         "recruitInfantry": true,
         "recruitArcher": true,
@@ -141,7 +142,7 @@
     {
       "key": "STABLE",
       "name": "Écurie",
-      "description": "Élève et équipe la cavalerie. Cavalerie intermédiaire au niveau 7, élite au niveau 15 ; chaque niveau accélère l'entraînement.",
+      "description": "Élève et équipe la cavalerie. Cavalerie intermédiaire au niveau 7, élite au niveau 15 ; chaque niveau accélère l'entraînement. Réservée à la capitale : hors capitale, c'est la Grande écurie qui élève la cavalerie.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -169,6 +170,7 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 64800,
       "effects": {
+        "capitalOnly": true,
         "trainTimeReductionPctPerLevel": 0.5,
         "recruitCavalry": true,
         "unlockBaseTier": 1,
@@ -179,7 +181,7 @@
     {
       "key": "WORKSHOP",
       "name": "Atelier",
-      "description": "Construit les engins de siège, disponibles à partir du niveau 5. Chaque niveau accélère nettement leur fabrication.",
+      "description": "Construit les engins de siège, disponibles à partir du niveau 5. Chaque niveau accélère nettement leur fabrication. Réservé à la capitale.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -207,6 +209,7 @@
       "timeL1Sec": 3600,
       "timeL20Sec": 108000,
       "effects": {
+        "capitalOnly": true,
         "trainTimeReductionPctPerLevel": 4.0
       }
     },

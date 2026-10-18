@@ -66,13 +66,16 @@ function getFactionBonus(faction, bonusType, factionsData) {
 }
 
 // City tier based on wall level
-function getCityTier(wallLevel) {
+// City tier (Village / Ville / Ville Fortifiée) from the Main Hall level: look of the walls, name, siege minimum
+function getCityTier(mainHallLevel) {
   const tiers = config.cityTiers;
   for (let i = tiers.length - 1; i >= 0; i--) {
-    if (wallLevel >= tiers[i].minWall) return tiers[i].tier;
+    if (mainHallLevel >= tiers[i].minMainHall) return tiers[i].tier;
   }
   return 1;
 }
+// Main Hall level of a city from its building rows (never below 1: every city has one)
+function mainHallLevelOf(buildings) { return (buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1); }
 
 function getCityTierName(tier) {
   const found = config.cityTiers.find(t => t.tier === tier);
@@ -181,6 +184,7 @@ function getArmyCarryCapacity(units, unitsData, hero = null) {
 }
 
 module.exports = {
+  mainHallLevelOf,
   lerpExp,
   getProductionAtLevel,
   getStorageAtLevel,

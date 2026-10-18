@@ -651,6 +651,7 @@ async function loadMap() {
             allianceTag: c.player?.allianceTag || null,
             faction: c.player?.faction || 'ROME',
             wallLevel: c.wallLevel || 0,
+            mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || 0,
             cityTierName: c.cityTierName || 'Village',
             population: c.player?.population || 0
@@ -726,7 +727,8 @@ async function loadMap() {
             allianceId: player?.allianceId || null,
             faction: player?.faction || 'ROME',
             wallLevel: wallLevel,
-            cityTier: c.cityTier || (wallLevel >= 15 ? 3 : wallLevel >= 10 ? 2 : wallLevel >= 1 ? 1 : 0),
+            mainHallLevel: c.mainHallLevel || 1,
+            cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
             population: player?.population || 0
           });
         }
@@ -1480,7 +1482,7 @@ function drawIsoCity(x, y, tw, th, tile) {
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
   // Try to draw from tileset image first
-  // Sprite de la faction ; une ville fortifiée (palier 3 : mur ≥ 15) prend le sprite « capital » (enceinte à tours).
+  // Sprite de la faction ; une ville fortifiée (palier 3 : Bâtiment principal ≥ 20) prend le sprite « capital » (enceinte à tours).
   // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
   const fortified = (tile.cityTier || 0) >= 3;
   const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
@@ -1501,9 +1503,8 @@ function drawIsoCity(x, y, tw, th, tile) {
   }
 
   // Fallback to procedural rendering
-  // Use cityTier from API (Village=1, Ville=2, Ville Fortifiée=3) or calculate from wallLevel
-  // Village: wall 1-9, Ville: wall 10-14, Ville Fortifiée: wall 15+
-  const cityTier = tile.cityTier || (wallLevel === 0 ? 0 : wallLevel < 10 ? 1 : wallLevel < 15 ? 2 : 3);
+  // Palier de l'API (Village=1, Ville=2, Ville Fortifiée=3), fixé par le Bâtiment principal ; sans mur, pas d'enceinte dessinée
+  const cityTier = wallLevel === 0 ? 0 : (tile.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(tile.mainHallLevel || 1) : 1));
 
   const citySize = Math.min(tw, th * 2) * 0.8;
 

@@ -6,7 +6,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
-const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
+const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf } = require('../utils/calculations');
 const { lockCity, debitCity, creditCity } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
@@ -89,8 +89,9 @@ router.get('/', auth, async (req, res) => {
     });
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
-      const cityTier = getCityTier(wallLevel);
-      return { ...city, wallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      const mainHallLevel = mainHallLevelOf(city.buildings);
+      const cityTier = getCityTier(mainHallLevel);
+      return { ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
     res.json(citiesWithTier);
   } catch (e) {
@@ -137,9 +138,14 @@ router.post('/:id/build', auth, async (req, res) => {
 
       const maxLevel = buildingDef.maxLevel || 20;
       if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
+      // A secondary city's Main Hall stops at 20 (the capital alone reaches 30): every other building follows through the cap below
+      if (buildingKey === 'MAIN_HALL' && !city.isCapital && targetLevel > config.city.secondaryMainHallMaxLevel) return { error: `Le Bâtiment principal d'une ville secondaire ne dépasse pas le niveau ${config.city.secondaryMainHallMaxLevel}`, status: 400 };
 
       if (targetLevel === 1) {
-        const missing = (buildingDef.prereq || []).filter(p => maxBuildingLevel(city.buildings, p.key) < p.level);
+        // In a secondary city, a prerequisite on a capital-only building (Barracks 20 for the Great Barracks…) is met by the capital
+        const capital = city.isCapital ? null : await tx.city.findFirst({ where: { playerId: city.playerId, isCapital: true }, include: { buildings: true } });
+        const levelFor = (p) => Math.max(maxBuildingLevel(city.buildings, p.key), capital && fx.capitalOnly(p.key) ? maxBuildingLevel(capital.buildings, p.key) : 0);
+        const missing = (buildingDef.prereq || []).filter(p => levelFor(p) < p.level);
         if (missing.length) {
           const names = missing.map(p => `${buildingsData.find(b => b.key === p.key)?.name || p.key} niv.${p.level}`);
           return { error: `Prérequis manquants : ${names.join(', ')}`, status: 400 };
