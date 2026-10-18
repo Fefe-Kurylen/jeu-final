@@ -38,6 +38,10 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.lineWidth = isHovered ? 3 : 2;
     cityCtx.setLineDash([5, 5]); cityCtx.stroke(); cityCtx.setLineDash([]);
     cityCtx.shadowBlur = 0;
+    // « + » dessiné avec la parcelle (ordre de profondeur) : une tour ou un mur devant le cache, comme pour les bâtiments
+    cityCtx.fillStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.6)';
+    cityCtx.font = `bold ${size * 0.4}px Arial`; cityCtx.textAlign = 'center'; cityCtx.textBaseline = 'middle';
+    cityCtx.fillText('+', x, y);
   }
   // Couche d'overlay (dessinée après tous les sprites) : production, « + », badge de niveau, chantier
   const showBadges = typeof isoShowBadges !== 'function' || isoShowBadges(isHovered);
@@ -51,11 +55,6 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
         cityCtx.drawImage(icon, x - s / 2, prodY - s / 2, s, s);
         cityCtx.globalAlpha = 1;
       }
-    }
-    if (level === 0) {
-      cityCtx.fillStyle = isHovered ? '#ffd700' : 'rgba(255,255,255,0.6)';
-      cityCtx.font = `bold ${size * 0.4}px Arial`; cityCtx.textAlign = 'center'; cityCtx.textBaseline = 'middle';
-      cityCtx.fillText('+', x, y);
     }
     if (level > 0 && showBadges) {   // badge de niveau (même style que les bâtiments)
       const spec = typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.73, size * 0.37) : { x: x + size * 0.6, y: y + size * 0.08, radius: Math.max(8, Math.min(13, size * 0.26)) };

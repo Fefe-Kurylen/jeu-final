@@ -24,7 +24,7 @@
     P.box(g, -1.0, -1.0, 2.0, 0.25, 0.7, wm, 0.08); P.box(g, -1.0, -1.0, 0.25, 2.0, 0.7, wm, 0.08); P.box(g, 0.75, -1.0, 0.25, 2.0, 0.7, wm, 0.08); P.box(g, -1.0, 0.75, 2.0, 0.25, 0.7, wm, 0.08);
     for (const [x, y] of [[-0.9, -0.9], [0.9, -0.9], [0.9, 0.9], [-0.9, 0.9]]) { P.cylinder(g, x, y, 0.22, 1.1, S.wall, 0.08); S.cone(g, x, y, 0.26, 0.4, 1.18); }
     P.box(g, -0.5, -0.5, 1.0, 1.0, 1.2, S.wallLight, 0.08); S.columns(g, -0.4, 0.52, 0.8, 1.2, 4, 0.08, { r: 0.07 }); S.hip(g, -0.5, -0.5, 1.0, 1.0, 0.5, 1.28);
-    S.flag(g, 0, 0, 1.78, 0.8); S.door(g, 0, 1.0, 0.3, 0.5, 0.08, { leaf: solid('#1a1410') });
+    S.flag(g, 0, 0, 1.78, 0.8); S.door(g, 0, 1.0, 0.3, 0.5, 0.08, { face: '+x', leaf: solid('#1a1410') });   // porte de l'enceinte sur la face avant droite (sud-est), comme dans la ville
     return { extent: 3 };
   };
   MP.defaultCity = (g) => { cityBase(g, 'grass'); const w = material('stone', '#c8b89a'), r = material('tiles', '#8a5a2a'); P.box(g, -0.8, 0.0, 0.7, 0.7, 0.6, w, 0.08); P.gable(g, -0.8, 0.0, 0.7, 0.7, 0.35, r, 0.68); P.box(g, 0.2, 0.2, 0.7, 0.6, 0.55, w, 0.08); P.gable(g, 0.2, 0.2, 0.7, 0.6, 0.3, r, 0.63); P.box(g, -0.3, -0.8, 0.9, 0.7, 0.85, material('stone', '#d8c8a8'), 0.08); P.hip(g, -0.3, -0.8, 0.9, 0.7, 0.4, r, 0.93); return { extent: 3 }; };

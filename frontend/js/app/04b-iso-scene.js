@@ -209,7 +209,9 @@ function drawIsoGround(ctx, cx, cy, W, biome, night) {
   const hw = R_WALL * W * ISO_SP, hh = hw / 2;
   ctx.save();
   ctx.shadowColor = night ? 'rgba(0,0,0,0.6)' : 'rgba(20,12,4,0.35)'; ctx.shadowBlur = W * 0.4; ctx.shadowOffsetY = W * 0.08;
-  ctx.fillStyle = night ? '#1e2a1a' : '#5f8f36';
+  // ombre portée du sol de l'enceinte, teintée par le biome (visible seulement par l'ouverture de la porte)
+  const groundShadow = { forest: ['#5f8f36', '#1e2a1a'], desert: ['#b39a62', '#2a2418'], snow: ['#c3ccd4', '#262c34'] }[biome] || ['#5f8f36', '#1e2a1a'];
+  ctx.fillStyle = night ? groundShadow[1] : groundShadow[0];
   isoDiamondPath(ctx, cx, cy + W * 0.06, hw, hh); ctx.fill();
   ctx.restore();
   isoDiamondPath(ctx, cx, cy, hw, hh);
@@ -389,10 +391,22 @@ function isoMapFeatureAt(gx, gy) {
   if (!dx && !dy) return null;
   return Terrain.getTerrainType(currentCity.x + dx, currentCity.y + dy).feature;
 }
+// Distance (px écran) d'un point à la route de terre : la courbe de Bézier de drawIsoRoad, échantillonnée
+function isoRoadSampler(cx, cy, W) {
+  const { p0, p1, p2, p3 } = isoRoadPoints(cx, cy, W);
+  const s0 = { x: p0.x, y: p0.y - W * 0.3 };
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40, u = 1 - t;
+    pts.push({ x: u * u * u * s0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x, y: u * u * u * s0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y });
+  }
+  return (x, y) => { let d = Infinity; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; const vx = b.x - a.x, vy = b.y - a.y, l2 = vx * vx + vy * vy || 1; const k = Math.max(0, Math.min(1, ((x - a.x) * vx + (y - a.y) * vy) / l2)); d = Math.min(d, Math.hypot(x - a.x - k * vx, y - a.y - k * vy)); } return d; };
+}
 function isoLandscape(view, W, cx, cy) {
   const props = biomeScene(cityBiome()).props;
   const out = [], water = [];
   const rMin = Math.ceil(R_WALL) + 1, rMax = rMin + 2;
+  const roadDist = isoRoadSampler(cx, cy, W);   // rien n'est posé sur la route, même là où elle s'écarte de l'axe de la porte
   for (let gx = -rMax; gx <= rMax; gx++) for (let gy = -rMax; gy <= rMax; gy++) {
     const r = Math.max(Math.abs(gx), Math.abs(gy));
     if (r < rMin || r > rMax) continue;
@@ -404,11 +418,14 @@ function isoLandscape(view, W, cx, cy) {
     const feature = isoMapFeatureAt(gx, gy);
     const jitter = (k) => (isoSeeded(seed + k) - 0.5) * 0.7;
     const p = isoPos(gx + jitter(1), gy + jitter(2), W, cx, cy);
+    const dRoad = roadDist(p.x, p.y);
     if (feature === 'water' || feature === 'frozen' || feature === 'oasis') {
+      if (dRoad < W * (0.9 + isoSeeded(seed + 5) * 0.5) + W * 0.25) continue;   // un plan d'eau ne recouvre pas la route
       water.push({ x: p.x, y: p.y, rx: W * (0.9 + isoSeeded(seed + 5) * 0.5), ry: W * (0.42 + isoSeeded(seed + 6) * 0.2), kind: feature, depth: gx + gy });
       if (feature === 'oasis' && roll < 0.5) out.push({ x: p.x + W * 0.35, y: p.y - W * 0.05, kind: 'palm', h: W * 0.85, depth: gx + gy + 0.1 });
       continue;
     }
+    if (dRoad < W * 0.55) continue;   // ni arbre ni rocher sur la route
     let kind = null, h = 0;
     if (feature === 'mountain' || feature === 'icemountain' || feature === 'rocks') {
       if (roll > 0.8) continue;
