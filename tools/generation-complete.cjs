@@ -27,7 +27,11 @@ const KEEP_RE = /^Repaint the subject shown in the second image/;
 function promptParts(file) {
   const full = P.promptFor(file) || '';
   const idx = full.indexOf('Subject: ');
-  if (idx < 0) return { prefix: full.trim(), subject: '' };
+  if (idx < 0) {   // textures, bordures, décalques : pas de marqueur « Subject », le prompt entier moins la phrase de style est le sujet
+    let rest = full.trim();
+    for (const st of [P.STYLE, P.STYLE.replace(/No text[^.]*\./, '')]) { const st2 = st.trim(); if (rest.startsWith(st2)) { rest = rest.slice(st2.length).trim(); break; } }
+    return { prefix: 'Phrase de style (section 1), puis :', subject: rest };
+  }
   const prefix = full.slice(0, idx).split('\n\n').map(x => x.trim()).filter(Boolean);
   const t = byFile.get(file);
   const kept = prefix.filter(x => t && t.guide ? true : !KEEP_RE.test(x));   // sans guide 3D, pas de consigne « repeins la deuxième image »

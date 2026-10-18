@@ -1456,50 +1456,50 @@ Où : sols de la ville, des champs, de la carte. Priorité ★★★.
 Début du prompt, commun à la famille :
 
 ```
-Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left.  a seamless, tileable top-down texture of short well-kept green lawn, fine blades, a few tiny daisies. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque.
+Phrase de style (section 1), puis :
 ```
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `terrain/grass_lawn.png` | 1024×1024 | — |  |
-| `terrain/grass_dark.png` | 1024×1024 | — |  |
-| `terrain/grass_dry.png` | 1024×1024 | — |  |
-| `terrain/grass_flowers.png` | 1024×1024 | — |  |
-| `terrain/grass_hills.png` | 1024×1024 | — |  |
-| `terrain/dirt_packed.png` | 1024×1024 | — |  |
-| `terrain/mud.png` | 1024×1024 | — |  |
-| `terrain/gravel.png` | 1024×1024 | — |  |
-| `terrain/sand_ripples.png` | 1024×1024 | — |  |
-| `terrain/sand_rocky.png` | 1024×1024 | — |  |
-| `terrain/cracked_earth.png` | 1024×1024 | — |  |
-| `terrain/snow_fresh.png` | 1024×1024 | — |  |
-| `terrain/snow_trampled.png` | 1024×1024 | — |  |
-| `terrain/tundra.png` | 1024×1024 | — |  |
-| `terrain/water_lake.png` | 1024×1024 | — |  |
-| `terrain/water_deep.png` | 1024×1024 | — |  |
-| `terrain/water_river.png` | 1024×1024 | — |  |
-| `terrain/water_shallow.png` | 1024×1024 | — |  |
-| `terrain/ice.png` | 1024×1024 | — |  |
-| `terrain/plaza_ROME.png` | 1024×1024 | — |  |
-| `terrain/plaza_GAUL.png` | 1024×1024 | — |  |
-| `terrain/plaza_GREEK.png` | 1024×1024 | — |  |
-| `terrain/plaza_EGYPT.png` | 1024×1024 | — |  |
-| `terrain/plaza_HUN.png` | 1024×1024 | — |  |
-| `terrain/plaza_SULTAN.png` | 1024×1024 | — |  |
-| `terrain/cobble.png` | 1024×1024 | — |  |
-| `terrain/flagstone.png` | 1024×1024 | — |  |
-| `terrain/road_dirt.png` | 1024×1024 | — |  |
-| `terrain/road_paved.png` | 1024×1024 | — |  |
-| `terrain/path_sand.png` | 1024×1024 | — |  |
-| `terrain/soil_tilled.png` | 1024×1024 | — |  |
-| `terrain/wheat.png` | 1024×1024 | — |  |
-| `terrain/orchard.png` | 1024×1024 | — |  |
-| `terrain/edge_grass_sand.png` | 1024×256 | — |  |
-| `terrain/edge_grass_snow.png` | 1024×256 | — |  |
-| `terrain/edge_shore.png` | 1024×256 | — |  |
-| `terrain/edge_grass_water.png` | 1024×256 | — |  |
-| `terrain/edge_cliff.png` | 1024×256 | — |  |
-| `terrain/edge_road.png` | 1024×256 | — |  |
+| `terrain/grass_lawn.png` | 1024×1024 | — | a seamless, tileable top-down texture of short well-kept green lawn, fine blades, a few tiny daisies. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/grass_dark.png` | 1024×1024 | — | a seamless, tileable top-down texture of dense dark-green undergrowth with moss and small ferns. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/grass_dry.png` | 1024×1024 | — | a seamless, tileable top-down texture of dry yellow-green summer grass with some bare earth. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/grass_flowers.png` | 1024×1024 | — | a seamless, tileable top-down texture of meadow grass dotted with small red, white and yellow wildflowers. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/grass_hills.png` | 1024×1024 | — | a seamless, tileable top-down texture of rolling meadow grass with lighter crests and darker hollows. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/dirt_packed.png` | 1024×1024 | — | a seamless, tileable top-down texture of packed brown earth with small pebbles and faint footprints. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/mud.png` | 1024×1024 | — | a seamless, tileable top-down texture of wet dark mud with shallow puddles reflecting the sky. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/gravel.png` | 1024×1024 | — | a seamless, tileable top-down texture of small grey and beige gravel stones. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/sand_ripples.png` | 1024×1024 | — | a seamless, tileable top-down texture of pale ochre desert sand with gentle wind ripples. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/sand_rocky.png` | 1024×1024 | — | a seamless, tileable top-down texture of sand with scattered small dark stones and a few dry tufts. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/cracked_earth.png` | 1024×1024 | — | a seamless, tileable top-down texture of dry cracked clay ground in warm ochre. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/snow_fresh.png` | 1024×1024 | — | a seamless, tileable top-down texture of fresh untouched snow, soft blue shadows, a few sparkles. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/snow_trampled.png` | 1024×1024 | — | a seamless, tileable top-down texture of trampled grey-white snow with footprints and dirt showing through. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/tundra.png` | 1024×1024 | — | a seamless, tileable top-down texture of frosted short grass and frozen earth, white edges on the blades. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/water_lake.png` | 1024×1024 | — | a seamless, tileable top-down texture of calm clear blue lake water, soft ripples, a few light reflections. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/water_deep.png` | 1024×1024 | — | a seamless, tileable top-down texture of deep dark-blue water with slow swells. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/water_river.png` | 1024×1024 | — | a seamless, tileable top-down texture of flowing water with diagonal streaks and small white foam lines. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/water_shallow.png` | 1024×1024 | — | a seamless, tileable top-down texture of shallow turquoise water with a sandy bottom visible. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/ice.png` | 1024×1024 | — | a seamless, tileable top-down texture of pale blue cracked ice with white frost lines. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_ROME.png` | 1024×1024 | — | a seamless, tileable top-down texture of large pale sandstone flagstones with thin dark joints and a faint mosaic meander border. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_GAUL.png` | 1024×1024 | — | a seamless, tileable top-down texture of rough wooden planks and packed earth with straw. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_GREEK.png` | 1024×1024 | — | a seamless, tileable top-down texture of white marble slabs with grey veins and thin joints. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_EGYPT.png` | 1024×1024 | — | a seamless, tileable top-down texture of golden sandstone tiles with a few carved hieroglyph bands. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_HUN.png` | 1024×1024 | — | a seamless, tileable top-down texture of trampled dark earth with hoof prints and scattered straw. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/plaza_SULTAN.png` | 1024×1024 | — | a seamless, tileable top-down texture of teal, white and gold geometric mosaic tiles. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/cobble.png` | 1024×1024 | — | a seamless, tileable top-down texture of worn rounded cobblestones in warm beige and grey, thin dark joints, tufts of grass in the cracks. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/flagstone.png` | 1024×1024 | — | a seamless, tileable top-down texture of irregular flat grey flagstones with moss in the joints. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/road_dirt.png` | 1024×1024 | — | a seamless, tileable top-down texture of a packed dirt road with two cart ruts and grass at the sides, the road running vertically. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/road_paved.png` | 1024×1024 | — | a seamless, tileable top-down texture of an ancient paved road of large basalt stones, the road running vertically. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/path_sand.png` | 1024×1024 | — | a seamless, tileable top-down texture of a sandy trail with camel tracks, the trail running vertically. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/soil_tilled.png` | 1024×1024 | — | a seamless, tileable top-down texture of tilled brown soil in straight furrows. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/wheat.png` | 1024×1024 | — | a seamless, tileable top-down texture of golden ripe wheat seen from above in neat rows. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/orchard.png` | 1024×1024 | — | a seamless, tileable top-down texture of green grass with rows of small round tree crowns. Perfectly uniform lighting, no vignette, no border, no object larger than a pebble, no text. The texture must tile seamlessly: the left edge continues the right edge and the top edge continues the bottom edge. Square image, opaque. |
+| `terrain/edge_grass_sand.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is green grass blending softly into ochre sand in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
+| `terrain/edge_grass_snow.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is green grass blending softly into white snow in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
+| `terrain/edge_shore.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is sandy shore blending softly into shallow clear water in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
+| `terrain/edge_grass_water.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is green grass with reeds blending softly into lake water in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
+| `terrain/edge_cliff.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is grass blending softly into a short brown earth cliff face seen slightly from the front in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
+| `terrain/edge_road.png` | 1024×256 | — | A seamless horizontally tileable top-down strip: the top half is cobblestone road blending softly into grass verge in the bottom half. Perfectly uniform lighting, no vignette, no text; the left edge continues the right edge. Wide image (4:1), opaque. |
 
 #### Décalques au sol — 16 images
 
@@ -1508,27 +1508,27 @@ Où : semés dans la ville et aux alentours. Priorité ★☆☆.
 Début du prompt, commun à la famille :
 
 ```
-Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left.  A single ground decal seen from above: a tuft of taller grass, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque.
+Phrase de style (section 1), puis :
 ```
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `decals/grass_tuft.png` | 1024×1024 | — |  |
-| `decals/flowers_red.png` | 1024×1024 | — |  |
-| `decals/flowers_white.png` | 1024×1024 | — |  |
-| `decals/clover.png` | 1024×1024 | — |  |
-| `decals/pebbles.png` | 1024×1024 | — |  |
-| `decals/cracks.png` | 1024×1024 | — |  |
-| `decals/puddle.png` | 1024×1024 | — |  |
-| `decals/leaves.png` | 1024×1024 | — |  |
-| `decals/moss.png` | 1024×1024 | — |  |
-| `decals/mushrooms.png` | 1024×1024 | — |  |
-| `decals/branches.png` | 1024×1024 | — |  |
-| `decals/cart_tracks.png` | 1024×1024 | — |  |
-| `decals/hoof_prints.png` | 1024×1024 | — |  |
-| `decals/snow_drift.png` | 1024×1024 | — |  |
-| `decals/ice_patch.png` | 1024×1024 | — |  |
-| `decals/sand_ripple.png` | 1024×1024 | — |  |
+| `decals/grass_tuft.png` | 1024×1024 | — | A single ground decal seen from above: a tuft of taller grass, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/flowers_red.png` | 1024×1024 | — | A single ground decal seen from above: a small patch of red poppies, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/flowers_white.png` | 1024×1024 | — | A single ground decal seen from above: a small patch of white and yellow daisies, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/clover.png` | 1024×1024 | — | A single ground decal seen from above: a patch of clover and small leaves, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/pebbles.png` | 1024×1024 | — | A single ground decal seen from above: a scatter of small grey pebbles, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/cracks.png` | 1024×1024 | — | A single ground decal seen from above: thin dry cracks in the earth, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/puddle.png` | 1024×1024 | — | A single ground decal seen from above: a shallow puddle reflecting the sky, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/leaves.png` | 1024×1024 | — | A single ground decal seen from above: scattered fallen autumn leaves, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/moss.png` | 1024×1024 | — | A single ground decal seen from above: a soft patch of green moss, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/mushrooms.png` | 1024×1024 | — | A single ground decal seen from above: a small cluster of brown mushrooms, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/branches.png` | 1024×1024 | — | A single ground decal seen from above: a few fallen dry branches, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/cart_tracks.png` | 1024×1024 | — | A single ground decal seen from above: two parallel cart ruts, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/hoof_prints.png` | 1024×1024 | — | A single ground decal seen from above: a trail of hoof prints, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/snow_drift.png` | 1024×1024 | — | A single ground decal seen from above: a small drift of snow, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/ice_patch.png` | 1024×1024 | — | A single ground decal seen from above: a patch of thin ice, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
+| `decals/sand_ripple.png` | 1024×1024 | — | A single ground decal seen from above: a patch of wind ripples in sand, soft edges that fade into transparency, nothing else. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque. |
 
 ### Carte du monde
 
