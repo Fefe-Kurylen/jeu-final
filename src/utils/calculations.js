@@ -86,7 +86,8 @@ function getMinSiegeEngines(cityTier) {
 
 // Calculate travel time; `distance` is the length of the route actually walked (A* around mountains and
 // water, see utils/pathfinding.js) — the straight line is only a fallback
-function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null, distance = null) {
+// extraSpeedPct: the player's technologies (Cartographie), in percent
+function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = null, factionsData = null, distance = null, extraSpeedPct = 0) {
   if (typeof distance !== 'number' || !(distance >= 0)) distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
   let timePerTile = 30 * (50 / armySpeed);
 
@@ -96,6 +97,8 @@ function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = n
       timePerTile = timePerTile / (1 + speedBonus / 100);
     }
   }
+
+  if (extraSpeedPct > 0) timePerTile = timePerTile / (1 + extraSpeedPct / 100);
 
   return Math.max(1, Math.ceil(distance * timePerTile));
 }
@@ -144,10 +147,10 @@ function heroStatMultiplier(hero, stat, pointsField) {
 }
 
 // Travel time for a concrete army: slowest unit, owner's faction speed bonus, hero speed bonus
-function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null, distance = null) {
+function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null, distance = null, extraSpeedPct = 0) {
   const { unitsData, factionsData } = require('../config/gamedata');
   const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed', 'spdPoints');
-  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData, distance);
+  return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData, distance, extraSpeedPct);
 }
 
 // Point reached after `fraction` (0..1) of a route (list of [x, y] tiles)

@@ -429,12 +429,13 @@ async function showGame() {
   setConnectOverlay('loading');
   await loadWorldInfo(); // Load world size first
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
-  const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest(), typeof loadItems === 'function' ? loadItems() : null]);
+  const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest(), typeof loadItems === 'function' ? loadItems() : null, typeof loadTechnologies === 'function' ? loadTechnologies() : null]);
   if (!token) { setConnectOverlay(null); return; }   // session refusée : logout() a déjà remis l'écran de connexion
   if (!playerOk) { setConnectOverlay('error'); return; }
   await loadCities();
   if (!token) { setConnectOverlay(null); return; }
   if (!cities.length) { setConnectOverlay('error'); return; }
+  if (typeof loadResearch === 'function') loadResearch();   // niveaux de technologie et file de recherche (non bloquant)
   setConnectOverlay(null);
   updateEmailBanner();
   // Init canvases now that game screen is visible and data is loaded

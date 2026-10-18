@@ -8,6 +8,8 @@ const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { validateCoordinates, cleanText, isAmount } = require('../utils/validation');
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
+const T = require('../utils/techEffects');
+const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
 const { resolveTribeCombat } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
@@ -19,11 +21,11 @@ const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: true, hero: { include: { items: true } }, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true } }, hero: { include: { items: true } }, ...include } });
 
 // Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
-const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY));
-const spyTravelTo = async (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData, await routeLength(army.x, army.y, toX, toY));
+const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY), speedTechPct(army));
+const spyTravelTo = async (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData, await routeLength(army.x, army.y, toX, toY), speedTechPct(army));
 const noRoute = (res, e) => (e && e.code === 'NO_ROUTE' ? res.status(400).json({ error: e.message }) : null);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
 
@@ -406,7 +408,7 @@ router.post('/:id/return', auth, async (req, res) => {
         await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 
-      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y).catch(() => null));
+      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y).catch(() => null), speedTechPct(army));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: {
         status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,

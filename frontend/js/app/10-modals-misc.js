@@ -121,6 +121,8 @@ async function refreshData(force = false) {
       loadArmies(),
       loadPlayer()
     ]);
+    // Une recherche en cours : suivre son avancement (niveau atteint, file promue)
+    if (typeof research !== 'undefined' && research?.queue?.length && typeof loadResearch === 'function') loadResearch();
     
     // Mettre à jour l'UI seulement si l'onglet ville est actif
     const cityTab = document.getElementById('tab-city');

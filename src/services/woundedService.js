@@ -5,7 +5,8 @@ const { getFactionBonus } = require('../utils/calculations');
 const { factionsData } = require('../config/gamedata');
 const fx = require('../utils/buildingEffects');
 
-async function calculateWoundedUnits(cityId, killedUnits, faction) {
+// techBonusPct: the player's Medicine research, in percent points
+async function calculateWoundedUnits(cityId, killedUnits, faction, techBonusPct = 0) {
   const buildings = await prisma.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
   const healingTent = buildings.find(b => b.key === 'HEALING_TENT');
   if (!healingTent) return [];
@@ -13,6 +14,7 @@ async function calculateWoundedUnits(cityId, killedUnits, faction) {
   let woundedRate = config.wounded.baseRate + (healingTent.level * config.wounded.bonusPerHealingLevel);
   const greekBonus = getFactionBonus(faction, 'woundedConversion', factionsData);
   woundedRate += greekBonus / 100;
+  woundedRate += (Number(techBonusPct) || 0) / 100;   // Médecine (technologie)
   woundedRate += fx.woundedBonusPct(buildings) / 100;   // Thermes romains, Temple grec, Tente de guerre hun
   woundedRate = Math.min(config.wounded.maxRate, woundedRate);
 

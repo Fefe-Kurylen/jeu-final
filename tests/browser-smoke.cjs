@@ -11,7 +11,7 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `smk${uid}@t.fr`, password: 'Test1234!', name: `Smk${uid}`, faction: 'GAUL' }) })).json();
   const pid = reg.player.id, cityId = sql(`SELECT id FROM "City" WHERE "playerId"='${pid}'`);
   sql(`UPDATE "City" SET wood=50000,stone=50000,iron=50000,food=50000,"maxStorage"=100000,"maxFoodStorage"=100000 WHERE id='${cityId}'`);
-  for (const [k, slot, lvl] of [['BARRACKS', 3, 5], ['WALL', 11, 4], ['LUMBER', 101, 3], ['FARM', 113, 2]]) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
+  for (const [k, slot, lvl] of [['BARRACKS', 3, 5], ['WALL', 11, 4], ['ACADEMY', 4, 3], ['LUMBER', 101, 3], ['FARM', 113, 2]]) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
   const errors = [], failed = [], out = [];
   const b = await chromium.launch();
   // Sign-up screen (no token): the civilization cards show the bonuses the server applies (/api/world/info -> factions)
@@ -49,6 +49,14 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
       out.push(`${label} city slot ${sn}: bubble=[${bubble}] -> ` + (await page.evaluate(() => (document.getElementById('build-panel-title')?.innerText || '').replace(/\s+/g, ' ').slice(0, 40))) + ' | ' + (await page.evaluate(() => document.getElementById('build-panel')?.style.display)));
       await page.evaluate(() => closeBuildPanel());
     }
+    // Academy: the research tab lists the technologies, the first-tier ones can be started (L3 Academy, rich city)
+    await page.evaluate(() => openBuildPanel(4)); await page.waitForTimeout(400);
+    await page.evaluate(() => { const b = Array.from(document.querySelectorAll('.building-tab')).find(x => /Recherche/.test(x.textContent)); if (b) b.click(); });
+    await page.waitForFunction(() => document.querySelectorAll('#research-panel .tech-card').length >= 8, null, { timeout: 15000 }).catch(() => {});
+    const techCards = await page.evaluate(() => document.querySelectorAll('#research-panel .tech-card').length);
+    const startable = await page.evaluate(() => Array.from(document.querySelectorAll('#research-panel .tc-btn')).filter(b => !b.disabled).length);
+    out.push(`${label} academy research tab: ${techCards} technologies, ${startable} startable` + (techCards >= 8 && startable >= 4 ? '' : ' contains "research-tab-failure"'));
+    await page.evaluate(() => closeBuildPanel());
     // pan: drag on empty terrain must not open a panel
     const c = await page.evaluate(() => { const rect = cityCanvas.getBoundingClientRect(); return { x: rect.left + 60, y: rect.top + 60 }; });
     if (vp.mobile) { await page.touchscreen.tap(c.x, c.y); } else { await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.mouse.move(c.x + 80, c.y + 40, { steps: 6 }); await page.mouse.up(); }

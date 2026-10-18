@@ -9,6 +9,7 @@ const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
 const { takeFromNode } = require('../utils/db');
+const { techPct } = require('../utils/techEffects');
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
 // raids on the same node from the same army cannot both be resolved.
@@ -28,7 +29,9 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
     return { success: true, combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 }, loot: null, message: 'Tribu absente - démarrage de la récolte' };
   }
 
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null);
+  // Art de la guerre (technologie) : bonus d'attaque du joueur
+  const techRows = await tx.playerTechnology.findMany({ where: { playerId } });
+  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null, { attackerBonusPct: techPct(techRows, 'attackBonusPct') });
 
   let totalAttackerLosses = 0;
   for (const unit of army.units) {

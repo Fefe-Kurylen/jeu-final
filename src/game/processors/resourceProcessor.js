@@ -6,6 +6,9 @@ const config = require('../../config');
 const { unitsData, buildingsData } = require('../../config/gamedata');
 const { getProductionAtLevel } = require('../../utils/calculations');
 const fx = require('../../utils/buildingEffects');
+const T = require('../../utils/techEffects');
+// (techKey, pctPerLevel) VALUES table for an effect; a harmless row when no technology carries it
+const techTableSql = (effect) => { const keys = T.sqlKeys(effect); return Prisma.join((keys.length ? keys : [['__none__', 0]]).map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`)); };
 
 // Table de production précalculée (clé, niveau 1-25) -> prod/h, envoyée une fois en VALUES SQL
 let _prodTableSql = null;
@@ -37,12 +40,13 @@ async function processResourceProduction(TICK_HOURS) {
   // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node.
   // Multiplicateurs par ville : abonnement Plus, et bonus global de production des bâtiments (Irrigation égyptienne)
   const [globalKey, globalPct] = fx.productionBonusKeys()[0];
+  const prodTechTable = techTableSql('productionBonusPct');   // Agronomie : +1 %/niveau sur tous les champs
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
-      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
-      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxStorage"),
-      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0), c."maxFoodStorage")
+      wood  = LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
+      stone = LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
+      iron  = LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxStorage"),
+      food  = LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0), c."maxFoodStorage")
     FROM (
       SELECT cb."cityId",
         SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
@@ -62,6 +66,12 @@ async function processResourceProduction(TICK_HOURS) {
         ON pt.key = cb.key AND pt.level = cb.level
       GROUP BY cb."cityId"
     ) AS p
+    LEFT JOIN (
+      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct
+      FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
+      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
+      GROUP BY ci.id
+    ) AS tp ON tp."cityId" = p."cityId"
     WHERE c.id = p."cityId" AND c."isSieged" = false
   `;
   // Villes sans aucun bâtiment : production de base uniquement
@@ -94,8 +104,9 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
   //    bâtiments de faction (Tente de guerre hun, Avant-poste du désert) comprise
   const upkeepKeys = fx.upkeepReductionKeys();
   const reductionTable = Prisma.join(upkeepKeys.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
+  const upkeepTechTable = techTableSql('upkeepReductionPct');   // Intendance : −1 %/niveau, même plafond que les bâtiments
   await prisma.$executeRaw`
-    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0)) / 100.0) * ${TICK_HOURS})
+    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0) * ${TICK_HOURS})
     FROM (
       SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
       FROM "Army" a
@@ -109,6 +120,12 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
       FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key
       GROUP BY cb."cityId"
     ) AS red ON red."cityId" = cons."cityId"
+    LEFT JOIN (
+      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct
+      FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
+      JOIN (VALUES ${upkeepTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
+      GROUP BY ci.id
+    ) AS tech ON tech."cityId" = cons."cityId"
     WHERE c.id = cons."cityId" AND cons.total > 0
   `;
 

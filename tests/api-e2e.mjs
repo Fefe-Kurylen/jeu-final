@@ -98,6 +98,49 @@ await call('build unknown -> 400', 'POST', `/api/city/${cityA.id}/build`, tA, { 
 }
 await call('build on B city with A token -> 404', 'POST', `/api/city/${cityB.id}/build`, tA, { buildingKey: 'MAIN_HALL' }, 404);
 await call('build GREAT_BARRACKS w/o prereqs -> 400', 'POST', `/api/city/${cityB.id}/build`, tB, { buildingKey: 'GREAT_BARRACKS' }, 400);
+
+// ---------- RESEARCH (technologies at the Academy) ----------
+{
+  const techs = await call('technologies catalogue', 'GET', '/api/technologies', tA);
+  assert('catalogue: 4 branches and the Agronomy technology', techs?.branches?.length === 4 && techs?.technologies?.some(t => t.key === 'AGRONOMY'));
+  const r0 = await call('research state (nothing yet)', 'GET', `/api/research?cityId=${cityA.id}`, tA);
+  assert('no technology researched, empty queue', r0 && Object.keys(r0.levels || {}).length === 0 && (r0.queue || []).length === 0);
+  await call('start research without Academy -> 400', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'AGRONOMY' }, 400);
+  await call('start research unknown tech -> 400', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'ALCHEMY' }, 400);
+  await call('start research on B city with A token -> 404', 'POST', '/api/research/start', tA, { cityId: cityB.id, techKey: 'AGRONOMY' }, 404);
+  sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityA.id}','ACADEMY',9,2) ON CONFLICT ("cityId",slot) DO UPDATE SET key='ACADEMY', level=2`);
+  const r1 = await call('research state with Academy L2', 'GET', `/api/research?cityId=${cityA.id}`, tA);
+  const agro = r1?.city?.technologies?.find(t => t.key === 'AGRONOMY');
+  assert('Agronomy startable at level 1', !!agro && agro.nextLevel === 1 && agro.blocker === null, JSON.stringify(agro));
+  assert('Engineering blocked by its prerequisite', /Agronomie/.test(r1?.city?.technologies?.find(t => t.key === 'ENGINEERING')?.blocker || ''));
+  const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  const s1 = await call('start Agronomy level 1', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'AGRONOMY' });
+  const woodAfter = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  assert('research cost debited', !!s1?.cost && woodBefore - woodAfter === s1.cost.wood, `paid ${woodBefore - woodAfter}, cost ${s1?.cost?.wood}`);
+  assert('first research runs at once', s1?.queueItem?.status === 'RUNNING' && s1?.queueItem?.targetLevel === 1);
+  await call('start Engineering without prerequisite -> 400', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'ENGINEERING' }, 400);
+  const s2 = await call('start Agronomy level 2 (queued)', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'AGRONOMY' });
+  assert('second research waits in the queue', s2?.queueItem?.status === 'QUEUED' && s2?.queueItem?.targetLevel === 2);
+  await call('third research -> 400 (queue full)', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'TRAINING' }, 400);
+  const woodQ = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
+  const c2 = await call('cancel the queued research (full refund)', 'DELETE', `/api/research/${s2.queueItem.id}`, tA);
+  assert('queued research fully refunded', c2?.refund?.wood === s2.cost.wood && Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`)) - woodQ === s2.cost.wood, `refund ${c2?.refund?.wood} vs ${s2?.cost?.wood}`);
+  await call('cancel it again -> 404', 'DELETE', `/api/research/${s2.queueItem.id}`, tA, null, 404);
+  await call('cancel A research with B token -> 404', 'DELETE', `/api/research/${s1.queueItem.id}`, tB, null, 404);
+  sql(`UPDATE "ResearchQueueItem" SET "endsAt"=now()-interval '1 second' WHERE id='${s1.queueItem.id}'`);
+  const r2 = await call('research state after completion', 'GET', `/api/research?cityId=${cityA.id}`, tA);
+  assert('Agronomy level 1 researched, queue empty', r2?.levels?.AGRONOMY === 1 && (r2.queue || []).length === 0, JSON.stringify(r2?.levels));
+  const meT = await call('player/me carries techLevels', 'GET', '/api/player/me', tA);
+  assert('techLevels in the profile', meT?.techLevels?.AGRONOMY === 1, JSON.stringify(meT?.techLevels));
+  const s3 = await call('start Agronomy level 2', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'AGRONOMY' });
+  assert('level 2 allowed by an Academy L2', s3?.queueItem?.targetLevel === 2 && s3?.queueItem?.status === 'RUNNING');
+  await call('Agronomy level 3 -> 400 (above the Academy level)', 'POST', '/api/research/start', tA, { cityId: cityA.id, techKey: 'AGRONOMY' }, 400);
+  const c3 = await call('cancel the running research (half refund)', 'DELETE', `/api/research/${s3.queueItem.id}`, tA);
+  assert('running research refunded by half', c3?.refund?.wood === Math.floor(s3.cost.wood * 0.5), `${c3?.refund?.wood} vs ${s3?.cost?.wood}`);
+  // Leave the city as it was for the rest of the run
+  sql(`DELETE FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='ACADEMY' AND slot=9`);
+  sql(`DELETE FROM "PlayerTechnology" WHERE "playerId"='${A.player.id}'`);
+}
 // Lazy settlement: a due item is applied when the player reads their cities, without waiting for the tick
 sql(`UPDATE "BuildQueueItem" SET "endsAt"=now()-interval '1 second', "startedAt"=now()-interval '2 second' WHERE "cityId"='${cityA.id}'`);
 citiesA = await call('cities A after build (settles due items)', 'GET', '/api/cities', tA);

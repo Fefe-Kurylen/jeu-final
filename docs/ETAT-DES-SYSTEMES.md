@@ -88,7 +88,7 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; l'élite devient le meilleur rapport puissance / entretien, l'intermédiaire le meilleur rapport puissance / ressources, voir `docs/EQUILIBRAGE.md` |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
 | Forge, Ambassade, Chambre, Domus, Résidence (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Non appliqué : une seule ville par joueur aujourd'hui | Sans effet tant que les villes secondaires n'existent pas |
-| Académie et Temple grec (recherche), Résidence (colons), Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+| Résidence (colons), Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
 
 ## Interface
 
@@ -97,3 +97,16 @@ Thème peint (cadres bois et parchemin, icônes 3D) en place sur toutes les vues
 Fiches d'information (bouton « i » partout où une unité ou un bâtiment apparaît : listes de recrutement, modale de recrutement, panneaux de bâtiment, liste de construction, onglet Bâtiments, cartes et composition d'armée, rapports de bataille, défenseurs des tribus) : unité = description, statistiques, puissance, marche, transport, entretien, triangle fort/faible, rôle de siège, coût, temps de formation dans la ville, bâtiment et niveau requis, état dans la ville et raccourci « Recruter » ; bâtiment = description, état dans la ville, prérequis cochés, ce qu'il débloque (unités par palier, bâtiments), table de tous les niveaux (effet, coût, temps). Les règles affichées sont celles du serveur (`frontend/js/app/10b-sheets.js`). Depuis octobre 2026, façon Travian / Rise of Kingdoms : galerie d'aperçu (grande image du bâtiment et ses trois paliers visuels ; figurine, jeton et marqueur de carte de l'unité), section « Fonctions et activation » (chaque fonction du bâtiment avec le niveau qui l'active, son état et un raccourci quand elle est utilisable), bouton « Voir dans la ville » qui recentre la caméra sur le bâtiment et ouvre sa bulle, raccourci vers le bâtiment d'entraînement depuis la fiche d'unité. Ces parcours sont couverts par le test navigateur.
 
 Reste à produire par l'utilisateur : les images listées dans `docs/LISTE-GRAPHISMES.md` (inventaire complet avec l'état peint / rendu 3D, prompts dans `docs/PROMPTS-GRAPHIQUES.md`).
+
+## Technologies (recherche à l'Académie) — octobre 2026
+
+Arbre de huit technologies en quatre branches (économie, militaire, défense, logistique), façon Travian : petits bonus par niveau
+(0,5 à 1 % ; +5 % au maximum pour le combat, +10 % pour l'économie), dix niveaux, une recherche à la fois (une seconde en attente),
+niveau d'une technologie limité par celui de l'Académie, temps réduit par l'Académie et le Temple grec. Serveur : tables
+`PlayerTechnology` et `ResearchQueueItem` (migration `0005_research`), routes `GET /api/technologies`, `GET /api/research?cityId`,
+`POST /api/research/start`, `DELETE /api/research/:id`, étape `research` de la boucle de jeu, effets appliqués dans les coûts de
+construction, le temps de recrutement, les combats (ville, pillage, tribus), les blessés, la vitesse de marche, la production et
+l'entretien. Client : onglet « Recherche » du panneau de l'Académie (file avec compte à rebours et annulation, cartes par branche,
+coûts et raisons de blocage fournis par le serveur), fiche « i » par technologie, niveaux dans `player.techLevels` pour les coûts
+affichés. Détail et tableau des valeurs dans `docs/EQUILIBRAGE.md` § 8 ; tests dans `tests/unit/research.test.js`, le test API et
+le test navigateur.

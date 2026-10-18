@@ -3,7 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { unitsData, buildingsData, itemsData, factionsData } = require('../config/gamedata');
+const { unitsData, buildingsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
 const { getCityTier, getCityTierName } = require('../utils/calculations');
 
@@ -108,6 +108,10 @@ router.get('/buildings', auth, (req, res) => {
 router.get('/units', auth, (req, res) => {
   res.set('Cache-Control', 'private, max-age=3600');
   res.json(unitsData);
+});
+router.get('/technologies', auth, (req, res) => {
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.json(technologiesData);
 });
 router.get('/items', (req, res) => {
   res.set('Cache-Control', 'public, max-age=3600');

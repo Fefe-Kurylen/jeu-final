@@ -9,6 +9,7 @@ const { unitsData, buildingsData, factionsData } = require('../config/gamedata')
 const { getCityTier, getCityTierName, getFactionBonus } = require('../utils/calculations');
 const { lockCity, debitCity, creditCity } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
+const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
 const { processBuilds } = require('../game/processors/buildProcessor');
 const { processRecruits } = require('../game/processors/recruitProcessor');
 
@@ -150,7 +151,9 @@ router.post('/:id/build', auth, async (req, res) => {
         }
       }
 
-      const cost = buildCost(buildingDef, targetLevel);
+      // Ingénierie (technologie) : −1 % du coût de construction par niveau
+      const techLevels = T.levelsFrom(await tx.playerTechnology.findMany({ where: { playerId: city.playerId } }));
+      const cost = scaleCost(buildCost(buildingDef, targetLevel), T.techReductionMult(techLevels, 'buildCostReductionPct'));
       if (!(await debitCity(tx, city.id, cost))) {
         return { error: 'Ressources insuffisantes', status: 400, cost, have: { wood: Math.floor(city.wood), stone: Math.floor(city.stone), iron: Math.floor(city.iron), food: Math.floor(city.food) } };
       }
@@ -249,7 +252,9 @@ router.post('/:id/recruit', auth, async (req, res) => {
       // Per-class base time with tier multiplier (GDD unit_training_times.json), reduced by the training buildings
       const classBaseTime = config.recruit.baseTimeSec[unit.class] || 360;
       const tierTimeMult = config.recruit.tierTimeMultipliers[unit.tier] || 1.0;
-      const timePerUnit = Math.max(1, Math.round(classBaseTime * tierTimeMult * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100)));
+      // Entraînement (technologie) : −1 % de temps de recrutement par niveau, après les bâtiments
+      const techLevels = T.levelsFrom(await tx.playerTechnology.findMany({ where: { playerId: city.playerId } }));
+      const timePerUnit = Math.max(1, Math.round(classBaseTime * tierTimeMult * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100) * T.techReductionMult(techLevels, 'trainTimeReductionPct')));
       const totalTime = timePerUnit * count;
       // Batches in the same building train one after another, not in parallel
       const buildingKey = recruitBuildingKey;
@@ -283,12 +288,14 @@ router.delete('/:id/build/:itemId', auth, async (req, res) => {
       const item = queue.find(q => q.id === req.params.itemId);
       if (!item) return { error: 'Construction introuvable (déjà terminée ?)', status: 404 };
       const def = buildingsData.find(b => b.key === item.buildingKey);
+      // Refund what was paid: the construction cost net of the Engineering research
+      const techMult = T.techReductionMult(await tx.playerTechnology.findMany({ where: { playerId: req.user.playerId } }), 'buildCostReductionPct');
       const toCancel = queue.filter(q => q.buildingKey === item.buildingKey && q.slot === item.slot && q.targetLevel >= item.targetLevel);
       const refund = { wood: 0, stone: 0, iron: 0, food: 0 };
       for (const q of toCancel) {
         const removed = await tx.buildQueueItem.deleteMany({ where: { id: q.id, status: q.status } });
         if (removed.count !== 1) continue;   // finished meanwhile: nothing to refund
-        const part = scaleCost(def ? buildCost(def, q.targetLevel) : { wood: 0, stone: 0, iron: 0, food: 0 }, q.status === 'QUEUED' ? 1 : 0.5);
+        const part = scaleCost(def ? scaleCost(buildCost(def, q.targetLevel), techMult) : { wood: 0, stone: 0, iron: 0, food: 0 }, q.status === 'QUEUED' ? 1 : 0.5);
         for (const k of Object.keys(refund)) refund[k] += part[k];
       }
       await creditCity(tx, city.id, refund);

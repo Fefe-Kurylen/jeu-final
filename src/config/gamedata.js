@@ -5,6 +5,7 @@ let unitsData = [];
 let buildingsData = [];
 let factionsData = {};
 let itemsData = [];
+let technologiesData = { rules: {}, branches: [], technologies: [] };
 
 try {
   const dataDir = path.join(__dirname, '../../data');
@@ -12,8 +13,9 @@ try {
   buildingsData = JSON.parse(fs.readFileSync(path.join(dataDir, 'buildings.json'), 'utf-8')).buildings || [];
   factionsData = JSON.parse(fs.readFileSync(path.join(dataDir, 'factions.json'), 'utf-8')).factions || {};
   itemsData = JSON.parse(fs.readFileSync(path.join(dataDir, 'items.json'), 'utf-8')).items || [];
+  technologiesData = JSON.parse(fs.readFileSync(path.join(dataDir, 'technologies.json'), 'utf-8'));
 } catch (e) {
   console.warn('Could not load game data:', e.message);
 }
 
-module.exports = { unitsData, buildingsData, factionsData, itemsData };
+module.exports = { unitsData, buildingsData, factionsData, itemsData, technologiesData };

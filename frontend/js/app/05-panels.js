@@ -172,6 +172,7 @@ function openBuildPanel(slotNum) {
     // Determine special tabs based on building type
     const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
     if (key === 'HEALING_TENT') setTimeout(() => { if (typeof loadWounded === 'function') loadWounded(); }, 0);
+    if (key === 'ACADEMY') setTimeout(() => { if (typeof loadResearch === 'function') loadResearch(); }, 0);
 
     title.innerHTML = `
       <div class="building-title-header">
@@ -431,7 +432,10 @@ function openBuildPanel(slotNum) {
 function getBuildCost(def, targetLevel) {
   const mult = Math.pow(1.28, targetLevel - 1);
   const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
-  return { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+  const raw = { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+  // Ingénierie (technologie) : −1 % par niveau, appliqué après l'arrondi comme sur le serveur
+  const techMult = typeof techPctClient === 'function' ? Math.max(0, 1 - techPctClient('buildCostReductionPct') / 100) : 1;
+  return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, Math.floor(v * techMult)]));
 }
 // Construction time reduction of the current city (Main Hall 2.5 %/level, Academy 1 %, Residence 0.25 %, max 60 %), from the data
 function getCityBuildTimeReductionPct() {
@@ -500,14 +504,12 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
     case 'ACADEMY':
       tabs.push({
         id: 'research',
-        icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">',
+        icon: '<img class="ico" src="assets/images/3d/ui/reports.webp" alt="">',
         name: 'Recherche',
         content: `
-          <div class="special-tab-content">
-            <h4><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Académie</h4>
-            <p>Bonus recherche: <strong>-${level}%</strong> temps</p>
-            <p>Technologies disponibles selon le niveau de l'académie.</p>
-            <button class="btn-secondary" onclick="showToast('Recherches bientôt disponibles', 'info')">Voir les recherches</button>
+          <div class="special-tab-content research-tab">
+            <h4><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Technologies</h4>
+            <div id="research-panel"><p class="research-empty">Chargement…</p></div>
           </div>
         `
       });

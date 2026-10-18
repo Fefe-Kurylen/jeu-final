@@ -28,8 +28,8 @@ const sheetBuildings = () => (typeof buildingsData !== 'undefined' && Array.isAr
 // Bouton « i » : ouvre la fiche sans déclencher l'action de la carte qui le contient
 function infoBtnHtml(kind, key, cls = '') {
   const k = sheetKey(key);
-  const fn = kind === 'unit' ? 'showUnitInfoModal' : 'showBuildingInfoModal';
-  const name = kind === 'unit' ? getUnitName(k) : getBuildingName(k);
+  const fn = kind === 'unit' ? 'showUnitInfoModal' : kind === 'tech' ? 'showTechInfoModal' : 'showBuildingInfoModal';
+  const name = kind === 'unit' ? getUnitName(k) : kind === 'tech' ? (typeof techByKey === 'function' && techByKey(k)?.name) || k : getBuildingName(k);
   return `<button type="button" class="info-btn ${cls}" onclick="event.stopPropagation(); ${fn}('${k}')" title="Fiche : ${escapeHtml(name)}" aria-label="Informations sur ${escapeHtml(name)}">i</button>`;
 }
 
@@ -113,7 +113,9 @@ function unitTrainTimeInCity(unit) {
   }
   pct = Math.min(SHEET_RULES.trainReductionMaxPct, pct);
   const base = unit.recruitTimeSec || 360;
-  return { pct, base, seconds: Math.max(1, Math.round(base * (1 - pct / 100))) };
+  // Entraînement (technologie) : −1 % par niveau, après les bâtiments, comme sur le serveur
+  const techPct = typeof techPctClient === 'function' ? techPctClient('trainTimeReductionPct') : 0;
+  return { pct, techPct, base, seconds: Math.max(1, Math.round(base * (1 - pct / 100) * Math.max(0, 1 - techPct / 100))) };
 }
 
 // Alias historique (panneau de recrutement)
@@ -230,7 +232,7 @@ function buildingFunctions(key, fx) {
     BARRACKS: [['Recruter infanterie et archers de base', fx.unlockBaseTier || 1, 'recruit'], ['Unités intermédiaires', fx.unlockIntermediateTier || 7], ['Unités d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
     STABLE: [['Recruter la cavalerie de base', fx.unlockBaseTier || 1, 'recruit'], ['Cavalerie intermédiaire', fx.unlockIntermediateTier || 7], ['Cavalerie d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
     WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1]],
-    ACADEMY: [['Construction plus rapide (−1 % par niveau)', 1], ['Recherche', null]],
+    ACADEMY: [['Construction plus rapide (−1 % par niveau)', 1], ['Recherche de technologies (une technologie ne dépasse pas le niveau de l\'Académie)', 1, 'panel'], ['Recherche plus rapide (−1 % par niveau)', 1]],
     FORGE: [['Défense de toutes les troupes de la ville (+0,5 % par niveau)', 1]],
     FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],
     SILO: [['Capacité de stockage des céréales', 1]], WAREHOUSE: [['Capacité de stockage du bois, de la pierre et du fer', 1]],
@@ -250,7 +252,7 @@ function buildingFunctions(key, fx) {
     TRADE_OFFICE: [['Convois et transport par armée (+1 % par niveau)', 1]],
     ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
     GALLIC_BREWERY: [['Défense de la ville (+1 % par niveau)', 1]],
-    GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide', null]],
+    GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide (−1 % par niveau)', 1]],
     EGYPTIAN_IRRIGATION: [['Toute la production (+1 % par niveau)', 1], ['Vitesse de marche', null]],
     HUN_WAR_TENT: [['Entretien réduit (−0,5 % par niveau)', 1], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
     SULTAN_DESERT_OUTPOST: [['Entretien réduit (−0,5 % par niveau)', 1], ['Taxe entre villes', null]]
@@ -372,4 +374,44 @@ function showBuildingInfoModal(buildingKey) {
     </div>
   `;
   openSheetModal(def.name, html);
+}
+
+// ========== TECHNOLOGIES ==========
+// Fiche d'une technologie : effet par niveau, prérequis, table des niveaux (coût, temps dans la ville courante)
+function showTechInfoModal(techKey) {
+  const t = typeof techByKey === 'function' ? techByKey(techKey) : null;
+  if (!t) { showToast('Technologie non trouvée', 'error'); return; }
+  const branch = (technologiesData?.branches || []).find(b => b.key === t.branch);
+  const level = player?.techLevels?.[t.key] || 0;
+  const max = techMaxLevel(t);
+  const rules = technologiesData?.rules || {};
+  const academyLevel = (currentCity?.buildings || []).reduce((m, b) => (b.key === 'ACADEMY' && b.level > m ? b.level : m), 0);
+  const prereq = (t.prereq || []).map(p => {
+    const pt = techByKey(p.key);
+    const ok = (player?.techLevels?.[p.key] || 0) >= p.level;
+    return `<li class="${ok ? 'met' : 'unmet'}">${escapeHtml(pt?.name || p.key)} niveau ${p.level} ${ok ? '✓' : '✗'}</li>`;
+  }).join('');
+  const rows = [];
+  for (let L = 1; L <= max; L++) {
+    const c = techCostAt(t, L);
+    const cls = L <= level ? 'done' : L === level + 1 ? 'next' : '';
+    rows.push(`<tr class="${cls}"><td class="lvl">${L}${L === level ? ' <small>actuel</small>' : ''}</td><td class="eff">${escapeHtml(techEffectText(t, L))}</td><td>${formatNum(c.wood)}</td><td>${formatNum(c.stone)}</td><td>${formatNum(c.iron)}</td><td>${formatNum(c.food)}</td><td class="time">${formatDuration(techTimeAt(t, L))}</td></tr>`);
+  }
+  const html = `
+    <div class="sheet sheet-tech">
+      <p class="sheet-desc">${escapeHtml(t.description || '')}</p>
+      <div class="sheet-kv">
+        ${sheetKv('Branche', `${resIconHtml(branch?.icon || 'reports')} ${escapeHtml(branch?.name || t.branch)}`)}
+        ${sheetKv('Niveau', `${level} / ${max}`)}
+        ${sheetKv('Par niveau', escapeHtml(techPerLevelText(t)))}
+        ${sheetKv('Au maximum', escapeHtml(techEffectText(t, max)))}
+        ${sheetKv('Où', `Académie (niveau ${academyLevel} dans cette ville) : une technologie ne dépasse pas le niveau de l'Académie`)}
+        ${sheetKv('Temps de recherche', `−${fmtTechPct(techTimeReductionPct())} % dans cette ville (Académie, Temple grec, plafond ${rules.timeReductionMaxPct || 60} %)`)}
+      </div>
+      ${prereq ? `<div class="sheet-section sheet-fn-tech"><h4>${resIconHtml('list')} Prérequis</h4><ul class="sheet-prereqs">${prereq}</ul></div>` : ''}
+      <div class="sheet-section"><h4>${resIconHtml('clock')} Niveaux</h4>
+        <div class="sheet-table-wrap"><table class="sheet-table"><thead><tr><th>Niv.</th><th>Effet</th><th>${resIconHtml('wood')}</th><th>${resIconHtml('stone')}</th><th>${resIconHtml('iron')}</th><th>${resIconHtml('food')}</th><th>Temps</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+      </div>
+    </div>`;
+  openSheetModal(t.name, html);
 }

@@ -213,7 +213,7 @@
     {
       "key": "ACADEMY",
       "name": "Académie",
-      "description": "Lieu de savoir qui réduit le temps de construction et prépare les recherches. Requise pour l'Écurie et l'Atelier.",
+      "description": "Lieu de savoir qui réduit le temps de construction et abrite les recherches : une technologie ne dépasse jamais le niveau de l'Académie. Requise pour l'Écurie et l'Atelier.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [

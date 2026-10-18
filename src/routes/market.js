@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
+const T = require('../utils/techEffects');
 const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
 const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
@@ -60,7 +61,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: true } });
+      const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } } } });
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
       await lockCity(tx, sourceCity.id);
       if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
@@ -73,7 +74,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y));
+      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y), T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct'));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
       if (!ok) throw new Error('army busy');

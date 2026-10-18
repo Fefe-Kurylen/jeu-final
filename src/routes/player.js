@@ -4,6 +4,7 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
+const { levelsFrom } = require('../utils/techEffects');
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
@@ -23,7 +24,9 @@ router.get('/me', auth, async (req, res) => {
     });
     if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
     const { account, ...rest } = player;
-    res.json({ ...rest, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
+    // Researched technology levels { KEY: level }: the client applies the same cost and time formulas as the server
+    const techLevels = levelsFrom(await prisma.playerTechnology.findMany({ where: { playerId: player.id } }));
+    res.json({ ...rest, techLevels, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
   } catch (e) {
     sendError(res, e);
   }

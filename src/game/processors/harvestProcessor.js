@@ -7,6 +7,7 @@ const { Prisma } = require('@prisma/client');
 const config = require('../../config');
 const { unitsData } = require('../../config/gamedata');
 const { getArmyTravelTime } = require('../../utils/calculations');
+const T = require('../../utils/techEffects');
 const { generateTribeDefenders } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
 
@@ -23,7 +24,7 @@ async function leaveNode(army, node) {
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
     const route = await findRoute(army.x, army.y, army.city.x, army.city.y).catch(() => null);
-    const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null);
+    const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'));
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
   } else {
     await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } });
@@ -69,7 +70,7 @@ async function processHarvesting(now) {
   const leavers = all.filter(a => !busy.has(a.id));
   for (const { id } of leavers) {
     try {
-      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: true, owner: true, hero: { include: { items: true } } } });
+      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: true, owner: { include: { technologies: true } }, hero: { include: { items: true } } } });
       if (!army || army.status !== 'HARVESTING') continue;
       const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
       await leaveNode(army, node);

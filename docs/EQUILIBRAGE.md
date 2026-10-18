@@ -153,3 +153,35 @@ est inchangé. Re-simulation :
 Matrice réelle : aucun résultat ne bascule par rapport à l'étape précédente ; la Gaule attaquée par les Huns à effectifs égaux
 perd toujours sa garnison mais leur coûte 61,7 % au lieu de 59,0 % ; Rome prend encore une ville gauloise (54,0 % de pertes au
 lieu de 52,3 %).
+
+## 8. Technologies : arbre de recherche à l'Académie (octobre 2026)
+
+Système ajouté à la demande, façon Travian : de **petits bonus par niveau** qui récompensent l'investissement sans renverser une
+bataille. Données dans `data/technologies.json`, formules dans `src/utils/techEffects.js` (reprises à l'identique par le client),
+simulation possible avec `tests/unit/research.test.js`.
+
+Règles : la recherche se fait à l'**Académie** et une technologie ne dépasse jamais le niveau de l'Académie ; **une recherche à la
+fois** par joueur, une seconde peut attendre dans la file ; coût = coût du niveau 1 × 1,45^(niveau − 1), temps = temps du niveau 1 ×
+1,5^(niveau − 1), réduit par l'Académie et le Temple grec (−1 % par niveau chacun, plafond 60 %) ; annulation remboursée
+intégralement en attente, de moitié une fois lancée (même règle que les constructions). Les effets sont ceux du joueur : ils
+s'appliquent à toutes ses villes et à toutes ses armées.
+
+| Branche | Technologie | Niveau 1 | Niveau 10 | Coût bois / pierre / fer / céréales (niv. 1 → 10) | Temps (niv. 1 → 10) | Total niv. 1-10 | Prérequis |
+|---|---|---|---|---|---|---|---|
+| Économie | Agronomie | +1,0 % production des champs | +10,0 % production des champs | 150 / 100 / 80 / 200 → 4 250 / 2 833 / 2 266 / 5 666 | 0,3 h → 12,8 h | 37,8 h | — |
+| Économie | Ingénierie | −1,0 % coût de construction | −10,0 % coût de construction | 200 / 200 / 120 / 80 → 5 666 / 5 666 / 3 400 / 2 266 | 0,5 h → 19,2 h | 2,4 j | Agronomie 3 |
+| Militaire | Entraînement | −1,0 % temps de recrutement | −10,0 % temps de recrutement | 120 / 80 / 160 / 160 → 3 400 / 2 266 / 4 533 / 4 533 | 0,3 h → 12,8 h | 37,8 h | — |
+| Militaire | Art de la guerre | +0,5 % attaque | +5,0 % attaque | 150 / 100 / 260 / 120 → 4 250 / 2 833 / 7 366 / 3 400 | 0,5 h → 19,2 h | 2,4 j | Entraînement 3 |
+| Défense | Discipline | +0,5 % défense | +5,0 % défense | 120 / 200 / 180 / 100 → 3 400 / 5 666 / 5 100 / 2 833 | 0,3 h → 12,8 h | 37,8 h | — |
+| Défense | Médecine | +1,0 pt de blessés sauvés | +10,0 pt de blessés sauvés | 160 / 120 / 80 / 220 → 4 533 / 3 400 / 2 266 / 6 233 | 0,5 h → 19,2 h | 2,4 j | Discipline 3 |
+| Logistique | Cartographie | +1,0 % vitesse des armées | +10,0 % vitesse des armées | 200 / 80 / 100 / 150 → 5 666 / 2 266 / 2 833 / 4 250 | 0,3 h → 12,8 h | 37,8 h | — |
+| Logistique | Intendance | −1,0 % entretien | −10,0 % entretien | 150 / 120 / 100 / 250 → 4 250 / 3 400 / 2 833 / 7 083 | 0,5 h → 19,2 h | 2,4 j | Cartographie 3 |
+
+Pourquoi cela ne déséquilibre pas : les bonus de combat plafonnent à **+5 %**, soit le plafond du héros, et à peu près la moitié
+d'un bonus de civilisation ; les bonus économiques à **+10 %**, soit la moitié de l'Irrigation égyptienne au niveau 20 ; attaque
+et défense sont symétriques (Art de la guerre contre Discipline). Tout rechercher demande environ **15,7 j** de recherche
+cumulée sans réduction (≈ 12,6 j avec une Académie niveau 20) et 410 526 ressources : c'est un
+objectif de long terme, pas une bascule. Où chaque effet est appliqué : production et entretien dans les requêtes du tick
+(`resourceProcessor.js`), coût de construction et temps de recrutement dans `routes/cities.js`, attaque et défense dans
+`combatService.js` (attaque de ville ligne par ligne, pillage et tribus par la puissance), blessés dans `woundedService.js`,
+vitesse dans `calculations.js` (armées, espions, convois, retours).

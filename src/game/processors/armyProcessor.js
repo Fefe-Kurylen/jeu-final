@@ -7,6 +7,7 @@ const { notify } = require('../../services/pushService');
 const config = require('../../config');
 const { unitsData, factionsData } = require('../../config/gamedata');
 const { calculateTravelTime, getArmyTravelTime, getFactionBonus, getArmyCarryCapacity } = require('../../utils/calculations');
+const T = require('../../utils/techEffects');   // technologies des joueurs (attaque, défense, blessés, vitesse)
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
@@ -22,7 +23,7 @@ async function processArmyMovements(now) {
   // Arrivals whose resolution started long ago and never ended: send them home instead of replaying them
   const stale = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, claimedAt: { lt: new Date(now.getTime() - config.tick.claimTimeoutMinutes * 60000) } },
-    include: { units: true, owner: true, city: true, hero: { include: { items: true } } }
+    include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } }
   });
   for (const army of stale) {
     console.error(`[ARMY] resolution of ${army.id} (${army.status}) never completed: sending it home`);
@@ -31,7 +32,7 @@ async function processArmyMovements(now) {
 
   const movingArmies = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, arrivalAt: { lte: now }, claimedAt: null },
-    include: { units: true, owner: true, city: true, hero: { include: { items: true } } },
+    include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } },
     orderBy: { arrivalAt: 'asc' },
     take: 500
   });
@@ -89,8 +90,8 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y).catch(() => null);
   const distance = route ? route.length : null;
   const travelTime = fixedSpeed
-    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance)
-    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance);
+    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'))
+    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'));
   await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
@@ -179,7 +180,10 @@ async function handleAttack(army, now) {
     const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = defenders.find(a => a.hero)?.hero || null;
-    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, fx.defenseBonusPct(targetCity.buildings));
+    // Technologies of both players: Art de la guerre (attack), Discipline (defence); Médecine is applied to the wounded below
+    const [atkTech, defTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
+    const techMods = { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: T.techBonusMult(defTech, 'attackBonusPct'), def: T.techBonusMult(defTech, 'defenseBonusPct') } };
+    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, fx.defenseBonusPct(targetCity.buildings), techMods);
 
     // GDD: only siege engines damage the wall (30% efficiency when the assault fails)
     const siegeSurvivors = result.attackerFinalUnits.reduce((sum, u) => (unitsData.find(x => x.key === u.key)?.class === 'SIEGE' ? sum + u.remaining : sum), 0);
@@ -219,13 +223,13 @@ async function handleAttack(army, now) {
     await tx.playerStats.upsert({ where: { playerId: winnerId }, update: { [winField]: { increment: 1 } }, create: { playerId: winnerId, [winField]: 1 } });
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-    return { targetCity, result, defenderHero };
+    return { targetCity, result, defenderHero, atkTech, defTech };
   }, TX);
   if (!battle) {
     await sendArmyHome(army, army.targetX, army.targetY);
     return;
   }
-  const { targetCity, result, defenderHero } = battle;
+  const { targetCity, result, defenderHero, atkTech, defTech } = battle;
   notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${army.owner.name} : ${result.attackerWon ? 'défaite' : 'victoire'}. Rapport disponible.`, { tab: 'reports' });
   notify(army.ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { tab: 'reports' });
 
@@ -238,10 +242,10 @@ async function handleAttack(army, now) {
   } catch (xpErr) { console.error('[HERO XP]', xpErr.message); }
 
   try {
-    const defenderWounded = await calculateWoundedUnits(targetCity.id, result.defenderFinalUnits, targetCity.player.faction);
+    const defenderWounded = await calculateWoundedUnits(targetCity.id, result.defenderFinalUnits, targetCity.player.faction, T.techPct(defTech, 'woundedBonusPct'));
     if (defenderWounded.length > 0) await addWoundedUnits(targetCity.id, defenderWounded);
     if (army.cityId) {
-      const attackerWounded = await calculateWoundedUnits(army.cityId, result.attackerFinalUnits, army.owner.faction);
+      const attackerWounded = await calculateWoundedUnits(army.cityId, result.attackerFinalUnits, army.owner.faction, T.techPct(atkTech, 'woundedBonusPct'));
       if (attackerWounded.length > 0) await addWoundedUnits(army.cityId, attackerWounded);
     }
   } catch (woundErr) { console.error('[WOUNDED]', woundErr.message); }
@@ -270,7 +274,9 @@ async function handleRaid(army, now) {
     const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = defenders.find(a => a.hero)?.hero || null;
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings) });
+    // Technologies: Art de la guerre (attacker's power), Discipline (defender's power)
+    const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
 
     const survivors = attackerUnits.map(u => ({ ...u, newCount: Math.floor(u.count * (1 - result.attackerLossRate)) }));
 

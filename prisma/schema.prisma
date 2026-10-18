@@ -70,6 +70,8 @@ model Player {
   expeditions  Expedition[]
   pushTokens   PushToken[]
   purchases    Purchase[]
+  technologies PlayerTechnology[]
+  researchQueue ResearchQueueItem[]
 
   @@index([lastSeenAt])
 }
@@ -113,6 +115,7 @@ model City {
   player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
   buildings    CityBuilding[]
   buildQueue   BuildQueueItem[]
+  researchQueue ResearchQueueItem[]
   recruitQueue RecruitQueueItem[]
   armies       Army[]
   wounded      WoundedUnit[]
@@ -490,4 +493,34 @@ model AnalyticsEvent {
 
   @@index([event, createdAt])
   @@index([playerId, createdAt])
+}
+
+// ============== TECHNOLOGIES (recherche à l'Académie, data/technologies.json) ==============
+model PlayerTechnology {
+  id       String @id @default(uuid())
+  playerId String
+  techKey  String
+  level    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, techKey])
+}
+
+model ResearchQueueItem {
+  id          String   @id @default(uuid())
+  playerId    String
+  cityId      String
+  techKey     String
+  targetLevel Int
+  cost        Json?
+  startedAt   DateTime
+  endsAt      DateTime
+  status      String   @default("RUNNING") // RUNNING, QUEUED
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, status])
+  @@index([status, endsAt])
 }

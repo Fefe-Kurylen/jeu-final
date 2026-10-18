@@ -100,15 +100,16 @@ const remainingPower = (side) => side.reduce((s, u) => s + Math.max(0, u.count) 
 
 // Simple power-based resolution (raids, tribe fights). GDD raid rule: a fight stops once a side drops
 // below 70%, so the loser never loses more than 30%.
-// opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each
+// opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
+// attackerBonusPct / defenderBonusPct — the players' technologies (Art de la guerre, Discipline), in percent
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null, opts = {}) {
   const attackerHeroBonus = heroBonus(attackerHero, 'attack');
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
 
-  const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus;
+  const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus * (1 + (opts.attackerBonusPct || 0) / 100);
   const wallBonus = 1 + defenderWallLevel * config.combat.wallBonusPerLevel;   // « wallHealth » (Égypte) porte sur les points de vie du mur, pas sur ce bonus
   const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
-  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * fb(opts.defenderFaction, 'cityDefense') * fb(opts.defenderFaction, 'unitDefense');
+  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * fb(opts.defenderFaction, 'cityDefense') * fb(opts.defenderFaction, 'unitDefense') * (1 + (opts.defenderBonusPct || 0) / 100);
   const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
 
   const attackerWon = attackerPower > defenderPower;
@@ -127,20 +128,21 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 }
 
 // Detailed round-by-round combat used for city attacks (replayable)
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0) {
+// techMods: { attacker: { atk, def }, defender: { atk, def } } multipliers from the players' technologies (1 when absent)
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null) {
   // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead);
   // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
   const wallBonus = 1 + wallLevel * config.combat.wallBonusPerLevel;
   const moatBonus = 1 + moatLevel * config.combat.moatBonusPerLevel;
 
   const attackers = makeSide(attackerUnits, {
-    atk: fb(attackerFaction, 'siegeAttack') * heroBonus(attackerHero, 'attack'),
-    def: fb(attackerFaction, 'unitDefense') * heroBonus(attackerHero, 'defense'),
+    atk: fb(attackerFaction, 'siegeAttack') * heroBonus(attackerHero, 'attack') * (techMods?.attacker?.atk || 1),
+    def: fb(attackerFaction, 'unitDefense') * heroBonus(attackerHero, 'defense') * (techMods?.attacker?.def || 1),
     hp: fb(attackerFaction, 'siegeLossReduction')
   });
   const defenders = makeSide(defenderUnits, {
-    atk: moatBonus * fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack'),
-    def: (wallBonus + moatBonus - 1) * (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense'),
+    atk: moatBonus * fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack') * (techMods?.defender?.atk || 1),
+    def: (wallBonus + moatBonus - 1) * (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense') * (techMods?.defender?.def || 1),
     hp: fb(defenderFaction, 'siegeLossReduction')
   });
 

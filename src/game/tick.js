@@ -9,6 +9,7 @@ const { processHealedUnits } = require('../services/woundedService');
 const { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome } = require('./processors/resourceProcessor');
 const { processBuilds, syncAllCityStorage } = require('./processors/buildProcessor');
 const { processRecruits } = require('./processors/recruitProcessor');
+const { processResearch } = require('./processors/researchProcessor');
 const { processExpeditions, generateNewExpeditions } = require('./processors/expeditionProcessor');
 const { processArmyMovements } = require('./processors/armyProcessor');
 const { processHarvesting, processTribeRespawn } = require('./processors/harvestProcessor');
@@ -79,6 +80,7 @@ async function gameTick() {
 
     await step('builds', () => processBuilds(now));
     await step('recruits', () => processRecruits(now));
+    await step('research', () => processResearch(now));
 
     await step('expeditions', () => processExpeditions(now));
     await step('newExpeditions', () => generateNewExpeditions());
