@@ -4994,3 +4994,4 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 .tc-ico { width: 22px; height: 22px; }
 .sheet-tech-ico { text-align: center; margin: 0 0 6px; }
 .sheet-tech-ico .ico { width: 64px; height: 64px; }
+.star-empty { opacity: .35; }
