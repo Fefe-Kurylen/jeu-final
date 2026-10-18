@@ -17,10 +17,10 @@ const n = (list) => list.length, p = (list) => list.filter(f => painted.has(f)).
 const row = (label, list, size, usage) => `| ${label} | ${n(list)} | ${p(list)} | **${n(list) - p(list)}** | ${size} | ${usage} |`;
 const FACTIONS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const FN = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
-const b = cat('buildings').filter(f => !foreignFaction(f));
+const b = cat('buildings').filter(f => !foreignFaction(f) && !/_snow\.webp$/.test(f));   // variantes neige retirées de la liste (octobre 2026)
 const bsel = (f, v) => b.filter(x => x.startsWith(`buildings/${f}/`) && (v === 'cur' ? !/_t1|_t3|_snow/.test(x) : v === 't1' ? /_t1\.webp$/.test(x) : v === 't3' ? /_t3\.webp$/.test(x) : /_snow\.webp$/.test(x)));
 const cell = (list) => `${p(list)} / ${n(list)}`;
-const walls = cat('walls'), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
+const walls = cat('walls').filter(f => !/_snow\.webp$/.test(f)), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
 const map = cat('map'), mapCities = map.filter(x => x.startsWith('map/cities/')), mapRes = map.filter(x => x.startsWith('map/resources/')), mapTerrain = map.filter(x => x.startsWith('map/terrain/')), mapUnits = map.filter(x => x.startsWith('map/units/'));
 const mapAll = [...map, ...mapCamps];
 const figures = cat('figures'), busts = cat('busts'), heroes = cat('heroes'), scenes = cat('scenes'), icons = cat('icons'), frames = cat('uiframes');
@@ -53,7 +53,7 @@ Généré par \`node tools/liste-graphismes.cjs\` à partir des manifestes \`fro
 | Visuels affichés par le jeu, hors neige et animations | **${n(all)}** |
 | Déjà peints | ${p(all)} |
 | Restant à produire | **${n(all) - p(all)}** |
-| Variantes du biome neige, **reportées à plus tard** (bâtiments et enceinte \`_snow\`, champs, parcelles et décors enneigés) | ${n(snow)} (dont ${p(snow)} déjà peintes) |
+| Champs, parcelles et décors du biome neige, **reportés à plus tard** (les variantes \`_snow\` des bâtiments et de l'enceinte sont retirées de la liste : le rendu 3D enneigé reste en jeu) | ${n(snow)} (dont ${p(snow)} déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | ${n(cat('flags')) + n(cat('effects'))} |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
 
@@ -75,20 +75,20 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 
 Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur les voit.
 
-### 3.1 Bâtiments — \`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`
+### 3.1 Bâtiments — \`buildings/<CIV>/<CLÉ>[_t1|_t3].png\`
 
 34 bâtiments par civilisation (33 communs + son bâtiment de faction ; liste détaillée par civilisation dans \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
-**_t3** (niveaux 14-20, monumentale). La version **_snow** de chacune (ville du biome neige) est reportée. Taille 1024×1024, cadre « building ».
+**_t3** (niveaux 14-20, monumentale). Pas de version neige à produire (décision d'octobre 2026 : le rendu 3D enneigé reste). Taille 1024×1024, cadre « building ».
 
-| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant (hors neige) | Neige (_snow, reportée) |
+| Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant |
 |---|---|---|---|---|---|
 `;
 for (const f of FACTIONS) {
   const cur = bsel(f, 'cur'), t1 = bsel(f, 't1'), t3 = bsel(f, 't3'), snow = bsel(f, 'snow');
   const tot = [...cur, ...t1, ...t3];
-  md += `| ${FN[f]} | ${cell(cur)} | ${cell(t1)} | ${cell(t3)} | **${n(tot) - p(tot)}** | ${cell(snow)} |\n`;
+  md += `| ${FN[f]} | ${cell(cur)} | ${cell(t1)} | ${cell(t3)} | **${n(tot) - p(tot)}** |\n`;
 }
-md += `| **Total** | ${cell(b.filter(x => !/_t1|_t3|_snow/.test(x)))} | ${cell(b.filter(x => /_t1\.webp$/.test(x)))} | ${cell(b.filter(x => /_t3\.webp$/.test(x)))} | **${n(bNoSnow) - p(bNoSnow)}** | ${cell(b.filter(x => /_snow\.webp$/.test(x)))} |
+md += `| **Total** | ${cell(b.filter(x => !/_t1|_t3|_snow/.test(x)))} | ${cell(b.filter(x => /_t1\.webp$/.test(x)))} | ${cell(b.filter(x => /_t3\.webp$/.test(x)))} | **${n(bNoSnow) - p(bNoSnow)}** |
 
 Priorité : le palier courant des 6 civilisations (${n(b.filter(x => !/_t1|_t3|_snow/.test(x))) - p(b.filter(x => !/_t1|_t3|_snow/.test(x)))} restants), puis _t1, puis _t3. Neige reportée.
 
@@ -103,7 +103,7 @@ ${row('Textures de sol `terrain/<grass|dirt|sand|snow>.png` (répétables)', ter
 
 Décors restants : ${missingProps.length ? missingProps.join(', ') : 'aucun'}.
 
-### 3.3 Enceinte — \`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low].png\`, \`walls/<CIV>/<1|2|3>_tower.png\` (variantes _snow reportées)
+### 3.3 Enceinte — \`walls/<CIV>/<1|2|3>_<seg_x|seg_z>[_low].png\`, \`walls/<CIV>/<1|2|3>_tower.png\` (pas de version neige)
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
@@ -200,17 +200,17 @@ Dans l'inventaire mais jamais affichées (peuvent être ignorées) : icônes \`a
 3. Déposer les fichiers (ou un zip) dans \`art/incoming/\`, par lots ; ce qui manque garde le rendu 3D.
 4. Intégration : \`node tools/repaint.cjs --import=art/incoming\`, vérification en jeu (bureau + mobile), commit.
 
-## 6. Reporté : les variantes du biome neige
+## 6. Biome neige
 
-Mises de côté pour l'instant (elles ne concernent que les villes fondées dans la neige et gardent leur rendu 3D) :
+Les variantes \`_snow\` des bâtiments et de l'enceinte sont **retirées de la liste** (décision d'octobre 2026) : le jeu garde
+leur rendu 3D enneigé pour les villes fondées dans la neige. Restent reportés, pour le même biome :
 
 | Catégorie | Images | Déjà peintes |
 |---|---|---|
-| Bâtiments \`buildings/<CIV>/<CLÉ>[_t1|_t3]_snow.png\` | ${n(b.filter(isSnow))} | ${p(b.filter(isSnow))} |
-| Enceinte \`walls/<CIV>/…_snow.png\` | ${n(walls.filter(isSnow))} | ${p(walls.filter(isSnow))} |
 | Champs \`fields/snow/…\`, parcelles \`plots/snow_<0|1>.png\`, décors \`props/snowpine.png\` et \`props/snowrock.png\` | ${n([...fields, ...plots, ...props].filter(isSnow))} | ${p([...fields, ...plots, ...props].filter(isSnow))} |
 
 Le relief enneigé de la carte du monde (\`map/terrain/snow_*\`, \`frozen*\`) et les ressources \`_snow\` restent dans l'inventaire : tout le monde les voit sur la carte.
+La liste complète de tout ce qu'il faut produire, famille par famille, est dans \`docs/GRAPHISMES-COMPLET.md\`.
 `;
 fs.writeFileSync(root + 'docs/LISTE-GRAPHISMES.md', md);
 
@@ -282,14 +282,21 @@ const STATIC = [
   ['busts/TRIBE_<CIV>.png × 6 (chefs des tribus locales)', '1024×1024', 'guide § S14'],
   ['scenes/vignette-tribe-<forest|desert|snow>.png × 3 (camps des tribus, en tête des rapports)', '1536×1024', 'guide § S14'],
   ['ui/tribe.png (icône tribu locale)', '1024×1024', 'guide § S14'],
+  ['props/plaza_<CIV>_<statue|fountain|stall>.png × 18 (ornements de plaza par civilisation)', '512×768', 'guide § S16'],
+  ['walls/<CIV>/moat_<seg_x|seg_z|corner>.png × 18 (douves)', '1024×1024', 'guide § S16'],
+  ['figures/units/<CLÉ>.png × 60 et busts/units/<CLÉ>.png × 60 (une figurine et un jeton par unité, fiches d\'unité)', '1024×1536 / 1024×1024', 'guide § S17'],
+  ['map/units/hero_<CIV>.png × 6 (héros en tête d\'armée), map/units/spy.png (espion)', '1024×1024', 'guide § S18'],
+  ['heroes/<CIV>_t<2|3>.png × 12 et heroes/<CIV>_bust_t<2|3>.png × 12 (héros par palier de niveau)', '1024×1536 / 1024×1024', 'guide § S19'],
+  ['scenes/faction-<CIV>.png × 6 (paysages des cartes de civilisation), scenes/header-<army|research>.png × 2', '1536×1024', 'guide § S20'],
   ['ui/crest_<CIV>.png × 6', '1024×1024', 'guide § S3'],
   ['scenes/expedition-<forest|desert|mountain|ruins>.png × 4', '1536×1024', 'guide § S4'],
   ['ui/btn-round.png, ui/btn-round-pressed.png', '1024×1024', 'guide § S5'],
   ['store/ic_stat_notify.png (icône de notification Android, blanc sur transparent)', '96×96', 'guide § N1'],
-  ['store/feature-graphic.png (bannière Google Play)', '1024×500', 'guide § N2']
+  ['store/feature-graphic.png (bannière Google Play)', '1024×500', 'guide § N2'],
+  ['store/icon-1024.png (icône de l\'application peinte)', '1024×1024', 'guide § N3']
 ];
 const ANIM = [
-  ['A1', 'props/villager_<a|b|c>_<0..5>.png', 18, '512×768', 'villageois qui marchent dans la ville'],
+  ['A1', 'props/villager_<CIV>_<a|b>_<0..5>.png', 72, '512×768', 'villageois (homme, femme) de chaque civilisation qui marchent dans la ville'],
   ['A2', 'props/flame_<0..3>.png, props/brazier_<0..3>.png', 8, '512×768', 'flammes des torches et braseros'],
   ['A3', 'props/worker_<CIV>_<0..3>.png', 24, '512×768', 'chantier : ouvrier au marteau de chaque civilisation (échafaudages : compléments fixes § S11)'],
   ['A4', 'anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png', 14, '512×512', 'moulin, forge, fonderie'],
@@ -299,10 +306,17 @@ const ANIM = [
   ['A8', 'ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png', 16, '512×512', 'effets d\'interface'],
   ['A9', 'props/snowflake_<0..2>.png, props/leaf_<0..2>.png, props/dust_devil_<0..3>.png, props/bird_<0..2>.png', 13, '512×512', 'ambiance'],
   ['A10', 'heroes/<CIV>_idle_<0..2>.png', 18, '512×768', 'héros en pose d\'attente'],
-  ['A11', 'props/cart_<0..3>.png, props/horse_idle_<0..3>.png', 8, '512×768', 'charrette et chevaux']
+  ['A11', 'props/cart_<0..3>.png, props/horse_idle_<0..3>.png', 8, '512×768', 'charrette et chevaux'],
+  ['A12', 'props/<farmer|lumberjack|quarryman|miner>_<0..3>.png', 16, '512×768', 'gens des champs au travail'],
+  ['A13', 'props/animal_<chicken|dog|goat|cat>_<0..3>.png', 16, '512×768', 'animaux dans la ville'],
+  ['A14', 'anim/<barracks_drill|market_crowd|stable_horse|workshop_hammer|bakery_smoke|watchtower_beacon>_<0..3>.png', 24, '512×512', 'bâtiments vivants, suite'],
+  ['A15', 'props/smoke_chimney_<0..3>.png, props/smoke_campfire_<0..3>.png', 8, '512×768', 'fumées peintes (remplacent les bouffées 3D)'],
+  ['A16', 'props/flagp_<CIV>_<0..7>.png', 48, '512×768', 'drapeaux peints par civilisation (remplacent les drapeaux 3D)'],
+  ['A17', 'map/fx/rain_<0..3>.png, map/fx/snowfall_<0..3>.png', 8, '512×512', 'météo sur la carte'],
+  ['A18', 'map/units/hero_<CIV>_attack_<0..2>.png', 18, '512×512', 'héros au combat dans le replay']
 ];
 const animTotal = ANIM.reduce((t, a) => t + a[2], 0);
-const staticTotal = 6 + 1 + 1 + 12 + 1 + 18 + 7 + 3 + 6 + 6 + 1 + 6 + 3 + 1 + 6 + 4 + 2 + 1 + 1;
+const staticTotal = 6 + 1 + 1 + 12 + 1 + 18 + 7 + 3 + 6 + 6 + 1 + 6 + 3 + 1 + 18 + 18 + 120 + 7 + 24 + 8 + 6 + 4 + 2 + 1 + 1 + 1;
 const sections = [];
 const sec = (title, files, note = '') => sections.push({ title, files, note });
 sec('1. Bâtiments, palier courant (niveaux 7-13), par civilisation', civOrder.flatMap(c => bCur(c)), 'Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (dossier `guides/` + `prompts/`) ou `docs/LISTE-BATIMENTS-PAR-FACTION.md`.');
@@ -318,7 +332,9 @@ sec('10. Eau et glace, sols des champs, décalques, bordures', [...TEX_GROUP.wat
 sec('11. Animations (bandes de phases, voir guide § 0 et § A1-A11)', ANIM.map(([k, f, n, sz, w]) => `${k} — ${f} — ${n} images — cases ${sz} — ${w}`), `${animTotal} images au total ; livrer une bande par animation, je découpe.`);
 sec('12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20)', [...civOrder.flatMap(c => bT1(c)), ...civOrder.flatMap(c => bT3(c))], '`--kit --tiers`. Après tout le reste.');
 const siteFiles = buildAllTargets().filter(t => t.site).map(t => t.file);
+const unitArt = buildAllTargets().filter(t => /^(figures|busts)\/units\//.test(t.file)).map(t => t.file);
 sec('13. Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier', remaining(siteFiles), 'Techniques de chantier historiques par civilisation : guide § S10 ; `--kit` fournit le rendu du bâtiment fini comme guide de cadrage (même emprise). Commencer par les échafaudages génériques (§ S11, 18 images) qui couvrent tout de suite tous les chantiers.');
+sec('14. Fiches d\'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli)', remaining(unitArt), 'Guide § S17 ; `--kit` donne la figurine de la classe comme guide.');
 const countOf = (sct) => sct.files.length;
 let ag = `# À générer — liste consolidée de tous les graphismes manquants
 
@@ -350,3 +366,133 @@ console.log('docs/A-GENERER.md écrit :', sections.reduce((t, x, i) => t + ((x.t
 void staticTotal;
 console.log('docs/LISTE-BATIMENTS-PAR-FACTION.md écrit');
 console.log('docs/LISTE-GRAPHISMES.md écrit :', n(all), 'visuels,', p(all), 'peints,', n(all) - p(all), 'restants');
+
+// ---- docs/GRAPHISMES-COMPLET.md : TOUT ce qu'il faut graphiquement, écran par écran, famille par famille ----
+{
+  const reg = buildAllTargets();
+  const files = reg.map(t => t.file).filter(f => !foreignFaction(f));   // un bâtiment propre à une civilisation n'existe que chez elle
+  const taken = new Set();
+  const fam = (title, test, where, ref, prio, note = '') => {
+    const list = files.filter(f => !taken.has(f) && test(f)); list.forEach(f => taken.add(f));
+    return { title, list, where, ref, prio, note, total: list.length, done: list.filter(f => painted.has(f)).length };
+  };
+  const screens = [
+    ['Inscription et connexion', [
+      fam('Scènes de connexion (portrait, paysage)', f => /^scenes\/auth-/.test(f), 'écran de connexion', '§ 3.6', '★★★'),
+      fam('Paysages des cartes de civilisation', f => /^scenes\/faction-/.test(f), 'cartes de choix de civilisation', 'guide § S20', '★★☆'),
+      fam('Blasons des civilisations', f => /^ui\/crest_/.test(f), 'inscription, alliance, étiquettes', 'guide § S3', '★★☆'),
+      fam('Bustes des héros (choix de civilisation, cartes d\'armée)', f => /^heroes\/[A-Z]+_bust\.webp$/.test(f), 'cartes de civilisation, armées', '§ 3.5', '★★☆')
+    ]],
+    ['Ville : scène isométrique', [
+      fam('Bâtiments, palier courant (niveaux 7-13), 39 × 6 civilisations', f => /^buildings\/[A-Z]+\/[A-Z_]+\.webp$/.test(f), 'vue ville, vignettes, fiches', '§ 3.1', '★★★'),
+      fam('Bâtiments, paliers 1 et 3 (niveaux 1-6 et 14-20)', f => /^buildings\/[A-Z]+\/[A-Z_]+_t[13]\.webp$/.test(f), 'vue ville, fiches (3 paliers)', '§ 3.1', '★☆☆'),
+      fam('Chantiers : chaque bâtiment en construction par civilisation', f => /^buildings\/.*_site\.webp$/.test(f), 'bâtiment en première construction', 'guide § S10', '★★☆'),
+      fam('Échafaudages par civilisation (trois tailles)', f => /^props\/scaffold_/.test(f), 'bâtiment en amélioration', 'guide § S11', '★★★'),
+      fam('Ouvriers par civilisation (animation A3)', f => /^props\/worker_/.test(f), 'devant les chantiers', 'guide § A3', '★★★'),
+      fam('Parcelles au sol (deux variantes par biome)', f => /^plots\//.test(f), 'sous chaque bâtiment', '§ 3.2', '★★☆'),
+      fam('Champs (4 types × 3 paliers × 3 biomes)', f => /^fields\/\w+\/[A-Z_]+_\d\.webp$/.test(f), 'anneau des champs', '§ 3.2', '★★★'),
+      fam('Champs en chantier', f => /^fields\/.*_site\.webp$/.test(f), 'champ en première construction', 'guide § S10', '★☆☆'),
+      fam('Enceinte : courtines, murets et tours, 3 paliers × 6 civilisations', f => /^walls\/[A-Z]+\/\d_/.test(f), 'autour de la ville (palier du Bâtiment principal)', '§ 3.3', '★★★'),
+      fam('Portes de la ville par civilisation', f => /^walls\/[A-Z]+\/gate\.webp$/.test(f), 'arête sud-ouest de l\'enceinte', 'guide § S1', '★★★'),
+      fam('Enceinte en chantier', f => /^walls\/[A-Z]+\/site_/.test(f), 'Mur en travaux', 'guide § S10', '★☆☆'),
+      fam('Douves par civilisation', f => /^walls\/[A-Z]+\/moat_/.test(f), 'bâtiment Douves (à brancher)', 'guide § S16', '★☆☆'),
+      fam('Ornements de plaza par civilisation (statue, fontaine, étal)', f => /^props\/plaza_/.test(f), 'autour du Bâtiment principal', 'guide § S16', '★★☆'),
+      fam('Villageois de chaque civilisation (homme, femme), marche 6 phases', f => /^props\/villager_/.test(f), 'avenues et plaza', 'guide § A1', '★★★'),
+      fam('Gens des champs au travail', f => /^props\/(farmer|lumberjack|quarryman|miner)_/.test(f), 'anneau des champs', 'guide § A12', '★★☆'),
+      fam('Animaux dans la ville', f => /^props\/animal_/.test(f), 'avenues, plaza', 'guide § A13', '★☆☆'),
+      fam('Flammes des torches et braseros', f => /^props\/(flame|brazier)_/.test(f), 'tours, porte, plaza (nuit)', 'guide § A2', '★★★'),
+      fam('Bâtiments vivants (moulin, forge, fonderie)', f => /^anim\/(mill_sails|sparks|furnace)_/.test(f), 'sur les bâtiments', 'guide § A4', '★★☆'),
+      fam('Bâtiments vivants, suite (caserne, marché, écurie, atelier, boulangerie, tour de guet)', f => /^anim\//.test(f), 'sur les bâtiments', 'guide § A14', '★★☆'),
+      fam('Fumées peintes (cheminées, feux de camp)', f => /^props\/smoke_/.test(f), 'toits, campements', 'guide § A15', '★☆☆'),
+      fam('Drapeaux peints par civilisation (8 phases)', f => /^props\/flagp_/.test(f), 'tours, bâtiments, enceinte', 'guide § A16', '★☆☆'),
+      fam('Charrette et chevaux', f => /^props\/(cart|horse_idle)_/.test(f), 'route, écurie', 'guide § A11', '★☆☆'),
+      fam('Ambiance : neige, feuilles, tourbillon, oiseaux', f => /^props\/(snowflake|leaf|dust_devil|bird)_/.test(f), 'selon le biome et l\'heure', 'guide § A9', '★☆☆'),
+      fam('Panneau « construire ici », parchemin « recherche en cours »', f => /^props\/(sign_build|scroll_research)\.webp$/.test(f), 'emplacements libres, Académie', 'guide § S2, S6', '★★☆'),
+      fam('Décors de scène (arbres, rochers, buissons, cactus, dunes)', f => /^props\//.test(f), 'autour de la ville et des champs', '§ 3.2', '★★☆'),
+      fam('Textures de sol (répétables) et bordures de transition', f => /^terrain\//.test(f), 'sols de la ville, des champs, de la carte', 'guide § T', '★★★'),
+      fam('Décalques au sol', f => /^decals\//.test(f), 'semés dans la ville et aux alentours', 'guide § T', '★☆☆')
+    ]],
+    ['Carte du monde', [
+      fam('Villes par civilisation et forteresses', f => /^map\/cities\/(?!colony_)/.test(f), 'villes des joueurs (palier du Bâtiment principal)', '§ 3.4', '★★★'),
+      fam('Villes secondaires (colonies) par civilisation', f => /^map\/cities\/colony_/.test(f), 'colonies des joueurs', 'guide § S12', '★★☆'),
+      fam('Points de ressource (5 types × 3 biomes)', f => /^map\/resources\//.test(f), 'points de ressource libres', '§ 3.4', '★★★'),
+      fam('Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace)', f => /^map\/terrain\//.test(f), 'fond de la carte', '§ 3.4', '★★★'),
+      fam('Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières)', f => /^map\/camps\/(camp|ruins|banner)/.test(f), 'points tenus par une tribu', 'guide « Camps barbares »', '★★★'),
+      fam('Campement de fondation (3 biomes)', f => /^map\/camps\/foundation/.test(f), 'point pendant la fondation d\'une ville', 'guide § S12', '★★☆'),
+      fam('Armées en marche (4 classes × 6 civilisations, marchand)', f => /^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(_[A-Z]+)?\.webp$/.test(f), 'armées, convois', '§ 3.4', '★★★'),
+      fam('Cortège de colons (+ 6 civilisations)', f => /^map\/units\/settler(_[A-Z]+)?\.webp$/.test(f), 'armée partie fonder une ville', 'guide § S12', '★★☆'),
+      fam('Héros en tête d\'armée, espion', f => /^map\/units\/(hero_[A-Z]+|spy)\.webp$/.test(f), 'armées avec héros, missions d\'espionnage', 'guide § S18', '★★☆'),
+      fam('Cycles de marche (armées, marchand, colons)', f => /^map\/units\/\w+_walk_\d\.webp$/.test(f), 'armées en mouvement', 'guide § A5', '★★☆'),
+      fam('Replay de bataille : poses, héros, projectiles, impacts', f => /^(map\/units\/\w+_(attack|hit)_\d\.webp|fx\/)/.test(f), 'rapports de combat', 'guide § A6, A18', '★★☆'),
+      fam('Effets de carte : combat, ville en feu, feu de camp, météo', f => /^map\/fx\//.test(f), 'carte', 'guide § A7, A17', '★☆☆')
+    ]],
+    ['Armée, combat, héros', [
+      fam('Figurines de classe (4 classes × 6 civilisations)', f => /^figures\/[A-Z]+_[A-Z]+\.webp$/.test(f), 'fiches et cartes de recrutement (repli)', '§ 3.5', '★★☆'),
+      fam('Jetons de classe', f => /^busts\/[A-Z]+(_[A-Z]+)?\.webp$/.test(f) && !/^busts\/(SETTLER|TRIBE)_/.test(f), 'listes, rapports, composition (repli)', '§ 3.5', '★★☆'),
+      fam('Fiches d\'unité : une figurine par unité (60)', f => /^figures\/units\//.test(f), 'fiche d\'unité, carte de recrutement', 'guide § S17', '★★☆'),
+      fam('Fiches d\'unité : un jeton par unité (60)', f => /^busts\/units\//.test(f), 'listes, rapports, composition d\'armée', 'guide § S17', '★★☆'),
+      fam('Héros sur l\'estrade (6)', f => /^heroes\/[A-Z]+\.webp$/.test(f), 'écran du héros', '§ 3.5', '★★☆'),
+      fam('Héros par palier de niveau (estrade et jeton)', f => /^heroes\/[A-Z]+_(t[23]|bust_t[23])\.webp$/.test(f), 'écran du héros, cartes d\'armée (à brancher)', 'guide § S19', '★☆☆'),
+      fam('Héros en pose d\'attente (3 phases)', f => /^heroes\/[A-Z]+_idle_/.test(f), 'écran du héros', 'guide § A10', '★☆☆'),
+      fam('Scène du champ de bataille', f => /^scenes\/battlefield/.test(f), 'replay de bataille', '§ 3.6', '★★☆'),
+      fam('Estrades du héros par civilisation', f => /^scenes\/hero-/.test(f), 'écran du héros', '§ 3.6', '★★☆'),
+      fam('Chefs de tribu et colons (jetons)', f => /^busts\/(TRIBE|SETTLER)_/.test(f), 'rapports de tribu, Résidence, fondation', 'guide § S12, S14', '★☆☆'),
+      fam('Vignettes : tribus, fondation, expéditions', f => /^scenes\/(vignette-|expedition-)/.test(f), 'rapports, Résidence, expéditions', 'guide § S4, S12, S14', '★☆☆')
+    ]],
+    ['Écrans et interface', [
+      fam('Bandeaux en tête des écrans', f => /^scenes\/header-/.test(f), 'marché, alliance, classement, sac, rapports, armée, recherche', '§ 3.6, guide § S20', '★★☆'),
+      fam('Icônes des technologies et des branches', f => /^ui\/(tech|branch)_/.test(f), 'onglet Recherche, fiches', 'guide § S8', '★★☆'),
+      fam('Objets du héros', f => /^ui\/item_/.test(f), 'inventaire, équipement', '§ 3.7', '★★☆'),
+      fam('Habillage : boutons, cadres, plaques, barres', f => /^ui\/(btn-|frame-|plate-|bar-)/.test(f), 'toute l\'interface', '§ 3.7', '★★★'),
+      fam('Effets d\'interface (construction finie, niveau, butin)', f => /^ui\/fx_/.test(f), 'événements', 'guide § A8', '★☆☆'),
+      fam('Icônes d\'interface (ressources, onglets, actions, colon, tribu)', f => /^ui\//.test(f), 'partout', '§ 3.7, guide § S9, S14', '★★★')
+    ]]
+  ];
+  const rest = files.filter(f => !taken.has(f));
+  const storeRows = require('./repaint/targets.cjs').STORE || [{ file: 'store/ic_stat_notify.png', size: [96, 96], role: 'Icône de notification Android' }, { file: 'store/feature-graphic.png', size: [1024, 500], role: 'Bannière Google Play' }, { file: 'store/icon-1024.png', size: [1024, 1024], role: 'Icône de l\'application peinte' }];
+  const tot = (arr) => arr.reduce((t, x) => t + x.total, 0), done = (arr) => arr.reduce((t, x) => t + x.done, 0);
+  const allFam = screens.flatMap(([, fs]) => fs);
+  let gc = `# Tout ce qu'il faut graphiquement — liste complète, écran par écran
+
+Le tour complet du jeu (octobre 2026) : chaque famille d'images que le jeu affiche ou affichera, avec le nombre d'images,
+ce qui est déjà peint, où ça se voit, la référence du prompt et la priorité. Les variantes neige des bâtiments et de
+l'enceinte ne sont plus demandées (le rendu 3D enneigé reste). Fichier par fichier : \`docs/A-GENERER.md\` ; prompts :
+\`docs/PROMPTS-GRAPHIQUES.md\` ; sujets et formats : \`docs/GUIDE-COMPLEMENTS-ANIMATIONS.md\` (références « guide § »).
+
+Règles : style de \`tools/repaint/style-ref.png\`, fond transparent, aucun texte ; sprites 1024×1024, figurines et estrades
+1024×1536, vignettes et bandeaux 1536×1024, animations en bande de N cases (512×768 en ville, 512×512 sur la carte).
+Tout nom de cette liste est reconnu par l'import (\`node tools/check-incoming.cjs art/incoming\`) ; les accroches marquées
+« à brancher » demandent un petit travail de code à la livraison, les autres s'affichent dès l'import.
+
+## Résumé
+
+| Écran | Familles | Images | Déjà peintes | Restant |
+|---|---|---|---|---|
+${screens.map(([name, fs]) => `| ${name} | ${fs.length} | ${tot(fs)} | ${done(fs)} | **${tot(fs) - done(fs)}** |`).join('\n')}
+| Boutique et application | ${storeRows.length} | ${storeRows.length} | 0 | **${storeRows.length}** |
+| **Total** | ${allFam.length + storeRows.length} | **${tot(allFam) + storeRows.length}** | ${done(allFam)} | **${tot(allFam) - done(allFam) + storeRows.length}** |
+
+`;
+  for (const [name, fs] of screens) {
+    gc += `## ${name}\n\n| Famille | Images | Peintes | Où | Prompt | Priorité |\n|---|---|---|---|---|---|\n`;
+    for (const x of fs) gc += `| ${x.title} | ${x.total} | ${x.done} | ${x.where} | ${x.ref} | ${x.prio} |\n`;
+    gc += '\n';
+  }
+  gc += `## Boutique et application\n\n| Fichier | Taille | Rôle |\n|---|---|---|\n${storeRows.map(s => `| \`${s.file}\` | ${s.size[0]}×${s.size[1]} | ${s.role} |`).join('\n')}\n\n`;
+  gc += `## Conservé en rendu 3D (rien à produire)
+
+Drapeaux animés 3D (8 phases × 8 couleurs, remplaçables par A16), bouffées de fumée et ondes d'eau 3D (remplaçables par A15),
+emblème 3D (icône, favicon, splash ; version peinte : N3). Les variantes neige des bâtiments et de l'enceinte restent en 3D.
+
+## Ordre conseillé
+
+1. Ce qui se voit à chaque instant : bâtiments courants, champs, enceinte et portes, textures de sol, habillage et icônes, villes et relief de la carte.
+2. Ce qui fait vivre la ville : échafaudages, ouvriers, villageois, flammes, bâtiments vivants, ornements de plaza.
+3. Les systèmes récents : camps barbares, colons et colonies, technologies, chantiers par bâtiment.
+4. Les fiches : une figurine et un jeton par unité, héros par palier, vignettes.
+5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints, douves.
+`;
+  if (rest.length) gc += `\n## Non classé (${rest.length})\n\n${rest.map(f => '- ' + f).join('\n')}\n`;
+  fs.writeFileSync(root + 'docs/GRAPHISMES-COMPLET.md', gc);
+  console.log(`GRAPHISMES-COMPLET : ${tot(allFam) + storeRows.length} images, ${done(allFam)} peintes, ${rest.length} non classées`);
+}

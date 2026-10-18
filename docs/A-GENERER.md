@@ -22,12 +22,13 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
-| 9 | Compléments fixes et visuels de boutique | 19 |
+| 9 | Compléments fixes et visuels de boutique | 26 |
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
-| 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 192 |
+| 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 384 |
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
-| | **Total** | **1282** |
+| 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
+| | **Total** | **1601** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -504,7 +505,7 @@ Sans la plaque parchemin, l'habillage peint ne s'active pas.
 
 - `ui/plate-parchment.png` — 1024×1024
 
-## 9. Compléments fixes et visuels de boutique (19)
+## 9. Compléments fixes et visuels de boutique (26)
 
 Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 
@@ -522,11 +523,18 @@ Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 - busts/TRIBE_<CIV>.png × 6 (chefs des tribus locales) — 1024×1024 — guide § S14
 - scenes/vignette-tribe-<forest|desert|snow>.png × 3 (camps des tribus, en tête des rapports) — 1536×1024 — guide § S14
 - ui/tribe.png (icône tribu locale) — 1024×1024 — guide § S14
+- props/plaza_<CIV>_<statue|fountain|stall>.png × 18 (ornements de plaza par civilisation) — 512×768 — guide § S16
+- walls/<CIV>/moat_<seg_x|seg_z|corner>.png × 18 (douves) — 1024×1024 — guide § S16
+- figures/units/<CLÉ>.png × 60 et busts/units/<CLÉ>.png × 60 (une figurine et un jeton par unité, fiches d'unité) — 1024×1536 / 1024×1024 — guide § S17
+- map/units/hero_<CIV>.png × 6 (héros en tête d'armée), map/units/spy.png (espion) — 1024×1024 — guide § S18
+- heroes/<CIV>_t<2|3>.png × 12 et heroes/<CIV>_bust_t<2|3>.png × 12 (héros par palier de niveau) — 1024×1536 / 1024×1024 — guide § S19
+- scenes/faction-<CIV>.png × 6 (paysages des cartes de civilisation), scenes/header-<army|research>.png × 2 — 1536×1024 — guide § S20
 - ui/crest_<CIV>.png × 6 — 1024×1024 — guide § S3
 - scenes/expedition-<forest|desert|mountain|ruins>.png × 4 — 1536×1024 — guide § S4
 - ui/btn-round.png, ui/btn-round-pressed.png — 1024×1024 — guide § S5
 - store/ic_stat_notify.png (icône de notification Android, blanc sur transparent) — 96×96 — guide § N1
 - store/feature-graphic.png (bannière Google Play) — 1024×500 — guide § N2
+- store/icon-1024.png (icône de l'application peinte) — 1024×1024 — guide § N3
 
 ## 10. Eau et glace, sols des champs, décalques, bordures (30)
 
@@ -563,11 +571,11 @@ Guide § T2, T4, T5, T6.
 - `terrain/edge_cliff.png` (1024×256) — 1024×256
 - `terrain/edge_road.png` (1024×256) — 1024×256
 
-## 11. Animations (bandes de phases, voir guide § 0 et § A1-A11) (192)
+## 11. Animations (bandes de phases, voir guide § 0 et § A1-A11) (384)
 
-192 images au total ; livrer une bande par animation, je découpe.
+384 images au total ; livrer une bande par animation, je découpe.
 
-- A1 — props/villager_<a|b|c>_<0..5>.png — 18 images — cases 512×768 — villageois qui marchent dans la ville
+- A1 — props/villager_<CIV>_<a|b>_<0..5>.png — 72 images — cases 512×768 — villageois (homme, femme) de chaque civilisation qui marchent dans la ville
 - A2 — props/flame_<0..3>.png, props/brazier_<0..3>.png — 8 images — cases 512×768 — flammes des torches et braseros
 - A3 — props/worker_<CIV>_<0..3>.png — 24 images — cases 512×768 — chantier : ouvrier au marteau de chaque civilisation (échafaudages : compléments fixes § S11)
 - A4 — anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png — 14 images — cases 512×512 — moulin, forge, fonderie
@@ -578,6 +586,13 @@ Guide § T2, T4, T5, T6.
 - A9 — props/snowflake_<0..2>.png, props/leaf_<0..2>.png, props/dust_devil_<0..3>.png, props/bird_<0..2>.png — 13 images — cases 512×512 — ambiance
 - A10 — heroes/<CIV>_idle_<0..2>.png — 18 images — cases 512×768 — héros en pose d'attente
 - A11 — props/cart_<0..3>.png, props/horse_idle_<0..3>.png — 8 images — cases 512×768 — charrette et chevaux
+- A12 — props/<farmer|lumberjack|quarryman|miner>_<0..3>.png — 16 images — cases 512×768 — gens des champs au travail
+- A13 — props/animal_<chicken|dog|goat|cat>_<0..3>.png — 16 images — cases 512×768 — animaux dans la ville
+- A14 — anim/<barracks_drill|market_crowd|stable_horse|workshop_hammer|bakery_smoke|watchtower_beacon>_<0..3>.png — 24 images — cases 512×512 — bâtiments vivants, suite
+- A15 — props/smoke_chimney_<0..3>.png, props/smoke_campfire_<0..3>.png — 8 images — cases 512×768 — fumées peintes (remplacent les bouffées 3D)
+- A16 — props/flagp_<CIV>_<0..7>.png — 48 images — cases 512×768 — drapeaux peints par civilisation (remplacent les drapeaux 3D)
+- A17 — map/fx/rain_<0..3>.png, map/fx/snowfall_<0..3>.png — 8 images — cases 512×512 — météo sur la carte
+- A18 — map/units/hero_<CIV>_attack_<0..2>.png — 18 images — cases 512×512 — héros au combat dans le replay
 
 ## 12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) (408)
 
@@ -1194,4 +1209,129 @@ Techniques de chantier historiques par civilisation : guide § S10 ; `--kit` fou
 - `walls/SULTAN/site_seg_x.png` — 1024×1024
 - `walls/SULTAN/site_seg_z.png` — 1024×1024
 - `walls/SULTAN/site_tower.png` — 1024×1024
+
+## 14. Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) (120)
+
+Guide § S17 ; `--kit` donne la figurine de la classe comme guide.
+
+- `figures/units/ROM_INF_MILICIEN.png` — 1024×1024
+- `busts/units/ROM_INF_MILICIEN.png` — 1024×1024
+- `figures/units/ROM_INF_TRIARII.png` — 1024×1024
+- `busts/units/ROM_INF_TRIARII.png` — 1024×1024
+- `figures/units/ROM_INF_LEGIONNAIRE.png` — 1024×1024
+- `busts/units/ROM_INF_LEGIONNAIRE.png` — 1024×1024
+- `figures/units/ROM_ARC_MILICIEN.png` — 1024×1024
+- `busts/units/ROM_ARC_MILICIEN.png` — 1024×1024
+- `figures/units/ROM_ARC_VETERAN.png` — 1024×1024
+- `busts/units/ROM_ARC_VETERAN.png` — 1024×1024
+- `figures/units/ROM_ARC_ELITE.png` — 1024×1024
+- `busts/units/ROM_ARC_ELITE.png` — 1024×1024
+- `figures/units/ROM_CAV_AUXILIAIRE.png` — 1024×1024
+- `busts/units/ROM_CAV_AUXILIAIRE.png` — 1024×1024
+- `figures/units/ROM_CAV_EQUITES.png` — 1024×1024
+- `busts/units/ROM_CAV_EQUITES.png` — 1024×1024
+- `figures/units/ROM_CAV_LOURDE.png` — 1024×1024
+- `busts/units/ROM_CAV_LOURDE.png` — 1024×1024
+- `figures/units/ROM_SIEGE_CATAPULTE.png` — 1024×1024
+- `busts/units/ROM_SIEGE_CATAPULTE.png` — 1024×1024
+- `figures/units/GAU_INF_GUERRIER.png` — 1024×1024
+- `busts/units/GAU_INF_GUERRIER.png` — 1024×1024
+- `figures/units/GAU_INF_TRIARII.png` — 1024×1024
+- `busts/units/GAU_INF_TRIARII.png` — 1024×1024
+- `figures/units/GAU_INF_CHAMPION.png` — 1024×1024
+- `busts/units/GAU_INF_CHAMPION.png` — 1024×1024
+- `figures/units/GAU_ARC_CHASSEUR.png` — 1024×1024
+- `busts/units/GAU_ARC_CHASSEUR.png` — 1024×1024
+- `figures/units/GAU_ARC_GAULOIS.png` — 1024×1024
+- `busts/units/GAU_ARC_GAULOIS.png` — 1024×1024
+- `figures/units/GAU_ARC_NOBLE.png` — 1024×1024
+- `busts/units/GAU_ARC_NOBLE.png` — 1024×1024
+- `figures/units/GAU_CAV_CHASSEUR.png` — 1024×1024
+- `busts/units/GAU_CAV_CHASSEUR.png` — 1024×1024
+- `figures/units/GAU_CAV_GAULOIS.png` — 1024×1024
+- `busts/units/GAU_CAV_GAULOIS.png` — 1024×1024
+- `figures/units/GAU_CAV_NOBLE.png` — 1024×1024
+- `busts/units/GAU_CAV_NOBLE.png` — 1024×1024
+- `figures/units/GAU_SIEGE_BELIER.png` — 1024×1024
+- `busts/units/GAU_SIEGE_BELIER.png` — 1024×1024
+- `figures/units/GRE_INF_JEUNE.png` — 1024×1024
+- `busts/units/GRE_INF_JEUNE.png` — 1024×1024
+- `figures/units/GRE_INF_HOPLITE.png` — 1024×1024
+- `busts/units/GRE_INF_HOPLITE.png` — 1024×1024
+- `figures/units/GRE_INF_SPARTIATE.png` — 1024×1024
+- `busts/units/GRE_INF_SPARTIATE.png` — 1024×1024
+- `figures/units/GRE_ARC_PAYSAN.png` — 1024×1024
+- `busts/units/GRE_ARC_PAYSAN.png` — 1024×1024
+- `figures/units/GRE_ARC_TOXOTE.png` — 1024×1024
+- `busts/units/GRE_ARC_TOXOTE.png` — 1024×1024
+- `figures/units/GRE_ARC_ELITE.png` — 1024×1024
+- `busts/units/GRE_ARC_ELITE.png` — 1024×1024
+- `figures/units/GRE_CAV_ECLAIREUR.png` — 1024×1024
+- `busts/units/GRE_CAV_ECLAIREUR.png` — 1024×1024
+- `figures/units/GRE_CAV_GREC.png` — 1024×1024
+- `busts/units/GRE_CAV_GREC.png` — 1024×1024
+- `figures/units/GRE_CAV_ELITE.png` — 1024×1024
+- `busts/units/GRE_CAV_ELITE.png` — 1024×1024
+- `figures/units/GRE_SIEGE_CATAPULTE.png` — 1024×1024
+- `busts/units/GRE_SIEGE_CATAPULTE.png` — 1024×1024
+- `figures/units/EGY_INF_ESCLAVE.png` — 1024×1024
+- `busts/units/EGY_INF_ESCLAVE.png` — 1024×1024
+- `figures/units/EGY_INF_NIL.png` — 1024×1024
+- `busts/units/EGY_INF_NIL.png` — 1024×1024
+- `figures/units/EGY_INF_TEMPLE.png` — 1024×1024
+- `busts/units/EGY_INF_TEMPLE.png` — 1024×1024
+- `figures/units/EGY_ARC_NIL.png` — 1024×1024
+- `busts/units/EGY_ARC_NIL.png` — 1024×1024
+- `figures/units/EGY_ARC_DESERT.png` — 1024×1024
+- `busts/units/EGY_ARC_DESERT.png` — 1024×1024
+- `figures/units/EGY_ARC_PHARAON.png` — 1024×1024
+- `busts/units/EGY_ARC_PHARAON.png` — 1024×1024
+- `figures/units/EGY_CAV_DESERT.png` — 1024×1024
+- `busts/units/EGY_CAV_DESERT.png` — 1024×1024
+- `figures/units/EGY_CAV_PHARAON.png` — 1024×1024
+- `busts/units/EGY_CAV_PHARAON.png` — 1024×1024
+- `figures/units/EGY_CAV_CHAR_LOURD.png` — 1024×1024
+- `busts/units/EGY_CAV_CHAR_LOURD.png` — 1024×1024
+- `figures/units/EGY_SIEGE_MANGONNEAU.png` — 1024×1024
+- `busts/units/EGY_SIEGE_MANGONNEAU.png` — 1024×1024
+- `figures/units/HUN_INF_NOMADE.png` — 1024×1024
+- `busts/units/HUN_INF_NOMADE.png` — 1024×1024
+- `figures/units/HUN_INF_GARDE.png` — 1024×1024
+- `busts/units/HUN_INF_GARDE.png` — 1024×1024
+- `figures/units/HUN_INF_VETERAN.png` — 1024×1024
+- `busts/units/HUN_INF_VETERAN.png` — 1024×1024
+- `figures/units/HUN_ARC_NOMADE.png` — 1024×1024
+- `busts/units/HUN_ARC_NOMADE.png` — 1024×1024
+- `figures/units/HUN_ARC_CAMP.png` — 1024×1024
+- `busts/units/HUN_ARC_CAMP.png` — 1024×1024
+- `figures/units/HUN_ARC_ELITE.png` — 1024×1024
+- `busts/units/HUN_ARC_ELITE.png` — 1024×1024
+- `figures/units/HUN_CAV_PILLARD.png` — 1024×1024
+- `busts/units/HUN_CAV_PILLARD.png` — 1024×1024
+- `figures/units/HUN_CAV_INTER.png` — 1024×1024
+- `busts/units/HUN_CAV_INTER.png` — 1024×1024
+- `figures/units/HUN_CAV_ELITE.png` — 1024×1024
+- `busts/units/HUN_CAV_ELITE.png` — 1024×1024
+- `figures/units/HUN_SIEGE_SAPEUR.png` — 1024×1024
+- `busts/units/HUN_SIEGE_SAPEUR.png` — 1024×1024
+- `figures/units/SUL_INF_DESERT.png` — 1024×1024
+- `busts/units/SUL_INF_DESERT.png` — 1024×1024
+- `figures/units/SUL_INF_CROISSANT.png` — 1024×1024
+- `busts/units/SUL_INF_CROISSANT.png` — 1024×1024
+- `figures/units/SUL_INF_PALAIS.png` — 1024×1024
+- `busts/units/SUL_INF_PALAIS.png` — 1024×1024
+- `figures/units/SUL_ARC_DESERT.png` — 1024×1024
+- `busts/units/SUL_ARC_DESERT.png` — 1024×1024
+- `figures/units/SUL_ARC_TIREUR.png` — 1024×1024
+- `busts/units/SUL_ARC_TIREUR.png` — 1024×1024
+- `figures/units/SUL_ARC_PERSE.png` — 1024×1024
+- `busts/units/SUL_ARC_PERSE.png` — 1024×1024
+- `figures/units/SUL_CAV_BEDOUIN.png` — 1024×1024
+- `busts/units/SUL_CAV_BEDOUIN.png` — 1024×1024
+- `figures/units/SUL_CAV_DESERT.png` — 1024×1024
+- `busts/units/SUL_CAV_DESERT.png` — 1024×1024
+- `figures/units/SUL_CAV_MAMELOUK.png` — 1024×1024
+- `busts/units/SUL_CAV_MAMELOUK.png` — 1024×1024
+- `figures/units/SUL_SIEGE_MANGONNEAU.png` — 1024×1024
+- `busts/units/SUL_SIEGE_MANGONNEAU.png` — 1024×1024
 

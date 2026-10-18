@@ -86,10 +86,10 @@ router.get('/map/viewport', auth, async (req, res) => {
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
           ]
         },
-        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
+        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })
     ]);
-    const armies = movingArmies.map(({ units, ...a }) => ({ ...a, mainUnit: mainUnitSprite(a, units) }));
+    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, hasHero: !!heroId, mainUnit: mainUnitSprite(a, units) }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);

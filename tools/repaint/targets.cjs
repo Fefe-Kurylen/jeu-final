@@ -22,6 +22,8 @@ const DELIVERY = { building: '1024x1024', plot: '1024x1024', field: '1024x1024',
 let buildingsData = null;
 try { buildingsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'buildings.json'), 'utf8')).buildings; } catch (e) { buildingsData = []; }
 const bName = (key) => buildingsData.find(b => b.key === key)?.name || key;
+let unitsData = [];
+try { const uj = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'units.json'), 'utf8')); unitsData = Array.isArray(uj) ? uj : (uj.units || []); } catch (e) { unitsData = []; }
 
 // ---- famille d'un fichier du manifeste 3D ----
 function frameOfFile(file) {
@@ -138,11 +140,34 @@ add('scenes/vignette-founding.webp', 'header', 'Vignette « fondation d\'une vil
 for (const c of CIVS) add(`busts/TRIBE_${c}.webp`, 'bust', `Chef de la tribu locale ${CIV_FR[c]} (rapports de combat contre une tribu, bulle du point)`);
 for (const b of ['forest', 'desert', 'snow']) add(`scenes/vignette-tribe-${b}.webp`, 'header', `Vignette du camp d'une tribu locale (${b}) en tête des rapports « Combat contre la tribu »`);
 add('ui/tribe.webp', 'icon', 'Icône « tribu locale » (bulle du point, rapports, listes)');
+
+// ---- le tour complet (octobre 2026 ; docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § S16-S20, A12-A18) ----
+// Ville fidèle à sa civilisation : ornements de plaza, drapeaux peints, douves ; vie de la ville : gens des champs, animaux,
+// bâtiments vivants, fumées peintes
+for (const c of CIVS) for (const k of ['statue', 'fountain', 'stall']) add(`props/plaza_${c}_${k}.webp`, 'prop', `Ornement de plaza de ${CIV_FR[c]} : ${k === 'statue' ? 'statue' : k === 'fountain' ? 'fontaine ou puits' : 'étal de marché'} (autour du Bâtiment principal)`);
+for (const c of CIVS) anim(`props/flagp_${c}`, 8, 'prop', `Drapeau peint de ${CIV_FR[c]} (remplace le drapeau 3D animé)`);
+for (const c of CIVS) for (const k of ['seg_x', 'seg_z', 'corner']) add(`walls/${c}/moat_${k}.webp`, 'building', `Douves de ${CIV_FR[c]} au pied de l'enceinte : ${k === 'corner' ? 'angle' : 'tronçon'} (bâtiment Douves, à brancher à la livraison)`);
+for (const k of ['farmer', 'lumberjack', 'quarryman', 'miner']) anim(`props/${k}`, 4, 'prop', `${({ farmer: 'Paysan qui fauche', lumberjack: 'Bûcheron qui abat un arbre', quarryman: 'Carrier qui taille un bloc', miner: 'Mineur à la pioche' })[k]} (champs de la ville)`);
+for (const k of ['chicken', 'dog', 'goat', 'cat']) anim(`props/animal_${k}`, 4, 'prop', `${({ chicken: 'Poule', dog: 'Chien', goat: 'Chèvre', cat: 'Chat' })[k]} qui se promène dans la ville`);
+for (const k of ['barracks_drill', 'market_crowd', 'stable_horse', 'workshop_hammer', 'bakery_smoke', 'watchtower_beacon']) anim(`anim/${k}`, 4, 'fx', `Bâtiment vivant : ${({ barracks_drill: 'soldats à l\'exercice devant la Caserne', market_crowd: 'badauds et marchands au Marché', stable_horse: 'cheval qui piaffe à l\'Écurie', workshop_hammer: 'marteau et copeaux à l\'Atelier', bakery_smoke: 'fumée et lueur du four de la Boulangerie', watchtower_beacon: 'feu de veille au sommet de la Tour de guet' })[k]}`);
+anim('props/smoke_chimney', 4, 'prop', 'Fumée de cheminée peinte (remplace les bouffées 3D)'); anim('props/smoke_campfire', 4, 'prop', 'Fumée de feu de camp peinte');
+// Fiches d'unité : une figurine et un jeton par unité (les classes génériques restent en repli)
+for (const u of unitsData) { add(`figures/units/${u.key}.webp`, 'figure', `Figurine en pied de l'unité « ${u.name} » (${CIV_FR[u.faction] || u.faction}, ${u.tier}) : fiche d'unité, carte de recrutement`); add(`busts/units/${u.key}.webp`, 'bust', `Jeton de l'unité « ${u.name} » (${CIV_FR[u.faction] || u.faction}) : listes, rapports, composition d'armée`); }
+// Carte : héros en tête d'armée, espion en mission, météo
+for (const c of CIVS) add(`map/units/hero_${c}.webp`, 'map', `Carte du monde : armée menée par le héros de ${CIV_FR[c]} (marqueur avec le héros devant la troupe)`);
+add('map/units/spy.webp', 'map', 'Carte du monde : espion en mission (silhouette encapuchonnée à cheval)');
+anim('map/fx/rain', 4, 'fx', 'Carte du monde : pluie (nappe translucide)'); anim('map/fx/snowfall', 4, 'fx', 'Carte du monde : chute de neige sur les régions enneigées');
+// Héros : apparence par palier de niveau, héros au combat dans le replay
+for (const c of CIVS) for (const t of [2, 3]) { add(`heroes/${c}_t${t}.webp`, 'stage', `Héros de ${CIV_FR[c]} au palier ${t} (niveaux ${t === 2 ? '10-19' : '20+'}) : armure et cape plus riches`); add(`heroes/${c}_bust_t${t}.webp`, 'bust', `Buste du héros de ${CIV_FR[c]} au palier ${t}`); }
+for (const c of CIVS) anim(`map/units/hero_${c}_attack`, 3, 'map', `Replay : le héros de ${CIV_FR[c]} attaque`);
+// Inscription et bandeaux
+for (const c of CIVS) add(`scenes/faction-${c}.webp`, 'header', `Paysage de ${CIV_FR[c]} derrière sa carte de civilisation (inscription)`);
+for (const k of ['army', 'research']) add(`scenes/header-${k}.webp`, 'header', `Bandeau en tête de l'écran ${k === 'army' ? 'Armée' : 'Recherche'}`);
 for (const d of ['forest', 'desert', 'mountain', 'ruins']) add(`scenes/expedition-${d}.webp`, 'header', `Vignette de destination d'expédition : ${d}`);
 add('ui/btn-round.webp', 'frame', 'Bouton rond des bulles d\'action'); add('ui/btn-round-pressed.webp', 'frame', 'Bouton rond des bulles d\'action, enfoncé');
 // Échafaudages génériques par civilisation (posés sur un bâtiment amélioré, ou sur un nouveau bâtiment sans sprite de chantier)
 for (const c of CIVS) for (const k of [1, 2, 3]) add(`props/scaffold_${c}_${k}.webp`, 'building', `Échafaudage de chantier de ${CIV_FR[c]}, taille ${k} (paliers ${['1-6', '7-13', '14-20'][k - 1]}) : posé sur le bâtiment en travaux`);
-for (const v of ['a', 'b', 'c']) anim(`props/villager_${v}`, 6, 'prop', `Villageois ${v} qui marche dans la ville`);
+for (const c of CIVS) for (const v of ['a', 'b']) anim(`props/villager_${c}_${v}`, 6, 'prop', `Villageois de ${CIV_FR[c]} (${v === 'a' ? 'homme' : 'femme'}) qui marche dans la ville`);
 anim('props/flame', 4, 'prop', 'Flamme de torche (tours, porte, remparts)'); anim('props/brazier', 4, 'prop', 'Brasero de la plaza');
 for (const c of CIVS) anim(`props/worker_${c}`, 4, 'prop', `Ouvrier de chantier de ${CIV_FR[c]} au marteau`);
 anim('anim/mill_sails', 6, 'fx', 'Ailes du moulin'); anim('anim/sparks', 4, 'fx', 'Étincelles de la forge'); anim('anim/furnace', 4, 'fx', 'Feu de la fonderie');
@@ -157,7 +182,8 @@ anim('props/cart', 4, 'prop', 'Charrette sur la route'); anim('props/horse_idle'
 // Visuels hors jeu (copiés dans store/, pas dans painted/)
 const STORE = [
   { file: 'store/ic_stat_notify.png', role: 'Icône de notification Android (blanc sur transparent)', size: [96, 96] },
-  { file: 'store/feature-graphic.png', role: 'Bannière Google Play', size: [1024, 500] }
+  { file: 'store/feature-graphic.png', role: 'Bannière Google Play', size: [1024, 500] },
+  { file: 'store/icon-1024.png', role: 'Icône de l\'application peinte (boutiques, écran d\'accueil)', size: [1024, 1024] }
 ];
 
 // ---- toutes les cibles ----
@@ -167,6 +193,7 @@ function buildAllTargets() {
   for (const c of Object.keys(manifest3d.categories)) for (const f of manifest3d.categories[c]) {
     if (!f.endsWith('.webp')) continue;
     if (c === 'flags' || c === 'effects' || c === 'logo') continue;   // animés en 3D, emblème : conservés
+    if ((c === 'buildings' || c === 'walls') && /_snow\.webp$/.test(f)) continue;   // variantes neige retirées de la liste (octobre 2026) : le rendu 3D enneigé reste
     if (!prompts.promptFor(f)) continue;
     out.push({ cat: c, file: f, frame: frameOfFile(f), fit: 'canvas', guide: true, role: describe(f) });
   }

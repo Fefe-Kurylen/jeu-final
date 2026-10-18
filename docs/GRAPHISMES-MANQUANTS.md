@@ -1,5 +1,8 @@
 # Graphismes manquants : chantiers, colons, villes secondaires, tribus, technologies, fiches
 
+> La liste **complète** de tout ce qu'il faut graphiquement (tour de tous les écrans, état, ordre conseillé) est dans
+> `docs/GRAPHISMES-COMPLET.md` ; ce document détaille les familles ajoutées en octobre 2026.
+
 Liste demandée en octobre 2026, à jour des systèmes ajoutés ce mois-ci (villes secondaires, camps barbares, technologies).
 Tout ce qui est ici est **enregistré dans le registre des images** (`tools/repaint/targets.cjs`) : les fichiers livrés sous
 ces noms sont reconnus par `node tools/check-incoming.cjs art/incoming`, importés par `node tools/repaint.cjs --import=art/incoming`,

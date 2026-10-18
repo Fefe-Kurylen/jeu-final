@@ -838,6 +838,8 @@ function loadPaintedManifest() {
     for (const f of (m && m.files) || []) paintedSet.add(f);
     const root = document.documentElement;
     root.classList.toggle('painted-auth', paintedSet.has('scenes/auth-portrait.webp') && paintedSet.has('scenes/auth-landscape.webp'));
+    // Paysage de chaque civilisation derrière sa carte d'inscription (scenes/faction-<CIV>, guide § S20)
+    document.querySelectorAll('.faction-option[data-faction]').forEach(card => { const p = `scenes/faction-${card.dataset.faction}.webp`; if (paintedSet.has(p)) { card.style.backgroundImage = `linear-gradient(rgba(20,14,8,.55), rgba(20,14,8,.75)), url(assets/images/painted/${p})`; card.style.backgroundSize = 'cover'; card.classList.add('painted-faction'); } });
     root.classList.toggle('painted-headers', ['market', 'alliance', 'ranking', 'inventory', 'reports'].every(k => paintedSet.has(`scenes/header-${k}.webp`)));
     root.classList.toggle('painted-ui', ['btn-primary', 'btn-secondary', 'btn-danger', 'btn-gold', 'btn-info', 'frame-modal', 'frame-panel', 'plate-parchment', 'bar-wood'].every(k => paintedSet.has(`ui/${k}.webp`)));
     if (paintedSet.size) { repaintStaticIcons(document); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }
@@ -1108,14 +1110,17 @@ function unitIconHtml(keyOrClass, cls = 'unit-ico', title = '') {
   const klass = isClass ? keyOrClass : (unitClassOf(keyOrClass) || 'INFANTRY');
   const faction = isClass ? (player?.faction || null) : unitFactionOf(keyOrClass);
   const file = faction ? `${klass}_${faction}` : klass;
-  return `<img class="${cls}" src="assets/images/3d/busts/${file}.webp" alt="" title="${escapeHtml(title)}">`;
+  // Jeton propre à l'unité (busts/units/<CLÉ>, guide § S17) dès qu'il est peint, sinon le jeton de la classe
+  const own = !isClass && typeof paintedSet !== 'undefined' && paintedSet.has(`busts/units/${keyOrClass}.webp`) ? `assets/images/painted/busts/units/${keyOrClass}.webp` : null;
+  return `<img class="${cls}" src="${own || `assets/images/3d/busts/${file}.webp`}" alt="" title="${escapeHtml(title)}">`;
 }
 // Figurine en pied (vue trois-quarts) d'une unité : assets/images/3d/figures/<CLASSE>_<FACTION>.webp
 function unitFigureHtml(keyOrClass, cls = 'unit-figure', title = '') {
   const isClass = ['INFANTRY', 'ARCHER', 'CAVALRY', 'SIEGE'].includes(keyOrClass);
   const klass = isClass ? keyOrClass : (unitClassOf(keyOrClass) || 'INFANTRY');
   const faction = (isClass ? player?.faction : unitFactionOf(keyOrClass)) || player?.faction || 'ROME';
-  return `<img class="${cls}" src="${art(`figures/${klass}_${faction}.webp`)}" alt="" title="${escapeHtml(title)}">`;
+  const ownFig = typeof paintedSet !== 'undefined' && paintedSet.has(`figures/units/${keyOrClass}.webp`) ? `assets/images/painted/figures/units/${keyOrClass}.webp` : null;   // figurine propre à l'unité (guide § S17)
+  return `<img class="${cls}" src="${ownFig || art(`figures/${klass}_${faction}.webp`)}" alt="" title="${escapeHtml(title)}">`;
 }
 function unitIconUrl(keyOrClass) { const m = unitIconHtml(keyOrClass).match(/src="([^"]+)"/); return m ? m[1] : ''; }
 function heroPortraitHtml(faction, cls = 'hero-ico') { return `<img class="${cls}" src="assets/images/3d/heroes/${faction || player?.faction || 'ROME'}_bust.webp" alt="">`; }

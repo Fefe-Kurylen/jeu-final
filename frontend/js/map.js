@@ -2212,6 +2212,8 @@ function drawIsoArmy(x, y, tw, th, army) {
   const faction = String(army.faction || player?.faction || '').toUpperCase();
   if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
   if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType]) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
+  if ((army.hasHero || army.heroId) && faction && tileImages.units['hero_' + faction]) mainUnitType = 'hero_' + faction;   // héros en tête d'armée (guide § S18)
+  if ((army.status === 'SPYING' || army.missionType === 'SPY') && tileImages.units.spy) mainUnitType = 'spy';   // espion en mission
   const hasSprite = !!tileImages.units[mainUnitType];
   if (hasSprite && isMoving) {
     // marche : l'armée regarde vers sa destination, trottine (petits bonds cadencés, léger balancement) et soulève la poussière

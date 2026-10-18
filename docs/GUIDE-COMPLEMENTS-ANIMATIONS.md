@@ -29,7 +29,7 @@ Hand-painted isometric game asset in exactly the art style of the first referenc
 
 | # | Élément | Fichiers | Images | Taille d'une case | Priorité |
 |---|---|---|---|---|---|
-| A1 | Villageois qui marchent dans la ville | `props/villager_<a|b|c>_<0..5>` | 18 | 512×768 | ★★★ |
+| A1 | Villageois de chaque civilisation (homme, femme) qui marchent dans la ville | `props/villager_<CIV>_<a|b>_<0..5>` | 72 | 512×768 | ★★★ |
 | A2 | Flammes des torches et braseros | `props/flame_<0..3>`, `props/brazier_<0..3>` | 8 | 512×768 | ★★★ |
 | A3 | Chantier : ouvrier au marteau de chaque civilisation (échafaudages : § S11) | `props/worker_<CIV>_<0..3>` | 24 | 512×768 | ★★★ |
 | A4 | Bâtiments vivants : ailes du moulin, étincelles de la forge, feu de la fonderie, fumée du four | `anim/mill_sails_<0..5>`, `anim/sparks_<0..3>`, `anim/furnace_<0..3>` | 14 | 512×512 | ★★☆ |
@@ -40,6 +40,13 @@ Hand-painted isometric game asset in exactly the art style of the first referenc
 | A9 | Ambiance : neige, feuilles, tourbillon de sable, oiseaux | `props/snowflake_<0..2>`, `props/leaf_<0..2>`, `props/dust_devil_<0..3>`, `props/bird_<0..2>` | 13 | 512×512 | ★☆☆ |
 | A10 | Héros : pose d'attente sur l'estrade | `heroes/<CIV>_idle_<0..2>` | 18 | 512×768 | ★☆☆ |
 | A11 | Charrette sur la route et chevaux à l'écurie | `props/cart_<0..3>`, `props/horse_idle_<0..3>` | 8 | 512×768 | ★☆☆ |
+| A12 | Gens des champs au travail (faucheur, bûcheron, carrier, mineur) | `props/<farmer|lumberjack|quarryman|miner>_<0..3>` | 16 | 512×768 | ★★☆ |
+| A13 | Animaux dans la ville (poule, chien, chèvre, chat) | `props/animal_<chicken|dog|goat|cat>_<0..3>` | 16 | 512×768 | ★☆☆ |
+| A14 | Bâtiments vivants, suite (exercice à la Caserne, badauds au Marché, cheval à l'Écurie, marteau à l'Atelier, four de la Boulangerie, feu de la Tour de guet) | `anim/<barracks_drill|market_crowd|stable_horse|workshop_hammer|bakery_smoke|watchtower_beacon>_<0..3>` | 24 | 512×512 | ★★☆ |
+| A15 | Fumées peintes (cheminées, feux de camp) à la place des bouffées 3D | `props/smoke_<chimney|campfire>_<0..3>` | 8 | 512×768 | ★☆☆ |
+| A16 | Drapeaux peints par civilisation à la place des drapeaux 3D | `props/flagp_<CIV>_<0..7>` | 48 | 512×768 | ★☆☆ |
+| A17 | Météo sur la carte (pluie, neige) | `map/fx/<rain|snowfall>_<0..3>` | 8 | 512×512 | ★☆☆ |
+| A18 | Héros au combat dans le replay | `map/units/hero_<CIV>_attack_<0..2>` | 18 | 512×512 | ★☆☆ |
 | S1 | Porte de la ville par civilisation | `walls/<CIV>/gate` | 6 | 1024×1024 | ★★★ |
 | S2 | Panneau « construire ici » | `props/sign_build` | 1 | 512×768 | ★★☆ |
 | S3 | Blasons des civilisations | `ui/crest_<CIV>` | 6 | 1024×1024 | ★★☆ |
@@ -407,3 +414,41 @@ Les fiches de bâtiments montrent les trois paliers du bâtiment (`buildings/<CI
 figurine en pied (`figures/<CLASSE>_<CIV>`) et le jeton (`busts/`), la fiche d'une technologie son icône (§ S8). Tout cela
 existe en rendu 3D ; ce qui manque pour les fiches est donc la version peinte de ces images (`docs/A-GENERER.md` étapes 1,
 6 et 12), plus les icônes de technologies (§ S8), le portrait du colon (§ S12) et les chefs de tribu (§ S14).
+
+## S16. Ville fidèle à sa civilisation : ornements de plaza, douves (`props/plaza_<CIV>_<statue|fountain|stall>.png` × 18, `walls/<CIV>/moat_<seg_x|seg_z|corner>.png` × 18)
+
+Autour du Bâtiment principal, trois ornements par civilisation (statue sur socle, fontaine ou puits, étal de marché à auvent)
+dans son architecture ; cadre prop 512×768. Les douves (bâtiment Douves) : tronçons diagonaux coupés net aux deux bouts et
+angle, eau calme bordée de pierre, même cadrage que l'enceinte ; à brancher dans la scène à la livraison. Les villageois
+(A1) et les ouvriers (A3) sont déjà par civilisation ; les gens des champs (A12) et les animaux (A13) restent communs.
+
+## S17. Fiches d'unité : une figurine et un jeton par unité (`figures/units/<CLÉ>.png` × 60, `busts/units/<CLÉ>.png` × 60)
+
+Aujourd'hui une fiche d'unité montre la figurine de sa classe (fantassin, archer, cavalier, siège) aux couleurs de sa
+civilisation. Avec ces images, chaque unité a la sienne (déjà branché : fiche, carte de recrutement, listes, rapports,
+composition d'armée). Le prompt de chacune vient des données du jeu : nom, classe, palier (base : cuir, bois et toile ;
+intermédiaire : bronze, cotte de mailles, cimier ; élite : armure ornée, plumes, dorures, cape) et coiffe de la
+civilisation, plus sa description. Figurine 1024×1536 (cadre figure), jeton 1024×1024 (cadre bust) ; le kit donne la
+figurine de la classe comme guide.
+
+## S18. Carte : héros en tête d'armée, espion (`map/units/hero_<CIV>.png` × 6, `map/units/spy.png`)
+
+Une armée menée par le héros prend le marqueur du héros de sa civilisation (à cheval devant deux soldats) ; une armée en
+mission d'espionnage prend la silhouette encapuchonnée. Déjà branché (le serveur signale `hasHero`), cadre map 1024×1024.
+
+## S19. Héros par palier de niveau (`heroes/<CIV>_t<2|3>.png` × 12, `heroes/<CIV>_bust_t<2|3>.png` × 12)
+
+Le héros change d'allure aux niveaux 10 (palier 2 : armure aux garnitures de bronze et d'argent, cape plus longue) et 20
+(palier 3 : armure dorée gravée, cape brodée, couronne de laurier ou sertie). Estrade 1024×1536, jeton 1024×1024 ; à brancher
+à la livraison (écran du héros, cartes d'armée, choix de civilisation). Les trois poses d'attente (A10) restent au palier 1.
+
+## S20. Inscription et bandeaux (`scenes/faction-<CIV>.png` × 6, `scenes/header-<army|research>.png` × 2)
+
+Un paysage par civilisation derrière sa carte de choix (forum romain, oppidum gaulois, acropole, temple du Nil, campement
+de la steppe, ville du désert), sans personnage au premier plan : déjà branché (fond de la carte, assombri). Deux bandeaux
+d'écran manquants : Armée (troupe à la parade) et Recherche (bibliothèque et atelier). 1536×1024, cadre header.
+
+## N3. Icône de l'application peinte (`store/icon-1024.png`, 1024×1024, opaque)
+
+L'emblème 3D (casque et médaillon) reste la référence ; sa version peinte, même composition, sert d'icône de boutique et
+d'écran d'accueil. Pas de texte.
