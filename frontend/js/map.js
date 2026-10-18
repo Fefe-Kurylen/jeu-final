@@ -46,8 +46,13 @@ const tileImages = {
   cities: {},      // rome gaul greek egypt hun sultan capital default
   units: {},       // hoplite archer cavalry catapult merchant
   resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
-  terrain: {}      // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
+  terrain: {},     // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
+  camps: {}        // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
 };
+// Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
+const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
+const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function tribeFactionOfUnits(units) { const k = Object.keys(units || {}).find(x => TRIBE_PREFIX[x.slice(0, 3)]); return k ? TRIBE_PREFIX[k.slice(0, 3)] : null; }
 
 // Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
 let _tilesetAssetsPromise = null;
@@ -71,7 +76,20 @@ async function _loadTilesetAssetsOnce() {
   if (manifest.anchor && typeof manifest.anchor.y === 'number') mapSpriteAnchor = manifest.anchor;
   const ext = manifest.format || 'png';
   const jobs = [];
+  // Camps barbares : uniquement les sprites peints présents dans le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const name of CAMP_SPRITES) {
+      if (!paintedSet.has(`map/camps/${name}.webp`)) continue;
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages.camps[name] = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = art(`map/camps/${name}.webp`);
+      }));
+    }
+  }
   for (const category of Object.keys(tileImages)) {
+    if (category === 'camps') continue;
     for (const name of manifest[category] || []) {
       jobs.push(new Promise((resolve) => {
         const img = new Image();
@@ -1894,9 +1912,30 @@ function drawIsoResource(x, y, tw, th, tile) {
   const size = Math.min(tw, th * 2) * 0.5;
   const imgSize = Math.max(tw, th * 2) * 1.3;
 
+  // Camp barbare peint (niveau, biome) tant que la tribu tient le point, ruines après sa défaite ; l'icône de ressource,
+  // en petit, garde le type lisible. Sans sprite peint, l'icône de ressource seule (rendu d'origine).
+  const biome = getBiome(tile.x, tile.y);
+  const biomeVariant = `${resType}_${biome}`;
+  const resName = tileImages.resources[biomeVariant] ? biomeVariant : resType;
+  const campBase = tile.hasDefenders ? `camp${Math.max(1, Math.min(3, Number(tile.level) || 1))}` : (tile.lastDefeat ? 'ruins' : null);
+  const campName = campBase ? (tileImages.camps[`${campBase}_${biome}`] ? `${campBase}_${biome}` : (tileImages.camps[campBase] ? campBase : null)) : null;
+  if (campName && drawTileImage(mapCtx, 'camps', campName, x, y, imgSize, imgSize)) {
+    const tribeFaction = tile.hasDefenders ? tribeFactionOfUnits(tile.defenderUnits) : null;
+    if (tribeFaction && tileImages.camps[`banner_${tribeFaction}`]) drawTileImage(mapCtx, 'camps', `banner_${tribeFaction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
+    drawTileImage(mapCtx, 'resources', resName, x - imgSize * 0.32, y + imgSize * 0.02, imgSize * 0.38, imgSize * 0.38);
+    if (tile.amount && mapZoomLevel > 0.6) {
+      mapCtx.font = 'bold 9px Arial';
+      mapCtx.textAlign = 'center';
+      mapCtx.fillStyle = '#fff';
+      mapCtx.shadowColor = '#000';
+      mapCtx.shadowBlur = 2;
+      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
+      mapCtx.shadowBlur = 0;
+    }
+    return;
+  }
   // Try to draw from individual image first (biome variant when it exists: wood_desert, stone_snow…)
-  const biomeVariant = `${resType}_${getBiome(tile.x, tile.y)}`;
-  if (drawTileImage(mapCtx, 'resources', tileImages.resources[biomeVariant] ? biomeVariant : resType, x, y, imgSize, imgSize)) {
+  if (drawTileImage(mapCtx, 'resources', resName, x, y, imgSize, imgSize)) {
     // Draw resource level indicator
     if (tile.amount && mapZoomLevel > 0.6) {
       mapCtx.font = 'bold 9px Arial';

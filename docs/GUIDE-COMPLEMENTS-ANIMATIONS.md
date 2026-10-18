@@ -275,3 +275,21 @@ Une charrette tirée par un cheval qui entre et sort par la porte (4 phases de m
 - A9 : particules selon le biome et l'heure ; A10 : écran du héros.
 
 Chaque lot livré est intégré, vérifié sur bureau et mobile, puis commité.
+
+## Camps barbares de la carte (`map/camps/`, 18 images, 1024×1024, cadre map)
+
+Les tribus qui gardent les points de ressource n'avaient aucun visuel : la carte affiche l'icône de ressource et la bulle dit
+« Tribu locale ». Dès qu'ils sont livrés, le camp remplace l'icône de ressource (gardée en petit) tant que la tribu tient le
+point, les ruines prennent le relais jusqu'à sa réapparition, et la bannière de la tribu se pose sur le camp.
+
+| Fichier | Sujet |
+|---|---|
+| `map/camps/camp1.png` (+ `_desert`, `_snow`) | petit camp : deux tentes de peau autour d'un feu, un totem à crâne, quelques lances plantées |
+| `map/camps/camp2.png` (+ `_desert`, `_snow`) | camp palissadé : pieux taillés avec une porte, plusieurs tentes, une tour de guet en bois, un feu, une grande bannière |
+| `map/camps/camp3.png` (+ `_desert`, `_snow`) | fort de bois : haute palissade avec deux tours d'angle et une porte, une maison longue au toit de chaume, totems, bannières, feu qui fume |
+| `map/camps/ruins.png` (+ `_desert`, `_snow`) | restes brûlés d'un camp : pieux calcinés, tente effondrée, totem brisé, braises et un filet de fumée |
+| `map/camps/banner_<CIV>.png` × 6 | petite bannière carrée sur un mât en bois, aux couleurs et à l'emblème du peuple de la tribu |
+
+Variante désert : sur du sable, un palmier et des rochers rouges ; variante neige : neige sur les tentes et les toits, congères.
+Prompts complets : `node tools/repaint.cjs --kit=<dossier>` ou `docs/PROMPTS-GRAPHIQUES.md`. L'animation du feu de camp
+(`map/fx/campfire_<0..3>.png`, § A7) se pose au centre du camp.

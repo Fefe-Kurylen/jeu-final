@@ -128,11 +128,14 @@ async function handleRaidResource(army) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null });
     return;
   }
-  const won = await prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const result = await resolveTribeCombat(army, node, army.ownerId, tx);
-    if (result.success) await collectResourceLoot(army, node, army.ownerId, tx, result.reportId);
-    return result.success;
+    const loot = result.success ? await collectResourceLoot(army, node, army.ownerId, tx, result.reportId) : {};
+    return { won: result.success, losses: result.combatResult?.attackerLosses || 0, loot };
   }, TX);
+  const won = outcome.won;
+  const lootText = Object.entries(outcome.loot || {}).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
+  notify(army.ownerId, 'battle', won ? '⚔️ Camp vaincu' : '⚔️ Attaque repoussée', won ? `${army.name} a vaincu la tribu en (${node.x}, ${node.y})${lootText ? ' : ' + lootText : ''}.` : `${army.name} a été repoussée par la tribu en (${node.x}, ${node.y}) (${outcome.losses} pertes). Rapport disponible.`, { tab: 'reports' });
   // A victorious army stays and harvests what is left when nobody else holds the node; otherwise it brings its loot home
   if (!won || !(await startHarvesting(army, node.id))) await sendArmyHome(army, node.x, node.y, { targetResourceId: null });
 }

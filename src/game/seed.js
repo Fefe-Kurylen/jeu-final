@@ -58,9 +58,10 @@ async function seedResourceNodes() {
     if (used.has(key)) continue;
     used.add(key);
     const level = pickLevel(x, y);
-    const amount = Math.floor([500, 1500, 3000][level - 1] * (0.8 + Math.random() * 0.4));
+    // GDD: gold nodes hold a small stock (10 / 20 / 30 by level) that refills in 12 h; no random spread
+    const amount = config.map.goldNode.lootByLevel[level] || 10;
     const tribe = generateTribeDefenders(level, true, 1.0);
-    batch.push({ x, y, resourceType: 'GOLD', level, biome: biomes(x, y), amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.max(1, Math.floor(amount * 1.5 / 24)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 60 + level * 60 });
+    batch.push({ x, y, resourceType: 'GOLD', level, biome: biomes(x, y), amount, maxAmount: amount, regenRate: Math.max(1, Math.round(amount / config.map.goldNode.intervalHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 60 + level * 60 });
     goldCount++;
     if (batch.length >= BATCH) {
       await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });

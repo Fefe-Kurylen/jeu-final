@@ -102,6 +102,7 @@ const remainingPower = (side) => side.reduce((s, u) => s + Math.max(0, u.count) 
 // below 70%, so the loser never loses more than 30%.
 // opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
 // attackerBonusPct / defenderBonusPct — the players' technologies (Art de la guerre, Discipline), in percent
+// winnerLossMultiplier — overrides config.combat.winnerLossMultiplier (tribe fights)
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null, opts = {}) {
   const attackerHeroBonus = heroBonus(attackerHero, 'attack');
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
@@ -115,7 +116,7 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
   const attackerWon = attackerPower > defenderPower;
   const ratio = attackerWon ? defenderPower / Math.max(1, attackerPower) : attackerPower / Math.max(1, defenderPower);
 
-  const winnerLossRate = ratio * config.combat.winnerLossMultiplier;
+  const winnerLossRate = ratio * (opts.winnerLossMultiplier || config.combat.winnerLossMultiplier);   // tribes use config.combat.tribeLossMultiplier
   const loserLossRate = config.combat.loserLossRate;
 
   return {

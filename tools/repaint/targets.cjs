@@ -67,6 +67,8 @@ function describe(file) {
   if ((m = file.match(/^map\/cities\/(\w+)\.webp$/))) return `Carte du monde : ville « ${m[1]} » (${MAP[m[1]] ? MAP[m[1]].slice(0, 60) : ''}…)`;
   if ((m = file.match(/^map\/resources\/(\w+?)(_desert|_snow)?\.webp$/))) return `Carte du monde : point de ressource ${m[1]}${m[2] ? ` (${m[2].slice(1)})` : ''}`;
   if ((m = file.match(/^map\/terrain\/(\w+)\.webp$/))) return `Carte du monde : relief « ${m[1]} » (${(TERRAIN[m[1]] || '').slice(0, 70)})`;
+  if ((m = file.match(/^map\/camps\/(camp[123]|ruins)(_desert|_snow)?\.webp$/))) return `Carte du monde : camp barbare ${m[1] === 'ruins' ? 'détruit, en attente de la réapparition de la tribu' : 'de niveau ' + m[1].slice(4) + ' (tribu qui tient un point de ressource)'}${m[2] ? ` (${m[2].slice(1)})` : ''}`;
+  if ((m = file.match(/^map\/camps\/banner_([A-Z]+)\.webp$/))) return `Carte du monde : bannière de tribu ${CIV_FR[m[1]] || m[1]} posée sur son camp`;
   if ((m = file.match(/^map\/units\/(\w+?)(_[A-Z]+)?\.webp$/))) return `Carte du monde : armée en marche « ${m[1]} »${m[2] ? ' de ' + (CIV_FR[m[2].slice(1)] || m[2].slice(1)) : ''} (aussi dans le replay de bataille)`;
   if ((m = file.match(/^figures\/([A-Z]+)_(\w+)\.webp$/))) return `Figurine en pied : ${CLASS[m[1]] || m[1]} de ${CIV_FR[m[2]]} (fiches d'unité, cartes de recrutement)`;
   if ((m = file.match(/^busts\/([A-Z]+)(?:_(\w+))?\.webp$/))) return `Buste-jeton : ${CLASS[m[1]] || m[1]}${m[2] ? ' de ' + CIV_FR[m[2]] : ' (neutre)'} (listes, rapports, composition d'armée)`;
@@ -102,6 +104,10 @@ const EXTRAS = [];
 const add = (file, frame, role, extra = {}) => EXTRAS.push({ file, cat: file.split('/')[0], frame, fit: frame === 'building' ? 'canvas' : 'direct', role, ...extra });
 const anim = (base, n, frame, role) => { for (let i = 0; i < n; i++) add(`${base}_${i}.webp`, frame, `${role} — phase ${i + 1}/${n}`, { anim: { base, n, i } }); };
 for (const c of CIVS) add(`walls/${c}/gate.webp`, 'building', `Porte de la ville de ${CIV_FR[c]} (arête sud-ouest de l'enceinte)`);
+// Camps barbares de la carte (tribus des points de ressource) : niveau 1 à 3, variantes désert / neige, ruines, bannières
+for (const lvl of [1, 2, 3]) for (const b of ['', '_desert', '_snow']) add(`map/camps/camp${lvl}${b}.webp`, 'map', `Camp barbare de niveau ${lvl} sur la carte${b ? ` (${b.slice(1)})` : ''} : remplace l'icône de ressource tant que la tribu tient le point`);
+for (const b of ['', '_desert', '_snow']) add(`map/camps/ruins${b}.webp`, 'map', `Camp barbare détruit${b ? ` (${b.slice(1)})` : ''} : affiché jusqu'à la réapparition de la tribu`);
+for (const c of CIVS) add(`map/camps/banner_${c}.webp`, 'map', `Bannière de tribu ${CIV_FR[c]} posée sur le camp`);
 add('props/sign_build.webp', 'prop', 'Panneau « construire ici » sur les emplacements libres');
 for (const c of CIVS) add(`ui/crest_${c}.webp`, 'icon', `Blason de ${CIV_FR[c]}`);
 for (const d of ['forest', 'desert', 'mountain', 'ruins']) add(`scenes/expedition-${d}.webp`, 'header', `Vignette de destination d'expédition : ${d}`);

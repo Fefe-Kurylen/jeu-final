@@ -216,6 +216,20 @@ Ressources (`map/resources/<res>[_desert|_snow].png`) :
 | food | a fenced wheat field |
 | gold | rocks with glittering gold nuggets |
 
+Camps barbares (`map/camps/<camp1|camp2|camp3|ruins>[_desert|_snow].png`, `map/camps/banner_<CIV>.png`) — la tribu qui tient un point de ressource, ses ruines après la défaite, sa bannière :
+
+| Nom | Sujet |
+|---|---|
+| camp1 | a small barbarian camp: two hide tents around a campfire, a wooden totem topped with a skull, a few crude spears planted in the ground |
+| camp2 | a palisaded barbarian camp: a ring of sharpened log stakes with a gate, several hide tents, a wooden watchtower, a campfire and a tall banner |
+| camp3 | a barbarian wooden fort: a tall log palisade with two corner towers and a gate, a longhouse with a thatched roof inside, skull totems, several banners and a smoking fire |
+| ruins | the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke |
+
+| Variante | Ajout au sujet |
+|---|---|
+| desert | , desert variant standing on sand with a palm tree and red rocks |
+| snow | , snowy variant with snow on the tents and roofs and snow drifts around |
+
 Relief (`map/terrain/<nom>.png`) — les variantes _x, _y s'allongent en diagonale comme le guide, _xy est un massif / un lac large :
 
 | Nom | Sujet |
@@ -375,6 +389,39 @@ Boutons (`ui/btn-<primary|secondary|danger|gold|info>[-pressed].png`, 1024 carr�
 | dirt | a seamless, tileable top-down texture of packed earth and dirt path: warm brown, small pebbles, faint cart tracks |
 | sand | a seamless, tileable top-down texture of desert sand: pale ochre, gentle wind ripples, a few small stones |
 | snow | a seamless, tileable top-down texture of fresh snow: white with soft blue shadows, light drifts and sparkles |
+| grass_lawn | a seamless, tileable top-down texture of short well-kept green lawn, fine blades, a few tiny daisies |
+| grass_dark | a seamless, tileable top-down texture of dense dark-green undergrowth with moss and small ferns |
+| grass_dry | a seamless, tileable top-down texture of dry yellow-green summer grass with some bare earth |
+| grass_flowers | a seamless, tileable top-down texture of meadow grass dotted with small red, white and yellow wildflowers |
+| grass_hills | a seamless, tileable top-down texture of rolling meadow grass with lighter crests and darker hollows |
+| dirt_packed | a seamless, tileable top-down texture of packed brown earth with small pebbles and faint footprints |
+| mud | a seamless, tileable top-down texture of wet dark mud with shallow puddles reflecting the sky |
+| gravel | a seamless, tileable top-down texture of small grey and beige gravel stones |
+| sand_ripples | a seamless, tileable top-down texture of pale ochre desert sand with gentle wind ripples |
+| sand_rocky | a seamless, tileable top-down texture of sand with scattered small dark stones and a few dry tufts |
+| cracked_earth | a seamless, tileable top-down texture of dry cracked clay ground in warm ochre |
+| snow_fresh | a seamless, tileable top-down texture of fresh untouched snow, soft blue shadows, a few sparkles |
+| snow_trampled | a seamless, tileable top-down texture of trampled grey-white snow with footprints and dirt showing through |
+| tundra | a seamless, tileable top-down texture of frosted short grass and frozen earth, white edges on the blades |
+| water_lake | a seamless, tileable top-down texture of calm clear blue lake water, soft ripples, a few light reflections |
+| water_deep | a seamless, tileable top-down texture of deep dark-blue water with slow swells |
+| water_river | a seamless, tileable top-down texture of flowing water with diagonal streaks and small white foam lines |
+| water_shallow | a seamless, tileable top-down texture of shallow turquoise water with a sandy bottom visible |
+| ice | a seamless, tileable top-down texture of pale blue cracked ice with white frost lines |
+| plaza_ROME | a seamless, tileable top-down texture of large pale sandstone flagstones with thin dark joints and a faint mosaic meander border |
+| plaza_GAUL | a seamless, tileable top-down texture of rough wooden planks and packed earth with straw |
+| plaza_GREEK | a seamless, tileable top-down texture of white marble slabs with grey veins and thin joints |
+| plaza_EGYPT | a seamless, tileable top-down texture of golden sandstone tiles with a few carved hieroglyph bands |
+| plaza_HUN | a seamless, tileable top-down texture of trampled dark earth with hoof prints and scattered straw |
+| plaza_SULTAN | a seamless, tileable top-down texture of teal, white and gold geometric mosaic tiles |
+| cobble | a seamless, tileable top-down texture of worn rounded cobblestones in warm beige and grey, thin dark joints, tufts of grass in the cracks |
+| flagstone | a seamless, tileable top-down texture of irregular flat grey flagstones with moss in the joints |
+| road_dirt | a seamless, tileable top-down texture of a packed dirt road with two cart ruts and grass at the sides, the road running vertically |
+| road_paved | a seamless, tileable top-down texture of an ancient paved road of large basalt stones, the road running vertically |
+| path_sand | a seamless, tileable top-down texture of a sandy trail with camel tracks, the trail running vertically |
+| soil_tilled | a seamless, tileable top-down texture of tilled brown soil in straight furrows |
+| wheat | a seamless, tileable top-down texture of golden ripe wheat seen from above in neat rows |
+| orchard | a seamless, tileable top-down texture of green grass with rows of small round tree crowns |
 
 ### Emblème (`logo/medallion.png`)
 

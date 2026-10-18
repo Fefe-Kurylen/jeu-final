@@ -10,7 +10,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
-| 5 | Carte du monde (villes, ressources, relief et eau, armées en marche) | 86 |
+| 5 | Carte du monde (villes, ressources, camps barbares, relief et eau, armées en marche) | 104 |
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
@@ -18,7 +18,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
 | 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 169 |
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
-| | **Total** | **1028** |
+| | **Total** | **1046** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -289,7 +289,7 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `walls/SULTAN/3_seg_z_low.png` — 1024×1024
 - `walls/SULTAN/3_tower.png` — 1024×1024
 
-## 5. Carte du monde (villes, ressources, relief et eau, armées en marche) (86)
+## 5. Carte du monde (villes, ressources, camps barbares, relief et eau, armées en marche) (104)
 
 `--kit`.
 
@@ -379,6 +379,24 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `map/units/hoplite_ROME.png` — 1024×1024
 - `map/units/hoplite_SULTAN.png` — 1024×1024
 - `map/units/merchant.png` — 1024×1024
+- `map/camps/camp1.png` — 1024×1024
+- `map/camps/camp1_desert.png` — 1024×1024
+- `map/camps/camp1_snow.png` — 1024×1024
+- `map/camps/camp2.png` — 1024×1024
+- `map/camps/camp2_desert.png` — 1024×1024
+- `map/camps/camp2_snow.png` — 1024×1024
+- `map/camps/camp3.png` — 1024×1024
+- `map/camps/camp3_desert.png` — 1024×1024
+- `map/camps/camp3_snow.png` — 1024×1024
+- `map/camps/ruins.png` — 1024×1024
+- `map/camps/ruins_desert.png` — 1024×1024
+- `map/camps/ruins_snow.png` — 1024×1024
+- `map/camps/banner_ROME.png` — 1024×1024
+- `map/camps/banner_GAUL.png` — 1024×1024
+- `map/camps/banner_GREEK.png` — 1024×1024
+- `map/camps/banner_EGYPT.png` — 1024×1024
+- `map/camps/banner_HUN.png` — 1024×1024
+- `map/camps/banner_SULTAN.png` — 1024×1024
 
 ## 6. Unités et héros (figurines, bustes, héros) (64)
 

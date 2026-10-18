@@ -6,6 +6,9 @@ const m3d = JSON.parse(fs.readFileSync(root + 'frontend/assets/images/3d/manifes
 const painted = new Set(JSON.parse(fs.readFileSync(root + 'frontend/assets/images/painted/manifest.json', 'utf8')).files);
 const buildingsData = JSON.parse(fs.readFileSync(root + 'data/buildings.json', 'utf8')).buildings;
 const { BUILDING: SUBJECT, FACTION: ARCHI } = require('./repaint/prompts.cjs');
+const { buildAllTargets } = require('./repaint/targets.cjs');
+// Camps barbares : pas de rendu 3D, uniquement dans le registre des livrables
+const mapCamps = buildAllTargets().filter(t => t.file.startsWith('map/camps/')).map(t => t.file);
 // Un bâtiment de faction (Thermes, Brasserie…) n'est jamais affiché chez une autre civilisation : ses rendus 3D
 // dans les autres dossiers ne sont pas à produire
 const foreignFaction = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3)?(?:_snow)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !!(d && d.faction && d.faction !== m[1]); };
@@ -19,11 +22,12 @@ const bsel = (f, v) => b.filter(x => x.startsWith(`buildings/${f}/`) && (v === '
 const cell = (list) => `${p(list)} / ${n(list)}`;
 const walls = cat('walls'), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
 const map = cat('map'), mapCities = map.filter(x => x.startsWith('map/cities/')), mapRes = map.filter(x => x.startsWith('map/resources/')), mapTerrain = map.filter(x => x.startsWith('map/terrain/')), mapUnits = map.filter(x => x.startsWith('map/units/'));
+const mapAll = [...map, ...mapCamps];
 const figures = cat('figures'), busts = cat('busts'), heroes = cat('heroes'), scenes = cat('scenes'), icons = cat('icons'), frames = cat('uiframes');
 const terrain = ['terrain/grass.webp', 'terrain/dirt.webp', 'terrain/sand.webp', 'terrain/snow.webp'];
 // Variantes du biome neige (hors carte du monde, visible par tous) : reportées
 const isSnow = (x) => !x.startsWith('map/') && (/_snow\.webp$/.test(x) || /^fields\/snow\//.test(x) || /^plots\/snow_/.test(x) || /^props\/snow/.test(x));
-const everything = [...b, ...walls, ...fields, ...plots, ...props, ...map, ...figures, ...busts, ...heroes, ...scenes, ...icons, ...frames, ...terrain];
+const everything = [...b, ...walls, ...fields, ...plots, ...props, ...mapAll, ...figures, ...busts, ...heroes, ...scenes, ...icons, ...frames, ...terrain];
 const snow = everything.filter(isSnow);
 const all = everything.filter(x => !isSnow(x));
 const bNoSnow = b.filter(x => !isSnow(x)), wallsNoSnow = walls.filter(x => !isSnow(x)), fieldsNoSnow = fields.filter(x => !isSnow(x)), plotsNoSnow = plots.filter(x => !isSnow(x)), propsNoSnow = props.filter(x => !isSnow(x));
@@ -61,7 +65,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
-4. **Carte du monde** : villes (${n(mapCities)}), ressources (${n(mapRes)}), relief et eau (${n(mapTerrain)}), armées en marche (${n(mapUnits)}).
+4. **Carte du monde** : villes (${n(mapCities)}), ressources (${n(mapRes)}), camps barbares (${n(mapCamps)}), relief et eau (${n(mapTerrain)}), armées en marche (${n(mapUnits)}).
 5. **Unités et héros** : figurines en pied (${n(figures)}), bustes-jetons (${n(busts)}), héros sur estrade et bustes (${n(heroes)}) ; ils apparaissent dans toutes les listes, les rapports et l'écran du héros.
 6. **Scènes** : connexion (portrait + paysage), 6 estrades de héros, 5 bandeaux d'écran, champ de bataille (${n(scenes)} au total).
 7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20). Les **variantes neige** sont reportées (§ 6).
@@ -113,6 +117,7 @@ Peints : ${walls.filter(f => painted.has(f)).map(f => f.replace('walls/', '').re
 |---|---|---|---|---|---|
 ${row('Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capital_<civ>>.png`', mapCities, '1024², cadre map', 'villes et capitales des joueurs sur la carte')}
 ${row('Ressources `map/resources/<wood|stone|iron|food|gold>[_desert|_snow].png`', mapRes, '1024², cadre map', 'points de ressource gardés par les tribus')}
+${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`, `map/camps/banner_<CIV>.png`', mapCamps, '1024², cadre map', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition, bannière de la tribu ; sans eux, l\'icône de ressource reste')}
 ${row('Relief et eau `map/terrain/…` (forêt, montagnes, dunes, ruines, rochers, sapins, montagnes de glace, lacs, lacs gelés, oasis ; formes isolée, _x, _y, _xy)', mapTerrain, '1024², cadre map', 'obstacles infranchissables (montagnes, eau) et décor de la carte')}
 ${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapunit', 'marqueurs des armées et marchands en déplacement')}
 
@@ -292,7 +297,7 @@ sec('1. Bâtiments, palier courant (niveaux 7-13), par civilisation', civOrder.f
 sec('2. Textures de sol de base et dallages (changent le plus l\'aspect de la ville)', [...TEX_GROUP.base, ...TEX_GROUP.paving].filter(n => texRemaining.includes(n)).map(n => `terrain/${n}.webp`), 'Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md` § T1 et T3 (ou `--kit`).');
 sec('3. Champs, parcelles, décors de scène', [...remaining(fieldsNoSnow), ...remaining(plotsNoSnow), ...remaining(propsNoSnow)], '`--kit`.');
 sec('4. Enceinte (courtines, murets, tours) par civilisation et palier du Mur', remaining(wallsNoSnow), '`--kit`.');
-sec('5. Carte du monde (villes, ressources, relief et eau, armées en marche)', remaining(map), '`--kit`.');
+sec('5. Carte du monde (villes, ressources, camps barbares, relief et eau, armées en marche)', remaining(mapAll), '`--kit`.');
 sec('6. Unités et héros (figurines, bustes, héros)', [...remaining(figures), ...remaining(busts), ...remaining(heroes)], '`--kit`.');
 sec('7. Scènes (connexion, estrades des héros, bandeaux, champ de bataille)', remaining(scenes), '`--kit`.');
 sec('8. Habillage d\'interface restant', remaining(frames), 'Sans la plaque parchemin, l\'habillage peint ne s\'active pas.');

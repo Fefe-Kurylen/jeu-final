@@ -5,10 +5,12 @@
 const prisma = require('../../config/database');
 const { Prisma } = require('@prisma/client');
 const config = require('../../config');
-const { unitsData } = require('../../config/gamedata');
+const { unitsData, factionsData } = require('../../config/gamedata');
+const fx = require('../../utils/buildingEffects');
+const { getFactionBonus } = require('../../utils/calculations');
 const { getArmyTravelTime } = require('../../utils/calculations');
 const T = require('../../utils/techEffects');
-const { generateTribeDefenders } = require('../../utils/tribeDefenders');
+const { generateTribeDefenders, expectedSoldiers, tribeFactionOf } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
 
 // Carry capacity per unit key, sent once as a VALUES table
@@ -18,6 +20,9 @@ function getCarryTableSql() {
   _carryTableSql = Prisma.join(unitsData.map(u => Prisma.sql`(${u.key}, ${u.stats?.carry || u.stats?.transport || 50}::int)`));
   return _carryTableSql;
 }
+// Transport bonuses, as for raids and convoys: civilization (Egypt, Sultanate) and Market / Trade Office of the home city
+const factionTransportSql = () => Prisma.join(Object.keys(factionsData).map(f => Prisma.sql`(${f}, ${getFactionBonus(f, 'transportCapacity', factionsData) || 0}::float)`));
+const transportBuildingsSql = () => Prisma.join(fx.transportBonusKeys().map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
 
 async function leaveNode(army, node) {
   if (node) await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: true }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
@@ -37,12 +42,15 @@ async function processHarvesting(now) {
   //    The node rows are locked for the statement so a concurrent fight or claim waits.
   const harvested = await prisma.$queryRaw`
     WITH cap AS (
-      SELECT a.id AS army_id, COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0)::int AS capacity
+      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0))::int AS capacity
       FROM "Army" a
       LEFT JOIN "ArmyUnit" au ON au."armyId" = a.id
       LEFT JOIN (VALUES ${getCarryTableSql()}) AS ut(key, carry) ON ut.key = au."unitKey"
+      LEFT JOIN "Player" pl ON pl.id = a."ownerId"
+      LEFT JOIN (VALUES ${factionTransportSql()}) AS fb(faction, pct) ON fb.faction = pl.faction
+      LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql()}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST'
-      GROUP BY a.id
+      GROUP BY a.id, fb.pct, tb.pct
     ), take AS (
       SELECT a.id AS army_id, n.id AS node_id, n."resourceType" AS rt,
         GREATEST(0, LEAST(${perTick}, n.amount, cap.capacity - (a."carryWood" + a."carryStone" + a."carryIron" + a."carryFood" + a."carryGold")))::int AS qty
@@ -80,7 +88,29 @@ async function processHarvesting(now) {
   }
 }
 
+let lastReinforceAt = 0;
+
+// Camps grow back as their node refills: a tribe left weak (respawn on a depleted node, failed assault) is reinforced to
+// the strength of the current stock, keeping its people, so a refilled node is never guarded by a handful of soldiers
+async function reinforceTribes(now) {
+  if (now.getTime() - lastReinforceAt < config.tick.tribeReinforceMinutes * 60000) return 0;
+  lastReinforceAt = now.getTime();
+  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null }, select: { id: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
+  let reinforced = 0;
+  for (const node of guarded) {
+    const soldiers = Object.values(node.defenderUnits || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+    const percent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
+    if (soldiers >= expectedSoldiers(node.level || 1, percent) * 0.8) continue;
+    const tribe = generateTribeDefenders(node.level || 1, node.resourceType === 'GOLD', percent, tribeFactionOf(node.defenderUnits));
+    const r = await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: true }, data: { defenderPower: tribe.power, defenderUnits: tribe.units } });
+    reinforced += r.count;
+  }
+  if (reinforced) console.log(`[TRIBES] ${reinforced} camps renforcés`);
+  return reinforced;
+}
+
 async function processTribeRespawn(now) {
+  await reinforceTribes(now);
   const defeatedNodes = await prisma.resourceNode.findMany({ where: { hasDefenders: false, lastDefeat: { not: null }, hasPlayerArmy: false } });
   for (const node of defeatedNodes) {
     let respawnTime;
@@ -98,4 +128,4 @@ async function processTribeRespawn(now) {
   }
 }
 
-module.exports = { processHarvesting, processTribeRespawn };
+module.exports = { processHarvesting, processTribeRespawn, reinforceTribes };

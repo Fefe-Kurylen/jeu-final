@@ -192,3 +192,49 @@ symétriques (Art de la guerre contre Discipline). Où chaque effet est appliqu�
 (`resourceProcessor.js`), coût de construction et temps de recrutement dans `routes/cities.js`, attaque et défense dans
 `combatService.js` (attaque de ville ligne par ligne, pillage et tribus par la puissance), blessés dans `woundedService.js`,
 vitesse dans `calculations.js` (armées, espions, convois, retours).
+
+## 9. Camps barbares : les tribus des points de ressource (octobre 2026)
+
+Le GDD (`resource_points.json`, janvier 2026) fixe un système **façon Travian** : chaque point de ressource est tenu par une
+« tribu locale » fixe, de force liée au niveau du point (1 à 3), qui réapparaît avec la régénération du point ; les points
+d'or sont rares et ne donnent qu'un petit butin (10 / 20 / 30 or par 12 h). Pas de camps itinérants : les « invasions
+barbares » n'étaient qu'une idée d'événement serveur, jamais spécifiée. L'implémentation suit ce cadre : tribu sur chaque point,
+composition aléatoire par faction, 100 / 600 / 1 500 soldats au niveau 1 / 2 / 3 (moins quand le point est entamé), niveau 3
+surtout au centre de la carte, combat par puissance (règles de pillage), butin limité au transport puis récolte sur place à
+100 par minute, réapparition après 60 / 90 / 120 min (10 min après le départ d'une armée), XP du héros par soldat tué.
+
+Simulation (`node tools/simulate-tribes.cjs`, 200 tribus tirées par niveau, armée de base romaine) : avant ce réglage les
+pertes du vainqueur suivaient la règle des pillages (0,3 × puissance de la tribu / puissance de l'armée) et ne dépendaient pas
+de la taille de l'armée : un camp coûtait toujours le même nombre d'unités, deux à trois fois la valeur du point.
+
+| Niveau | Soldats | Puissance | Armée de base pour gagner | Pertes avant (0,3) | Pertes après (0,15) | Butin immédiat | XP héros | Réapparition |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 98 | 6 420 | 111 (15 170 res.) | 28 (3 778 res.) | 13 (1 772 res.), dont 9 à 5 morts avec une Tente de soins | 1 500 res. (+ 2 250 en restant) | 30 | 60 min |
+| 2 | 597 | 55 355 | 949 (129 697 res.) | 239 (32 678 res.) | 116 (15 815 res.), dont 78 à 46 morts avec une Tente de soins | 3 500 res. (+ 5 250 en restant) | 179 | 90 min |
+| 3 | 1 495 | 190 488 | 3 266 (446 353 res.) | 825 (112 729 res.) | 433 (59 115 res.), dont 290 à 173 morts avec une Tente de soins | 6 000 res. (+ 9 000 en restant) | 449 | 120 min |
+| Or 1 | 99 | 8 993 | 155 (21 183 res.) | 27 (3 699 res.) | 13 (1 775 res.), dont 9 à 5 morts avec une Tente de soins | 500 or (+ 750 en restant) | 30 | 120 min |
+| Or 2 | 597 | 77 195 | 1 324 (180 947 res.) | 249 (34 078 res.) | 116 (15 898 res.), dont 78 à 47 morts avec une Tente de soins | 1 500 or (+ 2 250 en restant) | 179 | 180 min |
+| Or 3 | 1 496 | 266 641 | 4 571 (624 703 res.) | 843 (115 177 res.) | 416 (56 882 res.), dont 279 à 166 morts avec une Tente de soins | 3 000 or (+ 4 500 en restant) | 449 | 240 min |
+
+Réglages appliqués :
+- **Pertes contre un camp divisées par deux** (`config.combat.tribeLossMultiplier` 0,15) : la cible est fixe, et l'on garde
+  les morts du perdant à 30 %. Un camp de niveau 1 coûte 14 unités de base (1 900 ressources) pour 1 500 ressources de butin
+  immédiat, 2 250 avec le stock, puis 560 par heure tant que l'armée reste : rentable sans être gratuit ; le niveau 3 reste
+  une opération de fin de partie (3 300 unités pour y aller).
+- **Blessés** : comme après une bataille de ville, une part des pertes revient blessée à la Tente de soins (30 % + 3 % par
+  niveau, Grèce, Médecine) ; les combats contre les tribus en étaient exclus.
+- **Renfort des camps** : une tribu affaiblie (réapparue sur un point vide, assaut repoussé) regagne l'effectif du stock
+  courant toutes les heures, en gardant son peuple : un point plein n'est plus gardé par dix soldats (`tribeReinforceMinutes`).
+- Après un assaut repoussé, la puissance affichée est recalculée sur les survivants (elle était estimée par un simple ratio).
+- Le **bonus de transport** (Égypte, Sultanat, Marché, Comptoir) s'applique au butin des camps et à la récolte, comme aux
+  pillages et aux convois : il ne s'y appliquait pas.
+- **Points d'or au barème du GDD** : 10 / 20 / 30 or par niveau, rechargés en 12 h (`config.map.goldNode`), au lieu de
+  500 à 3 000 or rechargés en 24 h, trente fois le barème prévu et plus que la Chambre au trésor ; les points existants sont
+  ramenés au barème au démarrage.
+- Notification du résultat quand le combat se résout à l'arrivée de l'armée, comme pour les attaques de ville.
+
+Le cadre reste celui du GDD et de Travian (tribus fixes sur les points, décision confirmée). Écarts restants avec le GDD, à
+décider (`docs/BACKLOG.md`) : plusieurs alliés sur un même point, stock exact visible
+seulement après espionnage, ville secondaire fondée sur un point (Résidence et colons), et une armée qui tient un point est
+aujourd'hui inattaquable. Graphismes : les camps n'avaient aucun visuel prévu ; 18 sprites sont ajoutés aux listes
+(`map/camps/`, niveaux 1 à 3 par biome, ruines, bannières de tribu) et la carte les affiche dès qu'ils sont livrés.

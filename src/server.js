@@ -160,9 +160,15 @@ async function repairData() {
     WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.key = 'MAIN_HALL')
       AND NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.slot = 0)`;
   // GDD regeneration speed: full refill in 4h (gold: 24h)
+  // Gold nodes at the GDD scale (config.map.goldNode): a small stock per level, refilled in 12 h; older seeds held 500-3000 gold
+  const goldHours = config.map.goldNode.intervalHours;
+  const goldCase = Prisma.sql`CASE ${Prisma.join(Object.entries(config.map.goldNode.lootByLevel).map(([l, v]) => Prisma.sql`WHEN level = ${Number(l)} THEN ${v}`), ' ')} ELSE ${config.map.goldNode.lootByLevel[1]} END`;
   await prisma.$executeRaw`
-    UPDATE "ResourceNode" SET "regenRate" = GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)
-    WHERE "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN "maxAmount" / 24 ELSE "maxAmount" / 4 END)`;
+    UPDATE "ResourceNode" SET "maxAmount" = ${goldCase}, amount = LEAST(amount, ${goldCase})
+    WHERE "resourceType" = 'GOLD' AND "maxAmount" <> ${goldCase}`;
+  await prisma.$executeRaw`
+    UPDATE "ResourceNode" SET "regenRate" = GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN ROUND("maxAmount"::float / ${goldHours}) ELSE "maxAmount" / 4 END)
+    WHERE "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN ROUND("maxAmount"::float / ${goldHours}) ELSE "maxAmount" / 4 END)`;
   // Tribe power on the same scale as an army's power (older seeds stored 100 × level × soldiers/100).
   // Recomputed from the stored units at every boot: idempotent, and respawned tribes already use this scale.
   {

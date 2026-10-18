@@ -51,7 +51,9 @@ const config = {
     maxCoord: 186,
     expansionPerPlayer: 10,
     maxPlayers: 5000,
-    spawnEdgeDelta: 100
+    spawnEdgeDelta: 100,
+    // Gold nodes (GDD resource_points.json): a small stock of gold per level that refills in 12 h, guarded like the others
+    goldNode: { lootByLevel: { 1: 10, 2: 20, 3: 30 }, intervalHours: 12 }
   },
 
   // Rate limiting (keyed by player once authenticated, by IP otherwise — mobile carriers share IPs)
@@ -138,6 +140,7 @@ const config = {
     heroXpPerTribeKill: 1,       // XP per tribe unit destroyed when clearing a resource node
     heroMaxLevel: 30,
     winnerLossMultiplier: 0.3,
+    tribeLossMultiplier: 0.15,   // winner's losses against a tribe (camp): half of a raid, the camp is a static target (docs/EQUILIBRAGE.md § 9)
     loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
     raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
     raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
@@ -168,6 +171,7 @@ const config = {
     harvestPerTick: 50,          // 100/min at 30s ticks
     regenDelayMinutes: 5,
     tribeRespawnDelayMinutes: 10,
+    tribeReinforceMinutes: 60,   // a camp left weak (failed assault, respawn on a depleted node) grows back to the strength of the current stock
     retentionDays: { reports: 30, expeditions: 7, offers: 30, analytics: 90 }
   },
 

@@ -74,6 +74,7 @@ const effects = {
   // SQL helpers: (key, pctPerLevel) pairs used by the set-based processors
   productionBonusKeys: () => [['EGYPTIAN_IRRIGATION', effectOf('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel')]],
   upkeepReductionKeys: () => [['HUN_WAR_TENT', effectOf('HUN_WAR_TENT', 'upkeepReductionPctPerLevel')], ['SULTAN_DESERT_OUTPOST', effectOf('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')]],
+  transportBonusKeys: () => [['MARKET', effectOf('MARKET', 'playerTransportBonusPctPerLevel')], ['TRADE_OFFICE', effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')]],
   levelOf
 };
 

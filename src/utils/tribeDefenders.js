@@ -36,20 +36,26 @@ const FACTION_UNITS = {
   }
 };
 
-function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
-  const faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
+// Soldiers of a camp by level, scaled by the stock left on the node (never below a floor)
+const SOLDIERS = { 1: [100, 10], 2: [600, 60], 3: [1500, 150] };
+function expectedSoldiers(level, resourcePercent = 1.0) {
+  const [full, floor] = SOLDIERS[level] || SOLDIERS[3];
+  return Math.max(floor, Math.floor(full * Math.max(0, Math.min(1, resourcePercent))));
+}
+// Faction of a camp from its unit keys (ROM_… → ROME), null when unknown
+const PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function tribeFactionOf(units) {
+  const key = Object.keys(units || {}).find(k => PREFIX[k.slice(0, 3)]);
+  return key ? PREFIX[key.slice(0, 3)] : null;
+}
+
+// faction: keep the camp's people when it is reinforced; random otherwise
+function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, faction = null) {
+  if (!FACTION_UNITS[faction]) faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
   const factionUnits = FACTION_UNITS[faction];
 
   const units = {};
-  let totalSoldiers;
-
-  if (level === 1) {
-    totalSoldiers = Math.max(10, Math.floor(100 * resourcePercent));
-  } else if (level === 2) {
-    totalSoldiers = Math.max(60, Math.floor(600 * resourcePercent));
-  } else {
-    totalSoldiers = Math.max(150, Math.floor(1500 * resourcePercent));
-  }
+  const totalSoldiers = expectedSoldiers(level, resourcePercent);
 
   const infRatio = 0.25 + Math.random() * 0.2;
   const arcRatio = 0.25 + Math.random() * 0.2;
@@ -96,5 +102,7 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
 module.exports = {
   FACTIONS_LIST,
   FACTION_UNITS,
-  generateTribeDefenders
+  generateTribeDefenders,
+  expectedSoldiers,
+  tribeFactionOf
 };

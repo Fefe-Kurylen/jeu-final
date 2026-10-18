@@ -99,6 +99,10 @@ ${table(['Nom', 'Sujet'], Object.entries(P.MAP).map(([k, v]) => [k.replace('citi
 Ressources (\`map/resources/<res>[_desert|_snow].png\`) :
 
 ${table(['Ressource', 'Sujet'], Object.entries(P.RES))}
+Camps barbares (\`map/camps/<camp1|camp2|camp3|ruins>[_desert|_snow].png\`, \`map/camps/banner_<CIV>.png\`) — la tribu qui tient un point de ressource, ses ruines après la défaite, sa bannière :
+
+${table(['Nom', 'Sujet'], Object.entries(P.CAMP))}
+${table(['Variante', 'Ajout au sujet'], Object.entries(P.CAMP_BIOME))}
 Relief (\`map/terrain/<nom>.png\`) — les variantes _x, _y s'allongent en diagonale comme le guide, _xy est un massif / un lac large :
 
 ${table(['Nom', 'Sujet'], Object.entries(P.TERRAIN))}

@@ -28,11 +28,22 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 | Statuts ALLY / NEUTRAL / ENEMY entre alliances : pas d'attaque entre alliés, pas de transport vers un ennemi | Aide d'alliance (réduction des constructions, données `maxAllianceHelpReceived*`), chat, classement d'alliance détaillé |
 | Classements joueurs, alliances, attaquants, défenseurs | Messagerie entre joueurs |
 
-## Brigands (tribus des points de ressource)
+## Brigands : les camps barbares (tribus des points de ressource)
 
-Le système est à jour : chaque point de ressource est tenu par une tribu d'une faction aléatoire (niveau 1 à 3, effectif lié au stock restant), sa puissance est affichée sur la **même échelle que les armées**, le combat suit les règles de raid, l'XP du héros dépend des unités tuées, la tribu réapparaît après un délai (plus long sur l'or) et jamais tant qu'une armée récolte, le butin rentre avec l'armée. Un raid sur un point sans défenseurs est refusé (collecte directe), un point occupé est protégé.
+Cadre voulu par le GDD (`resource_points.json`) : **façon Travian**, une tribu locale fixe sur chaque point de ressource, de force
+liée au niveau du point, qui réapparaît avec la régénération ; pas de camps itinérants (les « invasions barbares » restent une
+idée d'événement). Vérifié en octobre 2026 : génération (100 / 600 / 1 500 soldats, composition aléatoire par faction, niveau 3
+au centre), affichage sur la carte (puissance sur l'échelle des armées, défenseurs nommés avec fiche), attaque (adjacente ou en
+marche, chemin terrestre), combat par puissance, butin borné au transport puis récolte sur place, réapparition, XP du héros.
+Corrigé : pertes contre un camp divisées par deux (`tribeLossMultiplier`), blessés récupérés comme après une bataille, renfort
+horaire des tribus affaiblies, puissance recalculée après un assaut repoussé, bonus de transport appliqué au butin et à la
+récolte, points d'or au barème du GDD (10 / 20 / 30 or par 12 h), notification du résultat. Simulation et chiffres dans
+`docs/EQUILIBRAGE.md` § 9, outil `node tools/simulate-tribes.cjs`.
 
-Manque, façon Rise of Kingdoms : camps de barbares itinérants avec niveau et récompenses, événements temporaires, points de ressource qui s'épuisent et se déplacent.
+Décision confirmée en octobre 2026 : le système reste **celui du GDD, façon Travian** (tribus fixes sur les points de
+ressource), pas de camps itinérants ni d'événements d'invasion. Écarts avec le GDD à décider : alliés sur un même point, stock
+exact visible seulement après espionnage, ville secondaire sur un point, armée qui tient un point inattaquable. Graphismes :
+18 sprites de camps prévus (`map/camps/`) pour habiller ces tribus sur la carte, affichés dès livraison.
 
 ## Héros
 

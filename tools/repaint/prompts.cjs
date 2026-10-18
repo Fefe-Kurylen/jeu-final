@@ -29,6 +29,14 @@ const MAP = {
 };
 for (const f of ['rome', 'gaul', 'greek', 'egypt', 'hun', 'sultan']) MAP['cities/capital_' + f] = `a fortified capital icon for a world map: walls with corner towers around a palace, ${FACTION[f.toUpperCase()]}`;
 const RES = { wood: 'a forest clearing with trees and a cut log', stone: 'a group of grey boulders', iron: 'an iron mine entrance in a rock wall with a mine cart', food: 'a fenced wheat field', gold: 'rocks with glittering gold nuggets' };
+// Camps barbares (tribus) sur la carte du monde : par niveau, variantes désert / neige, ruines après la défaite, bannière
+const CAMP = {
+  camp1: 'a small barbarian camp: two hide tents around a campfire, a wooden totem topped with a skull, a few crude spears planted in the ground',
+  camp2: 'a palisaded barbarian camp: a ring of sharpened log stakes with a gate, several hide tents, a wooden watchtower, a campfire and a tall banner',
+  camp3: 'a barbarian wooden fort: a tall log palisade with two corner towers and a gate, a longhouse with a thatched roof inside, skull totems, several banners and a smoking fire',
+  ruins: 'the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke'
+};
+const CAMP_BIOME = { desert: ', desert variant standing on sand with a palm tree and red rocks', snow: ', snowy variant with snow on the tents and roofs and snow drifts around' };
 const TERRAIN = {
   forest_tree: 'a small cluster of leafy trees and pines with bushes', forest_mountain: 'a rugged rocky mountain with a snowy peak, boulders and a few trees at its foot',
   forest_mountain_x: 'a long rugged mountain ridge with several rocky peaks and snow caps, running diagonally exactly like the guide, boulders and trees at its foot', forest_mountain_y: 'a long rugged mountain ridge with several rocky peaks and snow caps, running diagonally exactly like the guide, boulders and trees at its foot', forest_mountain_xy: 'a rugged mountain massif with several rocky peaks and snow caps, boulders and trees at its foot',
@@ -168,6 +176,8 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^map\/cities\/(\w+)\.webp$/))) subject = `${MAP['cities/' + m[1]]}, standing on a small square grass plot`;
   else if ((m = file.match(/^map\/resources\/(\w+?)(?:_(desert|snow))?\.webp$/))) subject = `a world-map resource icon: ${RES[m[1]]}${m[2] === 'desert' ? ', desert variant with sand and a palm tree' : m[2] === 'snow' ? ', snowy variant covered with snow' : ''}`;
   else if ((m = file.match(/^map\/terrain\/(\w+)\.webp$/))) subject = `a world-map terrain icon: ${TERRAIN[m[1]]}`;
+  else if ((m = file.match(/^map\/camps\/(camp[123]|ruins)(?:_(desert|snow))?\.webp$/))) subject = `a world-map icon of ${CAMP[m[1]]}${m[2] ? CAMP_BIOME[m[2]] : ''}, standing on a small round patch of ground`;
+  else if ((m = file.match(/^map\/camps\/banner_([A-Z]+)\.webp$/))) subject = `a small world-map marker: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the ${m[1].toLowerCase()} people (${FACTION[m[1]].split(':')[0].replace(' architecture', '')}), nothing else`;
   else if ((m = file.match(/^figures\/([A-Z]+)_([A-Z]+)\.webp$/))) subject = `a full-body character sprite in three-quarter view: ${CLASS[m[1]]}, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]} and ${FACTION[m[2]].split(':')[0].replace(' architecture', '')} colors, standing on a small round base`;
   else if ((m = file.match(/^heroes\/([A-Z]+)_bust\.webp$/))) subject = `a round token portrait, head and shoulders, of the ${m[1].toLowerCase()} hero: ${HEAD[m[1]]}, golden armor, cape, proud expression`;
   else if ((m = file.match(/^busts\/([A-Z]+)(?:_([A-Z]+))?\.webp$/))) subject = `a round token portrait, head and shoulders, of ${CLASS[m[1]]}${m[2] ? `, ${m[2].toLowerCase()} faction with ${HEAD[m[2]]}` : ', Roman style'}, with a small class emblem (${m[1] === 'ARCHER' ? 'bow and arrow' : m[1] === 'CAVALRY' ? 'horseshoe' : m[1] === 'SIEGE' ? 'wheel and stone' : 'crossed swords'}) on a dark round badge by the shoulder`;
@@ -188,4 +198,4 @@ function promptFor(file, opts = {}) {
   const comp = COMPOSITION[frameOf(file)] || '';
   return `${STYLE} ${bg}\n\n${keep}\n\n${comp}\n\nSubject: ${subject}`;
 }
-module.exports = { promptFor, frameOf, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE, DECAL, EDGE };
+module.exports = { promptFor, frameOf, STYLE, KEEP, KEEP_T1, KEEP_T3, BG, COMPOSITION, FACTION, BUILDING, FIELD, TIER, BIOME, PROP, MAP, RES, CAMP, CAMP_BIOME, TERRAIN, CLASS, HEAD, SCENE, WALL_TIER, WALL_KIND, TOWER_KIND, UI_FRAME, UI_BUTTON, ICON_DESC, TEXTURE, DECAL, EDGE };
