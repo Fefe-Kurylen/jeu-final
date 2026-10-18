@@ -1,7 +1,7 @@
 // ========== RESOURCE NODE SEEDING ==========
 const prisma = require('../config/database');
 const config = require('../config');
-const { generateTribeDefenders } = require('../utils/tribeDefenders');
+const { generateTribeDefenders, campDifficultyAt } = require('../utils/tribeDefenders');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 
@@ -41,7 +41,7 @@ async function seedResourceNodes() {
     const RN = config.map.resourceNode;
     const baseAmt = RN.baseAmountByLevel[level] || RN.baseAmountByLevel[1];
     const amount = Math.floor(baseAmt * (0.8 + Math.random() * 0.4));
-    const tribe = generateTribeDefenders(level, false, 1.0);
+    const tribe = generateTribeDefenders(level, false, 1.0, null, campDifficultyAt(x, y));
     batch.push({ x, y, resourceType: type, level, biome: biomes(x, y), amount, maxAmount: Math.floor(amount * RN.maxFactor), regenRate: Math.max(1, Math.floor(amount * RN.maxFactor / RN.regenHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 30 + level * 30 });
     if (batch.length >= BATCH) {
       await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
@@ -61,7 +61,7 @@ async function seedResourceNodes() {
     const level = pickLevel(x, y);
     // GDD: gold nodes hold a small stock (10 / 20 / 30 by level) that refills in 12 h; no random spread
     const amount = config.map.goldNode.lootByLevel[level] || 10;
-    const tribe = generateTribeDefenders(level, true, 1.0);
+    const tribe = generateTribeDefenders(level, true, 1.0, null, campDifficultyAt(x, y));
     batch.push({ x, y, resourceType: 'GOLD', level, biome: biomes(x, y), amount, maxAmount: amount, regenRate: Math.max(1, Math.round(amount / config.map.goldNode.intervalHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 60 + level * 60 });
     goldCount++;
     if (batch.length >= BATCH) {

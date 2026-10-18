@@ -10,7 +10,7 @@ const path = require('path');
 const R = path.join(__dirname, '..');
 const config = require(R + '/src/config');
 const { unitsData } = require(R + '/src/config/gamedata');
-const { generateTribeDefenders } = require(R + '/src/utils/tribeDefenders');
+const { generateTribeDefenders, campDifficultyAt } = require(R + '/src/utils/tribeDefenders');
 const { resolveCombat } = require(R + '/src/services/combatService');
 const { calculateArmyPower, getArmyCarryCapacity } = require(R + '/src/utils/calculations');
 
@@ -47,5 +47,12 @@ for (const gold of [false, true]) for (const level of [1, 2, 3]) {
   const maxStock = gold ? amount : amount * MAXF, perHour = gold ? amount / config.map.goldNode.intervalHours : amount * MAXF / REGEN_H;
   const payback = gold ? '—' : `${(Math.max(0, lost * unitCost - loot) / perHour).toFixed(1)} h`;
   console.log(`${gold ? 'or ' : ''}${level}`.padStart(6) + ` | ${n(soldiers)} | ${n(power)} | ${n(needed)} unités (${n(needed * unitCost)} res.) | ${n(lost)} / ${n(lost * unitCost)} | ${n(lost * (1 - woundedRate(1)))} / ${n(lost * (1 - woundedRate(10)))} morts | ${n(loot)} ${gold ? 'or' : 'res.'} | ${n(maxStock)} (${n(perHour)}/h) | ${payback} | ${n(kills * config.combat.heroXpPerTribeKill)} | ${(gold ? GOLD_RESPAWN : RESPAWN)[level]} min`);
+}
+// Difficulté selon la position : bords (où les joueurs apparaissent) → centre (fin de partie), ± variation entre camps
+console.log('\n=== Difficulté par position (config.map.camps) : soldats d\'un camp de niveau 1 et 3 ===');
+for (const [label, x] of [['bord de carte', config.map.maxCoord], ['à mi-chemin', Math.round(config.map.maxCoord / 2)], ['centre', 0]]) {
+  const d = campDifficultyAt(x, 0);
+  const avg = (level) => { let s = 0; for (let i = 0; i < SAMPLES; i++) s += Object.values(generateTribeDefenders(level, false, 1, null, d).units).reduce((a, b) => a + b, 0); return s / SAMPLES; };
+  console.log(`${label.padEnd(14)} difficulté ×${d.toFixed(2)} : niveau 1 ≈ ${n(avg(1))} soldats (${n(avg(1) * unitPower * 1.2 / unitPower)} unités de base pour gagner), niveau 3 ≈ ${n(avg(3))} soldats ; ± ${config.map.camps.variationPct} % d'un camp à l'autre`);
 }
 console.log('\nLecture : les pertes ne dépendent pas de la taille de l\'armée (≈ ' + lossMult + ' × puissance de la tribu / puissance d\'une unité), donc le coût d\'un camp est fixe ; le butin immédiat est borné par le transport des survivants, le reste du point se récolte à 100 par minute en restant sur place (le point se régénère en 4 h, 24 h pour l\'or).');

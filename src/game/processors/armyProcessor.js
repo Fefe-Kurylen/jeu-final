@@ -11,7 +11,7 @@ const T = require('../../utils/techEffects');   // technologies des joueurs (att
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
-const { resolveTribeCombat, collectResourceLoot } = require('../../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { findRoute } = require('../../utils/pathfinding');
@@ -23,7 +23,7 @@ async function processArmyMovements(now) {
   // Arrivals whose resolution started long ago and never ended: send them home instead of replaying them
   const stale = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, claimedAt: { lt: new Date(now.getTime() - config.tick.claimTimeoutMinutes * 60000) } },
-    include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } }
+    include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true, hero: { include: { items: true } } }
   });
   for (const army of stale) {
     console.error(`[ARMY] resolution of ${army.id} (${army.status}) never completed: sending it home`);
@@ -32,7 +32,7 @@ async function processArmyMovements(now) {
 
   const movingArmies = await prisma.army.findMany({
     where: { status: { in: MOVING_STATUSES }, arrivalAt: { lte: now }, claimedAt: null },
-    include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } },
+    include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true, hero: { include: { items: true } } },
     orderBy: { arrivalAt: 'asc' },
     take: 500
   });
@@ -110,7 +110,7 @@ async function depositCarry(army, homeCity) {
 async function startHarvesting(army, nodeId) {
   return prisma.$transaction(async (tx) => {
     const node = await tx.resourceNode.findUnique({ where: { id: nodeId } });
-    if (!node || !(await claimNode(tx, node.id))) return false;
+    if (!node || !(await claimNode(tx, node.id, { playerId: army.ownerId, allianceId: army.owner?.alliance?.allianceId || null }))) return false;
     await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', missionType: 'HARVEST', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt: null, claimedAt: null, harvestResourceType: node.resourceType } });
     return true;
   }, TX);
@@ -129,13 +129,19 @@ async function handleRaidResource(army) {
     return;
   }
   const outcome = await prisma.$transaction(async (tx) => {
-    const result = await resolveTribeCombat(army, node, army.ownerId, tx);
-    const loot = result.success ? await collectResourceLoot(army, node, army.ownerId, tx, result.reportId) : {};
-    return { won: result.success, losses: result.combatResult?.attackerLosses || 0, loot };
+    // Tribe first; otherwise the army of another player holding the node; a free node is simply taken
+    const fresh = await tx.resourceNode.findUnique({ where: { id: node.id } });
+    if (!fresh) return { won: false, gone: true, losses: 0, loot: {} };
+    const result = fresh.hasDefenders ? await resolveTribeCombat(army, fresh, army.ownerId, tx) : fresh.hasPlayerArmy ? await resolveNodeHolderCombat(army, fresh, army.ownerId, tx) : { success: true, free: true };
+    const loot = result.success && !result.shared ? await collectResourceLoot(army, fresh, army.ownerId, tx, result.reportId || null) : {};
+    return { won: result.success, fight: !result.free && !result.shared, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot };
   }, TX);
   const won = outcome.won;
   const lootText = Object.entries(outcome.loot || {}).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
-  notify(army.ownerId, 'battle', won ? '⚔️ Camp vaincu' : '⚔️ Attaque repoussée', won ? `${army.name} a vaincu la tribu en (${node.x}, ${node.y})${lootText ? ' : ' + lootText : ''}.` : `${army.name} a été repoussée par la tribu en (${node.x}, ${node.y}) (${outcome.losses} pertes). Rapport disponible.`, { tab: 'reports' });
+  if (outcome.fight) {
+    const who = outcome.holder ? 'l\'armée adverse' : 'la tribu';
+    notify(army.ownerId, 'battle', won ? '⚔️ Point conquis' : '⚔️ Attaque repoussée', won ? `${army.name} a chassé ${who} en (${node.x}, ${node.y})${lootText ? ' : ' + lootText : ''}.` : `${army.name} a été repoussée par ${who} en (${node.x}, ${node.y}) (${outcome.losses} pertes). Rapport disponible.`, { tab: 'reports' });
+  }
   // A victorious army stays and harvests what is left when nobody else holds the node; otherwise it brings its loot home
   if (!won || !(await startHarvesting(army, node.id))) await sendArmyHome(army, node.x, node.y, { targetResourceId: null });
 }

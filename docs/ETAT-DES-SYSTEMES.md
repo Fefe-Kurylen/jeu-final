@@ -41,9 +41,15 @@ récolte, points d'or au barème du GDD (10 / 20 / 30 or par 12 h), notification
 `docs/EQUILIBRAGE.md` § 9, outil `node tools/simulate-tribes.cjs`.
 
 Décision confirmée en octobre 2026 : le système reste **celui du GDD, façon Travian** (tribus fixes sur les points de
-ressource) ; les invasions barbares sont gardées pour plus tard comme événement. Écarts avec le GDD à décider : alliés sur un même point, stock
-exact visible seulement après espionnage, ville secondaire sur un point, armée qui tient un point inattaquable. Graphismes :
-18 sprites de camps prévus (`map/camps/`) pour habiller ces tribus sur la carte, affichés dès livraison.
+ressource) ; les invasions barbares sont gardées pour plus tard comme événement. Écarts avec le GDD tranchés et appliqués :
+une armée qui tient un point **peut être attaquée** (combat en rase campagne par la puissance, sans bonus « chez soi », le
+perdant rentre chez lui, le vainqueur prend le point, rapports et blessés des deux côtés) ; les armées d'un même joueur ou
+d'une **même alliance partagent un point** (récolte partagée à parts égales, point libéré au départ de la dernière) ; le
+**stock n'est connu que par quarts** (plein, bien garni, à moitié, entamé, presque vide ; jauge sur la carte), l'espionnage
+des points reste à faire ; les camps **varient de ± 20 %** d'un camp à l'autre (les « étoiles » du GDD) et leur taille suit
+la **difficulté de la position** : × 0,5 aux bords de la carte, où les joueurs apparaissent (camp de niveau 1 ≈ 50
+soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). La ville secondaire fondée sur un point viendra avec le
+chapitre des villes multiples. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
 
 ## Héros
 

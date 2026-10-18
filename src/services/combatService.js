@@ -103,6 +103,7 @@ const remainingPower = (side) => side.reduce((s, u) => s + Math.max(0, u.count) 
 // opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
 // attackerBonusPct / defenderBonusPct — the players' technologies (Art de la guerre, Discipline), in percent
 // winnerLossMultiplier — overrides config.combat.winnerLossMultiplier (tribe fights)
+// fieldBattle — open-field fight on a resource node: the defender's « défense chez soi » does not apply
 function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, attackerHero = null, defenderHero = null, opts = {}) {
   const attackerHeroBonus = heroBonus(attackerHero, 'attack');
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
@@ -110,7 +111,8 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
   const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus * (1 + (opts.attackerBonusPct || 0) / 100);
   const wallBonus = 1 + defenderWallLevel * config.combat.wallBonusPerLevel;   // « wallHealth » (Égypte) porte sur les points de vie du mur, pas sur ce bonus
   const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
-  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * fb(opts.defenderFaction, 'cityDefense') * fb(opts.defenderFaction, 'unitDefense') * (1 + (opts.defenderBonusPct || 0) / 100);
+  // fieldBattle: an army fighting on a resource node, not in its city — no « défense chez soi »
+  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * (opts.fieldBattle ? 1 : fb(opts.defenderFaction, 'cityDefense')) * fb(opts.defenderFaction, 'unitDefense') * (1 + (opts.defenderBonusPct || 0) / 100);
   const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
 
   const attackerWon = attackerPower > defenderPower;

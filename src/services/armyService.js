@@ -4,7 +4,9 @@
 
 const prisma = require('../config/database');
 const { unitsData, factionsData } = require('../config/gamedata');
-const { getArmyCarryCapacity, calculateArmyPower, getFactionBonus } = require('../utils/calculations');
+const { getArmyCarryCapacity, calculateArmyPower, getFactionBonus, getArmyTravelTime } = require('../utils/calculations');
+const { findRoute } = require('../utils/pathfinding');
+const { notify } = require('./pushService');
 const fx = require('../utils/buildingEffects');
 const { calculateWoundedUnits, addWoundedUnits } = require('./woundedService');
 const { resolveCombat, heroCombatStats } = require('./combatService');
@@ -101,4 +103,89 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   return { [node.resourceType]: taken };
 }
 
-module.exports = { resolveTribeCombat, collectResourceLoot };
+// Loses `rate` of every unit group of an army (rows deleted at zero); returns what was killed
+async function applyLossRate(tx, units, rate) {
+  let total = 0; const killed = [];
+  for (const u of units) {
+    const l = Math.floor(u.count * rate);
+    if (l <= 0) continue;
+    total += l; killed.push({ key: u.unitKey, killed: l });
+    if (l >= u.count) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
+    u.count -= l;
+  }
+  return { total, killed };
+}
+
+// An army beaten on a node goes home (idle on the spot when it has no city or no unit left)
+async function sendArmyHomeTx(tx, army) {
+  const city = army.city || (army.cityId ? await tx.city.findUnique({ where: { id: army.cityId } }) : null);
+  const units = (army.units || []).filter(u => u.count > 0);
+  const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
+  if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
+  const route = await findRoute(army.x, army.y, city.x, city.y).catch(() => null);
+  const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, techPct(army.owner?.technologies, 'armySpeedBonusPct'));
+  await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
+}
+
+// Fight against the army (or allied armies) holding a resource node, as on a Travian oasis: an open-field battle resolved
+// by power (no wall, no « défense chez soi »), the loser's losses follow the raid rule, the holders go home when beaten and
+// the node is released for the attacker. Runs inside `tx`. Returns the same shape as resolveTribeCombat.
+async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
+  const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id, NOT: { ownerId: playerId } }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true } });
+  const myAlliance = army.owner?.alliance?.allianceId || null;
+  if (!holders.length) return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
+  if (holders.every(h => myAlliance && h.owner?.alliance?.allianceId === myAlliance)) return { success: true, shared: true, combatResult: null, loot: null, message: 'Point partagé avec votre alliance' };
+  const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
+  if (!defenderUnits.length) {
+    await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false } });
+    for (const h of holders) await sendArmyHomeTx(tx, h);
+    return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
+  }
+  const lead = holders[0];
+  const atkTech = await tx.playerTechnology.findMany({ where: { playerId } });
+  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(lead.hero), {
+    fieldBattle: true, defenderFaction: lead.owner?.faction, attackerBonusPct: techPct(atkTech, 'attackBonusPct'), defenderBonusPct: techPct(lead.owner?.technologies, 'defenseBonusPct')
+  });
+  const atk = await applyLossRate(tx, army.units, combat.attackerLossRate);
+  let defTotal = 0; const defKilled = [];
+  for (const h of holders) { const r = await applyLossRate(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
+
+  // Wounded on both sides, hero XP as in a city battle
+  try {
+    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await addWoundedUnits(army.cityId, w); }
+    for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct')); if (w.length) await addWoundedUnits(h.cityId, w); }
+  } catch (e) { console.error('[WOUNDED]', e.message); }
+  if (army.heroId) await awardHeroXp(army.heroId, Math.floor(defTotal * config.combat.heroXpPerKill * (combat.attackerWon ? 1 : 0.3)), tx);
+  for (const h of holders) if (h.heroId) await awardHeroXp(h.heroId, Math.floor(atk.total * config.combat.heroXpPerKill * (combat.attackerWon ? 0.3 : 1)), tx);
+
+  // One report for the attacker, one for each holder
+  const defenderName = [...new Set(holders.map(h => h.owner?.name).filter(Boolean))].join(', ') || 'Armée adverse';
+  const where = `${node.resourceType} (${node.x}, ${node.y})`;
+  const base = {
+    x: node.x, y: node.y, winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
+    attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count + (atk.killed.find(k => k.key === u.unitKey)?.killed || 0) })),
+    defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })),
+    attackerLosses: { totalKilled: atk.total, rate: combat.attackerLossRate, units: atk.killed },
+    defenderLosses: { totalKilled: defTotal, rate: combat.defenderLossRate, units: defKilled.flatMap(([, k]) => k) },
+    loot: { attackerName: army.owner?.name, defenderName, cityName: where, type: 'NODE_FIGHT', attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower) },
+    rounds: { type: 'NODE_FIGHT', resourceType: node.resourceType }
+  };
+  const report = await tx.battleReport.create({ data: { ...base, playerId, attackerId: playerId, defenderId: lead.ownerId, result: combat.attackerWon ? 'WIN' : 'LOSE' } });
+  for (const ownerId of new Set(holders.map(h => h.ownerId))) await tx.battleReport.create({ data: { ...base, playerId: ownerId, attackerId: playerId, defenderId: ownerId, result: combat.attackerWon ? 'LOSE' : 'WIN' } });
+  await tx.playerStats.upsert({ where: { playerId }, update: { unitsKilled: { increment: defTotal }, unitsLost: { increment: atk.total }, ...(combat.attackerWon ? { attacksWon: { increment: 1 } } : {}) }, create: { playerId, unitsKilled: defTotal, unitsLost: atk.total, attacksWon: combat.attackerWon ? 1 : 0 } });
+
+  if (combat.attackerWon) {
+    await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+    for (const h of holders) await sendArmyHomeTx(tx, h);
+    for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '⚔️ Armée chassée', `${army.owner?.name || 'Un joueur'} a chassé votre armée du point ${where}. Rapport disponible.`, { tab: 'reports' });
+  } else {
+    for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '🛡️ Point défendu', `Votre armée a repoussé ${army.owner?.name || 'un joueur'} sur le point ${where}. Rapport disponible.`, { tab: 'reports' });
+  }
+  return {
+    success: combat.attackerWon, reportId: report.id,
+    combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses: atk.total, defenderLosses: defTotal, attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower) },
+    loot: null, message: combat.attackerWon ? `Armée de ${defenderName} chassée du point` : 'Votre armée a été repoussée'
+  };
+}
+
+module.exports = { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx };

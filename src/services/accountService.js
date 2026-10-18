@@ -32,7 +32,8 @@ async function deleteAccount(accountId) {
       }
       // Harvesting armies free their resource node before the cascade removes them
       await tx.$executeRaw`UPDATE "ResourceNode" n SET "hasPlayerArmy" = false, "lastArmyDeparture" = NOW() AT TIME ZONE 'UTC'
-        FROM "Army" a WHERE a."ownerId" = ${pid} AND a.status = 'HARVESTING' AND a."targetResourceId" = n.id`;
+        FROM "Army" a WHERE a."ownerId" = ${pid} AND a.status = 'HARVESTING' AND a."targetResourceId" = n.id
+          AND NOT EXISTS (SELECT 1 FROM "Army" o WHERE o."targetResourceId" = n.id AND o.status = 'HARVESTING' AND o."ownerId" <> ${pid})`;
     }
     await tx.account.delete({ where: { id: accountId } });   // cascades to the player and everything it owns
   }, { timeout: 30000 });

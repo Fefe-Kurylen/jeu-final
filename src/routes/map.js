@@ -94,7 +94,15 @@ router.get('/map/viewport', auth, async (req, res) => {
       return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
-    const payload = { cities: citiesWithTier, resourceNodes: nodes, armies, center: { x: centerX, y: centerY }, radius: r };
+    // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)
+    const holdersByNode = {};
+    if (nodes.length) {
+      const held = await prisma.army.findMany({ where: { status: 'HARVESTING', targetResourceId: { in: nodes.map(n => n.id) } }, select: { targetResourceId: true, ownerId: true, owner: { select: { name: true, alliance: { select: { allianceId: true } } } } } });
+      for (const a of held) (holdersByNode[a.targetResourceId] ||= []).push({ playerId: a.ownerId, name: a.owner?.name, allianceId: a.owner?.alliance?.allianceId || null });
+    }
+    const quantize = (amount, max) => (max > 0 ? Math.round(Math.round(amount / max * 4) / 4 * max) : amount);
+    const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [] }));
+    const payload = { cities: citiesWithTier, resourceNodes, armies, center: { x: centerX, y: centerY }, radius: r };
     if (viewportCache.size < VIEWPORT_CACHE_MAX) viewportCache.set(cacheKey, { data: payload, expires: Date.now() + VIEWPORT_TTL_MS });
     res.json(payload);
   } catch (e) { sendError(res, e); }

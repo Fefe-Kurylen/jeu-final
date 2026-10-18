@@ -660,6 +660,7 @@ async function loadMap() {
             level: r.level || 1,
             amount: r.amount || 0,
             maxAmount: r.maxAmount || 1000,
+            holders: r.holders || [],   // armées qui tiennent le point (joueur, nom, alliance)
             biome: r.biome || 'forest',
             // Tribe defenders info
             hasDefenders: r.hasDefenders !== false,
@@ -1906,6 +1907,21 @@ function drawSmallBuilding(x, y, size, style) {
   mapCtx.fill();
 }
 
+// Stock d'un point : affiché par quarts seulement (le serveur arrondit déjà), comme le veut le GDD
+function stockRatio(amount, max) { return max > 0 ? Math.max(0, Math.min(1, (Number(amount) || 0) / max)) : 0; }
+function stockLabel(amount, max) {
+  const r = stockRatio(amount, max);
+  return r >= 0.95 ? 'plein' : r >= 0.6 ? 'bien garni' : r >= 0.35 ? 'à moitié' : r > 0.1 ? 'entamé' : r > 0 ? 'presque vide' : 'vide';
+}
+// Petite jauge de remplissage sous le point (remplace l'ancien « 2k »)
+function drawStockGauge(x, y, size, tile) {
+  const w = Math.max(14, size * 0.9), h = 3, r = stockRatio(tile.amount, tile.maxAmount);
+  mapCtx.fillStyle = 'rgba(0,0,0,0.55)';
+  mapCtx.fillRect(x - w / 2, y, w, h);
+  mapCtx.fillStyle = r >= 0.6 ? '#8bc34a' : r >= 0.35 ? '#ffc107' : '#e57373';
+  mapCtx.fillRect(x - w / 2, y, Math.round(w * r), h);
+}
+
 // Draw isometric resource node
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
@@ -1923,29 +1939,13 @@ function drawIsoResource(x, y, tw, th, tile) {
     const tribeFaction = tile.hasDefenders ? tribeFactionOfUnits(tile.defenderUnits) : null;
     if (tribeFaction && tileImages.camps[`banner_${tribeFaction}`]) drawTileImage(mapCtx, 'camps', `banner_${tribeFaction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
     drawTileImage(mapCtx, 'resources', resName, x - imgSize * 0.32, y + imgSize * 0.02, imgSize * 0.38, imgSize * 0.38);
-    if (tile.amount && mapZoomLevel > 0.6) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
-    }
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;
   }
   // Try to draw from individual image first (biome variant when it exists: wood_desert, stone_snow…)
   if (drawTileImage(mapCtx, 'resources', resName, x, y, imgSize, imgSize)) {
     // Draw resource level indicator
-    if (tile.amount && mapZoomLevel > 0.6) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
-    }
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;
   }
 
@@ -2068,17 +2068,7 @@ function drawIsoResource(x, y, tw, th, tile) {
   }
 
   // Resource amount badge
-  if (mapZoomLevel > 0.7 && tile.amount) {
-    mapCtx.fillStyle = 'rgba(0,0,0,0.6)';
-    mapCtx.beginPath();
-    mapCtx.roundRect(x - 15, y + size * 0.35, 30, 14, 3);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.amount), x, y + size * 0.35 + 7);
-  }
+  if (mapZoomLevel > 0.7) drawStockGauge(x, y + size * 0.35 + 4, size, tile);
 }
 
 // Draw small rock for quarry
@@ -2827,18 +2817,28 @@ function showMapInfoPanel(x, y, tile) {
       `;
     }
 
+    // Armées qui tiennent le point : les siennes et celles de son alliance partagent la récolte, les autres se combattent
+    const holders = tile.holders || [];
+    const heldByOthers = holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId));
+    const holdersHtml = holders.length ? `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(33,150,243,0.15); border-radius: 4px; border-left: 3px solid ${heldByOthers ? '#f44' : '#4caf50'};">
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Tenu par</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
+        </div>` : '';
     content.innerHTML = `
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
       <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}<span class="star-empty">${'☆'.repeat(Math.max(0, 3 - tile.level))}</span></strong> (${tile.level}/3)</p>
-      <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
+      <p>Stock : <strong>${stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
       <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
       ${defendersHtml}
+      ${holdersHtml}
       <div class="panel-actions player-actions">
         ${tile.hasDefenders ? `
           <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer la tribu</button>
+        ` : heldByOthers ? `
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer l'armée qui tient le point</button>
         ` : `
-          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} Collecter</button>
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} ${holders.length ? 'Collecter (point partagé)' : 'Collecter'}</button>
         `}
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
       </div>
@@ -3294,7 +3294,7 @@ function collectResource(nodeId, x, y) {
   document.getElementById('modal-body').innerHTML = `
     <h3>${resIconHtml('tools')} Récolter des ressources</h3>
     <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
-      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'} :</strong> stock ${tile ? stockLabel(tile.amount, tile.maxAmount) : 'inconnu'}</p>
     </div>
     <div style="background:rgba(255,215,0,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #ffd700;">
       <p style="margin:0; font-size:12px; color:#c9a227;">

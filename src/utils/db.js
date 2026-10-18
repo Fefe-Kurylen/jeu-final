@@ -60,10 +60,17 @@ async function plunderCity(tx, cityId, want) {
   return { wood: Math.floor(Number(taken.wood) || 0), stone: Math.floor(Number(taken.stone) || 0), iron: Math.floor(Number(taken.iron) || 0), food: Math.floor(Number(taken.food) || 0) };
 }
 
-// A resource node can host one harvesting army: the flag is taken conditionally (false = occupied or defended)
-async function claimNode(tx, nodeId) {
+// A resource node hosts harvesting armies: the flag is taken conditionally on a free node; a node already held is open to
+// the holder's own armies and to those of its alliance (claimant = { playerId, allianceId }), never to anyone else
+async function claimNode(tx, nodeId, claimant = null) {
   const r = await tx.resourceNode.updateMany({ where: { id: nodeId, hasPlayerArmy: false, hasDefenders: false }, data: { hasPlayerArmy: true } });
-  return r.count === 1;
+  if (r.count === 1) return true;
+  if (!claimant || !claimant.playerId) return false;
+  const node = await tx.resourceNode.findUnique({ where: { id: nodeId }, select: { hasDefenders: true, hasPlayerArmy: true } });
+  if (!node || node.hasDefenders || !node.hasPlayerArmy) return false;
+  const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: nodeId }, select: { ownerId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+  if (!holders.length) return false;
+  return holders.every(h => h.ownerId === claimant.playerId || (claimant.allianceId && h.owner?.alliance?.allianceId === claimant.allianceId));
 }
 
 // Takes up to `want` units from a node, never below zero; returns what was actually taken

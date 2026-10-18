@@ -10,7 +10,7 @@ const { validateCoordinates, cleanText, isAmount } = require('../utils/validatio
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const T = require('../utils/techEffects');
 const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
-const { resolveTribeCombat } = require('../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
@@ -21,7 +21,7 @@ const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true } }, hero: { include: { items: true } }, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, hero: { include: { items: true } }, ...include } });
 
 // Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
 const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY), speedTechPct(army));
@@ -311,9 +311,16 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     if (err) return res.status(err.status).json({ error: err.error });
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
-    // A raid is a fight: an undefended node is simply collected, an occupied node is somebody else's
-    if (!node.hasDefenders || node.defenderPower <= 0) return res.status(400).json({ error: 'Aucune tribu sur ce point : lancez une collecte' });
-    if (node.hasPlayerArmy) return res.status(409).json({ error: 'Une armée récolte déjà ce point' });
+    // A raid is a fight: against the tribe, or against the army of another player holding the node (as on a Travian
+    // oasis). An undefended, free node is simply collected; an ally's or one's own army is never attacked.
+    const holders = node.hasPlayerArmy ? await prisma.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id }, select: { ownerId: true } }) : [];
+    const tribePresent = node.hasDefenders && node.defenderPower > 0;
+    if (!tribePresent && !holders.length) return res.status(400).json({ error: 'Aucune tribu ni armée adverse sur ce point : lancez une collecte' });
+    if (holders.some(h => h.ownerId === req.user.playerId)) return res.status(409).json({ error: 'Votre armée récolte déjà ce point' });
+    for (const ownerId of new Set(holders.map(h => h.ownerId))) {
+      const relation = await getRelation(req.user.playerId, ownerId);
+      if (!relation.canAttack) return res.status(403).json({ error: relation.status === 'SAME_ALLIANCE' ? 'Ce point est tenu par votre alliance : lancez une collecte' : 'Impossible d\'attaquer une armée alliée' });
+    }
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
     if (distance <= 1.5) {
       // Adjacent: the fight is resolved now, under the army row lock so it cannot be resolved twice
@@ -323,10 +330,10 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
         if (!fresh || fresh.status !== 'IDLE' || fresh.units.length === 0) return { error: 'Armée déjà en mission', status: 409 };
         const freshNode = await tx.$queryRaw`SELECT * FROM "ResourceNode" WHERE id = ${node.id} FOR UPDATE`.then(r => r[0]);
         if (!freshNode) return { error: 'Ressource non trouvée', status: 404 };
-        if (!freshNode.hasDefenders || freshNode.hasPlayerArmy) return { error: 'Ce point a changé entre-temps, rafraîchissez la carte', status: 409 };
-        const r = await resolveTribeCombat(fresh, freshNode, req.user.playerId, tx);
+        if (!freshNode.hasDefenders && !freshNode.hasPlayerArmy) return { error: 'Ce point a changé entre-temps, rafraîchissez la carte', status: 409 };
+        const r = freshNode.hasDefenders ? await resolveTribeCombat(fresh, freshNode, req.user.playerId, tx) : await resolveNodeHolderCombat(fresh, freshNode, req.user.playerId, tx);
         if (r.success) {
-          if (await claimNode(tx, node.id)) {
+          if (await claimNode(tx, node.id, { playerId: req.user.playerId, allianceId: fresh.owner?.alliance?.allianceId || null })) {
             await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
             r.message = 'Tribu vaincue! Récolte démarrée (100/min)';
             r.status = 'HARVESTING';
@@ -360,7 +367,12 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
-      if (node.hasPlayerArmy) return { error: 'Une armée récolte déjà ce point', status: 409 };
+      if (node.hasPlayerArmy) {
+        // Shared with one's own or allied armies only
+        const holders = await tx.army.findMany({ where: { status: 'HARVESTING', targetResourceId: node.id }, select: { ownerId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
+        const mine = army.owner?.alliance?.allianceId || null;
+        if (holders.length && !holders.every(h => h.ownerId === req.user.playerId || (mine && h.owner?.alliance?.allianceId === mine))) return { error: 'Une armée adverse récolte déjà ce point : attaquez-la', status: 409 };
+      }
       const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
       if (distance > 1.5) {
         const travelTime = await travelTo(army, node.x, node.y);
@@ -369,8 +381,8 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
         return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
       }
       const carryCapacity = getArmyCarryCapacity(army.units, unitsData, army.hero);
-      // One harvesting army per node: the flag is taken conditionally
-      if (!(await claimNode(tx, node.id))) return { error: 'Une armée récolte déjà ce point', status: 409 };
+      // The node is taken conditionally: free, or already held by one's own or allied armies (shared harvest)
+      if (!(await claimNode(tx, node.id, { playerId: req.user.playerId, allianceId: army.owner?.alliance?.allianceId || null }))) return { error: 'Une armée adverse récolte déjà ce point : attaquez-la', status: 409 };
       await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
       return { success: true, status: 'HARVESTING', resourceType: node.resourceType, nodeAmount: node.amount, carryCapacity, harvestRate: 100, message: `Récolte démarrée! (100 ${node.resourceType}/min, capacité: ${carryCapacity})` };
     });
@@ -405,7 +417,9 @@ router.post('/:id/return', auth, async (req, res) => {
         return { message: 'Armee deja a la maison' };
       }
       if (army.status === 'HARVESTING' && army.targetResourceId) {
-        await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+        // Shared node: released only when this is the last harvesting army on it
+        const others = await tx.army.count({ where: { status: 'HARVESTING', targetResourceId: army.targetResourceId, id: { not: army.id } } });
+        if (others === 0) await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 
       const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y).catch(() => null), speedTechPct(army));

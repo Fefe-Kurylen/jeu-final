@@ -306,8 +306,16 @@ sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}
 await waitTick('harvesting started', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'HARVESTING');
 const army2 = await call('army create #2', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 2, name: 'Legio II' });
 await call('army2 set-unit', 'POST', `/api/army/${army2.army.id}/set-unit`, tA, { unitKey: infKey, count: 10 });
-await call('collect-resource on an occupied node -> 409', 'POST', `/api/army/${army2.army.id}/collect-resource`, tA, { resourceNodeId: undefendedId }, 409);
+// Allies (and one's own armies) share a node: the second army joins the harvest instead of being refused
+await call('collect-resource on a node held by one\'s own army (shared)', 'POST', `/api/army/${army2.army.id}/collect-resource`, tA, { resourceNodeId: undefendedId });
+sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${army2.army.id}'`);
+await waitTick('second army harvests the same node', () => sql(`SELECT status FROM "Army" WHERE id='${army2.army.id}'`) === 'HARVESTING');
+assert('two own armies on the node', sql(`SELECT count(*) FROM "Army" WHERE status='HARVESTING' AND "targetResourceId"='${undefendedId}'`) === '2');
 await waitTick('harvest fills the cargo', () => Number(sql(`SELECT "carryWood"+"carryStone"+"carryIron"+"carryFood" FROM "Army" WHERE id='${armyId}'`)) > 0, 90000);
+await call('army2 return (node stays held by the first)', 'POST', `/api/army/${army2.army.id}/return`, tA, {});
+sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${army2.army.id}'`);
+await waitTick('army2 home', () => sql(`SELECT status FROM "Army" WHERE id='${army2.army.id}'`) === 'IDLE');
+assert('node still held after one army leaves', sql(`SELECT "hasPlayerArmy" FROM "ResourceNode" WHERE id='${undefendedId}'`) === 't');
 await call('army return with cargo', 'POST', `/api/army/${armyId}/return`, tA, {});
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 await waitTick('army home with cargo', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
@@ -465,6 +473,28 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
   const garD = sql(`SELECT id FROM "Army" WHERE "cityId"='${cityD.id}' AND "isGarrison" LIMIT 1`);
   sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garD}','${unitKeyFor('GAUL', 'INFANTRY', 'base')}','base',50) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=50`);
   await call('D army set-unit', 'POST', `/api/army/${ar.army.id}/set-unit`, D.token, { unitKey: unitKeyFor('GAUL', 'INFANTRY', 'base'), count: 50 });
+  // ---------- NODE HELD BY ANOTHER PLAYER: refused for collection, open to attack (Travian oasis rule) ----------
+  {
+    sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0, "hasPlayerArmy"=false, amount=5000 WHERE id='${undefendedId}'`);
+    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL WHERE id='${ga}'`);
+    await call('A collects the node again', 'POST', `/api/army/${ga}/collect-resource`, tA, { resourceNodeId: undefendedId });
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${ga}'`);
+    await waitTick('A harvests the node', () => sql(`SELECT status FROM "Army" WHERE id='${ga}'`) === 'HARVESTING');
+    const nodeXY = sql(`SELECT x||','||y FROM "ResourceNode" WHERE id='${undefendedId}'`).split(',').map(Number);
+    sql(`UPDATE "Army" SET x=${nodeXY[0] + 1}, y=${nodeXY[1]}, status='IDLE', "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL WHERE id='${ar.army.id}'`);
+    await call('D cannot collect a node held by A -> 409', 'POST', `/api/army/${ar.army.id}/collect-resource`, D.token, { resourceNodeId: undefendedId }, 409);
+    const fight = await call('D attacks the army holding the node (adjacent, resolved at once)', 'POST', `/api/army/${ar.army.id}/raid-resource`, D.token, { resourceNodeId: undefendedId });
+    assert('node fight resolved with a result', !!fight?.combatResult && ['attacker', 'defender'].includes(fight.combatResult.winner), JSON.stringify(fight)?.slice(0, 160));
+    assert('node fight reports for both players', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${D.player.id}' AND rounds->>'type'='NODE_FIGHT'`)) >= 1 && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND rounds->>'type'='NODE_FIGHT'`)) >= 1);
+    const dStatus = sql(`SELECT status FROM "Army" WHERE id='${ar.army.id}'`), aStatus = sql(`SELECT status FROM "Army" WHERE id='${ga}'`);
+    const dWon = fight?.combatResult?.winner === 'attacker';
+    assert('winner holds the node, loser leaves', dWon ? (dStatus === 'HARVESTING' && ['RETURNING', 'IDLE'].includes(aStatus)) : (aStatus === 'HARVESTING' && dStatus === 'IDLE'), `D ${dStatus}, A ${aStatus}, D won ${dWon}`);
+    assert('node still marked as held', sql(`SELECT "hasPlayerArmy" FROM "ResourceNode" WHERE id='${undefendedId}'`) === 't');
+    // Back to a clean state for the rest of the run
+    sql(`UPDATE "ResourceNode" SET "hasPlayerArmy"=false, "lastArmyDeparture"=NULL WHERE id='${undefendedId}'`);
+    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityD.id}'), y=(SELECT y FROM "City" WHERE id='${cityD.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL, "carryWood"=0, "carryStone"=0, "carryIron"=0, "carryFood"=0 WHERE id='${ar.army.id}'`);
+    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL WHERE id='${ga}'`);
+  }
   const exps = (await call('D expeditions', 'GET', '/api/expeditions', D.token)).filter(e => e.status === 'AVAILABLE');
   const rs = await Promise.all(exps.slice(0, 3).map(e => fetch(`${BASE}/api/expedition/${e.id}/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${D.token}` }, body: JSON.stringify({ armyId: ar.army.id }) })));
   const started = rs.filter(r => r.status === 200).length;

@@ -49,13 +49,30 @@ function tribeFactionOf(units) {
   return key ? PREFIX[key.slice(0, 3)] : null;
 }
 
-// faction: keep the camp's people when it is reinforced; random otherwise
-function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, faction = null) {
+// Difficulty of a camp by its distance to the centre of the map: easy near the edges where players start, hard at the
+// centre where the game ends (config.map.camps). 1 = the nominal size of the level.
+function campDifficultyAt(x, y) {
+  const config = require('../config');
+  const { difficultyEdge, difficultyCenter } = config.map.camps;
+  const d = Math.min(1, Math.hypot(Number(x) || 0, Number(y) || 0) / (config.map.maxCoord || 186));
+  return difficultyCenter + (difficultyEdge - difficultyCenter) * d;
+}
+// Soldiers a camp should have: level × stock left × difficulty of the place (before the ± variation between camps)
+function targetSoldiers(level, resourcePercent = 1.0, difficulty = 1) {
+  const [, floor] = SOLDIERS[level] || SOLDIERS[3];
+  return Math.max(floor, Math.floor(expectedSoldiers(level, resourcePercent) * Math.max(0.1, difficulty)));
+}
+
+// faction: keep the camp's people when it is reinforced; random otherwise. difficulty: campDifficultyAt(x, y) of the node.
+// Each camp also varies by ± config.map.camps.variationPct (the « stars » of the GDD).
+function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, faction = null, difficulty = 1) {
   if (!FACTION_UNITS[faction]) faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
   const factionUnits = FACTION_UNITS[faction];
+  const v = (require('../config').map.camps.variationPct || 0) / 100;
+  const variation = 1 - v + Math.random() * 2 * v;
 
   const units = {};
-  const totalSoldiers = expectedSoldiers(level, resourcePercent);
+  const totalSoldiers = Math.max((SOLDIERS[level] || SOLDIERS[3])[1], Math.floor(targetSoldiers(level, resourcePercent, difficulty) * variation));
 
   const infRatio = 0.25 + Math.random() * 0.2;
   const arcRatio = 0.25 + Math.random() * 0.2;
@@ -104,5 +121,7 @@ module.exports = {
   FACTION_UNITS,
   generateTribeDefenders,
   expectedSoldiers,
+  targetSoldiers,
+  campDifficultyAt,
   tribeFactionOf
 };

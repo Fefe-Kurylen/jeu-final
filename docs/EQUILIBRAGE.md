@@ -242,3 +242,18 @@ décider (`docs/BACKLOG.md`) : plusieurs alliés sur un même point, stock exact
 seulement après espionnage, ville secondaire fondée sur un point (Résidence et colons), et une armée qui tient un point est
 aujourd'hui inattaquable. Graphismes : les camps n'avaient aucun visuel prévu ; 18 sprites sont ajoutés aux listes
 (`map/camps/`, niveaux 1 à 3 par biome, ruines, bannières de tribu) et la carte les affiche dès qu'ils sont livrés.
+
+### 9 bis. Points de ressource : décisions appliquées (octobre 2026)
+
+- **Une armée qui tient un point peut être attaquée** (`POST /api/army/:id/raid-resource` sur un point tenu) : combat en rase
+  campagne résolu par la puissance, sans mur ni « défense chez soi », pertes selon la règle des pillages (perdant 30 %,
+  vainqueur 0,3 × rapport des puissances), blessés et XP de héros des deux côtés, un rapport pour chacun ; les tenants
+  battus rentrent chez eux et le point passe au vainqueur. Une armée alliée ou la sienne n'est jamais attaquée.
+- **Alliés sur un même point** : les armées d'un même joueur ou d'une même alliance récoltent ensemble, à parts égales à
+  chaque tick ; le point n'est libéré qu'au départ de la dernière.
+- **Stock approximatif** : le serveur arrondit le stock au quart dans la carte, le client affiche plein / bien garni / à
+  moitié / entamé / presque vide et une jauge ; les chiffres exacts n'apparaissent plus (GDD : « requires a spy »).
+- **Camps variables et difficulté de position** (`config.map.camps`) : chaque camp varie de ± 20 % ; la taille est
+  multipliée par 0,5 au bord de la carte et 1,3 au centre, linéairement avec la distance. Un premier camp de niveau 1 au
+  bord demande ≈ 57 unités de base, un camp de niveau 3 au centre ≈ 3 900. Le renfort horaire des tribus et la
+  réapparition suivent la même règle.

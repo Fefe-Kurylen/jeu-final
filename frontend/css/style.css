@@ -4995,3 +4995,5 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 .sheet-tech-ico { text-align: center; margin: 0 0 6px; }
 .sheet-tech-ico .ico { width: 64px; height: 64px; }
 .star-empty { opacity: .35; }
+.stock-bar { display: inline-block; vertical-align: middle; width: 90px; height: 7px; margin-left: 6px; background: rgba(0,0,0,.35); border-radius: 4px; overflow: hidden; }
+.stock-bar span { display: block; height: 100%; background: #8bc34a; }

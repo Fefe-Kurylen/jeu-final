@@ -10,7 +10,7 @@ const fx = require('../../utils/buildingEffects');
 const { getFactionBonus } = require('../../utils/calculations');
 const { getArmyTravelTime } = require('../../utils/calculations');
 const T = require('../../utils/techEffects');
-const { generateTribeDefenders, expectedSoldiers, tribeFactionOf } = require('../../utils/tribeDefenders');
+const { generateTribeDefenders, targetSoldiers, campDifficultyAt, tribeFactionOf } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
 
 // Carry capacity per unit key, sent once as a VALUES table
@@ -25,7 +25,11 @@ const factionTransportSql = () => Prisma.join(Object.keys(factionsData).map(f =>
 const transportBuildingsSql = () => Prisma.join(fx.transportBonusKeys().map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
 
 async function leaveNode(army, node) {
-  if (node) await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: true }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+  // Allies may share a node: it is released only when the last harvesting army leaves
+  if (node) {
+    const others = await prisma.army.count({ where: { status: 'HARVESTING', targetResourceId: node.id, id: { not: army.id } } });
+    if (others === 0) await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: true }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+  }
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
     const route = await findRoute(army.x, army.y, army.city.x, army.city.y).catch(() => null);
@@ -53,14 +57,14 @@ async function processHarvesting(now) {
       GROUP BY a.id, fb.pct, tb.pct
     ), take AS (
       SELECT a.id AS army_id, n.id AS node_id, n."resourceType" AS rt,
-        GREATEST(0, LEAST(${perTick}, n.amount, cap.capacity - (a."carryWood" + a."carryStone" + a."carryIron" + a."carryFood" + a."carryGold")))::int AS qty
+        GREATEST(0, LEAST(${perTick}, FLOOR(n.amount / GREATEST(1, (SELECT COUNT(*) FROM "Army" a2 WHERE a2.status = 'HARVESTING' AND a2."missionType" = 'HARVEST' AND a2."targetResourceId" = n.id))), cap.capacity - (a."carryWood" + a."carryStone" + a."carryIron" + a."carryFood" + a."carryGold")))::int AS qty
       FROM "Army" a
       JOIN cap ON cap.army_id = a.id
       JOIN "ResourceNode" n ON n.id = a."targetResourceId"
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST' AND n."hasDefenders" = false
       FOR UPDATE OF n
     ), upd_node AS (
-      UPDATE "ResourceNode" n SET amount = GREATEST(0, n.amount - t.qty) FROM take t WHERE n.id = t.node_id AND t.qty > 0
+      UPDATE "ResourceNode" n SET amount = GREATEST(0, n.amount - s.q) FROM (SELECT node_id, SUM(qty) AS q FROM take GROUP BY node_id) s WHERE n.id = s.node_id AND s.q > 0
       RETURNING n.id
     )
     UPDATE "Army" a SET
@@ -95,13 +99,15 @@ let lastReinforceAt = 0;
 async function reinforceTribes(now) {
   if (now.getTime() - lastReinforceAt < config.tick.tribeReinforceMinutes * 60000) return 0;
   lastReinforceAt = now.getTime();
-  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null }, select: { id: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
+  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null }, select: { id: true, x: true, y: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
   let reinforced = 0;
   for (const node of guarded) {
     const soldiers = Object.values(node.defenderUnits || {}).reduce((a, b) => a + (Number(b) || 0), 0);
     const percent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
-    if (soldiers >= expectedSoldiers(node.level || 1, percent) * 0.8) continue;
-    const tribe = generateTribeDefenders(node.level || 1, node.resourceType === 'GOLD', percent, tribeFactionOf(node.defenderUnits));
+    const difficulty = campDifficultyAt(node.x, node.y);
+    // Below 70 % of the target (the ± 20 % variation between camps never triggers it)
+    if (soldiers >= targetSoldiers(node.level || 1, percent, difficulty) * 0.7) continue;
+    const tribe = generateTribeDefenders(node.level || 1, node.resourceType === 'GOLD', percent, tribeFactionOf(node.defenderUnits), difficulty);
     const r = await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: true }, data: { defenderPower: tribe.power, defenderUnits: tribe.units } });
     reinforced += r.count;
   }
@@ -121,7 +127,7 @@ async function processTribeRespawn(now) {
     }
     if (now >= respawnTime) {
       const resourcePercent = node.maxAmount > 0 ? node.amount / node.maxAmount : 0;
-      const tribe = generateTribeDefenders(node.level || 1, node.resourceType === 'GOLD', resourcePercent);
+      const tribe = generateTribeDefenders(node.level || 1, node.resourceType === 'GOLD', resourcePercent, null, campDifficultyAt(node.x, node.y));
       // Only if no army settled on the node meanwhile
       await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false }, data: { hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, lastDefeat: null, lastArmyDeparture: null } });
     }

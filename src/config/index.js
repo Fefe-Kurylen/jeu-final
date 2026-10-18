@@ -55,7 +55,9 @@ const config = {
     // Gold nodes (GDD resource_points.json): a small stock of gold per level that refills in 12 h, guarded like the others
     goldNode: { lootByLevel: { 1: 10, 2: 20, 3: 30 }, intervalHours: 12 },
     // Resource nodes: base stock by level (× 0.8-1.2 at seed), max = base × maxFactor, refilled in regenHours
-    resourceNode: { baseAmountByLevel: { 1: 1500, 2: 4000, 3: 8000 }, maxFactor: 1.5, regenHours: 4 }
+    resourceNode: { baseAmountByLevel: { 1: 1500, 2: 4000, 3: 8000 }, maxFactor: 1.5, regenHours: 4 },
+    // Camps (tribes): size × difficulty from the edge of the map (new players) to the centre (end game), ± variation between camps
+    camps: { difficultyEdge: 0.5, difficultyCenter: 1.3, variationPct: 20 }
   },
 
   // Rate limiting (keyed by player once authenticated, by IP otherwise — mobile carriers share IPs)

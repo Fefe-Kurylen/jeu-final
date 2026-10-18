@@ -1,7 +1,7 @@
 require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { generateTribeDefenders, expectedSoldiers, tribeFactionOf } = require('../../src/utils/tribeDefenders');
+const { generateTribeDefenders, expectedSoldiers, targetSoldiers, campDifficultyAt, tribeFactionOf } = require('../../src/utils/tribeDefenders');
 const { resolveCombat } = require('../../src/services/combatService');
 const config = require('../../src/config');
 const { calculateArmyPower } = require('../../src/utils/calculations');
@@ -35,7 +35,23 @@ test('camp size follows the stock of the node, never below the floor; a camp kee
   const t = generateTribeDefenders(2, false, 1, 'HUN');
   assert.equal(t.faction, 'HUN');
   assert.ok(Object.keys(t.units).every(k => k.startsWith('HUN_')));
-  assert.ok(Object.values(t.units).reduce((a, b) => a + b, 0) >= 590);
+  const n = Object.values(t.units).reduce((a, b) => a + b, 0);
+  assert.ok(n >= 600 * 0.8 - 6 && n <= 600 * 1.2 + 1, `± ${config.map.camps.variationPct} % around 600: ${n}`);
+});
+
+test('camps are easy near the edges of the map and hard at the centre, ± 20 % between camps', () => {
+  const { difficultyEdge, difficultyCenter } = config.map.camps;
+  assert.equal(campDifficultyAt(0, 0), difficultyCenter);
+  assert.ok(Math.abs(campDifficultyAt(config.map.maxCoord, 0) - difficultyEdge) < 1e-9);
+  assert.ok(Math.abs(campDifficultyAt(-500, 500) - difficultyEdge) < 1e-9, 'beyond the edge: edge difficulty');
+  const mid = campDifficultyAt(config.map.maxCoord / 2, 0);
+  assert.ok(mid > difficultyEdge && mid < difficultyCenter);
+  assert.equal(targetSoldiers(1, 1, campDifficultyAt(config.map.maxCoord, 0)), 50);
+  assert.equal(targetSoldiers(3, 1, campDifficultyAt(0, 0)), 1950);
+  assert.equal(targetSoldiers(1, 0, 0.5), 10, 'never below the floor');
+  const sizes = Array.from({ length: 40 }, () => Object.values(generateTribeDefenders(1, false, 1, 'ROME', 1).units).reduce((a, b) => a + b, 0));
+  assert.ok(Math.min(...sizes) >= 100 * 0.8 - 3 && Math.max(...sizes) <= 100 * 1.2 + 1, `sizes ${Math.min(...sizes)}-${Math.max(...sizes)}`);
+  assert.ok(new Set(sizes).size > 3, 'camps differ from one another');
 });
 
 test('a camp costs the winner half of what a city raid costs (tribeLossMultiplier)', () => {
