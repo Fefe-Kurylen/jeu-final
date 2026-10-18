@@ -352,7 +352,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
 
         <!-- Actions Section -->
         <div class="hero-actions-section">
-          <button class="btn btn-secondary" onclick="renameHero()">✏️ Renommer</button>
+          <button class="btn btn-secondary" onclick="renameHero()">Renommer</button>
           <button class="btn btn-info" onclick="showHeroEquipment()">${resIconHtml('inventory')} Équipement</button>
           <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Expéditions</button>
         </div>
@@ -485,7 +485,7 @@ async function loadExpeditions() {
     
     historyEl.innerHTML = history.slice(0, 10).map(e => `
       <div class="queue-item">
-        <span>${e.status === 'EXPIRED' ? '⌛ Expirée' : e.won ? '✅ Victoire' : '❌ Défaite'} · Difficulté ${e.difficulty}</span>
+        <span>${e.status === 'EXPIRED' ? `${resIconHtml('clock')} Expirée` : e.won ? `${resIconHtml('medal')} Victoire` : `${resIconHtml('skull')} Défaite`} · Difficulté ${e.difficulty}</span>
         <span class="loot-badge ${e.lootTier}">${e.xpGained || 0} XP${e.lootGained?.gold ? ` · ${e.lootGained.gold} or` : ''}${e.lootGained?.item ? ` · ${getItemIcon(e.lootGained.item)} ${escapeHtml(getItemName(e.lootGained.item))}` : ''}</span>
       </div>
     `).join('') || '<p style="color:var(--text-muted)">Aucun historique</p>';

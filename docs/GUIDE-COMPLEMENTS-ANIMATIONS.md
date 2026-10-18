@@ -293,3 +293,32 @@ point, les ruines prennent le relais jusqu'à sa réapparition, et la bannière 
 Variante désert : sur du sable, un palmier et des rochers rouges ; variante neige : neige sur les tentes et les toits, congères.
 Prompts complets : `node tools/repaint.cjs --kit=<dossier>` ou `docs/PROMPTS-GRAPHIQUES.md`. L'animation du feu de camp
 (`map/fx/campfire_<0..3>.png`, § A7) se pose au centre du camp.
+
+## S6. Parchemin « recherche en cours » (`props/scroll_research.png`, 512×768, cadre prop)
+
+Un grand parchemin déroulé avec une plume, dressé comme un panneau, légèrement lumineux : il se pose au-dessus de l'Académie
+tant qu'une recherche est en cours, comme l'échafaudage sur un chantier. Même cadre et même ancre que `props/sign_build.png`.
+
+## S7. Icônes des technologies et des branches de recherche (`ui/tech_<CLÉ>.png` × 8, `ui/branch_<CLÉ>.png` × 4, 1024×1024, cadre icon)
+
+L'onglet Recherche de l'Académie et les fiches de technologie n'ont aujourd'hui aucune image propre (l'en-tête de branche
+réutilise une icône de ressource). Dès qu'elles sont livrées, l'icône de la technologie apparaît sur sa carte et en tête de sa
+fiche, celle de la branche dans l'en-tête de la branche.
+
+| Fichier | Sujet |
+|---|---|
+| `ui/tech_AGRONOMY.png` | gerbe de blé doré croisée d'une charrue de bois |
+| `ui/tech_ENGINEERING.png` | grue de bois avec un bloc de pierre au bout d'une corde et une équerre |
+| `ui/tech_TRAINING.png` | deux épées d'entraînement en bois croisées sur un bouclier rond |
+| `ui/tech_TACTICS.png` | parchemin déroulé portant un plan de bataille et un petit marqueur de bronze |
+| `ui/tech_DISCIPLINE.png` | trois boucliers ronds qui se chevauchent en mur |
+| `ui/tech_MEDICINE.png` | bol d'argile d'herbes vertes et bande de lin roulée |
+| `ui/tech_CARTOGRAPHY.png` | carte roulée avec une rose des vents et une petite figurine de cheval |
+| `ui/tech_SUPPLY.png` | sacs de grain empilés et un tonneau de bois |
+| `ui/branch_ECONOMY.png` | gerbe de blé et pile de pièces |
+| `ui/branch_MILITARY.png` | épée de bronze et lance croisées |
+| `ui/branch_DEFENSE.png` | grand bouclier devant un mur crénelé |
+| `ui/branch_LOGISTICS.png` | roue de charrette chargée et poteau indicateur |
+
+Mêmes règles que les autres icônes d'interface (§ 3.7 de `docs/LISTE-GRAPHISMES.md`) ; prompts complets dans
+`docs/PROMPTS-GRAPHIQUES.md`.

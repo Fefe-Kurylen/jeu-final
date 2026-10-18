@@ -14,11 +14,11 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
-| 9 | Compléments fixes et visuels de boutique | 7 |
+| 9 | Compléments fixes et visuels de boutique | 9 |
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
 | 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 169 |
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
-| | **Total** | **1046** |
+| | **Total** | **1048** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -492,12 +492,14 @@ Sans la plaque parchemin, l'habillage peint ne s'active pas.
 
 - `ui/plate-parchment.png` — 1024×1024
 
-## 9. Compléments fixes et visuels de boutique (7)
+## 9. Compléments fixes et visuels de boutique (9)
 
 Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 
 - walls/<CIV>/gate.png × 6 (ROME, GAUL, GREEK, EGYPT, HUN, SULTAN) — 1024×1024 — guide § S1
 - props/sign_build.png — 512×768 — guide § S2
+- props/scroll_research.png (recherche en cours au-dessus de l'Académie) — 512×768 — guide § S6
+- ui/tech_<AGRONOMY|ENGINEERING|TRAINING|TACTICS|DISCIPLINE|MEDICINE|CARTOGRAPHY|SUPPLY>.png × 8, ui/branch_<ECONOMY|MILITARY|DEFENSE|LOGISTICS>.png × 4 — 1024×1024 — guide § S7
 - ui/crest_<CIV>.png × 6 — 1024×1024 — guide § S3
 - scenes/expedition-<forest|desert|mountain|ruins>.png × 4 — 1536×1024 — guide § S4
 - ui/btn-round.png, ui/btn-round-pressed.png — 1024×1024 — guide § S5

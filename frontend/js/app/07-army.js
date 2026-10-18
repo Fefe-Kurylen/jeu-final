@@ -90,7 +90,7 @@ function renderArmies() {
           </div>
           <div class="hero-assign-status">
             ${heroAssignedToArmy 
-              ? `<span class="assigned-to">➡️ ${escapeHtml(heroAssignedToArmy.name)}</span>
+              ? `<span class="assigned-to">→ ${escapeHtml(heroAssignedToArmy.name)}</span>
                  <button class="btn-unassign-small" onclick="unassignHero('${heroAssignedToArmy.id}')">Retirer</button>`
               : `<span class="hero-available">✓ Disponible</span>`
             }
@@ -157,7 +157,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <span class="empty-label">Vide</span>
         </div>
         <div class="army-card-body-empty">
-          <span class="create-plus">➕</span>
+          <span class="create-plus">+</span>
           <p>Créer une armée</p>
         </div>
       </div>
@@ -173,14 +173,14 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'IDLE': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'En ville', cls: 'idle' },
     'MOVING': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'En route', cls: 'moving' },
     'ATTACKING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Attaque', cls: 'attacking' },
-    'RETURNING': { icon: '↩️', label: 'Retour', cls: 'returning' },
+    'RETURNING': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'Retour', cls: 'returning' },
     'RAIDING': { icon: '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">', label: 'Pillage', cls: 'raiding' },
     'SPYING': { icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">', label: 'Espionnage', cls: 'moving' },
     'TRANSPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">', label: 'Transport', cls: 'moving' },
     'EXPEDITION': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'Expédition', cls: 'moving' },
     'HARVESTING': { icon: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">', label: 'Récolte', cls: 'harvesting' }
   };
-  const status = statusMap[army.status] || { icon: '❓', label: army.status, cls: 'unknown' };
+  const status = statusMap[army.status] || { icon: '', label: army.status, cls: 'unknown' };
   
   return `
     <div class="army-card-new active ${status.cls}" data-army-id="${army.id}">
@@ -245,10 +245,10 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
       <div class="army-actions-row">
         ${army.status === 'IDLE' ? `
           <button class="army-btn primary" onclick="openArmyComposition('${army.id}')" title="Composer">
-            📋 Composer
+            ${resIconHtml('list')} Composer
           </button>
           <button class="army-btn icon-only" onclick="showArmyActionsMenu('${army.id}')" title="Actions">
-            ⚙️
+            ${resIconHtml('settings')}
           </button>
         ` : army.status === 'HARVESTING' ? `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
@@ -293,7 +293,7 @@ function showArmyActionsMenu(armyId) {
   document.getElementById('modal-body').innerHTML = `
     <div class="army-actions-modal">
       <h3><img class="ico" src="assets/images/3d/ui/settings.webp" alt=""> Actions - ${escapeHtml(army.name)}</h3>
-      ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">⚠️ ${disabledReason}</p>` : ''}
+      ${!canMove ? `<p class="warning-text" style="color:#ff6b6b;text-align:center;margin-bottom:10px">${disabledReason}</p>` : ''}
       <div class="actions-grid">
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showMoveModal('${armyId}')"` : 'disabled'}>
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
@@ -308,7 +308,7 @@ function showArmyActionsMenu(armyId) {
           <span class="action-label">Piller</span>
         </button>
         <button class="action-card danger" onclick="closeModal(); confirmDisbandArmy('${armyId}')">
-          <span class="action-icon">🗑️</span>
+          <span class="action-icon">${resIconHtml('skull')}</span>
           <span class="action-label">Dissoudre</span>
         </button>
       </div>
@@ -598,7 +598,7 @@ function updateCompositionSummary() {
   
   totalUnitsSpan.innerHTML = `<strong>${totalInArmy}</strong> unités dans l'armée`;
   garrisonLeftSpan.innerHTML = `<strong>${totalGarrison}</strong> en garnison`;
-  if (powerSpan) powerSpan.textContent = `⚔️ ${formatNum(totalPower)}`;
+  if (powerSpan) powerSpan.textContent = `${formatNum(totalPower)}`;
 }
 
 // Add all units to army
@@ -834,7 +834,7 @@ function confirmDisbandArmy(armyId) {
   
   document.getElementById('modal-body').innerHTML = `
     <div class="disband-confirm">
-      <h3>🗑️ Dissoudre l'armée ?</h3>
+      <h3>Dissoudre l'armée ?</h3>
       <p>Les unités retourneront en garnison.</p>
       <p class="warning">Cette action est irréversible!</p>
       <div class="modal-actions">

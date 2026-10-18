@@ -307,47 +307,47 @@ function onGlobalKeyDown(e) {
     case '1': // Champs (Resources)
       e.preventDefault();
       showTab('fields');
-      showToast('🌾 Vue Champs', 'info');
+      showToast('Vue Champs', 'info');
       break;
     case '2': // Ville (Buildings)
       e.preventDefault();
       showTab('city');
-      showToast('🏛️ Vue Ville', 'info');
+      showToast('Vue Ville', 'info');
       break;
     case '3': // Carte
       e.preventDefault();
       showTab('map');
-      showToast('🗺️ Carte', 'info');
+      showToast('Carte', 'info');
       break;
     case '4': // Statistiques (Classement)
       e.preventDefault();
       showTab('ranking');
-      showToast('📊 Classement', 'info');
+      showToast('Classement', 'info');
       break;
     case '5': // Rapports
       e.preventDefault();
       showTab('reports');
-      showToast('📜 Rapports', 'info');
+      showToast('Rapports', 'info');
       break;
     case '6': // Messages (Alliance)
       e.preventDefault();
       showTab('alliance');
-      showToast('⚔️ Alliance', 'info');
+      showToast('Alliance', 'info');
       break;
     case '7': // Inventaire
       e.preventDefault();
       showTab('inventory');
-      showToast('🎒 Inventaire', 'info');
+      showToast('Inventaire', 'info');
       break;
     case '8': // Héros
       e.preventDefault();
       showTab('hero');
-      showToast('🦸 Héros', 'info');
+      showToast('Héros', 'info');
       break;
     case '9': // Marché
       e.preventDefault();
       showTab('market');
-      showToast('🏪 Marché', 'info');
+      showToast('Marché', 'info');
       break;
     
     // ===== VILLAGE NAVIGATION (B/N like Travian) =====
@@ -425,7 +425,7 @@ function onMapKeyDown(e) {
       renderMap();
       renderMinimap();
       updateMapUI();
-      showToast('🏠 Capitale', 'info');
+      showToast('Capitale', 'info');
       break;
     
     // ===== WASD MOVEMENT (Travian style) =====
@@ -485,7 +485,7 @@ function switchToPreviousCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const prevIndex = (currentIndex - 1 + cities.length) % cities.length;
   selectCity(cities[prevIndex].id);
-  showToast(`⬅️ ${cities[prevIndex].name}`, 'info');
+  showToast(`${cities[prevIndex].name}`, 'info');
 }
 
 function switchToNextCity() {
@@ -496,7 +496,7 @@ function switchToNextCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const nextIndex = (currentIndex + 1) % cities.length;
   selectCity(cities[nextIndex].id);
-  showToast(`➡️ ${cities[nextIndex].name}`, 'info');
+  showToast(`${cities[nextIndex].name}`, 'info');
 }
 
 // ===== MAP GRID TOGGLE =====
@@ -504,7 +504,7 @@ let showMapGrid = true;
 function toggleMapGrid() {
   showMapGrid = !showMapGrid;
   renderMap();
-  showToast(showMapGrid ? '📐 Grille activée' : '📐 Grille désactivée', 'info');
+  showToast(showMapGrid ? 'Grille activée' : 'Grille désactivée', 'info');
 }
 
 // ===== MINIMAP TOGGLE =====
@@ -515,7 +515,7 @@ function toggleMinimap() {
   if (minimapContainer) {
     minimapContainer.style.display = showMinimapPanel ? 'block' : 'none';
   }
-  showToast(showMinimapPanel ? '🗺️ Minimap visible' : '🗺️ Minimap masquée', 'info');
+  showToast(showMinimapPanel ? 'Minimap visible' : 'Minimap masquée', 'info');
 }
 
 // ===== CLOSE ALL PANELS =====
@@ -2770,11 +2770,11 @@ function showMapInfoPanel(x, y, tile) {
     
     if (isMyCity) {
       content.innerHTML = `
-        <h3>${tile.isCapital ? '👑 ' : '🏰 '}${escapeHtml(tile.name || 'Ville')}</h3>
+        <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
         <div class="panel-actions">
-          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">🏠 Visiter</button>
+          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
         </div>
       `;
       panel.style.display = 'flex';
@@ -2785,13 +2785,13 @@ function showMapInfoPanel(x, y, tile) {
     }
   } else if (tile.type === 'RESOURCE') {
     const resourceIcons = {
-      'WOOD': '🌲 Forêt',
-      'STONE': '⛰️ Carrière',
-      'IRON': '⚒️ Mine de fer',
-      'FOOD': '🌾 Oasis',
-      'GOLD': '💰 Mine d\'or'
+      'WOOD': `${resIconHtml('wood')} Forêt`,
+      'STONE': `${resIconHtml('stone')} Carrière`,
+      'IRON': `${resIconHtml('iron')} Mine de fer`,
+      'FOOD': `${resIconHtml('food')} Oasis`,
+      'GOLD': `${resIconHtml('gold')} Mine d'or`
     };
-    const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
+    const resourceName = resourceIcons[tile.resourceType] || `${resIconHtml('item_crate')} Ressource`;
     const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
 
     // Check if tribe is defeated (respawning)
@@ -2803,14 +2803,14 @@ function showMapInfoPanel(x, y, tile) {
     let defendersHtml = '';
     if (tile.hasDefenders && tile.defenderUnits && Object.keys(tile.defenderUnits).length > 0) {
       const unitNames = {
-        warrior: '⚔️ Guerriers',
-        archer: '🏹 Archers',
-        cavalry: '🐎 Cavalerie',
-        elite: '👑 Élite'
+        warrior: 'Guerriers',
+        archer: 'Archers',
+        cavalry: 'Cavalerie',
+        elite: 'Élite'
       };
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
-          <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>${resIconHtml('defense')} Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
             `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
@@ -2821,7 +2821,7 @@ function showMapInfoPanel(x, y, tile) {
       const timeLeft = Math.max(0, Math.ceil((respawnTime - new Date()) / 60000));
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(76,175,80,0.2); border-radius: 4px; border-left: 3px solid #4caf50;">
-          <p style="margin: 0; color: #4caf50;">✅ Tribu vaincue</p>
+          <p style="margin: 0; color: #4caf50;">${resIconHtml('skull')} Tribu vaincue</p>
           <p style="margin: 2px 0; font-size: 11px; color: #888;">Respawn dans ${timeLeft} min</p>
         </div>
       `;
@@ -2832,15 +2832,15 @@ function showMapInfoPanel(x, y, tile) {
       <p>Position: (${x}, ${y})</p>
       <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}${'☆'.repeat(Math.max(0, 3 - tile.level))}</strong> (${tile.level}/3)</p>
       <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
-      <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
+      <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
       ${defendersHtml}
       <div class="panel-actions player-actions">
         ${tile.hasDefenders ? `
-          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>⚔️ Attaquer tribu</button>
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer la tribu</button>
         ` : `
-          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>📦 Collecter</button>
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} Collecter</button>
         `}
-        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
+        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
       </div>
     `;
     panel.style.display = 'flex';
@@ -2876,37 +2876,37 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     'SAME_ALLIANCE': '#2196f3'
   };
   const statusLabels = {
-    'ALLY': '🤝 Allié',
-    'NEUTRAL': '⚪ Neutre',
-    'ENEMY': '⚔️ Ennemi',
-    'SAME_ALLIANCE': '🛡️ Même alliance'
+    'ALLY': `${resIconHtml('alliance')} Allié`,
+    'NEUTRAL': 'Neutre',
+    'ENEMY': `${resIconHtml('attack')} Ennemi`,
+    'SAME_ALLIANCE': `${resIconHtml('defense')} Même alliance`
   };
   
   const statusColor = statusColors[diplomacyStatus] || '#9e9e9e';
   const statusLabel = statusLabels[diplomacyStatus] || 'Inconnu';
   
   content.innerHTML = `
-    <h3>${tile.isCapital ? '👑 ' : '🏰 '}${escapeHtml(tile.name || 'Ville')}</h3>
+    <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
     <p>Position: (${x}, ${y})</p>
     <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
     <div class="panel-actions player-actions">
-      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">👤 Profil</button>
-      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>🔍 Espionner</button>
+      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
+      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
-        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>⚔️ Attaquer</button>
-        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>💰 Piller</button>
+        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('gold')} Piller</button>
       ` : `
-        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">⚔️ Attaquer</button>
-        <button class="btn btn-raid" disabled title="Impossible de piller un allié">💰 Piller</button>
+        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" disabled title="Impossible de piller un allié">${resIconHtml('gold')} Piller</button>
       `}
       ${canTransport ? `
-        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>📦 Envoyer ressources</button>
+        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer ressources</button>
       ` : `
-        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">📦 Envoyer</button>
+        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">${resIconHtml('send')} Envoyer</button>
       `}
     </div>
-    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">⚠️ Aucune armée disponible</p>' : ''}
+    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">Aucune armée disponible</p>' : ''}
   `;
   panel.style.display = 'flex';
 }
@@ -2933,7 +2933,7 @@ async function viewPlayerProfile(playerId) {
   
   document.getElementById('modal-body').innerHTML = `
     <div class="player-profile">
-      <h2>👤 ${escapeHtml(p.name)}</h2>
+      <h2>${resIconHtml('player')} ${escapeHtml(p.name)}</h2>
       <div class="profile-info">
         <div class="profile-stat"><span>Faction:</span> <strong>${p.faction}</strong></div>
         <div class="profile-stat"><span>Population:</span> <strong>${formatNum(p.population)}</strong></div>
@@ -2945,11 +2945,11 @@ async function viewPlayerProfile(playerId) {
           <div class="profile-stat"><span>Défenses gagnées:</span> <strong>${p.stats.defensesWon}</strong></div>
         ` : ''}
       </div>
-      <h4>🏰 Villes</h4>
+      <h4>${resIconHtml('city')} Villes</h4>
       <div class="profile-cities">
         ${(p.cities || []).map(c => `
           <div class="profile-city">
-            ${c.isCapital ? '👑' : '🏰'} ${escapeHtml(c.name)} (${c.x}, ${c.y})
+            ${c.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(c.name)} (${c.x}, ${c.y})
           </div>
         `).join('')}
       </div>
@@ -2970,11 +2970,11 @@ function spyFromMap(cityId) {
   }
   
   document.getElementById('modal-body').innerHTML = `
-    <h3>🔍 Espionner</h3>
+    <h3>${resIconHtml('spy')} Espionner</h3>
     <p>Envoyer <strong>${escapeHtml(army.name)}</strong> espionner cette ville ?</p>
     <p style="font-size:12px;color:#888">L'espionnage révèle les bâtiments, armées et ressources de l'ennemi.</p>
     <div style="margin-top:15px">
-      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">🔍 Espionner</button>
+      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">${resIconHtml('spy')} Espionner</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     </div>
   `;
@@ -3024,32 +3024,32 @@ function sendResourcesFromMap(cityId, cityName) {
   }, 0) * transportBonus);
   
   document.getElementById('modal-body').innerHTML = `
-    <h3>📦 Envoyer des ressources</h3>
+    <h3>${resIconHtml('send')} Envoyer des ressources</h3>
     <p>Vers: <strong>${escapeHtml(cityName)}</strong></p>
     <p>Armée: <strong>${escapeHtml(army.name)}</strong></p>
     <p>Capacité: <strong>${formatNum(capacity)}</strong></p>
     
     <div class="resource-inputs">
       <div class="resource-input">
-        <label>🪵 Bois</label>
+        <label>${resIconHtml('wood')} Bois</label>
         <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🪨 Pierre</label>
+        <label>${resIconHtml('stone')} Pierre</label>
         <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>⛏️ Fer</label>
+        <label>${resIconHtml('iron')} Fer</label>
         <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🌾 Nourriture</label>
+        <label>${resIconHtml('food')} Nourriture</label>
         <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}" inputmode="numeric">
       </div>
     </div>
     
     <div style="margin-top:15px">
-      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">📦 Envoyer</button>
+      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">${resIconHtml('send')} Envoyer</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     </div>
   `;
@@ -3210,9 +3210,9 @@ function raidResource(nodeId, x, y) {
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⚔️ Attaquer la tribu locale</h3>
+    <h3>${resIconHtml('attack')} Attaquer la tribu locale</h3>
     <div style="background:rgba(244,67,54,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #f44;">
-      <p style="margin:0;"><strong>🛡️ Défenseurs:</strong> ${defenderInfo}</p>
+      <p style="margin:0;"><strong>${resIconHtml('defense')} Défenseurs :</strong> ${defenderInfo}</p>
       <p style="margin:5px 0 0 0; color:#f44;"><strong>Puissance:</strong> ${tile?.defenderPower || '?'}</p>
     </div>
     <p>Position: (${x}, ${y})</p>
@@ -3221,7 +3221,7 @@ function raidResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">⚔️ Attaquer!</button>
+      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">${resIconHtml('attack')} Attaquer</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3259,14 +3259,14 @@ function showRaidResourceResult(data) {
   const won = result.winner === 'attacker';
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>${won ? '🎉 Victoire!' : '💀 Défaite!'}</h3>
+    <h3>${won ? resIconHtml('medal') + ' Victoire' : resIconHtml('skull') + ' Défaite'}</h3>
     <div style="background:${won ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)'}; padding:15px; border-radius:8px; margin:10px 0;">
       <p><strong>Résultat:</strong> ${won ? 'Tribu vaincue!' : 'Votre armée a été repoussée'}</p>
       <p><strong>Vos pertes:</strong> ${result.attackerLosses || 0} unités</p>
       <p><strong>Pertes ennemies:</strong> ${result.defenderLosses || 0} unités</p>
       ${won && data.loot ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
-          <p><strong>💰 Butin récupéré:</strong></p>
+          <p><strong>${resIconHtml('gold')} Butin récupéré :</strong></p>
           ${Object.entries(data.loot).map(([res, amount]) =>
             `<p style="margin:2px 0; font-size:12px;">${res}: +${formatNum(amount)}</p>`
           ).join('')}
@@ -3292,7 +3292,7 @@ function collectResource(nodeId, x, y) {
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⛏️ Récolter des ressources</h3>
+    <h3>${resIconHtml('tools')} Récolter des ressources</h3>
     <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
       <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
     </div>
@@ -3307,7 +3307,7 @@ function collectResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">⛏️ Démarrer la récolte</button>
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">${resIconHtml('tools')} Démarrer la récolte</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3339,7 +3339,7 @@ async function confirmCollectResource(nodeId) {
   if (res.ok) {
     if (data.status === 'HARVESTING') {
       // Récolte progressive
-      showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
+      showToast(`Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
     } else if (data.travelTime) {
       // Armée en route
       showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');

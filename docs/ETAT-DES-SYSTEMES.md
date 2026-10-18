@@ -41,7 +41,7 @@ récolte, points d'or au barème du GDD (10 / 20 / 30 or par 12 h), notification
 `docs/EQUILIBRAGE.md` § 9, outil `node tools/simulate-tribes.cjs`.
 
 Décision confirmée en octobre 2026 : le système reste **celui du GDD, façon Travian** (tribus fixes sur les points de
-ressource), pas de camps itinérants ni d'événements d'invasion. Écarts avec le GDD à décider : alliés sur un même point, stock
+ressource) ; les invasions barbares sont gardées pour plus tard comme événement. Écarts avec le GDD à décider : alliés sur un même point, stock
 exact visible seulement après espionnage, ville secondaire sur un point, armée qui tient un point inattaquable. Graphismes :
 18 sprites de camps prévus (`map/camps/`) pour habiller ces tribus sur la carte, affichés dès livraison.
 
@@ -121,4 +121,12 @@ construction, le temps de recrutement, les combats (ville, pillage, tribus), les
 l'entretien. Client : onglet « Recherche » du panneau de l'Académie (file avec compte à rebours et annulation, cartes par branche,
 coûts et raisons de blocage fournis par le serveur), fiche « i » par technologie, niveaux dans `player.techLevels` pour les coûts
 affichés. Détail et tableau des valeurs dans `docs/EQUILIBRAGE.md` § 8 ; tests dans `tests/unit/research.test.js`, le test API et
-le test navigateur.
+le test navigateur. Visuels prévus et branchés (affichés dès livraison) : une icône par technologie et par branche
+(`ui/tech_<CLÉ>`, `ui/branch_<CLÉ>`), un parchemin « recherche en cours » au-dessus de l'Académie (`props/scroll_research`).
+
+## Interface : plus d'emoji dans les écrans de jeu (octobre 2026)
+
+Les derniers emoji des panneaux (carte : bulles des villes, des points de ressource et des tribus, profils, espionnage, envoi
+de ressources, résultat d'un raid ; ville : onglets et boutons de construction, sections de recrutement ; armées, héros,
+marché, diplomatie) sont remplacés par les icônes 3D ou peintes existantes, ou par du texte. Restent des marques typographiques
+(✓ ✗ ✕ ★), le soleil et la lune de l'horloge, les messages furtifs et les journaux de console.

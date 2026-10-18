@@ -38,10 +38,11 @@ async function seedResourceNodes() {
     used.add(key);
     const level = pickLevel(x, y);
     const type = resTypes[Math.floor(Math.random() * 4)];
-    const baseAmt = [1500, 3500, 6000][level - 1];
+    const RN = config.map.resourceNode;
+    const baseAmt = RN.baseAmountByLevel[level] || RN.baseAmountByLevel[1];
     const amount = Math.floor(baseAmt * (0.8 + Math.random() * 0.4));
     const tribe = generateTribeDefenders(level, false, 1.0);
-    batch.push({ x, y, resourceType: type, level, biome: biomes(x, y), amount, maxAmount: Math.floor(amount * 1.5), regenRate: Math.max(1, Math.floor(amount * 1.5 / 4)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 30 + level * 30 });
+    batch.push({ x, y, resourceType: type, level, biome: biomes(x, y), amount, maxAmount: Math.floor(amount * RN.maxFactor), regenRate: Math.max(1, Math.floor(amount * RN.maxFactor / RN.regenHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 30 + level * 30 });
     if (batch.length >= BATCH) {
       await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
       totalInserted += batch.length;

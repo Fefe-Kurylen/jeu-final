@@ -19,7 +19,8 @@ const SAMPLES = args.samples || 200;
 const n = v => Math.round(v).toLocaleString('fr-FR').replace(/ /g, ' ');
 const sumCost = c => ['wood', 'stone', 'iron', 'food'].reduce((s, r) => s + (c?.[r] || 0), 0);
 const unit = (k) => unitsData.find(u => u.key === k);
-const AMOUNT = { 1: 1500, 2: 3500, 3: 6000 }, GOLD_AMOUNT = { 1: 500, 2: 1500, 3: 3000 }, RESPAWN = { 1: 60, 2: 90, 3: 120 }, GOLD_RESPAWN = { 1: 120, 2: 180, 3: 240 };
+const AMOUNT = config.map.resourceNode.baseAmountByLevel, GOLD_AMOUNT = config.map.goldNode.lootByLevel, RESPAWN = { 1: 60, 2: 90, 3: 120 }, GOLD_RESPAWN = { 1: 120, 2: 180, 3: 240 };
+const MAXF = config.map.resourceNode.maxFactor, REGEN_H = config.map.resourceNode.regenHours;
 // Armée type : infanterie, archers et cavalerie de base romains à parts égales
 const base = ['INFANTRY', 'ARCHER', 'CAVALRY'].map(c => unitsData.find(u => u.faction === 'ROME' && u.class === c && u.tier === 'base'));
 const army = (total) => base.map(u => ({ unitKey: u.key, tier: 'base', count: Math.round(total / 3) }));
@@ -30,7 +31,7 @@ const woundedRate = (tent) => Math.min(config.wounded.maxRate, config.wounded.ba
 const lossMult = args.loss || config.combat.tribeLossMultiplier || config.combat.winnerLossMultiplier;
 
 console.log(`Unité de base type : ${n(unitCost)} ressources, puissance ${unitPower.toFixed(0)}, transport ${unitCarry}. Pertes du vainqueur contre un camp = ${lossMult} × (puissance tribu / puissance armée) (pillage de ville : ${config.combat.winnerLossMultiplier}) ; perdant 30 %. Une part des pertes revient blessée (Tente de soins : 30 % + 3 %/niv., Grèce, Médecine).`);
-console.log('\nniveau | soldats | puissance | armée de base pour gagner (×1,2) | pertes (unités / ressources) | blessés tente 1 / 10 | butin immédiat | stock max du point | XP héros | réapparition');
+console.log('\nniveau | soldats | puissance | armée de base pour gagner (×1,2) | pertes (unités / ressources) | blessés tente 1 / 10 | butin immédiat | stock max du point (régén./h) | remboursement des pertes en tenant le point | XP héros | réapparition');
 for (const gold of [false, true]) for (const level of [1, 2, 3]) {
   let soldiers = 0, power = 0;
   for (let i = 0; i < SAMPLES; i++) { const t = generateTribeDefenders(level, gold, 1); soldiers += Object.values(t.units).reduce((a, b) => a + b, 0); power += t.power; }
@@ -43,6 +44,8 @@ for (const gold of [false, true]) for (const level of [1, 2, 3]) {
   const kills = soldiers * config.combat.loserLossRate;
   const amount = (gold ? GOLD_AMOUNT : AMOUNT)[level];
   const loot = Math.min(amount, (needed - lost) * unitCarry);
-  console.log(`${gold ? 'or ' : ''}${level}`.padStart(6) + ` | ${n(soldiers)} | ${n(power)} | ${n(needed)} unités (${n(needed * unitCost)} res.) | ${n(lost)} / ${n(lost * unitCost)} | ${n(lost * (1 - woundedRate(1)))} / ${n(lost * (1 - woundedRate(10)))} morts | ${n(loot)} ${gold ? 'or' : 'res.'} | ${n(amount * 1.5)} | ${n(kills * config.combat.heroXpPerTribeKill)} | ${(gold ? GOLD_RESPAWN : RESPAWN)[level]} min`);
+  const maxStock = gold ? amount : amount * MAXF, perHour = gold ? amount / config.map.goldNode.intervalHours : amount * MAXF / REGEN_H;
+  const payback = gold ? '—' : `${(Math.max(0, lost * unitCost - loot) / perHour).toFixed(1)} h`;
+  console.log(`${gold ? 'or ' : ''}${level}`.padStart(6) + ` | ${n(soldiers)} | ${n(power)} | ${n(needed)} unités (${n(needed * unitCost)} res.) | ${n(lost)} / ${n(lost * unitCost)} | ${n(lost * (1 - woundedRate(1)))} / ${n(lost * (1 - woundedRate(10)))} morts | ${n(loot)} ${gold ? 'or' : 'res.'} | ${n(maxStock)} (${n(perHour)}/h) | ${payback} | ${n(kills * config.combat.heroXpPerTribeKill)} | ${(gold ? GOLD_RESPAWN : RESPAWN)[level]} min`);
 }
 console.log('\nLecture : les pertes ne dépendent pas de la taille de l\'armée (≈ ' + lossMult + ' × puissance de la tribu / puissance d\'une unité), donc le coût d\'un camp est fixe ; le butin immédiat est borné par le transport des survivants, le reste du point se récolte à 100 par minute en restant sur place (le point se régénère en 4 h, 24 h pour l\'or).');

@@ -168,6 +168,7 @@ Parcelle vide : dalle carrée arrondie d'herbe / de sable / de neige, quelques t
 
 | Nom | Sujet |
 |---|---|
+| scroll_research | a large unrolled parchment scroll with a quill, standing upright like a signpost, glowing softly (marker of a research in progress above the Academy) |
 | pine | a single pine tree |
 | pine2 | a single light-green pine tree |
 | oak | a single round leafy oak tree |
@@ -320,6 +321,18 @@ Héros (`heroes/<CIV>.png` sur estrade, `heroes/<CIV>_bust.png` en jeton) : hér
 
 | Nom | Sujet |
 |---|---|
+| tech_AGRONOMY | a sheaf of golden wheat crossed with a wooden plough (technology: Agronomy) |
+| tech_ENGINEERING | a wooden crane with a stone block on a rope and a set square (technology: Engineering) |
+| tech_TRAINING | two crossed wooden training swords over a round shield (technology: Training) |
+| tech_TACTICS | an unrolled parchment with a battle plan drawn on it and a small bronze arrow marker (technology: Art of war) |
+| tech_DISCIPLINE | a row of three overlapping round shields forming a wall (technology: Discipline) |
+| tech_MEDICINE | a clay bowl with green herbs and a rolled linen bandage (technology: Medicine) |
+| tech_CARTOGRAPHY | a rolled map with a compass rose and a small horse figure (technology: Cartography) |
+| tech_SUPPLY | a stack of grain sacks and a wooden barrel (technology: Supply) |
+| branch_ECONOMY | a sheaf of wheat and a pile of coins (research branch: economy) |
+| branch_MILITARY | a bronze sword and a spear crossed (research branch: military) |
+| branch_DEFENSE | a tower shield with a crenellated wall behind (research branch: defense) |
+| branch_LOGISTICS | a loaded cart wheel and a signpost (research branch: logistics) |
 | wood | a bundle of cut logs |
 | stone | a block of grey stone |
 | iron | a stack of iron ingots |

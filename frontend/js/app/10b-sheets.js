@@ -399,9 +399,10 @@ function showTechInfoModal(techKey) {
   }
   const html = `
     <div class="sheet sheet-tech">
+      ${typeof techIconHtml === 'function' && techIconHtml(t.key) ? `<div class="sheet-tech-ico">${techIconHtml(t.key)}</div>` : ''}
       <p class="sheet-desc">${escapeHtml(t.description || '')}</p>
       <div class="sheet-kv">
-        ${sheetKv('Branche', `${resIconHtml(branch?.icon || 'reports')} ${escapeHtml(branch?.name || t.branch)}`)}
+        ${sheetKv('Branche', `${typeof branchIconHtml === 'function' ? branchIconHtml(branch || { key: t.branch }) : resIconHtml(branch?.icon || 'reports')} ${escapeHtml(branch?.name || t.branch)}`)}
         ${sheetKv('Niveau', `${level} / ${max}`)}
         ${sheetKv('Par niveau', escapeHtml(techPerLevelText(t)))}
         ${sheetKv('Au maximum', escapeHtml(techEffectText(t, max)))}

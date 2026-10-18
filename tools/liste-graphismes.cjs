@@ -270,6 +270,8 @@ const TEX_GROUP = { base: ['grass_lawn', 'grass_dark', 'grass_dry', 'grass_flowe
 const STATIC = [
   ['walls/<CIV>/gate.png × 6 (ROME, GAUL, GREEK, EGYPT, HUN, SULTAN)', '1024×1024', 'guide § S1'],
   ['props/sign_build.png', '512×768', 'guide § S2'],
+  ['props/scroll_research.png (recherche en cours au-dessus de l\'Académie)', '512×768', 'guide § S6'],
+  ['ui/tech_<AGRONOMY|ENGINEERING|TRAINING|TACTICS|DISCIPLINE|MEDICINE|CARTOGRAPHY|SUPPLY>.png × 8, ui/branch_<ECONOMY|MILITARY|DEFENSE|LOGISTICS>.png × 4', '1024×1024', 'guide § S7'],
   ['ui/crest_<CIV>.png × 6', '1024×1024', 'guide § S3'],
   ['scenes/expedition-<forest|desert|mountain|ruins>.png × 4', '1536×1024', 'guide § S4'],
   ['ui/btn-round.png, ui/btn-round-pressed.png', '1024×1024', 'guide § S5'],
@@ -290,7 +292,7 @@ const ANIM = [
   ['A11', 'props/cart_<0..3>.png, props/horse_idle_<0..3>.png', 8, '512×768', 'charrette et chevaux']
 ];
 const animTotal = ANIM.reduce((t, a) => t + a[2], 0);
-const staticTotal = 6 + 1 + 6 + 4 + 2 + 1 + 1;
+const staticTotal = 6 + 1 + 1 + 12 + 6 + 4 + 2 + 1 + 1;
 const sections = [];
 const sec = (title, files, note = '') => sections.push({ title, files, note });
 sec('1. Bâtiments, palier courant (niveaux 7-13), par civilisation', civOrder.flatMap(c => bCur(c)), 'Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (dossier `guides/` + `prompts/`) ou `docs/LISTE-BATIMENTS-PAR-FACTION.md`.');

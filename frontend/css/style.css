@@ -4991,3 +4991,6 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 .sheet-prereqs { margin: 0; padding-left: 18px; font-size: 12px; }
 .sheet-fn-tech .met { color: #2f6b1f; }
 .sheet-fn-tech .unmet { color: #b3321b; }
+.tc-ico { width: 22px; height: 22px; }
+.sheet-tech-ico { text-align: center; margin: 0 0 6px; }
+.sheet-tech-ico .ico { width: 64px; height: 64px; }

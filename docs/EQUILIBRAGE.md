@@ -207,20 +207,24 @@ Simulation (`node tools/simulate-tribes.cjs`, 200 tribus tirées par niveau, arm
 pertes du vainqueur suivaient la règle des pillages (0,3 × puissance de la tribu / puissance de l'armée) et ne dépendaient pas
 de la taille de l'armée : un camp coûtait toujours le même nombre d'unités, deux à trois fois la valeur du point.
 
-| Niveau | Soldats | Puissance | Armée de base pour gagner | Pertes avant (0,3) | Pertes après (0,15) | Butin immédiat | XP héros | Réapparition |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 98 | 6 420 | 111 (15 170 res.) | 28 (3 778 res.) | 13 (1 772 res.), dont 9 à 5 morts avec une Tente de soins | 1 500 res. (+ 2 250 en restant) | 30 | 60 min |
-| 2 | 597 | 55 355 | 949 (129 697 res.) | 239 (32 678 res.) | 116 (15 815 res.), dont 78 à 46 morts avec une Tente de soins | 3 500 res. (+ 5 250 en restant) | 179 | 90 min |
-| 3 | 1 495 | 190 488 | 3 266 (446 353 res.) | 825 (112 729 res.) | 433 (59 115 res.), dont 290 à 173 morts avec une Tente de soins | 6 000 res. (+ 9 000 en restant) | 449 | 120 min |
-| Or 1 | 99 | 8 993 | 155 (21 183 res.) | 27 (3 699 res.) | 13 (1 775 res.), dont 9 à 5 morts avec une Tente de soins | 500 or (+ 750 en restant) | 30 | 120 min |
-| Or 2 | 597 | 77 195 | 1 324 (180 947 res.) | 249 (34 078 res.) | 116 (15 898 res.), dont 78 à 47 morts avec une Tente de soins | 1 500 or (+ 2 250 en restant) | 179 | 180 min |
-| Or 3 | 1 496 | 266 641 | 4 571 (624 703 res.) | 843 (115 177 res.) | 416 (56 882 res.), dont 279 à 166 morts avec une Tente de soins | 3 000 or (+ 4 500 en restant) | 449 | 240 min |
+| Niveau | Soldats | Puissance | Armée de base pour gagner | Pertes avant (0,3) | Pertes après (0,15) | Butin immédiat puis stock du point | Pertes remboursées en tenant le point | XP héros | Réapparition |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 98 | 6 398 | 110 (15 033 res.) | 27 (3 747 res.) | 15 (1 990 res.), dont 6 à 10 morts avec une Tente de soins | 1 500 res. puis 2 250 max (563/h) | 0,9 h | 30 | 60 min |
+| 2 | 597 | 55 276 | 948 (129 560 res.) | 235 (32 078 res.) | 116 (15 841 res.), dont 46 à 78 morts avec une Tente de soins | 4 000 res. puis 6 000 max (1 500/h) | 7,9 h | 179 | 90 min |
+| 3 | 1 495 | 190 796 | 3 271 (447 037 res.) | 830 (113 425 res.) | 384 (52 519 res.), dont 154 à 257 morts avec une Tente de soins | 8 000 res. puis 12 000 max (3 000/h) | 14,8 h | 449 | 120 min |
+| Or 1 | 99 | 8 996 | 155 (21 183 res.) | 26 (3 530 res.) | 15 (2 058 res.), dont 6 à 10 morts avec une Tente de soins | 10 or puis 10 max (1/h) | — | 30 | 120 min |
+| Or 2 | 597 | 77 474 | 1 329 (181 630 res.) | 239 (32 714 res.) | 119 (16 327 res.), dont 48 à 80 morts avec une Tente de soins | 20 or puis 20 max (2/h) | — | 179 | 180 min |
+| Or 3 | 1 495 | 266 998 | 4 578 (625 660 res.) | 822 (112 406 res.) | 402 (55 008 res.), dont 161 à 270 morts avec une Tente de soins | 30 or puis 30 max (3/h) | — | 449 | 240 min |
 
 Réglages appliqués :
 - **Pertes contre un camp divisées par deux** (`config.combat.tribeLossMultiplier` 0,15) : la cible est fixe, et l'on garde
   les morts du perdant à 30 %. Un camp de niveau 1 coûte 14 unités de base (1 900 ressources) pour 1 500 ressources de butin
-  immédiat, 2 250 avec le stock, puis 560 par heure tant que l'armée reste : rentable sans être gratuit ; le niveau 3 reste
-  une opération de fin de partie (3 300 unités pour y aller).
+  immédiat, 2 250 avec le stock, puis 560 par heure tant qu'une armée tient le point : rentable sans être gratuit ; le
+  niveau 3 reste une opération de fin de partie (3 300 unités pour y aller).
+- **Stock des points relevé aux niveaux 2 et 3** (`config.map.resourceNode` : 1 500 / 4 000 / 8 000 au lieu de 1 500 / 3 500 /
+  6 000, maximum × 1,5, plein en 4 h) : un camp trente fois plus fort qu'un camp de niveau 1 ne gardait que quatre fois plus ;
+  les pertes d'un camp de niveau 2 sont remboursées en 8 h de récolte, celles d'un niveau 3 en 16 h, contre 0,7 h au niveau 1.
+  Les points existants sont relevés au plancher de leur niveau au démarrage.
 - **Blessés** : comme après une bataille de ville, une part des pertes revient blessée à la Tente de soins (30 % + 3 % par
   niveau, Grèce, Médecine) ; les combats contre les tribus en étaient exclus.
 - **Renfort des camps** : une tribu affaiblie (réapparue sur un point vide, assaut repoussé) regagne l'effectif du stock

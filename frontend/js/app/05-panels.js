@@ -187,7 +187,7 @@ function openBuildPanel(slotNum) {
       <div class="building-tabbed-card">
         <!-- Tabs Navigation -->
         <div class="building-tabs">
-          <button class="building-tab active" onclick="switchBuildingTab('upgrade', this)">⬆️ Améliorer</button>
+          <button class="building-tab active" onclick="switchBuildingTab('upgrade', this)">${resIconHtml('build')} Améliorer</button>
           <button class="building-tab" onclick="switchBuildingTab('info', this)"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Information</button>
           ${specialTabs.map(t => `<button class="building-tab" onclick="switchBuildingTab('${t.id}', this)">${t.icon} ${t.name}</button>`).join('')}
         </div>
@@ -337,13 +337,13 @@ function openBuildPanel(slotNum) {
         </div>
         
         <button class="build-field-btn ${isBuildQueueFull() ? 'disabled' : ''}" onclick="buildAtSlot('${fieldKey}', ${slotNum})" ${isBuildQueueFull() ? 'disabled' : ''}>
-          ${isBuildQueueFull() ? '⏳ File de construction pleine' : `🏗️ Construire ${getBuildingName(fieldKey)}`}
+          ${isBuildQueueFull() ? `${resIconHtml('clock')} File de construction pleine` : `${resIconHtml('build')} Construire ${getBuildingName(fieldKey)}`}
         </button>
       </div>
     `;
   } else {
     // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
-    title.textContent = '🏗️ Construire un bâtiment';
+    title.textContent = 'Construire un bâtiment';
 
     const availableBuildings = buildingsData.filter(b => {
       if (['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)) return false;
@@ -395,7 +395,7 @@ function openBuildPanel(slotNum) {
                       ${blocked ? `
                         <p class="build-option-status already">✓ Déjà construit</p>
                       ` : !hasPrereqs ? `
-                        <p class="build-option-prereq">⚠️ ${prereqStatus.missing}</p>
+                        <p class="build-option-prereq">${prereqStatus.missing}</p>
                       ` : `
                         <p class="build-option-desc">${getBuildingShortDescription(b.key)}</p>
                       `}
@@ -721,7 +721,7 @@ function openFieldBuildPanel(slotNum) {
             <span class="${currentCity?.food >= cost.food ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(cost.food)}</span>
           </div>
           <p style="font-size:12px;color:#888"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
-  const buttonLabel = queueFull ? '⏳ File pleine' : targetLevel > mainHallLevel ? `🔒 Bât. principal Niv.${targetLevel} requis` : !canAfford ? '❌ Ressources insuffisantes' : null;
+  const buttonLabel = queueFull ? `${resIconHtml('clock')} File pleine` : targetLevel > mainHallLevel ? `${resIconHtml('lock')} Bât. principal Niv.${targetLevel} requis` : !canAfford ? 'Ressources insuffisantes' : null;
 
   if (level > 0) {
     // Existing field - show upgrade
@@ -882,12 +882,12 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   let unitsHtml = '';
   if (buildingKey === 'BARRACKS') {
     // Separate Infantry and Archers
-    unitsHtml += renderClassSection('INFANTRY', 'Infanterie', '⚔️', unitsByClass['INFANTRY']);
-    unitsHtml += renderClassSection('ARCHER', 'Archers', '🏹', unitsByClass['ARCHER']);
+    unitsHtml += renderClassSection('INFANTRY', 'Infanterie', resIconHtml('army'), unitsByClass['INFANTRY']);
+    unitsHtml += renderClassSection('ARCHER', 'Archers', resIconHtml('bow'), unitsByClass['ARCHER']);
   } else if (buildingKey === 'STABLE') {
-    unitsHtml += renderClassSection('CAVALRY', 'Cavalerie', '🐎', unitsByClass['CAVALRY']);
+    unitsHtml += renderClassSection('CAVALRY', 'Cavalerie', resIconHtml('horse'), unitsByClass['CAVALRY']);
   } else if (buildingKey === 'WORKSHOP') {
-    unitsHtml += renderClassSection('SIEGE', 'Machines de siège', '⚙️', unitsByClass['SIEGE']);
+    unitsHtml += renderClassSection('SIEGE', 'Machines de siège', resIconHtml('tools'), unitsByClass['SIEGE']);
   }
 
   content.innerHTML = `
@@ -899,21 +899,21 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <h3>${buildingNames[buildingKey]}</h3>
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
-            ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `🔹 Engins de siège dès le niveau ${siegeMin}` : '🔹 Engins de siège disponibles') :
-              buildingLevel < unlockInter ? `🔹 Unités de base (intermédiaires au niveau ${unlockInter})` :
-              buildingLevel < unlockElite ? `🔹 Base + Intermédiaires (élite au niveau ${unlockElite})` :
-              '🔹 Toutes les unités'}
+            ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `Engins de siège dès le niveau ${siegeMin}` : 'Engins de siège disponibles') :
+              buildingLevel < unlockInter ? `Unités de base (intermédiaires au niveau ${unlockInter})` :
+              buildingLevel < unlockElite ? `Base + Intermédiaires (élite au niveau ${unlockElite})` :
+              'Toutes les unités'}
           </p>
         </div>
         <button class="upgrade-building-btn" onclick="closeBuildPanel(); openBuildPanelUpgrade('${buildingKey}', ${slotNum})">
-          ⬆️ Améliorer
+          ${resIconHtml('build')} Améliorer
         </button>
       </div>
 
       <!-- Current recruitment queue -->
       ${currentQueue.length > 0 ? `
         <div class="current-recruitment">
-          <h4>🔄 En cours de recrutement</h4>
+          <h4>${resIconHtml('clock')} En cours de recrutement</h4>
           <div class="recruit-queue-items">
             ${currentQueue.map(q => `
               <div class="recruit-queue-item ${q.status === 'RUNNING' ? 'running' : 'queued'}">
@@ -1197,7 +1197,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
       
       ${canUpgrade ? `
         <div class="upgrade-section">
-          <h4>⬆️ Améliorer au niveau ${nextLevel}</h4>
+          <h4>${resIconHtml('build')} Améliorer au niveau ${nextLevel}</h4>
           <div class="cost-grid">
             <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
               <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
@@ -1571,7 +1571,7 @@ function renderMovingArmies() {
   if (activityEl) {
     if (moving.length > 0) {
       const first = moving[0];
-      const icon = missionIcons[first.missionType] || missionIcons[first.status] || '🚶';
+      const icon = missionIcons[first.missionType] || missionIcons[first.status] || resIconHtml('send');
       activityEl.classList.add('active');
       activityEl.innerHTML = `
         <span class="activity-icon">${icon}</span>

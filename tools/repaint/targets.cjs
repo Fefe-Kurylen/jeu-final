@@ -109,6 +109,10 @@ for (const lvl of [1, 2, 3]) for (const b of ['', '_desert', '_snow']) add(`map/
 for (const b of ['', '_desert', '_snow']) add(`map/camps/ruins${b}.webp`, 'map', `Camp barbare détruit${b ? ` (${b.slice(1)})` : ''} : affiché jusqu'à la réapparition de la tribu`);
 for (const c of CIVS) add(`map/camps/banner_${c}.webp`, 'map', `Bannière de tribu ${CIV_FR[c]} posée sur le camp`);
 add('props/sign_build.webp', 'prop', 'Panneau « construire ici » sur les emplacements libres');
+add('props/scroll_research.webp', 'prop', 'Parchemin « recherche en cours » au-dessus de l\'Académie');
+// Technologies : une icône par technologie (cartes de l'onglet Recherche, fiches) et par branche
+for (const k of ['AGRONOMY', 'ENGINEERING', 'TRAINING', 'TACTICS', 'DISCIPLINE', 'MEDICINE', 'CARTOGRAPHY', 'SUPPLY']) add(`ui/tech_${k}.webp`, 'icon', `Icône de la technologie ${k} (onglet Recherche de l'Académie, fiche)`);
+for (const k of ['ECONOMY', 'MILITARY', 'DEFENSE', 'LOGISTICS']) add(`ui/branch_${k}.webp`, 'icon', `Icône de la branche de recherche ${k}`);
 for (const c of CIVS) add(`ui/crest_${c}.webp`, 'icon', `Blason de ${CIV_FR[c]}`);
 for (const d of ['forest', 'desert', 'mountain', 'ruins']) add(`scenes/expedition-${d}.webp`, 'header', `Vignette de destination d'expédition : ${d}`);
 add('ui/btn-round.webp', 'frame', 'Bouton rond des bulles d\'action'); add('ui/btn-round-pressed.webp', 'frame', 'Bouton rond des bulles d\'action, enfoncé');

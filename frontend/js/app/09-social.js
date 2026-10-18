@@ -86,9 +86,9 @@ async function loadAlliance() {
                         </div>
                         <div class="diplomacy-status">
                           <select onchange="setDiplomacy('${a.id}', this.value)" class="diplomacy-select">
-                            <option value="NEUTRAL" ${dipStatus === 'NEUTRAL' ? 'selected' : ''}>⚪ Neutre</option>
-                            <option value="ALLY" ${dipStatus === 'ALLY' ? 'selected' : ''}>🤝 Allie</option>
-                            <option value="ENEMY" ${dipStatus === 'ENEMY' ? 'selected' : ''}>⚔️ Ennemi</option>
+                            <option value="NEUTRAL" ${dipStatus === 'NEUTRAL' ? 'selected' : ''}>Neutre</option>
+                            <option value="ALLY" ${dipStatus === 'ALLY' ? 'selected' : ''}>Allié</option>
+                            <option value="ENEMY" ${dipStatus === 'ENEMY' ? 'selected' : ''}>Ennemi</option>
                           </select>
                         </div>
                       </div>
@@ -435,7 +435,7 @@ function showBattleReplay(reportIndex) {
         <button class="btn" onclick="replayPrevRound()">⏮️ Précédent</button>
         <button class="btn btn-primary" onclick="replayTogglePlay()" id="replay-play-btn">▶️ Lecture</button>
         <button class="btn" onclick="replayNextRound()">Suivant ⏭️</button>
-        <button class="btn btn-secondary" onclick="replayReset()">🔄 Rejouer</button>
+        <button class="btn btn-secondary" onclick="replayReset()">Rejouer</button>
       </div>
       
       <div class="replay-speed">

@@ -452,7 +452,7 @@ function showUnitDetail(unitKey) {
       
       <!-- Info consommation céréales -->
       <div class="upkeep-info">
-        <span class="upkeep-icon">💡</span>
+        <span class="upkeep-icon">${resIconHtml('food')}</span>
         <span>Chaque unité consomme <strong>${foodUpkeep} céréales/h</strong>. Si la production de nourriture est insuffisante, vos troupes mourront de faim!</span>
       </div>
       

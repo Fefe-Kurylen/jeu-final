@@ -19,6 +19,9 @@ const TECH_EFFECT_LABELS = {
   upkeepReductionPct: v => `−${fmtTechPct(v)} % d'entretien des troupes`
 };
 
+// Icônes peintes quand elles existent (ui/tech_<KEY>, ui/branch_<KEY>) ; sinon rien pour la technologie, l'icône de ressource pour la branche
+const techIconHtml = (key) => (typeof paintedSet !== 'undefined' && paintedSet.has(`ui/tech_${key}.webp`) ? `<img class="ico tc-ico" src="${art(`ui/tech_${key}.webp`)}" alt="">` : '');
+const branchIconHtml = (b) => (typeof paintedSet !== 'undefined' && paintedSet.has(`ui/branch_${b.key}.webp`) ? `<img class="ico" src="${art(`ui/branch_${b.key}.webp`)}" alt="">` : resIconHtml(b.icon || 'reports'));
 const techList = () => technologiesData?.technologies || [];
 const techByKey = (key) => techList().find(t => t.key === key) || null;
 const techMaxLevel = (t) => t?.maxLevel || 10;
@@ -92,7 +95,7 @@ function techCardHtml(t, a, level) {
     ? TECH_RESOURCES.map(r => `<span class="tc-cost ${(currentCity?.[r] || 0) >= (cost[r] || 0) ? 'ok' : 'missing'}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('')
     : '<span class="tc-cost">Niveau maximum atteint</span>';
   return `<div class="tech-card${level >= max ? ' maxed' : ''}" data-tech="${t.key}">
-    <div class="tc-head"><span class="tc-name">${escapeHtml(t.name)}</span>${infoBtnHtml('tech', t.key, 'info-btn-sm')}<span class="tc-level">niv. ${level}/${max}</span></div>
+    <div class="tc-head">${techIconHtml(t.key)}<span class="tc-name">${escapeHtml(t.name)}</span>${infoBtnHtml('tech', t.key, 'info-btn-sm')}<span class="tc-level">niv. ${level}/${max}</span></div>
     <div class="tc-bar"><div class="tc-bar-fill" style="width:${Math.round(level / max * 100)}%"></div></div>
     <p class="tc-effect">${level > 0 ? `Actuel : ${escapeHtml(techEffectText(t, level))}` : escapeHtml(techPerLevelText(t))}${next ? `<br><strong>Niveau ${next} : ${escapeHtml(techEffectText(t, next))}</strong>` : ''}</p>
     <div class="tc-costs">${costHtml}${a?.timeSec ? `<span class="tc-time">${resIconHtml('clock')} ${formatDuration(a.timeSec)}</span>` : ''}</div>
@@ -118,7 +121,7 @@ function renderResearchTab() {
   }).join('')}</div>` : '<p class="research-empty">Aucune recherche en cours.</p>';
   const branches = (technologiesData.branches || []).map(b => {
     const cards = techs.filter(t => t.branch === b.key).map(t => techCardHtml(t, avail[t.key], research?.levels?.[t.key] || 0)).join('');
-    return `<div class="research-branch"><h5>${resIconHtml(b.icon || 'reports')} ${escapeHtml(b.name)} <small>${escapeHtml(b.description || '')}</small></h5><div class="tech-cards">${cards}</div></div>`;
+    return `<div class="research-branch"><h5>${branchIconHtml(b)} ${escapeHtml(b.name)} <small>${escapeHtml(b.description || '')}</small></h5><div class="tech-cards">${cards}</div></div>`;
   }).join('');
   el.innerHTML = head + queueHtml + branches;
 }

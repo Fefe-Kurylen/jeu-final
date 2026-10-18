@@ -38,7 +38,7 @@ function renderMarketOffers() {
         <div class="offer-seller">${isMyOffer ? '<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> Votre offre' : `<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> ${escapeHtml(offer.player?.name || 'Inconnu')}`}</div>
         <div class="offer-exchange">
           <span class="offer-sell">${resourceIcons[offer.sellResource]} ${formatNum(offer.sellAmount)}</span>
-          <span class="offer-arrow">➡️</span>
+          <span class="offer-arrow">→</span>
           <span class="offer-buy">${resourceIcons[offer.buyResource]} ${formatNum(offer.buyAmount)}</span>
         </div>
         <div class="offer-ratio">Ratio: 1:${(offer.buyAmount / offer.sellAmount).toFixed(2)}</div>

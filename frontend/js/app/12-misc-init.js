@@ -86,10 +86,10 @@ function renderSendTroopsForm() {
       <div class="form-row">
         <label>Mission</label>
         <select id="troops-mission">
-          <option value="ATTACK">⚔️ Attaque (engins de siège requis)</option>
-          <option value="RAID">💰 Pillage</option>
-          <option value="SPY">🔍 Espionnage</option>
-          <option value="MOVE">🚶 Déplacement</option>
+          <option value="ATTACK">Attaque (engins de siège requis)</option>
+          <option value="RAID">Pillage</option>
+          <option value="SPY">Espionnage</option>
+          <option value="MOVE">Déplacement</option>
         </select>
       </div>
       ${available.length ? '<button class="btn-primary" onclick="sendTroops()">Envoyer</button>' : '<p style="color:var(--text-muted)">Aucune armée prête : créez-en une au point de ralliement et ajoutez-y des unités.</p>'}
@@ -175,7 +175,7 @@ function showNpcMerchant() {
           <input type="number" id="npc-give-amount" placeholder="Quantité" min="1"
                  oninput="updateNpcPreview()">
         </div>
-        <div class="npc-arrow">⬇️</div>
+        <div class="npc-arrow">↓</div>
         <div class="npc-row">
           <label>Je reçois</label>
           <select id="npc-receive-resource" onchange="updateNpcPreview()">
