@@ -54,7 +54,8 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
 - **Chute d'une ville (décidé et appliqué, octobre 2026)** : une ville ne change jamais de propriétaire.
   - Chaque **assaut gagné** ôte une part de la **santé de la muraille** (`City.wallStructure`) : il faut **4 assauts gagnés
     pour une capitale, 2 pour une ville secondaire, un de plus pour une ville égyptienne (5 et 3)**. Le héros n'est pas
-    nécessaire. La santé remonte d'un assaut par 24 h hors siège (`config.combat.fall`).
+    nécessaire. La santé remonte de 0 à 100 % en **48 h** hors siège (`config.combat.fall`) ; les PV du mur, eux, se
+    réparent en 24 h comme dans le GDD.
   - Chaque assaut gagné **pille 25 % du stock** au-dessus des grands entrepôts et de la part de la cachette ; l'armée en
     rapporte ce qu'elle peut porter, le reste est détruit.
   - **Ville secondaire à 0 : rasée.** Les troupes et les blessés présents sont perdus, le héros s'enfuit vers la capitale,

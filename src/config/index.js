@@ -150,12 +150,12 @@ const config = {
       upkeepDefenderPct: -10          // ...la ville assiégée et ses armées 10 % de moins
     },
     // Chute d'une ville (décision d'octobre 2026) : chaque assaut gagné ôte une part de la « santé de la muraille »
-    // (City.wallStructure) ; elle remonte en 24 h hors siège. À 0, une ville secondaire est rasée, une capitale est
+    // (City.wallStructure) ; elle remonte de 0 à 100 % en 48 h hors siège. À 0, une ville secondaire est rasée, une capitale est
     // déplacée au hasard près du bord de la carte (elle ne peut pas être prise).
     fall: {
       assaults: { capital: 4, secondary: 2 },   // assauts gagnés pour faire tomber la ville...
       extraAssaults: { EGYPT: 1 },              // ...un de plus pour les villes égyptiennes (5 et 3)
-      regenHours: 24,                           // un assaut « effacé » toutes les 24 h hors siège
+      regenHours: 48,                           // de 0 à 100 % en 48 h hors siège (décision d'octobre 2026)
       pillagePct: 25                            // part du stock pillable enlevée à chaque assaut gagné (cachette et grands entrepôts protègent)
     },
     wallHpPerLevel: 1000,

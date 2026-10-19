@@ -1037,7 +1037,7 @@ async function openBreakSiege(cityId) {
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
       ${wall}
-      <p>Santé de la muraille : <strong>${siege.wallStructurePct} %</strong> · encore <strong>${siege.assaultsLeft}</strong> assaut${siege.assaultsLeft > 1 ? 's' : ''} gagné${siege.assaultsLeft > 1 ? 's' : ''} avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait rasée'}). Chaque assaut gagné pille aussi le stock ; la santé remonte en 24 h hors siège.</p>
+      <p>Santé de la muraille : <strong>${siege.wallStructurePct} %</strong> · encore <strong>${siege.assaultsLeft}</strong> assaut${siege.assaultsLeft > 1 ? 's' : ''} gagné${siege.assaultsLeft > 1 ? 's' : ''} avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait rasée'}). Chaque assaut gagné pille aussi le stock ; la santé remonte de 0 à 100 % en 48 h hors siège.</p>
       <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège · assaut dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>${b.assaultOrdered ? ' (ordonné)' : ''}</li>`).join('')}</ul>
       <p style="font-size:12px;opacity:.85">Pendant le siège, la ville ne produit plus, ne recrute plus, ne soigne plus et ne reçoit aucun convoi. Une armée de la ville, de son alliance ou d'une alliance alliée peut attaquer le camp : si elle gagne, le siège est levé.</p>
       ${siege.canBreak ? (ready.length ? `
