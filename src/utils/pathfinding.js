@@ -22,6 +22,7 @@ async function getObjectCells() {
   return m;
 }
 function noteObjectCell(x, y, type) { objectCells.set(x + ',' + y, type); }
+function forgetObjectCell(x, y) { objectCells.delete(x + ',' + y); }
 
 async function isBlockedTile(x, y) { return Terrain.isBlocked(x, y, await getObjectCells()); }
 
@@ -40,4 +41,4 @@ async function routeLength(fromX, fromY, toX, toY) {
   return route.length;
 }
 
-module.exports = { getObjectCells, noteObjectCell, isBlockedTile, findRoute, routeLength, Terrain };
+module.exports = { getObjectCells, noteObjectCell, forgetObjectCell, isBlockedTile, findRoute, routeLength, Terrain };

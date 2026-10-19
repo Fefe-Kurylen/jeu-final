@@ -109,6 +109,7 @@ model City {
   wallMaxHp    Int       @default(1000)
   goldAccrued  Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
   isSieged     Boolean   @default(false)
+  wallStructure Float    @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
   siegeStarted DateTime?
 
   createdAt DateTime @default(now())

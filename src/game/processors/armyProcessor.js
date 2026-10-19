@@ -14,6 +14,7 @@ const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime } = require('./siegeProcessor');
+const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
@@ -261,13 +262,19 @@ async function handleAttack(army, now) {
     // GDD: only siege engines damage the wall, during the siege (siegeProcessor); a breached wall regenerates in 24 h
     const wallDamageDone = wallBuildingLevel > 0 ? Math.max(0, Math.round(targetCity.wallMaxHp - targetCity.wallHp)) : 0;
     const siegeMinutes = army.status === 'BESIEGING' && army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
+    // Won assault: the stock is pillaged and the wall's health drops; at 0 the city falls (after this transaction)
+    let pillaged = null, structure = null;
+    if (result.attackerWon) {
+      pillaged = await pillage(tx, targetCity, army, result.attackerFinalUnits.map(u => ({ unitKey: u.key, count: u.remaining })));
+      structure = await wearWallStructure(tx, targetCity);
+    }
     const reportData = {
       x: targetCity.x, y: targetCity.y,
       attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
       attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
       defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      loot: { rounds: result.rounds, wallDamage: wallDamageDone, wallHpPct: Math.round(wallHpPct * 100), siegeMinutes, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length, type: 'ATTACK' }
+      loot: { rounds: result.rounds, wallDamage: wallDamageDone, wallHpPct: Math.round(wallHpPct * 100), siegeMinutes, ...(pillaged ? pillaged.carried : {}), pillaged: pillaged ? pillaged.taken : null, wallStructure: structure ? { before: Math.round(structure.before * 100), after: Math.round(structure.after * 100), assaultsLeft: Math.round(structure.after * structure.needed), fallen: structure.fallen, fate: structure.fallen ? (targetCity.isCapital ? 'RELOCATED' : 'RAZED') : null } : null, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length, type: 'ATTACK' }
     };
     await tx.battleReport.create({ data: { ...reportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     await tx.battleReport.create({ data: { ...reportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
@@ -276,14 +283,14 @@ async function handleAttack(army, now) {
     await tx.playerStats.upsert({ where: { playerId: winnerId }, update: { [winField]: { increment: 1 } }, create: { playerId: winnerId, [winField]: 1 } });
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-    return { targetCity, result, defenderHero, atkTech, defTech };
+    return { targetCity, result, defenderHero, atkTech, defTech, structure };
   }, TX);
   if (!battle) {
     await sendArmyHome(army, army.targetX, army.targetY);
     if (army.targetCityId) await refreshSiegeFlag(prisma, army.targetCityId);
     return;
   }
-  const { targetCity, result, defenderHero, atkTech, defTech } = battle;
+  const { targetCity, result, defenderHero, atkTech, defTech, structure } = battle;
   notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${army.owner.name} : ${result.attackerWon ? 'défaite' : 'victoire'}. Rapport disponible.`, { tab: 'reports' });
   notify(army.ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { tab: 'reports' });
 
@@ -305,6 +312,20 @@ async function handleAttack(army, now) {
   } catch (woundErr) { console.error('[WOUNDED]', woundErr.message); }
 
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
+  if (structure?.fallen) {
+    try {
+      const fall = await applyFall(targetCity.id, army.id);
+      if (fall?.kind === 'RAZED') {
+        notify(targetCity.playerId, 'battle', '🔥 Ville rasée', `${targetCity.name} est tombée sous les assauts de ${army.owner.name} et a été rasée.`, { tab: 'reports' });
+        notify(army.ownerId, 'battle', '🔥 Ville rasée', `${targetCity.name} est tombée : la ville est rasée.`, { tab: 'reports' });
+        try { await updatePlayerPopulation(prisma, targetCity.playerId); } catch (e) { /* recomputed by the tick */ }
+      } else if (fall?.kind === 'RELOCATED') {
+        notify(targetCity.playerId, 'battle', '🏃 Capitale déplacée', `${targetCity.name} est tombée sous les assauts de ${army.owner.name} : la cour s'enfuit et rebâtit la capitale en (${fall.to.x}, ${fall.to.y}).`, { tab: 'city', cityId: targetCity.id });
+        notify(army.ownerId, 'battle', '🏃 Capitale en fuite', `${targetCity.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
+      }
+      if (fall) console.log(`[FALL] ${targetCity.name} ${fall.kind}`);
+    } catch (fallErr) { console.error('[FALL]', fallErr.message); }
+  }
   await sendArmyHome(army, army.targetX, army.targetY);
   await refreshSiegeFlag(prisma, targetCity.id);   // the siege is lifted when no other army camps before the city
 }

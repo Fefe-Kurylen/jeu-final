@@ -172,6 +172,15 @@ async function processWallRegen(TICK_HOURS) {
         * (1 + COALESCE((SELECT MAX(cb.level) FROM "CityBuilding" cb WHERE cb."cityId" = c.id AND cb.key = 'WALL'), 0) * ${bonusPerLevel} / 100.0), c."wallMaxHp")
     WHERE c."wallHp" < c."wallMaxHp" AND c."isSieged" = false
   `;
+  // Santé de la muraille (chute des villes) : un assaut gagné s'efface toutes les 24 h hors siège
+  const fall = config.combat.fall;
+  const extra = Prisma.join(Object.entries({ _: 0, ...fall.extraAssaults }).map(([k, n]) => Prisma.sql`(${k}, ${n}::int)`));
+  await prisma.$executeRaw`
+    UPDATE "City" c SET "wallStructure" = LEAST(1, c."wallStructure" + ${TICK_HOURS} / ${fall.regenHours}::float
+        / (CASE WHEN c."isCapital" THEN ${fall.assaults.capital}::int ELSE ${fall.assaults.secondary}::int END + COALESCE(ex.n, 0)))
+    FROM "Player" p LEFT JOIN (VALUES ${extra}) AS ex(faction, n) ON ex.faction = p.faction
+    WHERE p.id = c."playerId" AND c."wallStructure" < 1 AND c."isSieged" = false
+  `;
 }
 
 // Treasure Chamber: gold per day, accrued continuously and paid to the player coin by coin

@@ -15,7 +15,7 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | Renfort allié qui reste dans la ville (mission SUPPORT) ; conquête d'une ville tombée |
+| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | Renfort allié qui reste dans la ville (mission SUPPORT) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport, rapport pour la cible d'un espionnage réussi |
 | Espionnage : n'importe quelle unité, chance selon l'effectif, rapport ressources/bâtiments/armées ; **contre-espionnage de la Tour de guet** (interception, rapport au défenseur, nom de l'espion dès le niveau 15) | Unités d'espion dédiées (`maxSpiesFaction`, `spyUnlockL5/L10` dans les données), espionnage des points de ressource |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
@@ -51,7 +51,19 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19 ; villes secondaires :
   normale et fortifiée, 6 × 2 × 4), avec la bannière de la
   civilisation qui assiège plantée devant. Branché ; en attendant les images, anneau rouge et icône d'épées.
-- **À voir avec la conquête (point 3)** : ce qui se passe quand l'assaut est gagné (aujourd'hui, l'armée rentre).
+- **Chute d'une ville (décidé et appliqué, octobre 2026)** : une ville ne change jamais de propriétaire.
+  - Chaque **assaut gagné** ôte une part de la **santé de la muraille** (`City.wallStructure`) : il faut **4 assauts gagnés
+    pour une capitale, 2 pour une ville secondaire, un de plus pour une ville égyptienne (5 et 3)**. Le héros n'est pas
+    nécessaire. La santé remonte d'un assaut par 24 h hors siège (`config.combat.fall`).
+  - Chaque assaut gagné **pille 25 % du stock** au-dessus des grands entrepôts et de la part de la cachette ; l'armée en
+    rapporte ce qu'elle peut porter, le reste est détruit.
+  - **Ville secondaire à 0 : rasée.** Les troupes et les blessés présents sont perdus, le héros s'enfuit vers la capitale,
+    les armées en mission sont rattachées à la capitale, le point de ressource redevient libre (une tribu s'y réinstalle).
+  - **Capitale à 0 : elle ne peut pas être prise.** Elle est **déplacée au hasard près du bord de la carte** avec ses
+    bâtiments ; ses armées présentes la suivent, celles qui rentrent sont redirigées ; santé remise à 100 %, siège levé, les
+    armées hostiles en route font demi-tour.
+  - Visible dans la fenêtre de siège (santé, assauts restants, sort de la ville) et dans le rapport (muraille avant → après,
+    « ville rasée » ou « capitale déplacée »).
 
 ## Diplomatie et alliance
 

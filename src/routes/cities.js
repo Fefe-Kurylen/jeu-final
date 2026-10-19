@@ -11,6 +11,7 @@ const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf } = requi
 const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
 const { getRelation } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
+const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
 const { processBuilds } = require('../game/processors/buildProcessor');
@@ -451,7 +452,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
 router.get('/:id/siege', auth, async (req, res) => {
   try {
     if (!isId(req.params.id)) return res.status(400).json({ error: 'Ville invalide' });
-    const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, wallHp: true, wallMaxHp: true, isSieged: true, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
+    const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, isCapital: true, wallHp: true, wallMaxHp: true, wallStructure: true, isSieged: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
     const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id }, orderBy: { arrivalAt: 'asc' }, select: { id: true, name: true, ownerId: true, departedAt: true, arrivalAt: true, missionType: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } } });
     const relation = await getRelation(req.user.playerId, city.playerId);
@@ -459,6 +460,9 @@ router.get('/:id/siege', auth, async (req, res) => {
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
       wallHp: wallLevel > 0 ? Math.round(city.wallHp) : 0, wallMaxHp: wallLevel > 0 ? city.wallMaxHp : 0,
+      // santé de la muraille : assauts gagnés encore nécessaires avant la chute (ville secondaire rasée, capitale déplacée)
+      wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
+      fate: city.isCapital ? 'RELOCATED' : 'RAZED',
       canBreak: camp.length > 0 && ['SELF', 'SAME_ALLIANCE', 'ALLY'].includes(relation.status) && camp.some(a => a.ownerId !== req.user.playerId),
       besiegers: camp.map(a => ({
         id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,

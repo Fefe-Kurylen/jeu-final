@@ -337,6 +337,10 @@ function renderBattleReportCard(r, idx) {
   const lootRes = isTribe ? (r.loot?.resources || {}) : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
   const lootHtml = ['wood', 'stone', 'iron', 'food'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
   const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
+  // Siège : durée, santé de la muraille après l'assaut gagné et sort de la ville quand elle tombe
+  const ws = r.loot?.wallStructure;
+  const siegeInfo = (r.loot?.siegeMinutes ? `<span class="strip-item">Siège ${formatNum(r.loot.siegeMinutes)} min</span>` : '')
+    + (ws ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Muraille ${ws.before} % → ${ws.after} %${ws.fallen ? (ws.fate === 'RELOCATED' ? ' : capitale déplacée' : ' : ville rasée') : ` (encore ${ws.assaultsLeft} assaut${ws.assaultsLeft > 1 ? 's' : ''})`}</span>` : '');
   // Vignette peinte du camp de la tribu (scenes/vignette-tribe-<biome>, guide § S14) en tête des rapports de tribu
   const tribeScene = isTribe && typeof paintedSet !== 'undefined' ? (() => { const p = `scenes/vignette-tribe-${typeof getBiome === 'function' ? getBiome(r.x, r.y) : 'forest'}.webp`; return paintedSet.has(p) ? `<img class="report-scene" src="assets/images/painted/${p}" alt="" style="width:100%; display:block; border-radius:6px 6px 0 0;">` : ''; })() : '';
 
@@ -360,6 +364,7 @@ function renderBattleReportCard(r, idx) {
         <span class="strip-item"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Pertes adverses : <strong>${formatNum(theirs)}</strong></span>
         ${lootHtml ? `<span class="strip-item loot">${iAttacked || isTribe ? 'Butin' : 'Pillé'} : ${lootHtml}</span>` : ''}
         ${wall}
+        ${siegeInfo}
         ${hasRounds ? `<span class="strip-item">${duration} round${duration > 1 ? 's' : ''}</span>` : ''}
       </div>
       <div class="report-summary">

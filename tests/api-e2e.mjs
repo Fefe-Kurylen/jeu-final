@@ -269,6 +269,12 @@ await call('order the assault', 'POST', `/api/army/${armyId}/assault`, tA, {});
 await waitTick('battle resolved', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) >= 1);
 assert('siege lifted after the assault', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 'f' && sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING');
 assert('the report carries the siege (wall damage, minutes)', Number(sql(`SELECT coalesce((loot->>'siegeMinutes')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) >= 30 && Number(sql(`SELECT coalesce((loot->>'wallDamage')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) > 0);
+{ // won assault: the wall's health of the capital B (Huns: 4 assaults) drops by a quarter and the stock is pillaged
+  const atkWon = sql(`SELECT winner FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`) === 'ATTACKER';
+  const ws = Number(sql(`SELECT round(("wallStructure"*100)::numeric) FROM "City" WHERE id='${cityB.id}'`));
+  assert('a won assault takes a quarter of the wall health of a capital (4 assaults)', atkWon ? ws === 75 : ws === 100, `${atkWon ? 'won' : 'lost'}, health ${ws} %`);
+  if (atkWon) assert('the report shows the wall health and the pillage', sql(`SELECT (loot->'wallStructure'->>'after')||':'||coalesce(loot->'pillaged'->>'wood','?') FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`).startsWith('75:'));
+}
 const rep = await call('reports/battles A', 'GET', '/api/reports/battles', tA);
 await call('reports/battles B', 'GET', '/api/reports/battles', tB);
 if (Array.isArray(rep) && rep[0]) console.log('  battle:', JSON.stringify({ winner: rep[0].winner, aLoss: rep[0].attackerLosses?.rate, dLoss: rep[0].defenderLosses?.rate, wallDamage: rep[0].loot?.wallDamage }).slice(0, 300));
@@ -700,6 +706,38 @@ if (MAIL_LOG) {
   }
 } else {
   console.log('  (EMAIL_LOG_FILE not set: e-mail flows skipped)');
+}
+
+// ---------- CITY FALL ----------
+// A secondary city whose wall health reaches 0 is razed; a capital cannot be taken: it flees near the edge of the map.
+// The assaults are inserted ready to strike (siege already over) to keep the suite short.
+{
+  const assault = (owner, homeCityId, city, unitKey, count) => {
+    const id = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${owner}','${homeCityId}','Assaut final',${city.x},${city.y},${city.x},${city.y},'BESIEGING','ASSAULT','${city.id}',now()-interval '40 minutes',now()-interval '1 second') RETURNING id`).split('\n')[0];
+    sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${id}','${unitKey}','elite',${count})`);
+    return id;
+  };
+  const colonyRow = sql(`SELECT id||'|'||x||'|'||y FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital" LIMIT 1`);
+  if (colonyRow) {
+    const [cid, cx, cy] = colonyRow.split('|');
+    sql(`UPDATE "City" SET "wallStructure"=0.5 WHERE id='${cid}'`);   // Rome, secondary city: 2 assaults, one already won
+    const raider = assault(B.player.id, cityB.id, { id: cid, x: cx, y: cy }, unitKeyFor('HUN', 'INFANTRY', 'elite'), 3000);
+    await waitTick('colony razed', () => sql(`SELECT count(*) FROM "City" WHERE id='${cid}'`) === '0');
+    assert('the razed colony gives its resource node back', sql(`SELECT count(*) FROM "ResourceNode" WHERE x=${cx} AND y=${cy} AND "cityId" IS NULL`) === '1');
+    assert('the report tells the city was razed', sql(`SELECT loot->'wallStructure'->>'fate' FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='ATTACK' AND x=${cx} AND y=${cy} LIMIT 1`) === 'RAZED');
+    assert('the victorious army heads home', sql(`SELECT status FROM "Army" WHERE id='${raider}'`) === 'RETURNING');
+  }
+  const [bx0, by0] = [cityB.x, cityB.y];
+  sql(`UPDATE "City" SET "wallStructure"=0.25 WHERE id='${cityB.id}'`);   // Huns, capital: 4 assaults, three already won
+  const breaker = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 5000);
+  await waitTick('capital relocated', () => sql(`SELECT x||','||y FROM "City" WHERE id='${cityB.id}'`) !== `${bx0},${by0}`);
+  const [bx1, by1] = sql(`SELECT x||'|'||y FROM "City" WHERE id='${cityB.id}'`).split('|').map(Number);
+  assert('a fallen capital is not taken: it flees near the edge of the map', Math.min(bx1 + 187, 186 - bx1, by1 + 187, 186 - by1) < 100 && sql(`SELECT "playerId" FROM "City" WHERE id='${cityB.id}'`) === B.player.id, `(${bx0}, ${by0}) -> (${bx1}, ${by1})`);
+  assert('the relocated capital gets its full wall health back, siege lifted', sql(`SELECT "wallStructure"||':'||"isSieged" FROM "City" WHERE id='${cityB.id}'`) === '1:false');
+  assert('its garrison moved with it', sql(`SELECT x||'|'||y FROM "Army" WHERE "cityId"='${cityB.id}' AND "isGarrison"`) === `${bx1}|${by1}`);
+  assert('the report tells the capital fled', sql(`SELECT loot->'wallStructure'->>'fate' FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' AND x=${bx0} AND y=${by0} ORDER BY "createdAt" DESC LIMIT 1`) === 'RELOCATED');
+  assert('the attacker heads home', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING');
+  cityB.x = bx1; cityB.y = by1;
 }
 
 // ---------- WRAP UP ----------
