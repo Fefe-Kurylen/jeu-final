@@ -93,11 +93,12 @@ async function admitWaiting(db, cityId) {
   await db.woundedUnit.deleteMany({ where: { cityId, count: 0, waiting: 0 } });
 }
 
-// Ville assiégée (GDD : soins du défenseur bloqués pendant un siège) : une attaque ennemie marche sur elle ou s'y résout.
-// Aucun soin n'y est possible ; les blessés dont le temps est écoulé reviennent dès la levée du siège.
+// Ville assiégée (GDD : soins, recrutement, création d'armée bloqués pendant un siège) : l'armée attaquante est arrivée
+// sur la ville (attaque arrivée en cours de résolution, ou siège qui dure : statut BESIEGING). Tant qu'elle marche
+// encore vers la ville, celle-ci peut tout faire (décision d'octobre 2026).
 async function besiegedCityIds(db, cityIds) {
   if (!cityIds.length) return new Set();
-  const attacks = await db.army.findMany({ where: { status: 'ATTACKING', targetCityId: { in: cityIds } }, select: { targetCityId: true } });
+  const attacks = await db.army.findMany({ where: { targetCityId: { in: cityIds }, OR: [{ status: 'BESIEGING' }, { status: 'ATTACKING', arrivalAt: { lte: new Date() } }] }, select: { targetCityId: true } });
   return new Set(attacks.map(a => a.targetCityId));
 }
 

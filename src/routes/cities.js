@@ -219,6 +219,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (unit.faction !== city.player.faction) return { error: 'Unité d\'une autre faction', status: 400 };
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : recrutement impossible tant que l\'armée ennemie est sur la ville', status: 400 };
 
       const barracks = city.buildings.find(b => b.key === 'BARRACKS');
       const stable = city.buildings.find(b => b.key === 'STABLE');
@@ -295,6 +296,7 @@ router.post('/:id/settlers', auth, async (req, res) => {
       const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, include: { buildings: true, recruitQueue: true } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (!city.isCapital) return { error: 'Les colons se forment à la Résidence de la capitale', status: 400 };
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : formation impossible tant que l\'armée ennemie est sur la ville', status: 400 };
       const residence = city.buildings.find(b => b.key === 'RESIDENCE');
       if (!residence) return { error: 'Résidence requise', status: 400 };
       const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence.level));
@@ -413,7 +415,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
 
       const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : aucun soin possible tant qu\'une attaque marche sur elle', status: 400 };
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : aucun soin possible tant que l\'armée ennemie est sur la ville', status: 400 };
       if (!wounded || wounded.count <= 0) return { error: wounded ? 'Ces blessés attendent un lit : seuls les blessés au lit se soignent' : 'Pas de blessés de ce type', status: wounded ? 400 : 404 };
 
       const goldCost = wounded.count;

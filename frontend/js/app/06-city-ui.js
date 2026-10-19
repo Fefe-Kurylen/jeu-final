@@ -34,7 +34,7 @@ function renderWounded(wounded) {
   const beds = tentLevel * (Number(window.worldRules?.healingBedsPerLevel) || 200);
   const inBeds = wounded.reduce((s, w) => s + (w.count || 0), 0), waiting = wounded.reduce((s, w) => s + (w.waiting || 0), 0);
   const besieged = wounded.some(w => w.besieged);
-  el.innerHTML = (besieged ? '<p style="font-size:11px;margin:0 0 6px;color:#b03020"><strong>Ville assiégée</strong> : aucun soin tant qu\'une attaque marche sur elle ; les blessés guéris reviendront à la levée du siège.</p>' : '') + `<p style="font-size:11px;margin:0 0 6px">Lits : <strong>${formatNum(inBeds)} / ${formatNum(beds)}</strong>${waiting ? ` · <strong>${formatNum(waiting)}</strong> en attente d'un lit` : ''}</p>` + wounded.map(w => {
+  el.innerHTML = (besieged ? '<p style="font-size:11px;margin:0 0 6px;color:#b03020"><strong>Ville assiégée</strong> : l\'armée ennemie est sur la ville, aucun soin ni recrutement ; les soins reprendront d\'eux-mêmes à la levée du siège.</p>' : '') + `<p style="font-size:11px;margin:0 0 6px">Lits : <strong>${formatNum(inBeds)} / ${formatNum(beds)}</strong>${waiting ? ` · <strong>${formatNum(waiting)}</strong> en attente d'un lit` : ''}</p>` + wounded.map(w => {
     const timeLeft = Math.max(0, w.timeToHeal || 0);
     const minutes = Math.floor(timeLeft / 60000);
     const seconds = Math.floor((timeLeft % 60000) / 1000);
