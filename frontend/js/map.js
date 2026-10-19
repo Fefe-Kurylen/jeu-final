@@ -655,6 +655,7 @@ async function loadMap() {
             cityTier: c.cityTier || 0,
             cityTierName: c.cityTierName || 'Village',
             isSieged: !!c.isSieged,
+            siegedBy: c.siegedBy || null,
             population: c.player?.population || 0
           });
         });
@@ -1449,7 +1450,16 @@ function drawMapNamePlate(x, top, text, px, border) {
   mapCtx.fillStyle = '#2e2010';
   mapCtx.fillText(text, x, top + h / 2 + 0.5);
 }
-function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
+// Phase courante de l'animation de siège (map/cities/siege_<CIV>_t<1|2|3>_<0..3>), null tant qu'elle n'est pas livrée
+const SIEGE_FRAMES = 4, SIEGE_FRAME_MS = 220;
+function siegeFrameName(faction, tier) {
+  const t = Math.max(1, Math.min(3, tier || 1)), base = `siege_${String(faction || 'ROME').toUpperCase()}_t${t}`;
+  if (!tileImages.cities[`${base}_0`]) return null;
+  const name = `${base}_${Math.floor(Date.now() / SIEGE_FRAME_MS) % SIEGE_FRAMES}`;
+  return tileImages.cities[name] ? name : `${base}_0`;
+}
+
+function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = false) {
   const citySize = Math.min(tw, th * 2) * 0.8;
 
   // Drapeau planté devant la ville : or pour les nôtres, bleu pour les alliés, couleurs de la faction sinon (sprite 3D, phase fixe)
@@ -1460,7 +1470,8 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
   else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
   // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
-  if (tile.isSieged) drawSiegeMarker(x, y, citySize);
+  if (tile.isSieged && !siegeAnimated) drawSiegeMarker(x, y, citySize);
+  if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
 
   // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
   if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
@@ -1476,6 +1487,14 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
     mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
   }
+}
+
+// Bannière de la civilisation qui assiège, plantée devant la ville (drapeau 3D existant, phase fixe)
+function drawSiegeBanner(x, y, size, faction) {
+  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${String(faction).toUpperCase()}_0.webp`) : null;
+  if (!flag) return;
+  const fh = size * 0.42, fw = fh * 64 / 96;
+  mapCtx.drawImage(flag, x + size * 0.42 - fw / 2, y + size * 0.05 - fh * 0.92, fw, fh);
 }
 
 function drawSiegeMarker(x, y, size) {
@@ -1515,8 +1534,11 @@ function drawIsoCity(x, y, tw, th, tile) {
       mapCtx.ellipse(x, y, tw * 0.52, th * 0.52, 0, 0, Math.PI * 2);
       mapCtx.fill();
     }
-    drawTileImage(mapCtx, 'cities', tileImages.cities[cityType] ? cityType : 'default', x, y, cityImageSize, cityImageSize);
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+    // Ville assiégée : animation peinte de la ville sous le siège (civilisation × palier, 4 phases en boucle) à la place du sprite
+    const siegeFrame = tile.isSieged ? siegeFrameName(faction, tile.cityTier) : null;
+    if (siegeFrame) mapMovingOnScreen = true;   // garde la carte animée tant que le siège est à l'écran
+    drawTileImage(mapCtx, 'cities', siegeFrame || (tileImages.cities[cityType] ? cityType : 'default'), x, y, cityImageSize, cityImageSize);
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, !!siegeFrame);
     return;
   }
 

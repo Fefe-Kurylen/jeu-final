@@ -175,8 +175,14 @@ for (const u of ['hoplite', 'archer', 'cavalry', 'catapult', 'merchant']) anim(`
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
 add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx', 'Replay : pierre de catapulte'); anim('fx/impact', 3, 'fx', 'Replay : éclat d\'impact');
 // Siège qui dure (octobre 2026, GDD combat_config.siege.visuals) : campement d'engins et de barricades autour d'une ville assiégée
-for (const c of CIVS) add(`map/camps/siege_${c}.webp`, 'map', `Carte du monde : campement de siège de ${CIV_FR[c]} (engins, palissades, tentes) posé autour d'une ville assiégée ; remplace l'anneau rouge`);
-anim('map/fx/siege_smoke', 4, 'fx', 'Carte du monde : fumée au-dessus d\'une ville dont le mur est abîmé par un siège');
+// La ville assiégée elle-même, animée en boucle : même cadrage que le sprite de ville de la carte, qu'elle remplace tant que
+// le siège dure (6 civilisations × 3 paliers : Village, Ville, Ville fortifiée × 4 phases)
+const SIEGE_TIER_FR = { 1: 'village', 2: 'ville', 3: 'ville fortifiée' };
+for (const c of CIVS) for (const t of [1, 2, 3]) for (let i = 0; i < 4; i++) {
+  const base = `map/cities/siege_${c}_t${t}`;
+  add(`${base}_${i}.webp`, 'map', `Carte du monde : ${SIEGE_TIER_FR[t]} de ${CIV_FR[c]} assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège — phase ${i + 1}/4`,
+    { anim: { base, n: 4, i }, guide: true, guideFile: `map/cities/${t === 3 ? 'capital_' : ''}${c.toLowerCase()}.webp` });
+}
 add('ui/icons/siege.webp', 'icons', 'Icône « siège » (bélier ou tour de siège) : alerte de siège, carte d\'armée en siège, bouton « Briser le siège »');
 anim('map/fx/battle', 4, 'fx', 'Carte : combat en cours'); anim('map/fx/fire', 4, 'fx', 'Carte : ville en feu'); anim('map/fx/campfire', 4, 'fx', 'Carte : feu de camp des tribus');
 anim('ui/fx_sparkle', 6, 'fx', 'Interface : construction terminée'); anim('ui/fx_levelup', 6, 'fx', 'Interface : niveau supérieur'); anim('ui/fx_coins', 4, 'fx', 'Interface : butin reçu');

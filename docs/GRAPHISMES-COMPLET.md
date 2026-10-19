@@ -17,11 +17,11 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
 | Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
-| Carte du monde | 13 | 236 | 0 | **236** |
+| Carte du monde | 13 | 298 | 0 | **298** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 64 | **1950** | 189 | **1761** |
+| **Total** | 64 | **2012** | 189 | **1823** |
 
 ## Inscription et connexion
 
@@ -74,13 +74,13 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace) | 28 | 0 | fond de la carte | § 3.4 | ★★★ |
 | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 | points tenus par une tribu | guide « Camps barbares » | ★★★ |
 | Campement de fondation (3 biomes) | 3 | 0 | point pendant la fondation d'une ville | guide § S12 | ★★☆ |
-| Campement de siège (6 civilisations) | 6 | 0 | ville assiégée (armée qui campe devant la ville) | ETAT-DES-SYSTEMES « Siège qui dure » | ★★☆ |
+| Ville assiégée animée (6 civilisations × 3 paliers × 4 phases) | 72 | 0 | ville assiégée sur la carte (remplace le sprite de ville pendant le siège) | guide § A19 | ★★☆ |
 | Armées en marche (4 classes × 6 civilisations, marchand) | 29 | 0 | armées, convois | § 3.4 | ★★★ |
 | Cortège de colons (+ 6 civilisations) | 7 | 0 | armée partie fonder une ville | guide § S12 | ★★☆ |
 | Héros en tête d'armée, espion | 7 | 0 | armées avec héros, missions d'espionnage | guide § S18 | ★★☆ |
 | Cycles de marche (armées, marchand, colons) | 36 | 0 | armées en mouvement | guide § A5 | ★★☆ |
 | Replay de bataille : poses, héros, projectiles, impacts | 43 | 0 | rapports de combat | guide § A6, A18 | ★★☆ |
-| Effets de carte : combat, ville en feu, feu de camp, météo | 24 | 0 | carte | guide § A7, A17 | ★☆☆ |
+| Effets de carte : combat, ville en feu, feu de camp, météo | 20 | 0 | carte | guide § A7, A17 | ★☆☆ |
 
 ## Armée, combat, héros
 

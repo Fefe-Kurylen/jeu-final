@@ -44,13 +44,13 @@ function classify(files, painted) {
       fam('Décalques au sol', f => /^decals\//.test(f), 'semés dans la ville et aux alentours', 'guide § T', '★☆☆')
     ]],
     ['Carte du monde', [
-      fam('Villes par civilisation et forteresses', f => /^map\/cities\/(?!colony_)/.test(f), 'villes des joueurs (palier du Bâtiment principal)', '§ 3.4', '★★★'),
+      fam('Villes par civilisation et forteresses', f => /^map\/cities\/(?!colony_|siege_)/.test(f), 'villes des joueurs (palier du Bâtiment principal)', '§ 3.4', '★★★'),
       fam('Villes secondaires (colonies) par civilisation', f => /^map\/cities\/colony_/.test(f), 'colonies des joueurs', 'guide § S12', '★★☆'),
       fam('Points de ressource (5 types × 3 biomes)', f => /^map\/resources\//.test(f), 'points de ressource libres', '§ 3.4', '★★★'),
       fam('Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace)', f => /^map\/terrain\//.test(f), 'fond de la carte', '§ 3.4', '★★★'),
       fam('Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières)', f => /^map\/camps\/(camp|ruins|banner)/.test(f), 'points tenus par une tribu', 'guide « Camps barbares »', '★★★'),
       fam('Campement de fondation (3 biomes)', f => /^map\/camps\/foundation/.test(f), 'point pendant la fondation d\'une ville', 'guide § S12', '★★☆'),
-      fam('Campement de siège (6 civilisations)', f => /^map\/camps\/siege_/.test(f), 'ville assiégée (armée qui campe devant la ville)', 'ETAT-DES-SYSTEMES « Siège qui dure »', '★★☆'),
+      fam('Ville assiégée animée (6 civilisations × 3 paliers × 4 phases)', f => /^map\/cities\/siege_/.test(f), 'ville assiégée sur la carte (remplace le sprite de ville pendant le siège)', 'guide § A19', '★★☆'),
       fam('Armées en marche (4 classes × 6 civilisations, marchand)', f => /^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(_[A-Z]+)?\.webp$/.test(f), 'armées, convois', '§ 3.4', '★★★'),
       fam('Cortège de colons (+ 6 civilisations)', f => /^map\/units\/settler(_[A-Z]+)?\.webp$/.test(f), 'armée partie fonder une ville', 'guide § S12', '★★☆'),
       fam('Héros en tête d\'armée, espion', f => /^map\/units\/(hero_[A-Z]+|spy)\.webp$/.test(f), 'armées avec héros, missions d\'espionnage', 'guide § S18', '★★☆'),

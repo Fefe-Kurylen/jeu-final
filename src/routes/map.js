@@ -86,16 +86,19 @@ router.get('/map/viewport', auth, async (req, res) => {
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
           ]
         },
-        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
+        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })
     ]);
+    // Civilisation de l'armée qui assiège chaque ville (sa bannière est plantée devant la ville)
+    const siegedBy = {};
+    for (const a of movingArmies) if (a.status === 'BESIEGING' && a.targetCityId && !siegedBy[a.targetCityId]) siegedBy[a.targetCityId] = a.owner?.faction || null;
     const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, hasHero: !!heroId, mainUnit: mainUnitSprite(a, units) }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
       const cityTier = getCityTier(mainHallLevel);
       const allianceInfo = city.player?.alliance?.alliance;
-      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)

@@ -47,8 +47,9 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
 - **Visible** : alerte avec compte à rebours de l'assaut et nom de l'assiégeant (`GET /api/city/incoming-attacks`, type
   `SIEGE`), fenêtre de siège (`GET /api/city/:id/siege`), anneau rouge autour de la ville sur la carte, carte d'armée
   « Siège » avec l'heure de l'assaut.
-- **Graphismes à produire** (GDD `visuals`) : campement de siège sur la carte (engins et barricades autour de la ville),
-  fumée sur une ville au mur abîmé. En attendant, la carte dessine un anneau rouge et une icône d'épées.
+- **Animation de siège sur la carte** (GDD `visuals`) : la ville assiégée joue une animation en boucle à la place de son
+  sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19), avec la bannière de la
+  civilisation qui assiège plantée devant. Branché ; en attendant les images, anneau rouge et icône d'épées.
 - **À voir avec la conquête (point 3)** : ce qui se passe quand l'assaut est gagné (aujourd'hui, l'armée rentre).
 
 ## Diplomatie et alliance

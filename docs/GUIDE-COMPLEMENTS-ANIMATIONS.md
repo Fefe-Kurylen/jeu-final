@@ -279,6 +279,27 @@ Pose d'attente sur l'écran du héros (respiration, cape qui bouge) : 3 phases p
 
 Une charrette tirée par un cheval qui entre et sort par la porte (4 phases de marche), des chevaux qui piaffent devant l'écurie (4 phases). Même consigne de bande que A1, cases 2:3.
 
+### A19. Ville assiégée sur la carte — `map/cities/siege_<CIV>_t<1|2|3>_<0..3>.png` (6 civilisations × 3 paliers × 4 phases = 72) ★★☆
+
+Tant qu'une armée campe devant une ville (siège qui dure, voir `docs/ETAT-DES-SYSTEMES.md`), la carte joue cette animation
+**à la place du sprite de ville**. Une bande de 4 cases par civilisation et par palier :
+
+- **t1 Village** (Bâtiment principal < 10), **t2 Ville** (≥ 10), **t3 Ville fortifiée** (≥ 20, forteresse à tours).
+- **Image guide** : le sprite de ville normal de la carte, `map/cities/<civ>.webp` pour t1 et t2,
+  `map/cities/capital_<civ>.webp` pour t3. La ville garde **exactement sa silhouette, sa taille et son cadrage** (case
+  carrée, même ancrage), pour que le passage normal ↔ assiégée ne saute pas.
+- **Ce qui s'ajoute autour** : une ceinture de travaux de siège (deux catapultes ou un bélier sous abri, palissade de pieux,
+  quelques tentes, petits soldats), des feux sur les remparts et les toits, des colonnes de fumée sombre, une pierre en vol.
+- **Ce qui bouge d'une case à l'autre** : le bras de la catapulte (armé, lancé, retombé, réarmé), les flammes, la fumée qui
+  dérive, la pierre qui avance. Rien d'autre ne bouge.
+- Les engins restent **neutres** (bois et cordes) : la civilisation de l'assiégeant est montrée par sa bannière, plantée
+  devant la ville par le jeu (drapeaux existants), donc une seule bande par ville suffit quel que soit l'attaquant.
+- Prompt complet par bande : `docs/GENERATION-COMPLETE.md`, famille « Ville assiégée animée ».
+
+Côté jeu, déjà branché : lecture en boucle à 4,5 images par seconde, choix de la bande selon la civilisation et le palier
+de la ville, bannière de l'assiégeant ; tant que les images manquent, la ville garde son sprite avec un anneau rouge et une
+icône d'épées.
+
 ## 4. Ce que je branche côté code à la réception
 
 - A1, A11 : trajets aléatoires sur les avenues et la plaza, retournement selon le sens, 2 à 4 personnages visibles, cadence 8 i/s, pause quand l'onglet est caché.
@@ -286,6 +307,7 @@ Une charrette tirée par un cheval qui entre et sort par la porte (4 phases de m
 - A3 : échafaudage à la place du clignotement du bâtiment en travaux, ouvrier devant ; retiré à la fin du chantier.
 - A4 : ancrages par bâtiment et civilisation (comme `ISO_CHIMNEYS`, écrits dans le repère des modèles et passés par `isoBuildingAnchor`), cadence 10 i/s pour le moulin, 12 i/s pour les étincelles.
 - A5, A6, A7 : marqueurs de carte et replay à partir des bandes découpées ; les effets jouent en boucle tant que l'état dure.
+- A19 : déjà branché (voir ci-dessus).
 - A8 : lecture unique à l'événement (construction terminée, niveau, butin).
 - A9 : particules selon le biome et l'heure ; A10 : écran du héros.
 

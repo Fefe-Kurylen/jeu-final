@@ -30,6 +30,12 @@ const PROP = { scroll_research: 'a large unrolled parchment scroll with a quill,
 const MAP = {
   'cities/rome': 'a small Roman town icon for a world map: a few terracotta-roofed houses, a columned hall and a red banner', 'cities/gaul': 'a small Gallic village icon for a world map: thatched huts and a green banner', 'cities/greek': 'a small Greek town icon for a world map: marble buildings with blue roofs and a blue banner', 'cities/egypt': 'a small Egyptian town icon for a world map: sandstone buildings with flat roofs and a teal banner', 'cities/hun': 'a small Hunnic camp icon for a world map: felt yurts with conical roofs and a red banner', 'cities/sultan': 'a small Sultanate town icon for a world map: whitewashed houses with a teal dome and a minaret', 'cities/capital': 'a fortified capital icon for a world map: walls with corner towers around a columned palace, Roman style, a red banner', 'cities/default': 'a small generic ancient town icon for a world map: a few stone houses with terracotta roofs'
 };
+// Ville assiégée sur la carte (octobre 2026) : le sprite de ville de chaque palier (village, ville, ville fortifiée) sous le siège
+const SIEGE_TOWN = {
+  1: (c) => `${MAP['cities/' + c.toLowerCase()]}, as a modest village (level 1 town)`,
+  2: (c) => `${MAP['cities/' + c.toLowerCase()]}, as a larger town with a low stone wall (level 2 town)`,
+  3: (c) => `a fortified capital icon for a world map: walls with corner towers around a palace, ${FACTION[c]} (level 3 fortified city)`
+};
 for (const f of ['rome', 'gaul', 'greek', 'egypt', 'hun', 'sultan']) MAP['cities/capital_' + f] = `a fortified capital icon for a world map: walls with corner towers around a palace, ${FACTION[f.toUpperCase()]}`;
 const RES = { wood: 'a forest clearing with trees and a cut log', stone: 'a group of grey boulders', iron: 'an iron mine entrance in a rock wall with a mine cart', food: 'a fenced wheat field', gold: 'rocks with glittering gold nuggets' };
 // Camps barbares (tribus) sur la carte du monde : par niveau, variantes désert / neige, ruines après la défaite, bannière
@@ -270,6 +276,7 @@ function promptFor(file, opts = {}) {
   else if ((m = file.match(/^props\/(puff)_(\d)\.webp$/))) subject = 'a single soft puff of pale grey-white chimney smoke, round and fluffy, painted with soft edges, seen from the front, nothing else';
   else if ((m = file.match(/^props\/(ripple|flag)_/))) return null;
   else if ((m = file.match(/^props\/(\w+)\.webp$/))) subject = `${PROP[m[1]] || 'a small nature prop'}, a stand-alone scenery prop`;
+  else if ((m = file.match(/^map\/cities\/siege_([A-Z]+)_t([123])_(\d)\.webp$/))) subject = `A sprite sheet frame: ${SIEGE_TOWN[m[2]](m[1])}, UNDER SIEGE: a ring of enemy siege works around it (two catapults or a ram under a wooden shed, a palisade of sharpened stakes, a few tents and tiny soldiers), fires burning on the ramparts and roofs, columns of dark smoke rising, a stone flying from a catapult toward the walls; the town itself keeps exactly the silhouette and size of the guide (its normal world-map icon), standing on a small square grass plot, frame ${Number(m[3]) + 1} (the catapult arm swings, the flames flicker and the smoke drifts from one frame to the next; same subject, same size and position in every frame)`;
   else if ((m = file.match(/^map\/cities\/(\w+)\.webp$/))) subject = `${MAP['cities/' + m[1]]}, standing on a small square grass plot`;
   else if ((m = file.match(/^map\/resources\/(\w+?)(?:_(desert|snow))?\.webp$/))) subject = `a world-map resource icon: ${RES[m[1]]}${m[2] === 'desert' ? ', desert variant with sand and a palm tree' : m[2] === 'snow' ? ', snowy variant covered with snow' : ''}`;
   else if ((m = file.match(/^map\/terrain\/(\w+)\.webp$/))) subject = `a world-map terrain icon: ${TERRAIN[m[1]]}`;
