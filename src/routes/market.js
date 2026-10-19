@@ -59,6 +59,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     if (targetCity.id === fromCityId) return res.status(400).json({ error: 'Choisissez une autre ville' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
+    if (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: targetCity.id } })) return res.status(400).json({ error: 'Ville assiégée : aucun convoi ne passe tant que l\'armée ennemie est devant elle' });
 
     const result = await prisma.$transaction(async (tx) => {
       const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } } } });

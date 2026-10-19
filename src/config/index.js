@@ -138,7 +138,17 @@ const config = {
     defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT: damage per hit = ATK × mods − 0.55 × DEF
     minDamageRatio: 0.2,         // a hit always deals at least 20% of the raw attack
     targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
-    siegeWallDamagePerUnit: 40,  // wall HP destroyed per surviving siege engine
+    // Siège qui dure (GDD combat_config.siege, décision d'octobre 2026) : l'attaque arrivée campe devant la ville,
+    // ses engins abattent le mur au fil du temps, puis l'assaut est donné. Le défenseur et ses alliés peuvent attaquer
+    // l'armée qui assiège pour lever le siège.
+    siege: {
+      wallDamagePerEngineHour: 500,   // PV de mur abattus par engin et par heure : le minimum d'engins (1 / 10 / 20) contre
+                                      // un mur du même niveau (1 / 10 / 20) le perce en 2 h environ
+      minAssaultMinutes: 30,          // GDD minDestroyMinutesReference : au moins 30 min de siège avant l'assaut
+      maxHours: 12,                   // sans brèche, l'assaut est donné au plus tard 12 h après le début du siège
+      upkeepAttackerPct: 10,          // GDD foodUpkeepModifierPct : l'armée qui assiège consomme 10 % de plus...
+      upkeepDefenderPct: -10          // ...la ville assiégée et ses armées 10 % de moins
+    },
     wallHpPerLevel: 1000,
     wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
     wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level

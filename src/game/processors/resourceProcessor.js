@@ -106,11 +106,14 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
   const upkeepKeys = fx.upkeepReductionKeys();
   const reductionTable = Prisma.join(upkeepKeys.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
   const upkeepTechTable = techTableSql('upkeepReductionPct');   // Intendance : −1 %/niveau, même plafond que les bâtiments
+  // Siège (GDD foodUpkeepModifierPct) : l'armée qui assiège consomme plus, la ville assiégée et ses armées moins
+  const besiegerMult = 1 + config.combat.siege.upkeepAttackerPct / 100, besiegedMult = 1 + config.combat.siege.upkeepDefenderPct / 100;
   await prisma.$executeRaw`
     UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0) * ${TICK_HOURS})
     FROM (
-      SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
+      SELECT a."cityId", SUM(au.count * ut.upkeep * CASE WHEN a.status = 'BESIEGING' THEN ${besiegerMult}::float WHEN hc."isSieged" THEN ${besiegedMult}::float ELSE 1 END) AS total
       FROM "Army" a
+      JOIN "City" hc ON hc.id = a."cityId"
       JOIN "ArmyUnit" au ON au."armyId" = a.id
       JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
       WHERE a."cityId" IS NOT NULL

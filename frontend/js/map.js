@@ -654,6 +654,7 @@ async function loadMap() {
             mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || 0,
             cityTierName: c.cityTierName || 'Village',
+            isSieged: !!c.isSieged,
             population: c.player?.population || 0
           });
         });
@@ -729,6 +730,7 @@ async function loadMap() {
             wallLevel: wallLevel,
             mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
+            isSieged: !!c.isSieged,
             population: player?.population || 0
           });
         }
@@ -1457,6 +1459,9 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
   if (flag) { const fh = citySize * 0.55, fw = fh * 64 / 96; mapCtx.drawImage(flag, x - fw / 2, flagY - fh * 0.92, fw, fh); }
   else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
+  // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
+  if (tile.isSieged) drawSiegeMarker(x, y, citySize);
+
   // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
   if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
 
@@ -1471,6 +1476,19 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
     mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
   }
+}
+
+function drawSiegeMarker(x, y, size) {
+  mapCtx.save();
+  mapCtx.strokeStyle = 'rgba(190,30,20,0.9)'; mapCtx.lineWidth = 2.5; mapCtx.setLineDash([6, 4]);
+  mapCtx.beginPath(); mapCtx.ellipse(x, y + size * 0.05, size * 0.66, size * 0.34, 0, 0, Math.PI * 2); mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  const r = Math.max(8, size * 0.16), ix = x - size * 0.5, iy = y - size * 0.45;
+  mapCtx.fillStyle = '#7a1410'; mapCtx.strokeStyle = '#f0d9a0'; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.arc(ix, iy, r, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+  const icon = typeof getSprite === 'function' ? getSprite('assets/images/3d/ui/attack.webp') : null;
+  if (icon) mapCtx.drawImage(icon, ix - r * 0.8, iy - r * 0.8, r * 1.6, r * 1.6);
+  mapCtx.restore();
 }
 
 // Draw isometric city with culture-specific style and walls
@@ -2786,8 +2804,10 @@ function showMapInfoPanel(x, y, tile) {
         <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
+        ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
         <div class="panel-actions">
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
+          ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
         </div>
       `;
       panel.style.display = 'flex';
@@ -2916,7 +2936,9 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     <p>Position: (${x}, ${y})</p>
     <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
+    ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
     <div class="panel-actions player-actions">
+      ${tile.isSieged ? `<button class="btn btn-${['ALLY', 'SAME_ALLIANCE'].includes(diplomacyStatus) ? 'danger' : 'secondary'}" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} ${['ALLY', 'SAME_ALLIANCE'].includes(diplomacyStatus) ? 'Briser le siège' : 'Voir le siège'}</button>` : ''}
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
       <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `

@@ -16,6 +16,11 @@ const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { pointAlongPath } = require('../utils/calculations');
+const { earliestAssault } = require('../game/processors/siegeProcessor');
+// Who may break a siege: the city's owner, its alliance and the alliances allied to it
+const CAN_RELIEVE = ['SELF', 'SAME_ALLIANCE', 'ALLY'];
+const isBesieged = (cityId, db = prisma) => db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } }).then(n => n > 0);
+const BLOCKADE = 'Ville assiégée : aucun convoi ne passe tant que l\'armée ennemie est devant elle';
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
@@ -297,6 +302,49 @@ function cityMissionRoute(mission, messages) {
   };
 }
 router.post('/:id/attack', auth, cityMissionRoute('ATTACK', { verb: 'attaquer', ok: 'Attaque lancee' }));
+
+// POST /api/army/:id/assault — the besieging army gives the assault now (after the minimum siege time)
+router.post('/:id/assault', auth, async (req, res) => {
+  try {
+    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId } });
+    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
+    if (army.status !== 'BESIEGING') return res.status(400).json({ error: 'Cette armée n\'assiège aucune ville' });
+    if (army.claimedAt) return res.status(409).json({ error: 'Assaut déjà en cours' });
+    const earliest = earliestAssault(army.departedAt || new Date());
+    if (Date.now() < earliest.getTime()) return res.status(400).json({ error: `Assaut possible dans ${Math.ceil((earliest.getTime() - Date.now()) / 60000)} min (au moins ${config.combat.siege.minAssaultMinutes} min de siège)`, earliestAssault: earliest });
+    const arrivalAt = new Date();
+    const ok = await prisma.army.updateMany({ where: { id: army.id, status: 'BESIEGING', claimedAt: null }, data: { missionType: 'ASSAULT', arrivalAt } });
+    if (ok.count !== 1) return res.status(409).json({ error: 'Le siège vient de changer, réessayez' });
+    res.json({ message: 'Assaut lancé', arrivalAt });
+  } catch (e) { sendError(res, e); }
+});
+
+// POST /api/army/:id/break-siege — attack the armies besieging a city of yours, of your alliance or of an allied alliance
+router.post('/:id/break-siege', auth, async (req, res) => {
+  try {
+    const { targetCityId } = req.body || {};
+    if (!isId(targetCityId)) return res.status(400).json({ error: 'Ville requise' });
+    const army = await loadArmy(req.params.id, req.user.playerId);
+    const err = readyToLeave(army, 'briser le siège');
+    if (err) return res.status(err.status).json({ error: err.error });
+    const city = await prisma.city.findUnique({ where: { id: targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true } });
+    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
+    const relation = await getRelation(req.user.playerId, city.playerId);
+    if (!CAN_RELIEVE.includes(relation.status)) return res.status(403).json({ error: 'Seuls le propriétaire de la ville, son alliance et les alliances alliées peuvent briser ce siège' });
+    const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, NOT: { ownerId: req.user.playerId } }, select: { ownerId: true } });
+    if (!camp.length) return res.status(400).json({ error: 'Cette ville n\'est pas assiégée' });
+    const owners = [...new Set(camp.map(b => b.ownerId))];
+    const hostile = [];
+    for (const id of owners) if ((await getRelation(req.user.playerId, id)).canAttack) hostile.push(id);
+    if (!hostile.length) return res.status(400).json({ error: 'Les armées qui assiègent cette ville sont de votre alliance ou d\'une alliance alliée' });
+    const travelTime = await travelTo(army, city.x, city.y);
+    const arrivalAt = new Date(Date.now() + travelTime * 1000);
+    if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'ATTACKING', targetX: city.x, targetY: city.y, targetCityId: city.id, arrivalAt, departedAt: new Date(), missionType: 'BREAK_SIEGE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
+    const minutes = Math.max(1, Math.round(travelTime / 60));
+    for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Sortie contre votre siège', `${army.owner?.name || 'Un joueur'} marche sur votre armée devant ${city.name} (arrivée dans ${minutes} min)`, { tab: 'armies' });
+    res.json({ message: `Armée en route pour briser le siège de ${city.name}`, travelTime, arrivalAt, target: city.name });
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
+});
 router.post('/:id/raid', auth, cityMissionRoute('RAID', { verb: 'piller', ok: 'Raid lance' }));
 router.post('/:id/spy', auth, cityMissionRoute('SPY', { verb: 'espionner', ok: 'Espionnage lancé' }));
 
@@ -493,6 +541,7 @@ router.post('/:id/transport', auth, async (req, res) => {
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
+    if (await isBesieged(targetCity.id)) return res.status(400).json({ error: BLOCKADE });
 
     const result = await prisma.$transaction(async (tx) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });

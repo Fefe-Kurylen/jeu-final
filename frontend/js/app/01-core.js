@@ -654,8 +654,15 @@ function updateAttackNotification() {
   const timerEl = document.getElementById('attack-timer');
   if (timerEl) {
     timerEl.textContent = timerStr;
-    timerEl.title = earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}` : `Armée inconnue en approche de ${earliest.targetCity}`;
+    timerEl.title = earliest.type === 'SIEGE'
+      ? `${earliest.attacker || 'Une armée'} assiège ${earliest.targetCity} : assaut dans ce délai. Touchez pour briser le siège.`
+      : earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}` : `Armée inconnue en approche de ${earliest.targetCity}`;
   }
+  // A siege in progress: the alert opens the siege window (break it with an army of the city or of an ally)
+  const siege = active.find(a => a.type === 'SIEGE');
+  notifEl.classList.toggle('siege', !!siege);
+  notifEl.onclick = siege && typeof openBreakSiege === 'function' ? () => openBreakSiege(siege.targetCityId) : null;
+  notifEl.style.cursor = siege ? 'pointer' : '';
 
   // Show count if multiple attacks
   const iconEl = notifEl.querySelector('.attack-icon');

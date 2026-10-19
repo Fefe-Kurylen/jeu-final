@@ -50,6 +50,7 @@ function classify(files, painted) {
       fam('Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace)', f => /^map\/terrain\//.test(f), 'fond de la carte', '§ 3.4', '★★★'),
       fam('Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières)', f => /^map\/camps\/(camp|ruins|banner)/.test(f), 'points tenus par une tribu', 'guide « Camps barbares »', '★★★'),
       fam('Campement de fondation (3 biomes)', f => /^map\/camps\/foundation/.test(f), 'point pendant la fondation d\'une ville', 'guide § S12', '★★☆'),
+      fam('Campement de siège (6 civilisations)', f => /^map\/camps\/siege_/.test(f), 'ville assiégée (armée qui campe devant la ville)', 'ETAT-DES-SYSTEMES « Siège qui dure »', '★★☆'),
       fam('Armées en marche (4 classes × 6 civilisations, marchand)', f => /^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(_[A-Z]+)?\.webp$/.test(f), 'armées, convois', '§ 3.4', '★★★'),
       fam('Cortège de colons (+ 6 civilisations)', f => /^map\/units\/settler(_[A-Z]+)?\.webp$/.test(f), 'armée partie fonder une ville', 'guide § S12', '★★☆'),
       fam('Héros en tête d\'armée, espion', f => /^map\/units\/(hero_[A-Z]+|spy)\.webp$/.test(f), 'armées avec héros, missions d\'espionnage', 'guide § S18', '★★☆'),

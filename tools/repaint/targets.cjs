@@ -174,6 +174,10 @@ anim('anim/mill_sails', 6, 'fx', 'Ailes du moulin'); anim('anim/sparks', 4, 'fx'
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult', 'merchant']) anim(`map/units/${u}_walk`, 6, 'map', `Cycle de marche sur la carte : ${u}`);
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
 add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx', 'Replay : pierre de catapulte'); anim('fx/impact', 3, 'fx', 'Replay : éclat d\'impact');
+// Siège qui dure (octobre 2026, GDD combat_config.siege.visuals) : campement d'engins et de barricades autour d'une ville assiégée
+for (const c of CIVS) add(`map/camps/siege_${c}.webp`, 'map', `Carte du monde : campement de siège de ${CIV_FR[c]} (engins, palissades, tentes) posé autour d'une ville assiégée ; remplace l'anneau rouge`);
+anim('map/fx/siege_smoke', 4, 'fx', 'Carte du monde : fumée au-dessus d\'une ville dont le mur est abîmé par un siège');
+add('ui/icons/siege.webp', 'icons', 'Icône « siège » (bélier ou tour de siège) : alerte de siège, carte d\'armée en siège, bouton « Briser le siège »');
 anim('map/fx/battle', 4, 'fx', 'Carte : combat en cours'); anim('map/fx/fire', 4, 'fx', 'Carte : ville en feu'); anim('map/fx/campfire', 4, 'fx', 'Carte : feu de camp des tribus');
 anim('ui/fx_sparkle', 6, 'fx', 'Interface : construction terminée'); anim('ui/fx_levelup', 6, 'fx', 'Interface : niveau supérieur'); anim('ui/fx_coins', 4, 'fx', 'Interface : butin reçu');
 anim('props/snowflake', 3, 'fx', 'Ambiance : flocon'); anim('props/leaf', 3, 'fx', 'Ambiance : feuille'); anim('props/dust_devil', 4, 'fx', 'Ambiance : tourbillon de sable'); anim('props/bird', 3, 'fx', 'Ambiance : oiseau');

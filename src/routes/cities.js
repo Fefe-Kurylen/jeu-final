@@ -8,7 +8,9 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf } = require('../utils/calculations');
-const { lockCity, debitCity, creditCity } = require('../utils/db');
+const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
+const { getRelation } = require('../services/diplomacyService');
+const { engineCount } = require('../game/processors/siegeProcessor');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
 const { processBuilds } = require('../game/processors/buildProcessor');
@@ -445,6 +447,28 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
   }
 });
 
+// GET /api/city/:id/siege — the armies camped before a city (anyone can see a siege: it happens in the open)
+router.get('/:id/siege', auth, async (req, res) => {
+  try {
+    if (!isId(req.params.id)) return res.status(400).json({ error: 'Ville invalide' });
+    const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, wallHp: true, wallMaxHp: true, isSieged: true, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
+    if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
+    const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id }, orderBy: { arrivalAt: 'asc' }, select: { id: true, name: true, ownerId: true, departedAt: true, arrivalAt: true, missionType: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } } });
+    const relation = await getRelation(req.user.playerId, city.playerId);
+    const wallLevel = city.buildings[0]?.level || 0;
+    res.json({
+      cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
+      wallHp: wallLevel > 0 ? Math.round(city.wallHp) : 0, wallMaxHp: wallLevel > 0 ? city.wallMaxHp : 0,
+      canBreak: camp.length > 0 && ['SELF', 'SAME_ALLIANCE', 'ALLY'].includes(relation.status) && camp.some(a => a.ownerId !== req.user.playerId),
+      besiegers: camp.map(a => ({
+        id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,
+        startedAt: a.departedAt, assaultAt: a.arrivalAt, assaultOrdered: a.missionType === 'ASSAULT',
+        soldiers: a.units.reduce((t, u) => t + u.count, 0), engines: engineCount(a.units)
+      }))
+    });
+  } catch (e) { sendError(res, e); }
+});
+
 // GET /api/city/incoming-attacks
 router.get('/incoming-attacks', auth, async (req, res) => {
   try {
@@ -455,7 +479,7 @@ router.get('/incoming-attacks', auth, async (req, res) => {
     const cityIds = playerCities.map(c => c.id);
 
     const incomingArmies = await prisma.army.findMany({
-      where: { targetCityId: { in: cityIds }, status: { in: ['ATTACKING', 'RAIDING'] }, arrivalAt: { gt: new Date() } },
+      where: { targetCityId: { in: cityIds }, OR: [{ status: { in: ['ATTACKING', 'RAIDING'] }, missionType: { not: 'BREAK_SIEGE' }, arrivalAt: { gt: new Date() } }, { status: 'BESIEGING' }] },
       select: { id: true, status: true, arrivalAt: true, targetCityId: true, missionType: true, owner: { select: { name: true } }, units: { select: { count: true } } },
       orderBy: { arrivalAt: 'asc' }
     });
@@ -464,8 +488,9 @@ router.get('/incoming-attacks', auth, async (req, res) => {
       const targetCity = playerCities.find(c => c.id === a.targetCityId);
       const watchtower = targetCity?.buildings?.[0]?.level || 0;
       return {
-        id: a.id, type: a.missionType || a.status, arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId,
-        attacker: watchtower >= fx.watchtowerShowsAttackerAt() ? a.owner?.name : null,
+        // a siege is visible from the walls: its leader and its assault time are always known
+        id: a.id, type: a.status === 'BESIEGING' ? 'SIEGE' : (a.missionType || a.status), arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId,
+        attacker: a.status === 'BESIEGING' || watchtower >= fx.watchtowerShowsAttackerAt() ? a.owner?.name : null,
         units: watchtower >= fx.watchtowerShowsDetailsAt() ? a.units.reduce((s, u) => s + u.count, 0) : null
       };
     });

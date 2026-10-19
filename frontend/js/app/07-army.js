@@ -172,7 +172,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   const statusMap = {
     'IDLE': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'En ville', cls: 'idle' },
     'MOVING': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'En route', cls: 'moving' },
-    'ATTACKING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Attaque', cls: 'attacking' },
+    'ATTACKING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: army.missionType === 'BREAK_SIEGE' ? 'Sortie' : 'Attaque', cls: 'attacking' },
+    'BESIEGING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Siège', cls: 'attacking' },
     'RETURNING': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'Retour', cls: 'returning' },
     'RAIDING': { icon: '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">', label: 'Pillage', cls: 'raiding' },
     'SPYING': { icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">', label: 'Espionnage', cls: 'moving' },
@@ -258,6 +259,10 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
             ↩️ Arrêter & Rentrer
           </button>
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
+        ` : army.status === 'BESIEGING' ? `
+          <button class="army-btn primary" onclick="orderAssault('${army.id}')" title="Donner l'assaut sans attendre la brèche (après le temps minimum de siège)">${resIconHtml('attack')} Assaut</button>
+          <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le siège</button>
+          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné à la brèche">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `
@@ -1006,3 +1011,65 @@ async function returnArmy(armyId) {
   }
 }
 
+
+// ========== SIÈGES ==========
+// Une attaque arrivée campe devant la ville et use son mur, puis donne l'assaut. Le propriétaire, son alliance et les
+// alliances alliées peuvent attaquer le camp pour lever le siège (le recrutement est bloqué, former une armée reste permis).
+function siegeTimeLeft(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60);
+  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${Math.max(1, m)} min`;
+}
+
+async function openBreakSiege(cityId) {
+  let siege;
+  try {
+    const r = await fetch(`${API}/api/city/${cityId}/siege`, { headers: { Authorization: `Bearer ${token}` } });
+    siege = await r.json();
+    if (!r.ok) throw new Error(siege.error || 'Erreur');
+  } catch (e) { showToast(e.message || 'Erreur réseau', 'error'); return; }
+  if (!siege.besieged) { showToast('Cette ville n\'est pas assiégée', 'info'); return; }
+  const now = serverNow();
+  const ready = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
+  const wall = siege.wallLevel > 0
+    ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> (${Math.round(siege.wallHp / Math.max(1, siege.wallMaxHp) * 100)} %)</p>`
+    : '<p>Pas de mur : l\'assaut sera donné dès la fin du temps minimum de siège.</p>';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="siege-modal">
+      <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
+      ${wall}
+      <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège · assaut dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>${b.assaultOrdered ? ' (ordonné)' : ''}</li>`).join('')}</ul>
+      <p style="font-size:12px;opacity:.85">Pendant le siège, la ville ne produit plus, ne recrute plus, ne soigne plus et ne reçoit aucun convoi. Une armée de la ville, de son alliance ou d'une alliance alliée peut attaquer le camp : si elle gagne, le siège est levé.</p>
+      ${siege.canBreak ? (ready.length ? `
+        <label for="break-army" style="display:block;margin-top:8px">Armée envoyée</label>
+        <select id="break-army">${ready.map(a => `<option value="${a.id}">${escapeHtml(a.name || 'Armée')} (force ${formatNum(a.power ?? calculateArmyPower(a))})</option>`).join('')}</select>
+        <button class="btn btn-danger" onclick="confirmBreakSiege('${siege.cityId}')">${resIconHtml('attack')} Attaquer l'armée qui assiège</button>
+      ` : '<p class="warning-text">Aucune armée disponible : formez une armée au point de ralliement avec les troupes présentes.</p>') : ''}
+      <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
+    </div>`;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function confirmBreakSiege(cityId) {
+  const armyId = document.getElementById('break-army')?.value;
+  if (!armyId) return;
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/break-siege`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ targetCityId: cityId }) });
+    const data = await res.json().catch(() => ({}));
+    closeModal();
+    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); return; }
+    showToast(data.message || 'Armée en route', 'success');
+    await loadArmies();
+    renderArmies();
+  } catch (e) { closeModal(); showToast('Erreur réseau', 'error'); }
+}
+
+async function orderAssault(armyId) {
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/assault`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: '{}' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); return; }
+    showToast('Assaut lancé : la bataille a lieu dans quelques secondes', 'success');
+    await loadArmies();
+    renderArmies();
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+}

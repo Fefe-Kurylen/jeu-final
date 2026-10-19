@@ -1705,6 +1705,25 @@ Composition: square image, the subject on a small square ground plot seen as a 2
 | `map/camps/foundation_desert.png` | 1024×1024 | — | a world-map icon of a settlers' camp where a new city is being founded: three canvas tents, a covered ox-wagon, wooden stakes and rope marking the future walls, a dug trench, piles of logs and stones, a small campfire and a banner pole, desert variant standing on sand with a palm tree and red rocks, standing on a small round patch of ground |
 | `map/camps/foundation_snow.png` | 1024×1024 | — | a world-map icon of a settlers' camp where a new city is being founded: three canvas tents, a covered ox-wagon, wooden stakes and rope marking the future walls, a dug trench, piles of logs and stones, a small campfire and a banner pole, snowy variant with snow on the tents and roofs and snow drifts around, standing on a small round patch of ground |
 
+#### Campement de siège (6 civilisations) — 6 images
+
+Où : ville assiégée (armée qui campe devant la ville). Priorité ★★☆.
+
+Début du prompt, commun à la famille :
+
+```
+Phrase de style (section 1), puis :
+```
+
+| Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
+|---|---|---|---|
+| `map/camps/siege_ROME.png` | 1024×1024 | — |  |
+| `map/camps/siege_GAUL.png` | 1024×1024 | — |  |
+| `map/camps/siege_GREEK.png` | 1024×1024 | — |  |
+| `map/camps/siege_EGYPT.png` | 1024×1024 | — |  |
+| `map/camps/siege_HUN.png` | 1024×1024 | — |  |
+| `map/camps/siege_SULTAN.png` | 1024×1024 | — |  |
+
 #### Armées en marche (4 classes × 6 civilisations, marchand) — 29 images
 
 Où : armées, convois. Priorité ★★★.
@@ -1845,7 +1864,7 @@ Composition: square image. The building stands on a square ground plot seen as a
 | `map/units/catapult_hit.png` | 2 | 512×512 | A sprite sheet: 2 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 2: a small battle-replay sprite: a siege engineer standing next to a catapult being hit and recoiling. |
 | `fx/impact.png` | 3 | 512×512 | A sprite sheet: 3 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 3: a small dust and sparks impact burst (battle replay). |
 
-#### Effets de carte : combat, ville en feu, feu de camp, météo — 5 bandes d'animation
+#### Effets de carte : combat, ville en feu, feu de camp, météo — 6 bandes d'animation
 
 Où : carte. Priorité ★☆☆.
 
@@ -1860,6 +1879,7 @@ Composition: square image, the subject on a small square ground plot seen as a 2
 |---|---|---|---|
 | `map/fx/rain.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: a translucent sheet of falling rain (world-map weather). |
 | `map/fx/snowfall.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: falling snowflakes (world-map weather). |
+| `map/fx/siege_smoke.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: . |
 | `map/fx/battle.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: a world-map clash of swords with dust (a battle marker). |
 | `map/fx/fire.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: a world-map burning town (flames and black smoke). |
 | `map/fx/campfire.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: a world-map campfire. |
@@ -2345,7 +2365,7 @@ Composition: square image, a single object centered filling about 70% of the fra
 | `ui/fx_levelup.png` | 6 | 512×512 | A sprite sheet: 6 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 6: a golden level-up glow rising (interface effect). |
 | `ui/fx_coins.png` | 4 | 512×512 | A sprite sheet: 4 equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame 4: gold coins falling (interface effect). |
 
-#### Icônes d'interface (ressources, onglets, actions, colon, tribu) — 2 images
+#### Icônes d'interface (ressources, onglets, actions, colon, tribu) — 3 images
 
 Où : partout. Priorité ★★★.
 
@@ -2360,6 +2380,7 @@ Composition: square image, a single object centered filling about 70% of the fra
 |---|---|---|---|
 | `ui/settler.png` | 1024×1024 | — | a game interface icon: a villager walking with a bundle on a stick over the shoulder and a wooden stake with a small flag in the other hand (settler founding a new city), a single object centered, three-quarter view, bold and readable at small size |
 | `ui/tribe.png` | 1024×1024 | — | a game interface icon: a wooden totem pole topped with a skull and two crossed clubs (local tribe), a single object centered, three-quarter view, bold and readable at small size |
+| `ui/icons/siege.png` | 1024×1024 | — |  |
 
 ## 3. Boutique et application
 
@@ -2410,12 +2431,13 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Carte du monde | Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace) | 28 | 0 |
 | Carte du monde | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 |
 | Carte du monde | Campement de fondation (3 biomes) | 3 | 0 |
+| Carte du monde | Campement de siège (6 civilisations) | 6 | 0 |
 | Carte du monde | Armées en marche (4 classes × 6 civilisations, marchand) | 29 | 0 |
 | Carte du monde | Cortège de colons (+ 6 civilisations) | 7 | 0 |
 | Carte du monde | Héros en tête d'armée, espion | 7 | 0 |
 | Carte du monde | Cycles de marche (armées, marchand, colons) | 0 | 6 |
 | Carte du monde | Replay de bataille : poses, héros, projectiles, impacts | 2 | 15 |
-| Carte du monde | Effets de carte : combat, ville en feu, feu de camp, météo | 0 | 5 |
+| Carte du monde | Effets de carte : combat, ville en feu, feu de camp, météo | 0 | 6 |
 | Armée, combat, héros | Figurines de classe (4 classes × 6 civilisations) | 24 | 0 |
 | Armée, combat, héros | Jetons de classe | 28 | 0 |
 | Armée, combat, héros | Fiches d'unité : une figurine par unité (60) | 60 | 0 |
@@ -2431,7 +2453,7 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Écrans et interface | Icônes des technologies et des branches | 12 | 0 |
 | Écrans et interface | Habillage : boutons, cadres, plaques, barres | 3 | 0 |
 | Écrans et interface | Effets d'interface (construction finie, niveau, butin) | 0 | 3 |
-| Écrans et interface | Icônes d'interface (ressources, onglets, actions, colon, tribu) | 2 | 0 |
-| **Total** | | **1365** | **86** |
+| Écrans et interface | Icônes d'interface (ressources, onglets, actions, colon, tribu) | 3 | 0 |
+| **Total** | | **1372** | **87** |
 
 Déjà peint et donc absent d'ici : 283 images. Variantes neige des bâtiments et de l'enceinte : non demandées.

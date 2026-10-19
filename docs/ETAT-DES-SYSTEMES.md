@@ -15,10 +15,41 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 
 | Existe | Manque |
 |---|---|
-| Siège round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour | Renfort allié (mission SUPPORT) |
+| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | Renfort allié qui reste dans la ville (mission SUPPORT) ; conquête d'une ville tombée |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport, rapport pour la cible d'un espionnage réussi |
 | Espionnage : n'importe quelle unité, chance selon l'effectif, rapport ressources/bâtiments/armées ; **contre-espionnage de la Tour de guet** (interception, rapport au défenseur, nom de l'espion dès le niveau 15) | Unités d'espion dédiées (`maxSpiesFaction`, `spyUnlockL5/L10` dans les données), espionnage des points de ressource |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
+
+## Siège qui dure (octobre 2026)
+
+Règles du GDD (`combat_config.siege`) décidées avec le joueur : le siège est un état qui dure, seuls les engins abîment
+le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées.
+
+- **Début** : une attaque (mission ATTACK, avec le minimum d'engins du palier de la ville) qui arrive ne se règle plus
+  d'un coup. L'armée **campe devant la ville** (statut `BESIEGING`) et la ville passe « assiégée » (`City.isSieged`).
+  Le défenseur, les membres de son alliance et l'attaquant sont prévenus. Une ville déjà alliée à l'arrivée renvoie l'armée.
+- **Usure du mur** : à chaque tick, chaque engin abat **500 PV de mur par heure** (bonus d'engins du Sultanat compris ;
+  le mur égyptien a 25 % de PV en plus). Le minimum d'engins (1 / 10 / 20) perce un mur du même niveau (1 / 10 / 20) en
+  2 h environ. La réparation du mur est arrêtée pendant le siège et reprend ensuite (24 h pour 100 %).
+- **Assaut** : à la brèche, **jamais avant 30 min** de siège (GDD `minDestroyMinutesReference`), **au plus tard 12 h**
+  après le début. L'attaquant peut aussi donner l'assaut lui-même après 30 min (bouton « Assaut »), ou lever le siège
+  (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV restants ;
+  il ne perd plus de niveau. Le rapport indique les dégâts au mur et la durée du siège.
+- **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
+  recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
+  (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**
+  avec les troupes présentes.
+- **Briser le siège** : le propriétaire, son alliance et les alliances alliées peuvent attaquer l'armée qui assiège
+  (mission `BREAK_SIEGE`, bouton « Briser le siège » sur la carte, la fenêtre de siège ou l'alerte). Bataille en rase
+  campagne, sans mur ; si elle gagne, les assiégeants rentrent chez eux et le siège est levé ; sinon le siège continue
+  (avec des engins en moins, la brèche est retardée). L'armée de sortie rentre ensuite dans sa ville.
+- **Nourriture** : l'armée qui assiège consomme **+10 %**, la ville assiégée et ses armées **−10 %** (GDD).
+- **Visible** : alerte avec compte à rebours de l'assaut et nom de l'assiégeant (`GET /api/city/incoming-attacks`, type
+  `SIEGE`), fenêtre de siège (`GET /api/city/:id/siege`), anneau rouge autour de la ville sur la carte, carte d'armée
+  « Siège » avec l'heure de l'assaut.
+- **Graphismes à produire** (GDD `visuals`) : campement de siège sur la carte (engins et barricades autour de la ville),
+  fumée sur une ville au mur abîmé. En attendant, la carte dessine un anneau rouge et une icône d'épées.
+- **À voir avec la conquête (point 3)** : ce qui se passe quand l'assaut est gagné (aujourd'hui, l'armée rentre).
 
 ## Diplomatie et alliance
 
@@ -64,8 +95,8 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 - **Décidé et appliqué (octobre 2026)** : la Tente a **200 lits par niveau** (`config.wounded.bedsPerLevel`, 4 000 au niveau
   20) ; les blessés au-delà attendent en file (`WoundedUnit.waiting`) et prennent les lits libérés par les guérisons ou par
   un soin à l'or, qui ne soigne que les blessés au lit. Aucun soldat n'est perdu dans la file.
-- **Décidé et appliqué (octobre 2026)** : une ville est **assiégée quand l'armée attaquante est arrivée sur elle** (attaque
-  arrivée en cours de résolution, ou statut `BESIEGING` réservé à un futur siège qui dure). Tant que l'attaque marche encore,
+- **Décidé et appliqué (octobre 2026)** : une ville est **assiégée quand l'armée attaquante campe devant elle** (statut
+  `BESIEGING`, voir « Siège qui dure »). Tant que l'attaque marche encore,
   la ville peut tout faire. Pendant le siège : **recrutement et formation de colons refusés**, **aucun soin** (ni guérison
   avec le temps, ni soin à l'or) ; **former une armée reste permis** avec les troupes présentes. Le compte à rebours des soins est en pause pendant le
   siège et repart de lui-même à sa levée ; les blessés dont le temps était déjà écoulé reviennent aussitôt. Soin à l'or et

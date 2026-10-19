@@ -227,8 +227,48 @@ await call('army attack B', 'POST', `/api/army/${armyId}/attack`, tA, { targetCi
 await call('incoming attacks B', 'GET', '/api/city/incoming-attacks', tB);
 await call('attack own city -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityA.id }, 400);
 const bUnitsBefore = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`));
+// B gets a level-5 wall (5 000 HP) for the siege
+const wallSlotB = sql(`SELECT MIN(s) FROM generate_series(1,19) s WHERE s NOT IN (SELECT slot FROM "CityBuilding" WHERE "cityId"='${cityB.id}')`);
+addBuilding(cityB.id, 'WALL', Number(wallSlotB), 5);
+sql(`UPDATE "City" SET "wallHp"=5000, "wallMaxHp"=5000 WHERE id='${cityB.id}'`);
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
+// ---------- SIEGE ----------
+// The attack that arrives camps before the city: no battle yet, the city is besieged
+await waitTick('siege started', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'BESIEGING');
+assert('no battle when the attack arrives', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) === 0);
+assert('city flagged as besieged', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
+const assaultAt0 = new Date(sql(`SELECT to_char("arrivalAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM "Army" WHERE id='${armyId}'`));
+assert('assault planned at the breach (10 engines x 500 HP/h vs 5 000 HP ~ 1 h), never before 30 min', assaultAt0 - Date.now() > 29 * 60000 && assaultAt0 - Date.now() < 65 * 60000, `${Math.round((assaultAt0 - Date.now()) / 60000)} min`);
+const incB = await call('incoming attacks B (siege)', 'GET', '/api/city/incoming-attacks', tB);
+assert('the siege shows in the alerts with its leader', Array.isArray(incB) && incB.some(a => a.type === 'SIEGE' && a.attacker));
+const siegeB = await call('siege info B', 'GET', `/api/city/${cityB.id}/siege`, tB);
+assert('siege info: one camp with 10 engines, B may break it', siegeB?.besieged === true && siegeB.besiegers?.length === 1 && siegeB.besiegers[0].engines === 10 && siegeB.canBreak === true, JSON.stringify(siegeB)?.slice(0, 200));
+const siegeA = await call('siege info seen by the attacker', 'GET', `/api/city/${cityB.id}/siege`, tA);
+assert('the attacker cannot break its own siege', siegeA?.canBreak === false && siegeA.besiegers?.[0]?.mine === true);
+// B forms an army during the siege (allowed) and sallies out against the camp: open-field battle, B is much weaker
+const sortie = await call('B forms an army while besieged', 'POST', '/api/army/create', tB, { cityId: cityB.id, slot: 1, name: 'Sortie' });
+const sortieId = sortie?.army?.id;
+await call('sortie set-unit 5 inf', 'POST', `/api/army/${sortieId}/set-unit`, tB, { unitKey: unitKeyFor('HUN', 'INFANTRY', 'base'), count: 5 });
+await call('break-siege with another player army -> 404', 'POST', `/api/army/${sortieId}/break-siege`, tA, { targetCityId: cityB.id }, 404);
+await call('B sallies out against the besiegers', 'POST', `/api/army/${sortieId}/break-siege`, tB, { targetCityId: cityB.id });
+await waitTick('sortie fought', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='SIEGE_BREAK'`)) >= 2);
+assert('one report for each side of the sortie', sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='SIEGE_BREAK'`) === '2');
+assert('the beaten sortie is back inside the city', sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${sortieId}'`) === 'IDLE:true');
+assert('the siege holds after a failed sortie', sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'BESIEGING' && sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
+await call('assault before 30 min of siege -> 400', 'POST', `/api/army/${armyId}/assault`, tA, {}, 400);
+const blockade = await call('convoy to a besieged city -> 400', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: cityB.x, targetY: cityB.y, resources: { wood: 10, stone: 0, iron: 0, food: 0 } }, 400);
+assert('convoys are refused by the blockade', /assiégée/.test(blockade?.error || ''), blockade?.error);
+const prodB0 = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
+const wall0 = Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`));
+await sleep(32000);
+assert('the engines wear the wall down tick after tick', Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)) < wall0, `${wall0} -> ${sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)}`);
+assert('no production in a besieged city', Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)) <= prodB0, `${prodB0} -> ${sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)}`);
+// 30 min later the attacker orders the assault; the wall protects in proportion to its remaining hit points
+sql(`UPDATE "Army" SET "departedAt"=now()-interval '31 minutes' WHERE id='${armyId}'`);
+await call('order the assault', 'POST', `/api/army/${armyId}/assault`, tA, {});
 await waitTick('battle resolved', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) >= 1);
+assert('siege lifted after the assault', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 'f' && sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING');
+assert('the report carries the siege (wall damage, minutes)', Number(sql(`SELECT coalesce((loot->>'siegeMinutes')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) >= 30 && Number(sql(`SELECT coalesce((loot->>'wallDamage')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) > 0);
 const rep = await call('reports/battles A', 'GET', '/api/reports/battles', tA);
 await call('reports/battles B', 'GET', '/api/reports/battles', tB);
 if (Array.isArray(rep) && rep[0]) console.log('  battle:', JSON.stringify({ winner: rep[0].winner, aLoss: rep[0].attackerLosses?.rate, dLoss: rep[0].defenderLosses?.rate, wallDamage: rep[0].loot?.wallDamage }).slice(0, 300));

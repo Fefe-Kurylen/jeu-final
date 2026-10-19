@@ -15,7 +15,7 @@ const SHEET_RULES = {
   triangleBonusPct: 20,
   tierCoeff: { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 },
   upkeep: { base: 5, intermediate: 10, elite: 15, siege: 15 },
-  siegeWallDamage: 40,
+  siegeWallDamagePerHour: 500,   // config.combat.siege.wallDamagePerEngineHour
   tilesPerHourFactor: 2.4, // 1 case en 30 s à vitesse 50 → 2,4 × vitesse cases par heure (calculations.js)
   trainBuildings: { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] },
   siegeWorkshopLevel: 5,
@@ -200,7 +200,7 @@ function showUnitInfoModal(unitKey) {
         <div class="sheet-matchups">
           ${beats ? `<div class="sheet-matchup strong"><span class="mk">Fort contre</span> ${unitIconHtml(beats, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beats]}</b><small>+${pct} % de dégâts infligés à cette classe</small></div>` : ''}
           ${beatenBy ? `<div class="sheet-matchup weak"><span class="mk">Vulnérable face à</span> ${unitIconHtml(beatenBy, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beatenBy]}</b><small>+${pct} % de dégâts subis de cette classe</small></div>` : ''}
-          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>${SHEET_RULES.siegeWallDamage} points de mur par engin et par assaut ; pris pour cible en dernier, inutile sans escorte.</small></div>` : ''}
+          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>Pendant un siège, chaque engin abat ${SHEET_RULES.siegeWallDamagePerHour} points de mur par heure ; pris pour cible en dernier, inutile sans escorte.</small></div>` : ''}
           ${unit.tier === 'elite' ? `<div class="sheet-matchup"><span class="mk">Ciblage</span> <b>Visée en premier</b><small>L'ennemi concentre ses coups sur les unités d'élite, puis intermédiaires, de base, et enfin les engins.</small></div>` : ''}
         </div>
       </div>

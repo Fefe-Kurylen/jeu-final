@@ -11,13 +11,15 @@ const T = require('../../utils/techEffects');   // technologies des joueurs (att
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
-const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx } = require('../../services/armyService');
+const { getRelation } = require('../../services/diplomacyService');
+const { refreshSiegeFlag, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime } = require('./siegeProcessor');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteObjectCell } = require('../../utils/pathfinding');
 
-const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING'];   // FOUNDING: arrivalAt = end of the foundation
+const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = assault time
 const TX = { timeout: 15000 };
 
 async function processArmyMovements(now) {
@@ -44,7 +46,9 @@ async function processArmyMovements(now) {
       const claimed = await prisma.army.updateMany({ where: { id: army.id, status: army.status, arrivalAt: army.arrivalAt, claimedAt: null }, data: { x: army.targetX, y: army.targetY, claimedAt: now } });
       if (claimed.count !== 1) continue;
 
-      if (army.status === 'FOUNDING') {
+      if (army.status === 'BESIEGING') {
+        await handleAttack(army, now);   // the siege is over: assault
+      } else if (army.status === 'FOUNDING') {
         await handleFoundComplete(army, now);
       } else if (army.missionType === 'FOUND') {
         await handleFoundArrival(army, now);
@@ -56,8 +60,10 @@ async function processArmyMovements(now) {
         await setArmyIdle(army.id);
       } else if (army.missionType === 'RETURN' || army.status === 'RETURNING') {
         await handleReturn(army);
+      } else if (army.missionType === 'BREAK_SIEGE') {
+        await handleBreakSiege(army, now);
       } else if (army.missionType === 'ATTACK' || army.status === 'ATTACKING') {
-        await handleAttack(army, now);
+        await startSiege(army, now);
       } else if (army.missionType === 'RAID' || army.status === 'RAIDING') {
         await handleRaid(army, now);
       } else if (army.missionType === 'SPY' || army.status === 'SPYING') {
@@ -239,7 +245,10 @@ async function handleAttack(army, now) {
     const attackerUnits = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     const defenders = defendingArmies(targetCity);
     const defenderUnits = defenders.flatMap(a => a.units);
-    const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
+    // The siege has worn the wall down: it protects in proportion to the hit points it has left (GDD wallHpPercent)
+    const wallBuildingLevel = wallLevelOf(targetCity.buildings);
+    const wallHpPct = wallBuildingLevel > 0 && targetCity.wallMaxHp > 0 ? Math.max(0, Math.min(1, targetCity.wallHp / targetCity.wallMaxHp)) : 0;
+    const wallLevel = wallBuildingLevel * wallHpPct;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = defenders.find(a => a.hero)?.hero || null;
     // Technologies of both players: Art de la guerre (attack), Discipline (defence); Médecine is applied to the wounded below
@@ -247,36 +256,18 @@ async function handleAttack(army, now) {
     const techMods = { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: T.techBonusMult(defTech, 'attackBonusPct'), def: T.techBonusMult(defTech, 'defenseBonusPct') } };
     const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, army.owner.name, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, fx.defenseBonusPct(targetCity.buildings), techMods);
 
-    // GDD: only siege engines damage the wall (30% efficiency when the assault fails)
-    const siegeSurvivors = result.attackerFinalUnits.reduce((sum, u) => (unitsData.find(x => x.key === u.key)?.class === 'SIEGE' ? sum + u.remaining : sum), 0);
-    const siegeEngineBonus = 1 + (getFactionBonus(army.owner.faction, 'siegeEngineAttack', factionsData) || 0) / 100;
-    const wallDamageDone = Math.floor(siegeSurvivors * config.combat.siegeWallDamagePerUnit * siegeEngineBonus * (result.attackerWon ? 1 : 0.3));
-
     await applyLosses(tx, attackerUnits, result.attackerFinalUnits);
     for (const defArmy of defenders) await applyLosses(tx, defArmy.units, result.defenderFinalUnits);
-    if (wallDamageDone > 0) {
-      const newHp = targetCity.wallHp - wallDamageDone;
-      if (newHp <= 0) {
-        // Breached: the wall loses one level and its HP is reset for the new level (a level-0 wall is gone)
-        const wallBuilding = targetCity.buildings.find(b => b.key === 'WALL');
-        if (wallBuilding && wallBuilding.level > 0) {
-          if (wallBuilding.level - 1 <= 0) await tx.cityBuilding.deleteMany({ where: { id: wallBuilding.id } });
-          else await tx.cityBuilding.update({ where: { id: wallBuilding.id }, data: { level: wallBuilding.level - 1 } });
-          console.log(`[SIEGE] Mur de ${targetCity.name} percé ! Niveau ${wallBuilding.level} -> ${wallBuilding.level - 1}`);
-        }
-        const newMax = config.combat.wallHpPerLevel * Math.max(1, (wallBuilding?.level || 1) - 1);
-        await tx.city.update({ where: { id: targetCity.id }, data: { wallMaxHp: newMax, wallHp: newMax } });
-      } else {
-        await tx.city.update({ where: { id: targetCity.id }, data: { wallHp: newHp } });
-      }
-    }
+    // GDD: only siege engines damage the wall, during the siege (siegeProcessor); a breached wall regenerates in 24 h
+    const wallDamageDone = wallBuildingLevel > 0 ? Math.max(0, Math.round(targetCity.wallMaxHp - targetCity.wallHp)) : 0;
+    const siegeMinutes = army.status === 'BESIEGING' && army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
     const reportData = {
       x: targetCity.x, y: targetCity.y,
       attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
       attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
       defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      loot: { rounds: result.rounds, wallDamage: wallDamageDone, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length, type: 'ATTACK' }
+      loot: { rounds: result.rounds, wallDamage: wallDamageDone, wallHpPct: Math.round(wallHpPct * 100), siegeMinutes, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, duration: result.rounds.length, type: 'ATTACK' }
     };
     await tx.battleReport.create({ data: { ...reportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     await tx.battleReport.create({ data: { ...reportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
@@ -289,6 +280,7 @@ async function handleAttack(army, now) {
   }, TX);
   if (!battle) {
     await sendArmyHome(army, army.targetX, army.targetY);
+    if (army.targetCityId) await refreshSiegeFlag(prisma, army.targetCityId);
     return;
   }
   const { targetCity, result, defenderHero, atkTech, defTech } = battle;
@@ -314,7 +306,74 @@ async function handleAttack(army, now) {
 
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
   await sendArmyHome(army, army.targetX, army.targetY);
+  await refreshSiegeFlag(prisma, targetCity.id);   // the siege is lifted when no other army camps before the city
 }
+
+// An attack that arrives camps before the city: the siege starts (GDD combat_config.siege.isState). The city's owner
+// and their alliance are warned; the assault time follows the wall (siegeProcessor).
+async function startSiege(army, now) {
+  const started = await prisma.$transaction(async (tx) => {
+    if (!army.targetCityId) return null;
+    await lockCity(tx, army.targetCityId);
+    const city = await tx.city.findUnique({ where: { id: army.targetCityId }, include: { buildings: { where: { key: 'WALL' } }, player: { select: { id: true, name: true, alliance: { select: { allianceId: true } } } } } });
+    if (!city) return null;
+    if (!(await getRelation(army.ownerId, city.playerId, tx)).canAttack) return null;   // alliance or peace signed on the way
+    const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
+    if (!units.length) return null;
+    const assaultAt = assaultTime(now, wallHpToBreak(city), wallDamagePerHour({ units, owner: army.owner }), now);
+    const ok = await tx.army.updateMany({ where: { id: army.id, claimedAt: now }, data: { status: 'BESIEGING', x: city.x, y: city.y, departedAt: now, arrivalAt: assaultAt, claimedAt: null } });
+    if (ok.count !== 1) return null;
+    await tx.city.update({ where: { id: city.id }, data: { isSieged: true } });
+    return { city, assaultAt };
+  }, TX);
+  if (!started) { await sendArmyHome(army, army.targetX, army.targetY); return; }
+  const { city, assaultAt } = started;
+  const minutes = Math.max(1, Math.round((assaultAt - now) / 60000));
+  notify(city.playerId, 'battle', '🏰 Ville assiégée', `${army.owner?.name || 'Un joueur'} assiège ${city.name} : assaut dans ${minutes} min environ. Attaquez l'armée qui assiège ou appelez vos alliés.`, { tab: 'city', cityId: city.id });
+  const allianceId = city.player?.alliance?.allianceId;
+  if (allianceId) {
+    const members = await prisma.allianceMember.findMany({ where: { allianceId, playerId: { not: city.playerId } }, select: { playerId: true } });
+    for (const m of members) notify(m.playerId, 'battle', '🏰 Alliée assiégée', `${city.name} (${city.player.name}) est assiégée par ${army.owner?.name || 'un joueur'} : assaut dans ${minutes} min environ.`, { tab: 'map' });
+  }
+  notify(army.ownerId, 'battle', '🏰 Siège commencé', `${army.name} assiège ${city.name} : assaut dans ${minutes} min environ.`, { tab: 'armies' });
+  console.log(`[SIEGE] ${army.owner?.name} assiège ${city.name}, assaut à ${assaultAt.toISOString()}`);
+}
+
+// The city's owner, its alliance or an allied alliance attacks the armies besieging it: open-field battle (no wall),
+// the beaten besiegers go home and the siege is lifted; the breaking army goes home either way.
+const SIEGE_CAMP = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true };
+async function handleBreakSiege(army, now) {
+  const outcome = await prisma.$transaction(async (tx) => {
+    if (!army.targetCityId) return null;
+    await lockCity(tx, army.targetCityId);
+    const city = await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true } });
+    if (!city) return null;
+    const camp = await tx.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, claimedAt: null, NOT: { ownerId: army.ownerId } }, include: SIEGE_CAMP });
+    const hostile = [];
+    for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
+    const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
+    if (!hostile.length || !units.length) return { city, fought: false };
+    const { combat, defenderName } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Siège de ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id } });
+    if (combat.attackerWon) for (const b of hostile) await sendArmyHomeTx(tx, b);
+    await refreshSiegeFlag(tx, city.id);
+    return { city, fought: true, won: combat.attackerWon, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName };
+  }, TX);
+  if (outcome?.fought) {
+    const { city, won, owners, defenderName } = outcome;
+    notify(army.ownerId, 'battle', won ? '⚔️ Siège brisé' : '⚔️ Siège maintenu', won ? `${army.name} a chassé ${defenderName} de devant ${city.name}.` : `${army.name} a été repoussée par l'armée qui assiège ${city.name}.`, { tab: 'reports' });
+    for (const id of owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Sortie repoussée', won ? `Votre siège de ${city.name} a été brisé par ${army.owner?.name || 'un joueur'}.` : `Votre armée devant ${city.name} a repoussé ${army.owner?.name || 'une armée'}.`, { tab: 'reports' });
+    if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un allié'} a brisé le siège de ${city.name}.`, { tab: 'city', cityId: city.id });
+  }
+  // Home: an army of the besieged city itself is back inside at once
+  const home = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
+  if (home && outcome?.city && home.id === outcome.city.id) {
+    await setArmyIdle(army.id, { x: home.x, y: home.y });
+    await depositCarry(army, home);
+  } else {
+    await sendArmyHome(army, army.targetX, army.targetY);
+  }
+}
+
 
 // GDD: one raid per target city per attacker per 24h — checked again when the raid lands, so several
 // armies launched together cannot all plunder
@@ -437,7 +496,12 @@ async function handleSpy(army, now) {
 
 async function handleTransport(army, now) {
   const targetCity = await prisma.city.findUnique({ where: { id: army.targetCityId || '' } });
-  if (targetCity) {
+  const blockaded = targetCity && (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: targetCity.id } })) > 0;
+  if (blockaded) {
+    // Besieged city: the convoy cannot get through and brings its cargo back
+    notify(army.ownerId, 'trade', '📦 Convoi refoulé', `${targetCity.name} est assiégée : le convoi rentre avec sa cargaison.`, { tab: 'armies' });
+    await sendArmyHome(army, army.targetX, army.targetY);
+  } else if (targetCity) {
     await creditCity(prisma, targetCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
     await sendArmyHome(army, army.targetX, army.targetY, { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 });
   } else {
