@@ -61,8 +61,10 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 - **Décidé et appliqué (octobre 2026)** : les blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point de
   ressource, des deux côtés) **rentrent avec elle** (`Army.woundedCarry`) et n'entrent à la Tente qu'au retour ; une armée
   sans survivant ne ramène personne. La carte d'armée affiche les blessés transportés.
-- **À décider ensuite** : capacité de la Tente par niveau et file d'attente ; blocage des soins pendant un siège ; plafond du
-  soin à l'or.
+- **Décidé et appliqué (octobre 2026)** : la Tente a **200 lits par niveau** (`config.wounded.bedsPerLevel`, 4 000 au niveau
+  20) ; les blessés au-delà attendent en file (`WoundedUnit.waiting`) et prennent les lits libérés par les guérisons ou par
+  un soin à l'or, qui ne soigne que les blessés au lit. Aucun soldat n'est perdu dans la file.
+- **À décider ensuite** : blocage des soins pendant un siège.
 
 ## Héros
 

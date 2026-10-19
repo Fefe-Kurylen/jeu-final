@@ -565,6 +565,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""> Tente de soins</h4>
             <p>${Math.min(70, 30 + level * 3 + factionBonusPct(player?.faction, 'woundedConversion', player?.faction === 'GREEK' ? 15 : 0))}% des pertes reviennent blessées${factionBonusPct(player?.faction, 'woundedConversion', player?.faction === 'GREEK' ? 15 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'woundedConversion', 15)} % de bonus de civilisation)` : ''} et guérissent en ${Math.round(30 * Math.pow(0.95, level - 1))} min. Soin immédiat : 1 or par unité.</p>
+            <p style="font-size:11px">Capacité : <strong>${formatNum(level * (Number(window.worldRules?.healingBedsPerLevel) || 200))}</strong> lits ; au-delà, les blessés attendent qu'un lit se libère.</p>
             <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
         `

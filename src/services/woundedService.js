@@ -51,27 +51,48 @@ async function depositCarriedWounded(armyId, cityId) {
   return carried.reduce((s, w) => s + w.count, 0);
 }
 
-async function addWoundedUnits(cityId, woundedUnits) {
+// Tente de soins : lits par niveau (config.wounded.bedsPerLevel) ; les blessés au-delà attendent en file (waiting) et
+// prennent les lits libérés. Une ligne sans personne au lit garde une échéance lointaine (NO_HEAL).
+const NO_HEAL = new Date('9999-01-01T00:00:00Z');
+const bedsFor = (buildings) => (buildings.find(b => b.key === 'HEALING_TENT')?.level || 0) * config.wounded.bedsPerLevel;
+function healDelayMs(buildings) {
+  const healingLevel = buildings.find(b => b.key === 'HEALING_TENT')?.level || 1;
+  return config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1) * (1 - fx.healTimeReductionPct(buildings) / 100) * 60000;
+}
+
+async function addWoundedUnits(cityId, woundedUnits, db = prisma) {
   if (!woundedUnits || woundedUnits.length === 0) return;
-
-  const buildings = await prisma.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
-  const healingTent = buildings.find(b => b.key === 'HEALING_TENT');
-
-  const healingLevel = healingTent?.level || 1;
-  const baseHealTimeMinutes = config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1) * (1 - fx.healTimeReductionPct(buildings) / 100);
-  const healsAt = new Date(Date.now() + baseHealTimeMinutes * 60 * 1000);
-
+  const buildings = await db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
+  const healsAt = new Date(Date.now() + healDelayMs(buildings));
+  const inBeds = (await db.woundedUnit.aggregate({ where: { cityId }, _sum: { count: true } }))._sum.count || 0;
+  let free = Math.max(0, bedsFor(buildings) - inBeds);
   for (const unit of woundedUnits) {
-    // A new batch pushes the healing time of the whole group to its own completion
-    await prisma.woundedUnit.upsert({
+    const bed = Math.min(free, unit.count), wait = unit.count - bed;
+    free -= bed;
+    // A new batch in beds pushes the healing time of the whole group to its own completion
+    await db.woundedUnit.upsert({
       where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } },
-      update: { count: { increment: unit.count }, healsAt },
-      create: { cityId, unitKey: unit.unitKey, count: unit.count, healsAt }
+      update: { count: { increment: bed }, waiting: { increment: wait }, ...(bed > 0 ? { healsAt } : {}) },
+      create: { cityId, unitKey: unit.unitKey, count: bed, waiting: wait, healsAt: bed > 0 ? healsAt : NO_HEAL }
     });
   }
 }
 
-// Healed groups go back to their city's garrison, in one transaction for the whole tick
+// Fait entrer la file d'attente dans les lits libres (après une guérison ou un soin à l'or)
+async function admitWaiting(db, cityId) {
+  const buildings = await db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
+  const rows = await db.woundedUnit.findMany({ where: { cityId }, orderBy: { id: 'asc' } });
+  let free = Math.max(0, bedsFor(buildings) - rows.reduce((s, r) => s + r.count, 0));
+  const healsAt = new Date(Date.now() + healDelayMs(buildings));
+  for (const r of rows) {
+    if (free <= 0) break;
+    if (r.waiting <= 0) continue;
+    const n = Math.min(free, r.waiting); free -= n;
+    await db.woundedUnit.update({ where: { id: r.id }, data: { count: { increment: n }, waiting: { decrement: n }, healsAt } });
+  }
+  await db.woundedUnit.deleteMany({ where: { cityId, count: 0, waiting: 0 } });
+}
+
 async function processHealedUnits() {
   const now = new Date();
   const healedUnits = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
@@ -86,8 +107,11 @@ async function processHealedUnits() {
     const batch = healedUnits.slice(i, i + 50);
     await prisma.$transaction(async (tx) => {
       for (const wounded of batch) {
-        // The row is consumed first: a second executor finds nothing to delete and credits nothing
-        const taken = await tx.woundedUnit.deleteMany({ where: { id: wounded.id, healsAt: wounded.healsAt } });
+        // The row is consumed first (conditional on its healing time): a second executor credits nothing; soldiers still
+        // waiting for a bed keep the row
+        const taken = wounded.waiting > 0
+          ? await tx.woundedUnit.updateMany({ where: { id: wounded.id, healsAt: wounded.healsAt }, data: { count: 0, healsAt: NO_HEAL } })
+          : await tx.woundedUnit.deleteMany({ where: { id: wounded.id, healsAt: wounded.healsAt } });
         if (taken.count !== 1) continue;
         healed++;
         const garrisonId = garrisonByCity.get(wounded.cityId);
@@ -101,7 +125,9 @@ async function processHealedUnits() {
       }
     }, { timeout: 15000 });
   }
+  // Beds freed: the waiting list moves in
+  for (const cityId of cityIds) { try { await admitWaiting(prisma, cityId); } catch (e) { console.error('[WOUNDED] admit', e.message); } }
   return healed;
 }
 
-module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded };
+module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor };

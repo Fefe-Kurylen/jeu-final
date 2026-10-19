@@ -34,7 +34,7 @@ async function getWorldSize() {
 
 router.get('/world/info', async (req, res) => {
   // Rules the client displays (never computed client-side): city tiers by Main Hall level, Main Hall cap of a secondary city
-  const rules = { cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport };
+  const rules = { healingBedsPerLevel: config.wounded.bedsPerLevel, cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport };
   try {
     const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
     const resourceCount = await prisma.resourceNode.count();

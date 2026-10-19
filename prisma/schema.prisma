@@ -265,7 +265,8 @@ model WoundedUnit {
   id      String   @id @default(uuid())
   cityId  String
   unitKey String
-  count   Int
+  count   Int      // dans un lit, guérit à healsAt
+  waiting Int      @default(0) // en file d'attente : prend un lit libéré (capacité de la Tente de soins)
   healsAt DateTime
 
   city City @relation(fields: [cityId], references: [id], onDelete: Cascade)

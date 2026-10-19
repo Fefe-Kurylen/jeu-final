@@ -199,6 +199,7 @@ const config = {
     bonusPerHealingLevel: 0.03,
     maxRate: 0.70,
     baseHealMinutes: 30,
+    bedsPerLevel: 200,   // lits de la Tente de soins par niveau (GDD : capacité limitée, surplus en file d'attente)
     healLevelReduction: 0.95
   },
 

@@ -295,7 +295,9 @@ const nodes = (view?.resourceNodes || []);
 console.log(`  viewport: cities=${(view?.cities || []).length} nodes=${nodes.length} armies=${(view?.armies || []).length}`);
 // A defended node the army can actually walk to (the server refuses targets across water or mountains)
 const defended = nodes.find(n => n.hasDefenders && !n.hasPlayerArmy && n.resourceType !== 'GOLD' && Terrain.findPath(cityA.x, cityA.y, n.x, n.y));
-const undefendedId = sql(`SELECT id FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType"<>'GOLD' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 1`);
+// nearest free node reachable by land (a city can be cut off by water from its closest node)
+const reachableNode = (extra = '') => sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType"<>'GOLD' AND "cityId" IS NULL ${extra} ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 40`).split('\n').filter(Boolean).map(r => r.split('|')).find(([, x, y]) => Terrain.findPath(cityA.x, cityA.y, Number(x), Number(y)));
+const undefendedId = reachableNode()[0];
 sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0, amount=5000 WHERE id='${undefendedId}'`);
 await call('raid-resource on an undefended node -> 400', 'POST', `/api/army/${armyId}/raid-resource`, tA, { resourceNodeId: undefendedId }, 400);
 if (defended) {
@@ -354,6 +356,21 @@ await call('army disband', 'DELETE', `/api/army/${armyId}/disband`, tA);
 
 // ---------- WOUNDED ----------
 await call('wounded list B', 'GET', `/api/city/${cityB.id}/wounded`, tB);
+// Healing Tent beds (A: tent L5 -> 1 000 beds): soldiers beyond wait, and take the beds freed by healing
+{
+  const k = unitKeyFor('ROME', 'INFANTRY', 'base');
+  const garAU = () => Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" a JOIN "Army" r ON r.id=a."armyId" WHERE r."cityId"='${cityA.id}' AND r."isGarrison" AND a."unitKey"='${k}'`));
+  sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
+  sql(`INSERT INTO "WoundedUnit"(id,"cityId","unitKey",count,waiting,"healsAt") VALUES (gen_random_uuid(),'${cityA.id}','${k}',0,40,'9999-01-01')`);
+  await call('heal a waiting-only row -> 400', 'POST', `/api/city/${cityA.id}/wounded/heal`, tA, { unitKey: k }, 400);
+  sql(`UPDATE "WoundedUnit" SET count=1000, "healsAt"=now()-interval '1 second' WHERE "cityId"='${cityA.id}'`);
+  const before = garAU();
+  await waitTick('beds freed, waiting soldiers admitted', () => sql(`SELECT count||'/'||waiting FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`) === '40/0');
+  assert('healed soldiers back in the garrison, the queue moved into beds', garAU() - before === 1000, `+${garAU() - before}`);
+  const list = await call('wounded list A (beds)', 'GET', `/api/city/${cityA.id}/wounded`, tA);
+  assert('wounded list carries the waiting count', Array.isArray(list) && list[0] && list[0].count === 40 && list[0].waiting === 0);
+  sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
+}
 
 // ---------- MARKET ----------
 await call('market list', 'GET', '/api/market', tA);
@@ -524,7 +541,7 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     await call('second settler -> 400 (one slot at L10)', 'POST', `/api/city/${cityA.id}/settlers`, tA, {}, 400);
     sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE id='${st.queueItem.id}'`);
     await waitTick('settler ready in the capital', () => sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1');
-    const freeNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE "resourceType"<>'GOLD' AND "cityId" IS NULL AND NOT "hasPlayerArmy" AND id<>'${undefendedId}' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 1`).split('|');
+    const freeNode = reachableNode(`AND id<>'${undefendedId}'`);
     sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0 WHERE id='${freeNode[0]}'`);
     await call('found-city with B token on A army -> 404', 'POST', `/api/army/${ga}/found-city`, tB, { resourceNodeId: freeNode[0] }, 404);
     const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));

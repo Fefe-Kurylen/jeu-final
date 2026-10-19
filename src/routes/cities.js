@@ -1,6 +1,7 @@
 const express = require('express');
 const { isPremium } = require('../services/entitlementService');
 const router = express.Router();
+const { admitWaiting } = require('../services/woundedService');
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
@@ -390,7 +391,7 @@ router.get('/:id/wounded', auth, async (req, res) => {
       return {
         ...w, unitName: unitDef?.name || w.unitKey, faction: unitDef?.faction,
         class: unitDef?.class, tier: unitDef?.tier,
-        timeToHeal: Math.max(0, new Date(w.healsAt).getTime() - Date.now())
+        timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null
       };
     });
     res.json(woundedWithDetails);
@@ -411,7 +412,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
 
       const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
-      if (!wounded) return { error: 'Pas de blessés de ce type', status: 404 };
+      if (!wounded || wounded.count <= 0) return { error: wounded ? 'Ces blessés attendent un lit : seuls les blessés au lit se soignent' : 'Pas de blessés de ce type', status: wounded ? 400 : 404 };
 
       const goldCost = wounded.count;
       const paid = await tx.player.updateMany({ where: { id: req.user.playerId, gold: { gte: goldCost } }, data: { gold: { decrement: goldCost } } });
@@ -426,7 +427,10 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
           create: { armyId: garrison.id, unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
         });
       }
-      await tx.woundedUnit.delete({ where: { id: wounded.id } });
+      // Seuls les blessés au lit sont soignés ; la file d'attente prend les lits libérés
+      if (wounded.waiting > 0) await tx.woundedUnit.update({ where: { id: wounded.id }, data: { count: 0 } });
+      else await tx.woundedUnit.delete({ where: { id: wounded.id } });
+      await admitWaiting(tx, city.id);
       return { success: true, healed: wounded.count, goldSpent: goldCost };
     });
 

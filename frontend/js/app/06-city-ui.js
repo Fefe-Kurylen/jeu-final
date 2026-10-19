@@ -29,17 +29,21 @@ function renderWounded(wounded) {
     return;
   }
 
-  el.innerHTML = wounded.map(w => {
-    const timeLeft = Math.max(0, w.timeToHeal);
+  // Lits de la Tente (règle du serveur, /api/world/info) ; les blessés au-delà attendent en file
+  const tentLevel = (currentCity?.buildings || []).find(b => b.key === 'HEALING_TENT')?.level || 0;
+  const beds = tentLevel * (Number(window.worldRules?.healingBedsPerLevel) || 200);
+  const inBeds = wounded.reduce((s, w) => s + (w.count || 0), 0), waiting = wounded.reduce((s, w) => s + (w.waiting || 0), 0);
+  el.innerHTML = `<p style="font-size:11px;margin:0 0 6px">Lits : <strong>${formatNum(inBeds)} / ${formatNum(beds)}</strong>${waiting ? ` · <strong>${formatNum(waiting)}</strong> en attente d'un lit` : ''}</p>` + wounded.map(w => {
+    const timeLeft = Math.max(0, w.timeToHeal || 0);
     const minutes = Math.floor(timeLeft / 60000);
     const seconds = Math.floor((timeLeft % 60000) / 1000);
 
     return `
       <div class="wounded-item">
         <span class="wounded-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
-        <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}</span>
-        <span class="wounded-time">${minutes}:${seconds.toString().padStart(2, '0')}</span>
-        <button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner (${w.count} or)"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></button>
+        <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}${w.waiting ? ` <small>+ ${w.waiting} en attente</small>` : ''}</span>
+        <span class="wounded-time">${w.count > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : 'en attente'}</span>
+        ${w.count > 0 ? `<button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner les blessés au lit (${w.count} or)"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></button>` : ''}
       </div>
     `;
   }).join('');
