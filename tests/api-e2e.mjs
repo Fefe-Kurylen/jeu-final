@@ -377,12 +377,12 @@ await call('wounded list B', 'GET', `/api/city/${cityB.id}/wounded`, tB);
   const marching = await call('wounded list A (attack still marching)', 'GET', `/api/city/${cityA.id}/wounded`, tA);
   assert('a marching attack does not besiege the city', Array.isArray(marching) && marching[0]?.besieged === false);
   sql(`DELETE FROM "Army" WHERE id='${marchId}'`);
-  // the attacking army is on the city (lasting siege): healing, recruiting and new armies are blocked
+  // the attacking army is on the city (lasting siege): healing and recruiting are blocked, forming an army is still allowed
   const siegeId = sql(`INSERT INTO "Army"(id,"ownerId",name,x,y,status,"targetCityId","arrivalAt") VALUES (gen_random_uuid(),'${B.player.id}','Siège test',${cityA.x},${cityA.y},'BESIEGING','${cityA.id}',now()+interval '1 day') RETURNING id`).split('\n')[0];
   const rec = await call('recruit while besieged -> 400', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: k, count: 1 }, 400);
   assert('recruiting refused because of the siege', /assiégée/.test(rec?.error || ''), rec?.error);
-  const cre = await call('create an army while besieged -> 400', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 1, name: 'Assiégée' }, 400);
-  assert('army creation refused because of the siege', /assiégée/.test(cre?.error || ''), cre?.error);
+  const cre = await call('create an army while besieged (allowed)', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 1, name: 'Assiégée' });
+  if (cre?.army?.id) await call('disband the army formed during the siege', 'DELETE', `/api/army/${cre.army.id}/disband`, tA);
   const k2 = unitKeyFor('ROME', 'ARCHER', 'base');
   sql(`INSERT INTO "WoundedUnit"(id,"cityId","unitKey",count,waiting,"healsAt") VALUES (gen_random_uuid(),'${cityA.id}','${k2}',5,0,now()+interval '10 minutes')`);
   const left0 = Number(sql(`SELECT extract(epoch FROM "healsAt" - now()) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}' AND "unitKey"='${k2}'`));
@@ -394,8 +394,6 @@ await call('wounded list B', 'GET', `/api/city/${cityB.id}/wounded`, tB);
   const sieged = await call('wounded list A (besieged)', 'GET', `/api/city/${cityA.id}/wounded`, tA);
   assert('wounded list flags the siege', Array.isArray(sieged) && sieged[0]?.besieged === true);
   sql(`DELETE FROM "Army" WHERE id='${siegeId}'`);
-  const freed = await call('create an army once the siege is lifted', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 1, name: 'Libérée' });
-  if (freed?.army?.id) await call('disband the freed army', 'DELETE', `/api/army/${freed.army.id}/disband`, tA);
   await waitTick('siege lifted, wounded healed', () => sql(`SELECT count(*) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}' AND "unitKey"='${k}'`) === '0');
   sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
 }

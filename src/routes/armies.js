@@ -14,7 +14,6 @@ const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = req
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
-const { besiegedCityIds } = require('../services/woundedService');   // ville assiégée : armée ennemie sur la ville
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { pointAlongPath } = require('../utils/calculations');
 
@@ -116,7 +115,6 @@ router.post('/create', auth, async (req, res) => {
       await lockCity(tx, cityId);
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: true } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : impossible de former une armée tant que l\'armée ennemie est sur la ville', status: 400 };
       const maxArmies = fx.maxArmies(city.buildings);
       if (slot > maxArmies) return { error: `Emplacement ${slot} non débloqué : Place de rassemblement niveau ${fx.rallyLevelForArmies(slot)} requise.`, status: 400 };
       const existingArmy = await tx.army.findFirst({ where: { cityId, slot, isGarrison: false } });
