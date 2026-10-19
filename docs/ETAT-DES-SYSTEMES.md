@@ -48,7 +48,8 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   `SIEGE`), fenêtre de siège (`GET /api/city/:id/siege`), anneau rouge autour de la ville sur la carte, carte d'armée
   « Siège » avec l'heure de l'assaut.
 - **Animation de siège sur la carte** (GDD `visuals`) : la ville assiégée joue une animation en boucle à la place de son
-  sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19), avec la bannière de la
+  sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19 ; villes secondaires :
+  normale et fortifiée, 6 × 2 × 4), avec la bannière de la
   civilisation qui assiège plantée devant. Branché ; en attendant les images, anneau rouge et icône d'épées.
 - **À voir avec la conquête (point 3)** : ce qui se passe quand l'assaut est gagné (aujourd'hui, l'armée rentre).
 

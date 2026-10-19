@@ -17,11 +17,11 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
 | Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
-| Carte du monde | 13 | 304 | 0 | **304** |
+| Carte du monde | 14 | 358 | 0 | **358** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 64 | **2018** | 189 | **1829** |
+| **Total** | 65 | **2072** | 189 | **1883** |
 
 ## Inscription et connexion
 
@@ -69,11 +69,12 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Famille | Images | Peintes | Où | Prompt | Priorité |
 |---|---|---|---|---|---|
 | Villes par civilisation et forteresses | 20 | 0 | villes des joueurs (palier du Bâtiment principal) | § 3.4 | ★★★ |
-| Villes secondaires (colonies) par civilisation | 6 | 0 | colonies des joueurs | guide § S12 | ★★☆ |
+| Villes secondaires (colonies) par civilisation, normale et fortifiée | 12 | 0 | colonies des joueurs (fortifiée dès le Bâtiment principal 20) | guide § S12, A19 | ★★☆ |
 | Points de ressource (5 types × 3 biomes) | 15 | 0 | points de ressource libres | § 3.4 | ★★★ |
 | Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace) | 28 | 0 | fond de la carte | § 3.4 | ★★★ |
 | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 | points tenus par une tribu | guide « Camps barbares » | ★★★ |
 | Campement de fondation (3 biomes) | 3 | 0 | point pendant la fondation d'une ville | guide § S12 | ★★☆ |
+| Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases) | 48 | 0 | colonie assiégée sur la carte (remplace son sprite pendant le siège) | guide § A19 | ★★☆ |
 | Ville assiégée animée (6 civilisations × 3 paliers × 4 phases) | 72 | 0 | ville assiégée sur la carte (remplace le sprite de ville pendant le siège) | guide § A19 | ★★☆ |
 | Armées en marche (4 classes × 6 civilisations, marchand) | 29 | 0 | armées, convois | § 3.4 | ★★★ |
 | Cortège de colons (+ 6 civilisations) | 7 | 0 | armée partie fonder une ville | guide § S12 | ★★☆ |

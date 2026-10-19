@@ -136,6 +136,8 @@ for (const b of ['', '_desert', '_snow']) add(`map/camps/foundation${b}.webp`, '
 // Ville à l'état normal, palier 2 « Ville » (Bâtiment principal ≥ 10) : entre le village (sprite <civ>) et la forteresse (capital_<civ>)
 for (const c of CIVS) add(`map/cities/${c.toLowerCase()}_t2.webp`, 'map', `Carte du monde : ville de ${CIV_FR[c]} au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal`, { guide: true, guideFile: `map/cities/${c.toLowerCase()}.webp` });
 for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}.webp`, 'map', `Carte du monde : ville secondaire (colonie) de ${CIV_FR[c]}, plus petite que la ville de départ`);
+// Villes secondaires : deux paliers, normal (colony_<civ>, Bâtiment principal < 20) et fortifié (Bâtiment principal ≥ 20)
+for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}_fortified.webp`, 'map', `Carte du monde : ville secondaire fortifiée de ${CIV_FR[c]} (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée`);
 for (const c of CIVS) add(`busts/SETTLER_${c}.webp`, 'bust', `Portrait du colon de ${CIV_FR[c]} (onglet Colons de la Résidence, modale de fondation, carte d'armée)`);
 add('scenes/vignette-founding.webp', 'header', 'Vignette « fondation d\'une ville » (onglet Colons, modale de fondation)');
 // Tribus des points de ressource : chefs (rapports, bulle), vignettes des rapports, icône
@@ -180,6 +182,11 @@ add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx'
 // La ville assiégée elle-même, animée en boucle : même cadrage que le sprite de ville de la carte, qu'elle remplace tant que
 // le siège dure (6 civilisations × 3 paliers : Village, Ville, Ville fortifiée × 4 phases)
 const SIEGE_TIER_FR = { 1: 'village', 2: 'ville', 3: 'ville fortifiée' };
+// Villes secondaires assiégées : deux paliers (normal, fortifié), bandes à part pour garder la silhouette de la colonie
+for (const c of CIVS) for (const t of ['normal', 'fortified']) for (let i = 0; i < 4; i++) {
+  const base = `map/cities/siege_colony_${c}_${t}`;
+  add(`${base}_${i}.webp`, 'map', `Carte du monde : ville secondaire ${t === 'fortified' ? 'fortifiée' : ''} de ${CIV_FR[c]} assiégée, même cadrage que son sprite normal — phase ${i + 1}/4`.replace('  ', ' '), { anim: { base, n: 4, i } });
+}
 for (const c of CIVS) for (const t of [1, 2, 3]) for (let i = 0; i < 4; i++) {
   const base = `map/cities/siege_${c}_t${t}`;
   add(`${base}_${i}.webp`, 'map', `Carte du monde : ${SIEGE_TIER_FR[t]} de ${CIV_FR[c]} assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège — phase ${i + 1}/4`,

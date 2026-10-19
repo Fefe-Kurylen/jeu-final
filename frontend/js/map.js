@@ -1450,10 +1450,12 @@ function drawMapNamePlate(x, top, text, px, border) {
   mapCtx.fillStyle = '#2e2010';
   mapCtx.fillText(text, x, top + h / 2 + 0.5);
 }
-// Phase courante de l'animation de siège (map/cities/siege_<CIV>_t<1|2|3>_<0..3>), null tant qu'elle n'est pas livrée
+// Phase courante de l'animation de siège, null tant qu'elle n'est pas livrée : villes de départ map/cities/siege_<CIV>_t<1|2|3>_<0..3>,
+// villes secondaires map/cities/siege_colony_<CIV>_<normal|fortified>_<0..3>
 const SIEGE_FRAMES = 4, SIEGE_FRAME_MS = 220;
-function siegeFrameName(faction, tier) {
-  const t = Math.max(1, Math.min(3, tier || 1)), base = `siege_${String(faction || 'ROME').toUpperCase()}_t${t}`;
+function siegeFrameName(faction, tier, colony = false) {
+  const t = Math.max(1, Math.min(3, tier || 1)), F = String(faction || 'ROME').toUpperCase();
+  const base = colony ? `siege_colony_${F}_${t >= 3 ? 'fortified' : 'normal'}` : `siege_${F}_t${t}`;
   if (!tileImages.cities[`${base}_0`]) return null;
   const name = `${base}_${Math.floor(Date.now() / SIEGE_FRAME_MS) % SIEGE_FRAMES}`;
   return tileImages.cities[name] ? name : `${base}_0`;
@@ -1523,7 +1525,9 @@ function drawIsoCity(x, y, tw, th, tile) {
   // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
   const fortified = (tile.cityTier || 0) >= 3;
   const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
-  const colonyType = !fortified && tile.isCapital === false && tileImages.cities['colony_' + faction.toLowerCase()] ? 'colony_' + faction.toLowerCase() : null;   // colonie peinte (guide § S12)
+  // Ville secondaire : deux apparences peintes, normale puis fortifiée (Bâtiment principal ≥ 20) ; sinon les sprites de ville
+  const isColony = tile.isCapital === false, fl = faction.toLowerCase();
+  const colonyType = !isColony ? null : fortified ? (tileImages.cities[`colony_${fl}_fortified`] ? `colony_${fl}_fortified` : null) : (tileImages.cities['colony_' + fl] ? 'colony_' + fl : null);   // guide § S12
   // palier 2 « Ville » : sprite <civ>_t2 quand il est livré, sinon celui du village
   const townType = (tile.cityTier || 0) === 2 && tileImages.cities[faction.toLowerCase() + '_t2'] ? faction.toLowerCase() + '_t2' : faction.toLowerCase();
   const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
@@ -1537,7 +1541,7 @@ function drawIsoCity(x, y, tw, th, tile) {
       mapCtx.fill();
     }
     // Ville assiégée : animation peinte de la ville sous le siège (civilisation × palier, 4 phases en boucle) à la place du sprite
-    const siegeFrame = tile.isSieged ? siegeFrameName(faction, tile.cityTier) : null;
+    const siegeFrame = tile.isSieged ? ((isColony && siegeFrameName(faction, tile.cityTier, true)) || siegeFrameName(faction, tile.cityTier)) : null;
     if (siegeFrame) mapMovingOnScreen = true;   // garde la carte animée tant que le siège est à l'écran
     drawTileImage(mapCtx, 'cities', siegeFrame || (tileImages.cities[cityType] ? cityType : 'default'), x, y, cityImageSize, cityImageSize);
     drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, !!siegeFrame);

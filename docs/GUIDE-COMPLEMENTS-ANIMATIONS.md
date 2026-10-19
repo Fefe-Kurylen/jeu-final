@@ -288,8 +288,11 @@ Tant qu'une armée campe devant une ville (siège qui dure, voir `docs/ETAT-DES-
 - **Image guide** : le sprite de ville normal du même palier, `map/cities/<civ>.webp` (t1), `map/cities/<civ>_t2.webp` (t2),
   `map/cities/capital_<civ>.webp` (t3).
 - **État normal, les 3 paliers** (même cadrage) : `map/cities/<civ>.webp` Village, `map/cities/<civ>_t2.webp` Ville (nouveau,
-  octobre 2026 : plus grande, premier mur bas), `map/cities/capital_<civ>.webp` Ville fortifiée. Les villes secondaires
-  gardent `map/cities/colony_<civ>.webp` jusqu'au palier fortifié. La ville garde **exactement sa silhouette, sa taille et son cadrage** (case
+  octobre 2026 : plus grande, premier mur bas), `map/cities/capital_<civ>.webp` Ville fortifiée.
+- **Villes secondaires, deux paliers** : normale `map/cities/colony_<civ>.webp` (Bâtiment principal < 20) et fortifiée
+  `map/cities/colony_<civ>_fortified.webp` (≥ 20, plus modeste que la capitale fortifiée) ; assiégées
+  `map/cities/siege_colony_<CIV>_<normal|fortified>_<0..3>.png` (6 civilisations × 2 × 4 phases = 48), même consigne
+  qu'au-dessus avec le sprite de la colonie comme guide. La ville garde **exactement sa silhouette, sa taille et son cadrage** (case
   carrée, même ancrage), pour que le passage normal ↔ assiégée ne saute pas.
 - **Ce qui s'ajoute autour** : une ceinture de travaux de siège (deux catapultes ou un bélier sous abri, palissade de pieux,
   quelques tentes, petits soldats), des feux sur les remparts et les toits, des colonnes de fumée sombre, une pierre en vol.
