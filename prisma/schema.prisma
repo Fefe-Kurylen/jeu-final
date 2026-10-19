@@ -200,6 +200,7 @@ model Army {
 
   harvestResourceType String? // type de ressource en cours de récolte
   settlers            Int     @default(0) // colons embarqués pour fonder une ville (mission FOUND, statut FOUNDING)
+  woundedCarry        Json    @default("[]") // blessés qui rentrent avec l'armée : [{ unitKey, count }], déposés à la Tente de soins au retour
 
   owner Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)

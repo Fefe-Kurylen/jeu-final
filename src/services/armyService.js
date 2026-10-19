@@ -8,7 +8,7 @@ const { getArmyCarryCapacity, calculateArmyPower, getFactionBonus, getArmyTravel
 const { findRoute } = require('../utils/pathfinding');
 const { notify } = require('./pushService');
 const fx = require('../utils/buildingEffects');
-const { calculateWoundedUnits, addWoundedUnits } = require('./woundedService');
+const { calculateWoundedUnits, carryWounded } = require('./woundedService');
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
@@ -72,7 +72,7 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   if (totalAttackerLosses > 0 && army.cityId) {
     try {
       const wounded = await calculateWoundedUnits(army.cityId, killed, army.owner?.faction, techPct(techRows, 'woundedBonusPct'));
-      if (wounded.length) { await addWoundedUnits(army.cityId, wounded); woundedBack = wounded.reduce((s, w) => s + w.count, 0); }
+      if (wounded.length) woundedBack = await carryWounded(tx, army.id, wounded);   // ils rentrent avec l'armée
     } catch (e) { console.error('[WOUNDED]', e.message); }
   }
 
@@ -152,8 +152,8 @@ async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
 
   // Wounded on both sides, hero XP as in a city battle
   try {
-    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await addWoundedUnits(army.cityId, w); }
-    for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct')); if (w.length) await addWoundedUnits(h.cityId, w); }
+    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await carryWounded(tx, army.id, w); }
+    for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct')); if (w.length) await carryWounded(tx, h.id, w); }
   } catch (e) { console.error('[WOUNDED]', e.message); }
   if (army.heroId) await awardHeroXp(army.heroId, Math.floor(defTotal * config.combat.heroXpPerKill * (combat.attackerWon ? 1 : 0.3)), tx);
   for (const h of holders) if (h.heroId) await awardHeroXp(h.heroId, Math.floor(atk.total * config.combat.heroXpPerKill * (combat.attackerWon ? 0.3 : 1)), tx);

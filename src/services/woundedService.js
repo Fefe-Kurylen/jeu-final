@@ -30,6 +30,27 @@ async function calculateWoundedUnits(cityId, killedUnits, faction, techBonusPct 
   return woundedUnits;
 }
 
+// Blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point) : ils rentrent avec elle et n'entrent à la
+// Tente de soins qu'au retour (depositCarriedWounded). Une armée sans survivant ne ramène personne : ses blessés sont perdus.
+async function carryWounded(db, armyId, woundedUnits) {
+  if (!woundedUnits || !woundedUnits.length) return 0;
+  const left = await db.armyUnit.aggregate({ where: { armyId }, _sum: { count: true } });
+  if (!(left._sum.count > 0)) return 0;
+  const army = await db.army.findUnique({ where: { id: armyId }, select: { woundedCarry: true } });
+  const merged = Object.fromEntries((Array.isArray(army?.woundedCarry) ? army.woundedCarry : []).map(w => [w.unitKey, w.count]));
+  for (const w of woundedUnits) merged[w.unitKey] = (merged[w.unitKey] || 0) + w.count;
+  await db.army.update({ where: { id: armyId }, data: { woundedCarry: Object.entries(merged).map(([unitKey, count]) => ({ unitKey, count })) } });
+  return woundedUnits.reduce((s, w) => s + w.count, 0);
+}
+async function depositCarriedWounded(armyId, cityId) {
+  const army = await prisma.army.findUnique({ where: { id: armyId }, select: { woundedCarry: true } });
+  const carried = (Array.isArray(army?.woundedCarry) ? army.woundedCarry : []).filter(w => w && w.count > 0);
+  if (!carried.length) return 0;
+  await prisma.army.update({ where: { id: armyId }, data: { woundedCarry: [] } });
+  await addWoundedUnits(cityId, carried);
+  return carried.reduce((s, w) => s + w.count, 0);
+}
+
 async function addWoundedUnits(cityId, woundedUnits) {
   if (!woundedUnits || woundedUnits.length === 0) return;
 
@@ -83,4 +104,4 @@ async function processHealedUnits() {
   return healed;
 }
 
-module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits };
+module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded };

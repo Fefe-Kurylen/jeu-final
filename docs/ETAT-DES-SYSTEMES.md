@@ -51,6 +51,19 @@ la **difficulté de la position** : × 0,5 aux bords de la carte, où les joueur
 soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). Une ville secondaire se fonde sur un point libéré de sa tribu
 (section « Villes secondaires ») : le point disparaît de la carte tant que la ville existe. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
 
+## Blessés et soins (revue d'octobre 2026)
+
+Règles du GDD (`wounded_and_healing.md`, `combat_config.woundedSystem`) : une part des pertes devient des blessés, soignés à
+la Tente de soins, capacité limitée avec file d'attente, soins du défenseur bloqués pendant un siège.
+
+- **Appliqué** : 30 % des pertes deviennent des blessés, + 3 % par niveau de Tente, plafond 70 %, bonus grec, Médecine et
+  bâtiments ; guérison avec le temps ou immédiate contre 1 or par soldat.
+- **Décidé et appliqué (octobre 2026)** : les blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point de
+  ressource, des deux côtés) **rentrent avec elle** (`Army.woundedCarry`) et n'entrent à la Tente qu'au retour ; une armée
+  sans survivant ne ramène personne. La carte d'armée affiche les blessés transportés.
+- **À décider ensuite** : capacité de la Tente par niveau et file d'attente ; blocage des soins pendant un siège ; plafond du
+  soin à l'or.
+
 ## Héros
 
 | Existe | Manque |

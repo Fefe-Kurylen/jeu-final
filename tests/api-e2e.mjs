@@ -219,6 +219,10 @@ await call('army unassign-hero', 'POST', `/api/army/${armyId}/unassign-hero`, tA
 await call('army get other player army -> 404', 'GET', `/api/army/${armyId}`, tB, null, 404);
 
 // ---------- ATTACK ----------
+// Healing Tent in A: the attacker's wounded travel home with the army and only enter the tent on arrival
+const tentSlot = sql(`SELECT MIN(s) FROM generate_series(1,19) s WHERE s NOT IN (SELECT slot FROM "CityBuilding" WHERE "cityId"='${cityA.id}')`);
+addBuilding(cityA.id, 'HEALING_TENT', Number(tentSlot), 5);
+sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
 await call('army attack B', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityB.id });
 await call('incoming attacks B', 'GET', '/api/city/incoming-attacks', tB);
 await call('attack own city -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityA.id }, 400);
@@ -232,8 +236,14 @@ assert('exactly 2 report copies for one battle', sql(`SELECT count(*) FROM "Batt
 const bUnitsAfter = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`));
 assert('defender lost units, never negative', bUnitsAfter >= 0 && bUnitsAfter <= bUnitsBefore, `${bUnitsBefore} -> ${bUnitsAfter}`);
 assert('claimedAt released after resolution', sql(`SELECT count(*) FROM "Army" WHERE id='${armyId}' AND "claimedAt" IS NOT NULL`) === '0');
+const carried = Number(sql(`SELECT coalesce(sum((w->>'count')::int),0) FROM "Army", jsonb_array_elements("woundedCarry") w WHERE id='${armyId}'`));
+const survivors = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${armyId}'`));
+// at least one unit type lost 4+ soldiers -> floor(4 x 0.45) >= 1 wounded expected (tent L5: 30 % + 5 x 3 %)
+const heavyLoss = Number(sql(`SELECT count(*) FROM "BattleReport" b, jsonb_array_elements(b."attackerLosses"->'units') u WHERE b."attackerId"='${A.player.id}' AND b.loot->>'type'='ATTACK' AND (u->>'killed')::int >= 4`)) > 0;
+assert('attacker wounded travel with the army, not in the tent yet', sql(`SELECT coalesce(sum(count),0) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`) === '0' && (survivors === 0 || !heavyLoss || carried > 0), `carried ${carried}, survivors ${survivors}, heavy loss ${heavyLoss}`);
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}' AND status='RETURNING'`);
 await waitTick('army returned home', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
+assert('carried wounded entered the Healing Tent on return', Number(sql(`SELECT coalesce(sum(count),0) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`)) === carried && sql(`SELECT "woundedCarry"::text FROM "Army" WHERE id='${armyId}'`) === '[]', `tent ${sql(`SELECT coalesce(sum(count),0) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`)} vs carried ${carried}`);
 
 // ---------- RAID / SPY / MOVE / RETURN ----------
 await call('army raid B', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id });
@@ -496,10 +506,12 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     const dWon = fight?.combatResult?.winner === 'attacker';
     assert('winner holds the node, loser leaves', dWon ? (dStatus === 'HARVESTING' && ['RETURNING', 'IDLE'].includes(aStatus)) : (aStatus === 'HARVESTING' && dStatus === 'IDLE'), `D ${dStatus}, A ${aStatus}, D won ${dWon}`);
     assert('node still marked as held', sql(`SELECT "hasPlayerArmy" FROM "ResourceNode" WHERE id='${undefendedId}'`) === 't');
+    // A has a Healing Tent: when A's holding army loses, its wounded ride home with it (never straight into the tent)
+    if (dWon && (fight?.combatResult?.defenderLosses || 0) >= 4) assert('beaten holder carries its wounded home', Number(sql(`SELECT coalesce(sum((w->>'count')::int),0) FROM "Army", jsonb_array_elements("woundedCarry") w WHERE id='${ga}'`)) > 0 || sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${ga}'`) === '0');
     // Back to a clean state for the rest of the run
     sql(`UPDATE "ResourceNode" SET "hasPlayerArmy"=false, "lastArmyDeparture"=NULL WHERE id='${undefendedId}'`);
     sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityD.id}'), y=(SELECT y FROM "City" WHERE id='${cityD.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL, "carryWood"=0, "carryStone"=0, "carryIron"=0, "carryFood"=0 WHERE id='${ar.army.id}'`);
-    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL WHERE id='${ga}'`);
+    sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "targetResourceId"=NULL, "missionType"=NULL, "woundedCarry"='[]' WHERE id='${ga}'`);
   }
   // ---------- SECONDARY CITIES (GDD): settler at the Residence, foundation on a free node, restrictions ----------
   {

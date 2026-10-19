@@ -8,7 +8,6 @@ Points identifiés par l'audit du socle et volontairement non traités. Rien ici
 | Aide d'alliance (Ambassade : `maxAllianceHelpReceived*`, `allianceHelpReductionPct`) | `src/routes/alliance.js`, file de construction | Mécanique sociale à concevoir |
 | Espions comme unités (Tour de guet : `maxSpiesFaction`, `spyUnlockL5/L10`, vision) | `data/units.json`, `armies.js` (mission SPY), carte | Aujourd'hui n'importe quelle unité espionne ; le contre-espionnage est en place |
 | Renfort allié (mission SUPPORT, armée stationnée chez un allié qui défend) | `armyProcessor.js` (`defendingArmies`), `armies.js` | Règle de jeu et interface à concevoir |
-| Blessés de l'attaquant soignables à distance | `armyProcessor.js` (`handleAttack`), `cities.js` (`/wounded/heal`) | Règle à décider (les blessés devraient rentrer avec l'armée) |
 | `bcryptjs` en JavaScript pur | `src/routes/auth.js` | Passer à `bcrypt` natif ou argon2 seulement si la charge de connexions le justifie (ajoute une compilation native à l'image Docker) |
 | Taxe inter-villes (Avant-poste du désert : `interCityTaxReductionPctPerLevel`) | transports entre ses propres villes (`armies.js` mission TRANSPORT, marché) | Les villes secondaires existent depuis octobre 2026 ; aucune taxe n'est prélevée entre ses villes pour l'instant, l'effet reste sans objet |
 

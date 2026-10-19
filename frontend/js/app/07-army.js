@@ -237,6 +237,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           </div>
           <div class="harvest-carry">
             <span class="carry-label">Transporté:</span>
+            ${(army.woundedCarry || []).reduce((t, w) => t + (w.count || 0), 0) > 0 ? `<span class="carry-value" title="Blessés qui rentrent avec l'armée : ils iront à la Tente de soins au retour">${resIconHtml('endurance')} ${formatNum((army.woundedCarry || []).reduce((t, w) => t + (w.count || 0), 0))} blessés</span>` : ''}
             ${(army.settlers || 0) > 0 ? `<span class="carry-value">${typeof settlerIcon === 'function' ? settlerIcon() : resIconHtml('city')} ${army.settlers} colon${army.settlers > 1 ? 's' : ''}</span>` : ''}
             <span class="carry-value">${formatNum((army.carryWood || 0) + (army.carryStone || 0) + (army.carryIron || 0) + (army.carryFood || 0))}${army.carryGold ? ` + <img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> ${formatNum(army.carryGold)}` : ''}</span>
           </div>

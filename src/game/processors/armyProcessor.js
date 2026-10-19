@@ -9,7 +9,7 @@ const { unitsData, factionsData } = require('../../config/gamedata');
 const { calculateTravelTime, getArmyTravelTime, getFactionBonus, getArmyCarryCapacity } = require('../../utils/calculations');
 const T = require('../../utils/techEffects');   // technologies des joueurs (attaque, défense, blessés, vitesse)
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
-const { calculateWoundedUnits, addWoundedUnits } = require('../../services/woundedService');
+const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
@@ -106,6 +106,7 @@ function defendingArmies(city) {
 }
 
 async function depositCarry(army, homeCity) {
+  await depositCarriedWounded(army.id, homeCity.id);   // les blessés rapportés entrent à la Tente de soins
   await creditCity(prisma, homeCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
   if ((army.carryGold || 0) > 0) await prisma.player.update({ where: { id: army.ownerId }, data: { gold: { increment: army.carryGold } } });
   // Settlers that did not found a city go back to the pool of their city (the capital)
@@ -307,7 +308,7 @@ async function handleAttack(army, now) {
     if (defenderWounded.length > 0) await addWoundedUnits(targetCity.id, defenderWounded);
     if (army.cityId) {
       const attackerWounded = await calculateWoundedUnits(army.cityId, result.attackerFinalUnits, army.owner.faction, T.techPct(atkTech, 'woundedBonusPct'));
-      if (attackerWounded.length > 0) await addWoundedUnits(army.cityId, attackerWounded);
+      if (attackerWounded.length > 0) await carryWounded(prisma, army.id, attackerWounded);   // ils rentrent avec l'armée
     }
   } catch (woundErr) { console.error('[WOUNDED]', woundErr.message); }
 
