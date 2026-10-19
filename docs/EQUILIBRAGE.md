@@ -66,7 +66,7 @@ paliers supérieurs ; les expéditions sont un peu plus faciles pour une armée 
 
 Cavalerie : moins de puissance par ressource (coût 160 contre 125) mais 1,5 à 1,8 × plus rapide et meilleur transport : rôle de
 pillard cohérent ✅. Archers : coût égal à l'infanterie, un peu moins de puissance, mais +20 % contre l'infanterie ✅.
-Engins de siège : 4 de puissance par 100 ressources, ils n'ont de valeur que contre les murs : depuis le siège qui dure (octobre 2026), 500 PV de mur par engin et par heure de siège ✅.
+Engins de siège : 4 de puissance par 100 ressources, ils n'ont de valeur que contre les murs : depuis le siège qui dure (octobre 2026), 400 PV de mur par engin et par heure de siège (100 engins percent un mur niveau 20 en 30 min), 5 engins par niveau d'Atelier dans une armée ✅.
 
 ## 3. Déplacements
 

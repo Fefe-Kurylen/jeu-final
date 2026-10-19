@@ -15,7 +15,8 @@ const SHEET_RULES = {
   triangleBonusPct: 20,
   tierCoeff: { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 },
   upkeep: { base: 5, intermediate: 10, elite: 15, siege: 15 },
-  siegeWallDamagePerHour: 500,   // config.combat.siege.wallDamagePerEngineHour
+  siegeWallDamagePerHour: 400,   // config.combat.siege.wallDamagePerEngineHour
+  enginesPerWorkshopLevel: 5,    // config.combat.siege.enginesPerWorkshopLevel
   tilesPerHourFactor: 2.4, // 1 case en 30 s à vitesse 50 → 2,4 × vitesse cases par heure (calculations.js)
   trainBuildings: { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] },
   siegeWorkshopLevel: 5,
@@ -200,7 +201,7 @@ function showUnitInfoModal(unitKey) {
         <div class="sheet-matchups">
           ${beats ? `<div class="sheet-matchup strong"><span class="mk">Fort contre</span> ${unitIconHtml(beats, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beats]}</b><small>+${pct} % de dégâts infligés à cette classe</small></div>` : ''}
           ${beatenBy ? `<div class="sheet-matchup weak"><span class="mk">Vulnérable face à</span> ${unitIconHtml(beatenBy, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beatenBy]}</b><small>+${pct} % de dégâts subis de cette classe</small></div>` : ''}
-          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>Pendant un siège, chaque engin abat ${SHEET_RULES.siegeWallDamagePerHour} points de mur par heure ; pris pour cible en dernier, inutile sans escorte.</small></div>` : ''}
+          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>Pendant un siège, chaque engin abat ${SHEET_RULES.siegeWallDamagePerHour} points de mur par heure (100 engins percent un mur niveau 20 en 30 min) ; une armée en emmène au plus ${SHEET_RULES.enginesPerWorkshopLevel} par niveau d'Atelier ; pris pour cible en dernier, inutile sans escorte.</small></div>` : ''}
           ${unit.tier === 'elite' ? `<div class="sheet-matchup"><span class="mk">Ciblage</span> <b>Visée en premier</b><small>L'ennemi concentre ses coups sur les unités d'élite, puis intermédiaires, de base, et enfin les engins.</small></div>` : ''}
         </div>
       </div>
@@ -231,7 +232,7 @@ function buildingFunctions(key, fx) {
     RALLY_POINT: [['1 armée en campagne', 1, tab('army')], ['2 armées', 5], ['3 armées', 10], ['4 armées', 15], ['5 armées', 20]],
     BARRACKS: [['Recruter infanterie et archers de base', fx.unlockBaseTier || 1, 'recruit'], ['Unités intermédiaires', fx.unlockIntermediateTier || 7], ['Unités d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
     STABLE: [['Recruter la cavalerie de base', fx.unlockBaseTier || 1, 'recruit'], ['Cavalerie intermédiaire', fx.unlockIntermediateTier || 7], ['Cavalerie d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
-    WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1]],
+    WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1], [`${SHEET_RULES.enginesPerWorkshopLevel} engins de siège par niveau dans une armée (${SHEET_RULES.enginesPerWorkshopLevel * 20} au niveau 20)`, 1, tab('army')]],
     ACADEMY: [['Construction plus rapide (−1 % par niveau)', 1], ['Recherche de technologies (une technologie ne dépasse pas le niveau de l\'Académie)', 1, 'panel'], ['Recherche plus rapide (−1 % par niveau)', 1]],
     FORGE: [['Défense de toutes les troupes de la ville (+0,5 % par niveau)', 1]],
     FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],

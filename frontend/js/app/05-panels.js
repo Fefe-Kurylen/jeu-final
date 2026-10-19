@@ -912,7 +912,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <h3>${buildingNames[buildingKey]}</h3>
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
-            ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `Engins de siège dès le niveau ${siegeMin}` : 'Engins de siège disponibles') :
+            ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `Engins de siège dès le niveau ${siegeMin}` : `Engins de siège disponibles · une armée en emmène ${buildingLevel * 5} au plus`) :
               buildingLevel < unlockInter ? `Unités de base (intermédiaires au niveau ${unlockInter})` :
               buildingLevel < unlockElite ? `Base + Intermédiaires (élite au niveau ${unlockElite})` :
               'Toutes les unités'}
@@ -1352,7 +1352,7 @@ function getBuildingDescription(key) {
     MAIN_HALL: 'Réduit le temps de construction',
     BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
-    WORKSHOP: 'Construit des machines de siège',
+    WORKSHOP: 'Construit des machines de siège ; 5 engins par niveau dans une armée',
     ACADEMY: 'Recherche et formation',
     FORGE: 'Améliore l\'équipement',
     MARKET: 'Commerce et échanges',

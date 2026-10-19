@@ -428,6 +428,7 @@ function openArmyComposition(armyId) {
           </div>
         </div>
         
+        ${siegeCapLine(army, availableUnits)}
         ${availableUnits.length > 0 ? `
           <div class="comp-units-list" id="comp-units-list">
             ${availableUnits.map(u => renderCompositionUnitRow(armyId, u)).join('')}
@@ -456,6 +457,19 @@ function openArmyComposition(armyId) {
   `;
   
   modal.style.display = 'flex';
+}
+
+// Engins de siège : 5 par niveau d'Atelier de la ville de l'armée (règle du serveur, config.combat.siege.enginesPerWorkshopLevel)
+function armySiegeCap(army) {
+  const city = (currentCity && currentCity.id === army.cityId) ? currentCity : (typeof cities !== 'undefined' ? cities.find(c => c.id === army.cityId) : null);
+  const ws = (city?.buildings || []).find(b => b.key === 'WORKSHOP')?.level || 0;
+  return ws * 5;
+}
+function siegeCapLine(army, availableUnits) {
+  if (!availableUnits.some(u => u.unit?.class === 'SIEGE')) return '';
+  const inArmy = (army.units || []).filter(u => unitsData.find(d => d.key === u.unitKey)?.class === 'SIEGE').reduce((t, u) => t + u.count, 0);
+  const cap = armySiegeCap(army);
+  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong>${formatNum(inArmy)} / ${formatNum(cap)}</strong> (5 par niveau d'Atelier ; 100 engins percent un mur niveau 20 en 30 min)</p>`;
 }
 
 // Render a unit row in composition modal

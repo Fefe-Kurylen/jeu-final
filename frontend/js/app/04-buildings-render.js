@@ -231,7 +231,7 @@ function getBuildingEffect(key, level) {
     'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps (colons : à venir)`,
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
-    'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
+    'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps · ${level * 5} engins par armée`,
     'GREAT_BARRACKS': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     // Defence

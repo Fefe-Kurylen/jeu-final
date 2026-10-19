@@ -157,6 +157,7 @@ assert('population updated on build completion', Number(sql(`SELECT population F
 
 // Setup for military tests (not under test): barracks, rally point, market, main hall level 10
 for (const cid of [cityA.id, cityB.id]) { addBuilding(cid, 'BARRACKS', 30, 10); addBuilding(cid, 'RALLY_POINT', 31, 10); addBuilding(cid, 'MARKET', 32, 1); addBuilding(cid, 'EMBASSY', 33, 7); }
+addBuilding(cityA.id, 'WORKSHOP', 34, 2);   // 5 siege engines per Workshop level: 10 in an army of A
 sql(`UPDATE "CityBuilding" SET level=10 WHERE "cityId" IN ('${cityA.id}','${cityB.id}') AND key='MAIN_HALL'`);
 
 // ---------- RECRUIT ----------
@@ -212,6 +213,9 @@ await call('army set-unit 2 siege', 'POST', `/api/army/${armyId}/set-unit`, tA, 
 // City tiers follow the Main Hall: B (Main Hall 10) is a « Ville », 10 siege engines at least
 await call('attack a Ville (Main Hall 10) with 2 engines -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityB.id }, 400);
 assert('cities list carries the tier from the Main Hall', (await call('cities A (tier)', 'GET', '/api/cities', tA))?.find(c => c.id === cityA.id)?.cityTierName === 'Ville');
+await call('army adjust-unit siege beyond the Workshop cap (2 x 5 = 10) -> 400', 'POST', `/api/army/${armyId}/adjust-unit`, tA, { unitKey: siegeKey, delta: 9 }, 400);
+const capped = await call('army set-unit 12 siege, clamped to the Workshop cap', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: siegeKey, count: 12 });
+assert('an army takes at most 5 siege engines per Workshop level', capped?.newCount === 10 && capped?.maxSiegeEngines === 10, JSON.stringify(capped));
 await call('army set-unit 10 siege', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: siegeKey, count: 10 });
 await call('assign-hero (moves hero from garrison)', 'POST', `/api/army/${armyId}/assign-hero`, tA, {});
 assert('hero moved garrison -> army', sql(`SELECT count(*) FROM "Army" WHERE id='${armyId}' AND "heroId" IS NOT NULL`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE id='${garA}' AND "heroId" IS NOT NULL`) === '0');
@@ -238,7 +242,7 @@ await waitTick('siege started', () => sql(`SELECT status FROM "Army" WHERE id='$
 assert('no battle when the attack arrives', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) === 0);
 assert('city flagged as besieged', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
 const assaultAt0 = new Date(sql(`SELECT to_char("arrivalAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM "Army" WHERE id='${armyId}'`));
-assert('assault planned at the breach (10 engines x 500 HP/h vs 5 000 HP ~ 1 h), never before 30 min', assaultAt0 - Date.now() > 29 * 60000 && assaultAt0 - Date.now() < 65 * 60000, `${Math.round((assaultAt0 - Date.now()) / 60000)} min`);
+assert('assault planned at the breach (10 engines x 400 HP/h vs 5 000 HP = 1 h 15), never before 30 min', assaultAt0 - Date.now() > 70 * 60000 && assaultAt0 - Date.now() < 80 * 60000, `${Math.round((assaultAt0 - Date.now()) / 60000)} min`);
 const incB = await call('incoming attacks B (siege)', 'GET', '/api/city/incoming-attacks', tB);
 assert('the siege shows in the alerts with its leader', Array.isArray(incB) && incB.some(a => a.type === 'SIEGE' && a.attacker));
 const siegeB = await call('siege info B', 'GET', `/api/city/${cityB.id}/siege`, tB);

@@ -28,9 +28,12 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
 - **Début** : une attaque (mission ATTACK, avec le minimum d'engins du palier de la ville) qui arrive ne se règle plus
   d'un coup. L'armée **campe devant la ville** (statut `BESIEGING`) et la ville passe « assiégée » (`City.isSieged`).
   Le défenseur, les membres de son alliance et l'attaquant sont prévenus. Une ville déjà alliée à l'arrivée renvoie l'armée.
-- **Usure du mur** : à chaque tick, chaque engin abat **500 PV de mur par heure** (bonus d'engins du Sultanat compris ;
-  le mur égyptien a 25 % de PV en plus). Le minimum d'engins (1 / 10 / 20) perce un mur du même niveau (1 / 10 / 20) en
-  2 h environ. La réparation du mur est arrêtée pendant le siège et reprend ensuite (24 h pour 100 %).
+- **Usure du mur** : à chaque tick, chaque engin abat **400 PV de mur par heure** (bonus d'engins du Sultanat compris ;
+  le mur égyptien a 25 % de PV en plus) : **100 engins percent un mur niveau 20 en 30 min** ; le minimum d'engins
+  (1 / 10 / 20) perce un mur du même niveau en 2 h 30. La réparation du mur est arrêtée pendant le siège et reprend ensuite
+  (24 h pour 100 %).
+- **Engins par armée** : au plus **5 par niveau d'Atelier** de la ville de l'armée (100 au niveau 20), vérifié quand on
+  compose l'armée (décision d'octobre 2026).
 - **Assaut** : à la brèche, **jamais avant 30 min** de siège (GDD `minDestroyMinutesReference`), **au plus tard 12 h**
   après le début. L'attaquant peut aussi donner l'assaut lui-même après 30 min (bouton « Assaut »), ou lever le siège
   (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV restants ;

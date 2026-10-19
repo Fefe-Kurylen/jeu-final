@@ -78,6 +78,15 @@ async function launchCityMission(army, targetCity, mission) {
   return ok ? { travelTime, arrivalAt } : null;
 }
 
+// Siege engines an army may take: 5 per Workshop level of its city (config.combat.siege.enginesPerWorkshopLevel)
+const isSiegeUnit = (unitKey) => unitsData.find(u => u.key === unitKey)?.class === 'SIEGE';
+async function siegeEngineRoom(tx, army, unitKey) {
+  const workshop = await tx.cityBuilding.findFirst({ where: { cityId: army.cityId, key: 'WORKSHOP' }, select: { level: true } });
+  const cap = (workshop?.level || 0) * config.combat.siege.enginesPerWorkshopLevel;
+  const others = army.units.filter(u => u.unitKey !== unitKey && isSiegeUnit(u.unitKey)).reduce((t, u) => t + u.count, 0);
+  return { cap, room: Math.max(0, cap - others) };
+}
+
 // Moves units between an army standing in its city and that city's garrison. Both rows move by
 // increments guarded by their current count, so a batch of recruits or a healed group landing at the
 // same moment is never overwritten by a stale absolute value.
@@ -204,6 +213,10 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
       if (delta > 0 && delta > currentInGarrison) return { error: 'Pas assez d\'unites en garnison', status: 400 };
       if (delta < 0 && -delta > currentInArmy) return { error: 'Pas assez d\'unites dans l\'armee', status: 400 };
       const newCount = currentInArmy + delta;
+      if (delta > 0 && isSiegeUnit(unitKey)) {
+        const { cap, room } = await siegeEngineRoom(tx, army, unitKey);
+        if (newCount > room) return { error: `Une armée emmène au plus ${cap} engins de siège (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)`, status: 400, maxSiegeEngines: cap };
+      }
       await transferUnits(tx, army, garrison, unitKey, newCount, currentInArmy, currentInGarrison);
       return { message: 'Composition mise a jour', newCount };
     });
@@ -228,10 +241,15 @@ router.post('/:id/set-unit', auth, async (req, res) => {
       const { army, garrison } = loaded;
       const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
       const currentInGarrison = garrison.units.find(u => u.unitKey === unitKey)?.count || 0;
-      const newCount = Math.min(count, currentInArmy + currentInGarrison);
-      if (newCount === currentInArmy) return { message: 'Aucun changement', newCount };
+      let newCount = Math.min(count, currentInArmy + currentInGarrison);
+      let siegeCap = null;
+      if (isSiegeUnit(unitKey) && newCount > currentInArmy) {
+        const { cap, room } = await siegeEngineRoom(tx, army, unitKey);
+        if (newCount > room) { newCount = Math.max(currentInArmy, room); siegeCap = cap; }
+      }
+      if (newCount === currentInArmy) return siegeCap !== null ? { error: `Une armée emmène au plus ${siegeCap} engins de siège (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)`, status: 400, maxSiegeEngines: siegeCap } : { message: 'Aucun changement', newCount };
       const delta = await transferUnits(tx, army, garrison, unitKey, newCount, currentInArmy, currentInGarrison);
-      return { message: 'Composition mise à jour', delta, newCount, clamped: newCount !== count };
+      return { message: siegeCap !== null ? `Composition mise à jour : ${siegeCap} engins de siège au plus (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)` : 'Composition mise à jour', delta, newCount, clamped: newCount !== count, ...(siegeCap !== null ? { maxSiegeEngines: siegeCap } : {}) };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);

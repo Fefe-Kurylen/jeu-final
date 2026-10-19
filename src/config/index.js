@@ -142,8 +142,10 @@ const config = {
     // ses engins abattent le mur au fil du temps, puis l'assaut est donné. Le défenseur et ses alliés peuvent attaquer
     // l'armée qui assiège pour lever le siège.
     siege: {
-      wallDamagePerEngineHour: 500,   // PV de mur abattus par engin et par heure : le minimum d'engins (1 / 10 / 20) contre
-                                      // un mur du même niveau (1 / 10 / 20) le perce en 2 h environ
+      wallDamagePerEngineHour: 400,   // PV de mur abattus par engin et par heure : 100 engins percent un mur niveau 20
+                                      // (20 000 PV) en 30 min ; le minimum d'engins (1 / 10 / 20) contre un mur du même
+                                      // niveau le perce en 2 h 30 (décision d'octobre 2026)
+      enginesPerWorkshopLevel: 5,     // une armée emmène au plus 5 engins par niveau d'Atelier de sa ville (100 au niveau 20)
       minAssaultMinutes: 30,          // GDD minDestroyMinutesReference : au moins 30 min de siège avant l'assaut
       maxHours: 12,                   // sans brèche, l'assaut est donné au plus tard 12 h après le début du siège
       upkeepAttackerPct: 10,          // GDD foodUpkeepModifierPct : l'armée qui assiège consomme 10 % de plus...
