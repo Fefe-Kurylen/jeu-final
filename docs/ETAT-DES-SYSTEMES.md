@@ -64,7 +64,9 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 - **Décidé et appliqué (octobre 2026)** : la Tente a **200 lits par niveau** (`config.wounded.bedsPerLevel`, 4 000 au niveau
   20) ; les blessés au-delà attendent en file (`WoundedUnit.waiting`) et prennent les lits libérés par les guérisons ou par
   un soin à l'or, qui ne soigne que les blessés au lit. Aucun soldat n'est perdu dans la file.
-- **À décider ensuite** : blocage des soins pendant un siège.
+- **Décidé et appliqué (octobre 2026)** : **aucun soin dans une ville assiégée**, c'est-à-dire tant qu'une attaque ennemie
+  marche sur elle ou s'y résout : ni guérison avec le temps, ni soin à l'or. Les blessés dont le temps est écoulé reviennent
+  dès la levée du siège. Les blessés d'une armée en déplacement ne se soignent qu'une fois rentrés en ville (règle 1).
 
 ## Héros
 

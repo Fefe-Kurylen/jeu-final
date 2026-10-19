@@ -1,7 +1,7 @@
 const express = require('express');
 const { isPremium } = require('../services/entitlementService');
 const router = express.Router();
-const { admitWaiting } = require('../services/woundedService');
+const { admitWaiting, besiegedCityIds } = require('../services/woundedService');
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
@@ -386,12 +386,13 @@ router.get('/:id/wounded', auth, async (req, res) => {
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
 
     const wounded = await prisma.woundedUnit.findMany({ where: { cityId: city.id } });
+    const besieged = (await besiegedCityIds(prisma, [city.id])).has(city.id);   // ville assiégée : soins suspendus
     const woundedWithDetails = wounded.map(w => {
       const unitDef = unitsData.find(u => u.key === w.unitKey);
       return {
         ...w, unitName: unitDef?.name || w.unitKey, faction: unitDef?.faction,
         class: unitDef?.class, tier: unitDef?.tier,
-        timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null
+        timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null, besieged
       };
     });
     res.json(woundedWithDetails);
@@ -412,6 +413,7 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
 
       const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : aucun soin possible tant qu\'une attaque marche sur elle', status: 400 };
       if (!wounded || wounded.count <= 0) return { error: wounded ? 'Ces blessés attendent un lit : seuls les blessés au lit se soignent' : 'Pas de blessés de ce type', status: wounded ? 400 : 404 };
 
       const goldCost = wounded.count;

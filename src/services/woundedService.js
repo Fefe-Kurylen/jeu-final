@@ -93,9 +93,20 @@ async function admitWaiting(db, cityId) {
   await db.woundedUnit.deleteMany({ where: { cityId, count: 0, waiting: 0 } });
 }
 
+// Ville assiégée (GDD : soins du défenseur bloqués pendant un siège) : une attaque ennemie marche sur elle ou s'y résout.
+// Aucun soin n'y est possible ; les blessés dont le temps est écoulé reviennent dès la levée du siège.
+async function besiegedCityIds(db, cityIds) {
+  if (!cityIds.length) return new Set();
+  const attacks = await db.army.findMany({ where: { status: 'ATTACKING', targetCityId: { in: cityIds } }, select: { targetCityId: true } });
+  return new Set(attacks.map(a => a.targetCityId));
+}
+
 async function processHealedUnits() {
   const now = new Date();
-  const healedUnits = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
+  const due = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
+  if (due.length === 0) return 0;
+  const besieged = await besiegedCityIds(prisma, [...new Set(due.map(w => w.cityId))]);
+  const healedUnits = due.filter(w => !besieged.has(w.cityId));
   if (healedUnits.length === 0) return 0;
 
   const cityIds = [...new Set(healedUnits.map(w => w.cityId))];
@@ -130,4 +141,4 @@ async function processHealedUnits() {
   return healed;
 }
 
-module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor };
+module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor, besiegedCityIds };

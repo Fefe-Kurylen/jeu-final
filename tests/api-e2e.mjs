@@ -369,6 +369,17 @@ await call('wounded list B', 'GET', `/api/city/${cityB.id}/wounded`, tB);
   assert('healed soldiers back in the garrison, the queue moved into beds', garAU() - before === 1000, `+${garAU() - before}`);
   const list = await call('wounded list A (beds)', 'GET', `/api/city/${cityA.id}/wounded`, tA);
   assert('wounded list carries the waiting count', Array.isArray(list) && list[0] && list[0].count === 40 && list[0].waiting === 0);
+  // Besieged city (an enemy attack marches on it): no healing at all, natural or with gold, until the siege is lifted
+  sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
+  sql(`INSERT INTO "WoundedUnit"(id,"cityId","unitKey",count,waiting,"healsAt") VALUES (gen_random_uuid(),'${cityA.id}','${k}',30,0,now()-interval '1 second')`);
+  const siegeId = sql(`INSERT INTO "Army"(id,"ownerId",name,x,y,status,"targetCityId","arrivalAt") VALUES (gen_random_uuid(),'${B.player.id}','Siège test',${cityA.x + 5},${cityA.y},'ATTACKING','${cityA.id}',now()+interval '1 day') RETURNING id`).split('\n')[0];
+  await sleep(35000);
+  assert('no natural healing while besieged', sql(`SELECT count FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`) === '30');
+  await call('gold healing refused while besieged -> 400', 'POST', `/api/city/${cityA.id}/wounded/heal`, tA, { unitKey: k }, 400);
+  const sieged = await call('wounded list A (besieged)', 'GET', `/api/city/${cityA.id}/wounded`, tA);
+  assert('wounded list flags the siege', Array.isArray(sieged) && sieged[0]?.besieged === true);
+  sql(`DELETE FROM "Army" WHERE id='${siegeId}'`);
+  await waitTick('siege lifted, wounded healed', () => sql(`SELECT count(*) FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`) === '0');
   sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
 }
 
