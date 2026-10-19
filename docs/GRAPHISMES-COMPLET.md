@@ -17,11 +17,11 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
 | Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
-| Carte du monde | 13 | 298 | 0 | **298** |
+| Carte du monde | 13 | 304 | 0 | **304** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 64 | **2012** | 189 | **1823** |
+| **Total** | 64 | **2018** | 189 | **1829** |
 
 ## Inscription et connexion
 
@@ -68,7 +68,7 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 
 | Famille | Images | Peintes | Où | Prompt | Priorité |
 |---|---|---|---|---|---|
-| Villes par civilisation et forteresses | 14 | 0 | villes des joueurs (palier du Bâtiment principal) | § 3.4 | ★★★ |
+| Villes par civilisation et forteresses | 20 | 0 | villes des joueurs (palier du Bâtiment principal) | § 3.4 | ★★★ |
 | Villes secondaires (colonies) par civilisation | 6 | 0 | colonies des joueurs | guide § S12 | ★★☆ |
 | Points de ressource (5 types × 3 biomes) | 15 | 0 | points de ressource libres | § 3.4 | ★★★ |
 | Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace) | 28 | 0 | fond de la carte | § 3.4 | ★★★ |

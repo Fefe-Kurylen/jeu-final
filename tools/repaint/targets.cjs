@@ -133,6 +133,8 @@ add('map/units/settler.webp', 'map', 'Carte du monde : cortège de colons en mar
 for (const c of CIVS) add(`map/units/settler_${c}.webp`, 'map', `Carte du monde : cortège de colons de ${CIV_FR[c]}`);
 anim('map/units/settler_walk', 6, 'map', 'Cycle de marche sur la carte : cortège de colons');
 for (const b of ['', '_desert', '_snow']) add(`map/camps/foundation${b}.webp`, 'map', `Carte du monde : campement de fondation${b ? ` (${b.slice(1)})` : ''} pendant les 24 h de fondation d'une ville (remplace l'icône du point)`);
+// Ville à l'état normal, palier 2 « Ville » (Bâtiment principal ≥ 10) : entre le village (sprite <civ>) et la forteresse (capital_<civ>)
+for (const c of CIVS) add(`map/cities/${c.toLowerCase()}_t2.webp`, 'map', `Carte du monde : ville de ${CIV_FR[c]} au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal`, { guide: true, guideFile: `map/cities/${c.toLowerCase()}.webp` });
 for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}.webp`, 'map', `Carte du monde : ville secondaire (colonie) de ${CIV_FR[c]}, plus petite que la ville de départ`);
 for (const c of CIVS) add(`busts/SETTLER_${c}.webp`, 'bust', `Portrait du colon de ${CIV_FR[c]} (onglet Colons de la Résidence, modale de fondation, carte d'armée)`);
 add('scenes/vignette-founding.webp', 'header', 'Vignette « fondation d\'une ville » (onglet Colons, modale de fondation)');
@@ -181,7 +183,7 @@ const SIEGE_TIER_FR = { 1: 'village', 2: 'ville', 3: 'ville fortifiée' };
 for (const c of CIVS) for (const t of [1, 2, 3]) for (let i = 0; i < 4; i++) {
   const base = `map/cities/siege_${c}_t${t}`;
   add(`${base}_${i}.webp`, 'map', `Carte du monde : ${SIEGE_TIER_FR[t]} de ${CIV_FR[c]} assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège — phase ${i + 1}/4`,
-    { anim: { base, n: 4, i }, guide: true, guideFile: `map/cities/${t === 3 ? 'capital_' : ''}${c.toLowerCase()}.webp` });
+    { anim: { base, n: 4, i }, guide: true, guideFile: `map/cities/${t === 3 ? 'capital_' : ''}${c.toLowerCase()}${t === 2 ? '_t2' : ''}.webp` });
 }
 add('ui/icons/siege.webp', 'icons', 'Icône « siège » (bélier ou tour de siège) : alerte de siège, carte d\'armée en siège, bouton « Briser le siège »');
 anim('map/fx/battle', 4, 'fx', 'Carte : combat en cours'); anim('map/fx/fire', 4, 'fx', 'Carte : ville en feu'); anim('map/fx/campfire', 4, 'fx', 'Carte : feu de camp des tribus');

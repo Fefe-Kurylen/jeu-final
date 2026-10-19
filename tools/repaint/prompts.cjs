@@ -30,10 +30,11 @@ const PROP = { scroll_research: 'a large unrolled parchment scroll with a quill,
 const MAP = {
   'cities/rome': 'a small Roman town icon for a world map: a few terracotta-roofed houses, a columned hall and a red banner', 'cities/gaul': 'a small Gallic village icon for a world map: thatched huts and a green banner', 'cities/greek': 'a small Greek town icon for a world map: marble buildings with blue roofs and a blue banner', 'cities/egypt': 'a small Egyptian town icon for a world map: sandstone buildings with flat roofs and a teal banner', 'cities/hun': 'a small Hunnic camp icon for a world map: felt yurts with conical roofs and a red banner', 'cities/sultan': 'a small Sultanate town icon for a world map: whitewashed houses with a teal dome and a minaret', 'cities/capital': 'a fortified capital icon for a world map: walls with corner towers around a columned palace, Roman style, a red banner', 'cities/default': 'a small generic ancient town icon for a world map: a few stone houses with terracotta roofs'
 };
+for (const f of ['rome', 'gaul', 'greek', 'egypt', 'hun', 'sultan']) MAP['cities/' + f + '_t2'] = `${MAP['cities/' + f].replace('a small ', 'a larger ').replace(' icon for a world map', ' icon for a world map, grown into a real town')}, more and taller buildings, a low stone wall with a simple gate around it (level 2 town, between the village of the guide and a fortified city)`;
 // Ville assiégée sur la carte (octobre 2026) : le sprite de ville de chaque palier (village, ville, ville fortifiée) sous le siège
 const SIEGE_TOWN = {
   1: (c) => `${MAP['cities/' + c.toLowerCase()]}, as a modest village (level 1 town)`,
-  2: (c) => `${MAP['cities/' + c.toLowerCase()]}, as a larger town with a low stone wall (level 2 town)`,
+  2: (c) => `${MAP['cities/' + c.toLowerCase() + '_t2']}`,
   3: (c) => `a fortified capital icon for a world map: walls with corner towers around a palace, ${FACTION[c]} (level 3 fortified city)`
 };
 for (const f of ['rome', 'gaul', 'greek', 'egypt', 'hun', 'sultan']) MAP['cities/capital_' + f] = `a fortified capital icon for a world map: walls with corner towers around a palace, ${FACTION[f.toUpperCase()]}`;

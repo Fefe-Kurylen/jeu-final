@@ -1524,7 +1524,9 @@ function drawIsoCity(x, y, tw, th, tile) {
   const fortified = (tile.cityTier || 0) >= 3;
   const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
   const colonyType = !fortified && tile.isCapital === false && tileImages.cities['colony_' + faction.toLowerCase()] ? 'colony_' + faction.toLowerCase() : null;   // colonie peinte (guide § S12)
-  const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : faction.toLowerCase());   // forteresse aux couleurs de la faction
+  // palier 2 « Ville » : sprite <civ>_t2 quand il est livré, sinon celui du village
+  const townType = (tile.cityTier || 0) === 2 && tileImages.cities[faction.toLowerCase() + '_t2'] ? faction.toLowerCase() + '_t2' : faction.toLowerCase();
+  const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {
