@@ -101,8 +101,21 @@ async function besiegedCityIds(db, cityIds) {
   return new Set(attacks.map(a => a.targetCityId));
 }
 
+// Pendant un siège, le compte à rebours des soins est en pause : l'échéance des blessés au lit recule du temps écoulé
+// depuis le tick précédent ; à la levée du siège, la guérison repart d'elle-même là où elle s'était arrêtée.
+let lastHealTick = 0;
+async function pauseBesiegedHealing(now) {
+  const dt = lastHealTick ? Math.min(now.getTime() - lastHealTick, 10 * 60000) : 0;
+  lastHealTick = now.getTime();
+  if (dt <= 0) return;
+  const rows = await prisma.woundedUnit.findMany({ where: { count: { gt: 0 } }, select: { cityId: true }, distinct: ['cityId'] });
+  const besieged = [...(await besiegedCityIds(prisma, rows.map(r => r.cityId)))];
+  if (besieged.length) await prisma.$executeRaw`UPDATE "WoundedUnit" SET "healsAt" = "healsAt" + make_interval(secs => ${dt / 1000}) WHERE "cityId" = ANY(${besieged}) AND count > 0`;
+}
+
 async function processHealedUnits() {
   const now = new Date();
+  try { await pauseBesiegedHealing(now); } catch (e) { console.error('[WOUNDED] siege pause', e.message); }
   const due = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
   if (due.length === 0) return 0;
   const besieged = await besiegedCityIds(prisma, [...new Set(due.map(w => w.cityId))]);
