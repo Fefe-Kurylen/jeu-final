@@ -40,6 +40,11 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   lever le siège (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV
   restants ; il ne perd plus de niveau. **Après le combat, l'armée rentre d'elle-même dans sa ville.** Le rapport indique
   les dégâts au mur et la durée du siège.
+- **Anti-spam (décision d'octobre 2026)** : un siège demande **au moins 100 soldats** en plus des engins ; **pas de siège
+  sans engins** : une armée qui arrive sans engin rentre, un camp dont tous les engins sont détruits (sortie, riposte) lève
+  le siège et rentre. **Riposte automatique** : si les troupes présentes dans la ville (garnison et armées en ville) sont
+  au moins **3 fois plus fortes** que l'armée qui arrive, elles l'attaquent aussitôt en rase campagne (rapport
+  « Riposte ») ; gagnée, l'armée est chassée sans siège ; perdue, le siège commence.
 - **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**

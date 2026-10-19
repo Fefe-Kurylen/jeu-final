@@ -13,7 +13,8 @@ const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWoun
 const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
-const { refreshSiegeFlag, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime } = require('./siegeProcessor');
+const { refreshSiegeFlag, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime, engineCount } = require('./siegeProcessor');
+const { calculateArmyPower } = require('../../utils/calculations');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
@@ -340,7 +341,7 @@ async function startSiege(army, now) {
     if (!city) return null;
     if (!(await getRelation(army.ownerId, city.playerId, tx)).canAttack) return null;   // alliance or peace signed on the way
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
-    if (!units.length) return null;
+    if (!units.length || engineCount(units) === 0) return null;   // no siege without siege engines
     const assaultAt = assaultTime(now, wallHpToBreak(city), wallDamagePerHour({ units, owner: army.owner }), now, city.player?.faction);
     const ok = await tx.army.updateMany({ where: { id: army.id, claimedAt: now }, data: { status: 'BESIEGING', x: city.x, y: city.y, departedAt: now, arrivalAt: assaultAt, claimedAt: null } });
     if (ok.count !== 1) return null;
@@ -349,6 +350,14 @@ async function startSiege(army, now) {
   }, TX);
   if (!started) { await sendArmyHome(army, army.targetX, army.targetY); return; }
   const { city, assaultAt } = started;
+  // the city's troops are at least 3 times stronger than the army that arrives: they sally out at once
+  const riposte = await cityRiposte(army.id, city.id).catch(e => { console.error('[RIPOSTE]', e.message); return null; });
+  if (riposte) {
+    const { won, cityName } = riposte;
+    notify(city.playerId, 'battle', won ? '🛡️ Riposte victorieuse' : '🛡️ Riposte repoussée', won ? `Les troupes de ${cityName} ont chassé l'armée de ${army.owner?.name || 'l\'ennemi'} dès son arrivée.` : `Les troupes de ${cityName} ont riposté contre ${army.owner?.name || 'l\'ennemi'} mais ont été repoussées : le siège commence.`, { tab: 'reports' });
+    notify(army.ownerId, 'battle', won ? '⚔️ Repoussée devant la ville' : '⚔️ Riposte repoussée', won ? `${army.name} a été chassée par la riposte de ${cityName}.` : `${army.name} a repoussé la riposte de ${cityName} : le siège commence.`, { tab: 'reports' });
+    if (won) return;
+  }
   const minutes = Math.max(1, Math.round((assaultAt - now) / 60000));
   notify(city.playerId, 'battle', '🏰 Ville assiégée', `${army.owner?.name || 'Un joueur'} assiège ${city.name} : assaut dans ${minutes} min environ. Attaquez l'armée qui assiège ou appelez vos alliés.`, { tab: 'city', cityId: city.id });
   const allianceId = city.player?.alliance?.allianceId;
@@ -358,6 +367,30 @@ async function startSiege(army, now) {
   }
   notify(army.ownerId, 'battle', '🏰 Siège commencé', `${army.name} assiège ${city.name} : assaut dans ${minutes} min environ.`, { tab: 'armies' });
   console.log(`[SIEGE] ${army.owner?.name} assiège ${city.name}, assaut à ${assaultAt.toISOString()}`);
+}
+
+// Automatic riposte: when the troops standing in the city (garrison and armies at home) are at least riposteRatio times
+// stronger than the army that has just arrived, they sally out against it at once (open-field battle, no wall). Won: the
+// besieger goes home and the siege is lifted; lost: the siege goes on. Returns null when there is no riposte.
+async function cityRiposte(besiegerId, cityId) {
+  return prisma.$transaction(async (tx) => {
+    await lockCity(tx, cityId);
+    const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true, hero: { include: { items: true } } } }, player: { include: { technologies: true } } } });
+    const besieger = await tx.army.findFirst({ where: { id: besiegerId, status: 'BESIEGING', claimedAt: null }, include: SIEGE_CAMP });
+    if (!city || !besieger) return null;
+    const home = defendingArmies(city).filter(a => a.units.some(u => u.count > 0));
+    const units = home.flatMap(a => a.units.filter(u => u.count > 0));
+    if (!units.length) return null;
+    const defPower = calculateArmyPower(units, unitsData), atkPower = calculateArmyPower(besieger.units, unitsData);
+    if (defPower < atkPower * config.combat.siege.riposteRatio) return null;
+    const lead = home.find(a => a.isGarrison) || home[0];
+    const withHero = home.find(a => a.hero);
+    const sally = { id: lead.id, ownerId: city.playerId, cityId: city.id, name: `Garnison de ${city.name}`, owner: city.player, hero: withHero?.hero || null, heroId: withHero?.heroId || null, units };
+    const { combat } = await fieldBattle(tx, sally, [besieger], city.playerId, { x: city.x, y: city.y, where: `Riposte de ${city.name}`, type: 'RIPOSTE', rounds: { type: 'RIPOSTE', cityId: city.id }, attackerAtHome: true });
+    if (combat.attackerWon) await sendArmyHomeTx(tx, besieger);
+    await refreshSiegeFlag(tx, city.id);
+    return { won: combat.attackerWon, cityName: city.name };
+  }, TX);
 }
 
 // The city's owner, its alliance or an allied alliance attacks the armies besieging it: open-field battle (no wall),

@@ -54,6 +54,9 @@ async function checkHostileTarget(army, targetCity, mission) {
     const minSiegeRequired = getMinSiegeEngines(cityTier);
     const siegeCount = countSiegeEngines(army.units, unitsData);
     if (siegeCount < minSiegeRequired) return `Pour assiéger une ${getCityTierName(cityTier)}, il faut minimum ${minSiegeRequired} engin(s) de siège. Vous en avez ${siegeCount}.`;
+    // anti-spam: the engines need an escort
+    const soldiers = army.units.reduce((t, u) => t + (unitsData.find(x => x.key === u.unitKey)?.class === 'SIEGE' ? 0 : u.count), 0);
+    if (soldiers < config.combat.siege.minSoldiers) return `Un siège demande au moins ${config.combat.siege.minSoldiers} soldats pour escorter les engins. Vous en avez ${soldiers}.`;
   }
   if (mission === 'RAID') {
     // GDD: one raid per target city per attacker per 24h

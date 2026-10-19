@@ -46,16 +46,21 @@ async function syncSiegeFlags() {
 // À chaque tick : les engins de toutes les armées qui assiègent une ville abattent son mur pendant le temps écoulé,
 // puis l'heure de l'assaut de chacune est recalculée (des engins perdus dans une sortie retardent la brèche).
 async function processSieges(now, hours) {
-  const besiegers = await prisma.army.findMany({ where: { status: 'BESIEGING', claimedAt: null }, include: { units: true, owner: { select: { faction: true } } } });
+  const besiegers = await prisma.army.findMany({ where: { status: 'BESIEGING', claimedAt: null }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } }, city: true } });
   const byCity = new Map();
   for (const a of besiegers) { if (!byCity.has(a.targetCityId)) byCity.set(a.targetCityId, []); byCity.get(a.targetCityId).push(a); }
-  for (const [cityId, armies] of byCity) {
+  for (let [cityId, armies] of byCity) {
     if (!cityId) continue;
     try {
       await prisma.$transaction(async (tx) => {
         await lockCity(tx, cityId);
         const city = await tx.city.findUnique({ where: { id: cityId }, select: { id: true, wallHp: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { key: true, level: true } } } });
         if (!city) return;   // ville disparue : l'assaut renverra les armées chez elles (cible introuvable)
+        // no siege without engines: a camp whose engines were all destroyed goes home
+        const { sendArmyHomeTx } = require('../../services/armyService');
+        for (const a of armies.filter(x => engineCount(x.units) === 0)) await sendArmyHomeTx(tx, a);
+        armies = armies.filter(x => engineCount(x.units) > 0);
+        if (!armies.length) { await refreshSiegeFlag(tx, cityId); return; }
         const rate = armies.reduce((t, a) => t + wallDamagePerHour(a), 0);
         // chaque armée ne frappe que depuis son arrivée (une armée arrivée en cours de tick ne compte pas le tick entier)
         const damage = armies.reduce((t, a) => t + wallDamagePerHour(a) * Math.min(hours, Math.max(0, (now - new Date(a.departedAt || now)) / 3600000)), 0);

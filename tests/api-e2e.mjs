@@ -227,6 +227,9 @@ await call('army get other player army -> 404', 'GET', `/api/army/${armyId}`, tB
 const tentSlot = sql(`SELECT MIN(s) FROM generate_series(1,19) s WHERE s NOT IN (SELECT slot FROM "CityBuilding" WHERE "cityId"='${cityA.id}')`);
 addBuilding(cityA.id, 'HEALING_TENT', Number(tentSlot), 5);
 sql(`DELETE FROM "WoundedUnit" WHERE "cityId"='${cityA.id}'`);
+const escort = await call('siege with 70 soldiers -> 400 (100 needed to escort the engines)', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityB.id }, 400);
+assert('a siege needs 100 soldiers besides the engines', /100 soldats/.test(escort?.error || ''), escort?.error);
+await call('army set-unit 100 inf (escort)', 'POST', `/api/army/${armyId}/set-unit`, tA, { unitKey: infKey, count: 100 });
 await call('army attack B', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityB.id });
 await call('incoming attacks B', 'GET', '/api/city/incoming-attacks', tB);
 await call('attack own city -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityA.id }, 400);
@@ -270,6 +273,8 @@ assert('no production in a besieged city', Number(sql(`SELECT wood FROM "City" W
 // 3 h later the siege is over without a breach: the assault is given by itself; the wall protects in proportion to its hit points
 sql(`UPDATE "Army" SET "departedAt"=now()-interval '181 minutes' WHERE id='${armyId}'`);
 await waitTick('battle resolved', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) >= 1);
+// the report is written inside the battle; the army leaves and the siege flag is cleared right after
+await waitTick('army leaves after the assault', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING', 20000);
 assert('siege lifted after the assault', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 'f' && sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING');
 assert('the report carries the siege (wall damage, minutes)', Number(sql(`SELECT coalesce((loot->>'siegeMinutes')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) >= 30 && Number(sql(`SELECT coalesce((loot->>'wallDamage')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) > 0);
 { // won assault: the wall's health of the capital B (Huns: 4 assaults) drops by a quarter and the stock is pillaged
@@ -428,6 +433,7 @@ await call('wounded list B', 'GET', `/api/city/${cityB.id}/wounded`, tB);
   sql(`DELETE FROM "Army" WHERE id='${marchId}'`);
   // the attacking army is on the city (lasting siege): healing and recruiting are blocked, forming an army is still allowed
   const siegeId = sql(`INSERT INTO "Army"(id,"ownerId",name,x,y,status,"targetCityId","arrivalAt") VALUES (gen_random_uuid(),'${B.player.id}','Siège test',${cityA.x},${cityA.y},'BESIEGING','${cityA.id}',now()+interval '1 day') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${siegeId}','${UNITS.find(z => z.faction === 'HUN' && z.class === 'SIEGE').key}','siege',5)`);   // no siege without engines
   const rec = await call('recruit while besieged -> 400', 'POST', `/api/city/${cityA.id}/recruit`, tA, { unitKey: k, count: 1 }, 400);
   assert('recruiting refused because of the siege', /assiégée/.test(rec?.error || ''), rec?.error);
   const cre = await call('create an army while besieged (allowed)', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 1, name: 'Assiégée' });
@@ -711,6 +717,19 @@ if (MAIL_LOG) {
   console.log('  (EMAIL_LOG_FILE not set: e-mail flows skipped)');
 }
 
+// ---------- RIPOSTE ----------
+// An army that arrives at least 3 times weaker than the troops in the city is attacked at once by the city
+{
+  const eliteB = unitKeyFor('HUN', 'INFANTRY', 'elite');
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garB}','${eliteB}','elite',3000) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count=3000`);
+  const weak = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${A.player.id}','${cityA.id}','Petit siège',${cityA.x},${cityA.y},${cityB.x},${cityB.y},'ATTACKING','ATTACK','${cityB.id}',now()-interval '1 minute',now()-interval '1 second') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${weak}','${infKey}','base',100), (gen_random_uuid(),'${weak}','${siegeKey}','siege',1)`);
+  await waitTick('riposte fought', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='RIPOSTE' AND x=${cityB.x} AND y=${cityB.y}`)) >= 2);
+  assert('the city sallies out against a 3 times weaker army and drives it away', sql(`SELECT winner FROM "BattleReport" WHERE loot->>'type'='RIPOSTE' AND "playerId"='${B.player.id}' LIMIT 1`) === 'ATTACKER' && sql(`SELECT status FROM "Army" WHERE id='${weak}'`) === 'RETURNING');
+  assert('no siege after a won riposte', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 'f');
+  sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${garB}' AND "unitKey"='${eliteB}'`);
+}
+
 // ---------- CITY FALL ----------
 // A secondary city whose wall health reaches 0 is razed; a capital cannot be taken: it flees near the edge of the map.
 // The assaults are inserted ready to strike (siege already over) to keep the suite short.
@@ -718,6 +737,7 @@ if (MAIL_LOG) {
   const assault = (owner, homeCityId, city, unitKey, count) => {
     const id = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${owner}','${homeCityId}','Assaut final',${city.x},${city.y},${city.x},${city.y},'BESIEGING','ASSAULT','${city.id}',now()-interval '40 minutes',now()-interval '1 second') RETURNING id`).split('\n')[0];
     sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${id}','${unitKey}','elite',${count})`);
+    sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${id}','${siegeKey}','siege',10)`);   // no siege without engines
     return id;
   };
   const colonyRow = sql(`SELECT id||'|'||x||'|'||y FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital" LIMIT 1`);

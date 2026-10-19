@@ -312,7 +312,9 @@ function renderBattleReportCard(r, idx) {
   const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
   const isRaid = r.loot?.type === 'RAID', isTribe = r.rounds?.type === 'TRIBE_RAID';
   const kind = isRaid ? 'Pillage' : isTribe ? 'Tribu' : iAttacked ? 'Attaque' : 'Défense';
-  const title = isTribe ? `Combat contre la tribu de ${cityName}` : iAttacked ? `${kind} de ${cityName}` : `${kind} de ${cityName} par ${attackerName}`;
+  // batailles en rase campagne du siège : riposte de la ville et sortie pour briser un siège (cityName = « Riposte de … »)
+  const fieldKind = { RIPOSTE: true, SIEGE_BREAK: true }[r.loot?.type];
+  const title = fieldKind ? `${cityName}${iAttacked ? '' : ` par ${attackerName}`}` : isTribe ? `Combat contre la tribu de ${cityName}` : iAttacked ? `${kind} de ${cityName}` : `${kind} de ${cityName} par ${attackerName}`;
   const date = new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   // Per-unit outcome: detailed reports carry initial/remaining per unit, raids only a global rate

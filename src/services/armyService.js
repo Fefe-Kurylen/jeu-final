@@ -8,7 +8,7 @@ const { getArmyCarryCapacity, calculateArmyPower, getFactionBonus, getArmyTravel
 const { findRoute } = require('../utils/pathfinding');
 const { notify } = require('./pushService');
 const fx = require('../utils/buildingEffects');
-const { calculateWoundedUnits, carryWounded } = require('./woundedService');
+const { calculateWoundedUnits, carryWounded, addWoundedUnits } = require('./woundedService');
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
@@ -144,7 +144,8 @@ async function fieldBattle(tx, army, holders, playerId, place) {
 
   // Wounded on both sides, hero XP as in a city battle
   try {
-    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await carryWounded(tx, army.id, w); }
+    // an attacker fighting at home (the city's riposte) sends its wounded straight to the Healing Tent
+    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await (place.attackerAtHome ? addWoundedUnits(army.cityId, w, tx) : carryWounded(tx, army.id, w)); }
     for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct')); if (w.length) await carryWounded(tx, h.id, w); }
   } catch (e) { console.error('[WOUNDED]', e.message); }
   if (army.heroId) await awardHeroXp(army.heroId, Math.floor(defTotal * config.combat.heroXpPerKill * (combat.attackerWon ? 1 : 0.3)), tx);
