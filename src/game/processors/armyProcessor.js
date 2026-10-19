@@ -336,12 +336,12 @@ async function startSiege(army, now) {
   const started = await prisma.$transaction(async (tx) => {
     if (!army.targetCityId) return null;
     await lockCity(tx, army.targetCityId);
-    const city = await tx.city.findUnique({ where: { id: army.targetCityId }, include: { buildings: { where: { key: 'WALL' } }, player: { select: { id: true, name: true, alliance: { select: { allianceId: true } } } } } });
+    const city = await tx.city.findUnique({ where: { id: army.targetCityId }, include: { buildings: { where: { key: 'WALL' } }, player: { select: { id: true, name: true, faction: true, alliance: { select: { allianceId: true } } } } } });
     if (!city) return null;
     if (!(await getRelation(army.ownerId, city.playerId, tx)).canAttack) return null;   // alliance or peace signed on the way
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     if (!units.length) return null;
-    const assaultAt = assaultTime(now, wallHpToBreak(city), wallDamagePerHour({ units, owner: army.owner }), now);
+    const assaultAt = assaultTime(now, wallHpToBreak(city), wallDamagePerHour({ units, owner: army.owner }), now, city.player?.faction);
     const ok = await tx.army.updateMany({ where: { id: army.id, claimedAt: now }, data: { status: 'BESIEGING', x: city.x, y: city.y, departedAt: now, arrivalAt: assaultAt, claimedAt: null } });
     if (ok.count !== 1) return null;
     await tx.city.update({ where: { id: city.id }, data: { isSieged: true } });

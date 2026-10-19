@@ -147,7 +147,8 @@ const config = {
                                       // niveau le perce en 2 h 30 (décision d'octobre 2026)
       enginesPerWorkshopLevel: 5,     // une armée emmène au plus 5 engins par niveau d'Atelier de sa ville (100 au niveau 20)
       minAssaultMinutes: 30,          // GDD minDestroyMinutesReference : au moins 30 min de siège avant l'assaut
-      maxHours: 12,                   // sans brèche, l'assaut est donné au plus tard 12 h après le début du siège
+      maxHours: 3,                    // un siège dure au plus 3 h : sans brèche, l'assaut est donné contre le mur abîmé ; le mur
+                                      // égyptien (+25 % de PV, bonus wallHealth) tient d'autant plus : 3 h 45 (décision d'octobre 2026)
       upkeepAttackerPct: 10,          // GDD foodUpkeepModifierPct : l'armée qui assiège consomme 10 % de plus...
       upkeepDefenderPct: -10          // ...la ville assiégée et ses armées 10 % de moins
     },

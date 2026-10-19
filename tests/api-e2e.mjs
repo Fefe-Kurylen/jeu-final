@@ -259,7 +259,7 @@ await waitTick('sortie fought', () => Number(sql(`SELECT count(*) FROM "BattleRe
 assert('one report for each side of the sortie', sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='SIEGE_BREAK'`) === '2');
 assert('the beaten sortie is back inside the city', sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${sortieId}'`) === 'IDLE:true');
 assert('the siege holds after a failed sortie', sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'BESIEGING' && sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
-await call('assault before 30 min of siege -> 400', 'POST', `/api/army/${armyId}/assault`, tA, {}, 400);
+assert('no manual assault: the assault is given by itself', (await fetch(`${BASE}/api/army/${armyId}/assault`, { method: 'POST', headers: { Authorization: `Bearer ${tA}` } })).status === 404);
 const blockade = await call('convoy to a besieged city -> 400', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: cityB.x, targetY: cityB.y, resources: { wood: 10, stone: 0, iron: 0, food: 0 } }, 400);
 assert('convoys are refused by the blockade', /assiégée/.test(blockade?.error || ''), blockade?.error);
 const prodB0 = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
@@ -267,9 +267,8 @@ const wall0 = Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`));
 await sleep(32000);
 assert('the engines wear the wall down tick after tick', Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)) < wall0, `${wall0} -> ${sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`)}`);
 assert('no production in a besieged city', Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)) <= prodB0, `${prodB0} -> ${sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`)}`);
-// 30 min later the attacker orders the assault; the wall protects in proportion to its remaining hit points
-sql(`UPDATE "Army" SET "departedAt"=now()-interval '31 minutes' WHERE id='${armyId}'`);
-await call('order the assault', 'POST', `/api/army/${armyId}/assault`, tA, {});
+// 3 h later the siege is over without a breach: the assault is given by itself; the wall protects in proportion to its hit points
+sql(`UPDATE "Army" SET "departedAt"=now()-interval '181 minutes' WHERE id='${armyId}'`);
 await waitTick('battle resolved', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${A.player.id}'`)) >= 1);
 assert('siege lifted after the assault', sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 'f' && sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING');
 assert('the report carries the siege (wall damage, minutes)', Number(sql(`SELECT coalesce((loot->>'siegeMinutes')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) >= 30 && Number(sql(`SELECT coalesce((loot->>'wallDamage')::int,0) FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' LIMIT 1`)) > 0);

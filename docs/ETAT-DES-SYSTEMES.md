@@ -34,10 +34,12 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   (24 h pour 100 %).
 - **Engins par armée** : au plus **5 par niveau d'Atelier** de la ville de l'armée (100 au niveau 20), vérifié quand on
   compose l'armée (décision d'octobre 2026).
-- **Assaut** : à la brèche, **jamais avant 30 min** de siège (GDD `minDestroyMinutesReference`), **au plus tard 12 h**
-  après le début. L'attaquant peut aussi donner l'assaut lui-même après 30 min (bouton « Assaut »), ou lever le siège
-  (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV restants ;
-  il ne perd plus de niveau. Le rapport indique les dégâts au mur et la durée du siège.
+- **Assaut, donné tout seul** (décision d'octobre 2026) : à la brèche, **jamais avant 30 min** de siège (GDD
+  `minDestroyMinutesReference`), **au plus tard 3 h** après le début (**3 h 45 contre un mur égyptien**, qui a 25 % de PV
+  en plus) : sans brèche, l'assaut est donné contre le mur abîmé. L'attaquant ne déclenche pas l'assaut ; il peut seulement
+  lever le siège (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV
+  restants ; il ne perd plus de niveau. **Après le combat, l'armée rentre d'elle-même dans sa ville.** Le rapport indique
+  les dégâts au mur et la durée du siège.
 - **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**

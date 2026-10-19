@@ -16,7 +16,6 @@ const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { pointAlongPath } = require('../utils/calculations');
-const { earliestAssault } = require('../game/processors/siegeProcessor');
 // Who may break a siege: the city's owner, its alliance and the alliances allied to it
 const CAN_RELIEVE = ['SELF', 'SAME_ALLIANCE', 'ALLY'];
 const isBesieged = (cityId, db = prisma) => db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } }).then(n => n > 0);
@@ -320,22 +319,6 @@ function cityMissionRoute(mission, messages) {
   };
 }
 router.post('/:id/attack', auth, cityMissionRoute('ATTACK', { verb: 'attaquer', ok: 'Attaque lancee' }));
-
-// POST /api/army/:id/assault — the besieging army gives the assault now (after the minimum siege time)
-router.post('/:id/assault', auth, async (req, res) => {
-  try {
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId } });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'BESIEGING') return res.status(400).json({ error: 'Cette armée n\'assiège aucune ville' });
-    if (army.claimedAt) return res.status(409).json({ error: 'Assaut déjà en cours' });
-    const earliest = earliestAssault(army.departedAt || new Date());
-    if (Date.now() < earliest.getTime()) return res.status(400).json({ error: `Assaut possible dans ${Math.ceil((earliest.getTime() - Date.now()) / 60000)} min (au moins ${config.combat.siege.minAssaultMinutes} min de siège)`, earliestAssault: earliest });
-    const arrivalAt = new Date();
-    const ok = await prisma.army.updateMany({ where: { id: army.id, status: 'BESIEGING', claimedAt: null }, data: { missionType: 'ASSAULT', arrivalAt } });
-    if (ok.count !== 1) return res.status(409).json({ error: 'Le siège vient de changer, réessayez' });
-    res.json({ message: 'Assaut lancé', arrivalAt });
-  } catch (e) { sendError(res, e); }
-});
 
 // POST /api/army/:id/break-siege — attack the armies besieging a city of yours, of your alliance or of an allied alliance
 router.post('/:id/break-siege', auth, async (req, res) => {

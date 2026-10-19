@@ -260,9 +260,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           </button>
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
         ` : army.status === 'BESIEGING' ? `
-          <button class="army-btn primary" onclick="orderAssault('${army.id}')" title="Donner l'assaut sans attendre la brèche (après le temps minimum de siège)">${resIconHtml('attack')} Assaut</button>
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le siège</button>
-          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné à la brèche">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
+          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné tout seul à la brèche, au plus tard 3 h après le début du siège ; l'armée rentre ensuite chez elle">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `
@@ -1076,15 +1075,4 @@ async function confirmBreakSiege(cityId) {
     await loadArmies();
     renderArmies();
   } catch (e) { closeModal(); showToast('Erreur réseau', 'error'); }
-}
-
-async function orderAssault(armyId) {
-  try {
-    const res = await fetch(`${API}/api/army/${armyId}/assault`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: '{}' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); return; }
-    showToast('Assaut lancé : la bataille a lieu dans quelques secondes', 'success');
-    await loadArmies();
-    renderArmies();
-  } catch (e) { showToast('Erreur réseau', 'error'); }
 }

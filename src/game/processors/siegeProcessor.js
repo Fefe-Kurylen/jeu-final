@@ -8,6 +8,8 @@ const prisma = require('../../config/database');
 const config = require('../../config');
 const { unitsData, factionsData } = require('../../config/gamedata');
 const { getFactionBonus } = require('../../utils/calculations');
+// Durée maximale d'un siège contre une ville de cette civilisation : 3 h, allongée du bonus de PV du mur (Égypte 3 h 45)
+const maxSiegeMs = (defenderFaction) => S().maxHours * 3600000 * (1 + (getFactionBonus(defenderFaction, 'wallHealth', factionsData) || 0) / 100);
 const { lockCity } = require('../../utils/db');
 
 const S = () => config.combat.siege;
@@ -22,11 +24,12 @@ function wallDamagePerHour(army) {
 const wallLevelOf = (buildings) => (buildings || []).find(b => b.key === 'WALL')?.level || 0;
 const wallHpToBreak = (city) => (wallLevelOf(city.buildings) > 0 ? Math.max(0, city.wallHp) : 0);
 
-// Heure de l'assaut : à la brèche, jamais avant minAssaultMinutes, au plus tard maxHours après le début du siège
-function assaultTime(startedAt, wallHp, ratePerHour, now) {
+// Heure de l'assaut, donné tout seul : à la brèche, jamais avant minAssaultMinutes, au plus tard 3 h après le début du siège
+// (3 h 45 contre un mur égyptien)
+function assaultTime(startedAt, wallHp, ratePerHour, now, defenderFaction = null) {
   const start = new Date(startedAt).getTime();
-  const earliest = start + S().minAssaultMinutes * 60000, latest = start + S().maxHours * 3600000;
-  const breach = ratePerHour > 0 ? now.getTime() + (wallHp / ratePerHour) * 3600000 : Infinity;
+  const earliest = start + S().minAssaultMinutes * 60000, latest = start + maxSiegeMs(defenderFaction);
+  const breach = wallHp <= 0 ? now.getTime() : ratePerHour > 0 ? now.getTime() + (wallHp / ratePerHour) * 3600000 : Infinity;   // no wall left: nothing to wait for
   return new Date(Math.max(earliest, Math.min(latest, breach)));
 }
 const earliestAssault = (startedAt) => new Date(new Date(startedAt).getTime() + S().minAssaultMinutes * 60000);
@@ -51,7 +54,7 @@ async function processSieges(now, hours) {
     try {
       await prisma.$transaction(async (tx) => {
         await lockCity(tx, cityId);
-        const city = await tx.city.findUnique({ where: { id: cityId }, select: { id: true, wallHp: true, buildings: { where: { key: 'WALL' }, select: { key: true, level: true } } } });
+        const city = await tx.city.findUnique({ where: { id: cityId }, select: { id: true, wallHp: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { key: true, level: true } } } });
         if (!city) return;   // ville disparue : l'assaut renverra les armées chez elles (cible introuvable)
         const rate = armies.reduce((t, a) => t + wallDamagePerHour(a), 0);
         // chaque armée ne frappe que depuis son arrivée (une armée arrivée en cours de tick ne compte pas le tick entier)
@@ -61,7 +64,7 @@ async function processSieges(now, hours) {
         else await tx.city.update({ where: { id: cityId }, data: { isSieged: true } });
         for (const a of armies) {
           if (a.missionType === 'ASSAULT') continue;   // assaut demandé par l'attaquant : son heure est déjà fixée
-          await tx.army.updateMany({ where: { id: a.id, status: 'BESIEGING', claimedAt: null, missionType: { not: 'ASSAULT' } }, data: { arrivalAt: assaultTime(a.departedAt || now, hp, rate, now) } });
+          await tx.army.updateMany({ where: { id: a.id, status: 'BESIEGING', claimedAt: null, missionType: { not: 'ASSAULT' } }, data: { arrivalAt: assaultTime(a.departedAt || now, hp, rate, now, city.player?.faction) } });
         }
       });
     } catch (e) { console.error(`[SIEGE] ${cityId}:`, e.message); }
