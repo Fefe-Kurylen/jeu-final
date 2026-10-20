@@ -9,6 +9,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
 const T = require('../utils/techEffects');
+const { besiegedCityIds } = require('../services/woundedService');   // ville assiégée : recherche à l'arrêt
 const { processResearch, startNextQueued } = require('../game/processors/researchProcessor');
 
 const queueOf = (db, playerId) => db.researchQueueItem.findMany({ where: { playerId }, orderBy: [{ status: 'desc' }, { startedAt: 'asc' }] });   // RUNNING first
@@ -55,6 +56,7 @@ router.post('/start', auth, async (req, res) => {
       await lockCity(tx, cityId);   // serialises the player's research orders (one city per player today)
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: { select: { key: true, level: true } } } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : la recherche est à l\'arrêt tant que l\'armée ennemie est devant la ville', status: 400 };
       const rows = await tx.playerTechnology.findMany({ where: { playerId: city.playerId } });
       const queue = await tx.researchQueueItem.findMany({ where: { playerId: city.playerId } });
       const blocker = T.researchBlocker(tech, rows, city.buildings, queue);

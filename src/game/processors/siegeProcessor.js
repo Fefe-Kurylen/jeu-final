@@ -45,7 +45,18 @@ async function syncSiegeFlags() {
 
 // À chaque tick : les engins de toutes les armées qui assiègent une ville abattent son mur pendant le temps écoulé,
 // puis l'heure de l'assaut de chacune est recalculée (des engins perdus dans une sortie retardent la brèche).
+// Siège : chantiers, recrutement et recherche en cours sont en pause ; leur fin recule du temps écoulé, ils reprennent
+// d'eux-mêmes à la levée du siège (même principe que les soins)
+async function pauseBesiegedQueues(hours) {
+  const secs = Math.min(hours, 1 / 6) * 3600;   // au plus 10 min d'un coup (rattrapage après un arrêt du serveur)
+  if (secs <= 0) return;
+  await prisma.$executeRaw`UPDATE "BuildQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
+  await prisma.$executeRaw`UPDATE "RecruitQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
+  await prisma.$executeRaw`UPDATE "ResearchQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
+}
+
 async function processSieges(now, hours) {
+  try { await pauseBesiegedQueues(hours); } catch (e) { console.error('[SIEGE] queue pause', e.message); }
   const besiegers = await prisma.army.findMany({ where: { status: 'BESIEGING', claimedAt: null }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } }, city: true } });
   const byCity = new Map();
   for (const a of besiegers) { if (!byCity.has(a.targetCityId)) byCity.set(a.targetCityId, []); byCity.get(a.targetCityId).push(a); }

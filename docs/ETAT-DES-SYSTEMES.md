@@ -45,6 +45,11 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   le siège et rentre. **Riposte automatique** : si les troupes présentes dans la ville (garnison et armées en ville) sont
   au moins **3 fois plus fortes** que l'armée qui arrive, elles l'attaquent aussitôt en rase campagne (rapport
   « Riposte ») ; gagnée, l'armée est chassée sans siège ; perdue, le siège commence.
+- **En pause pendant le siège** (décision d'octobre 2026) : **chantiers, recrutement et recherches en cours** ; leur fin
+  recule du temps écoulé et ils reprennent d'eux-mêmes à la levée. Pas de nouveau chantier ni de nouvelle recherche.
+- **Retour au bercail** : une armée de la ville qui rentre pendant un siège **doit combattre le camp** (rase campagne).
+  Gagné : les assiégeants rentrent, le siège est levé, l'armée entre. Perdu : les survivants attendent à côté de la ville
+  (nouvelle attaque du camp ou retour après la levée).
 - **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**

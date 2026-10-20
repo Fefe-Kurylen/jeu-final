@@ -265,6 +265,8 @@ assert('the siege holds after a failed sortie', sql(`SELECT status FROM "Army" W
 assert('no manual assault: the assault is given by itself', (await fetch(`${BASE}/api/army/${armyId}/assault`, { method: 'POST', headers: { Authorization: `Bearer ${tA}` } })).status === 404);
 const blockade = await call('convoy to a besieged city -> 400', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: cityB.x, targetY: cityB.y, resources: { wood: 10, stone: 0, iron: 0, food: 0 } }, 400);
 assert('convoys are refused by the blockade', /assiégée/.test(blockade?.error || ''), blockade?.error);
+const siegeBuild = await call('build while besieged -> 400', 'POST', `/api/city/${cityB.id}/build`, tB, { buildingKey: 'WAREHOUSE' }, 400);
+assert('no new building site during a siege', /assiégée/.test(siegeBuild?.error || ''), siegeBuild?.error);
 const prodB0 = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
 const wall0 = Number(sql(`SELECT "wallHp" FROM "City" WHERE id='${cityB.id}'`));
 await sleep(32000);
@@ -715,6 +717,18 @@ if (MAIL_LOG) {
   }
 } else {
   console.log('  (EMAIL_LOG_FILE not set: e-mail flows skipped)');
+}
+
+// ---------- HOMECOMING THROUGH A SIEGE ----------
+// An army coming home to its besieged city must fight the camp; winning lifts the siege and lets it in
+{
+  const camp = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${A.player.id}','${cityA.id}','Camp',${cityB.x},${cityB.y},${cityB.x},${cityB.y},'BESIEGING','ATTACK','${cityB.id}',now(),now()+interval '2 hours') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${camp}','${infKey}','base',50), (gen_random_uuid(),'${camp}','${siegeKey}','siege',5)`);
+  const back = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${B.player.id}','${cityB.id}','Retour',${cityB.x + 3},${cityB.y},${cityB.x},${cityB.y},'RETURNING','RETURN',now()-interval '5 minutes',now()-interval '1 second') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${back}','${unitKeyFor('HUN', 'INFANTRY', 'elite')}','elite',500)`);
+  await waitTick('homecoming fight', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='SIEGE_BREAK' AND rounds->>'homecoming'='true' AND "attackerId"='${B.player.id}'`)) >= 2);
+  await waitTick('home army inside', () => sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${back}'`) === 'IDLE:true', 20000);
+  assert('an army coming home fights its way through the camp and lifts the siege', sql(`SELECT status FROM "Army" WHERE id='${camp}'`) === 'RETURNING' && sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${back}'`) === 'IDLE:true');
 }
 
 // ---------- RIPOSTE ----------

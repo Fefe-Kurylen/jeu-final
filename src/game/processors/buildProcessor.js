@@ -65,7 +65,7 @@ async function syncWallHp(cityId, wallLevel, db = prisma) {
 
 async function processBuilds(now, { playerId = null } = {}) {
   const builds = await prisma.buildQueueItem.findMany({
-    where: { status: 'RUNNING', endsAt: { lte: now }, ...(playerId ? { city: { playerId } } : {}) },
+    where: { status: 'RUNNING', endsAt: { lte: now }, city: { isSieged: false, ...(playerId ? { playerId } : {}) } },   // siège : chantiers en pause
     orderBy: { endsAt: 'asc' },
     take: 500
   });

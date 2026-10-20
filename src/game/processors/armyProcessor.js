@@ -19,7 +19,7 @@ const { pillage, wearWallStructure, applyFall } = require('../../services/conque
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
-const { findRoute, noteObjectCell } = require('../../utils/pathfinding');
+const { findRoute, noteObjectCell, isBlockedTile } = require('../../utils/pathfinding');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = assault time
 const TX = { timeout: 15000 };
@@ -164,8 +164,42 @@ async function handleRaidResource(army) {
 
 async function handleReturn(army) {
   const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
+  // Home besieged: the army must fight its way through the camp (décision d'octobre 2026)
+  if (homeCity && (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: homeCity.id, NOT: { ownerId: army.ownerId } } })) > 0) {
+    const through = await fightThroughSiege(army, homeCity).catch(e => { console.error('[SIEGE] return', e.message); return { passed: true }; });
+    if (!through.passed) return;   // beaten: the army waits beside the city
+  }
   if (homeCity) await depositCarry(army, homeCity);
   await setArmyIdle(army.id, { harvestResourceType: null });
+}
+
+// An army coming home to a besieged city attacks the camp (open-field battle). Won: the besiegers go home, the siege is
+// lifted and the army enters; lost: the survivors halt on a free tile beside the city (they may attack again or wait).
+async function fightThroughSiege(army, city) {
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockCity(tx, city.id);
+    const camp = await tx.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, claimedAt: null, NOT: { ownerId: army.ownerId } }, include: SIEGE_CAMP });
+    const hostile = [];
+    for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
+    const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
+    if (!hostile.length || !units.length) return { passed: true };
+    const { combat, defenderName } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Retour à ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id, homecoming: true } });
+    if (combat.attackerWon) { for (const b of hostile) await sendArmyHomeTx(tx, b); await refreshSiegeFlag(tx, city.id); }
+    return { passed: combat.attackerWon, fought: true, defenderName, owners: [...new Set(hostile.map(b => b.ownerId))] };
+  }, TX);
+  if (!outcome.fought) return outcome;
+  if (outcome.passed) {
+    notify(army.ownerId, 'battle', '⚔️ Passage forcé', `${army.name} a percé le siège de ${city.name} en rentrant : le siège est levé.`, { tab: 'reports' });
+    for (const id of outcome.owners) notify(id, 'battle', '🏰 Siège levé', `Une armée qui rentrait à ${city.name} a chassé votre camp.`, { tab: 'reports' });
+    return outcome;
+  }
+  // beaten: halt next to the city
+  const spot = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: city.x + dx, y: city.y + dy }));
+  let pos = spot[0];
+  for (const p of spot) if (!(await isBlockedTile(p.x, p.y)) && !(await prisma.city.findUnique({ where: { x_y: p }, select: { id: true } }))) { pos = p; break; }
+  await setArmyIdle(army.id, { x: pos.x, y: pos.y, harvestResourceType: null });
+  notify(army.ownerId, 'battle', '⚔️ Retour bloqué', `${army.name} n'a pas pu percer le siège de ${city.name} : elle attend en (${pos.x}, ${pos.y}). Attaquez à nouveau le camp ou attendez la levée du siège.`, { tab: 'armies' });
+  return outcome;
 }
 
 // ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------

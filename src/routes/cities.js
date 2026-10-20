@@ -123,6 +123,7 @@ router.post('/:id/build', auth, async (req, res) => {
         include: { buildings: true, buildQueue: true, player: true }
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
+      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : les chantiers sont à l\'arrêt tant que l\'armée ennemie est devant la ville', status: 400 };
       if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
       if (fx.capitalOnly(buildingKey) && !city.isCapital) return { error: 'Bâtiment réservé à la capitale', status: 400 };
       if (fx.notInCapital(buildingKey) && city.isCapital) return { error: 'Bâtiment réservé aux villes secondaires', status: 400 };
