@@ -319,3 +319,19 @@ l'expansion comme Travian, sans effet multiplicateur caché. La colonie est une 
 capitale (Caserne, Écurie, Atelier, Forge, Résidence, Ambassade, Chambre au trésor, Domus), et les Grandes caserne et
 écurie n'ouvrent le recrutement en colonie qu'après plusieurs semaines. Les simulations précédentes (civilisations,
 recherche, camps) ne dépendent pas de ces règles et restent valables.
+
+## 12. Coût d'un siège pour l'attaquant (octobre 2026)
+
+Entretien par heure : 5 (base), 10 (intermédiaire), 15 (élite et engins). Un siège dure au plus 3 h (30 min avec 100 engins
+contre un mur 20) ; chaque assaut gagné pille 25 % du stock non protégé.
+
+| Armée de siège | Entretien/h normal | Siège de 3 h à +10 % (GDD) | Siège de 3 h à +100 % (retenu) | Butin d'un assaut gagné |
+|---|---|---|---|---|
+| 100 soldats + 5 engins (village) | 575 | 1 900 | 3 450 | ~5 000 |
+| 300 soldats + 20 engins (ville) | 2 300 | 7 600 | 13 800 | ~20 000 |
+| 1 000 soldats + 100 engins (ville fortifiée, 30 min) | 10 500 | 5 800 | 10 500 | 50 000 et plus |
+
+À +10 %, le surcoût est négligeable et un siège rapporte dès le premier assaut. À +100 %, un siège moyen reste à peine
+rentable sur un seul assaut (le gain vient de la chute de la ville), le spam de petits sièges coûte plus qu'il ne rapporte,
+et une grosse armée d'engins garde un siège court et donc abordable. La ville assiégée ne paie rien de plus.
+

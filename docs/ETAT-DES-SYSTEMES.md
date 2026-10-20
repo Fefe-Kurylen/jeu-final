@@ -60,7 +60,7 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   (mission `BREAK_SIEGE`, bouton « Briser le siège » sur la carte, la fenêtre de siège ou l'alerte). Bataille en rase
   campagne, sans mur ; si elle gagne, les assiégeants rentrent chez eux et le siège est levé ; sinon le siège continue
   (avec des engins en moins, la brèche est retardée). L'armée de sortie rentre ensuite dans sa ville.
-- **Nourriture** : l'armée qui assiège consomme **+10 %**, la ville assiégée et ses armées **−10 %** (GDD).
+- **Nourriture** (décision d'octobre 2026, à la place des +10 % / −10 % du GDD) : l'armée qui assiège consomme **le double** (+100 %, payé par sa ville) ; la ville assiégée et ses armées consomment **normalement**. Calcul dans `docs/EQUILIBRAGE.md` § 12.
 - **Visible** : alerte avec compte à rebours de l'assaut et nom de l'assiégeant (`GET /api/city/incoming-attacks`, type
   `SIEGE`), fenêtre de siège (`GET /api/city/:id/siege`), anneau rouge autour de la ville sur la carte, carte d'armée
   « Siège » avec l'heure de l'assaut.
