@@ -2966,7 +2966,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
     ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
     <div class="panel-actions player-actions">
-      ${tile.isSieged ? `<button class="btn btn-${['ALLY', 'SAME_ALLIANCE'].includes(diplomacyStatus) ? 'danger' : 'secondary'}" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} ${['ALLY', 'SAME_ALLIANCE'].includes(diplomacyStatus) ? 'Briser le siège' : 'Voir le siège'}</button>` : ''}
+      ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
       <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `

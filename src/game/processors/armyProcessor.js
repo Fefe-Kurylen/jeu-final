@@ -427,7 +427,7 @@ async function cityRiposte(besiegerId, cityId) {
   }, TX);
 }
 
-// The city's owner, its alliance or an allied alliance attacks the armies besieging it: open-field battle (no wall),
+// Any player (décision d'octobre 2026) attacks the armies besieging a city: open-field battle (no wall),
 // the beaten besiegers go home and the siege is lifted; the breaking army goes home either way.
 const SIEGE_CAMP = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true };
 async function handleBreakSiege(army, now) {
@@ -450,7 +450,7 @@ async function handleBreakSiege(army, now) {
     const { city, won, owners, defenderName } = outcome;
     notify(army.ownerId, 'battle', won ? '⚔️ Siège brisé' : '⚔️ Siège maintenu', won ? `${army.name} a chassé ${defenderName} de devant ${city.name}.` : `${army.name} a été repoussée par l'armée qui assiège ${city.name}.`, { tab: 'reports' });
     for (const id of owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Sortie repoussée', won ? `Votre siège de ${city.name} a été brisé par ${army.owner?.name || 'un joueur'}.` : `Votre armée devant ${city.name} a repoussé ${army.owner?.name || 'une armée'}.`, { tab: 'reports' });
-    if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un allié'} a brisé le siège de ${city.name}.`, { tab: 'city', cityId: city.id });
+    if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un joueur'} a brisé le siège de ${city.name}.`, { tab: 'city', cityId: city.id });
   }
   // Home: an army of the besieged city itself is back inside at once
   const home = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;

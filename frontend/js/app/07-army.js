@@ -1027,7 +1027,7 @@ async function returnArmy(armyId) {
 
 // ========== SIÈGES ==========
 // Une attaque arrivée campe devant la ville et use son mur, puis donne l'assaut. Le propriétaire, son alliance et les
-// alliances alliées peuvent attaquer le camp pour lever le siège (le recrutement est bloqué, former une armée reste permis).
+// joueurs peuvent attaquer le camp pour lever le siège (le recrutement est bloqué, former une armée reste permis).
 function siegeTimeLeft(ms) {
   const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60);
   return h ? `${h} h ${String(m).padStart(2, '0')}` : `${Math.max(1, m)} min`;
@@ -1052,7 +1052,7 @@ async function openBreakSiege(cityId) {
       ${wall}
       <p>Santé de la muraille : <strong>${siege.wallStructurePct} %</strong> · encore <strong>${siege.assaultsLeft}</strong> assaut${siege.assaultsLeft > 1 ? 's' : ''} gagné${siege.assaultsLeft > 1 ? 's' : ''} avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait rasée'}). Chaque assaut gagné pille aussi le stock ; la santé remonte de 0 à 100 % en 48 h hors siège.</p>
       <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège · assaut dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>${b.assaultOrdered ? ' (ordonné)' : ''}</li>`).join('')}</ul>
-      <p style="font-size:12px;opacity:.85">Pendant le siège, la ville ne produit plus, ne recrute plus, ne soigne plus et ne reçoit aucun convoi. Une armée de la ville, de son alliance ou d'une alliance alliée peut attaquer le camp : si elle gagne, le siège est levé.</p>
+      <p style="font-size:12px;opacity:.85">Pendant le siège, la ville ne produit plus, ne recrute plus, ne soigne plus et ne reçoit aucun convoi. N'importe quel joueur peut attaquer le camp (sauf les camps de son alliance ou d'une alliance alliée) : s'il gagne, le siège est levé.</p>
       ${siege.canBreak ? (ready.length ? `
         <label for="break-army" style="display:block;margin-top:8px">Armée envoyée</label>
         <select id="break-army">${ready.map(a => `<option value="${a.id}">${escapeHtml(a.name || 'Armée')} (force ${formatNum(a.power ?? calculateArmyPower(a))})</option>`).join('')}</select>

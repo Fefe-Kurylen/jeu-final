@@ -16,8 +16,6 @@ const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { pointAlongPath } = require('../utils/calculations');
-// Who may break a siege: the city's owner, its alliance and the alliances allied to it
-const CAN_RELIEVE = ['SELF', 'SAME_ALLIANCE', 'ALLY'];
 const isBesieged = (cityId, db = prisma) => db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } }).then(n => n > 0);
 const BLOCKADE = 'Ville assiégée : aucun convoi ne passe tant que l\'armée ennemie est devant elle';
 
@@ -323,7 +321,8 @@ function cityMissionRoute(mission, messages) {
 }
 router.post('/:id/attack', auth, cityMissionRoute('ATTACK', { verb: 'attaquer', ok: 'Attaque lancee' }));
 
-// POST /api/army/:id/break-siege — attack the armies besieging a city of yours, of your alliance or of an allied alliance
+// POST /api/army/:id/break-siege — any player may attack the armies besieging a city (décision d'octobre 2026), except
+// the camps of his own alliance or of an allied alliance
 router.post('/:id/break-siege', auth, async (req, res) => {
   try {
     const { targetCityId } = req.body || {};
@@ -333,8 +332,6 @@ router.post('/:id/break-siege', auth, async (req, res) => {
     if (err) return res.status(err.status).json({ error: err.error });
     const city = await prisma.city.findUnique({ where: { id: targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
-    const relation = await getRelation(req.user.playerId, city.playerId);
-    if (!CAN_RELIEVE.includes(relation.status)) return res.status(403).json({ error: 'Seuls le propriétaire de la ville, son alliance et les alliances alliées peuvent briser ce siège' });
     const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, NOT: { ownerId: req.user.playerId } }, select: { ownerId: true } });
     if (!camp.length) return res.status(400).json({ error: 'Cette ville n\'est pas assiégée' });
     const owners = [...new Set(camp.map(b => b.ownerId))];

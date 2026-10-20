@@ -54,7 +54,9 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**
   avec les troupes présentes.
-- **Briser le siège** : le propriétaire, son alliance et les alliances alliées peuvent attaquer l'armée qui assiège
+- **Briser le siège** : **tout joueur** peut attaquer l'armée qui assiège (décision d'octobre 2026), sauf les camps de son
+  alliance ou d'une alliance alliée. Plusieurs camps devant la même ville : la sortie les combat tous ensemble (à revoir
+  avec le système de renforts)
   (mission `BREAK_SIEGE`, bouton « Briser le siège » sur la carte, la fenêtre de siège ou l'alerte). Bataille en rase
   campagne, sans mur ; si elle gagne, les assiégeants rentrent chez eux et le siège est levé ; sinon le siège continue
   (avec des engins en moins, la brèche est retardée). L'armée de sortie rentre ensuite dans sa ville.

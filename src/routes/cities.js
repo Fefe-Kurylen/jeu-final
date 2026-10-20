@@ -456,7 +456,9 @@ router.get('/:id/siege', auth, async (req, res) => {
     const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, isCapital: true, wallHp: true, wallMaxHp: true, wallStructure: true, isSieged: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
     const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id }, orderBy: { arrivalAt: 'asc' }, select: { id: true, name: true, ownerId: true, departedAt: true, arrivalAt: true, missionType: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } } });
-    const relation = await getRelation(req.user.playerId, city.playerId);
+    // any player may attack a camp that is not his own nor of his alliance or an allied one
+    const attackable = new Set();
+    for (const id of new Set(camp.map(a => a.ownerId))) if (id !== req.user.playerId && (await getRelation(req.user.playerId, id)).canAttack) attackable.add(id);
     const wallLevel = city.buildings[0]?.level || 0;
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
@@ -464,7 +466,7 @@ router.get('/:id/siege', auth, async (req, res) => {
       // santé de la muraille : assauts gagnés encore nécessaires avant la chute (ville secondaire rasée, capitale déplacée)
       wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
       fate: city.isCapital ? 'RELOCATED' : 'RAZED',
-      canBreak: camp.length > 0 && ['SELF', 'SAME_ALLIANCE', 'ALLY'].includes(relation.status) && camp.some(a => a.ownerId !== req.user.playerId),
+      canBreak: attackable.size > 0,
       besiegers: camp.map(a => ({
         id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,
         startedAt: a.departedAt, assaultAt: a.arrivalAt, assaultOrdered: a.missionType === 'ASSAULT',
