@@ -65,6 +65,19 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
     recherche suivante démarre ;
   - un raid par ville et par 24 h même après le déplacement d'une capitale ; l'annulation d'un recrutement garde la pause
     du siège des lots suivants ; la fenêtre de siège ne montre rien d'une ville non assiégée aux autres joueurs.
+- **Garde-fous (dernière relecture, octobre 2026)** :
+  - une armée rappelée avant d'avoir quitté sa case (sortie, toute mission lancée de la ville assiégée) rentre aussitôt,
+    avec sa charge, sans combattre le camp ;
+  - une sortie qui rentre dépose sa charge dans la même transaction que la bataille ;
+  - une armée qui marche pour briser le siège de sa capitale déplacée continue jusqu'au nouvel emplacement (vraie route) ;
+  - une chute en attente est réglée en premier dans le tick : rien ne se termine dans une ville qui va tomber (recherche,
+    retour d'expédition) ;
+  - la file de recherche, commune à toutes les villes du joueur, est verrouillée par joueur (jamais deux recherches en
+    cours) ; la chute d'une colonie verrouille toutes les villes du joueur dans l'ordre (pas d'interblocage) ;
+  - la fenêtre de siège applique les deux règles du serveur : une sortie ou une armée d'une autre ville suit la
+    diplomatie, une armée de la ville qui revient de l'extérieur combat tous les camps hors de son alliance ;
+  - les notifications de chute (« Ville rasée », « Capitale déplacée ») et de retour bloqué arrivent toujours, même
+    juste après celle de la bataille.
 - **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**

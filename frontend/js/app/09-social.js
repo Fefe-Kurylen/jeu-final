@@ -343,8 +343,9 @@ function renderBattleReportCard(r, idx) {
   const killedD = r.defenderLosses?.totalKilled ?? r.defenderLosses?.totalDefenderLosses ?? 0;
   const mine = iAttacked ? killedA : killedD, theirs = iAttacked ? killedD : killedA;
   // the defender of an assault sees everything that left the city (r.loot.pillaged), not only what the army could carry
-  const lootRes = isTribe ? (r.loot?.resources || {}) : (!iAttacked && r.loot?.pillaged) ? r.loot.pillaged : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
-  const lootHtml = ['wood', 'stone', 'iron', 'food'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
+  // what an army took from a resource point (tribe camp or point held by other armies) is in r.loot.resources
+  const lootRes = r.loot?.resources ? r.loot.resources : isTribe ? {} : (!iAttacked && r.loot?.pillaged) ? r.loot.pillaged : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food, gold: r.loot?.gold };
+  const lootHtml = ['wood', 'stone', 'iron', 'food', 'gold'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
   const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
   // Siège : durée, santé de la muraille après l'assaut gagné et sort de la ville quand elle tombe
   const ws = r.loot?.wallStructure;

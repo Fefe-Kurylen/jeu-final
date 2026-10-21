@@ -6,7 +6,7 @@ const { notify } = require('../../services/pushService');
 const T = require('../../utils/techEffects');
 
 async function processResearch(now, { playerId = null } = {}) {
-  const due = await prisma.researchQueueItem.findMany({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { isSieged: false }, ...(playerId ? { playerId } : {}) }, orderBy: { endsAt: 'asc' }, take: 200 });   // siège : recherche en pause
+  const due = await prisma.researchQueueItem.findMany({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { isSieged: false, wallStructure: { gt: 0 } }, ...(playerId ? { playerId } : {}) }, orderBy: { endsAt: 'asc' }, take: 200 });   // siège : recherche en pause ; ville qui va tomber : rien n'aboutit
   const players = new Set();
   for (const item of due) {
     try {
@@ -31,21 +31,32 @@ async function processResearch(now, { playerId = null } = {}) {
     }
   }
   // self-healing: a player whose running research disappeared (colony razed) gets his next queued one started
-  const stuck = await prisma.$queryRaw`SELECT DISTINCT q."playerId" FROM "ResearchQueueItem" q WHERE q.status = 'QUEUED' AND NOT EXISTS (SELECT 1 FROM "ResearchQueueItem" r WHERE r."playerId" = q."playerId" AND r.status = 'RUNNING')`;
+  // (the tick checks everyone, a player's own request only himself)
+  const stuck = playerId
+    ? await prisma.$queryRaw`SELECT DISTINCT q."playerId" FROM "ResearchQueueItem" q WHERE q."playerId" = ${playerId} AND q.status = 'QUEUED' AND NOT EXISTS (SELECT 1 FROM "ResearchQueueItem" r WHERE r."playerId" = q."playerId" AND r.status = 'RUNNING')`
+    : await prisma.$queryRaw`SELECT DISTINCT q."playerId" FROM "ResearchQueueItem" q WHERE q.status = 'QUEUED' AND NOT EXISTS (SELECT 1 FROM "ResearchQueueItem" r WHERE r."playerId" = q."playerId" AND r.status = 'RUNNING')`;
   for (const s of stuck) players.add(s.playerId);
-  for (const playerId of players) {
-    try { await startNextQueued(prisma, playerId, now); } catch (e) { console.error('[RESEARCH ERROR] start next:', e.message); }
+  for (const id of players) {
+    try { await prisma.$transaction((tx) => startNextQueued(tx, id, now)); } catch (e) { console.error('[RESEARCH ERROR] start next:', e.message); }
   }
 }
 
-// Starts the oldest QUEUED item of a player when nothing is running; the duration fixed at enqueue time is kept
-async function startNextQueued(db, playerId, now = new Date()) {
-  const running = await db.researchQueueItem.count({ where: { playerId, status: 'RUNNING' } });
+// The research queue is shared by all of a player's cities: every order on it (start, cancel, promotion, fall of a
+// colony) holds this per-player lock until its transaction ends, so two of them never both see « nothing running ».
+// Taken after any City lock of the caller, never before one.
+const lockResearch = (tx, playerId) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'research:' + playerId}))`;
+
+// Starts the oldest QUEUED item of a player when nothing is running; the duration fixed at enqueue time is kept.
+// `tx` must be a transaction (the lock lasts until it ends).
+async function startNextQueued(tx, playerId, now = new Date()) {
+  await lockResearch(tx, playerId);
+  const running = await tx.researchQueueItem.count({ where: { playerId, status: 'RUNNING' } });
   if (running > 0) return null;
-  const next = await db.researchQueueItem.findFirst({ where: { playerId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' } });
+  const next = await tx.researchQueueItem.findFirst({ where: { playerId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' } });
   if (!next) return null;
   const durationMs = Math.max(1000, new Date(next.endsAt).getTime() - new Date(next.startedAt).getTime());
-  return db.researchQueueItem.update({ where: { id: next.id }, data: { status: 'RUNNING', startedAt: now, endsAt: new Date(now.getTime() + durationMs) } });
+  const ok = await tx.researchQueueItem.updateMany({ where: { id: next.id, status: 'QUEUED' }, data: { status: 'RUNNING', startedAt: now, endsAt: new Date(now.getTime() + durationMs) } });
+  return ok.count === 1 ? next : null;
 }
 
-module.exports = { processResearch, startNextQueued };
+module.exports = { processResearch, startNextQueued, lockResearch };

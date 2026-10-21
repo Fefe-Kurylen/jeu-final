@@ -10,7 +10,7 @@ const auth = require('../middleware/auth');
 const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
 const T = require('../utils/techEffects');
 const { besiegedCityIds } = require('../services/woundedService');   // ville assiégée : recherche à l'arrêt
-const { processResearch, startNextQueued } = require('../game/processors/researchProcessor');
+const { processResearch, startNextQueued, lockResearch } = require('../game/processors/researchProcessor');
 
 const queueOf = (db, playerId) => db.researchQueueItem.findMany({ where: { playerId }, orderBy: [{ status: 'desc' }, { startedAt: 'asc' }] });   // RUNNING first
 const academyLevelOf = (buildings) => (buildings || []).reduce((m, b) => (b.key === T.RULES.researchBuilding && b.level > m ? b.level : m), 0);
@@ -53,9 +53,10 @@ router.post('/start', auth, async (req, res) => {
     const tech = T.techOf(techKey);
     if (!tech) return res.status(400).json({ error: 'Technologie inconnue' });
     const result = await prisma.$transaction(async (tx) => {
-      await lockCity(tx, cityId);   // serialises the player's research orders (one city per player today)
+      await lockCity(tx, cityId);
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: { select: { key: true, level: true } } } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
+      await lockResearch(tx, city.playerId);   // the queue is shared by all the player's cities
       if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : la recherche est à l\'arrêt tant que l\'armée ennemie est devant la ville', status: 400 };
       const rows = await tx.playerTechnology.findMany({ where: { playerId: city.playerId } });
       const queue = await tx.researchQueueItem.findMany({ where: { playerId: city.playerId } });
@@ -88,6 +89,7 @@ router.delete('/:itemId', auth, async (req, res) => {
       const item = await tx.researchQueueItem.findFirst({ where: { id: req.params.itemId, playerId: req.user.playerId } });
       if (!item) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
       await lockCity(tx, item.cityId);
+      await lockResearch(tx, item.playerId);
       const later = await tx.researchQueueItem.findMany({ where: { playerId: item.playerId, techKey: item.techKey, targetLevel: { gt: item.targetLevel } } });
       const refund = { wood: 0, stone: 0, iron: 0, food: 0 };
       let cancelled = 0;

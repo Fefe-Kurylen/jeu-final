@@ -10,7 +10,7 @@ const { validateCoordinates, cleanText, isAmount } = require('../utils/validatio
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, mainHallLevelOf, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const T = require('../utils/techEffects');
 const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
-const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, raidCooldownWhere } = require('../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
@@ -367,7 +367,7 @@ router.post('/:id/break-siege', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'ATTACKING', targetX: city.x, targetY: city.y, targetCityId: city.id, arrivalAt, departedAt: new Date(), missionType: 'BREAK_SIEGE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     const minutes = Math.max(1, Math.round(travelTime / 60));
-    for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Sortie contre votre siège', `${army.owner?.name || 'Un joueur'} marche sur votre armée devant ${city.name} (arrivée dans ${minutes} min)`, { tab: 'armies' });
+    for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Sortie contre votre siège', `${army.owner?.name || 'Un joueur'} marche sur votre armée devant ${city.name} (arrivée dans ${minutes} min)`, { tab: 'army' });
     res.json({ message: `Armée en route pour briser le siège de ${city.name}`, travelTime, arrivalAt, target: city.name });
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
@@ -521,9 +521,10 @@ router.post('/:id/return', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
       // a camp is locked City then Army, the order of every tick transaction on a siege (no deadlock)
-      const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { status: true, targetCityId: true } });
+      const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { status: true, targetCityId: true, cityId: true } });
       const campCityId = probe?.status === 'BESIEGING' ? probe.targetCityId : null;
       if (campCityId) await lockCity(tx, campCityId);
+      else if (OUTBOUND.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
       await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
       if (!army) return { error: 'Armee non trouvee', status: 404 };
@@ -541,6 +542,13 @@ router.post('/:id/return', auth, async (req, res) => {
         const route = await findRoute(army.x, army.y, army.targetX, army.targetY);
         const at = route ? pointAlongPath(route.path, progress) : { x: army.x + (army.targetX - army.x) * progress, y: army.y + (army.targetY - army.y) * progress };
         fromX = Math.round(at.x); fromY = Math.round(at.y);
+        // left from its own city and not off its tile yet (a sortie, or any mission recalled at once): it is simply back
+        // inside, with its load, and never has to fight its way through a camp it did not cross
+        if (isHome(army, army.city) && fromX === army.city.x && fromY === army.city.y) {
+          await depositCarryTx(tx, army.id, army.city.id);
+          await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
+          return { message: 'Armée rentrée en ville', travelTime: 0 };
+        }
       } else if (army.status === 'IDLE' && isHome(army, army.city)) {
         return { message: 'Armee deja a la maison' };
       }

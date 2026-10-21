@@ -51,8 +51,9 @@ async function pauseBesiegedQueues(hours) {
   const secs = Math.min(hours, 1 / 6) * 3600;   // au plus 10 min d'un coup (rattrapage après un arrêt du serveur)
   if (secs <= 0) return;
   await prisma.$executeRaw`UPDATE "BuildQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
-  // recruit batches are chained in time: a batch not yet started is pushed back as a whole (start and end)
-  await prisma.$executeRaw`UPDATE "RecruitQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}), "startedAt" = CASE WHEN q."startedAt" > (now() AT TIME ZONE 'UTC') THEN q."startedAt" + make_interval(secs => ${secs}) ELSE q."startedAt" END FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
+  // recruit batches are chained in time: a batch waiting behind another one of the same building (or not started yet)
+  // is pushed back as a whole, start and end (the subquery reads the queue as it was before this update)
+  await prisma.$executeRaw`UPDATE "RecruitQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}), "startedAt" = CASE WHEN q."startedAt" > (now() AT TIME ZONE 'UTC') OR EXISTS (SELECT 1 FROM "RecruitQueueItem" p WHERE p."cityId" = q."cityId" AND p."buildingKey" = q."buildingKey" AND p.id <> q.id AND p.status = 'RUNNING' AND p."startedAt" < q."startedAt") THEN q."startedAt" + make_interval(secs => ${secs}) ELSE q."startedAt" END FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
   await prisma.$executeRaw`UPDATE "ResearchQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
 }
 

@@ -381,9 +381,9 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
       const shiftMs = Math.max(0, new Date(item.endsAt).getTime() - Math.max(floor, new Date(item.startedAt).getTime()));
       const later = await tx.recruitQueueItem.findMany({ where: { cityId: city.id, buildingKey: item.buildingKey, startedAt: { gte: item.startedAt } } });
       for (const q of later) {
+        // the whole batch moves up by the time freed; its start never goes before now nor before the batch ahead
         const start = new Date(q.startedAt).getTime(), end = new Date(q.endsAt).getTime();
-        const shift = Math.min(shiftMs, Math.max(0, start - floor));   // a batch never starts in the past nor before the one ahead
-        await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(start - shift), endsAt: new Date(end - shift) } });
+        await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(Math.max(floor, start - shiftMs)), endsAt: new Date(Math.max(floor, end - shiftMs)) } });
       }
       return { message: 'Recrutement annulé', refund };
     });
@@ -460,20 +460,22 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
 router.get('/:id/siege', auth, async (req, res) => {
   try {
     if (!isId(req.params.id)) return res.status(400).json({ error: 'Ville invalide' });
-    const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, isCapital: true, wallHp: true, wallMaxHp: true, wallStructure: true, isSieged: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
+    const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, x: true, y: true, playerId: true, isCapital: true, wallHp: true, wallMaxHp: true, wallStructure: true, isSieged: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
     const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id }, orderBy: { arrivalAt: 'asc' }, select: { id: true, name: true, ownerId: true, departedAt: true, arrivalAt: true, missionType: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } } });
     // a siege happens in the open; a city that is not besieged shows nothing to other players (no free spying of its wall)
     if (!camp.length && city.playerId !== req.user.playerId) return res.json({ cityId: city.id, cityName: city.name, besieged: false });
-    // any player may attack a camp that is not his own nor of his alliance or an allied one
-    const attackable = new Set();
-    const campOwners = [...new Set(camp.map(a => a.ownerId))];
+    // the same two rules as POST /army/:id/break-siege: any army (a sortie from the walls, an army of another city or
+    // another player) attacks the camps the diplomacy lets it attack; the city's own armies coming home from outside
+    // must fight every camp outside their alliance (forced fight, any diplomacy)
+    const voluntary = new Set(), forced = new Set();
+    const campOwners = [...new Set(camp.map(a => a.ownerId))].filter(id => id !== req.user.playerId);
+    for (const id of campOwners) if ((await getRelation(req.user.playerId, id)).canAttack) voluntary.add(id);
     if (city.playerId === req.user.playerId) {
-      // the owner's armies coming home must fight every camp outside his alliance (forced fight, any diplomacy)
       const rows = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, ...campOwners] } }, select: { playerId: true, allianceId: true } });
       const mine = rows.find(r => r.playerId === req.user.playerId)?.allianceId || null;
-      for (const id of campOwners) if (id !== req.user.playerId && !(mine && rows.find(r => r.playerId === id)?.allianceId === mine)) attackable.add(id);
-    } else for (const id of campOwners) if (id !== req.user.playerId && (await getRelation(req.user.playerId, id)).canAttack) attackable.add(id);
+      for (const id of campOwners) if (!(mine && rows.find(r => r.playerId === id)?.allianceId === mine)) forced.add(id);
+    }
     const wallLevel = city.buildings[0]?.level || 0;
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
@@ -481,7 +483,8 @@ router.get('/:id/siege', auth, async (req, res) => {
       // santé de la muraille : assauts gagnés encore nécessaires avant la chute (ville secondaire rasée, capitale déplacée)
       wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
       fate: city.isCapital ? 'RELOCATED' : 'RAZED',
-      canBreak: attackable.size > 0,
+      x: city.x, y: city.y,
+      canSortie: voluntary.size > 0, canForce: forced.size > 0, canBreak: voluntary.size > 0 || forced.size > 0,
       besiegers: camp.map(a => ({
         id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,
         startedAt: a.departedAt, assaultAt: a.arrivalAt, assaultOrdered: a.missionType === 'ASSAULT',

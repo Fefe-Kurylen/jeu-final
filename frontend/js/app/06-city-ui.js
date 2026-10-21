@@ -110,6 +110,8 @@ function updateCityStats() {
 
 // ========== TABS ==========
 function showTab(tabName) {
+  // a deep link to an unknown tab (old push notifications said 'armies') never leaves a blank screen
+  if (!document.getElementById(`tab-${tabName}`)) tabName = tabName === 'armies' ? 'army' : 'city';
   if (typeof track === 'function') track('tab_view', { tab: String(tabName) });
   if (typeof hideCityActions === 'function') hideCityActions();
   if (typeof cityHoveredSlot !== 'undefined') cityHoveredSlot = null;

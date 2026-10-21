@@ -252,6 +252,7 @@ const siegeB = await call('siege info B', 'GET', `/api/city/${cityB.id}/siege`, 
 assert('siege info: one camp with 10 engines, B may break it', siegeB?.besieged === true && siegeB.besiegers?.length === 1 && siegeB.besiegers[0].engines === 10 && siegeB.canBreak === true, JSON.stringify(siegeB)?.slice(0, 200));
 const siegeA = await call('siege info seen by the attacker', 'GET', `/api/city/${cityB.id}/siege`, tA);
 assert('the attacker cannot break its own siege', siegeA?.canBreak === false && siegeA.besiegers?.[0]?.mine === true);
+assert('siege info gives both rules to the owner (sortie and homecoming)', siegeB?.canSortie === true && siegeB?.canForce === true && siegeA?.canSortie === false && siegeA?.canForce === false);
 // B forms an army during the siege (allowed) and sallies out against the camp: open-field battle, B is much weaker
 const sortie = await call('B forms an army while besieged', 'POST', '/api/army/create', tB, { cityId: cityB.id, slot: 1, name: 'Sortie' });
 const sortieId = sortie?.army?.id;
@@ -262,6 +263,16 @@ await waitTick('sortie fought', () => Number(sql(`SELECT count(*) FROM "BattleRe
 assert('one report for each side of the sortie', sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='SIEGE_BREAK'`) === '2');
 assert('the beaten sortie is back inside the city', sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y}) FROM "Army" WHERE id='${sortieId}'`) === 'IDLE:true');
 assert('the siege holds after a failed sortie', sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'BESIEGING' && sql(`SELECT "isSieged" FROM "City" WHERE id='${cityB.id}'`) === 't');
+// a sortie recalled before it has left the home tile is simply back inside: no forced fight against the camp
+const recallArmy = await call('B forms a second army', 'POST', '/api/army/create', tB, { cityId: cityB.id, slot: 2, name: 'Rappel' });
+const recallId = recallArmy?.army?.id;
+sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garB}','${unitKeyFor('HUN', 'INFANTRY', 'base')}','base',1) ON CONFLICT ("armyId","unitKey") DO UPDATE SET count="ArmyUnit".count+1`);
+await call('second army set-unit 1 inf', 'POST', `/api/army/${recallId}/set-unit`, tB, { unitKey: unitKeyFor('HUN', 'INFANTRY', 'base'), count: 1 });
+await call('second sortie launched', 'POST', `/api/army/${recallId}/break-siege`, tB, { targetCityId: cityB.id });
+sql(`UPDATE "Army" SET "departedAt"=now(), "arrivalAt"=now()+interval '10 minutes' WHERE id='${recallId}'`);   // still on its home tile
+const recalled = await call('sortie recalled at once', 'POST', `/api/army/${recallId}/return`, tB);
+assert('a sortie recalled on its home tile is back inside at once', /rentrée en ville/.test(recalled?.message || '') && sql(`SELECT status||':'||(x=${cityB.x} AND y=${cityB.y})||':'||coalesce("missionType",'-') FROM "Army" WHERE id='${recallId}'`) === 'IDLE:true:-', recalled?.message);
+assert('no battle for the recalled sortie', sql(`SELECT count(*) FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='SIEGE_BREAK'`) === '2');
 assert('no manual assault: the assault is given by itself', (await fetch(`${BASE}/api/army/${armyId}/assault`, { method: 'POST', headers: { Authorization: `Bearer ${tA}` } })).status === 404);
 const blockade = await call('convoy to a besieged city -> 400', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: cityB.x, targetY: cityB.y, resources: { wood: 10, stone: 0, iron: 0, food: 0 } }, 400);
 assert('convoys are refused by the blockade', /assiégée/.test(blockade?.error || ''), blockade?.error);
@@ -307,6 +318,7 @@ assert('carried wounded entered the Healing Tent on return', Number(sql(`SELECT 
 
 // ---------- RAID / SPY / MOVE / RETURN ----------
 await call('army raid B', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id });
+sql(`UPDATE "Army" SET "departedAt"=now()-("arrivalAt"-"departedAt"), "arrivalAt"=now()+("arrivalAt"-"departedAt") WHERE id='${armyId}'`);   // halfway there
 const recall = await call('army return (recall during raid)', 'POST', `/api/army/${armyId}/return`, tA, {});
 assert('recall cancels outbound raid', sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'RETURNING', JSON.stringify(recall));
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
@@ -776,7 +788,9 @@ if (MAIL_LOG) {
     await waitTick('colony razed', () => sql(`SELECT count(*) FROM "City" WHERE id='${cid}'`) === '0');
     assert('the razed colony gives its resource node back', sql(`SELECT count(*) FROM "ResourceNode" WHERE x=${cx} AND y=${cy} AND "cityId" IS NULL`) === '1');
     assert('the report tells the city was razed', sql(`SELECT loot->'wallStructure'->>'fate' FROM "BattleReport" WHERE "attackerId"='${B.player.id}' AND loot->>'type'='ATTACK' AND x=${cx} AND y=${cy} LIMIT 1`) === 'RAZED');
-    assert('the victorious army heads home', sql(`SELECT status FROM "Army" WHERE id='${raider}'`) === 'RETURNING');
+    // the army is sent home just after the fall's own transaction: wait for it rather than read it at once
+    await waitTick('victorious army sent home', () => sql(`SELECT status FROM "Army" WHERE id='${raider}'`) === 'RETURNING', 15000);
+    assert('the victorious army heads home', sql(`SELECT status FROM "Army" WHERE id='${raider}'`) === 'RETURNING', sql(`SELECT status FROM "Army" WHERE id='${raider}'`));
   }
   const [bx0, by0] = [cityB.x, cityB.y];
   sql(`UPDATE "City" SET "wallStructure"=0.25 WHERE id='${cityB.id}'`);   // Huns, capital: 4 assaults, three already won
@@ -787,7 +801,8 @@ if (MAIL_LOG) {
   assert('the relocated capital gets its full wall health back, siege lifted', sql(`SELECT "wallStructure"||':'||"isSieged" FROM "City" WHERE id='${cityB.id}'`) === '1:false');
   assert('its garrison moved with it', sql(`SELECT x||'|'||y FROM "Army" WHERE "cityId"='${cityB.id}' AND "isGarrison"`) === `${bx1}|${by1}`);
   assert('the report tells the capital fled', sql(`SELECT loot->'wallStructure'->>'fate' FROM "BattleReport" WHERE "attackerId"='${A.player.id}' AND loot->>'type'='ATTACK' AND x=${bx0} AND y=${by0} ORDER BY "createdAt" DESC LIMIT 1`) === 'RELOCATED');
-  assert('the attacker heads home', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING');
+  await waitTick('attacker sent home', () => sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING', 15000);
+  assert('the attacker heads home', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`));
   cityB.x = bx1; cityB.y = by1;
 }
 

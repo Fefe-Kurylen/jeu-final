@@ -719,8 +719,13 @@ async function createArmy(slotNum) {
     return;
   }
   
-  if (cityArmies.length >= maxArmies) {
-    showToast(`Maximum ${maxArmies} armées! (Améliorez le Rally Point)`, 'error');
+  // same rule as the server: an unlocked slot that is free (an army re-homed from a razed colony may sit beyond the limit)
+  if (slotNum > maxArmies) {
+    showToast('Emplacement non débloqué (améliorez la Place de rassemblement)', 'error');
+    return;
+  }
+  if (cityArmies.some(a => a.slot === slotNum)) {
+    showToast(`Emplacement ${slotNum} déjà occupé`, 'error');
     return;
   }
   
@@ -1061,7 +1066,10 @@ async function openBreakSiege(cityId) {
   } catch (e) { showToast(e.message || 'Erreur réseau', 'error'); return; }
   if (!siege.besieged) { showToast('Cette ville n\'est pas assiégée', 'info'); return; }
   const now = serverNow();
-  const ready = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
+  const idle = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
+  // same rules as the server: an army of this city waiting outside fights every camp outside its alliance; any other
+  // army (a sortie from the walls included) only the camps the diplomacy lets it attack
+  const ready = idle.filter(a => (a.cityId === siege.cityId && !(a.x === siege.x && a.y === siege.y)) ? siege.canForce : siege.canSortie);
   const wall = siege.wallLevel > 0
     ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> (${Math.round(siege.wallHp / Math.max(1, siege.wallMaxHp) * 100)} %)</p>`
     : '<p>Pas de mur : l\'assaut sera donné dès la fin du temps minimum de siège.</p>';
@@ -1076,7 +1084,8 @@ async function openBreakSiege(cityId) {
         <label for="break-army" style="display:block;margin-top:8px">Armée envoyée</label>
         <select id="break-army">${ready.map(a => `<option value="${a.id}">${escapeHtml(a.name || 'Armée')} (force ${formatNum(a.power ?? calculateArmyPower(a))})</option>`).join('')}</select>
         <button class="btn btn-danger" onclick="confirmBreakSiege('${siege.cityId}')">${resIconHtml('attack')} Attaquer l'armée qui assiège</button>
-      ` : '<p class="warning-text">Aucune armée disponible : formez une armée au point de ralliement avec les troupes présentes.</p>') : ''}
+      ` : idle.length ? '<p class="warning-text">Vos armées disponibles ne peuvent pas attaquer ce camp : il est de votre alliance ou d\'une alliance alliée.</p>'
+        : '<p class="warning-text">Aucune armée disponible : formez une armée au point de ralliement avec les troupes présentes.</p>') : ''}
       <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
     </div>`;
   document.getElementById('modal').style.display = 'flex';

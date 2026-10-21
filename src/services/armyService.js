@@ -12,7 +12,7 @@ const { calculateWoundedUnits, carryWounded, addWoundedUnits } = require('./woun
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
-const { takeFromNode } = require('../utils/db');
+const { takeFromNode, creditCity } = require('../utils/db');
 const { techPct } = require('../utils/techEffects');
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
@@ -216,4 +216,18 @@ function raidCooldownWhere(attackerId, targetCity, since) {
   return { attackerId, playerId: attackerId, defenderId: targetCity.playerId, createdAt: { gt: since }, AND: [{ loot: { path: ['type'], equals: 'RAID' } }, { OR: [{ loot: { path: ['cityId'], equals: targetCity.id } }, { x: targetCity.x, y: targetCity.y }] }] };
 }
 
-module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle };
+// What an army carries (resources, gold, settlers, wounded) goes into the city, inside the caller's transaction and from
+// the carry as it stands under the lock: an army freed in the same transaction can be sent off again at once, so its load
+// must already be in the city
+async function depositCarryTx(tx, armyId, cityId) {
+  const a = await tx.army.findUnique({ where: { id: armyId }, select: { ownerId: true, carryWood: true, carryStone: true, carryIron: true, carryFood: true, carryGold: true, settlers: true, woundedCarry: true } });
+  if (!a) return;
+  const carried = (Array.isArray(a.woundedCarry) ? a.woundedCarry : []).filter(w => w && w.count > 0);
+  if (carried.length) await addWoundedUnits(cityId, carried, tx);
+  await creditCity(tx, cityId, { wood: a.carryWood, stone: a.carryStone, iron: a.carryIron, food: a.carryFood });
+  if ((a.carryGold || 0) > 0) await tx.player.update({ where: { id: a.ownerId }, data: { gold: { increment: a.carryGold } } });
+  if ((a.settlers || 0) > 0) await tx.city.update({ where: { id: cityId }, data: { settlers: { increment: a.settlers } } });
+  await tx.army.update({ where: { id: armyId }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] } });
+}
+
+module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle, depositCarryTx };

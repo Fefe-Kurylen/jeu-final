@@ -53,8 +53,10 @@ async function processExpeditions(now) {
           }
           // home besieged: the army comes back as a homecoming and must fight its way through the camp (armies step,
           // same tick); otherwise it is simply back in its city
-          const home = army.cityId ? await tx.city.findUnique({ where: { id: army.cityId }, select: { x: true, y: true } }) : null;
-          const besieged = home && (await tx.army.count({ where: { status: 'BESIEGING', targetCityId: army.cityId, NOT: { ownerId: army.ownerId } } })) > 0;
+          const home = army.cityId ? await tx.city.findUnique({ where: { id: army.cityId }, select: { x: true, y: true, wallStructure: true } }) : null;
+          // a home about to fall (wall health at 0, fall pending) is not entered either: the army stays on the road and the
+          // fall sends it on to the capital (colony) or to the new place (capital)
+          const besieged = home && (home.wallStructure <= 0 || (await tx.army.count({ where: { status: 'BESIEGING', targetCityId: army.cityId, NOT: { ownerId: army.ownerId } } })) > 0);
           const back = now;   // the tick time: the armies step of this same tick takes the homecoming
           await tx.army.updateMany({ where: { id: army.id, status: 'EXPEDITION' }, data: besieged
             ? { status: 'RETURNING', missionType: 'RETURN', x: home.x, y: home.y, targetX: home.x, targetY: home.y, targetCityId: null, departedAt: back, arrivalAt: back, claimedAt: null }

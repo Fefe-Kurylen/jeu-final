@@ -80,7 +80,7 @@ async function notifyPlayer(playerId, kind, title, body, data = {}) {
   try {
     if (!playerId || !configured()) return;
     const key = `${playerId}:${kind}`;
-    const minGap = config.push.throttleMs[kind] || 60000;
+    const minGap = config.push.throttleMs[kind] ?? 60000;
     const now = Date.now();
     if (now - (lastSent.get(key) || 0) < minGap) return;
     lastSent.set(key, now);

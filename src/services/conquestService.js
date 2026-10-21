@@ -72,11 +72,15 @@ async function razeCity(cityId, byArmyId) {
   return prisma.$transaction(async (tx) => {
     // lock order of the market routes: offers first, then the city
     await tx.$queryRaw`SELECT id FROM "MarketOffer" WHERE "cityId" = ${cityId} AND status = 'ACTIVE' ORDER BY id FOR UPDATE`;
-    await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${cityId} FOR UPDATE`;
+    // then every city of the owner, in id order (as the market routes): the falling city, the capital that takes its
+    // armies and goods (slots read under the lock army creation takes), and the cities whose queued research is refunded
+    // — no City lock is ever awaited while a queue row is held
+    const owner = await tx.city.findUnique({ where: { id: cityId }, select: { playerId: true } });
+    if (!owner) return null;
+    await tx.$queryRaw`SELECT id FROM "City" WHERE "playerId" = ${owner.playerId} ORDER BY id FOR UPDATE`;
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || city.isCapital || city.wallStructure > 0) return null;
     const capital = await tx.city.findFirst({ where: { playerId: city.playerId, isCapital: true } });
-    if (capital) await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${capital.id} FOR UPDATE`;   // slots read under the lock army creation takes
     const capitalGarrison = capital ? await tx.army.findFirst({ where: { cityId: capital.id, isGarrison: true } }) : null;
     const usedSlots = new Set(capital ? (await tx.army.findMany({ where: { cityId: capital.id, isGarrison: false }, select: { slot: true } })).map(a => a.slot) : []);
     const heroes = [];
@@ -111,6 +115,7 @@ async function razeCity(cityId, byArmyId) {
     // research running or queued in the colony is lost with it; the later levels of those technologies queued elsewhere
     // depend on them: they are cancelled and refunded, as the cancel route does
     const T = require('../utils/techEffects');
+    await require('../game/processors/researchProcessor').lockResearch(tx, city.playerId);   // after the City locks
     for (const q of await tx.researchQueueItem.findMany({ where: { cityId: city.id } })) {
       const later = await tx.researchQueueItem.findMany({ where: { playerId: city.playerId, techKey: q.techKey, targetLevel: { gt: q.targetLevel }, cityId: { not: city.id } } });
       for (const l of later) {
@@ -175,15 +180,15 @@ async function applyFall(cityId, by = null) {
     const moved = await relocateCapital(city.id, by?.id);
     if (!moved) return null;
     forgetObjectCell(moved.from.x, moved.from.y); noteObjectCell(moved.to.x, moved.to.y, 'CITY');
-    notify(city.playerId, 'battle', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}).`, { tab: 'city', cityId: city.id });
-    if (by?.ownerId) notify(by.ownerId, 'battle', '🏃 Capitale en fuite', `${city.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
+    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}).`, { tab: 'city', cityId: city.id });
+    if (by?.ownerId) notify(by.ownerId, 'city_fall', '🏃 Capitale en fuite', `${city.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
     return { kind: 'RELOCATED', ...moved };
   }
   const razed = await razeCity(city.id, by?.id);
   if (!razed) return null;
   noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
-  notify(city.playerId, 'battle', '🔥 Ville rasée', `${city.name} est tombée${who} et a été rasée.`, { tab: 'reports' });
-  if (by?.ownerId) notify(by.ownerId, 'battle', '🔥 Ville rasée', `${city.name} est tombée : la ville est rasée.`, { tab: 'reports' });
+  notify(city.playerId, 'city_fall', '🔥 Ville rasée', `${city.name} est tombée${who} et a été rasée.`, { tab: 'reports' });
+  if (by?.ownerId) notify(by.ownerId, 'city_fall', '🔥 Ville rasée', `${city.name} est tombée : la ville est rasée.`, { tab: 'reports' });
   try { await require('../game/processors/worldProcessor').updatePlayerPopulation(prisma, city.playerId); } catch (e) { /* recomputed by the tick */ }
   return { kind: 'RAZED', ...razed };
 }

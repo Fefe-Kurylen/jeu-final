@@ -71,6 +71,9 @@ async function gameTick() {
     if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
     if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
 
+    // a fall that failed after its assault is done first, before builds, research or expeditions touch the doomed city
+    await step('falls', () => retryPendingFalls());
+
     const healedCount = await step('heal', () => processHealedUnits());
     if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
 
@@ -87,7 +90,6 @@ async function gameTick() {
     await step('newExpeditions', () => generateNewExpeditions());
 
     await step('sieges', () => processSieges(now, TICK_HOURS));   // walls worn down, assault times updated
-    await step('falls', () => retryPendingFalls());                // a fall that failed after its assault is done now
     await step('armies', () => processArmyMovements(now));
     await step('harvest', () => processHarvesting(now));
 
