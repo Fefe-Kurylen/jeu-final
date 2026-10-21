@@ -1,0 +1,203 @@
+{
+  "rules": {
+    "researchBuilding": "ACADEMY",
+    "techLevelCannotExceedBuildingLevel": true,
+    "maxQueue": 2,
+    "costGrowth": 1.28,
+    "timeGrowth": 1.2,
+    "timeReductionMaxPct": 60,
+    "refundRateStarted": 0.5
+  },
+  "branches": [
+    {
+      "key": "ECONOMY",
+      "name": "Économie",
+      "icon": "wood",
+      "description": "Production et coûts de construction."
+    },
+    {
+      "key": "MILITARY",
+      "name": "Militaire",
+      "icon": "attack",
+      "description": "Formation et puissance offensive des troupes."
+    },
+    {
+      "key": "DEFENSE",
+      "name": "Défense",
+      "icon": "defense",
+      "description": "Résistance des troupes et soin des blessés."
+    },
+    {
+      "key": "LOGISTICS",
+      "name": "Logistique",
+      "icon": "horse",
+      "description": "Marche des armées et entretien."
+    }
+  ],
+  "technologies": [
+    {
+      "key": "AGRONOMY",
+      "name": "Agronomie",
+      "branch": "ECONOMY",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 150,
+        "stone": 100,
+        "iron": 80,
+        "food": 200
+      },
+      "timeL1Sec": 1200,
+      "prereq": [],
+      "effects": {
+        "productionBonusPct": 0.5
+      },
+      "description": "Rotation des cultures, irrigation et outils : +0,5 % de production de tous les champs par niveau."
+    },
+    {
+      "key": "ENGINEERING",
+      "name": "Ingénierie",
+      "branch": "ECONOMY",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 200,
+        "stone": 200,
+        "iron": 120,
+        "food": 80
+      },
+      "timeL1Sec": 1500,
+      "prereq": [
+        {
+          "key": "AGRONOMY",
+          "level": 5
+        }
+      ],
+      "effects": {
+        "buildCostReductionPct": 0.5
+      },
+      "description": "Grues, mortiers et plans : −0,5 % sur le coût de construction des bâtiments par niveau."
+    },
+    {
+      "key": "TRAINING",
+      "name": "Entraînement",
+      "branch": "MILITARY",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 120,
+        "stone": 80,
+        "iron": 160,
+        "food": 160
+      },
+      "timeL1Sec": 1200,
+      "prereq": [],
+      "effects": {
+        "trainTimeReductionPct": 0.5
+      },
+      "description": "Exercices et instructeurs : −0,5 % de temps de recrutement par niveau, en plus des bâtiments."
+    },
+    {
+      "key": "TACTICS",
+      "name": "Art de la guerre",
+      "branch": "MILITARY",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 150,
+        "stone": 100,
+        "iron": 260,
+        "food": 120
+      },
+      "timeL1Sec": 1500,
+      "prereq": [
+        {
+          "key": "TRAINING",
+          "level": 5
+        }
+      ],
+      "effects": {
+        "attackBonusPct": 0.25
+      },
+      "description": "Formations et manœuvres : +0,25 % d'attaque pour toutes vos troupes par niveau."
+    },
+    {
+      "key": "DISCIPLINE",
+      "name": "Discipline",
+      "branch": "DEFENSE",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 120,
+        "stone": 200,
+        "iron": 180,
+        "food": 100
+      },
+      "timeL1Sec": 1200,
+      "prereq": [],
+      "effects": {
+        "defenseBonusPct": 0.25
+      },
+      "description": "Boucliers serrés et tenue du rang : +0,25 % de défense pour toutes vos troupes par niveau, à l'attaque comme à la maison."
+    },
+    {
+      "key": "MEDICINE",
+      "name": "Médecine",
+      "branch": "DEFENSE",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 160,
+        "stone": 120,
+        "iron": 80,
+        "food": 220
+      },
+      "timeL1Sec": 1500,
+      "prereq": [
+        {
+          "key": "DISCIPLINE",
+          "level": 5
+        }
+      ],
+      "effects": {
+        "woundedBonusPct": 0.5
+      },
+      "description": "Chirurgiens de campagne : +0,5 point de pertes revenant blessées au lieu de mortes par niveau (plafond de la Tente de soins inchangé)."
+    },
+    {
+      "key": "CARTOGRAPHY",
+      "name": "Cartographie",
+      "branch": "LOGISTICS",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 200,
+        "stone": 80,
+        "iron": 100,
+        "food": 150
+      },
+      "timeL1Sec": 1200,
+      "prereq": [],
+      "effects": {
+        "armySpeedBonusPct": 0.5
+      },
+      "description": "Cartes, gués et relais : +0,5 % de vitesse de marche pour vos armées et convois par niveau."
+    },
+    {
+      "key": "SUPPLY",
+      "name": "Intendance",
+      "branch": "LOGISTICS",
+      "maxLevel": 20,
+      "costL1": {
+        "wood": 150,
+        "stone": 120,
+        "iron": 100,
+        "food": 250
+      },
+      "timeL1Sec": 1500,
+      "prereq": [
+        {
+          "key": "CARTOGRAPHY",
+          "level": 5
+        }
+      ],
+      "effects": {
+        "upkeepReductionPct": 0.5
+      },
+      "description": "Rations et greniers de garnison : −0,5 % de consommation de nourriture des troupes par niveau."
+    }
+  ]
+}

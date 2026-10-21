@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Army" ADD COLUMN IF NOT EXISTS "departedAt" TIMESTAMP(3);
+

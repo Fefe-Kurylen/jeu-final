@@ -1,5 +1,6 @@
 // ========== MAP - Rise of Kingdoms Style Canvas ==========
 let mapCanvas, mapCtx, minimapCanvas, minimapCtx;
+let mapViewW = 0, mapViewH = 0;   // CSS size of the map canvas (the backing store is scaled by the device pixel ratio)
 let mapData = [];
 let mapZoomLevel = 1;
 let mapOffsetX = 0, mapOffsetY = 0;
@@ -34,139 +35,125 @@ function updateWorldSize(playerCount, serverWorldSize) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
-// ========== TILESET IMAGE SYSTEM ==========
-let tilesetImage = null;
-let tilesetConfig = null;
-let tilesetLoaded = false;
-let tilesetLoadFailed = false;
+// ========== MAP SPRITES (WebP rendus en 3D par tools/build-3d.cjs) ==========
+// assets/images/3d/map/manifest.json liste les sprites disponibles ; sans manifest ou sans image,
+// le rendu procédural (formes géométriques) prend le relais sprite par sprite.
+let tilesetLoaded = false;       // manifest lu et images chargées
+let tilesetLoadFailed = false;   // manifest absent : ne jamais retenter
+let mapSpriteAnchor = { x: 0.5, y: 0.8 };   // point de l'image posé sur le centre de la tuile
 
-// Individual tile images for cities, units, resources
 const tileImages = {
-  cities: {},      // city type -> Image
-  units: {},       // unit type -> Image
-  resources: {},   // resource type -> Image
-  terrain: {},     // terrain type -> Image
-  buildings: {}    // building type -> Image
+  cities: {},      // rome gaul greek egypt hun sultan capital default
+  units: {},       // hoplite archer cavalry catapult merchant
+  resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
+  terrain: {},     // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
+  camps: {},       // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
+  fx: {}           // effets peints de la carte (guide § A7) : fire_0..3 (ville en feu), battle_0..3, campfire_0..3
 };
+// Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
+const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
+// Icône « tribu locale » peinte (guide § S14) quand elle existe, sinon l'icône de défense
+function tribeIconHtml() { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/tribe.webp') ? '<img class="ico" src="assets/images/painted/ui/tribe.webp" alt="">' : resIconHtml('defense'); }
+const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function tribeFactionOfUnits(units) { const k = Object.keys(units || {}).find(x => TRIBE_PREFIX[x.slice(0, 3)]); return k ? TRIBE_PREFIX[k.slice(0, 3)] : null; }
 
-// Load tileset configuration and images
-async function loadTilesetAssets() {
-  console.log('🎨 Loading tileset assets...');
+// Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
+let _tilesetAssetsPromise = null;
+function loadTilesetAssets() {
+  if (!_tilesetAssetsPromise) _tilesetAssetsPromise = _loadTilesetAssetsOnce();
+  return _tilesetAssetsPromise;
+}
 
+async function _loadTilesetAssetsOnce() {
+  if (typeof loadPaintedManifest === 'function') await loadPaintedManifest();   // sprites peints par IA quand ils existent
+  let manifest;
   try {
-    // Try to load tileset config
-    const configResponse = await fetch('/assets/tileset-config.json');
-    if (configResponse.ok) {
-      tilesetConfig = await configResponse.json();
-      console.log('📋 Tileset config loaded:', tilesetConfig);
-
-      // Try to load the main tileset image
-      const tilesetPath = `/assets/images/map/${tilesetConfig.image}`;
-      tilesetImage = new Image();
-      tilesetImage.src = tilesetPath;
-
-      await new Promise((resolve, reject) => {
-        tilesetImage.onload = () => {
-          tilesetLoaded = true;
-          console.log('✅ Tileset image loaded:', tilesetPath);
-          resolve();
-        };
-        tilesetImage.onerror = () => {
-          console.warn('⚠️ Tileset image not found:', tilesetPath);
-          tilesetLoadFailed = true;
-          resolve(); // Don't reject, just use fallback
-        };
-      });
-    }
+    const res = await fetch('assets/images/3d/map/manifest.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    manifest = await res.json();
   } catch (e) {
-    console.warn('⚠️ Could not load tileset config, using procedural rendering');
     tilesetLoadFailed = true;
+    console.log('🎨 Pas de sprites de carte (manifest absent), rendu procédural');
+    return;
   }
-
-  // Load individual tile images (cities, units, etc.)
-  await loadIndividualTileImages();
-}
-
-// Load individual images for specific game objects
-async function loadIndividualTileImages() {
-  const imagesToLoad = [
-    // Cities
-    { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
-    { category: 'cities', name: 'gaul', path: '/assets/images/map/cities/gaul.png' },
-    { category: 'cities', name: 'default', path: '/assets/images/map/cities/default.png' },
-    { category: 'cities', name: 'capital', path: '/assets/images/map/cities/capital.png' },
-
-    // Units
-    { category: 'units', name: 'hoplite', path: '/assets/images/map/units/hoplite.png' },
-    { category: 'units', name: 'archer', path: '/assets/images/map/units/archer.png' },
-    { category: 'units', name: 'cavalry', path: '/assets/images/map/units/cavalry.png' },
-    { category: 'units', name: 'catapult', path: '/assets/images/map/units/catapult.png' },
-    { category: 'units', name: 'trireme', path: '/assets/images/map/units/trireme.png' },
-    { category: 'units', name: 'merchant', path: '/assets/images/map/units/merchant.png' },
-    { category: 'units', name: 'settler', path: '/assets/images/map/units/settler.png' },
-
-    // Resources
-    { category: 'resources', name: 'wood', path: '/assets/images/map/resources/wood.png' },
-    { category: 'resources', name: 'stone', path: '/assets/images/map/resources/stone.png' },
-    { category: 'resources', name: 'iron', path: '/assets/images/map/resources/iron.png' },
-    { category: 'resources', name: 'food', path: '/assets/images/map/resources/food.png' },
-
-    // Terrain tiles
-    { category: 'terrain', name: 'grass', path: '/assets/images/map/terrain/grass.png' },
-    { category: 'terrain', name: 'desert', path: '/assets/images/map/terrain/desert.png' },
-    { category: 'terrain', name: 'snow', path: '/assets/images/map/terrain/snow.png' },
-    { category: 'terrain', name: 'water', path: '/assets/images/map/terrain/water.png' },
-    { category: 'terrain', name: 'forest', path: '/assets/images/map/terrain/forest.png' },
-    { category: 'terrain', name: 'mountain', path: '/assets/images/map/terrain/mountain.png' }
-  ];
-
-  const loadPromises = imagesToLoad.map(({ category, name, path }) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        tileImages[category][name] = img;
-        console.log(`✅ Loaded: ${category}/${name}`);
-        resolve();
-      };
-      img.onerror = () => {
-        // Image not found, will use procedural fallback
-        resolve();
-      };
-      img.src = path;
-    });
-  });
-
-  await Promise.all(loadPromises);
-
+  if (manifest.anchor && typeof manifest.anchor.y === 'number') mapSpriteAnchor = manifest.anchor;
+  const ext = manifest.format || 'png';
+  const jobs = [];
+  // Camps barbares : uniquement les sprites peints présents dans le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const name of CAMP_SPRITES) {
+      if (!paintedSet.has(`map/camps/${name}.webp`)) continue;
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages.camps[name] = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = art(`map/camps/${name}.webp`);
+      }));
+    }
+  }
+  for (const category of Object.keys(tileImages)) {
+    if (category === 'camps') continue;
+    for (const name of manifest[category] || []) {
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages[category][name] = img; resolve(); };
+        img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
+        img.src = typeof art === 'function' ? art(`map/${category}/${name}.${ext}`) : `assets/images/3d/map/${category}/${name}.${ext}`;
+      }));
+    }
+  }
+  // Sprites de carte peints sans rendu 3D (colonies, cortège de colons, guide § S12) : chargés depuis le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const p of paintedSet) {
+      const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
+      if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
+      jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
+    }
+  }
+  await Promise.all(jobs);
+  tilesetLoaded = true;
   const loadedCount = Object.values(tileImages).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
-  console.log(`🎨 Loaded ${loadedCount}/${imagesToLoad.length} tile images`);
+  console.log(`🎨 ${loadedCount}/${jobs.length} sprites de carte chargés`);
 }
 
-// Helper function to draw a tile from the tileset
-function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
-  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
-    return false; // Fallback to procedural
+// ---- Textures de terrain (assets/images/terrain) pour les tuiles de la carte ----
+// Ancrées sur l'origine du monde (elles ne glissent pas quand on déplace la carte) et mises à l'échelle du zoom.
+const _mapTerrainPatterns = new Map();
+let mapFramePatterns = null;   // { grass, sand, snow } préparés une fois par image
+function mapTerrainPattern(name, zoom, originX, originY) {
+  if (typeof getSprite !== 'function' || typeof DOMMatrix !== 'function') return null;
+  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(name) : `assets/images/terrain/${name}.svg`;
+  if (!url) return null;
+  const img = getSprite(url);
+  if (!img || !mapCtx) return null;
+  const scale = canvasScale();
+  const key = url + '@' + scale;
+  let entry = _mapTerrainPatterns.get(key);
+  if (!entry) {
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = Math.round(128 * scale);
+    tile.getContext('2d').drawImage(img, 0, 0, tile.width, tile.height);
+    const pattern = mapCtx.createPattern(tile, 'repeat');
+    if (!pattern || typeof pattern.setTransform !== 'function') return null;
+    entry = { pattern };
+    _mapTerrainPatterns.set(key, entry);
   }
-
-  const tile = tilesetConfig.tiles[tileKey];
-  const srcX = tile.col * tilesetConfig.tileWidth;
-  const srcY = tile.row * tilesetConfig.tileHeight;
-
-  ctx.drawImage(
-    tilesetImage,
-    srcX, srcY, tilesetConfig.tileWidth, tilesetConfig.tileHeight,
-    destX, destY, destW, destH
-  );
-
-  return true;
+  const period = 128 * zoom;
+  try { entry.pattern.setTransform(new DOMMatrix().translate(originX % period, originY % period).scale(zoom / scale)); } catch (e) { return null; }
+  return entry.pattern;
+}
+function prepareMapTerrainPatterns(originX, originY) {
+  // variantes de carte (collines, sable ondulé, toundra) avec repli sur les sols de base ; eau, glace et oasis seulement si peintes
+  const pat = (n) => mapTerrainPattern(n, mapZoomLevel, originX, originY);
+  mapFramePatterns = { grass: pat('grass_hills'), sand: pat('sand_ripples'), snow: pat('tundra'), water: pat('water_lake'), ice: pat('ice'), oasis: pat('water_shallow') };
 }
 
-// Helper function to draw an individual tile image
+// Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
 
-  ctx.drawImage(img, destX - destW/2, destY - destH, destW, destH);
+  ctx.drawImage(img, destX - destW * mapSpriteAnchor.x, destY - destH * mapSpriteAnchor.y, destW, destH);
   return true;
 }
 
@@ -242,170 +229,22 @@ const TERRAIN_MOVEMENT = {
   snowtree: 1.3      // Sapin enneigé
 };
 
-// Pseudo-random based on coordinates for consistent terrain
-function seededRandom(x, y, seed = 12345) {
-  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-  return n - Math.floor(n);
-}
+// ========== TERRAIN ==========
+// The procedural terrain (biomes, rivers, lakes, ranges, scattered features) lives in js/shared/terrain.js,
+// shared with the server so that armies walk the same world the player sees.
+const seededRandom = Terrain.seededRandom;
+const smoothNoise = Terrain.smoothNoise;
+const hillNoise = Terrain.hillNoise;
+const getBiome = Terrain.getBiome;
+const isOnRiver = Terrain.isOnRiver;
+const isOnLake = Terrain.isOnLake;
+const isOnMountainRange = Terrain.isOnMountainRange;
+const computeTerrainType = Terrain.computeTerrainType;
+const getTerrainType = Terrain.getTerrainType;
+const multiTileTerrainCache = Terrain._cache;
+const terrainSpriteCache = new Map();
 
-// Get biome based on DISTANCE from center (concentric rings)
-// Center = Forest (rich), Middle ring = Desert, Outer ring = Snow (harsh)
-function getBiome(x, y) {
-  const dx = x - WORLD_CENTER;
-  const dy = y - WORLD_CENTER;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  // Max distance is ~265 (corner of 374x374 map from center)
-  const maxDist = WORLD_SIZE / 2 * 1.4; // ~262
-  const normalizedDist = distance / maxDist;
-
-  // Concentric rings: Forest (0-35%), Desert (35-70%), Snow (70-100%)
-  if (normalizedDist < 0.35) return 'forest';
-  if (normalizedDist < 0.70) return 'desert';
-  return 'snow';
-}
-
-// ========== MULTI-TILE TERRAIN GENERATION ==========
-// Rivers, lakes, and mountain ranges that span multiple tiles (max 30 length)
-
-// Cache for multi-tile terrain to avoid recalculating
-const multiTileTerrainCache = new Map();
-
-// Generate river paths (sinuous lines across the map)
-function isOnRiver(x, y) {
-  // Multiple river sources spread across the map
-  const riverSeeds = [
-    { sx: -100, sy: -50, dir: 0.3, length: 30 },
-    { sx: 50, sy: -120, dir: -0.2, length: 25 },
-    { sx: -80, sy: 80, dir: 0.4, length: 28 },
-    { sx: 120, sy: 30, dir: -0.35, length: 22 },
-    { sx: -30, sy: 100, dir: 0.25, length: 20 }
-  ];
-
-  for (const river of riverSeeds) {
-    let rx = river.sx;
-    let ry = river.sy;
-    let dir = river.dir;
-
-    for (let i = 0; i < river.length; i++) {
-      // River width of 1-2 tiles
-      if (Math.abs(x - Math.round(rx)) <= 1 && Math.abs(y - Math.round(ry)) <= 1) {
-        const dist = Math.sqrt((x - rx) ** 2 + (y - ry) ** 2);
-        if (dist < 1.2) return true;
-      }
-
-      // Move river forward with some meandering
-      rx += Math.cos(dir * Math.PI) * 2;
-      ry += Math.sin(dir * Math.PI) * 2;
-      dir += (seededRandom(Math.floor(rx), Math.floor(ry), 11111) - 0.5) * 0.3;
-    }
-  }
-  return false;
-}
-
-// Generate lake clusters (circular formations)
-function isOnLake(x, y) {
-  // Lake centers
-  const lakeSeeds = [
-    { cx: -60, cy: -30, radius: 8 },
-    { cx: 80, cy: -70, radius: 6 },
-    { cx: -90, cy: 60, radius: 10 },
-    { cx: 40, cy: 90, radius: 7 },
-    { cx: 100, cy: -20, radius: 5 },
-    { cx: -20, cy: -100, radius: 9 }
-  ];
-
-  for (const lake of lakeSeeds) {
-    const dist = Math.sqrt((x - lake.cx) ** 2 + (y - lake.cy) ** 2);
-    // Irregular lake shape using noise
-    const irregularity = seededRandom(x, y, 22222) * 3;
-    if (dist < lake.radius + irregularity - 2) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Generate mountain ranges (linear chains with branches)
-function isOnMountainRange(x, y) {
-  // Mountain range spines
-  const mountainRanges = [
-    { sx: -150, sy: 0, ex: -50, ey: -80, width: 4 },
-    { sx: 50, sy: -150, ex: 100, ey: -50, width: 3 },
-    { sx: -100, sy: 100, ex: 0, ey: 150, width: 5 },
-    { sx: 80, sy: 50, ex: 150, ey: 100, width: 4 }
-  ];
-
-  for (const range of mountainRanges) {
-    // Calculate distance to line segment
-    const dx = range.ex - range.sx;
-    const dy = range.ey - range.sy;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    const t = Math.max(0, Math.min(1,
-      ((x - range.sx) * dx + (y - range.sy) * dy) / (len * len)
-    ));
-
-    const nearX = range.sx + t * dx;
-    const nearY = range.sy + t * dy;
-    const dist = Math.sqrt((x - nearX) ** 2 + (y - nearY) ** 2);
-
-    // Add some width variation using noise
-    const widthVar = seededRandom(x, y, 33333) * 2;
-    if (dist < range.width + widthVar) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Check if tile has features based on noise, biome, and multi-tile formations
-function getTerrainType(x, y) {
-  const biome = getBiome(x, y);
-  const noise = seededRandom(x, y);
-  const noise2 = seededRandom(x * 2, y * 2, 54321);
-
-  // Check multi-tile terrain first (rivers, lakes, mountains)
-  // These override normal terrain generation
-
-  // Rivers in forest and desert biomes
-  if ((biome === 'forest' || biome === 'desert') && isOnRiver(x, y)) {
-    return { biome, feature: biome === 'desert' ? 'oasis' : 'water', isMultiTile: true };
-  }
-
-  // Lakes - different types per biome
-  if (isOnLake(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'frozen', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'oasis', isMultiTile: true };
-    return { biome, feature: 'water', isMultiTile: true };
-  }
-
-  // Mountain ranges
-  if (isOnMountainRange(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'icemountain', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'rocks', isMultiTile: true };
-    return { biome, feature: 'mountain', isMultiTile: true };
-  }
-
-  // Normal terrain generation (scattered features)
-  if (biome === 'forest') {
-    if (noise > 0.94 && noise2 > 0.6) return { biome, feature: 'mountain' };
-    if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
-    if (noise < 0.02) return { biome, feature: 'water' };
-  } else if (biome === 'desert') {
-    if (noise > 0.95) return { biome, feature: 'ruins' };
-    if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
-    if (noise > 0.72 && noise2 > 0.6) return { biome, feature: 'dunes' };
-    if (noise < 0.03) return { biome, feature: 'oasis' };
-  } else if (biome === 'snow') {
-    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'icemountain' };
-    if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
-    if (noise < 0.03) return { biome, feature: 'frozen' };
-  }
-
-  return { biome, feature: null };
-}
-
+let _mapCanvasInitialized = false;
 function initMapCanvas() {
   mapCanvas = document.getElementById('world-canvas');
   mapCtx = mapCanvas?.getContext('2d');
@@ -418,8 +257,9 @@ function initMapCanvas() {
   const container = mapCanvas.parentElement;
   const width = container.clientWidth || 800;
   const height = container.clientHeight || 600;
-  mapCanvas.width = Math.max(width, 300);
-  mapCanvas.height = Math.max(height, 200);
+  mapViewW = Math.max(width, 300);
+  mapViewH = Math.max(height, 200);
+  sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);   // net sur écrans haute densité
 
   // Only add events once
   if (!mapCanvas.hasAttribute('data-events-attached')) {
@@ -450,8 +290,13 @@ function initMapCanvas() {
     minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
   }
 
-  // Center on capital initially
-  centerOnCapital();
+  // Centrage initial UNE SEULE FOIS, sans loadMap (l'appelant loadMap continue son fetch juste après)
+  // Bug fix : centerOnCapital() appelait loadMap() -> initMapCanvas() -> centerOnCapital() en boucle infinie
+  if (!_mapCanvasInitialized) {
+    _mapCanvasInitialized = true;
+    const capital = cities.find(c => c.isCapital) || currentCity;
+    if (capital) { mapOffsetX = capital.x; mapOffsetY = capital.y; }
+  }
 }
 
 // ========== TRAVIAN-STYLE KEYBOARD SHORTCUTS ==========
@@ -460,8 +305,10 @@ document.addEventListener('keydown', onGlobalKeyDown);
 
 function onGlobalKeyDown(e) {
   // Don't capture if typing in input/textarea
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
+  if (e.key === 'Escape') { closeAllPanels(); return; }
+
   // Don't capture if modal is open
   const modal = document.getElementById('modal');
   if (modal && modal.style.display !== 'none') return;
@@ -471,47 +318,47 @@ function onGlobalKeyDown(e) {
     case '1': // Champs (Resources)
       e.preventDefault();
       showTab('fields');
-      showToast('🌾 Vue Champs', 'info');
+      showToast('Vue Champs', 'info');
       break;
     case '2': // Ville (Buildings)
       e.preventDefault();
       showTab('city');
-      showToast('🏛️ Vue Ville', 'info');
+      showToast('Vue Ville', 'info');
       break;
     case '3': // Carte
       e.preventDefault();
       showTab('map');
-      showToast('🗺️ Carte', 'info');
+      showToast('Carte', 'info');
       break;
     case '4': // Statistiques (Classement)
       e.preventDefault();
       showTab('ranking');
-      showToast('📊 Classement', 'info');
+      showToast('Classement', 'info');
       break;
     case '5': // Rapports
       e.preventDefault();
       showTab('reports');
-      showToast('📜 Rapports', 'info');
+      showToast('Rapports', 'info');
       break;
     case '6': // Messages (Alliance)
       e.preventDefault();
       showTab('alliance');
-      showToast('⚔️ Alliance', 'info');
+      showToast('Alliance', 'info');
       break;
     case '7': // Inventaire
       e.preventDefault();
       showTab('inventory');
-      showToast('🎒 Inventaire', 'info');
+      showToast('Inventaire', 'info');
       break;
     case '8': // Héros
       e.preventDefault();
       showTab('hero');
-      showToast('🦸 Héros', 'info');
+      showToast('Héros', 'info');
       break;
     case '9': // Marché
       e.preventDefault();
       showTab('market');
-      showToast('🏪 Marché', 'info');
+      showToast('Marché', 'info');
       break;
     
     // ===== VILLAGE NAVIGATION (B/N like Travian) =====
@@ -553,10 +400,10 @@ function onGlobalKeyDown(e) {
 function onMapKeyDown(e) {
   // Only when map tab is visible
   const mapTab = document.getElementById('tab-map');
-  if (!mapTab || mapTab.style.display === 'none') return;
+  if (!mapTab || !mapTab.classList.contains('active')) return;
   
   // Don't capture if typing in input
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
   const moveSpeed = e.shiftKey ? 15 : 5; // Shift = faster
   
@@ -589,7 +436,7 @@ function onMapKeyDown(e) {
       renderMap();
       renderMinimap();
       updateMapUI();
-      showToast('🏠 Capitale', 'info');
+      showToast('Capitale', 'info');
       break;
     
     // ===== WASD MOVEMENT (Travian style) =====
@@ -649,7 +496,7 @@ function switchToPreviousCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const prevIndex = (currentIndex - 1 + cities.length) % cities.length;
   selectCity(cities[prevIndex].id);
-  showToast(`⬅️ ${cities[prevIndex].name}`, 'info');
+  showToast(`${cities[prevIndex].name}`, 'info');
 }
 
 function switchToNextCity() {
@@ -660,7 +507,7 @@ function switchToNextCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const nextIndex = (currentIndex + 1) % cities.length;
   selectCity(cities[nextIndex].id);
-  showToast(`➡️ ${cities[nextIndex].name}`, 'info');
+  showToast(`${cities[nextIndex].name}`, 'info');
 }
 
 // ===== MAP GRID TOGGLE =====
@@ -668,23 +515,27 @@ let showMapGrid = true;
 function toggleMapGrid() {
   showMapGrid = !showMapGrid;
   renderMap();
-  showToast(showMapGrid ? '📐 Grille activée' : '📐 Grille désactivée', 'info');
+  showToast(showMapGrid ? 'Grille activée' : 'Grille désactivée', 'info');
 }
 
 // ===== MINIMAP TOGGLE =====
 let showMinimapPanel = true;
 function toggleMinimap() {
   showMinimapPanel = !showMinimapPanel;
-  const minimapContainer = document.querySelector('.minimap-container');
+  const minimapContainer = document.querySelector('.minimap');
   if (minimapContainer) {
     minimapContainer.style.display = showMinimapPanel ? 'block' : 'none';
   }
-  showToast(showMinimapPanel ? '🗺️ Minimap visible' : '🗺️ Minimap masquée', 'info');
+  showToast(showMinimapPanel ? 'Minimap visible' : 'Minimap masquée', 'info');
 }
 
 // ===== CLOSE ALL PANELS =====
 function closeAllPanels() {
   closeModal();
+  if (typeof closeBuildPanel === 'function') closeBuildPanel();
+  if (typeof closeMapPanel === 'function') closeMapPanel();
+  const help = document.getElementById('help-overlay');
+  if (help) help.style.display = 'none';
   const actionPanel = document.getElementById('action-panel');
   if (actionPanel) actionPanel.style.display = 'none';
 }
@@ -772,7 +623,7 @@ async function loadMap() {
 
   // Load all visible tiles from server
   const viewSize = Math.ceil(60 / mapZoomLevel);
-  const radius = Math.ceil(viewSize / 2);
+  const radius = Math.min(60, Math.ceil(viewSize / 2));   // the server answers in full detail up to 60; beyond, cities only
 
   try {
     const res = await fetch(
@@ -801,8 +652,12 @@ async function loadMap() {
             allianceTag: c.player?.allianceTag || null,
             faction: c.player?.faction || 'ROME',
             wallLevel: c.wallLevel || 0,
+            mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || 0,
             cityTierName: c.cityTierName || 'Village',
+            isSieged: !!c.isSieged,
+            siegedBy: c.siegedBy || null,
+            wallDamage: c.wallDamage || 0,
             population: c.player?.population || 0
           });
         });
@@ -820,6 +675,7 @@ async function loadMap() {
             level: r.level || 1,
             amount: r.amount || 0,
             maxAmount: r.maxAmount || 1000,
+            holders: r.holders || [],   // armées qui tiennent le point (joueur, nom, alliance)
             biome: r.biome || 'forest',
             // Tribe defenders info
             hasDefenders: r.hasDefenders !== false,
@@ -834,8 +690,8 @@ async function loadMap() {
       // Add moving armies from server
       if (data.armies) {
         data.armies.forEach(a => {
-          // Avoid duplicating player's own armies already shown
-          if (!mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
+          // Nos propres armées sont dessinées depuis la liste `armies` (plus fraîche) : éviter le doublon
+          if (a.ownerId !== player?.id && !mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
             mapData.push({
               x: a.x,
               y: a.y,
@@ -844,9 +700,11 @@ async function loadMap() {
               name: a.name,
               status: a.status,
               missionType: a.missionType,
+              mainUnit: a.mainUnit,
               targetX: a.targetX,
               targetY: a.targetY,
               arrivalAt: a.arrivalAt,
+              departedAt: a.departedAt,
               ownerId: a.ownerId,
               ownerName: a.owner?.name || 'Inconnu',
               faction: a.owner?.faction || 'ROME'
@@ -873,7 +731,10 @@ async function loadMap() {
             allianceId: player?.allianceId || null,
             faction: player?.faction || 'ROME',
             wallLevel: wallLevel,
-            cityTier: c.cityTier || (wallLevel >= 15 ? 3 : wallLevel >= 10 ? 2 : wallLevel >= 1 ? 1 : 0),
+            mainHallLevel: c.mainHallLevel || 1,
+            cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
+            isSieged: !!c.isSieged,
+            wallDamage: wallLevel > 0 && c.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - (c.wallHp ?? c.wallMaxHp) / c.wallMaxHp) * 10) * 10)) : 0,
             population: player?.population || 0
           });
         }
@@ -881,8 +742,8 @@ async function loadMap() {
     }
   } catch (e) {
     console.warn('Could not load map data:', e);
-    // Generate fake data for demo including player cities
-    mapData = generateFakeMapData(Math.floor(mapOffsetX), Math.floor(mapOffsetY), viewSize);
+    // Keep the last known tiles rather than inventing cities
+    showToast('Carte indisponible, nouvel essai au prochain déplacement', 'warning');
   }
 
   renderMap();
@@ -890,69 +751,22 @@ async function loadMap() {
   updateMapUI();
 }
 
-function generateFakeMapData(startX, startY, size) {
-  const data = [];
-  const fakePlayerNames = ['Marcus', 'Julia', 'Gaius', 'Livia', 'Brutus', 'Helena', 'Nero', 'Octavia', 'Titus', 'Cornelia'];
-  const fakeFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
-
-  // Add player cities with full data
-  cities.forEach(c => {
-    const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
-    data.push({
-      x: c.x,
-      y: c.y,
-      type: 'CITY',
-      id: c.id,
-      playerId: player?.id,
-      playerName: player?.name || 'Vous',
-      name: c.name,
-      isCapital: c.isCapital,
-      faction: player?.faction || 'ROME',
-      wallLevel: wallBuilding?.level || 0,
-      population: player?.population || 100
-    });
-  });
-
-  // Add some random resources and enemy cities
-  for (let i = 0; i < 50; i++) {
-    const x = startX + Math.floor(Math.random() * size);
-    const y = startY + Math.floor(Math.random() * size);
-    const types = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-
-    // Avoid collision with player cities
-    if (data.find(d => d.x === x && d.y === y)) continue;
-
-    if (Math.random() < 0.15) {
-      // Enemy city with proper data
-      const fakePlayerId = `fake-player-${i}`;
-      const fakePlayerName = fakePlayerNames[i % fakePlayerNames.length];
-      const fakeFaction = fakeFactions[Math.floor(Math.random() * fakeFactions.length)];
-      data.push({
-        x,
-        y,
-        type: 'CITY',
-        id: `fake-city-${i}`,
-        playerId: fakePlayerId,
-        playerName: fakePlayerName,
-        name: `${fakePlayerName}'s Village`,
-        isCapital: Math.random() < 0.3,
-        faction: fakeFaction,
-        wallLevel: Math.floor(Math.random() * 10),
-        population: Math.floor(Math.random() * 1000) + 50
-      });
-    } else {
-      data.push({ x, y, type: 'RESOURCE', resourceType: types[Math.floor(Math.random() * 4)] });
-    }
-  }
-
-  return data;
+// Armées en marche : animation (pas cadencé, nuage de poussière) tant qu'une armée en mouvement est à l'écran
+let mapMovingOnScreen = false, mapAnimTimer = null;
+function scheduleArmyAnim() {
+  if (mapAnimTimer) return;
+  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (token && document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, 110);
 }
-
 function renderMap() {
+  mapMovingOnScreen = false;
+  renderMapCore();
+  if (mapMovingOnScreen) scheduleArmyAnim();
+}
+function renderMapCore() {
   if (!mapCtx) return;
 
-  const w = mapCanvas.width;
-  const h = mapCanvas.height;
+  const w = mapViewW;
+  const h = mapViewH;
   const nightMode = isNightMode();
 
   // Tile size based on zoom
@@ -994,13 +808,13 @@ function renderMap() {
     };
   }
 
-  // Convert screen to world coordinates
+  // Convert screen to world coordinates (tiles are drawn centred on integer coordinates)
   function screenToWorld(sx, sy) {
     const dx = sx - w / 2;
     const dy = sy - h / 2;
     return {
-      x: Math.floor(mapOffsetX + (dx / tileW + dy / tileH)),
-      y: Math.floor(mapOffsetY + (dy / tileH - dx / tileW))
+      x: Math.round(mapOffsetX + (dx / tileW + dy / tileH)),
+      y: Math.round(mapOffsetY + (dy / tileH - dx / tileW))
     };
   }
 
@@ -1027,7 +841,10 @@ function renderMap() {
   // Sort by Y for proper layering (painter's algorithm)
   drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  // Draw terrain tiles
+  // Draw terrain tiles (textures ancrées sur l'origine du monde)
+  const origin = worldToScreen(0, 0);
+  prepareMapTerrainPatterns(origin.x, origin.y);
+  rebuildMapObjectCells();
   drawOrder.forEach(tile => {
     drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
   });
@@ -1043,12 +860,21 @@ function renderMap() {
     }
   });
 
-  // Add armies to draw order
+  // Routes of the player's own moving armies (seen by nobody else), drawn on the ground before every object
+  for (const army of armies) {
+    if (army.isGarrison || !MOVING_STATUSES[army.status]) continue;
+    if (army.ownerId && player && army.ownerId !== player.id) continue;
+    drawArmyRoute(army, worldToScreen, tileW);
+    mapMovingOnScreen = true;
+  }
+  // Add armies to draw order, each at its current point on its route
   armies.forEach(army => {
-    const pos = worldToScreen(army.x, army.y);
+    if (army.isGarrison) return;   // la garnison ne quitte jamais la ville : le sprite de ville la représente
+    const cur = armyCurrentPosition(army);
+    const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir });
     }
   });
 
@@ -1080,11 +906,45 @@ function renderMap() {
 }
 
 // Draw a single isometric tile with biome support
+// Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
+// sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
+const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
+let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
+function rebuildMapObjectCells() {
+  terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
+  mapObjectCells = new Map();
+  for (const o of mapData) if (o.type === 'CITY' || o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type);
+  for (const c of cities) mapObjectCells.set(c.x + ',' + c.y, 'CITY');
+}
+function terrainBlockedAt(wx, wy) {
+  if (mapObjectCells.has(wx + ',' + wy)) return true;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (mapObjectCells.get((wx + dx) + ',' + (wy + dy)) === 'CITY') return true;
+  return false;
+}
+function terrainSpriteName(wx, wy, biome, feature) {
+  const k = wx + ',' + wy;
+  if (terrainSpriteCache.has(k)) return terrainSpriteCache.get(k);
+  const name = computeTerrainSpriteName(wx, wy, biome, feature);
+  if (terrainSpriteCache.size > 250000) terrainSpriteCache.clear();
+  terrainSpriteCache.set(k, name);
+  return name;
+}
+function computeTerrainSpriteName(wx, wy, biome, feature) {
+  if (terrainBlockedAt(wx, wy)) return null;
+  const base = WATER_FEATURES[feature] ? feature : `${biome}_${feature}`;
+  if (!tileImages.terrain[base]) return null;
+  const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; const t = getTerrainType(wx + dx, wy + dy); return t.feature === feature || (WATER_FEATURES[feature] && WATER_FEATURES[t.feature]); };
+  const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
+  const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
+  return suffix && tileImages.terrain[base + suffix] ? base + suffix : base;
+}
 function drawIsoTile(x, y, tw, th, wx, wy) {
   const terrain = getTerrainType(wx, wy);
   const biome = terrain.biome;
   const feature = terrain.feature;
   const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
+  const featureSprite = feature ? terrainSpriteName(wx, wy, biome, feature) : null;
+  const waterAsGround = featureSprite && WATER_FEATURES[feature];   // lac / oasis / lac gelé dessinés en sprite : sol du biome dessous
   const biomeColors = BIOMES[biome];
   const nightMode = isNightMode();
 
@@ -1097,31 +957,52 @@ function drawIsoTile(x, y, tw, th, wx, wy) {
   mapCtx.closePath();
 
   // Fill based on biome, feature and day/night
-  if (feature === 'water' || feature === 'frozen') {
+  const waterPattern = mapFramePatterns && !waterAsGround && (feature === 'water' ? mapFramePatterns.water : feature === 'frozen' ? mapFramePatterns.ice : feature === 'oasis' ? mapFramePatterns.oasis : null);
+  if (waterPattern) {   // eau, glace ou oasis peintes : texture + voile de nuit
+    mapCtx.fillStyle = waterPattern; mapCtx.fill();
+    if (nightMode) { mapCtx.fillStyle = '#101c30'; mapCtx.globalAlpha = 0.6; mapCtx.fill(); mapCtx.globalAlpha = 1; }
+  } else if ((feature === 'water' || feature === 'frozen') && !waterAsGround) {
     if (nightMode) {
       mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
     } else {
       mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
     }
-  } else if (feature === 'oasis') {
+  } else if (feature === 'oasis' && !waterAsGround) {
     mapCtx.fillStyle = nightMode ? '#1a3a2a' : '#4a9a6a';
   } else {
     // Use night ground colors if available
     const groundColors = nightMode && biomeColors.groundNight
       ? biomeColors.groundNight
       : biomeColors.ground;
-    mapCtx.fillStyle = groundColors[colorVariant];
+    const pattern = mapFramePatterns && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'];
+    if (pattern) {
+      // texture + voile de couleur (variation par tuile, nuit)
+      mapCtx.fillStyle = pattern; mapCtx.fill();
+      // voile de couleur très léger : la texture fait le relief, la variation par tuile reste discrète
+      mapCtx.fillStyle = groundColors[colorVariant]; mapCtx.globalAlpha = nightMode ? 0.78 : 0.12; mapCtx.fill(); mapCtx.globalAlpha = 1;
+    } else {
+      mapCtx.fillStyle = groundColors[colorVariant];
+    }
   }
-  mapCtx.fill();
+  if (!waterPattern && !(mapFramePatterns && (waterAsGround || (feature !== 'water' && feature !== 'frozen' && feature !== 'oasis')) && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
 
   // Subtle grid lines
   if (mapZoomLevel > 0.5 && showMapGrid) {
-    mapCtx.strokeStyle = 'rgba(0,0,0,0.1)';
+    mapCtx.strokeStyle = mapFramePatterns ? 'rgba(0,0,0,0.045)' : 'rgba(0,0,0,0.1)';
     mapCtx.lineWidth = 0.5;
     mapCtx.stroke();
   }
 
-  // Draw terrain features based on biome
+  // Draw terrain features based on biome: sprite when the manifest provides one, procedural otherwise
+  if (feature && !featureSprite && terrainBlockedAt(wx, wy) && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis') return;   // relief effacé autour des villes
+  if (featureSprite) {
+    const big = feature === 'mountain' || feature === 'icemountain';
+    const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
+    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : WATER_FEATURES[feature] ? (massif ? 1.9 : joined ? 1.75 : 1.25) : (joined ? 1.6 : 1.15);
+    const fsize = Math.max(tw, th * 2) * k;
+    drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
+    return;
+  }
   if (biome === 'forest') {
     if (feature === 'tree') {
       drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
@@ -1561,47 +1442,102 @@ const CULTURE_STYLES = {
 };
 
 // Draw city labels (name, flag, population badge) - used for both image and procedural rendering
-function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
+// Plaque de nom façon Travian : parchemin arrondi, liseré, texte brun en Crimson Text
+function drawMapNamePlate(x, top, text, px, border) {
+  mapCtx.font = `700 ${px}px 'Crimson Text', Georgia, serif`;
+  mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+  const w = mapCtx.measureText(text).width + px * 1.2, h = px * 1.5;
+  mapCtx.fillStyle = 'rgba(240,224,186,0.92)';
+  mapCtx.strokeStyle = border; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.roundRect(x - w / 2, top, w, h, h / 2); mapCtx.fill(); mapCtx.stroke();
+  mapCtx.fillStyle = '#2e2010';
+  mapCtx.fillText(text, x, top + h / 2 + 0.5);
+}
+// Phase courante de l'animation de siège, null tant qu'elle n'est pas livrée : villes de départ map/cities/siege_<CIV>_t<1|2|3>_<0..3>,
+// villes secondaires map/cities/siege_colony_<CIV>_<normal|fortified>_<0..3>
+const SIEGE_FRAMES = 4, SIEGE_FRAME_MS = 220;
+function siegeFrameName(faction, tier, colony = false) {
+  const t = Math.max(1, Math.min(3, tier || 1)), F = String(faction || 'ROME').toUpperCase();
+  const base = colony ? `siege_colony_${F}_${t >= 3 ? 'fortified' : 'normal'}` : `siege_${F}_t${t}`;
+  if (!tileImages.cities[`${base}_0`]) return null;
+  const name = `${base}_${Math.floor(Date.now() / SIEGE_FRAME_MS) % SIEGE_FRAMES}`;
+  return tileImages.cities[name] ? name : `${base}_0`;
+}
+
+function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = false) {
   const citySize = Math.min(tw, th * 2) * 0.8;
 
-  // Banner/flag
+  // Drapeau planté devant la ville : or pour les nôtres, bleu pour les alliés, couleurs de la faction sinon (sprite 3D, phase fixe)
   const flagY = y - citySize * 0.55;
-  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
-  mapCtx.fillStyle = bannerColor;
-  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + 1, flagY - 12);
-  mapCtx.lineTo(x + 10, flagY - 8);
-  mapCtx.lineTo(x + 1, flagY - 4);
-  mapCtx.closePath();
-  mapCtx.fill();
+  const kind = isMyCity ? 'gold' : isAlly ? 'ally' : String(tile.faction || 'ROME').toUpperCase();
+  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${kind}_0.webp`) : null;
+  if (flag) { const fh = citySize * 0.55, fw = fh * 64 / 96; mapCtx.drawImage(flag, x - fw / 2, flagY - fh * 0.92, fw, fh); }
+  else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
-  // City name label
-  if (mapZoomLevel > 0.5 && tile.name) {
-    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'top';
-    mapCtx.fillStyle = '#fff';
-    mapCtx.shadowColor = '#000';
-    mapCtx.shadowBlur = 3;
-    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
-    mapCtx.shadowBlur = 0;
-  }
+  // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
+  if (tile.isSieged && !siegeAnimated) drawSiegeMarker(x, y, citySize);
+  // Mur abîmé par un siège : fumée (et feu au-delà de 50 %) jusqu'à ce que le mur soit réparé ; l'animation de siège a la sienne
+  if ((tile.wallDamage || 0) >= 10 && !siegeAnimated) drawDamagedCitySmoke(x, y, citySize, tile.wallDamage, tile.id);
+  if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
+
+  // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
+  if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
 
   // Power level badge
   if (mapZoomLevel > 0.7 && tile.population) {
     const badgeX = x + citySize * 0.4;
     const badgeY = y - citySize * 0.5;
-    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
-    mapCtx.beginPath();
-    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+    mapCtx.fillStyle = '#e8c547'; mapCtx.strokeStyle = '#5a4010'; mapCtx.lineWidth = 1.2;
+    mapCtx.beginPath(); mapCtx.arc(badgeX, badgeY, 11, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+    mapCtx.fillStyle = '#2e2010';
+    mapCtx.font = "700 9px 'Crimson Text', Georgia, serif";
+    mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
   }
+}
+
+// Colonne de fumée au-dessus d'une ville au mur abîmé : plus dense avec les dégâts ; feu peint (map/fx/fire_0..3) quand
+// il est livré et que le mur a perdu plus de la moitié de ses PV, sinon des bouffées de fumée 3D qui montent
+function drawDamagedCitySmoke(x, y, size, damage, seed) {
+  mapMovingOnScreen = true;   // garde la carte animée tant que la fumée est à l'écran
+  const t = performance.now() / 1000, ph = (String(seed || '').charCodeAt(0) || 0) * 0.29;
+  if (damage > 50 && tileImages.fx.fire_0) {
+    const f = tileImages.fx[`fire_${Math.floor(t * 6) % 4}`] || tileImages.fx.fire_0, s = size * 0.5;
+    mapCtx.drawImage(f, x - s / 2 + size * 0.12, y - size * 0.55, s, s);
+  }
+  const n = 3 + Math.round(damage / 20);   // 3 à 8 bouffées
+  mapCtx.save();
+  if ('filter' in mapCtx) mapCtx.filter = `brightness(${Math.round(55 - damage * 0.3)}%)`;   // fumée sombre, plus noire avec les dégâts
+  for (let k = 0; k < n; k++) {
+    const life = (t * 0.35 + k / n + ph) % 1;
+    const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+    if (!puff) break;
+    const ps = size * (0.2 + life * 0.38);
+    mapCtx.globalAlpha = Math.min(0.9, 0.5 + damage / 200) * (1 - life * 0.85);
+    mapCtx.drawImage(puff, x + size * (0.08 + Math.sin(life * 3 + k) * 0.06 + life * 0.14) - ps / 2, y - size * (0.3 + life * 0.8) - ps / 2, ps, ps);
+  }
+  mapCtx.restore();
+}
+
+// Bannière de la civilisation qui assiège, plantée devant la ville (drapeau 3D existant, phase fixe)
+function drawSiegeBanner(x, y, size, faction) {
+  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${String(faction).toUpperCase()}_0.webp`) : null;
+  if (!flag) return;
+  const fh = size * 0.42, fw = fh * 64 / 96;
+  mapCtx.drawImage(flag, x + size * 0.42 - fw / 2, y + size * 0.05 - fh * 0.92, fw, fh);
+}
+
+function drawSiegeMarker(x, y, size) {
+  mapCtx.save();
+  mapCtx.strokeStyle = 'rgba(190,30,20,0.9)'; mapCtx.lineWidth = 2.5; mapCtx.setLineDash([6, 4]);
+  mapCtx.beginPath(); mapCtx.ellipse(x, y + size * 0.05, size * 0.66, size * 0.34, 0, 0, Math.PI * 2); mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  const r = Math.max(8, size * 0.16), ix = x - size * 0.5, iy = y - size * 0.45;
+  mapCtx.fillStyle = '#7a1410'; mapCtx.strokeStyle = '#f0d9a0'; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.arc(ix, iy, r, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+  const icon = typeof getSprite === 'function' ? getSprite('assets/images/3d/ui/attack.webp') : null;
+  if (icon) mapCtx.drawImage(icon, ix - r * 0.8, iy - r * 0.8, r * 1.6, r * 1.6);
+  mapCtx.restore();
 }
 
 // Draw isometric city with culture-specific style and walls
@@ -1613,38 +1549,36 @@ function drawIsoCity(x, y, tw, th, tile) {
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
   // Try to draw from tileset image first
-  const cityImageSize = Math.max(tw * 1.5, th * 3);
-  const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
+  // Sprite de la faction ; une ville fortifiée (palier 3 : Bâtiment principal ≥ 20) prend le sprite « capital » (enceinte à tours).
+  // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
+  const fortified = (tile.cityTier || 0) >= 3;
+  const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
+  // Ville secondaire : deux apparences peintes, normale puis fortifiée (Bâtiment principal ≥ 20) ; sinon les sprites de ville
+  const isColony = tile.isCapital === false, fl = faction.toLowerCase();
+  const colonyType = !isColony ? null : fortified ? (tileImages.cities[`colony_${fl}_fortified`] ? `colony_${fl}_fortified` : null) : (tileImages.cities['colony_' + fl] ? 'colony_' + fl : null);   // guide § S12
+  // palier 2 « Ville » : sprite <civ>_t2 quand il est livré, sinon celui du village
+  const townType = (tile.cityTier || 0) === 2 && tileImages.cities[faction.toLowerCase() + '_t2'] ? faction.toLowerCase() + '_t2' : faction.toLowerCase();
+  const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
 
-  // Try individual city image
-  if (drawTileImage(mapCtx, 'cities', cityType, x, y, cityImageSize, cityImageSize)) {
-    // Image drawn successfully, add labels on top
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
-    return;
-  }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'ROME': ['TEMPLE_ROAD', 'TEMPLE_SMALL', 'ARENA'],
-    'GAUL': ['VILLAGE_CENTER', 'VILLAGE_ROAD_CURVE'],
-    'GREEK': ['ARENA', 'TEMPLE_SMALL'],
-    'EGYPT': ['DESERT_RUINS', 'TEMPLE_ROAD'],
-    'HUN': ['ROAD_L_DIRT', 'VILLAGE_CENTER'],
-    'SULTAN': ['WALL_RIVER', 'CASTLE']
-  };
-
-  const tileKeys = tilesetMapping[faction] || ['VILLAGE_CENTER'];
-  const tileKey = tileKeys[Math.abs(tile.x + tile.y) % tileKeys.length];
-
-  if (drawTileFromTileset(mapCtx, tileKey, x - cityImageSize/2, y - cityImageSize, cityImageSize, cityImageSize)) {
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+  // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
+  if (tileImages.cities[cityType] || tileImages.cities.default) {
+    if (isMyCity || isAlly) {
+      mapCtx.fillStyle = isMyCity ? 'rgba(255,215,0,0.35)' : 'rgba(90,200,130,0.35)';
+      mapCtx.beginPath();
+      mapCtx.ellipse(x, y, tw * 0.52, th * 0.52, 0, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+    // Ville assiégée : animation peinte de la ville sous le siège (civilisation × palier, 4 phases en boucle) à la place du sprite
+    const siegeFrame = tile.isSieged ? ((isColony && siegeFrameName(faction, tile.cityTier, true)) || siegeFrameName(faction, tile.cityTier)) : null;
+    if (siegeFrame) mapMovingOnScreen = true;   // garde la carte animée tant que le siège est à l'écran
+    drawTileImage(mapCtx, 'cities', siegeFrame || (tileImages.cities[cityType] ? cityType : 'default'), x, y, cityImageSize, cityImageSize);
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, !!siegeFrame);
     return;
   }
 
   // Fallback to procedural rendering
-  // Use cityTier from API (Village=1, Ville=2, Ville Fortifiée=3) or calculate from wallLevel
-  // Village: wall 1-9, Ville: wall 10-14, Ville Fortifiée: wall 15+
-  const cityTier = tile.cityTier || (wallLevel === 0 ? 0 : wallLevel < 10 ? 1 : wallLevel < 15 ? 2 : 3);
+  // Palier de l'API (Village=1, Ville=2, Ville Fortifiée=3), fixé par le Bâtiment principal ; sans mur, pas d'enceinte dessinée
+  const cityTier = wallLevel === 0 ? 0 : (tile.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(tile.mainHallLevel || 1) : 1));
 
   const citySize = Math.min(tw, th * 2) * 0.8;
 
@@ -2059,37 +1993,52 @@ function drawSmallBuilding(x, y, size, style) {
   mapCtx.fill();
 }
 
+// Stock d'un point : affiché par quarts seulement (le serveur arrondit déjà), comme le veut le GDD
+function stockRatio(amount, max) { return max > 0 ? Math.max(0, Math.min(1, (Number(amount) || 0) / max)) : 0; }
+function stockLabel(amount, max) {
+  const r = stockRatio(amount, max);
+  return r >= 0.95 ? 'plein' : r >= 0.6 ? 'bien garni' : r >= 0.35 ? 'à moitié' : r > 0.1 ? 'entamé' : r > 0 ? 'presque vide' : 'vide';
+}
+// Petite jauge de remplissage sous le point (remplace l'ancien « 2k »)
+function drawStockGauge(x, y, size, tile) {
+  const w = Math.max(14, size * 0.9), h = 3, r = stockRatio(tile.amount, tile.maxAmount);
+  mapCtx.fillStyle = 'rgba(0,0,0,0.55)';
+  mapCtx.fillRect(x - w / 2, y, w, h);
+  mapCtx.fillStyle = r >= 0.6 ? '#8bc34a' : r >= 0.35 ? '#ffc107' : '#e57373';
+  mapCtx.fillRect(x - w / 2, y, Math.round(w * r), h);
+}
+
 // Draw isometric resource node
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
   const size = Math.min(tw, th * 2) * 0.5;
-  const imgSize = Math.max(tw, th * 2);
+  const imgSize = Math.max(tw, th * 2) * 1.3;
 
-  // Try to draw from individual image first
-  if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
-    // Draw resource level indicator
-    if (tile.amount && mapZoomLevel > 0.6) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
-    }
+  // Camp barbare peint (niveau, biome) tant que la tribu tient le point, ruines après sa défaite ; l'icône de ressource,
+  // en petit, garde le type lisible. Sans sprite peint, l'icône de ressource seule (rendu d'origine).
+  const biome = getBiome(tile.x, tile.y);
+  const biomeVariant = `${resType}_${biome}`;
+  const resName = tileImages.resources[biomeVariant] ? biomeVariant : resType;
+  // Campement de fondation peint (guide § S12) tant qu'une ville est en fondation sur le point, bannière du fondateur
+  const founder = (tile.holders || []).find(h => h.founding);
+  const foundName = founder ? (tileImages.camps[`foundation_${biome}`] ? `foundation_${biome}` : (tileImages.camps.foundation ? 'foundation' : null)) : null;
+  if (foundName && drawTileImage(mapCtx, 'camps', foundName, x, y, imgSize, imgSize)) {
+    if (founder.faction && tileImages.camps[`banner_${founder.faction}`]) drawTileImage(mapCtx, 'camps', `banner_${founder.faction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
     return;
   }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'wood': 'FOREST_ROCKS',
-    'stone': 'DIRT_ROCKS',
-    'iron': 'DESERT_MINE',
-    'food': 'GRASS_TREES',
-    'gold': 'DESERT_ROCKS'
-  };
-
-  if (drawTileFromTileset(mapCtx, tilesetMapping[resType], x - imgSize/2, y - imgSize, imgSize, imgSize)) {
+  const campBase = tile.hasDefenders ? `camp${Math.max(1, Math.min(3, Number(tile.level) || 1))}` : (tile.lastDefeat ? 'ruins' : null);
+  const campName = campBase ? (tileImages.camps[`${campBase}_${biome}`] ? `${campBase}_${biome}` : (tileImages.camps[campBase] ? campBase : null)) : null;
+  if (campName && drawTileImage(mapCtx, 'camps', campName, x, y, imgSize, imgSize)) {
+    const tribeFaction = tile.hasDefenders ? tribeFactionOfUnits(tile.defenderUnits) : null;
+    if (tribeFaction && tileImages.camps[`banner_${tribeFaction}`]) drawTileImage(mapCtx, 'camps', `banner_${tribeFaction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
+    drawTileImage(mapCtx, 'resources', resName, x - imgSize * 0.32, y + imgSize * 0.02, imgSize * 0.38, imgSize * 0.38);
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
+    return;
+  }
+  // Try to draw from individual image first (biome variant when it exists: wood_desert, stone_snow…)
+  if (drawTileImage(mapCtx, 'resources', resName, x, y, imgSize, imgSize)) {
+    // Draw resource level indicator
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;
   }
 
@@ -2212,17 +2161,7 @@ function drawIsoResource(x, y, tw, th, tile) {
   }
 
   // Resource amount badge
-  if (mapZoomLevel > 0.7 && tile.amount) {
-    mapCtx.fillStyle = 'rgba(0,0,0,0.6)';
-    mapCtx.beginPath();
-    mapCtx.roundRect(x - 15, y + size * 0.35, 30, 14, 3);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.amount), x, y + size * 0.35 + 7);
-  }
+  if (mapZoomLevel > 0.7) drawStockGauge(x, y + size * 0.35 + 4, size, tile);
 }
 
 // Draw small rock for quarry
@@ -2246,25 +2185,134 @@ function drawIsoRock(x, y, size) {
   mapCtx.fill();
 }
 
+// ========== ARMY ROUTES ==========
+// A moving army follows the same route the server computed (shared terrain): the sprite walks along it
+// between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
+const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
+const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
+function armyRoute(army) {
+  if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
+  const key = `${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;
+  if (armyRouteCache.has(key)) return armyRouteCache.get(key);
+  if (armyRouteCache.size > 300) armyRouteCache.clear();
+  const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000);
+  const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
+  armyRouteCache.set(key, path);
+  return path;
+}
+function armyProgress(army) {
+  if (!army.arrivalAt) return 0;
+  const now = typeof serverNow === 'function' ? serverNow() : Date.now();
+  const end = new Date(army.arrivalAt).getTime();
+  const start = army.departedAt ? new Date(army.departedAt).getTime() : null;
+  if (!start || end <= start) return now >= end ? 1 : 0;
+  return Math.max(0, Math.min(1, (now - start) / (end - start)));
+}
+function pointAlongRoute(path, fraction) {
+  if (!path || !path.length) return null;
+  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+  let total = 0; const seg = [];
+  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+  let target = fraction * total;
+  for (let i = 1; i < path.length; i++) {
+    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+    target -= seg[i - 1];
+  }
+  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+}
+// Where the army is right now (world coordinates, fractional) and which way it walks
+function armyCurrentPosition(army) {
+  if (!MOVING_STATUSES[army.status]) return { x: army.x, y: army.y, dir: 1 };
+  const path = armyRoute(army);
+  const p = armyProgress(army);
+  const at = pointAlongRoute(path, p) || { x: army.x, y: army.y };
+  const ahead = pointAlongRoute(path, Math.min(1, p + 0.02)) || at;
+  // screen direction: +x on screen when (dx - dy) grows
+  const dir = (ahead.x - ahead.y) - (at.x - at.y) < -1e-6 ? -1 : 1;
+  return { x: at.x, y: at.y, dir };
+}
+// Dotted light-green route with an arrow head, for the player's own armies only
+function drawArmyRoute(army, worldToScreen, tileW) {
+  const path = armyRoute(army);
+  if (!path || path.length < 2) return;
+  const pts = path.map(([x, y]) => worldToScreen(x, y));
+  mapCtx.save();
+  mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
+  mapCtx.strokeStyle = 'rgba(150, 235, 140, 0.75)';
+  mapCtx.lineWidth = Math.max(1.5, tileW * 0.045);
+  mapCtx.setLineDash([tileW * 0.18, tileW * 0.16]);
+  mapCtx.lineDashOffset = -((performance.now() / 60) % (tileW * 0.34));   // marching ants, slow
+  mapCtx.shadowColor = 'rgba(0, 40, 0, 0.5)'; mapCtx.shadowBlur = 2;
+  mapCtx.beginPath();
+  pts.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y)));
+  mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  // arrow head at the destination, pointing along the last segment
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const ang = Math.atan2(b.y - a.y, b.x - a.x), L = Math.max(6, tileW * 0.22);
+  mapCtx.fillStyle = 'rgba(150, 235, 140, 0.85)';
+  mapCtx.beginPath();
+  mapCtx.moveTo(b.x, b.y);
+  mapCtx.lineTo(b.x - L * Math.cos(ang - 0.45), b.y - L * Math.sin(ang - 0.45));
+  mapCtx.lineTo(b.x - L * Math.cos(ang + 0.45), b.y - L * Math.sin(ang + 0.45));
+  mapCtx.closePath(); mapCtx.fill();
+  mapCtx.restore();
+}
+
+// Nom du sprite de carte d'une armée : marchand pour les transports, sinon la classe de
+// l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
+const ARMY_CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
+function armySpriteName(army) {
+  if (army.missionType === 'FOUND' || army.status === 'FOUNDING' || (army.settlers || 0) > 0) return 'settler';   // cortège de colons
+  if (army.mainUnit) return String(army.mainUnit).toLowerCase();
+  if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
+  let best = null;
+  for (const u of army.units || []) if (!best || (u.count || 0) > (best.count || 0)) best = u;
+  const def = best && typeof unitsData !== 'undefined' ? unitsData.find(d => d.key === best.unitKey) : null;
+  return (def && ARMY_CLASS_SPRITE[def.class]) || 'hoplite';
+}
+
 // Draw isometric army marker
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
   const isMoving = army.status !== 'IDLE';
-  const imgSize = Math.max(tw, th * 2) * 0.8;
+  const imgSize = Math.max(tw, th * 2) * 1.2;
 
-  // Try to draw unit image based on army composition
-  const mainUnitType = army.mainUnit?.toLowerCase() || 'hoplite';
-  if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
-    // Draw army name label
-    if (mapZoomLevel > 0.8 && army.name) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(army.name, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
+  // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées,
+  // aux couleurs de la faction quand la variante existe (hoplite_ROME, cavalry_HUN…)
+  let mainUnitType = armySpriteName(army);
+  const faction = String(army.faction || player?.faction || '').toUpperCase();
+  if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
+  if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType]) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
+  if ((army.hasHero || army.heroId) && faction && tileImages.units['hero_' + faction]) mainUnitType = 'hero_' + faction;   // héros en tête d'armée (guide § S18)
+  if ((army.status === 'SPYING' || army.missionType === 'SPY') && tileImages.units.spy) mainUnitType = 'spy';   // espion en mission
+  const hasSprite = !!tileImages.units[mainUnitType];
+  if (hasSprite && isMoving) {
+    // marche : l'armée regarde vers sa destination, trottine (petits bonds cadencés, léger balancement) et soulève la poussière
+    mapMovingOnScreen = true;
+    const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
+    const dir = army.walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
+    const hop = Math.abs(Math.sin(t * 7 + ph)) * imgSize * 0.035, lean = Math.sin(t * 7 + ph) * 0.045;
+    for (let k = 0; k < 3; k++) {   // poussière derrière l'armée
+      const life = (t * 0.9 + k / 3 + ph) % 1;
+      const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+      if (!puff) break;
+      const ps = imgSize * (0.1 + life * 0.14);
+      mapCtx.globalAlpha = 0.45 * (1 - life);
+      mapCtx.drawImage(puff, x - dir * imgSize * (0.12 + life * 0.22) - ps / 2, y - imgSize * 0.02 - life * imgSize * 0.06 - ps / 2, ps, ps);
     }
+    mapCtx.globalAlpha = 1;
+    mapCtx.save();
+    mapCtx.translate(x, y - hop); mapCtx.rotate(lean); if (dir < 0) mapCtx.scale(-1, 1);
+    drawTileImage(mapCtx, 'units', mainUnitType, 0, 0, imgSize, imgSize);
+    mapCtx.restore();
+  }
+  if (hasSprite && !isMoving) drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize);
+  if (hasSprite) {
+    // Draw army name label
+    if (mapZoomLevel > 0.8 && army.name) drawMapNamePlate(x, y + size * 0.45, army.name, 9, army.ownerId && player && army.ownerId !== player.id ? '#8a2a1a' : '#c9a227');
     // Movement indicator
     if (isMoving) {
       mapCtx.fillStyle = '#ffaa00';
@@ -2318,49 +2366,52 @@ function drawIsoArmy(x, y, tw, th, army) {
   }
 }
 
-function drawMapBuilding(x, y, size, fillColor, strokeColor) {
+function drawMapBuilding(x, y, size, fillColor, strokeColor, ctx) {
+  // Bug fix : appelée depuis la vue ville (cityCtx) alors qu'elle utilisait mapCtx (indéfini hors carte)
+  const _c = ctx || (typeof cityCtx !== 'undefined' && cityCtx) || (typeof mapCtx !== 'undefined' && mapCtx);
+  if (!_c) return;
   const height = size * 1.2;
   
   // Building base
-  mapCtx.fillStyle = fillColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = fillColor;
+  _c.beginPath();
+  _c.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Left wall
-  mapCtx.fillStyle = shadeColor(fillColor, -15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x - size * 0.5, y);
-  mapCtx.lineTo(x - size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -15);
+  _c.beginPath();
+  _c.moveTo(x - size * 0.5, y);
+  _c.lineTo(x - size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Right wall
-  mapCtx.fillStyle = shadeColor(fillColor, -30);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + size * 0.5, y);
-  mapCtx.lineTo(x + size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -30);
+  _c.beginPath();
+  _c.moveTo(x + size * 0.5, y);
+  _c.lineTo(x + size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Roof
-  mapCtx.fillStyle = strokeColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = strokeColor;
+  _c.beginPath();
+  _c.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Roof point
-  mapCtx.fillStyle = shadeColor(strokeColor, -20);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - height - size * 0.5);
-  mapCtx.lineTo(x - size * 0.35, y - height + size * 0.1);
-  mapCtx.lineTo(x + size * 0.35, y - height + size * 0.1);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(strokeColor, -20);
+  _c.beginPath();
+  _c.moveTo(x, y - height - size * 0.5);
+  _c.lineTo(x - size * 0.35, y - height + size * 0.1);
+  _c.lineTo(x + size * 0.35, y - height + size * 0.1);
+  _c.closePath();
+  _c.fill();
 }
 
 function drawMapTower(x, y, size) {
@@ -2420,8 +2471,8 @@ function renderMinimap() {
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
     const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
     // Estimate visible tiles in each direction
-    const visTilesX = mapCanvas.width / tileW;
-    const visTilesY = mapCanvas.height / tileH;
+    const visTilesX = mapViewW / tileW;
+    const visTilesY = mapViewH / tileH;
     // Convert to minimap pixels
     const vpW = visTilesX * scale;
     const vpH = visTilesY * scale;
@@ -2451,14 +2502,17 @@ function onMinimapMouseDown(e) {
 function onMinimapMouseMove(e) {
   if (!minimapDragging) return;
   e.stopPropagation();
-  navigateMinimapToPosition(e);
+  navigateMinimapToPosition(e, false);
 }
 
 function onMinimapMouseUp(e) {
+  if (!minimapDragging) return;
   minimapDragging = false;
+  clearTimeout(mapReloadTimeout);
+  mapReloadTimeout = setTimeout(() => loadMap(), 150);
 }
 
-function navigateMinimapToPosition(e) {
+function navigateMinimapToPosition(e, reload = true) {
   if (!minimapCanvas) return;
 
   const rect = minimapCanvas.getBoundingClientRect();
@@ -2479,8 +2533,8 @@ function navigateMinimapToPosition(e) {
   mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, worldX));
   mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, worldY));
 
-  // Re-render
-  loadMap(); // Reload map data for new viewport
+  // Draw at once with what is loaded; the viewport is fetched when the gesture ends
+  if (reload) loadMap(); else scheduleMapRender(true);
 }
 
 function updateMapUI() {
@@ -2551,8 +2605,8 @@ function onMapMouseMove(e) {
     scheduleMapRender(true);
   } else {
     // Update hovered tile using isometric conversion
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
+    const centerX = mapViewW / 2;
+    const centerY = mapViewH / 2;
     const dx = mouseX - centerX;
     const dy = mouseY - centerY;
     const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
@@ -2575,6 +2629,27 @@ function onMapMouseUp() {
   }
 }
 
+// Tile under a canvas point. Cities, resources and armies are drawn above their ground diamond,
+// so a click on a sprite lands on the tile behind it: the neighbours whose sprite covers the
+// point are checked before reporting empty terrain.
+function pickMapTile(mouseX, mouseY) {
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  const dx = mouseX - mapViewW / 2;
+  const dy = mouseY - mapViewH / 2;
+  const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
+  const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
+  const entityAt = (x, y) => mapData.find(t => t.x === x && t.y === y && (t.type === 'CITY' || t.type === 'RESOURCE' || t.type === 'ARMY'));
+  let tile = entityAt(tileX, tileY);
+  if (!tile) {
+    for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
+      const t = entityAt(tileX + ox, tileY + oy);
+      if (t) { tile = t; break; }
+    }
+  }
+  return tile ? { x: tile.x, y: tile.y, tile } : { x: tileX, y: tileY, tile: null };
+}
+
 function onMapClick(e) {
   // Prevent click if user dragged the map (threshold: 5 pixels)
   const wasDrag = mapDragDistance > 5;
@@ -2582,32 +2657,16 @@ function onMapClick(e) {
   if (wasDrag) return;
 
   const rect = mapCanvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-
-  // Use isometric coordinate conversion
-  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = mapCanvas.width / 2;
-  const centerY = mapCanvas.height / 2;
-
-  // Screen to isometric world coordinates
-  const dx = mouseX - centerX;
-  const dy = mouseY - centerY;
-  const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-  const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-  // Find what's at this tile
-  const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-
-  mapSelectedTile = { x: tileX, y: tileY };
-  showMapInfoPanel(tileX, tileY, tile);
+  const picked = pickMapTile(e.clientX - rect.left, e.clientY - rect.top);
+  mapSelectedTile = { x: picked.x, y: picked.y };
+  showMapInfoPanel(picked.x, picked.y, picked.tile);
   renderMap();
 }
 
 // Touch handlers for mobile
 let touchStartDist = 0;
 let touchStartZoom = 1;
+let touchPinched = false;
 let touchDragDistance = 0;
 let touchStartPos = null;
 
@@ -2640,10 +2699,9 @@ function onMapTouchMove(e) {
       e.touches[0].clientY - e.touches[1].clientY
     );
 
-    mapZoomLevel = Math.max(0.15, Math.min(3, touchStartZoom * (dist / touchStartDist)));
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    mapZoomLevel = Math.max(0.3, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+    touchPinched = true;
+    scheduleMapRender(true);
   } else if (e.touches.length === 1 && mapDragging) {
     // Use isometric tile dimensions
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2662,9 +2720,7 @@ function onMapTouchMove(e) {
     mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
 
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    scheduleMapRender(true);
   }
 }
 
@@ -2674,31 +2730,19 @@ function onMapTouchEnd(e) {
   // Simulate click/tap if no significant drag
   if (touchDragDistance < 10 && touchStartPos) {
     const rect = mapCanvas.getBoundingClientRect();
-    const mouseX = touchStartPos.x - rect.left;
-    const mouseY = touchStartPos.y - rect.top;
-
-    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
-
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-    const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-    mapSelectedTile = { x: tileX, y: tileY };
-    showMapInfoPanel(tileX, tileY, tile);
+    const picked = pickMapTile(touchStartPos.x - rect.left, touchStartPos.y - rect.top);
+    mapSelectedTile = { x: picked.x, y: picked.y };
+    showMapInfoPanel(picked.x, picked.y, picked.tile);
     renderMap();
   }
 
-  // Reload map data after significant touch drag (debounced)
-  if (touchDragDistance >= 10) {
+  // Reload map data after a significant drag or a pinch (debounced)
+  if (touchDragDistance >= 10 || touchPinched) {
     clearTimeout(mapReloadTimeout);
     mapReloadTimeout = setTimeout(() => loadMap(), 300);
   }
 
+  touchPinched = false;
   touchDragDistance = 0;
   touchStartPos = null;
 }
@@ -2717,8 +2761,8 @@ function onMapWheel(e) {
   // Dimensions de tuile isométrique avant zoom
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
+  const centerX = mapViewW / 2;
+  const centerY = mapViewH / 2;
   const dx = mouseX - centerX;
   const dy = mouseY - centerY;
 
@@ -2728,7 +2772,7 @@ function onMapWheel(e) {
 
   // Appliquer le zoom (plus fluide)
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
 
   // Dimensions de tuile isométrique après zoom
   const newTileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2754,7 +2798,7 @@ function onMapWheel(e) {
 // Zoom buttons
 function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
   // Debounced reload to get data for new zoom level
   clearTimeout(mapReloadTimeout);
   mapReloadTimeout = setTimeout(() => loadMap(), 400);
@@ -2809,15 +2853,17 @@ function showMapInfoPanel(x, y, tile) {
     panel.style.display = 'flex';
   } else if (tile.type === 'CITY') {
     const isMyCity = tile.playerId === player?.id;
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
     
     if (isMyCity) {
       content.innerHTML = `
-        <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+        <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
+        ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
         <div class="panel-actions">
-          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">🏠 Visiter</button>
+          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
+          ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
         </div>
       `;
       panel.style.display = 'flex';
@@ -2828,14 +2874,14 @@ function showMapInfoPanel(x, y, tile) {
     }
   } else if (tile.type === 'RESOURCE') {
     const resourceIcons = {
-      'WOOD': '🌲 Forêt',
-      'STONE': '⛰️ Carrière',
-      'IRON': '⚒️ Mine de fer',
-      'FOOD': '🌾 Oasis',
-      'GOLD': '💰 Mine d\'or'
+      'WOOD': `${resIconHtml('wood')} Forêt`,
+      'STONE': `${resIconHtml('stone')} Carrière`,
+      'IRON': `${resIconHtml('iron')} Mine de fer`,
+      'FOOD': `${resIconHtml('food')} Oasis`,
+      'GOLD': `${resIconHtml('gold')} Mine d'or`
     };
-    const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const resourceName = resourceIcons[tile.resourceType] || `${resIconHtml('item_crate')} Ressource`;
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
 
     // Check if tribe is defeated (respawning)
     const isDefeated = tile.lastDefeat && !tile.hasDefenders;
@@ -2846,17 +2892,17 @@ function showMapInfoPanel(x, y, tile) {
     let defendersHtml = '';
     if (tile.hasDefenders && tile.defenderUnits && Object.keys(tile.defenderUnits).length > 0) {
       const unitNames = {
-        warrior: '⚔️ Guerriers',
-        archer: '🏹 Archers',
-        cavalry: '🐎 Cavalerie',
-        elite: '👑 Élite'
+        warrior: 'Guerriers',
+        archer: 'Archers',
+        cavalry: 'Cavalerie',
+        elite: 'Élite'
       };
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
-          <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>${tribeIconHtml()} Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
-            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || unit}: ${count}</p>`
+            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
           ).join('')}
         </div>
       `;
@@ -2864,26 +2910,39 @@ function showMapInfoPanel(x, y, tile) {
       const timeLeft = Math.max(0, Math.ceil((respawnTime - new Date()) / 60000));
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(76,175,80,0.2); border-radius: 4px; border-left: 3px solid #4caf50;">
-          <p style="margin: 0; color: #4caf50;">✅ Tribu vaincue</p>
+          <p style="margin: 0; color: #4caf50;">${resIconHtml('skull')} Tribu vaincue</p>
           <p style="margin: 2px 0; font-size: 11px; color: #888;">Respawn dans ${timeLeft} min</p>
         </div>
       `;
     }
 
+    // Armées qui tiennent le point : les siennes et celles de son alliance partagent la récolte, les autres se combattent
+    const holders = tile.holders || [];
+    const heldByOthers = holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId));
+    const holdersHtml = holders.length ? `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(33,150,243,0.15); border-radius: 4px; border-left: 3px solid ${heldByOthers ? '#f44' : '#4caf50'};">
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} ${holders.some(h => h.founding) ? 'Ville en fondation par' : 'Tenu par'}</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
+        </div>` : '';
     content.innerHTML = `
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
-      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(tile.level - 1)}${'☆'.repeat(3 - tile.level)}</strong> (${tile.level}/3)</p>
-      <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
-      <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
+      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}<span class="star-empty">${'☆'.repeat(Math.max(0, 3 - tile.level))}</span></strong> (${tile.level}/3)</p>
+      <p>Stock : <strong>${stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
+      <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
       ${defendersHtml}
+      ${holdersHtml}
       <div class="panel-actions player-actions">
         ${tile.hasDefenders ? `
-          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>⚔️ Attaquer tribu</button>
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer la tribu</button>
+        ` : heldByOthers ? `
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer l'armée qui tient le point</button>
+        ` : holders.some(h => h.founding) ? `
+          <p style="margin: 0; font-size: 12px; opacity: .85;">Fondation en cours : le point ne peut plus être récolté.</p>
         ` : `
-          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>📦 Collecter</button>
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} ${holders.length ? 'Collecter (point partagé)' : 'Collecter'}</button>
+          ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
-        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
+        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
       </div>
     `;
     panel.style.display = 'flex';
@@ -2919,37 +2978,39 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     'SAME_ALLIANCE': '#2196f3'
   };
   const statusLabels = {
-    'ALLY': '🤝 Allié',
-    'NEUTRAL': '⚪ Neutre',
-    'ENEMY': '⚔️ Ennemi',
-    'SAME_ALLIANCE': '🛡️ Même alliance'
+    'ALLY': `${resIconHtml('alliance')} Allié`,
+    'NEUTRAL': 'Neutre',
+    'ENEMY': `${resIconHtml('attack')} Ennemi`,
+    'SAME_ALLIANCE': `${resIconHtml('defense')} Même alliance`
   };
   
   const statusColor = statusColors[diplomacyStatus] || '#9e9e9e';
   const statusLabel = statusLabels[diplomacyStatus] || 'Inconnu';
   
   content.innerHTML = `
-    <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+    <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
     <p>Position: (${x}, ${y})</p>
-    <p>Propriétaire: <strong>${tile.playerName || 'Inconnu'}</strong></p>
+    <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
+    ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
     <div class="panel-actions player-actions">
-      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">👤 Profil</button>
-      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>🔍 Espionner</button>
+      ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
+      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
+      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
-        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>⚔️ Attaquer</button>
-        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>💰 Piller</button>
+        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('gold')} Piller</button>
       ` : `
-        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">⚔️ Attaquer</button>
-        <button class="btn btn-raid" disabled title="Impossible de piller un allié">💰 Piller</button>
+        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" disabled title="Impossible de piller un allié">${resIconHtml('gold')} Piller</button>
       `}
       ${canTransport ? `
-        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', '${tile.name}')" ${!hasArmy ? 'disabled' : ''}>📦 Envoyer ressources</button>
+        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer ressources</button>
       ` : `
-        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">📦 Envoyer</button>
+        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">${resIconHtml('send')} Envoyer</button>
       `}
     </div>
-    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">⚠️ Aucune armée disponible</p>' : ''}
+    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">Aucune armée disponible</p>' : ''}
   `;
   panel.style.display = 'flex';
 }
@@ -2976,23 +3037,23 @@ async function viewPlayerProfile(playerId) {
   
   document.getElementById('modal-body').innerHTML = `
     <div class="player-profile">
-      <h2>👤 ${p.name}</h2>
+      <h2>${resIconHtml('player')} ${escapeHtml(p.name)}</h2>
       <div class="profile-info">
         <div class="profile-stat"><span>Faction:</span> <strong>${p.faction}</strong></div>
         <div class="profile-stat"><span>Population:</span> <strong>${formatNum(p.population)}</strong></div>
         <div class="profile-stat"><span>Villes:</span> <strong>${p.citiesCount}</strong></div>
-        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${p.alliance.tag}] ${p.alliance.name}</strong></div>` : ''}
-        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${p.hero.name} (Niv.${p.hero.level})</strong></div>` : ''}
+        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${escapeHtml(p.alliance.tag)}] ${escapeHtml(p.alliance.name)}</strong></div>` : ''}
+        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${escapeHtml(p.hero.name)} (Niv.${p.hero.level})</strong></div>` : ''}
         ${p.stats ? `
           <div class="profile-stat"><span>Attaques gagnées:</span> <strong>${p.stats.attacksWon}</strong></div>
           <div class="profile-stat"><span>Défenses gagnées:</span> <strong>${p.stats.defensesWon}</strong></div>
         ` : ''}
       </div>
-      <h4>🏰 Villes</h4>
+      <h4>${resIconHtml('city')} Villes</h4>
       <div class="profile-cities">
-        ${p.cities.map(c => `
+        ${(p.cities || []).map(c => `
           <div class="profile-city">
-            ${c.isCapital ? '👑' : '🏰'} ${c.name} (${c.x}, ${c.y})
+            ${c.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(c.name)} (${c.x}, ${c.y})
           </div>
         `).join('')}
       </div>
@@ -3006,18 +3067,18 @@ async function viewPlayerProfile(playerId) {
 
 // Spy from map
 function spyFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
   
   document.getElementById('modal-body').innerHTML = `
-    <h3>🔍 Espionner</h3>
-    <p>Envoyer <strong>${army.name}</strong> espionner cette ville ?</p>
+    <h3>${resIconHtml('spy')} Espionner</h3>
+    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> espionner cette ville ?</p>
     <p style="font-size:12px;color:#888">L'espionnage révèle les bâtiments, armées et ressources de l'ennemi.</p>
     <div style="margin-top:15px">
-      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">🔍 Espionner</button>
+      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">${resIconHtml('spy')} Espionner</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     </div>
   `;
@@ -3053,45 +3114,46 @@ async function confirmSpyFromMap(armyId, cityId) {
 
 // Send resources from map
 function sendResourcesFromMap(cityId, cityName) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
   
-  // Calculate carry capacity
-  const capacity = army.units.reduce((sum, u) => {
-    const unitDef = window.unitsData?.find(ud => ud.key === u.unitKey);
+  // Carry capacity: unit transport stats × faction bonus (EGYPT +10%), like the server
+  const transportBonus = player?.faction === 'EGYPT' ? 1.10 : 1;
+  const capacity = Math.floor(army.units.reduce((sum, u) => {
+    const unitDef = unitsData.find(ud => ud.key === u.unitKey);
     return sum + (unitDef?.stats?.transport || 50) * u.count;
-  }, 0);
+  }, 0) * transportBonus);
   
   document.getElementById('modal-body').innerHTML = `
-    <h3>📦 Envoyer des ressources</h3>
-    <p>Vers: <strong>${cityName}</strong></p>
-    <p>Armée: <strong>${army.name}</strong></p>
+    <h3>${resIconHtml('send')} Envoyer des ressources</h3>
+    <p>Vers: <strong>${escapeHtml(cityName)}</strong></p>
+    <p>Armée: <strong>${escapeHtml(army.name)}</strong></p>
     <p>Capacité: <strong>${formatNum(capacity)}</strong></p>
     
     <div class="resource-inputs">
       <div class="resource-input">
-        <label>🪵 Bois</label>
-        <input type="number" id="send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}">
+        <label>${resIconHtml('wood')} Bois</label>
+        <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🪨 Pierre</label>
-        <input type="number" id="send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}">
+        <label>${resIconHtml('stone')} Pierre</label>
+        <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>⛏️ Fer</label>
-        <input type="number" id="send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}">
+        <label>${resIconHtml('iron')} Fer</label>
+        <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🌾 Nourriture</label>
-        <input type="number" id="send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}">
+        <label>${resIconHtml('food')} Nourriture</label>
+        <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}" inputmode="numeric">
       </div>
     </div>
     
     <div style="margin-top:15px">
-      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">📦 Envoyer</button>
+      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">${resIconHtml('send')} Envoyer</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     </div>
   `;
@@ -3099,10 +3161,10 @@ function sendResourcesFromMap(cityId, cityName) {
 }
 
 async function confirmSendResources(armyId, cityId) {
-  const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
-  const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
-  const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
-  const food = parseInt(document.getElementById('send-food')?.value) || 0;
+  const wood = parseInt(document.getElementById('map-send-wood')?.value) || 0;
+  const stone = parseInt(document.getElementById('map-send-stone')?.value) || 0;
+  const iron = parseInt(document.getElementById('map-send-iron')?.value) || 0;
+  const food = parseInt(document.getElementById('map-send-food')?.value) || 0;
 
   if (wood + stone + iron + food === 0) {
     showToast('Sélectionnez des ressources à envoyer', 'error');
@@ -3152,7 +3214,7 @@ function goToCity(cityId) {
 }
 
 function attackFromMap(cityId, x, y) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3160,7 +3222,7 @@ function attackFromMap(cityId, x, y) {
   
   document.getElementById('modal-body').innerHTML = `
     <h3>Confirmer l'attaque</h3>
-    <p>Envoyer <strong>${army.name}</strong> attaquer la ville à (${x}, ${y}) ?</p>
+    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> attaquer la ville à (${x}, ${y}) ?</p>
     <button onclick="confirmAttackFromMap('${army.id}', '${cityId}')" class="btn btn-danger">Attaquer!</button>
     <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
   `;
@@ -3194,11 +3256,11 @@ async function confirmAttackFromMap(armyId, cityId) {
 }
 
 function raidFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (army) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
-      <p>Envoyer <strong>${army.name}</strong> piller cette ville ?</p>
+      <p>Envoyer <strong>${escapeHtml(army.name)}</strong> piller cette ville ?</p>
       <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller!</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     `;
@@ -3234,7 +3296,7 @@ async function confirmRaidFromMap(armyId, cityId) {
 
 // ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
 function raidResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3242,19 +3304,19 @@ function raidResource(nodeId, x, y) {
 
   // Find the resource tile to show defender info
   const tile = mapData.find(t => t.id === nodeId);
-  const defenderInfo = tile && tile.defenderUnits ? Object.entries(tile.defenderUnits)
-    .map(([unit, count]) => `${unit}: ${count}`).join(', ') : 'Inconnu';
+  const defenderInfo = tile && tile.defenderUnits && Object.keys(tile.defenderUnits).length ? Object.entries(tile.defenderUnits)
+    .map(([unit, count]) => `<span class="unit-chip">${unitIconHtml(unit, 'unit-ico-sm')} ${escapeHtml(getUnitName(unit))} ×${formatNum(count)} ${infoBtnHtml('unit', unit, 'info-btn-sm')}</span>`).join(' ') : 'Inconnu';
 
   // Build army selection
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    return `<option value="${a.id}">${a.name} (${totalUnits} unités)</option>`;
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.count, 0) || 0;
+    return `<option value="${a.id}">${escapeHtml(a.name)} (${totalUnits} unités)</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⚔️ Attaquer la tribu locale</h3>
+    <h3>${resIconHtml('attack')} Attaquer la tribu locale</h3>
     <div style="background:rgba(244,67,54,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #f44;">
-      <p style="margin:0;"><strong>🛡️ Défenseurs:</strong> ${defenderInfo}</p>
+      <p style="margin:0;"><strong>${resIconHtml('defense')} Défenseurs :</strong> ${defenderInfo}</p>
       <p style="margin:5px 0 0 0; color:#f44;"><strong>Puissance:</strong> ${tile?.defenderPower || '?'}</p>
     </div>
     <p>Position: (${x}, ${y})</p>
@@ -3263,7 +3325,7 @@ function raidResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">⚔️ Attaquer!</button>
+      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">${resIconHtml('attack')} Attaquer</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3277,27 +3339,22 @@ async function confirmRaidResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
-
-  if (res.ok) {
-    const data = await res.json();
-    if (data.combatResult) {
-      showRaidResourceResult(data);
-    } else {
-      showToast('Armée en route vers la ressource', 'success');
-    }
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Erreur lors du raid', 'error'); return; }
+    if (data.combatResult) showRaidResourceResult(data);
+    else showToast('Armée en route vers la ressource', 'success');
     await loadArmies();
     loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur lors du raid', 'error');
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -3306,14 +3363,14 @@ function showRaidResourceResult(data) {
   const won = result.winner === 'attacker';
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>${won ? '🎉 Victoire!' : '💀 Défaite!'}</h3>
+    <h3>${won ? resIconHtml('medal') + ' Victoire' : resIconHtml('skull') + ' Défaite'}</h3>
     <div style="background:${won ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)'}; padding:15px; border-radius:8px; margin:10px 0;">
       <p><strong>Résultat:</strong> ${won ? 'Tribu vaincue!' : 'Votre armée a été repoussée'}</p>
       <p><strong>Vos pertes:</strong> ${result.attackerLosses || 0} unités</p>
       <p><strong>Pertes ennemies:</strong> ${result.defenderLosses || 0} unités</p>
       ${won && data.loot ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
-          <p><strong>💰 Butin récupéré:</strong></p>
+          <p><strong>${resIconHtml('gold')} Butin récupéré :</strong></p>
           ${Object.entries(data.loot).map(([res, amount]) =>
             `<p style="margin:2px 0; font-size:12px;">${res}: +${formatNum(amount)}</p>`
           ).join('')}
@@ -3326,7 +3383,7 @@ function showRaidResourceResult(data) {
 }
 
 function collectResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3334,15 +3391,14 @@ function collectResource(nodeId, x, y) {
 
   const tile = mapData.find(t => t.id === nodeId);
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    const carryCapacity = totalUnits * 50; // Assume 50 carry per unit
-    return `<option value="${a.id}">${a.name} (capacité: ${formatNum(carryCapacity)})</option>`;
+    const carryCapacity = (a.units || []).reduce((sum, u) => sum + u.count * (unitsData.find(d => d.key === u.unitKey)?.stats?.transport || 50), 0);
+    return `<option value="${a.id}">${escapeHtml(a.name)} (capacité: ${formatNum(carryCapacity)})</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⛏️ Récolter des ressources</h3>
+    <h3>${resIconHtml('tools')} Récolter des ressources</h3>
     <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
-      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'} :</strong> stock ${tile ? stockLabel(tile.amount, tile.maxAmount) : 'inconnu'}</p>
     </div>
     <div style="background:rgba(255,215,0,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #ffd700;">
       <p style="margin:0; font-size:12px; color:#c9a227;">
@@ -3355,7 +3411,7 @@ function collectResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">⛏️ Démarrer la récolte</button>
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">${resIconHtml('tools')} Démarrer la récolte</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3369,20 +3425,25 @@ async function confirmCollectResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
+  let res, data;
+  try {
+    res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+    return;
+  }
 
   if (res.ok) {
-    const data = await res.json();
     if (data.status === 'HARVESTING') {
       // Récolte progressive
-      showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
+      showToast(`Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
     } else if (data.travelTime) {
       // Armée en route
       showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');
@@ -3393,30 +3454,30 @@ async function confirmCollectResource(nodeId) {
     await loadArmies();
     loadMap();
   } else {
-    const data = await res.json();
     showToast(data.error || 'Erreur lors de la collecte', 'error');
   }
 }
 
 async function sendArmyTo(x, y) {
-  const army = armies.find(a => a.status === 'IDLE');
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
-  
-  const res = await fetch(`${API}/api/army/${army.id}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ x, y })
-  });
-  
   closeMapPanel();
-  
-  if (res.ok) {
+  try {
+    const res = await fetch(`${API}/api/army/${army.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ x, y })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Déplacement impossible', 'error'); return; }
     showToast('Armée en route!', 'success');
     await loadArmies();
     loadMap();
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -3430,8 +3491,9 @@ window.addEventListener('resize', () => {
     if (mapCanvas && mapTab && mapTab.classList.contains('active')) {
       const container = mapCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        mapCanvas.width = Math.max(container.clientWidth, 300);
-        mapCanvas.height = Math.max(container.clientHeight, 200);
+        mapViewW = Math.max(container.clientWidth, 300);
+        mapViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);
       }
       renderMap();
       renderMinimap();
@@ -3440,8 +3502,9 @@ window.addEventListener('resize', () => {
     if (cityCanvas) {
       const container = cityCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        cityCanvas.width = Math.max(container.clientWidth, 300);
-        cityCanvas.height = Math.max(container.clientHeight, 200);
+        cityViewW = Math.max(container.clientWidth, 300);
+        cityViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
       calculateCitySlots();
       if (currentCityView === 'fields') calculateFieldSlots();

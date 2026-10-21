@@ -1,24 +1,34 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const config = require('../config');
+const { levelsFrom } = require('../utils/techEffects');
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
   try {
     const player = await prisma.player.findUnique({
       where: { id: req.user.playerId },
+      // Charge utile réduite (rafraîchie toutes les 15 s sur mobile) : les villes détaillées viennent de /api/cities,
+      // les membres d'alliance de /api/alliance/mine
       include: {
-        cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } },
+        cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
         hero: { include: { items: true } },
         stats: true,
-        alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
-        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
+        alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
+        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } },
+        account: { select: { emailVerifiedAt: true } }
       }
     });
-    res.json(player);
+    if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
+    const { account, ...rest } = player;
+    // Researched technology levels { KEY: level }: the client applies the same cost and time formulas as the server
+    const techLevels = levelsFrom(await prisma.playerTechnology.findMany({ where: { playerId: player.id } }));
+    res.json({ ...rest, techLevels, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -48,7 +58,7 @@ router.get('/:id', auth, async (req, res) => {
       createdAt: targetPlayer.createdAt
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 

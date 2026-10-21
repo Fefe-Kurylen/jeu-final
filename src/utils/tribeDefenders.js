@@ -36,20 +36,43 @@ const FACTION_UNITS = {
   }
 };
 
-function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
-  const faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
+// Soldiers of a camp by level, scaled by the stock left on the node (never below a floor)
+const SOLDIERS = { 1: [100, 10], 2: [600, 60], 3: [1500, 150] };
+function expectedSoldiers(level, resourcePercent = 1.0) {
+  const [full, floor] = SOLDIERS[level] || SOLDIERS[3];
+  return Math.max(floor, Math.floor(full * Math.max(0, Math.min(1, resourcePercent))));
+}
+// Faction of a camp from its unit keys (ROM_… → ROME), null when unknown
+const PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function tribeFactionOf(units) {
+  const key = Object.keys(units || {}).find(k => PREFIX[k.slice(0, 3)]);
+  return key ? PREFIX[key.slice(0, 3)] : null;
+}
+
+// Difficulty of a camp by its distance to the centre of the map: easy near the edges where players start, hard at the
+// centre where the game ends (config.map.camps). 1 = the nominal size of the level.
+function campDifficultyAt(x, y) {
+  const config = require('../config');
+  const { difficultyEdge, difficultyCenter } = config.map.camps;
+  const d = Math.min(1, Math.hypot(Number(x) || 0, Number(y) || 0) / (config.map.maxCoord || 186));
+  return difficultyCenter + (difficultyEdge - difficultyCenter) * d;
+}
+// Soldiers a camp should have: level × stock left × difficulty of the place (before the ± variation between camps)
+function targetSoldiers(level, resourcePercent = 1.0, difficulty = 1) {
+  const [, floor] = SOLDIERS[level] || SOLDIERS[3];
+  return Math.max(floor, Math.floor(expectedSoldiers(level, resourcePercent) * Math.max(0.1, difficulty)));
+}
+
+// faction: keep the camp's people when it is reinforced; random otherwise. difficulty: campDifficultyAt(x, y) of the node.
+// Each camp also varies by ± config.map.camps.variationPct (the « stars » of the GDD).
+function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, faction = null, difficulty = 1) {
+  if (!FACTION_UNITS[faction]) faction = FACTIONS_LIST[Math.floor(Math.random() * FACTIONS_LIST.length)];
   const factionUnits = FACTION_UNITS[faction];
+  const v = (require('../config').map.camps.variationPct || 0) / 100;
+  const variation = 1 - v + Math.random() * 2 * v;
 
   const units = {};
-  let totalSoldiers;
-
-  if (level === 1) {
-    totalSoldiers = Math.max(10, Math.floor(100 * resourcePercent));
-  } else if (level === 2) {
-    totalSoldiers = Math.max(60, Math.floor(600 * resourcePercent));
-  } else {
-    totalSoldiers = Math.max(150, Math.floor(1500 * resourcePercent));
-  }
+  const totalSoldiers = Math.max((SOLDIERS[level] || SOLDIERS[3])[1], Math.floor(targetSoldiers(level, resourcePercent, difficulty) * variation));
 
   const infRatio = 0.25 + Math.random() * 0.2;
   const arcRatio = 0.25 + Math.random() * 0.2;
@@ -85,8 +108,10 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
     units[factionUnits.cavalry.elite] = Math.floor(eliteCount * cavRatio);
   }
 
-  const basePower = isGold ? 140 : 100;
-  const power = basePower * level * (totalSoldiers / 100);
+  // Power on the same scale as an army's power (GET /api/army/:id -> power), so the map shows what the fight uses
+  const { unitsData } = require('../config/gamedata');
+  const { calculateArmyPower } = require('./calculations');
+  const power = Math.round(calculateArmyPower(Object.entries(units).map(([unitKey, count]) => ({ unitKey, count, tier: unitsData.find(u => u.key === unitKey)?.tier || 'base' })), unitsData) * (isGold ? 1.4 : 1));
 
   return { power, units, faction };
 }
@@ -94,5 +119,9 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0) {
 module.exports = {
   FACTIONS_LIST,
   FACTION_UNITS,
-  generateTribeDefenders
+  generateTribeDefenders,
+  expectedSoldiers,
+  targetSoldiers,
+  campDifficultyAt,
+  tribeFactionOf
 };

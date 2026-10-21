@@ -8,55 +8,94 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Deleting an account deletes the player and everything the player owns (cascades below);
+// what other players must keep (battle reports) only loses its link to the deleted player.
+
 model Account {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  player       Player?
+  id              String      @id @default(uuid())
+  email           String      @unique
+  passwordHash    String
+  tokenVersion    Int         @default(0) // bumped on password change: older tokens are refused
+  emailVerifiedAt DateTime? // set by the verification link (or a password reset, which proves the mailbox)
+  createdAt       DateTime    @default(now())
+  player          Player?
+  tokens          AuthToken[]
+}
+
+// One-time tokens sent by e-mail (address verification, password reset); only the hash is stored
+model AuthToken {
+  id        String    @id @default(uuid())
+  accountId String
+  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, type])
+}
+
+// Rate-limit counters shared by every process (login, sign-up, admin): one row per key and window
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
 }
 
 model Player {
-  id         String   @id @default(uuid())
-  accountId  String   @unique
-  name       String   @unique
-  faction    String
-  gold       Int      @default(0)
-  population Int      @default(0)
-  createdAt  DateTime @default(now())
+  id           String    @id @default(uuid())
+  accountId    String    @unique
+  name         String    @unique
+  faction      String
+  gold         Int       @default(0)
+  population   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now()) // last authenticated request (10 min resolution)
+  premiumUntil DateTime? // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
+  cosmetics    Json? // identifiants des cosmétiques possédés
 
-  account      Account          @relation(fields: [accountId], references: [id])
+  account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
   cities       City[]
   armies       Army[]
   hero         Hero?
   stats        PlayerStats?
-  sentReports  BattleReport[]   @relation("Attacker")
-  recvReports  BattleReport[]   @relation("Defender")
+  ownedReports BattleReport[]  @relation("ReportOwner")
+  sentReports  BattleReport[]  @relation("Attacker")
+  recvReports  BattleReport[]  @relation("Defender")
   spyReports   SpyReport[]
   marketOffers MarketOffer[]
   alliance     AllianceMember?
   expeditions  Expedition[]
+  pushTokens   PushToken[]
+  purchases    Purchase[]
+  technologies PlayerTechnology[]
+  researchQueue ResearchQueueItem[]
+
+  @@index([lastSeenAt])
 }
 
 model PlayerStats {
-  id           String @id @default(uuid())
-  playerId     String @unique
-  attacksWon   Int    @default(0)
-  defensesWon  Int    @default(0)
-  unitsKilled  Int    @default(0)
-  unitsLost    Int    @default(0)
-  raidsWon     Int    @default(0)
+  id          String @id @default(uuid())
+  playerId    String @unique
+  attacksWon  Int    @default(0)
+  defensesWon Int    @default(0)
+  unitsKilled Int    @default(0)
+  unitsLost   Int    @default(0)
+  raidsWon    Int    @default(0)
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 }
 
 model City {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   playerId  String
   name      String
   x         Int
   y         Int
-  isCapital Boolean  @default(false)
+  isCapital Boolean @default(false)
+  settlers  Int     @default(0) // colons formés à la Résidence, en attente dans la capitale
 
   wood  Float @default(500)
   stone Float @default(500)
@@ -66,18 +105,22 @@ model City {
   maxStorage     Int @default(1000)
   maxFoodStorage Int @default(1000)
 
-  wallHp       Int      @default(1000)
-  wallMaxHp    Int      @default(1000)
-  isSieged     Boolean  @default(false)
+  wallHp       Float     @default(1000) // fractional: regenerates continuously on real elapsed time
+  wallMaxHp    Int       @default(1000)
+  goldAccrued  Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
+  isSieged     Boolean   @default(false)
+  wallStructure Float    @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
   siegeStarted DateTime?
 
   createdAt DateTime @default(now())
 
-  player       Player             @relation(fields: [playerId], references: [id])
+  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
   buildings    CityBuilding[]
   buildQueue   BuildQueueItem[]
+  researchQueue ResearchQueueItem[]
   recruitQueue RecruitQueueItem[]
   armies       Army[]
+  wounded      WoundedUnit[]
 
   @@unique([x, y])
   @@index([playerId])
@@ -85,13 +128,11 @@ model City {
 }
 
 model CityBuilding {
-  id          String @id @default(uuid())
-  cityId      String
-  slot        Int
-  key         String
-  level       Int    @default(1)
-  category    String @default("BASE")
-  prodPerHour Int    @default(0)
+  id     String @id @default(uuid())
+  cityId String
+  slot   Int
+  key    String
+  level  Int    @default(1)
 
   city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
@@ -134,7 +175,6 @@ model RecruitQueueItem {
 model Army {
   id         String  @id @default(uuid())
   ownerId    String
-  playerId   String?
   cityId     String?
   name       String
   slot       Int     @default(0)
@@ -148,22 +188,22 @@ model Army {
   targetY          Int?
   targetCityId     String?
   targetResourceId String?
-  arrivesAt        DateTime?
   arrivalAt        DateTime?
-  returnsAt        DateTime?
+  departedAt       DateTime? // start of the current move: the client animates the march between departedAt and arrivalAt
+  claimedAt        DateTime? // set by the tick while an arrival is being resolved (never twice)
 
-  mission     String?
   missionType String?
   carryWood   Int     @default(0)
   carryStone  Int     @default(0)
   carryIron   Int     @default(0)
   carryFood   Int     @default(0)
+  carryGold   Int     @default(0)
 
-  // Récolte progressive
-  harvestStartedAt DateTime?  // Quand la récolte a commencé
-  harvestResourceType String? // Type de ressource en cours de récolte
+  harvestResourceType String? // type de ressource en cours de récolte
+  settlers            Int     @default(0) // colons embarqués pour fonder une ville (mission FOUND, statut FOUNDING)
+  woundedCarry        Json    @default("[]") // blessés qui rentrent avec l'armée : [{ unitKey, count }], déposés à la Tente de soins au retour
 
-  owner Player     @relation(fields: [ownerId], references: [id])
+  owner Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
   hero  Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
   units ArmyUnit[]
@@ -173,6 +213,7 @@ model Army {
   @@index([cityId])
   @@index([status, arrivalAt])
   @@index([targetCityId])
+  @@index([targetResourceId])
 }
 
 model ArmyUnit {
@@ -188,13 +229,12 @@ model ArmyUnit {
 }
 
 model Hero {
-  id       String @id @default(uuid())
-  playerId String @unique
-  ownerId  String?
-  name     String
-  level    Int    @default(1)
-  xp       Int    @default(0)
-  xpToNextLevel Int @default(100)
+  id            String @id @default(uuid())
+  playerId      String @unique
+  name          String
+  level         Int    @default(1)
+  xp            Int    @default(0)
+  xpToNextLevel Int    @default(100)
 
   attack    Int @default(5)
   defense   Int @default(5)
@@ -206,19 +246,18 @@ model Hero {
   spdPoints  Int @default(0)
   logPoints  Int @default(0)
   statPoints Int @default(5)
-  freePoints Int @default(0)
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   army   Army?
   items  HeroItem[]
 }
 
 model HeroItem {
-  id       String @id @default(uuid())
-  heroId   String
-  itemKey  String
-  slot     String
-  stats    Json?
+  id      String @id @default(uuid())
+  heroId  String
+  itemKey String
+  slot    String
+  stats   Json?
 
   hero Hero @relation(fields: [heroId], references: [id], onDelete: Cascade)
 }
@@ -227,15 +266,19 @@ model WoundedUnit {
   id      String   @id @default(uuid())
   cityId  String
   unitKey String
-  count   Int
+  count   Int      // dans un lit, guérit à healsAt
+  waiting Int      @default(0) // en file d'attente : prend un lit libéré (capacité de la Tente de soins)
   healsAt DateTime
 
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
   @@unique([cityId, unitKey])
+  @@index([healsAt])
 }
 
 model BattleReport {
   id             String   @id @default(uuid())
-  playerId       String?
+  playerId       String? // owner of this copy of the report
   attackerId     String?
   defenderId     String?
   x              Int
@@ -246,22 +289,21 @@ model BattleReport {
   defenderUnits  Json?
   attackerLosses Json?
   defenderLosses Json?
-  attackerLost   Json?
-  defenderLost   Json?
   loot           Json?
   rounds         Json?
   createdAt      DateTime @default(now())
 
-  attacker Player? @relation("Attacker", fields: [attackerId], references: [id])
-  defender Player? @relation("Defender", fields: [defenderId], references: [id])
+  owner    Player? @relation("ReportOwner", fields: [playerId], references: [id], onDelete: Cascade)
+  attacker Player? @relation("Attacker", fields: [attackerId], references: [id], onDelete: SetNull)
+  defender Player? @relation("Defender", fields: [defenderId], references: [id], onDelete: SetNull)
 
   @@index([playerId, createdAt])
+  @@index([attackerId, defenderId, createdAt])
 }
 
 model SpyReport {
   id             String   @id @default(uuid())
   playerId       String
-  ownerId        String?
   targetPlayerId String?
   targetCityId   String?
   targetType     String?
@@ -276,9 +318,10 @@ model SpyReport {
   data           Json?
   createdAt      DateTime @default(now())
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, createdAt])
+  @@index([targetPlayerId])
 }
 
 model ResourceNode {
@@ -286,7 +329,7 @@ model ResourceNode {
   x            Int
   y            Int
   resourceType String
-  level        Int      @default(1)  // 1, 2, 3 (3 = richest, near center)
+  level        Int      @default(1) // 1, 2, 3 (3 = richest, near center)
   amount       Int      @default(1000)
   maxAmount    Int      @default(1000)
   regenRate    Int      @default(10)
@@ -294,25 +337,26 @@ model ResourceNode {
   biome        String   @default("forest") // forest, desert, snow
 
   // Tribus locales défenseurs
-  hasDefenders    Boolean @default(true)
-  defenderPower   Int     @default(100)    // Puissance totale des défenseurs
-  defenderUnits   Json?                     // Ex: {"warrior": 20, "archer": 10}
-  lastDefeat      DateTime?                 // Dernière défaite (respawn après X temps)
-  respawnMinutes  Int     @default(60)      // Temps de respawn des défenseurs
+  hasDefenders   Boolean   @default(true)
+  defenderPower  Int       @default(100) // Puissance totale des défenseurs (même échelle que la puissance d'une armée)
+  defenderUnits  Json? // Ex: {"GRE_INF_HOPLITE": 20}
+  lastDefeat     DateTime? // Dernière défaite (respawn après X temps)
+  respawnMinutes Int       @default(60) // Temps de respawn des défenseurs
 
   // Système de régénération lié aux armées
-  lastArmyDeparture DateTime?              // Quand la dernière armée a quitté le point
-  hasPlayerArmy     Boolean @default(false) // Une armée joueur est présente sur le point
+  lastArmyDeparture DateTime? // Quand la dernière armée a quitté le point
+  hasPlayerArmy     Boolean   @default(false) // Une armée joueur est présente sur le point
+  cityId            String?   // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
 
   @@unique([x, y])
   @@index([hasDefenders, lastDefeat])
   @@index([hasPlayerArmy])
+  @@index([cityId])
 }
 
 model MarketOffer {
   id           String   @id @default(uuid())
-  playerId     String?
-  sellerId     String?
+  sellerId     String
   buyerId      String?
   cityId       String?
   sellResource String
@@ -322,10 +366,11 @@ model MarketOffer {
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
 
-  player Player? @relation(fields: [playerId], references: [id])
+  seller Player @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  @@index([status])
+  @@index([status, createdAt])
   @@index([sellerId])
+  @@index([buyerId])
 }
 
 model Alliance {
@@ -339,18 +384,18 @@ model Alliance {
   members   AllianceMember[]
   diplomacy AllianceDiplomacy[] @relation("AllianceSource")
   targetOf  AllianceDiplomacy[] @relation("AllianceTarget")
+  invites   AllianceInvite[]
 }
 
 model AllianceMember {
   id         String   @id @default(uuid())
   allianceId String
   playerId   String   @unique
-  ownerId    String?
   role       String   @default("MEMBER")
   joinedAt   DateTime @default(now())
 
   alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
-  player   Player   @relation(fields: [playerId], references: [id])
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 }
 
 model AllianceDiplomacy {
@@ -369,13 +414,11 @@ model AllianceDiplomacy {
 model Expedition {
   id         String    @id @default(uuid())
   playerId   String
-  ownerId    String?
   armyId     String?
   difficulty Int
   enemyPower Int
   duration   Int       @default(1800)
   lootTier   String    @default("COMMON")
-  rewards    Json?
   expiresAt  DateTime
   startedAt  DateTime?
   endsAt     DateTime?
@@ -385,7 +428,105 @@ model Expedition {
   lootGained Json?
   createdAt  DateTime  @default(now())
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, status])
+  @@index([status, endsAt])
+  @@index([status, expiresAt])
+  @@index([armyId])
+}
+
+// Lease taken by the single process that runs the game tick
+model TickLock {
+  id          Int       @id
+  owner       String
+  lockedUntil DateTime
+  lastTickAt  DateTime? // game time is caught up from this timestamp (database clock)
+}
+
+// Joining an alliance requires an invitation from one of its officers
+model AllianceInvite {
+  id         String   @id @default(uuid())
+  allianceId String
+  playerId   String
+  createdAt  DateTime @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@unique([allianceId, playerId])
+  @@index([playerId])
+}
+
+// Jeton de notification push d'un appareil (supprimé avec le compte)
+model PushToken {
+  id         String   @id @default(uuid())
+  playerId   String
+  token      String   @unique
+  platform   String // ios | android | web
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Achat ou abonnement vérifié côté serveur (RevenueCat), jamais accordé sur la seule parole du client
+model Purchase {
+  id            String    @id @default(uuid())
+  playerId      String
+  store         String    @default("app_store")
+  productId     String
+  transactionId String    @unique
+  purchasedAt   DateTime
+  expiresAt     DateTime?
+  status        String    @default("ACTIVE") // ACTIVE | EXPIRED | REFUNDED
+  raw           Json?
+  createdAt     DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Événements d'usage internes (entonnoir d'activation), anonymisés à la suppression du compte
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  playerId  String?
+  event     String
+  props     Json?
+  platform  String?
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([playerId, createdAt])
+}
+
+// ============== TECHNOLOGIES (recherche à l'Académie, data/technologies.json) ==============
+model PlayerTechnology {
+  id       String @id @default(uuid())
+  playerId String
+  techKey  String
+  level    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, techKey])
+}
+
+model ResearchQueueItem {
+  id          String   @id @default(uuid())
+  playerId    String
+  cityId      String
+  techKey     String
+  targetLevel Int
+  cost        Json?
+  startedAt   DateTime
+  endsAt      DateTime
+  status      String   @default("RUNNING") // RUNNING, QUEUED
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   @@index([playerId, status])
   @@index([status, endsAt])

@@ -1,0 +1,49 @@
+/* Polices embarquées (sous-ensemble latin) : aucun appel réseau au lancement */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(Cinzel-400.woff2) format('woff2');
+  }
+
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(Cinzel-600.woff2) format('woff2');
+  }
+
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(Cinzel-700.woff2) format('woff2');
+  }
+
+@font-face {
+  font-family: 'Crimson Text';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(Crimson-Text-400-italic.woff2) format('woff2');
+  }
+
+@font-face {
+  font-family: 'Crimson Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(Crimson-Text-400.woff2) format('woff2');
+  }
+
+@font-face {
+  font-family: 'Crimson Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(Crimson-Text-600.woff2) format('woff2');
+  }
+
