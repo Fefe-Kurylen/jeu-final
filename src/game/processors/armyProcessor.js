@@ -16,6 +16,7 @@ const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime, engineCount } = require('./siegeProcessor');
 const { calculateArmyPower } = require('../../utils/calculations');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
+const { raidCooldownWhere } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
@@ -59,7 +60,9 @@ async function processArmyMovements(now) {
       } else if (army.missionType === 'RAID_RESOURCE') {
         await handleRaidResource(army);
       } else if (army.missionType === 'MOVE' || army.status === 'MOVING') {
-        await setArmyIdle(army.id);
+        // a move that ends on the army's own city is a homecoming: through a siege camp, carry deposited
+        if (army.city && army.targetX === army.city.x && army.targetY === army.city.y && !(army.x === army.city.x && army.y === army.city.y)) await handleReturn(army);
+        else await setArmyIdle(army.id);
       } else if (army.missionType === 'RETURN' || army.status === 'RETURNING') {
         await handleReturn(army);
       } else if (army.missionType === 'BREAK_SIEGE') {
@@ -166,7 +169,7 @@ async function handleReturn(army) {
   const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
   // Home besieged: the army must fight its way through the camp (décision d'octobre 2026)
   if (homeCity && (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: homeCity.id, NOT: { ownerId: army.ownerId } } })) > 0) {
-    const through = await fightThroughSiege(army, homeCity).catch(e => { console.error('[SIEGE] return', e.message); return { passed: true }; });
+    const through = await fightThroughSiege(army, homeCity);   // an error keeps the arrival claimed: retried, never let in
     if (!through.passed) return;   // beaten: the army waits beside the city
   }
   if (homeCity) await depositCarry(army, homeCity);
@@ -176,30 +179,44 @@ async function handleReturn(army) {
 // An army coming home to a besieged city attacks the camp (open-field battle). Won: the besiegers go home, the siege is
 // lifted and the army enters; lost: the survivors halt on a free tile beside the city (they may attack again or wait).
 async function fightThroughSiege(army, city) {
+  const pos = await haltTile(city);   // worked out first: the defeat and the halt are committed together
   const outcome = await prisma.$transaction(async (tx) => {
     await lockCity(tx, city.id);
     const camp = await tx.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, claimedAt: null, NOT: { ownerId: army.ownerId } }, include: SIEGE_CAMP });
-    const hostile = [];
-    for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
+    const hostile = forcedCamps(army, camp);
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     if (!hostile.length || !units.length) return { passed: true };
     const { combat, defenderName } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Retour à ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id, homecoming: true } });
     if (combat.attackerWon) { for (const b of hostile) await sendArmyHomeTx(tx, b); await refreshSiegeFlag(tx, city.id); }
+    else await tx.army.update({ where: { id: army.id }, data: haltData(pos) });
     return { passed: combat.attackerWon, fought: true, defenderName, owners: [...new Set(hostile.map(b => b.ownerId))] };
   }, TX);
   if (!outcome.fought) return outcome;
   if (outcome.passed) {
     notify(army.ownerId, 'battle', '⚔️ Passage forcé', `${army.name} a percé le siège de ${city.name} en rentrant : le siège est levé.`, { tab: 'reports' });
     for (const id of outcome.owners) notify(id, 'battle', '🏰 Siège levé', `Une armée qui rentrait à ${city.name} a chassé votre camp.`, { tab: 'reports' });
-    return outcome;
-  }
-  // beaten: halt next to the city
-  const spot = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: city.x + dx, y: city.y + dy }));
-  let pos = spot[0];
-  for (const p of spot) if (!(await isBlockedTile(p.x, p.y)) && !(await prisma.city.findUnique({ where: { x_y: p }, select: { id: true } }))) { pos = p; break; }
-  await setArmyIdle(army.id, { x: pos.x, y: pos.y, harvestResourceType: null });
-  notify(army.ownerId, 'battle', '⚔️ Retour bloqué', `${army.name} n'a pas pu percer le siège de ${city.name} : elle attend en (${pos.x}, ${pos.y}). Attaquez à nouveau le camp ou attendez la levée du siège.`, { tab: 'armies' });
+  } else notifyHalted(army, city, pos);
   return outcome;
+}
+
+// Forced homecoming fight: every camp outside the army's own alliance bars the way, whatever the declared diplomacy
+// (a one-sided ALLY declaration is no pass)
+function forcedCamps(army, camp) {
+  const myAlliance = army.owner?.alliance?.allianceId || null;
+  return camp.filter(b => b.units.some(u => u.count > 0) && !(myAlliance && b.owner?.alliance?.allianceId === myAlliance));
+}
+
+// Free tile next to the city where an army beaten before its besieged walls waits (it keeps its carry)
+async function haltTile(city) {
+  const spot = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: city.x + dx, y: city.y + dy }));
+  try {
+    for (const p of spot) if (!(await isBlockedTile(p.x, p.y)) && !(await prisma.city.findUnique({ where: { x_y: p }, select: { id: true } }))) return p;
+  } catch (e) { console.error('[SIEGE] halt tile', e.message); }
+  return spot[0];
+}
+const haltData = (pos) => ({ status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, claimedAt: null, missionType: null, harvestResourceType: null });
+function notifyHalted(army, city, pos) {
+  notify(army.ownerId, 'battle', '⚔️ Retour bloqué', `${army.name} n'a pas pu percer le siège de ${city.name} : elle attend en (${pos.x}, ${pos.y}). Attaquez à nouveau le camp ou attendez la levée du siège.`, { tab: 'armies' });
 }
 
 // ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------
@@ -278,6 +295,7 @@ async function handleAttack(army, now) {
   const battle = await prisma.$transaction(async (tx) => {
     const targetCity = await lockTargetCity(tx, army.targetCityId);
     if (!targetCity) return null;
+    if (!(await getRelation(army.ownerId, targetCity.playerId, tx)).canAttack) return null;   // alliance or peace signed during the siege
     const attackerUnits = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     const defenders = defendingArmies(targetCity);
     const defenderUnits = defenders.flatMap(a => a.units);
@@ -349,15 +367,7 @@ async function handleAttack(army, now) {
   console.log(`[ATTACK] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
   if (structure?.fallen) {
     try {
-      const fall = await applyFall(targetCity.id, army.id);
-      if (fall?.kind === 'RAZED') {
-        notify(targetCity.playerId, 'battle', '🔥 Ville rasée', `${targetCity.name} est tombée sous les assauts de ${army.owner.name} et a été rasée.`, { tab: 'reports' });
-        notify(army.ownerId, 'battle', '🔥 Ville rasée', `${targetCity.name} est tombée : la ville est rasée.`, { tab: 'reports' });
-        try { await updatePlayerPopulation(prisma, targetCity.playerId); } catch (e) { /* recomputed by the tick */ }
-      } else if (fall?.kind === 'RELOCATED') {
-        notify(targetCity.playerId, 'battle', '🏃 Capitale déplacée', `${targetCity.name} est tombée sous les assauts de ${army.owner.name} : la cour s'enfuit et rebâtit la capitale en (${fall.to.x}, ${fall.to.y}).`, { tab: 'city', cityId: targetCity.id });
-        notify(army.ownerId, 'battle', '🏃 Capitale en fuite', `${targetCity.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
-      }
+      const fall = await applyFall(targetCity.id, { id: army.id, ownerId: army.ownerId, ownerName: army.owner.name });   // notifies too
       if (fall) console.log(`[FALL] ${targetCity.name} ${fall.kind}`);
     } catch (fallErr) { console.error('[FALL]', fallErr.message); }
   }
@@ -431,20 +441,35 @@ async function cityRiposte(besiegerId, cityId) {
 // the beaten besiegers go home and the siege is lifted; the breaking army goes home either way.
 const SIEGE_CAMP = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, city: true };
 async function handleBreakSiege(army, now) {
+  // An army of the besieged city: a sortie from the walls goes back inside; coming from outside, it must win to enter
+  // and its fight is the forced homecoming one. Its final state is committed with the battle.
+  const homeId = army.cityId || null;
+  const ownCity = !!homeId && homeId === army.targetCityId;
+  const sortieFromInside = ownCity && army.x === army.targetX && army.y === army.targetY;   // position before the march
+  const pos = ownCity && !sortieFromInside && army.targetX !== null ? await haltTile({ x: army.targetX, y: army.targetY }) : null;
   const outcome = await prisma.$transaction(async (tx) => {
     if (!army.targetCityId) return null;
     await lockCity(tx, army.targetCityId);
     const city = await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true } });
     if (!city) return null;
     const camp = await tx.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id, claimedAt: null, NOT: { ownerId: army.ownerId } }, include: SIEGE_CAMP });
-    const hostile = [];
-    for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
+    let hostile = [];
+    if (ownCity && !sortieFromInside) hostile = forcedCamps(army, camp);   // homecoming from outside: every camp outside its alliance
+    else for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
-    if (!hostile.length || !units.length) return { city, fought: false };
-    const { combat, defenderName } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Siège de ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id } });
-    if (combat.attackerWon) for (const b of hostile) await sendArmyHomeTx(tx, b);
-    await refreshSiegeFlag(tx, city.id);
-    return { city, fought: true, won: combat.attackerWon, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName };
+    let fought = false, won = false, defenderName = null;
+    if (hostile.length && units.length) {
+      const res = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Siège de ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id } });
+      fought = true; won = res.combat.attackerWon; defenderName = res.defenderName;
+      if (won) for (const b of hostile) await sendArmyHomeTx(tx, b);
+      await refreshSiegeFlag(tx, city.id);
+    }
+    let fate = 'home';   // the army of another city marches home after the commit
+    if (ownCity) {
+      if (fought && !won && !sortieFromInside) { await tx.army.update({ where: { id: army.id }, data: haltData(pos) }); fate = 'halted'; }
+      else { await tx.army.update({ where: { id: army.id }, data: { ...haltData({ x: city.x, y: city.y }) } }); fate = 'inside'; }
+    }
+    return { city, fought, won, fate, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName };
   }, TX);
   if (outcome?.fought) {
     const { city, won, owners, defenderName } = outcome;
@@ -452,14 +477,9 @@ async function handleBreakSiege(army, now) {
     for (const id of owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Sortie repoussée', won ? `Votre siège de ${city.name} a été brisé par ${army.owner?.name || 'un joueur'}.` : `Votre armée devant ${city.name} a repoussé ${army.owner?.name || 'une armée'}.`, { tab: 'reports' });
     if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un joueur'} a brisé le siège de ${city.name}.`, { tab: 'city', cityId: city.id });
   }
-  // Home: an army of the besieged city itself is back inside at once
-  const home = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
-  if (home && outcome?.city && home.id === outcome.city.id) {
-    await setArmyIdle(army.id, { x: home.x, y: home.y });
-    await depositCarry(army, home);
-  } else {
-    await sendArmyHome(army, army.targetX, army.targetY);
-  }
+  if (outcome?.fate === 'inside') { const home = await prisma.city.findUnique({ where: { id: outcome.city.id } }); if (home) await depositCarry(army, home); return; }
+  if (outcome?.fate === 'halted') { notifyHalted(army, outcome.city, pos); return; }
+  await sendArmyHome(army, army.targetX, army.targetY);
 }
 
 
@@ -467,7 +487,7 @@ async function handleBreakSiege(army, now) {
 // armies launched together cannot all plunder
 async function raidedRecently(tx, attackerId, targetCity, now) {
   const since = new Date(now.getTime() - config.combat.raidCooldownHours * 3600000);
-  const recent = await tx.battleReport.findFirst({ where: { attackerId, playerId: attackerId, defenderId: targetCity.playerId, x: targetCity.x, y: targetCity.y, createdAt: { gt: since }, loot: { path: ['type'], equals: 'RAID' } }, select: { id: true } });
+  const recent = await tx.battleReport.findFirst({ where: raidCooldownWhere(attackerId, targetCity, since), select: { id: true } });
   return !!recent;
 }
 
@@ -528,7 +548,7 @@ async function handleRaid(army, now) {
       attackerLosses: { rate: result.attackerLossRate, totalKilled: attackerUnits.reduce((s, u) => s + Math.floor(u.count * result.attackerLossRate), 0) },
       defenderLosses: { rate: result.defenderLossRate, totalKilled: defenderUnits.reduce((s, u) => s + Math.floor(u.count * result.defenderLossRate), 0) },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, type: 'RAID' }
+      loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID' }
     };
     await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });

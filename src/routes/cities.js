@@ -372,11 +372,18 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
       const unit = unitsData.find(u => u.key === item.unitKey);
       const refund = unit ? scaleCost(recruitCost(unit, item.count), 0.5) : { wood: 0, stone: 0, iron: 0, food: 0 };
       await creditCity(tx, city.id, refund);
-      const durationMs = new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime();
+      // the batches after it move up by the time it still occupied (all of it if it had not started, what was left of it
+      // if it was training), start and end together: their own length, siege pauses included, is kept
+      const nowMs = Date.now();
+      // the batch ahead of the cancelled one still trains until its end: the next ones never start before it
+      const prevEnd = (await tx.recruitQueueItem.findMany({ where: { cityId: city.id, buildingKey: item.buildingKey, endsAt: { lt: item.endsAt } }, select: { endsAt: true } })).reduce((m, q) => Math.max(m, new Date(q.endsAt).getTime()), 0);
+      const floor = Math.max(nowMs, prevEnd);
+      const shiftMs = Math.max(0, new Date(item.endsAt).getTime() - Math.max(floor, new Date(item.startedAt).getTime()));
       const later = await tx.recruitQueueItem.findMany({ where: { cityId: city.id, buildingKey: item.buildingKey, startedAt: { gte: item.startedAt } } });
       for (const q of later) {
-        const start = Math.max(Date.now(), new Date(q.startedAt).getTime() - durationMs);
-        await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(start), endsAt: new Date(new Date(q.endsAt).getTime() - durationMs) } });
+        const start = new Date(q.startedAt).getTime(), end = new Date(q.endsAt).getTime();
+        const shift = Math.min(shiftMs, Math.max(0, start - floor));   // a batch never starts in the past nor before the one ahead
+        await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(start - shift), endsAt: new Date(end - shift) } });
       }
       return { message: 'Recrutement annulé', refund };
     });
@@ -456,9 +463,17 @@ router.get('/:id/siege', auth, async (req, res) => {
     const city = await prisma.city.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, playerId: true, isCapital: true, wallHp: true, wallMaxHp: true, wallStructure: true, isSieged: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { level: true } } } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
     const camp = await prisma.army.findMany({ where: { status: 'BESIEGING', targetCityId: city.id }, orderBy: { arrivalAt: 'asc' }, select: { id: true, name: true, ownerId: true, departedAt: true, arrivalAt: true, missionType: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } } });
+    // a siege happens in the open; a city that is not besieged shows nothing to other players (no free spying of its wall)
+    if (!camp.length && city.playerId !== req.user.playerId) return res.json({ cityId: city.id, cityName: city.name, besieged: false });
     // any player may attack a camp that is not his own nor of his alliance or an allied one
     const attackable = new Set();
-    for (const id of new Set(camp.map(a => a.ownerId))) if (id !== req.user.playerId && (await getRelation(req.user.playerId, id)).canAttack) attackable.add(id);
+    const campOwners = [...new Set(camp.map(a => a.ownerId))];
+    if (city.playerId === req.user.playerId) {
+      // the owner's armies coming home must fight every camp outside his alliance (forced fight, any diplomacy)
+      const rows = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, ...campOwners] } }, select: { playerId: true, allianceId: true } });
+      const mine = rows.find(r => r.playerId === req.user.playerId)?.allianceId || null;
+      for (const id of campOwners) if (id !== req.user.playerId && !(mine && rows.find(r => r.playerId === id)?.allianceId === mine)) attackable.add(id);
+    } else for (const id of campOwners) if (id !== req.user.playerId && (await getRelation(req.user.playerId, id)).canAttack) attackable.add(id);
     const wallLevel = city.buildings[0]?.level || 0;
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,

@@ -320,11 +320,17 @@ function renderBattleReportCard(r, idx) {
   // Per-unit outcome: detailed reports carry initial/remaining per unit, raids only a global rate
   const finals = (side) => (side === 'A' ? r.attackerLosses?.units : r.defenderLosses?.units) || null;
   const rate = (side) => Number((side === 'A' ? r.attackerLosses : r.defenderLosses)?.rate || 0);
-  const unitRows = (units, side) => (units || []).map(u => {
-    const fin = finals(side)?.find(f => f.key === u.key);
+  // rows grouped per unit type: older field-battle reports kept one row per army and no `remaining`
+  const unitRows = (units, side) => Object.values((units || []).reduce((m, u) => {
+    const k = u.key || u.unitKey;   // tribe reports store unitKey
+    const e = (m[k] ||= { ...u, key: k, count: 0, rateKilled: 0 });
+    e.count += u.count || 0; e.rateKilled += Math.floor((u.count || 0) * rate(side));   // the server floors per row
+    return m;
+  }, {})).map(u => {
+    const list = finals(side);
     const before = u.count || 0;
-    const killed = fin ? fin.killed : Math.floor(before * rate(side));
-    const after = fin ? fin.remaining : before - killed;
+    const killed = Array.isArray(list) ? list.filter(f => f.key === u.key).reduce((t, f) => t + (f.killed || 0), 0) : u.rateKilled;
+    const after = Math.max(0, before - killed);
     return `<div class="unit-line${after === 0 ? ' wiped' : ''}">
       <span class="unit-name unit-link" onclick="showUnitInfoModal('${sheetKey(u.key)}')" title="Fiche de l'unité">${unitIconHtml(u.key, 'unit-ico-sm')}${escapeHtml(u.name || getUnitName(u.key))}</span>
       <span class="unit-before">${formatNum(before)}</span>
@@ -336,7 +342,8 @@ function renderBattleReportCard(r, idx) {
   const killedA = r.attackerLosses?.totalKilled ?? r.attackerLosses?.totalAttackerLosses ?? 0;
   const killedD = r.defenderLosses?.totalKilled ?? r.defenderLosses?.totalDefenderLosses ?? 0;
   const mine = iAttacked ? killedA : killedD, theirs = iAttacked ? killedD : killedA;
-  const lootRes = isTribe ? (r.loot?.resources || {}) : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
+  // the defender of an assault sees everything that left the city (r.loot.pillaged), not only what the army could carry
+  const lootRes = isTribe ? (r.loot?.resources || {}) : (!iAttacked && r.loot?.pillaged) ? r.loot.pillaged : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food };
   const lootHtml = ['wood', 'stone', 'iron', 'food'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
   const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
   // Siège : durée, santé de la muraille après l'assaut gagné et sort de la ville quand elle tombe

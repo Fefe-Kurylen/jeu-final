@@ -175,7 +175,7 @@ async function processWallRegen(TICK_HOURS) {
   // Santé de la muraille (chute des villes) : de 0 à 100 % en 48 h hors siège
   await prisma.$executeRaw`
     UPDATE "City" c SET "wallStructure" = LEAST(1, c."wallStructure" + ${TICK_HOURS} / ${config.combat.fall.regenHours}::float)
-    WHERE c."wallStructure" < 1 AND c."isSieged" = false
+    WHERE c."wallStructure" < 1 AND c."wallStructure" > 0 AND c."isSieged" = false   -- à 0, la chute est en attente
   `;
 }
 

@@ -51,7 +51,8 @@ async function pauseBesiegedQueues(hours) {
   const secs = Math.min(hours, 1 / 6) * 3600;   // au plus 10 min d'un coup (rattrapage après un arrêt du serveur)
   if (secs <= 0) return;
   await prisma.$executeRaw`UPDATE "BuildQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
-  await prisma.$executeRaw`UPDATE "RecruitQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
+  // recruit batches are chained in time: a batch not yet started is pushed back as a whole (start and end)
+  await prisma.$executeRaw`UPDATE "RecruitQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}), "startedAt" = CASE WHEN q."startedAt" > (now() AT TIME ZONE 'UTC') THEN q."startedAt" + make_interval(secs => ${secs}) ELSE q."startedAt" END FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
   await prisma.$executeRaw`UPDATE "ResearchQueueItem" q SET "endsAt" = q."endsAt" + make_interval(secs => ${secs}) FROM "City" c WHERE c.id = q."cityId" AND c."isSieged" AND q.status = 'RUNNING'`;
 }
 
@@ -65,12 +66,21 @@ async function processSieges(now, hours) {
     try {
       await prisma.$transaction(async (tx) => {
         await lockCity(tx, cityId);
-        const city = await tx.city.findUnique({ where: { id: cityId }, select: { id: true, wallHp: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { key: true, level: true } } } });
+        // the camp as it stands under the lock (a recall or a sortie may have changed it since the first read)
+        armies = await tx.army.findMany({ where: { status: 'BESIEGING', claimedAt: null, targetCityId: cityId }, include: { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } }, city: true } });
+        if (!armies.length) { await refreshSiegeFlag(tx, cityId); return; }
+        const city = await tx.city.findUnique({ where: { id: cityId }, select: { id: true, playerId: true, wallHp: true, player: { select: { faction: true } }, buildings: { where: { key: 'WALL' }, select: { key: true, level: true } } } });
         if (!city) return;   // ville disparue : l'assaut renverra les armées chez elles (cible introuvable)
-        // no siege without engines: a camp whose engines were all destroyed goes home
+        // no siege without engines (a camp whose engines were all destroyed goes home), nor between players who signed an
+        // alliance or a peace during the siege
         const { sendArmyHomeTx } = require('../../services/armyService');
-        for (const a of armies.filter(x => engineCount(x.units) === 0)) await sendArmyHomeTx(tx, a);
-        armies = armies.filter(x => engineCount(x.units) > 0);
+        const { getRelation } = require('../../services/diplomacyService');
+        const keep = [];
+        for (const a of armies) {
+          if (engineCount(a.units) === 0 || !(await getRelation(a.ownerId, city.playerId, tx)).canAttack) await sendArmyHomeTx(tx, a);
+          else keep.push(a);
+        }
+        armies = keep;
         if (!armies.length) { await refreshSiegeFlag(tx, cityId); return; }
         const rate = armies.reduce((t, a) => t + wallDamagePerHour(a), 0);
         // chaque armée ne frappe que depuis son arrivée (une armée arrivée en cours de tick ne compte pas le tick entier)
@@ -88,4 +98,15 @@ async function processSieges(now, hours) {
   await syncSiegeFlags();
 }
 
-module.exports = { processSieges, refreshSiegeFlag, syncSiegeFlags, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime, earliestAssault, engineCount };
+// A city whose wall health reached 0 must fall even if the fall failed right after the assault (error, restart): the
+// health stays at 0 (no regeneration) until the fall is done
+async function retryPendingFalls() {
+  const pending = await prisma.city.findMany({ where: { wallStructure: { lte: 0 } }, select: { id: true, name: true } });
+  if (!pending.length) return;
+  const { applyFall } = require('../../services/conquestService');
+  for (const c of pending) {
+    try { const fall = await applyFall(c.id, null); if (fall) console.log(`[FALL] ${c.name} ${fall.kind} (reprise)`); } catch (e) { console.error(`[FALL] ${c.id}:`, e.message); }
+  }
+}
+
+module.exports = { retryPendingFalls, processSieges, refreshSiegeFlag, syncSiegeFlags, wallDamagePerHour, wallHpToBreak, wallLevelOf, assaultTime, earliestAssault, engineCount };

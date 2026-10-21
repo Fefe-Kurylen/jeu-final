@@ -30,6 +30,9 @@ async function processResearch(now, { playerId = null } = {}) {
       console.error(`[RESEARCH ERROR] ${item.techKey}:`, e.message);
     }
   }
+  // self-healing: a player whose running research disappeared (colony razed) gets his next queued one started
+  const stuck = await prisma.$queryRaw`SELECT DISTINCT q."playerId" FROM "ResearchQueueItem" q WHERE q.status = 'QUEUED' AND NOT EXISTS (SELECT 1 FROM "ResearchQueueItem" r WHERE r."playerId" = q."playerId" AND r.status = 'RUNNING')`;
+  for (const s of stuck) players.add(s.playerId);
   for (const playerId of players) {
     try { await startNextQueued(prisma, playerId, now); } catch (e) { console.error('[RESEARCH ERROR] start next:', e.message); }
   }

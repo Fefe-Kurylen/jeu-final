@@ -51,7 +51,14 @@ async function processExpeditions(now) {
             if (lost >= unit.count) await tx.armyUnit.deleteMany({ where: { id: unit.id } });
             else await tx.armyUnit.update({ where: { id: unit.id }, data: { count: { decrement: lost } } });
           }
-          await tx.army.updateMany({ where: { id: army.id, status: 'EXPEDITION' }, data: { status: 'IDLE' } });
+          // home besieged: the army comes back as a homecoming and must fight its way through the camp (armies step,
+          // same tick); otherwise it is simply back in its city
+          const home = army.cityId ? await tx.city.findUnique({ where: { id: army.cityId }, select: { x: true, y: true } }) : null;
+          const besieged = home && (await tx.army.count({ where: { status: 'BESIEGING', targetCityId: army.cityId, NOT: { ownerId: army.ownerId } } })) > 0;
+          const back = now;   // the tick time: the armies step of this same tick takes the homecoming
+          await tx.army.updateMany({ where: { id: army.id, status: 'EXPEDITION' }, data: besieged
+            ? { status: 'RETURNING', missionType: 'RETURN', x: home.x, y: home.y, targetX: home.x, targetY: home.y, targetCityId: null, departedAt: back, arrivalAt: back, claimedAt: null }
+            : { status: 'IDLE', ...(home ? { x: home.x, y: home.y } : {}) } });
         }
         if (lootGained?.gold) await tx.player.update({ where: { id: exp.playerId }, data: { gold: { increment: lootGained.gold } } });
         if (item && army?.heroId) await tx.heroItem.create({ data: { heroId: army.heroId, itemKey: item.key, slot: 'inventory', stats: item.stats } });

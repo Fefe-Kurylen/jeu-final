@@ -50,6 +50,21 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
 - **Retour au bercail** : une armée de la ville qui rentre pendant un siège **doit combattre le camp** (rase campagne).
   Gagné : les assiégeants rentrent, le siège est levé, l'armée entre. Perdu : les survivants attendent à côté de la ville
   (nouvelle attaque du camp ou retour après la levée).
+- **Garde-fous (relecture d'octobre 2026)** :
+  - toute arrivée d'une armée de la ville assiégée venue de l'extérieur (retour, déplacement vers sa ville, fin
+    d'expédition, sortie lancée de loin) combat le camp ; une sortie partie des remparts rentre dans la ville ; l'armée de la
+    ville combat tous les camps hors de son alliance, quelle que soit la diplomatie déclarée ; le sort de l'armée (entrée ou
+    attente à côté) est enregistré avec la bataille ;
+  - marché fermé dans les deux sens (offres, acceptation, annulation, marchand), convois refusés à l'arrivée **et au
+    départ** d'une ville assiégée ;
+  - le lancement d'une attaque vérifie la composition et part dans la même transaction (verrou de la ville) ;
+  - un camp devenu allié ou en paix avec la ville, ou sans engin, rentre chez lui ; un camp rappelé lève le siège aussitôt ;
+  - une ville dont la muraille est à 0 tombe même si la chute a échoué juste après l'assaut (étape « falls » du tick,
+    notifications comprises) ; les autres camps rentrent par la vraie route ; à la chute d'une colonie, ses offres du
+    marché sont annulées au profit de la capitale, ses armées en mission prennent un emplacement libre de la capitale et la
+    recherche suivante démarre ;
+  - un raid par ville et par 24 h même après le déplacement d'une capitale ; l'annulation d'un recrutement garde la pause
+    du siège des lots suivants ; la fenêtre de siège ne montre rien d'une ville non assiégée aux autres joueurs.
 - **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
   recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
   (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**

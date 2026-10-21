@@ -109,7 +109,7 @@ async function applyLossRate(tx, units, rate) {
   for (const u of units) {
     const l = Math.floor(u.count * rate);
     if (l <= 0) continue;
-    total += l; killed.push({ key: u.unitKey, killed: l });
+    total += l; killed.push({ key: u.unitKey, killed: l, remaining: Math.max(0, u.count - l) });
     if (l >= u.count) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
     u.count -= l;
   }
@@ -138,6 +138,7 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(lead.hero), {
     fieldBattle: true, defenderFaction: lead.owner?.faction, attackerBonusPct: techPct(atkTech, 'attackBonusPct'), defenderBonusPct: techPct(lead.owner?.technologies, 'defenseBonusPct')
   });
+  const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));
   const atk = await applyLossRate(tx, army.units, combat.attackerLossRate);
   let defTotal = 0; const defKilled = [];
   for (const h of holders) { const r = await applyLossRate(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
@@ -153,12 +154,21 @@ async function fieldBattle(tx, army, holders, playerId, place) {
 
   // One report for the attacker, one for each holder
   const defenderName = [...new Set(holders.map(h => h.owner?.name).filter(Boolean))].join(', ') || 'Armée adverse';
+  // report rows are summed per unit type: one side may be several armies (garrison and armies at home, several camps)
+  const perKey = (before, after) => {
+    const m = {};
+    for (const u of before) (m[u.unitKey] ||= { key: u.unitKey, count: 0, remaining: 0 }).count += u.count;
+    for (const u of after) if (m[u.unitKey]) m[u.unitKey].remaining += Math.max(0, u.count);
+    return Object.values(m);
+  };
+  const lossRows = (rows) => rows.filter(e => e.count > e.remaining).map(e => ({ key: e.key, killed: e.count - e.remaining, remaining: e.remaining }));
+  const A = perKey(atkBefore, army.units), D = perKey(defenderUnits, holders.flatMap(h => h.units));
   const base = {
     x: place.x, y: place.y, winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
-    attackerUnits: army.units.map(u => ({ key: u.unitKey, count: u.count + (atk.killed.find(k => k.key === u.unitKey)?.killed || 0) })),
-    defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })),
-    attackerLosses: { totalKilled: atk.total, rate: combat.attackerLossRate, units: atk.killed },
-    defenderLosses: { totalKilled: defTotal, rate: combat.defenderLossRate, units: defKilled.flatMap(([, k]) => k) },
+    attackerUnits: A.map(e => ({ key: e.key, count: e.count })),
+    defenderUnits: D.map(e => ({ key: e.key, count: e.count })),
+    attackerLosses: { totalKilled: atk.total, rate: combat.attackerLossRate, units: lossRows(A) },
+    defenderLosses: { totalKilled: defTotal, rate: combat.defenderLossRate, units: lossRows(D) },
     loot: { attackerName: army.owner?.name, defenderName, cityName: place.where, type: place.type, attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower) },
     rounds: place.rounds
   };
@@ -200,4 +210,10 @@ async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
   };
 }
 
-module.exports = { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle };
+// One raid per target city per attacker per 24 h (GDD): keyed on the city id, so that a relocated capital keeps its
+// cooldown; reports written before the id was stored are matched on the coordinates
+function raidCooldownWhere(attackerId, targetCity, since) {
+  return { attackerId, playerId: attackerId, defenderId: targetCity.playerId, createdAt: { gt: since }, AND: [{ loot: { path: ['type'], equals: 'RAID' } }, { OR: [{ loot: { path: ['cityId'], equals: targetCity.id } }, { x: targetCity.x, y: targetCity.y }] }] };
+}
+
+module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle };

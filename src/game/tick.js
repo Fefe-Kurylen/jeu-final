@@ -12,7 +12,7 @@ const { processRecruits } = require('./processors/recruitProcessor');
 const { processResearch } = require('./processors/researchProcessor');
 const { processExpeditions, generateNewExpeditions } = require('./processors/expeditionProcessor');
 const { processArmyMovements } = require('./processors/armyProcessor');
-const { processSieges } = require('./processors/siegeProcessor');
+const { processSieges, retryPendingFalls } = require('./processors/siegeProcessor');
 const { processHarvesting, processTribeRespawn } = require('./processors/harvestProcessor');
 const { updatePopulation, cleanupOrphanedFlags, purgeOldRecords } = require('./processors/worldProcessor');
 
@@ -87,6 +87,7 @@ async function gameTick() {
     await step('newExpeditions', () => generateNewExpeditions());
 
     await step('sieges', () => processSieges(now, TICK_HOURS));   // walls worn down, assault times updated
+    await step('falls', () => retryPendingFalls());                // a fall that failed after its assault is done now
     await step('armies', () => processArmyMovements(now));
     await step('harvest', () => processHarvesting(now));
 

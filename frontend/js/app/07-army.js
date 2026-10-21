@@ -68,9 +68,13 @@ function renderArmies() {
         <div class="armies-list">
           ${[1, 2, 3].map(slotNum => {
             const army = cityArmies.find(a => a.slot === slotNum);
-            const isLocked = slotNum > maxArmies;
+            const isLocked = slotNum > maxArmies && !army;   // an army above the Rally Point limit stays reachable
             return renderArmyCardNew(slotNum, army, isLocked, heroData);
           }).join('')}
+          ${(() => {   // armies not shown in a slot above (army taken over from a razed colony, slot beyond the Rally Point): still reachable
+            const shown = new Set([1, 2, 3].map(n => cityArmies.find(a => a.slot === n)?.id).filter(Boolean));
+            return cityArmies.filter(a => !shown.has(a.id) && !a.isGarrison).map(a => renderArmyCardNew(a.slot, a, false, heroData)).join('');
+          })()}
         </div>
       </div>
       
@@ -261,7 +265,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
         ` : army.status === 'BESIEGING' ? `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le siège</button>
-          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné tout seul à la brèche, au plus tard 3 h après le début du siège ; l'armée rentre ensuite chez elle">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
+          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné tout seul à la brèche, au plus tard 3 h après le début du siège (3 h 45 contre un mur égyptien) ; l'armée rentre ensuite chez elle">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `
@@ -468,7 +472,7 @@ function siegeCapLine(army, availableUnits) {
   if (!availableUnits.some(u => u.unit?.class === 'SIEGE')) return '';
   const inArmy = (army.units || []).filter(u => unitsData.find(d => d.key === u.unitKey)?.class === 'SIEGE').reduce((t, u) => t + u.count, 0);
   const cap = armySiegeCap(army);
-  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong>${formatNum(inArmy)} / ${formatNum(cap)}</strong> (5 par niveau d'Atelier ; 100 engins percent un mur niveau 20 en 30 min)</p>`;
+  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong id="comp-siege-count" data-cap="${cap}">${formatNum(inArmy)} / ${formatNum(cap)}</strong> (5 par niveau d'Atelier ; 100 engins percent un mur niveau 20 en 30 min)</p>`;
 }
 
 // Render a unit row in composition modal
@@ -543,6 +547,8 @@ async function adjustComposition(armyId, unitKey, delta) {
     });
     
     const data = await res.json().catch(() => ({}));
+    const capEl = document.getElementById('comp-siege-count');
+    if (capEl && Number.isInteger(data.maxSiegeEngines)) capEl.dataset.cap = data.maxSiegeEngines;   // the server's cap wins
     if (!res.ok) {
       // Revert on error
       input.value = currentInArmy;
@@ -550,6 +556,7 @@ async function adjustComposition(armyId, unitKey, delta) {
       if (garrisonSpan) garrisonSpan.textContent = currentGarrison;
       updateCompositionSummary();
       showToast(data.error || 'Erreur', 'error');
+      return data;
     } else {
       // The server may clamp: align with its answer, then refresh armies data silently
       if (Number.isInteger(data.newCount) && data.newCount !== newValue) {
@@ -557,7 +564,9 @@ async function adjustComposition(armyId, unitKey, delta) {
         if (garrisonSpan) garrisonSpan.textContent = total - data.newCount;
         updateCompositionSummary();
       }
+      if (data.maxSiegeEngines != null && data.message) showToast(data.message, 'warning');   // siege engines capped by the Workshop
       await loadArmies();
+      return data;
     }
   } catch (e) {
     input.value = currentInArmy;
@@ -620,10 +629,19 @@ function updateCompositionSummary() {
   totalUnitsSpan.innerHTML = `<strong>${totalInArmy}</strong> unités dans l'armée`;
   garrisonLeftSpan.innerHTML = `<strong>${totalGarrison}</strong> en garnison`;
   if (powerSpan) powerSpan.textContent = `${formatNum(totalPower)}`;
+  const siegeEl = document.getElementById('comp-siege-count');
+  if (siegeEl) {
+    let siege = 0;
+    document.querySelectorAll('.comp-unit-row').forEach(row => {
+      if (unitsData.find(u => u.key === row.dataset.unit)?.class === 'SIEGE') siege += parseInt(row.querySelector('.comp-input')?.value) || 0;
+    });
+    siegeEl.textContent = `${formatNum(siege)} / ${formatNum(parseInt(siegeEl.dataset.cap) || 0)}`;
+  }
 }
 
 // Add all units to army
 async function setAllUnitsToArmy(armyId) {
+  let capMsg = null;
   const rows = document.querySelectorAll('.comp-unit-row');
   for (const row of rows) {
     const unitKey = row.dataset.unit;
@@ -635,10 +653,11 @@ async function setAllUnitsToArmy(armyId) {
     const total = currentInArmy + currentGarrison;
     
     if (currentInArmy < total) {
-      await adjustComposition(armyId, unitKey, total - currentInArmy);
+      const r = await adjustComposition(armyId, unitKey, total - currentInArmy);
+      if (r?.maxSiegeEngines != null) capMsg = r.message || r.error;
     }
   }
-  showToast('Toutes les unités ajoutées', 'success');
+  showToast(capMsg || 'Toutes les unités ajoutées', capMsg ? 'warning' : 'success');   // the siege engine cap is explained
 }
 
 // Remove all units from army

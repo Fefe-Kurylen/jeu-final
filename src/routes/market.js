@@ -12,6 +12,9 @@ const { isAmount } = require('../utils/validation');
 const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength } = require('../utils/pathfinding');
+// Blockade: no goods leave or enter a besieged city through the market either (offers hold goods in escrow)
+const BLOCKADE = { error: 'Ville assiégée : le marché est fermé tant que l\'armée ennemie est devant la ville', status: 400 };
+const isBesieged = async (tx, cityId) => !!cityId && (await tx.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 
 // When a real mail provider is configured, trading with other players needs a verified address
 // (the cheapest barrier against throw-away accounts feeding a main one)
@@ -65,6 +68,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } } } });
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
       await lockCity(tx, sourceCity.id);
+      if (await isBesieged(tx, sourceCity.id)) return BLOCKADE;   // goods do not leave a besieged city
       if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: { include: { items: true } } } });
@@ -107,6 +111,7 @@ router.post('/offer', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
       await lockCity(tx, city.id);
       if (!(await hasMarket(tx, city.id))) return NO_MARKET;
+      if (await isBesieged(tx, city.id)) return BLOCKADE;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const active = await tx.marketOffer.count({ where: { sellerId: req.user.playerId, status: 'ACTIVE' } });
       if (active >= config.market.maxActiveOffers) return { error: `Maximum ${config.market.maxActiveOffers} offres actives`, status: 400 };
@@ -134,6 +139,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       if (!buyerCity) return { error: 'Ville acheteur non trouvée', status: 404 };
       await lockCities(tx, [buyerCity.id, offer.cityId]);
       if (!(await hasMarket(tx, buyerCity.id))) return NO_MARKET;
+      if ((await isBesieged(tx, buyerCity.id)) || (await isBesieged(tx, offer.cityId))) return BLOCKADE;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const fresh = await tx.city.findUnique({ where: { id: buyerCity.id } });
       const cap = offer.sellResource === 'food' ? fresh.maxFoodStorage : fresh.maxStorage;
@@ -162,6 +168,7 @@ router.delete('/offer/:id', auth, async (req, res) => {
       if (!offer) return { error: 'Offre non trouvée', status: 404 };
       if (offer.sellerId !== req.user.playerId) return { error: 'Non autorisé', status: 403 };
       if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
+      if (await isBesieged(tx, offer.cityId)) return BLOCKADE;
       const ok = await transition(tx, 'marketOffer', offer.id, 'ACTIVE', { status: 'CANCELLED' });
       if (!ok) throw new Error('offer raced');
       if (offer.cityId) await creditCity(tx, offer.cityId, { [offer.sellResource]: offer.sellAmount });
@@ -189,6 +196,7 @@ router.post('/npc-trade', auth, async (req, res) => {
       await lockCity(tx, city.id);
       const market = await tx.cityBuilding.findFirst({ where: { cityId: city.id, key: 'MARKET' }, select: { level: true } });
       if (!market || market.level < 1) return { error: 'Construisez un marche (niveau 1 minimum)', status: 400 };
+      if (await isBesieged(tx, city.id)) return BLOCKADE;   // no NPC merchant in a besieged city either
       // NPC merchant tax: 30 % at level 1, one point less per level (data: serverMarketTax*)
       const taxPct = fx.npcMarketTaxPct(market.level);
       const receiveAmount = Math.floor(giveAmount * (1 - taxPct / 100));

@@ -78,7 +78,7 @@ const leader = await j('/api/auth/register', { method: 'POST', body: JSON.string
 const member = await j('/api/auth/register', { method: 'POST', body: JSON.stringify({ email: `memb${uid}@t.fr`, password, name: `Memb${uid}`, faction: 'GAUL' }) });
 check('leader and member registered', leader.status === 200 && member.status === 200, `status ${leader.status}/${member.status} ${JSON.stringify(member.body).slice(0, 80)}`);
 giveEmbassy(leader.body.player.id, 7); giveEmbassy(member.body.player.id, 5);
-const al = await j('/api/alliance/create', { method: 'POST', body: JSON.stringify({ name: `Alliance${uid}`, tag: `A${String(uid).slice(0, 3)}` }) }, leader.body.token);
+const al = await j('/api/alliance/create', { method: 'POST', body: JSON.stringify({ name: `Alliance${uid}`, tag: uid.toString(36).toUpperCase().padStart(5, 'Z').slice(-5) }) }, leader.body.token);   // 5-character tag: no clash with earlier runs
 check('alliance created', al.status === 200 || al.status === 201, 'status ' + al.status);
 const inv = await j('/api/alliance/invite', { method: 'POST', body: JSON.stringify({ playerName: `Memb${uid}` }) }, leader.body.token);
 const invites = await j('/api/alliance/invites', {}, member.body.token);
