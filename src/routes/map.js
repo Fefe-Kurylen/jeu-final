@@ -77,7 +77,7 @@ router.get('/map/viewport', auth, async (req, res) => {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallHp: true, wallMaxHp: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
@@ -100,7 +100,9 @@ router.get('/map/viewport', auth, async (req, res) => {
       const mainHallLevel = mainHallLevelOf(city.buildings);
       const cityTier = getCityTier(mainHallLevel);
       const allianceInfo = city.player?.alliance?.alliance;
-      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      // mur abîmé (siège) : la fumée qui s'élève de la ville se voit de loin, par tranches de 10 % (GDD damagedCitySmoke)
+      const wallDamage = wallLevel > 0 && city.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - city.wallHp / city.wallMaxHp) * 10) * 10)) : 0;
+      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)

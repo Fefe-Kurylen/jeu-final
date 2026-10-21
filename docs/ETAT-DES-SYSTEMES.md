@@ -68,6 +68,12 @@ le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées
   sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19 ; villes secondaires :
   normale et fortifiée, 6 × 2 × 4), avec la bannière de la
   civilisation qui assiège plantée devant. Branché ; en attendant les images, anneau rouge et icône d'épées.
+- **Fumée d'une ville au mur abîmé** (GDD `damagedCitySmoke`, octobre 2026) : tant que le mur n'est pas réparé (24 h), une
+  colonne de fumée sombre s'élève de la ville sur la carte, plus dense avec les dégâts ; au-delà de 50 % de dégâts, le feu
+  peint `map/fx/fire_0..3` s'y ajoute quand il est livré. Rien n'est montré à l'intérieur de la ville pour l'instant
+  (décision d'octobre 2026).
+- **Compte à rebours de l'assaut visible par tous** (fenêtre de siège) pour l'instant ; le GDD le réserve « à ceux qui ont
+  la vision », à reprendre avec la Tour de guet.
 - **Chute d'une ville (décidé et appliqué, octobre 2026)** : une ville ne change jamais de propriétaire.
   - Chaque **assaut gagné** ôte une part de la **santé de la muraille** (`City.wallStructure`) : il faut **4 assauts gagnés
     pour une capitale, 2 pour une ville secondaire, un de plus pour une ville égyptienne (5 et 3)**. Le héros n'est pas

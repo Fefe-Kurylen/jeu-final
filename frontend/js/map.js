@@ -47,7 +47,8 @@ const tileImages = {
   units: {},       // hoplite archer cavalry catapult merchant
   resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
   terrain: {},     // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
-  camps: {}        // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
+  camps: {},       // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
+  fx: {}           // effets peints de la carte (guide § A7) : fire_0..3 (ville en feu), battle_0..3, campfire_0..3
 };
 // Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
 const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
@@ -104,7 +105,7 @@ async function _loadTilesetAssetsOnce() {
   // Sprites de carte peints sans rendu 3D (colonies, cortège de colons, guide § S12) : chargés depuis le manifeste des images peintes
   if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
     for (const p of paintedSet) {
-      const m = p.match(/^map\/(cities|units|resources|terrain)\/([\w-]+)\.webp$/);
+      const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
       if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
       jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
     }
@@ -656,6 +657,7 @@ async function loadMap() {
             cityTierName: c.cityTierName || 'Village',
             isSieged: !!c.isSieged,
             siegedBy: c.siegedBy || null,
+            wallDamage: c.wallDamage || 0,
             population: c.player?.population || 0
           });
         });
@@ -732,6 +734,7 @@ async function loadMap() {
             mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
             isSieged: !!c.isSieged,
+            wallDamage: wallLevel > 0 && c.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - (c.wallHp ?? c.wallMaxHp) / c.wallMaxHp) * 10) * 10)) : 0,
             population: player?.population || 0
           });
         }
@@ -1473,6 +1476,8 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
 
   // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
   if (tile.isSieged && !siegeAnimated) drawSiegeMarker(x, y, citySize);
+  // Mur abîmé par un siège : fumée (et feu au-delà de 50 %) jusqu'à ce que le mur soit réparé ; l'animation de siège a la sienne
+  if ((tile.wallDamage || 0) >= 10 && !siegeAnimated) drawDamagedCitySmoke(x, y, citySize, tile.wallDamage, tile.id);
   if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
 
   // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
@@ -1489,6 +1494,29 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
     mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
   }
+}
+
+// Colonne de fumée au-dessus d'une ville au mur abîmé : plus dense avec les dégâts ; feu peint (map/fx/fire_0..3) quand
+// il est livré et que le mur a perdu plus de la moitié de ses PV, sinon des bouffées de fumée 3D qui montent
+function drawDamagedCitySmoke(x, y, size, damage, seed) {
+  mapMovingOnScreen = true;   // garde la carte animée tant que la fumée est à l'écran
+  const t = performance.now() / 1000, ph = (String(seed || '').charCodeAt(0) || 0) * 0.29;
+  if (damage > 50 && tileImages.fx.fire_0) {
+    const f = tileImages.fx[`fire_${Math.floor(t * 6) % 4}`] || tileImages.fx.fire_0, s = size * 0.5;
+    mapCtx.drawImage(f, x - s / 2 + size * 0.12, y - size * 0.55, s, s);
+  }
+  const n = 3 + Math.round(damage / 20);   // 3 à 8 bouffées
+  mapCtx.save();
+  if ('filter' in mapCtx) mapCtx.filter = `brightness(${Math.round(55 - damage * 0.3)}%)`;   // fumée sombre, plus noire avec les dégâts
+  for (let k = 0; k < n; k++) {
+    const life = (t * 0.35 + k / n + ph) % 1;
+    const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+    if (!puff) break;
+    const ps = size * (0.2 + life * 0.38);
+    mapCtx.globalAlpha = Math.min(0.9, 0.5 + damage / 200) * (1 - life * 0.85);
+    mapCtx.drawImage(puff, x + size * (0.08 + Math.sin(life * 3 + k) * 0.06 + life * 0.14) - ps / 2, y - size * (0.3 + life * 0.8) - ps / 2, ps, ps);
+  }
+  mapCtx.restore();
 }
 
 // Bannière de la civilisation qui assiège, plantée devant la ville (drapeau 3D existant, phase fixe)
