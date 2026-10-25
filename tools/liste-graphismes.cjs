@@ -115,11 +115,11 @@ Peints : ${walls.filter(f => painted.has(f)).map(f => f.replace('walls/', '').re
 
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
-${row('Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capital_<civ>>.png`', mapCities, '1024², cadre map', 'villes et capitales des joueurs sur la carte')}
-${row('Ressources `map/resources/<wood|stone|iron|food|gold>[_desert|_snow].png`', mapRes, '1024², cadre map', 'points de ressource gardés par les tribus')}
-${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`, `map/camps/banner_<CIV>.png`', mapCamps, '1024², cadre map', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition, bannière de la tribu ; sans eux, l\'icône de ressource reste')}
+${row('Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capital_<civ>>.png`', mapCities, '1024², cadre mapcity (2 × 2 cases)', 'villes et capitales des joueurs sur la carte')}
+${row('Ressources `map/resources/<wood|stone|iron|food|gold>[_desert|_snow].png`', mapRes, '1024², cadre mapobject', 'points de ressource gardés par les tribus')}
+${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`, `map/camps/banner_<CIV>.png`', mapCamps, '1024², cadre mapobject', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition, bannière de la tribu ; sans eux, l\'icône de ressource reste')}
 ${row('Sol, forêts, rochers, montagnes, ponts, gués, décor `map/world/…` (carte de référence, liste et prompts : docs/PROMPTS-CARTE.md)', mapWorld, '1024², cadres mapobject / texture', 'fond et relief de la carte du monde (remplace `map/terrain/…`)')}
-${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapunit', 'marqueurs des armées et marchands en déplacement')}
+${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapobject', 'marqueurs des armées et marchands en déplacement')}
 
 ### 3.5 Unités et héros
 

@@ -400,7 +400,10 @@ function isoMapFeatureAt(gx, gy) {
   if (!currentCity || typeof Terrain === 'undefined') return null;
   const dx = Math.sign(gx) * Math.max(1, Math.round(Math.abs(gx) / 3)), dy = Math.sign(gy) * Math.max(1, Math.round(Math.abs(gy) / 3));
   if (!dx && !dy) return null;
-  return Terrain.getTerrainType(currentCity.x + dx, currentCity.y + dy).feature;
+  const t = Terrain.getTerrainType(currentCity.x + dx, currentCity.y + dy);
+  // une rivière (et ses ponts et gués) est de l'eau dans le paysage de la ville, gelée en zone enneigée
+  if (t.feature === 'river' || t.feature === 'bridge' || t.feature === 'ford') return t.biome === 'snow' ? 'frozen' : 'water';
+  return t.feature;
 }
 // Distance (px écran) d'un point à la route de terre : la courbe de Bézier de drawIsoRoad, échantillonnée
 function isoRoadSampler(cx, cy, W) {

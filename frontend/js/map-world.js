@@ -58,7 +58,7 @@ function mapGroundFill(layer, variant, tw, th, origin) {
   const img = url && typeof getSprite === 'function' ? getSprite(url) : null;
   if (!img || typeof DOMMatrix !== 'function') return { style: fb.color, veil: 0, color: fb.color, tint };
   // résolution du motif : environ un pixel d'écran par pixel de texture (paliers pour ne pas tout refaire en zoomant)
-  const want = cells * Math.hypot(tw, th) / 2 * canvasScale();
+  const want = cells * Math.hypot(tw, th) / 2 * Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);   // à la résolution des morceaux de sol
   const size = Math.round(Math.max(32, Math.min(img.naturalWidth || 1024, MAP_PATTERN_MAX, Math.pow(2, Math.round(Math.log2(Math.max(want, 1)) * 2) / 2))));
   const key = url + '@' + size;
   let pattern = _mapGroundPatterns.get(key);
@@ -67,6 +67,7 @@ function mapGroundFill(layer, variant, tw, th, origin) {
     const c = document.createElement('canvas');
     c.width = c.height = size;
     const g = c.getContext('2d');
+    if (!g) { c.width = c.height = 0; return { style: fb.color, veil: 0, color: fb.color, tint }; }   // plus de mémoire de canvas (iOS) : couleur
     g.imageSmoothingQuality = 'high';
     g.drawImage(img, 0, 0, size, size);
     pattern = mapCtx.createPattern(c, 'repeat');
@@ -87,7 +88,7 @@ function mapGroundFill(layer, variant, tw, th, origin) {
 const MAP_BLEND_SOFT = 0.36, MAP_BLEND_HARD = 0.5;   // bord adouci (demi-opaque) puis bord net
 const _mapBlendCache = new Map();   // "vx,vy" -> [{ layer, soft: [poly…], hard: [poly…] }] pour la finesse _mapBlendN
 let _mapBlendN = 0;
-const MAP_BLEND_CACHE_MAX = 20000;
+const MAP_BLEND_CACHE_MAX = 4000;   // les morceaux de sol gardent le dessin : ce cache ne sert qu'aux morceaux redessinés
 function mapBlendNoise(X, Y) {
   return (Terrain.valueNoise(X, Y, 91919, 0.8) - 0.5) * 0.45 + (Terrain.valueNoise(X, Y, 92929, 0.3) - 0.5) * 0.2;
 }
@@ -124,7 +125,7 @@ function mapBlendShapes(vx, vy, corners, n) {
   if (n !== _mapBlendN) { _mapBlendCache.clear(); _mapBlendN = n; }   // autre finesse (zoom) : on repart de zéro
   const key = vx + ',' + vy;
   let shapes = _mapBlendCache.get(key);
-  if (shapes) return shapes;
+  if (shapes) { _mapBlendCache.delete(key); _mapBlendCache.set(key, shapes); return shapes; }   // le plus récent en dernier
   shapes = [];
   const lo = Math.min(...corners);
   const layers = [...new Set(corners)].filter(l => l > lo).sort((a, b) => a - b);
@@ -137,7 +138,7 @@ function mapBlendShapes(vx, vy, corners, n) {
       const p = i / n, q = j / n;
       values[j * (n + 1) + i] = mT * (1 - p) * (1 - q) + mR * p * (1 - q) + mB * p * q + mL * (1 - p) * q + noise[j * (n + 1) + i];
     }
-    shapes.push({ layer: L, soft: mapBlendPolys(values, n, MAP_BLEND_SOFT), hard: mapBlendPolys(values, n, MAP_BLEND_HARD) });
+    shapes.push({ layer: L, soft: mapBlendPolys(values, n, MAP_BLEND_SOFT).map(p => Float32Array.from(p)), hard: mapBlendPolys(values, n, MAP_BLEND_HARD).map(p => Float32Array.from(p)) });
   }
   _mapBlendCache.set(key, shapes);
   if (_mapBlendCache.size > MAP_BLEND_CACHE_MAX) _mapBlendCache.delete(_mapBlendCache.keys().next().value);
@@ -147,9 +148,9 @@ function mapBlendShapes(vx, vy, corners, n) {
 // Cases visibles : rectangle du monde qui couvre l'écran (avec une marge)
 function mapVisibleBounds(screenToWorldF, w, h) {
   const pts = [[0, 0], [w, 0], [0, h], [w, h]].map(([sx, sy]) => screenToWorldF(sx, sy));
-  return {
-    x0: Math.min(...pts.map(p => p.x)) - 2, x1: Math.max(...pts.map(p => p.x)) + 2,
-    y0: Math.min(...pts.map(p => p.y)) - 2, y1: Math.max(...pts.map(p => p.y)) + 2
+  return {   // marge : les reliefs et les arbres des cases juste sous l'écran dépassent vers le haut
+    x0: Math.min(...pts.map(p => p.x)) - 4, x1: Math.max(...pts.map(p => p.x)) + 4,
+    y0: Math.min(...pts.map(p => p.y)) - 4, y1: Math.max(...pts.map(p => p.y)) + 4
   };
 }
 
@@ -165,6 +166,8 @@ const _mapChunks = new Map();     // "i,j" -> canvas (ordre d'utilisation : le p
 const _mapChunkPool = [];
 let _mapChunkState = null;        // { key, tw, th, night, sig, scale, fills }
 let _mapLastTw = 0, _mapZoomAt = 0, _mapZoomTimer = null, _mapChunkPending = false;
+let _mapChunkFailUntil = 0;       // plus de mémoire de canvas : pas de nouveau morceau avant cette heure (couleurs en attendant)
+const mapTabActive = () => !!document.getElementById('tab-map')?.classList.contains('active');
 
 // Dessine le sol des cases d'un rectangle du repère du monde [X0, X0+size] × [Y0, Y0+size] dans ctx (déjà décalé)
 function renderMapGroundRect(ctx, X0, Y0, size, tw, th, night, fills) {
@@ -221,6 +224,7 @@ function renderMapGroundRect(ctx, X0, Y0, size, tw, th, night, fills) {
 function mapDropChunk(c) { if (_mapChunkPool.length < MAP_POOL_MAX) _mapChunkPool.push(c); else { c.width = 0; c.height = 0; } }
 // En quittant la carte : toute la mémoire du sol est rendue (elle se redessine au retour)
 function releaseMapGround() {
+  clearTimeout(_mapZoomTimer); _mapZoomTimer = null;
   for (const c of _mapChunks.values()) { c.width = 0; c.height = 0; }
   for (const c of _mapChunkPool) { c.width = 0; c.height = 0; }
   _mapChunks.clear(); _mapChunkPool.length = 0; _mapChunkState = null;
@@ -232,7 +236,7 @@ function mapRenderChunk(i, j, st) {
   const px = Math.round(MAP_CHUNK * st.scale);
   if (c.width !== px) { c.width = px; c.height = px; }
   const ctx = c.getContext('2d');
-  if (!ctx) { c.width = 0; c.height = 0; return null; }   // plus de mémoire de canvas (iOS) : couleur de repli
+  if (!ctx) { c.width = 0; c.height = 0; _mapChunkFailUntil = performance.now() + 2000; return null; }   // plus de mémoire de canvas (iOS) : couleur de repli, nouvel essai dans 2 s
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, px, px);
   ctx.setTransform(px / MAP_CHUNK, 0, 0, px / MAP_CHUNK, -i * px, -j * px);
@@ -245,6 +249,7 @@ function mapRenderChunk(i, j, st) {
 function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
   const scale = Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);
   const now = performance.now();
+  const failing = now < _mapChunkFailUntil;
   if (tw !== _mapLastTw) { _mapLastTw = tw; _mapZoomAt = now; }
   const sig = mapGroundSignature();
   const key = [tw, th, scale, night ? 1 : 0, sig].join('|');
@@ -254,7 +259,7 @@ function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
     if (zooming) {
       s = tw / st.tw; budget = 0;   // pendant le geste : les morceaux de l'échelle précédente, étirés ; tout est refait après
       clearTimeout(_mapZoomTimer);
-      _mapZoomTimer = setTimeout(() => { if (typeof scheduleMapRender === 'function') scheduleMapRender(); }, 280);
+      _mapZoomTimer = setTimeout(() => { _mapZoomTimer = null; if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender(); }, 280);
     } else {
       for (const c of _mapChunks.values()) mapDropChunk(c);
       _mapChunks.clear();
@@ -275,17 +280,20 @@ function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
     const k = i + ',' + j;
     let c = _mapChunks.get(k);
     if (c) { _mapChunks.delete(k); _mapChunks.set(k, c); }
-    else if (budget > 0) { budget--; c = mapRenderChunk(i, j, st); }
+    else if (budget > 0 && !failing) { budget--; c = mapRenderChunk(i, j, st); }
     if (c) { mapCtx.drawImage(c, ox + i * CS, oy + j * CS, CS, CS); continue; }
     missing++;
     const X = (i + 0.5) * MAP_CHUNK, Y = (j + 0.5) * MAP_CHUNK;   // centre du morceau, dans le repère du monde à l'échelle st
     const g = Terrain.groundAt(Math.round(X / st.tw + Y / st.th), Math.round(Y / st.th - X / st.tw));
     mapCtx.fillStyle = MAP_GROUND_FALLBACK[g]?.color || '#6a9a48';
     mapCtx.fillRect(ox + i * CS, oy + j * CS, CS + 0.5, CS + 0.5);
+    if (st.night) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fillRect(ox + i * CS, oy + j * CS, CS + 0.5, CS + 0.5); }
   }
-  if (missing && s === 1 && !_mapChunkPending) {   // la suite à l'image suivante
+  // la suite à l'image suivante (ou dans 2 s si la mémoire de canvas manque), seulement si la carte est toujours affichée
+  if (missing && s === 1 && !_mapChunkPending) {
     _mapChunkPending = true;
-    requestAnimationFrame(() => { _mapChunkPending = false; if (typeof scheduleMapRender === 'function') scheduleMapRender(); });
+    const again = () => { _mapChunkPending = false; if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender(); };
+    if (now < _mapChunkFailUntil) setTimeout(again, _mapChunkFailUntil - now + 20); else requestAnimationFrame(again);
   }
   const keep = (i1 - i0 + 1) * (j1 - j0 + 1) + 8;
   while (_mapChunks.size > keep) { const k = _mapChunks.keys().next().value; const c = _mapChunks.get(k); _mapChunks.delete(k); mapDropChunk(c); }
@@ -311,6 +319,7 @@ const WORLD_OBJECT_FOOTPRINT = 0.5, WORLD_OBJECT_CENTER_Y = 0.75;
 const WORLD_CITY_FOOTPRINT = 0.9, WORLD_CITY_CENTER_Y = 0.68;
 // Sprites de la carte d'avant (ressources 1,3 case de large, armées 1,2) → même échelle au nouveau cadrage
 const WORLD_SPRITE_SCALE = 1 / (WORLD_OBJECT_FOOTPRINT * 1.3);
+const WORLD_ARMY_SCALE = 1 / (WORLD_OBJECT_FOOTPRINT * 1.2);   // drawIsoArmy dessine ses sprites à 1,2 case
 
 // Image peinte livrée et chargeable (une image absente ou en erreur ne compte pas : le dessin de repli prend le relais)
 function worldHas(p) { return typeof paintedSet !== 'undefined' && paintedSet.has(p) && !(typeof spriteFailed === 'function' && spriteFailed('assets/images/painted/' + p)); }

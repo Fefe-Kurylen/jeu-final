@@ -487,6 +487,7 @@ function applyFactionBonusTexts() {
 // Le serveur joue sur un autre terrain que celui de cette version du jeu (carte changée) : sur le web, un rechargement
 // récupère la nouvelle version ; dans l'application, il faut la mettre à jour depuis la boutique
 function onTerrainOutdated() {
+  if (document.querySelector('.terrain-outdated')) return;   // déjà signalé
   const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   if (!native) {
     let tried = false;
@@ -512,7 +513,8 @@ async function loadWorldInfo() {
       updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies
-      if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion !== Terrain.TERRAIN_VERSION) onTerrainOutdated();
+      if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion > Terrain.TERRAIN_VERSION) onTerrainOutdated();
+      else if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion < Terrain.TERRAIN_VERSION) console.warn('Le serveur joue sur un terrain plus ancien que ce client');
       else { try { sessionStorage.removeItem('terrain-reload'); } catch (e) { /* stockage indisponible */ } }
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }
@@ -914,7 +916,7 @@ function getSprite(url) {
     s = { img, ready: false, failed: false };
     _sprites.set(url, s);
     img.onload = () => { s.ready = img.naturalWidth > 0; queueSpriteRedraw(); };
-    img.onerror = () => { s.failed = true; };   // image absente : rendu procédural, pas de nouvel essai
+    img.onerror = () => { s.failed = true; queueSpriteRedraw(); };   // image absente : rendu de repli (redessiné tout de suite), pas de nouvel essai
     img.src = url;
   }
   return s.ready ? s.img : null;

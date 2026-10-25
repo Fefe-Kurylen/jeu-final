@@ -34,8 +34,9 @@ autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les ville
 | 9 | [Points de ressource](#partie-9) | 15 |
 | 10 | [Camps des tribus, fondation, bannières](#partie-10) | 21 |
 | 11 | [Armées en marche](#partie-11) | 43 |
-| 12 | [Animations des armées](#partie-12) | 74 |
-| 13 | [Effets de la carte](#partie-13) | 20 |
+| 12 | [Effets de la carte](#partie-12) | 4 |
+| 13 | [Plus tard : animations des armées (pas encore affichées dans le jeu)](#partie-13) | 74 |
+| 14 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-14) | 16 |
 | | **Total** | **420** |
 
 <a id="partie-1"></a>
@@ -1401,7 +1402,7 @@ Carte du monde : ville « capital » (…)
 ```text
 Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
 
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 isometric tiles: a 2:1 diamond 90% of the image width, centered horizontally, its center at 68% of the image height; walls follow the edges of that diamond, buildings rise inside, the tallest roofs may reach the top quarter of the image. NO ground plate under the town: outside the walls the image is transparent, except a few fields, paths or trees touching the walls and the soft shadow toward the lower right. The second image is a layout guide that shows this 2 x 2 diamond in red: use it only to place the town, do not draw the red diamond, the marks or the grey background.
 
 Subject: a fortified capital: walls with corner towers around a columned palace, Roman style, a red banner
 ```
@@ -1570,7 +1571,7 @@ Carte du monde : ville « default » (…)
 ```text
 Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
 
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 isometric tiles: a 2:1 diamond 90% of the image width, centered horizontally, its center at 68% of the image height; walls follow the edges of that diamond, buildings rise inside, the tallest roofs may reach the top quarter of the image. NO ground plate under the town: outside the walls the image is transparent, except a few fields, paths or trees touching the walls and the soft shadow toward the lower right. The second image is a layout guide that shows this 2 x 2 diamond in red: use it only to place the town, do not draw the red diamond, the marks or the grey background.
 
 Subject: a small generic ancient town: a few stone houses with terracotta roofs
 ```
@@ -4344,9 +4345,67 @@ Subject: a spy: a hooded rider on a dark horse, cloak flying, riding toward the 
 
 <a id="partie-12"></a>
 
-## 12. Animations des armées
+## 12. Effets de la carte
 
-Cycles de marche (6 images) et images du replay de bataille (attaque, touché). Même cadrage que l'armée immobile.
+Ville en feu (ville très endommagée), par images qui bouclent.
+
+### `map/fx/fire_0.png`
+
+Carte : ville en feu — phase 1/4  
+**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 1 (same subject, same size and position in every frame, only the pose changes)
+```
+
+### `map/fx/fire_1.png`
+
+Carte : ville en feu — phase 2/4  
+**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 2 (same subject, same size and position in every frame, only the pose changes)
+```
+
+### `map/fx/fire_2.png`
+
+Carte : ville en feu — phase 3/4  
+**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 3 (same subject, same size and position in every frame, only the pose changes)
+```
+
+### `map/fx/fire_3.png`
+
+Carte : ville en feu — phase 4/4  
+**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 4 (same subject, same size and position in every frame, only the pose changes)
+```
+
+<a id="partie-13"></a>
+
+## 13. Plus tard : animations des armées (pas encore affichées dans le jeu)
+
+Cycles de marche (6 images) et images du replay de bataille (attaque, touché), même cadrage que l'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.
 
 ### `map/units/archer_attack_0.png`
 
@@ -5310,11 +5369,11 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 6 of 6
 ```
 
-<a id="partie-13"></a>
+<a id="partie-14"></a>
 
-## 13. Effets de la carte
+## 14. Plus tard : autres effets de la carte (pas encore affichés dans le jeu)
 
-Combat en cours, ville en feu, feu de camp, pluie, neige : par images qui bouclent.
+Combat en cours, feu de camp, pluie, neige. Le jeu ne les affiche pas encore : à produire en dernier.
 
 ### `map/fx/battle_0.png`
 
@@ -5418,58 +5477,6 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
 Subject: A sprite sheet frame: a world-map campfire, frame 4 (same subject, same size and position in every frame, only the pose changes)
-```
-
-### `map/fx/fire_0.png`
-
-Carte : ville en feu — phase 1/4  
-**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 1 (same subject, same size and position in every frame, only the pose changes)
-```
-
-### `map/fx/fire_1.png`
-
-Carte : ville en feu — phase 2/4  
-**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 2 (same subject, same size and position in every frame, only the pose changes)
-```
-
-### `map/fx/fire_2.png`
-
-Carte : ville en feu — phase 3/4  
-**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 3 (same subject, same size and position in every frame, only the pose changes)
-```
-
-### `map/fx/fire_3.png`
-
-Carte : ville en feu — phase 4/4  
-**Taille** : 512x512 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 4 (same subject, same size and position in every frame, only the pose changes)
 ```
 
 ### `map/fx/rain_0.png`

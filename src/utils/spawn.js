@@ -45,6 +45,12 @@ async function findFreeSpawn({ db = prisma } = {}) {
   throw Object.assign(new Error('Aucun emplacement libre près du bord de la carte'), { status: 503 });
 }
 
+// A city just placed at (x, y): the field armies standing on its 3 other cells are now in it, on its anchor cell (an army
+// is never left on a non-anchor city cell, where it would be neither home, nor a defender, nor met in the field)
+async function gatherArmiesOnBlock(tx, x, y) {
+  await tx.army.updateMany({ where: { status: 'IDLE', isGarrison: false, OR: [{ x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }] }, data: { x, y } });
+}
+
 // Every transaction that puts a city on the map (sign-up, capital moved, colony completed, city rescued) takes this lock
 // first, then checks the place inside the transaction: two of them never pick overlapping 2 × 2 blocks
 const PLACEMENT_LOCK = 7340001;
@@ -53,4 +59,4 @@ async function lockPlacement(tx) { await tx.$executeRaw`SELECT pg_advisory_xact_
 // The city whose 2 × 2 block covers the cell (x, y), if any
 const cityAtCellWhere = (x, y) => ({ x: { gte: x - 1, lte: x }, y: { gte: y - 1, lte: y } });
 
-module.exports = { randomEdgePosition, findFreeSpawn, footprintFree, cityAtCellWhere, lockPlacement };
+module.exports = { randomEdgePosition, findFreeSpawn, footprintFree, cityAtCellWhere, lockPlacement, gatherArmiesOnBlock };

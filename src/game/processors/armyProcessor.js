@@ -21,7 +21,7 @@ const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
-const { footprintFree, cityAtCellWhere, lockPlacement } = require('../../utils/spawn');
+const { footprintFree, cityAtCellWhere, lockPlacement, gatherArmiesOnBlock } = require('../../utils/spawn');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
 const TX = { timeout: 15000 };
@@ -228,18 +228,25 @@ function notifyHalted(army, city, pos, reportId = null) {
 
 // ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------
 async function handleFoundArrival(army, now) {
-  const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
-  // the city will cover the node and the three cells next to it (2 × 2): they must be free
-  const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0 && (await footprintFree(node.x, node.y, { ignoreNodeId: node.id }));
-  if (!free) {
+  // the city will cover the node and the three cells next to it (2 × 2): they must be free, and the block is reserved
+  // (FOUNDING) under the placement lock, so that no other city is placed on it meanwhile
+  const endsAt = new Date(now.getTime() + fx.cityFoundationTimeSec() * 1000);
+  const outcome = await prisma.$transaction(async (tx) => {
+    await lockPlacement(tx);
+    const node = army.targetResourceId ? await tx.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
+    const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0 && (await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }));
+    if (!free) return { error: 'not_free' };
+    const taken = await tx.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
+    if (taken.count !== 1) return { error: 'taken' };
+    await tx.army.update({ where: { id: army.id }, data: { status: 'FOUNDING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, arrivalAt: endsAt, departedAt: now, claimedAt: null } });
+    return { node };
+  }, TX);
+  if (outcome.error) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
-    notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
+    if (outcome.error === 'not_free') notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
     return;
   }
-  const taken = await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
-  if (taken.count !== 1) { await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null }); return; }
-  const endsAt = new Date(now.getTime() + fx.cityFoundationTimeSec() * 1000);
-  await prisma.army.update({ where: { id: army.id }, data: { status: 'FOUNDING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, arrivalAt: endsAt, departedAt: now, claimedAt: null } });
+  const { node } = outcome;
   notify(army.ownerId, 'build_done', '🏗️ Fondation commencée', `${army.name} fonde une ville en (${node.x}, ${node.y}) : elle sera prête dans ${Math.round(fx.cityFoundationTimeSec() / 3600)} h.`, { to: 'map', x: node.x, y: node.y });
 }
 
@@ -258,6 +265,7 @@ async function handleFoundComplete(army, now) {
     } });
     await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
     await tx.army.create({ data: { ownerId: army.ownerId, cityId: city.id, name: 'Garnison', x: node.x, y: node.y, status: 'IDLE', isGarrison: true } });
+    await gatherArmiesOnBlock(tx, node.x, node.y);
     // The node is the city's ground now: no tribe, no harvest, respawns if the city disappears
     await tx.resourceNode.update({ where: { id: node.id }, data: { cityId: city.id, hasPlayerArmy: false, hasDefenders: false, defenderPower: 0, amount: 0, lastDefeat: null, lastArmyDeparture: null } });
     await tx.army.update({ where: { id: army.id }, data: { settlers: 0, carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, harvestResourceType: null } });
@@ -298,7 +306,14 @@ const CITY_FOR_BATTLE = { armies: { include: { units: true, hero: { include: { i
 async function lockTargetCity(tx, cityId) {
   if (!cityId) return null;
   await lockCity(tx, cityId);
-  return tx.city.findUnique({ where: { id: cityId }, include: CITY_FOR_BATTLE });
+  return withGuestDefenders(tx, await tx.city.findUnique({ where: { id: cityId }, include: CITY_FOR_BATTLE }));
+}
+// The owner's armies from his other cities standing in this one (sent there to reinforce it) defend it too
+async function withGuestDefenders(db, city, include = CITY_FOR_BATTLE.armies.include) {
+  if (!city) return city;
+  const guests = await db.army.findMany({ where: { ownerId: city.playerId, cityId: { not: city.id }, isGarrison: false, status: 'IDLE', x: city.x, y: city.y }, include });
+  if (guests.length) city.armies = [...city.armies, ...guests];
+  return city;
 }
 
 // Camps devant la même ville dont les propriétaires sont alliés (même joueur, même alliance ou alliance déclarée alliée) :
@@ -613,7 +628,7 @@ async function handleRaid(army, now) {
 }
 
 async function handleSpy(army, now) {
-  const targetCity = await prisma.city.findUnique({ where: { id: army.targetCityId || '' }, include: { armies: { include: { units: true } }, buildings: true, player: true } });
+  const targetCity = await withGuestDefenders(prisma, await prisma.city.findUnique({ where: { id: army.targetCityId || '' }, include: { armies: { include: { units: true } }, buildings: true, player: true } }), { units: true });
   if (targetCity) {
     const present = defendingArmies(targetCity);
     const spyPower = army.units.reduce((sum, u) => sum + u.count, 0);

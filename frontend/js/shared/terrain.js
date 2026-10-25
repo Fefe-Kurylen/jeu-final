@@ -8,8 +8,9 @@
   else root.Terrain = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  // Version du terrain : à augmenter à chaque changement de la génération (le serveur la publie dans /api/world/info, une
-  // application qui embarque un autre terrain demande sa mise à jour). 2 = carte de référence du 25 octobre 2026.
+  // Version du terrain : à augmenter à chaque changement de la génération OU des règles de passage et de coût (isBlocked,
+  // moveCost, findPath, cases des villes) ; le serveur la publie dans /api/world/info, une version du jeu qui embarque un
+  // autre terrain se recharge ou demande sa mise à jour. 2 = carte de référence du 25 octobre 2026.
   const TERRAIN_VERSION = 2;
   const WORLD_SIZE = 374;
   const MIN_COORD = -Math.floor(WORLD_SIZE / 2);          // -187
@@ -249,7 +250,7 @@
   // world_config.map.forests). opts.faction : la civilisation de l'armée.
   const FORD_COST = 2, FOREST_COST = 1 / 0.9;
   function moveCost(x, y, objects, opts) {
-    if (objects && isObjectCell(objects, x, y)) return 1;
+    if (objects && objects.has(x + ',' + y)) return 1;   // la case d'une ville ou d'un point ; sa couronne garde le coût du terrain
     const f = getTerrainType(x, y).feature;
     if (f === 'ford') return FORD_COST;
     if (FOREST[f] && String(opts?.faction || '').toUpperCase() !== 'GAUL') return FOREST_COST;
@@ -330,16 +331,34 @@
     if (isBlocked(toX, toY, objects)) return null;
     const key = (x, y) => x + ',' + y;
     const h = (x, y) => { const dx = Math.abs(x - toX), dy = Math.abs(y - toY); return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy); };
-    const open = [{ x: fromX, y: fromY, g: 0, f: h(fromX, fromY) }];
+    // file ouverte : tas binaire sur f
+    const open = [];
+    const push = (n) => {
+      open.push(n);
+      for (let i = open.length - 1; i > 0;) { const p = (i - 1) >> 1; if (open[p].f <= open[i].f) break; const t = open[p]; open[p] = open[i]; open[i] = t; i = p; }
+    };
+    const pop = () => {
+      const top = open[0], last = open.pop();
+      if (open.length) {
+        open[0] = last;
+        for (let i = 0; ;) {
+          const l = 2 * i + 1, r = l + 1;
+          let m = i;
+          if (l < open.length && open[l].f < open[m].f) m = l;
+          if (r < open.length && open[r].f < open[m].f) m = r;
+          if (m === i) break;
+          const t = open[m]; open[m] = open[i]; open[i] = t; i = m;
+        }
+      }
+      return top;
+    };
+    push({ x: fromX, y: fromY, g: 0, f: h(fromX, fromY) });
     const gScore = new Map([[key(fromX, fromY), 0]]);
     const came = new Map();
     const closed = new Set();
     let expansions = 0;
     while (open.length) {
-      // plus petit f (tas binaire simple)
-      let bi = 0;
-      for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
-      const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+      const cur = pop();
       const ck = key(cur.x, cur.y);
       if (closed.has(ck)) continue;
       if (cur.x === toX && cur.y === toY) {
@@ -361,7 +380,7 @@
         if (g < (gScore.get(nk) ?? Infinity)) {
           gScore.set(nk, g);
           came.set(nk, { x: cur.x, y: cur.y });
-          open.push({ x: nx, y: ny, g, f: g + h(nx, ny) });
+          push({ x: nx, y: ny, g, f: g + h(nx, ny) });
         }
       }
     }

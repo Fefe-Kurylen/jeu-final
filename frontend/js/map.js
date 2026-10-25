@@ -107,6 +107,7 @@ async function _loadTilesetAssetsOnce() {
     for (const p of paintedSet) {
       const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
       if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
+      if (m[1] === 'units' && /_(walk|attack|hit)_\d+$/.test(m[2])) continue;   // phases d'animation pas encore jouées sur la carte
       jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; tileImagePainted.add(m[1] + '/' + m[2]); resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
     }
   }
@@ -123,7 +124,7 @@ function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
   if (category !== 'fx' && tileImagePainted.has(category + '/' + name)) {
-    const k = WORLD_SPRITE_SCALE;
+    const k = category === 'units' ? WORLD_ARMY_SCALE : WORLD_SPRITE_SCALE;   // le losange de l'image = une case
     ctx.drawImage(img, destX - destW * k * 0.5, destY - destH * k * WORLD_OBJECT_CENTER_Y, destW * k, destH * k);
     return true;
   }
@@ -727,7 +728,9 @@ function renderMapCore() {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
-  // Le sol couvre tout l'écran (map-world.js) : pas de ciel à peindre dessous
+  // Le sol couvre tout l'écran (map-world.js) ; un fond uni dessous, pour qu'aucun reste de l'image précédente ne transparaisse
+  mapCtx.fillStyle = nightMode ? '#10161c' : '#5f7a3c';
+  mapCtx.fillRect(0, 0, w, h);
 
 
   // Convert world to isometric screen coordinates
@@ -802,7 +805,7 @@ function renderMapCore() {
     const cur = armyCurrentPosition(army);
     const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
-        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
+        pos.y >= -tileH * 2 && pos.y <= h + tileW * 1.6) {   // a painted army rises about 1.4 tiles above its feet
       objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir });
     }
   });
@@ -2013,7 +2016,7 @@ function armyRoute(army) {
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
   if (armyRouteCache.size > 300) armyRouteCache.clear();
   const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
-  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 40000, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
   const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
   armyRouteCache.set(key, path);
   return path;
@@ -2385,12 +2388,15 @@ function scheduleMapRender(includeMinimapAndUI = false) {
   if (!mapRenderScheduled) {
     mapRenderScheduled = true;
     requestAnimationFrame(() => {
-      renderMap();
-      if (includeMinimapAndUI) {
-        renderMinimap();
-        updateMapUI();
+      try {
+        renderMap();
+        if (includeMinimapAndUI) {
+          renderMinimap();
+          updateMapUI();
+        }
+      } finally {
+        mapRenderScheduled = false;   // une erreur de dessin ne bloque jamais les images suivantes
       }
-      mapRenderScheduled = false;
     });
   }
 }
@@ -2443,6 +2449,15 @@ function onMapMouseUp() {
 // Tile under a canvas point. Cities, resources and armies are drawn above their ground diamond,
 // so a click on a sprite lands on the tile behind it: the neighbours whose sprite covers the
 // point are checked before reporting empty terrain.
+// Where the drawing of a 2 × 2 city reaches above its block centre (as drawIsoCity draws it): painted city 2 × 2 framing,
+// or the old sprite (taller for a fortified city)
+function cityHitBox(t, tileW) {
+  const fl = String(t.faction || 'ROME').toLowerCase(), fortified = (t.cityTier || 0) >= 3;
+  const painted = typeof tileImagePainted !== 'undefined' && [...tileImagePainted].some(k => k.startsWith('cities/') && k.includes(fl));
+  if (painted) return { half: tileW * 1.0, top: (2 * tileW / WORLD_CITY_FOOTPRINT) * WORLD_CITY_CENTER_Y };
+  const size = 3 * tileW * (fortified ? 1.2 : 1);   // cityImageSize for a 2 × 2 block
+  return { half: size * 0.32, top: size * mapSpriteAnchor.y };
+}
 function pickMapTile(mouseX, mouseY) {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
@@ -2451,19 +2466,22 @@ function pickMapTile(mouseX, mouseY) {
   const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
   const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1) : (t.x === x && t.y === y && (t.type === 'RESOURCE' || t.type === 'ARMY')));   // a city: any of its 2 × 2 cells
-  let tile = entityAt(tileX, tileY);
+  let tile = entityAt(tileX, tileY);   // what stands on the touched cell itself
   if (!tile && typeof window.mapWorldToScreen === 'function') {
-    // the walls and roofs of a 2 × 2 city rise well above its block: a touch on the drawing picks it (the front-most first)
-    const hits = mapData.filter(t => t.type === 'CITY').map(t => ({ t, p: window.mapWorldToScreen(t.x + 0.5, t.y + 0.5) }))
-      .filter(({ p }) => Math.abs(mouseX - p.x) <= tileW * 0.9 && mouseY <= p.y + tileH && mouseY >= p.y - tileW * 2.4)
-      .sort((a, b) => b.p.y - a.p.y);
-    if (hits.length) tile = hits[0].t;
-  }
-  if (!tile) {
+    // otherwise the drawing that covers the touch, the front-most one (drawn last, lowest on the screen) first: a tall
+    // sprite whose cell is just below (resource, army), or the walls and roofs of a 2 × 2 city that rise above its block
+    const cands = [];
     for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
       const t = entityAt(tileX + ox, tileY + oy);
-      if (t) { tile = t; break; }
+      if (t && t.type !== 'CITY') cands.push({ t, y: window.mapWorldToScreen(t.x, t.y).y });
     }
+    for (const t of mapData) {
+      if (t.type !== 'CITY') continue;
+      const p = window.mapWorldToScreen(t.x + 0.5, t.y + 0.5), box = cityHitBox(t, tileW);
+      if (Math.abs(mouseX - p.x) <= box.half && mouseY <= p.y + tileH && mouseY >= p.y - box.top) cands.push({ t, y: p.y });
+    }
+    cands.sort((a, b) => b.y - a.y);
+    if (cands.length) tile = cands[0].t;
   }
   return tile ? { x: tile.x, y: tile.y, tile } : { x: tileX, y: tileY, tile: null };
 }
@@ -2545,8 +2563,8 @@ function onMapTouchMove(e) {
 function onMapTouchEnd(e) {
   mapDragging = false;
 
-  // Simulate click/tap if no significant drag
-  if (touchDragDistance < 10 && touchStartPos) {
+  // Simulate click/tap if no significant drag (never at the end of a pinch, nor while another finger still touches)
+  if (touchDragDistance < 10 && touchStartPos && !touchPinched && !(e.touches && e.touches.length)) {
     const rect = mapCanvas.getBoundingClientRect();
     const picked = pickMapTile(touchStartPos.x - rect.left, touchStartPos.y - rect.top);
     mapSelectedTile = { x: picked.x, y: picked.y };

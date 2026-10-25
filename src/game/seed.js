@@ -98,10 +98,11 @@ async function syncResourceNodesWithTerrain() {
   const cities = await prisma.city.findMany({ select: { x: true, y: true } });
   const taken = new Set(nodes.map(n => `${n.x},${n.y}`));
   for (const c of cities) for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) taken.add(`${c.x + dx},${c.y + dy}`);
+  const underCity = new Set(cities.flatMap(c => Terrain.cityCells(c.x, c.y).map(([x, y]) => `${x},${y}`)));   // the 2 × 2 blocks
   let moved = 0, rebiomed = 0;
   for (const n of nodes) {
     let { x, y } = n;
-    if (!nodeSpotOk(x, y) && !n.cityId && !n.hasPlayerArmy) {
+    if ((!nodeSpotOk(x, y) || underCity.has(`${x},${y}`)) && !n.cityId && !n.hasPlayerArmy) {   // a free node under a city (placed before the 2 × 2 rule) moves too
       const heading = await prisma.army.count({ where: { targetX: x, targetY: y, status: { not: 'IDLE' } } });
       if (!heading) {
         let spot = null;
@@ -127,16 +128,34 @@ async function syncResourceNodesWithTerrain() {
 // qui chevauche une autre ville (villes posées avant le 25 octobre 2026). Une colonie emmène son point de ressource.
 // Pas tant qu'une de ses armées est dehors, qu'une armée est en route vers elle ou qu'elle est assiégée.
 async function rescueTrappedCities() {
-  const { findFreeSpawn, lockPlacement } = require('../utils/spawn');
-  const { forgetCityCells, noteCityCells } = require('../utils/pathfinding');
+  const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
+  const { invalidateObjectCells } = require('../utils/pathfinding');
   const { notify } = require('../services/pushService');
-  // on sort d'une ville par la couronne libre qui l'entoure : il suffit qu'une case juste au-delà rejoigne la terre ferme
-  const reachable = (c) => { for (let dx = -2; dx <= 3; dx++) for (let dy = -2; dy <= 3; dy++) if (Terrain.isMainland(c.x + dx, c.y + dy)) return true; return false; };
+  // une armée sort-elle de la ville ? même règle que les trajets (cases de la ville libres, couronne libre sauf au-dessus de
+  // l'eau, pas de coin coupé entre deux obstacles) jusqu'à une case de la terre ferme principale, à quelques cases au plus
+  const reachable = (c) => {
+    const objects = new Map(Terrain.cityCells(c.x, c.y).map(([x, y]) => [x + ',' + y, 'CITY']));
+    const seen = new Set(objects.keys()), queue = Terrain.cityCells(c.x, c.y);
+    while (queue.length) {
+      const [x, y] = queue.shift();
+      if (!objects.has(x + ',' + y) && Terrain.isMainland(x, y)) return true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+        if ((!dx && !dy) || seen.has(k) || Math.abs(nx - c.x) > 8 || Math.abs(ny - c.y) > 8) continue;
+        if (Terrain.isBlocked(nx, ny, objects)) continue;
+        if (dx && dy && Terrain.isBlocked(x + dx, y, objects) && Terrain.isBlocked(x, y + dy, objects)) continue;
+        seen.add(k); queue.push([nx, ny]);
+      }
+    }
+    return false;
+  };
   const wet = (c) => Terrain.cityCells(c.x, c.y).some(([x, y]) => Terrain.WATER[Terrain.getTerrainType(x, y).feature]);
+  const misplaced = (c) => Terrain.cityCells(c.x, c.y).some(([x, y]) => !Terrain.inWorld(x, y) || ['bridge', 'ford'].includes(Terrain.getTerrainType(x, y).feature));
   const cities = await prisma.city.findMany({ select: { id: true, x: true, y: true, name: true, playerId: true, isSieged: true, isCapital: true }, orderBy: { createdAt: 'asc' } });
   const kept = [];   // the oldest of two overlapping cities stays
   const overlaps = (c) => kept.some(o => Math.abs(o.x - c.x) <= 1 && Math.abs(o.y - c.y) <= 1);
-  const why = (c) => (!reachable(c) ? 'était coupée du reste du monde par les montagnes et l\'eau' : wet(c) ? 'avait les pieds dans l\'eau' : overlaps(c) ? 'chevauchait une autre ville' : null);
+  const why = (c) => (!reachable(c) ? 'était coupée du reste du monde par les montagnes et l\'eau' : wet(c) ? 'avait les pieds dans l\'eau' : misplaced(c) ? 'débordait de la carte ou sur un passage de rivière' : overlaps(c) ? 'chevauchait une autre ville' : null);
+  let moved = 0;
   for (const c of cities) {
     const reason = why(c);
     if (!reason) { kept.push(c); continue; }
@@ -149,17 +168,23 @@ async function rescueTrappedCities() {
       if (!cur || cur.x !== c.x || cur.y !== c.y) return null;
       const pos = await findFreeSpawn({ db: tx });
       await tx.city.update({ where: { id: c.id }, data: { x: pos.x, y: pos.y } });
-      // only the armies standing in the city follow it (a guard or a halted army elsewhere stays where it is)
-      await tx.army.updateMany({ where: { cityId: c.id, status: 'IDLE', x: c.x, y: c.y }, data: { x: pos.x, y: pos.y } });
+      // its garrison and the armies standing in it follow it (a guard or a halted army elsewhere stays where it is)
+      await tx.army.updateMany({ where: { cityId: c.id, OR: [{ isGarrison: true }, { status: 'IDLE', x: c.x, y: c.y }] }, data: { x: pos.x, y: pos.y } });
+      await gatherArmiesOnBlock(tx, pos.x, pos.y);
       if (!c.isCapital) await tx.resourceNode.updateMany({ where: { cityId: c.id }, data: { x: pos.x, y: pos.y, biome: Terrain.getBiome(pos.x, pos.y) } });   // the point under the colony
       return pos;
     }, { timeout: 20000 }).catch(e => { console.warn(`[SEED] déplacement impossible : ${c.name} : ${e.message}`); return null; });
     if (!to) { kept.push(c); continue; }
     kept.push({ ...c, x: to.x, y: to.y });
-    forgetCityCells(c.x, c.y); noteCityCells(to.x, to.y);
+    moved++;
     console.log(`[SEED] ville déplacée (${reason}) : ${c.name} (${c.x}, ${c.y}) -> (${to.x}, ${to.y})`);
     notify(c.playerId, 'city', '🧭 Ville déplacée', `La carte a changé : ${c.name} ${reason}. Elle a été rebâtie en (${to.x}, ${to.y}) avec ses armées présentes.`, { to: 'map', x: to.x, y: to.y, cityId: c.id });
   }
+  // armies standing on one of the 3 other cells of a city (placed before the 2 × 2 rule) stand on its anchor cell
+  const gathered = await prisma.$executeRaw`UPDATE "Army" a SET x = c.x, y = c.y FROM "City" c
+    WHERE a.status = 'IDLE' AND NOT a."isGarrison" AND a.x BETWEEN c.x AND c.x + 1 AND a.y BETWEEN c.y AND c.y + 1 AND NOT (a.x = c.x AND a.y = c.y)`;
+  if (gathered) console.log(`[SEED] ${gathered} armées ramenées sur la case principale de leur ville`);
+  if (moved || gathered) invalidateObjectCells();
 }
 
 module.exports = { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities };

@@ -250,7 +250,7 @@ function promptFor(file, opts = {}) {
     if (own) return own;
     const base = promptForBase(file, opts);
     if (!base) return null;
-    const kind = /^map\/cities\/siege_/.test(file) ? 'city' : /^map\/units\//.test(file) ? 'unit' : 'object';
+    const kind = /^map\/cities\//.test(file) ? 'city' : /^map\/units\//.test(file) ? 'unit' : 'object';   // toute ville : 2 × 2 cases
     const subject = base.split('\n\nSubject: ')[1] || '';
     const clean = subject.replace(/,? standing on a small (square grass plot|round patch of ground)/g, '').replace(/a world-map (resource |terrain )?icon( of| for a world map)?:? ?/g, '').replace(/a small world-map (army )?marker( of)?:? ?/g, '')
       .replace(/\btwo (an?) /g, 'a small squad of three or four marching figures, each one $1 ').replace(/ (town|city|village) icon for a world map/g, ' $1').replace(/ icon for a world map/g, '')

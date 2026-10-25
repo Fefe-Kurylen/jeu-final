@@ -12,7 +12,7 @@ const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
 const { noteCityCells } = require('../utils/pathfinding');
-const { findFreeSpawn, lockPlacement } = require('../utils/spawn');
+const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
 const path = require('path');
 const fs = require('fs');
 
@@ -73,6 +73,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
           await tx.playerStats.create({ data: { playerId: player.id } });
           const city = await tx.city.create({ data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 } });
+          await gatherArmiesOnBlock(tx, x, y);
           await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
           const hero = await tx.hero.create({ data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 } });
           await tx.army.create({ data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
@@ -80,6 +81,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
           return { account, player, city };
         }, { timeout: 20000 });
       } catch (e) {
+        if (e.status === 503) return res.status(503).json({ error: 'Carte saturée, réessayez plus tard' });   // findFreeSpawn: plus de place libre près du bord
         const target = String(e.meta?.target || '');
         if (e.code !== 'P2002') throw e;
         if (target.includes('email')) return res.status(400).json({ error: 'Email deja utilise' });

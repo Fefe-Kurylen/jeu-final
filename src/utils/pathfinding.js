@@ -22,6 +22,7 @@ async function getObjectCells() {
   return m;
 }
 function noteObjectCell(x, y, type) { objectCells.set(x + ',' + y, type); }
+function invalidateObjectCells() { objectCellsAt = 0; }   // re-read from the database at the next use
 function forgetObjectCell(x, y) { objectCells.delete(x + ',' + y); }
 // A city covers 2 × 2 cells
 function noteCityCells(x, y) { for (const [cx, cy] of Terrain.cityCells(x, y)) objectCells.set(cx + ',' + cy, 'CITY'); }
@@ -46,4 +47,4 @@ async function routeLength(fromX, fromY, toX, toY, faction = null) {
   return route.length;
 }
 
-module.exports = { getObjectCells, noteObjectCell, forgetObjectCell, noteCityCells, forgetCityCells, isBlockedTile, findRoute, routeLength, Terrain };
+module.exports = { getObjectCells, invalidateObjectCells, noteObjectCell, forgetObjectCell, noteCityCells, forgetCityCells, isBlockedTile, findRoute, routeLength, Terrain };

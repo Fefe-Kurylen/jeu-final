@@ -302,7 +302,10 @@ router.delete('/:id/disband', auth, async (req, res) => {
 // l'armée resterait « à côté de chez elle » (ni rentrée, ni défenseur, ni rencontrée en campagne)
 async function cityAnchorOf(x, y) {
   const city = await prisma.city.findFirst({ where: cityAtCellWhere(x, y), select: { x: true, y: true } });
-  return city ? { x: city.x, y: city.y } : { x, y };
+  if (city) return { x: city.x, y: city.y };
+  // a colony being founded holds its 2 × 2 block already: its node is the anchor
+  const founding = await prisma.army.findFirst({ where: { status: 'FOUNDING', targetX: { gte: x - 1, lte: x }, targetY: { gte: y - 1, lte: y } }, select: { targetX: true, targetY: true } });
+  return founding ? { x: founding.targetX, y: founding.targetY } : { x, y };
 }
 
 // POST /api/army/:id/move

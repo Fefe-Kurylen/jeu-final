@@ -10,7 +10,7 @@ const { unitsData, factionsData } = require('../config/gamedata');
 const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('../utils/calculations');
 const { plunderCity, creditCity } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
-const { findFreeSpawn, lockPlacement } = require('../utils/spawn');
+const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
 const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
 
 const F = () => config.combat.fall;
@@ -160,6 +160,7 @@ async function relocateCapital(cityId, byArmyId) {
     const pos = await findFreeSpawn({ db: tx });
     const from = { x: city.x, y: city.y };
     await tx.city.update({ where: { id: city.id }, data: { x: pos.x, y: pos.y, wallStructure: 1, wallHp: city.wallMaxHp || 0, isSieged: false } });
+    await gatherArmiesOnBlock(tx, pos.x, pos.y);
     // every army of the capital, wherever it is and whatever it does, is brought back at once to the new place; its
     // mission is cancelled and what it carries goes into the city (décision du 25 octobre 2026). An arrival being
     // resolved right now (claimed) finishes first and then walks to the new place.

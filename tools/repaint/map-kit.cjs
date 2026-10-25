@@ -31,8 +31,9 @@ const SECTIONS = [
   { key: 'resources', title: 'Points de ressource', test: f => /^map\/resources\//.test(f), intro: 'Le point de ressource libre (sans tribu), par ressource et par biome.' },
   { key: 'camps', title: 'Camps des tribus, fondation, bannières', test: f => /^map\/camps\//.test(f), intro: 'Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d\'une ville, bannière de chaque civilisation posée sur le camp.' },
   { key: 'units', title: 'Armées en marche', test: f => /^map\/units\//.test(f) && !/_(walk|attack|hit)_\d+\.webp$/.test(f), intro: 'L\'armée sur la carte, par classe et par civilisation, le héros en tête, l\'espion, le cortège de colons.' },
-  { key: 'unitanim', title: 'Animations des armées', test: f => /^map\/units\/.*_(walk|attack|hit)_\d+\.webp$/.test(f), intro: 'Cycles de marche (6 images) et images du replay de bataille (attaque, touché). Même cadrage que l\'armée immobile.' },
-  { key: 'fx', title: 'Effets de la carte', test: f => /^map\/fx\//.test(f), intro: 'Combat en cours, ville en feu, feu de camp, pluie, neige : par images qui bouclent.' }
+  { key: 'fx', title: 'Effets de la carte', test: f => /^map\/fx\/fire_/.test(f), intro: 'Ville en feu (ville très endommagée), par images qui bouclent.' },
+  { key: 'unitanim', title: 'Plus tard : animations des armées (pas encore affichées dans le jeu)', test: f => /^map\/units\/.*_(walk|attack|hit)_\d+\.webp$/.test(f), intro: 'Cycles de marche (6 images) et images du replay de bataille (attaque, touché), même cadrage que l\'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.' },
+  { key: 'fxlater', title: 'Plus tard : autres effets de la carte (pas encore affichés dans le jeu)', test: f => /^map\/fx\//.test(f), intro: 'Combat en cours, feu de camp, pluie, neige. Le jeu ne les affiche pas encore : à produire en dernier.' }
 ];
 
 const GUIDE_OF = (t) => {

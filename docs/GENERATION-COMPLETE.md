@@ -1542,7 +1542,7 @@ Début du prompt, commun à la famille :
 
 ```
 Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 isometric tiles: a 2:1 diamond 90% of the image width, centered horizontally, its center at 68% of the image height; walls follow the edges of that diamond, buildings rise inside, the tallest roofs may reach the top quarter of the image. NO ground plate under the town: outside the walls the image is transparent, except a few fields, paths or trees touching the walls and the soft shadow toward the lower right. The second image is a layout guide that shows this 2 x 2 diamond in red: use it only to place the town, do not draw the red diamond, the marks or the grey background.
 ```
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
@@ -1561,12 +1561,12 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 | `map/cities/hun.png` | 1024×1024 | — | a small walled village in Hunnic style: felt yurts and timber longhouses inside a log stockade, horse pens, red and black banners with horse-tail standards; a low wall or palisade around a dozen houses, a main hall in the middle, two banners |
 | `map/cities/rome.png` | 1024×1024 | — | a small walled village in Roman style: terracotta tile roofs, white plaster and stone, red banners with a golden eagle; a low wall or palisade around a dozen houses, a main hall in the middle, two banners |
 | `map/cities/sultan.png` | 1024×1024 | — | a small walled village in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a low wall or palisade around a dozen houses, a main hall in the middle, two banners |
-| `map/cities/rome_t2.png` | 1024×1024 | rendu 3D `map/cities/rome.png` | a walled town in Roman style: terracotta tile roofs, white plaster and stone, red banners with a golden eagle; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
-| `map/cities/gaul_t2.png` | 1024×1024 | rendu 3D `map/cities/gaul.png` | a walled town in Gallic style: round timber and wattle houses with thick thatched roofs, a wooden palisade, green and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
-| `map/cities/greek_t2.png` | 1024×1024 | rendu 3D `map/cities/greek.png` | a walled town in Greek style: a white marble temple with columns, blue-grey roofs, blue and white banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
-| `map/cities/egypt_t2.png` | 1024×1024 | rendu 3D `map/cities/egypt.png` | a walled town in Egyptian style: sandstone and mudbrick buildings with flat roofs, an obelisk and a small pylon gate, blue and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
-| `map/cities/hun_t2.png` | 1024×1024 | rendu 3D `map/cities/hun.png` | a walled town in Hunnic style: felt yurts and timber longhouses inside a log stockade, horse pens, red and black banners with horse-tail standards; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
-| `map/cities/sultan_t2.png` | 1024×1024 | rendu 3D `map/cities/sultan.png` | a walled town in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/rome_t2.png` | 1024×1024 | — | a walled town in Roman style: terracotta tile roofs, white plaster and stone, red banners with a golden eagle; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/gaul_t2.png` | 1024×1024 | — | a walled town in Gallic style: round timber and wattle houses with thick thatched roofs, a wooden palisade, green and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/greek_t2.png` | 1024×1024 | — | a walled town in Greek style: a white marble temple with columns, blue-grey roofs, blue and white banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/egypt_t2.png` | 1024×1024 | — | a walled town in Egyptian style: sandstone and mudbrick buildings with flat roofs, an obelisk and a small pylon gate, blue and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/hun_t2.png` | 1024×1024 | — | a walled town in Hunnic style: felt yurts and timber longhouses inside a log stockade, horse pens, red and black banners with horse-tail standards; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
+| `map/cities/sultan_t2.png` | 1024×1024 | — | a walled town in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a stone wall with a gate and two towers around about twenty houses and a larger central building, banners |
 
 #### Villes secondaires (colonies) par civilisation, normale et fortifiée — 12 images
 
@@ -1607,21 +1607,21 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `map/resources/food.png` | 1024×1024 | rendu 3D `map/resources/food.png` | a fenced wheat field |
-| `map/resources/food_desert.png` | 1024×1024 | rendu 3D `map/resources/food_desert.png` | a fenced wheat field, desert variant with sand and a palm tree |
-| `map/resources/food_snow.png` | 1024×1024 | rendu 3D `map/resources/food_snow.png` | a fenced wheat field, snowy variant covered with snow |
-| `map/resources/gold.png` | 1024×1024 | rendu 3D `map/resources/gold.png` | rocks with glittering gold nuggets |
-| `map/resources/gold_desert.png` | 1024×1024 | rendu 3D `map/resources/gold_desert.png` | rocks with glittering gold nuggets, desert variant with sand and a palm tree |
-| `map/resources/gold_snow.png` | 1024×1024 | rendu 3D `map/resources/gold_snow.png` | rocks with glittering gold nuggets, snowy variant covered with snow |
-| `map/resources/iron.png` | 1024×1024 | rendu 3D `map/resources/iron.png` | an iron mine entrance in a rock wall with a mine cart |
-| `map/resources/iron_desert.png` | 1024×1024 | rendu 3D `map/resources/iron_desert.png` | an iron mine entrance in a rock wall with a mine cart, desert variant with sand and a palm tree |
-| `map/resources/iron_snow.png` | 1024×1024 | rendu 3D `map/resources/iron_snow.png` | an iron mine entrance in a rock wall with a mine cart, snowy variant covered with snow |
-| `map/resources/stone.png` | 1024×1024 | rendu 3D `map/resources/stone.png` | a group of grey boulders |
-| `map/resources/stone_desert.png` | 1024×1024 | rendu 3D `map/resources/stone_desert.png` | a group of grey boulders, desert variant with sand and a palm tree |
-| `map/resources/stone_snow.png` | 1024×1024 | rendu 3D `map/resources/stone_snow.png` | a group of grey boulders, snowy variant covered with snow |
-| `map/resources/wood.png` | 1024×1024 | rendu 3D `map/resources/wood.png` | a forest clearing with trees and a cut log |
-| `map/resources/wood_desert.png` | 1024×1024 | rendu 3D `map/resources/wood_desert.png` | a forest clearing with trees and a cut log, desert variant with sand and a palm tree |
-| `map/resources/wood_snow.png` | 1024×1024 | rendu 3D `map/resources/wood_snow.png` | a forest clearing with trees and a cut log, snowy variant covered with snow |
+| `map/resources/food.png` | 1024×1024 | — | a fenced wheat field |
+| `map/resources/food_desert.png` | 1024×1024 | — | a fenced wheat field, desert variant with sand and a palm tree |
+| `map/resources/food_snow.png` | 1024×1024 | — | a fenced wheat field, snowy variant covered with snow |
+| `map/resources/gold.png` | 1024×1024 | — | rocks with glittering gold nuggets |
+| `map/resources/gold_desert.png` | 1024×1024 | — | rocks with glittering gold nuggets, desert variant with sand and a palm tree |
+| `map/resources/gold_snow.png` | 1024×1024 | — | rocks with glittering gold nuggets, snowy variant covered with snow |
+| `map/resources/iron.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart |
+| `map/resources/iron_desert.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart, desert variant with sand and a palm tree |
+| `map/resources/iron_snow.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart, snowy variant covered with snow |
+| `map/resources/stone.png` | 1024×1024 | — | a group of grey boulders |
+| `map/resources/stone_desert.png` | 1024×1024 | — | a group of grey boulders, desert variant with sand and a palm tree |
+| `map/resources/stone_snow.png` | 1024×1024 | — | a group of grey boulders, snowy variant covered with snow |
+| `map/resources/wood.png` | 1024×1024 | — | a forest clearing with trees and a cut log |
+| `map/resources/wood_desert.png` | 1024×1024 | — | a forest clearing with trees and a cut log, desert variant with sand and a palm tree |
+| `map/resources/wood_snow.png` | 1024×1024 | — | a forest clearing with trees and a cut log, snowy variant covered with snow |
 
 #### Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) — 20 images
 
@@ -1880,35 +1880,35 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `map/units/archer.png` | 1024×1024 | rendu 3D `map/units/archer.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, Roman style, marching toward the lower right |
-| `map/units/archer_EGYPT.png` | 1024×1024 | rendu 3D `map/units/archer_EGYPT.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
-| `map/units/archer_GAUL.png` | 1024×1024 | rendu 3D `map/units/archer_GAUL.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
-| `map/units/archer_GREEK.png` | 1024×1024 | rendu 3D `map/units/archer_GREEK.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
-| `map/units/archer_HUN.png` | 1024×1024 | rendu 3D `map/units/archer_HUN.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
-| `map/units/archer_ROME.png` | 1024×1024 | rendu 3D `map/units/archer_ROME.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
-| `map/units/archer_SULTAN.png` | 1024×1024 | rendu 3D `map/units/archer_SULTAN.png` | a small squad of three or four marching figures, each one an archer with a bow and a quiver, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
-| `map/units/catapult.png` | 1024×1024 | rendu 3D `map/units/catapult.png` | a siege engineer standing next to a catapult, Roman style, marching toward the lower right |
-| `map/units/catapult_EGYPT.png` | 1024×1024 | rendu 3D `map/units/catapult_EGYPT.png` | a siege engineer standing next to a catapult, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
-| `map/units/catapult_GAUL.png` | 1024×1024 | rendu 3D `map/units/catapult_GAUL.png` | a siege engineer standing next to a catapult, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
-| `map/units/catapult_GREEK.png` | 1024×1024 | rendu 3D `map/units/catapult_GREEK.png` | a siege engineer standing next to a catapult, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
-| `map/units/catapult_HUN.png` | 1024×1024 | rendu 3D `map/units/catapult_HUN.png` | a siege engineer standing next to a catapult, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
-| `map/units/catapult_ROME.png` | 1024×1024 | rendu 3D `map/units/catapult_ROME.png` | a siege engineer standing next to a catapult, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
-| `map/units/catapult_SULTAN.png` | 1024×1024 | rendu 3D `map/units/catapult_SULTAN.png` | a siege engineer standing next to a catapult, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
-| `map/units/cavalry.png` | 1024×1024 | rendu 3D `map/units/cavalry.png` | a cavalryman riding a horse with a lance, Roman style, marching toward the lower right |
-| `map/units/cavalry_EGYPT.png` | 1024×1024 | rendu 3D `map/units/cavalry_EGYPT.png` | a cavalryman riding a horse with a lance, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
-| `map/units/cavalry_GAUL.png` | 1024×1024 | rendu 3D `map/units/cavalry_GAUL.png` | a cavalryman riding a horse with a lance, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
-| `map/units/cavalry_GREEK.png` | 1024×1024 | rendu 3D `map/units/cavalry_GREEK.png` | a cavalryman riding a horse with a lance, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
-| `map/units/cavalry_HUN.png` | 1024×1024 | rendu 3D `map/units/cavalry_HUN.png` | a cavalryman riding a horse with a lance, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
-| `map/units/cavalry_ROME.png` | 1024×1024 | rendu 3D `map/units/cavalry_ROME.png` | a cavalryman riding a horse with a lance, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
-| `map/units/cavalry_SULTAN.png` | 1024×1024 | rendu 3D `map/units/cavalry_SULTAN.png` | a cavalryman riding a horse with a lance, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
-| `map/units/hoplite.png` | 1024×1024 | rendu 3D `map/units/hoplite.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, Roman style, marching toward the lower right |
-| `map/units/hoplite_EGYPT.png` | 1024×1024 | rendu 3D `map/units/hoplite_EGYPT.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
-| `map/units/hoplite_GAUL.png` | 1024×1024 | rendu 3D `map/units/hoplite_GAUL.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
-| `map/units/hoplite_GREEK.png` | 1024×1024 | rendu 3D `map/units/hoplite_GREEK.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
-| `map/units/hoplite_HUN.png` | 1024×1024 | rendu 3D `map/units/hoplite_HUN.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
-| `map/units/hoplite_ROME.png` | 1024×1024 | rendu 3D `map/units/hoplite_ROME.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
-| `map/units/hoplite_SULTAN.png` | 1024×1024 | rendu 3D `map/units/hoplite_SULTAN.png` | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
-| `map/units/merchant.png` | 1024×1024 | rendu 3D `map/units/merchant.png` | a merchant: a wooden cart loaded with crates pulled by a horse, marching toward the lower right |
+| `map/units/archer.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, Roman style, marching toward the lower right |
+| `map/units/archer_EGYPT.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
+| `map/units/archer_GAUL.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
+| `map/units/archer_GREEK.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
+| `map/units/archer_HUN.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
+| `map/units/archer_ROME.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
+| `map/units/archer_SULTAN.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an archer with a bow and a quiver, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
+| `map/units/catapult.png` | 1024×1024 | — | a siege engineer standing next to a catapult, Roman style, marching toward the lower right |
+| `map/units/catapult_EGYPT.png` | 1024×1024 | — | a siege engineer standing next to a catapult, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
+| `map/units/catapult_GAUL.png` | 1024×1024 | — | a siege engineer standing next to a catapult, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
+| `map/units/catapult_GREEK.png` | 1024×1024 | — | a siege engineer standing next to a catapult, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
+| `map/units/catapult_HUN.png` | 1024×1024 | — | a siege engineer standing next to a catapult, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
+| `map/units/catapult_ROME.png` | 1024×1024 | — | a siege engineer standing next to a catapult, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
+| `map/units/catapult_SULTAN.png` | 1024×1024 | — | a siege engineer standing next to a catapult, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
+| `map/units/cavalry.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, Roman style, marching toward the lower right |
+| `map/units/cavalry_EGYPT.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
+| `map/units/cavalry_GAUL.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
+| `map/units/cavalry_GREEK.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
+| `map/units/cavalry_HUN.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
+| `map/units/cavalry_ROME.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
+| `map/units/cavalry_SULTAN.png` | 1024×1024 | — | a cavalryman riding a horse with a lance, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
+| `map/units/hoplite.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, Roman style, marching toward the lower right |
+| `map/units/hoplite_EGYPT.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, egypt faction with striped nemes headdress with a gold band and faction colors, marching toward the lower right |
+| `map/units/hoplite_GAUL.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, gaul faction with horned helmet and long hair and faction colors, marching toward the lower right |
+| `map/units/hoplite_GREEK.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, greek faction with golden Corinthian helmet with a blue crest and faction colors, marching toward the lower right |
+| `map/units/hoplite_HUN.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, hun faction with fur-trimmed pointed felt cap and faction colors, marching toward the lower right |
+| `map/units/hoplite_ROME.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, rome faction with Roman legionary helmet with a red crest and faction colors, marching toward the lower right |
+| `map/units/hoplite_SULTAN.png` | 1024×1024 | — | a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, sultan faction with white turban with a gem and faction colors, marching toward the lower right |
+| `map/units/merchant.png` | 1024×1024 | — | a merchant: a wooden cart loaded with crates pulled by a horse, marching toward the lower right |
 
 #### Cortège de colons (+ 6 civilisations) — 7 images
 
