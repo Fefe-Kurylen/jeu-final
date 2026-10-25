@@ -441,7 +441,12 @@ sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}
 await waitTick('transport delivered', () => !['TRANSPORTING', 'MOVING'].includes(sql(`SELECT status FROM "Army" WHERE id='${armyId}'`)));
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}' AND status<>'IDLE'`);
 await waitTick('army home after transport', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
-await call('armies/send (generic mission)', 'POST', '/api/armies/send', tA, { armyId, targetX: cityA.x + 1, targetY: cityA.y, mission: 'MOVE' });
+// a city covers 2 × 2 cells: a move onto any of them is a move to the city itself (here: already there)
+await call('move onto another cell of its own 2 × 2 city -> already there', 'POST', '/api/armies/send', tA, { armyId, targetX: cityA.x + 1, targetY: cityA.y + 1, mission: 'MOVE' }, 400);
+// the walkable ring just outside the city block
+const besideA = [[2, 0], [2, 1], [0, 2], [1, 2], [-1, 0], [-1, 1], [0, -1], [1, -1], [2, 2], [-1, -1], [3, 0], [0, 3]].map(([dx, dy]) => ({ x: cityA.x + dx, y: cityA.y + dy }))
+  .find(({ x, y }) => Terrain.inWorld(x, y) && !Terrain.WATER[Terrain.getTerrainType(x, y).feature] && sql(`SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 1} AND ${x} AND y BETWEEN ${y - 1} AND ${y}`) === '0');
+await call('armies/send (generic mission)', 'POST', '/api/armies/send', tA, { armyId, targetX: besideA.x, targetY: besideA.y, mission: 'MOVE' });
 await call('army disband while moving -> 400', 'DELETE', `/api/army/${armyId}/disband`, tA, null, 400);
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 await waitTick('army arrived (send)', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) !== 'MOVING');
