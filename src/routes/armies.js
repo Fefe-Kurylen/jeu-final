@@ -12,6 +12,7 @@ const T = require('../utils/techEffects');
 const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
+const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile, getObjectCells } = require('../utils/pathfinding');
@@ -31,8 +32,8 @@ const loadArmy = (id, playerId, include = {}, db = prisma) =>
   db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, hero: { include: { items: true } }, ...include } });
 
 // Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
-const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY), speedTechPct(army));
-const spyTravelTo = async (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData, await routeLength(army.x, army.y, toX, toY), speedTechPct(army));
+const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY, army.owner?.faction), speedTechPct(army));
+const spyTravelTo = async (army, toX, toY) => calculateTravelTime(army.x, army.y, toX, toY, SPY_SPEED, army.owner?.faction, factionsData, await routeLength(army.x, army.y, toX, toY, army.owner?.faction), speedTechPct(army));
 const noRoute = (res, e) => (e && e.code === 'NO_ROUTE' ? res.status(400).json({ error: e.message }) : null);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
 
@@ -81,7 +82,7 @@ async function checkHostileTarget(army, targetCity, mission, db = prisma) {
 // the army's city that set-unit / adjust-unit / disband also take: units cannot be stripped between the check and the
 // departure. Returns { travelTime, arrivalAt } or { error, status }.
 async function launchCityMission(army, targetCity, mission, verb) {
-  const len = await routeLength(army.x, army.y, targetCity.x, targetCity.y);   // A* outside the transaction (throws NO_ROUTE)
+  const len = await routeLength(army.x, army.y, targetCity.x, targetCity.y, army.owner?.faction);   // A* outside the transaction (throws NO_ROUTE)
   const launched = await prisma.$transaction(async (tx) => {
     if (army.cityId) await lockCity(tx, army.cityId);
     const fresh = await loadArmy(army.id, army.ownerId, {}, tx);
@@ -451,6 +452,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
       if (node.resourceType === 'GOLD') return { error: 'Impossible de fonder une ville sur un gisement d\'or', status: 400 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente : chassez-la d\'abord', status: 400 };
       if (node.hasPlayerArmy) return { error: 'Une armée occupe ce point', status: 409 };
+      if (!(await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }))) return { error: 'Pas assez de place : une ville occupe 2 × 2 cases, les trois cases à côté du point doivent être libres (ni ville, ni point, ni relief, ni eau)', status: 400 };
       const cost = config.city.foundationTransport;
       if (!(await debitCity(tx, capital.id, cost))) return { error: `Il faut ${cost.wood} de chaque ressource dans la capitale pour fonder une ville`, status: 400, cost };
       await tx.city.update({ where: { id: capital.id }, data: { settlers: { decrement: 1 } } });
@@ -553,7 +555,7 @@ router.post('/:id/return', auth, async (req, res) => {
         if (others === 0) await tx.resourceNode.updateMany({ where: { id: army.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
       }
 
-      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y).catch(() => null), speedTechPct(army));
+      const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y, army.owner.faction).catch(() => null), speedTechPct(army));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: {
         status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
@@ -622,7 +624,7 @@ router.post('/send', auth, async (req, res) => {
     if (err) return res.status(err.status).json({ error: err.error });
     { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
     if (mission === 'ATTACK' || mission === 'RAID' || mission === 'SPY') {
-      const targetCity = await prisma.city.findFirst({ where: { x: parsedX, y: parsedY }, include: { buildings: true } });
+      const targetCity = await prisma.city.findFirst({ where: cityAtCellWhere(parsedX, parsedY), include: { buildings: true } });   // any of its 2 × 2 cells
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
       const launched = await launchCityMission(army, targetCity, mission, 'partir');
       if (launched.error) return res.status(launched.status).json({ error: launched.error });

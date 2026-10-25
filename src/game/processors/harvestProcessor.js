@@ -32,7 +32,7 @@ async function leaveNode(army, node) {
   }
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
-    const route = await findRoute(army.x, army.y, army.city.x, army.city.y).catch(() => null);
+    const route = await findRoute(army.x, army.y, army.city.x, army.city.y, army.owner?.faction).catch(() => null);
     const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'));
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
   } else {

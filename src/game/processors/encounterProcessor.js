@@ -119,8 +119,12 @@ async function processEncounters(now) {
     for (const t of instants) list.push(await positionAt(a, t, budget));
     pos.set(a.id, list);
   }
-  const cities = await prisma.city.findMany({ where: { OR: [...new Set([...involved.values()].flatMap(a => [`${a.x},${a.y}`, isMarching(a) ? `${a.targetX},${a.targetY}` : null]).filter(Boolean))].map(k => { const [x, y] = k.split(',').map(Number); return { x, y }; }) }, select: { id: true, x: true, y: true, playerId: true, name: true } });
-  const cityAtTile = new Map(cities.map(c => [`${c.x},${c.y}`, c]));
+  // the cities around the armies involved, each on its 2 × 2 cells
+  const xs = [...involved.values()].flatMap(a => [a.x, isMarching(a) ? a.targetX : a.x]), ys = [...involved.values()].flatMap(a => [a.y, isMarching(a) ? a.targetY : a.y]);
+  const cities = await prisma.city.findMany({ where: { x: { gte: Math.min(...xs) - 2, lte: Math.max(...xs) + 1 }, y: { gte: Math.min(...ys) - 2, lte: Math.max(...ys) + 1 } }, select: { id: true, x: true, y: true, playerId: true, name: true } });
+  const { cityCells } = require('../../utils/pathfinding').Terrain;
+  const cityAtTile = new Map();
+  for (const c of cities) for (const [cx, cy] of cityCells(c.x, c.y)) cityAtTile.set(`${cx},${cy}`, c);
 
   // the first instant each enemy pair is on the same tile (or crosses between two instants)
   const R2 = E().meetDistance ** 2;

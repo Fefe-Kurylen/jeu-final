@@ -55,7 +55,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     if (![wood, stone, iron, food].every(isAmount)) return res.status(400).json({ error: 'Montants invalides' });
     if (wood + stone + iron + food <= 0) return res.status(400).json({ error: 'Entrez des ressources a envoyer' });
     if (Number.isNaN(targetX) || Number.isNaN(targetY)) return res.status(400).json({ error: 'Coordonnées invalides' });
-    const targetCity = await prisma.city.findFirst({ where: { x: targetX, y: targetY } });
+    const targetCity = await prisma.city.findFirst({ where: require('../utils/spawn').cityAtCellWhere(targetX, targetY) });   // any of its 2 × 2 cells
     if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
     if (targetCity.id === fromCityId) return res.status(400).json({ error: 'Choisissez une autre ville' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
@@ -76,7 +76,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y), T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct'));
+      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction), T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct'));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
       if (!ok) throw new Error('army busy');

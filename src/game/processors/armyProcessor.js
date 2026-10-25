@@ -20,7 +20,8 @@ const { raidCooldownWhere } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
-const { findRoute, noteObjectCell, isBlockedTile } = require('../../utils/pathfinding');
+const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
+const { footprintFree, cityAtCellWhere } = require('../../utils/spawn');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
 const TX = { timeout: 15000 };
@@ -103,7 +104,7 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
     return;
   }
   const faction = army.owner?.faction;
-  const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y).catch(() => null);
+  const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y, army.owner?.faction).catch(() => null);
   const distance = route ? route.length : null;
   const travelTime = fixedSpeed
     ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'))
@@ -211,10 +212,11 @@ function forcedCamps(army, camp) {
 }
 
 // Free tile next to the city where an army beaten before its besieged walls waits (it keeps its carry)
+// (the ring around the city's 2 × 2 block)
 async function haltTile(city) {
-  const spot = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: city.x + dx, y: city.y + dy }));
+  const spot = [[2, 0], [0, 2], [-1, 0], [0, -1], [2, 1], [1, 2], [-1, 1], [1, -1], [2, 2], [-1, 2], [2, -1], [-1, -1]].map(([dx, dy]) => ({ x: city.x + dx, y: city.y + dy }));
   try {
-    for (const p of spot) if (!(await isBlockedTile(p.x, p.y)) && !(await prisma.city.findUnique({ where: { x_y: p }, select: { id: true } }))) return p;
+    for (const p of spot) if (!(await isBlockedTile(p.x, p.y)) && !(await prisma.city.findFirst({ where: cityAtCellWhere(p.x, p.y), select: { id: true } }))) return p;
   } catch (e) { console.error('[SIEGE] halt tile', e.message); }
   return spot[0];
 }
@@ -227,7 +229,8 @@ function notifyHalted(army, city, pos, reportId = null) {
 // ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------
 async function handleFoundArrival(army, now) {
   const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
-  const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0;
+  // the city will cover the node and the three cells next to it (2 × 2): they must be free
+  const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0 && (await footprintFree(node.x, node.y, { ignoreNodeId: node.id }));
   if (!free) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
     notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
@@ -245,6 +248,7 @@ async function handleFoundComplete(army, now) {
     const node = army.targetResourceId ? await tx.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
     const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { owner: true } });
     if (!node || node.cityId || !fresh || (fresh.settlers || 0) < 1) return null;
+    if (!(await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }))) return null;   // a city rose next to it meanwhile
     const colonies = await tx.city.count({ where: { playerId: army.ownerId, isCapital: false } });
     const name = (fresh.harvestResourceType || '').trim() || `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`;
     const city = await tx.city.create({ data: {
@@ -262,7 +266,7 @@ async function handleFoundComplete(army, now) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
     return;
   }
-  noteObjectCell(created.x, created.y, 'CITY');
+  noteCityCells(created.x, created.y);
   try { await updatePlayerPopulation(prisma, army.ownerId); } catch (e) { /* population is recomputed by the tick */ }
   notify(army.ownerId, 'build_done', '🏛️ Ville fondée', `${created.name} est fondée en (${created.x}, ${created.y}). ${army.name} rentre à la capitale.`, { to: 'city', cityId: created.id, x: created.x, y: created.y });
   console.log(`[FOUND] ${created.name} (${created.x}, ${created.y})`);

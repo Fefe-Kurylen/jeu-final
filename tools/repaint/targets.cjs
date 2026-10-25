@@ -15,9 +15,9 @@ const { TEXTURE, DECAL, EDGE, ICON_DESC, BUILDING, PROP, MAP, RES, TERRAIN, CLAS
 const CIVS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const CIV_FR = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
 // Taille en pixels des fichiers finaux par famille (rendus 3D : cadre logique × 2)
-const FRAMES = { building: [260, 360], plot: [260, 360], field: [260, 360], prop: [128, 192], map: [512, 512], figure: [256, 384], bust: [128, 128], icon: [128, 128], stage: [512, 768], header: [480, 240], battlefield: [1280, 480], sceneP: [1080, 1920], sceneL: [1920, 1080], button: [320, 112], frame: [384, 384], plate: [320, 192], puff: [128, 128], fx: [256, 256], texture: [1024, 1024], edge: [1024, 256], decal: [1024, 1024], store: null };
+const FRAMES = { mapobject: [512, 512], mapcity: [768, 768], building: [260, 360], plot: [260, 360], field: [260, 360], prop: [128, 192], map: [512, 512], figure: [256, 384], bust: [128, 128], icon: [128, 128], stage: [512, 768], header: [480, 240], battlefield: [1280, 480], sceneP: [1080, 1920], sceneL: [1920, 1080], button: [320, 112], frame: [384, 384], plate: [320, 192], puff: [128, 128], fx: [256, 256], texture: [1024, 1024], edge: [1024, 256], decal: [1024, 1024], store: null };
 // Taille de livraison attendue (ce que le graphiste produit) par famille
-const DELIVERY = { building: '1024x1024', plot: '1024x1024', field: '1024x1024', prop: '512x768', map: '1024x1024', figure: '1024x1536', bust: '1024x1024', icon: '1024x1024', stage: '1024x1536', header: '1536x1024', battlefield: '1536x1024', sceneP: '1024x1536', sceneL: '1536x1024', button: '1024x1024', frame: '1024x1024', plate: '1024x1024', puff: '1024x1024', fx: '512x512', texture: '1024x1024', edge: '1024x256', decal: '1024x1024' };
+const DELIVERY = { mapobject: '1024x1024', mapcity: '1024x1024', building: '1024x1024', plot: '1024x1024', field: '1024x1024', prop: '512x768', map: '1024x1024', figure: '1024x1536', bust: '1024x1024', icon: '1024x1024', stage: '1024x1536', header: '1536x1024', battlefield: '1536x1024', sceneP: '1024x1536', sceneL: '1536x1024', button: '1024x1024', frame: '1024x1024', plate: '1024x1024', puff: '1024x1024', fx: '512x512', texture: '1024x1024', edge: '1024x256', decal: '1024x1024' };
 
 let buildingsData = null;
 try { buildingsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'buildings.json'), 'utf8')).buildings; } catch (e) { buildingsData = []; }
@@ -134,10 +134,10 @@ for (const c of CIVS) add(`map/units/settler_${c}.webp`, 'map', `Carte du monde 
 anim('map/units/settler_walk', 6, 'map', 'Cycle de marche sur la carte : cortège de colons');
 for (const b of ['', '_desert', '_snow']) add(`map/camps/foundation${b}.webp`, 'map', `Carte du monde : campement de fondation${b ? ` (${b.slice(1)})` : ''} pendant les 24 h de fondation d'une ville (remplace l'icône du point)`);
 // Ville à l'état normal, palier 2 « Ville » (Bâtiment principal ≥ 10) : entre le village (sprite <civ>) et la forteresse (capital_<civ>)
-for (const c of CIVS) add(`map/cities/${c.toLowerCase()}_t2.webp`, 'map', `Carte du monde : ville de ${CIV_FR[c]} au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal`, { guide: true, guideFile: `map/cities/${c.toLowerCase()}.webp` });
-for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}.webp`, 'map', `Carte du monde : ville secondaire (colonie) de ${CIV_FR[c]}, plus petite que la ville de départ`);
+for (const c of CIVS) add(`map/cities/${c.toLowerCase()}_t2.webp`, 'mapcity', `Carte du monde : ville de ${CIV_FR[c]} au palier « Ville » (Bâtiment principal 10 à 19), plus grande que le village, avec un premier mur bas ; état normal`, { guide: true, guideFile: `map/cities/${c.toLowerCase()}.webp` });
+for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}.webp`, 'mapcity', `Carte du monde : ville secondaire (colonie) de ${CIV_FR[c]}, plus petite que la ville de départ`);
 // Villes secondaires : deux paliers, normal (colony_<civ>, Bâtiment principal < 20) et fortifié (Bâtiment principal ≥ 20)
-for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}_fortified.webp`, 'map', `Carte du monde : ville secondaire fortifiée de ${CIV_FR[c]} (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée`);
+for (const c of CIVS) add(`map/cities/colony_${c.toLowerCase()}_fortified.webp`, 'mapcity', `Carte du monde : ville secondaire fortifiée de ${CIV_FR[c]} (Bâtiment principal 20 et plus), état normal, plus modeste que la capitale fortifiée`);
 for (const c of CIVS) add(`busts/SETTLER_${c}.webp`, 'bust', `Portrait du colon de ${CIV_FR[c]} (onglet Colons de la Résidence, modale de fondation, carte d'armée)`);
 add('scenes/vignette-founding.webp', 'header', 'Vignette « fondation d\'une ville » (onglet Colons, modale de fondation)');
 // Tribus des points de ressource : chefs (rapports, bulle), vignettes des rapports, icône
@@ -185,13 +185,17 @@ const SIEGE_TIER_FR = { 1: 'village', 2: 'ville', 3: 'ville fortifiée' };
 // Villes secondaires assiégées : deux paliers (normal, fortifié), bandes à part pour garder la silhouette de la colonie
 for (const c of CIVS) for (const t of ['normal', 'fortified']) for (let i = 0; i < 4; i++) {
   const base = `map/cities/siege_colony_${c}_${t}`;
-  add(`${base}_${i}.webp`, 'map', `Carte du monde : ville secondaire ${t === 'fortified' ? 'fortifiée' : ''} de ${CIV_FR[c]} assiégée, même cadrage que son sprite normal — phase ${i + 1}/4`.replace('  ', ' '), { anim: { base, n: 4, i } });
+  add(`${base}_${i}.webp`, 'mapcity', `Carte du monde : ville secondaire ${t === 'fortified' ? 'fortifiée' : ''} de ${CIV_FR[c]} assiégée, même cadrage que son sprite normal — phase ${i + 1}/4`.replace('  ', ' '), { anim: { base, n: 4, i } });
 }
 for (const c of CIVS) for (const t of [1, 2, 3]) for (let i = 0; i < 4; i++) {
   const base = `map/cities/siege_${c}_t${t}`;
-  add(`${base}_${i}.webp`, 'map', `Carte du monde : ${SIEGE_TIER_FR[t]} de ${CIV_FR[c]} assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège — phase ${i + 1}/4`,
-    { anim: { base, n: 4, i }, guide: true, guideFile: `map/cities/${t === 3 ? 'capital_' : ''}${c.toLowerCase()}${t === 2 ? '_t2' : ''}.webp` });
+  add(`${base}_${i}.webp`, 'mapcity', `Carte du monde : ${SIEGE_TIER_FR[t]} de ${CIV_FR[c]} assiégée (engins et palissade autour, feux sur les remparts, fumée, projectiles), même cadrage que le sprite de ville qu'elle remplace pendant le siège — phase ${i + 1}/4`,
+    { anim: { base, n: 4, i } });   // cadrage 2 × 2 de la carte de référence (plus de guide 3D d'une case)
 }
+// Carte du monde au style de la carte de référence (tools/repaint/map-world.cjs, docs/PROMPTS-CARTE.md) : sol en tuiles
+// jointives, éléments posés sans socle
+const MW = require('./map-world.cjs');
+for (const t of MW.targets()) if (t.kind !== 'city') EXTRAS.push({ file: t.file, cat: 'map', frame: t.frame, fit: t.kind === 'ground' ? 'flat' : 'direct', ...(t.kind === 'ground' ? { opaque: true } : {}), role: t.role });
 add('ui/icons/siege.webp', 'icons', 'Icône « siège » (bélier ou tour de siège) : alerte de siège, carte d\'armée en siège, bouton « Briser le siège »');
 anim('map/fx/battle', 4, 'fx', 'Carte : combat en cours'); anim('map/fx/fire', 4, 'fx', 'Carte : ville en feu'); anim('map/fx/campfire', 4, 'fx', 'Carte : feu de camp des tribus');
 anim('ui/fx_sparkle', 6, 'fx', 'Interface : construction terminée'); anim('ui/fx_levelup', 6, 'fx', 'Interface : niveau supérieur'); anim('ui/fx_coins', 4, 'fx', 'Interface : butin reçu');
@@ -214,6 +218,8 @@ function buildAllTargets() {
     if (c === 'flags' || c === 'effects' || c === 'logo') continue;   // animés en 3D, emblème : conservés
     if ((c === 'buildings' || c === 'walls') && /_snow\.webp$/.test(f)) continue;   // variantes neige retirées de la liste (octobre 2026) : le rendu 3D enneigé reste
     if (!prompts.promptFor(f)) continue;
+    if (require('./map-world.cjs').SUPERSEDED.test(f)) continue;   // relief d'une case sur sa dalle : remplacé par la carte de référence
+    if (/^map\/cities\//.test(f)) { out.push({ cat: c, file: f, frame: 'mapcity', fit: 'direct', role: describe(f) }); continue; }   // ville sur 2 × 2 cases
     out.push({ cat: c, file: f, frame: frameOfFile(f), fit: 'canvas', guide: true, role: describe(f) });
   }
   for (const n of Object.keys(TEXTURE)) out.push({ cat: 'terrain', file: `terrain/${n}.webp`, frame: 'texture', fit: 'flat', opaque: true, role: describe(`terrain/${n}.webp`) });

@@ -556,13 +556,11 @@ Subject: a military barracks with a training yard, weapon racks and a banner. Ga
 
 Chaîne de montagnes (variante _xy) :
 ```
-Hand-painted isometric game asset in exactly the art style of the first reference image (an Egyptian market stall): clean dark-brown ink outlines, flat painted textures with soft shading and subtle gradients, warm earthy palette with a few saturated accents, small lively details, 2:1 isometric projection viewed from the front at 30 degrees of elevation, light coming from the upper left. No text, no letters, no watermark, no ground tile under the subject. The image must have a fully transparent background (alpha channel): absolutely nothing painted around the subject, no backdrop, no vignette, no glow, no halo, no gradient. Only the subject and its small cast shadow on the right are opaque.
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
 
-Repaint the subject shown in the second image (a plain 3D render used as a layout guide). Keep exactly the same camera angle, the same position in the frame, the same footprint, proportions and overall silhouette as the second image. Do not add anything outside its silhouette except small props at its base and a soft cast shadow to the right.
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Composition: square image, the subject on a small square ground plot seen as a 2:1 diamond centered horizontally, diamond width about 57% of the image, center at 77% of the height.
-
-Subject: a world-map terrain icon: a rugged mountain massif with several rocky peaks and snow caps, boulders and trees at its foot
+Subject: a rugged mountain massif with several rocky peaks and snow caps, boulders and trees at its foot
 ```
 
 Figurine de cavalerie sultane :

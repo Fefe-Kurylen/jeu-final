@@ -11,7 +11,6 @@ Points identifiés par l'audit du socle et volontairement non traités. Rien ici
 | `bcryptjs` en JavaScript pur | `src/routes/auth.js` | Passer à `bcrypt` natif ou argon2 seulement si la charge de connexions le justifie (ajoute une compilation native à l'image Docker) |
 | Taxe inter-villes (Avant-poste du désert : `interCityTaxReductionPctPerLevel`) | transports entre ses propres villes (`armies.js` mission TRANSPORT, marché) | Les villes secondaires existent depuis octobre 2026 ; aucune taxe n'est prélevée entre ses villes pour l'instant, l'effet reste sans objet |
 
-| Coût de terrain pour les trajets (forêt, dunes, neige plus lentes : table `TERRAIN_MOVEMENT` du client) | `frontend/js/shared/terrain.js` (`findPath` avec coût par case), `src/utils/pathfinding.js` | Les trajets contournent déjà montagnes et eau ; le coût par case est un réglage d'équilibrage |
 | Brouillard de guerre / portée de vision de la Tour de guet | `src/routes/map.js` (viewport filtré), `frontend/js/map.js` | Tout est visible aujourd'hui ; à décider avec le rythme de jeu voulu |
 | Ligne rouge des attaques entrantes sur la carte | `frontend/js/map.js` (`drawArmyRoute`), données de `GET /api/city/incoming-attacks` | La ligne verte de ses propres armées existe ; la rouge est une évolution d'interface |
 | Cycles de marche par faction (sprites) | `frontend/js/map.js` (`drawIsoArmy`), images à produire | Voir `docs/ETAT-DES-SYSTEMES.md` : série neutre recommandée (16 images) |

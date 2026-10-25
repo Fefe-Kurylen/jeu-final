@@ -11,7 +11,7 @@ const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('..
 const { plunderCity, creditCity } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { findFreeSpawn } = require('../utils/spawn');
-const { noteObjectCell, forgetObjectCell, routeLength } = require('../utils/pathfinding');
+const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
 
 const F = () => config.combat.fall;
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -210,7 +210,7 @@ async function applyFall(cityId, by = null) {
   if (city.isCapital) {
     const moved = await relocateCapital(city.id, by?.ids || by?.id);
     if (!moved) return null;
-    forgetObjectCell(moved.from.x, moved.from.y); noteObjectCell(moved.to.x, moved.to.y, 'CITY');
+    forgetCityCells(moved.from.x, moved.from.y); noteCityCells(moved.to.x, moved.to.y);
     notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes vos armées l'y ont rejointe.`, { to: 'map', x: moved.to.x, y: moved.to.y, cityId: city.id });
     // the owner's alliance is told where its member's capital went (décision du 25 octobre 2026)
     const member = await prisma.allianceMember.findFirst({ where: { playerId: city.playerId }, select: { allianceId: true, player: { select: { name: true } } } });
@@ -224,7 +224,7 @@ async function applyFall(cityId, by = null) {
   }
   const razed = await razeCity(city.id, by?.ids || by?.id);
   if (!razed) return null;
-  noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
+  forgetCityCells(razed.city.x, razed.city.y); noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
   tellTurnedBack(notify, razed.owners, by, city, razed.city);
   notify(city.playerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée${who} et a été détruite.`, { to: 'map', x: razed.city.x, y: razed.city.y });
   if (by?.ownerId) notify(by.ownerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée : la ville est détruite.`, by.reportIds?.[by.ownerId] ? { to: 'report', reportId: by.reportIds[by.ownerId], x: razed.city.x, y: razed.city.y } : { to: 'map', x: razed.city.x, y: razed.city.y });

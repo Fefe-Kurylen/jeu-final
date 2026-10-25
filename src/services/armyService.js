@@ -121,7 +121,7 @@ async function sendArmyHomeTx(tx, army) {
   const units = (army.units || []).filter(u => u.count > 0);
   const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, claimedAt: null };   // also lifts a siege camp
   if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
-  const route = await findRoute(army.x, army.y, city.x, city.y).catch(() => null);
+  const route = await findRoute(army.x, army.y, city.x, city.y, army.owner?.faction).catch(() => null);
   const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, techPct(army.owner?.technologies, 'armySpeedBonusPct'));
   await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
 }

@@ -17,11 +17,11 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
 | Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
-| Carte du monde | 14 | 358 | 0 | **358** |
+| Carte du monde | 16 | 383 | 0 | **383** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 65 | **2072** | 189 | **1883** |
+| **Total** | 67 | **2097** | 189 | **1908** |
 
 ## Inscription et connexion
 
@@ -71,7 +71,9 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Villes par civilisation et forteresses | 20 | 0 | villes des joueurs (palier du Bâtiment principal) | § 3.4 | ★★★ |
 | Villes secondaires (colonies) par civilisation, normale et fortifiée | 12 | 0 | colonies des joueurs (fortifiée dès le Bâtiment principal 20) | guide § S12, A19 | ★★☆ |
 | Points de ressource (5 types × 3 biomes) | 15 | 0 | points de ressource libres | § 3.4 | ★★★ |
-| Relief et eau (forêts, montagnes, dunes, lacs, oasis, glace) | 28 | 0 | fond de la carte | § 3.4 | ★★★ |
+| Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) | 7 | 0 | tout le fond de la carte, fondus faits par le jeu | PROMPTS-CARTE § 1 | ★★★ |
+| Forêts, rochers et montagnes de la carte | 29 | 0 | massifs forestiers, amas de rochers, chaînes de montagnes | PROMPTS-CARTE § 2-3 | ★★★ |
+| Ponts, gués, décor du désert et de l'eau | 17 | 0 | passages des rivières, dunes, ruines, palmiers, bateaux, quais | PROMPTS-CARTE § 4-6 | ★★☆ |
 | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 | points tenus par une tribu | guide « Camps barbares » | ★★★ |
 | Campement de fondation (3 biomes) | 3 | 0 | point pendant la fondation d'une ville | guide § S12 | ★★☆ |
 | Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases) | 48 | 0 | colonie assiégée sur la carte (remplace son sprite pendant le siège) | guide § A19 | ★★☆ |

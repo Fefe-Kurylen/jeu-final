@@ -19,7 +19,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
-| 5 | Carte du monde (villes, ressources, camps barbares, relief et eau, armées en marche) | 107 |
+| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 132 |
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
@@ -29,7 +29,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1601** |
+| | **Total** | **1626** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -300,9 +300,9 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `walls/SULTAN/3_seg_z_low.png` — 1024×1024
 - `walls/SULTAN/3_tower.png` — 1024×1024
 
-## 5. Carte du monde (villes, ressources, camps barbares, relief et eau, armées en marche) (107)
+## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (132)
 
-`--kit`.
+Style de la carte de référence : prompts prêts à coller et guides de cadrage dans `docs/PROMPTS-CARTE.md`.
 
 - `map/cities/capital.png` — 1024×1024
 - `map/cities/capital_egypt.png` — 1024×1024
@@ -333,34 +333,6 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `map/resources/wood.png` — 1024×1024
 - `map/resources/wood_desert.png` — 1024×1024
 - `map/resources/wood_snow.png` — 1024×1024
-- `map/terrain/desert_dunes.png` — 1024×1024
-- `map/terrain/desert_dunes_x.png` — 1024×1024
-- `map/terrain/desert_dunes_xy.png` — 1024×1024
-- `map/terrain/desert_dunes_y.png` — 1024×1024
-- `map/terrain/desert_rocks.png` — 1024×1024
-- `map/terrain/desert_ruins.png` — 1024×1024
-- `map/terrain/forest_mountain.png` — 1024×1024
-- `map/terrain/forest_mountain_x.png` — 1024×1024
-- `map/terrain/forest_mountain_xy.png` — 1024×1024
-- `map/terrain/forest_mountain_y.png` — 1024×1024
-- `map/terrain/forest_tree.png` — 1024×1024
-- `map/terrain/frozen.png` — 1024×1024
-- `map/terrain/frozen_x.png` — 1024×1024
-- `map/terrain/frozen_xy.png` — 1024×1024
-- `map/terrain/frozen_y.png` — 1024×1024
-- `map/terrain/oasis.png` — 1024×1024
-- `map/terrain/oasis_x.png` — 1024×1024
-- `map/terrain/oasis_xy.png` — 1024×1024
-- `map/terrain/oasis_y.png` — 1024×1024
-- `map/terrain/snow_icemountain.png` — 1024×1024
-- `map/terrain/snow_icemountain_x.png` — 1024×1024
-- `map/terrain/snow_icemountain_xy.png` — 1024×1024
-- `map/terrain/snow_icemountain_y.png` — 1024×1024
-- `map/terrain/snow_snowtree.png` — 1024×1024
-- `map/terrain/water.png` — 1024×1024
-- `map/terrain/water_x.png` — 1024×1024
-- `map/terrain/water_xy.png` — 1024×1024
-- `map/terrain/water_y.png` — 1024×1024
 - `map/units/archer.png` — 1024×1024
 - `map/units/archer_EGYPT.png` — 1024×1024
 - `map/units/archer_GAUL.png` — 1024×1024
@@ -411,6 +383,59 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `map/camps/foundation.png` — 1024×1024
 - `map/camps/foundation_desert.png` — 1024×1024
 - `map/camps/foundation_snow.png` — 1024×1024
+- `map/world/ground/water.png` — 1024×1024
+- `map/world/ground/ice.png` — 1024×1024
+- `map/world/ground/sand.png` — 1024×1024
+- `map/world/ground/earth.png` — 1024×1024
+- `map/world/ground/drygrass.png` — 1024×1024
+- `map/world/ground/grass.png` — 1024×1024
+- `map/world/ground/snow.png` — 1024×1024
+- `map/world/forest/temperate_1.png` — 1024×1024
+- `map/world/forest/temperate_2.png` — 1024×1024
+- `map/world/forest/temperate_3.png` — 1024×1024
+- `map/world/forest/temperate_4.png` — 1024×1024
+- `map/world/forest/temperate_edge_1.png` — 1024×1024
+- `map/world/forest/temperate_edge_2.png` — 1024×1024
+- `map/world/forest/temperate_edge_3.png` — 1024×1024
+- `map/world/forest/snow_1.png` — 1024×1024
+- `map/world/forest/snow_2.png` — 1024×1024
+- `map/world/forest/snow_3.png` — 1024×1024
+- `map/world/forest/snow_4.png` — 1024×1024
+- `map/world/forest/snow_edge_1.png` — 1024×1024
+- `map/world/forest/snow_edge_2.png` — 1024×1024
+- `map/world/forest/snow_edge_3.png` — 1024×1024
+- `map/world/rocks/boulders_1.png` — 1024×1024
+- `map/world/rocks/boulders_2.png` — 1024×1024
+- `map/world/rocks/boulders_3.png` — 1024×1024
+- `map/world/rocks/boulders_4.png` — 1024×1024
+- `map/world/rocks/desert_1.png` — 1024×1024
+- `map/world/rocks/desert_2.png` — 1024×1024
+- `map/world/rocks/desert_3.png` — 1024×1024
+- `map/world/mountains/temperate.png` — 1024×1024
+- `map/world/mountains/temperate_x.png` — 1024×1024
+- `map/world/mountains/temperate_y.png` — 1024×1024
+- `map/world/mountains/temperate_xy.png` — 1024×1024
+- `map/world/mountains/snow.png` — 1024×1024
+- `map/world/mountains/snow_x.png` — 1024×1024
+- `map/world/mountains/snow_y.png` — 1024×1024
+- `map/world/mountains/snow_xy.png` — 1024×1024
+- `map/world/desert/dunes_1.png` — 1024×1024
+- `map/world/desert/dunes_2.png` — 1024×1024
+- `map/world/desert/dunes_3.png` — 1024×1024
+- `map/world/desert/ruins_1.png` — 1024×1024
+- `map/world/desert/ruins_2.png` — 1024×1024
+- `map/world/desert/palms_1.png` — 1024×1024
+- `map/world/desert/palms_2.png` — 1024×1024
+- `map/world/desert/palms_3.png` — 1024×1024
+- `map/world/river/bridge_x.png` — 1024×1024
+- `map/world/river/bridge_y.png` — 1024×1024
+- `map/world/river/ford_x.png` — 1024×1024
+- `map/world/river/ford_y.png` — 1024×1024
+- `map/world/water/boat_1.png` — 1024×1024
+- `map/world/water/boat_2.png` — 1024×1024
+- `map/world/water/boat_3.png` — 1024×1024
+- `map/world/water/dock_x.png` — 1024×1024
+- `map/world/water/dock_y.png` — 1024×1024
 
 ## 6. Unités et héros (figurines, bustes, héros) (64)
 

@@ -85,7 +85,7 @@ async function _loadTilesetAssetsOnce() {
       if (!paintedSet.has(`map/camps/${name}.webp`)) continue;
       jobs.push(new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => { tileImages.camps[name] = img; resolve(); };
+        img.onload = () => { tileImages.camps[name] = img; tileImagePainted.add('camps/' + name); resolve(); };
         img.onerror = () => resolve();
         img.src = art(`map/camps/${name}.webp`);
       }));
@@ -96,7 +96,7 @@ async function _loadTilesetAssetsOnce() {
     for (const name of manifest[category] || []) {
       jobs.push(new Promise((resolve) => {
         const img = new Image();
-        img.onload = () => { tileImages[category][name] = img; resolve(); };
+        img.onload = () => { tileImages[category][name] = img; if (typeof paintedSet !== 'undefined' && paintedSet.has(`map/${category}/${name}.webp`)) tileImagePainted.add(category + '/' + name); resolve(); };
         img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
         img.src = typeof art === 'function' ? art(`map/${category}/${name}.${ext}`) : `assets/images/3d/map/${category}/${name}.${ext}`;
       }));
@@ -107,7 +107,7 @@ async function _loadTilesetAssetsOnce() {
     for (const p of paintedSet) {
       const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
       if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
-      jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
+      jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; tileImagePainted.add(m[1] + '/' + m[2]); resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
     }
   }
   await Promise.all(jobs);
@@ -116,42 +116,17 @@ async function _loadTilesetAssetsOnce() {
   console.log(`🎨 ${loadedCount}/${jobs.length} sprites de carte chargés`);
 }
 
-// ---- Textures de terrain (assets/images/terrain) pour les tuiles de la carte ----
-// Ancrées sur l'origine du monde (elles ne glissent pas quand on déplace la carte) et mises à l'échelle du zoom.
-const _mapTerrainPatterns = new Map();
-let mapFramePatterns = null;   // { grass, sand, snow } préparés une fois par image
-function mapTerrainPattern(name, zoom, originX, originY) {
-  if (typeof getSprite !== 'function' || typeof DOMMatrix !== 'function') return null;
-  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(name) : `assets/images/terrain/${name}.svg`;
-  if (!url) return null;
-  const img = getSprite(url);
-  if (!img || !mapCtx) return null;
-  const scale = canvasScale();
-  const key = url + '@' + scale;
-  let entry = _mapTerrainPatterns.get(key);
-  if (!entry) {
-    const tile = document.createElement('canvas');
-    tile.width = tile.height = Math.round(128 * scale);
-    tile.getContext('2d').drawImage(img, 0, 0, tile.width, tile.height);
-    const pattern = mapCtx.createPattern(tile, 'repeat');
-    if (!pattern || typeof pattern.setTransform !== 'function') return null;
-    entry = { pattern };
-    _mapTerrainPatterns.set(key, entry);
-  }
-  const period = 128 * zoom;
-  try { entry.pattern.setTransform(new DOMMatrix().translate(originX % period, originY % period).scale(zoom / scale)); } catch (e) { return null; }
-  return entry.pattern;
-}
-function prepareMapTerrainPatterns(originX, originY) {
-  // variantes de carte (collines, sable ondulé, toundra) avec repli sur les sols de base ; eau, glace et oasis seulement si peintes
-  const pat = (n) => mapTerrainPattern(n, mapZoomLevel, originX, originY);
-  mapFramePatterns = { grass: pat('grass_hills'), sand: pat('sand_ripples'), snow: pat('tundra'), water: pat('water_lake'), ice: pat('ice'), oasis: pat('water_shallow') };
-}
-
 // Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
+// (image peinte au cadrage de la carte de référence : son losange d'une case est plus petit dans l'image, map-world.js)
+const tileImagePainted = new Set();   // "catégorie/nom" chargés depuis painted/
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
+  if (category !== 'fx' && tileImagePainted.has(category + '/' + name)) {
+    const k = WORLD_SPRITE_SCALE;
+    ctx.drawImage(img, destX - destW * k * 0.5, destY - destH * k * WORLD_OBJECT_CENTER_Y, destW * k, destH * k);
+    return true;
+  }
 
   ctx.drawImage(img, destX - destW * mapSpriteAnchor.x, destY - destH * mapSpriteAnchor.y, destW, destH);
   return true;
@@ -206,28 +181,7 @@ const TILE_COLORS = {
   gold: { fill: '#ffd700', stroke: '#b8860b' }
 };
 
-// ========== TERRAIN MOVEMENT SYSTEM ==========
-// Multiplicateurs de temps de trajet pour les armées/héros
-// terrain infranchissable = Infinity
-const TERRAIN_MOVEMENT = {
-  // Terrains de base
-  grass: 1.0,        // Normal
-  tree: 1.3,         // Forêt ralentit légèrement
-  mountain: Infinity, // Infranchissable
-  water: Infinity,    // Infranchissable (lac/rivière)
-  // Désert
-  sand: 1.2,         // Sable ralentit un peu
-  dunes: 1.5,        // Dunes difficiles
-  oasis: 1.0,        // Oasis = terrain facile
-  ruins: 1.1,        // Ruines légèrement difficiles
-  rocks: 1.4,        // Rochers
-  // Neige
-  snow: 1.4,         // Neige ralentit
-  ice: 1.6,          // Glace très lente
-  frozen: Infinity,   // Lac gelé infranchissable
-  icemountain: Infinity, // Montagne de glace infranchissable
-  snowtree: 1.3      // Sapin enneigé
-};
+// Vitesse de marche selon le terrain (gué, forêt) : Terrain.moveCost, la même règle que le serveur
 
 // ========== TERRAIN ==========
 // The procedural terrain (biomes, rivers, lakes, ranges, scattered features) lives in js/shared/terrain.js,
@@ -841,19 +795,21 @@ function renderMapCore() {
   // Sort by Y for proper layering (painter's algorithm)
   drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  // Draw terrain tiles (textures ancrées sur l'origine du monde)
-  const origin = worldToScreen(0, 0);
-  prepareMapTerrainPatterns(origin.x, origin.y);
+  // Le sol (textures et fondus), la grille, puis les éléments posés de haut en bas (map-world.js)
+  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
+  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
   rebuildMapObjectCells();
+  drawMapGround(worldToScreen, bounds, w, h, tileW, tileH, nightMode);
+  drawMapGrid(worldToScreen, bounds, nightMode);
   drawOrder.forEach(tile => {
-    drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
+    drawMapCellFeature(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
   });
 
   // Draw objects (cities, resources) with proper layering
   const objectsOrder = [];
 
   mapData.forEach(obj => {
-    const pos = worldToScreen(obj.x, obj.y);
+    const pos = obj.type === 'CITY' ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
       objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y });
@@ -884,7 +840,7 @@ function renderMapCore() {
   // Draw all objects
   objectsOrder.forEach(obj => {
     if (obj.type === 'CITY') {
-      drawIsoCity(obj.screenX, obj.screenY, tileW, tileH, obj);
+      drawIsoCity(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);   // 2 × 2 cases
     } else if (obj.type === 'RESOURCE') {
       drawIsoResource(obj.screenX, obj.screenY, tileW, tileH, obj);
     } else if (obj.type === 'ARMY') {
@@ -893,28 +849,29 @@ function renderMapCore() {
   });
 
   // Draw hover highlight
-  if (mapHoveredTile) {
-    const pos = worldToScreen(mapHoveredTile.x, mapHoveredTile.y);
-    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#ffd700', 2);
-  }
-
-  // Draw selected tile
-  if (mapSelectedTile) {
-    const pos = worldToScreen(mapSelectedTile.x, mapSelectedTile.y);
-    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#00ff00', 3);
-  }
+  const highlight = (t, color, lw) => {
+    const city = mapData.find(o => o.type === 'CITY' && t.x >= o.x && t.x <= o.x + 1 && t.y >= o.y && t.y <= o.y + 1);
+    const pos = city ? worldToScreen(city.x + 0.5, city.y + 0.5) : worldToScreen(t.x, t.y);
+    drawIsoHighlight(pos.x, pos.y, city ? tileW * 2 : tileW, city ? tileH * 2 : tileH, color, lw);
+  };
+  if (mapHoveredTile) highlight(mapHoveredTile, '#ffd700', 2);
+  if (mapSelectedTile) highlight(mapSelectedTile, '#00ff00', 3);
 }
 
 // Draw a single isometric tile with biome support
 // Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
 // sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
 const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
+// Rivières (décision du 25 octobre 2026) : l'eau fait partie du sol ; ponts et gués sont des éléments posés (map-world.js)
+const RIVER_FEATURES = { river: 1, bridge: 1, ford: 1 };
 let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
 function rebuildMapObjectCells() {
   terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
   mapObjectCells = new Map();
-  for (const o of mapData) if (o.type === 'CITY' || o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type);
-  for (const c of cities) mapObjectCells.set(c.x + ',' + c.y, 'CITY');
+  // a city covers 2 × 2 cells (Terrain.cityCells)
+  const markCity = (c) => { for (const [x, y] of Terrain.cityCells(c.x, c.y)) mapObjectCells.set(x + ',' + y, 'CITY'); };
+  for (const o of mapData) if (o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type); else if (o.type === 'CITY') markCity(o);
+  for (const c of cities) markCity(c);
 }
 function terrainBlockedAt(wx, wy) {
   if (mapObjectCells.has(wx + ',' + wy)) return true;
@@ -930,105 +887,76 @@ function terrainSpriteName(wx, wy, biome, feature) {
   return name;
 }
 function computeTerrainSpriteName(wx, wy, biome, feature) {
-  if (terrainBlockedAt(wx, wy)) return null;
-  const base = WATER_FEATURES[feature] ? feature : `${biome}_${feature}`;
+  if (terrainBlockedAt(wx, wy) || WATER_FEATURES[feature] || RIVER_FEATURES[feature]) return null;   // l'eau fait partie du sol
+  const base = `${biome}_${feature}`;
   if (!tileImages.terrain[base]) return null;
-  const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; const t = getTerrainType(wx + dx, wy + dy); return t.feature === feature || (WATER_FEATURES[feature] && WATER_FEATURES[t.feature]); };
+  const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; return getTerrainType(wx + dx, wy + dy).feature === feature; };
   const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
   const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
   return suffix && tileImages.terrain[base + suffix] ? base + suffix : base;
 }
-function drawIsoTile(x, y, tw, th, wx, wy) {
-  const terrain = getTerrainType(wx, wy);
+// Rendu d'avant d'un élément posé (sprite 3D d'une case ou dessin), tant que l'image peinte de la carte de référence
+// n'est pas livrée (map-world.js choisit l'image peinte d'abord)
+function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
   const biome = terrain.biome;
   const feature = terrain.feature;
-  const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
-  const featureSprite = feature ? terrainSpriteName(wx, wy, biome, feature) : null;
-  const waterAsGround = featureSprite && WATER_FEATURES[feature];   // lac / oasis / lac gelé dessinés en sprite : sol du biome dessous
-  const biomeColors = BIOMES[biome];
-  const nightMode = isNightMode();
-
-  // Draw diamond shape (base tile)
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - th / 2);        // Top
-  mapCtx.lineTo(x + tw / 2, y);        // Right
-  mapCtx.lineTo(x, y + th / 2);        // Bottom
-  mapCtx.lineTo(x - tw / 2, y);        // Left
-  mapCtx.closePath();
-
-  // Fill based on biome, feature and day/night
-  const waterPattern = mapFramePatterns && !waterAsGround && (feature === 'water' ? mapFramePatterns.water : feature === 'frozen' ? mapFramePatterns.ice : feature === 'oasis' ? mapFramePatterns.oasis : null);
-  if (waterPattern) {   // eau, glace ou oasis peintes : texture + voile de nuit
-    mapCtx.fillStyle = waterPattern; mapCtx.fill();
-    if (nightMode) { mapCtx.fillStyle = '#101c30'; mapCtx.globalAlpha = 0.6; mapCtx.fill(); mapCtx.globalAlpha = 1; }
-  } else if ((feature === 'water' || feature === 'frozen') && !waterAsGround) {
-    if (nightMode) {
-      mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
-    } else {
-      mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
-    }
-  } else if (feature === 'oasis' && !waterAsGround) {
-    mapCtx.fillStyle = nightMode ? '#1a3a2a' : '#4a9a6a';
-  } else {
-    // Use night ground colors if available
-    const groundColors = nightMode && biomeColors.groundNight
-      ? biomeColors.groundNight
-      : biomeColors.ground;
-    const pattern = mapFramePatterns && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'];
-    if (pattern) {
-      // texture + voile de couleur (variation par tuile, nuit)
-      mapCtx.fillStyle = pattern; mapCtx.fill();
-      // voile de couleur très léger : la texture fait le relief, la variation par tuile reste discrète
-      mapCtx.fillStyle = groundColors[colorVariant]; mapCtx.globalAlpha = nightMode ? 0.78 : 0.12; mapCtx.fill(); mapCtx.globalAlpha = 1;
-    } else {
-      mapCtx.fillStyle = groundColors[colorVariant];
-    }
-  }
-  if (!waterPattern && !(mapFramePatterns && (waterAsGround || (feature !== 'water' && feature !== 'frozen' && feature !== 'oasis')) && mapFramePatterns[biome === 'desert' ? 'sand' : biome === 'snow' ? 'snow' : 'grass'])) mapCtx.fill();
-
-  // Subtle grid lines
-  if (mapZoomLevel > 0.5 && showMapGrid) {
-    mapCtx.strokeStyle = mapFramePatterns ? 'rgba(0,0,0,0.045)' : 'rgba(0,0,0,0.1)';
-    mapCtx.lineWidth = 0.5;
-    mapCtx.stroke();
-  }
-
-  // Draw terrain features based on biome: sprite when the manifest provides one, procedural otherwise
-  if (feature && !featureSprite && terrainBlockedAt(wx, wy) && feature !== 'water' && feature !== 'frozen' && feature !== 'oasis') return;   // relief effacé autour des villes
+  if (feature === 'bridge' || feature === 'ford') { drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, isNightMode()); return; }
+  const featureSprite = terrainSpriteName(wx, wy, biome, feature);
   if (featureSprite) {
     const big = feature === 'mountain' || feature === 'icemountain';
     const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
-    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : WATER_FEATURES[feature] ? (massif ? 1.9 : joined ? 1.75 : 1.25) : (joined ? 1.6 : 1.15);
+    const range = feature === 'rocks' && terrain.isMultiTile;   // chaîne rocheuse du désert (franchissable) : rochers décalés au hasard
+    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : range ? 1.3 : (joined ? 1.6 : 1.15);
     const fsize = Math.max(tw, th * 2) * k;
-    drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
+    if (range && Terrain.seededRandom(wx, wy, 5170) < 0.3) return;
+    const jx = range ? (Terrain.seededRandom(wx, wy, 5171) - 0.5) * tw * 0.35 : 0, jy = range ? (Terrain.seededRandom(wx, wy, 5172) - 0.5) * th * 0.35 : 0;
+    drawTileImage(mapCtx, 'terrain', featureSprite, x + jx, y + jy, fsize, fsize);
+    return;
+  }
+  if (feature === 'boulders') {   // amas de rochers (tempéré)
+    drawIsoRock(x - tw * 0.12, y + th * 0.05, th * 0.75); drawIsoRock(x + tw * 0.14, y + th * 0.12, th * 0.55); drawIsoRock(x + tw * 0.02, y - th * 0.12, th * 0.45);
     return;
   }
   if (biome === 'forest') {
     if (feature === 'tree') {
-      drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+      drawIsoTree(x - tw * 0.16, y - th * 0.3, tw * 0.34, th * 0.75); drawIsoTree(x + tw * 0.14, y - th * 0.2, tw * 0.3, th * 0.7); drawIsoTree(x, y - th * 0.05, tw * 0.36, th * 0.8);
     } else if (feature === 'mountain') {
       drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
-    } else if (feature === 'water') {
-      drawIsoWater(x, y, tw, th);
     }
   } else if (biome === 'desert') {
     if (feature === 'dunes') {
       drawDesertDunes(x, y, tw, th);
     } else if (feature === 'ruins') {
       drawDesertRuins(x, y - th * 0.3, tw * 0.5, th * 0.8);
-    } else if (feature === 'oasis') {
-      drawDesertOasis(x, y, tw, th);
     } else if (feature === 'rocks') {
       drawDesertRocks(x, y - th * 0.2, tw * 0.4, th * 0.6);
     }
   } else if (biome === 'snow') {
     if (feature === 'snowtree') {
-      drawSnowTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+      drawSnowTree(x - tw * 0.15, y - th * 0.3, tw * 0.32, th * 0.75); drawSnowTree(x + tw * 0.13, y - th * 0.18, tw * 0.3, th * 0.7); drawSnowTree(x, y - th * 0.05, tw * 0.34, th * 0.8);
     } else if (feature === 'icemountain') {
       drawIceMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
-    } else if (feature === 'frozen') {
-      drawFrozenLake(x, y, tw, th);
     }
+  }
+}
+
+// Pont ou gué dessinés (l'eau est dans le sol) : planches en travers de la rivière, pierres de gué
+function drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, night) {
+  const frozen = biome === 'snow';
+  if (feature === 'bridge') {
+    const alongX = mapCrossingAlongX(wx, wy);
+    const ux = alongX ? tw / 2 : -tw / 2, uy = th / 2, w = 0.5;
+    mapCtx.fillStyle = night ? '#4a3420' : '#8a5a30';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x - ux * 0.95 - (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y - uy * 0.95 - th * w * 0.25);
+    mapCtx.lineTo(x + ux * 0.95 - (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y + uy * 0.95 - th * w * 0.25);
+    mapCtx.lineTo(x + ux * 0.95 + (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y + uy * 0.95 + th * w * 0.25);
+    mapCtx.lineTo(x - ux * 0.95 + (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y - uy * 0.95 + th * w * 0.25);
+    mapCtx.closePath(); mapCtx.fill();
+    mapCtx.strokeStyle = 'rgba(40,24,10,0.6)'; mapCtx.lineWidth = 1; mapCtx.stroke();
+  } else {
+    mapCtx.fillStyle = frozen ? '#e8eef2' : '#b8b0a0';
+    for (let i = -2; i <= 2; i++) { mapCtx.beginPath(); mapCtx.ellipse(x + i * tw * 0.12, y + i * th * 0.06 * ((wx + wy) % 2 ? 1 : -1), tw * 0.045, th * 0.06, 0, 0, Math.PI * 2); mapCtx.fill(); }
   }
 }
 
@@ -1097,21 +1025,6 @@ function drawIsoMountain(x, y, w, h) {
   mapCtx.fill();
 }
 
-// ========== WATER/LAKE ==========
-function drawIsoWater(x, y, tw, th) {
-  // Water ripples effect
-  mapCtx.strokeStyle = 'rgba(255,255,255,0.3)';
-  mapCtx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    const offset = (Date.now() / 1000 + i * 0.3) % 1;
-    mapCtx.beginPath();
-    mapCtx.ellipse(x, y, tw * 0.2 * (1 + offset * 0.3), th * 0.1 * (1 + offset * 0.3), 0, 0, Math.PI * 2);
-    mapCtx.stroke();
-  }
-}
-
-// ========== DESERT BIOME FEATURES ==========
-// Desert sand dunes
 function drawDesertDunes(x, y, tw, th) {
   const duneH = th * 0.4;
 
@@ -1171,24 +1084,6 @@ function drawDesertRuins(x, y, w, h) {
 }
 
 // Desert oasis with palm trees
-function drawDesertOasis(x, y, tw, th) {
-  // Water pool
-  mapCtx.fillStyle = '#4a8a9a';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, tw * 0.3, th * 0.15, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Water shine
-  mapCtx.fillStyle = 'rgba(255,255,255,0.3)';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x - tw * 0.1, y - th * 0.02, tw * 0.08, th * 0.03, -0.3, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Palm trees around oasis
-  drawPalmTree(x - tw * 0.25, y - th * 0.15, tw * 0.15, th * 0.5);
-  drawPalmTree(x + tw * 0.2, y - th * 0.1, tw * 0.12, th * 0.4);
-}
-
 // Palm tree for oasis
 function drawPalmTree(x, y, w, h) {
   const trunkH = h * 0.6;
@@ -1327,37 +1222,6 @@ function drawIceMountain(x, y, w, h) {
 }
 
 // Frozen lake
-function drawFrozenLake(x, y, tw, th) {
-  // Ice cracks
-  mapCtx.strokeStyle = 'rgba(100,140,160,0.5)';
-  mapCtx.lineWidth = 1;
-
-  // Random crack pattern
-  const cracks = [
-    [[0, 0], [0.2, -0.1], [0.3, 0.05]],
-    [[0, 0], [-0.15, 0.1], [-0.25, -0.05]],
-    [[0.1, 0.05], [0.2, 0.15], [0.1, 0.2]]
-  ];
-
-  cracks.forEach(crack => {
-    mapCtx.beginPath();
-    crack.forEach((point, i) => {
-      const px = x + point[0] * tw;
-      const py = y + point[1] * th;
-      if (i === 0) mapCtx.moveTo(px, py);
-      else mapCtx.lineTo(px, py);
-    });
-    mapCtx.stroke();
-  });
-
-  // Shine spots
-  mapCtx.fillStyle = 'rgba(255,255,255,0.4)';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x - tw * 0.1, y - th * 0.05, tw * 0.1, th * 0.04, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-}
-
-// Draw stars on map at night
 function drawMapStars(w, h) {
   // Use seeded random for consistent star positions
   const seed = 54321;
@@ -1571,7 +1435,9 @@ function drawIsoCity(x, y, tw, th, tile) {
     // Ville assiégée : animation peinte de la ville sous le siège (civilisation × palier, 4 phases en boucle) à la place du sprite
     const siegeFrame = tile.isSieged ? ((isColony && siegeFrameName(faction, tile.cityTier, true)) || siegeFrameName(faction, tile.cityTier)) : null;
     if (siegeFrame) mapMovingOnScreen = true;   // garde la carte animée tant que le siège est à l'écran
-    drawTileImage(mapCtx, 'cities', siegeFrame || (tileImages.cities[cityType] ? cityType : 'default'), x, y, cityImageSize, cityImageSize);
+    const cityName = siegeFrame || (tileImages.cities[cityType] ? cityType : 'default');
+    if (tileImagePainted.has('cities/' + cityName)) drawWorldCityImage(tileImages.cities[cityName], x, y, tw);   // cadrage 2 × 2 de la carte de référence
+    else drawTileImage(mapCtx, 'cities', cityName, x, y, cityImageSize, cityImageSize);
     drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, !!siegeFrame);
     return;
   }
@@ -2196,7 +2062,7 @@ function armyRoute(army) {
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
   if (armyRouteCache.size > 300) armyRouteCache.clear();
   const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
-  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000);
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000, { faction: army.owner?.faction || (army.ownerId === player?.id ? player?.faction : null) });
   const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
   armyRouteCache.set(key, path);
   return path;
@@ -2639,7 +2505,7 @@ function pickMapTile(mouseX, mouseY) {
   const dy = mouseY - mapViewH / 2;
   const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
-  const entityAt = (x, y) => mapData.find(t => t.x === x && t.y === y && (t.type === 'CITY' || t.type === 'RESOURCE' || t.type === 'ARMY'));
+  const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1) : (t.x === x && t.y === y && (t.type === 'RESOURCE' || t.type === 'ARMY')));   // a city: any of its 2 × 2 cells
   let tile = entityAt(tileX, tileY);
   if (!tile) {
     for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {

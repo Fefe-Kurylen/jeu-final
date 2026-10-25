@@ -41,3 +41,54 @@ test('a blocked destination has no route; a trivial route has length 0', () => {
   assert.equal(T.findPath(0, 0, -60, -30), null);
   assert.deepEqual(T.findPath(5, 5, 5, 5), { path: [[5, 5]], length: 0 });
 });
+
+// Carte de référence (25 octobre 2026) : sols, passages des rivières, terre ferme principale
+test('every cell has one of the seven grounds; water features lie on water or ice', () => {
+  const layers = new Set(T.GROUND_LAYERS);
+  for (let x = -187; x <= 186; x += 7) for (let y = -187; y <= 186; y += 7) {
+    const g = T.groundAt(x, y), f = T.getTerrainType(x, y).feature;
+    assert.ok(layers.has(g), `${x},${y} ${g}`);
+    if (f === 'river' || f === 'bridge' || f === 'ford') assert.ok(g === 'water' || g === 'ice');
+  }
+});
+
+test('each bridge or ford is one row across the river, from bank to bank, along its axis', () => {
+  const N = { x: [1, 0], y: [0, 1] };
+  let crossings = 0;
+  for (let x = -187; x <= 186; x++) for (let y = -187; y <= 186; y++) {
+    const kind = T.riverAt(x, y);
+    if (kind !== 'bridge' && kind !== 'ford') continue;
+    const axis = T.crossingAxisAt(x, y);
+    assert.ok(axis === 'x' || axis === 'y');
+    const [dx, dy] = N[axis];
+    if (T.riverAt(x - dx, y - dy) === kind) continue;   // start of the row only
+    crossings++;
+    assert.equal(T.isBlocked(x - dx, y - dy), false, `bank before ${x},${y}`);
+    let k = 0;
+    while (T.riverAt(x + dx * k, y + dy * k) === kind) k++;
+    assert.ok(k >= 1 && k <= 9);
+    assert.equal(T.isBlocked(x + dx * k, y + dy * k), false, `bank after ${x},${y}`);
+  }
+  assert.ok(crossings >= 30, `${crossings} crossings`);
+});
+
+test('fords cost twice as much, forests 10 % more except for the Gauls', () => {
+  let ford = null, tree = null;
+  for (let x = -187; x <= 186 && !(ford && tree); x++) for (let y = -187; y <= 186; y++) {
+    const f = T.getTerrainType(x, y).feature;
+    if (!ford && f === 'ford') ford = [x, y];
+    if (!tree && f === 'tree') tree = [x, y];
+  }
+  assert.equal(T.moveCost(...ford), 2);
+  assert.ok(Math.abs(T.moveCost(...tree, null, { faction: 'ROME' }) - 1 / 0.9) < 1e-9);
+  assert.equal(T.moveCost(...tree, null, { faction: 'GAUL' }), 1);
+});
+
+test('the main land holds almost every walkable cell', () => {
+  let walk = 0, main = 0;
+  for (let x = -187; x <= 186; x += 3) for (let y = -187; y <= 186; y += 3) {
+    if (T.isBlocked(x, y)) { assert.equal(T.isMainland(x, y), false); continue; }
+    walk++; if (T.isMainland(x, y)) main++;
+  }
+  assert.ok(main / walk > 0.97, `${(main / walk * 100).toFixed(1)} %`);
+});

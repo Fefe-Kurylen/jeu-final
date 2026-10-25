@@ -11,7 +11,7 @@ const { createExpedition } = require('../services/expeditionService');
 const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
-const { noteObjectCell } = require('../utils/pathfinding');
+const { noteCityCells } = require('../utils/pathfinding');
 const { findFreeSpawn } = require('../utils/spawn');
 const path = require('path');
 const fs = require('fs');
@@ -87,7 +87,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
       }
     }
     if (!created) return res.status(503).json({ error: 'Carte saturée, réessayez' });
-    if (created.city) noteObjectCell(created.city.x, created.city.y, 'CITY');
+    if (created.city) noteCityCells(created.city.x, created.city.y);
 
     // The verification link leaves in the background: a mail outage never blocks a sign-up
     sendVerificationMail(created.account, name).catch(e => console.error('[MAIL] verification:', e.message));

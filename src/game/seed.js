@@ -2,6 +2,16 @@
 const prisma = require('../config/database');
 const config = require('../config');
 const { generateTribeDefenders, campDifficultyAt } = require('../utils/tribeDefenders');
+const Terrain = require('../../frontend/js/shared/terrain.js');
+
+// Un point de ressource se pose sur la terre ferme (ni rivière, ni lac, ni pont, ni gué) et au bord de la terre ferme
+// principale, pour qu'une armée puisse l'atteindre (une montagne ou des rochers sous le point restent franchissables)
+const WET = { water: 1, frozen: 1, oasis: 1, river: 1, bridge: 1, ford: 1 };
+function nodeSpotOk(x, y) {
+  if (!Terrain.inWorld(x, y) || WET[Terrain.getTerrainType(x, y).feature]) return false;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (Terrain.isMainland(x + dx, y + dy)) return true;
+  return false;
+}
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 
@@ -14,7 +24,8 @@ async function seedResourceNodes() {
 
   const used = new Set();
   const existingCities = await prisma.city.findMany({ select: { x: true, y: true } });
-  existingCities.forEach(c => used.add(`${c.x},${c.y}`));
+  // a city covers 2 × 2 cells, with a free ring around them
+  existingCities.forEach(c => { for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) used.add(`${c.x + dx},${c.y + dy}`); });
 
   const resTypes = ['WOOD', 'STONE', 'IRON', 'FOOD'];
   // Formule partagée avec le client (frontend/js/map.js) pour une étiquette cohérente avec le terrain affiché
@@ -34,7 +45,7 @@ async function seedResourceNodes() {
     const x = Math.floor(Math.random() * worldSize) - half;
     const y = Math.floor(Math.random() * worldSize) - half;
     const key = `${x},${y}`;
-    if (used.has(key)) continue;
+    if (used.has(key) || !nodeSpotOk(x, y)) continue;
     used.add(key);
     const level = pickLevel(x, y);
     const type = resTypes[Math.floor(Math.random() * 4)];
@@ -56,7 +67,7 @@ async function seedResourceNodes() {
     const x = Math.floor(Math.random() * worldSize) - half;
     const y = Math.floor(Math.random() * worldSize) - half;
     const key = `${x},${y}`;
-    if (used.has(key)) continue;
+    if (used.has(key) || !nodeSpotOk(x, y)) continue;
     used.add(key);
     const level = pickLevel(x, y);
     // GDD: gold nodes hold a small stock (10 / 20 / 30 by level) that refills in 12 h; no random spread
@@ -79,4 +90,35 @@ async function seedResourceNodes() {
   console.log(`[SEED] ${totalInserted} resource nodes generated (${goldCount} gold)`);
 }
 
-module.exports = { seedResourceNodes };
+// Au démarrage : les points déjà en base suivent le terrain actuel (carte de référence, 25 octobre 2026). Le biome est
+// recalculé ; un point tombé dans l'eau ou dans une poche fermée est déplacé sur la case valable la plus proche, sauf
+// s'il porte une ville, une armée, ou qu'une armée est en route vers lui.
+async function syncResourceNodesWithTerrain() {
+  const nodes = await prisma.resourceNode.findMany({ select: { id: true, x: true, y: true, biome: true, cityId: true, hasPlayerArmy: true } });
+  const cities = await prisma.city.findMany({ select: { x: true, y: true } });
+  const taken = new Set(nodes.map(n => `${n.x},${n.y}`));
+  for (const c of cities) for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) taken.add(`${c.x + dx},${c.y + dy}`);
+  let moved = 0, rebiomed = 0;
+  for (const n of nodes) {
+    let { x, y } = n;
+    if (!nodeSpotOk(x, y) && !n.cityId && !n.hasPlayerArmy) {
+      const heading = await prisma.army.count({ where: { targetX: x, targetY: y, status: { not: 'IDLE' } } });
+      if (!heading) {
+        let spot = null;
+        for (let r = 1; r <= 6 && !spot; r++) for (let dy = -r; dy <= r && !spot; dy++) for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const k = `${x + dx},${y + dy}`;
+          if (!taken.has(k) && nodeSpotOk(x + dx, y + dy)) { spot = { x: x + dx, y: y + dy }; break; }
+        }
+        if (spot) { taken.delete(`${x},${y}`); taken.add(`${spot.x},${spot.y}`); x = spot.x; y = spot.y; moved++; }
+      }
+    }
+    const biome = Terrain.getBiome(x, y);
+    if (x !== n.x || y !== n.y || biome !== n.biome) {
+      try { await prisma.resourceNode.update({ where: { id: n.id }, data: { x, y, biome } }); if (biome !== n.biome) rebiomed++; } catch (e) { /* case prise entre-temps : au prochain démarrage */ }
+    }
+  }
+  if (moved || rebiomed) console.log(`[SEED] terrain : ${moved} points déplacés hors de l'eau, ${rebiomed} biomes mis à jour`);
+}
+
+module.exports = { seedResourceNodes, syncResourceNodesWithTerrain };
