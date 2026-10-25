@@ -8,6 +8,9 @@
   else root.Terrain = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
+  // Version du terrain : à augmenter à chaque changement de la génération (le serveur la publie dans /api/world/info, une
+  // application qui embarque un autre terrain demande sa mise à jour). 2 = carte de référence du 25 octobre 2026.
+  const TERRAIN_VERSION = 2;
   const WORLD_SIZE = 374;
   const MIN_COORD = -Math.floor(WORLD_SIZE / 2);          // -187
   const MAX_COORD = MIN_COORD + WORLD_SIZE - 1;           // +186
@@ -264,10 +267,14 @@
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (objects.get((x + dx) + ',' + (y + dy)) === 'CITY') return true;
     return false;
   }
+  // La couronne autour d'une ville reste praticable (on sort toujours de chez soi), sauf au-dessus de l'eau : deux villes
+  // face à face ne font pas un pont sur une rivière
   function isBlocked(x, y, objects) {
     if (!inWorld(x, y)) return true;
-    if (isObjectCell(objects, x, y)) return false;
-    return !!BLOCKED[getTerrainType(x, y).feature];
+    const f = getTerrainType(x, y).feature;
+    if (objects && objects.has(x + ',' + y)) return false;
+    if (isObjectCell(objects, x, y)) return !!WATER[f];
+    return !!BLOCKED[f];
   }
 
   // Un passage doit déboucher des deux côtés sur une case où l'on marche (pas une montagne, des rochers ou un lac) ; sinon
@@ -361,5 +368,5 @@
     return null;
   }
 
-  return { CITY_FOOTPRINT, cityCells, GROUND_LAYERS, GROUND_VARIANTS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, BIOME_SCALE, seededRandom, smoothNoise, hillNoise, getBiome, isOnRiver, riverAt, crossingAxisAt, isOnLake, isOnMountainRange, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, FORD_COST, FOREST_COST, inWorld, isBlocked, isMainland, findPath, _cache: cache };
+  return { TERRAIN_VERSION, CITY_FOOTPRINT, cityCells, GROUND_LAYERS, GROUND_VARIANTS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, BIOME_SCALE, seededRandom, smoothNoise, hillNoise, getBiome, isOnRiver, riverAt, crossingAxisAt, isOnLake, isOnMountainRange, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, FORD_COST, FOREST_COST, inWorld, isBlocked, isMainland, findPath, _cache: cache };
 });

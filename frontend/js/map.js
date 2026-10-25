@@ -727,30 +727,8 @@ function renderMapCore() {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
-  // Get current biome for sky gradient (based on center of view)
-  const centerBiome = getBiome(Math.floor(mapOffsetX), Math.floor(mapOffsetY));
-  const biomeColors = BIOMES[centerBiome];
+  // Le sol couvre tout l'écran (map-world.js) : pas de ciel à peindre dessous
 
-  // Clear canvas with sky gradient based on biome and day/night
-  const gradient = mapCtx.createLinearGradient(0, 0, 0, h);
-  if (nightMode) {
-    gradient.addColorStop(0, biomeColors.skyTopNight || '#0a1020');
-    gradient.addColorStop(1, biomeColors.skyBottomNight || '#152030');
-  } else {
-    gradient.addColorStop(0, biomeColors.skyTop);
-    gradient.addColorStop(1, biomeColors.skyBottom);
-  }
-  mapCtx.fillStyle = gradient;
-  mapCtx.fillRect(0, 0, w, h);
-
-  // Draw stars at night
-  if (nightMode) {
-    drawMapStars(w, h);
-  }
-
-  // Calculate visible tiles
-  const tilesX = Math.ceil(w / tileW) + 4;
-  const tilesY = Math.ceil(h / tileH) + 4;
 
   // Convert world to isometric screen coordinates
   function worldToScreen(wx, wy) {
@@ -776,18 +754,15 @@ function renderMapCore() {
   window.mapScreenToWorld = screenToWorld;
   window.mapWorldToScreen = worldToScreen;
 
-  // Draw isometric terrain grid
+  // Cases visibles : tout le rectangle du monde qui couvre l'écran (un écran vertical en voit plus en hauteur), marge pour
+  // les reliefs et les arbres qui dépassent de leur case
+  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
+  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
   const drawOrder = [];
-
-  for (let i = -tilesY; i < tilesY; i++) {
-    for (let j = -tilesX; j < tilesX; j++) {
-      const wx = Math.floor(mapOffsetX) + j;
-      const wy = Math.floor(mapOffsetY) + i;
+  for (let wy = bounds.y0; wy <= bounds.y1; wy++) {
+    for (let wx = bounds.x0; wx <= bounds.x1; wx++) {
       const pos = worldToScreen(wx, wy);
-
-      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 ||
-          pos.y < -tileH * 2 || pos.y > h + tileH * 2) continue;
-
+      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 || pos.y < -tileH * 2 || pos.y > h + tileH * 4) continue;
       drawOrder.push({ wx, wy, x: pos.x, y: pos.y, type: 'terrain' });
     }
   }
@@ -796,8 +771,6 @@ function renderMapCore() {
   drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
 
   // Le sol (textures et fondus), la grille, puis les éléments posés de haut en bas (map-world.js)
-  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
-  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
   rebuildMapObjectCells();
   drawMapGround(worldToScreen, bounds, w, h, tileW, tileH, nightMode);
   drawMapGrid(worldToScreen, bounds, nightMode);
@@ -810,8 +783,8 @@ function renderMapCore() {
 
   mapData.forEach(obj => {
     const pos = obj.type === 'CITY' ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
-    if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
-        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
+    const m = obj.type === 'CITY' ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
+    if (pos.x >= -m && pos.x <= w + m && pos.y >= -m && pos.y <= h + m) {
       objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y });
     }
   });
@@ -1225,31 +1198,6 @@ function drawIceMountain(x, y, w, h) {
 }
 
 // Frozen lake
-function drawMapStars(w, h) {
-  // Use seeded random for consistent star positions
-  const seed = 54321;
-  const random = (i) => {
-    const x = Math.sin(seed + i) * 10000;
-    return x - Math.floor(x);
-  };
-
-  for (let i = 0; i < 60; i++) {
-    const x = random(i) * w;
-    const y = random(i + 100) * h * 0.5; // Only upper half
-    const size = random(i + 200) * 1.5 + 0.5;
-    const brightness = random(i + 300) * 0.5 + 0.5;
-
-    // Twinkling effect
-    const twinkle = Math.sin(Date.now() / 600 + i) * 0.3 + 0.7;
-
-    mapCtx.fillStyle = `rgba(255, 255, 255, ${brightness * twinkle})`;
-    mapCtx.beginPath();
-    mapCtx.arc(x, y, size, 0, Math.PI * 2);
-    mapCtx.fill();
-  }
-}
-
-// Draw isometric highlight (diamond outline)
 function drawIsoHighlight(x, y, tw, th, color, lineWidth) {
   mapCtx.beginPath();
   mapCtx.moveTo(x, y - th / 2);
@@ -2065,7 +2013,7 @@ function armyRoute(army) {
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
   if (armyRouteCache.size > 300) armyRouteCache.clear();
   const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
-  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000, { faction: army.owner?.faction || (army.ownerId === player?.id ? player?.faction : null) });
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 15000, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
   const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
   armyRouteCache.set(key, path);
   return path;
@@ -2474,14 +2422,8 @@ function onMapMouseMove(e) {
     scheduleMapRender(true);
   } else {
     // Update hovered tile using isometric conversion
-    const centerX = mapViewW / 2;
-    const centerY = mapViewH / 2;
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-    mapHoveredTile = { x: tileX, y: tileY };
+    const pick = pickMapTile(mouseX, mouseY);   // the same cell (or city) a click would pick
+    mapHoveredTile = { x: pick.x, y: pick.y };
     scheduleMapRender(false);
   }
 }
@@ -2510,6 +2452,13 @@ function pickMapTile(mouseX, mouseY) {
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
   const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1) : (t.x === x && t.y === y && (t.type === 'RESOURCE' || t.type === 'ARMY')));   // a city: any of its 2 × 2 cells
   let tile = entityAt(tileX, tileY);
+  if (!tile && typeof window.mapWorldToScreen === 'function') {
+    // the walls and roofs of a 2 × 2 city rise well above its block: a touch on the drawing picks it (the front-most first)
+    const hits = mapData.filter(t => t.type === 'CITY').map(t => ({ t, p: window.mapWorldToScreen(t.x + 0.5, t.y + 0.5) }))
+      .filter(({ p }) => Math.abs(mouseX - p.x) <= tileW * 0.9 && mouseY <= p.y + tileH && mouseY >= p.y - tileW * 2.4)
+      .sort((a, b) => b.p.y - a.p.y);
+    if (hits.length) tile = hits[0].t;
+  }
   if (!tile) {
     for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
       const t = entityAt(tileX + ox, tileY + oy);

@@ -21,7 +21,7 @@ const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
-const { footprintFree, cityAtCellWhere } = require('../../utils/spawn');
+const { footprintFree, cityAtCellWhere, lockPlacement } = require('../../utils/spawn');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
 const TX = { timeout: 15000 };
@@ -245,6 +245,7 @@ async function handleFoundArrival(army, now) {
 
 async function handleFoundComplete(army, now) {
   const created = await prisma.$transaction(async (tx) => {
+    await lockPlacement(tx);   // no other city placed at the same time on an overlapping block
     const node = army.targetResourceId ? await tx.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
     const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { owner: true } });
     if (!node || node.cityId || !fresh || (fresh.settlers || 0) < 1) return null;

@@ -18,7 +18,10 @@ test('mountains and water block, everything else and object cells pass', () => {
   assert.equal(T.isBlocked(10000, 0), true, 'outside the world');
   const objects = new Map([['-60,-30', 'CITY']]);
   assert.equal(T.isBlocked(-60, -30, objects), false, 'a city tile is always passable');
-  assert.equal(T.isBlocked(-59, -30, objects), false, 'and so is its neighbour');
+  assert.equal(T.isBlocked(-59, -30, objects), true, 'but the ring around it stays blocked over water (no bridge made of two cities)');
+  const onRange = new Map([['-100,-40', 'CITY']]);
+  assert.equal(T.isBlocked(-99, -40), true, 'mountain range');
+  assert.equal(T.isBlocked(-99, -40, onRange), false, 'the ring around a city is passable over relief');
 });
 
 test('A* finds contiguous routes that never cross a blocked tile and are at least as long as the straight line', () => {

@@ -298,11 +298,19 @@ router.delete('/:id/disband', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// Une ville couvre 2 × 2 cases : un déplacement vers l'une d'elles va à sa case principale (celle de la ville), sinon
+// l'armée resterait « à côté de chez elle » (ni rentrée, ni défenseur, ni rencontrée en campagne)
+async function cityAnchorOf(x, y) {
+  const city = await prisma.city.findFirst({ where: cityAtCellWhere(x, y), select: { x: true, y: true } });
+  return city ? { x: city.x, y: city.y } : { x, y };
+}
+
 // POST /api/army/:id/move
 router.post('/:id/move', auth, async (req, res) => {
   try {
-    const x = parseInt(req.body.x), y = parseInt(req.body.y);
+    let x = parseInt(req.body.x), y = parseInt(req.body.y);
     if (!validateCoordinates(x, y)) return res.status(400).json({ error: 'Coordonnées invalides' });
+    ({ x, y } = await cityAnchorOf(x, y));
     const army = await loadArmy(req.params.id, req.user.playerId);
     const err = readyToLeave(army, 'se déplacer');
     if (err) return res.status(err.status).json({ error: err.error });
@@ -536,7 +544,7 @@ router.post('/:id/return', auth, async (req, res) => {
         const total = army.departedAt ? (new Date(army.arrivalAt).getTime() - new Date(army.departedAt).getTime()) / 1000 : 0;
         const remaining = Math.max(0, (new Date(army.arrivalAt).getTime() - Date.now()) / 1000);
         const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 1;
-        const route = await findRoute(army.x, army.y, army.targetX, army.targetY);
+        const route = await findRoute(army.x, army.y, army.targetX, army.targetY, army.owner?.faction);   // the path it is walking
         const at = route ? pointAlongPath(route.path, progress) : { x: army.x + (army.targetX - army.x) * progress, y: army.y + (army.targetY - army.y) * progress };
         fromX = Math.round(at.x); fromY = Math.round(at.y);
         // left from its own city and not off its tile yet (a sortie, or any mission recalled at once): it is simply back
@@ -617,7 +625,7 @@ router.post('/send', auth, async (req, res) => {
   try {
     const { armyId, targetX, targetY, mission } = req.body;
     if (!isId(armyId)) return res.status(400).json({ error: 'Armee requise' });
-    const parsedX = parseInt(targetX), parsedY = parseInt(targetY);
+    let parsedX = parseInt(targetX), parsedY = parseInt(targetY);
     if (!validateCoordinates(parsedX, parsedY)) return res.status(400).json({ error: 'Coordonnées invalides' });
     const army = await loadArmy(armyId, req.user.playerId);
     const err = readyToLeave(army, 'partir');
@@ -631,6 +639,7 @@ router.post('/send', auth, async (req, res) => {
       const label = { ATTACK: 'Attaque lancée', RAID: 'Raid lancé', SPY: 'Espionnage lancé' }[mission];
       return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, ...launched });
     }
+    ({ x: parsedX, y: parsedY } = await cityAnchorOf(parsedX, parsedY));
     if (await isBlockedTile(parsedX, parsedY)) return res.status(400).json({ error: 'Une armée ne peut pas se rendre sur une montagne ou dans l\'eau' });
     if (parsedX === army.x && parsedY === army.y) return res.status(400).json({ error: 'L\'armée est déjà sur place' });
     const travelTime = await travelTo(army, parsedX, parsedY);

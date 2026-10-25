@@ -10,7 +10,7 @@ const { unitsData, factionsData } = require('../config/gamedata');
 const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('../utils/calculations');
 const { plunderCity, creditCity } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
-const { findFreeSpawn } = require('../utils/spawn');
+const { findFreeSpawn, lockPlacement } = require('../utils/spawn');
 const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
 
 const F = () => config.combat.fall;
@@ -92,6 +92,7 @@ async function razeCity(cityId, byArmyId) {
     const capitalGarrison = capital ? await tx.army.findFirst({ where: { cityId: capital.id, isGarrison: true } }) : null;
     const usedSlots = new Set(capital ? (await tx.army.findMany({ where: { cityId: capital.id, isGarrison: false }, select: { slot: true } })).map(a => a.slot) : []);
     const heroes = [];
+    const ownerFaction = (await tx.player.findUnique({ where: { id: city.playerId }, select: { faction: true } }))?.faction || null;
     for (const a of city.armies) {
       const atHome = a.isGarrison || (a.status === 'IDLE' && a.x === city.x && a.y === city.y);
       if (atHome) { if (a.heroId) heroes.push(a.heroId); await tx.army.delete({ where: { id: a.id } }); continue; }
@@ -105,7 +106,7 @@ async function razeCity(cityId, byArmyId) {
         if (a.status === 'EXPEDITION') Object.assign(data, { x: capital.x, y: capital.y });
       }
       if (a.status === 'RETURNING' && capital) {
-        const extra = await routeLength(city.x, city.y, capital.x, capital.y).then(len => getArmyTravelTime(a.units, city.x, city.y, capital.x, capital.y, null, null, len)).catch(() => 0);
+        const extra = await routeLength(city.x, city.y, capital.x, capital.y, ownerFaction).then(len => getArmyTravelTime(a.units, city.x, city.y, capital.x, capital.y, ownerFaction, null, len)).catch(() => 0);
         Object.assign(data, { targetX: capital.x, targetY: capital.y, arrivalAt: new Date(Math.max(Date.now(), new Date(a.arrivalAt || Date.now()).getTime()) + extra * 1000) });
       }
       await tx.army.update({ where: { id: a.id }, data });
@@ -151,11 +152,12 @@ async function razeCity(cityId, byArmyId) {
 // Capitale tombée : déplacée sur un emplacement libre près du bord ; ses armées en ville la suivent, celles qui rentrent
 // sont redirigées ; santé de la muraille remise à 100 %, siège levé
 async function relocateCapital(cityId, byArmyId) {
-  const pos = await findFreeSpawn();
   return prisma.$transaction(async (tx) => {
+    await lockPlacement(tx);   // first, before any row lock: the new place is chosen and taken under it
     await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${cityId} FOR UPDATE`;
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || !city.isCapital || city.wallStructure > 0) return null;   // already moved by another executor
+    const pos = await findFreeSpawn({ db: tx });
     const from = { x: city.x, y: city.y };
     await tx.city.update({ where: { id: city.id }, data: { x: pos.x, y: pos.y, wallStructure: 1, wallHp: city.wallMaxHp || 0, isSieged: false } });
     // every army of the capital, wherever it is and whatever it does, is brought back at once to the new place; its
@@ -180,10 +182,12 @@ async function relocateCapital(cityId, byArmyId) {
     const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
     for (const id of campsLeft) await refreshSiegeFlag(tx, id);
     // every convoy on its way to the city (its owner's or a friend's) follows it to its new place, and takes the extra way
-    const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { units: true } });
-    const extraLen = convoys.length ? await routeLength(from.x, from.y, pos.x, pos.y).catch(() => null) : null;
+    const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { units: true, owner: { select: { faction: true } } } });
+    const lenByFaction = new Map();   // the extra way, per civilisation (forests do not slow the Gauls)
     for (const a of convoys) {
-      const extra = getArmyTravelTime(a.units, from.x, from.y, pos.x, pos.y, null, null, extraLen);
+      const faction = a.owner?.faction || null;
+      if (!lenByFaction.has(faction)) lenByFaction.set(faction, await routeLength(from.x, from.y, pos.x, pos.y, faction).catch(() => null));
+      const extra = getArmyTravelTime(a.units, from.x, from.y, pos.x, pos.y, faction, null, lenByFaction.get(faction));
       await tx.army.updateMany({ where: { id: a.id, status: 'TRANSPORTING', claimedAt: null }, data: { targetX: pos.x, targetY: pos.y, arrivalAt: new Date(Math.max(Date.now(), new Date(a.arrivalAt || Date.now()).getTime()) + extra * 1000) } });
     }
     const owners = await turnBackHostiles(tx, city, byArmyId);

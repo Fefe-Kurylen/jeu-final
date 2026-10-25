@@ -226,6 +226,10 @@ function buildAllTargets() {
   for (const n of Object.keys(EDGE)) out.push({ cat: 'terrain', file: `terrain/${n}.webp`, frame: 'edge', fit: 'flat', opaque: true, role: describe(`terrain/${n}.webp`) });
   for (const n of Object.keys(DECAL)) out.push({ cat: 'decals', file: `decals/${n}.webp`, frame: 'decal', fit: 'flat', opaque: false, role: describe(`decals/${n}.webp`) });
   out.push(...EXTRAS);
+  // Carte au style de référence : ressources, camps et armées au cadrage d'une case (losange à 50 % de la largeur, centre
+  // à 75 %), comme le jeu les dessine (map.js, drawTileImage) ; plus de guide 3D, dont le cadrage est l'ancien
+  for (const t of out) if (/^map\/(units|resources|camps)\//.test(t.file) && t.frame === 'map') { t.frame = 'mapobject'; t.fit = 'direct'; delete t.guide; delete t.guideFile; }
+  for (const t of out) if (t.frame === 'mapcity') { delete t.guide; delete t.guideFile; }   // ville 2 × 2 : guide de cadrage docs/img/guides-carte
   return out;
 }
 function frameSize(t) { return FRAMES[t.frame] || [1024, 1024]; }

@@ -25,11 +25,12 @@ let lastRunAt = 0;
 // Routes of marching armies, least recently used evicted first
 const routeCache = new Map();
 async function routeOf(a, budget) {
-  const key = `${a.x},${a.y}>${a.targetX},${a.targetY}`;
+  const faction = a.owner?.faction || null;   // the path the army really walks (forests do not slow the Gauls)
+  const key = `${a.x},${a.y}>${a.targetX},${a.targetY}|${faction || ''}`;
   if (routeCache.has(key)) { const p = routeCache.get(key); routeCache.delete(key); routeCache.set(key, p); return p; }
   if (budget.left <= 0) return [[a.x, a.y], [a.targetX, a.targetY]];   // over budget this tick: the straight line, exact next time
   budget.left--;
-  const r = await findRoute(a.x, a.y, a.targetX, a.targetY).catch(() => null);
+  const r = await findRoute(a.x, a.y, a.targetX, a.targetY, faction).catch(() => null);
   const path = r ? r.path : [[a.x, a.y], [a.targetX, a.targetY]];
   routeCache.set(key, path);
   while (routeCache.size > E().routeCacheSize) routeCache.delete(routeCache.keys().next().value);
@@ -71,7 +72,7 @@ const boxOf = (a) => isMarching(a)
   : { x0: a.x - 1, x1: a.x + 1, y0: a.y - 1, y1: a.y + 1 };
 const boxesMeet = (p, q) => p.x0 <= q.x1 && q.x0 <= p.x1 && p.y0 <= q.y1 && q.y0 <= p.y1;
 
-const SELECT = { id: true, name: true, ownerId: true, cityId: true, status: true, missionType: true, isGarrison: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, departedAt: true, arrivalAt: true, claimedAt: true, city: { select: { x: true, y: true } }, units: { select: { count: true } } };
+const SELECT = { id: true, name: true, ownerId: true, owner: { select: { faction: true } }, cityId: true, status: true, missionType: true, isGarrison: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, departedAt: true, arrivalAt: true, claimedAt: true, city: { select: { x: true, y: true } }, units: { select: { count: true } } };
 // A candidate: not a garrison, not claimed by an arrival being resolved, with soldiers, and not standing in its own city
 const isCandidate = (a) => !a.isGarrison && !a.claimedAt && a.units.some(u => u.count > 0) && (MARCHING.includes(a.status) || STANDING.includes(a.status)) && !(a.status === 'IDLE' && a.city && a.x === a.city.x && a.y === a.city.y);
 

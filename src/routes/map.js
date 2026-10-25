@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 const { unitsData, buildingsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
 const { getCityTier, getCityTierName, mainHallLevelOf } = require('../utils/calculations');
+const Terrain = require('../../frontend/js/shared/terrain.js');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 const EXPANSION_PER_PLAYER = config.map.expansionPerPlayer;
@@ -42,7 +43,7 @@ router.get('/world/info', async (req, res) => {
     const resourceCount = await prisma.resourceNode.count();
     // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
     const factions = Object.fromEntries(Object.entries(factionsData).map(([k, f]) => [k, { name: f.name, bonuses: (f.bonuses || []).map(b => ({ type: b.type, value: b.value, description: b.description })) }]));
-    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules });
+    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules, terrainVersion: Terrain.TERRAIN_VERSION });
   } catch (e) { sendError(res, e); }
 });
 

@@ -12,7 +12,7 @@ const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
 const { noteCityCells } = require('../utils/pathfinding');
-const { findFreeSpawn } = require('../utils/spawn');
+const { findFreeSpawn, lockPlacement } = require('../utils/spawn');
 const path = require('path');
 const fs = require('fs');
 
@@ -65,9 +65,10 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     // Everything is created atomically; a coordinate collision with a concurrent signup just retries
     let created = null;
     for (let attempt = 0; attempt < 5 && !created; attempt++) {
-      const { x, y } = await findFreeSpawn();
       try {
         created = await prisma.$transaction(async (tx) => {
+          await lockPlacement(tx);   // the place is chosen and taken under one lock (no overlapping 2 × 2 blocks)
+          const { x, y } = await findFreeSpawn({ db: tx });
           const account = await tx.account.create({ data: { email: normalizedEmail, passwordHash: hash } });
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
           await tx.playerStats.create({ data: { playerId: player.id } });

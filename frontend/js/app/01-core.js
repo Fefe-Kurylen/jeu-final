@@ -484,6 +484,25 @@ function applyFactionBonusTexts() {
   });
 }
 
+// Le serveur joue sur un autre terrain que celui de cette version du jeu (carte changée) : sur le web, un rechargement
+// récupère la nouvelle version ; dans l'application, il faut la mettre à jour depuis la boutique
+function onTerrainOutdated() {
+  const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (!native) {
+    let tried = false;
+    try { tried = sessionStorage.getItem('terrain-reload') === '1'; sessionStorage.setItem('terrain-reload', '1'); } catch (e) { tried = true; }
+    if (!tried) { location.reload(); return; }
+  }
+  const msg = native ? 'La carte du monde a changé : mettez l\'application à jour depuis la boutique pour voir la carte telle qu\'elle est.' : 'La carte du monde a changé : videz le cache du navigateur et rechargez la page.';
+  if (typeof showToast === 'function') showToast(msg, 'error');
+  const bar = document.createElement('div');
+  bar.className = 'terrain-outdated';
+  bar.setAttribute('role', 'alert');
+  bar.textContent = msg;
+  bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:10000;padding:10px 14px;background:#7a2a18;color:#fff;font:600 14px/1.35 sans-serif;text-align:center';
+  document.body.appendChild(bar);
+}
+
 // Load world info to get dynamic world size
 async function loadWorldInfo() {
   try {
@@ -493,6 +512,8 @@ async function loadWorldInfo() {
       updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies
+      if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion !== Terrain.TERRAIN_VERSION) onTerrainOutdated();
+      else { try { sessionStorage.removeItem('terrain-reload'); } catch (e) { /* stockage indisponible */ } }
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }
   } catch (e) {
@@ -884,6 +905,8 @@ const _sprites = new Map();   // url -> { img, ready, failed }
 const _spriteRasters = new Map(); // url@largeur -> canvas (un SVG rasterisé une fois par taille, puis simple blit)
 let _spriteRedrawQueued = false;
 
+// L'image n'a pas pu être chargée (fichier absent, réseau) : le dessin de repli prend le relais
+function spriteFailed(url) { const s = _sprites.get(url); return !!(s && s.failed); }
 function getSprite(url) {
   let s = _sprites.get(url);
   if (!s) {
