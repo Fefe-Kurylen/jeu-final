@@ -138,31 +138,26 @@ const config = {
     defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT: damage per hit = ATK × mods − 0.55 × DEF
     minDamageRatio: 0.2,         // a hit always deals at least 20% of the raw attack
     targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
-    // Siège qui dure (GDD combat_config.siege, décision d'octobre 2026) : l'attaque arrivée campe devant la ville,
-    // ses engins abattent le mur au fil du temps, puis l'assaut est donné. Le défenseur et ses alliés peuvent attaquer
-    // l'armée qui assiège pour lever le siège.
+    // Siège (décision du 25 octobre 2026) : l'armée qui attaque une ville campe 1 h devant elle, puis le combat démarre
+    // tout seul. Pendant l'heure, la ville vit normalement ; n'importe quel joueur peut attaquer le camp. Au combat, le
+    // mur sert de bouclier : tant qu'il tient, les coups de l'attaquant tombent sur lui, les engins le frappent bien plus
+    // fort que les soldats ; son bonus de défense baisse avec ses PV.
     siege: {
-      wallDamagePerEngineHour: 400,   // PV de mur abattus par engin et par heure : 100 engins percent un mur niveau 20
-                                      // (20 000 PV) en 30 min ; le minimum d'engins (1 / 10 / 20) contre un mur du même
-                                      // niveau le perce en 2 h 30 (décision d'octobre 2026)
-      enginesPerWorkshopLevel: 5,     // une armée emmène au plus 5 engins par niveau d'Atelier de sa ville (100 au niveau 20)
-      minSoldiers: 100,               // anti-spam : un siège demande au moins 100 soldats en plus des engins
-      riposteRatio: 3,                // les troupes de la ville au moins 3 fois plus fortes que l'armée qui arrive : riposte automatique
-      minAssaultMinutes: 30,          // GDD minDestroyMinutesReference : au moins 30 min de siège avant l'assaut
-      maxHours: 3,                    // un siège dure au plus 3 h : sans brèche, l'assaut est donné contre le mur abîmé ; le mur
-                                      // égyptien (+25 % de PV, bonus wallHealth) tient d'autant plus : 3 h 45 (décision d'octobre 2026)
-      upkeepAttackerPct: 100,         // l'armée qui assiège consomme le double (décision d'octobre 2026, docs/EQUILIBRAGE.md § 12) :
-                                      // un siège coûte cher, le spam de petits sièges n'est plus rentable...
-      upkeepDefenderPct: 0            // ...la ville assiégée et ses armées consomment comme d'habitude
+      campMinutes: 60,                // durée du camp avant le combat
+      minEngines: 1,                  // pas de siège sans au moins un engin
+      wallShield: {
+        engineMult: 1,                // coups d'un engin sur le mur : toute sa force...
+        soldierMult: 0.1              // ...ceux d'un soldat : un dixième (un engin frappe le mur 10 fois plus fort)
+      }
     },
-    // Chute d'une ville (décision d'octobre 2026) : chaque assaut gagné ôte une part de la « santé de la muraille »
-    // (City.wallStructure) ; elle remonte de 0 à 100 % en 48 h hors siège. À 0, une ville secondaire est rasée, une capitale est
-    // déplacée au hasard près du bord de la carte (elle ne peut pas être prise).
+    // Vies d'une ville (décision d'octobre 2026) : chaque combat gagné par l'attaquant lui ôte une vie (City.wallStructure,
+    // part des vies restantes) et la même part des PV de son mur ; tout remonte de 0 à 100 % en 48 h. À la dernière vie,
+    // une ville secondaire est détruite, une capitale est déplacée au hasard près du bord de la carte (jamais prise).
     fall: {
-      assaults: { capital: 4, secondary: 2 },   // assauts gagnés pour faire tomber la ville...
-      extraAssaults: { EGYPT: 1 },              // ...un de plus pour les villes égyptiennes (5 et 3)
-      regenHours: 48,                           // de 0 à 100 % en 48 h hors siège (décision d'octobre 2026)
-      pillagePct: 25                            // part du stock pillable enlevée à chaque assaut gagné (cachette et grands entrepôts protègent)
+      assaults: { capital: 4, secondary: 2 },   // vies : capitale 4, ville secondaire 2...
+      extraAssaults: { EGYPT: 1 },              // ...une de plus pour les villes égyptiennes (5 et 3)
+      regenHours: 48,                           // de 0 à toutes ses vies en 48 h
+      pillagePct: 50                            // part du stock pillable enlevée par un combat gagné, dans la limite de ce que l'armée porte
     },
     wallHpPerLevel: 1000,
     wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h

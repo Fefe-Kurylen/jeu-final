@@ -20,43 +20,51 @@ const RES = ['wood', 'stone', 'iron', 'food'];
 function assaultsToFall(city, faction) {
   return (city.isCapital ? F().assaults.capital : F().assaults.secondary) + (F().extraAssaults[String(faction || '').toUpperCase()] || 0);
 }
-const assaultsLeft = (city, faction) => Math.max(0, Math.round((city.wallStructure ?? 1) * assaultsToFall(city, faction)));
+const assaultsLeft = (city, faction) => Math.max(0, Math.round((city.wallStructure ?? 1) * assaultsToFall(city, faction)));   // vies restantes
 
-// Pillage d'un assaut gagné : pillagePct % du stock au-dessus des grands entrepôts et de la cachette quitte la ville ;
-// l'armée en emporte ce qu'elle peut porter (déposé au retour), le reste part en fumée. Dans la transaction de la bataille.
-async function pillage(tx, city, army, survivors) {
+// Pillage d'un combat gagné (décision du 25 octobre 2026) : pillagePct % du stock au-dessus des grands entrepôts et de la
+// cachette, dans la limite de ce que les armées portent ; ce qu'elles ne portent pas reste à la ville. Plusieurs camps
+// alliés se partagent le butin selon leur capacité. `survivors` : Map armyId -> unités restantes. Dans la transaction.
+async function pillage(tx, city, armies, survivors) {
   const hideout = city.buildings.find(b => b.key === 'HIDEOUT');
   let shelter = (hideout?.level || 0) * config.hideout.protectionPerLevel * (1 + getFactionBonus(city.player.faction, 'hideoutCapacity', factionsData) / 100);
   shelter = Math.min(shelter, config.hideout.maxProtection);
   const protectedStock = fx.protectedStorage(city.buildings);
   const want = {};
   for (const r of RES) want[r] = Math.floor(Math.max(0, (city[r] - (protectedStock[r] || 0)) * (1 - shelter)) * F().pillagePct / 100);
-  const taken = await plunderCity(tx, city.id, want);
-  const total = RES.reduce((t, r) => t + taken[r], 0);
-  const capacity = Math.floor(getArmyCarryCapacity(survivors, unitsData, army.hero) * (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100));
-  const share = total > 0 ? Math.min(1, capacity / total) : 0;
-  const carried = Object.fromEntries(RES.map(r => [r, Math.floor(taken[r] * share)]));
-  if (RES.some(r => carried[r] > 0)) await tx.army.update({ where: { id: army.id }, data: { carryWood: { increment: carried.wood }, carryStone: { increment: carried.stone }, carryIron: { increment: carried.iron }, carryFood: { increment: carried.food } } });
+  const caps = armies.map(a => ({ a, cap: Math.max(0, Math.floor(getArmyCarryCapacity(survivors.get(a.id) || [], unitsData, a.hero) * (1 + getFactionBonus(a.owner?.faction, 'transportCapacity', factionsData) / 100))) }));
+  const capacity = caps.reduce((t, c) => t + c.cap, 0);
+  const wanted = RES.reduce((t, r) => t + want[r], 0);
+  const share = wanted > 0 ? Math.min(1, capacity / wanted) : 0;
+  const taken = await plunderCity(tx, city.id, Object.fromEntries(RES.map(r => [r, Math.floor(want[r] * share)])));
+  const carried = new Map();
+  for (const { a, cap } of caps) {
+    const part = capacity > 0 ? cap / capacity : 0;
+    const load = Object.fromEntries(RES.map(r => [r, Math.floor(taken[r] * part)]));
+    carried.set(a.id, load);
+    if (RES.some(r => load[r] > 0)) await tx.army.update({ where: { id: a.id }, data: { carryWood: { increment: load.wood }, carryStone: { increment: load.stone }, carryIron: { increment: load.iron }, carryFood: { increment: load.food } } });
+  }
   return { taken, carried };
 }
 
-// Santé de la muraille après un assaut gagné ; renvoie { before, after, fallen }
+// Une vie perdue après un combat gagné par l'attaquant, avec la même part des PV du mur ; renvoie { before, after, fallen }
 async function wearWallStructure(tx, city) {
   const n = assaultsToFall(city, city.player.faction);
   const before = city.wallStructure ?? 1;
-  // the wall regenerates a little between two assaults: the city falls when less than half an assault is left
+  // lives come back little by little: the city falls when less than half a life is left after the loss
   const left = Math.max(0, before - 1 / n);
   const fallen = left <= 0.5 / n;
   const after = fallen ? 0 : left;
-  await tx.city.update({ where: { id: city.id }, data: { wallStructure: after } });
+  await tx.city.update({ where: { id: city.id }, data: { wallStructure: after, wallHp: Math.max(0, (city.wallMaxHp || 0) * after) } });
   return { before, after, fallen, needed: n };
 }
 
 // Les armées hostiles en route vers la ville font demi-tour (même durée que le trajet déjà fait) ; les camps qui l'assiègent
 // rentrent par la vraie route, à la vitesse de l'armée. Les convois ne sont pas hostiles : ils sont traités à part.
-async function turnBackHostiles(tx, city, exceptArmyId) {
+async function turnBackHostiles(tx, city, except) {
+  const exceptIds = (Array.isArray(except) ? except : [except]).filter(Boolean);
   const { sendArmyHomeTx } = require('./armyService');
-  const hostiles = await tx.army.findMany({ where: { targetCityId: city.id, id: { not: exceptArmyId || '' }, NOT: { ownerId: city.playerId }, status: { in: ['ATTACKING', 'RAIDING', 'SPYING', 'BESIEGING'] } }, include: { city: true, units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
+  const hostiles = await tx.army.findMany({ where: { targetCityId: city.id, id: { notIn: exceptIds }, NOT: { ownerId: city.playerId }, status: { in: ['ATTACKING', 'RAIDING', 'SPYING', 'BESIEGING'] } }, include: { city: true, units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
   const now = Date.now();
   for (const a of hostiles) {
     if (a.status === 'BESIEGING') { await sendArmyHomeTx(tx, a); continue; }
@@ -149,14 +157,28 @@ async function relocateCapital(cityId, byArmyId) {
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || !city.isCapital || city.wallStructure > 0) return null;   // already moved by another executor
     const from = { x: city.x, y: city.y };
-    await tx.city.update({ where: { id: city.id }, data: { x: pos.x, y: pos.y, wallStructure: 1, isSieged: false } });
+    await tx.city.update({ where: { id: city.id }, data: { x: pos.x, y: pos.y, wallStructure: 1, wallHp: city.wallMaxHp || 0, isSieged: false } });
+    // every army of the capital, wherever it is and whatever it does, is brought back at once to the new place; its
+    // mission is cancelled and what it carries goes into the city (décision du 25 octobre 2026). An arrival being
+    // resolved right now (claimed) finishes first and then walks to the new place.
+    const { depositCarryTx } = require('./armyService');
+    const campsLeft = new Set();
     for (const a of city.armies) {
-      if (a.isGarrison || ((a.status === 'IDLE' || a.status === 'EXPEDITION') && a.x === from.x && a.y === from.y)) { await tx.army.update({ where: { id: a.id }, data: { x: pos.x, y: pos.y } }); continue; }
-      if (a.status === 'RETURNING') {
-        const extra = await routeLength(from.x, from.y, pos.x, pos.y).then(len => getArmyTravelTime(a.units, from.x, from.y, pos.x, pos.y, null, null, len)).catch(() => 0);
-        await tx.army.update({ where: { id: a.id }, data: { targetX: pos.x, targetY: pos.y, arrivalAt: new Date(Math.max(Date.now(), new Date(a.arrivalAt || Date.now()).getTime()) + extra * 1000) } });
+      if (a.claimedAt) {
+        if (a.status === 'RETURNING') await tx.army.update({ where: { id: a.id }, data: { targetX: pos.x, targetY: pos.y } });
+        continue;
       }
+      if ((a.status === 'HARVESTING' || a.status === 'FOUNDING') && a.targetResourceId) {
+        const others = await tx.army.count({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: a.targetResourceId, id: { not: a.id } } });
+        if (others === 0) await tx.resourceNode.updateMany({ where: { id: a.targetResourceId }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
+      }
+      if (a.status === 'EXPEDITION') await tx.expedition.updateMany({ where: { armyId: a.id, status: 'IN_PROGRESS' }, data: { status: 'EXPIRED' } });
+      if (a.status === 'BESIEGING' && a.targetCityId) campsLeft.add(a.targetCityId);
+      if (!a.isGarrison) await depositCarryTx(tx, a.id, city.id);
+      await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
     }
+    const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
+    for (const id of campsLeft) await refreshSiegeFlag(tx, id);
     // every convoy on its way to the city (its owner's or a friend's) follows it to its new place, and takes the extra way
     const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { units: true } });
     const extraLen = convoys.length ? await routeLength(from.x, from.y, pos.x, pos.y).catch(() => null) : null;
@@ -177,14 +199,20 @@ async function applyFall(cityId, by = null) {
   if (!city || city.wallStructure > 0) return null;
   const who = by?.ownerName ? ` sous les assauts de ${by.ownerName}` : '';
   if (city.isCapital) {
-    const moved = await relocateCapital(city.id, by?.id);
+    const moved = await relocateCapital(city.id, by?.ids || by?.id);
     if (!moved) return null;
     forgetObjectCell(moved.from.x, moved.from.y); noteObjectCell(moved.to.x, moved.to.y, 'CITY');
-    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}).`, { tab: 'city', cityId: city.id });
+    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes vos armées l'y ont rejointe.`, { tab: 'city', cityId: city.id });
+    // the owner's alliance is told where its member's capital went (décision du 25 octobre 2026)
+    const member = await prisma.allianceMember.findFirst({ where: { playerId: city.playerId }, select: { allianceId: true, player: { select: { name: true } } } });
+    if (member) {
+      const mates = await prisma.allianceMember.findMany({ where: { allianceId: member.allianceId, playerId: { not: city.playerId } }, select: { playerId: true } });
+      for (const m of mates) notify(m.playerId, 'city_fall', '🏃 Capitale alliée déplacée', `La capitale de ${member.player?.name || 'votre allié'} est tombée et s'est rebâtie en (${moved.to.x}, ${moved.to.y}).`, { tab: 'map' });
+    }
     if (by?.ownerId) notify(by.ownerId, 'city_fall', '🏃 Capitale en fuite', `${city.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
     return { kind: 'RELOCATED', ...moved };
   }
-  const razed = await razeCity(city.id, by?.id);
+  const razed = await razeCity(city.id, by?.ids || by?.id);
   if (!razed) return null;
   noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
   notify(city.playerId, 'city_fall', '🔥 Ville rasée', `${city.name} est tombée${who} et a été rasée.`, { tab: 'reports' });

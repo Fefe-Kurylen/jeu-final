@@ -655,7 +655,7 @@ function updateAttackNotification() {
   if (timerEl) {
     timerEl.textContent = timerStr;
     timerEl.title = earliest.type === 'SIEGE'
-      ? `${earliest.attacker || 'Une armée'} assiège ${earliest.targetCity} : assaut dans ce délai. Touchez pour briser le siège.`
+      ? `${earliest.attacker || 'Une armée'} campe devant ${earliest.targetCity} : combat dans ce délai. Touchez pour attaquer le camp.`
       : earliest.attacker ? `${earliest.attacker} marche sur ${earliest.targetCity}${earliest.units ? ' avec ' + earliest.units + ' soldats' : ''}` : `Armée inconnue en approche de ${earliest.targetCity}`;
   }
   // A siege in progress: the alert opens the siege window (break it with an army of the city or of an ally)
@@ -731,9 +731,6 @@ function renderCity() {
   // Production: base 5/5/5/10 + fields, boosted by the bonus buildings (+5%/level), like the server
   const prod = getCityProduction(currentCity);
   let woodProd = prod.wood, stoneProd = prod.stone, ironProd = prod.iron, foodProd = prod.food;
-  if (currentCity.isSieged) { woodProd = stoneProd = ironProd = foodProd = 0; }   // besieged: no production at all (server rule)
-  const siegeRules = window.worldRules?.siege || {};
-  const besiegerMult = 1 + (Number(siegeRules.upkeepAttackerPct ?? 100)) / 100, besiegedMult = 1 + (Number(siegeRules.upkeepDefenderPct) || 0) / 100;
   
   // Calculate food consumption (upkeep) from armies
   let foodConsumption = 0;
@@ -747,7 +744,7 @@ function renderCity() {
         const upkeep = unitDef?.tier === 'base' ? 5 :
                        unitDef?.tier === 'intermediate' ? 10 :
                        unitDef?.tier === 'elite' ? 15 : 15;
-        foodConsumption += unit.count * upkeep * (army.status === 'BESIEGING' ? besiegerMult : (currentCity.isSieged ? besiegedMult : 1));   // siege upkeep, as the server
+        foodConsumption += unit.count * upkeep;
       }
     }
   }

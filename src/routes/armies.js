@@ -23,8 +23,6 @@ async function campsOutsideAlliance(playerId, ownerIds, db = prisma) {
   const mine = rows.find(r => r.playerId === playerId)?.allianceId || null;
   return ownerIds.filter(id => id !== playerId && !(mine && rows.find(r => r.playerId === id)?.allianceId === mine));
 }
-const isBesieged = (cityId, db = prisma) => db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } }).then(n => n > 0);
-const BLOCKADE = 'Ville assiégée : aucun convoi ne passe tant que l\'armée ennemie est devant elle';
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
 const SPY_SPEED = 80;
@@ -47,6 +45,14 @@ function readyToLeave(army, verb) {
   return null;
 }
 
+// A camp before the army's own city: its armies leave the walls only to attack the camp (décision du 25 octobre 2026)
+async function campBlocksExit(army, db = prisma) {
+  if (!army?.cityId) return null;
+  const city = await db.city.findUnique({ where: { id: army.cityId }, select: { x: true, y: true, isSieged: true } });
+  if (!city || !city.isSieged || army.x !== city.x || army.y !== city.y) return null;
+  return 'Ville assiégée : vos armées ne sortent que pour attaquer le camp ennemi (« Briser le siège »)';
+}
+
 // Returns an error message when `army` may not run `mission` (ATTACK|RAID|SPY) against `targetCity`
 // `db` is the transaction client when called inside one (no extra pool connection while the transaction holds one)
 async function checkHostileTarget(army, targetCity, mission, db = prisma) {
@@ -55,15 +61,8 @@ async function checkHostileTarget(army, targetCity, mission, db = prisma) {
     const relation = await getRelation(army.ownerId, targetCity.playerId, db);
     if (!relation.canAttack) return relation.status === 'SAME_ALLIANCE' ? 'Impossible d\'attaquer un membre de votre alliance' : 'Impossible d\'attaquer une alliance alliée';
   }
-  if (mission === 'ATTACK') {
-    const cityTier = getCityTier(mainHallLevelOf(targetCity.buildings));   // the Main Hall sets the city's tier (walls' look, siege minimum)
-    const minSiegeRequired = getMinSiegeEngines(cityTier);
-    const siegeCount = countSiegeEngines(army.units, unitsData);
-    if (siegeCount < minSiegeRequired) return `Pour assiéger une ${getCityTierName(cityTier)}, il faut minimum ${minSiegeRequired} engin(s) de siège. Vous en avez ${siegeCount}.`;
-    // anti-spam: the engines need an escort
-    const soldiers = army.units.reduce((t, u) => t + (unitsData.find(x => x.key === u.unitKey)?.class === 'SIEGE' ? 0 : u.count), 0);
-    if (soldiers < config.combat.siege.minSoldiers) return `Un siège demande au moins ${config.combat.siege.minSoldiers} soldats pour escorter les engins. Vous en avez ${soldiers}.`;
-  }
+  // no siege without at least one siege engine (décision du 25 octobre 2026: no tier minimum, no escort, no cap)
+  if (mission === 'ATTACK' && countSiegeEngines(army.units, unitsData) < config.combat.siege.minEngines) return 'Pas de siège sans engin : il faut au moins 1 engin de siège dans l\'armée.';
   if (mission === 'RAID') {
     // GDD: one raid per target city per attacker per 24h
     const since = new Date(Date.now() - config.combat.raidCooldownHours * 3600000);
@@ -78,17 +77,18 @@ async function checkHostileTarget(army, targetCity, mission, db = prisma) {
   return null;
 }
 
-// The composition checks (minimum engines, 100-soldier escort) and the departure are one atomic step, under the lock of
+// The composition check (at least one engine) and the departure are one atomic step, under the lock of
 // the army's city that set-unit / adjust-unit / disband also take: units cannot be stripped between the check and the
 // departure. Returns { travelTime, arrivalAt } or { error, status }.
 async function launchCityMission(army, targetCity, mission, verb) {
   const len = await routeLength(army.x, army.y, targetCity.x, targetCity.y);   // A* outside the transaction (throws NO_ROUTE)
-  return prisma.$transaction(async (tx) => {
+  const launched = await prisma.$transaction(async (tx) => {
     if (army.cityId) await lockCity(tx, army.cityId);
     const fresh = await loadArmy(army.id, army.ownerId, {}, tx);
     if (fresh && (fresh.cityId !== army.cityId || fresh.x !== army.x || fresh.y !== army.y)) return { error: 'Armée déjà en mission', status: 409 };   // moved or re-homed meanwhile
     const err = readyToLeave(fresh, verb);
     if (err) return { error: err.error, status: err.status };
+    { const camp = await campBlocksExit(fresh, tx); if (camp) return { error: camp, status: 400 }; }
     const refusal = await checkHostileTarget(fresh, targetCity, mission, tx);
     if (refusal) return { error: refusal, status: 400 };
     const travelTime = mission === 'SPY'
@@ -99,15 +99,13 @@ async function launchCityMission(army, targetCity, mission, verb) {
     const ok = await transition(tx, 'army', fresh.id, 'IDLE', { status, targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: mission });
     return ok ? { travelTime, arrivalAt } : { error: 'Armée déjà en mission', status: 409 };
   }, { timeout: 15000 });
-}
-
-// Siege engines an army may take: 5 per Workshop level of its city (config.combat.siege.enginesPerWorkshopLevel)
-const isSiegeUnit = (unitKey) => unitsData.find(u => u.key === unitKey)?.class === 'SIEGE';
-async function siegeEngineRoom(tx, army, unitKey) {
-  const workshop = await tx.cityBuilding.findFirst({ where: { cityId: army.cityId, key: 'WORKSHOP' }, select: { level: true } });
-  const cap = (workshop?.level || 0) * config.combat.siege.enginesPerWorkshopLevel;
-  const others = army.units.filter(u => u.unitKey !== unitKey && isSiegeUnit(u.unitKey)).reduce((t, u) => t + u.count, 0);
-  return { cap, room: Math.max(0, cap - others) };
+  // the target is always warned of an attack or a raid on its way, however it was launched (décision du 25 octobre 2026)
+  if (!launched.error && mission !== 'SPY') {
+    const minutes = Math.max(1, Math.round(launched.travelTime / 60));
+    const what = mission === 'ATTACK' ? 'Attaque' : 'Raid';
+    notify(targetCity.playerId, 'attack_incoming', `⚔️ ${what} en approche`, `${army.owner?.name || 'Un joueur'} marche sur ${targetCity.name} (arrivée dans ${minutes} min)`, { tab: 'city', cityId: targetCity.id });
+  }
+  return launched;
 }
 
 // Moves units between an army standing in its city and that city's garrison. Both rows move by
@@ -236,10 +234,6 @@ router.post('/:id/adjust-unit', auth, async (req, res) => {
       if (delta > 0 && delta > currentInGarrison) return { error: 'Pas assez d\'unites en garnison', status: 400 };
       if (delta < 0 && -delta > currentInArmy) return { error: 'Pas assez d\'unites dans l\'armee', status: 400 };
       const newCount = currentInArmy + delta;
-      if (delta > 0 && isSiegeUnit(unitKey)) {
-        const { cap, room } = await siegeEngineRoom(tx, army, unitKey);
-        if (newCount > room) return { error: `Une armée emmène au plus ${cap} engins de siège (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)`, status: 400, maxSiegeEngines: cap };
-      }
       await transferUnits(tx, army, garrison, unitKey, newCount, currentInArmy, currentInGarrison);
       return { message: 'Composition mise a jour', newCount };
     });
@@ -264,15 +258,10 @@ router.post('/:id/set-unit', auth, async (req, res) => {
       const { army, garrison } = loaded;
       const currentInArmy = army.units.find(u => u.unitKey === unitKey)?.count || 0;
       const currentInGarrison = garrison.units.find(u => u.unitKey === unitKey)?.count || 0;
-      let newCount = Math.min(count, currentInArmy + currentInGarrison);
-      let siegeCap = null;
-      if (isSiegeUnit(unitKey) && newCount > currentInArmy) {
-        const { cap, room } = await siegeEngineRoom(tx, army, unitKey);
-        if (newCount > room) { newCount = Math.max(currentInArmy, room); siegeCap = cap; }
-      }
-      if (newCount === currentInArmy) return siegeCap !== null ? { error: `Une armée emmène au plus ${siegeCap} engins de siège (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)`, status: 400, maxSiegeEngines: siegeCap } : { message: 'Aucun changement', newCount };
+      const newCount = Math.min(count, currentInArmy + currentInGarrison);
+      if (newCount === currentInArmy) return { message: 'Aucun changement', newCount };
       const delta = await transferUnits(tx, army, garrison, unitKey, newCount, currentInArmy, currentInGarrison);
-      return { message: siegeCap !== null ? `Composition mise à jour : ${siegeCap} engins de siège au plus (${config.combat.siege.enginesPerWorkshopLevel} par niveau d'Atelier)` : 'Composition mise à jour', delta, newCount, clamped: newCount !== count, ...(siegeCap !== null ? { maxSiegeEngines: siegeCap } : {}) };
+      return { message: 'Composition mise à jour', delta, newCount, clamped: newCount !== count };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
@@ -316,6 +305,7 @@ router.post('/:id/move', auth, async (req, res) => {
     const army = await loadArmy(req.params.id, req.user.playerId);
     const err = readyToLeave(army, 'se déplacer');
     if (err) return res.status(err.status).json({ error: err.error });
+    { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
     if (x === army.x && y === army.y) return res.status(400).json({ error: 'L\'armée est déjà sur place' });
     const travelTime = await travelTo(army, x, y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
@@ -382,6 +372,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true });
     const err = readyToLeave(army, 'attaquer');
     if (err) return res.status(err.status).json({ error: err.error });
+    { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
     if (node.cityId) return res.status(400).json({ error: 'Une ville occupe ce point' });
@@ -442,6 +433,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
       const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true }, tx);
       const err = readyToLeave(army, 'fonder une ville');
       if (err) return { error: err.error, status: err.status };
+      { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
       if (!army.city || !army.city.isCapital) return { error: 'Seule une armée de la capitale peut fonder une ville', status: 400 };
       if (!isHome(army, army.city)) return { error: 'L\'armée doit être dans la capitale', status: 400 };
       await lockCity(tx, army.city.id);
@@ -486,6 +478,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       const err = readyToLeave(army, 'collecter');
       if (err) return { error: err.error, status: err.status };
+      { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
       if (node.cityId) return { error: 'Une ville occupe ce point', status: 400 };
@@ -584,7 +577,6 @@ router.post('/:id/transport', auth, async (req, res) => {
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
-    if (await isBesieged(targetCity.id)) return res.status(400).json({ error: BLOCKADE });
 
     const result = await prisma.$transaction(async (tx) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
@@ -595,7 +587,6 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (err) return { error: err.error, status: err.status };
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
-      if (await isBesieged(army.city.id, tx)) return { error: BLOCKADE, status: 400 };   // goods do not leave a besieged city
       if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
       const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: army.city.id }, select: { key: true, level: true } });
       const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
@@ -627,15 +618,12 @@ router.post('/send', auth, async (req, res) => {
     const army = await loadArmy(armyId, req.user.playerId);
     const err = readyToLeave(army, 'partir');
     if (err) return res.status(err.status).json({ error: err.error });
+    { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
     if (mission === 'ATTACK' || mission === 'RAID' || mission === 'SPY') {
       const targetCity = await prisma.city.findFirst({ where: { x: parsedX, y: parsedY }, include: { buildings: true } });
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
       const launched = await launchCityMission(army, targetCity, mission, 'partir');
       if (launched.error) return res.status(launched.status).json({ error: launched.error });
-      if (mission !== 'SPY') {
-        const minutes = Math.max(1, Math.round(launched.travelTime / 60));
-        notify(targetCity.playerId, 'attack_incoming', '⚔️ Attaque en approche', `${army.owner?.name || 'Un joueur'} marche sur ${targetCity.name} (arrivée dans ${minutes} min)`, { tab: 'city', cityId: targetCity.id });
-      }
       const label = { ATTACK: 'Attaque lancée', RAID: 'Raid lancé', SPY: 'Espionnage lancé' }[mission];
       return res.json({ message: `${label} vers ${targetCity.name}`, target: targetCity.name, ...launched });
     }

@@ -6,7 +6,7 @@ const { notify } = require('../../services/pushService');
 const T = require('../../utils/techEffects');
 
 async function processResearch(now, { playerId = null } = {}) {
-  const due = await prisma.researchQueueItem.findMany({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { isSieged: false, wallStructure: { gt: 0 } }, ...(playerId ? { playerId } : {}) }, orderBy: { endsAt: 'asc' }, take: 200 });   // siège : recherche en pause ; ville qui va tomber : rien n'aboutit
+  const due = await prisma.researchQueueItem.findMany({ where: { status: 'RUNNING', endsAt: { lte: now }, city: { wallStructure: { gt: 0 } }, ...(playerId ? { playerId } : {}) }, orderBy: { endsAt: 'asc' }, take: 200 });   // ville qui va tomber : rien n'aboutit
   const players = new Set();
   for (const item of due) {
     try {

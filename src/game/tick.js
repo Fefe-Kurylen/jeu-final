@@ -89,7 +89,7 @@ async function gameTick() {
     await step('expeditions', () => processExpeditions(now));
     await step('newExpeditions', () => generateNewExpeditions());
 
-    await step('sieges', () => processSieges(now, TICK_HOURS));   // walls worn down, assault times updated
+    await step('sieges', () => processSieges());   // camps without engines or now allied go home
     await step('armies', () => processArmyMovements(now));
     await step('harvest', () => processHarvesting(now));
 

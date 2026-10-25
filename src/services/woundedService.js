@@ -93,35 +93,11 @@ async function admitWaiting(db, cityId) {
   await db.woundedUnit.deleteMany({ where: { cityId, count: 0, waiting: 0 } });
 }
 
-// Ville assiégée (GDD : soins et recrutement bloqués pendant un siège ; former une armée reste permis) : l'armée attaquante est arrivée
-// sur la ville (siège en cours : statut BESIEGING, ou attaque qui vient d'arriver et s'installe). Tant qu'elle marche
-// encore vers la ville, celle-ci peut tout faire (décision d'octobre 2026).
-async function besiegedCityIds(db, cityIds) {
-  if (!cityIds.length) return new Set();
-  const attacks = await db.army.findMany({ where: { targetCityId: { in: cityIds }, OR: [{ status: 'BESIEGING' }, { status: 'ATTACKING', missionType: 'ATTACK', arrivalAt: { lte: new Date() } }] }, select: { targetCityId: true } });
-  return new Set(attacks.map(a => a.targetCityId));
-}
-
-// Pendant un siège, le compte à rebours des soins est en pause : l'échéance des blessés au lit recule du temps écoulé
-// depuis le tick précédent ; à la levée du siège, la guérison repart d'elle-même là où elle s'était arrêtée.
-let lastHealTick = 0;
-async function pauseBesiegedHealing(now) {
-  const dt = lastHealTick ? Math.min(now.getTime() - lastHealTick, 10 * 60000) : 0;
-  lastHealTick = now.getTime();
-  if (dt <= 0) return;
-  const rows = await prisma.woundedUnit.findMany({ where: { count: { gt: 0 } }, select: { cityId: true }, distinct: ['cityId'] });
-  const besieged = [...(await besiegedCityIds(prisma, rows.map(r => r.cityId)))];
-  if (besieged.length) await prisma.$executeRaw`UPDATE "WoundedUnit" SET "healsAt" = "healsAt" + make_interval(secs => ${dt / 1000}) WHERE "cityId" = ANY(${besieged}) AND count > 0`;
-}
-
 async function processHealedUnits() {
   const now = new Date();
-  try { await pauseBesiegedHealing(now); } catch (e) { console.error('[WOUNDED] siege pause', e.message); }
   const due = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
   if (due.length === 0) return 0;
-  const besieged = await besiegedCityIds(prisma, [...new Set(due.map(w => w.cityId))]);
-  const healedUnits = due.filter(w => !besieged.has(w.cityId));
-  if (healedUnits.length === 0) return 0;
+  const healedUnits = due;   // a camp before the city pauses nothing (décision du 25 octobre 2026)
 
   const cityIds = [...new Set(healedUnits.map(w => w.cityId))];
   const garrisons = await prisma.army.findMany({ where: { cityId: { in: cityIds }, isGarrison: true }, select: { id: true, cityId: true } });
@@ -155,4 +131,4 @@ async function processHealedUnits() {
   return healed;
 }
 
-module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor, besiegedCityIds };
+module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor };

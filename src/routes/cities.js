@@ -1,7 +1,7 @@
 const express = require('express');
 const { isPremium } = require('../services/entitlementService');
 const router = express.Router();
-const { admitWaiting, besiegedCityIds } = require('../services/woundedService');
+const { admitWaiting } = require('../services/woundedService');
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
@@ -123,7 +123,6 @@ router.post('/:id/build', auth, async (req, res) => {
         include: { buildings: true, buildQueue: true, player: true }
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : les chantiers sont à l\'arrêt tant que l\'armée ennemie est devant la ville', status: 400 };
       if (buildingDef.faction && buildingDef.faction !== city.player.faction) return { error: 'Bâtiment réservé à une autre faction', status: 400 };
       if (fx.capitalOnly(buildingKey) && !city.isCapital) return { error: 'Bâtiment réservé à la capitale', status: 400 };
       if (fx.notInCapital(buildingKey) && city.isCapital) return { error: 'Bâtiment réservé aux villes secondaires', status: 400 };
@@ -223,7 +222,6 @@ router.post('/:id/recruit', auth, async (req, res) => {
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (unit.faction !== city.player.faction) return { error: 'Unité d\'une autre faction', status: 400 };
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : recrutement impossible tant que l\'armée ennemie est sur la ville', status: 400 };
 
       const barracks = city.buildings.find(b => b.key === 'BARRACKS');
       const stable = city.buildings.find(b => b.key === 'STABLE');
@@ -300,7 +298,6 @@ router.post('/:id/settlers', auth, async (req, res) => {
       const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, include: { buildings: true, recruitQueue: true } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (!city.isCapital) return { error: 'Les colons se forment à la Résidence de la capitale', status: 400 };
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : formation impossible tant que l\'armée ennemie est sur la ville', status: 400 };
       const residence = city.buildings.find(b => b.key === 'RESIDENCE');
       if (!residence) return { error: 'Résidence requise', status: 400 };
       const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence.level));
@@ -399,13 +396,12 @@ router.get('/:id/wounded', auth, async (req, res) => {
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
 
     const wounded = await prisma.woundedUnit.findMany({ where: { cityId: city.id } });
-    const besieged = (await besiegedCityIds(prisma, [city.id])).has(city.id);   // ville assiégée : soins suspendus
     const woundedWithDetails = wounded.map(w => {
       const unitDef = unitsData.find(u => u.key === w.unitKey);
       return {
         ...w, unitName: unitDef?.name || w.unitKey, faction: unitDef?.faction,
         class: unitDef?.class, tier: unitDef?.tier,
-        timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null, besieged
+        timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null
       };
     });
     res.json(woundedWithDetails);
@@ -426,7 +422,6 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
       if (!city) return { error: 'Ville non trouvée', status: 404 };
 
       const wounded = await tx.woundedUnit.findFirst({ where: { cityId: city.id, unitKey } });
-      if ((await besiegedCityIds(tx, [city.id])).has(city.id)) return { error: 'Ville assiégée : aucun soin possible tant que l\'armée ennemie est sur la ville', status: 400 };
       if (!wounded || wounded.count <= 0) return { error: wounded ? 'Ces blessés attendent un lit : seuls les blessés au lit se soignent' : 'Pas de blessés de ce type', status: wounded ? 400 : 404 };
 
       const goldCost = wounded.count;
@@ -477,19 +472,29 @@ router.get('/:id/siege', auth, async (req, res) => {
       for (const id of campOwners) if (!(mine && rows.find(r => r.playerId === id)?.allianceId === mine)) forced.add(id);
     }
     const wallLevel = city.buildings[0]?.level || 0;
+    // the time left before the battle is for the players concerned and their alliances only (décision du 25 octobre 2026)
+    const concerned = [city.playerId, ...camp.map(a => a.ownerId)];
+    const members = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, ...concerned] } }, select: { playerId: true, allianceId: true } });
+    const myAlliance = members.find(m => m.playerId === req.user.playerId)?.allianceId || null;
+    const isConcerned = (ids) => ids.some(id => id === req.user.playerId || (myAlliance && members.find(m => m.playerId === id)?.allianceId === myAlliance));
+    const seesDefense = isConcerned([city.playerId]);
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
-      wallHp: wallLevel > 0 ? Math.round(city.wallHp) : 0, wallMaxHp: wallLevel > 0 ? city.wallMaxHp : 0,
-      // santé de la muraille : assauts gagnés encore nécessaires avant la chute (ville secondaire rasée, capitale déplacée)
-      wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
+      // PV du mur au prochain combat (sa part des vies restantes) ; vies restantes avant la chute
+      wallHp: wallLevel > 0 ? Math.round((city.wallMaxHp || 0) * (city.wallStructure ?? 1)) : 0, wallMaxHp: wallLevel > 0 ? city.wallMaxHp : 0,
+      wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), livesLeft: assaultsLeft(city, city.player?.faction), livesTotal: assaultsToFall(city, city.player?.faction),
+      assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
       fate: city.isCapital ? 'RELOCATED' : 'RAZED',
       x: city.x, y: city.y,
       canSortie: voluntary.size > 0, canForce: forced.size > 0, canBreak: voluntary.size > 0 || forced.size > 0,
-      besiegers: camp.map(a => ({
-        id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,
-        startedAt: a.departedAt, assaultAt: a.arrivalAt, assaultOrdered: a.missionType === 'ASSAULT',
-        soldiers: a.units.reduce((t, u) => t + u.count, 0), engines: engineCount(a.units)
-      }))
+      besiegers: camp.map(a => {
+        const sees = seesDefense || isConcerned([a.ownerId]);
+        return {
+          id: a.id, name: a.name, owner: a.owner?.name, faction: a.owner?.faction, mine: a.ownerId === req.user.playerId,
+          startedAt: a.departedAt, assaultAt: sees ? a.arrivalAt : null,
+          soldiers: a.units.reduce((t, u) => t + u.count, 0), engines: engineCount(a.units)
+        };
+      })
     });
   } catch (e) { sendError(res, e); }
 });

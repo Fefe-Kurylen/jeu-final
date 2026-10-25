@@ -312,7 +312,7 @@ function renderBattleReportCard(r, idx) {
   const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
   const isRaid = r.loot?.type === 'RAID', isTribe = r.rounds?.type === 'TRIBE_RAID';
   const kind = isRaid ? 'Pillage' : isTribe ? 'Tribu' : iAttacked ? 'Attaque' : 'Défense';
-  // batailles en rase campagne du siège : riposte de la ville et sortie pour briser un siège (cityName = « Riposte de … »)
+  // batailles en rase campagne du siège : attaque d'un camp pour briser un siège (et anciens rapports de riposte)
   const fieldKind = { RIPOSTE: true, SIEGE_BREAK: true }[r.loot?.type];
   const title = fieldKind ? `${cityName}${iAttacked ? '' : ` par ${attackerName}`}` : isTribe ? `Combat contre la tribu de ${cityName}` : iAttacked ? `${kind} de ${cityName}` : `${kind} de ${cityName} par ${attackerName}`;
   const date = new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -346,11 +346,15 @@ function renderBattleReportCard(r, idx) {
   // what an army took from a resource point (tribe camp or point held by other armies) is in r.loot.resources
   const lootRes = r.loot?.resources ? r.loot.resources : isTribe ? {} : (!iAttacked && r.loot?.pillaged) ? r.loot.pillaged : { wood: r.loot?.wood, stone: r.loot?.stone, iron: r.loot?.iron, food: r.loot?.food, gold: r.loot?.gold };
   const lootHtml = ['wood', 'stone', 'iron', 'food', 'gold'].filter(k => lootRes[k]).map(k => `<span><img class="ico" src="assets/images/3d/ui/${k}.webp" alt=""> ${formatNum(lootRes[k])}</span>`).join('');
-  const wall = r.loot?.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(r.loot.wallDamage)} PV</span>` : '';
-  // Siège : durée, santé de la muraille après l'assaut gagné et sort de la ville quand elle tombe
-  const ws = r.loot?.wallStructure;
-  const siegeInfo = (r.loot?.siegeMinutes ? `<span class="strip-item">Siège ${formatNum(r.loot.siegeMinutes)} min</span>` : '')
-    + (ws ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Muraille ${ws.before} % → ${ws.after} %${ws.fallen ? (ws.fate === 'RELOCATED' ? ' : capitale déplacée' : ' : ville rasée') : ` (encore ${ws.assaultsLeft} assaut${ws.assaultsLeft > 1 ? 's' : ''})`}</span>` : '');
+  // Mur bouclier : PV au début et à la fin du combat (siège, décision du 25 octobre 2026)
+  const L = r.loot || {};
+  const wall = L.wallMaxHp ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur ${formatNum(L.wallHpStart)} → ${formatNum(L.wallHpEnd)} PV${L.wallBroken ? ' (brèche)' : ' (a tenu)'}</span>`
+    : L.wallDamage ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Mur −${formatNum(L.wallDamage)} PV</span>` : '';
+  // Siège : durée du camp, camps alliés réunis, vies de la ville après le combat et sort de la ville quand elle tombe
+  const lv = L.lives, ws = L.wallStructure;
+  const siegeInfo = (L.campMinutes ? `<span class="strip-item">Camp ${formatNum(L.campMinutes)} min${L.camps > 1 ? ` · ${L.camps} camps` : ''}</span>` : L.siegeMinutes ? `<span class="strip-item">Siège ${formatNum(L.siegeMinutes)} min</span>` : '')
+    + (lv ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Vies ${lv.before} → ${lv.after} / ${lv.total}${lv.fallen ? (lv.fate === 'RELOCATED' ? ' : capitale déplacée' : ' : ville détruite') : ''}</span>`
+      : ws ? `<span class="strip-item"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Muraille ${ws.before} % → ${ws.after} %${ws.fallen ? (ws.fate === 'RELOCATED' ? ' : capitale déplacée' : ' : ville rasée') : ''}</span>` : '');
   // Vignette peinte du camp de la tribu (scenes/vignette-tribe-<biome>, guide § S14) en tête des rapports de tribu
   const tribeScene = isTribe && typeof paintedSet !== 'undefined' ? (() => { const p = `scenes/vignette-tribe-${typeof getBiome === 'function' ? getBiome(r.x, r.y) : 'forest'}.webp`; return paintedSet.has(p) ? `<img class="report-scene" src="assets/images/painted/${p}" alt="" style="width:100%; display:block; border-radius:6px 6px 0 0;">` : ''; })() : '';
 

@@ -1352,7 +1352,7 @@ function getBuildingDescription(key) {
     MAIN_HALL: 'Réduit le temps de construction',
     BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
-    WORKSHOP: 'Construit des machines de siège ; 5 engins par niveau dans une armée',
+    WORKSHOP: 'Construit les engins de siège, qui frappent le mur bien plus fort que les soldats',
     ACADEMY: 'Recherche et formation',
     FORGE: 'Améliore l\'équipement',
     MARKET: 'Commerce et échanges',

@@ -181,7 +181,7 @@
     {
       "key": "WORKSHOP",
       "name": "Atelier",
-      "description": "Construit les engins de siège, disponibles à partir du niveau 5. Chaque niveau accélère nettement leur fabrication et permet d'emmener 5 engins de plus dans une armée (100 au niveau 20). Réservé à la capitale.",
+      "description": "Construit les engins de siège, disponibles à partir du niveau 5. Chaque niveau accélère nettement leur fabrication. Au combat d'un siège, un engin frappe le mur dix fois plus fort qu'un soldat ; il en faut au moins un pour assiéger une ville. Réservé à la capitale.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [

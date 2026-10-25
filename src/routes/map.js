@@ -36,7 +36,7 @@ router.get('/world/info', async (req, res) => {
   // Rules the client displays (never computed client-side): city tiers by Main Hall level, Main Hall cap of a secondary city
   const rules = { healingBedsPerLevel: config.wounded.bedsPerLevel, cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport,
     // siège et chute des villes (octobre 2026)
-    siege: { upkeepAttackerPct: config.combat.siege.upkeepAttackerPct, upkeepDefenderPct: config.combat.siege.upkeepDefenderPct, wallDamagePerEngineHour: config.combat.siege.wallDamagePerEngineHour, enginesPerWorkshopLevel: config.combat.siege.enginesPerWorkshopLevel, minAssaultMinutes: config.combat.siege.minAssaultMinutes, maxHours: config.combat.siege.maxHours, fallAssaults: config.combat.fall.assaults, fallExtraAssaults: config.combat.fall.extraAssaults, wallHealthRegenHours: config.combat.fall.regenHours, pillagePct: config.combat.fall.pillagePct } };
+    siege: { campMinutes: config.combat.siege.campMinutes, minEngines: config.combat.siege.minEngines, engineWallMult: config.combat.siege.wallShield.engineMult, soldierWallMult: config.combat.siege.wallShield.soldierMult, fallAssaults: config.combat.fall.assaults, fallExtraAssaults: config.combat.fall.extraAssaults, wallHealthRegenHours: config.combat.fall.regenHours, pillagePct: config.combat.fall.pillagePct } };
   try {
     const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
     const resourceCount = await prisma.resourceNode.count();
@@ -77,7 +77,7 @@ router.get('/map/viewport', auth, async (req, res) => {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallHp: true, wallMaxHp: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallStructure: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
@@ -94,14 +94,24 @@ router.get('/map/viewport', auth, async (req, res) => {
     // Civilisation de l'armée qui assiège chaque ville (sa bannière est plantée devant la ville)
     const siegedBy = {};
     for (const a of movingArmies) if (a.status === 'BESIEGING' && a.targetCityId && !siegedBy[a.targetCityId]) siegedBy[a.targetCityId] = a.owner?.faction || null;
-    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, hasHero: !!heroId, mainUnit: mainUnitSprite(a, units) }));
+    // l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances (décision du 25 octobre 2026)
+    const me = req.user.playerId;
+    const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
+    const cityOwner = new Map(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
+    const campOwnerAlliance = new Map((await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.filter(a => a.status === 'BESIEGING').map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]));
+    const sees = (a) => {
+      if (a.ownerId === me || (myAlliance && campOwnerAlliance.get(a.ownerId) === myAlliance)) return true;
+      const o = cityOwner.get(a.targetCityId);
+      return !!o && (o.id === me || (myAlliance && o.alliance === myAlliance));
+    };
+    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}), hasHero: !!heroId, mainUnit: mainUnitSprite(a, units) }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
       const cityTier = getCityTier(mainHallLevel);
       const allianceInfo = city.player?.alliance?.alliance;
-      // mur abîmé (siège) : la fumée qui s'élève de la ville se voit de loin, par tranches de 10 % (GDD damagedCitySmoke)
-      const wallDamage = wallLevel > 0 && city.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - city.wallHp / city.wallMaxHp) * 10) * 10)) : 0;
+      // vies perdues (le mur en a perdu la même part) : la fumée qui s'élève de la ville se voit de loin, par tranches de 10 %
+      const wallDamage = Math.max(0, Math.min(100, Math.round((1 - (city.wallStructure ?? 1)) * 10) * 10));
       return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 

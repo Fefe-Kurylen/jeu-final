@@ -6,7 +6,7 @@ const { lockCity } = require('../../utils/db');
 
 async function processRecruits(now, { playerId = null } = {}) {
   const recruits = await prisma.recruitQueueItem.findMany({
-    where: { status: 'RUNNING', endsAt: { lte: now }, city: { isSieged: false, ...(playerId ? { playerId } : {}) } },   // siège : recrutement en pause
+    where: { status: 'RUNNING', endsAt: { lte: now }, ...(playerId ? { city: { playerId } } : {}) },
     include: { city: true },
     orderBy: { endsAt: 'asc' },
     take: 500

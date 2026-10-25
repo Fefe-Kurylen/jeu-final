@@ -264,8 +264,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           </button>
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
         ` : army.status === 'BESIEGING' ? `
-          <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le siège</button>
-          <span class="destination-badge" title="Le mur tombe sous les engins ; l'assaut est donné tout seul à la brèche, au plus tard 3 h après le début du siège (3 h 45 contre un mur égyptien) ; l'armée rentre ensuite chez elle">${army.missionType === 'ASSAULT' ? 'Assaut imminent' : `Assaut dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}`}</span>
+          <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le camp</button>
+          <span class="destination-badge" title="L'armée campe 1 h devant la ville, puis le combat démarre tout seul ; le mur sert de bouclier, vos engins le frappent bien plus fort que vos soldats ; l'armée rentre ensuite chez elle">Combat dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
         ` : `
@@ -462,17 +462,11 @@ function openArmyComposition(armyId) {
   modal.style.display = 'flex';
 }
 
-// Engins de siège : 5 par niveau d'Atelier de la ville de l'armée (règle du serveur, config.combat.siege.enginesPerWorkshopLevel)
-function armySiegeCap(army) {
-  const city = (currentCity && currentCity.id === army.cityId) ? currentCity : (typeof cities !== 'undefined' ? cities.find(c => c.id === army.cityId) : null);
-  const ws = (city?.buildings || []).find(b => b.key === 'WORKSHOP')?.level || 0;
-  return ws * 5;
-}
+// Engins de siège : sans plafond ; il en faut au moins un pour assiéger (règle du serveur, décision du 25 octobre 2026)
 function siegeCapLine(army, availableUnits) {
   if (!availableUnits.some(u => u.unit?.class === 'SIEGE')) return '';
   const inArmy = (army.units || []).filter(u => unitsData.find(d => d.key === u.unitKey)?.class === 'SIEGE').reduce((t, u) => t + u.count, 0);
-  const cap = armySiegeCap(army);
-  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong id="comp-siege-count" data-cap="${cap}">${formatNum(inArmy)} / ${formatNum(cap)}</strong> (5 par niveau d'Atelier ; 100 engins percent un mur niveau 20 en 30 min)</p>`;
+  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong id="comp-siege-count">${formatNum(inArmy)}</strong> (au moins 1 pour assiéger ; au combat, un engin frappe le mur 10 fois plus fort qu'un soldat)</p>`;
 }
 
 // Render a unit row in composition modal
@@ -547,8 +541,6 @@ async function adjustComposition(armyId, unitKey, delta) {
     });
     
     const data = await res.json().catch(() => ({}));
-    const capEl = document.getElementById('comp-siege-count');
-    if (capEl && Number.isInteger(data.maxSiegeEngines)) capEl.dataset.cap = data.maxSiegeEngines;   // the server's cap wins
     if (!res.ok) {
       // Revert on error
       input.value = currentInArmy;
@@ -564,7 +556,6 @@ async function adjustComposition(armyId, unitKey, delta) {
         if (garrisonSpan) garrisonSpan.textContent = total - data.newCount;
         updateCompositionSummary();
       }
-      if (data.maxSiegeEngines != null && data.message) showToast(data.message, 'warning');   // siege engines capped by the Workshop
       await loadArmies();
       return data;
     }
@@ -635,13 +626,12 @@ function updateCompositionSummary() {
     document.querySelectorAll('.comp-unit-row').forEach(row => {
       if (unitsData.find(u => u.key === row.dataset.unit)?.class === 'SIEGE') siege += parseInt(row.querySelector('.comp-input')?.value) || 0;
     });
-    siegeEl.textContent = `${formatNum(siege)} / ${formatNum(parseInt(siegeEl.dataset.cap) || 0)}`;
+    siegeEl.textContent = formatNum(siege);
   }
 }
 
 // Add all units to army
 async function setAllUnitsToArmy(armyId) {
-  let capMsg = null;
   const rows = document.querySelectorAll('.comp-unit-row');
   for (const row of rows) {
     const unitKey = row.dataset.unit;
@@ -653,11 +643,10 @@ async function setAllUnitsToArmy(armyId) {
     const total = currentInArmy + currentGarrison;
     
     if (currentInArmy < total) {
-      const r = await adjustComposition(armyId, unitKey, total - currentInArmy);
-      if (r?.maxSiegeEngines != null) capMsg = r.message || r.error;
+      await adjustComposition(armyId, unitKey, total - currentInArmy);
     }
   }
-  showToast(capMsg || 'Toutes les unités ajoutées', capMsg ? 'warning' : 'success');   // the siege engine cap is explained
+  showToast('Toutes les unités ajoutées', 'success');
 }
 
 // Remove all units from army
@@ -1050,8 +1039,8 @@ async function returnArmy(armyId) {
 
 
 // ========== SIÈGES ==========
-// Une attaque arrivée campe devant la ville et use son mur, puis donne l'assaut. Le propriétaire, son alliance et les
-// joueurs peuvent attaquer le camp pour lever le siège (le recrutement est bloqué, former une armée reste permis).
+// Une attaque arrivée campe 1 h devant la ville, puis le combat démarre (le mur sert de bouclier). Pendant l'heure, la
+// ville vit normalement et n'importe quel joueur peut attaquer le camp (décision du 25 octobre 2026).
 function siegeTimeLeft(ms) {
   const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60);
   return h ? `${h} h ${String(m).padStart(2, '0')}` : `${Math.max(1, m)} min`;
@@ -1071,15 +1060,16 @@ async function openBreakSiege(cityId) {
   // army (a sortie from the walls included) only the camps the diplomacy lets it attack
   const ready = idle.filter(a => (a.cityId === siege.cityId && !(a.x === siege.x && a.y === siege.y)) ? siege.canForce : siege.canSortie);
   const wall = siege.wallLevel > 0
-    ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> (${Math.round(siege.wallHp / Math.max(1, siege.wallMaxHp) * 100)} %)</p>`
-    : '<p>Pas de mur : l\'assaut sera donné dès la fin du temps minimum de siège.</p>';
+    ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> au prochain combat. Tant qu'il tient, les coups de l'attaquant tombent sur lui ; les engins le frappent 10 fois plus fort que les soldats.</p>`
+    : '<p>Pas de mur : rien ne protège les défenseurs au combat.</p>';
+  const lives = siege.livesLeft ?? siege.assaultsLeft, livesTotal = siege.livesTotal ?? siege.assaultsToFall;
   document.getElementById('modal-body').innerHTML = `
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
       ${wall}
-      <p>Santé de la muraille : <strong>${siege.wallStructurePct} %</strong> · encore <strong>${siege.assaultsLeft}</strong> assaut${siege.assaultsLeft > 1 ? 's' : ''} gagné${siege.assaultsLeft > 1 ? 's' : ''} avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait rasée'}). Chaque assaut gagné pille aussi le stock ; la santé remonte de 0 à 100 % en 48 h hors siège.</p>
-      <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège · assaut dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>${b.assaultOrdered ? ' (ordonné)' : ''}</li>`).join('')}</ul>
-      <p style="font-size:12px;opacity:.85">Pendant le siège, la ville ne produit plus, ne recrute plus, ne soigne plus et ne reçoit aucun convoi. N'importe quel joueur peut attaquer le camp (sauf les camps de son alliance ou d'une alliance alliée) : s'il gagne, le siège est levé.</p>
+      <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille la moitié du stock non protégé ; tout remonte en 48 h.</p>
+      <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège${b.assaultAt ? ` · combat dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>` : ''}</li>`).join('')}</ul>
+      <p style="font-size:12px;opacity:.85">Le camp attend 1 h avant le combat ; la ville vit normalement mais ses armées ne sortent que pour attaquer le camp. N'importe quel joueur peut attaquer le camp (sauf ceux de son alliance ou d'une alliance alliée) : il combat tous les camps à la fois, et s'il gagne il reste devant la ville pour la garder.</p>
       ${siege.canBreak ? (ready.length ? `
         <label for="break-army" style="display:block;margin-top:8px">Armée envoyée</label>
         <select id="break-army">${ready.map(a => `<option value="${a.id}">${escapeHtml(a.name || 'Armée')} (force ${formatNum(a.power ?? calculateArmyPower(a))})</option>`).join('')}</select>

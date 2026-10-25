@@ -73,7 +73,7 @@ async function processResourceProduction(TICK_HOURS) {
       JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
       GROUP BY ci.id
     ) AS tp ON tp."cityId" = p."cityId"
-    WHERE c.id = p."cityId" AND c."isSieged" = false
+    WHERE c.id = p."cityId"
   `;
   // Villes sans aucun bâtiment : production de base uniquement
   await prisma.$executeRaw`
@@ -82,7 +82,7 @@ async function processResourceProduction(TICK_HOURS) {
       stone = GREATEST(c.stone, LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage")),
       iron  = GREATEST(c.iron, LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage")),
       food  = GREATEST(c.food, LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage"))
-    WHERE c."isSieged" = false AND NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id)
+    WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id)
   `;
 }
 
@@ -106,14 +106,11 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
   const upkeepKeys = fx.upkeepReductionKeys();
   const reductionTable = Prisma.join(upkeepKeys.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
   const upkeepTechTable = techTableSql('upkeepReductionPct');   // Intendance : −1 %/niveau, même plafond que les bâtiments
-  // Siège (GDD foodUpkeepModifierPct) : l'armée qui assiège consomme plus, la ville assiégée et ses armées moins
-  const besiegerMult = 1 + config.combat.siege.upkeepAttackerPct / 100, besiegedMult = 1 + config.combat.siege.upkeepDefenderPct / 100;
   await prisma.$executeRaw`
     UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0) * ${TICK_HOURS})
     FROM (
-      SELECT a."cityId", SUM(au.count * ut.upkeep * CASE WHEN a.status = 'BESIEGING' THEN ${besiegerMult}::float WHEN hc."isSieged" THEN ${besiegedMult}::float ELSE 1 END) AS total
+      SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
       FROM "Army" a
-      JOIN "City" hc ON hc.id = a."cityId"
       JOIN "ArmyUnit" au ON au."armyId" = a.id
       JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
       WHERE a."cityId" IS NOT NULL
@@ -164,18 +161,16 @@ async function processResourceRegen(now, TICK_HOURS) {
   if (regenResult > 0) console.log(`[REGEN] ${regenResult} resource nodes regenerated`);
 }
 
-// GDD: a damaged wall fully regenerates in 24h, 1 % faster per wall level
+// Vies de la ville (décision du 25 octobre 2026) : elles remontent de 0 à toutes en 48 h, et les PV du mur suivent la même
+// part (une vie perdue ôte la même part des PV). À 0, la chute est en attente : rien ne remonte.
 async function processWallRegen(TICK_HOURS) {
-  const bonusPerLevel = fx.wallRegenBonusPctPerLevel();
-  await prisma.$executeRaw`
-    UPDATE "City" c SET "wallHp" = LEAST(c."wallHp" + c."wallMaxHp" * ${TICK_HOURS} / ${config.combat.wallRegenHours}
-        * (1 + COALESCE((SELECT MAX(cb.level) FROM "CityBuilding" cb WHERE cb."cityId" = c.id AND cb.key = 'WALL'), 0) * ${bonusPerLevel} / 100.0), c."wallMaxHp")
-    WHERE c."wallHp" < c."wallMaxHp" AND c."isSieged" = false
-  `;
-  // Santé de la muraille (chute des villes) : de 0 à 100 % en 48 h hors siège
   await prisma.$executeRaw`
     UPDATE "City" c SET "wallStructure" = LEAST(1, c."wallStructure" + ${TICK_HOURS} / ${config.combat.fall.regenHours}::float)
-    WHERE c."wallStructure" < 1 AND c."wallStructure" > 0 AND c."isSieged" = false   -- à 0, la chute est en attente
+    WHERE c."wallStructure" < 1 AND c."wallStructure" > 0
+  `;
+  await prisma.$executeRaw`
+    UPDATE "City" c SET "wallHp" = c."wallMaxHp" * c."wallStructure"
+    WHERE abs(c."wallHp" - c."wallMaxHp" * c."wallStructure") > 0.5
   `;
 }
 
@@ -193,7 +188,7 @@ async function processGoldIncome(TICK_HOURS) {
     prisma.$executeRaw`
       UPDATE "City" c SET "goldAccrued" = c."goldAccrued" + g.perday * ${TICK_HOURS} / 24.0
       FROM "CityBuilding" cb JOIN (VALUES ${getGoldTableSql()}) AS g(level, perday) ON g.level = cb.level
-      WHERE cb."cityId" = c.id AND cb.key = 'TREASURE_CHAMBER' AND c."isSieged" = false`,
+      WHERE cb."cityId" = c.id AND cb.key = 'TREASURE_CHAMBER'`,
     prisma.$executeRaw`
       UPDATE "Player" p SET gold = p.gold + sub.coins
       FROM (SELECT "playerId", SUM(FLOOR("goldAccrued"))::int AS coins FROM "City" WHERE "goldAccrued" >= 1 GROUP BY "playerId") sub

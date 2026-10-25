@@ -20,102 +20,62 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 | Espionnage : n'importe quelle unité, chance selon l'effectif, rapport ressources/bâtiments/armées ; **contre-espionnage de la Tour de guet** (interception, rapport au défenseur, nom de l'espion dès le niveau 15) | Unités d'espion dédiées (`maxSpiesFaction`, `spyUnlockL5/L10` dans les données), espionnage des points de ressource |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
 
-## Siège qui dure (octobre 2026)
+## Siège (refonte du 25 octobre 2026)
 
-Règles du GDD (`combat_config.siege`) décidées avec le joueur : le siège est un état qui dure, seuls les engins abîment
-le mur, et tout est bloqué dans la ville assiégée sauf la formation d'armées.
+Le siège qui dure (usure du mur pendant des heures, ville bloquée) a été remplacé, avec le joueur, par un camp court suivi
+d'un combat où le mur sert de bouclier.
 
-- **Début** : une attaque (mission ATTACK, avec le minimum d'engins du palier de la ville) qui arrive ne se règle plus
-  d'un coup. L'armée **campe devant la ville** (statut `BESIEGING`) et la ville passe « assiégée » (`City.isSieged`).
-  Le défenseur, les membres de son alliance et l'attaquant sont prévenus. Une ville déjà alliée à l'arrivée renvoie l'armée.
-- **Usure du mur** : à chaque tick, chaque engin abat **400 PV de mur par heure** (bonus d'engins du Sultanat compris ;
-  le mur égyptien a 25 % de PV en plus) : **100 engins percent un mur niveau 20 en 30 min** ; le minimum d'engins
-  (1 / 10 / 20) perce un mur du même niveau en 2 h 30. La réparation du mur est arrêtée pendant le siège et reprend ensuite
-  (24 h pour 100 %).
-- **Engins par armée** : au plus **5 par niveau d'Atelier** de la ville de l'armée (100 au niveau 20), vérifié quand on
-  compose l'armée (décision d'octobre 2026).
-- **Assaut, donné tout seul** (décision d'octobre 2026) : à la brèche, **jamais avant 30 min** de siège (GDD
-  `minDestroyMinutesReference`), **au plus tard 3 h** après le début (**3 h 45 contre un mur égyptien**, qui a 25 % de PV
-  en plus) : sans brèche, l'assaut est donné contre le mur abîmé. L'attaquant ne déclenche pas l'assaut ; il peut seulement
-  lever le siège (« Lever le siège », l'armée rentre). Pendant l'assaut, le mur ne protège qu'en proportion de ses PV
-  restants ; il ne perd plus de niveau. **Après le combat, l'armée rentre d'elle-même dans sa ville.** Le rapport indique
-  les dégâts au mur et la durée du siège.
-- **Anti-spam (décision d'octobre 2026)** : un siège demande **au moins 100 soldats** en plus des engins ; **pas de siège
-  sans engins** : une armée qui arrive sans engin rentre, un camp dont tous les engins sont détruits (sortie, riposte) lève
-  le siège et rentre. **Riposte automatique** : si les troupes présentes dans la ville (garnison et armées en ville) sont
-  au moins **3 fois plus fortes** que l'armée qui arrive, elles l'attaquent aussitôt en rase campagne (rapport
-  « Riposte ») ; gagnée, l'armée est chassée sans siège ; perdue, le siège commence.
-- **En pause pendant le siège** (décision d'octobre 2026) : **chantiers, recrutement et recherches en cours** ; leur fin
-  recule du temps écoulé et ils reprennent d'eux-mêmes à la levée. Pas de nouveau chantier ni de nouvelle recherche.
-- **Retour au bercail** : une armée de la ville qui rentre pendant un siège **doit combattre le camp** (rase campagne).
-  Gagné : les assiégeants rentrent, le siège est levé, l'armée entre. Perdu : les survivants attendent à côté de la ville
-  (nouvelle attaque du camp ou retour après la levée).
-- **Garde-fous (relecture d'octobre 2026)** :
-  - toute arrivée d'une armée de la ville assiégée venue de l'extérieur (retour, déplacement vers sa ville, fin
-    d'expédition, sortie lancée de loin) combat le camp ; une sortie partie des remparts rentre dans la ville ; l'armée de la
-    ville combat tous les camps hors de son alliance, quelle que soit la diplomatie déclarée ; le sort de l'armée (entrée ou
-    attente à côté) est enregistré avec la bataille ;
-  - marché fermé dans les deux sens (offres, acceptation, annulation, marchand), convois refusés à l'arrivée **et au
-    départ** d'une ville assiégée ;
-  - le lancement d'une attaque vérifie la composition et part dans la même transaction (verrou de la ville) ;
-  - un camp devenu allié ou en paix avec la ville, ou sans engin, rentre chez lui ; un camp rappelé lève le siège aussitôt ;
-  - une ville dont la muraille est à 0 tombe même si la chute a échoué juste après l'assaut (étape « falls » du tick,
-    notifications comprises) ; les autres camps rentrent par la vraie route ; à la chute d'une colonie, ses offres du
-    marché sont annulées au profit de la capitale, ses armées en mission prennent un emplacement libre de la capitale et la
-    recherche suivante démarre ;
-  - un raid par ville et par 24 h même après le déplacement d'une capitale ; l'annulation d'un recrutement garde la pause
-    du siège des lots suivants ; la fenêtre de siège ne montre rien d'une ville non assiégée aux autres joueurs.
-- **Garde-fous (dernière relecture, octobre 2026)** :
-  - une armée rappelée avant d'avoir quitté sa case (sortie, toute mission lancée de la ville assiégée) rentre aussitôt,
-    avec sa charge, sans combattre le camp ;
-  - une sortie qui rentre dépose sa charge dans la même transaction que la bataille ;
-  - une armée qui marche pour briser le siège de sa capitale déplacée continue jusqu'au nouvel emplacement (vraie route) ;
-  - une chute en attente est réglée en premier dans le tick : rien ne se termine dans une ville qui va tomber (recherche,
-    retour d'expédition) ;
-  - la file de recherche, commune à toutes les villes du joueur, est verrouillée par joueur (jamais deux recherches en
-    cours) ; la chute d'une colonie verrouille toutes les villes du joueur dans l'ordre (pas d'interblocage) ;
-  - la fenêtre de siège applique les deux règles du serveur : une sortie ou une armée d'une autre ville suit la
-    diplomatie, une armée de la ville qui revient de l'extérieur combat tous les camps hors de son alliance ;
-  - les notifications de chute (« Ville rasée », « Capitale déplacée ») et de retour bloqué arrivent toujours, même
-    juste après celle de la bataille.
-- **Bloqué dans la ville assiégée** : production des champs, or de la Chambre au trésor, réparation du mur,
-  recrutement, formation de colons, soins (en pause, ils reprennent seuls), **convois et envois de ressources**
-  (refusés au départ ; un convoi qui arrive pendant le siège rentre avec sa cargaison). **Former une armée reste permis**
-  avec les troupes présentes.
-- **Briser le siège** : **tout joueur** peut attaquer l'armée qui assiège (décision d'octobre 2026), sauf les camps de son
-  alliance ou d'une alliance alliée. Plusieurs camps devant la même ville : la sortie les combat tous ensemble (à revoir
-  avec le système de renforts)
-  (mission `BREAK_SIEGE`, bouton « Briser le siège » sur la carte, la fenêtre de siège ou l'alerte). Bataille en rase
-  campagne, sans mur ; si elle gagne, les assiégeants rentrent chez eux et le siège est levé ; sinon le siège continue
-  (avec des engins en moins, la brèche est retardée). L'armée de sortie rentre ensuite dans sa ville.
-- **Nourriture** (décision d'octobre 2026, à la place des +10 % / −10 % du GDD) : l'armée qui assiège consomme **le double** (+100 %, payé par sa ville) ; la ville assiégée et ses armées consomment **normalement**. Calcul dans `docs/EQUILIBRAGE.md` § 12.
-- **Visible** : alerte avec compte à rebours de l'assaut et nom de l'assiégeant (`GET /api/city/incoming-attacks`, type
-  `SIEGE`), fenêtre de siège (`GET /api/city/:id/siege`), anneau rouge autour de la ville sur la carte, carte d'armée
-  « Siège » avec l'heure de l'assaut.
-- **Animation de siège sur la carte** (GDD `visuals`) : la ville assiégée joue une animation en boucle à la place de son
-  sprite, une bande par civilisation et par palier de ville (6 × 3 × 4 phases, guide § A19 ; villes secondaires :
-  normale et fortifiée, 6 × 2 × 4), avec la bannière de la
-  civilisation qui assiège plantée devant. Branché ; en attendant les images, anneau rouge et icône d'épées.
-- **Fumée d'une ville au mur abîmé** (GDD `damagedCitySmoke`, octobre 2026) : tant que le mur n'est pas réparé (24 h), une
-  colonne de fumée sombre s'élève de la ville sur la carte, plus dense avec les dégâts ; au-delà de 50 % de dégâts, le feu
-  peint `map/fx/fire_0..3` s'y ajoute quand il est livré. Rien n'est montré à l'intérieur de la ville pour l'instant
-  (décision d'octobre 2026).
-- **Compte à rebours de l'assaut visible par tous** (fenêtre de siège) pour l'instant ; le GDD le réserve « à ceux qui ont
-  la vision », à reprendre avec la Tour de guet.
-- **Chute d'une ville (décidé et appliqué, octobre 2026)** : une ville ne change jamais de propriétaire.
-  - Chaque **assaut gagné** ôte une part de la **santé de la muraille** (`City.wallStructure`) : il faut **4 assauts gagnés
-    pour une capitale, 2 pour une ville secondaire, un de plus pour une ville égyptienne (5 et 3)**. Le héros n'est pas
-    nécessaire. La santé remonte de 0 à 100 % en **48 h** hors siège (`config.combat.fall`) ; les PV du mur, eux, se
-    réparent en 24 h comme dans le GDD.
-  - Chaque assaut gagné **pille 25 % du stock** au-dessus des grands entrepôts et de la part de la cachette ; l'armée en
-    rapporte ce qu'elle peut porter, le reste est détruit.
-  - **Ville secondaire à 0 : rasée.** Les troupes et les blessés présents sont perdus, le héros s'enfuit vers la capitale,
-    les armées en mission sont rattachées à la capitale, le point de ressource redevient libre (une tribu s'y réinstalle).
-  - **Capitale à 0 : elle ne peut pas être prise.** Elle est **déplacée au hasard près du bord de la carte** avec ses
-    bâtiments ; ses armées présentes la suivent, celles qui rentrent sont redirigées ; santé remise à 100 %, siège levé, les
-    armées hostiles en route font demi-tour.
-  - Visible dans la fenêtre de siège (santé, assauts restants, sort de la ville) et dans le rapport (muraille avant → après,
-    « ville rasée » ou « capitale déplacée »).
+- **Lancer un siège** : n'importe quelle armée qui a **au moins 1 engin de siège** (`config.combat.siege.minEngines`).
+  Plus de minimum selon le palier, plus d'escorte obligatoire, **plus de plafond d'engins** (l'Atelier sert seulement à les
+  fabriquer, il reste réservé à la capitale). Cible : toute ville d'un autre joueur, sauf sa propre alliance et les
+  alliances alliées. La cible est **toujours prévenue** d'une attaque ou d'un raid en marche, quelle que soit la façon
+  dont il a été lancé.
+- **Le camp** : l'armée arrivée **campe 1 h** devant la ville (statut `BESIEGING`, `campMinutes` = 60), puis le combat
+  démarre tout seul. Plus de riposte automatique. **Pendant l'heure, la ville vit normalement** : production, or, marché,
+  convois, recrutement, constructions, recherches et soins continuent, rien n'est mis en pause. Entretien normal pour
+  l'assiégeant. Le rappel est un rappel normal. Si la diplomatie change pendant la marche (ou pendant l'heure), l'armée
+  fait demi-tour et les deux joueurs sont prévenus. Un camp qui perd tous ses engins rentre chez lui.
+- **Camps alliés** : les camps de joueurs alliés entre eux (même joueur, même alliance ou alliance déclarée alliée)
+  combattent **ensemble**, à l'heure du premier arrivé ; chacun emporte sa part du butin selon sa capacité.
+- **Sorties** : pendant le camp, les armées de la ville assiégée ne sortent que pour attaquer le camp (« Briser le
+  siège ») ; une armée rappelée avant d'avoir quitté sa case rentre aussitôt.
+- **Le combat : le mur bouclier** (`combatService.resolveCombatDetailed`, option `wall`). Tant que le mur tient, tous les
+  coups de l'attaquant tombent sur lui et les soldats de la ville ne prennent rien ; les défenseurs, eux, frappent
+  normalement. Un engin frappe le mur avec toute sa force, un soldat avec un dixième (`wallShield`) : **un engin frappe le
+  mur environ 10 fois plus fort qu'un soldat**. Le bonus de défense du mur (+1 % par niveau) baisse avec ses PV. Mur à 0 :
+  les coups touchent les soldats. Si le mur tient jusqu'à la fin du combat (15 rounds), la ville gagne. Après le combat,
+  l'armée rentre chez elle.
+  - Simulation (Rome contre 600 fantassins et 300 archers gaulois) : contre un mur niveau 20 intact, 1 000 soldats avec
+    20 engins ne passent pas ; avec 100 engins le mur tombe au 10e round ; 3 000 soldats et 50 engins percent au 6e round
+    et gagnent. Un mur qui a perdu la moitié de ses vies tombe deux fois plus vite.
+- **Victoire de l'attaquant** : il pille **50 % du stock non protégé** (au-dessus des grands entrepôts et de la cachette),
+  dans la limite de ce que ses armées portent ; ce qu'elles ne portent pas reste à la ville. La ville perd **une vie**.
+- **Les vies** (`City.wallStructure` = part des vies restantes) : **4 pour une capitale, 2 pour une ville secondaire, une
+  de plus pour une ville égyptienne (5 et 3)**. Chaque vie perdue ôte **la même part des PV du mur** (25 % pour une
+  capitale, 50 % pour une colonie…). Les vies, et les PV du mur avec elles, remontent toutes en **48 h**. La fumée sur la
+  carte suit les vies perdues.
+- **Chute, à la dernière vie** :
+  - **ville secondaire détruite** : troupes présentes perdues, héros enfui vers la capitale, armées en mission rattachées à
+    la capitale, offres du marché rendues à la capitale, recherches et files perdues, le point de ressource redevient libre ;
+  - **capitale déplacée** au hasard près d'un bord de la carte, jamais sur un point de ressource : **toutes ses armées sont
+    téléportées** à la nouvelle place, même en mission (missions annulées, charge déposée), toutes ses vies reviennent, son
+    alliance est prévenue de la nouvelle position.
+- **Briser un siège** : **n'importe quel joueur**, sauf contre les camps de son alliance ou d'une alliance alliée, attaque
+  **tous les camps à la fois**, en rase campagne. S'il gagne, les camps rentrent chez eux et **son armée reste devant la
+  ville** pour la garder jusqu'à ce qu'il la rappelle ; s'il perd, il rentre. Une armée de la ville : une sortie rentre
+  dans la ville ; une armée qui revient de l'extérieur **doit battre le camp** pour entrer, sinon elle attend à côté.
+- **Visible** : alerte et compte à rebours du combat (`GET /api/city/incoming-attacks`, type `SIEGE`), fenêtre de siège
+  (`GET /api/city/:id/siege` : mur au prochain combat, vies, camps), anneau rouge, bannière et animation de siège sur la
+  carte (6 civilisations × 3 paliers, colonies normale et fortifiée), carte d'armée « Combat dans … ». **Le compte à
+  rebours n'est donné qu'aux joueurs concernés et à leurs alliances** (fenêtre de siège et carte).
+- **Notifications** : aujourd'hui des notifications push. À faire (chantier séparé) : un fil de messages dans le jeu, dont
+  le push découle.
+- **À faire (chantier séparé)** : deux armées de joueurs **ennemis déclarés** qui sont sur la **même case** au même moment
+  se battent, même en marche ; le vainqueur continue sa route, le perdant rentre. L'armée qui garde une ville combattra ainsi
+  l'ennemi qui arrive.
+- **Garde-fous repris de l'ancien siège** : file de recherche verrouillée par joueur ; chute en attente réglée en premier
+  dans le tick ; la chute d'une colonie verrouille toutes les villes du joueur dans l'ordre ; une sortie qui rentre dépose
+  sa charge avec la bataille ; un raid par ville et par 24 h même après le déplacement d'une capitale.
 
 ## Diplomatie et alliance
 

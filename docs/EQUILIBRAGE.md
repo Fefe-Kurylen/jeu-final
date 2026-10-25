@@ -320,18 +320,20 @@ capitale (Caserne, Écurie, Atelier, Forge, Résidence, Ambassade, Chambre au tr
 écurie n'ouvrent le recrutement en colonie qu'après plusieurs semaines. Les simulations précédentes (civilisations,
 recherche, camps) ne dépendent pas de ces règles et restent valables.
 
-## 12. Coût d'un siège pour l'attaquant (octobre 2026)
+## 12. Siège : camp d'1 h et mur bouclier (refonte du 25 octobre 2026)
 
-Entretien par heure : 5 (base), 10 (intermédiaire), 15 (élite et engins). Un siège dure au plus 3 h (30 min avec 100 engins
-contre un mur 20) ; chaque assaut gagné pille 25 % du stock non protégé.
+Le camp ne coûte plus rien de plus que l'entretien normal (il dure 1 h). Ce qui fait le prix d'un siège, c'est le mur au
+combat : tant qu'il tient, l'attaquant encaisse les coups des défenseurs sans en rendre. Un engin frappe le mur avec toute
+sa force, un soldat avec un dixième (`config.combat.siege.wallShield`).
 
-| Armée de siège | Entretien/h normal | Siège de 3 h à +10 % (GDD) | Siège de 3 h à +100 % (retenu) | Butin d'un assaut gagné |
-|---|---|---|---|---|
-| 100 soldats + 5 engins (village) | 575 | 1 900 | 3 450 | ~5 000 |
-| 300 soldats + 20 engins (ville) | 2 300 | 7 600 | 13 800 | ~20 000 |
-| 1 000 soldats + 100 engins (ville fortifiée, 30 min) | 10 500 | 5 800 | 10 500 | 50 000 et plus |
+Simulation (Rome, fantassins intermédiaires et catapultes, contre 600 fantassins et 300 archers intermédiaires gaulois) :
 
-À +10 %, le surcoût est négligeable et un siège rapporte dès le premier assaut. À +100 %, un siège moyen reste à peine
-rentable sur un seul assaut (le gain vient de la chute de la ville), le spam de petits sièges coûte plus qu'il ne rapporte,
-et une grosse armée d'engins garde un siège court et donc abordable. La ville assiégée ne paie rien de plus.
+| Attaque | Mur 10 plein | Mur 20 plein | Mur 20 à moitié des vies |
+|---|---|---|---|
+| 1 000 soldats + 1 engin | brèche round 13, la ville tient | pas de brèche, la ville tient | brèche round 13, la ville tient |
+| 1 000 soldats + 20 engins | brèche round 10, la ville tient | pas de brèche, la ville tient | brèche round 10, la ville tient |
+| 1 000 soldats + 100 engins | brèche round 5, l'attaquant gagne | brèche round 10, la ville tient | brèche round 5, l'attaquant gagne |
+| 3 000 soldats + 50 engins | brèche round 3, l'attaquant gagne | brèche round 6, l'attaquant gagne | brèche round 3, l'attaquant gagne |
 
+Une victoire pille la moitié du stock non protégé dans la limite de ce que l'armée porte, et ôte une vie (et la même part
+des PV du mur) : les attaques suivantes, dans les 48 h, trouvent un mur plus faible.

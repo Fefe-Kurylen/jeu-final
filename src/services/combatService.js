@@ -132,10 +132,17 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 
 // Detailed round-by-round combat used for city attacks (replayable)
 // techMods: { attacker: { atk, def }, defender: { atk, def } } multipliers from the players' technologies (1 when absent)
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null) {
+// wall: { hp, maxHp } — the wall as a shield (sieges, décision d'octobre 2026): while it stands, every blow of the
+// attacker falls on it (siege engines strike it far harder than soldiers) and the defenders take nothing; its defence
+// bonus fades with the hit points it has left; once it is down, the blows reach the soldiers. The attacker wins only
+// if the wall is down. Without `wall`, the wall is a plain defence bonus (raids, simulations).
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null, wall = null) {
   // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead);
   // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
-  const wallBonus = 1 + wallLevel * config.combat.wallBonusPerLevel;
+  const shield = wall && wallLevel > 0 && wall.maxHp > 0 ? { hp: Math.max(0, Math.min(wall.maxHp, wall.hp)), maxHp: wall.maxHp } : null;
+  const wallHpStart = shield ? shield.hp : null;
+  const wallBonusNow = () => 1 + wallLevel * config.combat.wallBonusPerLevel * (shield ? shield.hp / shield.maxHp : 1);
+  const wallBonus = wallBonusNow();
   const moatBonus = 1 + moatLevel * config.combat.moatBonusPerLevel;
 
   const attackers = makeSide(attackerUnits, {
@@ -145,9 +152,14 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   });
   const defenders = makeSide(defenderUnits, {
     atk: moatBonus * fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack') * (techMods?.defender?.atk || 1),
-    def: (wallBonus + moatBonus - 1) * (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense') * (techMods?.defender?.def || 1),
+    def: (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense') * (techMods?.defender?.def || 1),
     hp: fb(defenderFaction, 'siegeLossReduction')
   });
+  // the wall and moat part of the defence, recomputed each round (the wall's bonus fades as it is battered)
+  for (const d of defenders) d.def0 = d.def;
+  const applyWallDefense = () => { const m = wallBonusNow() + moatBonus - 1; for (const d of defenders) d.def = d.def0 * m; };
+  applyWallDefense();
+  const W = config.combat.siege.wallShield;
 
   const attackerInitialUnits = attackers.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
   const defenderInitialUnits = defenders.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
@@ -156,14 +168,26 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const rounds = [];
 
   for (let round = 1; round <= config.combat.maxRounds; round++) {
-    if (attackers.every(u => u.count <= 0) || defenders.every(u => u.count <= 0)) break;
+    const wallUp = shield && shield.hp > 0;
+    if (attackers.every(u => u.count <= 0) || (defenders.every(u => u.count <= 0) && !wallUp)) break;
+    applyWallDefense();
     const snapA = attackers.map(u => ({ ...u }));
     const snapD = defenders.map(u => ({ ...u }));
-    const attackerDamage = totalDamage(snapA, snapD);
+    let wallDamage = 0, strikers = snapA;
+    if (wallUp) {
+      // the blows fall on the wall first; what is left of the round once it is down reaches the soldiers
+      const dmg = snapA.reduce((t, a) => t + Math.max(0, a.count) * config.combat.roundDamageFactor * a.atk * (a.unitClass === 'SIEGE' ? W.engineMult : W.soldierMult), 0);
+      wallDamage = Math.min(dmg, shield.hp);
+      const rest = dmg > shield.hp && dmg > 0 ? 1 - shield.hp / dmg : 0;
+      shield.hp = Math.max(0, shield.hp - dmg);
+      strikers = snapA.map(a => ({ ...a, count: a.count * rest }));
+    }
+    const attackerDamage = totalDamage(strikers, snapD) + wallDamage;
     const defenderDamage = totalDamage(snapD, snapA);
-    const killsOnDefenders = strike(snapA, defenders);
+    const killsOnDefenders = strike(strikers, defenders);
     const killsOnAttackers = strike(snapD, attackers);
     rounds.push({
+      ...(shield ? { wallHp: Math.round(shield.hp), wallDamage: Math.round(wallDamage) } : {}),
       round,
       attackerDamage: Math.floor(attackerDamage),
       defenderDamage: Math.floor(defenderDamage),
@@ -183,7 +207,9 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const defenderTotalKilled = defenderFinalUnits.reduce((sum, u) => sum + u.killed, 0);
 
   return {
-    attackerWon: remainingPower(attackers) > remainingPower(defenders),
+    // behind a standing wall the city holds, whatever the strength of the attacker
+    attackerWon: !(shield && shield.hp > 0) && remainingPower(attackers) > remainingPower(defenders),
+    wallHpStart, wallHpEnd: shield ? Math.round(shield.hp) : null, wallMaxHp: shield ? shield.maxHp : null,
     attackerLossRate: attackerTotalInitial > 0 ? attackerTotalKilled / attackerTotalInitial : 0,
     defenderLossRate: defenderTotalInitial > 0 ? defenderTotalKilled / defenderTotalInitial : 0,
     attackerTotalKilled, defenderTotalKilled,
