@@ -11,6 +11,22 @@ router.get('/battles', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// One report of the player, by id (the link of a notification may point to a report older than the lists)
+router.get('/battles/:id', auth, async (req, res) => {
+  try {
+    const report = await prisma.battleReport.findFirst({ where: { id: String(req.params.id), playerId: req.user.playerId } });
+    if (!report) return res.status(404).json({ error: 'Rapport introuvable' });
+    res.json(report);
+  } catch (e) { sendError(res, e); }
+});
+router.get('/spy/:id', auth, async (req, res) => {
+  try {
+    const report = await prisma.spyReport.findFirst({ where: { id: String(req.params.id), playerId: req.user.playerId } });
+    if (!report) return res.status(404).json({ error: 'Rapport introuvable' });
+    res.json(report);
+  } catch (e) { sendError(res, e); }
+});
+
 router.get('/spy', auth, async (req, res) => {
   try {
     const reports = await prisma.spyReport.findMany({ where: { playerId: req.user.playerId }, orderBy: { createdAt: 'desc' }, take: 30 });

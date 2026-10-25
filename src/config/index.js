@@ -150,6 +150,9 @@ const config = {
         soldierMult: 0.1              // ...ceux d'un soldat : un dixième (un engin frappe le mur 10 fois plus fort)
       }
     },
+    // Rencontres (décision du 25 octobre 2026) : deux armées de joueurs ennemis déclarés sur la même case au même moment se
+    // battent, même en marche ; les positions sont échantillonnées toutes les sampleSeconds entre deux ticks
+    encounters: { sampleSeconds: 5, lookBackSeconds: 60, meetDistance: 0.5, rematchMinutes: 30, maxRoutesPerTick: 150, routeCacheSize: 5000 },
     // Vies d'une ville (décision d'octobre 2026) : chaque combat gagné par l'attaquant lui ôte une vie (City.wallStructure,
     // part des vies restantes) et la même part des PV de son mur ; tout remonte de 0 à 100 % en 48 h. À la dernière vie,
     // une ville secondaire est détruite, une capitale est déplacée au hasard près du bord de la carte (jamais prise).
@@ -157,7 +160,7 @@ const config = {
       assaults: { capital: 4, secondary: 2 },   // vies : capitale 4, ville secondaire 2...
       extraAssaults: { EGYPT: 1 },              // ...une de plus pour les villes égyptiennes (5 et 3)
       regenHours: 48,                           // de 0 à toutes ses vies en 48 h
-      pillagePct: 50                            // part du stock pillable enlevée par un combat gagné, dans la limite de ce que l'armée porte
+      pillagePct: 25                            // part du stock pillable enlevée par un combat gagné, dans la limite de ce que l'armée porte (25 %, décision du 25 octobre 2026)
     },
     wallHpPerLevel: 1000,
     wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
@@ -201,7 +204,7 @@ const config = {
     regenDelayMinutes: 5,
     tribeRespawnDelayMinutes: 10,
     tribeReinforceMinutes: 60,   // a camp left weak (failed assault, respawn on a depleted node) grows back to the strength of the current stock
-    retentionDays: { reports: 30, expeditions: 7, offers: 30, analytics: 90 }
+    retentionDays: { reports: 30, expeditions: 7, offers: 30, analytics: 90, notifications: 30 }
   },
 
   // Army

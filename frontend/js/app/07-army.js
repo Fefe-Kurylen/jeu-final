@@ -1067,7 +1067,7 @@ async function openBreakSiege(cityId) {
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
       ${wall}
-      <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille la moitié du stock non protégé ; tout remonte en 48 h.</p>
+      <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille un quart du stock non protégé (dans la limite de ce que l'armée porte) ; tout remonte en 48 h.</p>
       <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège${b.assaultAt ? ` · combat dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>` : ''}</li>`).join('')}</ul>
       <p style="font-size:12px;opacity:.85">Le camp attend 1 h avant le combat ; la ville vit normalement mais ses armées ne sortent que pour attaquer le camp. N'importe quel joueur peut attaquer le camp (sauf ceux de son alliance ou d'une alliance alliée) : il combat tous les camps à la fois, et s'il gagne il reste devant la ville pour la garder.</p>
       ${siege.canBreak ? (ready.length ? `

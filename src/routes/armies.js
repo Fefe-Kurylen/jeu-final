@@ -103,7 +103,7 @@ async function launchCityMission(army, targetCity, mission, verb) {
   if (!launched.error && mission !== 'SPY') {
     const minutes = Math.max(1, Math.round(launched.travelTime / 60));
     const what = mission === 'ATTACK' ? 'Attaque' : 'Raid';
-    notify(targetCity.playerId, 'attack_incoming', `⚔️ ${what} en approche`, `${army.owner?.name || 'Un joueur'} marche sur ${targetCity.name} (arrivée dans ${minutes} min)`, { tab: 'city', cityId: targetCity.id });
+    notify(targetCity.playerId, 'attack_incoming', `⚔️ ${what} en approche`, `${army.owner?.name || 'Un joueur'} marche sur ${targetCity.name} (arrivée dans ${minutes} min)`, { to: 'city', cityId: targetCity.id, x: targetCity.x, y: targetCity.y });
   }
   return launched;
 }
@@ -357,7 +357,7 @@ router.post('/:id/break-siege', auth, async (req, res) => {
     const arrivalAt = new Date(Date.now() + travelTime * 1000);
     if (!(await transition(prisma, 'army', army.id, 'IDLE', { status: 'ATTACKING', targetX: city.x, targetY: city.y, targetCityId: city.id, arrivalAt, departedAt: new Date(), missionType: 'BREAK_SIEGE' }))) return res.status(409).json({ error: 'Armée déjà en mission' });
     const minutes = Math.max(1, Math.round(travelTime / 60));
-    for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Sortie contre votre siège', `${army.owner?.name || 'Un joueur'} marche sur votre armée devant ${city.name} (arrivée dans ${minutes} min)`, { tab: 'army' });
+    for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Sortie contre votre siège', `${army.owner?.name || 'Un joueur'} marche sur votre armée devant ${city.name} (arrivée dans ${minutes} min)`, { to: 'map', x: city.x, y: city.y });
     res.json({ message: `Armée en route pour briser le siège de ${city.name}`, travelTime, arrivalAt, target: city.name });
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
@@ -409,7 +409,9 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
         return r;
       }, { timeout: 15000 });
       if (result.error) return res.status(result.status || 400).json(result);
-      return res.json(result);
+      const { notices = [], ...answer } = result;
+      for (const n of notices) notify(...n);   // the holders' alerts, once the fight is committed
+      return res.json(answer);
     }
     const travelTime = await travelTo(army, node.x, node.y);
     const arrivalAt = new Date(Date.now() + travelTime * 1000);

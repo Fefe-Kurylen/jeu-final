@@ -48,7 +48,7 @@ d'un combat où le mur sert de bouclier.
   - Simulation (Rome contre 600 fantassins et 300 archers gaulois) : contre un mur niveau 20 intact, 1 000 soldats avec
     20 engins ne passent pas ; avec 100 engins le mur tombe au 10e round ; 3 000 soldats et 50 engins percent au 6e round
     et gagnent. Un mur qui a perdu la moitié de ses vies tombe deux fois plus vite.
-- **Victoire de l'attaquant** : il pille **50 % du stock non protégé** (au-dessus des grands entrepôts et de la cachette),
+- **Victoire de l'attaquant** : il pille **25 % du stock non protégé** (au-dessus des grands entrepôts et de la cachette),
   dans la limite de ce que ses armées portent ; ce qu'elles ne portent pas reste à la ville. La ville perd **une vie**.
 - **Les vies** (`City.wallStructure` = part des vies restantes) : **4 pour une capitale, 2 pour une ville secondaire, une
   de plus pour une ville égyptienne (5 et 3)**. Chaque vie perdue ôte **la même part des PV du mur** (25 % pour une
@@ -68,14 +68,47 @@ d'un combat où le mur sert de bouclier.
   (`GET /api/city/:id/siege` : mur au prochain combat, vies, camps), anneau rouge, bannière et animation de siège sur la
   carte (6 civilisations × 3 paliers, colonies normale et fortifiée), carte d'armée « Combat dans … ». **Le compte à
   rebours n'est donné qu'aux joueurs concernés et à leurs alliances** (fenêtre de siège et carte).
-- **Notifications** : aujourd'hui des notifications push. À faire (chantier séparé) : un fil de messages dans le jeu, dont
-  le push découle.
-- **À faire (chantier séparé)** : deux armées de joueurs **ennemis déclarés** qui sont sur la **même case** au même moment
-  se battent, même en marche ; le vainqueur continue sa route, le perdant rentre. L'armée qui garde une ville combattra ainsi
-  l'ennemi qui arrive.
+- **Notifications** : chaque alerte du siège (camp, combat, levée, chute, retour bloqué…) arrive dans le **fil de
+  notifications du jeu**, avec un lien vers la fenêtre de siège, le rapport ou la case de la carte (voir « Fil de
+  notifications »).
+- **Garde** : l'armée qui garde une ville combat l'ennemi déclaré qui arrive sur la case (voir « Rencontres d'armées »).
 - **Garde-fous repris de l'ancien siège** : file de recherche verrouillée par joueur ; chute en attente réglée en premier
   dans le tick ; la chute d'une colonie verrouille toutes les villes du joueur dans l'ordre ; une sortie qui rentre dépose
   sa charge avec la bataille ; un raid par ville et par 24 h même après le déplacement d'une capitale.
+
+## Fil de notifications dans le jeu (25 octobre 2026)
+
+- **Toutes les alertes** (camp installé, combat, raid, espionnage, levée d'un siège, chute d'une ville, retour bloqué,
+  rencontre, construction et recherche terminées, attaque en approche…) sont d'abord un **message du jeu** (table
+  `Notification`), visible aussi sur navigateur ; la **notification push mobile en découle** (même titre, même lien,
+  anti-spam par type pour le push seulement). Elles sont gardées 30 jours.
+- **Cloche** dans l'en-tête avec le nombre de messages non lus ; un toast annonce un message qui vient d'arriver. Le panneau
+  liste les messages (non lus en évidence), « Tout marquer comme lu ».
+- **Chaque message a un lien qui mène au bon endroit** (`services/pushService.normalizeLink`) : la case de la carte (camp,
+  ville attaquée, capitale déplacée, armée qui attend), le **rapport du joueur** (bataille ou espionnage, mis en évidence
+  dans la liste), la carte de l'armée, la fenêtre de siège ou la ville. Le tap sur un push mobile ouvre le même lien.
+- API : `GET /api/notifications` (les plus récentes, pagination `before`), `GET /api/notifications/unread`,
+  `POST /api/notifications/read` (`{ ids }` ou `{ all: true }`).
+
+## Rencontres d'armées (25 octobre 2026)
+
+- Deux armées de joueurs **ennemis déclarés** (une des deux alliances a déclaré l'autre ENNEMIE ; les joueurs sans
+  alliance ou neutres se croisent sans combattre) qui sont sur la **même case au même moment** se battent, **même en
+  marche**, en rase campagne (rapport « Rencontre »).
+- Les positions des armées en marche sont calculées le long de leur route, toutes les 5 s entre deux ticks
+  (`config.combat.encounters`), pour ne pas rater deux armées qui se croisent. Comptent aussi les armées immobiles hors de
+  leur ville : camp devant une ville, récolte ou fondation sur un point, armée qui garde une ville ou qui attend.
+- **Le vainqueur continue sa route** (ou reste là où il était) ; **le perdant rentre chez lui depuis la case de la
+  rencontre** (une récolte libère le point, une fondation perd son colon). Les armées de la même alliance immobiles sur la
+  case se défendent ensemble. Deux armées qui viennent de se battre ne se rebattent pas pendant 30 min (le perdant quitte
+  la case).
+- **La case d'une ville est laissée aux règles du siège** (camp, sortie, retour au bercail, convois) ; seule exception, la
+  **garde** : une armée qui garde la ville d'un autre joueur combat l'ennemi qui arrive sur la ville (attaque, raid,
+  espions, déplacement) ; battue, le propriétaire de la ville est prévenu.
+- Les trajets ne sont calculés que pour les armées ennemies qui peuvent se croiser (150 au plus par tick, le reste en
+  ligne droite jusqu'au tick suivant).
+- Les deux joueurs reçoivent une notification avec le lien vers leur rapport ; un rapport plus ancien que la liste
+  s'ouvre quand même (`GET /api/reports/battles/:id`, `/spy/:id`).
 
 ## Diplomatie et alliance
 
@@ -182,7 +215,7 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; l'élite devient le meilleur rapport puissance / entretien, l'intermédiaire le meilleur rapport puissance / ressources, voir `docs/EQUILIBRAGE.md` |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
 | Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
-| Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée et le minimum d'engins de siège suivent le Bâtiment principal (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
+| Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée suivent le Bâtiment principal (le minimum d'engins par palier a été supprimé le 25 octobre 2026 : 1 engin suffit) (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
 | Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
 

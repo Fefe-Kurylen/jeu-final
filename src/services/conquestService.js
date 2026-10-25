@@ -191,6 +191,15 @@ async function relocateCapital(cityId, byArmyId) {
   }, { timeout: 15000 });
 }
 
+// The other players whose armies were heading to the fallen city (or camping before it) learn why they turn back; the
+// new place of a capital is not revealed
+function tellTurnedBack(notify, owners, by, city, at) {
+  for (const id of owners || []) {
+    if (id === city.playerId || id === by?.ownerId) continue;
+    notify(id, 'battle', '↩️ Cible tombée', `${city.name} est tombée : votre armée en route ou devant la ville rentre.`, { to: 'map', x: at.x, y: at.y });
+  }
+}
+
 // Après la transaction de l'assaut (ou à la reprise du tick) : fait tomber la ville si sa muraille est à 0 et prévient
 // le propriétaire et, quand il est connu, l'attaquant. `by` = { id, ownerId, ownerName } de l'armée de l'assaut.
 async function applyFall(cityId, by = null) {
@@ -202,21 +211,23 @@ async function applyFall(cityId, by = null) {
     const moved = await relocateCapital(city.id, by?.ids || by?.id);
     if (!moved) return null;
     forgetObjectCell(moved.from.x, moved.from.y); noteObjectCell(moved.to.x, moved.to.y, 'CITY');
-    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes vos armées l'y ont rejointe.`, { tab: 'city', cityId: city.id });
+    notify(city.playerId, 'city_fall', '🏃 Capitale déplacée', `${city.name} est tombée${who} : la cour s'enfuit et rebâtit la capitale en (${moved.to.x}, ${moved.to.y}). Toutes vos armées l'y ont rejointe.`, { to: 'map', x: moved.to.x, y: moved.to.y, cityId: city.id });
     // the owner's alliance is told where its member's capital went (décision du 25 octobre 2026)
     const member = await prisma.allianceMember.findFirst({ where: { playerId: city.playerId }, select: { allianceId: true, player: { select: { name: true } } } });
     if (member) {
       const mates = await prisma.allianceMember.findMany({ where: { allianceId: member.allianceId, playerId: { not: city.playerId } }, select: { playerId: true } });
-      for (const m of mates) notify(m.playerId, 'city_fall', '🏃 Capitale alliée déplacée', `La capitale de ${member.player?.name || 'votre allié'} est tombée et s'est rebâtie en (${moved.to.x}, ${moved.to.y}).`, { tab: 'map' });
+      for (const m of mates) notify(m.playerId, 'city_fall', '🏃 Capitale alliée déplacée', `La capitale de ${member.player?.name || 'votre allié'} est tombée et s'est rebâtie en (${moved.to.x}, ${moved.to.y}).`, { to: 'map', x: moved.to.x, y: moved.to.y });
     }
-    if (by?.ownerId) notify(by.ownerId, 'city_fall', '🏃 Capitale en fuite', `${city.name} est tombée : sa cour a fui vers un lieu inconnu.`, { tab: 'reports' });
+    tellTurnedBack(notify, moved.owners, by, city, moved.from);
+    if (by?.ownerId) notify(by.ownerId, 'city_fall', '🏃 Capitale en fuite', `${city.name} est tombée : sa cour a fui vers un lieu inconnu.`, by.reportIds?.[by.ownerId] ? { to: 'report', reportId: by.reportIds[by.ownerId] } : { to: 'map', x: moved.from.x, y: moved.from.y });
     return { kind: 'RELOCATED', ...moved };
   }
   const razed = await razeCity(city.id, by?.ids || by?.id);
   if (!razed) return null;
   noteObjectCell(razed.city.x, razed.city.y, 'RESOURCE');
-  notify(city.playerId, 'city_fall', '🔥 Ville rasée', `${city.name} est tombée${who} et a été rasée.`, { tab: 'reports' });
-  if (by?.ownerId) notify(by.ownerId, 'city_fall', '🔥 Ville rasée', `${city.name} est tombée : la ville est rasée.`, { tab: 'reports' });
+  tellTurnedBack(notify, razed.owners, by, city, razed.city);
+  notify(city.playerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée${who} et a été détruite.`, { to: 'map', x: razed.city.x, y: razed.city.y });
+  if (by?.ownerId) notify(by.ownerId, 'city_fall', '🔥 Ville détruite', `${city.name} est tombée : la ville est détruite.`, by.reportIds?.[by.ownerId] ? { to: 'report', reportId: by.reportIds[by.ownerId], x: razed.city.x, y: razed.city.y } : { to: 'map', x: razed.city.x, y: razed.city.y });
   try { await require('../game/processors/worldProcessor').updatePlayerPopulation(prisma, city.playerId); } catch (e) { /* recomputed by the tick */ }
   return { kind: 'RAZED', ...razed };
 }

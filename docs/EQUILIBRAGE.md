@@ -335,5 +335,5 @@ Simulation (Rome, fantassins intermédiaires et catapultes, contre 600 fantassin
 | 1 000 soldats + 100 engins | brèche round 5, l'attaquant gagne | brèche round 10, la ville tient | brèche round 5, l'attaquant gagne |
 | 3 000 soldats + 50 engins | brèche round 3, l'attaquant gagne | brèche round 6, l'attaquant gagne | brèche round 3, l'attaquant gagne |
 
-Une victoire pille la moitié du stock non protégé dans la limite de ce que l'armée porte, et ôte une vie (et la même part
+Une victoire pille un quart (25 %) du stock non protégé dans la limite de ce que l'armée porte, et ôte une vie (et la même part
 des PV du mur) : les attaques suivantes, dans les 48 h, trouvent un mur plus faible.

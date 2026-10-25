@@ -299,6 +299,30 @@ assert('the report carries the wall as a shield and the camp time', Number(sql(`
   assert('behind a wall that holds, the city wins and keeps its lives', r === 'DEFENDER:false' && ws === 100, `${r}, lives ${ws} %`);
   assert('the defenders took no loss behind the wall', Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`)) === garBBeforeBattle);
 }
+// ---------- IN-GAME NOTIFICATIONS ----------
+// every alert is first a message in the game, with a link to what it is about (décision du 25 octobre 2026)
+{
+  const feedA = await call('notifications A', 'GET', '/api/notifications?limit=50', tA);
+  const atkNote = feedA?.items?.find(n => /Votre attaque sur/.test(n.body));
+  const atkReport = sql(`SELECT id FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='ATTACK' ORDER BY "createdAt" DESC LIMIT 1`);
+  assert('the battle is in the in-game feed with a link to the player\'s own report', atkNote?.link?.to === 'report' && atkNote.link.reportId === atkReport && atkNote.link.tab === 'reports', JSON.stringify(atkNote)?.slice(0, 200));
+  const feedB = await call('notifications B', 'GET', '/api/notifications?limit=50', tB);
+  const campNote = feedB?.items?.find(n => n.title.includes('Ville assiégée'));
+  assert('the camp alert links to the siege window of the city', campNote?.link?.to === 'siege' && campNote.link.cityId === cityB.id && Number.isFinite(campNote.link.x), JSON.stringify(campNote)?.slice(0, 200));
+  const defNote = feedB?.items?.find(n => /a été attaquée par/.test(n.body));
+  assert('the defender\'s battle alert links to the defender\'s own report', defNote?.link?.to === 'report' && defNote.link.reportId === sql(`SELECT id FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='ATTACK' ORDER BY "createdAt" DESC LIMIT 1`));
+  assert('the feed counts the unread messages', feedB?.unread > 0 && feedB.items.every(n => n.playerId === B.player.id));
+  const one = await call('mark one notification read', 'POST', '/api/notifications/read', tB, { ids: [campNote?.id] });
+  assert('a read notification leaves the unread count', one?.marked === 1 && one.unread === feedB.unread - 1, JSON.stringify(one));
+  await call('mark another player\'s notification -> nothing', 'POST', '/api/notifications/read', tA, { ids: [defNote?.id] });
+  assert('nobody can mark another player\'s notifications', sql(`SELECT ("readAt" IS NULL)::text FROM "Notification" WHERE id='${defNote?.id}'`) === 'true');
+  await call('mark bad ids -> 400', 'POST', '/api/notifications/read', tB, { ids: 'x' }, 400);
+  const all = await call('mark all read', 'POST', '/api/notifications/read', tB, { all: true });
+  const unread = await call('unread count', 'GET', '/api/notifications/unread', tB);
+  assert('all read: the badge is back to zero, the latest is given for the toast', all?.unread === 0 && unread?.unread === 0 && !!unread?.latest?.id);
+  const page2 = await call('older notifications (paging)', 'GET', `/api/notifications?limit=1&before=${feedB?.items?.[0]?.id}`, tB);
+  assert('the feed pages backwards in time', Array.isArray(page2?.items) && page2.items.length === 1 && page2.items[0].id !== feedB.items[0].id);
+}
 const rep = await call('reports/battles A', 'GET', '/api/reports/battles', tA);
 await call('reports/battles B', 'GET', '/api/reports/battles', tB);
 if (Array.isArray(rep) && rep[0]) console.log('  battle:', JSON.stringify({ winner: rep[0].winner, aLoss: rep[0].attackerLosses?.rate, dLoss: rep[0].defenderLosses?.rate, wallDamage: rep[0].loot?.wallDamage }).slice(0, 300));
@@ -778,7 +802,7 @@ if (MAIL_LOG) {
   }
   const [bx0, by0] = [cityB.x, cityB.y];
   { // a won battle takes a life (a quarter for a Hun capital) and the same share of the wall's hit points; two camps of the
-    // same player whose hour is over fight together; the pillage never takes more than half of the unprotected stock
+    // same player whose hour is over fight together; the pillage never takes more than a quarter of the unprotected stock
     sql(`UPDATE "City" SET "wallStructure"=1, "wallHp"="wallMaxHp", wood=20000, stone=20000, iron=20000, food=20000 WHERE id='${cityB.id}'`);
     const before = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
     const c1 = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 3000);
@@ -788,7 +812,7 @@ if (MAIL_LOG) {
     assert('a won battle takes a life, both camps in one battle', lv === '4>3/4:2', lv);
     assert('the wall keeps the same share of its hit points as of lives', sql(`SELECT round(("wallHp"/"wallMaxHp"*100)::numeric)||':'||round(("wallStructure"*100)::numeric) FROM "City" WHERE id='${cityB.id}'`) === '75:75');
     const after = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
-    assert('the pillage takes at most half of the unprotected stock', after < before && before - after <= before / 2 + 1, `${before} -> ${after}`);
+    assert('the pillage takes at most a quarter of the unprotected stock', after < before && before - after <= before / 4 + 1, `${before} -> ${after}`);
     assert('the camps carry the loot home', Number(sql(`SELECT coalesce(sum("carryWood"),0) FROM "Army" WHERE id IN ('${c1}','${c2}')`)) > 0);
   }
   sql(`UPDATE "City" SET "wallStructure"=0.25 WHERE id='${cityB.id}'`);   // Huns, capital: 4 lives, three already lost
@@ -803,6 +827,42 @@ if (MAIL_LOG) {
   await waitTick('attacker sent home', () => sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING', 15000);
   assert('the attacker heads home', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`) === 'RETURNING', sql(`SELECT status FROM "Army" WHERE id='${breaker}'`));
   cityB.x = bx1; cityB.y = by1;
+}
+
+// ---------- ENCOUNTERS ----------
+// Two armies of declared enemies on the same tile at the same moment fight, even on the march: the winner goes on, the
+// loser goes home (décision du 25 octobre 2026). Players without a declared war cross each other freely.
+{
+  const [ax, ay] = sql(`SELECT x||'|'||y FROM "City" WHERE id='${cityA.id}'`).split('|').map(Number);
+  const tx = ax + 2, ty = ay;
+  const mkArmy = (owner, home, name, status, x, y, tgtX, tgtY, unitKey, tier, count) => sql(`WITH a AS (INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${owner}','${home}','${name}',${x},${y},${tgtX === null ? 'NULL' : tgtX},${tgtY === null ? 'NULL' : tgtY},'${status}',${status === 'MOVING' ? "'MOVE'" : 'NULL'},${status === 'MOVING' ? "now()" : 'NULL'},${status === 'MOVING' ? "now()+interval '20 minutes'" : 'NULL'}) RETURNING id) INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) SELECT gen_random_uuid(), a.id, u.k, u.t, u.c FROM a, (VALUES ('${unitKey}','${tier}',${count})) AS u(k,t,c) RETURNING "armyId"`).split('\n')[0];
+  // no war yet: a strong army walks through a weak one standing on its way
+  sql(`DELETE FROM "AllianceMember" WHERE "playerId" IN ('${A.player.id}','${B.player.id}')`);
+  const stand = mkArmy(B.player.id, cityB.id, 'Poste', 'IDLE', tx, ty, null, null, unitKeyFor('HUN', 'INFANTRY', 'base'), 'base', 10);
+  const marcher = mkArmy(A.player.id, cityA.id, 'Colonne', 'MOVING', tx, ty, tx + 6, ty, unitKeyFor('ROME', 'INFANTRY', 'elite'), 'elite', 2000);
+  await waitTick('a tick passes without a war', () => true);
+  await sleep(31000);
+  assert('without a declared war, armies on the same tile do not fight', sql(`SELECT status FROM "Army" WHERE id='${stand}'`) === 'IDLE' && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) === 0);
+  // war declared: the two alliances meet on the same tile and fight
+  const alX = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Bellum${uid}','B${String(uid).slice(-4)}','${A.player.id}') RETURNING id`).split('\n')[0];
+  const alY = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Hostis${uid}','H${String(uid).slice(-4)}','${B.player.id}') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role) VALUES (gen_random_uuid(),'${alX}','${A.player.id}','LEADER'), (gen_random_uuid(),'${alY}','${B.player.id}','LEADER')`);
+  sql(`INSERT INTO "AllianceDiplomacy"(id,"allianceId","targetAllianceId",status) VALUES (gen_random_uuid(),'${alX}','${alY}','ENEMY')`);
+  sql(`UPDATE "Army" SET "departedAt"=now(), "arrivalAt"=now()+interval '20 minutes' WHERE id='${marcher}'`);   // still on the tile of the post
+  const arrival0 = sql(`SELECT "arrivalAt"::text FROM "Army" WHERE id='${marcher}'`);
+  await waitTick('the enemy armies meet', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) >= 2);
+  assert('one report for each side of the encounter', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) === 2);
+  assert('the loser goes home from the meeting tile', sql(`SELECT status||':'||x||','||y FROM "Army" WHERE id='${stand}'`) === `RETURNING:${tx},${ty}`, sql(`SELECT status||':'||x||','||y FROM "Army" WHERE id='${stand}'`));
+  assert('the winner goes on its way, untouched', sql(`SELECT status||':'||("arrivalAt"::text)||':'||("claimedAt" IS NULL) FROM "Army" WHERE id='${marcher}'`) === `MOVING:${arrival0}:true`);
+  const feed = await call('notifications after the encounter', 'GET', '/api/notifications?limit=10', tA);
+  const meet = feed?.items?.find(n => n.title.includes('Rencontre'));
+  assert('the encounter is in the feed with a link to the report', meet?.link?.to === 'report' && meet.link.reportId === sql(`SELECT id FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='ENCOUNTER' ORDER BY "createdAt" DESC LIMIT 1`) && meet.link.x === tx);
+  const byId = await call('the linked report, by id', 'GET', `/api/reports/battles/${meet?.link?.reportId}`, tA);
+  assert('a report can be opened by id (links older than the list)', byId?.id === meet?.link?.reportId && byId?.loot?.type === 'ENCOUNTER');
+  await call('another player\'s report by id -> 404', 'GET', `/api/reports/battles/${meet?.link?.reportId}`, tB, null, 404);
+  await sleep(31000);
+  assert('two armies that have just fought do not fight again while the loser leaves', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) === 2);
+  sql(`DELETE FROM "Army" WHERE id IN ('${stand}','${marcher}')`);
 }
 
 // ---------- WRAP UP ----------

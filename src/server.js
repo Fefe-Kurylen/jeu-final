@@ -131,6 +131,7 @@ app.use('/api/push', require('./routes/push'));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/research', require('./routes/research'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Pages publiques exigées par les stores (politique de confidentialité, assistance)
 const PUBLIC_DIR = path.join(__dirname, 'public');

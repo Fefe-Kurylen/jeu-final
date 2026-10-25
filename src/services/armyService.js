@@ -6,7 +6,6 @@ const prisma = require('../config/database');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getArmyCarryCapacity, calculateArmyPower, getFactionBonus, getArmyTravelTime } = require('../utils/calculations');
 const { findRoute } = require('../utils/pathfinding');
-const { notify } = require('./pushService');
 const fx = require('../utils/buildingEffects');
 const { calculateWoundedUnits, carryWounded, addWoundedUnits } = require('./woundedService');
 const { resolveCombat, heroCombatStats } = require('./combatService');
@@ -173,10 +172,11 @@ async function fieldBattle(tx, army, holders, playerId, place) {
     rounds: place.rounds
   };
   const report = await tx.battleReport.create({ data: { ...base, playerId, attackerId: playerId, defenderId: lead.ownerId, result: combat.attackerWon ? 'WIN' : 'LOSE' } });
-  for (const ownerId of new Set(holders.map(h => h.ownerId))) await tx.battleReport.create({ data: { ...base, playerId: ownerId, attackerId: playerId, defenderId: ownerId, result: combat.attackerWon ? 'LOSE' : 'WIN' } });
+  const reportIds = { [playerId]: report.id };   // each player's own copy, for the links of the notifications
+  for (const ownerId of new Set(holders.map(h => h.ownerId))) reportIds[ownerId] = (await tx.battleReport.create({ data: { ...base, playerId: ownerId, attackerId: playerId, defenderId: ownerId, result: combat.attackerWon ? 'LOSE' : 'WIN' } })).id;
   await tx.playerStats.upsert({ where: { playerId }, update: { unitsKilled: { increment: defTotal }, unitsLost: { increment: atk.total }, ...(combat.attackerWon ? { attacksWon: { increment: 1 } } : {}) }, create: { playerId, unitsKilled: defTotal, unitsLost: atk.total, attacksWon: combat.attackerWon ? 1 : 0 } });
 
-  return { combat, report, defenderName, attackerLosses: atk.total, defenderLosses: defTotal };
+  return { combat, report, reportIds, defenderName, attackerLosses: atk.total, defenderLosses: defTotal };
 }
 
 // Fight against the army (or allied armies) holding a resource node, as on a Travian oasis: an open-field battle resolved
@@ -194,17 +194,18 @@ async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
     return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
   }
   const where = `${node.resourceType} (${node.x}, ${node.y})`;
-  const { combat, report, defenderName, attackerLosses, defenderLosses } = await fieldBattle(tx, army, holders, playerId, { x: node.x, y: node.y, where, type: 'NODE_FIGHT', rounds: { type: 'NODE_FIGHT', resourceType: node.resourceType } });
+  const { combat, report, reportIds, defenderName, attackerLosses, defenderLosses } = await fieldBattle(tx, army, holders, playerId, { x: node.x, y: node.y, where, type: 'NODE_FIGHT', rounds: { type: 'NODE_FIGHT', resourceType: node.resourceType } });
   if (combat.attackerWon) {
     await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });
     // GDD: settlers are vulnerable — a founding party that is beaten loses its settler
     for (const h of holders) { if (h.status === 'FOUNDING' && (h.settlers || 0) > 0) { await tx.army.update({ where: { id: h.id }, data: { settlers: 0 } }); h.settlers = 0; } await sendArmyHomeTx(tx, h); }
-    for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '⚔️ Armée chassée', `${army.owner?.name || 'Un joueur'} a chassé votre armée du point ${where}. Rapport disponible.`, { tab: 'reports' });
-  } else {
-    for (const ownerId of new Set(holders.map(h => h.ownerId))) notify(ownerId, 'battle', '🛡️ Point défendu', `Votre armée a repoussé ${army.owner?.name || 'un joueur'} sur le point ${where}. Rapport disponible.`, { tab: 'reports' });
   }
+  // sent by the caller once its transaction is committed (no alert for a fight that was rolled back)
+  const notices = [...new Set(holders.map(h => h.ownerId))].map(ownerId => combat.attackerWon
+    ? [ownerId, 'battle', '⚔️ Armée chassée', `${army.owner?.name || 'Un joueur'} a chassé votre armée du point ${where}. Rapport disponible.`, { to: 'report', reportId: reportIds[ownerId], x: node.x, y: node.y }]
+    : [ownerId, 'battle', '🛡️ Point défendu', `Votre armée a repoussé ${army.owner?.name || 'un joueur'} sur le point ${where}. Rapport disponible.`, { to: 'report', reportId: reportIds[ownerId], x: node.x, y: node.y }]);
   return {
-    success: combat.attackerWon, reportId: report.id,
+    success: combat.attackerWon, reportId: report.id, notices,
     combatResult: { winner: combat.attackerWon ? 'attacker' : 'defender', attackerLosses, defenderLosses, attackerPower: Math.round(combat.attackerPower), defenderPower: Math.round(combat.defenderPower) },
     loot: null, message: combat.attackerWon ? `Armée de ${defenderName} chassée du point` : 'Votre armée a été repoussée'
   };

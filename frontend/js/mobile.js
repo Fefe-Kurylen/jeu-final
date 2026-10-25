@@ -138,9 +138,14 @@
         await PushNotifications.addListener('registrationError', (e) => console.warn('push registration', e));
         await PushNotifications.addListener('pushNotificationReceived', (n) => { if (n.title) showToast(n.title, 'info'); if (typeof refreshData === 'function') refreshData(true); });
         await PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
-          const tab = a.notification?.data?.tab;
+          const raw = a.notification?.data || {};
+          const data = raw.to ? raw : (raw.data && typeof raw.data === 'object' ? raw.data : raw);   // iOS: the whole userInfo
           if (typeof refreshData === 'function') refreshData(true);
-          if (tab && typeof showTab === 'function') showTab(tab);
+          // the push carries the link of its in-game notification: open what it is about, and mark it read
+          if (data.to && typeof openNotificationLink === 'function') {
+            openNotificationLink(data);
+            if (data.notificationId && typeof markNotificationsRead === 'function') markNotificationsRead({ ids: [data.notificationId] });
+          } else if (data.tab && typeof showTab === 'function') showTab(data.tab);
         });
       }
       await PushNotifications.register();

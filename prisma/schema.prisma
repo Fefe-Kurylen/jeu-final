@@ -69,6 +69,7 @@ model Player {
   alliance     AllianceMember?
   expeditions  Expedition[]
   pushTokens   PushToken[]
+  notifications Notification[]
   purchases    Purchase[]
   technologies PlayerTechnology[]
   researchQueue ResearchQueueItem[]
@@ -458,6 +459,23 @@ model AllianceInvite {
 }
 
 // Jeton de notification push d'un appareil (supprimé avec le compte)
+// In-game notifications (décision du 25 octobre 2026): every alert is first a message in the game, with a link to what it
+// is about; the mobile push is sent from it
+model Notification {
+  id        String    @id @default(uuid())
+  playerId  String
+  kind      String
+  title     String
+  body      String
+  link      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+}
+
 model PushToken {
   id         String   @id @default(uuid())
   playerId   String

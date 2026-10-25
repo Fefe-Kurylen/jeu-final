@@ -39,7 +39,7 @@ async function processSieges() {
           if (!a.targetCityId) return null;
           await lockCity(tx, a.targetCityId);
           const fresh = await tx.army.findFirst({ where: { id: a.id, status: 'BESIEGING', claimedAt: null }, include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } } });
-          const city = await tx.city.findUnique({ where: { id: a.targetCityId }, select: { id: true, name: true, playerId: true } });
+          const city = await tx.city.findUnique({ where: { id: a.targetCityId }, select: { id: true, name: true, playerId: true, x: true, y: true } });
           if (!fresh || !city) return null;
           const noEngine = engineCount(fresh.units) < S().minEngines;
           const friend = !(await getRelation(fresh.ownerId, city.playerId, tx)).canAttack;
@@ -50,8 +50,8 @@ async function processSieges() {
         });
         if (gone) {
           const why = gone.reason === 'engins' ? 'n\'a plus d\'engin de siège' : 'ne peut plus attaquer cette ville (alliance)';
-          notify(a.ownerId, 'battle', '🏰 Siège abandonné', `${a.name} ${why} : elle quitte ${gone.city.name} et rentre.`, { tab: 'army' });
-          notify(gone.city.playerId, 'battle', '🏰 Camp levé', `L'armée de ${a.owner?.name || 'l\'ennemi'} quitte ${gone.city.name}.`, { tab: 'city', cityId: gone.city.id });
+          notify(a.ownerId, 'battle', '🏰 Siège abandonné', `${a.name} ${why} : elle quitte ${gone.city.name} et rentre.`, { to: 'army', armyId: a.id });
+          notify(gone.city.playerId, 'battle', '🏰 Camp levé', `L'armée de ${a.owner?.name || 'l\'ennemi'} quitte ${gone.city.name}.`, { to: 'map', x: gone.city.x, y: gone.city.y, cityId: gone.city.id });
         }
       } catch (e) { console.error(`[SIEGE] ${a.id}:`, e.message); }
     }

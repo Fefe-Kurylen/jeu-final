@@ -39,7 +39,8 @@ function sendApns(deviceToken, { title, body, data }) {
     req.on('data', (d) => { chunks += d; });
     req.on('end', () => { clearTimeout(timer); client.close(); resolve({ status, body: chunks }); });
     req.on('error', (e) => { clearTimeout(timer); client.close(); resolve({ status: 0, error: e.message }); });
-    req.end(JSON.stringify({ aps: { alert: { title, body }, sound: 'default' }, data: data || {} }));
+    // custom keys at the top level of the payload: the app reads them from notification.data (the whole userInfo on iOS)
+    req.end(JSON.stringify({ ...(data || {}), aps: { alert: { title, body }, sound: 'default' }, data: data || {} }));
   });
 }
 
@@ -76,9 +77,30 @@ async function sendFcm(deviceToken, { title, body, data }) {
 const lastSent = new Map();   // `${playerId}:${kind}` -> timestamp (anti-spam)
 function configured() { return !!(apnsToken() || fcmServiceAccount()); }
 
+// Where a notification leads (décision du 25 octobre 2026) — the client opens it on a tap:
+//   { to: 'map', x, y }            the spot on the map (a camp, a city, a moved capital, a halted army)
+//   { to: 'report', reportId }     a battle report        { to: 'spy', reportId }   a spy report
+//   { to: 'army', armyId }         the army's card        { to: 'siege', cityId }   the siege window of a city
+//   { to: 'city', cityId }         a city of the player (constructions, research)
+// `tab` is kept for the mobile apps already installed (they only know the tab).
+const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city' };
+const TO_OF_TAB = { reports: 'report', army: 'army', map: 'map', city: 'city' };
+function normalizeLink(data) {
+  if (!data || typeof data !== 'object') return null;
+  const link = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null));
+  if (!link.to) link.to = TO_OF_TAB[link.tab] || 'city';
+  if (!link.tab) link.tab = TAB_OF[link.to] || 'city';
+  return link;
+}
+
+// Every alert is first a message in the game (fil de notifications) ; the mobile push is sent from it, throttled
 async function notifyPlayer(playerId, kind, title, body, data = {}) {
   try {
-    if (!playerId || !configured()) return;
+    if (!playerId) return;
+    const link = normalizeLink(data);
+    const row = await prisma.notification.create({ data: { playerId, kind, title: String(title).slice(0, 120), body: String(body).slice(0, 500), link } });
+    if (!configured()) return;
+    data = { ...(link || {}), notificationId: row.id };
     const key = `${playerId}:${kind}`;
     const minGap = config.push.throttleMs[kind] ?? 60000;
     const now = Date.now();
@@ -99,4 +121,4 @@ async function notifyPlayer(playerId, kind, title, body, data = {}) {
 // Variante non bloquante pour la logique de jeu
 function notify(playerId, kind, title, body, data) { notifyPlayer(playerId, kind, title, body, data).catch(() => {}); }
 
-module.exports = { notify, notifyPlayer, configured };
+module.exports = { notify, notifyPlayer, configured, normalizeLink };

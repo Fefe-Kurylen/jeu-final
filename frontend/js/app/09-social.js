@@ -313,7 +313,7 @@ function renderBattleReportCard(r, idx) {
   const isRaid = r.loot?.type === 'RAID', isTribe = r.rounds?.type === 'TRIBE_RAID';
   const kind = isRaid ? 'Pillage' : isTribe ? 'Tribu' : iAttacked ? 'Attaque' : 'Défense';
   // batailles en rase campagne du siège : attaque d'un camp pour briser un siège (et anciens rapports de riposte)
-  const fieldKind = { RIPOSTE: true, SIEGE_BREAK: true }[r.loot?.type];
+  const fieldKind = { RIPOSTE: true, SIEGE_BREAK: true, ENCOUNTER: true }[r.loot?.type];   // ENCOUNTER: deux armées ennemies qui se croisent
   const title = fieldKind ? `${cityName}${iAttacked ? '' : ` par ${attackerName}`}` : isTribe ? `Combat contre la tribu de ${cityName}` : iAttacked ? `${kind} de ${cityName}` : `${kind} de ${cityName} par ${attackerName}`;
   const date = new Date(r.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -359,7 +359,7 @@ function renderBattleReportCard(r, idx) {
   const tribeScene = isTribe && typeof paintedSet !== 'undefined' ? (() => { const p = `scenes/vignette-tribe-${typeof getBiome === 'function' ? getBiome(r.x, r.y) : 'forest'}.webp`; return paintedSet.has(p) ? `<img class="report-scene" src="assets/images/painted/${p}" alt="" style="width:100%; display:block; border-radius:6px 6px 0 0;">` : ''; })() : '';
 
   return `
-    <div class="report-card ${won ? 'report-victory' : 'report-defeat'}">
+    <div class="report-card ${won ? 'report-victory' : 'report-defeat'}" data-report-id="${escapeHtml(String(r.id || ''))}">
       ${tribeScene}
       <div class="report-header">
         <div class="report-title-section">

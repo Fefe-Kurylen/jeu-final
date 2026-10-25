@@ -13,6 +13,7 @@ const { processResearch } = require('./processors/researchProcessor');
 const { processExpeditions, generateNewExpeditions } = require('./processors/expeditionProcessor');
 const { processArmyMovements } = require('./processors/armyProcessor');
 const { processSieges, retryPendingFalls } = require('./processors/siegeProcessor');
+const { processEncounters } = require('./processors/encounterProcessor');
 const { processHarvesting, processTribeRespawn } = require('./processors/harvestProcessor');
 const { updatePopulation, cleanupOrphanedFlags, purgeOldRecords } = require('./processors/worldProcessor');
 
@@ -89,6 +90,7 @@ async function gameTick() {
     await step('expeditions', () => processExpeditions(now));
     await step('newExpeditions', () => generateNewExpeditions());
 
+    await step('encounters', () => processEncounters(now));   // enemy armies on the same tile fight, before the arrivals
     await step('sieges', () => processSieges());   // camps without engines or now allied go home
     await step('armies', () => processArmyMovements(now));
     await step('harvest', () => processHarvesting(now));

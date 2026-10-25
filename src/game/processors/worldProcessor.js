@@ -52,7 +52,8 @@ async function purgeOldRecords(now) {
     prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED'] }, createdAt: { lt: days(r.offers) } } }),
     prisma.analyticsEvent.deleteMany({ where: { createdAt: { lt: days(r.analytics) } } }),
     prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: days(1) } } }),
-    prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } })
+    prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } }),
+    prisma.notification.deleteMany({ where: { createdAt: { lt: days(r.notifications || 30) } } })
   ]);
   const total = reports.count + spy.count + expeditions.count + offers.count + analytics.count;
   if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements supprimés`);

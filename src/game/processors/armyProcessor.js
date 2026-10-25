@@ -153,13 +153,14 @@ async function handleRaidResource(army) {
     if (!fresh) return { won: false, gone: true, losses: 0, loot: {} };
     const result = fresh.hasDefenders ? await resolveTribeCombat(army, fresh, army.ownerId, tx) : fresh.hasPlayerArmy ? await resolveNodeHolderCombat(army, fresh, army.ownerId, tx) : { success: true, free: true };
     const loot = result.success && !result.shared ? await collectResourceLoot(army, fresh, army.ownerId, tx, result.reportId || null) : {};
-    return { won: result.success, fight: !result.free && !result.shared, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot };
+    return { won: result.success, fight: !result.free && !result.shared, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot, reportId: result.reportId || null, notices: result.notices || [] };
   }, TX);
+  for (const n of outcome.notices || []) notify(...n);
   const won = outcome.won;
   const lootText = Object.entries(outcome.loot || {}).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
   if (outcome.fight) {
     const who = outcome.holder ? 'l\'armée adverse' : 'la tribu';
-    notify(army.ownerId, 'battle', won ? '⚔️ Point conquis' : '⚔️ Attaque repoussée', won ? `${army.name} a chassé ${who} en (${node.x}, ${node.y})${lootText ? ' : ' + lootText : ''}.` : `${army.name} a été repoussée par ${who} en (${node.x}, ${node.y}) (${outcome.losses} pertes). Rapport disponible.`, { tab: 'reports' });
+    notify(army.ownerId, 'battle', won ? '⚔️ Point conquis' : '⚔️ Attaque repoussée', won ? `${army.name} a chassé ${who} en (${node.x}, ${node.y})${lootText ? ' : ' + lootText : ''}.` : `${army.name} a été repoussée par ${who} en (${node.x}, ${node.y}) (${outcome.losses} pertes). Rapport disponible.`, outcome.reportId ? { to: 'report', reportId: outcome.reportId, x: node.x, y: node.y } : { to: 'map', x: node.x, y: node.y });
   }
   // A victorious army stays and harvests what is left when nobody else holds the node; otherwise it brings its loot home
   if (!won || !(await startHarvesting(army, node.id))) await sendArmyHome(army, node.x, node.y, { targetResourceId: null });
@@ -186,16 +187,19 @@ async function fightThroughSiege(army, city) {
     const hostile = forcedCamps(army, camp);
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     if (!hostile.length || !units.length) return { passed: true };
-    const { combat, defenderName } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Retour à ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id, homecoming: true } });
+    const { combat, defenderName, reportIds } = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Retour à ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id, homecoming: true } });
     if (combat.attackerWon) { for (const b of hostile) await sendArmyHomeTx(tx, b); await refreshSiegeFlag(tx, city.id); }
     else await tx.army.update({ where: { id: army.id }, data: haltData(pos) });
-    return { passed: combat.attackerWon, fought: true, defenderName, owners: [...new Set(hostile.map(b => b.ownerId))] };
+    return { passed: combat.attackerWon, fought: true, defenderName, reportIds, owners: [...new Set(hostile.map(b => b.ownerId))] };
   }, TX);
   if (!outcome.fought) return outcome;
   if (outcome.passed) {
-    notify(army.ownerId, 'battle', '⚔️ Passage forcé', `${army.name} a percé le siège de ${city.name} en rentrant : le siège est levé.`, { tab: 'reports' });
-    for (const id of outcome.owners) notify(id, 'battle', '🏰 Siège levé', `Une armée qui rentrait à ${city.name} a chassé votre camp.`, { tab: 'reports' });
-  } else notifyHalted(army, city, pos);
+    notify(army.ownerId, 'battle', '⚔️ Passage forcé', `${army.name} a percé le siège de ${city.name} en rentrant : le siège est levé.`, { to: 'report', reportId: outcome.reportIds?.[army.ownerId], x: city.x, y: city.y });
+    for (const id of outcome.owners) notify(id, 'battle', '🏰 Siège levé', `Une armée qui rentrait à ${city.name} a chassé votre camp.`, { to: 'report', reportId: outcome.reportIds?.[id], x: city.x, y: city.y });
+  } else {
+    notifyHalted(army, city, pos, outcome.reportIds?.[army.ownerId]);
+    for (const id of outcome.owners) notify(id, 'battle', '🏰 Retour repoussé', `Votre camp devant ${city.name} a repoussé une armée qui rentrait dans la ville.`, { to: 'report', reportId: outcome.reportIds?.[id], x: city.x, y: city.y });
+  }
   return outcome;
 }
 
@@ -215,8 +219,9 @@ async function haltTile(city) {
   return spot[0];
 }
 const haltData = (pos) => ({ status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, claimedAt: null, missionType: null, harvestResourceType: null });
-function notifyHalted(army, city, pos) {
-  notify(army.ownerId, 'siege_halt', '⚔️ Retour bloqué', `${army.name} n'a pas pu percer le siège de ${city.name} : elle attend en (${pos.x}, ${pos.y}). Attaquez à nouveau le camp ou attendez la levée du siège.`, { tab: 'army' });
+function notifyHalted(army, city, pos, reportId = null) {
+  // the link shows where the army waits (its report is one tap away in the reports)
+  notify(army.ownerId, 'siege_halt', '⚔️ Retour bloqué', `${army.name} n'a pas pu percer le siège de ${city.name} : elle attend en (${pos.x}, ${pos.y}). Attaquez à nouveau le camp ou attendez la levée du siège.`, { to: 'map', x: pos.x, y: pos.y, armyId: army.id, reportId });
 }
 
 // ---------- Secondary cities (GDD): a settler army reaches a free node, then the foundation takes 24 h ----------
@@ -225,14 +230,14 @@ async function handleFoundArrival(army, now) {
   const free = node && !node.cityId && !node.hasDefenders && !node.hasPlayerArmy && (army.settlers || 0) > 0;
   if (!free) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null });
-    notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { tab: 'map' });
+    notify(army.ownerId, 'battle', '🏗️ Fondation impossible', `Le point (${army.targetX}, ${army.targetY}) n'est plus libre : ${army.name} rentre avec le colon.`, { to: 'map', x: army.targetX, y: army.targetY });
     return;
   }
   const taken = await prisma.resourceNode.updateMany({ where: { id: node.id, hasPlayerArmy: false, hasDefenders: false, cityId: null }, data: { hasPlayerArmy: true } });
   if (taken.count !== 1) { await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null, harvestResourceType: null }); return; }
   const endsAt = new Date(now.getTime() + fx.cityFoundationTimeSec() * 1000);
   await prisma.army.update({ where: { id: army.id }, data: { status: 'FOUNDING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, arrivalAt: endsAt, departedAt: now, claimedAt: null } });
-  notify(army.ownerId, 'build_done', '🏗️ Fondation commencée', `${army.name} fonde une ville en (${node.x}, ${node.y}) : elle sera prête dans ${Math.round(fx.cityFoundationTimeSec() / 3600)} h.`, { tab: 'map' });
+  notify(army.ownerId, 'build_done', '🏗️ Fondation commencée', `${army.name} fonde une ville en (${node.x}, ${node.y}) : elle sera prête dans ${Math.round(fx.cityFoundationTimeSec() / 3600)} h.`, { to: 'map', x: node.x, y: node.y });
 }
 
 async function handleFoundComplete(army, now) {
@@ -259,7 +264,7 @@ async function handleFoundComplete(army, now) {
   }
   noteObjectCell(created.x, created.y, 'CITY');
   try { await updatePlayerPopulation(prisma, army.ownerId); } catch (e) { /* population is recomputed by the tick */ }
-  notify(army.ownerId, 'build_done', '🏛️ Ville fondée', `${created.name} est fondée en (${created.x}, ${created.y}). ${army.name} rentre à la capitale.`, { tab: 'city', cityId: created.id });
+  notify(army.ownerId, 'build_done', '🏛️ Ville fondée', `${created.name} est fondée en (${created.x}, ${created.y}). ${army.name} rentre à la capitale.`, { to: 'city', cityId: created.id, x: created.x, y: created.y });
   console.log(`[FOUND] ${created.name} (${created.x}, ${created.y})`);
   await sendArmyHome({ ...army, carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, settlers: 0 }, created.x, created.y, { targetResourceId: null, harvestResourceType: null });
 }
@@ -305,7 +310,7 @@ function mergeUnits(rows) {
 }
 
 // End of the camp hour: the camps of allied owners due now fight the city together (décision du 25 octobre 2026). The
-// wall is a shield (combatService), a won battle pillages half of the unprotected stock within what the armies carry
+// wall is a shield (combatService), a won battle pillages a quarter of the unprotected stock within what the armies carry
 // and takes a life from the city; at the last life the city falls (after this transaction). Every camp goes home after.
 async function handleAttack(army, now) {
   const battle = await prisma.$transaction(async (tx) => {
@@ -338,7 +343,7 @@ async function handleAttack(army, now) {
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const defArmy of defenders) await applyLosses(tx, defArmy.units, result.defenderFinalUnits);
     const campMinutes = army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
-    // Won: half of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
+    // Won: a quarter of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
     let pillaged = null, structure = null;
     if (result.attackerWon) {
       const survivors = new Map(group.map(g => [g.id, rowsOf.get(g.id).map(u => ({ unitKey: u.unitKey, count: Math.round(u.count * survivalRatio(result.attackerFinalUnits, u.unitKey)) }))]));
@@ -357,31 +362,32 @@ async function handleAttack(army, now) {
     const loot = (carried) => ({ rounds: result.rounds, ...wallInfo, campMinutes, camps: group.length, ...(carried || {}), pillaged: pillaged ? pillaged.taken : null, lives, attackerName: ownerNames, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, duration: result.rounds.length, type: 'ATTACK' });
     // one report for each attacking player (what his own armies carry away) and one for the defender
     const owners = [...new Set(group.map(g => g.ownerId))];
+    const reportIds = {};   // each player's own copy, for the links of the notifications
     for (const ownerId of owners) {
       const carried = pillaged ? Object.fromEntries(['wood', 'stone', 'iron', 'food'].map(r => [r, group.filter(g => g.ownerId === ownerId).reduce((t, g) => t + (pillaged.carried.get(g.id)?.[r] || 0), 0)])) : null;
-      await tx.battleReport.create({ data: { ...reportBase, loot: loot(carried), result: reportResult(true, result.attackerWon), playerId: ownerId, attackerId: ownerId, defenderId: targetCity.playerId } });
+      reportIds[ownerId] = (await tx.battleReport.create({ data: { ...reportBase, loot: loot(carried), result: reportResult(true, result.attackerWon), playerId: ownerId, attackerId: ownerId, defenderId: targetCity.playerId } })).id;
     }
-    await tx.battleReport.create({ data: { ...reportBase, loot: loot(null), result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    reportIds[targetCity.playerId] = (await tx.battleReport.create({ data: { ...reportBase, loot: loot(null), result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } })).id;
     const winnerId = result.attackerWon ? army.ownerId : targetCity.playerId;
     const winField = result.attackerWon ? 'attacksWon' : 'defensesWon';
     await tx.playerStats.upsert({ where: { playerId: winnerId }, update: { [winField]: { increment: 1 } }, create: { playerId: winnerId, [winField]: 1 } });
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-    return { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf };
+    return { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds };
   }, TX);
   if (!battle || battle.turned) {
     await sendArmyHome(army, army.targetX, army.targetY);
     if (army.targetCityId) await refreshSiegeFlag(prisma, army.targetCityId);
     if (battle?.turned) {
-      notify(army.ownerId, 'battle', '🏰 Attaque annulée', `${army.name} ne peut plus attaquer ${battle.targetCity.name} (alliance) : elle rentre.`, { tab: 'army' });
-      notify(battle.targetCity.playerId, 'battle', '🏰 Camp levé', `L'armée de ${army.owner?.name || 'l\'ennemi'} quitte ${battle.targetCity.name} sans combattre.`, { tab: 'city', cityId: battle.targetCity.id });
+      notify(army.ownerId, 'battle', '🏰 Attaque annulée', `${army.name} ne peut plus attaquer ${battle.targetCity.name} (alliance) : elle rentre.`, { to: 'army', armyId: army.id });
+      notify(battle.targetCity.playerId, 'battle', '🏰 Camp levé', `L'armée de ${army.owner?.name || 'l\'ennemi'} quitte ${battle.targetCity.name} sans combattre.`, { to: 'map', x: battle.targetCity.x, y: battle.targetCity.y, cityId: battle.targetCity.id });
     }
     return;
   }
-  const { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf } = battle;
+  const { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds } = battle;
   const livesTxt = structure ? (structure.fallen ? '' : ` Il lui reste ${Math.round(structure.after * structure.needed)} vie(s).`) : '';
-  notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${[...new Set(group.map(g => g.owner?.name))].join(', ')} : ${result.attackerWon ? 'défaite.' + livesTxt : 'victoire.'} Rapport disponible.`, { tab: 'reports' });
-  for (const ownerId of new Set(group.map(g => g.ownerId))) notify(ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { tab: 'reports' });
+  notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${[...new Set(group.map(g => g.owner?.name))].join(', ')} : ${result.attackerWon ? 'défaite.' + livesTxt : 'victoire.'} Rapport disponible.`, { to: 'report', reportId: reportIds[targetCity.playerId], x: targetCity.x, y: targetCity.y });
+  for (const ownerId of new Set(group.map(g => g.ownerId))) notify(ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { to: 'report', reportId: reportIds[ownerId], x: targetCity.x, y: targetCity.y });
 
   // Hero XP: GDD 0.25 per enemy unit destroyed (winner x1, loser x0.3); the leading camp's hero
   try {
@@ -406,7 +412,7 @@ async function handleAttack(army, now) {
   console.log(`[ATTACK] ${army.owner.name}${group.length > 1 ? ` (+${group.length - 1} camp(s))` : ''} vs ${targetCity.player.name}: ${result.attackerWon ? 'Attacker won' : 'Defender won'}`);
   if (structure?.fallen) {
     try {
-      const fall = await applyFall(targetCity.id, { id: army.id, ids: group.map(g => g.id), ownerId: army.ownerId, ownerName: army.owner.name });   // notifies too
+      const fall = await applyFall(targetCity.id, { id: army.id, ids: group.map(g => g.id), ownerId: army.ownerId, ownerName: army.owner.name, reportIds });   // notifies too
       if (fall) console.log(`[FALL] ${targetCity.name} ${fall.kind}`);
     } catch (fallErr) { console.error('[FALL]', fallErr.message); }
   }
@@ -438,20 +444,20 @@ async function startSiege(army, now) {
     await sendArmyHome(army, army.targetX, army.targetY);
     const { city } = started;
     const why = started.turned === 'diplomacy' ? 'vos deux camps sont désormais alliés' : started.turned === 'engines' ? 'elle n\'a plus d\'engin de siège' : 'la ville n\'existe plus';
-    notify(army.ownerId, 'battle', '🏰 Attaque annulée', `${army.name} fait demi-tour devant ${city?.name || 'la ville'} : ${why}.`, { tab: 'army' });
-    if (city && started.turned === 'diplomacy') notify(city.playerId, 'battle', '🏰 Attaque annulée', `L'armée de ${army.owner?.name || 'un joueur'} en route vers ${city.name} a fait demi-tour : vos deux camps sont désormais alliés.`, { tab: 'city', cityId: city.id });
+    notify(army.ownerId, 'battle', '🏰 Attaque annulée', `${army.name} fait demi-tour devant ${city?.name || 'la ville'} : ${why}.`, { to: 'army', armyId: army.id });
+    if (city && started.turned === 'diplomacy') notify(city.playerId, 'battle', '🏰 Attaque annulée', `L'armée de ${army.owner?.name || 'un joueur'} en route vers ${city.name} a fait demi-tour : vos deux camps sont désormais alliés.`, { to: 'map', x: city.x, y: city.y, cityId: city.id });
     return;
   }
   const { city, fightAt, joined } = started;
   const minutes = Math.max(1, Math.round((fightAt - now) / 60000));
   const also = joined ? ' (avec un camp allié déjà sur place)' : '';
-  notify(city.playerId, 'battle', '🏰 Ville assiégée', `${army.owner?.name || 'Un joueur'} campe devant ${city.name}${also} : combat dans ${minutes} min. Attaquez le camp ou appelez vos alliés.`, { tab: 'city', cityId: city.id });
+  notify(city.playerId, 'battle', '🏰 Ville assiégée', `${army.owner?.name || 'Un joueur'} campe devant ${city.name}${also} : combat dans ${minutes} min. Attaquez le camp ou appelez vos alliés.`, { to: 'siege', cityId: city.id, x: city.x, y: city.y });
   const allianceId = city.player?.alliance?.allianceId;
   if (allianceId) {
     const members = await prisma.allianceMember.findMany({ where: { allianceId, playerId: { not: city.playerId } }, select: { playerId: true } });
-    for (const m of members) notify(m.playerId, 'battle', '🏰 Alliée assiégée', `${city.name} (${city.player.name}) est assiégée par ${army.owner?.name || 'un joueur'} : combat dans ${minutes} min.`, { tab: 'map' });
+    for (const m of members) notify(m.playerId, 'battle', '🏰 Alliée assiégée', `${city.name} (${city.player.name}) est assiégée par ${army.owner?.name || 'un joueur'} : combat dans ${minutes} min.`, { to: 'siege', cityId: city.id, x: city.x, y: city.y });
   }
-  notify(army.ownerId, 'battle', '🏰 Siège commencé', `${army.name} campe devant ${city.name}${also} : combat dans ${minutes} min.`, { tab: 'army' });
+  notify(army.ownerId, 'battle', '🏰 Siège commencé', `${army.name} campe devant ${city.name}${also} : combat dans ${minutes} min.`, { to: 'siege', cityId: city.id, x: city.x, y: city.y, armyId: army.id });
   console.log(`[SIEGE] ${army.owner?.name} campe devant ${city.name}, combat à ${fightAt.toISOString()}`);
 }
 
@@ -478,10 +484,10 @@ async function handleBreakSiege(army, now) {
     if (ownCity && !sortieFromInside) hostile = forcedCamps(army, camp);   // homecoming from outside: every camp outside its alliance
     else for (const b of camp) if (b.units.some(u => u.count > 0) && (await getRelation(army.ownerId, b.ownerId, tx)).canAttack) hostile.push(b);
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
-    let fought = false, won = false, defenderName = null;
+    let fought = false, won = false, defenderName = null, reportIds = {};
     if (hostile.length && units.length) {
       const res = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: city.x, y: city.y, where: `Siège de ${city.name}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', cityId: city.id } });
-      fought = true; won = res.combat.attackerWon; defenderName = res.defenderName;
+      fought = true; won = res.combat.attackerWon; defenderName = res.defenderName; reportIds = res.reportIds;
       if (won) for (const b of hostile) await sendArmyHomeTx(tx, b);
       await refreshSiegeFlag(tx, city.id);
     }
@@ -492,17 +498,18 @@ async function handleBreakSiege(army, now) {
       if (fought && !won && !sortieFromInside) { await tx.army.update({ where: { id: army.id }, data: haltData(pos) }); fate = 'halted'; }
       else { await depositCarryTx(tx, army.id, city.id); await tx.army.update({ where: { id: army.id }, data: { ...haltData({ x: city.x, y: city.y }) } }); fate = 'inside'; }
     }
-    return { city, fought, won, fate, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName };
+    return { city, fought, won, fate, owners: [...new Set(hostile.map(b => b.ownerId))], defenderName, reportIds };
   }, TX);
   if (outcome?.fought) {
-    const { city, won, owners, defenderName } = outcome;
-    notify(army.ownerId, 'battle', won ? '⚔️ Siège brisé' : '⚔️ Siège maintenu', won ? `${army.name} a chassé ${defenderName} de devant ${city.name}.` : `${army.name} a été repoussée par l'armée qui assiège ${city.name}.`, { tab: 'reports' });
-    for (const id of owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Sortie repoussée', won ? `Votre siège de ${city.name} a été brisé par ${army.owner?.name || 'un joueur'}.` : `Votre armée devant ${city.name} a repoussé ${army.owner?.name || 'une armée'}.`, { tab: 'reports' });
-    if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un joueur'} a brisé le siège de ${city.name}.`, { tab: 'city', cityId: city.id });
+    const { city, won, owners, defenderName, reportIds } = outcome;
+    const at = { x: city.x, y: city.y };
+    notify(army.ownerId, 'battle', won ? '⚔️ Siège brisé' : '⚔️ Siège maintenu', won ? `${army.name} a chassé ${defenderName} de devant ${city.name}.` : `${army.name} a été repoussée par l'armée qui assiège ${city.name}.`, { to: 'report', reportId: reportIds[army.ownerId], ...at });
+    for (const id of owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Sortie repoussée', won ? `Votre siège de ${city.name} a été brisé par ${army.owner?.name || 'un joueur'}.` : `Votre armée devant ${city.name} a repoussé ${army.owner?.name || 'une armée'}.`, { to: 'report', reportId: reportIds[id], ...at });
+    if (won && city.playerId !== army.ownerId) notify(city.playerId, 'battle', '🏰 Siège levé', `${army.owner?.name || 'Un joueur'} a brisé le siège de ${city.name}.`, { to: 'map', ...at, cityId: city.id });
   }
   if (outcome?.fate === 'inside') return;   // back inside, its load already deposited with the battle
-  if (outcome?.fate === 'guard') { notify(army.ownerId, 'battle', '🛡️ Garde devant la ville', `${army.name} reste devant ${outcome.city.name} pour la protéger. Rappelez-la quand vous voulez.`, { tab: 'army' }); return; }
-  if (outcome?.fate === 'halted') { notifyHalted(army, outcome.city, pos); return; }
+  if (outcome?.fate === 'guard') { notify(army.ownerId, 'battle', '🛡️ Garde devant la ville', `${army.name} reste devant ${outcome.city.name} pour la protéger. Rappelez-la quand vous voulez.`, { to: 'map', x: outcome.city.x, y: outcome.city.y, armyId: army.id }); return; }
+  if (outcome?.fate === 'halted') { notifyHalted(army, outcome.city, pos, outcome.reportIds?.[army.ownerId]); return; }
   await sendArmyHome(army, army.targetX, army.targetY);
 }
 
@@ -574,12 +581,12 @@ async function handleRaid(army, now) {
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
       loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID' }
     };
-    await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-    await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    const atkReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
+    const defReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     if (result.attackerWon) {
       await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
     }
-    return { targetCity, result };
+    return { targetCity, result, atkReportId: atkReport.id, defReportId: defReport.id };
   }, TX);
   if (!raid) {
     await sendArmyHome(army, army.targetX, army.targetY);
@@ -587,11 +594,14 @@ async function handleRaid(army, now) {
   }
   if (raid.skipped) {
     console.log(`[RAID] ${army.owner.name} vs ${raid.targetCity.player.name}: already raided in the last ${config.combat.raidCooldownHours}h, army turns back`);
-    notify(army.ownerId, 'battle', '↩️ Raid annulé', `${raid.targetCity.name} a déjà été pillée récemment : votre armée rentre sans combattre.`, { tab: 'army' });
+    notify(army.ownerId, 'battle', '↩️ Raid annulé', `${raid.targetCity.name} a déjà été pillée récemment : votre armée rentre sans combattre.`, { to: 'army', armyId: army.id });
     await sendArmyHome(army, army.targetX, army.targetY);
     return;
   }
   const { targetCity, result } = raid;
+  const lootTxt = ['wood', 'stone', 'iron', 'food'].filter(k => loot[k] > 0).map(k => `${loot[k]} ${{ wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' }[k]}`).join(', ');
+  notify(army.ownerId, 'battle', result.attackerWon ? '💰 Raid réussi' : '⚔️ Raid repoussé', result.attackerWon ? `${army.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${army.name} a été repoussée par ${targetCity.name}.`, { to: 'report', reportId: raid.atkReportId, x: targetCity.x, y: targetCity.y });
+  notify(targetCity.playerId, 'battle', result.attackerWon ? '💰 Ville pillée' : '🛡️ Raid repoussé', result.attackerWon ? `${army.owner.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${targetCity.name} a repoussé le raid de ${army.owner.name}.`, { to: 'report', reportId: raid.defReportId, x: targetCity.x, y: targetCity.y });
 
   console.log(`[RAID] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Raider won' : 'Defender won'}`);
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: loot.wood, carryStone: loot.stone, carryIron: loot.iron, carryFood: loot.food });
@@ -610,18 +620,20 @@ async function handleSpy(army, now) {
     const success = !caught && Math.random() < successChance;
     if (caught) {
       const named = watchtower >= fx.watchtowerNamesSpyAt();
-      await prisma.spyReport.create({ data: { playerId: targetCity.playerId, targetPlayerId: named ? army.ownerId : null, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'COUNTER_SPY', targetName: named ? army.owner.name : null, cityName: targetCity.name, success: true, buildings: [], armies: [], resources: {}, data: { type: 'COUNTER_SPY', spies: spyPower, watchtower } } });
-      notify(targetCity.playerId, 'battle', '🔭 Espion intercepté', `La Tour de guet de ${targetCity.name} a repéré ${named ? 'les espions de ' + army.owner.name : 'des espions ennemis'}.`, { tab: 'reports' });
+      const counter = await prisma.spyReport.create({ data: { playerId: targetCity.playerId, targetPlayerId: named ? army.ownerId : null, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'COUNTER_SPY', targetName: named ? army.owner.name : null, cityName: targetCity.name, success: true, buildings: [], armies: [], resources: {}, data: { type: 'COUNTER_SPY', spies: spyPower, watchtower } } });
+      notify(targetCity.playerId, 'battle', '🔭 Espion intercepté', `La Tour de guet de ${targetCity.name} a repéré ${named ? 'les espions de ' + army.owner.name : 'des espions ennemis'}.`, { to: 'spy', reportId: counter.id, x: targetCity.x, y: targetCity.y });
     }
     const base = { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name };
+    let spyReport;
     if (success) {
-      await prisma.spyReport.create({ data: { ...base, success: true,
+      spyReport = await prisma.spyReport.create({ data: { ...base, success: true,
         buildings: targetCity.buildings.map(b => ({ key: b.key, level: b.level })),
         armies: present.map(a => ({ name: a.name, units: a.units.map(u => ({ key: u.unitKey, count: u.count })) })),
         resources: { wood: Math.floor(targetCity.wood), stone: Math.floor(targetCity.stone), iron: Math.floor(targetCity.iron), food: Math.floor(targetCity.food) } } });
     } else {
-      await prisma.spyReport.create({ data: { ...base, success: false, buildings: [], armies: [], resources: {} } });
+      spyReport = await prisma.spyReport.create({ data: { ...base, success: false, buildings: [], armies: [], resources: {} } });
     }
+    notify(army.ownerId, 'battle', success ? '🔭 Espionnage réussi' : '🔭 Espionnage manqué', success ? `Vos espions ont observé ${targetCity.name}.` : `Vos espions n'ont rien appris sur ${targetCity.name}.`, { to: 'spy', reportId: spyReport.id, x: targetCity.x, y: targetCity.y });
   }
   await sendArmyHome(army, army.targetX, army.targetY, {}, 80);
 }

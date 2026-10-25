@@ -119,7 +119,8 @@ async function refreshData(force = false) {
     await Promise.all([
       loadCities(),
       loadArmies(),
-      loadPlayer()
+      loadPlayer(),
+      typeof refreshNotificationBadge === 'function' ? refreshNotificationBadge() : null
     ]);
     // Une recherche en cours : suivre son avancement (niveau atteint, file promue)
     if (typeof research !== 'undefined' && research?.queue?.length && typeof loadResearch === 'function') loadResearch();

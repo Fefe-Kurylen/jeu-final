@@ -23,7 +23,7 @@ async function processResearch(now, { playerId = null } = {}) {
       if (!done) continue;
       players.add(item.playerId);
       const tech = T.techOf(item.techKey);
-      notify(item.playerId, 'research_done', '📜 Recherche terminée', `${tech?.name || item.techKey} niveau ${item.targetLevel}`, { tab: 'city', cityId: item.cityId });
+      notify(item.playerId, 'research_done', '📜 Recherche terminée', `${tech?.name || item.techKey} niveau ${item.targetLevel}`, { to: 'city', cityId: item.cityId, open: 'research' });
       console.log(`[RESEARCH] ${item.techKey} niveau ${item.targetLevel} terminé`);
     } catch (e) {
       // Nothing was written: the item stays RUNNING and is retried at the next tick

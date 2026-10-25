@@ -103,7 +103,7 @@ async function processBuilds(now, { playerId = null } = {}) {
           return city;
         });
         if (!owner) continue;
-        notify(owner.playerId, 'build_done', '🏗️ Construction terminée', `${buildingName(b.buildingKey)} niveau ${b.targetLevel} à ${owner.name}`, { tab: 'city', cityId: b.cityId });
+        notify(owner.playerId, 'build_done', '🏗️ Construction terminée', `${buildingName(b.buildingKey)} niveau ${b.targetLevel} à ${owner.name}`, { to: 'city', cityId: b.cityId });
         console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
       } catch (buildErr) {
         // Nothing was written: the item stays RUNNING and is retried at the next tick

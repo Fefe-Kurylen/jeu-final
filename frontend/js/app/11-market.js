@@ -244,7 +244,7 @@ function renderSpyReports() {
     
     if (report.targetType === 'COUNTER_SPY') {
       return `
-        <div class="report-card report-victory">
+        <div class="report-card report-victory" data-report-id="${escapeHtml(String(report.id || ""))}">
           <div class="report-header">
             <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espion intercepté</span>
             <span class="report-date">${date}</span>
@@ -255,7 +255,7 @@ function renderSpyReports() {
     }
     if (!report.success) {
       return `
-        <div class="report-card report-defeat">
+        <div class="report-card report-defeat" data-report-id="${escapeHtml(String(report.id || ""))}">
           <div class="report-header">
             <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espionnage échoué</span>
             <span class="report-date">${date}</span>
@@ -266,7 +266,7 @@ function renderSpyReports() {
     }
     
     return `
-      <div class="report-card report-victory">
+      <div class="report-card report-victory" data-report-id="${escapeHtml(String(report.id || ""))}">
         <div class="report-header">
           <span class="report-title"><img class="ico" src="assets/images/3d/ui/spy.webp" alt=""> Espionnage réussi</span>
           <span class="report-date">${date}</span>
