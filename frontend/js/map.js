@@ -150,7 +150,7 @@ const BIOMES = {
     ground: ['#d4c4a0', '#c9b896', '#ddd0aa', '#c4b48a', '#d9c99e'],
     groundDark: ['#c4b490', '#b9a886', '#cdc09a', '#b4a47a', '#c9b98e'],
     groundNight: ['#3a3530', '#352f2a', '#3f3935', '#332d28', '#3d3732'],
-    features: ['ruins', 'oasis', 'dunes', 'rocks'],
+    features: ['ruins', 'oasis', 'dunes', 'rocks', 'mesa'],
     skyTop: '#f4e8d0',
     skyBottom: '#d4c4a0',
     skyTopNight: '#151020',
@@ -901,16 +901,19 @@ function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
   const biome = terrain.biome;
   const feature = terrain.feature;
   if (feature === 'bridge' || feature === 'ford') { drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, isNightMode()); return; }
+  if (feature === 'mesa') {   // chaîne de mesas du désert (infranchissable) : rochers du désert serrés, en attendant ses images
+    const s = Math.max(tw, th * 2), j = (seed) => Terrain.seededRandom(wx, wy, seed) - 0.5;
+    if (tileImages.terrain.desert_rocks) { drawTileImage(mapCtx, 'terrain', 'desert_rocks', x + j(5171) * tw * 0.3, y + j(5172) * th * 0.3, s * 1.7, s * 1.7); return; }
+    drawDesertRocks(x, y - th * 0.3, tw * 0.75, th * 1.1);
+    return;
+  }
   const featureSprite = terrainSpriteName(wx, wy, biome, feature);
   if (featureSprite) {
     const big = feature === 'mountain' || feature === 'icemountain';
     const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
-    const range = feature === 'rocks' && terrain.isMultiTile;   // chaîne rocheuse du désert (franchissable) : rochers décalés au hasard
-    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : range ? 1.3 : (joined ? 1.6 : 1.15);
+    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : (joined ? 1.6 : 1.15);
     const fsize = Math.max(tw, th * 2) * k;
-    if (range && Terrain.seededRandom(wx, wy, 5170) < 0.3) return;
-    const jx = range ? (Terrain.seededRandom(wx, wy, 5171) - 0.5) * tw * 0.35 : 0, jy = range ? (Terrain.seededRandom(wx, wy, 5172) - 0.5) * th * 0.35 : 0;
-    drawTileImage(mapCtx, 'terrain', featureSprite, x + jx, y + jy, fsize, fsize);
+    drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
     return;
   }
   if (feature === 'boulders') {   // amas de rochers (tempéré)

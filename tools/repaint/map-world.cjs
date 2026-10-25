@@ -42,33 +42,69 @@ const GROUND_ORDER = ['water', 'ice', 'sand', 'earth', 'drygrass', 'grass', 'sno
 const GROUND = {
   water: 'clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference',
   ice: 'pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow',
-  sand: 'warm ochre sand, like the riverbanks and beaches of the reference: fine wind ripples and a few small pebbles',
-  earth: 'brown ploughed field earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges), a few clods, like the brown fields of the reference',
-  drygrass: 'golden dry steppe grass, short and slightly patchy with a little bare earth showing, like the yellow areas of the reference',
-  grass: 'lush short green meadow grass with very small flowers and subtle colour variations, like the green areas of the reference',
-  snow: 'fresh white snow with soft blue shadows and small wind drifts'
+  sand: 'warm ochre sand, like the riverbanks and beaches of the reference',
+  earth: 'brown field earth, like the brown fields of the reference',
+  drygrass: 'golden dry steppe grass, like the yellow areas of the reference',
+  grass: 'lush short green meadow grass, like the green areas of the reference',
+  snow: 'fresh white snow with soft blue shadows'
 };
-const GROUND_FR = { water: 'eau', ice: 'glace', sand: 'sable', earth: 'terre labourée', drygrass: 'herbe sèche', grass: 'herbe', snow: 'neige' };
+// Plusieurs textures par sol (demande du 25 octobre 2026) : le jeu les mélange par taches de quelques cases
+const GROUND_VARIANT = {
+  water: ['calm river water with gentle ripples', 'deeper lake water, a little darker, with slow wide ripples and a few glints'],
+  ice: ['smooth clear ice with fine white cracks', 'rough frozen surface with snow drifts and larger cracks'],
+  sand: ['fine sand with long regular wind ripples', 'coarser sand with scattered small pebbles and shells', 'compact dry sand with faint cracks and a few dry twigs'],
+  earth: ['freshly ploughed earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges)', 'young green crop rows on brown earth, rows running exactly horizontally across the image and continuing across the edges', 'harvested field: short golden stubble in rows on brown earth, rows running exactly horizontally and continuing across the edges'],
+  drygrass: ['short golden steppe grass, even and dense', 'patchy dry grass with small patches of bare earth', 'taller dry grass in tufts with a few dried flowers'],
+  grass: ['short even meadow grass with subtle colour variations', 'meadow with tiny scattered wild flowers (white, yellow, a little purple)', 'slightly darker, denser grass with clover', 'meadow grass with a few small stones and short worn patches'],
+  snow: ['fresh smooth powder snow', 'wind-crusted snow with small drifts and ripples', 'thin snow with a few patches of frozen grass showing through']
+};
+const GROUND_FR = { water: 'eau', ice: 'glace', sand: 'sable', earth: 'terre (champs)', drygrass: 'herbe sèche', grass: 'herbe (prairie)', snow: 'neige' };
+const GROUND_VARIANT_FR = {
+  water: ['rivière', 'lac'], ice: ['glace lisse', 'glace rugueuse'], sand: ['sable ridé', 'sable caillouteux', 'sable sec'],
+  earth: ['champ labouré', 'jeunes pousses', 'chaume après moisson'], drygrass: ['steppe dorée', 'herbe sèche clairsemée', 'touffes hautes'],
+  grass: ['prairie rase', 'prairie fleurie', 'herbe dense au trèfle', 'prairie caillouteuse'], snow: ['poudreuse', 'neige croûtée', 'neige fine']
+};
 
-function groundSubject(terrain) { return `${GROUND[terrain]}.`; }
+function groundSubject(terrain, v) { return `${GROUND[terrain]}: ${GROUND_VARIANT[terrain][v - 1]}. It must look like the same ground as the other variants of ${terrain} (same colours, same scale), only the small details change, so that the game can blend them.`; }
 
 // ---- éléments posés ----
 const OBJECTS = {};
 const obj = (file, subject, role) => { OBJECTS[file] = { subject, role }; };
-for (let i = 1; i <= 4; i++) obj(`map/world/forest/temperate_${i}.webp`, 'a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest', `Forêt dense en zone tempérée (variante ${i}), une case`);
-for (let i = 1; i <= 3; i++) obj(`map/world/forest/temperate_edge_${i}.webp`, 'the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes', `Lisière de forêt tempérée (variante ${i}) : case de forêt peu entourée`);
-for (let i = 1; i <= 4; i++) obj(`map/world/forest/snow_${i}.webp`, 'a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge', `Forêt de sapins enneigés (variante ${i}), une case`);
-for (let i = 1; i <= 3; i++) obj(`map/world/forest/snow_edge_${i}.webp`, 'the edge of a snowy pine forest on one tile: four or five snow-covered pines', `Lisière de forêt enneigée (variante ${i})`);
-for (let i = 1; i <= 4; i++) obj(`map/world/rocks/boulders_${i}.webp`, 'a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)', `Amas de rochers (variante ${i}), infranchissable`);
-for (let i = 1; i <= 3; i++) obj(`map/world/rocks/desert_${i}.webp`, 'a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through', `Rochers du désert (variante ${i}) : isolés ou en chaîne, franchissables`);
-for (const [biome, look] of [['temperate', 'a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap'], ['snow', 'a steep icy mountain covered with snow and blue ice']]) {   // les chaînes du désert se traversent : rochers
-  obj(`map/world/mountains/${biome}.webp`, `${look}, standing on one tile`, `Montagne isolée (${biome}), infranchissable`);
-  obj(`map/world/mountains/${biome}_x.webp`, `${look}: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction`, `Chaîne de montagnes (${biome}) dans l'axe haut-gauche → bas-droite`);
-  obj(`map/world/mountains/${biome}_y.webp`, `${look}: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction`, `Chaîne de montagnes (${biome}) dans l'axe haut-droite → bas-gauche`);
-  obj(`map/world/mountains/${biome}_xy.webp`, `${look}: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side`, `Massif montagneux (${biome}) entouré de montagnes`);
-}
+// Forêts et rochers : chaque variante est d'un type différent, pour que les massifs ne se répètent pas
+const MERGE = 'trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest';
+const FOREST = {
+  temperate: ['mixed forest: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet', 'a dense stand of tall dark-green pines and firs', 'a dense grove of broad round oaks and beeches with lighter green crowns', 'a bright wood of slender white birches and young trees with a dense undergrowth of bushes'],
+  temperate_edge: ['five or six pines and deciduous trees, less dense, a few bushes', 'three or four tall pines with a few young firs and ferns', 'two or three broad oaks with bushes and a fallen log'],
+  snow: ['snow-covered pines packed close together, snow on the branches and drifts at their feet', 'tall dark firs heavy with snow', 'snowy pines mixed with bare frosted birches', 'young snow-covered spruces of different heights in deep snow'],
+  snow_edge: ['four or five snow-covered pines', 'two tall snowy firs and a few small spruces', 'three bare frosted birches and a snowy pine']
+};
+const FOREST_FR = { temperate: 'Forêt dense en zone tempérée', temperate_edge: 'Lisière de forêt tempérée', snow: 'Forêt enneigée dense', snow_edge: 'Lisière de forêt enneigée' };
+const FOREST_KIND_FR = {
+  temperate: ['mixte, pins et feuillus', 'pins et sapins', 'chênes et hêtres', 'bouleaux et sous-bois'],
+  temperate_edge: ['pins et feuillus clairsemés', 'grands pins et jeunes sapins', 'gros chênes et buissons'],
+  snow: ['pins enneigés', 'grands sapins sous la neige', 'pins et bouleaux givrés', 'jeunes épicéas'],
+  snow_edge: ['quelques pins enneigés', 'deux grands sapins', 'bouleaux givrés et un pin']
+};
+for (const [k, list] of Object.entries(FOREST)) list.forEach((d, i) => obj(`map/world/forest/${k}_${i + 1}.webp`, k.endsWith('_edge') ? `the edge of a forest on one tile: ${d}` : `a dense clump of trees filling the whole tile: ${d}; ${MERGE}`, `${FOREST_FR[k]} (variante ${i + 1} : ${FOREST_KIND_FR[k][i]})`));
+const BOULDERS = ['a few large angular grey boulders with patches of moss and grass', 'a pile of rounded granite boulders with a small bush between them', 'a tall split rock with smaller stones around it and some heather', 'flat layered grey rocks stacked like slabs, with tufts of grass'];
+BOULDERS.forEach((d, i) => obj(`map/world/rocks/boulders_${i + 1}.webp`, `a rock outcrop on one tile: ${d}, like the rock outcrops of the reference (impassable for armies)`, `Amas de rochers (variante ${i + 1}), infranchissable`));
+for (let i = 1; i <= 3; i++) obj(`map/world/rocks/desert_${i}.webp`, 'a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around', `Rochers épars du désert (variante ${i}), franchissables`);
+// Montagnes : 3 modèles par forme (isolée, chaîne selon x, chaîne selon y, cœur de massif), choisis au hasard par case
+const MOUNTAIN_LOOK = {
+  temperate: ['a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap', 'a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap', 'a jagged dark rocky mountain with sharp crags and a thin snow cap'],
+  snow: ['a steep icy mountain covered with snow and blue ice', 'a broad snowy mountain with a glacier tongue and wind-carved ridges', 'a sharp rocky peak half covered with snow, dark rock showing on its cliffs'],
+  desert: ['a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb', 'a group of orange sandstone buttes and pinnacles with layered cliffs', 'a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot']
+};
+const MOUNTAIN_FR = { temperate: 'tempérée', snow: 'enneigée', desert: 'du désert (mesa)' };
+for (const [biome, looks] of Object.entries(MOUNTAIN_LOOK)) looks.forEach((look, i) => {
+  const n = i + 1;
+  obj(`map/world/mountains/${biome}_${n}.webp`, `${look}, standing alone on one tile`, `Montagne ${MOUNTAIN_FR[biome]} isolée, modèle ${n}/3, infranchissable`);
+  obj(`map/world/mountains/${biome}_x_${n}.webp`, `${look}: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction`, `Chaîne de montagnes ${MOUNTAIN_FR[biome]} dans l'axe haut-gauche → bas-droite, modèle ${n}/3`);
+  obj(`map/world/mountains/${biome}_y_${n}.webp`, `${look}: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction`, `Chaîne de montagnes ${MOUNTAIN_FR[biome]} dans l'axe haut-droite → bas-gauche, modèle ${n}/3`);
+  obj(`map/world/mountains/${biome}_xy_${n}.webp`, `${look}: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side`, `Cœur de massif ${MOUNTAIN_FR[biome]} entouré de montagnes, modèle ${n}/3`);
+});
 for (let i = 1; i <= 3; i++) obj(`map/world/desert/dunes_${i}.webp`, 'two or three golden sand dunes with wind ripples on one tile', `Dunes (variante ${i})`);
-for (let i = 1; i <= 2; i++) obj(`map/world/desert/ruins_${i}.webp`, 'ancient sandstone ruins on one tile: broken columns, fallen blocks, half buried in sand', `Ruines du désert (variante ${i})`);
+for (let i = 1; i <= 3; i++) obj(`map/world/desert/ruins_${i}.webp`, ['ancient sandstone ruins on one tile: broken columns, fallen blocks, half buried in sand', 'the ruined base of a small temple: a few standing columns and steps half buried in sand', 'a fallen colossal statue and a broken obelisk lying in the sand'][i - 1], `Ruines du désert (variante ${i})`);
 for (let i = 1; i <= 3; i++) obj(`map/world/desert/palms_${i}.webp`, 'two or three date palms and green bushes, the vegetation at the edge of a desert oasis, on one tile', `Palmiers au bord d'une oasis (variante ${i})`);
 obj('map/world/river/bridge_x.webp', 'one section of a wooden bridge deck with railings over river water, running along the tile from its top-left side to its bottom-right side and cut square at both ends so that sections join into one bridge across the river; the water under it is NOT drawn (transparent)', 'Pont (axe haut-gauche → bas-droite) : passage à vitesse normale');
 obj('map/world/river/bridge_y.webp', 'one section of a wooden bridge deck with railings over river water, running along the tile from its top-right side to its bottom-left side and cut square at both ends so that sections join into one bridge across the river; the water under it is NOT drawn (transparent)', 'Pont (axe haut-droite → bas-gauche)');
@@ -91,7 +127,7 @@ const cityFile = { t1: (c) => `map/cities/${c.toLowerCase()}.webp`, t2: (c) => `
 // ---- liste complète ----
 function targets() {
   const out = [];
-  for (const t of GROUND_ORDER) out.push({ file: `map/world/ground/${t}.webp`, frame: 'texture', kind: 'ground', terrain: t, role: `Sol de la carte : ${GROUND_FR[t]} (texture répétable ; le jeu fait les fondus avec les sols voisins)` });
+  for (const t of GROUND_ORDER) GROUND_VARIANT[t].forEach((d, i) => out.push({ file: `map/world/ground/${t}_${i + 1}.webp`, frame: 'texture', kind: 'ground', terrain: t, role: `Sol de la carte : ${GROUND_FR[t]}, variante ${i + 1} sur ${GROUND_VARIANT[t].length} (${GROUND_VARIANT_FR[t][i]}) ; texture répétable, le jeu fait les fondus avec les sols voisins` }));
   for (const [file, o] of Object.entries(OBJECTS)) out.push({ file, frame: 'mapobject', kind: 'object', role: o.role });
   for (const c of CIVS) for (const k of Object.keys(CITY)) out.push({ file: cityFile[k](c), frame: 'mapcity', kind: 'city', civ: c, tier: k, role: `Ville ${k} de ${c} sur 2 × 2 cases (carte du monde)` });
   return out;
@@ -99,7 +135,7 @@ function targets() {
 
 function promptFor(file) {
   let subject = null, comp = COMPOSITION.object, m;
-  if ((m = file.match(/^map\/world\/ground\/(\w+)\.webp$/)) && GROUND[m[1]]) { subject = groundSubject(m[1]); comp = COMPOSITION.ground; }
+  if ((m = file.match(/^map\/world\/ground\/([a-z]+)_(\d)\.webp$/)) && GROUND_VARIANT[m[1]]?.[m[2] - 1]) { subject = groundSubject(m[1], Number(m[2])); comp = COMPOSITION.ground; }
   else if (OBJECTS[file]) subject = OBJECTS[file].subject;
   else {
     for (const c of CIVS) for (const k of Object.keys(CITY)) if (cityFile[k](c) === file) { subject = CITY[k](c); comp = COMPOSITION.city; }
@@ -112,4 +148,4 @@ function promptFor(file) {
 // Images de la carte à l'ancien format remplacées par celles-ci (ne plus les générer)
 const SUPERSEDED = /^map\/terrain\//;
 
-module.exports = { MAP_STYLE, GROUND_STYLE, BG, STYLE_REF, COMPOSITION, GROUND, GROUND_FR, GROUND_ORDER, OBJECTS, CITY, CIVS, targets, promptFor, SUPERSEDED };
+module.exports = { MAP_STYLE, GROUND_STYLE, BG, STYLE_REF, COMPOSITION, GROUND, GROUND_FR, GROUND_VARIANT, GROUND_ORDER, OBJECTS, CITY, CIVS, targets, promptFor, SUPERSEDED };

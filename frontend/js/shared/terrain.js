@@ -139,7 +139,8 @@
 
   // Type de terrain d'une case : { biome, feature, isMultiTile }
   //   river / bridge / ford : rivière (infranchissable), pont (vitesse normale), gué (moitié moins vite)
-  //   mountain / icemountain : chaînes de montagnes ; boulders : amas de rochers (tempéré) ; tree / snowtree : forêt
+  //   mountain / icemountain / mesa : chaînes de montagnes (tempéré, neige, désert) ; boulders : amas de rochers (tempéré) ;
+  //   rocks : rochers épars du désert (franchissables) ; tree / snowtree : forêt
   function computeTerrainType(x, y) {
     const biome = getBiome(x, y);
     const noise = seededRandom(x, y);
@@ -154,7 +155,7 @@
     }
     if (isOnMountainRange(x, y)) {
       if (biome === 'snow') return { biome, feature: 'icemountain', isMultiTile: true };
-      if (biome === 'desert') return { biome, feature: 'rocks', isMultiTile: true };
+      if (biome === 'desert') return { biome, feature: 'mesa', isMultiTile: true };   // chaîne de mesas : infranchissable (décision du 25 octobre 2026)
       return { biome, feature: 'mountain', isMultiTile: true };
     }
     const forest = forestNoise(x, y);
@@ -209,6 +210,21 @@
     if (!t.feature && valueNoise(x, y, 72727, 5) > 0.74) return 'earth';
     return 'grass';
   }
+  // Plusieurs textures par sol (plusieurs prairies, plusieurs neiges…) : la variante change par taches irrégulières de
+  // quelques cases, et le jeu fond les variantes entre elles comme deux sols voisins. Rendu seulement, sans effet de jeu.
+  const GROUND_VARIANTS = { water: 2, ice: 2, sand: 3, earth: 3, drygrass: 3, grass: 4, snow: 3 };
+  const variantCache = new Map();
+  function groundVariantAt(x, y) {
+    const k = x + ',' + y;
+    let v = variantCache.get(k);
+    if (v) return v;
+    const g = groundAt(x, y), n = GROUND_VARIANTS[g] || 1;
+    const wx = x + (valueNoise(x, y, 74001, 5) - 0.5) * 8, wy = y + (valueNoise(x, y, 74002, 5) - 0.5) * 8;   // bords irréguliers
+    v = 1 + Math.floor(seededRandom(Math.floor(wx / 7), Math.floor(wy / 7), 74003 + GROUND_LAYERS.indexOf(g)) * n);
+    if (variantCache.size > 250000) variantCache.clear();
+    variantCache.set(k, v);
+    return v;
+  }
   const groundCache = new Map();
   function groundAt(x, y) {
     const k = x + ',' + y;
@@ -220,10 +236,10 @@
     return g;
   }
 
-  // Cases infranchissables par une armée : montagnes et eau (y compris l'oasis d'eau du désert et les lacs gelés).
+  // Cases infranchissables par une armée : montagnes (mesas du désert comprises), amas de rochers et eau (y compris l'oasis d'eau du désert et les lacs gelés).
   // Une case portant une ville ou un point de ressource, ou voisine d'une ville, est toujours franchissable
   // (le relief n'y est pas dessiné non plus).
-  const BLOCKED = { mountain: 1, icemountain: 1, boulders: 1, water: 1, frozen: 1, oasis: 1, river: 1 };
+  const BLOCKED = { mountain: 1, icemountain: 1, mesa: 1, boulders: 1, water: 1, frozen: 1, oasis: 1, river: 1 };
   const WATER = { water: 1, frozen: 1, oasis: 1, river: 1 };
   const FOREST = { tree: 1, snowtree: 1 };
   // Coût de marche d'une case (1 = normal) : gué moitié moins vite ; forêt −10 % de vitesse sauf pour les Gaulois (GDD
@@ -345,5 +361,5 @@
     return null;
   }
 
-  return { CITY_FOOTPRINT, cityCells, GROUND_LAYERS, groundAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, BIOME_SCALE, seededRandom, smoothNoise, hillNoise, getBiome, isOnRiver, riverAt, crossingAxisAt, isOnLake, isOnMountainRange, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, FORD_COST, FOREST_COST, inWorld, isBlocked, isMainland, findPath, _cache: cache };
+  return { CITY_FOOTPRINT, cityCells, GROUND_LAYERS, GROUND_VARIANTS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, BIOME_SCALE, seededRandom, smoothNoise, hillNoise, getBiome, isOnRiver, riverAt, crossingAxisAt, isOnLake, isOnMountainRange, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, FORD_COST, FOREST_COST, inWorld, isBlocked, isMainland, findPath, _cache: cache };
 });

@@ -121,4 +121,33 @@ async function syncResourceNodesWithTerrain() {
   if (moved || rebiomed) console.log(`[SEED] terrain : ${moved} points déplacés hors de l'eau, ${rebiomed} biomes mis à jour`);
 }
 
-module.exports = { seedResourceNodes, syncResourceNodesWithTerrain };
+// Au démarrage : une ville que le terrain actuel coupe de la terre ferme principale (une chaîne devenue infranchissable
+// autour d'elle) est déplacée sur un emplacement libre près du bord, avec ses armées présentes, et son propriétaire est
+// prévenu. Pas tant qu'une de ses armées est dehors, qu'une armée est en route vers elle ou qu'elle est assiégée.
+async function rescueTrappedCities() {
+  const { findFreeSpawn } = require('../utils/spawn');
+  const { forgetCityCells, noteCityCells } = require('../utils/pathfinding');
+  const { notify } = require('../services/pushService');
+  // on sort d'une ville par la couronne libre qui l'entoure : il suffit qu'une case juste au-delà rejoigne la terre ferme
+  const reachable = (c) => { for (let dx = -2; dx <= 3; dx++) for (let dy = -2; dy <= 3; dy++) if (Terrain.isMainland(c.x + dx, c.y + dy)) return true; return false; };
+  const cities = await prisma.city.findMany({ select: { id: true, x: true, y: true, name: true, playerId: true, isSieged: true } });
+  for (const c of cities.filter(c => !reachable(c))) {
+    const busy = c.isSieged || await prisma.army.count({ where: { OR: [{ cityId: c.id, status: { not: 'IDLE' } }, { targetCityId: c.id, status: { not: 'IDLE' } }] } });
+    if (busy) { console.warn(`[SEED] ville coupée du reste de la carte, déplacement reporté (armées en route ou siège) : ${c.name} (${c.x}, ${c.y})`); continue; }
+    const to = await findFreeSpawn();
+    const moved = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${c.id} FOR UPDATE`;
+      const cur = await tx.city.findUnique({ where: { id: c.id }, select: { x: true, y: true } });
+      if (!cur || cur.x !== c.x || cur.y !== c.y) return false;
+      await tx.city.update({ where: { id: c.id }, data: { x: to.x, y: to.y } });
+      await tx.army.updateMany({ where: { cityId: c.id, status: 'IDLE' }, data: { x: to.x, y: to.y } });
+      return true;
+    });
+    if (!moved) continue;
+    forgetCityCells(c.x, c.y); noteCityCells(to.x, to.y);
+    console.log(`[SEED] ville coupée du reste de la carte déplacée : ${c.name} (${c.x}, ${c.y}) -> (${to.x}, ${to.y})`);
+    notify(c.playerId, 'city', '🧭 Ville déplacée', `La carte a changé : ${c.name} était coupée du reste du monde par les montagnes et l'eau. Elle a été rebâtie en (${to.x}, ${to.y}) avec ses armées.`, { to: 'map', x: to.x, y: to.y, cityId: c.id });
+  }
+}
+
+module.exports = { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities };

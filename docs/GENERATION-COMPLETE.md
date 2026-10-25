@@ -1623,7 +1623,7 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 | `map/resources/wood_desert.png` | 1024×1024 | rendu 3D `map/resources/wood_desert.png` | a forest clearing with trees and a cut log, desert variant with sand and a palm tree |
 | `map/resources/wood_snow.png` | 1024×1024 | rendu 3D `map/resources/wood_snow.png` | a forest clearing with trees and a cut log, snowy variant covered with snow |
 
-#### Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) — 7 images
+#### Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) — 20 images
 
 Où : tout le fond de la carte, fondus faits par le jeu. Priorité ★★★.
 
@@ -1636,15 +1636,28 @@ Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straig
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `map/world/ground/water.png` | 1024×1024 | — | clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference. |
-| `map/world/ground/ice.png` | 1024×1024 | — | pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow. |
-| `map/world/ground/sand.png` | 1024×1024 | — | warm ochre sand, like the riverbanks and beaches of the reference: fine wind ripples and a few small pebbles. |
-| `map/world/ground/earth.png` | 1024×1024 | — | brown ploughed field earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges), a few clods, like the brown fields of the reference. |
-| `map/world/ground/drygrass.png` | 1024×1024 | — | golden dry steppe grass, short and slightly patchy with a little bare earth showing, like the yellow areas of the reference. |
-| `map/world/ground/grass.png` | 1024×1024 | — | lush short green meadow grass with very small flowers and subtle colour variations, like the green areas of the reference. |
-| `map/world/ground/snow.png` | 1024×1024 | — | fresh white snow with soft blue shadows and small wind drifts. |
+| `map/world/ground/water_1.png` | 1024×1024 | — | clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference: calm river water with gentle ripples. It must look like the same ground as the other variants of water (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/water_2.png` | 1024×1024 | — | clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference: deeper lake water, a little darker, with slow wide ripples and a few glints. It must look like the same ground as the other variants of water (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/ice_1.png` | 1024×1024 | — | pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow: smooth clear ice with fine white cracks. It must look like the same ground as the other variants of ice (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/ice_2.png` | 1024×1024 | — | pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow: rough frozen surface with snow drifts and larger cracks. It must look like the same ground as the other variants of ice (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/sand_1.png` | 1024×1024 | — | warm ochre sand, like the riverbanks and beaches of the reference: fine sand with long regular wind ripples. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/sand_2.png` | 1024×1024 | — | warm ochre sand, like the riverbanks and beaches of the reference: coarser sand with scattered small pebbles and shells. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/sand_3.png` | 1024×1024 | — | warm ochre sand, like the riverbanks and beaches of the reference: compact dry sand with faint cracks and a few dry twigs. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/earth_1.png` | 1024×1024 | — | brown field earth, like the brown fields of the reference: freshly ploughed earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges). It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/earth_2.png` | 1024×1024 | — | brown field earth, like the brown fields of the reference: young green crop rows on brown earth, rows running exactly horizontally across the image and continuing across the edges. It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/earth_3.png` | 1024×1024 | — | brown field earth, like the brown fields of the reference: harvested field: short golden stubble in rows on brown earth, rows running exactly horizontally and continuing across the edges. It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/drygrass_1.png` | 1024×1024 | — | golden dry steppe grass, like the yellow areas of the reference: short golden steppe grass, even and dense. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/drygrass_2.png` | 1024×1024 | — | golden dry steppe grass, like the yellow areas of the reference: patchy dry grass with small patches of bare earth. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/drygrass_3.png` | 1024×1024 | — | golden dry steppe grass, like the yellow areas of the reference: taller dry grass in tufts with a few dried flowers. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/grass_1.png` | 1024×1024 | — | lush short green meadow grass, like the green areas of the reference: short even meadow grass with subtle colour variations. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/grass_2.png` | 1024×1024 | — | lush short green meadow grass, like the green areas of the reference: meadow with tiny scattered wild flowers (white, yellow, a little purple). It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/grass_3.png` | 1024×1024 | — | lush short green meadow grass, like the green areas of the reference: slightly darker, denser grass with clover. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/grass_4.png` | 1024×1024 | — | lush short green meadow grass, like the green areas of the reference: meadow grass with a few small stones and short worn patches. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/snow_1.png` | 1024×1024 | — | fresh white snow with soft blue shadows: fresh smooth powder snow. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/snow_2.png` | 1024×1024 | — | fresh white snow with soft blue shadows: wind-crusted snow with small drifts and ripples. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them. |
+| `map/world/ground/snow_3.png` | 1024×1024 | — | fresh white snow with soft blue shadows: thin snow with a few patches of frozen grass showing through. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them. |
 
-#### Forêts, rochers et montagnes de la carte — 29 images
+#### Forêts, rochers et montagnes de la carte — 57 images
 
 Où : massifs forestiers, amas de rochers, chaînes de montagnes. Priorité ★★★.
 
@@ -1657,37 +1670,65 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `map/world/forest/temperate_1.png` | 1024×1024 | — | a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
-| `map/world/forest/temperate_2.png` | 1024×1024 | — | a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
-| `map/world/forest/temperate_3.png` | 1024×1024 | — | a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
-| `map/world/forest/temperate_4.png` | 1024×1024 | — | a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/temperate_1.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: mixed forest: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/temperate_2.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: a dense stand of tall dark-green pines and firs; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/temperate_3.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: a dense grove of broad round oaks and beeches with lighter green crowns; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/temperate_4.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: a bright wood of slender white birches and young trees with a dense undergrowth of bushes; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
 | `map/world/forest/temperate_edge_1.png` | 1024×1024 | — | the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes |
-| `map/world/forest/temperate_edge_2.png` | 1024×1024 | — | the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes |
-| `map/world/forest/temperate_edge_3.png` | 1024×1024 | — | the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes |
-| `map/world/forest/snow_1.png` | 1024×1024 | — | a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge |
-| `map/world/forest/snow_2.png` | 1024×1024 | — | a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge |
-| `map/world/forest/snow_3.png` | 1024×1024 | — | a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge |
-| `map/world/forest/snow_4.png` | 1024×1024 | — | a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge |
-| `map/world/forest/snow_edge_1.png` | 1024×1024 | — | the edge of a snowy pine forest on one tile: four or five snow-covered pines |
-| `map/world/forest/snow_edge_2.png` | 1024×1024 | — | the edge of a snowy pine forest on one tile: four or five snow-covered pines |
-| `map/world/forest/snow_edge_3.png` | 1024×1024 | — | the edge of a snowy pine forest on one tile: four or five snow-covered pines |
-| `map/world/rocks/boulders_1.png` | 1024×1024 | — | a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies) |
-| `map/world/rocks/boulders_2.png` | 1024×1024 | — | a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies) |
-| `map/world/rocks/boulders_3.png` | 1024×1024 | — | a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies) |
-| `map/world/rocks/boulders_4.png` | 1024×1024 | — | a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies) |
-| `map/world/rocks/desert_1.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through |
-| `map/world/rocks/desert_2.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through |
-| `map/world/rocks/desert_3.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through |
-| `map/world/mountains/temperate.png` | 1024×1024 | — | a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap, standing on one tile |
-| `map/world/mountains/temperate_x.png` | 1024×1024 | — | a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
-| `map/world/mountains/temperate_y.png` | 1024×1024 | — | a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
-| `map/world/mountains/temperate_xy.png` | 1024×1024 | — | a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
-| `map/world/mountains/snow.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice, standing on one tile |
-| `map/world/mountains/snow_x.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
-| `map/world/mountains/snow_y.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
-| `map/world/mountains/snow_xy.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/forest/temperate_edge_2.png` | 1024×1024 | — | the edge of a forest on one tile: three or four tall pines with a few young firs and ferns |
+| `map/world/forest/temperate_edge_3.png` | 1024×1024 | — | the edge of a forest on one tile: two or three broad oaks with bushes and a fallen log |
+| `map/world/forest/snow_1.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: snow-covered pines packed close together, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/snow_2.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: tall dark firs heavy with snow; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/snow_3.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: snowy pines mixed with bare frosted birches; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/snow_4.png` | 1024×1024 | — | a dense clump of trees filling the whole tile: young snow-covered spruces of different heights in deep snow; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest |
+| `map/world/forest/snow_edge_1.png` | 1024×1024 | — | the edge of a forest on one tile: four or five snow-covered pines |
+| `map/world/forest/snow_edge_2.png` | 1024×1024 | — | the edge of a forest on one tile: two tall snowy firs and a few small spruces |
+| `map/world/forest/snow_edge_3.png` | 1024×1024 | — | the edge of a forest on one tile: three bare frosted birches and a snowy pine |
+| `map/world/rocks/boulders_1.png` | 1024×1024 | — | a rock outcrop on one tile: a few large angular grey boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies) |
+| `map/world/rocks/boulders_2.png` | 1024×1024 | — | a rock outcrop on one tile: a pile of rounded granite boulders with a small bush between them, like the rock outcrops of the reference (impassable for armies) |
+| `map/world/rocks/boulders_3.png` | 1024×1024 | — | a rock outcrop on one tile: a tall split rock with smaller stones around it and some heather, like the rock outcrops of the reference (impassable for armies) |
+| `map/world/rocks/boulders_4.png` | 1024×1024 | — | a rock outcrop on one tile: flat layered grey rocks stacked like slabs, with tufts of grass, like the rock outcrops of the reference (impassable for armies) |
+| `map/world/rocks/desert_1.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around |
+| `map/world/rocks/desert_2.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around |
+| `map/world/rocks/desert_3.png` | 1024×1024 | — | a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around |
+| `map/world/mountains/temperate_1.png` | 1024×1024 | — | a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap, standing alone on one tile |
+| `map/world/mountains/temperate_x_1.png` | 1024×1024 | — | a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_y_1.png` | 1024×1024 | — | a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_xy_1.png` | 1024×1024 | — | a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/temperate_2.png` | 1024×1024 | — | a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap, standing alone on one tile |
+| `map/world/mountains/temperate_x_2.png` | 1024×1024 | — | a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_y_2.png` | 1024×1024 | — | a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_xy_2.png` | 1024×1024 | — | a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/temperate_3.png` | 1024×1024 | — | a jagged dark rocky mountain with sharp crags and a thin snow cap, standing alone on one tile |
+| `map/world/mountains/temperate_x_3.png` | 1024×1024 | — | a jagged dark rocky mountain with sharp crags and a thin snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_y_3.png` | 1024×1024 | — | a jagged dark rocky mountain with sharp crags and a thin snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/temperate_xy_3.png` | 1024×1024 | — | a jagged dark rocky mountain with sharp crags and a thin snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/snow_1.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice, standing alone on one tile |
+| `map/world/mountains/snow_x_1.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_y_1.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_xy_1.png` | 1024×1024 | — | a steep icy mountain covered with snow and blue ice: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/snow_2.png` | 1024×1024 | — | a broad snowy mountain with a glacier tongue and wind-carved ridges, standing alone on one tile |
+| `map/world/mountains/snow_x_2.png` | 1024×1024 | — | a broad snowy mountain with a glacier tongue and wind-carved ridges: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_y_2.png` | 1024×1024 | — | a broad snowy mountain with a glacier tongue and wind-carved ridges: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_xy_2.png` | 1024×1024 | — | a broad snowy mountain with a glacier tongue and wind-carved ridges: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/snow_3.png` | 1024×1024 | — | a sharp rocky peak half covered with snow, dark rock showing on its cliffs, standing alone on one tile |
+| `map/world/mountains/snow_x_3.png` | 1024×1024 | — | a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_y_3.png` | 1024×1024 | — | a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/snow_xy_3.png` | 1024×1024 | — | a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/desert_1.png` | 1024×1024 | — | a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb, standing alone on one tile |
+| `map/world/mountains/desert_x_1.png` | 1024×1024 | — | a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_y_1.png` | 1024×1024 | — | a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_xy_1.png` | 1024×1024 | — | a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/desert_2.png` | 1024×1024 | — | a group of orange sandstone buttes and pinnacles with layered cliffs, standing alone on one tile |
+| `map/world/mountains/desert_x_2.png` | 1024×1024 | — | a group of orange sandstone buttes and pinnacles with layered cliffs: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_y_2.png` | 1024×1024 | — | a group of orange sandstone buttes and pinnacles with layered cliffs: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_xy_2.png` | 1024×1024 | — | a group of orange sandstone buttes and pinnacles with layered cliffs: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
+| `map/world/mountains/desert_3.png` | 1024×1024 | — | a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot, standing alone on one tile |
+| `map/world/mountains/desert_x_3.png` | 1024×1024 | — | a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_y_3.png` | 1024×1024 | — | a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction |
+| `map/world/mountains/desert_xy_3.png` | 1024×1024 | — | a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side |
 
-#### Ponts, gués, décor du désert et de l'eau — 17 images
+#### Ponts, gués, décor du désert et de l'eau — 18 images
 
 Où : passages des rivières, dunes, ruines, palmiers, bateaux, quais. Priorité ★★☆.
 
@@ -1704,7 +1745,8 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 | `map/world/desert/dunes_2.png` | 1024×1024 | — | two or three golden sand dunes with wind ripples on one tile |
 | `map/world/desert/dunes_3.png` | 1024×1024 | — | two or three golden sand dunes with wind ripples on one tile |
 | `map/world/desert/ruins_1.png` | 1024×1024 | — | ancient sandstone ruins on one tile: broken columns, fallen blocks, half buried in sand |
-| `map/world/desert/ruins_2.png` | 1024×1024 | — | ancient sandstone ruins on one tile: broken columns, fallen blocks, half buried in sand |
+| `map/world/desert/ruins_2.png` | 1024×1024 | — | the ruined base of a small temple: a few standing columns and steps half buried in sand |
+| `map/world/desert/ruins_3.png` | 1024×1024 | — | a fallen colossal statue and a broken obelisk lying in the sand |
 | `map/world/desert/palms_1.png` | 1024×1024 | — | two or three date palms and green bushes, the vegetation at the edge of a desert oasis, on one tile |
 | `map/world/desert/palms_2.png` | 1024×1024 | — | two or three date palms and green bushes, the vegetation at the edge of a desert oasis, on one tile |
 | `map/world/desert/palms_3.png` | 1024×1024 | — | two or three date palms and green bushes, the vegetation at the edge of a desert oasis, on one tile |
@@ -2527,9 +2569,9 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Carte du monde | Villes par civilisation et forteresses | 20 | 0 |
 | Carte du monde | Villes secondaires (colonies) par civilisation, normale et fortifiée | 12 | 0 |
 | Carte du monde | Points de ressource (5 types × 3 biomes) | 15 | 0 |
-| Carte du monde | Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) | 7 | 0 |
-| Carte du monde | Forêts, rochers et montagnes de la carte | 29 | 0 |
-| Carte du monde | Ponts, gués, décor du désert et de l'eau | 17 | 0 |
+| Carte du monde | Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) | 20 | 0 |
+| Carte du monde | Forêts, rochers et montagnes de la carte | 57 | 0 |
+| Carte du monde | Ponts, gués, décor du désert et de l'eau | 18 | 0 |
 | Carte du monde | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 |
 | Carte du monde | Campement de fondation (3 biomes) | 3 | 0 |
 | Carte du monde | Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases) | 0 | 12 |
@@ -2556,6 +2598,6 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Écrans et interface | Habillage : boutons, cadres, plaques, barres | 3 | 0 |
 | Écrans et interface | Effets d'interface (construction finie, niveau, butin) | 0 | 3 |
 | Écrans et interface | Icônes d'interface (ressources, onglets, actions, colon, tribu) | 3 | 0 |
-| **Total** | | **1403** | **116** |
+| **Total** | | **1445** | **116** |
 
 Déjà peint et donc absent d'ici : 283 images. Variantes neige des bâtiments et de l'enceinte : non demandées.

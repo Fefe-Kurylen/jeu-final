@@ -18,11 +18,16 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 - **Bateaux et quais** : décor seulement.
 - **Biomes** : les trois du GDD, **neige au nord, désert au sud, tempéré ailleurs**.
 - **Forêts** : comme le GDD, **−10 % de vitesse**, **sauf pour les Gaulois**.
-- **Relief** : on garde les **chaînes de montagnes** et on ajoute les **amas de rochers** (« les deux »).
+- **Relief** : on garde les **chaînes de montagnes** et on ajoute les **amas de rochers** (« les deux »). Les chaînes du
+  désert sont des **mesas infranchissables**, comme les montagnes ; les rochers épars du désert se contournent à pied.
 - **Grille** : comme sur l'image, un quadrillage très léger, toujours visible.
-- **Graphismes** : **tout en images**. Le sol est fait de **7 textures répétables** (une par type de sol) ; le jeu les projette
-  en isométrique et découpe lui-même les fondus entre sols voisins. Cela remplace les 126 tuiles de transition prévues au
-  départ : un outil d'images ne sait pas les raccorder au pixel près, alors que le jeu le fait sans couture.
+- **Graphismes** : **tout en images**. Le sol est fait de **textures répétables** ; le jeu les projette en isométrique et
+  découpe lui-même les fondus entre sols voisins. Cela remplace les 126 tuiles de transition prévues au départ : un outil
+  d'images ne sait pas les raccorder au pixel près, alors que le jeu le fait sans couture.
+- **Plusieurs motifs par type de case** : 4 prairies, 3 neiges, 3 sables, 3 herbes sèches, 3 champs, 2 eaux, 2 glaces,
+  mélangés par taches de quelques cases ; 3 modèles par forme de montagne (tempérée, enneigée, mesa) ; 4 forêts denses et
+  3 lisières par biome (mixte, pins, feuillus, bouleaux…) ; 4 amas de rochers, 3 rochers du désert, 3 dunes, 3 ruines,
+  3 palmeraies, 3 bateaux.
 
 ## Où en est chaque point
 
@@ -30,15 +35,15 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 |---|---|---|---|
 | 1 | Disposition des biomes | ✅ | Nord enneigé, sud désertique, tempéré ailleurs (≈ 20 / 20 / 60 %), frontière qui ondule. Zone de départ des joueurs : moitié tempérée. |
 | 2 | Villes sur 2 × 2 cases | ✅ | Départ, capitale déplacée, fondation, chemins, clic, surbrillance, siège, rencontres, seed des points. Aucune ville dans l'eau ni dans une poche fermée par les montagnes. |
-| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; 80 cases de pont et 33 de gué, chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
+| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; 73 cases de pont et 33 de gué, chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
 | 4 | Forêts en massifs | ✅ | Massifs de plusieurs cases ; −10 % de vitesse sauf Gaulois ; la durée du trajet suit le terrain traversé (client et serveur). |
-| 5 | Sol tempéré varié | ✅ | Herbe, herbe sèche (plus fréquente vers le désert), terre labourée, berges de sable au bord des rivières et des lacs. |
-| 6 | Relief | ✅ | Montagnes gardées, amas de rochers en zone tempérée (infranchissables), rochers du désert (franchissables). |
+| 5 | Sol tempéré varié | ✅ | Herbe, herbe sèche (plus fréquente vers le désert), terre labourée, berges de sable au bord des rivières et des lacs ; plusieurs variantes de chaque sol mélangées par taches (en attendant leurs images, un léger voile les distingue). |
+| 6 | Relief | ✅ | Montagnes gardées, amas de rochers en zone tempérée et mesas du désert (infranchissables), rochers épars du désert (franchissables). Une ville que le nouveau terrain couperait du reste de la carte est déplacée près du bord au démarrage, avec ses armées, et son propriétaire est prévenu. |
 | 7 | Lacs, quais et bateaux | ✅ code, 🎨 images | Les bateaux et quais apparaissent dès que leurs images sont livrées (environ 1 case d'eau sur 80 pour un bateau, quelques quais au bord). Palmiers autour des oasis. |
 | 8 | Grille | ✅ | Toujours visible, très légère, plus discrète de loin (touche G pour la masquer). |
 | 9 | Nouveau style | ✅ prompts | Style « diorama 3D stylisé » de la référence, sans contours ; référence de style : `img/carte-reference.jpg`. |
 | 10 | Découpage | ✅ | Sol en textures répétables, éléments posés sans socle (losange d'une case à 50 % de la largeur, centre à 75 %), villes 2 × 2 (90 %, 68 %). Guides de cadrage dans `img/guides-carte/`. |
-| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 378 images par ordre de priorité (sol 7, forêts 14, rochers et montagnes 15, ponts et gués 4, désert 8, eau 5, villes 32, villes assiégées 120, ressources 15, camps 21, armées 43, animations 74, effets 20), aussi en tableau `prompts-carte.csv`. |
+| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 420 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, villes 32, villes assiégées 120, ressources 15, camps 21, armées 43, animations 74, effets 20), aussi en tableau `prompts-carte.csv`. |
 
 Les points existants en base suivent le terrain au démarrage du serveur : biome recalculé, point tombé dans l'eau déplacé
 sur la case libre la plus proche (sauf s'il porte une ville ou une armée). Au premier démarrage : 382 points déplacés,

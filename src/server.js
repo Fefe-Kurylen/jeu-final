@@ -55,7 +55,7 @@ const { Prisma } = require('@prisma/client');   // Prisma.sql / Prisma.join for 
 const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 const { startGameLoop, releaseTickLease } = require('./game/tick');
-const { seedResourceNodes, syncResourceNodesWithTerrain } = require('./game/seed');
+const { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities } = require('./game/seed');
 
 const app = express();
 const PORT = config.port;
@@ -262,6 +262,7 @@ async function startServer() {
           await prisma.$executeRawUnsafe(`COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`);
         } else {
           console.log(`${nodeCount} points de ressource existants (v${lastSeedVersion})`);
+          await rescueTrappedCities();
           await syncResourceNodesWithTerrain();
         }
       } catch (seedErr) {

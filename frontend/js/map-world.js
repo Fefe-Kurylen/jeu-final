@@ -25,20 +25,30 @@ const MAP_GROUND_FALLBACK = {
   snow: { tex: 'tundra', color: '#eef3f7', veil: 0 }
 };
 const MAP_NIGHT_VEIL = 'rgba(8,14,30,0.55)';
+// Variantes de chaque sol (Terrain.groundVariantAt) : couche = type × 4 + variante − 1, les variantes d'un même sol se
+// fondent entre elles comme deux sols voisins. Image d'une variante absente : celle de la variante 1 ; sans aucune image
+// du sol, un léger voile distingue les variantes en attendant.
+const MAP_GROUND_MAXV = 4;
+const MAP_GROUND_COMBINED = MAP_GROUND_LAYERS.flatMap(g => Array.from({ length: MAP_GROUND_MAXV }, (_, i) => ({ g, v: i + 1 })));
+const MAP_VARIANT_TINT = [null, 'rgba(255,255,255,0.07)', 'rgba(20,30,0,0.08)', 'rgba(255,235,170,0.08)'];
+const MAP_ORIGIN0 = { x: 0, y: 0 };
+function mapGroundFills(tw, th) { return MAP_GROUND_COMBINED.map(({ g, v }) => mapGroundFill(g, v, tw, th, MAP_ORIGIN0)); }
 
 // ---- textures du sol ----
 const _mapGroundPatterns = new Map();   // url@taille -> CanvasPattern
-function mapGroundFill(layer, tw, th, origin) {
-  const own = `map/world/ground/${layer}.webp`;
+function mapGroundFill(layer, variant, tw, th, origin) {
   const fb = MAP_GROUND_FALLBACK[layer];
-  let url, cells = 2, veil = 0;
-  if (typeof paintedSet !== 'undefined' && paintedSet.has(own)) { url = 'assets/images/painted/' + own; cells = MAP_GROUND_CELLS_PER_TEXTURE; }
+  const painted = (n) => typeof paintedSet !== 'undefined' && paintedSet.has(`map/world/ground/${layer}_${n}.webp`);
+  const own = painted(variant) ? variant : painted(1) ? 1 : 0;
+  let url, cells = 2, veil = 0, tint = null;
+  if (own) { url = `assets/images/painted/map/world/ground/${layer}_${own}.webp`; cells = MAP_GROUND_CELLS_PER_TEXTURE; }
   else {
     url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(fb.tex) : null;
     if (url && !url.includes('/' + fb.tex + '.')) veil = fb.veil || 0;   // texture plus générale : on la teinte
+    tint = MAP_VARIANT_TINT[variant - 1] || null;
   }
   const img = url && typeof getSprite === 'function' ? getSprite(url) : null;
-  if (!img || typeof DOMMatrix !== 'function') return { style: fb.color, veil: 0, color: fb.color };
+  if (!img || typeof DOMMatrix !== 'function') return { style: fb.color, veil: 0, color: fb.color, tint };
   // résolution du motif : environ un pixel d'écran par pixel de texture (paliers pour ne pas tout refaire en zoomant)
   const want = cells * Math.hypot(tw, th) / 2 * canvasScale();
   const size = Math.round(Math.max(32, Math.min(img.naturalWidth || 1024, Math.pow(2, Math.round(Math.log2(Math.max(want, 1)) * 2) / 2))));
@@ -51,14 +61,14 @@ function mapGroundFill(layer, tw, th, origin) {
     g.imageSmoothingQuality = 'high';
     g.drawImage(img, 0, 0, size, size);
     pattern = mapCtx.createPattern(c, 'repeat');
-    if (!pattern || typeof pattern.setTransform !== 'function') return { style: fb.color, veil: 0, color: fb.color };
+    if (!pattern || typeof pattern.setTransform !== 'function') return { style: fb.color, veil: 0, color: fb.color, tint };
     if (_mapGroundPatterns.size > 48) _mapGroundPatterns.clear();
     _mapGroundPatterns.set(key, pattern);
   }
   // projection isométrique : un pixel du motif = cells / size case, l'axe x du motif suit l'axe x du monde
   const k = cells / size;
-  try { pattern.setTransform(new DOMMatrix([k * tw / 2, k * th / 2, -k * tw / 2, k * th / 2, origin.x, origin.y])); } catch (e) { return { style: fb.color, veil: 0, color: fb.color }; }
-  return { style: pattern, veil, color: fb.color, url };
+  try { pattern.setTransform(new DOMMatrix([k * tw / 2, k * th / 2, -k * tw / 2, k * th / 2, origin.x, origin.y])); } catch (e) { return { style: fb.color, veil: 0, color: fb.color, tint }; }
+  return { style: pattern, veil, color: fb.color, url, tint };
 }
 
 // ---- fondus : forme de chaque sol dans un losange de la grille décalée ----
@@ -149,9 +159,9 @@ function renderMapGroundRect(ctx, X0, Y0, size, tw, th, night, fills) {
   const y0 = Math.floor(Math.min(...pts.map(p => p.y))) - 2, y1 = Math.ceil(Math.max(...pts.map(p => p.y))) + 1;
   const W = x1 - x0 + 2;
   const grid = new Uint8Array(W * (y1 - y0 + 2));
-  for (let y = y0; y <= y1 + 1; y++) for (let x = x0; x <= x1 + 1; x++) grid[(y - y0) * W + (x - x0)] = MAP_GROUND_INDEX[Terrain.groundAt(x, y)];
+  for (let y = y0; y <= y1 + 1; y++) for (let x = x0; x <= x1 + 1; x++) grid[(y - y0) * W + (x - x0)] = MAP_GROUND_INDEX[Terrain.groundAt(x, y)] * MAP_GROUND_MAXV + Terrain.groundVariantAt(x, y) - 1;
   const g = (x, y) => grid[(y - y0) * W + (x - x0)];
-  const L = MAP_GROUND_LAYERS.length;
+  const L = MAP_GROUND_COMBINED.length;
   const base = new Array(L).fill(null), soft = base.slice(), hard = base.slice();
   const path = (arr, i) => arr[i] || (arr[i] = new Path2D());
   const n = tw >= 90 ? 4 : tw >= 44 ? 3 : tw >= 24 ? 2 : 1;   // finesse des fondus selon la taille des cases
@@ -184,6 +194,7 @@ function renderMapGroundRect(ctx, X0, Y0, size, tw, th, night, fills) {
     ctx.globalAlpha = alpha;
     ctx.fillStyle = fills[i].style; ctx.fill(p2);
     if (fills[i].veil) { ctx.globalAlpha = alpha * fills[i].veil; ctx.fillStyle = fills[i].color; ctx.fill(p2); }
+    if (fills[i].tint) { ctx.globalAlpha = alpha; ctx.fillStyle = fills[i].tint; ctx.fill(p2); }
   };
   for (let i = 0; i < L; i++) fill(base[i], i, 1);
   for (let i = 0; i < L; i++) { fill(soft[i], i, 0.5); fill(hard[i], i, 1); }
@@ -211,15 +222,15 @@ function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
   const scale = canvasScale();
   const now = performance.now();
   if (tw !== _mapLastTw) { _mapLastTw = tw; _mapZoomAt = now; }
-  const fills0 = MAP_GROUND_LAYERS.map(layer => mapGroundFill(layer, tw, th, { x: 0, y: 0 }));
-  const sig = fills0.map(f => f.url || f.color).join('|');
+  const fills0 = mapGroundFills(tw, th);
+  const sig = fills0.map(f => (f.url || f.color) + (f.tint ? '+' : '')).join('|');
   const key = [tw, th, scale, night ? 1 : 0, sig].join('|');
   let st = _mapChunkState, s = 1, fills = fills0;
   if (!st || st.key !== key) {
     const zooming = st && now - _mapZoomAt < 250 && st.night === night && st.sig === sig && st.scale === scale;
     if (zooming) {
       s = tw / st.tw;   // étire les morceaux de l'échelle précédente, refait tout à la fin du geste
-      fills = MAP_GROUND_LAYERS.map(layer => mapGroundFill(layer, st.tw, st.th, { x: 0, y: 0 }));
+      fills = mapGroundFills(st.tw, st.th);
       clearTimeout(_mapZoomTimer);
       _mapZoomTimer = setTimeout(() => { if (typeof scheduleMapRender === 'function') scheduleMapRender(); }, 280);
     } else {
@@ -282,9 +293,9 @@ function drawWorldCityImage(img, x, y, blockW) {
 }
 
 const MAP_WET = { water: 1, frozen: 1, oasis: 1, river: 1, bridge: 1, ford: 1 };
-const MAP_MOUNTAIN_BIOME = { forest: 'temperate', snow: 'snow', desert: 'snow' };
-// Montagnes infranchissables (tempéré, neige). Les chaînes rocheuses du désert se traversent : elles prennent les rochers.
-function mapIsMountain(t) { return t.feature === 'mountain' || t.feature === 'icemountain'; }
+const MAP_MOUNTAIN_BIOME = { forest: 'temperate', snow: 'snow', desert: 'desert' };
+// Montagnes infranchissables : tempérées, enneigées, mesas du désert
+function mapIsMountain(t) { return t.feature === 'mountain' || t.feature === 'icemountain' || t.feature === 'mesa'; }
 // Le pont et le gué traversent la rivière de rive à rive selon un axe de la grille (Terrain.crossingAxisAt)
 function mapCrossingAlongX(wx, wy) { return Terrain.crossingAxisAt(wx, wy) === 'x'; }
 
@@ -303,13 +314,13 @@ function worldFeatureArt(wx, wy, terrain) {
     const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; return mapIsMountain(getTerrainType(wx + dx, wy + dy)); };
     const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
     const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
-    const p = `map/world/mountains/${key}${suffix}.webp`, alone = `map/world/mountains/${key}.webp`;
-    return paintedSet.has(p) ? p : (paintedSet.has(alone) ? alone : null);
+    // plusieurs modèles par forme (3 variantes), choisis au hasard pour la case ; repli sur la montagne isolée
+    return worldVariant(`map/world/mountains/${key}${suffix}_`, 3, wx, wy, 5161) || worldVariant(`map/world/mountains/${key}_`, 3, wx, wy, 5161);
   }
   if (f === 'boulders') return worldVariant('map/world/rocks/boulders_', 4, wx, wy, 5153);
   if (f === 'rocks') return worldVariant('map/world/rocks/desert_', 3, wx, wy, 5154);
   if (f === 'dunes') return worldVariant('map/world/desert/dunes_', 3, wx, wy, 5155);
-  if (f === 'ruins') return worldVariant('map/world/desert/ruins_', 2, wx, wy, 5156);
+  if (f === 'ruins') return worldVariant('map/world/desert/ruins_', 3, wx, wy, 5156);
   if (f === 'bridge' || f === 'ford') { const p = `map/world/river/${f}_${mapCrossingAlongX(wx, wy) ? 'x' : 'y'}.webp`; return paintedSet.has(p) ? p : null; }
   return null;
 }

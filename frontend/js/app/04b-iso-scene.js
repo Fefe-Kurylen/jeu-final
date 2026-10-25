@@ -438,7 +438,7 @@ function isoLandscape(view, W, cx, cy) {
     }
     if (dRoad < W * 0.55) continue;   // ni arbre ni rocher sur la route
     let kind = null, h = 0;
-    if (feature === 'mountain' || feature === 'icemountain' || feature === 'rocks') {
+    if (feature === 'mountain' || feature === 'icemountain' || feature === 'mesa' || feature === 'rocks') {
       if (roll > 0.8) continue;
       kind = roll < 0.5 ? props.rock : (props.rock === 'snowrock' ? 'snowrock' : 'rock2');
       h = W * (0.6 + isoSeeded(seed + 4) * 0.5);

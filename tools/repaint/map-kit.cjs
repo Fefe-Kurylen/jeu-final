@@ -20,9 +20,9 @@ const GUIDES = path.join(ROOT, 'docs', 'img', 'guides-carte');
 
 // Sections dans l'ordre où produire les images (le plus visible d'abord)
 const SECTIONS = [
-  { key: 'ground', title: 'Sol', test: f => /^map\/world\/ground\//.test(f), intro: 'Une texture répétable par type de sol, vue de dessus. Le jeu la projette en isométrique et fait lui-même les fondus irréguliers entre sols voisins (berges de sable, taches d\'herbe sèche, champs labourés) : pas de tuiles de transition à produire. Pas d\'image guide.' },
-  { key: 'forest', title: 'Forêts', test: f => /^map\/world\/forest\//.test(f), intro: 'Une case de forêt dense ; le jeu prend une « lisière » pour une case peu entourée de forêt. Les cases voisines se fondent en un seul massif.' },
-  { key: 'relief', title: 'Rochers et montagnes', test: f => /^map\/world\/(rocks|mountains)\//.test(f), intro: 'Amas de rochers (infranchissables en zone tempérée), rochers du désert (franchissables), montagnes : _x et _y pour une chaîne dans l\'axe de la grille, _xy pour le cœur d\'un massif.' },
+  { key: 'ground', title: 'Sol', test: f => /^map\/world\/ground\//.test(f), intro: 'Plusieurs textures répétables par type de sol (4 prairies, 3 neiges, 3 sables, 3 herbes sèches, 3 champs, 2 eaux, 2 glaces), vues de dessus. Le jeu les projette en isométrique, les mélange par taches de quelques cases et fait lui-même les fondus irréguliers entre sols voisins (berges de sable, taches d\'herbe sèche, champs) : pas de tuiles de transition à produire. Les variantes d\'un même sol doivent avoir les mêmes couleurs et la même échelle. Pas d\'image guide.' },
+  { key: 'forest', title: 'Forêts', test: f => /^map\/world\/forest\//.test(f), intro: 'Une case de forêt dense (4 types par biome : mixte, pins, feuillus, bouleaux…) ; le jeu prend une « lisière » pour une case peu entourée de forêt. Les cases voisines se fondent en un seul massif.' },
+  { key: 'relief', title: 'Rochers et montagnes', test: f => /^map\/world\/(rocks|mountains)\//.test(f), intro: 'Amas de rochers (infranchissables) et rochers épars du désert (franchissables), en plusieurs variantes. Montagnes tempérées, enneigées et mesas du désert (infranchissables) : 3 modèles par forme, la forme isolée, _x et _y pour une chaîne dans l\'axe de la grille, _xy pour le cœur d\'un massif.' },
   { key: 'river', title: 'Rivières : ponts et gués', test: f => /^map\/world\/river\//.test(f), intro: 'L\'eau fait partie du sol. Un pont ou un gué traverse la rivière d\'une rive à l\'autre, case par case : _x de haut-gauche vers bas-droite, _y de haut-droite vers bas-gauche. Pont : vitesse normale ; gué : moitié moins vite.' },
   { key: 'desert', title: 'Désert : dunes, ruines, palmiers', test: f => /^map\/world\/desert\//.test(f), intro: 'Décor du désert. Les palmiers se posent autour des oasis.' },
   { key: 'water', title: 'Eau : bateaux et quais (décor)', test: f => /^map\/world\/water\//.test(f), intro: 'Décor seulement (décision du 25 octobre 2026) : sur les rivières et les lacs, sans effet sur le jeu.' },
@@ -88,7 +88,7 @@ function main() {
   }
   if (rest.length) groups.push({ key: 'other', title: 'Autres images de la carte', intro: '', items: rest });
   const GROUND_FIRST = ['grass', 'drygrass', 'earth', 'sand', 'water', 'snow', 'ice'];
-  const rank = (f) => { const m = f.match(/^map\/world\/ground\/(\w+)\./); return m ? GROUND_FIRST.indexOf(m[1]) : 0; };
+  const rank = (f) => { const m = f.match(/^map\/world\/ground\/([a-z]+)_/); return m ? GROUND_FIRST.indexOf(m[1]) : 0; };
   for (const g of groups) g.items.sort((a, b) => rank(a.file) - rank(b.file) || a.file.localeCompare(b.file, 'en'));
   const total = groups.reduce((n, g) => n + g.items.length, 0);
 
@@ -111,7 +111,8 @@ ville et l'interface gardent le style peint.
 5. Envoie les PNG (un dossier ou un zip, par petits lots si tu veux) : je les importe
    (\`node tools/repaint.cjs --import=<dossier>\`), ils remplacent aussitôt le dessin provisoire. Une image absente garde le dessin actuel.
 
-Ordre conseillé : le sol d'abord (7 images, c'est ce qui change le plus la carte), puis les forêts, les rochers et les villes.
+Ordre conseillé : le sol d'abord (commence par la variante 1 de chaque sol : 7 images qui changent toute la carte ; les
+autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les villes.
 
 ## Sommaire
 

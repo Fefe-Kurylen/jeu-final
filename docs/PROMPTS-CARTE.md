@@ -1,4 +1,4 @@
-# Carte du monde — les 378 images à produire, avec leurs prompts
+# Carte du monde — les 420 images à produire, avec leurs prompts
 
 Généré par `node tools/repaint/map-kit.cjs` (ne pas éditer à la main). Style et découpage : [la carte de référence](img/carte-reference.jpg)
 et [CARTE-REFERENCE.md](CARTE-REFERENCE.md) (décisions du 25 octobre 2026). Seule la carte du monde change de style ; la vue de la
@@ -16,17 +16,18 @@ ville et l'interface gardent le style peint.
 5. Envoie les PNG (un dossier ou un zip, par petits lots si tu veux) : je les importe
    (`node tools/repaint.cjs --import=<dossier>`), ils remplacent aussitôt le dessin provisoire. Une image absente garde le dessin actuel.
 
-Ordre conseillé : le sol d'abord (7 images, c'est ce qui change le plus la carte), puis les forêts, les rochers et les villes.
+Ordre conseillé : le sol d'abord (commence par la variante 1 de chaque sol : 7 images qui changent toute la carte ; les
+autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les villes.
 
 ## Sommaire
 
 | # | Partie | Images |
 |---|---|---|
-| 1 | [Sol](#partie-1) | 7 |
+| 1 | [Sol](#partie-1) | 20 |
 | 2 | [Forêts](#partie-2) | 14 |
-| 3 | [Rochers et montagnes](#partie-3) | 15 |
+| 3 | [Rochers et montagnes](#partie-3) | 43 |
 | 4 | [Rivières : ponts et gués](#partie-4) | 4 |
-| 5 | [Désert : dunes, ruines, palmiers](#partie-5) | 8 |
+| 5 | [Désert : dunes, ruines, palmiers](#partie-5) | 9 |
 | 6 | [Eau : bateaux et quais (décor)](#partie-6) | 5 |
 | 7 | [Villes sur 2 × 2 cases](#partie-7) | 32 |
 | 8 | [Villes assiégées (animation en 4 images)](#partie-8) | 120 |
@@ -35,17 +36,17 @@ Ordre conseillé : le sol d'abord (7 images, c'est ce qui change le plus la cart
 | 11 | [Armées en marche](#partie-11) | 43 |
 | 12 | [Animations des armées](#partie-12) | 74 |
 | 13 | [Effets de la carte](#partie-13) | 20 |
-| | **Total** | **378** |
+| | **Total** | **420** |
 
 <a id="partie-1"></a>
 
 ## 1. Sol
 
-Une texture répétable par type de sol, vue de dessus. Le jeu la projette en isométrique et fait lui-même les fondus irréguliers entre sols voisins (berges de sable, taches d'herbe sèche, champs labourés) : pas de tuiles de transition à produire. Pas d'image guide.
+Plusieurs textures répétables par type de sol (4 prairies, 3 neiges, 3 sables, 3 herbes sèches, 3 champs, 2 eaux, 2 glaces), vues de dessus. Le jeu les projette en isométrique, les mélange par taches de quelques cases et fait lui-même les fondus irréguliers entre sols voisins (berges de sable, taches d'herbe sèche, champs) : pas de tuiles de transition à produire. Les variantes d'un même sol doivent avoir les mêmes couleurs et la même échelle. Pas d'image guide.
 
-### `map/world/ground/grass.png`
+### `map/world/ground/grass_1.png`
 
-Sol de la carte : herbe (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe (prairie), variante 1 sur 4 (prairie rase) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -53,12 +54,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: lush short green meadow grass with very small flowers and subtle colour variations, like the green areas of the reference.
+Subject: lush short green meadow grass, like the green areas of the reference: short even meadow grass with subtle colour variations. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/drygrass.png`
+### `map/world/ground/grass_2.png`
 
-Sol de la carte : herbe sèche (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe (prairie), variante 2 sur 4 (prairie fleurie) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -66,12 +67,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: golden dry steppe grass, short and slightly patchy with a little bare earth showing, like the yellow areas of the reference.
+Subject: lush short green meadow grass, like the green areas of the reference: meadow with tiny scattered wild flowers (white, yellow, a little purple). It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/earth.png`
+### `map/world/ground/grass_3.png`
 
-Sol de la carte : terre labourée (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe (prairie), variante 3 sur 4 (herbe dense au trèfle) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -79,12 +80,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: brown ploughed field earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges), a few clods, like the brown fields of the reference.
+Subject: lush short green meadow grass, like the green areas of the reference: slightly darker, denser grass with clover. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/sand.png`
+### `map/world/ground/grass_4.png`
 
-Sol de la carte : sable (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe (prairie), variante 4 sur 4 (prairie caillouteuse) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -92,12 +93,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: warm ochre sand, like the riverbanks and beaches of the reference: fine wind ripples and a few small pebbles.
+Subject: lush short green meadow grass, like the green areas of the reference: meadow grass with a few small stones and short worn patches. It must look like the same ground as the other variants of grass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/water.png`
+### `map/world/ground/drygrass_1.png`
 
-Sol de la carte : eau (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe sèche, variante 1 sur 3 (steppe dorée) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -105,12 +106,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference.
+Subject: golden dry steppe grass, like the yellow areas of the reference: short golden steppe grass, even and dense. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/snow.png`
+### `map/world/ground/drygrass_2.png`
 
-Sol de la carte : neige (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe sèche, variante 2 sur 3 (herbe sèche clairsemée) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -118,12 +119,12 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: fresh white snow with soft blue shadows and small wind drifts.
+Subject: golden dry steppe grass, like the yellow areas of the reference: patchy dry grass with small patches of bare earth. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
-### `map/world/ground/ice.png`
+### `map/world/ground/drygrass_3.png`
 
-Sol de la carte : glace (texture répétable ; le jeu fait les fondus avec les sols voisins)  
+Sol de la carte : herbe sèche, variante 3 sur 3 (touffes hautes) ; texture répétable, le jeu fait les fondus avec les sols voisins  
 **Taille** : 1024x1024 (opaque) · **Guide** : aucun
 
 ```text
@@ -131,18 +132,187 @@ Ground texture for the world map of a stylised 3D-rendered mobile strategy game,
 
 Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
 
-Subject: pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow.
+Subject: golden dry steppe grass, like the yellow areas of the reference: taller dry grass in tufts with a few dried flowers. It must look like the same ground as the other variants of drygrass (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/earth_1.png`
+
+Sol de la carte : terre (champs), variante 1 sur 3 (champ labouré) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: brown field earth, like the brown fields of the reference: freshly ploughed earth with straight parallel furrows running exactly horizontally across the image (the furrows must continue across the left and right edges). It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/earth_2.png`
+
+Sol de la carte : terre (champs), variante 2 sur 3 (jeunes pousses) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: brown field earth, like the brown fields of the reference: young green crop rows on brown earth, rows running exactly horizontally across the image and continuing across the edges. It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/earth_3.png`
+
+Sol de la carte : terre (champs), variante 3 sur 3 (chaume après moisson) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: brown field earth, like the brown fields of the reference: harvested field: short golden stubble in rows on brown earth, rows running exactly horizontally and continuing across the edges. It must look like the same ground as the other variants of earth (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/sand_1.png`
+
+Sol de la carte : sable, variante 1 sur 3 (sable ridé) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: warm ochre sand, like the riverbanks and beaches of the reference: fine sand with long regular wind ripples. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/sand_2.png`
+
+Sol de la carte : sable, variante 2 sur 3 (sable caillouteux) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: warm ochre sand, like the riverbanks and beaches of the reference: coarser sand with scattered small pebbles and shells. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/sand_3.png`
+
+Sol de la carte : sable, variante 3 sur 3 (sable sec) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: warm ochre sand, like the riverbanks and beaches of the reference: compact dry sand with faint cracks and a few dry twigs. It must look like the same ground as the other variants of sand (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/water_1.png`
+
+Sol de la carte : eau, variante 1 sur 2 (rivière) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference: calm river water with gentle ripples. It must look like the same ground as the other variants of water (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/water_2.png`
+
+Sol de la carte : eau, variante 2 sur 2 (lac) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: clear deep blue river and lake water with gentle ripples and soft light reflections, as in the river of the reference: deeper lake water, a little darker, with slow wide ripples and a few glints. It must look like the same ground as the other variants of water (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/snow_1.png`
+
+Sol de la carte : neige, variante 1 sur 3 (poudreuse) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: fresh white snow with soft blue shadows: fresh smooth powder snow. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/snow_2.png`
+
+Sol de la carte : neige, variante 2 sur 3 (neige croûtée) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: fresh white snow with soft blue shadows: wind-crusted snow with small drifts and ripples. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/snow_3.png`
+
+Sol de la carte : neige, variante 3 sur 3 (neige fine) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: fresh white snow with soft blue shadows: thin snow with a few patches of frozen grass showing through. It must look like the same ground as the other variants of snow (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/ice_1.png`
+
+Sol de la carte : glace, variante 1 sur 2 (glace lisse) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow: smooth clear ice with fine white cracks. It must look like the same ground as the other variants of ice (same colours, same scale), only the small details change, so that the game can blend them.
+```
+
+### `map/world/ground/ice_2.png`
+
+Sol de la carte : glace, variante 2 sur 2 (glace rugueuse) ; texture répétable, le jeu fait les fondus avec les sols voisins  
+**Taille** : 1024x1024 (opaque) · **Guide** : aucun
+
+```text
+Ground texture for the world map of a stylised 3D-rendered mobile strategy game, in exactly the colours and the soft realistic rendering of the ground of the first reference image (an ancient-world map): natural saturated colours, fine realistic detail, soft ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. Fully opaque image, no transparency. No text, no letters, no numbers, no watermark.
+
+Composition: a SEAMLESS TILEABLE square ground texture (1024 x 1024) seen straight from above (top-down, no perspective, no horizon): the left edge continues the right edge and the top edge continues the bottom edge with no visible seam. Even lighting with only very soft relief shading (no cast shadows, no light gradient across the image), even density everywhere, no single feature that stands out and would be seen repeating. Ground only: nothing taller than a pebble or a tuft of grass. The image covers about 6 x 6 map tiles: details are small (a tuft of grass is about 1/100 of the image width).
+
+Subject: pale blue frozen water: smooth ice with fine white cracks and a light dusting of snow: rough frozen surface with snow drifts and larger cracks. It must look like the same ground as the other variants of ice (same colours, same scale), only the small details change, so that the game can blend them.
 ```
 
 <a id="partie-2"></a>
 
 ## 2. Forêts
 
-Une case de forêt dense ; le jeu prend une « lisière » pour une case peu entourée de forêt. Les cases voisines se fondent en un seul massif.
+Une case de forêt dense (4 types par biome : mixte, pins, feuillus, bouleaux…) ; le jeu prend une « lisière » pour une case peu entourée de forêt. Les cases voisines se fondent en un seul massif.
 
 ### `map/world/forest/snow_1.png`
 
-Forêt de sapins enneigés (variante 1), une case  
+Forêt enneigée dense (variante 1 : pins enneigés)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -150,12 +320,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge
+Subject: a dense clump of trees filling the whole tile: snow-covered pines packed close together, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/snow_2.png`
 
-Forêt de sapins enneigés (variante 2), une case  
+Forêt enneigée dense (variante 2 : grands sapins sous la neige)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -163,12 +333,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge
+Subject: a dense clump of trees filling the whole tile: tall dark firs heavy with snow; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/snow_3.png`
 
-Forêt de sapins enneigés (variante 3), une case  
+Forêt enneigée dense (variante 3 : pins et bouleaux givrés)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -176,12 +346,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge
+Subject: a dense clump of trees filling the whole tile: snowy pines mixed with bare frosted birches; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/snow_4.png`
 
-Forêt de sapins enneigés (variante 4), une case  
+Forêt enneigée dense (variante 4 : jeunes épicéas)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -189,12 +359,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of snow-covered pine trees filling the whole tile, snow on the branches and drifts at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge
+Subject: a dense clump of trees filling the whole tile: young snow-covered spruces of different heights in deep snow; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/snow_edge_1.png`
 
-Lisière de forêt enneigée (variante 1)  
+Lisière de forêt enneigée (variante 1 : quelques pins enneigés)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -202,12 +372,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: the edge of a snowy pine forest on one tile: four or five snow-covered pines
+Subject: the edge of a forest on one tile: four or five snow-covered pines
 ```
 
 ### `map/world/forest/snow_edge_2.png`
 
-Lisière de forêt enneigée (variante 2)  
+Lisière de forêt enneigée (variante 2 : deux grands sapins)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -215,12 +385,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: the edge of a snowy pine forest on one tile: four or five snow-covered pines
+Subject: the edge of a forest on one tile: two tall snowy firs and a few small spruces
 ```
 
 ### `map/world/forest/snow_edge_3.png`
 
-Lisière de forêt enneigée (variante 3)  
+Lisière de forêt enneigée (variante 3 : bouleaux givrés et un pin)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -228,12 +398,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: the edge of a snowy pine forest on one tile: four or five snow-covered pines
+Subject: the edge of a forest on one tile: three bare frosted birches and a snowy pine
 ```
 
 ### `map/world/forest/temperate_1.png`
 
-Forêt dense en zone tempérée (variante 1), une case  
+Forêt dense en zone tempérée (variante 1 : mixte, pins et feuillus)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -241,12 +411,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
+Subject: a dense clump of trees filling the whole tile: mixed forest: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/temperate_2.png`
 
-Forêt dense en zone tempérée (variante 2), une case  
+Forêt dense en zone tempérée (variante 2 : pins et sapins)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -254,12 +424,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
+Subject: a dense clump of trees filling the whole tile: a dense stand of tall dark-green pines and firs; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/temperate_3.png`
 
-Forêt dense en zone tempérée (variante 3), une case  
+Forêt dense en zone tempérée (variante 3 : chênes et hêtres)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -267,12 +437,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
+Subject: a dense clump of trees filling the whole tile: a dense grove of broad round oaks and beeches with lighter green crowns; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/temperate_4.png`
 
-Forêt dense en zone tempérée (variante 4), une case  
+Forêt dense en zone tempérée (variante 4 : bouleaux et sous-bois)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -280,12 +450,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a dense clump of mixed forest filling the whole tile: tall dark-green pines and round deciduous trees packed close together, a few bushes at their feet, as in the forests of the reference; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
+Subject: a dense clump of trees filling the whole tile: a bright wood of slender white birches and young trees with a dense undergrowth of bushes; trees may overflow the tile by up to 15% so that neighbouring clumps merge into one forest
 ```
 
 ### `map/world/forest/temperate_edge_1.png`
 
-Lisière de forêt tempérée (variante 1) : case de forêt peu entourée  
+Lisière de forêt tempérée (variante 1 : pins et feuillus clairsemés)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -298,7 +468,7 @@ Subject: the edge of a forest on one tile: five or six pines and deciduous trees
 
 ### `map/world/forest/temperate_edge_2.png`
 
-Lisière de forêt tempérée (variante 2) : case de forêt peu entourée  
+Lisière de forêt tempérée (variante 2 : grands pins et jeunes sapins)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -306,12 +476,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes
+Subject: the edge of a forest on one tile: three or four tall pines with a few young firs and ferns
 ```
 
 ### `map/world/forest/temperate_edge_3.png`
 
-Lisière de forêt tempérée (variante 3) : case de forêt peu entourée  
+Lisière de forêt tempérée (variante 3 : gros chênes et buissons)  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -319,18 +489,213 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: the edge of a forest on one tile: five or six pines and deciduous trees, less dense, a few bushes
+Subject: the edge of a forest on one tile: two or three broad oaks with bushes and a fallen log
 ```
 
 <a id="partie-3"></a>
 
 ## 3. Rochers et montagnes
 
-Amas de rochers (infranchissables en zone tempérée), rochers du désert (franchissables), montagnes : _x et _y pour une chaîne dans l'axe de la grille, _xy pour le cœur d'un massif.
+Amas de rochers (infranchissables) et rochers épars du désert (franchissables), en plusieurs variantes. Montagnes tempérées, enneigées et mesas du désert (infranchissables) : 3 modèles par forme, la forme isolée, _x et _y pour une chaîne dans l'axe de la grille, _xy pour le cœur d'un massif.
 
-### `map/world/mountains/snow_x.png`
+### `map/world/mountains/desert_1.png`
 
-Chaîne de montagnes (snow) dans l'axe haut-gauche → bas-droite  
+Montagne du désert (mesa) isolée, modèle 1/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb, standing alone on one tile
+```
+
+### `map/world/mountains/desert_2.png`
+
+Montagne du désert (mesa) isolée, modèle 2/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a group of orange sandstone buttes and pinnacles with layered cliffs, standing alone on one tile
+```
+
+### `map/world/mountains/desert_3.png`
+
+Montagne du désert (mesa) isolée, modèle 3/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot, standing alone on one tile
+```
+
+### `map/world/mountains/desert_x_1.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/desert_x_2.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a group of orange sandstone buttes and pinnacles with layered cliffs: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/desert_x_3.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-gauche → bas-droite, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/desert_xy_1.png`
+
+Cœur de massif du désert (mesa) entouré de montagnes, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/desert_xy_2.png`
+
+Cœur de massif du désert (mesa) entouré de montagnes, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a group of orange sandstone buttes and pinnacles with layered cliffs: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/desert_xy_3.png`
+
+Cœur de massif du désert (mesa) entouré de montagnes, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/desert_y_1.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a tall red sandstone mesa with steep eroded cliffs and a flat top, too steep to climb: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/desert_y_2.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a group of orange sandstone buttes and pinnacles with layered cliffs: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/desert_y_3.png`
+
+Chaîne de montagnes du désert (mesa) dans l'axe haut-droite → bas-gauche, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad ochre rocky plateau with crumbling cliffs and fallen boulders at its foot: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/snow_1.png`
+
+Montagne enneigée isolée, modèle 1/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a steep icy mountain covered with snow and blue ice, standing alone on one tile
+```
+
+### `map/world/mountains/snow_2.png`
+
+Montagne enneigée isolée, modèle 2/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad snowy mountain with a glacier tongue and wind-carved ridges, standing alone on one tile
+```
+
+### `map/world/mountains/snow_3.png`
+
+Montagne enneigée isolée, modèle 3/3, infranchissable  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a sharp rocky peak half covered with snow, dark rock showing on its cliffs, standing alone on one tile
+```
+
+### `map/world/mountains/snow_x_1.png`
+
+Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 1/3  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -341,9 +706,35 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
 ```
 
-### `map/world/mountains/snow_xy.png`
+### `map/world/mountains/snow_x_2.png`
 
-Massif montagneux (snow) entouré de montagnes  
+Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad snowy mountain with a glacier tongue and wind-carved ridges: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/snow_x_3.png`
+
+Chaîne de montagnes enneigée dans l'axe haut-gauche → bas-droite, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/snow_xy_1.png`
+
+Cœur de massif enneigée entouré de montagnes, modèle 1/3  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -354,9 +745,35 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a steep icy mountain covered with snow and blue ice: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
 ```
 
-### `map/world/mountains/snow_y.png`
+### `map/world/mountains/snow_xy_2.png`
 
-Chaîne de montagnes (snow) dans l'axe haut-droite → bas-gauche  
+Cœur de massif enneigée entouré de montagnes, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a broad snowy mountain with a glacier tongue and wind-carved ridges: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/snow_xy_3.png`
+
+Cœur de massif enneigée entouré de montagnes, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/snow_y_1.png`
+
+Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 1/3  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -367,9 +784,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a steep icy mountain covered with snow and blue ice: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
 ```
 
-### `map/world/mountains/snow.png`
+### `map/world/mountains/snow_y_2.png`
 
-Montagne isolée (snow), infranchissable  
+Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 2/3  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -377,12 +794,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a steep icy mountain covered with snow and blue ice, standing on one tile
+Subject: a broad snowy mountain with a glacier tongue and wind-carved ridges: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
 ```
 
-### `map/world/mountains/temperate_x.png`
+### `map/world/mountains/snow_y_3.png`
 
-Chaîne de montagnes (temperate) dans l'axe haut-gauche → bas-droite  
+Chaîne de montagnes enneigée dans l'axe haut-droite → bas-gauche, modèle 3/3  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -390,12 +807,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+Subject: a sharp rocky peak half covered with snow, dark rock showing on its cliffs: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
 ```
 
-### `map/world/mountains/temperate_xy.png`
+### `map/world/mountains/temperate_1.png`
 
-Massif montagneux (temperate) entouré de montagnes  
+Montagne tempérée isolée, modèle 1/3, infranchissable  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -403,12 +820,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+Subject: a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap, standing alone on one tile
 ```
 
-### `map/world/mountains/temperate_y.png`
+### `map/world/mountains/temperate_2.png`
 
-Chaîne de montagnes (temperate) dans l'axe haut-droite → bas-gauche  
+Montagne tempérée isolée, modèle 2/3, infranchissable  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -416,12 +833,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+Subject: a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap, standing alone on one tile
 ```
 
-### `map/world/mountains/temperate.png`
+### `map/world/mountains/temperate_3.png`
 
-Montagne isolée (temperate), infranchissable  
+Montagne tempérée isolée, modèle 3/3, infranchissable  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -429,7 +846,124 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a rugged grey mountain with rocky slopes, a few pines at its foot and a light snow cap, standing on one tile
+Subject: a jagged dark rocky mountain with sharp crags and a thin snow cap, standing alone on one tile
+```
+
+### `map/world/mountains/temperate_x_1.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/temperate_x_2.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/temperate_x_3.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-gauche → bas-droite, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a jagged dark rocky mountain with sharp crags and a thin snow cap: a long ridge running along the tile from its top-left side to its bottom-right side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/temperate_xy_1.png`
+
+Cœur de massif tempérée entouré de montagnes, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/temperate_xy_2.png`
+
+Cœur de massif tempérée entouré de montagnes, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/temperate_xy_3.png`
+
+Cœur de massif tempérée entouré de montagnes, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a jagged dark rocky mountain with sharp crags and a thin snow cap: a massif with several peaks filling the whole tile, so that it merges with mountain tiles on every side
+```
+
+### `map/world/mountains/temperate_y_1.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 1/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rugged grey granite mountain with rocky slopes, a few pines at its foot and a light snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/temperate_y_2.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 2/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rounded green-grey mountain with grassy lower slopes, scree and a small snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
+```
+
+### `map/world/mountains/temperate_y_3.png`
+
+Chaîne de montagnes tempérée dans l'axe haut-droite → bas-gauche, modèle 3/3  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a jagged dark rocky mountain with sharp crags and a thin snow cap: a long ridge running along the tile from its top-right side to its bottom-left side, cut so that it continues into the next tile in that direction
 ```
 
 ### `map/world/rocks/boulders_1.png`
@@ -442,7 +976,7 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)
+Subject: a rock outcrop on one tile: a few large angular grey boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)
 ```
 
 ### `map/world/rocks/boulders_2.png`
@@ -455,7 +989,7 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)
+Subject: a rock outcrop on one tile: a pile of rounded granite boulders with a small bush between them, like the rock outcrops of the reference (impassable for armies)
 ```
 
 ### `map/world/rocks/boulders_3.png`
@@ -468,7 +1002,7 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)
+Subject: a rock outcrop on one tile: a tall split rock with smaller stones around it and some heather, like the rock outcrops of the reference (impassable for armies)
 ```
 
 ### `map/world/rocks/boulders_4.png`
@@ -481,12 +1015,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a grey rock outcrop on one tile: a few large angular boulders with patches of moss and grass, like the rock outcrops of the reference (impassable for armies)
+Subject: a rock outcrop on one tile: flat layered grey rocks stacked like slabs, with tufts of grass, like the rock outcrops of the reference (impassable for armies)
 ```
 
 ### `map/world/rocks/desert_1.png`
 
-Rochers du désert (variante 1) : isolés ou en chaîne, franchissables  
+Rochers épars du désert (variante 1), franchissables  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -494,12 +1028,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through
+Subject: a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around
 ```
 
 ### `map/world/rocks/desert_2.png`
 
-Rochers du désert (variante 2) : isolés ou en chaîne, franchissables  
+Rochers épars du désert (variante 2), franchissables  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -507,12 +1041,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through
+Subject: a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around
 ```
 
 ### `map/world/rocks/desert_3.png`
 
-Rochers du désert (variante 3) : isolés ou en chaîne, franchissables  
+Rochers épars du désert (variante 3), franchissables  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -520,7 +1054,7 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a cluster of low red sandstone rocks with a small cactus, on one tile; neighbouring clusters join into a rocky ridge that armies can still walk through
+Subject: a cluster of low red sandstone rocks with a small cactus, on one tile, low enough to walk around
 ```
 
 <a id="partie-4"></a>
@@ -688,7 +1222,20 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: ancient sandstone ruins on one tile: broken columns, fallen blocks, half buried in sand
+Subject: the ruined base of a small temple: a few standing columns and steps half buried in sand
+```
+
+### `map/world/desert/ruins_3.png`
+
+Ruines du désert (variante 3)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a fallen colossal statue and a broken obelisk lying in the sand
 ```
 
 <a id="partie-6"></a>
