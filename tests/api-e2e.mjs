@@ -651,7 +651,12 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     await call('second settler -> 400 (one slot at L10)', 'POST', `/api/city/${cityA.id}/settlers`, tA, {}, 400);
     sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE id='${st.queueItem.id}'`);
     await waitTick('settler ready in the capital', () => sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1');
-    const freeNode = reachableNode(`AND id<>'${undefendedId}'`);
+    // a colony needs its 2 × 2 block free (the node and the 3 cells beside it: no relief, water, crossing, city, node,
+    // nor a foundation under way), on the main land (src/utils/spawn.js footprintFree)
+    const foundable = (x, y) => Terrain.isMainland(x, y) && Terrain.cityCells(x, y).every(([cx, cy]) => { const f = Terrain.getTerrainType(cx, cy).feature; return Terrain.inWorld(cx, cy) && !Terrain.BLOCKED[f] && f !== 'bridge' && f !== 'ford'; })
+      && sql(`SELECT (SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 2} AND ${x + 2} AND y BETWEEN ${y - 2} AND ${y + 2}) + (SELECT count(*) FROM "ResourceNode" WHERE (x, y) IN ((${x + 1}, ${y}), (${x}, ${y + 1}), (${x + 1}, ${y + 1}))) + (SELECT count(*) FROM "Army" WHERE status='FOUNDING' AND "targetX" BETWEEN ${x - 2} AND ${x + 2} AND "targetY" BETWEEN ${y - 2} AND ${y + 2})`) === '0';
+    const freeNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType"<>'GOLD' AND "cityId" IS NULL AND id<>'${undefendedId}' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 80`).split('\n').filter(Boolean).map(r => r.split('|'))
+      .find(([, x, y]) => foundable(Number(x), Number(y)) && Terrain.findPath(cityA.x, cityA.y, Number(x), Number(y)));
     sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0 WHERE id='${freeNode[0]}'`);
     await call('found-city with B token on A army -> 404', 'POST', `/api/army/${ga}/found-city`, tB, { resourceNodeId: freeNode[0] }, 404);
     const woodBefore = Number(sql(`SELECT wood FROM "City" WHERE id='${cityA.id}'`));
