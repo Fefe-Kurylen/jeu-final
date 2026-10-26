@@ -627,7 +627,7 @@ async function loadMap() {
       // Bastions d'alliance (bloc 2 × 2 comme une ville, services/bastionService.js)
       (data.bastions || []).forEach(b => mapData.push({
         x: b.x, y: b.y, type: 'BASTION', id: b.id, name: `Bastion [${b.allianceTag}]`, allianceId: b.allianceId, allianceTag: b.allianceTag,
-        allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100,
+        allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100, lives: b.lives ?? null,
         isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true
       }));
 

@@ -35,3 +35,11 @@ test('sans alliance ou sans Bastion debout : aucun bonus', () => {
   assert.equal(bastion.carryMultSync(null), 1);
   assert.equal(bastion.carryMultSync('alliance-sans-bastion'), 1);
 });
+
+test('vies entières : une vie compte une fois remontée, le dernier assaut rase même avec un reste de remontée', () => {
+  assert.equal(bastion.livesOf(1), 10);
+  assert.equal(bastion.livesOf(0.9), 9);
+  assert.equal(bastion.livesOf(0.95), 9);
+  assert.equal(bastion.livesOf(0.1001), 1);
+  assert.equal(bastion.livesOf(0.0999), 0);
+});

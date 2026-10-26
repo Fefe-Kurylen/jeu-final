@@ -32,6 +32,8 @@ function structureNow(b, now = Date.now()) {
   const hours = Math.max(0, (now - new Date(b.structureAt).getTime()) / 3600000);
   return Math.min(1, (b.structure ?? 1) + hours / B.regenHours);
 }
+// Vies entières : une vie ne compte qu'une fois entièrement remontée
+const livesOf = (structure) => Math.floor(structure * B.assaults + 1e-6);
 
 // ---- bonus des membres (lus souvent : gardés 30 s) ----
 let activeCache = { at: 0, ids: new Set() };
@@ -62,7 +64,7 @@ async function carryMult(playerId) { return (await hasBonus(playerId)) ? 1 + B.b
 const publicBastion = (b, extra = {}) => b && ({
   id: b.id, allianceId: b.allianceId, x: b.x, y: b.y, status: b.status,
   delivered: { wood: b.wood, stone: b.stone, iron: b.iron, food: b.food }, cost: B.cost,
-  buildEndsAt: b.buildEndsAt, structurePct: Math.round(structureNow(b) * 100), assaults: B.assaults, wallMaxHp: wallMaxHp(),
+  buildEndsAt: b.buildEndsAt, structurePct: Math.round(structureNow(b) * 100), lives: livesOf(structureNow(b)), assaults: B.assaults, wallMaxHp: wallMaxHp(),
   isSieged: b.isSieged, activatedAt: b.activatedAt, destroyedAt: b.destroyedAt, cooldownUntil: b.cooldownUntil, ...extra
 });
 
@@ -152,6 +154,7 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
     }
     if (mission === 'GARRISON') {
       if (rel !== 'SAME' && rel !== 'ALLY') throw httpError(403, 'Seuls les membres de l\'alliance et ses alliés tiennent garnison au Bastion');
+      if (b.status === 'FUNDING') throw httpError(400, 'Le Bastion n\'est encore qu\'un chantier : apportez d\'abord les ressources');
       if (b.isSieged) throw httpError(400, 'Bastion assiégé : aucune troupe n\'entre pendant le siège');
       if (!(await transition(tx, 'army', army.id, 'IDLE', { ...base, status: 'SUPPORTING', missionType: 'BASTION_GARRISON' }))) throw httpError(409, 'Armée déjà en mission');
       return { message: `Armée en route pour la garnison du Bastion (${Math.max(1, Math.round(travel / 60))} min)`, travelTime: travel, arrivalAt };
@@ -205,7 +208,7 @@ async function handleSupplyArrival(army, sendArmyHome) {
 async function handleGarrisonArrival(army, sendArmyHome) {
   const b = await prisma.bastion.findUnique({ where: { id: army.targetBastionId || '' } });
   const rel = b ? await relationTo((await prisma.allianceMember.findUnique({ where: { playerId: army.ownerId }, select: { allianceId: true } }))?.allianceId || null, b.allianceId) : null;
-  if (!b || b.status === 'DESTROYED' || b.isSieged || (rel !== 'SAME' && rel !== 'ALLY')) {
+  if (!b || b.status === 'DESTROYED' || b.status === 'FUNDING' || b.isSieged || (rel !== 'SAME' && rel !== 'ALLY')) {
     notify(army.ownerId, 'battle', '↩️ Garnison refusée', `${army.name} n'a pas pu entrer dans le Bastion${b?.isSieged ? ' (assiégé)' : ''} : elle rentre.`, { to: 'army', armyId: army.id });
     await sendHome(army, sendArmyHome);
     return;
@@ -269,15 +272,16 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: 1 } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
+    const livesBefore = livesOf(structure);
     let after = structure, destroyed = false;
-    if (result.attackerWon) {
-      after = Math.max(0, structure - 1 / B.assaults);
-      destroyed = after <= 1e-6;
+    if (result.attackerWon) {   // une vie de moins (la part d'une vie en train de remonter est perdue)
+      after = Math.max(0, livesBefore - 1) / B.assaults;
+      destroyed = livesBefore - 1 <= 0;
     }
     await tx.bastion.update({ where: { id: b.id }, data: destroyed
       ? { status: 'DESTROYED', structure: 0, structureAt: now, destroyedAt: now, cooldownUntil: new Date(now.getTime() + B.cooldownDays * 86400000), isSieged: false }
       : { structure: after, structureAt: now } });
-    const lives = { before: Math.round(structure * B.assaults), after: Math.round(after * B.assaults), total: B.assaults, fallen: destroyed };
+    const lives = { before: livesBefore, after: result.attackerWon ? Math.max(0, livesBefore - 1) : livesBefore, total: B.assaults, fallen: destroyed };
     const base = {
       x: b.x, y: b.y, attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits,
       attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled },
@@ -341,7 +345,7 @@ async function releaseOrphanGarrisons() {
 async function bastionsIn(x0, x1, y0, y1) {
   const rows = await prisma.bastion.findMany({ where: { x: { gte: x0, lte: x1 }, y: { gte: y0, lte: y1 }, status: { not: 'DESTROYED' } }, include: { alliance: { select: { id: true, tag: true, name: true, leaderId: true } } } });
   const leaders = await prisma.player.findMany({ where: { id: { in: rows.map(r => r.alliance.leaderId).filter(Boolean) } }, select: { id: true, faction: true } });
-  return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
+  return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { refreshSieged, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { livesOf, refreshSieged, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
