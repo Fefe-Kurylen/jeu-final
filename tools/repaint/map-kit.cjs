@@ -26,6 +26,7 @@ const SECTIONS = [
   { key: 'river', title: 'Rivières : ponts et gués', test: f => /^map\/world\/river\//.test(f), intro: 'L\'eau fait partie du sol. Un pont ou un gué traverse la rivière d\'une rive à l\'autre, case par case : _x de haut-gauche vers bas-droite, _y de haut-droite vers bas-gauche. Pont : vitesse normale ; gué : moitié moins vite.' },
   { key: 'desert', title: 'Désert : dunes, ruines, palmiers', test: f => /^map\/world\/desert\//.test(f), intro: 'Décor du désert. Les palmiers se posent autour des oasis.' },
   { key: 'water', title: 'Eau : bateaux et quais (décor)', test: f => /^map\/world\/water\//.test(f), intro: 'Décor seulement (décision du 25 octobre 2026) : sur les rivières et les lacs, sans effet sur le jeu.' },
+  { key: 'ambience', title: 'Nuages qui passent (ambiance légère)', test: f => /^map\/world\/fx\//.test(f), intro: 'Comme dans la vidéo de référence : quelques nuages légers dérivent lentement au-dessus de la carte. Image large, fond transparent, bords très doux. Pas d\'image guide.' },
   { key: 'decor', title: 'Décor des cases, comme sur la carte de référence', test: f => /^map\/world\/(fields|decor)\//.test(f), intro: 'Pas semé au hasard partout (décision du 26 octobre 2026) : champs de blé autour des villes et sur la terre labourée, une meule à côté d\'un champ, buissons et arbres isolés au bord de l\'eau, agaves sur l\'herbe sèche, cactus au désert, quelques cailloux, décor givré sous la neige. Un chemin de terre part de la porte de chaque ville (texture de sol, rien à produire). Chaque élément reste petit et bas.' },
   { key: 'cities', title: 'Villes sur 2 × 2 cases', test: f => /^map\/cities\//.test(f) && !/\/siege_/.test(f), intro: 'Une ville couvre 2 × 2 cases. Village, ville (palier 2), capitale fortifiée (palier 3), ville secondaire normale et fortifiée, pour chaque civilisation.' },
   { key: 'siege', title: 'Villes assiégées (animation en 4 images)', test: f => /^map\/cities\/siege_/.test(f), intro: 'Remplacent la ville tant que le siège dure : même cadrage que la ville normale, 4 images qui bouclent.' },
@@ -39,7 +40,7 @@ const SECTIONS = [
 ];
 
 const GUIDE_OF = (t) => {
-  if (/^map\/world\/ground\//.test(t.file)) return null;
+  if (/^map\/world\/(ground|fx)\//.test(t.file)) return null;
   if (t.frame === 'mapcity') return 'guide-ville.png';
   if (/^map\/units\//.test(t.file)) return 'guide-armee.png';
   return 'guide-objet.png';

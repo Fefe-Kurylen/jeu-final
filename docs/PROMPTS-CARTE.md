@@ -29,17 +29,17 @@ autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les ville
 | 4 | [Rivières : ponts et gués](#partie-4) | 4 |
 | 5 | [Désert : dunes, ruines, palmiers](#partie-5) | 9 |
 | 6 | [Eau : bateaux et quais (décor)](#partie-6) | 5 |
-| 7 | [Décor des cases, comme sur la carte de référence](#partie-7) | 23 |
-| 8 | [Villes sur 2 × 2 cases](#partie-8) | 32 |
-| 9 | [Villes assiégées (animation en 4 images)](#partie-9) | 120 |
-| 10 | [Points de ressource](#partie-10) | 45 |
-| 11 | [Camps des tribus, ruines, fondation](#partie-11) | 15 |
-| 12 | [Armées en marche](#partie-12) | 43 |
-| 13 | [Effets de la carte](#partie-13) | 4 |
-| 14 | [Marche des armées (une image de 6 poses par armée)](#partie-14) | 32 |
-| 15 | [Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)](#partie-15) | 38 |
-| 16 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-16) | 16 |
-| 17 | [Autres images de la carte](#partie-17) | 3 |
+| 7 | [Nuages qui passent (ambiance légère)](#partie-7) | 3 |
+| 8 | [Décor des cases, comme sur la carte de référence](#partie-8) | 23 |
+| 9 | [Villes sur 2 × 2 cases](#partie-9) | 32 |
+| 10 | [Villes assiégées (animation en 4 images)](#partie-10) | 120 |
+| 11 | [Points de ressource](#partie-11) | 45 |
+| 12 | [Camps des tribus, ruines, fondation](#partie-12) | 15 |
+| 13 | [Armées en marche](#partie-13) | 43 |
+| 14 | [Effets de la carte](#partie-14) | 4 |
+| 15 | [Marche des armées (une image de 6 poses par armée)](#partie-15) | 32 |
+| 16 | [Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)](#partie-16) | 38 |
+| 17 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-17) | 16 |
 | | **Total** | **466** |
 
 <a id="partie-1"></a>
@@ -1315,7 +1315,52 @@ Subject: a short wooden pier on posts reaching out over the water from the top-r
 
 <a id="partie-7"></a>
 
-## 7. Décor des cases, comme sur la carte de référence
+## 7. Nuages qui passent (ambiance légère)
+
+Comme dans la vidéo de référence : quelques nuages légers dérivent lentement au-dessus de la carte. Image large, fond transparent, bords très doux. Pas d'image guide.
+
+### `map/world/fx/cloud_1.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 1), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : aucun
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a small soft cumulus cloud with a few puffs, slightly translucent, drifting slowly
+```
+
+### `map/world/fx/cloud_2.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 2), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : aucun
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a long thin wisp of white mist stretched along the wind, slightly translucent, drifting slowly
+```
+
+### `map/world/fx/cloud_3.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 3), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : aucun
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a pair of small fluffy clouds close together, slightly translucent, drifting slowly
+```
+
+<a id="partie-8"></a>
+
+## 8. Décor des cases, comme sur la carte de référence
 
 Pas semé au hasard partout (décision du 26 octobre 2026) : champs de blé autour des villes et sur la terre labourée, une meule à côté d'un champ, buissons et arbres isolés au bord de l'eau, agaves sur l'herbe sèche, cactus au désert, quelques cailloux, décor givré sous la neige. Un chemin de terre part de la porte de chaque ville (texture de sol, rien à produire). Chaque élément reste petit et bas.
 
@@ -1618,9 +1663,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a barley field filling the one-tile diamond, pale gold ears in rows, a narrow trampled furrow along one side; small and low, it must not hide the grid lines of the neighbouring tiles
 ```
 
-<a id="partie-8"></a>
+<a id="partie-9"></a>
 
-## 8. Villes sur 2 × 2 cases
+## 9. Villes sur 2 × 2 cases
 
 Une ville couvre 2 × 2 cases. Village, ville (palier 2), capitale fortifiée (palier 3), ville secondaire normale et fortifiée, pour chaque civilisation.
 
@@ -2040,9 +2085,9 @@ Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 
 Subject: a small walled village in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a low wall or palisade around a dozen houses, a main hall in the middle, two banners
 ```
 
-<a id="partie-9"></a>
+<a id="partie-10"></a>
 
-## 9. Villes assiégées (animation en 4 images)
+## 10. Villes assiégées (animation en 4 images)
 
 Remplacent la ville tant que le siège dure : même cadrage que la ville normale, 4 images qui bouclent.
 
@@ -3606,9 +3651,9 @@ Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 
 Subject: A sprite sheet frame: a fortified capital: walls with corner towers around a palace, Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns (level 3 fortified city), UNDER SIEGE: a ring of enemy siege works around it (two catapults or a ram under a wooden shed, a palisade of sharpened stakes, a few tents and tiny soldiers), fires burning on the ramparts and roofs, columns of dark smoke rising, a stone flying from a catapult toward the walls; the town itself keeps exactly the silhouette and size of its normal world-map image, frame 4 (the catapult arm swings, the flames flicker and the smoke drifts from one frame to the next; same subject, same size and position in every frame)
 ```
 
-<a id="partie-10"></a>
+<a id="partie-11"></a>
 
-## 10. Points de ressource
+## 11. Points de ressource
 
 Comme sur la carte de référence, chaque point a son visuel : par ressource (camp de bûcherons, carrière, mine de fer, ferme, mine d'or), par terrain (tempéré, désert, neige) et par richesse (niveau 1 petit, 2 moyen, 3 riche). Aucune couleur de civilisation : seules les villes et les armées changent de style avec la civilisation.
 
@@ -4197,9 +4242,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-<a id="partie-11"></a>
+<a id="partie-12"></a>
 
-## 11. Camps des tribus, ruines, fondation
+## 12. Camps des tribus, ruines, fondation
 
 Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d'une ville. Sans bannière de civilisation.
 
@@ -4398,9 +4443,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke
 ```
 
-<a id="partie-12"></a>
+<a id="partie-13"></a>
 
-## 12. Armées en marche
+## 13. Armées en marche
 
 L'armée sur la carte, par classe et par civilisation, le héros en tête, l'espion, le cortège de colons.
 
@@ -4963,9 +5008,9 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a spy: a hooded rider on a dark horse, cloak flying, riding toward the lower right
 ```
 
-<a id="partie-13"></a>
+<a id="partie-14"></a>
 
-## 13. Effets de la carte
+## 14. Effets de la carte
 
 Ville en feu (ville très endommagée), par images qui bouclent.
 
@@ -5021,9 +5066,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 4 (same subject, same size and position in every frame, only the pose changes)
 ```
 
-<a id="partie-14"></a>
+<a id="partie-15"></a>
 
-## 14. Marche des armées (une image de 6 poses par armée)
+## 15. Marche des armées (une image de 6 poses par armée)
 
 Une seule image par armée : les 6 poses de la marche en grille de 3 colonnes × 2 rangées (1536 × 1024, chaque pose dans un carré de 512 × 512), lues de gauche à droite puis la rangée du bas. Je les découpe à l'import. Le jeu les joue en boucle pendant la marche, pour chaque groupe de la colonne (une grosse armée marche en 2 ou 3 groupes, comme sur la carte de référence). Une armée sans son cycle trottine avec son image immobile.
 
@@ -5443,9 +5488,9 @@ Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image
 Subject: a settlers' party: a covered ox-wagon with a family walking beside it carrying bundles, a man holding a wooden stake with a small flag, walking toward the lower right (the animals and people walk, the wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
 ```
 
-<a id="partie-15"></a>
+<a id="partie-16"></a>
 
-## 15. Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)
+## 16. Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)
 
 Attaque et touché, même cadrage que l'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.
 
@@ -5943,9 +5988,9 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a small battle-replay sprite: an infantry soldier with spear and round shield being hit and recoiling, frame 2
 ```
 
-<a id="partie-16"></a>
+<a id="partie-17"></a>
 
-## 16. Plus tard : autres effets de la carte (pas encore affichés dans le jeu)
+## 17. Plus tard : autres effets de la carte (pas encore affichés dans le jeu)
 
 Combat en cours, feu de camp, pluie, neige. Le jeu ne les affiche pas encore : à produire en dernier.
 
@@ -6155,48 +6200,5 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
 Subject: A sprite sheet frame: falling snowflakes (world-map weather), frame 4 (same subject, same size and position in every frame, only the pose changes)
-```
-
-<a id="partie-17"></a>
-
-## 17. Autres images de la carte
-
-### `map/world/fx/cloud_1.png`
-
-Nuage qui passe lentement au-dessus de la carte (variante 1), très léger  
-**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
-
-Subject: a small soft cumulus cloud with a few puffs, slightly translucent, drifting slowly
-```
-
-### `map/world/fx/cloud_2.png`
-
-Nuage qui passe lentement au-dessus de la carte (variante 2), très léger  
-**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
-
-Subject: a long thin wisp of white mist stretched along the wind, slightly translucent, drifting slowly
-```
-
-### `map/world/fx/cloud_3.png`
-
-Nuage qui passe lentement au-dessus de la carte (variante 3), très léger  
-**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
-
-Subject: a pair of small fluffy clouds close together, slightly translucent, drifting slowly
 ```
 
