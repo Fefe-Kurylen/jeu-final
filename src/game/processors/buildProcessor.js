@@ -103,6 +103,7 @@ async function processBuilds(now, { playerId = null } = {}) {
           return city;
         });
         if (!owner) continue;
+        require('../../services/questService').bumpLater(owner.playerId, 'build_done', 1);   // quêtes
         notify(owner.playerId, 'build_done', '🏗️ Construction terminée', `${buildingName(b.buildingKey)} niveau ${b.targetLevel} à ${owner.name}`, { to: 'city', cityId: b.cityId });
         console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
       } catch (buildErr) {

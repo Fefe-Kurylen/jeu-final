@@ -28,8 +28,9 @@ router.get('/me', auth, async (req, res) => {
     // Researched technology levels { KEY: level }: the client applies the same cost and time formulas as the server
     const techLevels = levelsFrom(await prisma.playerTechnology.findMany({ where: { playerId: player.id } }));
     // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
+    const questsClaimable = await require('../services/questService').claimableCount(player.id).catch(() => 0);   // pastille du bouton Quêtes
     const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
-    res.json({ ...rest, techLevels, allianceHelpPending, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
+    res.json({ ...rest, techLevels, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
   } catch (e) {
     sendError(res, e);
   }

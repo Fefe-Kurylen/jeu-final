@@ -62,6 +62,7 @@ model Player {
   shopCosmetics     Json? // cosmétiques achetés à la boutique d'alliance (identifiants), distincts des achats intégrés
   nameplate         String? // plaque de nom choisie (cosmétique), dessinée sous ses villes sur la carte
   banner            String? // bannière choisie (cosmétique), plantée devant ses villes sur la carte
+  tutorialDone      Boolean   @default(false) // tutoriel des quêtes terminé ou passé
 
   account                Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
   cities                 City[]
@@ -89,6 +90,8 @@ model Player {
   friendRequestsReceived Friendship[]          @relation("FriendAddressee")
   helpRequests           AllianceHelpRequest[]
   helpsGiven             AllianceHelp[]
+  questCounters          QuestCounter[]
+  questClaims            QuestClaim[]
 
   @@index([lastSeenAt])
 }
@@ -729,4 +732,33 @@ model Friendship {
 
   @@unique([requesterId, addresseeId])
   @@index([addresseeId, status])
+}
+
+// ---- Quêtes (décision du 26 octobre 2026, data/quests.json) ----
+// Compteurs d'actions par jour (period = "2026-10-26", heure de Paris) et au total (period = "ALL") : constructions
+// terminées, soldats recrutés, recherches, expéditions, récoltes, convois, aides d'alliance
+model QuestCounter {
+  id       String @id @default(uuid())
+  playerId String
+  period   String
+  key      String
+  value    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, period, key])
+}
+
+// Récompense prise : period "" (tutoriel, tâches, succès), le jour (quotidiennes) ou le lundi de la semaine
+model QuestClaim {
+  id        String   @id @default(uuid())
+  playerId  String
+  questKey  String
+  period    String   @default("")
+  claimedAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, questKey, period])
+  @@index([playerId])
 }

@@ -74,8 +74,12 @@ async function processHarvesting(now) {
       "carryFood"  = a."carryFood"  + CASE WHEN t.rt = 'FOOD'  THEN t.qty ELSE 0 END,
       "carryGold"  = a."carryGold"  + CASE WHEN t.rt = 'GOLD'  THEN t.qty ELSE 0 END
     FROM take t WHERE a.id = t.army_id AND t.qty > 0
-    RETURNING a.id`;
+    RETURNING a.id, a."ownerId" AS owner, t.qty`;
   const busy = new Set(harvested.map(r => r.id));
+  // quêtes : ressources récoltées par joueur
+  const byOwner = {};
+  for (const r of harvested) byOwner[r.owner] = (byOwner[r.owner] || 0) + Number(r.qty || 0);
+  for (const [owner, qty] of Object.entries(byOwner)) require('../../services/questService').bumpLater(owner, 'harvested', qty);
 
   // 2) The armies that took nothing have finished here (full, node empty or gone, tribe back): they leave
   const all = await prisma.army.findMany({ where: { status: 'HARVESTING', missionType: 'HARVEST' }, select: { id: true } });

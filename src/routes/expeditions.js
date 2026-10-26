@@ -41,6 +41,7 @@ router.post('/:id/start', auth, async (req, res) => {
       return { message: 'Expedition lancee', endsAt, armyId: army.id };
     });
     if (result.error) return res.status(result.status || 400).json(result);
+    require('../services/questService').bumpLater(req.user.playerId, 'expedition_sent', 1);   // quêtes (tutoriel)
     res.json(result);
   } catch (e) {
     if (e.message === 'expedition raced') return res.status(409).json({ error: 'Expédition déjà lancée' });

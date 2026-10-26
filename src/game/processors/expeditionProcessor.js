@@ -44,6 +44,7 @@ async function processExpeditions(now) {
         // The expedition is consumed first: a second executor (or a retry) changes nothing
         const claimed = await tx.expedition.updateMany({ where: { id: exp.id, status: 'IN_PROGRESS' }, data: { status: 'COMPLETED', won, xpGained, lootGained } });
         if (claimed.count !== 1) return false;
+        require('../../services/questService').bumpLater(exp.playerId, 'expedition_done', 1);   // quêtes
         if (army) {
           for (const unit of army.units) {
             const lost = Math.floor(unit.count * lossRate);

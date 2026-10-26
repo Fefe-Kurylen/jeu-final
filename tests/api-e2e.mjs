@@ -751,6 +751,46 @@ await call('diplomacy/player/:id', 'GET', `/api/diplomacy/player/${B.player.id}`
   sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "claimedAt"=NULL, "missionType"=NULL, "targetCityId"=NULL WHERE id='${sId}'`);
   await call('support: army disband', 'DELETE', `/api/army/${sId}/disband`, tA);
 }
+// ---------- QUÊTES (décision du 26 octobre 2026) ----------
+{
+  const parisDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const q0 = await call('quests: overview', 'GET', '/api/quests', tA);
+  assert('quests: tutorial, tasks, daily, weekly and achievements', !!q0?.tutorial && q0.tasks?.length > 10 && q0.daily?.quests?.length >= 2 && q0.weekly?.quests?.length >= 2 && q0.achievements?.length > 3, JSON.stringify({ t: q0?.tasks?.length, d: q0?.daily?.quests?.length }));
+  assert('quests: the game counted finished constructions (counter hook)', Number(sql(`SELECT COALESCE(SUM(value),0) FROM "QuestCounter" WHERE "playerId"='${A.player.id}' AND period='ALL' AND key='build_done'`)) > 0);
+  // tutoriel : l'étape 1 faite (un bûcheron), récompense prise une seule fois
+  if (!sql(`SELECT id FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='LUMBER' LIMIT 1`)) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityA.id}','LUMBER',101,1)`);
+  sql(`UPDATE "City" SET wood=0, stone=0, iron=0, food=0, "maxStorage"=100000, "maxFoodStorage"=100000 WHERE id='${cityA.id}'`);
+  const t1 = await call('quests: claim tutorial step 1', 'POST', '/api/quests/t_lumber/claim', tA, { cityId: cityA.id });
+  assert('quests: the reward reached the city', Number(sql(`SELECT floor(stone) FROM "City" WHERE id='${cityA.id}'`)) >= (t1?.reward?.stone || 1), JSON.stringify(t1?.reward));
+  await call('quests: claim it twice -> 404', 'POST', '/api/quests/t_lumber/claim', tA, { cityId: cityA.id }, 404);
+  const q1 = await call('quests: next step', 'GET', '/api/quests', tA);
+  assert('quests: the tutorial moved on', q1?.tutorial?.current?.key === 't_quarry' || q1?.tutorial?.done >= 1, q1?.tutorial?.current?.key);
+  if (q1?.tutorial?.current?.key === 't_quarry' && !q1.tutorial.current.done) await call('quests: unfinished step -> 400', 'POST', '/api/quests/t_quarry/claim', tA, {}, 400);
+  await call('quests: unknown quest -> 404', 'POST', '/api/quests/zz_nope/claim', tA, {}, 404);
+  await call('quests: someone else\'s city -> 400', 'POST', '/api/quests/b_RALLY_POINT:1/claim', tA, { cityId: cityB.id }, 400);
+  // tâche faite (Place de rassemblement) : refusée si l'entrepôt est plein, prise sinon
+  sql(`UPDATE "City" SET stone="maxStorage" WHERE id='${cityA.id}'`);
+  const full = await call('quests: full warehouse -> 400', 'POST', '/api/quests/b_RALLY_POINT:1/claim', tA, { cityId: cityA.id }, 400);
+  assert('quests: the refusal says the warehouse is full', /place/i.test(full?.error || ''), full?.error);
+  sql(`UPDATE "City" SET stone=0 WHERE id='${cityA.id}'`);
+  await call('quests: claim a task', 'POST', '/api/quests/b_RALLY_POINT:1/claim', tA, { cityId: cityA.id });
+  const q2 = await call('quests: task moved to its next level', 'GET', '/api/quests', tA);
+  assert('quests: next level of the task shown', (q2?.tasks || []).some(t => t.key === 'b_RALLY_POINT:3'));
+  // quête du jour à compteur : faite par le compteur du jour, prise une fois ; le bonus attend toutes les quêtes
+  const dq = (q2?.daily?.quests || []).find(x => !x.claimed && ['d_build', 'd_expedition', 'd_recruit', 'd_research', 'd_help', 'd_harvest', 'd_trade'].includes(x.key));
+  if (dq) {
+    const counter = { d_build: 'build_done', d_expedition: 'expedition_done', d_recruit: 'units_recruited', d_research: 'research_done', d_help: 'help_given', d_harvest: 'harvested', d_trade: 'trade_sent' }[dq.key];
+    sql(`INSERT INTO "QuestCounter"(id,"playerId",period,key,value) VALUES (gen_random_uuid(),'${A.player.id}','${parisDay}','${counter}',${dq.target}) ON CONFLICT ("playerId",period,key) DO UPDATE SET value=GREATEST("QuestCounter".value, ${dq.target})`);
+    await call('quests: claim a daily quest', 'POST', `/api/quests/${dq.key}/claim`, tA, { cityId: cityA.id });
+    await call('quests: daily quest twice -> 404/400', 'POST', `/api/quests/${dq.key}/claim`, tA, { cityId: cityA.id }, [400, 404]);
+    const q3 = await call('quests: daily after claim', 'GET', '/api/quests', tA);
+    assert('quests: the daily bonus waits for every daily quest', q3?.daily?.bonus?.progress >= 1 && (q3.daily.bonus.progress < q3.daily.bonus.target ? !q3.daily.bonus.claimable : true));
+  } else assert('quests: a counter-based daily quest is drawn', false, JSON.stringify((q2?.daily?.quests || []).map(x => x.key)));
+  const me = await call('quests: badge count in /me', 'GET', '/api/player/me', tA);
+  assert('quests: /me gives the number of rewards to take', Number.isInteger(me?.questsClaimable));
+  await call('quests: skip the tutorial', 'POST', '/api/quests/tutorial/skip', tA, {});
+  assert('quests: tutorial finished after skipping', (await call('quests: after skip', 'GET', '/api/quests', tA))?.tutorial?.finished === true);
+}
 await call('alliance promote B (member->officer)', 'POST', `/api/alliance/promote/${B.player.id}`, tA, {});
 await call('alliance promote B (officer->leader)', 'POST', `/api/alliance/promote/${B.player.id}`, tA, {});
 assert('leadership transferred', sql(`SELECT string_agg(role, ',' ORDER BY role) FROM "AllianceMember" WHERE "playerId" IN ('${A.player.id}','${B.player.id}')`) === 'LEADER,OFFICER');

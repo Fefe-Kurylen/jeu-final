@@ -22,6 +22,7 @@ async function processResearch(now, { playerId = null } = {}) {
       });
       if (!done) continue;
       players.add(item.playerId);
+      require('../../services/questService').bumpLater(item.playerId, 'research_done', 1);   // quêtes
       const tech = T.techOf(item.techKey);
       notify(item.playerId, 'research_done', '📜 Recherche terminée', `${tech?.name || item.techKey} niveau ${item.targetLevel}`, { to: 'city', cityId: item.cityId, open: 'research' });
       console.log(`[RESEARCH] ${item.techKey} niveau ${item.targetLevel} terminé`);

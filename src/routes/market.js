@@ -84,6 +84,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
+    require('../services/questService').bumpLater(req.user.playerId, 'trade_sent', 1);   // quêtes
     res.json(result);
   } catch (e) {
     if (e.message === 'army busy') return res.status(409).json({ error: 'Armée déjà en mission' });

@@ -57,6 +57,7 @@ async function purgeOldRecords(now) {
   ]);
   const chatCount = await require('../../services/chatService').purgeOldMessages(now).catch(() => 0);   // global 7 jours, le reste 90
   const helpCount = await require('../../services/allianceHelpService').purgeOld().catch(() => 0);   // demandes d'aide de plus de 7 jours
+  await require('../../services/questService').purgeOld().catch(() => 0);   // compteurs de quêtes de plus de 14 jours
   const total = reports.count + spy.count + expeditions.count + offers.count + analytics.count + chatCount + helpCount;
   if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements, ${chatCount} messages, ${helpCount} demandes d'aide supprimés`);
 }

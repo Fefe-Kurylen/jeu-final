@@ -17,7 +17,7 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | Renfort allié qui reste dans la ville (mission SUPPORT) |
+| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport, rapport pour la cible d'un espionnage réussi |
 | Espionnage : n'importe quelle unité, chance selon l'effectif, rapport ressources/bâtiments/armées ; **contre-espionnage de la Tour de guet** (interception, rapport au défenseur, nom de l'espion dès le niveau 15) | Unités d'espion dédiées (`maxSpiesFaction`, `spyUnlockL5/L10` dans les données), espionnage des points de ressource |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
@@ -227,7 +227,44 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 |---|---|
 | Fiche, XP et niveaux (siège, raid, tribu, expédition), points attaque/défense/vitesse/logistique tous appliqués | Compétences / talents, portrait animé |
 | **Équipement réel** : catalogue de 14 objets (`data/items.json`), bonus appliqués au combat, à la vitesse et à la logistique, inventaire, équiper/déséquiper/jeter, drop à la fin d'une expédition gagnée selon le palier de butin | Forge d'objets, enchantement, objets des raids/sièges |
-| Expéditions (les « quêtes » du héros) : 1 à 4 étoiles, puissance ennemie, durée, palier de butin, or, XP, objet | Quêtes scénarisées à objectifs (construire X, recruter Y) avec récompenses — simple à ajouter sur la base des événements analytics déjà émis |
+| Expéditions : 1 à 4 étoiles, puissance ennemie, durée, palier de butin, or, XP, objet | (les quêtes à objectifs sont en place : section Quêtes) |
+
+## Quêtes et tutoriel (26 octobre 2026)
+
+Façon Travian : un tutoriel guide les premières heures, des tâches suivent la progression, et des quêtes du jour et de
+la semaine aident un peu les joueurs actifs, sans déséquilibrer la partie. Catalogue `data/quests.json` (se modifie sans
+code), moteur `src/services/questService.js`, routes `/api/quests`, client `frontend/js/app/09e-quests.js`.
+
+- **Accès** : bouton flottant « Quêtes » au-dessus de la barre du bas, avec une pastille quand une récompense est à
+  prendre ; panneau à onglets Tutoriel, Tâches, Du jour, Semaine, Succès.
+- **Récompenses : ressources seules**, livrées dans la ville affichée, si son entrepôt et son grenier ont la place
+  (sinon refus, avec le conseil de dépenser, d'agrandir ou de choisir une autre ville). Une récompense ne se prend qu'une
+  fois (table `QuestClaim`).
+- **Tutoriel** (16 étapes, dans l'ordre) : bûcheron, carrière, mine de fer, ferme, un champ niveau 2, Bâtiment principal
+  2, entrepôt, grenier, Place de rassemblement, Bâtiment principal 3, caserne, 5 soldats, une armée, une tribu battue, une
+  expédition, l'Ambassade. Bandeau de l'étape en cours au-dessus de la barre du bas (masquable) ; **« Aller »** ouvre le
+  bon écran et **un doigt** (anneau doré et flèche) montre où toucher, puis le bouton du panneau qui s'ouvre ;
+  « Récupérer » quand l'étape est faite. Passable à tout moment (`Player.tutorialDone`). Récompenses de 150 à 300 par
+  ressource, toujours sous l'entrepôt de départ.
+- **Tâches de progression** (21 familles, paliers) : tous les champs d'un type au niveau 1, 2, 3… 20 ; Bâtiment
+  principal, entrepôt, grenier, Place de rassemblement, caserne, académie, mur, ambassade, marché, tente de soins, manoir
+  du héros ; population, soldats recrutés, niveaux de technologie, niveau du héros, nombre de villes, entrée dans une
+  alliance. Un palier visible à la fois par famille, le suivant après la récompense. Récompense d'un palier de bâtiment :
+  la moitié de son coût (un champ entier pour les champs) ; autres familles : proportionnelle au palier.
+- **Quêtes du jour** : 4 tirées chaque jour pour chaque joueur parmi 9 (constructions, recrutement, combat gagné, tribu,
+  expédition, aides d'alliance, recherche, récolte, convoi — seulement celles que le joueur peut faire), + un bonus quand
+  toutes sont prises. Récompense : **une demi-heure de production de ses villes** par quête (150 au moins), une heure pour
+  le bonus. Nouvelles quêtes à minuit, heure de Paris.
+- **Quêtes de la semaine** : 3 tirées chaque lundi, objectifs plus gros ; 1 h 30 de production par quête (500 au moins),
+  2 h pour le bonus.
+- **Succès** : attaques et défenses gagnées, raids, ennemis vaincus, constructions, aides d'alliance, expéditions,
+  ressources récoltées, par paliers ; 1, 2, 4, 8 puis 12 h de production selon le palier.
+- **Équilibre** : un joueur qui fait tout chaque jour gagne environ 3 h de production par jour (≈ +12 %), et environ 6 h
+  de plus par semaine ; le tutoriel et les tâches financent surtout le palier suivant.
+- **Avancement** lu dans l'état du jeu (bâtiments de la capitale, population, technologies, héros, villes, alliance), les
+  rapports de bataille (victoires, tribus) et des compteurs d'actions (`QuestCounter`, par jour et au total) que le jeu
+  incrémente : constructions terminées, soldats recrutés, recherches, expéditions lancées et terminées, ressources
+  récoltées, convois envoyés, aides d'alliance. Compteurs journaliers gardés 14 jours.
 
 ## Scène de la ville
 

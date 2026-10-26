@@ -1,0 +1,97 @@
+{
+  "_comment": "Quêtes façon Travian (décision du 26 octobre 2026) : un tutoriel qui guide les premières heures, des tâches de progression par paliers, des quêtes du jour et de la semaine qui aident un peu les joueurs actifs, des succès permanents. Récompenses : ressources seules, livrées dans la ville choisie (dans la limite de l'entrepôt). Les noms des bâtiments viennent de data/buildings.json. Réglages : rewardFactor = part du coût du palier rendue (tâches de bâtiment) ; hours = heures de production de toutes les villes (quêtes du jour, de la semaine, succès), avec un plancher min par ressource.",
+
+  "tutorial": [
+    { "key": "t_lumber", "title": "Le bois avant tout", "text": "Construisez un bûcheron sur un des champs autour de la ville : le bois sert à presque tout.", "goal": { "type": "field", "building": "LUMBER", "level": 1, "count": 1 }, "go": { "field": "LUMBER" }, "reward": { "wood": 80, "stone": 100, "iron": 80, "food": 60 } },
+    { "key": "t_quarry", "title": "Tailler la pierre", "text": "Construisez une carrière : la pierre bâtit les murs et les grands bâtiments.", "goal": { "type": "field", "building": "QUARRY", "level": 1, "count": 1 }, "go": { "field": "QUARRY" }, "reward": { "wood": 100, "stone": 80, "iron": 100, "food": 60 } },
+    { "key": "t_iron", "title": "Le fer des armes", "text": "Construisez une mine de fer : sans fer, pas de soldats.", "goal": { "type": "field", "building": "IRON_MINE", "level": 1, "count": 1 }, "go": { "field": "IRON_MINE" }, "reward": { "wood": 100, "stone": 100, "iron": 60, "food": 60 } },
+    { "key": "t_farm", "title": "Nourrir le peuple", "text": "Construisez une ferme : la nourriture nourrit vos habitants et vos troupes.", "goal": { "type": "field", "building": "FARM", "level": 1, "count": 1 }, "go": { "field": "FARM" }, "reward": { "wood": 100, "stone": 100, "iron": 100, "food": 40 } },
+    { "key": "t_field2", "title": "Produire davantage", "text": "Améliorez un de vos champs au niveau 2 : chaque niveau produit plus.", "goal": { "type": "anyField", "level": 2 }, "go": { "field": "ANY" }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 100 } },
+    { "key": "t_main2", "title": "Le cœur de la ville", "text": "Améliorez le Bâtiment principal au niveau 2 : il accélère toutes vos constructions.", "goal": { "type": "building", "building": "MAIN_HALL", "level": 2 }, "go": { "building": "MAIN_HALL" }, "reward": { "wood": 200, "stone": 200, "iron": 150, "food": 100 } },
+    { "key": "t_warehouse", "title": "Ranger les réserves", "text": "Construisez un entrepôt : il garde plus de bois, de pierre et de fer.", "goal": { "type": "building", "building": "WAREHOUSE", "level": 1 }, "go": { "building": "WAREHOUSE" }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 100 } },
+    { "key": "t_silo", "title": "Le grenier", "text": "Construisez un grenier : il garde plus de nourriture.", "goal": { "type": "building", "building": "SILO", "level": 1 }, "go": { "building": "SILO" }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 150 } },
+    { "key": "t_rally", "title": "Rassembler les troupes", "text": "Construisez la Place de rassemblement : c'est d'ici que partent vos armées.", "goal": { "type": "building", "building": "RALLY_POINT", "level": 1 }, "go": { "building": "RALLY_POINT" }, "reward": { "wood": 200, "stone": 200, "iron": 200, "food": 100 } },
+    { "key": "t_main3", "title": "Une ville qui grandit", "text": "Améliorez le Bâtiment principal au niveau 3 : il ouvre la caserne, l'académie et le mur.", "goal": { "type": "building", "building": "MAIN_HALL", "level": 3 }, "go": { "building": "MAIN_HALL" }, "reward": { "wood": 250, "stone": 200, "iron": 300, "food": 150 } },
+    { "key": "t_barracks", "title": "La caserne", "text": "Construisez la caserne : elle forme l'infanterie et les archers.", "goal": { "type": "building", "building": "BARRACKS", "level": 1 }, "go": { "building": "BARRACKS" }, "reward": { "wood": 200, "stone": 150, "iron": 200, "food": 250 } },
+    { "key": "t_recruit", "title": "Premiers soldats", "text": "Recrutez 5 soldats à la caserne.", "goal": { "type": "counterTotal", "counter": "units_recruited", "value": 5 }, "go": { "building": "BARRACKS", "recruit": true }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 300 } },
+    { "key": "t_army", "title": "Une armée en campagne", "text": "Formez une armée à la Place de rassemblement et donnez-lui vos soldats.", "goal": { "type": "army" }, "go": { "tab": "army" }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 150 } },
+    { "key": "t_tribe", "title": "Chasser les tribus", "text": "Attaquez la tribu d'un point de ressource proche et gagnez le combat : son butin est à vous.", "goal": { "type": "reportWin", "kind": "TRIBE", "value": 1 }, "go": { "tab": "map", "tribe": true }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } },
+    { "key": "t_expedition", "title": "L'aventure du héros", "text": "Envoyez votre héros en expédition (onglet Héros) : il revient avec de l'expérience, de l'or et parfois un objet.", "goal": { "type": "counterTotal", "counter": "expedition_sent", "value": 1 }, "go": { "tab": "hero" }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } },
+    { "key": "t_embassy", "title": "Se faire des alliés", "text": "Construisez l'Ambassade : au niveau 5, elle permet de rejoindre une alliance.", "goal": { "type": "building", "building": "EMBASSY", "level": 1 }, "go": { "building": "EMBASSY" }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } }
+  ],
+
+  "tasks": [
+    { "key": "fields_LUMBER", "title": "Bûcherons", "text": "Tous vos bûcherons au niveau {level}", "goal": { "type": "field", "building": "LUMBER", "all": true }, "levels": [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20], "rewardFactor": 1.0, "go": { "field": "LUMBER" } },
+    { "key": "fields_QUARRY", "title": "Carrières", "text": "Toutes vos carrières au niveau {level}", "goal": { "type": "field", "building": "QUARRY", "all": true }, "levels": [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20], "rewardFactor": 1.0, "go": { "field": "QUARRY" } },
+    { "key": "fields_IRON_MINE", "title": "Mines de fer", "text": "Toutes vos mines de fer au niveau {level}", "goal": { "type": "field", "building": "IRON_MINE", "all": true }, "levels": [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20], "rewardFactor": 1.0, "go": { "field": "IRON_MINE" } },
+    { "key": "fields_FARM", "title": "Fermes", "text": "Toutes vos fermes au niveau {level}", "goal": { "type": "field", "building": "FARM", "all": true }, "levels": [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20], "rewardFactor": 1.0, "go": { "field": "FARM" } },
+    { "key": "b_MAIN_HALL", "title": "Bâtiment principal", "text": "Bâtiment principal au niveau {level}", "goal": { "type": "building", "building": "MAIN_HALL" }, "levels": [2, 3, 5, 7, 10, 12, 15, 18, 20], "rewardFactor": 0.5, "go": { "building": "MAIN_HALL" } },
+    { "key": "b_WAREHOUSE", "title": "Entrepôt", "text": "Entrepôt au niveau {level}", "goal": { "type": "building", "building": "WAREHOUSE" }, "levels": [1, 3, 5, 7, 10, 13, 16, 20], "rewardFactor": 0.5, "go": { "building": "WAREHOUSE" } },
+    { "key": "b_SILO", "title": "Grenier", "text": "Grenier au niveau {level}", "goal": { "type": "building", "building": "SILO" }, "levels": [1, 3, 5, 7, 10, 13, 16, 20], "rewardFactor": 0.5, "go": { "building": "SILO" } },
+    { "key": "b_RALLY_POINT", "title": "Place de rassemblement", "text": "Place de rassemblement au niveau {level}", "goal": { "type": "building", "building": "RALLY_POINT" }, "levels": [1, 3, 5, 10, 15], "rewardFactor": 0.5, "go": { "building": "RALLY_POINT" } },
+    { "key": "b_BARRACKS", "title": "Caserne", "text": "Caserne au niveau {level}", "goal": { "type": "building", "building": "BARRACKS" }, "levels": [1, 3, 5, 7, 10, 15, 20], "rewardFactor": 0.5, "go": { "building": "BARRACKS" } },
+    { "key": "b_ACADEMY", "title": "Académie", "text": "Académie au niveau {level}", "goal": { "type": "building", "building": "ACADEMY" }, "levels": [1, 3, 5, 10, 15, 20], "rewardFactor": 0.5, "go": { "building": "ACADEMY" } },
+    { "key": "b_WALL", "title": "Muraille", "text": "Mur au niveau {level}", "goal": { "type": "building", "building": "WALL" }, "levels": [1, 3, 5, 7, 10, 15, 20], "rewardFactor": 0.5, "go": { "building": "WALL" } },
+    { "key": "b_EMBASSY", "title": "Ambassade", "text": "Ambassade au niveau {level}", "goal": { "type": "building", "building": "EMBASSY" }, "levels": [1, 5, 7, 10, 15], "rewardFactor": 0.5, "go": { "building": "EMBASSY" } },
+    { "key": "b_MARKET", "title": "Marché", "text": "Marché au niveau {level}", "goal": { "type": "building", "building": "MARKET" }, "levels": [1, 5, 10, 15], "rewardFactor": 0.5, "go": { "building": "MARKET" } },
+    { "key": "b_HEALING_TENT", "title": "Tente de soins", "text": "Tente de soins au niveau {level}", "goal": { "type": "building", "building": "HEALING_TENT" }, "levels": [1, 5, 10], "rewardFactor": 0.5, "go": { "building": "HEALING_TENT" } },
+    { "key": "b_HERO_MANSION", "title": "Manoir du héros", "text": "Manoir du héros au niveau {level}", "goal": { "type": "building", "building": "HERO_MANSION" }, "levels": [1, 5, 10], "rewardFactor": 0.5, "go": { "building": "HERO_MANSION" } },
+    { "key": "population", "title": "Peuple", "text": "Atteindre {level} habitants", "goal": { "type": "population" }, "levels": [50, 100, 200, 500, 1000, 2000, 5000, 10000], "rewardPerLevel": 1.0, "go": { "tab": "city" } },
+    { "key": "units", "title": "Armée", "text": "Recruter {level} soldats au total", "goal": { "type": "counterTotal", "counter": "units_recruited" }, "levels": [10, 50, 200, 500, 2000, 5000], "rewardPerLevel": 3, "go": { "building": "BARRACKS", "recruit": true } },
+    { "key": "research", "title": "Savoir", "text": "{level} niveaux de technologie au total", "goal": { "type": "techLevels" }, "levels": [1, 5, 10, 20, 40], "rewardPerLevel": 80, "go": { "building": "ACADEMY" } },
+    { "key": "hero", "title": "Héros", "text": "Héros au niveau {level}", "goal": { "type": "heroLevel" }, "levels": [2, 5, 10, 15, 20], "rewardPerLevel": 100, "go": { "tab": "hero" } },
+    { "key": "cities", "title": "Empire", "text": "Posséder {level} villes", "goal": { "type": "cities" }, "levels": [2, 3, 5], "rewardPerLevel": 1500, "go": { "building": "RESIDENCE" } },
+    { "key": "alliance", "title": "Alliance", "text": "Rejoindre ou fonder une alliance", "goal": { "type": "alliance" }, "levels": [1], "rewardPerLevel": 500, "go": { "tab": "alliance" } }
+  ],
+
+  "daily": {
+    "pick": 4,
+    "hours": 0.5,
+    "min": 150,
+    "bonus": { "hours": 1, "min": 300 },
+    "pool": [
+      { "key": "d_build", "title": "Bâtisseur du jour", "text": "Terminer {value} constructions", "counter": "build_done", "value": 2 },
+      { "key": "d_recruit", "title": "Recruteur du jour", "text": "Recruter {value} soldats", "counter": "units_recruited", "value": 20, "needs": "barracks" },
+      { "key": "d_battle", "title": "Guerrier du jour", "text": "Gagner {value} combat", "reports": "WIN", "value": 1, "needs": "army" },
+      { "key": "d_tribe", "title": "Chasseur de tribus", "text": "Battre {value} tribu", "reports": "TRIBE", "value": 1, "needs": "army" },
+      { "key": "d_expedition", "title": "Explorateur du jour", "text": "Terminer {value} expédition", "counter": "expedition_done", "value": 1 },
+      { "key": "d_help", "title": "Entraide", "text": "Aider {value} fois votre alliance", "counter": "help_given", "value": 5, "needs": "alliance" },
+      { "key": "d_research", "title": "Érudit du jour", "text": "Terminer {value} recherche", "counter": "research_done", "value": 1, "needs": "academy" },
+      { "key": "d_harvest", "title": "Récolte du jour", "text": "Récolter {value} ressources sur les points", "counter": "harvested", "value": 1000, "needs": "army" },
+      { "key": "d_trade", "title": "Marchand du jour", "text": "Envoyer {value} convoi de ressources", "counter": "trade_sent", "value": 1, "needs": "market" }
+    ]
+  },
+
+  "weekly": {
+    "pick": 3,
+    "hours": 1.5,
+    "min": 500,
+    "bonus": { "hours": 2, "min": 1000 },
+    "pool": [
+      { "key": "w_build", "title": "Grands travaux", "text": "Terminer {value} constructions", "counter": "build_done", "value": 15 },
+      { "key": "w_recruit", "title": "Levée de troupes", "text": "Recruter {value} soldats", "counter": "units_recruited", "value": 200, "needs": "barracks" },
+      { "key": "w_battle", "title": "Campagne", "text": "Gagner {value} combats", "reports": "WIN", "value": 10, "needs": "army" },
+      { "key": "w_tribe", "title": "Pacification", "text": "Battre {value} tribus", "reports": "TRIBE", "value": 5, "needs": "army" },
+      { "key": "w_expedition", "title": "Grand voyage", "text": "Terminer {value} expéditions", "counter": "expedition_done", "value": 5 },
+      { "key": "w_help", "title": "Solidarité", "text": "Aider {value} fois votre alliance", "counter": "help_given", "value": 30, "needs": "alliance" },
+      { "key": "w_research", "title": "Bibliothèque", "text": "Terminer {value} recherches", "counter": "research_done", "value": 3, "needs": "academy" },
+      { "key": "w_harvest", "title": "Moisson", "text": "Récolter {value} ressources sur les points", "counter": "harvested", "value": 10000, "needs": "army" },
+      { "key": "w_trade", "title": "Route commerciale", "text": "Envoyer {value} convois de ressources", "counter": "trade_sent", "value": 5, "needs": "market" }
+    ]
+  },
+
+  "achievements": {
+    "hours": [1, 2, 4, 8, 12],
+    "min": 300,
+    "list": [
+      { "key": "a_attacks", "title": "Conquérant", "text": "{level} attaques gagnées", "stat": "attacksWon", "levels": [1, 10, 50, 200, 1000] },
+      { "key": "a_defenses", "title": "Rempart", "text": "{level} défenses gagnées", "stat": "defensesWon", "levels": [1, 10, 50, 200, 1000] },
+      { "key": "a_raids", "title": "Pillard", "text": "{level} raids réussis", "stat": "raidsWon", "levels": [1, 10, 50, 200] },
+      { "key": "a_kills", "title": "Fléau", "text": "{level} ennemis vaincus", "stat": "unitsKilled", "levels": [100, 1000, 10000, 100000] },
+      { "key": "a_builds", "title": "Architecte", "text": "{level} constructions terminées", "counter": "build_done", "levels": [10, 50, 200, 500, 1000] },
+      { "key": "a_help", "title": "Allié fidèle", "text": "{level} aides données à l'alliance", "counter": "help_given", "levels": [10, 100, 500, 2000] },
+      { "key": "a_expeditions", "title": "Grand explorateur", "text": "{level} expéditions terminées", "counter": "expedition_done", "levels": [5, 25, 100, 300] },
+      { "key": "a_harvest", "title": "Prospecteur", "text": "{level} ressources récoltées", "counter": "harvested", "levels": [10000, 100000, 1000000] }
+    ]
+  }
+}

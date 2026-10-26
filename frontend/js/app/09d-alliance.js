@@ -171,9 +171,8 @@ async function openAllianceSheet(allianceId) {
   const rel = mapRelationOf({ allianceId: a.id });
   const list = (arr) => arr.length ? arr.map(o => `<a href="#" onclick="event.preventDefault(); openAllianceSheet('${chatSafeId(o.id)}')">[${escapeHtml(o.tag)}] ${escapeHtml(o.name)}</a>`).join(', ') : '—';
   const role = { LEADER: 'Chef', OFFICER: 'Officier', MEMBER: 'Membre' };
-  document.getElementById('modal-body').innerHTML = `
+  openSheetModal(`[${a.tag}] ${a.name}`, `
     <div class="alliance-sheet">
-      <h2>${resIconHtml('alliance')} [${escapeHtml(a.tag)}] ${escapeHtml(a.name)}</h2>
       <p>${diploBadge(rel)} · ${a.members.length} membre${a.members.length > 1 ? "s" : ""}</p>
       ${a.description ? `<p class="diplo-help">${escapeHtml(a.description)}</p>` : ''}
       <p><strong>Alliés :</strong> ${list(a.allies || [])}</p>
@@ -184,8 +183,7 @@ async function openAllianceSheet(allianceId) {
           <div class="profile-city"><a href="#" onclick="event.preventDefault(); viewPlayerProfile('${chatSafeId(m.playerId)}')">${escapeHtml(m.player?.name || '?')}</a> · ${role[m.role] || ''} · ${formatNum(m.player?.population || 0)} hab.</div>`).join('')}
       </div>
       <div class="profile-actions"><button class="btn btn-secondary" onclick="closeModal()">Fermer</button></div>
-    </div>`;
-  document.getElementById('modal').style.display = 'flex';
+    </div>`);
 }
 
 // ============================================================
@@ -197,8 +195,7 @@ function openSupportPicker(cityId, cityName, sieged = false) {
   const ready = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && (a.units || []).some(u => u.count > 0));
   if (!ready.length) { showToast('Aucune armée disponible : composez une armée dans une de vos villes', 'error'); return; }
   const cityOf = (id) => (cities || []).find(c => c.id === id)?.name || '';
-  document.getElementById('modal-body').innerHTML = `
-    <h3>${resIconHtml('defense')} Renforcer ${escapeHtml(cityName)}</h3>
+  openSheetModal(`Renforcer ${cityName}`, `
     <p class="diplo-help">L'armée part défendre la ville et y reste jusqu'à ce que vous la rappeliez (ou que l'hôte la renvoie). Sa nourriture reste payée par sa ville d'origine. Pendant un siège, aucun renfort n'entre.</p>
     <div class="support-pick">
       ${ready.map(a => {
@@ -209,9 +206,8 @@ function openSupportPicker(cityId, cityName, sieged = false) {
     <div class="profile-actions">
       <button class="btn btn-primary" onclick="confirmSupport('${chatSafeId(cityId)}')">${resIconHtml('defense')} Envoyer en renfort</button>
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
-    </div>`;
+    </div>`);
   document.querySelector('input[name="support-army"]')?.setAttribute('checked', 'checked');
-  document.getElementById('modal').style.display = 'flex';
 }
 async function confirmSupport(cityId) {
   const armyId = document.querySelector('input[name="support-army"]:checked')?.value;
@@ -387,11 +383,9 @@ async function buyShopItem(key, type) {
     const mine = cities || [];
     if (mine.length > 1) {
       const pick = await new Promise((resolve) => {
-        document.getElementById('modal-body').innerHTML = `
-          <h3>Livrer dans quelle ville ?</h3>
+        openSheetModal('Livrer dans quelle ville ?', `
           <div class="support-pick">${mine.map(c => `<label class="support-option"><input type="radio" name="shop-city" value="${chatSafeId(c.id)}" ${c.id === currentCity?.id ? 'checked' : ''}> ${escapeHtml(c.name)}</label>`).join('')}</div>
-          <div class="profile-actions"><button class="btn btn-primary" id="shop-city-ok">Livrer</button><button class="btn btn-secondary" id="shop-city-cancel">Annuler</button></div>`;
-        document.getElementById('modal').style.display = 'flex';
+          <div class="profile-actions"><button class="btn btn-primary" id="shop-city-ok">Livrer</button><button class="btn btn-secondary" id="shop-city-cancel">Annuler</button></div>`);
         document.getElementById('shop-city-ok').onclick = () => { const v = document.querySelector('input[name="shop-city"]:checked')?.value; closeModal(); resolve(v || null); };
         document.getElementById('shop-city-cancel').onclick = () => { closeModal(); resolve(null); };
       });

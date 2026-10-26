@@ -163,6 +163,7 @@ async function help(helperId, requestId = null) {
     const r = await helpOne(helperId, allianceId, id);
     if (r.ok) { helped++; points += r.points; savedMs += r.savedMs; } else skipped.push(r.skip);
   }
+  if (helped) require('./questService').bumpLater(helperId, 'help_given', helped);   // quêtes
   if (requestId && !helped) throw httpError(409, `Aide impossible : demande ${skipped[0] || 'introuvable'}`);
   const total = (await prisma.player.findUnique({ where: { id: helperId }, select: { alliancePoints: true } }))?.alliancePoints || 0;
   return { helped, points, savedMs, alliancePoints: total, pointsCapReached: (await pointsToday(prisma, helperId)) >= config.alliance.helpPointsDailyCap };

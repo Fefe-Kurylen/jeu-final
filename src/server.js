@@ -139,6 +139,7 @@ app.use('/api/cities', cityRoutes);
 app.use('/api/army', armyRoutes);
 app.use('/api/armies', armyRoutes);
 app.use('/api/hero', heroRoutes);
+app.use('/api/quests', require('./routes/quests'));
 app.use('/api/alliance', require('./routes/allianceHelp'));   // /help…, /shop… (avant /api/alliance/:id)
 app.use('/api/alliances', allianceRoutes);
 app.use('/api/alliance', allianceRoutes);

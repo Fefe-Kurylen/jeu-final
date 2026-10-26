@@ -123,7 +123,8 @@ async function refreshData(force = false) {
       typeof refreshNotificationBadge === 'function' ? refreshNotificationBadge() : null,
       typeof refreshChatBadge === 'function' ? refreshChatBadge() : null
     ]);
-    if (typeof updateAllianceHelpBadge === 'function') updateAllianceHelpBadge();   // demandes d'aide d'alliance (player.allianceHelpPending)
+    if (typeof updateAllianceHelpBadge === 'function') updateAllianceHelpBadge();
+    if (typeof refreshQuestsLight === 'function') refreshQuestsLight();   // pastille des quêtes, bandeau du tutoriel   // demandes d'aide d'alliance (player.allianceHelpPending)
     // Une recherche en cours : suivre son avancement (niveau atteint, file promue)
     if (typeof research !== 'undefined' && research?.queue?.length && typeof loadResearch === 'function') loadResearch();
     

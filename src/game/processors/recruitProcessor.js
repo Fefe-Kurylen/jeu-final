@@ -35,6 +35,7 @@ async function processRecruits(now, { playerId = null } = {}) {
           create: { armyId: garrison.id, unitKey: r.unitKey, tier, count: r.count }
         });
       }, { timeout: 15000 });
+      if (r.unitKey !== 'SETTLER') require('../../services/questService').bumpLater(r.city.playerId, 'units_recruited', r.count);   // quêtes
       console.log(`[RECRUIT] ${r.count}x ${r.unitKey}`);
     } catch (e) {
       if (!e._skip) console.error(`[RECRUIT ERROR] ${r.id}:`, e.message);
