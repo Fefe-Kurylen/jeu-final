@@ -94,6 +94,7 @@ async function gameTick() {
     await step('sieges', () => processSieges());   // camps without engines or now allied go home
     await step('armies', () => processArmyMovements(now));
     await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
+    await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
     await step('harvest', () => processHarvesting(now));
 
     await step('flags', () => cleanupOrphanedFlags());

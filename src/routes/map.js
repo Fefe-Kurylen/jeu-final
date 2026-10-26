@@ -88,10 +88,10 @@ router.get('/map/viewport', auth, async (req, res) => {
 // La colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de son alliance, une valeur tirée de
 // l'armée pour les autres (l'effectif ne se lit qu'avec un espion).
 async function viewFor(me, shared) {
-  const { cityOwner, armies: all, resourceNodes = [], ...rest } = shared;
+  const { cityOwner, bastionAlliance = {}, armies: all, resourceNodes = [], ...rest } = shared;
   const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
   const friend = (playerId, allianceId) => playerId === me || (!!myAlliance && allianceId === myAlliance);
-  const concerns = (a) => { const o = cityOwner[a.targetCityId]; return !!o && friend(o.id, o.alliance); };
+  const concerns = (a) => { const o = cityOwner[a.targetCityId]; if (o && friend(o.id, o.alliance)) return true; return !!a.targetBastionId && !!myAlliance && bastionAlliance[a.targetBastionId] === myAlliance; };
   const armies = (all || []).filter(a => friend(a.ownerId, a.ownerAllianceId) || concerns(a)).map(({ realSquads, ownerAllianceId, ...a }) => ({
     ...a,
     ...(a.status === 'BESIEGING' && !friend(a.ownerId, ownerAllianceId) && !concerns(a) ? { arrivalAt: null } : {}),
@@ -125,7 +125,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
           ]
         },
-        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
+        select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, targetBastionId: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })
     ]);
     // Civilisation de l'armée qui assiège chaque ville (sa bannière est plantée devant la ville)
@@ -135,6 +135,11 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     const cityOwner = Object.fromEntries(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
     // villes visées hors de la zone affichée : il faut aussi savoir à qui elles sont (une armée qui marche sur ma ville se voit)
     const farTargets = [...new Set(movingArmies.map(a => a.targetCityId).filter(id => id && !cityOwner[id]))];
+    // Bastions d'alliance de la zone, et alliance de chaque Bastion visé (une armée qui marche sur le Bastion de mon alliance se voit)
+    const bastions = liteMode ? [] : await require('../services/bastionService').bastionsIn(centerX - r, centerX + r, centerY - r, centerY + r);
+    const bastionAlliance = Object.fromEntries(bastions.map(b => [b.id, b.allianceId]));
+    const farBastions = [...new Set(movingArmies.map(a => a.targetBastionId).filter(id => id && !bastionAlliance[id]))];
+    if (farBastions.length) for (const b of await prisma.bastion.findMany({ where: { id: { in: farBastions } }, select: { id: true, allianceId: true } })) bastionAlliance[b.id] = b.allianceId;
     if (farTargets.length) for (const c of await prisma.city.findMany({ where: { id: { in: farTargets } }, select: { id: true, playerId: true, player: { select: { alliance: { select: { allianceId: true } } } } } })) cityOwner[c.id] = { id: c.playerId, alliance: c.player?.alliance?.allianceId || null };
     const ownerAlliance = new Map(movingArmies.length ? (await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]) : []);
     // taille de la colonne dessinée sur la carte (1 à 3 groupes de soldats), comme on la voit de loin : pas l'effectif
@@ -158,7 +163,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     }
     const quantize = (amount, max) => (max > 0 ? Math.round(Math.round(amount / max * 4) / 4 * max) : amount);
     const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [] }));
-    return { cities: citiesWithTier, resourceNodes, armies, cityOwner, center: { x: centerX, y: centerY }, radius: r };
+    return { cities: citiesWithTier, resourceNodes, armies, cityOwner, bastions, bastionAlliance, center: { x: centerX, y: centerY }, radius: r };
 }
 
 // Catalogues de jeu (statiques, très cacheables)

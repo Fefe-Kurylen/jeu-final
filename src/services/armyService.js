@@ -91,7 +91,7 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
   // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate) and Market / Trade Office of the home city
   const cityBuildings = fresh.cityId ? await tx.cityBuilding.findMany({ where: { cityId: fresh.cityId }, select: { key: true, level: true } }) : [];
-  const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
+  const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance
   const room = Math.floor(getArmyCarryCapacity(fresh.units, unitsData, fresh.hero) * transportMult) - carrying;
   const field = CARRY_FIELD[node.resourceType];
   if (!field || room <= 0) return {};
@@ -119,10 +119,11 @@ async function applyLossRate(tx, units, rate) {
 async function sendArmyHomeTx(tx, army) {
   const city = army.city || (army.cityId ? await tx.city.findUnique({ where: { id: army.cityId } }) : null);
   const units = (army.units || []).filter(u => u.count > 0);
-  const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, claimedAt: null };   // also lifts a siege camp
+  const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, targetBastionId: null, claimedAt: null };   // also lifts a siege camp
   if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
   const route = await findRoute(army.x, army.y, city.x, city.y, army.owner?.faction).catch(() => null);
-  const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, techPct(army.owner?.technologies, 'armySpeedBonusPct'));
+  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId));   // + Bastion d'alliance
+  const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, speed);
   await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
 }
 

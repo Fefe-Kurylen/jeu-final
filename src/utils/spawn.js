@@ -29,6 +29,9 @@ async function footprintFree(x, y, { ignoreNodeId = null, ignoreCityId = null, d
   // another city's 2 × 2 block, or the ring of one free cell around it
   const near = await db.city.findFirst({ where: { x: { gte: x - 2, lte: x + 2 }, y: { gte: y - 2, lte: y + 2 }, ...(ignoreCityId ? { NOT: { id: ignoreCityId } } : {}) }, select: { id: true } });
   if (near) return false;
+  // un Bastion d'alliance occupe aussi un bloc 2 × 2 (décision du 26 octobre 2026)
+  const bastion = await db.bastion.findFirst({ where: { x: { gte: x - 2, lte: x + 2 }, y: { gte: y - 2, lte: y + 2 }, status: { not: 'DESTROYED' } }, select: { id: true } });
+  if (bastion) return false;
   // a colony being founded (24 h) holds its 2 × 2 block as if the city already stood there
   const founding = await db.army.findFirst({ where: { status: 'FOUNDING', targetX: { gte: x - 2, lte: x + 2 }, targetY: { gte: y - 2, lte: y + 2 }, ...(ignoreNodeId ? { NOT: { targetResourceId: ignoreNodeId } } : {}) }, select: { id: true } });
   if (founding) return false;

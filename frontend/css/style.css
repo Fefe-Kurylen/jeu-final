@@ -5228,3 +5228,23 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .report-card .spy-section h4 { margin: 0 0 4px; font-size: 13px; }
 .report-card .spy-resources { display: flex; flex-wrap: wrap; gap: 10px; }
 .report-card .spy-army { font-size: 13px; margin: 2px 0; }
+
+/* ---- Bastion d'alliance (09g-bastion.js) ---- */
+#alliance-bastion-box h4 { margin: 10px 0 6px; }
+#alliance-bastion-box h4 small { color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.bastion-bonuses { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; }
+.bastion-bonuses li { padding: 6px 10px; border-radius: 8px; background: rgba(0,0,0,.2); border: 1px solid rgba(201,162,39,.3); font-size: 13px; }
+.bastion-card { padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.22); border: 1px solid rgba(201,162,39,.4); margin-bottom: 12px; }
+.bastion-card.status-active { border-color: rgba(76,175,80,.6); }
+.bastion-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bastion-head .btn { margin-left: auto; }
+.bastion-res { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
+.bastion-res small { color: var(--text-muted); white-space: nowrap; }
+.bastion-bar { height: 8px; border-radius: 4px; background: rgba(0,0,0,.4); overflow: hidden; }
+.bastion-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8860b, #f6d678); }
+.bastion-sieged, .bastion-fallen { color: #e57373; font-weight: 700; }
+.bastion-place input { flex: 0 0 90px; width: 90px; }
+.bastion-garrison .member-row { flex-wrap: wrap; gap: 6px; }
+.bastion-load { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 10px; }
+.bastion-load input { width: 100%; }
+@media (max-width: 600px) { .bastion-res { grid-template-columns: 90px 1fr; } .bastion-res small { grid-column: 1 / -1; } }

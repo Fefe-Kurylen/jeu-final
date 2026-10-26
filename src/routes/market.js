@@ -72,7 +72,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const army = candidates.find(a => a.units.length > 0 && a.x === sourceCity.x && a.y === sourceCity.y);
       if (!army) return { error: 'Aucune armée disponible pour transporter (créez une armée au point de ralliement)', status: 400 };
       const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } });
-      const transportMultiplier = (1 + getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
+      const transportMultiplier = (1 + getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('../services/bastionService').carryMult(req.user.playerId));   // + Bastion d'alliance
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };

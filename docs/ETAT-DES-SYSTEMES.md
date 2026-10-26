@@ -139,9 +139,9 @@ d'un combat où le mur sert de bouclier.
 
 | Existe | Manque |
 |---|---|
-| Alliances sur invitation, rôles (chef, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Bastion d'alliance (GDD `bastion` : 30 membres, construction commune, bonus, garnison) |
+| Alliances sur invitation, rôles (chef, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Sortie de la garnison du Bastion contre le camp ennemi (briser le siège) |
 | Diplomatie à 3 statuts (décision du 26 octobre 2026, ci-dessous) | Pacte de non-agression et guerre avec effets : écartés (3 statuts gardés, GDD) |
-| Aide d'alliance, points d'alliance, boutique d'alliance, renfort allié, liste des membres détaillée | Classement d'alliance détaillé |
+| Aide d'alliance, points d'alliance, boutique d'alliance, renfort allié, liste des membres détaillée, Bastion d'alliance (ci-dessous) | Classement d'alliance détaillé |
 
 Décisions du 26 octobre 2026 (`src/routes/alliance.js`, `src/services/diplomacyService.js`, `allianceHelpService.js`,
 `allianceShopService.js`, `supportService.js`, client `frontend/js/app/09d-alliance.js`) :
@@ -177,6 +177,31 @@ Décisions du 26 octobre 2026 (`src/routes/alliance.js`, `src/services/diplomacy
   (onglet Armée → Renforts alliés reçus). Une rupture d'alliance, une déclaration de guerre, un départ ou une exclusion
   de l'alliance, ou la chute de la ville renvoient les renforts chez eux. En marche, un renfort croise les armées
   ennemies comme toute armée.
+
+## Bastion d'alliance (26 octobre 2026)
+
+Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bastion.js`, client
+`frontend/js/app/09g-bastion.js` et `frontend/js/map.js`, réglages `config.bastion`) :
+
+- **Déblocage** : un Bastion par alliance d'au moins **15 membres** (le GDD disait 30). Le chef ou un officier le place
+  sur 2 × 2 cases libres de la terre ferme, à **40 cases au plus** d'une ville de l'alliance (Alliance → Bastion, ou
+  « Placer le Bastion ici » sur une case vide de la carte). Les nouvelles villes ne s'installent pas collées à un Bastion.
+- **Chantier** : les membres y apportent les ressources **par convois** (armée chargée depuis sa ville, mission
+  « Ravitailler ») : **500 000 bois, pierre et fer, 250 000 nourriture** ; le surplus d'un convoi revient. Une fois tout
+  livré, **3 jours** de construction. Un chantier sans murs ne peut pas être attaqué.
+- **Bonus pour tous les membres** tant qu'il est debout : **+10 % de production** (ressources des villes et récolte des
+  points), **+5 % de vitesse** des armées (aller et retour), **+10 % de capacité de transport** (convois, commerce,
+  pillage, butin).
+- **Garnison** : les membres et les alliés y postent leurs armées (+10 % de défense) et les rappellent quand ils
+  veulent ; l'entretien reste payé par leur ville. **Aucune troupe n'entre pendant un siège.** Une garnison dont le
+  joueur n'est plus membre ni allié rentre seule.
+- **Siège et chute** (« comme une ville, en plus dur ») : il faut au moins un engin de siège ; toute l'alliance est
+  prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 50 fois plus solide
+  qu'un mur 20** ; chaque assaut gagné lui ôte **une vie sur 10**, les vies remontent en **72 h**. À la dernière, il est
+  **rasé** : plus de bonus, garnison renvoyée, **7 jours** avant d'en rebâtir un. Rapports de bataille pour chaque camp.
+- **Carte** : le Bastion se dessine comme une forteresse 2 × 2 (image peinte `map/cities/bastion`, chantier
+  `bastion_site`, en attendant la forteresse de la civilisation du chef), plaque « Bastion [TAG] » aux couleurs de la
+  diplomatie, barre de vies, marque de siège ; les armées qui marchent sur un Bastion de son alliance se voient.
 
 ## Messagerie (octobre 2026)
 

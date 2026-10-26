@@ -438,6 +438,7 @@ function showAllianceTab(subTab) {
   document.querySelectorAll('.alliance-sub-section').forEach(s => s.style.display = 'none');
   const section = document.getElementById(`alliance-sub-${subTab}`);
   if (section) section.style.display = 'block';
+  if (section && subTab === 'bastion' && typeof renderBastionSection === 'function') renderBastionSection(document.getElementById('alliance-bastion-box'));
 
   // If sections don't exist yet, load fresh
   if (!section) loadAlliance();

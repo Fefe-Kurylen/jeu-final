@@ -209,6 +209,7 @@ model Army {
   targetY          Int?
   targetCityId     String?
   targetResourceId String?
+  targetBastionId  String? // Bastion d'alliance visé (ravitaillement, garnison, siège)
   arrivalAt        DateTime?
   departedAt       DateTime? // start of the current move: the client animates the march between departedAt and arrivalAt
   claimedAt        DateTime? // set by the tick while an arrival is being resolved (never twice)
@@ -235,6 +236,7 @@ model Army {
   @@index([status, arrivalAt])
   @@index([targetCityId])
   @@index([targetResourceId])
+  @@index([targetBastionId])
 }
 
 model ArmyUnit {
@@ -409,6 +411,7 @@ model Alliance {
   allyRequestsSent     AllianceAllyRequest[] @relation("AllyRequestFrom")
   allyRequestsReceived AllianceAllyRequest[] @relation("AllyRequestTo")
   helpRequests         AllianceHelpRequest[]
+  bastion              Bastion?
 }
 
 model AllianceMember {
@@ -791,4 +794,32 @@ model Spy {
   @@unique([playerId, slot])
   @@index([status, arrivalAt])
   @@index([status, returnAt])
+}
+
+// Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : un par alliance d'au moins 15 membres,
+// placé par le chef ou un officier ; les membres y apportent les ressources par convois (FUNDING), puis 3 jours de
+// chantier (BUILDING), puis il donne ses bonus à tous les membres (ACTIVE). Il se défend comme une ville, en plus dur
+// (mur bouclier 50 fois un mur 20, 10 vies) ; rasé (DESTROYED), il ne se rebâtit que 7 jours plus tard.
+model Bastion {
+  id            String    @id @default(uuid())
+  allianceId    String    @unique
+  x             Int
+  y             Int
+  status        String    @default("FUNDING") // FUNDING, BUILDING, ACTIVE, DESTROYED
+  wood          Int       @default(0) // ressources déjà livrées
+  stone         Int       @default(0)
+  iron          Int       @default(0)
+  food          Int       @default(0)
+  buildEndsAt   DateTime?
+  structure     Float     @default(1) // vies restantes (1 = toutes), remontent avec le temps
+  structureAt   DateTime  @default(now()) // instant de la dernière valeur de structure
+  isSieged      Boolean   @default(false)
+  activatedAt   DateTime?
+  destroyedAt   DateTime?
+  cooldownUntil DateTime?
+  createdAt     DateTime  @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@index([x, y])
 }

@@ -414,7 +414,7 @@ await call('send SPY with an army -> 400', 'POST', '/api/armies/send', tA, { arm
   const def = sql(`SELECT data->'defenses'->>'watchtowerLevel' FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND data->>'mission'='DEFENSES' ORDER BY "createdAt" DESC LIMIT 1`);
   assert('spies: defenses report shows the Watchtower level', def === '15', def);
   // un point de ressource : stock exact, affiché sur la carte pendant 1 h
-  const node = sql(`SELECT id||','||x||','||y FROM "ResourceNode" WHERE "cityId" IS NULL ORDER BY abs(x-${cityA.x})+abs(y-${cityA.y}) LIMIT 1`).split(',');
+  const node = sql(`SELECT id||','||x||','||y FROM "ResourceNode" WHERE "cityId" IS NULL ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 1`).split(',');
   await runSpy('node', { fromCityId: cityA.id, targetNodeId: node[0] }, () => Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND "targetType"='NODE'`)) >= 1);
   const vp = await call('spies: map after spying the node', 'GET', `/api/map/viewport?x=${node[1]}&y=${node[2]}&radius=5`, tA);
   const exact = Number(sql(`SELECT amount FROM "ResourceNode" WHERE id='${node[0]}'`));
@@ -1170,6 +1170,84 @@ if (MAIL_LOG) {
   await sleep(31000);
   assert('two armies that have just fought do not fight again while the loser leaves', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='ENCOUNTER' AND x=${tx} AND y=${ty}`)) === 2);
   sql(`DELETE FROM "Army" WHERE id IN ('${stand}','${marcher}')`);
+}
+
+// ---------- BASTION D'ALLIANCE (décision du 26 octobre 2026) ----------
+// A mène l'alliance alX, B l'alliance alY, ennemies (section précédente) : chantier, convois, achèvement, garnison, siège, chute
+{
+  const alX = sql(`SELECT "allianceId" FROM "AllianceMember" WHERE "playerId"='${A.player.id}'`);
+  const raw = async (method, p, token, body) => { const r = await fetch(BASE + p, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, json: await r.json().catch(() => null) }; };
+  const b0 = await call('bastion: A sees the rules', 'GET', '/api/bastion', tA);
+  assert('bastion: none yet, the leader may place it, 15 members needed', b0?.inAlliance && b0.canPlace && !b0.bastion && b0.minMembers === 15, JSON.stringify(b0).slice(0, 160));
+  await call('bastion: place with 1 member -> 400', 'POST', '/api/bastion/place', tA, { x: cityA.x + 6, y: cityA.y + 6 }, 400);
+  // 14 membres de plus (comptes de test sans ville)
+  sql(`WITH acc AS (INSERT INTO "Account"(id,email,"passwordHash") SELECT gen_random_uuid(), 'bast'||g||'_${uid}@t.fr', 'x' FROM generate_series(1,14) g RETURNING id, email), pl AS (INSERT INTO "Player"(id,"accountId",name,faction) SELECT gen_random_uuid(), acc.id, 'Bast'||split_part(split_part(acc.email,'_',1),'t',2)||'_${uid}', 'ROME' FROM acc RETURNING id) INSERT INTO "AllianceMember"(id,"allianceId","playerId",role) SELECT gen_random_uuid(),'${alX}',pl.id,'MEMBER' FROM pl`);
+  await call('bastion: too far from the alliance -> 400', 'POST', '/api/bastion/place', tA, { x: cityA.x + 45, y: cityA.y }, 400);
+  let spot = null;
+  for (let r = 5; r <= 25 && !spot; r++) for (const [dx, dy] of [[r, 0], [0, r], [-r, 0], [0, -r], [r, r], [-r, -r], [r, -r], [-r, r]]) {
+    const res = await raw('POST', '/api/bastion/place', tA, { x: cityA.x + dx, y: cityA.y + dy });
+    if (res.status === 200) { spot = { x: cityA.x + dx, y: cityA.y + dy }; break; }
+  }
+  assert('bastion: placed on a free 2 × 2 spot near the alliance', !!spot);
+  const bId = sql(`SELECT id FROM "Bastion" WHERE "allianceId"='${alX}'`);
+  await call('bastion: a second one -> 400', 'POST', '/api/bastion/place', tA, { x: spot?.x, y: (spot?.y || 0) + 8 }, 400);
+  const bB = await call('bastion: B sees its own alliance has none', 'GET', '/api/bastion', tB);
+  assert('bastion: B has no Bastion', bB?.inAlliance && !bB.bastion);
+  // armées de test : convoi et garnison pour A, armée de siège pour B
+  const mk = (owner, home, name, units) => {
+    const id = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,status) SELECT gen_random_uuid(),'${owner}','${home}','${name}',x,y,'IDLE' FROM "City" WHERE id='${home}' RETURNING id`).split('\n')[0];
+    for (const [k, t, c] of units) sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${id}','${k}','${t}',${c})`);
+    return id;
+  };
+  const conv = mk(A.player.id, cityA.id, 'Convoi', [['ROM_INF_MILICIEN', 'base', 100]]);
+  const gar = mk(A.player.id, cityA.id, 'Praesidium', [['ROM_INF_MILICIEN', 'base', 10]]);
+  const siege = mk(B.player.id, cityB.id, 'Horde', [['HUN_SIEGE_SAPEUR', 'siege', 20000], ['HUN_CAV_ELITE', 'elite', 50000]]);
+  await call('bastion: no siege of a site without walls -> 400', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'ATTACK' }, 400);
+  await call('bastion: no garrison before it is built -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'GARRISON' }, 400);
+  await call('bastion: an enemy cannot supply it -> 403', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'SUPPLY', resources: { wood: 10 } }, 403);
+  // convoi : il ne manque que 1 000 bois ; l'armée en porte 1 500, le reste revient
+  sql(`UPDATE "Bastion" SET wood=499000, stone=500000, iron=500000, food=250000 WHERE id='${bId}'`);
+  richCity(cityA.id);
+  await call('bastion: convoy over capacity -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'SUPPLY', resources: { wood: 40000 } }, 400);
+  await call('bastion: A sends a convoy', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'SUPPLY', resources: { wood: 1500 } });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${conv}'`);
+  await waitTick('bastion fully supplied', () => sql(`SELECT status FROM "Bastion" WHERE id='${bId}'`) === 'BUILDING');
+  assert('bastion: 3 days of building, the surplus goes home', sql(`SELECT round(extract(epoch FROM "buildEndsAt"-now())/86400)::int FROM "Bastion" WHERE id='${bId}'`) === '3' && sql(`SELECT status||':'||"carryWood" FROM "Army" WHERE id='${conv}'`) === 'RETURNING:500', sql(`SELECT status||':'||"carryWood" FROM "Army" WHERE id='${conv}'`));
+  sql(`UPDATE "Bastion" SET "buildEndsAt"=now()-interval '1 second' WHERE id='${bId}'`);
+  await waitTick('bastion built', () => sql(`SELECT status FROM "Bastion" WHERE id='${bId}'`) === 'ACTIVE');
+  const vp = await call('bastion: on the map', 'GET', `/api/map/viewport?x=${spot?.x}&y=${spot?.y}&radius=8`, tB);
+  assert('bastion: the map shows it with its alliance', (vp?.bastions || []).some(b => b.id === bId && b.status === 'ACTIVE' && b.allianceId === alX && b.structurePct === 100));
+  // garnison de A ; B ne peut pas y entrer
+  await call('bastion: B cannot garrison an enemy Bastion -> 403', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'GARRISON' }, 403);
+  await call('bastion: A cannot attack its own -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'ATTACK' }, 400);
+  await call('bastion: A garrisons it', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'GARRISON' });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${gar}'`);
+  await waitTick('garrison stationed', () => sql(`SELECT status FROM "Army" WHERE id='${gar}'`) === 'STATIONED');
+  const bA = await call('bastion: A sees the garrison', 'GET', '/api/bastion', tA);
+  assert('bastion: the garrison is listed', (bA?.bastion?.garrison || []).some(g => g.id === gar && g.status === 'STATIONED'));
+  // siège : camp d'1 h, puis assaut ; la garnison est battue, le Bastion perd une vie sur 10
+  await call('bastion: B marches on it', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'ATTACK' });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${siege}'`);
+  await waitTick('siege camp', () => sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'BESIEGING');
+  assert('bastion: besieged, the camp lasts 1 h', sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true' && sql(`SELECT round(extract(epoch FROM "arrivalAt"-now())/60)::int FROM "Army" WHERE id='${siege}'`) === '60');
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "missionType"=NULL, "targetBastionId"=NULL WHERE id='${conv}'`);
+  await call('bastion: no garrison enters during a siege -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'GARRISON' }, 400);
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${siege}'`);
+  await waitTick('first assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) >= 2);
+  const lives1 = sql(`SELECT loot->'lives'->>'after' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
+  assert('bastion: assault won, 9 lives left of 10, a report for each side', lives1 === '9' && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'bastionId'='${bId}'`)) === 1, lives1);
+  assert('bastion: the attacker goes home and the siege is lifted', sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'RETURNING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false');
+  // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un
+  sql(`UPDATE "Bastion" SET structure=0.1, "structureAt"=now(), "isSieged"=true WHERE id='${bId}'`);
+  sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()-interval '1 second', "claimedAt"=NULL WHERE id='${siege}'`);
+  await waitTick('bastion razed', () => sql(`SELECT status FROM "Bastion" WHERE id='${bId}'`) === 'DESTROYED');
+  assert('bastion: razed with a 7-day cooldown', sql(`SELECT round(extract(epoch FROM "cooldownUntil"-now())/86400)::int FROM "Bastion" WHERE id='${bId}'`) === '7');
+  await call('bastion: rebuild during the cooldown -> 400', 'POST', '/api/bastion/place', tA, { x: spot?.x, y: spot?.y }, 400);
+  const vp2 = await call('bastion: map after the fall', 'GET', `/api/map/viewport?x=${spot?.x}&y=${spot?.y}&radius=8`, tB);
+  assert('bastion: a razed Bastion leaves the map', !(vp2?.bastions || []).some(b => b.id === bId));
+  sql(`DELETE FROM "Army" WHERE id IN ('${conv}','${gar}','${siege}')`);
+  sql(`DELETE FROM "Bastion" WHERE id='${bId}'`);
+  sql(`DELETE FROM "Account" WHERE email LIKE 'bast%_${uid}@t.fr'`);
 }
 
 // ---------- WRAP UP ----------

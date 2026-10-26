@@ -50,7 +50,14 @@ async function processArmyMovements(now) {
       const claimed = await prisma.army.updateMany({ where: { id: army.id, status: army.status, arrivalAt: army.arrivalAt, claimedAt: null }, data: { x: army.targetX, y: army.targetY, claimedAt: now } });
       if (claimed.count !== 1) continue;
 
-      if (army.status === 'BESIEGING') {
+      if (army.missionType && army.missionType.startsWith('BASTION_')) {
+        // Bastion d'alliance (services/bastionService.js) : ravitaillement, garnison, siège
+        const BS = require('../../services/bastionService');
+        if (army.missionType === 'BASTION_SUPPLY') await BS.handleSupplyArrival(army, sendArmyHome);
+        else if (army.missionType === 'BASTION_GARRISON') await BS.handleGarrisonArrival(army, sendArmyHome);
+        else if (army.status === 'BESIEGING') await BS.handleBastionBattle(army, now, sendArmyHome);
+        else await BS.handleAttackArrival(army, sendArmyHome);
+      } else if (army.status === 'BESIEGING') {
         await handleAttack(army, now);   // the camp hour is over: battle
       } else if (army.status === 'FOUNDING') {
         await handleFoundComplete(army, now);
@@ -88,7 +95,7 @@ async function processArmyMovements(now) {
 }
 
 async function setArmyIdle(armyId, extraData = {}) {
-  await prisma.army.update({ where: { id: armyId }, data: { status: 'IDLE', targetX: null, targetY: null, targetCityId: null, arrivalAt: null, claimedAt: null, missionType: null, ...extraData } });
+  await prisma.army.update({ where: { id: armyId }, data: { status: 'IDLE', targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, claimedAt: null, missionType: null, ...extraData } });
 }
 
 // Sends the army back to its city at the speed of its surviving units (owner faction and hero bonuses applied).
@@ -108,10 +115,11 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   const faction = army.owner?.faction;
   const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y, army.owner?.faction).catch(() => null);
   const distance = route ? route.length : null;
+  const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId));   // + Bastion d'alliance
   const travelTime = fixedSpeed
-    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'))
-    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'));
-  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
+    ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, speedPct)
+    : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, speedPct);
+  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, targetBastionId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
 // Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not
@@ -587,7 +595,7 @@ async function handleRaid(army, now) {
     // GDD: the loot is at most 30% of what the SURVIVING raiders can carry, split by what the city
     // still has after the hideout; the stock is taken atomically at resolution time
     if (result.attackerWon) {
-      const transportMultiplier = 1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100;
+      const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * require('../../services/bastionService').carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
       const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier;
       const budget = carry * config.combat.raidLootPctOfCarry;
       const hideout = targetCity.buildings.find(b => b.key === 'HIDEOUT');

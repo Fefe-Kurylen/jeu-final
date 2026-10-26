@@ -583,6 +583,7 @@ async function loadMap() {
   const radius = Math.min(60, Math.ceil(viewSize / 2));   // the server answers in full detail up to 60; beyond, cities only
 
   if (typeof loadAllianceRelations === 'function') loadAllianceRelations();   // couleurs de la diplomatie (au plus une fois par minute)
+  if (typeof loadBastion === 'function') loadBastion();   // bouton « Placer le Bastion ici » (09g-bastion.js)
   try {
     const res = await fetch(
       `${API}/api/map/viewport?x=${Math.floor(mapOffsetX)}&y=${Math.floor(mapOffsetY)}&radius=${radius}`,
@@ -622,6 +623,13 @@ async function loadMap() {
           });
         });
       }
+
+      // Bastions d'alliance (bloc 2 × 2 comme une ville, services/bastionService.js)
+      (data.bastions || []).forEach(b => mapData.push({
+        x: b.x, y: b.y, type: 'BASTION', id: b.id, name: `Bastion [${b.allianceTag}]`, allianceId: b.allianceId, allianceTag: b.allianceTag,
+        allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100,
+        isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true
+      }));
 
       // Add resource nodes with tribe defenders info
       if (data.resourceNodes) {
@@ -802,8 +810,8 @@ function renderMapCore() {
     const marching = obj.type === 'ARMY' && MOVING_STATUSES[obj.status] && obj.departedAt && obj.arrivalAt && obj.targetX !== null && obj.targetX !== undefined;
     const cur = marching ? armyCurrentPosition(obj) : null;
     if (obj.type === 'ARMY') { obj.drawX = cur ? cur.x : obj.x; obj.drawY = cur ? cur.y : obj.y; }   // le clic la trouve là où elle est dessinée
-    const pos = obj.type === 'CITY' ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
-    const m = obj.type === 'CITY' ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
+    const pos = isMapBlock(obj) ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
+    const m = isMapBlock(obj) ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
     if (pos.x >= -m && pos.x <= w + m && pos.y >= -m && pos.y <= h + m) {
       objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y, ...(cur ? { walkDir: cur.dir, walkVec: cur.vec } : {}) });
     }
@@ -836,6 +844,8 @@ function renderMapCore() {
   objectsOrder.forEach(obj => {
     if (obj.type === 'CITY') {
       drawIsoCity(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);   // 2 × 2 cases
+    } else if (obj.type === 'BASTION') {
+      drawIsoBastion(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);
     } else if (obj.type === 'RESOURCE') {
       drawIsoResource(obj.screenX, obj.screenY, tileW, tileH, obj);
     } else if (obj.type === 'ARMY') {
@@ -849,7 +859,7 @@ function renderMapCore() {
 
   // Draw hover highlight
   const highlight = (t, color, lw) => {
-    const city = mapData.find(o => o.type === 'CITY' && t.x >= o.x && t.x <= o.x + 1 && t.y >= o.y && t.y <= o.y + 1);
+    const city = mapData.find(o => isMapBlock(o) && t.x >= o.x && t.x <= o.x + 1 && t.y >= o.y && t.y <= o.y + 1);
     const pos = city ? worldToScreen(city.x + 0.5, city.y + 0.5) : worldToScreen(t.x, t.y);
     drawIsoHighlight(pos.x, pos.y, city ? tileW * 2 : tileW, city ? tileH * 2 : tileH, color, lw);
   };
@@ -863,13 +873,14 @@ function renderMapCore() {
 const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
 // Rivières (décision du 25 octobre 2026) : l'eau fait partie du sol ; ponts et gués sont des éléments posés (map-world.js)
 const RIVER_FEATURES = { river: 1, bridge: 1, ford: 1 };
+const isMapBlock = (o) => o && (o.type === 'CITY' || o.type === 'BASTION');   // objets de 2 × 2 cases (ville, Bastion)
 let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
 function rebuildMapObjectCells() {
   terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
   mapObjectCells = new Map();
   // a city covers 2 × 2 cells (Terrain.cityCells)
   const markCity = (c) => { for (const [x, y] of Terrain.cityCells(c.x, c.y)) mapObjectCells.set(x + ',' + y, 'CITY'); };
-  for (const o of mapData) if (o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type); else if (o.type === 'CITY') markCity(o);
+  for (const o of mapData) if (o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type); else if (isMapBlock(o)) markCity(o);
   for (const c of cities) markCity(c);
   rebuildMapCityRings();   // map-world.js : champs et chemins autour des villes
 }
@@ -1514,6 +1525,42 @@ function drawIsoCity(x, y, tw, th, tile) {
     mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
   }
+}
+
+// Bastion d'alliance : image peinte map/cities/bastion (chantier : bastion_site) quand elle est livrée, sinon la forteresse
+// de la civilisation du chef d'alliance ; chantier en transparence ; plaque « Bastion [TAG] » aux couleurs de la diplomatie
+function drawIsoBastion(x, y, tw, th, tile) {
+  const site = tile.status !== 'ACTIVE';
+  const img = site ? (tileImages.cities.bastion_site ? 'bastion_site' : null) : (tileImages.cities.bastion ? 'bastion' : null);
+  const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : 'NEUTRAL';
+  const halo = { SAME_ALLIANCE: 'rgba(90,200,130,0.38)', ALLY: 'rgba(79,179,232,0.34)', ENEMY: 'rgba(217,68,58,0.32)' }[rel] || 'rgba(201,162,39,0.25)';
+  mapCtx.fillStyle = halo;
+  mapCtx.beginPath(); mapCtx.ellipse(x, y, tw * 0.58, th * 0.58, 0, 0, Math.PI * 2); mapCtx.fill();
+  if (img) {
+    if (tileImagePainted.has('cities/' + img)) drawWorldCityImage(tileImages.cities[img], x, y, tw);
+    else { const s = Math.max(tw * 1.5, th * 3) * 1.2; drawTileImage(mapCtx, 'cities', img, x, y, s, s); }
+  } else {
+    mapCtx.save();
+    if (site) mapCtx.globalAlpha = 0.5;   // chantier : la forteresse à moitié visible en attendant l'image peinte
+    drawIsoCity(x, y, tw, th, { ...tile, playerId: null, name: null, population: 0, isSieged: false });
+    mapCtx.restore();
+  }
+  const size = Math.min(tw, th * 2) * 0.8;
+  if (tile.isSieged) drawSiegeMarker(x, y, size);
+  if (tile.structurePct < 100) drawDamagedCitySmoke(x, y, size, 100 - tile.structurePct, tile.id);
+  const plates = () => {
+    if (mapZoomLevel <= 0.4) return;
+    const border = typeof DIPLO_STYLE !== 'undefined' && DIPLO_STYLE[rel] ? DIPLO_STYLE[rel].color : '#6a4a2a';
+    const px = Math.max(9, 10.5 * mapZoomLevel);
+    drawMapNamePlate(x, y + size * 0.35, tile.name + (site ? ' · chantier' : ''), px, border, true, 'gold');
+    if (!site && mapZoomLevel > 0.7) {   // vies restantes du Bastion
+      const w = size * 0.8, bx = x - w / 2, by = y + size * 0.35 + px * 1.7;
+      mapCtx.fillStyle = 'rgba(30,20,10,0.75)'; mapCtx.fillRect(bx, by, w, 4);
+      mapCtx.fillStyle = tile.structurePct > 50 ? '#4caf50' : tile.structurePct > 20 ? '#e0a030' : '#d9443a';
+      mapCtx.fillRect(bx, by, w * tile.structurePct / 100, 4);
+    }
+  };
+  if (mapLabelQueue) mapLabelQueue.push(plates); else plates();
 }
 
 // Draw city walls with 3 visual tiers
@@ -2415,6 +2462,9 @@ function renderMinimap() {
     if (tile.type === 'CITY') {
       minimapCtx.fillStyle = tile.playerId === player?.id ? '#ffd700' : '#c44';
       minimapCtx.fillRect(x - 2, y - 2, 4, 4);
+    } else if (tile.type === 'BASTION') {
+      minimapCtx.fillStyle = '#c9a227'; minimapCtx.strokeStyle = '#2e2010'; minimapCtx.lineWidth = 1;
+      minimapCtx.fillRect(x - 3, y - 3, 6, 6); minimapCtx.strokeRect(x - 3, y - 3, 6, 6);
     } else if (tile.type === 'RESOURCE') {
       minimapCtx.fillStyle = '#4a8';
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
@@ -2600,7 +2650,7 @@ function pickMapTile(mouseX, mouseY) {
   const dy = mouseY - mapViewH / 2;
   const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
-  const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1)
+  const entityAt = (x, y) => mapData.find(t => isMapBlock(t) ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1)
     : t.type === 'ARMY' ? (Math.round(t.drawX ?? t.x) === x && Math.round(t.drawY ?? t.y) === y)   // une armée : là où elle est dessinée
     : (t.x === x && t.y === y && t.type === 'RESOURCE'))   // a city: any of its 2 × 2 cells
     || ((typeof armies !== 'undefined' ? armies : []).filter(a => !a.isGarrison && MOVING_STATUSES[a.status] && Math.round(a.drawX ?? a.x) === x && Math.round(a.drawY ?? a.y) === y)
@@ -2612,10 +2662,10 @@ function pickMapTile(mouseX, mouseY) {
     const cands = [];
     for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
       const t = entityAt(tileX + ox, tileY + oy);
-      if (t && t.type !== 'CITY') cands.push({ t, y: window.mapWorldToScreen(t.drawX ?? t.x, t.drawY ?? t.y).y });
+      if (t && !isMapBlock(t)) cands.push({ t, y: window.mapWorldToScreen(t.drawX ?? t.x, t.drawY ?? t.y).y });
     }
     for (const t of mapData) {
-      if (t.type !== 'CITY') continue;
+      if (!isMapBlock(t)) continue;
       const p = window.mapWorldToScreen(t.x + 0.5, t.y + 0.5), box = cityHitBox(t, tileW);
       if (Math.abs(mouseX - p.x) <= box.half && mouseY <= p.y + tileH && mouseY >= p.y - box.top) cands.push({ t, y: p.y });
     }
@@ -2824,6 +2874,7 @@ function showMapInfoPanel(x, y, tile) {
       <h3>Terrain vide</h3>
       <p>Position: (${x}, ${y})</p>
       <p style="color:#888">Aucun objet à cet emplacement</p>
+      ${typeof bastionPlaceButton === 'function' && bastionPlaceButton(x, y) ? `<div class="panel-actions">${bastionPlaceButton(x, y)}</div>` : ''}
     `;
     panel.style.display = 'flex';
   } else if (tile.type === 'CITY') {
@@ -2848,6 +2899,9 @@ function showMapInfoPanel(x, y, tile) {
       showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content);
       return; // async
     }
+  } else if (tile.type === 'BASTION') {
+    if (typeof renderBastionMapPanel === 'function') renderBastionMapPanel(tile, content);   // 09g-bastion.js
+    panel.style.display = 'flex';
   } else if (tile.type === 'ARMY') {
     const mine = tile.ownerId === player?.id;
     const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';

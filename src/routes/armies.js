@@ -9,7 +9,9 @@ const { unitsData, factionsData } = require('../config/gamedata');
 const { validateCoordinates, cleanText, isAmount } = require('../utils/validation');
 const { calculateTravelTime, calculateArmyPower, getCityTier, getCityTierName, getMinSiegeEngines, mainHallLevelOf, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
 const T = require('../utils/techEffects');
-const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct');   // Cartographie
+const bastionBonus = () => require('../services/bastionService');
+// Cartographie (technologie) + Bastion d'alliance actif (+5 %, décision du 26 octobre 2026)
+const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct') + bastionBonus().speedPctSync(army?.owner?.alliance?.allianceId);
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation } = require('../services/diplomacyService');
 const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
@@ -601,7 +603,7 @@ router.post('/:id/return', auth, async (req, res) => {
         // inside, with its load, and never has to fight its way through a camp it did not cross
         if (isHome(army, army.city) && fromX === army.city.x && fromY === army.city.y) {
           await depositCarryTx(tx, army.id, army.city.id);
-          await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
+          await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
           return { message: 'Armée rentrée en ville', travelTime: 0 };
         }
       } else if (army.status === 'IDLE' && isHome(army, army.city)) {
@@ -616,11 +618,12 @@ router.post('/:id/return', auth, async (req, res) => {
       const travelTime = getArmyTravelTime(army.units, fromX, fromY, army.city.x, army.city.y, army.owner.faction, army.hero, await routeLength(fromX, fromY, army.city.x, army.city.y, army.owner.faction).catch(() => null), speedTechPct(army));
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       await tx.army.update({ where: { id: army.id }, data: {
-        status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null,
+        status: 'RETURNING', x: Math.round(fromX), y: Math.round(fromY), targetX: army.city.x, targetY: army.city.y, targetCityId: null, targetBastionId: null,
         arrivalAt, departedAt: new Date(), missionType: 'RETURN', targetResourceId: null, harvestResourceType: null
       } });
       // a camp that leaves: the siege is lifted at once when no other army camps before the city
       if (army.status === 'BESIEGING' && army.targetCityId && army.targetCityId === campCityId) await refreshSiegeFlag(tx, army.targetCityId);
+      if (army.status === 'BESIEGING' && army.targetBastionId) await bastionBonus().refreshSieged(tx, army.targetBastionId);   // camp devant un Bastion
       const leftSupport = (army.status === 'STATIONED' || army.status === 'SUPPORTING') && army.targetCityId ? await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, playerId: true } }) : null;
       return { message: 'Retour en cours', travelTime, arrivalAt, leftSupport, armyName: army.name, ownerName: army.owner?.name };
     });
@@ -654,7 +657,7 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
       if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
       const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: army.city.id }, select: { key: true, level: true } });
-      const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100);
+      const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * bastionBonus().carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };

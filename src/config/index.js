@@ -44,6 +44,22 @@ const config = {
     alertLevels: { seen: 5, when: 10, who: 15 }
   },
 
+  // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
+  // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
+  // plus dur (mur bouclier 50 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
+  bastion: {
+    minMembers: 15,
+    cost: { wood: 500000, stone: 500000, iron: 500000, food: 250000 },
+    buildDays: 3,
+    cooldownDays: 7,
+    wallMultiplier: 50,
+    wallReferenceLevel: 20,
+    assaults: 10,
+    regenHours: 72,
+    maxDistanceFromMember: 40,
+    bonuses: { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 }
+  },
+
   // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
   purchases: {
     revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || '',

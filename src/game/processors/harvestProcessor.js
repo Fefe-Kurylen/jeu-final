@@ -46,11 +46,13 @@ async function processHarvesting(now) {
   //    The node rows are locked for the statement so a concurrent fight or claim waits.
   const harvested = await prisma.$queryRaw`
     WITH cap AS (
-      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0))::int AS capacity
+      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0) * (CASE WHEN MAX(bst.id) IS NOT NULL THEN ${1 + config.bastion.bonuses.carryPct / 100}::float ELSE 1.0 END))::int AS capacity
       FROM "Army" a
       LEFT JOIN "ArmyUnit" au ON au."armyId" = a.id
       LEFT JOIN (VALUES ${getCarryTableSql()}) AS ut(key, carry) ON ut.key = au."unitKey"
       LEFT JOIN "Player" pl ON pl.id = a."ownerId"
+      LEFT JOIN "AllianceMember" am ON am."playerId" = a."ownerId"
+      LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de transport
       LEFT JOIN (VALUES ${factionTransportSql()}) AS fb(faction, pct) ON fb.faction = pl.faction
       LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql()}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST'

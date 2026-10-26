@@ -65,10 +65,15 @@ async function loadAlliance() {
             <div id="alliance-sub-diplomacy" class="alliance-sub-section" style="display:${showSub('diplomacy')}">
               ${renderAllianceDiplomacy(myAlliance, otherAlliances, diplomacyData)}
             </div>
+
+            <div id="alliance-sub-bastion" class="alliance-sub-section" style="display:${showSub('bastion')}">
+              <div class="alliance-section" id="alliance-bastion-box"><p class="empty-state">Chargement…</p></div>
+            </div>
           </div>
         `;
       if (typeof loadAllianceHelp === 'function') loadAllianceHelp();
       if (typeof loadAllianceShop === 'function') loadAllianceShop();
+      if (typeof renderBastionSection === 'function') renderBastionSection(document.getElementById('alliance-bastion-box'));
       return;
     }
 
