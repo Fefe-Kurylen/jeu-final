@@ -4,6 +4,9 @@
 //     -> docs/PROMPTS-CARTE.md   : chaque image (nom, taille, rôle, image guide, prompt complet prêt à coller), par ordre de priorité
 //     -> docs/prompts-carte.csv  : la même liste en tableau (Excel, Numbers, Sheets)
 //     -> docs/img/guides-carte/  : les 3 images guides de cadrage (élément d'une case, ville 2 × 2, armée)
+//   node tools/repaint/map-kit.cjs --kit=<dossier>
+//     -> en plus, un kit à emporter : un dossier par partie, un prompt par image (<nom à plat>.txt, le PNG livré se range à
+//        côté sous le même nom), la référence de style, les guides, la liste et le tableau, un LISEZMOI
 // Les prompts viennent de tools/repaint/prompts.cjs (qui délègue à map-world.cjs) ; le registre des images de
 // tools/repaint/targets.cjs. Ne pas éditer les fichiers produits à la main : relancer ce script.
 // ============================================================================
@@ -142,10 +145,12 @@ ${groups.map((g, i) => `| ${i + 1} | [${g.title}](#partie-${i + 1}) | ${g.items.
   groups.forEach((g, i) => {
     md += `<a id="partie-${i + 1}"></a>\n\n## ${i + 1}. ${g.title}\n\n${g.intro ? g.intro + '\n\n' : ''}`;
     for (const t of g.items) {
+      g.entries = g.entries || [];
       if (t.sheet) {
         const prompt = P.walkSheetPrompt(t.sheet) || t.role;
         md += `### \`${t.sheet}.png\`\n\n${t.role}  \n**Taille** : 1536x1024, ${t.frames} poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n`;
         csv.push([g.title, t.sheet + '.png', '1536x1024', 'guide-armee.png', t.role, prompt].map(esc).join(';'));
+        g.entries.push({ name: t.sheet + '.png', size: '1536x1024 (6 poses en 3 × 2)', guide: 'guide-armee.png', role: t.role, prompt });
         continue;
       }
       const prompt = P.promptFor(t.file) || t.role;
@@ -153,13 +158,59 @@ ${groups.map((g, i) => `| ${i + 1} | [${g.title}](#partie-${i + 1}) | ${g.items.
       const size = T.deliverySize(t);
       md += `### \`${png(t.file)}\`\n\n${t.role}  \n**Taille** : ${size}${t.opaque ? ' (opaque)' : ' (fond transparent)'} · **Guide** : ${guide ? `[${guide}](img/guides-carte/${guide})` : 'aucun'}\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n`;
       csv.push([g.title, png(t.file), size, guide || '', t.role, prompt].map(esc).join(';'));
+      g.entries.push({ name: png(t.file), size: size + (t.opaque ? ', opaque' : ', fond transparent'), guide, role: t.role, prompt });
     }
   });
   fs.writeFileSync(DOC, md);
   fs.writeFileSync(CSV, '﻿' + csv.join('\n') + '\n');
   console.log(`${total} images de carte : ${path.relative(ROOT, DOC)}, ${path.relative(ROOT, CSV)}`);
   for (const g of groups) console.log(`  ${g.title} : ${g.items.length}`);
+  return { groups, total };
 }
 
-main();
-writeGuides().then(() => console.log(`guides : ${path.relative(ROOT, GUIDES)}/`)).catch(e => { console.error('guides :', e.message); process.exit(1); });
+// ---- le kit à emporter ----
+function writeKit(dir, { groups, total }) {
+  const slug = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 48);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.join(dir, '0-reference-et-guides'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'docs', 'img', 'carte-reference.jpg'), path.join(dir, '0-reference-et-guides', 'carte-reference.jpg'));
+  for (const f of fs.readdirSync(GUIDES)) fs.copyFileSync(path.join(GUIDES, f), path.join(dir, '0-reference-et-guides', f));
+  fs.copyFileSync(DOC, path.join(dir, 'PROMPTS-CARTE.md'));
+  fs.copyFileSync(CSV, path.join(dir, 'prompts-carte.csv'));
+  const flat = (n) => n.replace(/\//g, '__');
+  groups.forEach((g, i) => {
+    const sub = path.join(dir, `${String(i + 1).padStart(2, '0')}-${slug(g.title)}`);
+    fs.mkdirSync(sub, { recursive: true });
+    for (const e of g.entries || []) {
+      const head = `Fichier à livrer : ${e.name}  (ou à plat : ${flat(e.name)}, rangé dans ce dossier)\nTaille : ${e.size}\nRôle : ${e.role}\nImages à joindre : 0-reference-et-guides/carte-reference.jpg${e.guide ? ` puis 0-reference-et-guides/${e.guide}` : ''}\n\n--- PROMPT À COLLER ---\n\n`;
+      fs.writeFileSync(path.join(sub, flat(e.name).replace(/\.png$/, '.txt')), head + e.prompt + '\n');
+    }
+  });
+  fs.writeFileSync(path.join(dir, 'LISEZMOI.txt'), `KIT DES IMAGES DE LA CARTE DU MONDE — ${total} images
+=====================================================
+
+Un dossier par partie, dans l'ordre où produire les images (le sol d'abord). Dans chaque dossier, un fichier .txt par
+image : il donne le nom du fichier à livrer, la taille, les images à joindre et le prompt complet à coller.
+
+Pour chaque image :
+  1. Joins 0-reference-et-guides/carte-reference.jpg (le style à imiter, toujours la même) puis, si le .txt l'indique,
+     le guide de cadrage (guide-objet.png, guide-ville.png ou guide-armee.png : le losange rouge montre la case au sol ;
+     il ne doit pas apparaître sur l'image).
+  2. Colle le prompt (tout ce qui suit « PROMPT À COLLER »).
+  3. Enregistre le résultat en PNG sous le nom indiqué, à côté de son .txt (le nom à plat convient : map__world__ground__grass_1.png).
+     Fond transparent, sauf le sol (opaque). Les marches des armées : une seule image de 6 poses en 3 colonnes × 2 rangées.
+  4. Renvoie le dossier (ou un zip) quand tu veux, même incomplet : j'importe ce qui est là, le reste garde le dessin actuel.
+
+PROMPTS-CARTE.md : la même liste en un seul document ; prompts-carte.csv : en tableau (Excel, Numbers, Sheets).
+Commence par la variante 1 de chaque sol (7 images) : c'est ce qui change le plus la carte.
+`);
+  console.log(`kit : ${path.relative(ROOT, dir) || dir}`);
+}
+
+const kitArg = process.argv.find(a => a.startsWith('--kit='));
+const built = main();
+writeGuides().then(() => {
+  console.log(`guides : ${path.relative(ROOT, GUIDES)}/`);
+  if (kitArg) writeKit(path.resolve(kitArg.slice(6)), built);
+}).catch(e => { console.error('guides :', e.message); process.exit(1); });
