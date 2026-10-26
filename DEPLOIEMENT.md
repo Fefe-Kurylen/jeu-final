@@ -15,11 +15,12 @@ Le serveur ne sert pas le frontend : `https://<api>/` répond 404, seul `/api/..
 | `JWT_SECRET` | clé de signature des sessions, longue et aléatoire (obligatoire en production) |
 | `NODE_ENV` | `production` |
 | `PORT` | port d'écoute (3000 par défaut ; Fly impose 8080, Render fournit le sien) |
-| `AUTO_DB_PUSH` | `false` pour désactiver la synchronisation du schéma au démarrage (migrations gérées à part) |
+| `DB_SYNC` | `migrate` (défaut : applique les migrations de `prisma/migrations`), `none` (migrations gérées à part), `push` (prototypage local) |
+| `WORLD_SEED` | facultative, **base vide seulement** : graine de la carte du nouveau monde (0 = carte de référence, jusqu'à 2147483646) ; vide = tirée au hasard ; ignorée dès que le monde a sa carte (voir `docs/DEPLOIEMENT.md`, « Carte du serveur ») |
 | `CLUSTER_WORKERS` | `auto` ou un nombre pour lancer plusieurs workers HTTP (un seul exécute la boucle de jeu) |
 | `DB_POOL` | taille du pool Prisma (10 par défaut) |
 
-Au démarrage le serveur : synchronise le schéma (`prisma db push`), répare les données (emplacement du Bâtiment principal, vitesse de régénération des points de ressource, PV des murs), génère les points de ressource si la table est vide, puis lance la boucle de jeu (tick toutes les 30 s). `/api/health` répond `503` tant que ce n'est pas terminé, `200` ensuite : les plates-formes attendent ce `200` avant de router le trafic.
+Au démarrage le serveur : applique les migrations, charge la graine de la carte (un serveur neuf tire la sienne au hasard, ligne `[MONDE]` du journal), répare les données (emplacement du Bâtiment principal, vitesse de régénération des points de ressource, PV des murs), génère les points de ressource si la table est vide, puis lance la boucle de jeu (tick toutes les 30 s). `/api/health` répond `503` tant que ce n'est pas terminé, `200` ensuite : les plates-formes attendent ce `200` avant de router le trafic.
 
 ## 2. Render.com (fichier `render.yaml`)
 
@@ -70,7 +71,7 @@ Les icônes et écrans de lancement sont générés depuis `tools/build-assets.c
 ## 6. Commandes utiles
 
 - Logs Render : Dashboard → service → **Logs** ; Fly : `fly logs`.
-- Réinitialiser la base (destructif) : `npx prisma db push --force-reset`.
+- Réinitialiser la base (destructif) : `npx prisma migrate reset --force` ; au redémarrage, le serveur tire une **nouvelle carte** (ou prend `WORLD_SEED`).
 - Simulation d'équilibrage (2 ans de jeu en ~8 min) : `DATABASE_URL=... node simulate-2years.js` sur une base dédiée (elle est vidée au départ).
 
 ## 7. VPS avec HTTPS (Docker + Caddy)

@@ -21,14 +21,15 @@ const MARCHING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRAN
 const STANDING = ['BESIEGING', 'HARVESTING', 'FOUNDING', 'IDLE'];   // IDLE: only outside its own city (a guard, a halted army)
 const E = () => config.combat.encounters;
 
+const { Terrain } = require('../../utils/pathfinding');
 let lastRunAt = 0;
 // Routes of marching armies, least recently used evicted first
 const routeCache = new Map();
 async function routeOf(a, budget) {
   const faction = a.owner?.faction || null;   // the path the army really walks (forests do not slow the Gauls)
-  const key = `${a.x},${a.y}>${a.targetX},${a.targetY}|${faction || ''}`;
+  const key = `${Terrain.epoch}|${a.x},${a.y}>${a.targetX},${a.targetY}|${faction || ''}`;   // epoch : la carte en cours (graine du monde)
   if (routeCache.has(key)) { const p = routeCache.get(key); routeCache.delete(key); routeCache.set(key, p); return p; }
-  if (budget.left <= 0) return [[a.x, a.y], [a.targetX, a.targetY]];   // over budget this tick: the straight line, exact next time
+  if (budget.left <= 0 || (budget.until && Date.now() > budget.until)) return [[a.x, a.y], [a.targetX, a.targetY]];   // over budget this tick (count or time): the straight line, exact next time
   budget.left--;
   const r = await findRoute(a.x, a.y, a.targetX, a.targetY, faction).catch(() => null);
   const path = r ? r.path : [[a.x, a.y], [a.targetX, a.targetY]];
@@ -113,7 +114,7 @@ async function processEncounters(now) {
   const instants = [];
   for (let t = from + step; t < nowMs; t += step) instants.push(t);
   instants.push(nowMs);
-  const budget = { left: E().maxRoutesPerTick };
+  const budget = { left: E().maxRoutesPerTick, until: Date.now() + (E().routeTimeBudgetMs || 2000) };
   const pos = new Map();
   for (const a of involved.values()) {
     const list = [];

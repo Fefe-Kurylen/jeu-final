@@ -43,7 +43,7 @@ router.get('/world/info', async (req, res) => {
     const resourceCount = await prisma.resourceNode.count();
     // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
     const factions = Object.fromEntries(Object.entries(factionsData).map(([k, f]) => [k, { name: f.name, bonuses: (f.bonuses || []).map(b => ({ type: b.type, value: b.value, description: b.description })) }]));
-    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules, terrainVersion: Terrain.TERRAIN_VERSION });
+    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules, terrainVersion: Terrain.minClientVersion, worldSeed: Terrain.worldSeed, terrainSignature: Terrain.signature });   // version du terrain qu'il faut au client pour dessiner cette carte ; empreinte de la carte à comparer à la sienne
   } catch (e) { sendError(res, e); }
 });
 

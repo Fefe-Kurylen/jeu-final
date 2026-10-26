@@ -437,6 +437,17 @@ model Expedition {
   @@index([armyId])
 }
 
+// Carte du serveur : sa graine, tirée au hasard au premier démarrage d'un serveur neuf (graine 0 = carte de référence,
+// gardée par le monde déjà ouvert). Une seule ligne, id = 1, jamais modifiée : changer la graine déplacerait toute la carte
+// sous les villes. Voir src/game/world.js et frontend/js/shared/terrain.js (setWorldSeed).
+model WorldConfig {
+  id        Int       @id @default(1)
+  seed      Int
+  generator Int       @default(2) // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard)
+  readyAt   DateTime? // monde prêt (points de ressource posés) : le serveur ouvre
+  createdAt DateTime  @default(now())
+}
+
 // Lease taken by the single process that runs the game tick
 model TickLock {
   id          Int       @id

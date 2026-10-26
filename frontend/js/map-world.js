@@ -231,6 +231,18 @@ function releaseMapGround() {
   _mapBlendCache.clear(); _mapGroundPatterns.clear();
 }
 
+// La carte du serveur vient d'arriver ou a changé (applyWorldSeed, 01-core.js) : tout ce qui garde du terrain est refait,
+// puis la vue en cours est redessinée. Les clés des caches portent aussi Terrain.epoch, par sécurité.
+function onWorldTerrainChanged() {
+  releaseMapGround();
+  _mapCitySig = ''; _mapDecorPlan.clear();
+  if (typeof armyRouteCache !== 'undefined') armyRouteCache.clear();
+  if (typeof terrainSpriteCache !== 'undefined') terrainSpriteCache.clear();
+  if (typeof isoStatic !== 'undefined') isoStatic.key = '';
+  if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender();
+  else if (typeof renderCityCanvas === 'function' && typeof currentCity !== 'undefined' && currentCity) renderCityCanvas();
+}
+
 function mapRenderChunk(i, j, st) {
   const c = _mapChunkPool.pop() || document.createElement('canvas');
   const px = Math.round(MAP_CHUNK * st.scale);
@@ -253,7 +265,7 @@ function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
   const failing = now < _mapChunkFailUntil;
   if (tw !== _mapLastTw) { _mapLastTw = tw; _mapZoomAt = now; }
   const sig = mapGroundSignature();
-  const key = [tw, th, scale, night ? 1 : 0, sig].join('|');
+  const key = [Terrain.epoch, tw, th, scale, night ? 1 : 0, sig].join('|');   // epoch : la carte du serveur (graine)
   let st = _mapChunkState, s = 1, budget = MAP_CHUNKS_PER_FRAME;
   if (!st || st.key !== key) {
     const zooming = st && now - _mapZoomAt < 250 && st.night === night && st.sig === sig && st.scale === scale;
@@ -399,7 +411,7 @@ function rebuildMapCityRings() {
   // signature : toutes les cases d'objets (villes et points de ressource), dont dépendent les chemins, les champs et le décor
   let h = 0, n = 0;
   for (const k of mapObjectCells.keys()) { let x = 0; for (let i = 0; i < k.length; i++) x = (x * 31 + k.charCodeAt(i)) | 0; h = (h + x) | 0; n++; }
-  const sig = n + ':' + h + ':' + list.length;
+  const sig = Terrain.epoch + ':' + n + ':' + h + ':' + list.length;   // et la carte du serveur (graine)
   if (sig === _mapCitySig) return;
   _mapCitySig = sig;
   _mapDecorPlan.clear();

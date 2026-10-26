@@ -2,6 +2,9 @@ require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const T = require('../../frontend/js/shared/terrain.js');
+// Ces tests portent sur la carte de référence (graine 0, celle du serveur ouvert) : coordonnées de ses lacs et de ses
+// chaînes. Les cartes tirées au hasard sont testées dans terrain-seed.test.js.
+T.setWorldSeed(0);
 
 test('the shared terrain is deterministic and matches the server biome helper', () => {
   const { getBiome } = require('../../src/utils/biome');

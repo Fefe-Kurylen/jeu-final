@@ -267,6 +267,8 @@ function onGlobalKeyDown(e) {
   // Don't capture if modal is open
   const modal = document.getElementById('modal');
   if (modal && modal.style.display !== 'none') return;
+  // pas d'onglet de jeu avant d'être connecté (ni de carte avant de connaître celle du serveur)
+  if (!token || !player || typeof worldSeedKnown === 'undefined' || !worldSeedKnown) return;
   
   // ===== TRAVIAN ACCESS KEYS (1-9) =====
   switch(e.key) {
@@ -722,7 +724,7 @@ function renderMap() {
 }
 function renderMapCore() {
   if (!mapCtx) return;
-  armyRouteBudget = 3;
+  armyRouteBudget = 3; armyRouteUntil = performance.now() + 25;
   mapLabelQueue = null;
 
   const w = mapViewW;
@@ -2030,15 +2032,16 @@ function drawIsoRock(x, y, size) {
 // between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
 const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
 const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
-// Chemins calculés au plus 3 par image (les suivants marchent en ligne droite le temps d'une image ou deux) ; le départ et
-// l'arrivée comptent comme des cases d'objets (ville de 2 × 2 cases, point de ressource), même hors de la zone chargée
-let armyRouteBudget = 3;
+// Chemins calculés au plus 3 par image et pendant 25 ms au plus (un long trajet en demande davantage : les suivants marchent
+// en ligne droite le temps d'une image ou deux) ; le départ et l'arrivée comptent comme des cases d'objets (ville de 2 × 2
+// cases, point de ressource), même hors de la zone chargée
+let armyRouteBudget = 3, armyRouteUntil = 0;
 function armyRoute(army) {
   if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
-  const key = `${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;
+  const key = `${Terrain.epoch}|${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;   // epoch : la carte du serveur
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
   const straight = [[army.x, army.y], [army.targetX, army.targetY]];
-  if (armyRouteBudget <= 0) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
+  if (armyRouteBudget <= 0 || (armyRouteBudget < 3 && performance.now() > armyRouteUntil)) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
   armyRouteBudget--;
   if (armyRouteCache.size > 300) armyRouteCache.clear();
   const base = typeof mapObjectCells !== 'undefined' ? mapObjectCells : new Map();
@@ -2047,7 +2050,7 @@ function armyRoute(army) {
   if (toCity) for (const [cx, cy] of Terrain.cityCells(army.targetX, army.targetY)) extra.set(cx + ',' + cy, 'CITY');
   else extra.set(army.targetX + ',' + army.targetY, 'RESOURCE');
   const objects = { has: (k) => extra.has(k) || base.has(k), get: (k) => extra.get(k) || base.get(k) };
-  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 40000, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, undefined, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
   const path = r ? r.path : straight;
   armyRouteCache.set(key, path);
   return path;

@@ -50,6 +50,9 @@ const config = {
     minCoord: -187,
     maxCoord: 186,
     expansionPerPlayer: 10,
+    // Carte d'un serveur neuf (base vide) : WORLD_SEED de 0 (carte de référence) à 2147483646, vide = tirée au hasard ;
+    // ignorée dès que le monde a sa carte (src/game/world.js). 0 est une graine valable : pas de parseInt || défaut.
+    worldSeed: process.env.WORLD_SEED === undefined || process.env.WORLD_SEED === '' ? null : process.env.WORLD_SEED,
     maxPlayers: 5000,
     spawnEdgeDelta: 100,
     // Gold nodes (GDD resource_points.json): a small stock of gold per level that refills in 12 h, guarded like the others
@@ -152,7 +155,7 @@ const config = {
     },
     // Rencontres (décision du 25 octobre 2026) : deux armées de joueurs ennemis déclarés sur la même case au même moment se
     // battent, même en marche ; les positions sont échantillonnées toutes les sampleSeconds entre deux ticks
-    encounters: { sampleSeconds: 5, lookBackSeconds: 60, meetDistance: 0.5, rematchMinutes: 30, maxRoutesPerTick: 150, routeCacheSize: 5000 },
+    encounters: { sampleSeconds: 5, lookBackSeconds: 60, meetDistance: 0.5, rematchMinutes: 30, maxRoutesPerTick: 150, routeTimeBudgetMs: 2000, routeCacheSize: 5000 },
     // Vies d'une ville (décision d'octobre 2026) : chaque combat gagné par l'attaquant lui ôte une vie (City.wallStructure,
     // part des vies restantes) et la même part des PV de son mur ; tout remonte de 0 à 100 % en 48 h. À la dernière vie,
     // une ville secondaire est détruite, une capitale est déplacée au hasard près du bord de la carte (jamais prise).

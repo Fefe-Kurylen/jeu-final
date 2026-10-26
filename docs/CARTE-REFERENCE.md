@@ -9,6 +9,28 @@ Image de référence fournie le 25 octobre 2026 : la carte doit lui ressembler p
 
 La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-CARTE.md](PROMPTS-CARTE.md)**.
 
+## Une carte par serveur (26 octobre 2026)
+
+Chaque serveur a sa propre carte, **tirée au hasard à sa création**. Le découpage, les règles et le style restent ceux de
+la référence : neige au nord, désert au sud, tempéré ailleurs, 8 longues rivières (2 sources par bord du monde) avec ponts et
+gués, 6 lacs, 4 chaînes de montagnes, forêts en massifs, rochers. Seule la disposition change d'un serveur à l'autre.
+
+| Carte de référence (graine 0, serveur ouvert) | Une carte au hasard (graine 123456) | Une autre (graine 2147483646) |
+|---|---|---|
+| ![Graine 0](img/cartes/carte-0.png) | ![Graine 123456](img/cartes/carte-123456.png) | ![Graine 2147483646](img/cartes/carte-2147483646.png) |
+
+- Tout le terrain se déduit d'une **graine** (0 à 2 147 483 646) gardée en base et publiée par `/api/world/info` ; le jeu
+  dessine exactement la carte où marchent les armées. La **graine 0** est la carte de référence, gardée telle quelle pour le
+  serveur déjà ouvert (au bit près : ses villes ne bougent pas).
+- Un serveur neuf **ne garde que des cartes jouables** : presque toute la terre d'un seul tenant (98 à 99 % sur 150 graines
+  essayées), neige et désert entre 10 et 30 % (17 à 24 % en pratique), chaque rivière traversable au moins deux fois (42 à
+  62 passages par carte).
+- La graine d'un monde **ne change jamais** : une autre carte demande un nouveau serveur. On peut la choisir avant
+  l'ouverture (`WORLD_SEED`, aperçu avec `node tools/apercu-carte.cjs --random=4`) ; voir `docs/DEPLOIEMENT.md`.
+- Les cartes au hasard n'utilisent que des calculs identiques sur tous les moteurs JavaScript (le serveur et l'iPhone ou
+  Android voient la même carte, case pour case).
+- Les chiffres plus bas (73 cases de pont, 33 de gué, 382 points déplacés…) sont ceux de la carte de référence.
+
 ## Décisions (25 octobre 2026)
 
 - **Villes sur 2 × 2 cases**, comme dans l'image. Une ville secondaire se fonde sur un point de ressource dont les 3 cases
@@ -51,9 +73,9 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 
 | # | Point | État | Ce qui est fait |
 |---|---|---|---|
-| 1 | Disposition des biomes | ✅ | Nord enneigé, sud désertique, tempéré ailleurs (≈ 20 / 20 / 60 %), frontière qui ondule. Zone de départ des joueurs : moitié tempérée. |
-| 2 | Villes sur 2 × 2 cases | ✅ | Départ, capitale déplacée, fondation, chemins, clic, surbrillance, siège, rencontres, seed des points. Aucune ville dans l'eau ni dans une poche fermée par les montagnes. |
-| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; 73 cases de pont et 33 de gué, chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
+| 1 | Disposition des biomes | ✅ | Nord enneigé, sud désertique, tempéré ailleurs (≈ 20 / 20 / 60 % sur toutes les cartes), frontière qui ondule. Zone de départ des joueurs : moitié tempérée. |
+| 2 | Villes sur 2 × 2 cases | ✅ | Départ, capitale déplacée, fondation, chemins, clic, surbrillance, siège, rencontres, génération des points. Aucune ville dans l'eau ni dans une poche fermée par les montagnes. |
+| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; sur la carte de référence 73 cases de pont et 33 de gué (39 passages), sur une carte au hasard 42 à 62 passages, au moins 2 par rivière ; chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
 | 4 | Forêts en massifs | ✅ | Massifs de plusieurs cases ; −10 % de vitesse sauf Gaulois ; la durée du trajet suit le terrain traversé (client et serveur). |
 | 5 | Sol tempéré varié | ✅ | Herbe, herbe sèche (plus fréquente vers le désert), terre labourée, berges de sable au bord des rivières et des lacs ; plusieurs variantes de chaque sol mélangées par taches (en attendant leurs images, un léger voile les distingue). |
 | 6 | Relief | ✅ | Montagnes gardées, amas de rochers en zone tempérée et mesas du désert (infranchissables), rochers épars du désert (franchissables). Une ville que le nouveau terrain couperait du reste de la carte est déplacée près du bord au démarrage, avec ses armées, et son propriétaire est prévenu. |
@@ -63,19 +85,24 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 | 13 | Marche des armées | ✅ code, 🎨 images | Colonnes de 1 à 3 groupes, poussière, cycles de marche peints dès leur livraison (33 images de 6 poses, guide de planche `img/guides-carte/guide-armee-planche.png`), armées des autres joueurs en mouvement. |
 | 9 | Nouveau style | ✅ prompts | Style « diorama 3D stylisé » de la référence, sans contours ; référence de style : `img/carte-reference.jpg`. |
 | 10 | Découpage | ✅ | Sol en textures répétables, éléments posés sans socle (losange d'une case à 50 % de la largeur, centre à 75 %), villes 2 × 2 (90 %, 68 %). Guides de cadrage dans `img/guides-carte/`. |
+| 14 | Carte par serveur | ✅ | Graine tirée au hasard à la création d'un serveur, gardée en base et publiée au jeu ; graine 0 = carte de référence (serveur ouvert) ; contrôle de jouabilité ; aperçu des cartes avec `tools/apercu-carte.cjs`. |
 | 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 470 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, nuages 3, décor des cases 26, villes 32, villes assiégées 120, points de ressource 45, camps 15, armées 43, ville en feu 4, marche des armées 33 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
 
 Les points existants en base suivent le terrain au démarrage du serveur : biome recalculé, point tombé dans l'eau déplacé
-sur la case libre la plus proche (sauf s'il porte une ville ou une armée). Au premier démarrage : 382 points déplacés,
-3 846 biomes mis à jour.
+sur la case libre la plus proche (sauf s'il porte une ville ou une armée). Au premier démarrage du serveur ouvert : 382 points
+déplacés, 3 846 biomes mis à jour. C'est aussi pourquoi la graine d'un monde peuplé ne doit jamais changer : presque toutes
+ses villes et tous ses points seraient déplacés.
 
 ## Où c'est dans le code
 
 | Sujet | Fichier |
 |---|---|
-| Terrain partagé (biomes, rivières, passages, sols, coût de marche, terre ferme) | `frontend/js/shared/terrain.js` |
+| Terrain partagé (biomes, rivières, passages, sols, coût de marche, terre ferme), tiré de la graine (`setWorldSeed`) | `frontend/js/shared/terrain.js` |
+| Graine de la carte du serveur (choix au premier démarrage, `WORLD_SEED`, table `WorldConfig`) | `src/game/world.js`, `prisma/migrations/0011_world_seed` |
+| Graine appliquée par le jeu (avant tout dessin, retenue pour le lancement suivant) | `frontend/js/app/01-core.js` (`applyWorldSeed`), `frontend/js/map-world.js` (`onWorldTerrainChanged`) |
+| Aperçu d'une carte, choix d'une graine | `tools/apercu-carte.cjs` |
 | Dessin du sol, de la grille et des éléments posés, images peintes de la carte | `frontend/js/map-world.js` |
 | Villes 2 × 2 sur la carte, sprites d'avant (repli) | `frontend/js/map.js` |
 | Place libre pour une ville, départ des joueurs | `src/utils/spawn.js` |
-| Points de ressource (seed, mise à jour au démarrage) | `src/game/seed.js` |
+| Points de ressource (génération, mise à jour au démarrage) | `src/game/seed.js` |
 | Liste des images, prompts, guides | `tools/repaint/map-world.cjs`, `tools/repaint/map-kit.cjs` |

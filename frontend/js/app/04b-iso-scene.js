@@ -651,7 +651,7 @@ function isoStaticKey(view, W, cx, cy, night, biome) {
   const b = (currentCity?.buildings || []).map(x => x.key + x.slot + ':' + x.level).join(',');
   const q = (currentCity?.buildQueue || []).map(x => x.slot + x.status).join(',');
   let ready = 0; for (const s of _sprites.values()) if (s.ready) ready++;
-  return [view, currentCityView, currentCity?.id, W.toFixed(2), cx.toFixed(1), cy.toFixed(1), cityViewW, cityViewH, night, biome, cityHoveredSlot, citySelectedSlot, b, q, ready, paintedSet.size, canvasScale(), player?.faction].join('|');
+  return [Terrain.epoch, view, currentCityView, currentCity?.id, W.toFixed(2), cx.toFixed(1), cy.toFixed(1), cityViewW, cityViewH, night, biome, cityHoveredSlot, citySelectedSlot, b, q, ready, paintedSet.size, canvasScale(), player?.faction].join('|');
 }
 
 function renderCityView() {

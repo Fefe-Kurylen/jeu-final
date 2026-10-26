@@ -144,6 +144,14 @@ async function simulate() {
   // CLEAN DB
   _log('[SETUP] Nettoyage de la base de données...');
   await prisma.$executeRawUnsafe(`DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public') LOOP EXECUTE 'TRUNCATE TABLE "' || r.tablename || '" CASCADE'; END LOOP; END $$;`);
+  // La carte de la simulation : WORLD_SEED (0 = carte de référence par défaut), notée dans la base comme le ferait le serveur
+  {
+    const Terrain = require('./frontend/js/shared/terrain.js');
+    const seed = Number.isInteger(Number(process.env.WORLD_SEED)) && process.env.WORLD_SEED !== '' ? Number(process.env.WORLD_SEED) : 0;
+    Terrain.setWorldSeed(seed);
+    await prisma.$executeRawUnsafe(`INSERT INTO "WorldConfig" ("id", "seed") VALUES (1, ${Terrain.worldSeed}) ON CONFLICT ("id") DO UPDATE SET "seed" = EXCLUDED."seed"`).catch(() => {});
+    _log(`[SETUP] Carte : graine ${Terrain.worldSeed}`);
+  }
 
   // GENERATE WORLD (fewer nodes for speed)
   _log('[SETUP] Génération de la carte...');

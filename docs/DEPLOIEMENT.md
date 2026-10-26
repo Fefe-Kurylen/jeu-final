@@ -11,6 +11,41 @@ Voir `.env.example` pour la liste commentée. Les deux obligatoires :
 | `DATABASE_URL` | PostgreSQL. Ajouter `?sslmode=require` chez la plupart des hébergeurs. |
 | `JWT_SECRET` | Au moins 32 caractères (`openssl rand -hex 32`). Sans lui le serveur **refuse de démarrer**, quel que soit `NODE_ENV`. Seul `NODE_ENV=development` tolère son absence (secret de développement, avertissement au démarrage). |
 
+Facultative : `WORLD_SEED`, la graine de la carte d'un **serveur neuf** (voir plus bas, « Carte du serveur »).
+
+## Carte du serveur : une carte tirée au hasard par serveur
+
+Chaque serveur a sa propre carte (décision du 26 octobre 2026). Tout le terrain (rivières, ponts et gués, lacs, chaînes de
+montagnes, forêts, sols, biomes) se déduit d'une **graine** : un nombre de 0 à 2 147 483 646. La graine 0 est la carte de
+référence du serveur déjà ouvert. Le serveur garde sa graine en base (table `WorldConfig`, une ligne) et la publie dans
+`GET /api/world/info` (`worldSeed`) ; le jeu la lit avant de dessiner quoi que ce soit, et la retient pour le lancement
+suivant.
+
+Au premier démarrage d'une **base vide**, le serveur prend `WORLD_SEED` si elle est donnée, sinon tire une graine au hasard
+parmi celles qui donnent une carte jouable (presque toute la terre d'un seul tenant, neige et désert entre 10 et 30 %,
+chaque rivière traversable au moins deux fois). Le journal l'indique :
+
+```
+[MONDE] nouvelle carte, graine 432062107 : tirée au hasard (1 essai)
+[MONDE] graine 432062107 : neige 19 %, désert 21 %, terre d'un seul tenant 99 %, 8 rivières, 49 passages
+```
+
+Ensuite la graine **ne change plus jamais** : changer la carte d'un monde peuplé mettrait des villes dans l'eau ou sur
+les montagnes (le serveur les déplacerait toutes au démarrage suivant). `WORLD_SEED` est donc ignorée, avec un
+avertissement, dès que le monde a sa carte. Une base qui a déjà des joueurs, des villes ou des points de ressource mais pas
+encore de graine (monde ouvert avant les cartes au hasard) garde la carte de référence (graine 0).
+
+Ouvrir un nouveau monde :
+
+1. partir d'une base **vide** (nouvelle base, ou `npx prisma migrate reset --force` sur l'ancienne : tout est effacé) ;
+2. facultatif : regarder quelques cartes avant de choisir, `node tools/apercu-carte.cjs --random=4` (images dans
+   `docs/img/cartes/`), puis mettre la graine retenue dans `WORLD_SEED` ;
+3. démarrer l'API et vérifier la ligne `[MONDE]` du journal, ou `GET /api/world/info` → `worldSeed` ;
+4. voir la carte d'un serveur en service : `node tools/apercu-carte.cjs --server=https://<api>`.
+
+Ne jamais vider ni supprimer la table `WorldConfig` d'un monde en cours (elle fait partie des sauvegardes) : sans elle, le
+monde reprendrait la carte de référence sous des villes posées sur une autre carte.
+
 ## E-mail : vérification d'adresse et mot de passe oublié
 
 | Variable | Rôle |
@@ -29,6 +64,9 @@ Le schéma vit dans `prisma/schema.prisma` et son historique dans `prisma/migrat
 - `0001_init` : le schéma tel qu'il existait quand le projet utilisait encore `prisma db push` ;
 - `0002_hardening` : cascades de suppression, colonnes mortes retirées, PV de mur fractionnaires, version de jeton, marqueur d'activité, réclamation des arrivées, horodatage du tick, index manquants. Chaque instruction tolère une base qui porte déjà une partie de ces changements (`IF EXISTS` / `IF NOT EXISTS`) ;
 - `0003_effects_email_limits` : jetons d'e-mail, adresse confirmée, compteurs de limite partagés, or accumulé de la Chambre au Trésor.
+
+Les suivantes (`0004` à `0011`) ajoutent les blessés, les lits de soins, la recherche, les PV fractionnaires des murs, les
+notifications… ; `0011_world_seed` crée `WorldConfig` (graine de la carte) et y inscrit la graine 0 si le monde est déjà peuplé.
 
 Au démarrage, le serveur applique les migrations lui-même (`DB_SYNC=migrate`, valeur par défaut) :
 
@@ -60,6 +98,10 @@ npx prisma migrate deploy
 ```
 
 ## Processus et boucle de jeu
+
+- Ordre du démarrage : migrations, **graine de la carte** (`[MONDE]`), réparations des données, points de ressource
+  (création sur une base neuve, sinon mise à jour d'après le terrain), puis la boucle de jeu. Tant que la graine n'est pas
+  chargée, toutes les routes `/api/*` répondent `503` (sauf `/api/health`) : aucun client ne reçoit une autre carte.
 
 - `CLUSTER_WORKERS=1` (défaut) : un processus sert l'API et exécute le tick. `CLUSTER_WORKERS=auto` ou `N` : un processus par CPU, le premier porte la boucle de jeu.
 - Le tick (30 s) est protégé par un **bail en base** (`TickLock`) : une seule instance l'exécute, même pendant un déploiement glissant. Le bail est renouvelé entre chaque étape ; s'il est perdu, le tick s'interrompt.

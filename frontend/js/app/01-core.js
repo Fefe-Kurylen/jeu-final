@@ -18,6 +18,32 @@ const safeStorage = (() => {
     clear: () => { mem.clear(); try { if (ok) localStorage.clear(); } catch (e) {} }
   };
 })();
+// Carte du serveur (décision du 26 octobre 2026) : chaque serveur a la sienne, tirée d'une graine qu'il publie dans
+// /api/world/info. La dernière graine connue de ce serveur est gardée pour dessiner tout de suite la bonne carte au
+// prochain lancement, avant même la réponse du serveur (et hors ligne).
+const WORLD_SEED_KEY = 'world-seed:' + (API || (typeof location !== 'undefined' ? location.origin : ''));
+let worldSeedKnown = false;   // la graine de ce serveur est connue (réponse du serveur ou dernière visite)
+(function restoreWorldSeed() {
+  const saved = safeStorage.getItem(WORLD_SEED_KEY);
+  if (saved !== null && saved !== '' && typeof Terrain !== 'undefined' && Terrain.setWorldSeed) { Terrain.setWorldSeed(Number(saved)); worldSeedKnown = true; }
+})();
+// Applique la graine du serveur ; si la carte change (premier lancement, autre serveur), tout ce qui garde du terrain est
+// refait et la vue en cours redessinée
+function applyWorldSeed(seed, signature) {
+  if (typeof Terrain === 'undefined' || !Terrain.setWorldSeed || typeof seed !== 'number') return;
+  safeStorage.setItem(WORLD_SEED_KEY, String(seed));
+  worldSeedKnown = true;
+  const changed = Terrain.setWorldSeed(seed);
+  // même graine mais pas la même carte (version du jeu ou moteur JavaScript différent) : on le signale sans bloquer
+  if (signature && Terrain.signature !== signature && !applyWorldSeed._warned) {
+    applyWorldSeed._warned = true;
+    console.error(`Carte différente de celle du serveur (graine ${seed}, empreinte ${Terrain.signature} au lieu de ${signature})`);
+    if (typeof track === 'function') track('terrain_mismatch', { seed, client: Terrain.signature, server: signature, version: Terrain.TERRAIN_VERSION });
+  }
+  if (!changed) return;
+  console.log(`🌍 Carte du serveur : graine ${seed}`);
+  if (typeof onWorldTerrainChanged === 'function') onWorldTerrainChanged();
+}
 // Polyfill roundRect (iOS < 16)
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
@@ -430,6 +456,8 @@ async function showGame() {
   document.getElementById('game-screen').style.display = 'flex';
   setConnectOverlay('loading');
   await loadWorldInfo(); // Load world size first
+  if (!worldSeedKnown) await loadWorldInfo();   // sans la carte du serveur, rien ne se dessine : une seconde tentative
+  if (!worldSeedKnown) { setConnectOverlay('error'); return; }
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
   const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest(), typeof loadItems === 'function' ? loadItems() : null, typeof loadTechnologies === 'function' ? loadTechnologies() : null]);
   if (!token) { setConnectOverlay(null); return; }   // session refusée : logout() a déjà remis l'écran de connexion
@@ -507,14 +535,20 @@ function onTerrainOutdated() {
 // Load world info to get dynamic world size
 async function loadWorldInfo() {
   try {
-    const res = await fetch(`${API}/api/world/info`);
+    let res = await fetch(`${API}/api/world/info`);
+    // serveur en démarrage (sa carte n'est pas encore chargée) : quelques nouvelles tentatives si la graine est inconnue
+    for (let i = 0; res.status === 503 && !worldSeedKnown && i < 8; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await fetch(`${API}/api/world/info`);
+    }
     if (res.ok) {
       const info = await res.json();
+      applyWorldSeed(typeof info.worldSeed === 'number' ? info.worldSeed : 0, info.terrainSignature);   // un serveur d'avant les cartes au hasard joue la carte de référence
       updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies
+      // terrainVersion : la version du terrain qu'il faut pour dessiner la carte de ce serveur
       if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion > Terrain.TERRAIN_VERSION) onTerrainOutdated();
-      else if (info.terrainVersion && typeof Terrain !== 'undefined' && info.terrainVersion < Terrain.TERRAIN_VERSION) console.warn('Le serveur joue sur un terrain plus ancien que ce client');
       else { try { sessionStorage.removeItem('terrain-reload'); } catch (e) { /* stockage indisponible */ } }
       console.log(`🌍 World: ${info.worldSize}x${info.worldSize}, ${info.playerCount} players, ${info.resourceNodes} resource nodes`);
     }

@@ -56,6 +56,26 @@ const richCity = (cityId) => sql(`UPDATE "City" SET wood=50000, stone=50000, iro
 // Local test database: the shared sign-up limiter (10 per minute per address) must not fail a suite run right after another one
 try { sql('DELETE FROM "RateLimitBucket" WHERE key LIKE \'register:%\' OR key LIKE \'auth:%\''); } catch (e) { /* no SQL access */ }
 
+// ---------- CARTE DU SERVEUR ----------
+// Chaque serveur a sa carte, tirée d'une graine (une base neuve en tire une au hasard) : le test calcule ses chemins et ses
+// cases libres sur la même carte que le serveur
+let worldInfo = null;
+for (let i = 0; i < 20 && !worldInfo; i++) {
+  const res = await fetch(BASE + '/api/world/info').catch(() => null);
+  if (res && res.ok) worldInfo = await res.json(); else await sleep(1000);
+}
+assert('world info gives the map seed', Number.isInteger(worldInfo?.worldSeed) && worldInfo.worldSeed >= 0 && worldInfo.worldSeed <= Terrain.MAX_SEED, JSON.stringify(worldInfo?.worldSeed));
+Terrain.setWorldSeed(worldInfo?.worldSeed ?? 0);
+console.log(`  carte du serveur : graine ${Terrain.worldSeed} (pour la rejouer : base vide + WORLD_SEED=${Terrain.worldSeed})`);
+try {
+  assert('the seed is the one stored for this world (one WorldConfig row)', sql('SELECT count(*)||\':\'||max(seed) FROM "WorldConfig"') === `1:${Terrain.worldSeed}`);
+} catch (e) { /* no SQL access */ }
+assert('terrain version asked for this map', worldInfo?.terrainVersion === Terrain.minClientVersion && Terrain.minClientVersion <= Terrain.TERRAIN_VERSION, `${worldInfo?.terrainVersion}`);
+assert('the server and this code draw the same map (signature)', worldInfo?.terrainSignature === Terrain.signature, `${worldInfo?.terrainSignature} / ${Terrain.signature}`);
+try {
+  assert('the world is open and its generator stored', sql('SELECT generator||\':\'||("readyAt" IS NOT NULL)::text FROM "WorldConfig" WHERE id=1') === `${Terrain.generator}:true`);
+} catch (e) { /* no SQL access */ }
+
 // ---------- AUTH ----------
 const A = await call('register A (ROME)', 'POST', '/api/auth/register', null, { email: `a${uid}@t.fr`, password: PASSWORD, name: `Alpha${uid}`, faction: 'ROME' });
 const B = await call('register B (HUN)', 'POST', '/api/auth/register', null, { email: `b${uid}@t.fr`, password: PASSWORD, name: `Beta${uid}`, faction: 'HUN' });
@@ -77,6 +97,11 @@ let citiesA = await call('cities A', 'GET', '/api/cities', tA);
 let citiesB = await call('cities B', 'GET', '/api/cities', tB);
 const cityA = citiesA[0], cityB = citiesB[0];
 console.log(`  city A @(${cityA.x},${cityA.y}) buildings=${cityA.buildings.length}; city B @(${cityB.x},${cityB.y})`);
+for (const c of [cityA, cityB]) {
+  // la capitale est posée sur la carte du serveur : ses 2 × 2 cases sur la terre ferme, ni relief, ni eau, ni passage
+  const ok = Terrain.isMainland(c.x, c.y) && Terrain.cityCells(c.x, c.y).every(([x, y]) => { const f = Terrain.getTerrainType(x, y).feature; return Terrain.inWorld(x, y) && !Terrain.BLOCKED[f] && f !== 'bridge' && f !== 'ford'; });
+  assert(`capital @(${c.x},${c.y}) stands on free land of this map`, ok);
+}
 assert('spawn tile is not a resource node', sql(`SELECT count(*) FROM "ResourceNode" WHERE (x,y) IN ((${cityA.x},${cityA.y}),(${cityB.x},${cityB.y}))`) === '0');
 richCity(cityA.id); richCity(cityB.id);
 
@@ -372,10 +397,20 @@ await waitTick('army idle after spy', () => sql(`SELECT status FROM "Army" WHERE
   if (blockedTile) await call('army move onto mountain/water -> 400', 'POST', `/api/army/${armyId}/move`, tA, blockedTile, 400);
   else assert('a blocked tile exists near the city', false, 'none within 60 tiles');
 }
-await call('army move', 'POST', `/api/army/${armyId}/move`, tA, { x: cityA.x + 3, y: cityA.y + 3 });
+// une case libre près de la ville, que l'armée peut atteindre sur cette carte (ni relief, ni eau, ni ville, ni point)
+let moveTo = null;
+for (let r = 0; r < 6 && !moveTo; r++) for (let dx = -r; dx <= r && !moveTo; dx++) for (let dy = -r; dy <= r; dy++) {
+  if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+  const x = cityA.x + 3 + dx, y = cityA.y + 3 + dy;
+  if (!Terrain.inWorld(x, y) || Terrain.isBlocked(x, y) || !Terrain.findPath(cityA.x, cityA.y, x, y)) continue;
+  if (sql(`SELECT (SELECT count(*) FROM "ResourceNode" WHERE x=${x} AND y=${y}) + (SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 1} AND ${x} AND y BETWEEN ${y - 1} AND ${y})`) !== '0') continue;
+  moveTo = { x, y }; break;
+}
+if (!moveTo) assert('a free reachable tile near the city', false);
+await call('army move', 'POST', `/api/army/${armyId}/move`, tA, moveTo);
 assert('departure time recorded for the march', sql(`SELECT ("departedAt" IS NOT NULL)::text FROM "Army" WHERE id='${armyId}'`) === 'true');
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
-await waitTick('army arrived at move target', () => sql(`SELECT x||','||y FROM "Army" WHERE id='${armyId}'`) === `${cityA.x + 3},${cityA.y + 3}`);
+await waitTick('army arrived at move target', () => sql(`SELECT x||','||y FROM "Army" WHERE id='${armyId}'`) === `${moveTo?.x},${moveTo?.y}`);
 await call('army return home', 'POST', `/api/army/${armyId}/return`, tA, {});
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 await waitTick('army home', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');

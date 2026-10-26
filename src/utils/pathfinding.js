@@ -33,7 +33,8 @@ async function isBlockedTile(x, y) { return Terrain.isBlocked(x, y, await getObj
 // Route between two tiles, or null when none exists (water, mountains) — { path, length }. `faction`: the army's
 // civilisation, for the terrain costs (fords half speed, forests −10 % except for the Gauls)
 async function findRoute(fromX, fromY, toX, toY, faction = null) {
-  return Terrain.findPath(fromX, fromY, toX, toY, await getObjectCells(), 40000, faction ? { faction } : null);
+  // sans limite d'exploration : un trajet d'un bord à l'autre de la carte en explore plus de 100 000 cases (0,1 s au plus)
+  return Terrain.findPath(fromX, fromY, toX, toY, await getObjectCells(), undefined, faction ? { faction } : null);
 }
 
 // Length of the route used for travel times (in normal tiles: a ford counts double, a forest tile 1/0.9); throws a

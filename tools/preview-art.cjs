@@ -16,17 +16,22 @@ const DB = process.env.DATABASE_URL || 'postgresql://monjeu:monjeu123@localhost:
 const faction = (process.argv[2] || 'ROME').toUpperCase(), biome = process.argv[3] || 'forest';
 const OUT = path.resolve(process.argv[4] || path.join(ROOT, 'store', 'preview'));
 const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding: 'utf8' }).trim();
-const BLOCKED = { mountain: 1, icemountain: 1, water: 1, frozen: 1, oasis: 1 };
+// une place de ville libre sur la carte du serveur (même règle que src/utils/spawn.js : 2 × 2 cases sur la terre ferme,
+// ni relief, ni eau, ni pont, ni gué, loin des autres villes)
+const freeBlock = (x, y) => T.isMainland(x, y) && T.cityCells(x, y).every(([cx, cy]) => { const f = T.getTerrainType(cx, cy).feature; return T.inWorld(cx, cy) && !T.BLOCKED[f] && f !== 'bridge' && f !== 'ford'; });
 function coordsFor(b) {
   for (let r = 2; r < 160; r += 3) for (let a = 0; a < 360; a += 25) {
     const x = Math.round(Math.cos(a * Math.PI / 180) * r), y = Math.round(Math.sin(a * Math.PI / 180) * r);
-    if (T.getBiome(x, y) === b && !BLOCKED[T.getTerrainType(x, y).feature] && sql(`SELECT count(*) FROM "City" WHERE x=${x} AND y=${y}`) === '0') return [x, y];
+    if (T.getBiome(x, y) === b && freeBlock(x, y) && sql(`SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 3} AND ${x + 3} AND y BETWEEN ${y - 3} AND ${y + 3}`) === '0') return [x, y];
   }
   return [0, 0];
 }
 const FACTION_BUILDING = { ROME: 'ROMAN_THERMAE', GAUL: 'GALLIC_BREWERY', GREEK: 'GREEK_TEMPLE', EGYPT: 'EGYPTIAN_IRRIGATION', HUN: 'HUN_WAR_TENT', SULTAN: 'SULTAN_DESERT_OUTPOST' };
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  // la carte du serveur (chaque serveur a la sienne)
+  const info = await (await fetch(`${API}/api/world/info`)).json().catch(() => ({}));
+  T.setWorldSeed(info.worldSeed ?? 0);
   const uid = Math.floor(Math.random() * 1e6);
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `preview${uid}@t.fr`, password: 'Test1234!', name: `Preview${uid}`, faction }) })).json();
   if (!reg.token) throw new Error('register: ' + JSON.stringify(reg));

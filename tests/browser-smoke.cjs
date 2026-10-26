@@ -96,6 +96,10 @@ const sql = q => execSync(`psql "${DB}" -At -c ${JSON.stringify(q)}`, { encoding
     const rec = await page.evaluate(() => !!document.getElementById('recruit-count'));
     out.push(`${label} fiche unité: galerie=${unitGal.figure} recruter=${unitGal.recruit} -> modale recrutement=${rec} | navigation prérequis: ${nav}`);
     await page.evaluate(() => closeModal());
+    // la carte dessinée est celle du serveur (graine publiée par /api/world/info)
+    const seeds = await page.evaluate(async (api) => { const info = await (await fetch(api + '/api/world/info')).json(); return { client: Terrain.worldSeed, server: info.worldSeed, sigClient: Terrain.signature, sigServer: info.terrainSignature }; }, API);
+    out.push(`${label} carte du serveur : graine ${seeds.server} (empreinte ${seeds.sigServer}), dessinée ${seeds.client} (${seeds.sigClient})`);
+    if (seeds.client !== seeds.server || seeds.sigClient !== seeds.sigServer) errors.push(`le client dessine la graine ${seeds.client} (${seeds.sigClient}) au lieu de ${seeds.server} (${seeds.sigServer})`);
     // map click on own city
     await page.evaluate(() => showTab('map')); await page.waitForTimeout(2000);
     const mp = await page.evaluate(() => { const p = window.mapWorldToScreen(currentCity.x, currentCity.y); const rect = mapCanvas.getBoundingClientRect(); return { x: rect.left + p.x, y: rect.top + p.y - 0.6 * 32 * mapZoomLevel }; });

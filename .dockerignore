@@ -38,6 +38,7 @@ wetransfer_content
 wetransfer_files.zip
 tools
 frontend
+!frontend/js/shared
 android
 ios
 capacitor.config.ts

@@ -56,6 +56,7 @@ const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 const { startGameLoop, releaseTickLease } = require('./game/tick');
 const { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities } = require('./game/seed');
+const { loadWorldSeed, openWorld, isWorldReady } = require('./game/world');
 
 const app = express();
 const PORT = config.port;
@@ -87,6 +88,14 @@ app.get('/api/health', async (req, res) => {
   }
   if (!healthCache.dbOk) return res.status(503).json({ status: 'degraded', db: 'down', uptime: process.uptime() });
   res.status(dbReady ? 200 : 503).json({ status: dbReady ? 'ok' : 'starting', db: 'ok', uptime: process.uptime() });
+});
+
+// ========== CARTE DU SERVEUR ==========
+// Rien ne répond tant que la graine de la carte n'est pas chargée : un client ne doit jamais recevoir une autre carte que
+// celle où marchent les armées (src/game/world.js)
+app.use('/api/', (req, res, next) => {
+  if (isWorldReady()) return next();
+  res.set('Retry-After', '2').status(503).json({ error: 'Serveur en démarrage, réessayez dans un instant' });
 });
 
 // ========== GLOBAL RATE LIMIT ==========
@@ -238,6 +247,12 @@ async function startServer() {
         }
       }
 
+      // La carte du serveur, avant tout usage du terrain (réparations, points de ressource, armées) : choisie au premier
+      // démarrage par le processus qui prépare la base, lue par les autres. Une carte que ce code ne sait pas refaire
+      // arrête le serveur : sans cela, il déplacerait toutes les villes en croyant les sauver.
+      try { await loadWorldSeed({ setup: !SKIP_DB_SETUP }); }
+      catch (worldErr) { if (worldErr.fatal) { console.error(worldErr.message); process.exit(1); } throw worldErr; }
+
       if (!SKIP_DB_SETUP) {
         try { await repairData(); } catch (repairErr) { console.warn('Erreur réparation données:', repairErr.message); }
       }
@@ -269,6 +284,8 @@ async function startServer() {
         if (!seedErr._skip) console.warn('Erreur seed:', seedErr.message);
       }
 
+      // Le monde est prêt (points posés, villes vérifiées) : /api/* répond
+      await openWorld({ setup: !SKIP_DB_SETUP });
       dbReady = true;
 
       // Start game loop (un seul worker le fait en mode cluster)
