@@ -50,6 +50,7 @@ function classify(files, painted) {
       fam('Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace)', f => /^map\/world\/ground\//.test(f), 'tout le fond de la carte, fondus faits par le jeu', 'PROMPTS-CARTE § 1', '★★★'),
       fam('Forêts, rochers et montagnes de la carte', f => /^map\/world\/(forest|rocks|mountains)\//.test(f), 'massifs forestiers, amas de rochers, chaînes de montagnes', 'PROMPTS-CARTE § 2-3', '★★★'),
       fam('Ponts, gués, décor du désert et de l\'eau', f => /^map\/world\/(river|desert|water)\//.test(f), 'passages des rivières, dunes, ruines, palmiers, bateaux, quais', 'PROMPTS-CARTE § 4-6', '★★☆'),
+      fam('Décor des cases comme sur la carte de référence (champs de blé, meules, cailloux, agaves, cactus, buissons, arbres isolés, décor givré)', f => /^map\/world\/(fields|decor)\//.test(f), 'autour des villes, sur la terre labourée, au bord de l\'eau', 'PROMPTS-CARTE § 7', '★★☆'),
       fam('Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières)', f => /^map\/camps\/(camp|ruins|banner)/.test(f), 'points tenus par une tribu', 'guide « Camps barbares »', '★★★'),
       fam('Campement de fondation (3 biomes)', f => /^map\/camps\/foundation/.test(f), 'point pendant la fondation d\'une ville', 'guide § S12', '★★☆'),
       fam('Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases)', f => /^map\/cities\/siege_colony_/.test(f), 'colonie assiégée sur la carte (remplace son sprite pendant le siège)', 'guide § A19', '★★☆'),
@@ -57,7 +58,7 @@ function classify(files, painted) {
       fam('Armées en marche (4 classes × 6 civilisations, marchand)', f => /^map\/units\/(hoplite|archer|cavalry|catapult|merchant)(_[A-Z]+)?\.webp$/.test(f), 'armées, convois', '§ 3.4', '★★★'),
       fam('Cortège de colons (+ 6 civilisations)', f => /^map\/units\/settler(_[A-Z]+)?\.webp$/.test(f), 'armée partie fonder une ville', 'guide § S12', '★★☆'),
       fam('Héros en tête d\'armée, espion', f => /^map\/units\/(hero_[A-Z]+|spy)\.webp$/.test(f), 'armées avec héros, missions d\'espionnage', 'guide § S18', '★★☆'),
-      fam('Cycles de marche (armées, marchand, colons)', f => /^map\/units\/\w+_walk_\d\.webp$/.test(f), 'armées en mouvement', 'guide § A5', '★★☆'),
+      fam('Cycles de marche par classe et civilisation, héros, marchand, colons (une image de 6 poses en 3 × 2)', f => /^map\/units\/\w+_walk_\d\.webp$/.test(f), 'armées en mouvement (chaque groupe de la colonne)', 'PROMPTS-CARTE § 14', '★★☆'),
       fam('Replay de bataille : poses, héros, projectiles, impacts', f => /^(map\/units\/\w+_(attack|hit)_\d\.webp|fx\/)/.test(f), 'rapports de combat', 'guide § A6, A18', '★★☆'),
       fam('Effets de carte : combat, ville en feu, feu de camp, météo', f => /^map\/fx\//.test(f), 'carte', 'guide § A7, A17', '★☆☆')
     ]],

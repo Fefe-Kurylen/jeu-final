@@ -26,13 +26,15 @@ const SECTIONS = [
   { key: 'river', title: 'Rivières : ponts et gués', test: f => /^map\/world\/river\//.test(f), intro: 'L\'eau fait partie du sol. Un pont ou un gué traverse la rivière d\'une rive à l\'autre, case par case : _x de haut-gauche vers bas-droite, _y de haut-droite vers bas-gauche. Pont : vitesse normale ; gué : moitié moins vite.' },
   { key: 'desert', title: 'Désert : dunes, ruines, palmiers', test: f => /^map\/world\/desert\//.test(f), intro: 'Décor du désert. Les palmiers se posent autour des oasis.' },
   { key: 'water', title: 'Eau : bateaux et quais (décor)', test: f => /^map\/world\/water\//.test(f), intro: 'Décor seulement (décision du 25 octobre 2026) : sur les rivières et les lacs, sans effet sur le jeu.' },
+  { key: 'decor', title: 'Décor des cases, comme sur la carte de référence', test: f => /^map\/world\/(fields|decor)\//.test(f), intro: 'Pas semé au hasard partout (décision du 26 octobre 2026) : champs de blé autour des villes et sur la terre labourée, une meule à côté d\'un champ, buissons et arbres isolés au bord de l\'eau, agaves sur l\'herbe sèche, cactus au désert, quelques cailloux, décor givré sous la neige. Un chemin de terre part de la porte de chaque ville (texture de sol, rien à produire). Chaque élément reste petit et bas.' },
   { key: 'cities', title: 'Villes sur 2 × 2 cases', test: f => /^map\/cities\//.test(f) && !/\/siege_/.test(f), intro: 'Une ville couvre 2 × 2 cases. Village, ville (palier 2), capitale fortifiée (palier 3), ville secondaire normale et fortifiée, pour chaque civilisation.' },
   { key: 'siege', title: 'Villes assiégées (animation en 4 images)', test: f => /^map\/cities\/siege_/.test(f), intro: 'Remplacent la ville tant que le siège dure : même cadrage que la ville normale, 4 images qui bouclent.' },
   { key: 'resources', title: 'Points de ressource', test: f => /^map\/resources\//.test(f), intro: 'Le point de ressource libre (sans tribu), par ressource et par biome.' },
   { key: 'camps', title: 'Camps des tribus, fondation, bannières', test: f => /^map\/camps\//.test(f), intro: 'Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d\'une ville, bannière de chaque civilisation posée sur le camp.' },
   { key: 'units', title: 'Armées en marche', test: f => /^map\/units\//.test(f) && !/_(walk|attack|hit)_\d+\.webp$/.test(f), intro: 'L\'armée sur la carte, par classe et par civilisation, le héros en tête, l\'espion, le cortège de colons.' },
   { key: 'fx', title: 'Effets de la carte', test: f => /^map\/fx\/fire_/.test(f), intro: 'Ville en feu (ville très endommagée), par images qui bouclent.' },
-  { key: 'unitanim', title: 'Plus tard : animations des armées (pas encore affichées dans le jeu)', test: f => /^map\/units\/.*_(walk|attack|hit)_\d+\.webp$/.test(f), intro: 'Cycles de marche (6 images) et images du replay de bataille (attaque, touché), même cadrage que l\'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.' },
+  { key: 'unitwalk', title: 'Marche des armées (une image de 6 poses par armée)', test: f => /^map\/units\/.*_walk_\d+\.webp$/.test(f), sheets: true, intro: 'Une seule image par armée : les 6 poses de la marche en grille de 3 colonnes × 2 rangées (1536 × 1024, chaque pose dans un carré de 512 × 512), lues de gauche à droite puis la rangée du bas. Je les découpe à l\'import. Le jeu les joue en boucle pendant la marche, pour chaque groupe de la colonne (une grosse armée marche en 2 ou 3 groupes, comme sur la carte de référence). Une armée sans son cycle trottine avec son image immobile.' },
+  { key: 'unitanim', title: 'Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)', test: f => /^map\/units\/.*_(attack|hit)_\d+\.webp$/.test(f), intro: 'Attaque et touché, même cadrage que l\'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.' },
   { key: 'fxlater', title: 'Plus tard : autres effets de la carte (pas encore affichés dans le jeu)', test: f => /^map\/fx\//.test(f), intro: 'Combat en cours, feu de camp, pluie, neige. Le jeu ne les affiche pas encore : à produire en dernier.' }
 ];
 
@@ -91,6 +93,17 @@ function main() {
   const GROUND_FIRST = ['grass', 'drygrass', 'earth', 'sand', 'water', 'snow', 'ice'];
   const rank = (f) => { const m = f.match(/^map\/world\/ground\/([a-z]+)_/); return m ? GROUND_FIRST.indexOf(m[1]) : 0; };
   for (const g of groups) g.items.sort((a, b) => rank(a.file) - rank(b.file) || a.file.localeCompare(b.file, 'en'));
+  // une partie « sheets » : une entrée par animation (une image de toutes ses poses), pas une par pose
+  for (const g of groups) if (g.sheets) {
+    const seenBase = new Set(), sheets = [];
+    for (const t of g.items) {
+      const base = (t.anim ? t.anim.base : t.file.replace(/_\d+\.webp$/, '')).replace(/\.webp$/, '');
+      if (seenBase.has(base)) continue;
+      seenBase.add(base);
+      sheets.push({ file: base + '.webp', role: t.role.replace(/ — phase \d+\/\d+$/, ''), sheet: base, frames: t.anim ? t.anim.n : 6 });
+    }
+    g.items = sheets;
+  }
   const total = groups.reduce((n, g) => n + g.items.length, 0);
 
   const png = (f) => f.replace(/\.webp$/, '.png');
@@ -128,6 +141,12 @@ ${groups.map((g, i) => `| ${i + 1} | [${g.title}](#partie-${i + 1}) | ${g.items.
   groups.forEach((g, i) => {
     md += `<a id="partie-${i + 1}"></a>\n\n## ${i + 1}. ${g.title}\n\n${g.intro ? g.intro + '\n\n' : ''}`;
     for (const t of g.items) {
+      if (t.sheet) {
+        const prompt = P.walkSheetPrompt(t.sheet) || t.role;
+        md += `### \`${t.sheet}.png\`\n\n${t.role}  \n**Taille** : 1536x1024, ${t.frames} poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n`;
+        csv.push([g.title, t.sheet + '.png', '1536x1024', 'guide-armee.png', t.role, prompt].map(esc).join(';'));
+        continue;
+      }
       const prompt = P.promptFor(t.file) || t.role;
       const guide = GUIDE_OF(t);
       const size = T.deliverySize(t);

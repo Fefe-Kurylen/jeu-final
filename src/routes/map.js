@@ -105,7 +105,9 @@ router.get('/map/viewport', auth, async (req, res) => {
       const o = cityOwner.get(a.targetCityId);
       return !!o && (o.id === me || (myAlliance && o.alliance === myAlliance));
     };
-    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}), hasHero: !!heroId, mainUnit: mainUnitSprite(a, units) }));
+    // taille de la colonne dessinée sur la carte (1 à 3 groupes de soldats), comme on la voit de loin : pas l'effectif
+    const squadsOf = (units) => { const n = (units || []).reduce((t, u) => t + (u.count || 0), 0); return n < 100 ? 1 : n < 500 ? 2 : 3; };
+    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}), hasHero: !!heroId, mainUnit: mainUnitSprite(a, units), squads: squadsOf(units) }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);

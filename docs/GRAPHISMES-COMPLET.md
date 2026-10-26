@@ -17,11 +17,11 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
 | Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
-| Carte du monde | 16 | 425 | 0 | **425** |
+| Carte du monde | 17 | 604 | 0 | **604** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 67 | **2139** | 189 | **1950** |
+| **Total** | 68 | **2318** | 189 | **2129** |
 
 ## Inscription et connexion
 
@@ -74,6 +74,7 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) | 20 | 0 | tout le fond de la carte, fondus faits par le jeu | PROMPTS-CARTE § 1 | ★★★ |
 | Forêts, rochers et montagnes de la carte | 57 | 0 | massifs forestiers, amas de rochers, chaînes de montagnes | PROMPTS-CARTE § 2-3 | ★★★ |
 | Ponts, gués, décor du désert et de l'eau | 18 | 0 | passages des rivières, dunes, ruines, palmiers, bateaux, quais | PROMPTS-CARTE § 4-6 | ★★☆ |
+| Décor des cases comme sur la carte de référence (champs de blé, meules, cailloux, agaves, cactus, buissons, arbres isolés, décor givré) | 23 | 0 | autour des villes, sur la terre labourée, au bord de l'eau | PROMPTS-CARTE § 7 | ★★☆ |
 | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 | points tenus par une tribu | guide « Camps barbares » | ★★★ |
 | Campement de fondation (3 biomes) | 3 | 0 | point pendant la fondation d'une ville | guide § S12 | ★★☆ |
 | Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases) | 48 | 0 | colonie assiégée sur la carte (remplace son sprite pendant le siège) | guide § A19 | ★★☆ |
@@ -81,7 +82,7 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Armées en marche (4 classes × 6 civilisations, marchand) | 29 | 0 | armées, convois | § 3.4 | ★★★ |
 | Cortège de colons (+ 6 civilisations) | 7 | 0 | armée partie fonder une ville | guide § S12 | ★★☆ |
 | Héros en tête d'armée, espion | 7 | 0 | armées avec héros, missions d'espionnage | guide § S18 | ★★☆ |
-| Cycles de marche (armées, marchand, colons) | 36 | 0 | armées en mouvement | guide § A5 | ★★☆ |
+| Cycles de marche par classe et civilisation, héros, marchand, colons (une image de 6 poses en 3 × 2) | 192 | 0 | armées en mouvement (chaque groupe de la colonne) | PROMPTS-CARTE § 14 | ★★☆ |
 | Replay de bataille : poses, héros, projectiles, impacts | 43 | 0 | rapports de combat | guide § A6, A18 | ★★☆ |
 | Effets de carte : combat, ville en feu, feu de camp, météo | 20 | 0 | carte | guide § A7, A17 | ★☆☆ |
 

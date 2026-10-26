@@ -1,4 +1,4 @@
-# Carte du monde — les 420 images à produire, avec leurs prompts
+# Carte du monde — les 439 images à produire, avec leurs prompts
 
 Généré par `node tools/repaint/map-kit.cjs` (ne pas éditer à la main). Style et découpage : [la carte de référence](img/carte-reference.jpg)
 et [CARTE-REFERENCE.md](CARTE-REFERENCE.md) (décisions du 25 octobre 2026). Seule la carte du monde change de style ; la vue de la
@@ -29,15 +29,17 @@ autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les ville
 | 4 | [Rivières : ponts et gués](#partie-4) | 4 |
 | 5 | [Désert : dunes, ruines, palmiers](#partie-5) | 9 |
 | 6 | [Eau : bateaux et quais (décor)](#partie-6) | 5 |
-| 7 | [Villes sur 2 × 2 cases](#partie-7) | 32 |
-| 8 | [Villes assiégées (animation en 4 images)](#partie-8) | 120 |
-| 9 | [Points de ressource](#partie-9) | 15 |
-| 10 | [Camps des tribus, fondation, bannières](#partie-10) | 21 |
-| 11 | [Armées en marche](#partie-11) | 43 |
-| 12 | [Effets de la carte](#partie-12) | 4 |
-| 13 | [Plus tard : animations des armées (pas encore affichées dans le jeu)](#partie-13) | 74 |
-| 14 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-14) | 16 |
-| | **Total** | **420** |
+| 7 | [Décor des cases, comme sur la carte de référence](#partie-7) | 23 |
+| 8 | [Villes sur 2 × 2 cases](#partie-8) | 32 |
+| 9 | [Villes assiégées (animation en 4 images)](#partie-9) | 120 |
+| 10 | [Points de ressource](#partie-10) | 15 |
+| 11 | [Camps des tribus, fondation, bannières](#partie-11) | 21 |
+| 12 | [Armées en marche](#partie-12) | 43 |
+| 13 | [Effets de la carte](#partie-13) | 4 |
+| 14 | [Marche des armées (une image de 6 poses par armée)](#partie-14) | 32 |
+| 15 | [Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)](#partie-15) | 38 |
+| 16 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-16) | 16 |
+| | **Total** | **439** |
 
 <a id="partie-1"></a>
 
@@ -1312,7 +1314,312 @@ Subject: a short wooden pier on posts reaching out over the water from the top-r
 
 <a id="partie-7"></a>
 
-## 7. Villes sur 2 × 2 cases
+## 7. Décor des cases, comme sur la carte de référence
+
+Pas semé au hasard partout (décision du 26 octobre 2026) : champs de blé autour des villes et sur la terre labourée, une meule à côté d'un champ, buissons et arbres isolés au bord de l'eau, agaves sur l'herbe sèche, cactus au désert, quelques cailloux, décor givré sous la neige. Un chemin de terre part de la porte de chaque ville (texture de sol, rien à produire). Chaque élément reste petit et bas.
+
+### `map/world/decor/agave_1.png`
+
+Agave (variante 1) : herbe sèche et terre  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: one green agave plant with long spiky leaves; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/agave_2.png`
+
+Agave (variante 2) : herbe sèche et terre  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: two small spiky yucca plants; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/agave_3.png`
+
+Agave (variante 3) : herbe sèche et terre  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a dry thorny bush with a few green spiky leaves; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/bush_1.png`
+
+Buisson (variante 1) : au bord de l'eau  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a round green bush; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/bush_2.png`
+
+Buisson (variante 2) : au bord de l'eau  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: two low bushes with small white flowers; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/bush_3.png`
+
+Buisson (variante 3) : au bord de l'eau  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a clump of tall reeds and a bush, as at a riverbank; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/cactus_1.png`
+
+Cactus du désert (variante 1)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: one tall saguaro-like cactus with two arms; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/cactus_2.png`
+
+Cactus du désert (variante 2)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a cluster of small round prickly cacti; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/haystack_1.png`
+
+Meule de foin (variante 1) : à côté d'un champ  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: one round golden haystack with a small shadow; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/haystack_2.png`
+
+Meule de foin (variante 2) : à côté d'un champ  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: two small conical haystacks side by side; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/snow_bush_1.png`
+
+Buisson givré (variante 1) : zone enneigée  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a frosted bush covered with snow; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/snow_bush_2.png`
+
+Buisson givré (variante 2) : zone enneigée  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a few bare twigs and dry grass sticking out of the snow; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/snow_stones_1.png`
+
+Cailloux enneigés (variante 1) : zone enneigée  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: two grey stones capped with snow; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/snow_stones_2.png`
+
+Cailloux enneigés (variante 2) : zone enneigée  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a single large rock half buried in snow; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/stones_1.png`
+
+Cailloux épars (variante 1)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: three or four small grey stones scattered on the tile; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/stones_2.png`
+
+Cailloux épars (variante 2)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a single medium grey stone with two pebbles; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/stones_3.png`
+
+Cailloux épars (variante 3)  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a few flat pale stones half sunk in the ground; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/tree_1.png`
+
+Arbre isolé (variante 1) : au bord de l'eau et dans les prairies  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: one isolated broad deciduous tree with a round green crown; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/tree_2.png`
+
+Arbre isolé (variante 2) : au bord de l'eau et dans les prairies  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: one isolated tall dark-green pine; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/decor/tree_3.png`
+
+Arbre isolé (variante 3) : au bord de l'eau et dans les prairies  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a small olive tree with a twisted trunk; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/fields/wheat_1.png`
+
+Champ de blé (variante 1) : autour des villes et sur la terre labourée, par groupes de cases  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a ripe golden wheat field exactly filling the one-tile diamond: dense ears in straight rows along the grid, knee high, the brown earth showing only at its edges, no fence; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/fields/wheat_2.png`
+
+Champ de blé (variante 2) : autour des villes et sur la terre labourée, par groupes de cases  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a wheat field filling the one-tile diamond, golden ears slightly bent by the wind, a few red poppies; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+### `map/world/fields/wheat_3.png`
+
+Champ de blé (variante 3) : autour des villes et sur la terre labourée, par groupes de cases  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a barley field filling the one-tile diamond, pale gold ears in rows, a narrow trampled furrow along one side; small and low, it must not hide the grid lines of the neighbouring tiles
+```
+
+<a id="partie-8"></a>
+
+## 8. Villes sur 2 × 2 cases
 
 Une ville couvre 2 × 2 cases. Village, ville (palier 2), capitale fortifiée (palier 3), ville secondaire normale et fortifiée, pour chaque civilisation.
 
@@ -1732,9 +2039,9 @@ Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 
 Subject: a small walled village in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a low wall or palisade around a dozen houses, a main hall in the middle, two banners
 ```
 
-<a id="partie-8"></a>
+<a id="partie-9"></a>
 
-## 8. Villes assiégées (animation en 4 images)
+## 9. Villes assiégées (animation en 4 images)
 
 Remplacent la ville tant que le siège dure : même cadrage que la ville normale, 4 images qui bouclent.
 
@@ -3298,9 +3605,9 @@ Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 
 Subject: A sprite sheet frame: a fortified capital: walls with corner towers around a palace, Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns (level 3 fortified city), UNDER SIEGE: a ring of enemy siege works around it (two catapults or a ram under a wooden shed, a palisade of sharpened stakes, a few tents and tiny soldiers), fires burning on the ramparts and roofs, columns of dark smoke rising, a stone flying from a catapult toward the walls; the town itself keeps exactly the silhouette and size of its normal world-map image, frame 4 (the catapult arm swings, the flames flicker and the smoke drifts from one frame to the next; same subject, same size and position in every frame)
 ```
 
-<a id="partie-9"></a>
+<a id="partie-10"></a>
 
-## 9. Points de ressource
+## 10. Points de ressource
 
 Le point de ressource libre (sans tribu), par ressource et par biome.
 
@@ -3499,9 +3806,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: a forest clearing with trees and a cut log
 ```
 
-<a id="partie-10"></a>
+<a id="partie-11"></a>
 
-## 10. Camps des tribus, fondation, bannières
+## 11. Camps des tribus, fondation, bannières
 
 Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d'une ville, bannière de chaque civilisation posée sur le camp.
 
@@ -3778,9 +4085,9 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke
 ```
 
-<a id="partie-11"></a>
+<a id="partie-12"></a>
 
-## 11. Armées en marche
+## 12. Armées en marche
 
 L'armée sur la carte, par classe et par civilisation, le héros en tête, l'espion, le cortège de colons.
 
@@ -4343,9 +4650,9 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a spy: a hooded rider on a dark horse, cloak flying, riding toward the lower right
 ```
 
-<a id="partie-12"></a>
+<a id="partie-13"></a>
 
-## 12. Effets de la carte
+## 13. Effets de la carte
 
 Ville en feu (ville très endommagée), par images qui bouclent.
 
@@ -4401,11 +4708,433 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 Subject: A sprite sheet frame: a burning town (flames and black smoke), frame 4 (same subject, same size and position in every frame, only the pose changes)
 ```
 
-<a id="partie-13"></a>
+<a id="partie-14"></a>
 
-## 13. Plus tard : animations des armées (pas encore affichées dans le jeu)
+## 14. Marche des armées (une image de 6 poses par armée)
 
-Cycles de marche (6 images) et images du replay de bataille (attaque, touché), même cadrage que l'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.
+Une seule image par armée : les 6 poses de la marche en grille de 3 colonnes × 2 rangées (1536 × 1024, chaque pose dans un carré de 512 × 512), lues de gauche à droite puis la rangée du bas. Je les découpe à l'import. Le jeu les joue en boucle pendant la marche, pour chaque groupe de la colonne (une grosse armée marche en 2 ou 3 groupes, comme sur la carte de référence). Une armée sans son cycle trottine avec son image immobile.
+
+### `map/units/archer_EGYPT_walk.png`
+
+Carte : marche des archers de Égypte  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, egypt faction with striped nemes headdress with a gold band and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/archer_GAUL_walk.png`
+
+Carte : marche des archers de Gaule  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, gaul faction with horned helmet and long hair and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/archer_GREEK_walk.png`
+
+Carte : marche des archers de Grèce  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, greek faction with golden Corinthian helmet with a blue crest and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/archer_HUN_walk.png`
+
+Carte : marche des archers de Huns  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, hun faction with fur-trimmed pointed felt cap and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/archer_ROME_walk.png`
+
+Carte : marche des archers de Rome  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, rome faction with Roman legionary helmet with a red crest and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/archer_SULTAN_walk.png`
+
+Carte : marche des archers de Sultanat  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an archer with a bow and a quiver, sultan faction with white turban with a gem and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_EGYPT_walk.png`
+
+Carte : marche des engins de siège de Égypte  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, egypt faction with striped nemes headdress with a gold band and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_GAUL_walk.png`
+
+Carte : marche des engins de siège de Gaule  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, gaul faction with horned helmet and long hair and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_GREEK_walk.png`
+
+Carte : marche des engins de siège de Grèce  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, greek faction with golden Corinthian helmet with a blue crest and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_HUN_walk.png`
+
+Carte : marche des engins de siège de Huns  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, hun faction with fur-trimmed pointed felt cap and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_ROME_walk.png`
+
+Carte : marche des engins de siège de Rome  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, rome faction with Roman legionary helmet with a red crest and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/catapult_SULTAN_walk.png`
+
+Carte : marche des engins de siège de Sultanat  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a siege engineer standing next to a catapult, sultan faction with white turban with a gem and faction colors, walking toward the lower right (the engineers push and pull the catapult, its wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_EGYPT_walk.png`
+
+Carte : marche de la cavalerie de Égypte  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, egypt faction with striped nemes headdress with a gold band and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_GAUL_walk.png`
+
+Carte : marche de la cavalerie de Gaule  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, gaul faction with horned helmet and long hair and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_GREEK_walk.png`
+
+Carte : marche de la cavalerie de Grèce  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, greek faction with golden Corinthian helmet with a blue crest and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_HUN_walk.png`
+
+Carte : marche de la cavalerie de Huns  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, hun faction with fur-trimmed pointed felt cap and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_ROME_walk.png`
+
+Carte : marche de la cavalerie de Rome  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, rome faction with Roman legionary helmet with a red crest and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/cavalry_SULTAN_walk.png`
+
+Carte : marche de la cavalerie de Sultanat  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one a cavalryman riding a horse with a lance, sultan faction with white turban with a gem and faction colors, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_EGYPT_walk.png`
+
+Carte : marche d'une armée menée par le héros de Égypte  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the egypt hero with striped nemes headdress with a gold band, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_GAUL_walk.png`
+
+Carte : marche d'une armée menée par le héros de Gaule  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the gaul hero with horned helmet and long hair, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_GREEK_walk.png`
+
+Carte : marche d'une armée menée par le héros de Grèce  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the greek hero with golden Corinthian helmet with a blue crest, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_HUN_walk.png`
+
+Carte : marche d'une armée menée par le héros de Huns  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the hun hero with fur-trimmed pointed felt cap, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_ROME_walk.png`
+
+Carte : marche d'une armée menée par le héros de Rome  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the rome hero with Roman legionary helmet with a red crest, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hero_SULTAN_walk.png`
+
+Carte : marche d'une armée menée par le héros de Sultanat  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: the sultan hero with white turban with a gem, golden armor and a cape, riding a horse in front of two soldiers, walking toward the lower right (the horses walk (legs in the walking gait), riders bob slightly). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_EGYPT_walk.png`
+
+Carte : marche de l'infanterie de Égypte  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, egypt faction with striped nemes headdress with a gold band and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_GAUL_walk.png`
+
+Carte : marche de l'infanterie de Gaule  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, gaul faction with horned helmet and long hair and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_GREEK_walk.png`
+
+Carte : marche de l'infanterie de Grèce  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, greek faction with golden Corinthian helmet with a blue crest and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_HUN_walk.png`
+
+Carte : marche de l'infanterie de Huns  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, hun faction with fur-trimmed pointed felt cap and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_ROME_walk.png`
+
+Carte : marche de l'infanterie de Rome  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, rome faction with Roman legionary helmet with a red crest and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/hoplite_SULTAN_walk.png`
+
+Carte : marche de l'infanterie de Sultanat  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a small squad of three or four marching figures, each one an infantry soldier with spear and round shield, sultan faction with white turban with a gem and faction colors, walking toward the lower right (the soldiers march in step). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/merchant_walk.png`
+
+Carte : marche du convoi du marchand  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a merchant convoy: a cart loaded with crates and sacks pulled by a horse, the merchant walking beside it, walking toward the lower right (the animals and people walk, the wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+### `map/units/settler_walk.png`
+
+Cycle de marche sur la carte : cortège de colons  
+**Taille** : 1536x1024, 6 poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.
+
+Subject: a settlers' party: a covered ox-wagon with a family walking beside it carrying bundles, a man holding a wooden stake with a small flag, walking toward the lower right (the animals and people walk, the wheels turn). The six poses of the cycle: 1) left foot forward, touching the ground; 2) body lowest, weight on the left foot, right leg bending; 3) right leg passing the left one, body highest; 4) right foot forward, touching the ground; 5) body lowest, weight on the right foot, left leg bending; 6) left leg passing the right one, body highest.
+```
+
+<a id="partie-15"></a>
+
+## 15. Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)
+
+Attaque et touché, même cadrage que l'armée immobile. Le jeu ne les joue pas encore : à produire en dernier, je les brancherai à leur livraison.
 
 ### `map/units/archer_attack_0.png`
 
@@ -4470,84 +5199,6 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
 
 Subject: a small battle-replay sprite: an archer with a bow and a quiver being hit and recoiling, frame 2
-```
-
-### `map/units/archer_walk_0.png`
-
-Cycle de marche sur la carte : archer — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/archer_walk_1.png`
-
-Cycle de marche sur la carte : archer — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/archer_walk_2.png`
-
-Cycle de marche sur la carte : archer — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/archer_walk_3.png`
-
-Cycle de marche sur la carte : archer — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/archer_walk_4.png`
-
-Cycle de marche sur la carte : archer — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/archer_walk_5.png`
-
-Cycle de marche sur la carte : archer — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an archer with a bow and a quiver) marching toward the lower right, walk cycle frame 6 of 6
 ```
 
 ### `map/units/catapult_attack_0.png`
@@ -4615,84 +5266,6 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a small battle-replay sprite: a siege engineer standing next to a catapult being hit and recoiling, frame 2
 ```
 
-### `map/units/catapult_walk_0.png`
-
-Cycle de marche sur la carte : catapult — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/catapult_walk_1.png`
-
-Cycle de marche sur la carte : catapult — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/catapult_walk_2.png`
-
-Cycle de marche sur la carte : catapult — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/catapult_walk_3.png`
-
-Cycle de marche sur la carte : catapult — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/catapult_walk_4.png`
-
-Cycle de marche sur la carte : catapult — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/catapult_walk_5.png`
-
-Cycle de marche sur la carte : catapult — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a siege engineer standing next to a catapult) marching toward the lower right, walk cycle frame 6 of 6
-```
-
 ### `map/units/cavalry_attack_0.png`
 
 Replay : cavalry attaque — phase 1/3  
@@ -4756,84 +5329,6 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
 
 Subject: a small battle-replay sprite: a cavalryman riding a horse with a lance being hit and recoiling, frame 2
-```
-
-### `map/units/cavalry_walk_0.png`
-
-Cycle de marche sur la carte : cavalry — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/cavalry_walk_1.png`
-
-Cycle de marche sur la carte : cavalry — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/cavalry_walk_2.png`
-
-Cycle de marche sur la carte : cavalry — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/cavalry_walk_3.png`
-
-Cycle de marche sur la carte : cavalry — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/cavalry_walk_4.png`
-
-Cycle de marche sur la carte : cavalry — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/cavalry_walk_5.png`
-
-Cycle de marche sur la carte : cavalry — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a cavalryman riding a horse with a lance) marching toward the lower right, walk cycle frame 6 of 6
 ```
 
 ### `map/units/hero_EGYPT_attack_0.png`
@@ -5135,243 +5630,9 @@ Composition: square image (1024 x 1024). A small group of marching figures stand
 Subject: a small battle-replay sprite: an infantry soldier with spear and round shield being hit and recoiling, frame 2
 ```
 
-### `map/units/hoplite_walk_0.png`
+<a id="partie-16"></a>
 
-Cycle de marche sur la carte : hoplite — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/hoplite_walk_1.png`
-
-Cycle de marche sur la carte : hoplite — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/hoplite_walk_2.png`
-
-Cycle de marche sur la carte : hoplite — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/hoplite_walk_3.png`
-
-Cycle de marche sur la carte : hoplite — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/hoplite_walk_4.png`
-
-Cycle de marche sur la carte : hoplite — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/hoplite_walk_5.png`
-
-Cycle de marche sur la carte : hoplite — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (an infantry soldier with spear and round shield) marching toward the lower right, walk cycle frame 6 of 6
-```
-
-### `map/units/merchant_walk_0.png`
-
-Cycle de marche sur la carte : merchant — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/merchant_walk_1.png`
-
-Cycle de marche sur la carte : merchant — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/merchant_walk_2.png`
-
-Cycle de marche sur la carte : merchant — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/merchant_walk_3.png`
-
-Cycle de marche sur la carte : merchant — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/merchant_walk_4.png`
-
-Cycle de marche sur la carte : merchant — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/merchant_walk_5.png`
-
-Cycle de marche sur la carte : merchant — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: (a merchant cart pulled by a horse) marching toward the lower right, walk cycle frame 6 of 6
-```
-
-### `map/units/settler_walk_0.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 1/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 1 of 6
-```
-
-### `map/units/settler_walk_1.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 2/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 2 of 6
-```
-
-### `map/units/settler_walk_2.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 3/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 3 of 6
-```
-
-### `map/units/settler_walk_3.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 4/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 4 of 6
-```
-
-### `map/units/settler_walk_4.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 5/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 5 of 6
-```
-
-### `map/units/settler_walk_5.png`
-
-Cycle de marche sur la carte : cortège de colons — phase 6/6  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). A small group of marching figures standing directly on the ground (no base, no ground drawn), centered, feet at about 75% of the image height, overall height about 40% of the image, marching toward the lower right. The second image is a layout guide that shows the tile diamond in red: the feet stand on its center; do not draw the red diamond, the marks or the grey background.
-
-Subject: a settlers' party (covered ox-wagon, walking family with bundles, a man with a flagged stake) marching toward the lower right, walk cycle frame 6 of 6
-```
-
-<a id="partie-14"></a>
-
-## 14. Plus tard : autres effets de la carte (pas encore affichés dans le jeu)
+## 16. Plus tard : autres effets de la carte (pas encore affichés dans le jeu)
 
 Combat en cours, feu de camp, pluie, neige. Le jeu ne les affiche pas encore : à produire en dernier.
 

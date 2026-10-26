@@ -175,7 +175,12 @@ for (const c of CIVS) for (const v of ['a', 'b']) anim(`props/villager_${c}_${v}
 anim('props/flame', 4, 'prop', 'Flamme de torche (tours, porte, remparts)'); anim('props/brazier', 4, 'prop', 'Brasero de la plaza');
 for (const c of CIVS) anim(`props/worker_${c}`, 4, 'prop', `Ouvrier de chantier de ${CIV_FR[c]} au marteau`);
 anim('anim/mill_sails', 6, 'fx', 'Ailes du moulin'); anim('anim/sparks', 4, 'fx', 'Étincelles de la forge'); anim('anim/furnace', 4, 'fx', 'Feu de la fonderie');
-for (const u of ['hoplite', 'archer', 'cavalry', 'catapult', 'merchant']) anim(`map/units/${u}_walk`, 6, 'map', `Cycle de marche sur la carte : ${u}`);
+// Cycles de marche de la carte (décision du 26 octobre 2026) : par classe et par civilisation, le héros en tête d'armée, le
+// marchand ; une image de 6 poses en grille 3 × 2 (1536 × 1024), découpée à l'import
+const UNIT_FR = { hoplite: 'de l\'infanterie', archer: 'des archers', cavalry: 'de la cavalerie', catapult: 'des engins de siège' };
+for (const c of CIVS) for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) anim(`map/units/${u}_${c}_walk`, 6, 'map', `Carte : marche ${UNIT_FR[u]} de ${CIV_FR[c]}`);
+for (const c of CIVS) anim(`map/units/hero_${c}_walk`, 6, 'map', `Carte : marche d'une armée menée par le héros de ${CIV_FR[c]}`);
+anim('map/units/merchant_walk', 6, 'map', 'Carte : marche du convoi du marchand');
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
 add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx', 'Replay : pierre de catapulte'); anim('fx/impact', 3, 'fx', 'Replay : éclat d\'impact');
 // Siège qui dure (octobre 2026, GDD combat_config.siege.visuals) : campement d'engins et de barricades autour d'une ville assiégée
@@ -232,6 +237,18 @@ function buildAllTargets() {
   for (const t of out) if (t.frame === 'mapcity') { delete t.guide; delete t.guideFile; }   // ville 2 × 2 : guide de cadrage docs/img/guides-carte
   return out;
 }
+// Disposition d'une animation livrée en une image : bande horizontale ou grille (6 poses en 3 × 2 dans 1536 × 1024, 4 en
+// 2 × 2…) — celle dont les cases ont la forme la plus proche du cadre attendu W × H. Utilisée telle quelle dans la page
+// d'import (tools/repaint.cjs) : pas de dépendance.
+function gridFor(n, imgW, imgH, W, H) {
+  let cols = n, rows = 1, best = Infinity;
+  for (let c = 1; c <= n; c++) {
+    if (n % c) continue;
+    const r = n / c, e = Math.abs(Math.log((imgW / c) / (imgH / r)) - Math.log(W / H));
+    if (e < best - 1e-9) { best = e; cols = c; rows = r; }
+  }
+  return { cols, rows };
+}
 function frameSize(t) { return FRAMES[t.frame] || [1024, 1024]; }
 function deliverySize(t) { return DELIVERY[t.frame] || '1024x1024'; }
 
@@ -271,4 +288,4 @@ function suggest(rel, index, n = 3) {
   return keys.map(x => ({ x, d: Math.min(lev(k, x), lev(base, x.split('/').pop()) + 1) })).sort((a, b) => a.d - b.d).slice(0, n).filter(s => s.d <= Math.max(4, base.length / 2)).map(s => s.x);
 }
 
-module.exports = { FRAMES, DELIVERY, EXTRAS, STORE, CIVS, buildAllTargets, buildIndex, resolveDelivered, suggest, lookupKey, frameSize, deliverySize, describe, frameOfFile };
+module.exports = { gridFor, FRAMES, DELIVERY, EXTRAS, STORE, CIVS, buildAllTargets, buildIndex, resolveDelivered, suggest, lookupKey, frameSize, deliverySize, describe, frameOfFile };

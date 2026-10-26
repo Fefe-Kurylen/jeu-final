@@ -95,3 +95,12 @@ test('the main land holds almost every walkable cell', () => {
   }
   assert.ok(main / walk > 0.97, `${(main / walk * 100).toFixed(1)} %`);
 });
+
+// Import des animations livrées en une image (tools/repaint.cjs) : bande ou grille selon la forme des cases
+test('an animation delivered as one image is cut as a strip or as a grid, whichever gives frame-shaped cells', () => {
+  const { gridFor } = require('../../tools/repaint/targets.cjs');
+  assert.deepEqual(gridFor(6, 1536, 1024, 512, 512), { cols: 3, rows: 2 }, '6 poses in a 3 × 2 sheet');
+  assert.deepEqual(gridFor(6, 3072, 512, 512, 512), { cols: 6, rows: 1 }, 'a horizontal strip still works');
+  assert.deepEqual(gridFor(4, 1024, 1024, 512, 512), { cols: 2, rows: 2 }, '4 poses in a 2 × 2 sheet');
+  assert.deepEqual(gridFor(6, 3072, 768, 128, 192), { cols: 6, rows: 1 }, 'tall prop frames in a strip');
+});

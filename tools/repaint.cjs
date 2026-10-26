@@ -255,12 +255,14 @@ async function importUserImages(dir) {
   const orientPairs = [];   // bâtiments livrés et leur guide, pour la planche de contrôle d'orientation
   // Ajuste l'image (ou la case i/n d'une bande) dans un canevas W×H sans déformation, ancrée en bas pour les
   // personnages et décors, centrée sinon ; détoure un fond uni (magenta, vert, ou couleur des coins) quand l'image n'a pas d'alpha
-  const fit = async (b64, mime, W, H, i, n, anchor, keepOpaque) => page.evaluate(async ({ b64, mime, W, H, i, n, anchor, keepOpaque }) => {
+  const fit = async (b64, mime, W, H, i, n, anchor, keepOpaque) => page.evaluate(async ({ b64, mime, W, H, i, n, anchor, keepOpaque, gridSrc }) => {
     const img = new Image(); img.src = `data:${mime};base64,${b64}`; await img.decode();
-    const cw = img.width / n, sx = cw * i;
+    // une animation livrée en une image : bande horizontale ou grille (targets.cjs gridFor)
+    const { cols, rows } = new Function('return ' + gridSrc)()(n, img.width, img.height, W, H);
+    const cw = img.width / cols, ch = img.height / rows, sx = cw * (i % cols), sy = ch * Math.floor(i / cols);
     const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
-    const k = Math.min(W / cw, H / img.height), dw = cw * k, dh = img.height * k;
-    x.drawImage(img, sx, 0, cw, img.height, (W - dw) / 2, anchor === 'bottom' ? H - dh : (H - dh) / 2, dw, dh);
+    const k = Math.min(W / cw, H / ch), dw = cw * k, dh = ch * k;
+    x.drawImage(img, sx, sy, cw, ch, (W - dw) / 2, anchor === 'bottom' ? H - dh : (H - dh) / 2, dw, dh);
     const id = x.getImageData(0, 0, W, H), d = id.data;
     let opaque = 0; for (let j = 3; j < d.length; j += 4) if (d[j] === 255) opaque++;
     if (!keepOpaque && opaque > d.length / 4 * 0.98) {   // pas de transparence : détourage du fond uni (couleur des coins)
@@ -280,7 +282,7 @@ async function importUserImages(dir) {
       x.putImageData(id, 0, 0);
     }
     return c.toDataURL('image/png').split(',')[1];
-  }, { b64, mime, W, H, i, n, anchor, keepOpaque });
+  }, { b64, mime, W, H, i, n, anchor, keepOpaque, gridSrc: T.gridFor.toString() });
   for (const f of files) {
     const rel = path.relative(dir, f).replace(/\\/g, '/');
     const r = T.resolveDelivered(rel, targetIndex);

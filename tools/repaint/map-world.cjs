@@ -114,6 +114,20 @@ for (let i = 1; i <= 3; i++) obj(`map/world/water/boat_${i}.webp`, ['a small woo
 obj('map/world/water/dock_x.webp', 'a short wooden pier on posts reaching out over the water from the top-left side of the tile toward the bottom-right, a moored rowboat; the water is NOT drawn (transparent)', 'Quai (décor) au bord de l\'eau');
 obj('map/world/water/dock_y.webp', 'a short wooden pier on posts reaching out over the water from the top-right side of the tile toward the bottom-left, a moored rowboat; the water is NOT drawn (transparent)', 'Quai (décor) au bord de l\'eau');
 
+// ---- décor des cases libres, comme sur la carte de référence (décision du 26 octobre 2026 : pas semé au hasard partout) ----
+const DECOR = [
+  ['fields/wheat', 3, (i) => ['a ripe golden wheat field exactly filling the one-tile diamond: dense ears in straight rows along the grid, knee high, the brown earth showing only at its edges, no fence', 'a wheat field filling the one-tile diamond, golden ears slightly bent by the wind, a few red poppies', 'a barley field filling the one-tile diamond, pale gold ears in rows, a narrow trampled furrow along one side'][i], (i) => `Champ de blé (variante ${i + 1}) : autour des villes et sur la terre labourée, par groupes de cases`],
+  ['decor/haystack', 2, (i) => ['one round golden haystack with a small shadow', 'two small conical haystacks side by side'][i], (i) => `Meule de foin (variante ${i + 1}) : à côté d'un champ`],
+  ['decor/stones', 3, (i) => ['three or four small grey stones scattered on the tile', 'a single medium grey stone with two pebbles', 'a few flat pale stones half sunk in the ground'][i], (i) => `Cailloux épars (variante ${i + 1})`],
+  ['decor/agave', 3, (i) => ['one green agave plant with long spiky leaves', 'two small spiky yucca plants', 'a dry thorny bush with a few green spiky leaves'][i], (i) => `Agave (variante ${i + 1}) : herbe sèche et terre`],
+  ['decor/cactus', 2, (i) => ['one tall saguaro-like cactus with two arms', 'a cluster of small round prickly cacti'][i], (i) => `Cactus du désert (variante ${i + 1})`],
+  ['decor/bush', 3, (i) => ['a round green bush', 'two low bushes with small white flowers', 'a clump of tall reeds and a bush, as at a riverbank'][i], (i) => `Buisson (variante ${i + 1}) : au bord de l'eau`],
+  ['decor/tree', 3, (i) => ['one isolated broad deciduous tree with a round green crown', 'one isolated tall dark-green pine', 'a small olive tree with a twisted trunk'][i], (i) => `Arbre isolé (variante ${i + 1}) : au bord de l'eau et dans les prairies`],
+  ['decor/snow_bush', 2, (i) => ['a frosted bush covered with snow', 'a few bare twigs and dry grass sticking out of the snow'][i], (i) => `Buisson givré (variante ${i + 1}) : zone enneigée`],
+  ['decor/snow_stones', 2, (i) => ['two grey stones capped with snow', 'a single large rock half buried in snow'][i], (i) => `Cailloux enneigés (variante ${i + 1}) : zone enneigée`]
+];
+for (const [base, n, subject, role] of DECOR) for (let i = 0; i < n; i++) obj(`map/world/${base}_${i + 1}.webp`, `${subject(i)}; small and low, it must not hide the grid lines of the neighbouring tiles`, role(i));
+
 // ---- villes 2 × 2 (même noms qu'avant, cadrage 2 × 2) ----
 const CITY = {
   t1: (c) => `a small walled village ${CIV_LOOK[c]}; a low wall or palisade around a dozen houses, a main hall in the middle, two banners`,
