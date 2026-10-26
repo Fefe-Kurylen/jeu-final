@@ -173,6 +173,7 @@ quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). Fiches d�
 | **Jeu complet de textures de sol** (variantes par biome, eau et glace, dallages par civilisation, chemins, champs, décalques, bordures) — fiches dans \`docs/GUIDE-COMPLEMENTS-ANIMATIONS.md\` § T | 55 | 1024², répétables (décalques : fond transparent ; bordures : 1024×256) | aujourd'hui quatre sols seulement, le reste est dessiné par le code ; c'est ce qui donne la richesse de Rise of Kingdoms |
 | Fond de scène de ville par biome (horizon : forêt, désert, neige, rivage) | 4 | 1536×512 | facultatif : la ville a maintenant son propre sol et son décor |
 | Portraits de héros supplémentaires (un héros par civilisation existe déjà) | 0 à 6 | 1024², cadre bust | seulement si l'on veut plusieurs héros par civilisation |
+| **Bannières de la boutique d'alliance** \`banners/banner_eagle.png\`, \`banner_wolf\`, \`banner_sun\`, \`banner_bull\` (aigle, loup, soleil, taureau) : étendard sur sa hampe, vu de trois quarts comme les drapeaux de la carte, fond transparent | 4 | 1024² (affichées en 128×192, comme les drapeaux \`props/flag_*\`) | plantées devant les villes du joueur sur la carte ; en vente une fois leur image livrée (\`data/alliance-shop.json\`) — les plaques de nom de la boutique sont dessinées par le code |
 
 **Sols et ville** : tout ce qui compose la ville est dans l'inventaire (bâtiments, enceinte, champs, parcelles, décors, textures de sol herbe / terre / sable / neige, déjà peintes). Le sol de l'enceinte est la texture du biome éclaircie, la plaza et les avenues sont la texture de terre battue, la route extérieure aussi ; le vantail de la porte, les plans d'eau, les surlignages et les badges sont dessinés par le code. Le jeu complet de 55 textures et décalques (guide § T) couvre tout ce que le sol peut montrer ; avec lui, plus rien du sol n'est dessiné par le code.
 
@@ -293,6 +294,7 @@ const STATIC = [
   ['ui/crest_<CIV>.png × 6', '1024×1024', 'guide § S3'],
   ['scenes/expedition-<forest|desert|mountain|ruins>.png × 4', '1536×1024', 'guide § S4'],
   ['ui/btn-round.png, ui/btn-round-pressed.png', '1024×1024', 'guide § S5'],
+  ['banners/banner_<eagle|wolf|sun|bull>.png × 4 (bannières de la boutique d\'alliance, plantées devant les villes sur la carte ; en vente une fois livrées)', '1024×1024', 'docs/LISTE-GRAPHISMES.md § 4'],
   ['store/ic_stat_notify.png (icône de notification Android, blanc sur transparent)', '96×96', 'guide § N1'],
   ['store/feature-graphic.png (bannière Google Play)', '1024×500', 'guide § N2'],
   ['store/icon-1024.png (icône de l\'application peinte)', '1024×1024', 'guide § N3']
@@ -351,6 +353,7 @@ Généré par \`node tools/liste-graphismes.cjs\` ; s'actualise à chaque import
 - **Portes \`walls/<CIV>/gate.png\`** : une seule porte par civilisation, valable pour tous les niveaux du Mur ; style du palier 2 de l'enceinte (\`walls/<CIV>/2_tower\`, \`2_seg_z\`, la face sud-est où la porte s'insère) ; même cadrage que les tours (losange au sol 2:1 à 51 % de la largeur, centre à 73 % de la hauteur), porte vue de face droite (arête sud-est), ouverture vers le bas-droit, battants ouverts, deux tourelles, torches ; 1024×1024.
 - **Bannière Google Play \`store/feature-graphic.png\`** (1024×500, opaque) : ville fortifiée des six civilisations sur un plateau vert à l'heure dorée, un héros romain au casque à crête rouge au premier plan à gauche, bannières et soldats en marche, palette chaude ; le tiers droit reste calme pour le titre, que j'ajoute ensuite (aucun texte dans l'image).
 - **Bâtiments, orientation** : l'entrée principale (porte, porche, perron, portail) est sur la face avant droite, vers le bas à droite de l'image : le sud-est, côté porte de la ville. Les guides 3D sont orientés ainsi ; la face avant gauche n'a pas de porte principale.
+- **Bannières d'alliance \`banners/banner_<eagle|wolf|sun|bull>.png\`** : étendard de tissu sur sa hampe plantée dans le sol, vu de trois quarts comme les drapeaux de la carte (\`props/flag_*\`), emblème brodé (aigle, loup, soleil, taureau), couleurs neutres valables pour toutes les civilisations, fond transparent ; 1024×1024, affichées en 128×192.
 - **Chantiers** (\`<CLÉ>_site\`) : même emprise et même silhouette que le bâtiment fini (le kit fournit son rendu comme guide), à moitié construit, techniques de la civilisation (guide § S10).
 
 | Étape | Contenu | Images |
