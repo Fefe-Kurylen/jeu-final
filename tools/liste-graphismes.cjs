@@ -21,8 +21,8 @@ const b = cat('buildings').filter(f => !foreignFaction(f) && !/_snow\.webp$/.tes
 const bsel = (f, v) => b.filter(x => x.startsWith(`buildings/${f}/`) && (v === 'cur' ? !/_t1|_t3|_snow/.test(x) : v === 't1' ? /_t1\.webp$/.test(x) : v === 't3' ? /_t3\.webp$/.test(x) : /_snow\.webp$/.test(x)));
 const cell = (list) => `${p(list)} / ${n(list)}`;
 const walls = cat('walls').filter(f => !/_snow\.webp$/.test(f)), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
-const map = cat('map'), mapCities = map.filter(x => x.startsWith('map/cities/')), mapRes = map.filter(x => x.startsWith('map/resources/')), mapWorld = require('./repaint/map-world.cjs').targets().filter(t => t.kind !== 'city').map(t => t.file), mapUnits = map.filter(x => x.startsWith('map/units/'));
-const mapAll = [...map.filter(x => !/^map\/terrain\//.test(x)), ...mapCamps, ...mapWorld];   // map/terrain : remplacé par map/world (carte de référence)
+const map = cat('map'), mapCities = map.filter(x => x.startsWith('map/cities/')), mapRes = map.filter(x => x.startsWith('map/resources/')), mapResWorld = require('./repaint/map-world.cjs').targets().filter(t => t.file.startsWith('map/resources/')).map(t => t.file), mapWorld = require('./repaint/map-world.cjs').targets().filter(t => t.file.startsWith('map/world/')).map(t => t.file), mapUnits = map.filter(x => x.startsWith('map/units/'));
+const mapAll = [...map.filter(x => !require('./repaint/map-world.cjs').SUPERSEDED.test(x)), ...mapCamps, ...mapWorld, ...mapResWorld];   // remplacés : map/terrain (par map/world), anciens points de ressource
 const figures = cat('figures'), busts = cat('busts'), heroes = cat('heroes'), scenes = cat('scenes'), icons = cat('icons'), frames = cat('uiframes');
 const terrain = ['terrain/grass.webp', 'terrain/dirt.webp', 'terrain/sand.webp', 'terrain/snow.webp'];
 // Variantes du biome neige (hors carte du monde, visible par tous) : reportées
@@ -116,8 +116,8 @@ Peints : ${walls.filter(f => painted.has(f)).map(f => f.replace('walls/', '').re
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
 ${row('Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capital_<civ>>.png`', mapCities, '1024², cadre mapcity (2 × 2 cases)', 'villes et capitales des joueurs sur la carte')}
-${row('Ressources `map/resources/<wood|stone|iron|food|gold>[_desert|_snow].png`', mapRes, '1024², cadre mapobject', 'points de ressource gardés par les tribus')}
-${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`, `map/camps/banner_<CIV>.png`', mapCamps, '1024², cadre mapobject', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition, bannière de la tribu ; sans eux, l\'icône de ressource reste')}
+${row('Ressources `map/resources/<wood|stone|iron|food|gold>_<forest|desert|snow>_<1|2|3>.png` (PROMPTS-CARTE.md)', mapResWorld, '1024², cadre mapobject', 'points de ressource : un visuel par ressource, terrain et richesse, sans couleur de civilisation')}
+${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`', mapCamps, '1024², cadre mapobject', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition ; sans eux, l\'icône de ressource reste')}
 ${row('Sol, forêts, rochers, montagnes, ponts, gués, décor `map/world/…` (carte de référence, liste et prompts : docs/PROMPTS-CARTE.md)', mapWorld, '1024², cadres mapobject / texture', 'fond et relief de la carte du monde (remplace `map/terrain/…`)')}
 ${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapobject', 'marqueurs des armées et marchands en déplacement')}
 

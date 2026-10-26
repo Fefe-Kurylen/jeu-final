@@ -128,6 +128,21 @@ const DECOR = [
 ];
 for (const [base, n, subject, role] of DECOR) for (let i = 0; i < n; i++) obj(`map/world/${base}_${i + 1}.webp`, `${subject(i)}; small and low, it must not hide the grid lines of the neighbouring tiles`, role(i));
 
+// ---- points de ressource, comme sur la carte de référence (décision du 26 octobre 2026) ----
+// Un visuel par ressource, par terrain (tempéré, désert, neige) et par richesse (niveau 1 à 3 du point), sans couleur de
+// civilisation : seules les villes et les armées changent de style avec la civilisation.
+const RESOURCE = {
+  wood: ['a woodcutters\' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block', 'a woodcutters\' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees', 'a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around'],
+  stone: ['a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it', 'a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane', 'a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed'],
+  iron: ['an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore', 'an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles', 'a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke'],
+  food: ['a small vegetable garden with a few fruit trees and a wooden fence', 'a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it', 'a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks'],
+  gold: ['a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand', 'a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart', 'a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut']
+};
+const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture', gold: 'or' };
+const RES_BIOME = { forest: 'on green meadow grass in a temperate land', desert: 'in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs', snow: 'in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees' };
+const RES_BIOME_FR = { forest: 'tempéré', desert: 'désert', snow: 'neige' };
+for (const [type, levels] of Object.entries(RESOURCE)) for (const biome of Object.keys(RES_BIOME)) levels.forEach((d, i) => obj(`map/resources/${type}_${biome}_${i + 1}.webp`, `${d}, ${RES_BIOME[biome]}; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile`, `Point de ressource ${RES_FR[type]} (${RES_BIOME_FR[biome]}), niveau ${i + 1} : ${['petit', 'moyen', 'riche'][i]}`));
+
 // ---- villes 2 × 2 (même noms qu'avant, cadrage 2 × 2) ----
 const CITY = {
   t1: (c) => `a small walled village ${CIV_LOOK[c]}; a low wall or palisade around a dozen houses, a main hall in the middle, two banners`,
@@ -160,6 +175,7 @@ function promptFor(file) {
 }
 
 // Images de la carte à l'ancien format remplacées par celles-ci (ne plus les générer)
-const SUPERSEDED = /^map\/terrain\//;
+// (relief d'une case sur sa dalle, points de ressource d'une seule apparence par biome, bannières de civilisation des camps)
+const SUPERSEDED = /^map\/terrain\/|^map\/resources\/[a-z]+(?:_desert|_snow)?\.webp$|^map\/camps\/banner_/;
 
 module.exports = { MAP_STYLE, GROUND_STYLE, BG, STYLE_REF, COMPOSITION, GROUND, GROUND_FR, GROUND_VARIANT, GROUND_ORDER, OBJECTS, CITY, CIVS, targets, promptFor, SUPERSEDED };

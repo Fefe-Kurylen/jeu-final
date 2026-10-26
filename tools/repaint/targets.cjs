@@ -109,7 +109,7 @@ for (const c of CIVS) add(`walls/${c}/gate.webp`, 'building', `Porte de la ville
 // Camps barbares de la carte (tribus des points de ressource) : niveau 1 à 3, variantes désert / neige, ruines, bannières
 for (const lvl of [1, 2, 3]) for (const b of ['', '_desert', '_snow']) add(`map/camps/camp${lvl}${b}.webp`, 'map', `Camp barbare de niveau ${lvl} sur la carte${b ? ` (${b.slice(1)})` : ''} : remplace l'icône de ressource tant que la tribu tient le point`);
 for (const b of ['', '_desert', '_snow']) add(`map/camps/ruins${b}.webp`, 'map', `Camp barbare détruit${b ? ` (${b.slice(1)})` : ''} : affiché jusqu'à la réapparition de la tribu`);
-for (const c of CIVS) add(`map/camps/banner_${c}.webp`, 'map', `Bannière de tribu ${CIV_FR[c]} posée sur le camp`);
+// (plus de bannière de civilisation sur les camps : seules les villes et les armées changent de style avec la civilisation)
 add('props/sign_build.webp', 'prop', 'Panneau « construire ici » sur les emplacements libres');
 add('props/scroll_research.webp', 'prop', 'Parchemin « recherche en cours » au-dessus de l\'Académie');
 // Technologies : une icône par technologie (cartes de l'onglet Recherche, fiches) et par branche

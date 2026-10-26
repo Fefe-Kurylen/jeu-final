@@ -47,11 +47,11 @@ const tileImages = {
   units: {},       // hoplite archer cavalry catapult merchant
   resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
   terrain: {},     // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
-  camps: {},       // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], banner_<CIV> (pas de rendu 3D)
+  camps: {},       // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], foundation[_desert|_snow] (pas de rendu 3D)
   fx: {}           // effets peints de la carte (guide § A7) : fire_0..3 (ville en feu), battle_0..3, campfire_0..3
 };
 // Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
-const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow'], ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'].map(c => `banner_${c}`));
+const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow']);
 // Icône « tribu locale » peinte (guide § S14) quand elle existe, sinon l'icône de défense
 function tribeIconHtml() { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/tribe.webp') ? '<img class="ico" src="assets/images/painted/ui/tribe.webp" alt="">' : resIconHtml('defense'); }
 const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
@@ -1844,20 +1844,18 @@ function drawIsoResource(x, y, tw, th, tile) {
   // Camp barbare peint (niveau, biome) tant que la tribu tient le point, ruines après sa défaite ; l'icône de ressource,
   // en petit, garde le type lisible. Sans sprite peint, l'icône de ressource seule (rendu d'origine).
   const biome = getBiome(tile.x, tile.y);
+  // comme sur la carte de référence : un visuel par ressource, terrain et richesse (map/resources/<type>_<biome>_<niveau>),
+  // sans couleur de civilisation ; repli sur l'image du biome puis sur celle de la ressource
+  const level = Math.max(1, Math.min(3, Number(tile.level) || 1));
   const biomeVariant = `${resType}_${biome}`;
-  const resName = tileImages.resources[biomeVariant] ? biomeVariant : resType;
+  const resName = [`${resType}_${biome}_${level}`, biomeVariant, resType].find(n => tileImages.resources[n]) || resType;
   // Campement de fondation peint (guide § S12) tant qu'une ville est en fondation sur le point, bannière du fondateur
   const founder = (tile.holders || []).find(h => h.founding);
   const foundName = founder ? (tileImages.camps[`foundation_${biome}`] ? `foundation_${biome}` : (tileImages.camps.foundation ? 'foundation' : null)) : null;
-  if (foundName && drawTileImage(mapCtx, 'camps', foundName, x, y, imgSize, imgSize)) {
-    if (founder.faction && tileImages.camps[`banner_${founder.faction}`]) drawTileImage(mapCtx, 'camps', `banner_${founder.faction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
-    return;
-  }
+  if (foundName && drawTileImage(mapCtx, 'camps', foundName, x, y, imgSize, imgSize)) return;
   const campBase = tile.hasDefenders ? `camp${Math.max(1, Math.min(3, Number(tile.level) || 1))}` : (tile.lastDefeat ? 'ruins' : null);
   const campName = campBase ? (tileImages.camps[`${campBase}_${biome}`] ? `${campBase}_${biome}` : (tileImages.camps[campBase] ? campBase : null)) : null;
   if (campName && drawTileImage(mapCtx, 'camps', campName, x, y, imgSize, imgSize)) {
-    const tribeFaction = tile.hasDefenders ? tribeFactionOfUnits(tile.defenderUnits) : null;
-    if (tribeFaction && tileImages.camps[`banner_${tribeFaction}`]) drawTileImage(mapCtx, 'camps', `banner_${tribeFaction}`, x + imgSize * 0.3, y - imgSize * 0.15, imgSize * 0.3, imgSize * 0.3);
     drawTileImage(mapCtx, 'resources', resName, x - imgSize * 0.32, y + imgSize * 0.02, imgSize * 0.38, imgSize * 0.38);
     if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;

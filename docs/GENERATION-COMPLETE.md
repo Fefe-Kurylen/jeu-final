@@ -1594,9 +1594,9 @@ Composition: square image (1024 x 1024). A walled town whose footprint is 2 x 2 
 | `map/cities/colony_hun_fortified.png` | 1024×1024 | — | a fortified secondary city in Hunnic style: felt yurts and timber longhouses inside a log stockade, horse pens, red and black banners with horse-tail standards; a stone wall with two towers around a compact town, banners |
 | `map/cities/colony_sultan_fortified.png` | 1024×1024 | — | a fortified secondary city in Sultanate style: domed buildings and slender towers of pale stone with turquoise tiles, green and gold banners; a stone wall with two towers around a compact town, banners |
 
-#### Points de ressource (5 types × 3 biomes) — 15 images
+#### Points de ressource (5 ressources × 3 terrains × 3 richesses) — 45 images
 
-Où : points de ressource libres. Priorité ★★★.
+Où : points de ressource, sans couleur de civilisation. Priorité ★★★.
 
 Début du prompt, commun à la famille :
 
@@ -1607,21 +1607,51 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 
 | Fichier | Taille | Guide | Sujet (fin du prompt, après « Subject: ») |
 |---|---|---|---|
-| `map/resources/food.png` | 1024×1024 | — | a fenced wheat field |
-| `map/resources/food_desert.png` | 1024×1024 | — | a fenced wheat field, desert variant with sand and a palm tree |
-| `map/resources/food_snow.png` | 1024×1024 | — | a fenced wheat field, snowy variant covered with snow |
-| `map/resources/gold.png` | 1024×1024 | — | rocks with glittering gold nuggets |
-| `map/resources/gold_desert.png` | 1024×1024 | — | rocks with glittering gold nuggets, desert variant with sand and a palm tree |
-| `map/resources/gold_snow.png` | 1024×1024 | — | rocks with glittering gold nuggets, snowy variant covered with snow |
-| `map/resources/iron.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart |
-| `map/resources/iron_desert.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart, desert variant with sand and a palm tree |
-| `map/resources/iron_snow.png` | 1024×1024 | — | an iron mine entrance in a rock wall with a mine cart, snowy variant covered with snow |
-| `map/resources/stone.png` | 1024×1024 | — | a group of grey boulders |
-| `map/resources/stone_desert.png` | 1024×1024 | — | a group of grey boulders, desert variant with sand and a palm tree |
-| `map/resources/stone_snow.png` | 1024×1024 | — | a group of grey boulders, snowy variant covered with snow |
-| `map/resources/wood.png` | 1024×1024 | — | a forest clearing with trees and a cut log |
-| `map/resources/wood_desert.png` | 1024×1024 | — | a forest clearing with trees and a cut log, desert variant with sand and a palm tree |
-| `map/resources/wood_snow.png` | 1024×1024 | — | a forest clearing with trees and a cut log, snowy variant covered with snow |
+| `map/resources/wood_forest_1.png` | 1024×1024 | — | a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_forest_2.png` | 1024×1024 | — | a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_forest_3.png` | 1024×1024 | — | a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_desert_1.png` | 1024×1024 | — | a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_desert_2.png` | 1024×1024 | — | a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_desert_3.png` | 1024×1024 | — | a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_snow_1.png` | 1024×1024 | — | a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_snow_2.png` | 1024×1024 | — | a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/wood_snow_3.png` | 1024×1024 | — | a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_forest_1.png` | 1024×1024 | — | a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_forest_2.png` | 1024×1024 | — | a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_forest_3.png` | 1024×1024 | — | a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_desert_1.png` | 1024×1024 | — | a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_desert_2.png` | 1024×1024 | — | a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_desert_3.png` | 1024×1024 | — | a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_snow_1.png` | 1024×1024 | — | a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_snow_2.png` | 1024×1024 | — | a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/stone_snow_3.png` | 1024×1024 | — | a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_forest_1.png` | 1024×1024 | — | an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_forest_2.png` | 1024×1024 | — | an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_forest_3.png` | 1024×1024 | — | a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_desert_1.png` | 1024×1024 | — | an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_desert_2.png` | 1024×1024 | — | an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_desert_3.png` | 1024×1024 | — | a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_snow_1.png` | 1024×1024 | — | an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_snow_2.png` | 1024×1024 | — | an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/iron_snow_3.png` | 1024×1024 | — | a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_forest_1.png` | 1024×1024 | — | a small vegetable garden with a few fruit trees and a wooden fence, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_forest_2.png` | 1024×1024 | — | a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_forest_3.png` | 1024×1024 | — | a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_desert_1.png` | 1024×1024 | — | a small vegetable garden with a few fruit trees and a wooden fence, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_desert_2.png` | 1024×1024 | — | a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_desert_3.png` | 1024×1024 | — | a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_snow_1.png` | 1024×1024 | — | a small vegetable garden with a few fruit trees and a wooden fence, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_snow_2.png` | 1024×1024 | — | a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/food_snow_3.png` | 1024×1024 | — | a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_forest_1.png` | 1024×1024 | — | a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_forest_2.png` | 1024×1024 | — | a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_forest_3.png` | 1024×1024 | — | a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_desert_1.png` | 1024×1024 | — | a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_desert_2.png` | 1024×1024 | — | a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_desert_3.png` | 1024×1024 | — | a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_snow_1.png` | 1024×1024 | — | a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_snow_2.png` | 1024×1024 | — | a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
+| `map/resources/gold_snow_3.png` | 1024×1024 | — | a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile |
 
 #### Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) — 20 images
 
@@ -1797,7 +1827,7 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 | `map/world/decor/snow_stones_1.png` | 1024×1024 | — | two grey stones capped with snow; small and low, it must not hide the grid lines of the neighbouring tiles |
 | `map/world/decor/snow_stones_2.png` | 1024×1024 | — | a single large rock half buried in snow; small and low, it must not hide the grid lines of the neighbouring tiles |
 
-#### Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) — 18 images
+#### Camps barbares (niveaux 1-3 × 3 biomes, ruines) — 12 images
 
 Où : points tenus par une tribu. Priorité ★★★.
 
@@ -1822,12 +1852,6 @@ Composition: square image (1024 x 1024). The subject stands directly on the grou
 | `map/camps/ruins.png` | 1024×1024 | — | the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke |
 | `map/camps/ruins_desert.png` | 1024×1024 | — | the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke, desert variant standing on sand with a palm tree and red rocks |
 | `map/camps/ruins_snow.png` | 1024×1024 | — | the burnt remains of a barbarian camp: charred stakes, a collapsed tent, a broken totem, embers and a thin wisp of smoke, snowy variant with snow on the tents and roofs and snow drifts around |
-| `map/camps/banner_ROME.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the rome people (Roman), nothing else |
-| `map/camps/banner_GAUL.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the gaul people (Gallic), nothing else |
-| `map/camps/banner_GREEK.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the greek people (Greek), nothing else |
-| `map/camps/banner_EGYPT.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the egypt people (Egyptian), nothing else |
-| `map/camps/banner_HUN.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the hun people (Hunnic steppe), nothing else |
-| `map/camps/banner_SULTAN.png` | 1024×1024 | — | a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the sultan people (Sultanate), nothing else |
 
 #### Campement de fondation (3 biomes) — 3 images
 
@@ -2631,12 +2655,12 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Ville : scène isométrique | Décalques au sol | 16 | 0 |
 | Carte du monde | Villes par civilisation et forteresses | 20 | 0 |
 | Carte du monde | Villes secondaires (colonies) par civilisation, normale et fortifiée | 12 | 0 |
-| Carte du monde | Points de ressource (5 types × 3 biomes) | 15 | 0 |
+| Carte du monde | Points de ressource (5 ressources × 3 terrains × 3 richesses) | 45 | 0 |
 | Carte du monde | Sol de la carte (7 textures répétables : herbe, herbe sèche, terre, sable, eau, neige, glace) | 20 | 0 |
 | Carte du monde | Forêts, rochers et montagnes de la carte | 57 | 0 |
 | Carte du monde | Ponts, gués, décor du désert et de l'eau | 18 | 0 |
 | Carte du monde | Décor des cases comme sur la carte de référence (champs de blé, meules, cailloux, agaves, cactus, buissons, arbres isolés, décor givré) | 23 | 0 |
-| Carte du monde | Camps barbares (niveaux 1-3 × 3 biomes, ruines, bannières) | 18 | 0 |
+| Carte du monde | Camps barbares (niveaux 1-3 × 3 biomes, ruines) | 12 | 0 |
 | Carte du monde | Campement de fondation (3 biomes) | 3 | 0 |
 | Carte du monde | Ville secondaire assiégée animée (6 civilisations × normale / fortifiée × 4 phases) | 0 | 12 |
 | Carte du monde | Ville assiégée animée (6 civilisations × 3 paliers × 4 phases) | 0 | 18 |
@@ -2662,6 +2686,6 @@ Composition: square image, a single object centered filling about 70% of the fra
 | Écrans et interface | Habillage : boutons, cadres, plaques, barres | 3 | 0 |
 | Écrans et interface | Effets d'interface (construction finie, niveau, butin) | 0 | 3 |
 | Écrans et interface | Icônes d'interface (ressources, onglets, actions, colon, tribu) | 3 | 0 |
-| **Total** | | **1468** | **142** |
+| **Total** | | **1492** | **142** |
 
 Déjà peint et donc absent d'ici : 283 images. Variantes neige des bâtiments et de l'enceinte : non demandées.

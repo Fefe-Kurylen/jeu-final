@@ -12,9 +12,9 @@ Généré par `node tools/liste-graphismes.cjs` à partir des manifestes `fronte
 
 | | Images |
 |---|---|
-| Visuels affichés par le jeu, hors neige et animations | **1097** |
+| Visuels affichés par le jeu, hors neige et animations | **1121** |
 | Déjà peints | 189 |
-| Restant à produire | **908** |
+| Restant à produire | **932** |
 | Champs, parcelles et décors du biome neige, **reportés à plus tard** (les variantes `_snow` des bâtiments et de l'enceinte sont retirées de la liste : le rendu 3D enneigé reste en jeu) | 16 (dont 0 déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | 72 |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
@@ -27,7 +27,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : `docs/LISTE-BATIMENTS-PAR-FACTION.md`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
-4. **Carte du monde** : villes (14), ressources (15), camps barbares (21), sol, relief et décor (118), armées en marche (29).
+4. **Carte du monde** : villes (14), ressources (15), camps barbares (15), sol, relief et décor (118), armées en marche (29).
 5. **Unités et héros** : figurines en pied (24), bustes-jetons (28), héros sur estrade et bustes (12) ; ils apparaissent dans toutes les listes, les rapports et l'écran du héros.
 6. **Scènes** : connexion (portrait + paysage), 6 estrades de héros, 5 bandeaux d'écran, champ de bataille (14 au total).
 7. **Paliers 1 et 3 des bâtiments** (version hutte des niveaux 1-6, version monumentale des niveaux 14-20). Les **variantes neige** sont reportées (§ 6).
@@ -78,8 +78,8 @@ Peints : ROME/3_seg_x, ROME/3_seg_x_low, ROME/3_seg_z, ROME/3_seg_z_low, ROME/3_
 | Catégorie | Total | Peints | Restant | Taille | Utilisation |
 |---|---|---|---|---|---|
 | Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capital_<civ>>.png` | 14 | 0 | **14** | 1024², cadre mapcity (2 × 2 cases) | villes et capitales des joueurs sur la carte |
-| Ressources `map/resources/<wood|stone|iron|food|gold>[_desert|_snow].png` | 15 | 0 | **15** | 1024², cadre mapobject | points de ressource gardés par les tribus |
-| Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`, `map/camps/banner_<CIV>.png` | 21 | 0 | **21** | 1024², cadre mapobject | camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu'à la réapparition, bannière de la tribu ; sans eux, l'icône de ressource reste |
+| Ressources `map/resources/<wood|stone|iron|food|gold>_<forest|desert|snow>_<1|2|3>.png` (PROMPTS-CARTE.md) | 45 | 0 | **45** | 1024², cadre mapobject | points de ressource : un visuel par ressource, terrain et richesse, sans couleur de civilisation |
+| Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png` | 15 | 0 | **15** | 1024², cadre mapobject | camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu'à la réapparition ; sans eux, l'icône de ressource reste |
 | Sol, forêts, rochers, montagnes, ponts, gués, décor `map/world/…` (carte de référence, liste et prompts : docs/PROMPTS-CARTE.md) | 118 | 0 | **118** | 1024², cadres mapobject / texture | fond et relief de la carte du monde (remplace `map/terrain/…`) |
 | Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png` | 29 | 0 | **29** | 1024², cadre mapobject | marqueurs des armées et marchands en déplacement |
 

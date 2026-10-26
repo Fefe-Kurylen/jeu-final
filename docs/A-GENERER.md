@@ -19,7 +19,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
-| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 197 |
+| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 221 |
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
@@ -29,7 +29,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1691** |
+| | **Total** | **1715** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -300,7 +300,7 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `walls/SULTAN/3_seg_z_low.png` — 1024×1024
 - `walls/SULTAN/3_tower.png` — 1024×1024
 
-## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (197)
+## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (221)
 
 Style de la carte de référence : prompts prêts à coller et guides de cadrage dans `docs/PROMPTS-CARTE.md`.
 
@@ -318,21 +318,6 @@ Style de la carte de référence : prompts prêts à coller et guides de cadrage
 - `map/cities/hun.png` — 1024×1024
 - `map/cities/rome.png` — 1024×1024
 - `map/cities/sultan.png` — 1024×1024
-- `map/resources/food.png` — 1024×1024
-- `map/resources/food_desert.png` — 1024×1024
-- `map/resources/food_snow.png` — 1024×1024
-- `map/resources/gold.png` — 1024×1024
-- `map/resources/gold_desert.png` — 1024×1024
-- `map/resources/gold_snow.png` — 1024×1024
-- `map/resources/iron.png` — 1024×1024
-- `map/resources/iron_desert.png` — 1024×1024
-- `map/resources/iron_snow.png` — 1024×1024
-- `map/resources/stone.png` — 1024×1024
-- `map/resources/stone_desert.png` — 1024×1024
-- `map/resources/stone_snow.png` — 1024×1024
-- `map/resources/wood.png` — 1024×1024
-- `map/resources/wood_desert.png` — 1024×1024
-- `map/resources/wood_snow.png` — 1024×1024
 - `map/units/archer.png` — 1024×1024
 - `map/units/archer_EGYPT.png` — 1024×1024
 - `map/units/archer_GAUL.png` — 1024×1024
@@ -374,12 +359,6 @@ Style de la carte de référence : prompts prêts à coller et guides de cadrage
 - `map/camps/ruins.png` — 1024×1024
 - `map/camps/ruins_desert.png` — 1024×1024
 - `map/camps/ruins_snow.png` — 1024×1024
-- `map/camps/banner_ROME.png` — 1024×1024
-- `map/camps/banner_GAUL.png` — 1024×1024
-- `map/camps/banner_GREEK.png` — 1024×1024
-- `map/camps/banner_EGYPT.png` — 1024×1024
-- `map/camps/banner_HUN.png` — 1024×1024
-- `map/camps/banner_SULTAN.png` — 1024×1024
 - `map/camps/foundation.png` — 1024×1024
 - `map/camps/foundation_desert.png` — 1024×1024
 - `map/camps/foundation_snow.png` — 1024×1024
@@ -501,6 +480,51 @@ Style de la carte de référence : prompts prêts à coller et guides de cadrage
 - `map/world/decor/snow_bush_2.png` — 1024×1024
 - `map/world/decor/snow_stones_1.png` — 1024×1024
 - `map/world/decor/snow_stones_2.png` — 1024×1024
+- `map/resources/wood_forest_1.png` — 1024×1024
+- `map/resources/wood_forest_2.png` — 1024×1024
+- `map/resources/wood_forest_3.png` — 1024×1024
+- `map/resources/wood_desert_1.png` — 1024×1024
+- `map/resources/wood_desert_2.png` — 1024×1024
+- `map/resources/wood_desert_3.png` — 1024×1024
+- `map/resources/wood_snow_1.png` — 1024×1024
+- `map/resources/wood_snow_2.png` — 1024×1024
+- `map/resources/wood_snow_3.png` — 1024×1024
+- `map/resources/stone_forest_1.png` — 1024×1024
+- `map/resources/stone_forest_2.png` — 1024×1024
+- `map/resources/stone_forest_3.png` — 1024×1024
+- `map/resources/stone_desert_1.png` — 1024×1024
+- `map/resources/stone_desert_2.png` — 1024×1024
+- `map/resources/stone_desert_3.png` — 1024×1024
+- `map/resources/stone_snow_1.png` — 1024×1024
+- `map/resources/stone_snow_2.png` — 1024×1024
+- `map/resources/stone_snow_3.png` — 1024×1024
+- `map/resources/iron_forest_1.png` — 1024×1024
+- `map/resources/iron_forest_2.png` — 1024×1024
+- `map/resources/iron_forest_3.png` — 1024×1024
+- `map/resources/iron_desert_1.png` — 1024×1024
+- `map/resources/iron_desert_2.png` — 1024×1024
+- `map/resources/iron_desert_3.png` — 1024×1024
+- `map/resources/iron_snow_1.png` — 1024×1024
+- `map/resources/iron_snow_2.png` — 1024×1024
+- `map/resources/iron_snow_3.png` — 1024×1024
+- `map/resources/food_forest_1.png` — 1024×1024
+- `map/resources/food_forest_2.png` — 1024×1024
+- `map/resources/food_forest_3.png` — 1024×1024
+- `map/resources/food_desert_1.png` — 1024×1024
+- `map/resources/food_desert_2.png` — 1024×1024
+- `map/resources/food_desert_3.png` — 1024×1024
+- `map/resources/food_snow_1.png` — 1024×1024
+- `map/resources/food_snow_2.png` — 1024×1024
+- `map/resources/food_snow_3.png` — 1024×1024
+- `map/resources/gold_forest_1.png` — 1024×1024
+- `map/resources/gold_forest_2.png` — 1024×1024
+- `map/resources/gold_forest_3.png` — 1024×1024
+- `map/resources/gold_desert_1.png` — 1024×1024
+- `map/resources/gold_desert_2.png` — 1024×1024
+- `map/resources/gold_desert_3.png` — 1024×1024
+- `map/resources/gold_snow_1.png` — 1024×1024
+- `map/resources/gold_snow_2.png` — 1024×1024
+- `map/resources/gold_snow_3.png` — 1024×1024
 
 ## 6. Unités et héros (figurines, bustes, héros) (64)
 

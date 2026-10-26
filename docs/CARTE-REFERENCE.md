@@ -31,6 +31,10 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 - **Armées comme sur l'image** : une colonne de 1 à 3 groupes de soldats selon la taille de l'armée, la poussière derrière ;
   **cycles de marche** peints (6 poses) par classe et par civilisation, joués pendant la marche ; les armées des autres
   joueurs marchent elles aussi le long de leur chemin.
+- **Points de ressource comme sur l'image** (26 octobre 2026) : chacun son visuel, par ressource (camp de bûcherons,
+  carrière, mine de fer, ferme, mine d'or), par terrain (tempéré, désert, neige) et par richesse (niveau 1 à 3), **sans
+  couleur de civilisation** : seules les villes et les armées changent de style avec la civilisation (plus de bannière
+  de civilisation sur les camps des tribus).
 - **Plusieurs motifs par type de case** : 4 prairies, 3 neiges, 3 sables, 3 herbes sèches, 3 champs, 2 eaux, 2 glaces,
   mélangés par taches de quelques cases ; 3 modèles par forme de montagne (tempérée, enneigée, mesa) ; 4 forêts denses et
   3 lisières par biome (mixte, pins, feuillus, bouleaux…) ; 4 amas de rochers, 3 rochers du désert, 3 dunes, 3 ruines,
@@ -52,7 +56,7 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 | 13 | Marche des armées | ✅ code, 🎨 images | Colonnes de 1 à 3 groupes, poussière, cycles de marche peints dès leur livraison (32 images de 6 poses), armées des autres joueurs en mouvement. |
 | 9 | Nouveau style | ✅ prompts | Style « diorama 3D stylisé » de la référence, sans contours ; référence de style : `img/carte-reference.jpg`. |
 | 10 | Découpage | ✅ | Sol en textures répétables, éléments posés sans socle (losange d'une case à 50 % de la largeur, centre à 75 %), villes 2 × 2 (90 %, 68 %). Guides de cadrage dans `img/guides-carte/`. |
-| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 439 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, décor des cases 23, villes 32, villes assiégées 120, ressources 15, camps 21, armées 43, ville en feu 4, marche des armées 32 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
+| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 463 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, décor des cases 23, villes 32, villes assiégées 120, points de ressource 45, camps 15, armées 43, ville en feu 4, marche des armées 32 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
 
 Les points existants en base suivent le terrain au démarrage du serveur : biome recalculé, point tombé dans l'eau déplacé
 sur la case libre la plus proche (sauf s'il porte une ville ou une armée). Au premier démarrage : 382 points déplacés,

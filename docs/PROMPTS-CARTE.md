@@ -1,4 +1,4 @@
-# Carte du monde — les 439 images à produire, avec leurs prompts
+# Carte du monde — les 463 images à produire, avec leurs prompts
 
 Généré par `node tools/repaint/map-kit.cjs` (ne pas éditer à la main). Style et découpage : [la carte de référence](img/carte-reference.jpg)
 et [CARTE-REFERENCE.md](CARTE-REFERENCE.md) (décisions du 25 octobre 2026). Seule la carte du monde change de style ; la vue de la
@@ -32,14 +32,14 @@ autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les ville
 | 7 | [Décor des cases, comme sur la carte de référence](#partie-7) | 23 |
 | 8 | [Villes sur 2 × 2 cases](#partie-8) | 32 |
 | 9 | [Villes assiégées (animation en 4 images)](#partie-9) | 120 |
-| 10 | [Points de ressource](#partie-10) | 15 |
-| 11 | [Camps des tribus, fondation, bannières](#partie-11) | 21 |
+| 10 | [Points de ressource](#partie-10) | 45 |
+| 11 | [Camps des tribus, ruines, fondation](#partie-11) | 15 |
 | 12 | [Armées en marche](#partie-12) | 43 |
 | 13 | [Effets de la carte](#partie-13) | 4 |
 | 14 | [Marche des armées (une image de 6 poses par armée)](#partie-14) | 32 |
 | 15 | [Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)](#partie-15) | 38 |
 | 16 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-16) | 16 |
-| | **Total** | **439** |
+| | **Total** | **463** |
 
 <a id="partie-1"></a>
 
@@ -3609,11 +3609,11 @@ Subject: A sprite sheet frame: a fortified capital: walls with corner towers aro
 
 ## 10. Points de ressource
 
-Le point de ressource libre (sans tribu), par ressource et par biome.
+Comme sur la carte de référence, chaque point a son visuel : par ressource (camp de bûcherons, carrière, mine de fer, ferme, mine d'or), par terrain (tempéré, désert, neige) et par richesse (niveau 1 petit, 2 moyen, 3 riche). Aucune couleur de civilisation : seules les villes et les armées changent de style avec la civilisation.
 
-### `map/resources/food_desert.png`
+### `map/resources/food_desert_1.png`
 
-Carte du monde : point de ressource food (desert)  
+Point de ressource nourriture (désert), niveau 1 : petit  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3621,12 +3621,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a fenced wheat field, desert variant with sand and a palm tree
+Subject: a small vegetable garden with a few fruit trees and a wooden fence, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/food_snow.png`
+### `map/resources/food_desert_2.png`
 
-Carte du monde : point de ressource food (snow)  
+Point de ressource nourriture (désert), niveau 2 : moyen  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3634,12 +3634,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a fenced wheat field, snowy variant covered with snow
+Subject: a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/food.png`
+### `map/resources/food_desert_3.png`
 
-Carte du monde : point de ressource food  
+Point de ressource nourriture (désert), niveau 3 : riche  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3647,12 +3647,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a fenced wheat field
+Subject: a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/gold_desert.png`
+### `map/resources/food_forest_1.png`
 
-Carte du monde : point de ressource gold (desert)  
+Point de ressource nourriture (tempéré), niveau 1 : petit  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3660,12 +3660,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: rocks with glittering gold nuggets, desert variant with sand and a palm tree
+Subject: a small vegetable garden with a few fruit trees and a wooden fence, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/gold_snow.png`
+### `map/resources/food_forest_2.png`
 
-Carte du monde : point de ressource gold (snow)  
+Point de ressource nourriture (tempéré), niveau 2 : moyen  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3673,12 +3673,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: rocks with glittering gold nuggets, snowy variant covered with snow
+Subject: a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/gold.png`
+### `map/resources/food_forest_3.png`
 
-Carte du monde : point de ressource gold  
+Point de ressource nourriture (tempéré), niveau 3 : riche  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3686,12 +3686,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: rocks with glittering gold nuggets
+Subject: a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/iron_desert.png`
+### `map/resources/food_snow_1.png`
 
-Carte du monde : point de ressource iron (desert)  
+Point de ressource nourriture (neige), niveau 1 : petit  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3699,12 +3699,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: an iron mine entrance in a rock wall with a mine cart, desert variant with sand and a palm tree
+Subject: a small vegetable garden with a few fruit trees and a wooden fence, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/iron_snow.png`
+### `map/resources/food_snow_2.png`
 
-Carte du monde : point de ressource iron (snow)  
+Point de ressource nourriture (neige), niveau 2 : moyen  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3712,12 +3712,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: an iron mine entrance in a rock wall with a mine cart, snowy variant covered with snow
+Subject: a farmstead: a small red-tiled farmhouse in a fenced yard, a little wheat field and a haystack beside it, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/iron.png`
+### `map/resources/food_snow_3.png`
 
-Carte du monde : point de ressource iron  
+Point de ressource nourriture (neige), niveau 3 : riche  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3725,12 +3725,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: an iron mine entrance in a rock wall with a mine cart
+Subject: a large farm: a farmhouse and a barn in a fenced courtyard, an orchard, a wheat field and two haystacks, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/stone_desert.png`
+### `map/resources/gold_desert_1.png`
 
-Carte du monde : point de ressource stone (desert)  
+Point de ressource or (désert), niveau 1 : petit  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3738,12 +3738,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a group of grey boulders, desert variant with sand and a palm tree
+Subject: a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/stone_snow.png`
+### `map/resources/gold_desert_2.png`
 
-Carte du monde : point de ressource stone (snow)  
+Point de ressource or (désert), niveau 2 : moyen  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3751,12 +3751,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a group of grey boulders, snowy variant covered with snow
+Subject: a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/stone.png`
+### `map/resources/gold_desert_3.png`
 
-Carte du monde : point de ressource stone  
+Point de ressource or (désert), niveau 3 : riche  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3764,12 +3764,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a group of grey boulders
+Subject: a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/wood_desert.png`
+### `map/resources/gold_forest_1.png`
 
-Carte du monde : point de ressource wood (desert)  
+Point de ressource or (tempéré), niveau 1 : petit  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3777,12 +3777,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a forest clearing with trees and a cut log, desert variant with sand and a palm tree
+Subject: a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/wood_snow.png`
+### `map/resources/gold_forest_2.png`
 
-Carte du monde : point de ressource wood (snow)  
+Point de ressource or (tempéré), niveau 2 : moyen  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3790,12 +3790,12 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a forest clearing with trees and a cut log, snowy variant covered with snow
+Subject: a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
-### `map/resources/wood.png`
+### `map/resources/gold_forest_3.png`
 
-Carte du monde : point de ressource wood  
+Point de ressource or (tempéré), niveau 3 : riche  
 **Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
 
 ```text
@@ -3803,92 +3803,404 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
-Subject: a forest clearing with trees and a cut log
+Subject: a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/gold_snow_1.png`
+
+Point de ressource or (neige), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a gold panning spot at a small stream: a wooden sluice box, pans and glittering sand, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/gold_snow_2.png`
+
+Point de ressource or (neige), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a small gold mine: a narrow entrance in a rocky outcrop with a glittering gold vein and a small cart, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/gold_snow_3.png`
+
+Point de ressource or (neige), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a rich gold mine: a timber headframe, carts of glittering ore, a sturdy iron-bound strongbox and a tiny watch hut, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_desert_1.png`
+
+Point de ressource fer (désert), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_desert_2.png`
+
+Point de ressource fer (désert), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_desert_3.png`
+
+Point de ressource fer (désert), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_forest_1.png`
+
+Point de ressource fer (tempéré), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_forest_2.png`
+
+Point de ressource fer (tempéré), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_forest_3.png`
+
+Point de ressource fer (tempéré), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_snow_1.png`
+
+Point de ressource fer (neige), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron ore outcrop: a few reddish-brown rocks, a pickaxe and a small pile of ore, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_snow_2.png`
+
+Point de ressource fer (neige), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: an iron mine: a timber-framed entrance in a brown rocky mound, an ore cart on short rails, ore piles, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/iron_snow_3.png`
+
+Point de ressource fer (neige), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large iron mine: a timber headframe over the shaft in a rocky mound, two ore carts, a small smelting furnace with a wisp of smoke, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_desert_1.png`
+
+Point de ressource pierre (désert), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_desert_2.png`
+
+Point de ressource pierre (désert), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_desert_3.png`
+
+Point de ressource pierre (désert), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_forest_1.png`
+
+Point de ressource pierre (tempéré), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_forest_2.png`
+
+Point de ressource pierre (tempéré), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_forest_3.png`
+
+Point de ressource pierre (tempéré), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_snow_1.png`
+
+Point de ressource pierre (neige), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a small open stone pit: a shallow rectangular hole with a few cut grey blocks beside it, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_snow_2.png`
+
+Point de ressource pierre (neige), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a stone quarry: a rectangular dug pit with stepped grey walls, cut blocks stacked beside it, a small wooden crane, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/stone_snow_3.png`
+
+Point de ressource pierre (neige), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a large stone quarry: a deep stepped pit, a wooden crane and a ramp, many cut blocks in rows, a small stone shed, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_desert_1.png`
+
+Point de ressource bois (désert), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_desert_2.png`
+
+Point de ressource bois (désert), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_desert_3.png`
+
+Point de ressource bois (désert), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, in desert sand, with sandstone instead of grey rock where it fits and a few dry shrubs; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_forest_1.png`
+
+Point de ressource bois (tempéré), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_forest_2.png`
+
+Point de ressource bois (tempéré), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_forest_3.png`
+
+Point de ressource bois (tempéré), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, on green meadow grass in a temperate land; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_snow_1.png`
+
+Point de ressource bois (neige), niveau 1 : petit  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' clearing at the edge of a few trees: fresh stumps, a stack of cut logs, an axe in a chopping block, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_snow_2.png`
+
+Point de ressource bois (neige), niveau 2 : moyen  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a woodcutters' camp: a small timber hut, two big piles of logs, a sawhorse and a few stumps among trees, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
+```
+
+### `map/resources/wood_snow_3.png`
+
+Point de ressource bois (neige), niveau 3 : riche  
+**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
+
+Subject: a lumber camp: a timber sawmill shed, high stacks of planks and logs, a log cart, stumps and young trees around, in a snowy land: snow on the ground, on the roofs and on the piles, frosted trees; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile
 ```
 
 <a id="partie-11"></a>
 
-## 11. Camps des tribus, fondation, bannières
+## 11. Camps des tribus, ruines, fondation
 
-Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d'une ville, bannière de chaque civilisation posée sur le camp.
-
-### `map/camps/banner_EGYPT.png`
-
-Bannière de tribu Égypte posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the egypt people (Egyptian), nothing else
-```
-
-### `map/camps/banner_GAUL.png`
-
-Bannière de tribu Gaule posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the gaul people (Gallic), nothing else
-```
-
-### `map/camps/banner_GREEK.png`
-
-Bannière de tribu Grèce posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the greek people (Greek), nothing else
-```
-
-### `map/camps/banner_HUN.png`
-
-Bannière de tribu Huns posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the hun people (Hunnic steppe), nothing else
-```
-
-### `map/camps/banner_ROME.png`
-
-Bannière de tribu Rome posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the rome people (Roman), nothing else
-```
-
-### `map/camps/banner_SULTAN.png`
-
-Bannière de tribu Sultanat posée sur le camp  
-**Taille** : 1024x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
-
-```text
-Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
-
-Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
-
-Subject: a square cloth banner on a wooden pole, waving, in the colors and with the emblem of the sultan people (Sultanate), nothing else
-```
+Camp de la tribu qui tient un point (niveaux 1 à 3, par biome), ruines après sa défaite, campement de fondation d'une ville. Sans bannière de civilisation.
 
 ### `map/camps/camp1_desert.png`
 
