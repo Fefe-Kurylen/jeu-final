@@ -635,7 +635,9 @@ async function loadMap() {
             level: r.level || 1,
             amount: r.amount || 0,
             maxAmount: r.maxAmount || 1000,
-            holders: r.holders || [],   // armées qui tiennent le point (joueur, nom, alliance)
+            holders: r.holders || [],   // armées qui tiennent le point (joueur, nom, alliance) : les siennes, celles de son alliance, ou toutes si le point est espionné
+            hiddenHolders: r.hiddenHolders || 0,   // armées d'autres joueurs qu'on ne voit pas (vision façon Travian)
+            spied: r.spied || null, spiedAt: r.spiedAt || null,   // rapport d'espion de moins d'1 h : stock exact, tribu, récolteurs
             biome: r.biome || 'forest',
             // Tribe defenders info
             hasDefenders: r.hasDefenders !== false,
@@ -2901,16 +2903,21 @@ function showMapInfoPanel(x, y, tile) {
 
     // Armées qui tiennent le point : les siennes et celles de son alliance partagent la récolte, les autres se combattent
     const holders = tile.holders || [];
-    const heldByOthers = holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId));
+    const heldByOthers = (tile.hiddenHolders || 0) > 0 || (holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId)));
     const holdersHtml = holders.length ? `
         <div style="margin: 8px 0; padding: 8px; background: rgba(33,150,243,0.15); border-radius: 4px; border-left: 3px solid ${heldByOthers ? '#f44' : '#4caf50'};">
           <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} ${holders.some(h => h.founding) ? 'Ville en fondation par' : 'Tenu par'}</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
+        </div>` : (tile.hiddenHolders || 0) > 0 ? `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(244,67,54,0.12); border-radius: 4px; border-left: 3px solid #f44;">
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Occupé</strong> par une armée d'un autre joueur : envoyez un espion pour savoir qui et avec quelles troupes.</p>
         </div>` : '';
+    const spiedHtml = tile.spied ? `<p class="spied-note">${resIconHtml('spy')} Espionné il y a ${Math.max(1, Math.round((Date.now() - new Date(tile.spiedAt)) / 60000))} min : stock exact ${formatNum(tile.amount)}${(tile.spied.holders || []).length ? ` · tenu par ${tile.spied.holders.map(h => `${escapeHtml(h.owner)} (${h.units.reduce((t, u) => t + u.count, 0)} soldats)`).join(', ')}` : ''}</p>` : '';
     content.innerHTML = `
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
       <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}<span class="star-empty">${'☆'.repeat(Math.max(0, 3 - tile.level))}</span></strong> (${tile.level}/3)</p>
-      <p>Stock : <strong>${stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
+      <p>Stock : <strong>${tile.spied ? formatNum(tile.amount) + ' / ' + formatNum(tile.maxAmount) : stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
+      ${spiedHtml}
       <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
       ${defendersHtml}
       ${holdersHtml}
@@ -2926,6 +2933,7 @@ function showMapInfoPanel(x, y, tile) {
           ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
+        ${typeof openSpyMission === 'function' ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: 'le point (${x}, ${y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
         ${mapShareButton(x, y)}
       </div>
     `;
@@ -2987,7 +2995,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
       ${typeof openChatWith === 'function' && tile.playerId ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openChatWith('${String(tile.playerId).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.playerName || '')})">${resIconHtml('send')} Écrire</button>` : ''}
       ${mapShareButton(tile.x, tile.y)}
       ${(diplomacyStatus === 'ALLY' || diplomacyStatus === 'SAME_ALLIANCE') && typeof openSupportPicker === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openSupportPicker('${String(tile.id).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.name || 'Ville')}, ${!!tile.isSieged})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('defense')} Renforcer</button>` : ''}
-      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
+      <button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ cityId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: ${chatJsArg(tile.name || 'cette ville')} })">${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
         <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
         <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('gold')} Piller</button>
@@ -3073,52 +3081,6 @@ function profileSocialButtons(p) {
     ${r.blocked ? `<button class="btn btn-secondary" onclick="unblockPlayer('${id}'); ${after}">Débloquer</button>` : `<button class="btn btn-danger" onclick="closeModal(); blockPlayer('${id}', ${name})">${resIconHtml('lock')} Bloquer</button>`}`;
 }
 
-// Spy from map
-function spyFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
-  if (!army) {
-    showToast('Aucune armée disponible', 'error');
-    return;
-  }
-  
-  document.getElementById('modal-body').innerHTML = `
-    <h3>${resIconHtml('spy')} Espionner</h3>
-    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> espionner cette ville ?</p>
-    <p style="font-size:12px;color:#888">L'espionnage révèle les bâtiments, armées et ressources de l'ennemi.</p>
-    <div style="margin-top:15px">
-      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">${resIconHtml('spy')} Espionner</button>
-      <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
-    </div>
-  `;
-  document.getElementById('modal').style.display = 'flex';
-}
-
-async function confirmSpyFromMap(armyId, cityId) {
-  try {
-    const res = await fetch(`${API}/api/army/${armyId}/spy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ targetCityId: cityId })
-    });
-
-    closeModal();
-    closeMapPanel();
-
-    if (res.ok) {
-      const data = await res.json();
-      showToast(`Espions envoyés vers ${data.target}!`, 'success');
-      await loadArmies();
-      loadMap();
-    } else {
-      const data = await res.json();
-      showToast(data.error || 'Erreur', 'error');
-    }
-  } catch (e) {
-    console.error('confirmSpyFromMap error:', e);
-    closeModal();
-    showToast('Erreur réseau', 'error');
-  }
-}
 
 // Send resources from map
 function sendResourcesFromMap(cityId, cityName) {

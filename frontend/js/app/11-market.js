@@ -221,6 +221,7 @@ async function loadSpyReports() {
     });
     if (res.ok) {
       spyReports = await res.json();
+      if (typeof currentReportTab !== 'undefined' && currentReportTab !== 'spy') return;   // l'onglet a changé pendant le chargement
       renderSpyReports();
     }
   } catch (e) {
@@ -243,10 +244,49 @@ function renderSpyReports() {
 // Une carte de rapport d'espionnage ; opts.shared : rapport partagé dans la messagerie (pas de bouton « Partager »)
 function renderSpyReportCard(report, opts = {}) {
   const resourceIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
-  const shareBtn = !opts.shared && report.id && report.targetType !== 'COUNTER_SPY' ? `<div class="report-actions"><button class="btn btn-secondary" onclick="openSharePicker({ type: 'spy', reportId: '${String(report.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('send')} Partager</button></div>` : '';
+  const shareBtn = !opts.shared && report.id && report.targetType !== 'COUNTER_SPY' && report.targetType !== 'SPY_ALERT' ? `<div class="report-actions"><button class="btn btn-secondary" onclick="openSharePicker({ type: 'spy', reportId: '${String(report.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('send')} Partager</button></div>` : '';
   {
     const date = new Date(report.createdAt).toLocaleString('fr-FR');
     
+    const head = (title, cls = 'report-victory') => `<div class="report-card ${cls}" data-report-id="${escapeHtml(String(report.id || ''))}"><div class="report-header"><span class="report-title">${resIconHtml('spy')} ${title}</span><span class="report-date">${date}</span></div>`;
+    const troops = (list) => (list || []).length === 0 ? '<p>Aucune troupe dans la ville</p>' : list.map(a => `
+      <div class="spy-army"><strong>${escapeHtml(a.name || 'Armée')}</strong>${a.owner ? ` <small>(${a.support ? 'renfort de ' : ''}${escapeHtml(a.owner)})</small>` : ''} :
+        ${(a.units || []).map(u => `${escapeHtml(getUnitName(u.key))} ×${formatNum(u.count)}`).join(', ')}</div>`).join('');
+    // Tour de guet de la ville espionnée (décision du 26 octobre 2026) : passage, heure, auteur selon le niveau
+    if (report.targetType === 'SPY_ALERT') {
+      const d = report.data || {};
+      return `${head('Espion repéré', 'report-defeat')}
+        <p>${d.who ? `<strong>${escapeHtml(d.who)}</strong> a espionné` : 'Un espion est venu à'} <strong>${escapeHtml(report.cityName || '')}</strong>${d.when ? ` à ${new Date(d.when).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}${d.mission ? ` (${d.mission === 'DEFENSES' ? 'défenses et troupes' : 'ressources et troupes'})` : ''}.</p>
+        <p class="diplo-help">Tour de guet niveau ${d.watchtower || '?'} : ${d.who ? 'auteur et heure connus' : d.when ? 'heure connue (auteur au niveau 15)' : 'passage seulement (heure au niveau 10, auteur au niveau 15)'}.</p></div>`;
+    }
+    if (report.targetType === 'NODE') {
+      const d = report.data || {};
+      return `${head(`Point de ressource (${report.targetX}, ${report.targetY})`)}
+        <p>Stock exact : <strong>${formatNum(d.amount || 0)} / ${formatNum(d.maxAmount || 0)}</strong> ${resourceIcons[String(d.resourceType || '').toLowerCase()] || ''} · niveau ${d.level || 1}</p>
+        ${d.cityId ? '<p>Une ville a été fondée sur ce point.</p>' : d.tribe ? `<div class="spy-section"><h4>${resIconHtml('skull')} Tribu (puissance ${formatNum(d.tribe.power)})</h4><p>${Object.entries(d.tribe.units || {}).map(([k, n]) => `${escapeHtml(getUnitName(k))} ×${formatNum(n)}`).join(', ') || '—'}</p></div>` : '<p>Pas de tribu sur le point.</p>'}
+        ${(d.holders || []).length ? `<div class="spy-section"><h4>${resIconHtml('army')} ${d.holders.some(h => h.founding) ? 'Fondation en cours' : 'Récolté par'}</h4>${d.holders.map(h => `<div class="spy-army"><strong>${escapeHtml(h.owner)}</strong> : ${(h.units || []).map(u => `${escapeHtml(getUnitName(u.key))} ×${formatNum(u.count)}`).join(', ')}</div>`).join('')}</div>` : '<p>Aucune armée ne récolte le point.</p>'}
+        <p class="diplo-help">Le stock exact reste affiché sur la carte pendant 1 h.</p>${shareBtn}</div>`;
+    }
+    if (report.targetType === 'CITY' && report.data?.mission === 'DEFENSES') {
+      const df = report.data.defenses || {};
+      return `${head(`Défenses de ${escapeHtml(report.cityName || '')}`)}
+        <p><strong>${escapeHtml(report.cityName || '')}</strong>${report.targetName ? ` de ${escapeHtml(report.targetName)}` : ''} à (${report.targetX}, ${report.targetY})</p>
+        <div class="spy-section"><h4>${resIconHtml('defense')} Défenses</h4><div class="spy-defenses">
+          <span>Mur niveau ${df.wallLevel || 0}${df.wallLevel ? ` · ${formatNum(df.wallHp || 0)} / ${formatNum(df.wallMaxHp || 0)} PV` : ''}</span>
+          <span>Santé de la muraille ${df.structurePct ?? 100} %</span>
+          <span>Douves niveau ${df.moatLevel || 0}</span><span>Tour de guet niveau ${df.watchtowerLevel || 0}</span>
+          <span>Cachette niveau ${df.hideoutLevel || 0} (${df.hideoutPct || 0} % caché)</span><span>Bonus de défense +${df.defenseBonusPct || 0} %</span>
+          ${df.sieged ? '<span>Ville assiégée</span>' : ''}</div></div>
+        <div class="spy-section"><h4>${resIconHtml('attack')} Troupes</h4>${troops(report.armies)}</div>${shareBtn}</div>`;
+    }
+    if (report.targetType === 'CITY' && report.data?.mission === 'RESOURCES') {
+      return `${head(`Ressources de ${escapeHtml(report.cityName || '')}`)}
+        <p><strong>${escapeHtml(report.cityName || '')}</strong>${report.targetName ? ` de ${escapeHtml(report.targetName)}` : ''} à (${report.targetX}, ${report.targetY})</p>
+        <div class="spy-section"><h4>${resIconHtml('gold')} Ressources à portée d'un pillage</h4><div class="spy-resources">
+          ${Object.entries(report.resources || {}).map(([res, val]) => `<span>${resourceIcons[res] || res} ≈ ${formatNum(val)}</span>`).join('')}</div>
+          <p class="diplo-help">Hors cachette et réserves protégées, à la centaine près.</p></div>
+        <div class="spy-section"><h4>${resIconHtml('attack')} Troupes</h4>${troops(report.armies)}</div>${shareBtn}</div>`;
+    }
     if (report.targetType === 'COUNTER_SPY') {
       return `
         <div class="report-card report-victory" data-report-id="${escapeHtml(String(report.id || ""))}">

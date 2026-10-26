@@ -88,7 +88,6 @@ function renderSendTroopsForm() {
         <select id="troops-mission">
           <option value="ATTACK">Attaque (engins de siège requis)</option>
           <option value="RAID">Pillage</option>
-          <option value="SPY">Espionnage</option>
           <option value="MOVE">Déplacement</option>
         </select>
       </div>

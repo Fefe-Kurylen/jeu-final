@@ -68,8 +68,7 @@ const effects = {
   },
   allianceHelpReductionPct: () => effectOf('EMBASSY', 'allianceHelpReductionPct', 1),
   watchtowerLevel: (buildings) => levelOf(buildings, 'WATCHTOWER'),
-  // Watchtower: a spy is caught with 70 % at level 20, linear below; who/when details unlock by level
-  counterSpyChance: (watchtowerLevel) => cap(watchtowerLevel, 20) / 20 * effectOf('WATCHTOWER', 'counterSpyChanceL20', 70) / 100,
+  // Watchtower: who/when details of an incoming attack unlock by level (spies: services/spyService.js, config.spies)
   watchtowerShowsAttackerAt: () => effectOf('WATCHTOWER', 'alertArmyWhoWhenLevel', 10),
   watchtowerShowsDetailsAt: () => effectOf('WATCHTOWER', 'alertArmyDetailsLevel', 15),
   watchtowerNamesSpyAt: () => effectOf('WATCHTOWER', 'alertSpyWhoWhenLevel', 15),

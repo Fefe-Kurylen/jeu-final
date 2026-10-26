@@ -93,6 +93,7 @@ async function gameTick() {
     await step('encounters', () => processEncounters(now));   // enemy armies on the same tile fight, before the arrivals
     await step('sieges', () => processSieges());   // camps without engines or now allied go home
     await step('armies', () => processArmyMovements(now));
+    await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
     await step('harvest', () => processHarvesting(now));
 
     await step('flags', () => cleanupOrphanedFlags());

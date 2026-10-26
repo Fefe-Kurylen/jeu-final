@@ -92,6 +92,7 @@ model Player {
   helpsGiven             AllianceHelp[]
   questCounters          QuestCounter[]
   questClaims            QuestClaim[]
+  spies                  Spy[]
 
   @@index([lastSeenAt])
 }
@@ -761,4 +762,33 @@ model QuestClaim {
 
   @@unique([playerId, questKey, period])
   @@index([playerId])
+}
+
+// Espions (décision du 26 octobre 2026, GDD espionage_config) : 2 au plus par compte, débloqués par la Tour de guet
+// (niv. 5 et 10) contre 20 puis 200 or, prêts tout de suite. Un espion part d'une ville vers une ville (mission RESOURCES
+// ou DEFENSES) ou un point de ressource (NODE), rapporte toujours (le rapport est écrit à l'arrivée) puis rentre.
+model Spy {
+  id           String    @id @default(uuid())
+  playerId     String
+  slot         Int // 1 ou 2
+  status       String    @default("IDLE") // IDLE, OUT (en route vers la cible), RETURNING
+  mission      String? // RESOURCES, DEFENSES, NODE
+  fromCityId   String?
+  fromX        Int?
+  fromY        Int?
+  targetX      Int?
+  targetY      Int?
+  targetCityId String?
+  targetNodeId String?
+  departedAt   DateTime?
+  arrivalAt    DateTime?
+  returnAt     DateTime?
+  claimedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, slot])
+  @@index([status, arrivalAt])
+  @@index([status, returnAt])
 }

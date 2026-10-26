@@ -79,25 +79,35 @@ router.get('/map/viewport', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Ce que le joueur voit des armées : l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances
-// (décision du 25 octobre 2026) ; la colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de
-// son alliance, une valeur tirée de l'armée pour les autres (l'effectif ne se lit qu'avec la Tour de guet)
+// Ce que le joueur voit (décisions des 25 et 26 octobre 2026, vision façon Travian) :
+// - les villes, les points et le relief partout ;
+// - les armées des autres seulement si elles sont à lui ou à son alliance, ou si elles vont vers (ou campent devant) une
+//   ville à lui ou à son alliance ; l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances ;
+// - qui récolte un point : seulement ses armées, celles de son alliance, ou si le joueur a espionné le point depuis
+//   moins d'1 h (sinon le point dit seulement qu'il est occupé) ; un point espionné donne son stock exact.
+// La colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de son alliance, une valeur tirée de
+// l'armée pour les autres (l'effectif ne se lit qu'avec un espion).
 async function viewFor(me, shared) {
-  const { cityOwner, armies: all, ...rest } = shared;
-  if (!all.length) return { ...rest, armies: [] };
+  const { cityOwner, armies: all, resourceNodes = [], ...rest } = shared;
   const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
   const friend = (playerId, allianceId) => playerId === me || (!!myAlliance && allianceId === myAlliance);
-  const sees = (a) => {
-    if (friend(a.ownerId, a.ownerAllianceId)) return true;
-    const o = cityOwner[a.targetCityId];
-    return !!o && friend(o.id, o.alliance);
-  };
-  const armies = all.map(({ realSquads, ownerAllianceId, ...a }) => ({
+  const concerns = (a) => { const o = cityOwner[a.targetCityId]; return !!o && friend(o.id, o.alliance); };
+  const armies = (all || []).filter(a => friend(a.ownerId, a.ownerAllianceId) || concerns(a)).map(({ realSquads, ownerAllianceId, ...a }) => ({
     ...a,
-    ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}),
+    ...(a.status === 'BESIEGING' && !friend(a.ownerId, ownerAllianceId) && !concerns(a) ? { arrivalAt: null } : {}),
     squads: friend(a.ownerId, ownerAllianceId) ? realSquads : 1 + ([...String(a.id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % 3)
   }));
-  return { ...rest, armies };
+  let nodes = resourceNodes;
+  if (nodes.length) {
+    const intel = await require('../services/spyService').nodeIntelFor(me, nodes.map(n => n.id)).catch(() => ({}));
+    nodes = nodes.map(n => {
+      const spied = intel[n.id];
+      const holders = (n.holders || []).filter(h => spied || friend(h.playerId, h.allianceId));
+      const hidden = (n.holders || []).length - holders.length;
+      return { ...n, holders, hiddenHolders: hidden, ...(spied ? { amount: spied.amount, spiedAt: spied.at, spied: { tribe: spied.tribe, holders: spied.holders } } : {}) };
+    });
+  }
+  return { ...rest, resourceNodes: nodes, armies };
 }
 
 async function loadViewport(centerX, centerY, r, liteMode) {
@@ -123,6 +133,9 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     for (const a of movingArmies) if (a.status === 'BESIEGING' && a.targetCityId && !siegedBy[a.targetCityId]) siegedBy[a.targetCityId] = a.owner?.faction || null;
     // propriétaires des villes visées et alliances des armées : de quoi appliquer à chaque joueur ce qu'il voit (viewFor)
     const cityOwner = Object.fromEntries(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
+    // villes visées hors de la zone affichée : il faut aussi savoir à qui elles sont (une armée qui marche sur ma ville se voit)
+    const farTargets = [...new Set(movingArmies.map(a => a.targetCityId).filter(id => id && !cityOwner[id]))];
+    if (farTargets.length) for (const c of await prisma.city.findMany({ where: { id: { in: farTargets } }, select: { id: true, playerId: true, player: { select: { alliance: { select: { allianceId: true } } } } } })) cityOwner[c.id] = { id: c.playerId, alliance: c.player?.alliance?.allianceId || null };
     const ownerAlliance = new Map(movingArmies.length ? (await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]) : []);
     // taille de la colonne dessinée sur la carte (1 à 3 groupes de soldats), comme on la voit de loin : pas l'effectif
     const squadsOf = (units) => { const n = (units || []).reduce((t, u) => t + (u.count || 0), 0); return n < 100 ? 1 : n < 500 ? 2 : 3; };

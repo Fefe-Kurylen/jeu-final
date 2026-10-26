@@ -170,7 +170,7 @@ function showTab(tabName) {
     case 'alliance': loadAlliance(); break;
     case 'market': loadMarket(); break;
     case 'ranking': loadRanking('players'); break;
-    case 'reports': loadReports(); break;
+    case 'reports': if (typeof showReportsTab === 'function') showReportsTab(typeof currentReportTab !== 'undefined' ? currentReportTab : 'battles'); else loadReports(); break;
     case 'messages': loadChat(); break;
   }
 }

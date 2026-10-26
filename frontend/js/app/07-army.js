@@ -133,6 +133,7 @@ function renderArmies() {
   
   container.innerHTML = html;
   if (typeof renderSupportReceived === 'function') renderSupportReceived(container);   // renforts alliés reçus (09d-alliance.js)
+  if (typeof renderSpiesSection === 'function') renderSpiesSection(container);   // espions (09f-spies.js)
 }
 
 // New compact army card

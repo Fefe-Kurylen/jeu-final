@@ -247,7 +247,7 @@ function buildingFunctions(key, fx) {
     EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')], ['Aide d\'alliance', null]],
     TREASURE_CHAMBER: [['Or chaque jour (10 → 200)', 1, tab('inventory')]],
     HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')]],
-    WATCHTOWER: [['Alertes des attaques en approche', 1, tab('reports')], ['Attaquant révélé', fx.alertArmyWhoWhenLevel || 10], ['Effectifs révélés', fx.alertArmyDetailsLevel || 15], ['Contre-espionnage (3,5 % par niveau)', 1], ['Espions et portée de vision', null]],
+    WATCHTOWER: [['Alertes des attaques en approche', 1, tab('reports')], ['Attaquant révélé', fx.alertArmyWhoWhenLevel || 10], ['Effectifs révélés', fx.alertArmyDetailsLevel || 15], ['Premier espion (20 or)', 5, tab('army')], ['Deuxième espion (200 or)', 10, tab('army')], ['Passage des espions ennemis', 5], ['Heure des espions ennemis', 10], ['Nom des espions ennemis', 15]],
     RESIDENCE: [['Construction plus rapide (−0,25 % par niveau)', 1], ['Colons et villes secondaires', null]],
     TRADE_OFFICE: [['Convois et transport par armée (+1 % par niveau)', 1]],
     ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],

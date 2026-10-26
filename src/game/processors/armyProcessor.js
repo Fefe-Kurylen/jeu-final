@@ -656,18 +656,8 @@ async function handleSpy(army, now) {
   const targetCity = await withGuestDefenders(prisma, await prisma.city.findUnique({ where: { id: army.targetCityId || '' }, include: { armies: { include: { units: true } }, buildings: true, player: true } }), { units: true });
   if (targetCity) {
     const present = defendingArmies(targetCity);
-    const spyPower = army.units.reduce((sum, u) => sum + u.count, 0);
-    const defenderPower = present.flatMap(a => a.units).reduce((sum, u) => sum + u.count, 0);
-    // Watchtower: the spies may be caught; the defender then gets a report (who, from level 15)
-    const watchtower = fx.watchtowerLevel(targetCity.buildings);
-    const caught = Math.random() < fx.counterSpyChance(watchtower);
-    const successChance = Math.min(0.9, 0.5 + (spyPower / Math.max(1, defenderPower)) * 0.3);
-    const success = !caught && Math.random() < successChance;
-    if (caught) {
-      const named = watchtower >= fx.watchtowerNamesSpyAt();
-      const counter = await prisma.spyReport.create({ data: { playerId: targetCity.playerId, targetPlayerId: named ? army.ownerId : null, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'COUNTER_SPY', targetName: named ? army.owner.name : null, cityName: targetCity.name, success: true, buildings: [], armies: [], resources: {}, data: { type: 'COUNTER_SPY', spies: spyPower, watchtower } } });
-      notify(targetCity.playerId, 'battle', '🔭 Espion intercepté', `La Tour de guet de ${targetCity.name} a repéré ${named ? 'les espions de ' + army.owner.name : 'des espions ennemis'}.`, { to: 'spy', reportId: counter.id, x: targetCity.x, y: targetCity.y });
-    }
+    // armies already on their way when spying moved to the Watchtower spies (26 octobre 2026): no interception any more
+    const success = true;
     const base = { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name };
     let spyReport;
     if (success) {

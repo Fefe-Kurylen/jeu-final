@@ -6,7 +6,7 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 
 | Existe | Manque |
 |---|---|
-| Terrain procédural partagé client/serveur (`frontend/js/shared/terrain.js`), **façon carte de référence** (`docs/CARTE-REFERENCE.md`, 25 octobre 2026) : biomes du GDD (nord enneigé, sud désertique, tempéré ailleurs), 8 longues rivières avec **ponts** (vitesse normale) et **gués** (moitié moins vite) d'une rive à l'autre, lacs, massifs forestiers, amas de rochers, chaînes de montagnes. **Une carte par serveur**, tirée d'une graine au premier démarrage (table `WorldConfig`, `WORLD_SEED`, publiée par `/api/world/info`, appliquée par le jeu avant tout dessin) ; graine 0 = carte de référence du serveur ouvert ; seules les graines qui donnent une carte jouable sont gardées (`src/game/world.js`) | Brouillard de guerre / portée de vision (la Tour de guet annonce 5 + 6 cases/niveau mais tout est visible) |
+| Terrain procédural partagé client/serveur (`frontend/js/shared/terrain.js`), **façon carte de référence** (`docs/CARTE-REFERENCE.md`, 25 octobre 2026) : biomes du GDD (nord enneigé, sud désertique, tempéré ailleurs), 8 longues rivières avec **ponts** (vitesse normale) et **gués** (moitié moins vite) d'une rive à l'autre, lacs, massifs forestiers, amas de rochers, chaînes de montagnes. **Une carte par serveur**, tirée d'une graine au premier démarrage (table `WorldConfig`, `WORLD_SEED`, publiée par `/api/world/info`, appliquée par le jeu avant tout dessin) ; graine 0 = carte de référence du serveur ouvert ; seules les graines qui donnent une carte jouable sont gardées (`src/game/world.js`) | (vision façon Travian depuis le 26 octobre 2026 : section Espionnage et vision) |
 | **Montagnes, rochers et eau infranchissables** : chaque départ est validé, le trajet suit un chemin A* qui contourne les obstacles ; **coût de terrain** : gué × 2, forêt −10 % de vitesse (sauf Gaulois) ; le temps de trajet est la longueur pondérée du chemin | Images de la carte au nouveau style (378, liste et prompts : `docs/PROMPTS-CARTE.md`) ; d'ici là, sprites 3D et dessins |
 | **Villes sur 2 × 2 cases** : départ, fondation (les 3 cases voisines du point libres), chemins, clic, siège, rencontres ; aucune ville ni point de ressource dans l'eau ou dans une poche fermée par les montagnes (terre ferme principale, `Terrain.isMainland`) ; au démarrage, les points existants suivent le terrain (biome, sortie de l'eau) | |
 | **Sol de la carte** (`frontend/js/map-world.js`) : 7 sols (herbe, herbe sèche, terre labourée, sable, eau, glace, neige) en textures projetées en isométrique, fondus irréguliers découpés par le jeu, berges de sable ; dessiné par morceaux mis en cache ; grille très légère toujours visible | |
@@ -18,9 +18,32 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 | Existe | Manque |
 |---|---|
 | Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
-| Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport, rapport pour la cible d'un espionnage réussi |
-| Espionnage : n'importe quelle unité, chance selon l'effectif, rapport ressources/bâtiments/armées ; **contre-espionnage de la Tour de guet** (interception, rapport au défenseur, nom de l'espion dès le niveau 15) | Unités d'espion dédiées (`maxSpiesFaction`, `spyUnlockL5/L10` dans les données), espionnage des points de ressource |
+| Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport |
+| Espionnage par espions dédiés (section Espionnage et vision, 26 octobre 2026) | Espions dessinés en marche sur la carte (image `map/units/spy` à produire) |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
+
+## Espionnage et vision (26 octobre 2026)
+
+Façon Travian et GDD (`espionage_config`) : `src/services/spyService.js`, routes `/api/spies`, client
+`frontend/js/app/09f-spies.js`, vision dans `src/routes/map.js` (`viewFor`).
+
+- **Espions dédiés** : 2 au plus par compte, le 1er avec une Tour de guet niveau 5 (20 or), le 2e niveau 10 (200 or),
+  prêts tout de suite (onglet Armée → Espions, ou bulle de la Tour de guet). **Les armées n'espionnent plus.**
+- **Missions** depuis la carte (« Espionner » sur une ville ou un point), au choix pour une ville :
+  - **Ressources et troupes** : les troupes présentes (garnison, armées en ville, renforts alliés) et **les ressources
+    qu'un pillage pourrait prendre** (hors cachette et réserves protégées), à la centaine près ; pas les bâtiments ;
+  - **Défenses et troupes** : les troupes, le mur (niveau, points de vie, santé de la muraille), les douves, la Tour de
+    guet, la cachette (part cachée) et le bonus de défense.
+  - **Point de ressource** : stock exact, tribu (unités, puissance) ou armées qui récoltent ; le point garde son stock
+    exact et ses occupants affichés pour l'espion pendant 1 h.
+- **Toujours réussi** : l'espion part de la ville choisie (vitesse 80, même chemin que les armées), le rapport est écrit
+  à son arrivée, puis il rentre (même durée) ; il peut être rappelé en route. **Plus d'interception.**
+- **La ville espionnée est prévenue** selon sa Tour de guet : niveau 5 « un espion est venu », niveau 10 l'heure,
+  niveau 15 qui (et la mission) ; rapport « Espion repéré » et notification.
+- **Vision de la carte** : les villes, les points et le relief se voient partout ; **les armées des autres ne se voient
+  que si elles vont vers (ou campent devant) une ville à soi ou à son alliance** ; ses armées et celles de son alliance
+  toujours. Qui récolte un point ne se voit que pour soi et son alliance, ou après l'avoir espionné (sinon « occupé ») ;
+  le stock d'un point reste montré par quarts sans espion.
 
 ## Siège (refonte du 25 octobre 2026)
 
@@ -195,8 +218,8 @@ ressource) ; les invasions barbares sont gardées pour plus tard comme événeme
 une armée qui tient un point **peut être attaquée** (combat en rase campagne par la puissance, sans bonus « chez soi », le
 perdant rentre chez lui, le vainqueur prend le point, rapports et blessés des deux côtés) ; les armées d'un même joueur ou
 d'une **même alliance partagent un point** (récolte partagée à parts égales, point libéré au départ de la dernière) ; le
-**stock n'est connu que par quarts** (plein, bien garni, à moitié, entamé, presque vide ; jauge sur la carte), l'espionnage
-des points reste à faire ; les camps **varient de ± 20 %** d'un camp à l'autre (les « étoiles » du GDD) et leur taille suit
+**stock n'est connu que par quarts** (plein, bien garni, à moitié, entamé, presque vide ; jauge sur la carte), un espion donne
+le stock exact pendant 1 h ; les camps **varient de ± 20 %** d'un camp à l'autre (les « étoiles » du GDD) et leur taille suit
 la **difficulté de la position** : × 0,5 aux bords de la carte, où les joueurs apparaissent (camp de niveau 1 ≈ 50
 soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). Une ville secondaire se fonde sur un point libéré de sa tribu
 (section « Villes secondaires ») : le point disparaît de la carte tant que la ville existe. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
@@ -297,7 +320,7 @@ Déjà en place, sans image supplémentaire (code) : marche des armées sur la c
 
 Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.js`, `game/processors/*`, `services/combatService.js`, `services/woundedService.js`, `routes/market.js`, `routes/alliance.js`) et comparé aux données (`data/buildings.json`) et à l'affichage client (`getBuildingEffect`).
 
-**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv.), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv., réparation +1 %/niv.), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (3 600 → 600 000 protégés), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15, contre-espionnage 3,5 %/niv.), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (+1 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv.), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv., réparation +1 %/niv.), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (3 600 → 600 000 protégés), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15 ; espions niv. 5 et 10 ; alerte des espions ennemis niv. 5, 10, 15), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (+1 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
 
 **Écarts constatés** :
 
@@ -314,7 +337,7 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
 | Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée suivent le Bâtiment principal (le minimum d'engins par palier a été supprimé le 25 octobre 2026 : 1 engin suffit) (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
-| Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+| Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
 
 ## Villes secondaires (octobre 2026)
 

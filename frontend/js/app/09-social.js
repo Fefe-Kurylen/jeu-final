@@ -235,6 +235,7 @@ async function loadReports() {
     renderLoadError(list, 'loadReports()');
     return;
   }
+  if (typeof currentReportTab !== 'undefined' && currentReportTab !== 'battles') return;   // l'onglet a changé pendant le chargement
   {
     if (reports.length === 0) {
       list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun rapport de bataille</p>';

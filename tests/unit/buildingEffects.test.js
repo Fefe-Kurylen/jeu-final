@@ -40,9 +40,8 @@ test('rally point army slots: 1 at level 1, 3 at level 10, 5 at level 20', () =>
 test('embassy, watchtower and market rules', () => {
   assert.equal(fx.allianceCreateLevel(), 7);
   assert.equal(fx.allianceJoinLevel(), 5);
-  assert.equal(fx.counterSpyChance(0), 0);
-  assert.ok(Math.abs(fx.counterSpyChance(20) - 0.7) < 1e-9);
-  assert.ok(Math.abs(fx.counterSpyChance(10) - 0.35) < 1e-9);
+  assert.equal(fx.counterSpyChance, undefined, 'plus d\'interception (26 octobre 2026) : la Tour de guet prévient, les espions réussissent toujours');
+  assert.equal(fx.watchtowerShowsAttackerAt(), 10);
   assert.equal(fx.npcMarketTaxPct(1), 30);
   assert.equal(fx.npcMarketTaxPct(20), 11);
   assert.equal(fx.npcMarketTaxPct(100), 5, 'never below 5 %');

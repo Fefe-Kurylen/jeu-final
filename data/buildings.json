@@ -813,10 +813,9 @@
         "alertArmyDetailsLevel": 15,
         "alertSpyUnknownLevel": 5,
         "alertSpyWhenLevel": 10,
-        "alertSpyWhoWhenLevel": 15,
-        "counterSpyChanceL20": 70
+        "alertSpyWhoWhenLevel": 15
       },
-      "description": "Détecte les armées et espions ennemis. Vision +6 cases/niveau. Débloque espions (niv.5/10). Contre-espionnage 70% au niv.20."
+      "description": "Débloque les espions (le 1er au niveau 5, le 2e au niveau 10) et prévient des espions ennemis : au niveau 5 leur passage, au niveau 10 l'heure, au niveau 15 qui. Annonce les attaques en approche."
     },
     {
       "key": "FOUNDRY",

@@ -419,7 +419,9 @@ router.post('/:id/break-siege', auth, async (req, res) => {
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 router.post('/:id/raid', auth, cityMissionRoute('RAID', { verb: 'piller', ok: 'Raid lance' }));
-router.post('/:id/spy', auth, cityMissionRoute('SPY', { verb: 'espionner', ok: 'Espionnage lancé' }));
+// Les armées n'espionnent plus (décision du 26 octobre 2026) : ce sont les espions de la Tour de guet (/api/spies)
+const NO_ARMY_SPY = 'Les armées n\'espionnent plus : envoyez un espion (Tour de guet niveau 5, onglet Armée)';
+router.post('/:id/spy', auth, (req, res) => res.status(400).json({ error: NO_ARMY_SPY }));
 
 // POST /api/army/:id/raid-resource
 router.post('/:id/raid-resource', auth, async (req, res) => {
@@ -683,7 +685,8 @@ router.post('/send', auth, async (req, res) => {
     const err = readyToLeave(army, 'partir');
     if (err) return res.status(err.status).json({ error: err.error });
     { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
-    if (mission === 'ATTACK' || mission === 'RAID' || mission === 'SPY') {
+    if (mission === 'SPY') return res.status(400).json({ error: NO_ARMY_SPY });
+    if (mission === 'ATTACK' || mission === 'RAID') {
       const targetCity = await prisma.city.findFirst({ where: cityAtCellWhere(parsedX, parsedY), include: { buildings: true } });   // any of its 2 × 2 cells
       if (!targetCity) return res.status(404).json({ error: 'Aucune ville a ces coordonnees' });
       const launched = await launchCityMission(army, targetCity, mission, 'partir');

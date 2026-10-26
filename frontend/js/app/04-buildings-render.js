@@ -242,7 +242,7 @@ function getBuildingEffect(key, level) {
     'GREAT_SILO': `Nourriture à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
     'GREAT_WAREHOUSE': `Ressources à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
     'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
-    'WATCHTOWER': `Contre-espionnage: ${(Math.min(20, level) * 3.5).toFixed(1)}% · attaquant révélé niv. 10, effectifs niv. 15`,
+    'WATCHTOWER': `${level >= 10 ? '2 espions' : level >= 5 ? '1 espion' : 'Espion au niv. 5'} · espions ennemis : ${level >= 15 ? 'qui et quand' : level >= 10 ? 'quand' : level >= 5 ? 'passage' : 'niv. 5'} · attaquant révélé niv. 10, effectifs niv. 15`,
     // Resource fields
     'FARM': `Céréales: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
     'LUMBER': `Bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,

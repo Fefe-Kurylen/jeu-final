@@ -34,6 +34,16 @@ const config = {
     healRequestEveryHours: 6
   },
 
+  // Espions (décision du 26 octobre 2026, GDD espionage_config) : 2 par compte, Tour de guet niv. 5 puis 10, 20 puis
+  // 200 or ; alerte de la ville espionnée selon sa Tour de guet ; un point espionné garde son stock exact 1 h
+  spies: {
+    unlockLevels: [5, 10],
+    goldCost: [20, 200],
+    speed: 80,
+    nodeIntelMinutes: 60,
+    alertLevels: { seen: 5, when: 10, who: 15 }
+  },
+
   // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
   purchases: {
     revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || '',

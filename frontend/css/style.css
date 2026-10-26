@@ -5206,3 +5206,25 @@ span.chat-author { cursor: default; }
 @keyframes qfBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 /* bandeau du tutoriel affiché : les messages passent au-dessus de lui */
 body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70px) + 18px); }
+
+/* ========== ESPIONS (décision du 26 octobre 2026) ========== */
+.spies-section { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.22); border: 1px solid rgba(201,162,39,.35); }
+.spies-section h4 { margin: 0 0 6px; }
+.spies-section h4 small { color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.spy-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+.spy-slot { flex: 1 1 260px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.18); font-size: 13px; }
+.spy-slot.locked { opacity: .65; }
+.spy-free { color: #7ccf6a; font-weight: 700; }
+.spy-defenses { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.spied-note { font-size: 12px; color: #4fb3e8; margin: 2px 0 6px; }
+/* cartes de rapport (combats, espionnage) */
+.report-card { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.22); border: 1px solid rgba(201,162,39,.25); border-left: 4px solid #8a8a8a; }
+.report-card.report-victory { border-left-color: #3f9b4f; }
+.report-card.report-defeat { border-left-color: #d9443a; }
+.report-card .report-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; margin-bottom: 6px; }
+.report-card .report-title { font-weight: 700; color: #e8c547; }
+.report-card .report-date { font-size: 12px; color: var(--text-muted); }
+.report-card .spy-section { margin-top: 8px; }
+.report-card .spy-section h4 { margin: 0 0 4px; font-size: 13px; }
+.report-card .spy-resources { display: flex; flex-wrap: wrap; gap: 10px; }
+.report-card .spy-army { font-size: 13px; margin: 2px 0; }

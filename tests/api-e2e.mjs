@@ -379,12 +379,58 @@ sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}
 await waitTick('army home after raid', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
 console.log('  A resources after raid:', sql(`SELECT wood::int||'/'||stone::int||'/'||iron::int||'/'||food::int FROM "City" WHERE id='${cityA.id}'`));
 await call('second raid within 24h -> 400 (cooldown)', 'POST', `/api/army/${armyId}/raid`, tA, { targetCityId: cityB.id }, 400);
-await call('army spy B', 'POST', `/api/army/${armyId}/spy`, tA, { targetCityId: cityB.id });
-sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
-await waitTick('spy report', () => Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${A.player.id}'`)) >= 1);
-await call('reports/spy A', 'GET', '/api/reports/spy', tA);
-sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}' AND status<>'IDLE'`);
-await waitTick('army idle after spy', () => sql(`SELECT status FROM "Army" WHERE id='${armyId}'`) === 'IDLE');
+// ---------- ESPIONS (décision du 26 octobre 2026) : espions de la Tour de guet, toujours réussis, la cible prévenue ----------
+await call('army spy -> 400 (armies no longer spy)', 'POST', `/api/army/${armyId}/spy`, tA, { targetCityId: cityB.id }, 400);
+await call('send SPY with an army -> 400', 'POST', '/api/armies/send', tA, { armyId, targetX: cityB.x, targetY: cityB.y, mission: 'SPY' }, 400);
+{
+  const s0 = await call('spies: none without a Watchtower', 'GET', '/api/spies', tA);
+  assert('spies: both places locked at first', (s0?.slots || []).length === 2 && s0.slots.every(x => !x.unlocked));
+  await call('spies: recruit without Watchtower -> 400', 'POST', '/api/spies/recruit', tA, { slot: 1 }, 400);
+  const tower = (cid, lvl) => { sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) SELECT gen_random_uuid(),'${cid}','WATCHTOWER',(SELECT COALESCE(MAX(slot),0)+1 FROM "CityBuilding" WHERE "cityId"='${cid}' AND slot < 100),${lvl} WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" WHERE "cityId"='${cid}' AND key='WATCHTOWER')`); sql(`UPDATE "CityBuilding" SET level=${lvl} WHERE "cityId"='${cid}' AND key='WATCHTOWER'`); };
+  tower(cityA.id, 5); tower(cityB.id, 15);
+  sql(`UPDATE "Player" SET gold=500 WHERE id='${A.player.id}'`);
+  await call('spies: recruit the first spy', 'POST', '/api/spies/recruit', tA, { slot: 1 });
+  assert('spies: 20 gold paid', Number(sql(`SELECT gold FROM "Player" WHERE id='${A.player.id}'`)) === 480);
+  await call('spies: recruit it twice -> 400', 'POST', '/api/spies/recruit', tA, { slot: 1 }, 400);
+  await call('spies: second spy needs Watchtower 10 -> 400', 'POST', '/api/spies/recruit', tA, { slot: 2 }, 400);
+  await call('spies: own city -> 400', 'POST', '/api/spies/send', tA, { fromCityId: cityA.id, targetCityId: cityA.id, mission: 'RESOURCES' }, 400);
+  await call('spies: unknown mission -> 400', 'POST', '/api/spies/send', tA, { fromCityId: cityA.id, targetCityId: cityB.id, mission: 'GOLD' }, 400);
+  const spyId = sql(`SELECT id FROM "Spy" WHERE "playerId"='${A.player.id}' AND slot=1`);
+  const runSpy = async (label, body, done) => {
+    await call(`spies: send (${label})`, 'POST', '/api/spies/send', tA, body);
+    await call(`spies: no spy left (${label}) -> 400`, 'POST', '/api/spies/send', tA, body, 400);
+    sql(`UPDATE "Spy" SET "arrivalAt"=now()-interval '1 second' WHERE id='${spyId}'`);
+    await waitTick(`spy report (${label})`, done);
+    sql(`UPDATE "Spy" SET "returnAt"=now()-interval '1 second' WHERE id='${spyId}' AND status='RETURNING'`);
+    await waitTick(`spy home (${label})`, () => sql(`SELECT status FROM "Spy" WHERE id='${spyId}'`) === 'IDLE');
+  };
+  await runSpy('resources', { fromCityId: cityA.id, targetCityId: cityB.id, mission: 'RESOURCES' }, () => Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND data->>'mission'='RESOURCES'`)) >= 1);
+  const rep = (await call('reports/spy A', 'GET', '/api/reports/spy', tA) || []).find(r => r.data?.mission === 'RESOURCES');
+  assert('spies: resources and troops report (always a success)', rep?.success === true && rep?.targetType === 'CITY' && Array.isArray(rep?.armies) && Object.keys(rep?.resources || {}).length === 4 && (rep?.buildings || []).length === 0, String(JSON.stringify(rep)).slice(0, 200));
+  assert('spies: resources shown to the hundred', Object.values(rep?.resources || {}).every(v => v % 100 === 0));
+  const alert = Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${B.player.id}' AND "targetType"='SPY_ALERT' AND "targetName"='${A.player.name}'`));
+  assert('spies: Watchtower 15 tells B who spied', alert >= 1);
+  await runSpy('defenses', { fromCityId: cityA.id, targetCityId: cityB.id, mission: 'DEFENSES' }, () => Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND data->>'mission'='DEFENSES'`)) >= 1);
+  const def = sql(`SELECT data->'defenses'->>'watchtowerLevel' FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND data->>'mission'='DEFENSES' ORDER BY "createdAt" DESC LIMIT 1`);
+  assert('spies: defenses report shows the Watchtower level', def === '15', def);
+  // un point de ressource : stock exact, affiché sur la carte pendant 1 h
+  const node = sql(`SELECT id||','||x||','||y FROM "ResourceNode" WHERE "cityId" IS NULL ORDER BY abs(x-${cityA.x})+abs(y-${cityA.y}) LIMIT 1`).split(',');
+  await runSpy('node', { fromCityId: cityA.id, targetNodeId: node[0] }, () => Number(sql(`SELECT count(*) FROM "SpyReport" WHERE "playerId"='${A.player.id}' AND "targetType"='NODE'`)) >= 1);
+  const vp = await call('spies: map after spying the node', 'GET', `/api/map/viewport?x=${node[1]}&y=${node[2]}&radius=5`, tA);
+  const exact = Number(sql(`SELECT amount FROM "ResourceNode" WHERE id='${node[0]}'`));
+  const seen = (vp?.resourceNodes || []).find(n => n.id === node[0]);
+  assert('spies: the spied node shows its exact stock', !!seen?.spied && Math.abs(seen.amount - exact) <= 200, JSON.stringify({ shown: seen?.amount, exact }));
+  // vision façon Travian : une armée de B qui marche ailleurs ne se voit pas ; vers une ville de A, si
+  const tmp = sql(`INSERT INTO "Army"(id,"ownerId","cityId",name,slot,x,y,status,"targetX","targetY","missionType","arrivalAt","departedAt") VALUES (gen_random_uuid(),'${B.player.id}','${cityB.id}','Fantôme',9,${cityB.x},${cityB.y},'MOVING',${cityB.x + 3},${cityB.y + 3},'MOVE',now()+interval '2 hours',now()) RETURNING id`).split('\n')[0];
+  const vA = await call('vision: A looks around B', 'GET', `/api/map/viewport?x=${cityB.x}&y=${cityB.y}&radius=10`, tA);
+  const vB = await call('vision: B looks around B', 'GET', `/api/map/viewport?x=${cityB.x}&y=${cityB.y}&radius=10`, tB);
+  assert('vision: A does not see B\'s army marching elsewhere, B does', !(vA?.armies || []).some(a => a.id === tmp) && (vB?.armies || []).some(a => a.id === tmp));
+  sql(`UPDATE "Army" SET status='ATTACKING', "missionType"='ATTACK', "targetCityId"='${cityA.id}', "targetX"=${cityA.x}, "targetY"=${cityA.y} WHERE id='${tmp}'`);
+  await sleep(3200);   // le cache de la carte (3 s)
+  const vA2 = await call('vision: A looks again', 'GET', `/api/map/viewport?x=${cityB.x}&y=${cityB.y}&radius=10`, tA);
+  assert('vision: an army marching on A\'s city is seen by A', (vA2?.armies || []).some(a => a.id === tmp));
+  sql(`DELETE FROM "Army" WHERE id='${tmp}'`);
+}
 {
   // Terrain: a destination on a mountain or in water is refused; a valid move records the departure time
   let blockedTile = null;
