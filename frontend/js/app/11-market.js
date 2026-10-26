@@ -237,9 +237,14 @@ function renderSpyReports() {
     return;
   }
   
+  container.innerHTML = spyReports.map(report => renderSpyReportCard(report)).join('');
+}
+
+// Une carte de rapport d'espionnage ; opts.shared : rapport partagé dans la messagerie (pas de bouton « Partager »)
+function renderSpyReportCard(report, opts = {}) {
   const resourceIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
-  
-  container.innerHTML = spyReports.map(report => {
+  const shareBtn = !opts.shared && report.id && report.targetType !== 'COUNTER_SPY' ? `<div class="report-actions"><button class="btn btn-secondary" onclick="openSharePicker({ type: 'spy', reportId: '${String(report.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('send')} Partager</button></div>` : '';
+  {
     const date = new Date(report.createdAt).toLocaleString('fr-FR');
     
     if (report.targetType === 'COUNTER_SPY') {
@@ -261,6 +266,7 @@ function renderSpyReports() {
             <span class="report-date">${date}</span>
           </div>
           <p>Votre espion n'a pas réussi à infiltrer <strong>${escapeHtml(report.cityName)}</strong> à (${report.targetX}, ${report.targetY})</p>
+          ${shareBtn}
         </div>
       `;
     }
@@ -302,9 +308,10 @@ function renderSpyReports() {
             `).join('')
           }
         </div>
+        ${shareBtn}
       </div>
     `;
-  }).join('');
+  }
 }
 
 function getBuildingName(key) {

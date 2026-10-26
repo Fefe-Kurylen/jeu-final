@@ -116,7 +116,9 @@ Caddy obtient et renouvelle le certificat HTTPS automatiquement. Mettre `https:/
 | `FCM_SERVICE_ACCOUNT` | notifications push Android (JSON du compte de service Firebase, sur une ligne) |
 | `REVENUECAT_SECRET_KEY` | vérification des achats côté serveur (clé secrète RevenueCat) |
 | `REVENUECAT_WEBHOOK_AUTH` | valeur attendue dans l'en-tête Authorization du webhook RevenueCat |
-| `ADMIN_KEY` | accès à `GET /api/analytics/funnel` |
+| `ADMIN_KEY` | accès à `GET /api/analytics/funnel` et à la modération de la messagerie (`/api/chat/admin/reports`) |
+| `DEEPL_API_KEY` | traduction automatique des messages (clé DeepL ; une clé gratuite finit par `:fx`) |
+| `TRANSLATE_PROVIDER` | `deepl` (défaut si la clé est donnée), `log` (tests), `none` |
 
-Sans ces variables, l'API fonctionne normalement : notifications et achats sont simplement désactivés.
+Sans ces variables, l'API fonctionne normalement : notifications, achats et traduction sont simplement désactivés.
 Voir `docs/APP-STORE.md` pour la mise en place pas à pas.

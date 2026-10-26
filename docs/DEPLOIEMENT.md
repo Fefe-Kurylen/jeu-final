@@ -62,6 +62,21 @@ qui sait la dessiner.
 
 Les jetons envoyés sont à usage unique, stockés hachés, valables 24 h (confirmation) ou 1 h (réinitialisation). Une réinitialisation déconnecte tous les appareils et confirme l'adresse.
 
+## Messagerie : traduction et modération
+
+| Variable | Rôle |
+|---|---|
+| `DEEPL_API_KEY` | Clé API DeepL. Compte gratuit sur deepl.com/pro-api (« DeepL API Free », 500 000 caractères/mois) : la clé finit par `:fx` et passe par `api-free.deepl.com` ; une clé payante par `api.deepl.com`. Sans clé, pas de traduction (le reste du chat fonctionne). |
+| `TRANSLATE_PROVIDER` | `deepl` (défaut si la clé est donnée), `log` (tests : « [en] texte », aucun appel), `none` (désactivée). |
+| `ADMIN_KEY` | Modération (en-tête `x-admin-key`). |
+
+- Chaque message n'est traduit qu'une fois par langue (table `ChatTranslation`). Une clé refusée ou un quota du mois atteint met la traduction en pause 1 h : les joueurs voient le texte d'origine.
+- Conservation : chat global 7 jours, autres messages 90 jours (purge du tick monde, avec les vieux rapports).
+- Filtre de mots : `data/chat-filter.json` (accents et lettres répétées ignorés ; modifier puis redémarrer).
+- Modération : `GET /api/chat/admin/reports` liste les signalements en attente ; `POST /api/chat/admin/reports/:id` avec `{"action":"dismiss"}`, `{"action":"delete"}` (supprime le message) ou `{"action":"mute","hours":24}` (supprime le message et coupe le chat du joueur). Exemple :
+  `curl -H "x-admin-key: $ADMIN_KEY" https://api.exemple.fr/api/chat/admin/reports`
+- Limites : 500 caractères, 1 message toutes les 1,5 s, 15 par minute, pas deux fois le même texte en 30 s. Le chat global demande une adresse e-mail confirmée quand un vrai fournisseur d'e-mail est configuré.
+
 ## Schéma de base de données : migrations versionnées
 
 Le schéma vit dans `prisma/schema.prisma` et son historique dans `prisma/migrations/` :

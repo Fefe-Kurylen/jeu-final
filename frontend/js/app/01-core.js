@@ -487,6 +487,7 @@ async function showGame() {
   if (typeof startCountdowns === 'function') startCountdowns();
   startAttackCheck();
   startRefresh(false);
+  if (typeof refreshChatBadge === 'function') refreshChatBadge();   // le badge de l'onglet Messages tout de suite
   if (typeof window.onGameReady === 'function') window.onGameReady();   // masque le splash natif
 }
 

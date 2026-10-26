@@ -21,7 +21,7 @@ const config = {
     },
     fcm: { serviceAccount: process.env.FCM_SERVICE_ACCOUNT || '' },
     // Intervalle minimal entre deux notifications du même type pour un joueur
-    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000, city_fall: 0, siege_halt: 0 }   // a fall or a blocked homecoming always reaches the player, even right after a battle push
+    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000, city_fall: 0, siege_halt: 0, message: 30 * 1000, friend: 60 * 1000 }   // a fall or a blocked homecoming always reaches the player, even right after a battle push
   },
 
   // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »

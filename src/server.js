@@ -154,6 +154,8 @@ app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/research', require('./routes/research'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/chat', require('./routes/chat'));                 // messagerie (décision du 26 octobre 2026)
+app.use('/api/friends', require('./routes/chat').friends);
 
 // Pages publiques exigées par les stores (politique de confidentialité, assistance)
 const PUBLIC_DIR = path.join(__dirname, 'public');

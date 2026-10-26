@@ -31,6 +31,8 @@ jobs:
       PUBLIC_URL: http://localhost:3000
       EMAIL_PROVIDER: log
       EMAIL_LOG_FILE: /tmp/mails.jsonl
+      TRANSLATE_PROVIDER: log
+      ADMIN_KEY: ci-only-admin-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

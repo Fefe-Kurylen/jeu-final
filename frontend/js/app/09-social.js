@@ -302,13 +302,15 @@ async function loadReports() {
 
 // One battle report, readable at a glance: who, where, when, the outcome, both sides unit by unit
 // (before -> after), what was taken and what the wall suffered. Travian-style table, Rise of Kingdoms-style summary.
-function renderBattleReportCard(r, idx) {
+// opts.asPlayerId : le rapport vu par son propriétaire (un rapport partagé dans la messagerie) ; opts.shared : pas de
+// bouton « Partager » (ce n'est pas le rapport du joueur)
+function renderBattleReportCard(r, idx, opts = {}) {
   const hasRounds = r.loot?.rounds && r.loot.rounds.length > 0;
   const attackerName = escapeHtml(r.loot?.attackerName || 'Attaquant');
   const defenderName = escapeHtml(r.loot?.defenderName || 'Défenseur');
   const cityName = escapeHtml(r.loot?.cityName || `(${r.x}, ${r.y})`);
   const duration = r.loot?.duration || 1;
-  const iAttacked = r.attackerId === player?.id;
+  const iAttacked = r.attackerId === (opts.asPlayerId || player?.id);
   const won = r.result ? r.result === 'WIN' : (iAttacked === (r.winner === 'ATTACKER'));
   const isRaid = r.loot?.type === 'RAID', isTribe = r.rounds?.type === 'TRIBE_RAID';
   const kind = isRaid ? 'Pillage' : isTribe ? 'Tribu' : iAttacked ? 'Attaque' : 'Défense';
@@ -394,7 +396,7 @@ function renderBattleReportCard(r, idx) {
           <div class="units-list">${unitRows(r.defenderUnits, 'D')}</div>
         </div>
       </div>
-      ${hasRounds ? `<div class="report-actions"><button class="btn btn-replay" onclick="showBattleReplay(${idx})">▶ Revoir le combat</button></div>` : ''}
+      ${hasRounds || !opts.shared ? `<div class="report-actions">${hasRounds ? `<button class="btn btn-replay" onclick="showBattleReplay(${idx})">▶ Revoir le combat</button>` : ''}${!opts.shared && r.id ? `<button class="btn btn-secondary" onclick="openSharePicker({ type: 'battle', reportId: '${String(r.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('send')} Partager</button>` : ''}</div>` : ''}
     </div>`;
 }
 

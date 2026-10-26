@@ -570,6 +570,81 @@ await call('alliance join without Embassy -> 400', 'POST', `/api/alliance/${alId
 addBuilding(cityB.id, 'EMBASSY', 33, 5);
 await call('alliance join by B', 'POST', `/api/alliance/${alId}/join`, tB, {});
 await call('alliance mine', 'GET', '/api/alliance/mine', tB);
+
+// ---------- MESSAGERIE (décision du 26 octobre 2026) ----------
+{
+  const gap = () => sleep(1600);   // un message toutes les 1,5 s au plus par joueur
+  await call('chat: empty message -> 400', 'POST', '/api/chat/messages', tA, { channel: 'global', text: '   ' }, 400);
+  await call('chat: unknown channel -> 400', 'POST', '/api/chat/messages', tA, { channel: 'tavern', text: 'x' }, 400);
+  await call('chat: too long -> 400', 'POST', '/api/chat/messages', tA, { channel: 'global', text: 'x'.repeat(501) }, 400);
+  await call('chat: write to oneself -> 400', 'POST', '/api/chat/messages', tA, { channel: `private:${A.player.id}`, text: 'moi' }, 400);
+  const g = await call('chat: global message (filtered)', 'POST', '/api/chat/messages', tA, { channel: 'global', text: `Salut ${uid}, espèce de connard` }, 201);
+  assert('the word filter masks insults', g?.message?.text === `Salut ${uid}, espèce de *******`, g?.message?.text);
+  await gap();
+  await call('chat: alliance message', 'POST', '/api/chat/messages', tA, { channel: 'alliance', text: `Rassemblement ${uid}` }, 201);
+  const ov = await call('chat: overview B', 'GET', '/api/chat/overview', tB);
+  assert('B sees the alliance channel with an unread message', (ov?.channels || []).some(c => c.key === 'alliance' && c.unread >= 1));
+  const am = await call('chat: B reads alliance', 'GET', '/api/chat/messages?channel=alliance', tB);
+  assert('the alliance message is in the channel', (am?.messages || []).some(m => m.text === `Rassemblement ${uid}`));
+  await gap();
+  const pm = await call('chat: private A -> B', 'POST', '/api/chat/messages', tA, { channel: `private:${B.player.id}`, text: 'Bonjour B' }, 201);
+  let ovB = await call('chat: overview B after private', 'GET', '/api/chat/overview', tB);
+  const conv = (ovB?.conversations || []).find(c => c.key === `private:${A.player.id}`);
+  assert('the private conversation is listed with its unread message', conv?.unread === 1 && conv?.last?.text === 'Bonjour B', JSON.stringify(conv));
+  await call('chat: B marks it read', 'POST', '/api/chat/read', tB, { channel: `private:${A.player.id}` });
+  ovB = await call('chat: overview B after read', 'GET', '/api/chat/overview', tB);
+  assert('read: no more unread in the conversation', (ovB?.conversations || []).find(c => c.key === `private:${A.player.id}`)?.unread === 0);
+  await call('chat: B reads his conversation with A', 'GET', `/api/chat/messages?channel=private:${A.player.id}`, tB);   // B lit SA conversation avec A
+  // partages : position et rapport de bataille
+  await gap();
+  const sp = await call('chat: share a position', 'POST', '/api/chat/messages', tA, { channel: 'alliance', text: '', share: { type: 'position', x: cityA.x, y: cityA.y } }, 201);
+  assert('the shared position names the city on it', sp?.message?.share?.type === 'position' && /Capitale/.test(sp?.message?.share?.summary?.label || ''), JSON.stringify(sp?.message?.share));
+  const reportId = sql(`SELECT id FROM "BattleReport" WHERE "playerId"='${A.player.id}' ORDER BY "createdAt" DESC LIMIT 1`);
+  if (reportId) {
+    await gap();
+    const sb = await call('chat: share a battle report', 'POST', '/api/chat/messages', tA, { channel: 'alliance', text: 'Regardez ça', share: { type: 'battle', reportId } }, 201);
+    const full = await call('chat: B opens the shared report', 'GET', `/api/chat/messages/${sb?.message?.id}/share`, tB);
+    assert('the shared report is readable by the channel', full?.type === 'battle' && full?.data?.id === reportId);
+    await call('chat: share someone else\'s report -> 404', 'POST', '/api/chat/messages', tB, { channel: 'alliance', text: '', share: { type: 'battle', reportId } }, 404);
+  }
+  // traduction (fournisseur « log » en test)
+  if (ov?.settings?.translation) {
+    const tr = await call('chat: translate', 'POST', '/api/chat/translate', tB, { ids: [pm?.message?.id], lang: 'en' });
+    assert('translation returned and kept', !!tr?.translations?.[pm?.message?.id]?.text && sql(`SELECT count(*) FROM "ChatTranslation" WHERE "messageId"='${pm?.message?.id}' AND lang='en'`) === '1');
+  }
+  // amis
+  await call('friends: A asks B', 'POST', '/api/friends/requests', tA, { name: B.player.name }, 201);
+  await call('friends: second request -> 400', 'POST', '/api/friends/requests', tA, { playerId: B.player.id }, 400);
+  const fr = await call('friends: B sees the request', 'GET', '/api/friends', tB);
+  await call('friends: B accepts', 'POST', `/api/friends/requests/${fr?.incoming?.[0]?.id}/accept`, tB);
+  assert('A and B are friends', (await call('friends: A list', 'GET', '/api/friends', tA))?.friends?.some(f => f.id === B.player.id));
+  await gap();
+  await call('chat: friends channel', 'POST', '/api/chat/messages', tB, { channel: 'friends', text: `Entre amis ${uid}` }, 201);
+  assert('a friend reads the friends channel', (await call('chat: A reads friends', 'GET', '/api/chat/messages?channel=friends', tA))?.messages?.some(m => m.text === `Entre amis ${uid}`));
+  // signalement, modération
+  await call('chat: report own message -> 400', 'POST', `/api/chat/messages/${pm?.message?.id}/report`, tA, { reason: 'x' }, 400);
+  await call('chat: B reports A\'s message', 'POST', `/api/chat/messages/${pm?.message?.id}/report`, tB, { reason: 'insulte' });
+  if (process.env.ADMIN_KEY) {
+    const rep = await fetch(`${BASE}/api/chat/admin/reports`, { headers: { 'x-admin-key': process.env.ADMIN_KEY } }).then(r => r.json());
+    const mine = (rep.reports || []).find(r => r.message.id === pm?.message?.id);
+    assert('the report reaches the moderation', !!mine);
+    const act = await fetch(`${BASE}/api/chat/admin/reports/${mine?.id}`, { method: 'POST', headers: { 'x-admin-key': process.env.ADMIN_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mute', hours: 1 }) });
+    assert('moderation: message deleted and author muted', act.ok && sql(`SELECT count(*) FROM "ChatMessage" WHERE id='${pm?.message?.id}'`) === '0');
+    await gap();
+    await call('chat: a muted player cannot write -> 403', 'POST', '/api/chat/messages', tA, { channel: 'alliance', text: 'encore' }, 403);
+    sql(`UPDATE "Player" SET "chatMutedUntil"=NULL WHERE id='${A.player.id}'`);
+  }
+  // blocage
+  await call('chat: B blocks A', 'POST', `/api/chat/blocks/${A.player.id}`, tB);
+  await gap();
+  await call('chat: blocked A cannot write to B -> 403', 'POST', '/api/chat/messages', tA, { channel: `private:${B.player.id}`, text: 'tu es là ?' }, 403);
+  assert('B no longer sees A\'s messages', !(await call('chat: B reads alliance after block', 'GET', '/api/chat/messages?channel=alliance', tB))?.messages?.some(m => m.sender?.id === A.player.id));
+  assert('blocking ends the friendship', !(await call('friends: B list after block', 'GET', '/api/friends', tB))?.friends?.length);
+  const prof = await call('profile shows the block', 'GET', `/api/player/${A.player.id}`, tB);
+  assert('profile relation: blocked', prof?.relation?.blocked === true);
+  await call('chat: B unblocks A', 'DELETE', `/api/chat/blocks/${A.player.id}`, tB);
+  await call('chat: player search', 'GET', `/api/chat/players?q=${encodeURIComponent(B.player.name.slice(0, 5))}`, tA);
+}
 await call('alliance diplomacy get', 'GET', '/api/alliance/diplomacy', tA);
 await call('diplomacy/player/:id', 'GET', `/api/diplomacy/player/${B.player.id}`, tA);
 { sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "missionType"=NULL WHERE "ownerId"='${A.player.id}' AND NOT "isGarrison"`);

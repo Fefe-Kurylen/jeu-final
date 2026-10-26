@@ -55,6 +55,9 @@ model Player {
   lastSeenAt   DateTime  @default(now()) // last authenticated request (10 min resolution)
   premiumUntil DateTime? // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
   cosmetics    Json? // identifiants des cosmétiques possédés
+  chatLang     String? // langue des messages du joueur (fr, en…) : celle de ses messages, et celle de la traduction automatique
+  chatAutoTranslate Boolean @default(true)
+  chatMutedUntil DateTime? // messagerie coupée par la modération jusqu'à cette date
 
   account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
   cities       City[]
@@ -73,6 +76,13 @@ model Player {
   purchases    Purchase[]
   technologies PlayerTechnology[]
   researchQueue ResearchQueueItem[]
+  chatMessages ChatMessage[]
+  chatReports  ChatReport[]
+  chatReads    ChatRead[]
+  blocks       PlayerBlock[]   @relation("Blocker")
+  blockedBy    PlayerBlock[]   @relation("Blocked")
+  friendRequestsSent     Friendship[] @relation("FriendRequester")
+  friendRequestsReceived Friendship[] @relation("FriendAddressee")
 
   @@index([lastSeenAt])
 }
@@ -559,4 +569,103 @@ model ResearchQueueItem {
 
   @@index([playerId, status])
   @@index([status, endsAt])
+}
+
+// ---- Messagerie (décision du 26 octobre 2026) ----
+// Canaux : GLOBAL (tout le serveur), ALLIANCE (allianceId), FRIENDS (lu par les amis de l'auteur), PRIVATE (conversation
+// "<idA>:<idB>", identifiants triés). Conservation : 7 jours pour le global, 90 jours pour le reste (purge de la boucle).
+model ChatMessage {
+  id           String   @id @default(uuid())
+  channel      String
+  allianceId   String?
+  conversation String?
+  recipientId  String? // PRIVATE : le destinataire
+  senderId     String
+  text         String
+  lang         String? // langue déclarée par l'auteur au moment de l'envoi (traduction automatique si elle diffère)
+  share        Json? // rapport de bataille, rapport d'espionnage ou position partagés (copie, lisible par tout le canal)
+  createdAt    DateTime @default(now())
+
+  sender       Player            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  translations ChatTranslation[]
+  reports      ChatReport[]
+
+  @@index([channel, createdAt])
+  @@index([allianceId, createdAt])
+  @@index([conversation, createdAt])
+  @@index([recipientId, createdAt])
+  @@index([senderId, createdAt])
+}
+
+// Traductions déjà faites (DeepL) : un message n'est traduit qu'une fois par langue
+model ChatTranslation {
+  id        String   @id @default(uuid())
+  messageId String
+  lang      String
+  text      String
+  fromLang  String?
+  createdAt DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, lang])
+}
+
+// Signalement d'un message à la modération
+model ChatReport {
+  id         String    @id @default(uuid())
+  messageId  String
+  reporterId String
+  reason     String
+  createdAt  DateTime  @default(now())
+  handledAt  DateTime?
+  action     String? // dismiss | delete | mute
+
+  message  ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter Player      @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, reporterId])
+  @@index([handledAt, createdAt])
+}
+
+// Dernier message lu par canal (badge des messages non lus) : "global", "alliance", "friends", "private:<idJoueur>"
+model ChatRead {
+  id         String   @id @default(uuid())
+  playerId   String
+  channelKey String
+  lastReadAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, channelKey])
+}
+
+// Un joueur bloqué : ses messages sont cachés partout et il ne peut plus écrire en privé à celui qui l'a bloqué
+model PlayerBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker Player @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Player @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// Amitié : une demande (PENDING) que l'autre accepte (ACCEPTED)
+model Friendship {
+  id          String    @id @default(uuid())
+  requesterId String
+  addresseeId String
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  requester Player @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee Player @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
 }

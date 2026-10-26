@@ -156,6 +156,11 @@ function openNotificationLink(link) {
       if (link.cityId && typeof cities !== 'undefined' && cities.some(c => c.id === link.cityId) && typeof selectCity === 'function') selectCity(link.cityId);
       showTab('city');
       break;
+    case 'chat':   // un message privé, une demande d'ami
+      showTab('messages');
+      if (link.channel && typeof openChatChannel === 'function') openChatChannel(String(link.channel));
+      if (link.channel === 'friends' && typeof openFriendsManager === 'function') openFriendsManager();
+      break;
     default:
       showTab(link.tab || 'city');
   }

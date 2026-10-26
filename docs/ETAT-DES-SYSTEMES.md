@@ -117,8 +117,31 @@ d'un combat où le mur sert de bouclier.
 | Existe | Manque |
 |---|---|
 | Alliances sur invitation, rôles (leader, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Pacte de non-agression distinct de l'alliance, déclaration de guerre avec effets (bonus, score) |
-| Statuts ALLY / NEUTRAL / ENEMY entre alliances : pas d'attaque entre alliés, pas de transport vers un ennemi | Aide d'alliance (réduction des constructions, données `maxAllianceHelpReceived*`), chat, classement d'alliance détaillé |
-| Classements joueurs, alliances, attaquants, défenseurs | Messagerie entre joueurs |
+| Statuts ALLY / NEUTRAL / ENEMY entre alliances : pas d'attaque entre alliés, pas de transport vers un ennemi | Aide d'alliance (réduction des constructions, données `maxAllianceHelpReceived*`), classement d'alliance détaillé |
+| Classements joueurs, alliances, attaquants, défenseurs | |
+
+## Messagerie (octobre 2026)
+
+Onglet **Messages** de la barre du bas (pastille des non-lus), `frontend/js/app/09c-chat.js`, `src/services/chatService.js`,
+`src/routes/chat.js`.
+
+- **Canaux** : chat global (tous les joueurs du serveur), chat d'alliance, chat des amis (on y lit ses amis acceptés et
+  soi-même), messages privés. Nouveaux messages en 2 à 3 s quand l'onglet est ouvert ; pastille rafraîchie avec le jeu
+  sinon. Un message privé envoie une notification push (au plus une toutes les 30 s par conversation).
+- **Amis** : demande à accepter (deux demandes croisées valent acceptation), retrait à tout moment.
+- **Partages** joints à un message : rapport de bataille, rapport d'espionnage (les siens seulement), position sur la carte
+  (avec la ville ou le point qui s'y trouve). Le message garde une copie : le partage reste lisible même après la purge
+  des rapports ; il s'ouvre depuis le message.
+- **Traduction** DeepL : chaque message garde la langue de son auteur ; un message d'une autre langue que la sienne est
+  traduit automatiquement (« Traduit · voir l'original »), une seule fois par langue pour tout le serveur. Langue et
+  traduction automatique réglables dans la messagerie.
+- **Modération** (exigence App Store) : filtre de mots (`data/chat-filter.json`), 500 caractères, 1 message / 1,5 s,
+  15 / min, pas de doublon en 30 s ; **Signaler** un message, **Bloquer** un joueur (ses messages disparaissent, il ne
+  peut plus écrire ni rester ami) ; l'équipe traite les signalements (supprimer, couper le chat pour une durée).
+  Chat global réservé aux adresses confirmées quand l'e-mail est en service.
+- **Conservation** : global 7 jours, le reste 90 jours.
+- Depuis le profil d'un joueur ou une ville sur la carte : Écrire, demande d'amitié, Bloquer ; bouton **Partager** sur
+  les rapports et les panneaux de la carte.
 
 ## Brigands : les camps barbares (tribus des points de ressource)
 

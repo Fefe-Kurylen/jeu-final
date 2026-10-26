@@ -48,23 +48,24 @@ Configuration 🔧 :
 | Questionnaire de classification d'âge | Réponses préparées ci-dessous |
 | Fiche « confidentialité » (App Privacy) | Réponses préparées ci-dessous |
 | Bouton « Restaurer les achats » | ✅ dans la boutique et dans Paramètres |
+| Contenu généré par les joueurs (règle 1.2) : messagerie | ✅ filtre de mots (`data/chat-filter.json`, masqués en étoiles), limite de débit, **Signaler** et **Bloquer** sur chaque message et chaque profil, modération par l'équipe (`GET /api/chat/admin/reports`, actions supprimer / suspendre le chat, en-tête `x-admin-key`), contact dans la politique de confidentialité. 🔧 traiter les signalements sous 24 h (engagement attendu par Apple) |
 
 ### Réponses au questionnaire de classification d'âge (App Store Connect)
 - Violence de dessin animé ou fantastique : **peu fréquente / modérée** (batailles d'armées stylisées, sans sang).
 - Violence réaliste, contenu sexuel, nudité, grossièretés, horreur, drogues/alcool/tabac : **aucun** (la brasserie gauloise est un bâtiment décoratif).
 - Jeux d'argent simulés, concours : **non**. Accès web non restreint : **non**.
-- Achats intégrés : **oui**. Interactions entre utilisateurs (alliances, classement, pseudonymes) : **oui** → classification attendue **12+** (« Violence de dessin animé ou fantastique peu fréquente/modérée », interactions sociales).
+- Achats intégrés : **oui**. Interactions entre utilisateurs (alliances, classement, pseudonymes, messagerie : chat global, d'alliance, entre amis et messages privés) : **oui** (« communication non restreinte entre utilisateurs », avec filtre, signalement et blocage) → classification attendue **12+** (« Violence de dessin animé ou fantastique peu fréquente/modérée », interactions sociales).
 
 ### Fiche App Privacy (données collectées)
 | Catégorie Apple | Donnée | Liée à l'identité | Suivi | Usage |
 |---|---|---|---|---|
 | Contact Info | Adresse e-mail | Oui | Non | Fonctionnalité de l'app (compte) |
-| User Content | Pseudonyme, contenu de jeu | Oui | Non | Fonctionnalité de l'app |
+| User Content | Pseudonyme, contenu de jeu, messages (« Other User Content »), signalements (« Customer Support ») | Oui | Non | Fonctionnalité de l'app |
 | Identifiers | Identifiant utilisateur (id joueur) | Oui | Non | Fonctionnalité, achats (RevenueCat) |
 | Purchases | Historique d'achats | Oui | Non | Fonctionnalité de l'app |
 | Usage Data | Interactions produit (événements d'entonnoir internes) | Oui | Non | Analyses (internes, aucun tiers) |
 | Diagnostics | Journaux techniques | Non | Non | Fonctionnement |
-Pas de données de localisation, contacts, santé, photos, ni de publicité. **Aucun suivi** (pas d'ATT).
+Les messages traduits passent par DeepL (sous-traitant, UE) : texte seul, sans identifiant. Pas de données de localisation, contacts, santé, photos, ni de publicité. **Aucun suivi** (pas d'ATT).
 
 ## Phase 5 — Tests
 

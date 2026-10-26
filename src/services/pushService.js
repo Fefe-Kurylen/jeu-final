@@ -82,8 +82,9 @@ function configured() { return !!(apnsToken() || fcmServiceAccount()); }
 //   { to: 'report', reportId }     a battle report        { to: 'spy', reportId }   a spy report
 //   { to: 'army', armyId }         the army's card        { to: 'siege', cityId }   the siege window of a city
 //   { to: 'city', cityId }         a city of the player (constructions, research)
+//   { to: 'chat', channel }        a channel of the messaging ("private:<id>", "friends"…)
 // `tab` is kept for the mobile apps already installed (they only know the tab).
-const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city' };
+const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city', chat: 'messages' };
 const TO_OF_TAB = { reports: 'report', army: 'army', map: 'map', city: 'city' };
 function normalizeLink(data) {
   if (!data || typeof data !== 'object') return null;
@@ -93,14 +94,15 @@ function normalizeLink(data) {
   return link;
 }
 
-// Every alert is first a message in the game (fil de notifications) ; the mobile push is sent from it, throttled
-async function notifyPlayer(playerId, kind, title, body, data = {}) {
+// Every alert is first a message in the game (fil de notifications) ; the mobile push is sent from it, throttled.
+// opts.feed = false: push only (a private message already has its badge in the Messages tab)
+async function notifyPlayer(playerId, kind, title, body, data = {}, opts = {}) {
   try {
     if (!playerId) return;
     const link = normalizeLink(data);
-    const row = await prisma.notification.create({ data: { playerId, kind, title: String(title).slice(0, 120), body: String(body).slice(0, 500), link } });
+    const row = opts.feed === false ? null : await prisma.notification.create({ data: { playerId, kind, title: String(title).slice(0, 120), body: String(body).slice(0, 500), link } });
     if (!configured()) return;
-    data = { ...(link || {}), notificationId: row.id };
+    data = { ...(link || {}), ...(row ? { notificationId: row.id } : {}) };
     const key = `${playerId}:${kind}`;
     const minGap = config.push.throttleMs[kind] ?? 60000;
     const now = Date.now();
@@ -119,6 +121,6 @@ async function notifyPlayer(playerId, kind, title, body, data = {}) {
 }
 
 // Variante non bloquante pour la logique de jeu
-function notify(playerId, kind, title, body, data) { notifyPlayer(playerId, kind, title, body, data).catch(() => {}); }
+function notify(playerId, kind, title, body, data, opts) { notifyPlayer(playerId, kind, title, body, data, opts).catch(() => {}); }
 
 module.exports = { notify, notifyPlayer, configured, normalizeLink };

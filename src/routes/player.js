@@ -45,6 +45,13 @@ router.get('/:id', auth, async (req, res) => {
       }
     });
     if (!targetPlayer) return res.status(404).json({ error: 'Joueur non trouvé' });
+    // ce qui lie le joueur à celui qu'il regarde : amitié (demande envoyée, reçue, acceptée) et blocage
+    const meId = req.user.playerId;
+    const [friendship, block] = targetPlayer.id === meId ? [null, null] : await Promise.all([
+      prisma.friendship.findFirst({ where: { OR: [{ requesterId: meId, addresseeId: targetPlayer.id }, { requesterId: targetPlayer.id, addresseeId: meId }] } }),
+      prisma.playerBlock.findUnique({ where: { blockerId_blockedId: { blockerId: meId, blockedId: targetPlayer.id } } })
+    ]);
+    const relation = { self: targetPlayer.id === meId, blocked: !!block, friend: !friendship ? null : friendship.status === 'ACCEPTED' ? 'friends' : friendship.requesterId === meId ? 'sent' : 'received', requestId: friendship?.status === 'PENDING' ? friendship.id : null };
 
     res.json({
       id: targetPlayer.id, name: targetPlayer.name, faction: targetPlayer.faction,
@@ -55,7 +62,7 @@ router.get('/:id', auth, async (req, res) => {
       } : null,
       hero: targetPlayer.hero ? { name: targetPlayer.hero.name, level: targetPlayer.hero.level } : null,
       stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon } : null,
-      createdAt: targetPlayer.createdAt
+      createdAt: targetPlayer.createdAt, relation
     });
   } catch (e) {
     sendError(res, e);

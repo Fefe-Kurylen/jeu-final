@@ -2818,6 +2818,7 @@ function showMapInfoPanel(x, y, tile) {
         <div class="panel-actions">
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
           ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
+          ${mapShareButton(tile.x, tile.y)}
         </div>
       `;
       panel.style.display = 'flex';
@@ -2906,10 +2907,15 @@ function showMapInfoPanel(x, y, tile) {
           ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
+        ${mapShareButton(x, y)}
       </div>
     `;
     panel.style.display = 'flex';
   }
+}
+// Partager une position dans la messagerie (alliance, global, amis, message privé)
+function mapShareButton(x, y) {
+  return typeof openSharePicker === 'function' ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openSharePicker({ type: 'position', x: ${Number(x)}, y: ${Number(y)} })">${resIconHtml('pin')} Partager la position</button>` : '';
 }
 
 // Async version to check diplomacy
@@ -2959,6 +2965,8 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     <div class="panel-actions player-actions">
       ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
+      ${typeof openChatWith === 'function' && tile.playerId ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openChatWith('${String(tile.playerId).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.playerName || '')})">${resIconHtml('send')} Écrire</button>` : ''}
+      ${mapShareButton(tile.x, tile.y)}
       <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
         <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
@@ -3021,11 +3029,27 @@ async function viewPlayerProfile(playerId) {
         `).join('')}
       </div>
       <div class="profile-actions">
+        ${profileSocialButtons(p)}
         <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
       </div>
     </div>
   `;
   document.getElementById('modal').style.display = 'flex';
+}
+// Écrire, amitié, blocage depuis le profil d'un joueur (messagerie, 09c-chat.js)
+function profileSocialButtons(p) {
+  const r = p.relation;
+  if (!r || r.self || typeof openChatWith !== 'function') return '';
+  const id = String(p.id).replace(/[^\w-]/g, ''), name = chatJsArg(p.name);
+  const after = `closeModal(); setTimeout(() => viewPlayerProfile('${id}'), 300)`;
+  const friend = r.friend === 'friends' ? `<button class="btn btn-secondary" onclick="removeFriend('${id}', ${name}, false); ${after}">Retirer des amis</button>`
+    : r.friend === 'sent' ? `<button class="btn btn-secondary" onclick="declineFriend('${String(r.requestId).replace(/[^\w-]/g, '')}', false); ${after}">Annuler la demande d'ami</button>`
+    : r.friend === 'received' ? `<button class="btn btn-primary" onclick="acceptFriend('${String(r.requestId).replace(/[^\w-]/g, '')}', false); ${after}">Accepter son amitié</button>`
+    : r.blocked ? '' : `<button class="btn btn-secondary" onclick="sendFriendRequest({ playerId: '${id}' }, false); ${after}">${resIconHtml('population')} Ajouter en ami</button>`;
+  return `
+    ${r.blocked ? '' : `<button class="btn btn-primary" onclick="closeModal(); openChatWith('${id}', ${name})">${resIconHtml('send')} Écrire</button>`}
+    ${friend}
+    ${r.blocked ? `<button class="btn btn-secondary" onclick="unblockPlayer('${id}'); ${after}">Débloquer</button>` : `<button class="btn btn-danger" onclick="closeModal(); blockPlayer('${id}', ${name})">${resIconHtml('lock')} Bloquer</button>`}`;
 }
 
 // Spy from map

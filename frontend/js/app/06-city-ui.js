@@ -170,6 +170,7 @@ function showTab(tabName) {
     case 'market': loadMarket(); break;
     case 'ranking': loadRanking('players'); break;
     case 'reports': loadReports(); break;
+    case 'messages': loadChat(); break;
   }
 }
 

@@ -120,7 +120,8 @@ async function refreshData(force = false) {
       loadCities(),
       loadArmies(),
       loadPlayer(),
-      typeof refreshNotificationBadge === 'function' ? refreshNotificationBadge() : null
+      typeof refreshNotificationBadge === 'function' ? refreshNotificationBadge() : null,
+      typeof refreshChatBadge === 'function' ? refreshChatBadge() : null
     ]);
     // Une recherche en cours : suivre son avancement (niveau atteint, file promue)
     if (typeof research !== 'undefined' && research?.queue?.length && typeof loadResearch === 'function') loadResearch();

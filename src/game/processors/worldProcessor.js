@@ -55,8 +55,9 @@ async function purgeOldRecords(now) {
     prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } }),
     prisma.notification.deleteMany({ where: { createdAt: { lt: days(r.notifications || 30) } } })
   ]);
-  const total = reports.count + spy.count + expeditions.count + offers.count + analytics.count;
-  if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements supprimés`);
+  const chatCount = await require('../../services/chatService').purgeOldMessages(now).catch(() => 0);   // global 7 jours, le reste 90
+  const total = reports.count + spy.count + expeditions.count + offers.count + analytics.count + chatCount;
+  if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements, ${chatCount} messages supprimés`);
 }
 
 module.exports = { updatePopulation, updatePlayerPopulation, cleanupOrphanedFlags, purgeOldRecords };
