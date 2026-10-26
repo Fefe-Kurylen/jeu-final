@@ -708,15 +708,17 @@ async function loadMap() {
 }
 
 // Armées en marche : animation (pas cadencé, nuage de poussière) tant qu'une armée en mouvement est à l'écran
-let mapMovingOnScreen = false, mapAnimTimer = null;
-function scheduleArmyAnim() {
+// Ambiance (bateaux qui glissent, nuages qui passent, map-world.js) : même boucle, plus lente (environ 5 images par seconde)
+let mapMovingOnScreen = false, mapAmbientOnScreen = false, mapAnimTimer = null;
+function scheduleArmyAnim(delay = 110) {
   if (mapAnimTimer) return;
-  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (token && document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, 110);
+  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (token && document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, delay);
 }
 function renderMap() {
-  mapMovingOnScreen = false;
+  mapMovingOnScreen = false; mapAmbientOnScreen = false;
   renderMapCore();
   if (mapMovingOnScreen) scheduleArmyAnim();
+  else if (mapAmbientOnScreen) scheduleArmyAnim(220);
 }
 function renderMapCore() {
   if (!mapCtx) return;
@@ -829,6 +831,8 @@ function renderMapCore() {
       drawIsoArmy(obj.screenX, obj.screenY, tileW, tileH, obj);
     }
   });
+
+  drawMapClouds(worldToScreen, w, h, tileW, nightMode);   // quelques nuages qui passent, au-dessus de tout (map-world.js)
 
   // Draw hover highlight
   const highlight = (t, color, lw) => {

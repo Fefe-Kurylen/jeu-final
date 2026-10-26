@@ -1,4 +1,4 @@
-# Carte du monde — les 463 images à produire, avec leurs prompts
+# Carte du monde — les 466 images à produire, avec leurs prompts
 
 Généré par `node tools/repaint/map-kit.cjs` (ne pas éditer à la main). Style et découpage : [la carte de référence](img/carte-reference.jpg)
 et [CARTE-REFERENCE.md](CARTE-REFERENCE.md) (décisions du 25 octobre 2026). Seule la carte du monde change de style ; la vue de la
@@ -39,7 +39,8 @@ autres variantes s'ajoutent ensuite), puis les forêts, les rochers et les ville
 | 14 | [Marche des armées (une image de 6 poses par armée)](#partie-14) | 32 |
 | 15 | [Plus tard : poses du replay de bataille (pas encore affichées dans le jeu)](#partie-15) | 38 |
 | 16 | [Plus tard : autres effets de la carte (pas encore affichés dans le jeu)](#partie-16) | 16 |
-| | **Total** | **463** |
+| 17 | [Autres images de la carte](#partie-17) | 3 |
+| | **Total** | **466** |
 
 <a id="partie-1"></a>
 
@@ -6154,5 +6155,48 @@ Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly th
 Composition: square image (1024 x 1024). The subject stands directly on the ground, WITHOUT any plot, slab, base or patch of ground under it: the ground is not drawn (transparent). Its footprint is one isometric tile: a 2:1 diamond 50% of the image width (512 px), centered horizontally, its center at 75% of the image height. The subject may rise above the diamond; it casts a soft shadow toward the lower right. The second image is a layout guide that shows this diamond in red: use it only to place the subject, do not draw the red diamond, the marks or the grey background.
 
 Subject: A sprite sheet frame: falling snowflakes (world-map weather), frame 4 (same subject, same size and position in every frame, only the pose changes)
+```
+
+<a id="partie-17"></a>
+
+## 17. Autres images de la carte
+
+### `map/world/fx/cloud_1.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 1), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a small soft cumulus cloud with a few puffs, slightly translucent, drifting slowly
+```
+
+### `map/world/fx/cloud_2.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 2), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a long thin wisp of white mist stretched along the wind, slightly translucent, drifting slowly
+```
+
+### `map/world/fx/cloud_3.png`
+
+Nuage qui passe lentement au-dessus de la carte (variante 3), très léger  
+**Taille** : 1536x1024 (fond transparent) · **Guide** : [guide-objet.png](img/guides-carte/guide-objet.png)
+
+```text
+Stylised 3D-rendered isometric diorama for a mobile strategy game, in exactly the look of the first reference image (an ancient-world map with a winding river, dense forests, rock outcrops and walled towns): soft realistic lighting, warm late-afternoon sun from the upper left, long soft shadows toward the lower right, natural saturated colours (lush green grass, golden dry grass, brown ploughed earth, ochre sand, deep blue water with sandy banks), detailed low-poly models with clean simple shapes and subtle ambient occlusion, no outlines, no hand-drawn strokes, no painterly brush texture. 2:1 isometric projection, camera looking down at 30 degrees, same scale as the reference (a walled town spans 2 x 2 tiles, a tree is about a fifth of a tile wide). No text, no letters, no numbers, no watermark, no user interface. Background: fully transparent (alpha channel). If transparency is not possible, a perfectly flat pure magenta (#FF00FF) background, which will be removed.
+
+Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.
+
+Subject: a pair of small fluffy clouds close together, slightly translucent, drifting slowly
 ```
 

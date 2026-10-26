@@ -133,3 +133,9 @@ emblème 3D (icône, favicon, splash ; version peinte : N3). Les variantes neige
 3. Les systèmes récents : camps barbares, colons et colonies, technologies, chantiers par bâtiment.
 4. Les fiches : une figurine et un jeton par unité, héros par palier, vignettes.
 5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints, douves.
+
+## Non classé (3)
+
+- map/world/fx/cloud_1.webp
+- map/world/fx/cloud_2.webp
+- map/world/fx/cloud_3.webp

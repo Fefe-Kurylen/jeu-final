@@ -35,6 +35,9 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
   carrière, mine de fer, ferme, mine d'or), par terrain (tempéré, désert, neige) et par richesse (niveau 1 à 3), **sans
   couleur de civilisation** : seules les villes et les armées changent de style avec la civilisation (plus de bannière
   de civilisation sur les camps des tribus).
+- **Ambiance légère, comme dans la vidéo de référence** : les bateaux glissent doucement d'avant en arrière sur l'eau en
+  tanguant, quelques nuages passent lentement au-dessus de la carte (et leur ombre, à peine visible) ; la carte ne se
+  redessine pour cela qu'environ 5 fois par seconde, et rien ne bouge si l'appareil demande de réduire les animations.
 - **Plusieurs motifs par type de case** : 4 prairies, 3 neiges, 3 sables, 3 herbes sèches, 3 champs, 2 eaux, 2 glaces,
   mélangés par taches de quelques cases ; 3 modèles par forme de montagne (tempérée, enneigée, mesa) ; 4 forêts denses et
   3 lisières par biome (mixte, pins, feuillus, bouleaux…) ; 4 amas de rochers, 3 rochers du désert, 3 dunes, 3 ruines,

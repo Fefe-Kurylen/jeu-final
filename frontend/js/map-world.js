@@ -518,7 +518,7 @@ function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
   }
   if ((f === 'water' || f === 'river') && terrain.biome !== 'snow') {
     const r = Terrain.seededRandom(wx, wy, 5159);
-    if (r < 0.012) { const p = worldVariant('map/world/water/boat_', 3, wx, wy, 5160), img = p && worldArt(p); if (img) drawWorldObject(img, x, y, tw); return; }
+    if (r < 0.012) { drawMapBoat(x, y, tw, th, wx, wy); return; }
     if (r < 0.04) {
       const landX = !MAP_WET[getTerrainType(wx - 1, wy).feature], landY = !MAP_WET[getTerrainType(wx, wy - 1).feature];
       const p = landX ? 'map/world/water/dock_x.webp' : landY ? 'map/world/water/dock_y.webp' : null;
@@ -526,6 +526,73 @@ function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
       if (img) drawWorldObject(img, x, y, tw);
     }
   }
+}
+
+// ---- ambiance, légère (décision du 26 octobre 2026, d'après la vidéo de référence) ----
+// Un bateau glisse doucement d'avant en arrière le long de l'eau autour de sa case, en tanguant ; quelques nuages passent
+// lentement au-dessus de la carte. Rien ne bouge si l'appareil demande de réduire les animations.
+const mapReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawMapBoat(x, y, tw, th, wx, wy) {
+  const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
+  const ph = Terrain.seededRandom(wx, wy, 5161) * 6.28, period = 26 + Terrain.seededRandom(wx, wy, 5162) * 18;
+  // le long de l'eau : l'axe dont les deux voisins sont de l'eau
+  const wet = (dx, dy) => MAP_WET[getTerrainType(wx + dx, wy + dy).feature] && getTerrainType(wx + dx, wy + dy).feature !== 'bridge' && getTerrainType(wx + dx, wy + dy).feature !== 'ford';
+  const alongX = wet(1, 0) && wet(-1, 0), alongY = wet(0, 1) && wet(0, -1);
+  const a = Math.sin(t * 6.283 / period + ph), v = Math.cos(t * 6.283 / period + ph);
+  const s = (alongX || alongY) ? a * 0.32 : 0;
+  const ux = alongX ? 1 : 0, uy = alongX ? 0 : alongY ? 1 : 0;
+  const bx = x + (ux - uy) * s * tw / 2, by = y + (ux + uy) * s * th / 2 + Math.sin(t * 1.3 + ph) * th * 0.015;
+  const dir = ((ux - uy) * v) < 0 ? -1 : 1;   // la proue dans le sens de la marche
+  if (!still && (alongX || alongY)) mapAmbientOnScreen = true;
+  const p = worldVariant('map/world/water/boat_', 3, wx, wy, 5160), img = p && worldArt(p);
+  mapCtx.save(); mapCtx.translate(bx, by); if (dir < 0) mapCtx.scale(-1, 1);
+  if (img) drawWorldObject(img, 0, 0, tw);
+  else if (!p) {   // repli dessiné : coque et voile
+    const k = tw * 0.16;
+    mapCtx.fillStyle = 'rgba(20,40,70,0.25)'; mapCtx.beginPath(); mapCtx.ellipse(0, k * 0.15, k * 1.1, k * 0.32, 0, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.fillStyle = '#7a4e2a'; mapCtx.beginPath(); mapCtx.moveTo(-k, -k * 0.1); mapCtx.lineTo(k, -k * 0.1); mapCtx.lineTo(k * 0.6, k * 0.25); mapCtx.lineTo(-k * 0.7, k * 0.25); mapCtx.closePath(); mapCtx.fill();
+    mapCtx.strokeStyle = '#5a3a1e'; mapCtx.lineWidth = Math.max(1, tw * 0.012); mapCtx.beginPath(); mapCtx.moveTo(0, -k * 0.1); mapCtx.lineTo(0, -k * 1.3); mapCtx.stroke();
+    mapCtx.fillStyle = '#f2eee2'; mapCtx.beginPath(); mapCtx.moveTo(k * 0.05, -k * 1.25); mapCtx.quadraticCurveTo(k * 0.75, -k * 0.7, k * 0.05, -k * 0.2); mapCtx.closePath(); mapCtx.fill();
+  }
+  mapCtx.restore();
+}
+// Nuages : un par case d'une grille large du monde (une sur trois environ), qui dérive avec le vent et revient dans sa
+// case ; légers (peu opaques), leur ombre à peine visible au sol
+const MAP_CLOUD_CELL = 16, MAP_CLOUD_SPEED = 0.18;   // cases ; cases par seconde
+function drawMapClouds(worldToScreen, w, h, tw, night) {
+  const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
+  const screenToCell = (sx, sy) => { const o = worldToScreen(0, 0), dx = (sx - o.x) / (tw / 2), dy = (sy - o.y) / (tw / 4); return { x: (dx + dy) / 2, y: (dy - dx) / 2 }; };
+  const corners = [screenToCell(0, 0), screenToCell(w, 0), screenToCell(0, h), screenToCell(w, h)];
+  const gx0 = Math.floor(Math.min(...corners.map(c => c.x)) / MAP_CLOUD_CELL) - 1, gx1 = Math.ceil(Math.max(...corners.map(c => c.x)) / MAP_CLOUD_CELL) + 1;
+  const gy0 = Math.floor(Math.min(...corners.map(c => c.y)) / MAP_CLOUD_CELL) - 1, gy1 = Math.ceil(Math.max(...corners.map(c => c.y)) / MAP_CLOUD_CELL) + 1;
+  let drawn = 0;
+  for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+    if (Terrain.seededRandom(gx, gy, 7301) > 0.34) continue;
+    const drift = ((t * MAP_CLOUD_SPEED + Terrain.seededRandom(gx, gy, 7302) * MAP_CLOUD_CELL) % MAP_CLOUD_CELL);   // vers le sud-est
+    const cx = gx * MAP_CLOUD_CELL + drift, cy = gy * MAP_CLOUD_CELL + Terrain.seededRandom(gx, gy, 7303) * MAP_CLOUD_CELL;
+    const p = worldToScreen(cx, cy);
+    const size = tw * (3 + Terrain.seededRandom(gx, gy, 7304) * 3);
+    if (p.x < -size * 1.5 || p.x > w + size * 1.5 || p.y < -size || p.y > h + size) continue;
+    drawn++;
+    const lift = size * 0.9;   // le nuage flotte au-dessus de son ombre
+    const fade = Math.min(1, drift / 2, (MAP_CLOUD_CELL - drift) / 2);   // apparaît et s'efface en douceur aux bords de sa case
+    const v = worldVariant('map/world/fx/cloud_', 3, gx, gy, 7305), img = v && worldArt(v);
+    mapCtx.save();
+    mapCtx.globalAlpha = (night ? 0.035 : 0.07) * fade;   // ombre au sol
+    mapCtx.fillStyle = '#1c2a18'; mapCtx.beginPath(); mapCtx.ellipse(p.x, p.y, size * 0.55, size * 0.22, 0, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.globalAlpha = (night ? 0.12 : 0.3) * fade;
+    if (img) mapCtx.drawImage(img, p.x - size * 0.75, p.y - lift - size * 0.4, size * 1.5, size * 0.8);
+    else if (!v) {
+      for (let k = 0; k < 5; k++) {   // repli dessiné : quelques boules de brume
+        const ox = (Terrain.seededRandom(gx * 7 + k, gy, 7306) - 0.5) * size * 0.9, oy = (Terrain.seededRandom(gx, gy * 7 + k, 7307) - 0.5) * size * 0.25, r = size * (0.22 + Terrain.seededRandom(gx + k, gy + k, 7308) * 0.18);
+        const g = mapCtx.createRadialGradient(p.x + ox, p.y - lift + oy, 0, p.x + ox, p.y - lift + oy, r);
+        g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        mapCtx.fillStyle = g; mapCtx.beginPath(); mapCtx.arc(p.x + ox, p.y - lift + oy, r, 0, Math.PI * 2); mapCtx.fill();
+      }
+    }
+    mapCtx.restore();
+  }
+  if (drawn && !still) mapAmbientOnScreen = true;
 }
 
 // Élément posé d'une case (passe des éléments, triée de haut en bas) : image peinte, sinon le rendu d'avant

@@ -2689,3 +2689,5 @@ Composition: square image, a single object centered filling about 70% of the fra
 | **Total** | | **1492** | **142** |
 
 Déjà peint et donc absent d'ici : 283 images. Variantes neige des bâtiments et de l'enceinte : non demandées.
+
+Non classé : `map/world/fx/cloud_1.webp`, `map/world/fx/cloud_2.webp`, `map/world/fx/cloud_3.webp`

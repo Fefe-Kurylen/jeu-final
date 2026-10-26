@@ -143,6 +143,11 @@ const RES_BIOME = { forest: 'on green meadow grass in a temperate land', desert:
 const RES_BIOME_FR = { forest: 'tempéré', desert: 'désert', snow: 'neige' };
 for (const [type, levels] of Object.entries(RESOURCE)) for (const biome of Object.keys(RES_BIOME)) levels.forEach((d, i) => obj(`map/resources/${type}_${biome}_${i + 1}.webp`, `${d}, ${RES_BIOME[biome]}; built in a simple rustic style, with no civilisation colours, no banner and no flag; it fits within one tile`, `Point de ressource ${RES_FR[type]} (${RES_BIOME_FR[biome]}), niveau ${i + 1} : ${['petit', 'moyen', 'riche'][i]}`));
 
+// ---- nuages qui passent sur la carte (ambiance légère, d'après la vidéo de référence) ----
+const CLOUD_COMPOSITION = 'Composition: wide image (1536 x 1024). One soft wispy white cloud seen from above at the same 30 degree angle as the map, filling about 80 % of the width, centered, with soft feathered edges that fade to fully transparent; no ground, no shadow, no sky colour behind it.';
+const CLOUDS = ['a small soft cumulus cloud with a few puffs', 'a long thin wisp of white mist stretched along the wind', 'a pair of small fluffy clouds close together'];
+CLOUDS.forEach((d, i) => { OBJECTS[`map/world/fx/cloud_${i + 1}.webp`] = { subject: `${d}, slightly translucent, drifting slowly`, role: `Nuage qui passe lentement au-dessus de la carte (variante ${i + 1}), très léger`, comp: CLOUD_COMPOSITION, frame: 'header' }; });
+
 // ---- villes 2 × 2 (même noms qu'avant, cadrage 2 × 2) ----
 const CITY = {
   t1: (c) => `a small walled village ${CIV_LOOK[c]}; a low wall or palisade around a dozen houses, a main hall in the middle, two banners`,
@@ -157,7 +162,7 @@ const cityFile = { t1: (c) => `map/cities/${c.toLowerCase()}.webp`, t2: (c) => `
 function targets() {
   const out = [];
   for (const t of GROUND_ORDER) GROUND_VARIANT[t].forEach((d, i) => out.push({ file: `map/world/ground/${t}_${i + 1}.webp`, frame: 'texture', kind: 'ground', terrain: t, role: `Sol de la carte : ${GROUND_FR[t]}, variante ${i + 1} sur ${GROUND_VARIANT[t].length} (${GROUND_VARIANT_FR[t][i]}) ; texture répétable, le jeu fait les fondus avec les sols voisins` }));
-  for (const [file, o] of Object.entries(OBJECTS)) out.push({ file, frame: 'mapobject', kind: 'object', role: o.role });
+  for (const [file, o] of Object.entries(OBJECTS)) out.push({ file, frame: o.frame || 'mapobject', kind: 'object', role: o.role });
   for (const c of CIVS) for (const k of Object.keys(CITY)) out.push({ file: cityFile[k](c), frame: 'mapcity', kind: 'city', civ: c, tier: k, role: `Ville ${k} de ${c} sur 2 × 2 cases (carte du monde)` });
   return out;
 }
@@ -165,7 +170,7 @@ function targets() {
 function promptFor(file) {
   let subject = null, comp = COMPOSITION.object, m;
   if ((m = file.match(/^map\/world\/ground\/([a-z]+)_(\d)\.webp$/)) && GROUND_VARIANT[m[1]]?.[m[2] - 1]) { subject = groundSubject(m[1], Number(m[2])); comp = COMPOSITION.ground; }
-  else if (OBJECTS[file]) subject = OBJECTS[file].subject;
+  else if (OBJECTS[file]) { subject = OBJECTS[file].subject; if (OBJECTS[file].comp) comp = OBJECTS[file].comp; }
   else {
     for (const c of CIVS) for (const k of Object.keys(CITY)) if (cityFile[k](c) === file) { subject = CITY[k](c); comp = COMPOSITION.city; }
   }

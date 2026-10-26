@@ -19,7 +19,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
-| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 221 |
+| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 224 |
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
@@ -29,7 +29,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1715** |
+| | **Total** | **1718** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -300,7 +300,7 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `walls/SULTAN/3_seg_z_low.png` — 1024×1024
 - `walls/SULTAN/3_tower.png` — 1024×1024
 
-## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (221)
+## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (224)
 
 Style de la carte de référence : prompts prêts à coller et guides de cadrage dans `docs/PROMPTS-CARTE.md`.
 
@@ -480,6 +480,9 @@ Style de la carte de référence : prompts prêts à coller et guides de cadrage
 - `map/world/decor/snow_bush_2.png` — 1024×1024
 - `map/world/decor/snow_stones_1.png` — 1024×1024
 - `map/world/decor/snow_stones_2.png` — 1024×1024
+- `map/world/fx/cloud_1.png` — 1024×1024
+- `map/world/fx/cloud_2.png` — 1024×1024
+- `map/world/fx/cloud_3.png` — 1024×1024
 - `map/resources/wood_forest_1.png` — 1024×1024
 - `map/resources/wood_forest_2.png` — 1024×1024
 - `map/resources/wood_forest_3.png` — 1024×1024
