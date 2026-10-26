@@ -1480,6 +1480,7 @@ function renderBuildQueue() {
             <span class="qd-name">${buildingIconHtml(q.buildingKey)} ${getBuildingName(q.buildingKey)}</span>
             <span class="qd-level">Niv.${q.targetLevel}</span>
             <span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>
+            ${typeof helpAskButton === 'function' ? helpAskButton('BUILD', q.id) : ''}
             <button class="qd-cancel" aria-label="Annuler (50 % remboursés)" title="Annuler (50 % remboursés)" onclick="event.stopPropagation(); cancelBuild('${q.id}', true)">×</button>
           </div>`;
         });

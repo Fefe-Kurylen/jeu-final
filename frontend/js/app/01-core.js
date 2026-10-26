@@ -488,6 +488,7 @@ async function showGame() {
   startAttackCheck();
   startRefresh(false);
   if (typeof refreshChatBadge === 'function') refreshChatBadge();   // le badge de l'onglet Messages tout de suite
+  if (typeof updateAllianceHelpBadge === 'function') updateAllianceHelpBadge();   // demandes d'aide d'alliance en attente
   if (typeof window.onGameReady === 'function') window.onGameReady();   // masque le splash natif
 }
 

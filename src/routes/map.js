@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { unitsData, buildingsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
+const { bannerImage } = require('../services/allianceShopService');
 const { getCityTier, getCityTierName, mainHallLevelOf } = require('../utils/calculations');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
@@ -103,12 +104,12 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallStructure: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallStructure: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, nameplate: true, banner: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
         where: {
-          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING'] },
+          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING'] },
           OR: [
             { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
@@ -133,7 +134,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       const allianceInfo = city.player?.alliance?.alliance;
       // vies perdues (le mur en a perdu la même part) : la fumée qui s'élève de la ville se voit de loin, par tranches de 10 %
       const wallDamage = Math.max(0, Math.min(100, Math.round((1 - (city.wallStructure ?? 1)) * 10) * 10));
-      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null, nameplate: city.player?.nameplate || null, banner: bannerImage(city.player?.banner) }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
     });
 
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)

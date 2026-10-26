@@ -18,16 +18,14 @@ async function loadAlliance() {
   const content = document.getElementById('alliance-content');
   try {
     const [mine, alliances] = await Promise.all([fetchJson('/api/alliance/mine'), fetchJson('/api/alliances')]);
-    const p = { id: player?.id };
     const myAlliance = mine?.alliance || null;
 
     if (myAlliance) {
       const myRole = mine.role;
       const isLeaderOrOfficer = ['LEADER', 'OFFICER'].includes(myRole);
-      const isLeader = myRole === 'LEADER';
       const diplomacyData = await fetchJson('/api/alliance/diplomacy').catch(() => ({ diplomacy: [] }));
       const otherAlliances = alliances.filter(a => a.id !== myAlliance.id);
-      const roleLabel = (role) => role === 'LEADER' ? '<img class="ico" src="assets/images/3d/ui/crown.webp" alt=""> Leader' : role === 'OFFICER' ? '<img class="ico" src="assets/images/3d/ui/star.webp" alt=""> Officier' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Membre';
+      const roleLabel = (role) => role === 'LEADER' ? '<img class="ico" src="assets/images/3d/ui/crown.webp" alt=""> Chef' : role === 'OFFICER' ? '<img class="ico" src="assets/images/3d/ui/star.webp" alt=""> Officier' : '<img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Membre';
 
       const showSub = (id) => currentAllianceTab === id ? 'block' : 'none';
       content.innerHTML = `
@@ -53,53 +51,24 @@ async function loadAlliance() {
             </div>
 
             <div id="alliance-sub-members" class="alliance-sub-section" style="display:${showSub('members')}">
-              <div class="alliance-section">
-                <h4><img class="ico" src="assets/images/3d/ui/population.webp" alt=""> Membres (${myAlliance.members.length})</h4>
-                ${myAlliance.members.map(m => {
-                  const isMe = m.playerId === p.id;
-                  const canPromote = isLeader && !isMe && m.role !== 'LEADER';
-                  const canKick = !isMe && m.role !== 'LEADER' && (isLeader || (myRole === 'OFFICER' && m.role === 'MEMBER'));
-                  return `
-                  <div class="member-row">
-                    <span class="member-name">${escapeHtml(m.player.name)}</span>
-                    <span class="member-role ${m.role.toLowerCase()}">${roleLabel(m.role)}</span>
-                    ${canPromote ? `<button class="btn btn-secondary" style="margin:0 0 0 6px;padding:4px 8px" onclick="promoteMember('${m.playerId}', '${m.role}')">${m.role === 'OFFICER' ? 'Céder le leadership' : 'Promouvoir'}</button>` : ''}
-                    ${canKick ? `<button class="btn btn-danger" style="margin:0 0 0 6px;padding:4px 8px" onclick="kickMember('${m.playerId}')">Exclure</button>` : ''}
-                  </div>`;
-                }).join('')}
-              </div>
+              ${renderAllianceMembers(myAlliance, myRole, mine.serverTime)}
+            </div>
+
+            <div id="alliance-sub-help" class="alliance-sub-section" style="display:${showSub('help')}">
+              <div class="alliance-section" id="alliance-help-box"><p class="empty-state">Chargement…</p></div>
+            </div>
+
+            <div id="alliance-sub-shop" class="alliance-sub-section" style="display:${showSub('shop')}">
+              <div class="alliance-section" id="alliance-shop-box"><p class="empty-state">Chargement…</p></div>
             </div>
 
             <div id="alliance-sub-diplomacy" class="alliance-sub-section" style="display:${showSub('diplomacy')}">
-            ${isLeaderOrOfficer ? `
-              <div class="alliance-section">
-                <h4><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Diplomatie</h4>
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:15px">Définissez vos relations avec les autres alliances (3 alliés maximum)</p>
-                <div class="diplomacy-list">
-                  ${otherAlliances.map(a => {
-                    const dipStatus = diplomacyData.diplomacy?.find(d => d.allianceId === a.id)?.status || 'NEUTRAL';
-                    return `
-                      <div class="diplomacy-row">
-                        <div class="diplomacy-alliance">
-                          <strong>[${escapeHtml(a.tag)}]</strong> ${escapeHtml(a.name)}
-                          <span style="font-size:11px;color:var(--text-muted)">(${a.members.length} membres)</span>
-                        </div>
-                        <div class="diplomacy-status">
-                          <select onchange="setDiplomacy('${a.id}', this.value)" class="diplomacy-select">
-                            <option value="NEUTRAL" ${dipStatus === 'NEUTRAL' ? 'selected' : ''}>Neutre</option>
-                            <option value="ALLY" ${dipStatus === 'ALLY' ? 'selected' : ''}>Allié</option>
-                            <option value="ENEMY" ${dipStatus === 'ENEMY' ? 'selected' : ''}>Ennemi</option>
-                          </select>
-                        </div>
-                      </div>
-                    `;
-                  }).join('') || '<p style="color:var(--text-muted)">Aucune autre alliance</p>'}
-                </div>
-              </div>
-            ` : '<div class="alliance-section"><p style="color:var(--text-muted)">Seuls les leaders et officiers peuvent gérer la diplomatie.</p></div>'}
+              ${renderAllianceDiplomacy(myAlliance, otherAlliances, diplomacyData)}
             </div>
           </div>
         `;
+      if (typeof loadAllianceHelp === 'function') loadAllianceHelp();
+      if (typeof loadAllianceShop === 'function') loadAllianceShop();
       return;
     }
 
@@ -127,7 +96,7 @@ async function loadAlliance() {
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">On rejoint une alliance sur invitation de l'un de ses officiers.</p>
       ${alliances.slice(0, 20).map(a => `
         <div class="member-row">
-          <span class="member-name">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)} (${a.members.length} membres)</span>
+          <span class="member-name"><a href="#" onclick="event.preventDefault(); openAllianceSheet('${chatSafeId(a.id)}')">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)}</a> (${a.members.length} membres)</span>
         </div>
       `).join('') || '<p style="color:var(--text-muted)">Aucune alliance</p>'}
     `;
@@ -167,27 +136,6 @@ async function allianceAction(path, okMessage) {
     const data = await res.json().catch(() => ({}));
     if (res.ok) { showToast(data.message || okMessage, 'success'); loadAlliance(); }
     else showToast(data.error || 'Erreur', 'error');
-  } catch (e) {
-    showToast('Erreur réseau', 'error');
-  }
-}
-
-async function setDiplomacy(targetAllianceId, status) {
-  try {
-    const res = await fetch(`${API}/api/alliance/diplomacy/${targetAllianceId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status })
-    });
-    
-    if (res.ok) {
-      const statusLabels = { ALLY: 'Allié', NEUTRAL: 'Neutre', ENEMY: 'Ennemi' };
-      showToast(`Statut changé en ${statusLabels[status]}`, 'success');
-    } else {
-      const data = await res.json();
-      showToast(data.error || 'Erreur', 'error');
-      loadAlliance(); // Refresh to reset select
-    }
   } catch (e) {
     showToast('Erreur réseau', 'error');
   }

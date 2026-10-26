@@ -17,7 +17,7 @@ const { pointAlongPath } = require('../../utils/calculations');
 const { lockCity } = require('../../utils/db');
 const { notify } = require('../../services/pushService');
 
-const MARCHING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING'];
+const MARCHING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING'];
 const STANDING = ['BESIEGING', 'HARVESTING', 'FOUNDING', 'IDLE'];   // IDLE: only outside its own city (a guard, a halted army)
 const E = () => config.combat.encounters;
 

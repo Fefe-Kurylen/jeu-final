@@ -116,9 +116,44 @@ d'un combat où le mur sert de bouclier.
 
 | Existe | Manque |
 |---|---|
-| Alliances sur invitation, rôles (leader, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Pacte de non-agression distinct de l'alliance, déclaration de guerre avec effets (bonus, score) |
-| Statuts ALLY / NEUTRAL / ENEMY entre alliances : pas d'attaque entre alliés, pas de transport vers un ennemi | Aide d'alliance (réduction des constructions, données `maxAllianceHelpReceived*`), classement d'alliance détaillé |
-| Classements joueurs, alliances, attaquants, défenseurs | |
+| Alliances sur invitation, rôles (chef, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Bastion d'alliance (GDD `bastion` : 30 membres, construction commune, bonus, garnison) |
+| Diplomatie à 3 statuts (décision du 26 octobre 2026, ci-dessous) | Pacte de non-agression et guerre avec effets : écartés (3 statuts gardés, GDD) |
+| Aide d'alliance, points d'alliance, boutique d'alliance, renfort allié, liste des membres détaillée | Classement d'alliance détaillé |
+
+Décisions du 26 octobre 2026 (`src/routes/alliance.js`, `src/services/diplomacyService.js`, `allianceHelpService.js`,
+`allianceShopService.js`, `supportService.js`, client `frontend/js/app/09d-alliance.js`) :
+
+- **Diplomatie** : une alliance entre deux alliances se **propose** (chef ou officier) et s'**accepte** par l'autre
+  alliance ; elle n'existe que des deux côtés (3 alliés au plus). **Ennemi** se déclare seul et rompt une alliance en
+  cours ; revenir à neutre rompt aussi une alliance des deux côtés. Les anciennes alliances déclarées d'un seul côté sont
+  devenues des propositions à accepter (migration `0013_alliance`). Tout le monde voit les statuts (fiche publique d'une
+  alliance : membres, alliés, ennemis) ; seuls chef et officiers les changent ; ils sont prévenus des propositions,
+  acceptations, refus et déclarations.
+- **Couleurs** (GDD) sur la carte (liseré de la plaque de nom et halo de la ville), les profils et la page d'alliance :
+  or chez soi, vert sa propre alliance, bleu clair les alliés, rouge les ennemis, gris les neutres.
+- **Membres** : rôle, population, ancienneté dans l'alliance et dernière connexion arrondie (en ligne, il y a 3 h,
+  il y a 2 j), visibles de tous les membres ; la fiche publique ne montre pas la dernière connexion.
+- **Aide d'alliance** : sur une construction, une recherche ou les soins d'une ville en cours (bouton à côté de chacun,
+  ou « Demander de l'aide pour tout » dans Alliance → Aide). Chaque autre membre aide une fois par demande : **1 % du
+  temps restant, 1 minute au moins**. Plafond d'aides par demande selon l'Ambassade du demandeur : 0 au niveau 1, 5 au
+  niveau 5, 20 au niveau 20 (en ligne droite entre les deux). Bouton « Tout aider » et pastille du nombre de demandes à
+  aider (onglet Alliance). Une demande se ferme à son plafond ou quand la cible est finie ; purgée après 7 jours.
+- **Points d'alliance** : 10 par aide donnée, 300 au plus par 24 h glissantes (au-delà, l'aide compte toujours mais ne
+  rapporte rien). Gardés en quittant l'alliance.
+- **Boutique d'alliance** (`data/alliance-shop.json`) : ressources livrées dans la ville choisie (dans la limite de
+  l'entrepôt : 1 000 d'une ressource pour 80 points, convoi de 4 × 1 500 pour 400), objets de héros communs (250 points,
+  dans le sac du héros), **plaques de nom** dessinées par le jeu sous ses villes (bronze 600, argent 1 200, laurier
+  1 800, or et pourpre 3 000) et **bannières** plantées devant ses villes (2 000, en vente une fois leur image livrée,
+  `docs/LISTE-GRAPHISMES.md`). Un cosmétique s'achète une fois et se met ou se retire à volonté.
+- **Renfort allié** : bouton « Renforcer » sur la ville d'un membre de son alliance ou d'une alliance alliée. L'armée
+  marche (statut `SUPPORTING`), entre et se poste (`STATIONED`) : elle **défend la ville** avec ses troupes lors des
+  attaques et des raids (après les armées du propriétaire ; l'espion la voit), reçoit sa copie du rapport, et ses
+  **blessés rentrent avec elle** (la Tente de l'hôte ne soigne que les siens). Son **entretien reste payé par sa ville
+  d'origine**. **Pendant un siège, aucun renfort n'entre** (GDD) : il ne part pas, et celui qui arrive pendant le camp
+  fait demi-tour ; ceux déjà postés restent et se battent. Le propriétaire la rappelle (Rappeler), l'hôte la renvoie
+  (onglet Armée → Renforts alliés reçus). Une rupture d'alliance, une déclaration de guerre, un départ ou une exclusion
+  de l'alliance, ou la chute de la ville renvoient les renforts chez eux. En marche, un renfort croise les armées
+  ennemies comme toute armée.
 
 ## Messagerie (octobre 2026)
 
@@ -242,7 +277,7 @@ Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.j
 | Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
 | Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée suivent le Bâtiment principal (le minimum d'engins par palier a été supprimé le 25 octobre 2026 : 1 engin suffit) (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
-| Ambassade (aide d'alliance), Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+| Tour de guet (espions, portée de vision), Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
 
 ## Villes secondaires (octobre 2026)
 

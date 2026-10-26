@@ -58,6 +58,15 @@ const effects = {
   embassyLevel: (buildings) => levelOf(buildings, 'EMBASSY'),
   allianceCreateLevel: () => effectOf('EMBASSY', 'createAllianceLevel', 7),
   allianceJoinLevel: () => effectOf('EMBASSY', 'joinAllianceLevel', 5),
+  // Aide d'alliance (décision du 26 octobre 2026) : aides reçues au plus par demande selon l'Ambassade, en ligne droite
+  // entre les paliers de la donnée (niv. 1 : 0, niv. 5 : 5, niv. 20 : 20) ; chaque aide retire 1 % du temps restant
+  allianceHelpMax: (embassyLevel) => {
+    const L = cap(embassyLevel, 20);
+    if (L <= 0) return 0;
+    const p1 = effectOf('EMBASSY', 'maxAllianceHelpReceivedL1', 0), p5 = effectOf('EMBASSY', 'maxAllianceHelpReceivedL5', 5), p20 = effectOf('EMBASSY', 'maxAllianceHelpReceivedL20', 20);
+    return Math.floor(L <= 5 ? p1 + (p5 - p1) * (L - 1) / 4 : p5 + (p20 - p5) * (L - 5) / 15);
+  },
+  allianceHelpReductionPct: () => effectOf('EMBASSY', 'allianceHelpReductionPct', 1),
   watchtowerLevel: (buildings) => levelOf(buildings, 'WATCHTOWER'),
   // Watchtower: a spy is caught with 70 % at level 20, linear below; who/when details unlock by level
   counterSpyChance: (watchtowerLevel) => cap(watchtowerLevel, 20) / 20 * effectOf('WATCHTOWER', 'counterSpyChanceL20', 70) / 100,

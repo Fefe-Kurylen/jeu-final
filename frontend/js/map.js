@@ -582,6 +582,7 @@ async function loadMap() {
   const viewSize = Math.ceil(60 / mapZoomLevel);
   const radius = Math.min(60, Math.ceil(viewSize / 2));   // the server answers in full detail up to 60; beyond, cities only
 
+  if (typeof loadAllianceRelations === 'function') loadAllianceRelations();   // couleurs de la diplomatie (au plus une fois par minute)
   try {
     const res = await fetch(
       `${API}/api/map/viewport?x=${Math.floor(mapOffsetX)}&y=${Math.floor(mapOffsetY)}&radius=${radius}`,
@@ -607,6 +608,8 @@ async function loadMap() {
             isCapital: c.isCapital || false,
             allianceId: c.player?.allianceId || null,
             allianceTag: c.player?.allianceTag || null,
+            nameplate: c.player?.nameplate || null,   // cosmétiques de la boutique d'alliance
+            banner: c.player?.banner || null,
             faction: c.player?.faction || 'ROME',
             wallLevel: c.wallLevel || 0,
             mainHallLevel: c.mainHallLevel || 1,
@@ -1281,14 +1284,24 @@ const CULTURE_STYLES = {
 
 // Draw city labels (name, flag, population badge) - used for both image and procedural rendering
 // Plaque de nom façon Travian : parchemin arrondi, liseré, texte brun en Crimson Text
-function drawMapNamePlate(x, top, text, px, border) {
+// Plaques de nom de la boutique d'alliance (cosmétiques dessinés par le code) : fond, encre et liseré intérieur
+const NAMEPLATE_STYLES = {
+  bronze: { fill: 'rgba(214,160,104,0.95)', ink: '#2e1a08', inner: '#8a5a2a' },
+  silver: { fill: 'rgba(222,226,232,0.95)', ink: '#20242a', inner: '#7c8590' },
+  gold: { fill: 'rgba(246,214,120,0.96)', ink: '#3a2600', inner: '#b8860b' },
+  laurel: { fill: 'rgba(206,226,176,0.95)', ink: '#1e3010', inner: '#4f7a2a' },
+  purple: { fill: 'rgba(196,170,222,0.95)', ink: '#241232', inner: '#6a3d8f' }
+};
+function drawMapNamePlate(x, top, text, px, border, strong = false, style = null) {
   mapCtx.font = `700 ${px}px 'Crimson Text', Georgia, serif`;
   mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
   const w = mapCtx.measureText(text).width + px * 1.2, h = px * 1.5;
-  mapCtx.fillStyle = 'rgba(240,224,186,0.92)';
-  mapCtx.strokeStyle = border; mapCtx.lineWidth = 1.2;
+  const st = NAMEPLATE_STYLES[style] || null;
+  mapCtx.fillStyle = st ? st.fill : 'rgba(240,224,186,0.92)';
+  mapCtx.strokeStyle = border; mapCtx.lineWidth = strong ? 2.2 : 1.2;
   mapCtx.beginPath(); mapCtx.roundRect(x - w / 2, top, w, h, h / 2); mapCtx.fill(); mapCtx.stroke();
-  mapCtx.fillStyle = '#2e2010';
+  if (st) { mapCtx.strokeStyle = st.inner; mapCtx.lineWidth = 0.8; mapCtx.beginPath(); mapCtx.roundRect(x - w / 2 + 2.5, top + 2.5, w - 5, h - 5, (h - 5) / 2); mapCtx.stroke(); }
+  mapCtx.fillStyle = st ? st.ink : '#2e2010';
   mapCtx.fillText(text, x, top + h / 2 + 0.5);
 }
 // Phase courante de l'animation de siège, null tant qu'elle n'est pas livrée : villes de départ map/cities/siege_<CIV>_t<1|2|3>_<0..3>,
@@ -1308,7 +1321,8 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
   // Drapeau planté devant la ville : or pour les nôtres, bleu pour les alliés, couleurs de la faction sinon (sprite 3D, phase fixe)
   const flagY = y - citySize * 0.55;
   const kind = isMyCity ? 'gold' : isAlly ? 'ally' : String(tile.faction || 'ROME').toUpperCase();
-  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${kind}_0.webp`) : null;
+  // bannière de la boutique d'alliance (image livrée) à la place du drapeau, sinon le drapeau habituel
+  const flag = typeof getSprite === 'function' ? ((tile.banner && getSprite(tile.banner)) || getSprite(`assets/images/3d/props/flag_${kind}_0.webp`)) : null;
   if (flag) { const fh = citySize * 0.55, fw = fh * 64 / 96; mapCtx.drawImage(flag, x - fw / 2, flagY - fh * 0.92, fw, fh); }
   else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
@@ -1321,7 +1335,11 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
   // Étiquette du nom (plaque de parchemin au liseré brun, doré pour nos villes) et pastille de population : dessinées après
   // tous les éléments de la carte (mapLabelQueue), pour qu'un point de ressource ou une armée devant la ville ne les cache pas
   const plates = () => {
-    if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
+    // liseré de la plaque aux couleurs de la diplomatie (09d-alliance.js) : or chez soi, vert son alliance, bleu clair
+    // les alliés, rouge les ennemis, brun les neutres
+    const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : (isMyCity ? 'SELF' : isAlly ? 'SAME_ALLIANCE' : 'NEUTRAL');
+    const plateBorder = rel === 'NEUTRAL' || typeof DIPLO_STYLE === 'undefined' ? '#6a4a2a' : DIPLO_STYLE[rel].color;
+    if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), plateBorder, rel !== 'NEUTRAL' && rel !== 'SELF', tile.nameplate);
     if (mapZoomLevel > 0.7 && tile.population) {
       const badgeX = x + citySize * 0.4;
       const badgeY = y - citySize * 0.5;
@@ -1403,8 +1421,9 @@ function drawIsoCity(x, y, tw, th, tile) {
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {
-    if (isMyCity || isAlly) {
-      mapCtx.fillStyle = isMyCity ? 'rgba(255,215,0,0.35)' : 'rgba(90,200,130,0.35)';
+    const relHalo = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : null;
+    if (isMyCity || isAlly || relHalo === 'ALLY' || relHalo === 'ENEMY') {
+      mapCtx.fillStyle = isMyCity ? 'rgba(255,215,0,0.35)' : isAlly ? 'rgba(90,200,130,0.35)' : relHalo === 'ALLY' ? 'rgba(79,179,232,0.32)' : 'rgba(217,68,58,0.28)';
       mapCtx.beginPath();
       mapCtx.ellipse(x, y, tw * 0.52, th * 0.52, 0, 0, Math.PI * 2);
       mapCtx.fill();
@@ -2030,7 +2049,7 @@ function drawIsoRock(x, y, size) {
 // ========== ARMY ROUTES ==========
 // A moving army follows the same route the server computed (shared terrain): the sprite walks along it
 // between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
-const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
+const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1, SUPPORTING: 1 };
 const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
 // Chemins des armées : un trajet court se calcule tout de suite (au plus 3 par image et pendant 25 ms au plus) ; un long
 // trajet part dans route-worker.js, hors du fil principal, pour que la carte ne se fige pas. En attendant, l'armée marche
@@ -2066,7 +2085,7 @@ function armyRoute(army) {
   const straight = [[army.x, army.y], [army.targetX, army.targetY]];
   const base = typeof mapObjectCells !== 'undefined' ? mapObjectCells : new Map();
   const extra = new Map([[army.x + ',' + army.y, 'RESOURCE']]);
-  const toCity = army.targetCityId || ['ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'RETURNING'].includes(army.status);
+  const toCity = army.targetCityId || ['ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RETURNING'].includes(army.status);
   if (toCity) for (const [cx, cy] of Terrain.cityCells(army.targetX, army.targetY)) extra.set(cx + ',' + cy, 'CITY');
   else extra.set(army.targetX + ',' + army.targetY, 'RESOURCE');
   const faction = army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null);
@@ -2829,7 +2848,7 @@ function showMapInfoPanel(x, y, tile) {
     }
   } else if (tile.type === 'ARMY') {
     const mine = tile.ownerId === player?.id;
-    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
     content.innerHTML = `
       <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
@@ -2940,11 +2959,11 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
   }
   
   // Status display
-  const statusColors = {
-    'ALLY': '#4caf50',
-    'NEUTRAL': '#9e9e9e', 
-    'ENEMY': '#f44336',
-    'SAME_ALLIANCE': '#2196f3'
+  const statusColors = {   // couleurs de la diplomatie (DIPLO_STYLE, 09d-alliance.js)
+    'ALLY': '#4fb3e8',
+    'NEUTRAL': '#8a8a8a',
+    'ENEMY': '#d9443a',
+    'SAME_ALLIANCE': '#3f9b4f'
   };
   const statusLabels = {
     'ALLY': `${resIconHtml('alliance')} Allié`,
@@ -2967,6 +2986,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
       ${typeof openChatWith === 'function' && tile.playerId ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openChatWith('${String(tile.playerId).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.playerName || '')})">${resIconHtml('send')} Écrire</button>` : ''}
       ${mapShareButton(tile.x, tile.y)}
+      ${(diplomacyStatus === 'ALLY' || diplomacyStatus === 'SAME_ALLIANCE') && typeof openSupportPicker === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openSupportPicker('${String(tile.id).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.name || 'Ville')}, ${!!tile.isSieged})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('defense')} Renforcer</button>` : ''}
       <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
         <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
@@ -3013,7 +3033,8 @@ async function viewPlayerProfile(playerId) {
         <div class="profile-stat"><span>Faction:</span> <strong>${p.faction}</strong></div>
         <div class="profile-stat"><span>Population:</span> <strong>${formatNum(p.population)}</strong></div>
         <div class="profile-stat"><span>Villes:</span> <strong>${p.citiesCount}</strong></div>
-        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${escapeHtml(p.alliance.tag)}] ${escapeHtml(p.alliance.name)}</strong></div>` : ''}
+        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong><a href="#" onclick="event.preventDefault(); openAllianceSheet('${String(p.alliance.id || '').replace(/[^\w-]/g, '')}')">[${escapeHtml(p.alliance.tag)}] ${escapeHtml(p.alliance.name)}</a></strong></div>` : ''}
+        ${p.relation && !p.relation.self && typeof diploBadge === 'function' ? `<div class="profile-stat"><span>Diplomatie:</span> ${diploBadge(p.relation.diplomacy || 'NEUTRAL')}</div>` : ''}
         ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${escapeHtml(p.hero.name)} (Niv.${p.hero.level})</strong></div>` : ''}
         ${p.stats ? `
           <div class="profile-stat"><span>Attaques gagnées:</span> <strong>${p.stats.attacksWon}</strong></div>

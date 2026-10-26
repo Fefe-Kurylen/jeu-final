@@ -5071,3 +5071,84 @@ span.chat-author { cursor: default; }
   .chat-composer .btn-primary { padding: 8px 12px; font-size: 13px; }
   .chat-icon-btn { min-width: 40px; padding: 6px 8px; }
 }
+
+/* ========== ALLIANCE : membres, diplomatie, aide, boutique, renforts (décision du 26 octobre 2026) ========== */
+.btn-sm { padding: 4px 9px !important; font-size: 12px !important; margin: 2px !important; min-height: 0; }
+.diplo-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #fff; background: var(--diplo, #8a8a8a); text-shadow: 0 1px 0 rgba(0,0,0,.35); white-space: nowrap; }
+.diplo-help, .diplo-note { font-size: 12px; color: var(--text-muted); }
+.diplo-note { font-style: italic; margin-left: 4px; }
+.diplo-legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.diplo-count { font-size: 13px; margin: 6px 0; }
+.diplo-members { font-size: 11px; color: var(--text-muted); }
+.diplomacy-row { display: grid; grid-template-columns: minmax(140px, 1fr) auto; gap: 6px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.08); }
+.diplomacy-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.member-table { display: flex; flex-direction: column; }
+.member-head, .member-line { display: grid; grid-template-columns: minmax(110px, 1.4fr) 1fr .8fr 1fr 1.1fr 250px; gap: 6px; align-items: center; padding: 6px 4px; font-size: 13px; }
+.member-head { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid rgba(0,0,0,.12); }
+.member-line { border-bottom: 1px solid rgba(0,0,0,.06); }
+.member-line.me { background: rgba(201,162,39,.10); }
+.member-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3f9b4f; box-shadow: 0 0 0 2px rgba(63,155,79,.25); vertical-align: middle; }
+@media (max-width: 760px) {
+  .member-head { display: none; }
+  .member-line { grid-template-columns: 1fr auto; grid-template-areas: "name role" "pop since" "seen seen" "act act"; }
+  .member-line > :nth-child(1) { grid-area: name; font-weight: 700; }
+  .member-line > :nth-child(2) { grid-area: role; justify-self: end; }
+  .member-line > :nth-child(3) { grid-area: pop; font-size: 12px; }
+  .member-line > :nth-child(3)::before { content: "Population : "; color: var(--text-muted); }
+  .member-line > :nth-child(4) { grid-area: since; justify-self: end; font-size: 12px; }
+  .member-line > :nth-child(4)::before { content: "depuis "; color: var(--text-muted); }
+  .member-line > :nth-child(5) { grid-area: seen; font-size: 12px; color: var(--text-muted); }
+  .member-line > :nth-child(6) { grid-area: act; justify-content: flex-start; }
+}
+.alliance-sheet a, .member-line a, .diplomacy-row a, .help-line a, .support-line a { color: inherit; text-decoration: underline dotted; }
+
+/* aide d'alliance */
+.help-points { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; margin: 8px 0; border-radius: 8px; background: rgba(201,162,39,.12); font-size: 13px; }
+.help-list { display: flex; flex-direction: column; margin: 6px 0 10px; }
+.help-line { display: grid; grid-template-columns: 110px 1fr auto auto; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid rgba(0,0,0,.06); font-size: 13px; }
+.help-line.done { opacity: .65; }
+.help-kind { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.help-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.help-state { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.help-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: rgba(0,0,0,.12); overflow: hidden; vertical-align: middle; }
+.help-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #3f9b4f, #7ccf6a); }
+.help-ask { margin-left: 4px; }
+.help-ask .ico { width: 14px; height: 14px; }
+@media (max-width: 760px) {
+  .help-line { grid-template-columns: 1fr auto; }
+  .help-kind { grid-column: 1 / -1; }
+}
+.toolbar-btn .tab-badge { display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 4px; border-radius: 8px; background: #d9443a; color: #fff; font-size: 10px; line-height: 16px; text-align: center; }
+
+/* boutique d'alliance */
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 6px 0 14px; }
+.shop-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid var(--border, rgba(255,255,255,.12)); color: var(--text); text-align: center; }
+.shop-card.equipped { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,39,.25); }
+.shop-preview { min-height: 52px; display: flex; align-items: center; justify-content: center; }
+.shop-preview .ico, .shop-preview .item-ico { width: 40px; height: 40px; }
+.shop-banner { max-height: 56px; }
+.shop-soon { font-size: 11px; color: var(--text-muted); font-style: italic; }
+.shop-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.shop-desc { font-size: 11px; color: var(--text-muted); flex: 1; }
+.plate-preview { display: inline-block; padding: 2px 12px; border-radius: 999px; font: 700 13px 'Crimson Text', Georgia, serif; border: 1.5px solid #6a4a2a; background: rgba(240,224,186,.95); color: #2e2010; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.plate-bronze { background: rgba(214,160,104,.95); color: #2e1a08; box-shadow: inset 0 0 0 2px #8a5a2a; }
+.plate-silver { background: rgba(222,226,232,.95); color: #20242a; box-shadow: inset 0 0 0 2px #7c8590; }
+.plate-gold { background: rgba(246,214,120,.96); color: #3a2600; box-shadow: inset 0 0 0 2px #b8860b; }
+.plate-laurel { background: rgba(206,226,176,.95); color: #1e3010; box-shadow: inset 0 0 0 2px #4f7a2a; }
+.plate-purple { background: rgba(196,170,222,.95); color: #241232; box-shadow: inset 0 0 0 2px #6a3d8f; }
+
+/* renforts */
+.support-pick { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; max-height: 50vh; overflow: auto; }
+.support-option { display: block; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,.12); cursor: pointer; font-size: 13px; }
+.support-option:has(input:checked) { border-color: var(--gold); background: rgba(201,162,39,.10); }
+.support-received { margin: 12px 0; padding: 10px; border-radius: 10px; background: rgba(79,179,232,.10); border: 1px solid rgba(79,179,232,.35); }
+.support-received h4 { margin: 0 0 6px; }
+.support-line { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,.06); font-size: 13px; }
+.support-where { color: var(--text-muted); font-size: 12px; }
+/* onglets de l'alliance (5) : défilent sur un téléphone au lieu d'être tronqués */
+@media (max-width: 760px) {
+  #tab-alliance .tab-toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: flex-start; }
+  #tab-alliance .tab-toolbar::-webkit-scrollbar { display: none; }
+  #tab-alliance .toolbar-btn { flex: 0 0 auto; white-space: nowrap; overflow: visible; text-overflow: clip; }
+}

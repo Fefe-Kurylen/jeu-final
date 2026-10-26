@@ -25,7 +25,7 @@ async function campsOutsideAlliance(playerId, ownerIds, db = prisma) {
   return ownerIds.filter(id => id !== playerId && !(mine && rows.find(r => r.playerId === id)?.allianceId === mine));
 }
 
-const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING'];
+const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'SUPPORTING'];
 const SPY_SPEED = 80;
 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
@@ -141,6 +141,51 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
 // ========== ENDPOINTS ==========
 
 // POST /api/army/create
+// ---- Renfort allié (décision du 26 octobre 2026, supportService) ----
+// GET /api/army/support/received — renforts stationnés ou en route vers les villes du joueur
+router.get('/support/received', auth, async (req, res) => {
+  try { res.json(await require('../services/supportService').receivedBy(req.user.playerId)); } catch (e) { sendError(res, e); }
+});
+// POST /api/army/support/:id/send-back — l'hôte renvoie un renfort chez son propriétaire
+router.post('/support/:id/send-back', auth, async (req, res) => {
+  try {
+    if (!isId(req.params.id)) return res.status(400).json({ error: 'Armée invalide' });
+    res.json(await require('../services/supportService').sendBack(req.user.playerId, req.params.id));
+  } catch (e) { if (e.expose) return res.status(e.status).json({ error: e.message }); sendError(res, e); }
+});
+// POST /api/army/:id/support { targetCityId } — envoie l'armée défendre la ville d'un membre de l'alliance ou d'un allié
+router.post('/:id/support', auth, async (req, res) => {
+  try {
+    const { targetCityId } = req.body || {};
+    if (!isId(targetCityId)) return res.status(400).json({ error: 'Ville cible requise' });
+    const { supportRefusal } = require('../services/supportService');
+    const targetCity = await prisma.city.findUnique({ where: { id: targetCityId }, select: { id: true, name: true, x: true, y: true, playerId: true, isSieged: true } });
+    const early = await supportRefusal(req.user.playerId, targetCity);
+    if (early) return res.status(targetCity ? 400 : 404).json({ error: early });
+    const probe = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { x: true, y: true, owner: { select: { faction: true } } } });
+    if (!probe) return res.status(404).json({ error: 'Armée non trouvée' });
+    const len = await routeLength(probe.x, probe.y, targetCity.x, targetCity.y, probe.owner?.faction);   // A* outside the transaction (throws NO_ROUTE)
+    const result = await prisma.$transaction(async (tx) => {
+      const p = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
+      if (p?.cityId) await lockCity(tx, p.cityId);
+      const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
+      const err = readyToLeave(army, 'partir en renfort');
+      if (err) return { error: err.error, status: err.status };
+      { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
+      const refusal = await supportRefusal(req.user.playerId, await tx.city.findUnique({ where: { id: targetCity.id }, select: { id: true, name: true, playerId: true, isSieged: true } }), tx);
+      if (refusal) return { error: refusal, status: 400 };
+      const travelTime = getArmyTravelTime(army.units, army.x, army.y, targetCity.x, targetCity.y, army.owner?.faction, army.hero, len, speedTechPct(army));
+      const arrivalAt = new Date(Date.now() + travelTime * 1000);
+      if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'SUPPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'SUPPORT' }))) return { error: 'Armée déjà en mission', status: 409 };
+      return { message: `Renfort en route vers ${targetCity.name}`, travelTime, arrivalAt, armyName: army.name, ownerName: army.owner?.name };
+    }, { timeout: 15000 });
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    const minutes = Math.max(1, Math.round(result.travelTime / 60));
+    notify(targetCity.playerId, 'alliance', '🛡️ Renfort en approche', `${result.ownerName || 'Un allié'} envoie ${result.armyName} défendre ${targetCity.name} (arrivée dans ${minutes} min).`, { to: 'city', cityId: targetCity.id, x: targetCity.x, y: targetCity.y });
+    res.json({ message: result.message, travelTime: result.travelTime, arrivalAt: result.arrivalAt });
+  } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
+});
+
 router.post('/create', auth, async (req, res) => {
   try {
     const { cityId, slot } = req.body;
@@ -530,7 +575,7 @@ router.post('/:id/return', auth, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       // a camp is locked City then Army, the order of every tick transaction on a siege (no deadlock)
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { status: true, targetCityId: true, cityId: true } });
-      const campCityId = probe?.status === 'BESIEGING' ? probe.targetCityId : null;
+      const campCityId = probe?.status === 'BESIEGING' || probe?.status === 'STATIONED' ? probe.targetCityId : null;   // a camp, or a reinforcement in an allied city
       if (campCityId) await lockCity(tx, campCityId);
       else if (OUTBOUND.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
       await lockArmy(tx, req.params.id);
@@ -574,10 +619,13 @@ router.post('/:id/return', auth, async (req, res) => {
       } });
       // a camp that leaves: the siege is lifted at once when no other army camps before the city
       if (army.status === 'BESIEGING' && army.targetCityId && army.targetCityId === campCityId) await refreshSiegeFlag(tx, army.targetCityId);
-      return { message: 'Retour en cours', travelTime, arrivalAt };
+      const leftSupport = (army.status === 'STATIONED' || army.status === 'SUPPORTING') && army.targetCityId ? await tx.city.findUnique({ where: { id: army.targetCityId }, select: { id: true, name: true, playerId: true } }) : null;
+      return { message: 'Retour en cours', travelTime, arrivalAt, leftSupport, armyName: army.name, ownerName: army.owner?.name };
     });
     if (result.error) return res.status(result.status || 400).json(result);
-    res.json(result);
+    const { leftSupport, armyName, ownerName, ...out } = result;
+    if (leftSupport) notify(leftSupport.playerId, 'alliance', '↩️ Renfort rappelé', `${ownerName || 'Votre allié'} rappelle ${armyName} de ${leftSupport.name}.`, { to: 'city', cityId: leftSupport.id });
+    res.json(out);
   } catch (e) { sendError(res, e); }
 });
 

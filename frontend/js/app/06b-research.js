@@ -117,7 +117,7 @@ function renderResearchTab() {
   const queueHtml = queue.length ? `<div class="research-queue">${queue.map(q => {
     const t = techByKey(q.techKey);
     const state = q.status === 'RUNNING' ? `<span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span>` : 'en attente';
-    return `<div class="research-queue-item ${q.status === 'RUNNING' ? 'running' : 'queued'}"><span class="rq-name">${escapeHtml(t?.name || q.techKey)} <small>niveau ${q.targetLevel}</small></span><span class="rq-state">${state}</span><button type="button" class="btn-small" onclick="cancelResearch('${q.id}')" title="Annuler (${q.status === 'RUNNING' ? 'remboursement de moitié' : 'remboursement intégral'})" aria-label="Annuler">✕</button></div>`;
+    return `<div class="research-queue-item ${q.status === 'RUNNING' ? 'running' : 'queued'}"><span class="rq-name">${escapeHtml(t?.name || q.techKey)} <small>niveau ${q.targetLevel}</small></span><span class="rq-state">${state}</span>${q.status === 'RUNNING' && typeof helpAskButton === 'function' ? helpAskButton('RESEARCH', q.id) : ''}<button type="button" class="btn-small" onclick="cancelResearch('${q.id}')" title="Annuler (${q.status === 'RUNNING' ? 'remboursement de moitié' : 'remboursement intégral'})" aria-label="Annuler">✕</button></div>`;
   }).join('')}</div>` : '<p class="research-empty">Aucune recherche en cours.</p>';
   const branches = (technologiesData.branches || []).map(b => {
     const cards = techs.filter(t => t.branch === b.key).map(t => techCardHtml(t, avail[t.key], research?.levels?.[t.key] || 0)).join('');

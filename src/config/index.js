@@ -24,6 +24,16 @@ const config = {
     throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000, city_fall: 0, siege_halt: 0, message: 30 * 1000, friend: 60 * 1000 }   // a fall or a blocked homecoming always reaches the player, even right after a battle push
   },
 
+  // Alliance (décision du 26 octobre 2026) : aide (1 minute au moins par aide), points d'alliance gagnés en aidant
+  // (plafond par 24 h glissantes), demandes d'aide gardées 7 jours
+  alliance: {
+    helpMinSeconds: 60,
+    helpPoints: 10,
+    helpPointsDailyCap: 300,
+    helpRequestMaxAgeDays: 7,
+    healRequestEveryHours: 6
+  },
+
   // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
   purchases: {
     revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || '',

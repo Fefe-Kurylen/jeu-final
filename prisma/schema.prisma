@@ -45,44 +45,50 @@ model RateLimitBucket {
 }
 
 model Player {
-  id           String    @id @default(uuid())
-  accountId    String    @unique
-  name         String    @unique
-  faction      String
-  gold         Int       @default(0)
-  population   Int       @default(0)
-  createdAt    DateTime  @default(now())
-  lastSeenAt   DateTime  @default(now()) // last authenticated request (10 min resolution)
-  premiumUntil DateTime? // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
-  cosmetics    Json? // identifiants des cosmétiques possédés
-  chatLang     String? // langue des messages du joueur (fr, en…) : celle de ses messages, et celle de la traduction automatique
-  chatAutoTranslate Boolean @default(true)
-  chatMutedUntil DateTime? // messagerie coupée par la modération jusqu'à cette date
+  id                String    @id @default(uuid())
+  accountId         String    @unique
+  name              String    @unique
+  faction           String
+  gold              Int       @default(0)
+  population        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now()) // last authenticated request (10 min resolution)
+  premiumUntil      DateTime? // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
+  cosmetics         Json? // identifiants des cosmétiques possédés
+  chatLang          String? // langue des messages du joueur (fr, en…) : celle de ses messages, et celle de la traduction automatique
+  chatAutoTranslate Boolean   @default(true)
+  chatMutedUntil    DateTime? // messagerie coupée par la modération jusqu'à cette date
+  alliancePoints    Int       @default(0) // gagnés en aidant les membres de son alliance, dépensés à la boutique d'alliance
+  shopCosmetics     Json? // cosmétiques achetés à la boutique d'alliance (identifiants), distincts des achats intégrés
+  nameplate         String? // plaque de nom choisie (cosmétique), dessinée sous ses villes sur la carte
+  banner            String? // bannière choisie (cosmétique), plantée devant ses villes sur la carte
 
-  account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  cities       City[]
-  armies       Army[]
-  hero         Hero?
-  stats        PlayerStats?
-  ownedReports BattleReport[]  @relation("ReportOwner")
-  sentReports  BattleReport[]  @relation("Attacker")
-  recvReports  BattleReport[]  @relation("Defender")
-  spyReports   SpyReport[]
-  marketOffers MarketOffer[]
-  alliance     AllianceMember?
-  expeditions  Expedition[]
-  pushTokens   PushToken[]
-  notifications Notification[]
-  purchases    Purchase[]
-  technologies PlayerTechnology[]
-  researchQueue ResearchQueueItem[]
-  chatMessages ChatMessage[]
-  chatReports  ChatReport[]
-  chatReads    ChatRead[]
-  blocks       PlayerBlock[]   @relation("Blocker")
-  blockedBy    PlayerBlock[]   @relation("Blocked")
-  friendRequestsSent     Friendship[] @relation("FriendRequester")
-  friendRequestsReceived Friendship[] @relation("FriendAddressee")
+  account                Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cities                 City[]
+  armies                 Army[]
+  hero                   Hero?
+  stats                  PlayerStats?
+  ownedReports           BattleReport[]        @relation("ReportOwner")
+  sentReports            BattleReport[]        @relation("Attacker")
+  recvReports            BattleReport[]        @relation("Defender")
+  spyReports             SpyReport[]
+  marketOffers           MarketOffer[]
+  alliance               AllianceMember?
+  expeditions            Expedition[]
+  pushTokens             PushToken[]
+  notifications          Notification[]
+  purchases              Purchase[]
+  technologies           PlayerTechnology[]
+  researchQueue          ResearchQueueItem[]
+  chatMessages           ChatMessage[]
+  chatReports            ChatReport[]
+  chatReads              ChatRead[]
+  blocks                 PlayerBlock[]         @relation("Blocker")
+  blockedBy              PlayerBlock[]         @relation("Blocked")
+  friendRequestsSent     Friendship[]          @relation("FriendRequester")
+  friendRequestsReceived Friendship[]          @relation("FriendAddressee")
+  helpRequests           AllianceHelpRequest[]
+  helpsGiven             AllianceHelp[]
 
   @@index([lastSeenAt])
 }
@@ -116,22 +122,22 @@ model City {
   maxStorage     Int @default(1000)
   maxFoodStorage Int @default(1000)
 
-  wallHp       Float     @default(1000) // fractional: regenerates continuously on real elapsed time
-  wallMaxHp    Int       @default(1000)
-  goldAccrued  Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
-  isSieged     Boolean   @default(false)
-  wallStructure Float    @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
-  siegeStarted DateTime?
+  wallHp        Float     @default(1000) // fractional: regenerates continuously on real elapsed time
+  wallMaxHp     Int       @default(1000)
+  goldAccrued   Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
+  isSieged      Boolean   @default(false)
+  wallStructure Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
+  siegeStarted  DateTime?
 
   createdAt DateTime @default(now())
 
-  player       Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  buildings    CityBuilding[]
-  buildQueue   BuildQueueItem[]
+  player        Player              @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  buildings     CityBuilding[]
+  buildQueue    BuildQueueItem[]
   researchQueue ResearchQueueItem[]
-  recruitQueue RecruitQueueItem[]
-  armies       Army[]
-  wounded      WoundedUnit[]
+  recruitQueue  RecruitQueueItem[]
+  armies        Army[]
+  wounded       WoundedUnit[]
 
   @@unique([x, y])
   @@index([playerId])
@@ -277,7 +283,7 @@ model WoundedUnit {
   id      String   @id @default(uuid())
   cityId  String
   unitKey String
-  count   Int      // dans un lit, guérit à healsAt
+  count   Int // dans un lit, guérit à healsAt
   waiting Int      @default(0) // en file d'attente : prend un lit libéré (capacité de la Tente de soins)
   healsAt DateTime
 
@@ -357,7 +363,7 @@ model ResourceNode {
   // Système de régénération lié aux armées
   lastArmyDeparture DateTime? // Quand la dernière armée a quitté le point
   hasPlayerArmy     Boolean   @default(false) // Une armée joueur est présente sur le point
-  cityId            String?   // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
+  cityId            String? // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
 
   @@unique([x, y])
   @@index([hasDefenders, lastDefeat])
@@ -392,10 +398,13 @@ model Alliance {
   leaderId    String?
   createdAt   DateTime @default(now())
 
-  members   AllianceMember[]
-  diplomacy AllianceDiplomacy[] @relation("AllianceSource")
-  targetOf  AllianceDiplomacy[] @relation("AllianceTarget")
-  invites   AllianceInvite[]
+  members              AllianceMember[]
+  diplomacy            AllianceDiplomacy[]   @relation("AllianceSource")
+  targetOf             AllianceDiplomacy[]   @relation("AllianceTarget")
+  invites              AllianceInvite[]
+  allyRequestsSent     AllianceAllyRequest[] @relation("AllyRequestFrom")
+  allyRequestsReceived AllianceAllyRequest[] @relation("AllyRequestTo")
+  helpRequests         AllianceHelpRequest[]
 }
 
 model AllianceMember {
@@ -420,6 +429,58 @@ model AllianceDiplomacy {
   targetAlliance Alliance @relation("AllianceTarget", fields: [targetAllianceId], references: [id], onDelete: Cascade)
 
   @@unique([allianceId, targetAllianceId])
+}
+
+// Proposition d'alliance entre deux alliances (décision du 26 octobre 2026) : le statut ALLY n'existe que des deux côtés,
+// une fois la proposition acceptée ; ENNEMI se déclare seul
+model AllianceAllyRequest {
+  id             String   @id @default(uuid())
+  fromAllianceId String
+  toAllianceId   String
+  createdAt      DateTime @default(now())
+
+  from Alliance @relation("AllyRequestFrom", fields: [fromAllianceId], references: [id], onDelete: Cascade)
+  to   Alliance @relation("AllyRequestTo", fields: [toAllianceId], references: [id], onDelete: Cascade)
+
+  @@unique([fromAllianceId, toAllianceId])
+  @@index([toAllianceId])
+}
+
+// Demande d'aide d'alliance (décision du 26 octobre 2026) sur une construction, une recherche ou les soins d'une ville :
+// chaque membre aide une fois, chaque aide retire 1 % du temps restant (1 minute au moins), plafond selon l'Ambassade
+model AllianceHelpRequest {
+  id         String    @id @default(uuid())
+  allianceId String
+  playerId   String
+  cityId     String
+  kind       String // BUILD, RESEARCH, HEAL
+  targetId   String // BuildQueueItem, ResearchQueueItem, ou la ville pour les soins
+  label      String
+  helps      Int       @default(0)
+  maxHelps   Int
+  createdAt  DateTime  @default(now())
+  closedAt   DateTime?
+
+  alliance Alliance       @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  given    AllianceHelp[]
+
+  @@index([allianceId, closedAt])
+  @@index([playerId, kind, targetId])
+}
+
+model AllianceHelp {
+  id        String   @id @default(uuid())
+  requestId String
+  helperId  String
+  points    Int      @default(0) // points d'alliance gagnés par cette aide (0 au-delà du plafond du jour)
+  createdAt DateTime @default(now())
+
+  request AllianceHelpRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  helper  Player              @relation(fields: [helperId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, helperId])
+  @@index([helperId, createdAt])
 }
 
 model Expedition {

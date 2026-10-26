@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
 const { levelsFrom } = require('../utils/techEffects');
+const { getRelation } = require('../services/diplomacyService');
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
@@ -26,7 +27,9 @@ router.get('/me', auth, async (req, res) => {
     const { account, ...rest } = player;
     // Researched technology levels { KEY: level }: the client applies the same cost and time formulas as the server
     const techLevels = levelsFrom(await prisma.playerTechnology.findMany({ where: { playerId: player.id } }));
-    res.json({ ...rest, techLevels, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
+    // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
+    const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
+    res.json({ ...rest, techLevels, allianceHelpPending, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
   } catch (e) {
     sendError(res, e);
   }
@@ -40,7 +43,7 @@ router.get('/:id', auth, async (req, res) => {
       include: {
         cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
         stats: true,
-        alliance: { include: { alliance: { select: { name: true, tag: true } } } },
+        alliance: { include: { alliance: { select: { id: true, name: true, tag: true } } } },
         hero: { select: { name: true, level: true } }
       }
     });
@@ -51,14 +54,15 @@ router.get('/:id', auth, async (req, res) => {
       prisma.friendship.findFirst({ where: { OR: [{ requesterId: meId, addresseeId: targetPlayer.id }, { requesterId: targetPlayer.id, addresseeId: meId }] } }),
       prisma.playerBlock.findUnique({ where: { blockerId_blockedId: { blockerId: meId, blockedId: targetPlayer.id } } })
     ]);
-    const relation = { self: targetPlayer.id === meId, blocked: !!block, friend: !friendship ? null : friendship.status === 'ACCEPTED' ? 'friends' : friendship.requesterId === meId ? 'sent' : 'received', requestId: friendship?.status === 'PENDING' ? friendship.id : null };
+    const diplomacy = (await getRelation(meId, targetPlayer.id)).status;   // SELF, SAME_ALLIANCE, ALLY, NEUTRAL, ENEMY
+    const relation = { self: targetPlayer.id === meId, diplomacy, blocked: !!block, friend: !friendship ? null : friendship.status === 'ACCEPTED' ? 'friends' : friendship.requesterId === meId ? 'sent' : 'received', requestId: friendship?.status === 'PENDING' ? friendship.id : null };
 
     res.json({
       id: targetPlayer.id, name: targetPlayer.name, faction: targetPlayer.faction,
       population: targetPlayer.population, citiesCount: targetPlayer.cities.length,
       cities: targetPlayer.cities,
       alliance: targetPlayer.alliance?.alliance ? {
-        name: targetPlayer.alliance.alliance.name, tag: targetPlayer.alliance.alliance.tag, role: targetPlayer.alliance.role
+        id: targetPlayer.alliance.alliance.id, name: targetPlayer.alliance.alliance.name, tag: targetPlayer.alliance.alliance.tag, role: targetPlayer.alliance.role
       } : null,
       hero: targetPlayer.hero ? { name: targetPlayer.hero.name, level: targetPlayer.hero.level } : null,
       stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon } : null,

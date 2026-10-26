@@ -23,7 +23,7 @@ const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
 const { footprintFree, cityAtCellWhere, lockPlacement, gatherArmiesOnBlock } = require('../../utils/spawn');
 
-const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING'];   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
+const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING'];   // SUPPORTING: renfort allié en marche   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
 const TX = { timeout: 15000 };
 
 async function processArmyMovements(now) {
@@ -76,6 +76,8 @@ async function processArmyMovements(now) {
         await handleSpy(army, now);
       } else if (army.missionType === 'TRANSPORT' || army.status === 'TRANSPORTING') {
         await handleTransport(army, now);
+      } else if (army.missionType === 'SUPPORT' || army.status === 'SUPPORTING') {
+        await require('../../services/supportService').handleSupportArrival(army, sendArmyHome);   // renfort allié : il se poste
       } else {
         await setArmyIdle(army.id, { targetResourceId: null });
       }
@@ -112,9 +114,9 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
-// Armies physically standing in the city defend it; armies away on missions do not
+// Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not
 function defendingArmies(city) {
-  return city.armies.filter(a => a.status === 'IDLE' && a.x === city.x && a.y === city.y);
+  return city.armies.filter(a => (a.status === 'IDLE' || a.status === 'STATIONED') && a.x === city.x && a.y === city.y);
 }
 
 async function depositCarry(army, homeCity) {
@@ -308,10 +310,14 @@ async function lockTargetCity(tx, cityId) {
   await lockCity(tx, cityId);
   return withGuestDefenders(tx, await tx.city.findUnique({ where: { id: cityId }, include: CITY_FOR_BATTLE }));
 }
-// The owner's armies from his other cities standing in this one (sent there to reinforce it) defend it too
+// The owner's armies from his other cities standing in this one (sent there to reinforce it) defend it too, and so do
+// the allied reinforcements stationed in it (supportService), after the owner's own armies
 async function withGuestDefenders(db, city, include = CITY_FOR_BATTLE.armies.include) {
   if (!city) return city;
-  const guests = await db.army.findMany({ where: { ownerId: city.playerId, cityId: { not: city.id }, isGarrison: false, status: 'IDLE', x: city.x, y: city.y }, include });
+  const guests = await db.army.findMany({ where: { OR: [
+    { ownerId: city.playerId, cityId: { not: city.id }, isGarrison: false, status: 'IDLE', x: city.x, y: city.y },
+    { status: 'STATIONED', targetCityId: city.id, NOT: { ownerId: city.playerId } }
+  ] }, include: { ...include, owner: { select: { id: true, name: true, faction: true, technologies: true } } }, orderBy: { status: 'asc' } });
   if (guests.length) city.armies = [...city.armies, ...guests];
   return city;
 }
@@ -388,12 +394,16 @@ async function handleAttack(army, now) {
       reportIds[ownerId] = (await tx.battleReport.create({ data: { ...reportBase, loot: loot(carried), result: reportResult(true, result.attackerWon), playerId: ownerId, attackerId: ownerId, defenderId: targetCity.playerId } })).id;
     }
     reportIds[targetCity.playerId] = (await tx.battleReport.create({ data: { ...reportBase, loot: loot(null), result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } })).id;
+    // each allied player whose reinforcements fought gets his copy of the defender's report
+    for (const helperId of new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))) {
+      reportIds[helperId] = (await tx.battleReport.create({ data: { ...reportBase, loot: { ...loot(null), support: true }, result: reportResult(false, result.attackerWon), playerId: helperId, attackerId: army.ownerId, defenderId: targetCity.playerId } })).id;
+    }
     const winnerId = result.attackerWon ? army.ownerId : targetCity.playerId;
     const winField = result.attackerWon ? 'attacksWon' : 'defensesWon';
     await tx.playerStats.upsert({ where: { playerId: winnerId }, update: { [winField]: { increment: 1 } }, create: { playerId: winnerId, [winField]: 1 } });
     await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: result.defenderTotalKilled }, unitsLost: { increment: result.attackerTotalKilled } }, create: { playerId: army.ownerId, unitsKilled: result.defenderTotalKilled, unitsLost: result.attackerTotalKilled } });
     await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: result.attackerTotalKilled }, unitsLost: { increment: result.defenderTotalKilled } }, create: { playerId: targetCity.playerId, unitsKilled: result.attackerTotalKilled, unitsLost: result.defenderTotalKilled } });
-    return { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds };
+    return { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds, defenders };
   }, TX);
   if (!battle || battle.turned) {
     await sendArmyHome(army, army.targetX, army.targetY);
@@ -404,7 +414,9 @@ async function handleAttack(army, now) {
     }
     return;
   }
-  const { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds } = battle;
+  const { targetCity, result, defenderHero, atkTech, defTech, structure, group, rowsOf, reportIds, defenders } = battle;
+  const helpers = defenders.filter(d => d.ownerId !== targetCity.playerId);   // renforts alliés qui ont combattu
+  for (const helperId of new Set(helpers.map(d => d.ownerId))) notify(helperId, 'battle', '🛡️ Renfort au combat', `Vos troupes en renfort à ${targetCity.name} ont combattu : ${result.attackerWon ? 'la ville a perdu.' : 'la ville a tenu.'} Rapport disponible.`, { to: 'report', reportId: reportIds[helperId], x: targetCity.x, y: targetCity.y });
   const livesTxt = structure ? (structure.fallen ? '' : ` Il lui reste ${Math.round(structure.after * structure.needed)} vie(s).`) : '';
   notify(targetCity.playerId, 'battle', result.attackerWon ? '🛡️ Ville attaquée' : '🛡️ Défense victorieuse', `${targetCity.name} a été attaquée par ${[...new Set(group.map(g => g.owner?.name))].join(', ')} : ${result.attackerWon ? 'défaite.' + livesTxt : 'victoire.'} Rapport disponible.`, { to: 'report', reportId: reportIds[targetCity.playerId], x: targetCity.x, y: targetCity.y });
   for (const ownerId of new Set(group.map(g => g.ownerId))) notify(ownerId, 'battle', result.attackerWon ? '⚔️ Victoire' : '⚔️ Défaite', `Votre attaque sur ${targetCity.name} est terminée : ${result.attackerWon ? 'victoire' : 'défaite'}. Rapport disponible.`, { to: 'report', reportId: reportIds[ownerId], x: targetCity.x, y: targetCity.y });
@@ -418,8 +430,20 @@ async function handleAttack(army, now) {
   } catch (xpErr) { console.error('[HERO XP]', xpErr.message); }
 
   try {
-    const defenderWounded = await calculateWoundedUnits(targetCity.id, result.defenderFinalUnits, targetCity.player.faction, T.techPct(defTech, 'woundedBonusPct'));
+    // the city's tent takes the owner's own wounded only; allied reinforcements carry theirs home (like attacking camps)
+    const killedOf = (armies) => {
+      const k = {};
+      for (const a of armies) for (const u of a.units) k[u.unitKey] = (k[u.unitKey] || 0) + (u.count - Math.round(u.count * survivalRatio(result.defenderFinalUnits, u.unitKey)));
+      return Object.entries(k).filter(([, n]) => n > 0).map(([key, killed]) => ({ key, killed }));
+    };
+    const ownKilled = helpers.length ? killedOf(defenders.filter(d => d.ownerId === targetCity.playerId)) : result.defenderFinalUnits;
+    const defenderWounded = await calculateWoundedUnits(targetCity.id, ownKilled, targetCity.player.faction, T.techPct(defTech, 'woundedBonusPct'));
     if (defenderWounded.length > 0) await addWoundedUnits(targetCity.id, defenderWounded);
+    for (const h of helpers) {
+      if (!h.cityId) continue;
+      const hw = await calculateWoundedUnits(h.cityId, killedOf([h]), h.owner?.faction, T.techPct(h.owner?.technologies, 'woundedBonusPct'));
+      if (hw.length > 0) await carryWounded(prisma, h.id, hw);
+    }
     for (const g of group) {
       if (!g.cityId) continue;
       // this camp's own dead, by unit type
@@ -606,7 +630,7 @@ async function handleRaid(army, now) {
     if (result.attackerWon) {
       await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
     }
-    return { targetCity, result, atkReportId: atkReport.id, defReportId: defReport.id };
+    return { targetCity, result, atkReportId: atkReport.id, defReportId: defReport.id, helperIds: [...new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))] };
   }, TX);
   if (!raid) {
     await sendArmyHome(army, army.targetX, army.targetY);
@@ -623,6 +647,7 @@ async function handleRaid(army, now) {
   notify(army.ownerId, 'battle', result.attackerWon ? '💰 Raid réussi' : '⚔️ Raid repoussé', result.attackerWon ? `${army.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${army.name} a été repoussée par ${targetCity.name}.`, { to: 'report', reportId: raid.atkReportId, x: targetCity.x, y: targetCity.y });
   notify(targetCity.playerId, 'battle', result.attackerWon ? '💰 Ville pillée' : '🛡️ Raid repoussé', result.attackerWon ? `${army.owner.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${targetCity.name} a repoussé le raid de ${army.owner.name}.`, { to: 'report', reportId: raid.defReportId, x: targetCity.x, y: targetCity.y });
 
+  for (const helperId of raid.helperIds || []) notify(helperId, 'battle', '🛡️ Renfort au combat', `Vos troupes en renfort à ${targetCity.name} ont repoussé${result.attackerWon ? ' en vain' : ''} le raid de ${army.owner.name} (pertes : ${Math.round(result.defenderLossRate * 100)} %).`, { to: 'map', x: targetCity.x, y: targetCity.y });
   console.log(`[RAID] ${army.owner.name} vs ${targetCity.player.name}: ${result.attackerWon ? 'Raider won' : 'Defender won'}`);
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: loot.wood, carryStone: loot.stone, carryIron: loot.iron, carryFood: loot.food });
 }

@@ -83,8 +83,9 @@ function configured() { return !!(apnsToken() || fcmServiceAccount()); }
 //   { to: 'army', armyId }         the army's card        { to: 'siege', cityId }   the siege window of a city
 //   { to: 'city', cityId }         a city of the player (constructions, research)
 //   { to: 'chat', channel }        a channel of the messaging ("private:<id>", "friends"…)
+//   { to: 'alliance', sub }        a section of the alliance tab (diplomacy, help, members)
 // `tab` is kept for the mobile apps already installed (they only know the tab).
-const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city', chat: 'messages' };
+const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city', chat: 'messages', alliance: 'alliance' };
 const TO_OF_TAB = { reports: 'report', army: 'army', map: 'map', city: 'city' };
 function normalizeLink(data) {
   if (!data || typeof data !== 'object') return null;

@@ -161,6 +161,11 @@ function openNotificationLink(link) {
       if (link.channel && typeof openChatChannel === 'function') openChatChannel(String(link.channel));
       if (link.channel === 'friends' && typeof openFriendsManager === 'function') openFriendsManager();
       break;
+    case 'alliance':   // diplomatie, aide d'alliance, renforts
+      if (link.sub && typeof currentAllianceTab !== 'undefined') currentAllianceTab = String(link.sub);
+      showTab('alliance');
+      if (link.sub && typeof showAllianceTab === 'function') showAllianceTab(String(link.sub));
+      break;
     default:
       showTab(link.tab || 'city');
   }

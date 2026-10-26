@@ -652,6 +652,105 @@ await call('diplomacy/player/:id', 'GET', `/api/diplomacy/player/${B.player.id}`
   const a4 = ar?.army?.id; await call('a4 set-unit', 'POST', `/api/army/${a4}/set-unit`, tA, { unitKey: infKey, count: 5 });
   await call('raid alliance member -> 400', 'POST', `/api/army/${a4}/raid`, tA, { targetCityId: cityB.id }, 400);
   await call('send RAID alliance member -> 400', 'POST', '/api/armies/send', tA, { armyId: a4, targetX: cityB.x, targetY: cityB.y, mission: 'RAID' }, 400); }
+// ---------- ALLIANCE : aide, boutique, renfort, diplomatie (décision du 26 octobre 2026) ----------
+{
+  sql(`UPDATE "CityBuilding" SET level=10 WHERE "cityId" IN ('${cityA.id}','${cityB.id}') AND key='EMBASSY'`);
+  // aide : B demande de l'aide sur une construction en cours, A aide (1 % du restant, 1 minute au moins) et gagne des points
+  sql(`DELETE FROM "BuildQueueItem" WHERE "cityId"='${cityB.id}'`);
+  const bqId = sql(`INSERT INTO "BuildQueueItem"(id,"cityId",slot,"buildingKey","targetLevel","startedAt","endsAt",status) VALUES (gen_random_uuid(),'${cityB.id}',40,'WAREHOUSE',2,now(),now() + interval '2 hours','RUNNING') RETURNING id`).split('\n')[0];
+  const endsBefore = Number(sql(`SELECT extract(epoch FROM "endsAt") FROM "BuildQueueItem" WHERE id='${bqId}'`));
+  const hb = await call('help: B sees what can be helped', 'GET', '/api/alliance/help', tB);
+  assert('help: the running construction is listed with the Embassy cap', (hb?.targets || []).some(t => t.kind === 'BUILD' && t.targetId === bqId) && hb?.maxHelps === 10, JSON.stringify({ maxHelps: hb?.maxHelps, n: hb?.targets?.length }));
+  const rq = await call('help: B asks for help on everything', 'POST', '/api/alliance/help/request', tB, {});
+  assert('help: a request was created', rq?.created >= 1, JSON.stringify(rq));
+  await call('help: asking twice adds nothing', 'POST', '/api/alliance/help/request', tB, { kind: 'BUILD', targetId: bqId });
+  const meA = await call('help: A /me shows a pending request', 'GET', '/api/player/me', tA);
+  assert('help: badge count for A', meA?.allianceHelpPending >= 1, String(meA?.allianceHelpPending));
+  const pointsBefore = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${A.player.id}'`));
+  const ha = await call('help: A helps everyone', 'POST', '/api/alliance/help/all', tA);
+  assert('help: A helped and earned 10 points', ha?.helped >= 1 && ha?.points === 10 * ha.helped && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${A.player.id}'`)) === pointsBefore + ha.points, JSON.stringify(ha));
+  const endsAfter = Number(sql(`SELECT extract(epoch FROM "endsAt") FROM "BuildQueueItem" WHERE id='${bqId}'`));
+  assert('help: the construction is 1 % of the rest shorter (72 s on 2 h)', endsBefore - endsAfter >= 70 && endsBefore - endsAfter <= 75, String(endsBefore - endsAfter));
+  const reqId = sql(`SELECT id FROM "AllianceHelpRequest" WHERE "playerId"='${B.player.id}' AND "targetId"='${bqId}'`);
+  await call('help: helping twice -> 409', 'POST', `/api/alliance/help/${reqId}`, tA, null, 409);
+  await call('help: helping one\'s own request -> 409', 'POST', `/api/alliance/help/${reqId}`, tB, null, 409);
+  sql(`DELETE FROM "BuildQueueItem" WHERE id='${bqId}'`);
+  const hb2 = await call('help: finished target closes the request', 'GET', '/api/alliance/help', tA);
+  assert('help: closed request no longer listed', !(hb2?.requests || []).some(r => r.id === reqId));
+
+  // boutique : ressources livrées dans une ville, plaque de nom achetée puis retirée, bannière sans image en attente
+  sql(`UPDATE "Player" SET "alliancePoints"=1000 WHERE id='${A.player.id}'`);
+  sql(`UPDATE "City" SET wood=100, "maxStorage"=100000 WHERE id='${cityA.id}'`);
+  const shop = await call('shop: catalogue', 'GET', '/api/alliance/shop', tA);
+  assert('shop: resources, hero items, nameplates and banners', ['resources', 'hero_item', 'nameplate', 'banner'].every(t => (shop?.items || []).some(i => i.type === t)) && shop?.points === 1000);
+  await call('shop: buy wood', 'POST', '/api/alliance/shop/buy', tA, { key: 'res_wood', cityId: cityA.id });
+  assert('shop: 1000 wood delivered, 80 points spent', Number(sql(`SELECT floor(wood) FROM "City" WHERE id='${cityA.id}'`)) >= 1100 && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${A.player.id}'`)) === 920);
+  await call('shop: buy into a city that is not yours -> 400', 'POST', '/api/alliance/shop/buy', tA, { key: 'res_wood', cityId: cityB.id }, 400);
+  await call('shop: buy bronze nameplate', 'POST', '/api/alliance/shop/buy', tA, { key: 'nameplate_bronze' });
+  assert('shop: nameplate owned and in place', sql(`SELECT nameplate FROM "Player" WHERE id='${A.player.id}'`) === 'bronze');
+  await call('shop: buy it again -> 400', 'POST', '/api/alliance/shop/buy', tA, { key: 'nameplate_bronze' }, 400);
+  await call('shop: not enough points -> 400', 'POST', '/api/alliance/shop/buy', tA, { key: 'nameplate_gold' }, 400);
+  await call('shop: banner without its image -> 400', 'POST', '/api/alliance/shop/buy', tA, { key: 'banner_eagle' }, 400);
+  await call('shop: take the nameplate off', 'POST', '/api/alliance/shop/equip', tA, { slot: 'nameplate', key: null });
+  await call('shop: put it back', 'POST', '/api/alliance/shop/equip', tA, { slot: 'nameplate', key: 'nameplate_bronze' });
+  await call('shop: equip something not bought -> 400', 'POST', '/api/alliance/shop/equip', tA, { slot: 'nameplate', key: 'nameplate_silver' }, 400);
+
+  // renfort : A envoie une armée défendre la ville de B (même alliance), B la voit puis la renvoie
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "arrivalAt"=NULL, "claimedAt"=NULL, "missionType"=NULL, "targetCityId"=NULL WHERE "ownerId"='${A.player.id}' AND NOT "isGarrison"`);
+  sql(`UPDATE "CityBuilding" SET level=GREATEST(level,15) WHERE "cityId"='${cityA.id}' AND key='RALLY_POINT'`);   // emplacement 4
+  const sa = await call('support: army for reinforcement', 'POST', '/api/army/create', tA, { cityId: cityA.id, slot: 4, name: 'Auxilia' });
+  const sId = sa?.army?.id;
+  await call('support: set units', 'POST', `/api/army/${sId}/set-unit`, tA, { unitKey: infKey, count: 4 });
+  await call('support: own city -> 400', 'POST', `/api/army/${sId}/support`, tA, { targetCityId: cityA.id }, 400);
+  sql(`UPDATE "City" SET "isSieged"=true WHERE id='${cityB.id}'`);
+  await call('support: a besieged city takes no reinforcement -> 400', 'POST', `/api/army/${sId}/support`, tA, { targetCityId: cityB.id }, 400);
+  sql(`UPDATE "City" SET "isSieged"=false WHERE id='${cityB.id}'`);
+  await call('support: A reinforces B', 'POST', `/api/army/${sId}/support`, tA, { targetCityId: cityB.id });
+  assert('support: army marching as SUPPORTING', sql(`SELECT status FROM "Army" WHERE id='${sId}'`) === 'SUPPORTING');
+  sql(`UPDATE "Army" SET "arrivalAt"=now() - interval '1 second' WHERE id='${sId}'`);
+  await waitTick('reinforcement stationed', () => sql(`SELECT status FROM "Army" WHERE id='${sId}'`) === 'STATIONED');
+  const rec = await call('support: B lists reinforcements received', 'GET', '/api/army/support/received', tB);
+  assert('support: B sees A\'s army stationed', (rec || []).some(a => a.id === sId && a.status === 'STATIONED' && a.owner?.id === A.player.id));
+  await call('support: A cannot send it back for B -> 403', 'POST', `/api/army/support/${sId}/send-back`, tA, null, 403);
+  await call('support: B sends it back', 'POST', `/api/army/support/${sId}/send-back`, tB);
+  assert('support: the army goes home', sql(`SELECT status FROM "Army" WHERE id='${sId}'`) === 'RETURNING');
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "claimedAt"=NULL, "missionType"=NULL, "targetCityId"=NULL WHERE id='${sId}'`);
+
+  // diplomatie : une alliance se propose et s'accepte ; ennemi se déclare seul ; renfort chez un allié rappelé à la rupture
+  const D = await call('register D (GAUL)', 'POST', '/api/auth/register', null, { email: `z${uid}@t.fr`, password: PASSWORD, name: `Zeta${uid}`, faction: 'GAUL' });
+  const tD = D?.token;
+  const cityD = (await call('D cities', 'GET', '/api/cities', tD))?.[0];
+  if (cityD) addBuilding(cityD.id, 'EMBASSY', 33, 7);
+  const alD = await call('D founds an alliance', 'POST', '/api/alliance/create', tD, { name: `Gallia${uid}`, tag: 'GAL', description: '' });
+  const alDId = alD?.alliance?.id;
+  const prop = await call('diplomacy: A proposes an alliance to D', 'POST', `/api/alliance/diplomacy/${alDId}`, tA, { status: 'ALLY' });
+  assert('diplomacy: a proposal, not an alliance yet', prop?.event === 'proposed' && (await call('diplomacy: relation A->D before acceptance', 'GET', `/api/diplomacy/player/${D.player.id}`, tA))?.status === 'NEUTRAL', JSON.stringify(prop));
+  await call('diplomacy: D cannot be reinforced yet -> 400', 'POST', `/api/army/${sId}/support`, tA, { targetCityId: cityD?.id }, 400);
+  const dd = await call('diplomacy: D sees the proposal', 'GET', '/api/alliance/diplomacy', tD);
+  const inc = (dd?.incoming || []).find(r => r.alliance?.id === alId);
+  assert('diplomacy: incoming proposal listed', !!inc);
+  await call('diplomacy: D accepts', 'POST', `/api/alliance/diplomacy/requests/${inc?.id}/accept`, tD);
+  const relAD = await call('diplomacy: relation A->D', 'GET', `/api/diplomacy/player/${D.player.id}`, tA);
+  assert('diplomacy: allies on both sides', relAD?.status === 'ALLY' && relAD?.canAttack === false && relAD?.canSupport === true, JSON.stringify(relAD));
+  const relMap = await call('diplomacy: map colours for B', 'GET', '/api/alliance/relations', tB);
+  assert('diplomacy: B (same alliance as A) sees D\'s alliance as an ally', relMap?.relations?.[alDId] === 'ALLY');
+  const sheet = await call('diplomacy: public sheet of D\'s alliance', 'GET', `/api/alliance/${alDId}`, tB);
+  assert('diplomacy: the sheet lists A\'s alliance as an ally', (sheet?.allies || []).some(a => a.id === alId));
+  await call('support: A reinforces the ally D', 'POST', `/api/army/${sId}/support`, tA, { targetCityId: cityD?.id });
+  const war = await call('diplomacy: D declares A\'s alliance an enemy', 'POST', `/api/alliance/diplomacy/${alId}`, tD, { status: 'ENEMY' });
+  assert('diplomacy: war breaks the alliance on both sides', war?.event === 'enemy' && sql(`SELECT status FROM "AllianceDiplomacy" WHERE "allianceId"='${alId}' AND "targetAllianceId"='${alDId}'`) === 'NEUTRAL' && (await call('diplomacy: relation after war', 'GET', `/api/diplomacy/player/${D.player.id}`, tA))?.status === 'ENEMY');
+  await waitTick('reinforcement recalled by the war', () => sql(`SELECT status FROM "Army" WHERE id='${sId}'`) === 'RETURNING', 15000);
+  await call('diplomacy: an enemy cannot propose while at war -> 400', 'POST', `/api/alliance/diplomacy/${alDId}`, tA, { status: 'ALLY' }, 400);
+  await call('diplomacy: D makes peace', 'POST', `/api/alliance/diplomacy/${alId}`, tD, { status: 'NEUTRAL' });
+  await call('diplomacy: a member cannot change diplomacy -> 403', 'POST', `/api/alliance/diplomacy/${alDId}`, tB, { status: 'ENEMY' }, 403);
+  const mine = await call('members: list with last connection', 'GET', '/api/alliance/mine', tA);
+  assert('members: last connection and join date given to members', (mine?.alliance?.members || []).every(m => m.player?.lastSeenAt && m.joinedAt));
+  const pub = await call('members: public list', 'GET', `/api/alliance/${alId}`, tD);
+  assert('members: the public sheet hides the last connection', (pub?.members || []).length > 0 && (pub?.members || []).every(m => m.player && m.player.lastSeenAt === undefined));
+  await call('D leaves (dissolves)', 'POST', '/api/alliance/leave', tD, {});
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "claimedAt"=NULL, "missionType"=NULL, "targetCityId"=NULL WHERE id='${sId}'`);
+  await call('support: army disband', 'DELETE', `/api/army/${sId}/disband`, tA);
+}
 await call('alliance promote B (member->officer)', 'POST', `/api/alliance/promote/${B.player.id}`, tA, {});
 await call('alliance promote B (officer->leader)', 'POST', `/api/alliance/promote/${B.player.id}`, tA, {});
 assert('leadership transferred', sql(`SELECT string_agg(role, ',' ORDER BY role) FROM "AllianceMember" WHERE "playerId" IN ('${A.player.id}','${B.player.id}')`) === 'LEADER,OFFICER');

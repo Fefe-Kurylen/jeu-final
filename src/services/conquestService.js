@@ -60,14 +60,15 @@ async function wearWallStructure(tx, city) {
 }
 
 // Les armées hostiles en route vers la ville font demi-tour (même durée que le trajet déjà fait) ; les camps qui l'assiègent
-// rentrent par la vraie route, à la vitesse de l'armée. Les convois ne sont pas hostiles : ils sont traités à part.
+// rentrent par la vraie route, à la vitesse de l'armée. Les renforts alliés en route font demi-tour, ceux qui étaient
+// stationnés dans la ville rentrent aussi. Les convois ne sont pas hostiles : ils sont traités à part.
 async function turnBackHostiles(tx, city, except) {
   const exceptIds = (Array.isArray(except) ? except : [except]).filter(Boolean);
   const { sendArmyHomeTx } = require('./armyService');
-  const hostiles = await tx.army.findMany({ where: { targetCityId: city.id, id: { notIn: exceptIds }, NOT: { ownerId: city.playerId }, status: { in: ['ATTACKING', 'RAIDING', 'SPYING', 'BESIEGING'] } }, include: { city: true, units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
+  const hostiles = await tx.army.findMany({ where: { targetCityId: city.id, id: { notIn: exceptIds }, NOT: { ownerId: city.playerId }, status: { in: ['ATTACKING', 'RAIDING', 'SPYING', 'BESIEGING', 'SUPPORTING', 'STATIONED'] } }, include: { city: true, units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
   const now = Date.now();
   for (const a of hostiles) {
-    if (a.status === 'BESIEGING') { await sendArmyHomeTx(tx, a); continue; }
+    if (a.status === 'BESIEGING' || a.status === 'STATIONED') { await sendArmyHomeTx(tx, a); continue; }
     if (!a.city) { await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', missionType: null, targetCityId: null, targetX: null, targetY: null, arrivalAt: null, claimedAt: null } }); continue; }
     const back = a.departedAt ? Math.max(0, now - new Date(a.departedAt).getTime()) : 0;
     await tx.army.update({ where: { id: a.id }, data: { status: 'RETURNING', missionType: 'RETURN', targetCityId: null, targetX: a.city.x, targetY: a.city.y, departedAt: new Date(now), arrivalAt: new Date(now + Math.max(30000, back)), claimedAt: null } });
