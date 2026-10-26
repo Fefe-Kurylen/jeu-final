@@ -181,6 +181,7 @@ const UNIT_FR = { hoplite: 'de l\'infanterie', archer: 'des archers', cavalry: '
 for (const c of CIVS) for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) anim(`map/units/${u}_${c}_walk`, 6, 'map', `Carte : marche ${UNIT_FR[u]} de ${CIV_FR[c]}`);
 for (const c of CIVS) anim(`map/units/hero_${c}_walk`, 6, 'map', `Carte : marche d'une armée menée par le héros de ${CIV_FR[c]}`);
 anim('map/units/merchant_walk', 6, 'map', 'Carte : marche du convoi du marchand');
+anim('map/units/spy_walk', 6, 'map', "Carte : marche de l'espion en mission (cavalier encapuchonné)");
 for (const u of ['hoplite', 'archer', 'cavalry', 'catapult']) { anim(`map/units/${u}_attack`, 3, 'map', `Replay : ${u} attaque`); anim(`map/units/${u}_hit`, 2, 'map', `Replay : ${u} touché`); }
 add('fx/arrow.webp', 'fx', 'Replay : flèche en vol'); add('fx/stone.webp', 'fx', 'Replay : pierre de catapulte'); anim('fx/impact', 3, 'fx', 'Replay : éclat d\'impact');
 // Siège qui dure (octobre 2026, GDD combat_config.siege.visuals) : campement d'engins et de barricades autour d'une ville assiégée
@@ -241,13 +242,15 @@ function buildAllTargets() {
 // 2 × 2…) — celle dont les cases ont la forme la plus proche du cadre attendu W × H. Utilisée telle quelle dans la page
 // d'import (tools/repaint.cjs) : pas de dépendance.
 function gridFor(n, imgW, imgH, W, H) {
+  // la grille dont les cases ont les proportions les plus proches de W×H ; à égalité, plus de colonnes que de rangées.
+  // error : écart des proportions (0 = exact ; au-delà de 0,1 le découpage est douteux)
   let cols = n, rows = 1, best = Infinity;
   for (let c = 1; c <= n; c++) {
     if (n % c) continue;
     const r = n / c, e = Math.abs(Math.log((imgW / c) / (imgH / r)) - Math.log(W / H));
-    if (e < best - 1e-9) { best = e; cols = c; rows = r; }
+    if (e < best - 1e-9 || (e <= best + 1e-9 && c >= r && cols < rows)) { best = e; cols = c; rows = r; }
   }
-  return { cols, rows };
+  return { cols, rows, error: best };
 }
 function frameSize(t) { return FRAMES[t.frame] || [1024, 1024]; }
 function deliverySize(t) { return DELIVERY[t.frame] || '1024x1024'; }

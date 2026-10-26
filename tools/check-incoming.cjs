@@ -49,8 +49,11 @@ for (const f of files.sort()) {
   const t = r.target || r.strip.targets[0];
   const n = r.strip ? r.strip.n : 1;
   const [dw, dh] = T.deliverySize(t).split('x').map(Number);
-  const expectW = dw * n, ratio = info.w / info.h, expectRatio = (dw * n) / dh;
-  if (Math.abs(ratio / expectRatio - 1) > 0.08) { warn++; notes.push(`proportions ${info.w}×${info.h} (${ratio.toFixed(2)}), attendu ${r.strip ? `une bande de ${n} cases ` : ''}${dw}×${dh}${r.strip ? ` (${expectW}×${dh})` : ''} ; l'image sera ajustée sans déformation, avec des marges`); }
+  // une animation : bande ou grille, découpée comme à l'import (targets.cjs gridFor)
+  const grid = r.strip ? T.gridFor(n, info.w, info.h, dw, dh) : { cols: 1, rows: 1, error: 0 };
+  const expectW = dw * grid.cols, ratio = info.w / info.h, expectRatio = (dw * grid.cols) / (dh * grid.rows);
+  if (r.strip) notes.push(`${n} cases lues en ${grid.cols} colonne${grid.cols > 1 ? 's' : ''} × ${grid.rows} rangée${grid.rows > 1 ? 's' : ''}`);
+  if (r.strip ? grid.error > 0.1 : Math.abs(ratio / expectRatio - 1) > 0.08) { warn++; notes.push(`proportions ${info.w}×${info.h} (${ratio.toFixed(2)}), attendu ${r.strip ? `${n} cases de ${dw}×${dh} en bande ou en grille (par exemple ${dw * grid.cols}×${dh * grid.rows})` : `${dw}×${dh}`} ; l'image sera ajustée sans déformation, avec des marges`); }
   else if (info.w < expectW * 0.5) { warn++; notes.push(`image petite (${info.w}×${info.h}) : elle sera agrandie, le rendu risque d'être flou`); }
   const opaqueTarget = !!t.opaque;
   if (!opaqueTarget && !info.alpha) { warn++; notes.push(info.format === 'jpeg' ? 'JPEG sans transparence : fond uni magenta/vert ou couleur des coins détouré automatiquement' : 'pas de couche alpha : le fond uni sera détouré (mieux : PNG transparent)'); }

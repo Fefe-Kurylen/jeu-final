@@ -107,7 +107,7 @@ async function _loadTilesetAssetsOnce() {
     for (const p of paintedSet) {
       const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
       if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
-      if (m[1] === 'units' && /_(attack|hit)_\d+$/.test(m[2])) continue;   // poses du replay de bataille : pas encore jouées
+      if (m[1] === 'units' && /_(walk|attack|hit)_\d+$/.test(m[2])) continue;   // cycles de marche chargés à la demande (armyWalkBase) ; poses du replay pas encore jouées
       jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; tileImagePainted.add(m[1] + '/' + m[2]); resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
     }
   }
@@ -722,6 +722,8 @@ function renderMap() {
 }
 function renderMapCore() {
   if (!mapCtx) return;
+  armyRouteBudget = 3;
+  mapLabelQueue = null;
 
   const w = mapViewW;
   const h = mapViewH;
@@ -792,11 +794,11 @@ function renderMapCore() {
     // the armies of other players walk along their route too (same route as the server's, from the shared terrain)
     const marching = obj.type === 'ARMY' && MOVING_STATUSES[obj.status] && obj.departedAt && obj.arrivalAt && obj.targetX !== null && obj.targetX !== undefined;
     const cur = marching ? armyCurrentPosition(obj) : null;
-    if (marching) mapMovingOnScreen = true;
+    if (obj.type === 'ARMY') { obj.drawX = cur ? cur.x : obj.x; obj.drawY = cur ? cur.y : obj.y; }   // le clic la trouve là où elle est dessinée
     const pos = obj.type === 'CITY' ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
     const m = obj.type === 'CITY' ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
     if (pos.x >= -m && pos.x <= w + m && pos.y >= -m && pos.y <= h + m) {
-      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y, ...(cur ? { walkDir: cur.dir } : {}) });
+      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y, ...(cur ? { walkDir: cur.dir, walkVec: cur.vec } : {}) });
     }
   });
 
@@ -811,10 +813,11 @@ function renderMapCore() {
   armies.forEach(army => {
     if (army.isGarrison) return;   // la garnison ne quitte jamais la ville : le sprite de ville la représente
     const cur = armyCurrentPosition(army);
+    army.drawX = cur.x; army.drawY = cur.y;
     const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileW * 1.6) {   // a painted army rises about 1.4 tiles above its feet
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir });
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir, walkVec: cur.vec });
     }
   });
 
@@ -822,6 +825,7 @@ function renderMapCore() {
   objectsOrder.sort((a, b) => a.screenY - b.screenY);
 
   // Draw all objects
+  mapLabelQueue = [];
   objectsOrder.forEach(obj => {
     if (obj.type === 'CITY') {
       drawIsoCity(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);   // 2 × 2 cases
@@ -833,6 +837,8 @@ function renderMapCore() {
   });
 
   drawMapClouds(worldToScreen, w, h, tileW, nightMode);   // quelques nuages qui passent, au-dessus de tout (map-world.js)
+  const labels = mapLabelQueue || []; mapLabelQueue = null;
+  labels.forEach(f => f());   // noms des villes par-dessus tout
 
   // Draw hover highlight
   const highlight = (t, color, lw) => {
@@ -909,7 +915,8 @@ function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
   }
   if (biome === 'forest') {
     if (feature === 'tree') {
-      drawIsoTree(x - tw * 0.16, y - th * 0.3, tw * 0.34, th * 0.75); drawIsoTree(x + tw * 0.14, y - th * 0.2, tw * 0.3, th * 0.7); drawIsoTree(x, y - th * 0.05, tw * 0.36, th * 0.8);
+      const sd = (k) => Terrain.seededRandom(wx, wy, 6170 + k);
+      drawIsoTree(x - tw * 0.16, y - th * 0.3, tw * 0.34, th * 0.75, sd(0)); drawIsoTree(x + tw * 0.14, y - th * 0.2, tw * 0.3, th * 0.7, sd(1)); drawIsoTree(x, y - th * 0.05, tw * 0.36, th * 0.8, sd(2));
     } else if (feature === 'mountain') {
       drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
     }
@@ -951,8 +958,8 @@ function drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, night) {
 }
 
 // Draw isometric tree (pine/fir)
-function drawIsoTree(x, y, w, h) {
-  const treeH = h * (0.8 + seededRandom(x, y) * 0.4);
+function drawIsoTree(x, y, w, h, seed) {   // seed : tiré de la case du monde (sinon la hauteur changerait en déplaçant la carte)
+  const treeH = h * (0.8 + (seed ?? seededRandom(x, y)) * 0.4);
 
   // Trunk
   mapCtx.fillStyle = '#4a3020';
@@ -1309,21 +1316,24 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
   if ((tile.wallDamage || 0) >= 10 && !siegeAnimated) drawDamagedCitySmoke(x, y, citySize, tile.wallDamage, tile.id);
   if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
 
-  // Étiquette du nom : plaque de parchemin au liseré brun (doré pour nos villes)
-  if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
-
-  // Power level badge
-  if (mapZoomLevel > 0.7 && tile.population) {
-    const badgeX = x + citySize * 0.4;
-    const badgeY = y - citySize * 0.5;
-    mapCtx.fillStyle = '#e8c547'; mapCtx.strokeStyle = '#5a4010'; mapCtx.lineWidth = 1.2;
-    mapCtx.beginPath(); mapCtx.arc(badgeX, badgeY, 11, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
-    mapCtx.fillStyle = '#2e2010';
-    mapCtx.font = "700 9px 'Crimson Text', Georgia, serif";
-    mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
-  }
+  // Étiquette du nom (plaque de parchemin au liseré brun, doré pour nos villes) et pastille de population : dessinées après
+  // tous les éléments de la carte (mapLabelQueue), pour qu'un point de ressource ou une armée devant la ville ne les cache pas
+  const plates = () => {
+    if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), isMyCity ? '#c9a227' : isAlly ? '#3a7a9c' : '#6a4a2a');
+    if (mapZoomLevel > 0.7 && tile.population) {
+      const badgeX = x + citySize * 0.4;
+      const badgeY = y - citySize * 0.5;
+      mapCtx.fillStyle = '#e8c547'; mapCtx.strokeStyle = '#5a4010'; mapCtx.lineWidth = 1.2;
+      mapCtx.beginPath(); mapCtx.arc(badgeX, badgeY, 11, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+      mapCtx.fillStyle = '#2e2010';
+      mapCtx.font = "700 9px 'Crimson Text', Georgia, serif";
+      mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+      mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
+    }
+  };
+  if (mapLabelQueue) mapLabelQueue.push(plates); else plates();
 }
+let mapLabelQueue = null;   // étiquettes des villes en attente, pendant le dessin de la carte
 
 // Colonne de fumée au-dessus d'une ville au mur abîmé : plus dense avec les dégâts ; feu peint (map/fx/fire_0..3) quand
 // il est livré et que le mur a perdu plus de la moitié de ses PV, sinon des bouffées de fumée 3D qui montent
@@ -1880,9 +1890,10 @@ function drawIsoResource(x, y, tw, th, tile) {
     mapCtx.fill();
 
     // Multiple trees
-    drawIsoTree(x - size * 0.3, y - size * 0.1, size * 0.3, size * 0.5);
-    drawIsoTree(x + size * 0.2, y - size * 0.05, size * 0.25, size * 0.4);
-    drawIsoTree(x, y - size * 0.2, size * 0.35, size * 0.6);
+    const sd = (k) => Terrain.seededRandom(tile.x, tile.y, 6180 + k);
+    drawIsoTree(x - size * 0.3, y - size * 0.1, size * 0.3, size * 0.5, sd(0));
+    drawIsoTree(x + size * 0.2, y - size * 0.05, size * 0.25, size * 0.4, sd(1));
+    drawIsoTree(x, y - size * 0.2, size * 0.35, size * 0.6, sd(2));
 
   } else if (resType === 'stone') {
     // Quarry
@@ -2019,14 +2030,25 @@ function drawIsoRock(x, y, size) {
 // between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
 const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
 const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
+// Chemins calculés au plus 3 par image (les suivants marchent en ligne droite le temps d'une image ou deux) ; le départ et
+// l'arrivée comptent comme des cases d'objets (ville de 2 × 2 cases, point de ressource), même hors de la zone chargée
+let armyRouteBudget = 3;
 function armyRoute(army) {
   if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
   const key = `${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
+  const straight = [[army.x, army.y], [army.targetX, army.targetY]];
+  if (armyRouteBudget <= 0) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
+  armyRouteBudget--;
   if (armyRouteCache.size > 300) armyRouteCache.clear();
-  const objects = typeof mapObjectCells !== 'undefined' ? mapObjectCells : null;
+  const base = typeof mapObjectCells !== 'undefined' ? mapObjectCells : new Map();
+  const extra = new Map([[army.x + ',' + army.y, 'RESOURCE']]);
+  const toCity = army.targetCityId || ['ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'RETURNING'].includes(army.status);
+  if (toCity) for (const [cx, cy] of Terrain.cityCells(army.targetX, army.targetY)) extra.set(cx + ',' + cy, 'CITY');
+  else extra.set(army.targetX + ',' + army.targetY, 'RESOURCE');
+  const objects = { has: (k) => extra.has(k) || base.has(k), get: (k) => extra.get(k) || base.get(k) };
   const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, 40000, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
-  const path = r ? r.path : [[army.x, army.y], [army.targetX, army.targetY]];
+  const path = r ? r.path : straight;
   armyRouteCache.set(key, path);
   return path;
 }
@@ -2058,9 +2080,10 @@ function armyCurrentPosition(army) {
   const p = armyProgress(army);
   const at = pointAlongRoute(path, p) || { x: army.x, y: army.y };
   const ahead = pointAlongRoute(path, Math.min(1, p + 0.02)) || at;
-  // screen direction: +x on screen when (dx - dy) grows
-  const dir = (ahead.x - ahead.y) - (at.x - at.y) < -1e-6 ? -1 : 1;
-  return { x: at.x, y: at.y, dir };
+  // screen direction: +x on screen when (dx - dy) grows, +y when (dx + dy) grows (iso 2:1)
+  const sx = (ahead.x - ahead.y) - (at.x - at.y), sy = ((ahead.x + ahead.y) - (at.x + at.y)) / 2, n = Math.hypot(sx, sy);
+  const dir = sx < -1e-6 ? -1 : 1;
+  return { x: at.x, y: at.y, dir, vec: n > 1e-9 ? { x: sx / n, y: sy / n } : { x: dir, y: 0.5 } };
 }
 // Dotted light-green route with an arrow head, for the player's own armies only
 function drawArmyRoute(army, worldToScreen, tileW) {
@@ -2110,14 +2133,25 @@ function armySquads(army) {
   const n = (army.units || []).reduce((t, u) => t + (u.count || 0), 0);
   return n < 100 ? 1 : n < 500 ? 2 : 3;
 }
-// Cycle de marche peint d'un sprite d'armée (6 poses <nom>_walk_0..5) : celui de la civilisation, sinon le cycle commun
+// Cycle de marche peint d'un sprite d'armée (6 poses <nom>_walk_0..5) : celui de la civilisation, sinon le cycle commun.
+// Chargé à la première demande (pas avec le reste de la carte), joué seulement quand ses 6 poses sont là.
+const armyWalkLoading = new Set();
 function armyWalkBase(name) {
-  for (const n of [name, name.replace(/_[A-Z]+$/, '')]) if (tileImages.units[`${n}_walk_0`]) return `${n}_walk_`;
+  for (const n of [name, name.replace(/_[A-Z]+$/, '')]) {
+    const files = [0, 1, 2, 3, 4, 5].map(i => `map/units/${n}_walk_${i}.webp`);
+    if (typeof paintedSet === 'undefined' || !files.every(f => paintedSet.has(f))) continue;   // cycle non livré (ou incomplet)
+    if ([0, 1, 2, 3, 4, 5].every(i => tileImages.units[`${n}_walk_${i}`])) return `${n}_walk_`;
+    if (!armyWalkLoading.has(n)) {
+      armyWalkLoading.add(n);
+      files.forEach((f, i) => { const img = new Image(); img.onload = () => { tileImages.units[`${n}_walk_${i}`] = img; tileImagePainted.add(`units/${n}_walk_${i}`); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }; img.src = art(f); });
+    }
+    return null;   // il trottine le temps du chargement
+  }
   return null;
 }
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
-  const isMoving = army.status !== 'IDLE';
+  const isMoving = !!MOVING_STATUSES[army.status] && armyProgress(army) < 1;   // en marche ; récolte, fondation, siège : à l'arrêt
   const imgSize = Math.max(tw, th * 2) * 1.2;
 
   // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées,
@@ -2125,20 +2159,24 @@ function drawIsoArmy(x, y, tw, th, army) {
   let mainUnitType = armySpriteName(army);
   const faction = String(army.faction || player?.faction || '').toUpperCase();
   if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
-  if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType]) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
-  if ((army.hasHero || army.heroId) && faction && tileImages.units['hero_' + faction]) mainUnitType = 'hero_' + faction;   // héros en tête d'armée (guide § S18)
-  if ((army.status === 'SPYING' || army.missionType === 'SPY') && tileImages.units.spy) mainUnitType = 'spy';   // espion en mission
-  const hasSprite = !!tileImages.units[mainUnitType];
+  if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType] && !(isMoving && armyWalkBase(mainUnitType))) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
+  const troopType = mainUnitType;   // les groupes qui suivent le héros gardent l'image de leur troupe
+  if ((army.hasHero || army.heroId) && faction && (tileImages.units['hero_' + faction] || (isMoving && armyWalkBase('hero_' + faction)))) mainUnitType = 'hero_' + faction;   // héros en tête d'armée (guide § S18)
+  if ((army.status === 'SPYING' || army.missionType === 'SPY') && (tileImages.units.spy || (isMoving && armyWalkBase('spy')))) mainUnitType = 'spy';   // espion en mission
+  const walkLead = isMoving ? armyWalkBase(mainUnitType) : null;
+  const hasSprite = !!tileImages.units[mainUnitType] || !!walkLead;
   // comme sur la carte de référence, une grosse armée est une colonne de plusieurs groupes de soldats (1 à 3)
   const squads = Math.max(1, Math.min(3, army.squads || armySquads(army)));
+  const groupType = (q) => (q === 0 ? mainUnitType : tileImages.units[troopType] || armyWalkBase(troopType) ? troopType : mainUnitType);   // le héros ou l'espion devant, la troupe derrière
   if (hasSprite && isMoving) {
     // marche : l'armée regarde vers sa destination ; avec son cycle de marche peint (6 poses), chaque groupe marche au
     // pas ; sinon il trottine (petits bonds cadencés, léger balancement) ; la poussière se lève derrière la colonne
     mapMovingOnScreen = true;
     const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
     const dir = army.walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
-    const walk = armyWalkBase(mainUnitType);
-    const back = (q) => ({ x: x - dir * q * imgSize * 0.2, y: y - q * imgSize * 0.09 });   // groupes suivants : en arrière de la marche
+    const vec = army.walkVec || { x: dir, y: 0.5 };
+    // les groupes suivants se placent en arrière, à l'opposé du sens de la marche sur l'écran
+    const back = (q) => ({ x: x - vec.x * q * imgSize * 0.22, y: y - vec.y * q * imgSize * 0.22 });
     const tail = back(squads - 1);
     for (let k = 0; k < 3 + squads; k++) {   // poussière derrière la colonne
       const life = (t * 0.9 + k / (3 + squads) + ph) % 1;
@@ -2146,27 +2184,28 @@ function drawIsoArmy(x, y, tw, th, army) {
       if (!puff) break;
       const ps = imgSize * (0.1 + life * 0.14) * (1 + squads * 0.15);
       mapCtx.globalAlpha = 0.45 * (1 - life);
-      mapCtx.drawImage(puff, tail.x - dir * imgSize * (0.12 + life * 0.22) - ps / 2, tail.y - imgSize * 0.02 - life * imgSize * 0.06 - ps / 2, ps, ps);
+      mapCtx.drawImage(puff, tail.x - vec.x * imgSize * (0.12 + life * 0.22) - ps / 2, tail.y - vec.y * imgSize * (0.12 + life * 0.22) - imgSize * 0.02 - ps / 2, ps, ps);
     }
     mapCtx.globalAlpha = 1;
-    for (let q = squads - 1; q >= 0; q--) {   // du dernier groupe au premier (le premier devant)
-      const at = back(q), phq = ph + q * 1.7;
+    const order = Array.from({ length: squads }, (_, q) => ({ q, at: back(q) })).sort((a, b) => a.at.y - b.at.y);   // de haut en bas de l'écran
+    for (const { q, at } of order) {
+      const type = groupType(q), walk = armyWalkBase(type), phq = ph + q * 1.7;
       mapCtx.save();
       if (walk) {
-        const frame = walk + (Math.floor(t * 9 + phq * 3) % 6);
+        const frame = walk + (Math.floor(t * 6 + phq * 3) % 6);   // 6 poses par seconde : sous le rythme de dessin, pas de pose sautée
         mapCtx.translate(at.x, at.y); if (dir < 0) mapCtx.scale(-1, 1);
-        drawTileImage(mapCtx, 'units', tileImages.units[frame] ? frame : mainUnitType, 0, 0, imgSize, imgSize);
-      } else {
+        drawTileImage(mapCtx, 'units', frame, 0, 0, imgSize, imgSize);
+      } else if (tileImages.units[type]) {
         const hop = Math.abs(Math.sin(t * 7 + phq)) * imgSize * 0.035, lean = Math.sin(t * 7 + phq) * 0.045;
         mapCtx.translate(at.x, at.y - hop); mapCtx.rotate(lean); if (dir < 0) mapCtx.scale(-1, 1);
-        drawTileImage(mapCtx, 'units', mainUnitType, 0, 0, imgSize, imgSize);
+        drawTileImage(mapCtx, 'units', type, 0, 0, imgSize, imgSize);
       }
       mapCtx.restore();
     }
   }
-  if (hasSprite && !isMoving) {   // à l'arrêt : les groupes en carré
-    const spots = [[0, 0], [-0.2, -0.08], [0.2, -0.08]].slice(0, squads).reverse();
-    for (const [ox, oy] of spots) drawTileImage(mapCtx, 'units', mainUnitType, x + ox * imgSize, y + oy * imgSize, imgSize, imgSize);
+  if (hasSprite && !isMoving) {   // à l'arrêt : les groupes en carré, le premier devant
+    const spots = [[0, 0], [-0.2, -0.08], [0.2, -0.08]].slice(0, squads).map((p, q) => ({ p, q })).reverse();
+    for (const { p: [ox, oy], q } of spots) { const type = tileImages.units[groupType(q)] ? groupType(q) : mainUnitType; if (tileImages.units[type]) drawTileImage(mapCtx, 'units', type, x + ox * imgSize, y + oy * imgSize, imgSize, imgSize); }
   }
   if (hasSprite) {
     // Draw army name label
@@ -2503,7 +2542,11 @@ function pickMapTile(mouseX, mouseY) {
   const dy = mouseY - mapViewH / 2;
   const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
   const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
-  const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1) : (t.x === x && t.y === y && (t.type === 'RESOURCE' || t.type === 'ARMY')));   // a city: any of its 2 × 2 cells
+  const entityAt = (x, y) => mapData.find(t => t.type === 'CITY' ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1)
+    : t.type === 'ARMY' ? (Math.round(t.drawX ?? t.x) === x && Math.round(t.drawY ?? t.y) === y)   // une armée : là où elle est dessinée
+    : (t.x === x && t.y === y && t.type === 'RESOURCE'))   // a city: any of its 2 × 2 cells
+    || ((typeof armies !== 'undefined' ? armies : []).filter(a => !a.isGarrison && MOVING_STATUSES[a.status] && Math.round(a.drawX ?? a.x) === x && Math.round(a.drawY ?? a.y) === y)
+      .map(a => ({ ...a, type: 'ARMY', ownerId: player?.id }))[0]);   // nos armées en marche (celles à l'arrêt laissent le clic à la ville)
   let tile = entityAt(tileX, tileY);   // what stands on the touched cell itself
   if (!tile && typeof window.mapWorldToScreen === 'function') {
     // otherwise the drawing that covers the touch, the front-most one (drawn last, lowest on the screen) first: a tall
@@ -2511,7 +2554,7 @@ function pickMapTile(mouseX, mouseY) {
     const cands = [];
     for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
       const t = entityAt(tileX + ox, tileY + oy);
-      if (t && t.type !== 'CITY') cands.push({ t, y: window.mapWorldToScreen(t.x, t.y).y });
+      if (t && t.type !== 'CITY') cands.push({ t, y: window.mapWorldToScreen(t.drawX ?? t.x, t.drawY ?? t.y).y });
     }
     for (const t of mapData) {
       if (t.type !== 'CITY') continue;
@@ -2746,6 +2789,15 @@ function showMapInfoPanel(x, y, tile) {
       showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content);
       return; // async
     }
+  } else if (tile.type === 'ARMY') {
+    const mine = tile.ownerId === player?.id;
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    content.innerHTML = `
+      <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
+      <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
+      ${mine ? `<div class="panel-actions"><button class="btn btn-primary" onclick="closeMapPanel(); openNotificationLink({ to: 'army', armyId: '${String(tile.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('army')} Voir l'armée</button></div>` : ''}
+    `;
+    panel.style.display = 'flex';
   } else if (tile.type === 'RESOURCE') {
     const resourceIcons = {
       'WOOD': `${resIconHtml('wood')} Forêt`,

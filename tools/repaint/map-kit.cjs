@@ -3,7 +3,7 @@
 //   node tools/repaint/map-kit.cjs
 //     -> docs/PROMPTS-CARTE.md   : chaque image (nom, taille, rôle, image guide, prompt complet prêt à coller), par ordre de priorité
 //     -> docs/prompts-carte.csv  : la même liste en tableau (Excel, Numbers, Sheets)
-//     -> docs/img/guides-carte/  : les 3 images guides de cadrage (élément d'une case, ville 2 × 2, armée)
+//     -> docs/img/guides-carte/  : les 4 images guides de cadrage (élément d'une case, ville 2 × 2, armée, planche de marche)
 //   node tools/repaint/map-kit.cjs --kit=<dossier>
 //     -> en plus, un kit à emporter : un dossier par partie, un prompt par image (<nom à plat>.txt, le PNG livré se range à
 //        côté sous le même nom), la référence de style, les guides, la liste et le tableau, un LISEZMOI
@@ -60,13 +60,19 @@ async function writeGuides() {
   const specs = [
     { file: 'guide-objet.png', w: 0.5, cy: 0.75, cells: 1 },
     { file: 'guide-ville.png', w: 0.9, cy: 0.68, cells: 2 },
-    { file: 'guide-armee.png', w: 0.5, cy: 0.75, cells: 1, feet: true }
+    { file: 'guide-armee.png', w: 0.5, cy: 0.75, cells: 1, feet: true },
+    // planche de marche : 6 carrés de 512 × 512 en 3 colonnes × 2 rangées, la même case au sol dans chacun
+    { file: 'guide-armee-planche.png', w: 0.5, cy: 0.75, cells: 1, feet: true, cols: 3, rows: 2, size: 512 }
   ];
   for (const s of specs) {
     const b64 = await page.evaluate((s) => {
-      const c = document.createElement('canvas'); c.width = c.height = 1024;
+      const Z = s.size || 1024, cols = s.cols || 1, rows = s.rows || 1;
+      const c = document.createElement('canvas'); c.width = Z * cols; c.height = Z * rows;
       const g = c.getContext('2d');
-      g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, 1024, 1024);
+      g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, c.width, c.height);
+      for (let k = 0; k < cols * rows; k++) {
+      g.save(); g.translate((k % cols) * Z, Math.floor(k / cols) * Z); g.scale(Z / 1024, Z / 1024);
+      if (cols * rows > 1) { g.setLineDash([]); g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 6; g.strokeRect(0, 0, 1024, 1024); g.fillStyle = 'rgba(255,255,255,0.7)'; g.font = 'bold 72px sans-serif'; g.fillText(String(k + 1), 36, 96); }
       const W = 1024 * s.w, H = W / 2, cx = 512, cy = 1024 * s.cy;
       // cases intérieures (ville 2 × 2) en trait fin
       g.strokeStyle = 'rgba(220,40,40,0.55)'; g.lineWidth = 3;
@@ -75,6 +81,8 @@ async function writeGuides() {
       g.beginPath(); g.moveTo(cx, cy - H / 2); g.lineTo(cx + W / 2, cy); g.lineTo(cx, cy + H / 2); g.lineTo(cx - W / 2, cy); g.closePath(); g.stroke();
       g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 18, cy); g.lineTo(cx + 18, cy); g.moveTo(cx, cy - 18); g.lineTo(cx, cy + 18); g.stroke();
       if (s.feet) { g.setLineDash([14, 10]); g.strokeStyle = 'rgba(220,40,40,0.6)'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 220, cy - 1024 * 0.4); g.lineTo(cx + 220, cy - 1024 * 0.4); g.stroke(); }
+      g.restore();
+      }
       return c.toDataURL('image/png').split(',')[1];
     }, s);
     fs.writeFileSync(path.join(GUIDES, s.file), Buffer.from(b64, 'base64'));
@@ -122,7 +130,7 @@ ville et l'interface gardent le style peint.
 1. Donne à l'outil d'images **la référence de style** en première image : [carte-reference.jpg](img/carte-reference.jpg) (toujours la même).
 2. Sauf pour le sol, donne **l'image guide** indiquée en deuxième image : elle montre en rouge la place de la case au sol
    ([élément d'une case](img/guides-carte/guide-objet.png), [ville 2 × 2](img/guides-carte/guide-ville.png),
-   [armée](img/guides-carte/guide-armee.png)). Le guide sert seulement à placer le sujet : ni le losange rouge ni le fond gris ne doivent apparaître.
+   [armée](img/guides-carte/guide-armee.png), [planche de marche 3 × 2](img/guides-carte/guide-armee-planche.png)). Le guide sert seulement à placer le sujet : ni le losange rouge ni le fond gris ne doivent apparaître.
 3. Colle **le prompt** de l'image (bloc de texte sous son nom), demande une image carrée 1024 × 1024 (512 × 512 pour les effets).
 4. Enregistre en **PNG** sous **exactement le nom indiqué** (avec ses dossiers), par exemple \`map/world/forest/temperate_1.png\`.
    Fond transparent ; sinon un fond uni magenta (#FF00FF), détouré à l'import. Le sol, lui, est opaque.
@@ -148,9 +156,9 @@ ${groups.map((g, i) => `| ${i + 1} | [${g.title}](#partie-${i + 1}) | ${g.items.
       g.entries = g.entries || [];
       if (t.sheet) {
         const prompt = P.walkSheetPrompt(t.sheet) || t.role;
-        md += `### \`${t.sheet}.png\`\n\n${t.role}  \n**Taille** : 1536x1024, ${t.frames} poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee.png](img/guides-carte/guide-armee.png) (pour chaque case)\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n`;
-        csv.push([g.title, t.sheet + '.png', '1536x1024', 'guide-armee.png', t.role, prompt].map(esc).join(';'));
-        g.entries.push({ name: t.sheet + '.png', size: '1536x1024 (6 poses en 3 × 2)', guide: 'guide-armee.png', role: t.role, prompt });
+        md += `### \`${t.sheet}.png\`\n\n${t.role}  \n**Taille** : 1536x1024, ${t.frames} poses en grille 3 × 2 (fond transparent) · **Guide** : [guide-armee-planche.png](img/guides-carte/guide-armee-planche.png) (les 6 cases)\n\n\`\`\`text\n${prompt}\n\`\`\`\n\n`;
+        csv.push([g.title, t.sheet + '.png', '1536x1024', 'guide-armee-planche.png', t.role, prompt].map(esc).join(';'));
+        g.entries.push({ name: t.sheet + '.png', size: '1536x1024 (6 poses en 3 × 2)', guide: 'guide-armee-planche.png', role: t.role, prompt });
         continue;
       }
       const prompt = P.promptFor(t.file) || t.role;
@@ -195,7 +203,7 @@ image : il donne le nom du fichier à livrer, la taille, les images à joindre e
 
 Pour chaque image :
   1. Joins 0-reference-et-guides/carte-reference.jpg (le style à imiter, toujours la même) puis, si le .txt l'indique,
-     le guide de cadrage (guide-objet.png, guide-ville.png ou guide-armee.png : le losange rouge montre la case au sol ;
+     le guide de cadrage (guide-objet.png, guide-ville.png, guide-armee.png ou guide-armee-planche.png : le losange rouge montre la case au sol ;
      il ne doit pas apparaître sur l'image).
   2. Colle le prompt (tout ce qui suit « PROMPT À COLLER »).
   3. Enregistre le résultat en PNG sous le nom indiqué, à côté de son .txt (le nom à plat convient : map__world__ground__grass_1.png).

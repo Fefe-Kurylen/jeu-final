@@ -137,6 +137,13 @@ for (const [screen, fams] of screens) {
         const first = s.frames.find(Boolean); const t = byFile.get(first); const { prefix: pf, subject } = promptParts(first);
         const base = stripSubject(subject);
         const phases = s.n;
+        // marche des armées : une planche de 6 poses en grille 3 × 2 (1536 × 1024), avec son propre prompt complet
+        const walk = typeof P.walkSheetPrompt === 'function' ? P.walkSheetPrompt(s.base) : null;
+        if (walk) {
+          md += `| \`${s.base}.png\` | ${phases} (grille 3 × 2, image 1536×1024) | 512×512 | ${walk.split('\n\n').slice(-2).join(' ').replace(/\|/g, '/')} |\n`;
+          csv.push([`${s.base}.png`, '1536×1024', phases, 'guide-armee-planche.png', x.title, walk]);
+          continue;
+        }
         const stripPrompt = `A sprite sheet: ${phases} equal frames side by side in a single row, the exact same subject at the exact same size and position in every frame, only the pose changes from one frame to the next, frame 1 to frame ${phases}: ${base}.`;
         md += `| \`${s.base}.png\` | ${phases} | ${cellOf(t)} | ${stripPrompt.replace(/\|/g, '/')} |\n`;
         csv.push([`${s.base}.png`, `${cellOf(t).split('×')[0] * phases}×${cellOf(t).split('×')[1]}`, phases, '', x.title, `${pf}\n\nSubject: ${stripPrompt}`]);

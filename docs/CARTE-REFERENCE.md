@@ -24,13 +24,17 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 - **Graphismes** : **tout en images**. Le sol est fait de **textures répétables** ; le jeu les projette en isométrique et
   découpe lui-même les fondus entre sols voisins. Cela remplace les 126 tuiles de transition prévues au départ : un outil
   d'images ne sait pas les raccorder au pixel près, alors que le jeu le fait sans couture.
-- **Décor comme sur l'image** (26 octobre 2026), pas semé au hasard partout : champs de blé autour des villes (2 à 4 cases
-  de leurs murs) et sur la terre labourée, une meule à côté d'un champ, un chemin de terre qui part de la porte de chaque
-  ville, buissons et arbres isolés au bord de l'eau, agaves sur l'herbe sèche, cactus au désert, quelques cailloux,
-  buissons et cailloux givrés sous la neige.
-- **Armées comme sur l'image** : une colonne de 1 à 3 groupes de soldats selon la taille de l'armée, la poussière derrière ;
-  **cycles de marche** peints (6 poses) par classe et par civilisation, joués pendant la marche ; les armées des autres
-  joueurs marchent elles aussi le long de leur chemin.
+- **Décor comme sur l'image** (26 octobre 2026), pas semé au hasard partout : quelques parcelles de blé de 2 × 2 cases
+  autour des villes (2 à 3 cases de leurs murs, environ 6 cases par ville) et sur la terre labourée, jamais contre l'eau ;
+  une meule à côté d'un champ ; un chemin de terre qui part de la porte (milieu du mur avant droit) et serpente sur 4 à
+  6 cases, ou mène à un point de ressource, une lisière de forêt, une berge ou une ville voisine (96 % des villes en ont
+  un ; les autres ont l'eau ou la montagne contre leur porte) ; buissons et arbres isolés au bord de l'eau, agaves sur
+  l'herbe sèche, cactus et cailloux ocre au désert, quelques cailloux, buissons et cailloux givrés sous la neige.
+- **Armées comme sur l'image** : une colonne de 1 à 3 groupes de soldats, le héros ou l'espion en tête, la poussière
+  derrière ; **cycles de marche** peints (6 poses) par classe et par civilisation, joués pendant la marche ; les armées des
+  autres joueurs marchent elles aussi le long de leur chemin, et un clic sur une armée en marche l'ouvre. La taille de la
+  colonne ne trahit rien : elle suit l'effectif pour ses armées et celles de son alliance, elle est tirée au hasard pour
+  les autres (l'effectif ne se lit qu'avec la Tour de guet).
 - **Points de ressource comme sur l'image** (26 octobre 2026) : chacun son visuel, par ressource (camp de bûcherons,
   carrière, mine de fer, ferme, mine d'or), par terrain (tempéré, désert, neige) et par richesse (niveau 1 à 3), **sans
   couleur de civilisation** : seules les villes et les armées changent de style avec la civilisation (plus de bannière
@@ -55,11 +59,11 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 | 6 | Relief | ✅ | Montagnes gardées, amas de rochers en zone tempérée et mesas du désert (infranchissables), rochers épars du désert (franchissables). Une ville que le nouveau terrain couperait du reste de la carte est déplacée près du bord au démarrage, avec ses armées, et son propriétaire est prévenu. |
 | 7 | Lacs, quais et bateaux | ✅ code, 🎨 images | Les bateaux et quais apparaissent dès que leurs images sont livrées (environ 1 case d'eau sur 80 pour un bateau, quelques quais au bord). Palmiers autour des oasis. |
 | 8 | Grille | ✅ | Toujours visible, très légère, plus discrète de loin (touche G pour la masquer). |
-| 12 | Décor des cases | ✅ code, 🎨 images | Champs, meules, chemins, buissons, arbres isolés, agaves, cactus, cailloux, décor givré, placés comme sur l'image ; dessin de repli en attendant les 23 images. |
-| 13 | Marche des armées | ✅ code, 🎨 images | Colonnes de 1 à 3 groupes, poussière, cycles de marche peints dès leur livraison (32 images de 6 poses), armées des autres joueurs en mouvement. |
+| 12 | Décor des cases | ✅ code, 🎨 images | Champs, meules, chemins, buissons, arbres isolés, agaves, cactus, cailloux, décor givré, placés comme sur l'image ; dessin de repli en attendant les 26 images. |
+| 13 | Marche des armées | ✅ code, 🎨 images | Colonnes de 1 à 3 groupes, poussière, cycles de marche peints dès leur livraison (33 images de 6 poses, guide de planche `img/guides-carte/guide-armee-planche.png`), armées des autres joueurs en mouvement. |
 | 9 | Nouveau style | ✅ prompts | Style « diorama 3D stylisé » de la référence, sans contours ; référence de style : `img/carte-reference.jpg`. |
 | 10 | Découpage | ✅ | Sol en textures répétables, éléments posés sans socle (losange d'une case à 50 % de la largeur, centre à 75 %), villes 2 × 2 (90 %, 68 %). Guides de cadrage dans `img/guides-carte/`. |
-| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 463 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, décor des cases 23, villes 32, villes assiégées 120, points de ressource 45, camps 15, armées 43, ville en feu 4, marche des armées 32 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
+| 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 470 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, nuages 3, décor des cases 26, villes 32, villes assiégées 120, points de ressource 45, camps 15, armées 43, ville en feu 4, marche des armées 33 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
 
 Les points existants en base suivent le terrain au démarrage du serveur : biome recalculé, point tombé dans l'eau déplacé
 sur la case libre la plus proche (sauf s'il porte une ville ou une armée). Au premier démarrage : 382 points déplacés,

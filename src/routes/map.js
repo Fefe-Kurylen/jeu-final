@@ -47,8 +47,9 @@ router.get('/world/info', async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Cache viewport en mémoire : la réponse est identique pour tous les joueurs
-// TTL court (3s) -> absorbe le polling de milliers de clients sans montrer de données périmées
+// Cache viewport en mémoire : il garde la partie commune à tous les joueurs ; ce que chacun voit des armées (heure d'un
+// camp, taille de la colonne) est appliqué à chaque requête. TTL court (3s) -> absorbe le polling de milliers de clients
+// sans montrer de données périmées
 const viewportCache = new Map();
 const VIEWPORT_TTL_MS = 3000;
 const VIEWPORT_CACHE_MAX = 2000;
@@ -71,10 +72,34 @@ router.get('/map/viewport', auth, async (req, res) => {
 
     const cacheKey = `${centerX}:${centerY}:${r}`;
     const cached = viewportCache.get(cacheKey);
-    if (cached && Date.now() < cached.expires) {
-      return res.json(cached.data);
-    }
+    const shared = cached && Date.now() < cached.expires ? cached.data : await loadViewport(centerX, centerY, r, liteMode);
+    if (shared !== cached?.data && viewportCache.size < VIEWPORT_CACHE_MAX) viewportCache.set(cacheKey, { data: shared, expires: Date.now() + VIEWPORT_TTL_MS });
+    res.json(await viewFor(req.user.playerId, shared));
+  } catch (e) { sendError(res, e); }
+});
 
+// Ce que le joueur voit des armées : l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances
+// (décision du 25 octobre 2026) ; la colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de
+// son alliance, une valeur tirée de l'armée pour les autres (l'effectif ne se lit qu'avec la Tour de guet)
+async function viewFor(me, shared) {
+  const { cityOwner, armies: all, ...rest } = shared;
+  if (!all.length) return { ...rest, armies: [] };
+  const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
+  const friend = (playerId, allianceId) => playerId === me || (!!myAlliance && allianceId === myAlliance);
+  const sees = (a) => {
+    if (friend(a.ownerId, a.ownerAllianceId)) return true;
+    const o = cityOwner[a.targetCityId];
+    return !!o && friend(o.id, o.alliance);
+  };
+  const armies = all.map(({ realSquads, ownerAllianceId, ...a }) => ({
+    ...a,
+    ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}),
+    squads: friend(a.ownerId, ownerAllianceId) ? realSquads : 1 + ([...String(a.id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % 3)
+  }));
+  return { ...rest, armies };
+}
+
+async function loadViewport(centerX, centerY, r, liteMode) {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
@@ -95,19 +120,12 @@ router.get('/map/viewport', auth, async (req, res) => {
     // Civilisation de l'armée qui assiège chaque ville (sa bannière est plantée devant la ville)
     const siegedBy = {};
     for (const a of movingArmies) if (a.status === 'BESIEGING' && a.targetCityId && !siegedBy[a.targetCityId]) siegedBy[a.targetCityId] = a.owner?.faction || null;
-    // l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances (décision du 25 octobre 2026)
-    const me = req.user.playerId;
-    const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
-    const cityOwner = new Map(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
-    const campOwnerAlliance = new Map((await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.filter(a => a.status === 'BESIEGING').map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]));
-    const sees = (a) => {
-      if (a.ownerId === me || (myAlliance && campOwnerAlliance.get(a.ownerId) === myAlliance)) return true;
-      const o = cityOwner.get(a.targetCityId);
-      return !!o && (o.id === me || (myAlliance && o.alliance === myAlliance));
-    };
+    // propriétaires des villes visées et alliances des armées : de quoi appliquer à chaque joueur ce qu'il voit (viewFor)
+    const cityOwner = Object.fromEntries(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
+    const ownerAlliance = new Map(movingArmies.length ? (await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]) : []);
     // taille de la colonne dessinée sur la carte (1 à 3 groupes de soldats), comme on la voit de loin : pas l'effectif
     const squadsOf = (units) => { const n = (units || []).reduce((t, u) => t + (u.count || 0), 0); return n < 100 ? 1 : n < 500 ? 2 : 3; };
-    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, ...(a.status === 'BESIEGING' && !sees(a) ? { arrivalAt: null } : {}), hasHero: !!heroId, mainUnit: mainUnitSprite(a, units), squads: squadsOf(units) }));
+    const armies = movingArmies.map(({ units, heroId, ...a }) => ({ ...a, hasHero: !!heroId, mainUnit: mainUnitSprite(a, units), realSquads: squadsOf(units), ownerAllianceId: ownerAlliance.get(a.ownerId) || null }));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
@@ -126,11 +144,8 @@ router.get('/map/viewport', auth, async (req, res) => {
     }
     const quantize = (amount, max) => (max > 0 ? Math.round(Math.round(amount / max * 4) / 4 * max) : amount);
     const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [] }));
-    const payload = { cities: citiesWithTier, resourceNodes, armies, center: { x: centerX, y: centerY }, radius: r };
-    if (viewportCache.size < VIEWPORT_CACHE_MAX) viewportCache.set(cacheKey, { data: payload, expires: Date.now() + VIEWPORT_TTL_MS });
-    res.json(payload);
-  } catch (e) { sendError(res, e); }
-});
+    return { cities: citiesWithTier, resourceNodes, armies, cityOwner, center: { x: centerX, y: centerY }, radius: r };
+}
 
 // Catalogues de jeu (statiques, très cacheables)
 router.get('/buildings', auth, (req, res) => {

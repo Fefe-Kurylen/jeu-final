@@ -99,8 +99,12 @@ test('the main land holds almost every walkable cell', () => {
 // Import des animations livrées en une image (tools/repaint.cjs) : bande ou grille selon la forme des cases
 test('an animation delivered as one image is cut as a strip or as a grid, whichever gives frame-shaped cells', () => {
   const { gridFor } = require('../../tools/repaint/targets.cjs');
-  assert.deepEqual(gridFor(6, 1536, 1024, 512, 512), { cols: 3, rows: 2 }, '6 poses in a 3 × 2 sheet');
-  assert.deepEqual(gridFor(6, 3072, 512, 512, 512), { cols: 6, rows: 1 }, 'a horizontal strip still works');
-  assert.deepEqual(gridFor(4, 1024, 1024, 512, 512), { cols: 2, rows: 2 }, '4 poses in a 2 × 2 sheet');
-  assert.deepEqual(gridFor(6, 3072, 768, 128, 192), { cols: 6, rows: 1 }, 'tall prop frames in a strip');
+  const grid = (...a) => { const { cols, rows } = gridFor(...a); return { cols, rows }; };
+  assert.deepEqual(grid(6, 1536, 1024, 512, 512), { cols: 3, rows: 2 }, '6 poses in a 3 × 2 sheet');
+  assert.deepEqual(grid(6, 3072, 512, 512, 512), { cols: 6, rows: 1 }, 'a horizontal strip still works');
+  assert.deepEqual(grid(4, 1024, 1024, 512, 512), { cols: 2, rows: 2 }, '4 poses in a 2 × 2 sheet');
+  assert.deepEqual(grid(6, 3072, 768, 128, 192), { cols: 6, rows: 1 }, 'tall prop frames in a strip');
+  assert.equal(gridFor(6, 1536, 1024, 512, 512).error, 0, 'an exact sheet has no error');
+  assert.ok(gridFor(6, 1000, 1000, 512, 512).error > 0.1, 'a square image of 6 poses is flagged');
+  assert.deepEqual(grid(2, 1024, 1024, 1024, 1024), { cols: 2, rows: 1 }, 'on a tie, more columns than rows');
 });

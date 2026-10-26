@@ -281,7 +281,7 @@ async function importUserImages(dir) {
       }
       x.putImageData(id, 0, 0);
     }
-    return c.toDataURL('image/png').split(',')[1];
+    return { png: c.toDataURL('image/png').split(',')[1], cols, rows, error: n > 1 ? new Function('return ' + gridSrc)()(n, img.width, img.height, W, H).error : 0 };
   }, { b64, mime, W, H, i, n, anchor, keepOpaque, gridSrc: T.gridFor.toString() });
   for (const f of files) {
     const rel = path.relative(dir, f).replace(/\\/g, '/');
@@ -298,7 +298,8 @@ async function importUserImages(dir) {
       // cibles « direct » et « flat » : directement à la taille finale du fichier
       const [W, H] = t.fit === 'canvas' ? sizeFor(t).split('x').map(Number) : T.frameSize(t);
       const anchor = ['prop', 'figure', 'stage'].includes(t.frame) ? 'bottom' : 'center';
-      const png = await fit(b64, mime, W, H, i, n, anchor, !!t.opaque);
+      const { png, cols, rows, error } = await fit(b64, mime, W, H, i, n, anchor, !!t.opaque);
+      if (i === 0 && n > 1) console.log(`  ${rel} : ${n} poses découpées en ${cols} colonne${cols > 1 ? 's' : ''} × ${rows} rangée${rows > 1 ? 's' : ''}${error > 0.1 ? ' — ⚠ proportions inattendues, vérifier le découpage' : ''}`);
       // Bâtiments et chantiers : entrée au sud-est (face avant droite). Une comparaison automatique au guide n'est pas fiable
       // (la lumière reste à gauche, les silhouettes sont presque symétriques) : planche de contrôle à vérifier à l'œil
       if (t.cat === 'buildings' && t.guide) { const gp = path.join(SRC, t.guideFile || t.file); if (fs.existsSync(gp)) orientPairs.push({ rel, png, guide: fs.readFileSync(gp).toString('base64') }); }

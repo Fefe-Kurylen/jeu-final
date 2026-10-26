@@ -247,6 +247,7 @@ function mapRenderChunk(i, j, st) {
 }
 
 function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
+  _mapNight = !!night;
   const scale = Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);
   const now = performance.now();
   const failing = now < _mapChunkFailUntil;
@@ -384,39 +385,102 @@ let mapCityNear = new Map();   // "x,y" -> distance (en cases, au plus 5) au blo
 let mapRoadCells = new Set();  // cases traversées par un chemin de terre (sans décor)
 let mapRoads = [];             // [[{x, y}, …], …] tracés en coordonnées du monde
 let _mapCitySig = '';
+let _mapNight = false;         // nuit : posé par drawMapGround à chaque image
+// Décor de chaque case (mapDecorAt), gardé tant que les villes et les points de ressource ne changent pas
+const _mapDecorPlan = new Map();
+const MAP_DECOR_PLAN_MAX = 60000;
+const mapCellKey = (wx, wy) => (wx + 32768) * 65536 + (wy + 32768);
 function rebuildMapCityRings() {
   const list = [];
   const seen = new Set();
   const add = (c) => { const k = c.x + ',' + c.y; if (!seen.has(k)) { seen.add(k); list.push({ x: c.x, y: c.y }); } };
   for (const o of mapData) if (o.type === 'CITY') add(o);
   for (const c of (typeof cities !== 'undefined' ? cities : [])) add(c);
-  const sig = list.map(c => c.x + ',' + c.y).sort().join(';');
+  // signature : toutes les cases d'objets (villes et points de ressource), dont dépendent les chemins, les champs et le décor
+  let h = 0, n = 0;
+  for (const k of mapObjectCells.keys()) { let x = 0; for (let i = 0; i < k.length; i++) x = (x * 31 + k.charCodeAt(i)) | 0; h = (h + x) | 0; n++; }
+  const sig = n + ':' + h + ':' + list.length;
   if (sig === _mapCitySig) return;
   _mapCitySig = sig;
+  _mapDecorPlan.clear();
   mapCityNear = new Map(); mapRoadCells = new Set(); mapRoads = [];
   for (const c of list) for (let dy = -5; dy <= 6; dy++) for (let dx = -5; dx <= 6; dx++) {
     const d = Math.max(dx < 0 ? -dx : dx > 1 ? dx - 1 : 0, dy < 0 ? -dy : dy > 1 ? dy - 1 : 0);   // 0 sur le bloc, 1 sur la couronne
     const k = (c.x + dx) + ',' + (c.y + dy);
     if (!mapCityNear.has(k) || mapCityNear.get(k) > d) mapCityNear.set(k, d);
   }
-  // chemin de terre : il sort par le milieu de la face sud-est (vers +x) et serpente sur quelques cases, jusqu'au premier
-  // obstacle (relief, eau, forêt, autre ville)
+  // chemin de terre : il sort par la porte, au milieu de la face sud-est (vers +x), et serpente sur 4 à 6 cases ; on essaie
+  // plusieurs directions et on garde le tracé le plus long avant le premier obstacle (voir mapTraceRoad)
   for (const c of list) {
-    const pts = [], len = 4 + Math.floor(Terrain.seededRandom(c.x, c.y, 6201) * 3), ph = Terrain.seededRandom(c.x, c.y, 6202) * 6.28;
-    for (let k = 0; k <= len * 2; k++) {
-      const t = k / 2, px = c.x + 1.5 + t, py = c.y + 0.5 + Math.sin(t * 0.9 + ph) * 0.45 * Math.min(1, t / 1.5);
-      const cx = Math.round(px), cy = Math.round(py), f = getTerrainType(cx, cy).feature;
-      if (t >= 0.6 && (Terrain.BLOCKED[f] || Terrain.FOREST[f] || MAP_WET[f] || (mapObjectCells.has(cx + ',' + cy) && (cx > c.x + 1 || cy > c.y + 1 || cy < c.y)))) break;
-      pts.push({ x: px, y: py });
-      if (t >= 0.6) mapRoadCells.add(cx + ',' + cy);
+    const len = 4 + Math.floor(Terrain.seededRandom(c.x, c.y, 6201) * 3), ph = Terrain.seededRandom(c.x, c.y, 6202) * 6.28;
+    let best = null, bestScore = 0;
+    // la porte au milieu du mur, sinon un peu de côté (une ressource ou de l'eau contre le coin de la porte)
+    search: for (const y0 of [0.5, 0.25, 0.75]) for (const [hx, hy] of MAP_ROAD_HEADINGS) {
+      const r = mapTraceRoad(c, y0, hx, hy, len, ph), L = r.pts.length;
+      // un chemin qui finit dans le vide fait au moins 2 cases ; un chemin qui mène quelque part (point de ressource,
+      // lisière de forêt, berge, ville voisine) peut être plus court ; à longueur égale, la porte du milieu
+      const score = (r.dest ? (L >= 3 ? L + 4 : 0) : L > 8 ? L : 0) - (y0 === 0.5 ? 0 : 0.5);
+      if (score > bestScore) { best = r; bestScore = score; }
+      if (L > len * 4 && y0 === 0.5) break search;   // tracé complet depuis le milieu de la porte
     }
-    if (pts.length > 2) mapRoads.push(pts);
+    if (best) { mapRoads.push(best.pts); for (const k of best.marks) mapRoadCells.add(k); }
   }
 }
+// Un tracé de chemin depuis la porte, dans la direction (hx, hy) : il s'arrête à l'eau ou à un objet dès la porte, puis à
+// tout élément posé (relief, forêt, rochers…) et avant un relief juste au sud, dont l'image le cacherait. Les cases que la
+// trace touche (des deux côtés) restent sans décor.
+const MAP_ROAD_HEADINGS = [[1, 0], [1, 0.45], [1, -0.45], [0.8, 0.8], [0.8, -0.8], [0.5, 1], [0.5, -1]];
+const MAP_ROAD_HALF = 0.14;   // demi-largeur de la trace, en cases (avec sa bordure)
+function mapTraceRoad(c, y0, hx, hy, len, ph) {
+  const n = Math.hypot(hx, hy), ux = hx / n, uy = hy / n;
+  const pts = [], marks = [];
+  for (let k = 0; k <= len * 4; k++) {
+    const t = k / 4, wob = Math.sin(t * 0.9 + ph) * 0.45 * Math.min(1, t / 1.5);
+    const px = c.x + 1.5 + ux * t - uy * wob, py = c.y + y0 + uy * t + ux * wob;
+    const cells = new Set();
+    for (const [ox, oy] of [[0, 0], [-MAP_ROAD_HALF, -MAP_ROAD_HALF], [MAP_ROAD_HALF, -MAP_ROAD_HALF], [-MAP_ROAD_HALF, MAP_ROAD_HALF], [MAP_ROAD_HALF, MAP_ROAD_HALF]]) cells.add(Math.round(px + ox) + ',' + Math.round(py + oy));
+    let into = false;   // le chemin entre sous les premiers arbres d'une forêt, puis s'arrête
+    for (const key of cells) {
+      const [cx, cy] = key.split(',').map(Number);
+      if (cx >= c.x && cx <= c.x + 1 && cy >= c.y && cy <= c.y + 1) continue;   // le bloc de la ville elle-même
+      const f = getTerrainType(cx, cy).feature;
+      if (MAP_WET[f] || mapObjectCells.has(key)) return { pts, marks, dest: t >= 0.6 };   // berge, point de ressource, ville voisine
+      if (t < 0.6 || !f || terrainBlockedAt(cx, cy)) continue;   // (autour d'une ville, le relief est effacé)
+      if (Terrain.FOREST[f]) { into = true; continue; }
+      return { pts, marks, dest: false };   // relief, rochers, dunes, ruines : le chemin s'arrête avant
+    }
+    if (!into && t >= 0.6) for (const key of cells) {   // un relief juste au sud : son image cacherait le chemin
+      const [cx, cy] = key.split(',').map(Number);
+      for (const [dx, dy] of [[1, 0], [0, 1], [1, 1]]) if (mapIsMountain(getTerrainType(cx + dx, cy + dy)) && !terrainBlockedAt(cx + dx, cy + dy)) return { pts, marks, dest: false };
+    }
+    pts.push({ x: px, y: py });
+    if (into) return { pts, marks, dest: true };
+    if (t >= 0.6) marks.push(...cells);
+  }
+  return { pts, marks, dest: false };
+}
 // Chemins de terre, dessinés sur le sol avant les éléments posés
+// texture du chemin : un motif à elle, accroché au monde (il suit la carte quand on la déplace) et à l'échelle du zoom
+let _mapRoadPattern = null, _mapRoadSrc = null;
+const MAP_ROAD_TEX_CELLS = 1.5;   // la texture couvre 1,5 case de large
+function mapRoadPattern(worldToScreen, tw) {
+  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl('road_dirt') : null;
+  const img = url && typeof getSprite === 'function' ? getSprite(url) : null;
+  if (!img || typeof DOMMatrix !== 'function') return null;
+  if (_mapRoadSrc !== img) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'); if (!g) return null;
+    g.drawImage(img, 0, 0, 256, 256);
+    _mapRoadPattern = mapCtx.createPattern(c, 'repeat'); _mapRoadSrc = img;
+  }
+  if (!_mapRoadPattern || typeof _mapRoadPattern.setTransform !== 'function') return null;
+  const o = worldToScreen(0, 0), k = tw * MAP_ROAD_TEX_CELLS / 256;
+  _mapRoadPattern.setTransform(new DOMMatrix().translate(o.x, o.y).scale(k));
+  return _mapRoadPattern;
+}
 function drawMapRoads(worldToScreen, tw, night) {
   if (!mapRoads.length) return;
-  const tex = typeof getTerrainPattern === 'function' ? getTerrainPattern(mapCtx, 'road_dirt') : null;
+  const tex = mapRoadPattern(worldToScreen, tw);
   mapCtx.save();
   mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
   for (const pts of mapRoads) {
@@ -431,18 +495,35 @@ function drawMapRoads(worldToScreen, tw, night) {
 }
 
 const MAP_SHORE = (wx, wy) => { for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (MAP_WET[getTerrainType(wx + dx, wy + dy).feature]) return true; return false; };
-// Le champ de blé d'une case libre (sans relief) : autour des villes et sur la terre labourée, par groupes
+// Le champ de blé d'une case libre (sans relief), comme sur la carte de référence : quelques parcelles de 2 × 2 cases à 2 ou
+// 3 cases des murs (environ 6 cases par ville), et sur la terre labourée ; jamais contre l'eau ni sur la plage
+const mapParcel = (v) => Math.floor(v / 2);
 function mapWheatAt(wx, wy) {
   const t = getTerrainType(wx, wy);
   if (t.feature || t.biome !== 'forest' || mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return false;
   const g = Terrain.groundAt(wx, wy);
-  if (g === 'water' || g === 'ice' || g === 'sand' || MAP_SHORE(wx, wy)) return false;
-  const zone = Terrain.valueNoise(wx, wy, 6102, 2.5) > 0.42, r = Terrain.seededRandom(wx, wy, 6103);
+  if (g === 'water' || g === 'ice' || g === 'sand') return false;
   const near = mapCityNear.get(wx + ',' + wy);
-  return zone && ((near >= 2 && near <= 4 && r < 0.6) || (g === 'earth' && r < 0.5));
+  const px = mapParcel(wx), py = mapParcel(wy);
+  if (!(Terrain.valueNoise(px, py, 6102, 1.5) > 0.4)) return false;
+  const r = Terrain.seededRandom(px, py, 6103);
+  if (!((near >= 2 && near <= 3 && r < 0.45) || (g === 'earth' && r < 0.2))) return false;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if ((dx || dy) && (MAP_WET[getTerrainType(wx + dx, wy + dy).feature] || Terrain.groundAt(wx + dx, wy + dy) === 'sand')) return false;
+  }
+  return true;
 }
-// Le décor d'une case libre : { kind, prefix, n } (images map/world/fields|decor/…) ou null
+// Le décor d'une case libre : { kind, prefix, n } (images map/world/fields|decor/…) ou null ; calculé une fois par case
 function mapDecorAt(wx, wy, terrain) {
+  const key = mapCellKey(wx, wy);
+  let d = _mapDecorPlan.get(key);
+  if (d !== undefined) return d;
+  d = mapDecorPlanAt(wx, wy, terrain);
+  if (_mapDecorPlan.size >= MAP_DECOR_PLAN_MAX) _mapDecorPlan.clear();
+  _mapDecorPlan.set(key, d);
+  return d;
+}
+function mapDecorPlanAt(wx, wy, terrain) {
   if (terrain.feature || mapRoadCells.has(wx + ',' + wy)) return null;
   const g = Terrain.groundAt(wx, wy);
   if (g === 'water' || g === 'ice') return null;
@@ -455,7 +536,7 @@ function mapDecorAt(wx, wy, terrain) {
   if (terrain.biome === 'desert') {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === 'oasis') return null;   // les palmiers de l'oasis
     if (r < 0.05) return { kind: 'cactus', prefix: 'map/world/decor/cactus_', n: 2 };
-    if (r > 0.95) return { kind: 'stones', prefix: 'map/world/decor/stones_', n: 3 };
+    if (r > 0.95) return { kind: 'desertstones', prefix: 'map/world/decor/desert_stones_', n: 3 };
     return null;
   }
   if (mapWheatAt(wx, wy)) return { kind: 'wheat', prefix: 'map/world/fields/wheat_', n: 3 };
@@ -471,21 +552,26 @@ function mapDecorAt(wx, wy, terrain) {
 function drawLegacyDecor(kind, x, y, tw, th, wx, wy) {
   const j = (s) => Terrain.seededRandom(wx, wy, s) - 0.5;
   if (kind === 'wheat') {
-    const k = 0.92;
+    const k = 0.99;   // les cases d'une parcelle se touchent
     mapCtx.beginPath(); mapCtx.moveTo(x, y - th / 2 * k); mapCtx.lineTo(x + tw / 2 * k, y); mapCtx.lineTo(x, y + th / 2 * k); mapCtx.lineTo(x - tw / 2 * k, y); mapCtx.closePath();
     mapCtx.fillStyle = '#d8b04a'; mapCtx.fill();
-    mapCtx.strokeStyle = 'rgba(150,108,30,0.55)'; mapCtx.lineWidth = Math.max(0.6, tw * 0.012);
-    for (let i = 1; i < 6; i++) { const u = i / 6 - 0.5; mapCtx.beginPath(); mapCtx.moveTo(x - tw / 4 * k + u * tw / 2 * k, y - th / 4 * k - u * th / 2 * k); mapCtx.lineTo(x + tw / 4 * k + u * tw / 2 * k, y + th / 4 * k - u * th / 2 * k); mapCtx.stroke(); }
+    if (_mapNight) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fill(); }   // le champ fait partie du sol : même voile de nuit
+    if (tw < 24) return;   // de loin, pas de sillons
+    mapCtx.strokeStyle = _mapNight ? 'rgba(40,34,20,0.55)' : 'rgba(150,108,30,0.55)'; mapCtx.lineWidth = Math.max(0.6, tw * 0.012);
+    mapCtx.beginPath();   // les sillons en un seul tracé
+    for (let i = 1; i < 6; i++) { const u = i / 6 - 0.5; mapCtx.moveTo(x - tw / 4 * k + u * tw / 2 * k, y - th / 4 * k - u * th / 2 * k); mapCtx.lineTo(x + tw / 4 * k + u * tw / 2 * k, y + th / 4 * k - u * th / 2 * k); }
+    mapCtx.stroke();
     return;
   }
   if (kind === 'haystack') {
     const s = tw * 0.12;
     mapCtx.fillStyle = 'rgba(0,0,0,0.18)'; mapCtx.beginPath(); mapCtx.ellipse(x + s * 0.4, y + s * 0.15, s * 1.1, s * 0.45, 0, 0, Math.PI * 2); mapCtx.fill();
     mapCtx.fillStyle = '#d9b354'; mapCtx.beginPath(); mapCtx.ellipse(x, y - s * 0.4, s, s * 0.85, 0, Math.PI, 0); mapCtx.lineTo(x + s, y); mapCtx.lineTo(x - s, y); mapCtx.closePath(); mapCtx.fill();
+    if (_mapNight) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fill(); }
     return;
   }
-  if (kind === 'stones' || kind === 'snowstones') {
-    mapCtx.fillStyle = kind === 'snowstones' ? '#c9d2da' : '#9a958a';
+  if (kind === 'stones' || kind === 'snowstones' || kind === 'desertstones') {
+    mapCtx.fillStyle = kind === 'snowstones' ? '#c9d2da' : kind === 'desertstones' ? '#b48a5a' : '#9a958a';
     for (let i = 0; i < 3; i++) { mapCtx.beginPath(); mapCtx.ellipse(x + j(6110 + i) * tw * 0.4, y + j(6120 + i) * th * 0.4, tw * 0.035, th * 0.05, 0, 0, Math.PI * 2); mapCtx.fill(); }
     return;
   }
@@ -501,13 +587,14 @@ function drawLegacyDecor(kind, x, y, tw, th, wx, wy) {
     for (const [ox, oy, rr] of [[-0.05, 0, 0.07], [0.05, -0.01, 0.06], [0, -0.05, 0.065]]) { mapCtx.beginPath(); mapCtx.arc(bx + ox * tw, by + oy * tw, rr * tw, 0, Math.PI * 2); mapCtx.fill(); }
     return;
   }
-  if (kind === 'tree') { drawIsoTree(x + j(6150) * tw * 0.2, y - th * 0.15, tw * 0.3, th * 0.75); }
+  if (kind === 'tree') { drawIsoTree(x + j(6150) * tw * 0.2, y - th * 0.15, tw * 0.3, th * 0.75, Terrain.seededRandom(wx, wy, 6151)); }
 }
 
 // Décor sans effet sur le jeu : palmiers au bord des oasis, bateaux et quais sur l'eau (seulement peints, sauf les palmiers)
 function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
   const f = terrain.feature;
   if (!f && terrain.biome === 'desert') {
+    if (mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return;   // pas de palmier sur un chemin ni contre une ville
     let oasis = false;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === 'oasis') { oasis = true; break; }
     if (!oasis || Terrain.seededRandom(wx, wy, 5157) > 0.6) return;
@@ -571,19 +658,21 @@ function drawMapClouds(worldToScreen, w, h, tw, night) {
     const drift = ((t * MAP_CLOUD_SPEED + Terrain.seededRandom(gx, gy, 7302) * MAP_CLOUD_CELL) % MAP_CLOUD_CELL);   // vers le sud-est
     const cx = gx * MAP_CLOUD_CELL + drift, cy = gy * MAP_CLOUD_CELL + Terrain.seededRandom(gx, gy, 7303) * MAP_CLOUD_CELL;
     const p = worldToScreen(cx, cy);
-    const size = tw * (3 + Terrain.seededRandom(gx, gy, 7304) * 3);
+    const v = worldVariant('map/world/fx/cloud_', 3, gx, gy, 7305), img = v && worldArt(v);
+    if (v && !img) continue;   // image en cours de chargement
+    // sans image livrée : un voile à peine visible, plus petit (le repli ne doit pas noyer le décor)
+    const size = tw * (img ? 3 + Terrain.seededRandom(gx, gy, 7304) * 3 : 1.5 + Terrain.seededRandom(gx, gy, 7304) * 1.5);
     if (p.x < -size * 1.5 || p.x > w + size * 1.5 || p.y < -size || p.y > h + size) continue;
     drawn++;
     const lift = size * 0.9;   // le nuage flotte au-dessus de son ombre
     const fade = Math.min(1, drift / 2, (MAP_CLOUD_CELL - drift) / 2);   // apparaît et s'efface en douceur aux bords de sa case
-    const v = worldVariant('map/world/fx/cloud_', 3, gx, gy, 7305), img = v && worldArt(v);
     mapCtx.save();
-    mapCtx.globalAlpha = (night ? 0.035 : 0.07) * fade;   // ombre au sol
+    mapCtx.globalAlpha = (night ? 0.035 : 0.07) * fade * (img ? 1 : 0.6);   // ombre au sol
     mapCtx.fillStyle = '#1c2a18'; mapCtx.beginPath(); mapCtx.ellipse(p.x, p.y, size * 0.55, size * 0.22, 0, 0, Math.PI * 2); mapCtx.fill();
-    mapCtx.globalAlpha = (night ? 0.12 : 0.3) * fade;
+    mapCtx.globalAlpha = (night ? 0.12 : 0.3) * fade * (img ? 1 : 0.33);
     if (img) mapCtx.drawImage(img, p.x - size * 0.75, p.y - lift - size * 0.4, size * 1.5, size * 0.8);
-    else if (!v) {
-      for (let k = 0; k < 5; k++) {   // repli dessiné : quelques boules de brume
+    else {
+      for (let k = 0; k < 4; k++) {   // repli dessiné : quelques boules de brume
         const ox = (Terrain.seededRandom(gx * 7 + k, gy, 7306) - 0.5) * size * 0.9, oy = (Terrain.seededRandom(gx, gy * 7 + k, 7307) - 0.5) * size * 0.25, r = size * (0.22 + Terrain.seededRandom(gx + k, gy + k, 7308) * 0.18);
         const g = mapCtx.createRadialGradient(p.x + ox, p.y - lift + oy, 0, p.x + ox, p.y - lift + oy, r);
         g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');

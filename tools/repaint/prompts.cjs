@@ -246,14 +246,20 @@ function frameOf(file) {
 const MW = require('./map-world.cjs');
 // Cycles de marche de la carte (décision du 26 octobre 2026) : 6 poses qui bouclent, livrées en une image de 3 × 2 poses
 const WALK_POSES = ['left foot forward, touching the ground', 'body lowest, weight on the left foot, right leg bending', 'right leg passing the left one, body highest', 'right foot forward, touching the ground', 'body lowest, weight on the right foot, left leg bending', 'left leg passing the right one, body highest'];
-const WALK_RE = /^map\/units\/(hoplite|archer|cavalry|catapult|hero|merchant|settler)(?:_([A-Z]+))?_walk(?:_(\d))?\.webp$/;
+const WALK_RE = /^map\/units\/(hoplite|archer|cavalry|catapult|hero|merchant|settler|spy)(?:_([A-Z]+))?_walk(?:_(\d))?\.webp$/;
+// mêmes sujets que les images immobiles de la carte (promptFor, map/units/<nom>.webp) : la marche les remplace pendant le trajet
 function walkWho(u, civ) {
-  if (u === 'merchant') return 'a merchant convoy: a cart loaded with crates and sacks pulled by a horse, the merchant walking beside it';
+  const civLook = civ ? `, ${civ.toLowerCase()} faction with ${HEAD[civ]} and faction colors` : ', Roman style';
+  if (u === 'merchant') return 'a merchant: a wooden cart loaded with crates pulled by a horse';
+  if (u === 'spy') return 'a spy: a hooded rider on a dark horse, cloak flying';
+  if (u === 'cavalry') return `${CLASS.CAVALRY}${civLook}`;
+  if (u === 'catapult') return `a siege engineer with his catapult on wooden wheels${civLook}`;
+  if (u === 'hoplite' || u === 'archer') return `two ${CLASS[UNIT_NAME[u]].replace(/^an? /, '').replace('soldier', 'soldiers').replace('archer ', 'archers ')}${civLook}`;
   if (u === 'settler') return 'a settlers\' party: a covered ox-wagon with a family walking beside it carrying bundles, a man holding a wooden stake with a small flag';
   if (u === 'hero') return `the ${civ.toLowerCase()} hero with ${HEAD[civ]}, golden armor and a cape, riding a horse in front of two soldiers`;
-  return `a small squad of three or four marching figures, each one ${CLASS[UNIT_NAME[u]]}${civ ? `, ${civ.toLowerCase()} faction with ${HEAD[civ]} and faction colors` : ''}`;
+  return `a small squad of marching figures${civLook}`;
 }
-const WALK_HOW = (u) => (u === 'cavalry' || u === 'hero' ? 'the horses walk (legs in the walking gait), riders bob slightly' : u === 'catapult' ? 'the engineers push and pull the catapult, its wheels turn' : u === 'merchant' || u === 'settler' ? 'the animals and people walk, the wheels turn' : 'the soldiers march in step');
+const WALK_HOW = (u) => (u === 'cavalry' || u === 'hero' || u === 'spy' ? 'the horses walk (legs in the walking gait), riders bob slightly' : u === 'catapult' ? 'the engineer pushes the catapult, its wheels turn' : u === 'merchant' || u === 'settler' ? 'the animals and people walk, the wheels turn' : 'the soldiers march in step');
 function walkFramePrompt(file) {
   const m = file.match(WALK_RE);
   if (!m || m[3] === undefined) return null;
@@ -264,7 +270,7 @@ function walkFramePrompt(file) {
 function walkSheetPrompt(base) {
   const m = (base + '.webp').match(WALK_RE);
   if (!m) return null;
-  return `${MW.MAP_STYLE} ${MW.BG}\n\nComposition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk.\n\nSubject: ${walkWho(m[1], m[2])}, walking toward the lower right (${WALK_HOW(m[1])}). The six poses of the cycle: ${WALK_POSES.map((p, k) => `${k + 1}) ${p}`).join('; ')}.`;
+  return `${MW.MAP_STYLE} ${MW.BG}\n\nComposition: a SPRITE SHEET of 6 frames in a grid of 3 columns and 2 rows: image 1536 x 1024, each frame a 512 x 512 square, no gap, no border, no numbers; frames read left to right, top row then bottom row. In every square the same figures, with the same size and the same position: they stand on the centre of a one-tile isometric diamond (50% of the square width, its centre at 75% of the square height, not drawn), overall height about 40% of the square. Only the pose changes from one frame to the next, so that the six frames loop as a walk. The second image is a layout guide that shows the six squares and, in each one, that diamond in red: use it only to place the figures, do not draw the red diamonds, the numbers, the marks or the grey background.\n\nSubject: ${walkWho(m[1], m[2])}, walking toward the lower right (${WALK_HOW(m[1])}). The six poses of the cycle: ${WALK_POSES.map((p, k) => `${k + 1}) ${p}`).join('; ')}.`;
 }
 function promptFor(file, opts = {}) {
   if (file.startsWith('map/')) {

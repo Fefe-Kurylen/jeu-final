@@ -19,17 +19,17 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
-| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 224 |
+| 5 | Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) | 227 |
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
 | 9 | Compléments fixes et visuels de boutique | 26 |
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
-| 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 384 |
+| 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 546 |
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1718** |
+| | **Total** | **1883** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -300,7 +300,7 @@ Vue de dessus, répétables, 1024×1024 ; prompts : `docs/GUIDE-COMPLEMENTS-ANIM
 - `walls/SULTAN/3_seg_z_low.png` — 1024×1024
 - `walls/SULTAN/3_tower.png` — 1024×1024
 
-## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (224)
+## 5. Carte du monde (sol, forêts, rochers, ponts et gués, villes 2 × 2, ressources, camps barbares, armées en marche) (227)
 
 Style de la carte de référence : prompts prêts à coller et guides de cadrage dans `docs/PROMPTS-CARTE.md`.
 
@@ -480,6 +480,9 @@ Style de la carte de référence : prompts prêts à coller et guides de cadrage
 - `map/world/decor/snow_bush_2.png` — 1024×1024
 - `map/world/decor/snow_stones_1.png` — 1024×1024
 - `map/world/decor/snow_stones_2.png` — 1024×1024
+- `map/world/decor/desert_stones_1.png` — 1024×1024
+- `map/world/decor/desert_stones_2.png` — 1024×1024
+- `map/world/decor/desert_stones_3.png` — 1024×1024
 - `map/world/fx/cloud_1.png` — 1024×1024
 - `map/world/fx/cloud_2.png` — 1024×1024
 - `map/world/fx/cloud_3.png` — 1024×1024
@@ -689,15 +692,15 @@ Guide § T2, T4, T5, T6.
 - `terrain/edge_cliff.png` (1024×256) — 1024×256
 - `terrain/edge_road.png` (1024×256) — 1024×256
 
-## 11. Animations (bandes de phases, voir guide § 0 et § A1-A11) (384)
+## 11. Animations (bandes de phases, voir guide § 0 et § A1-A11) (546)
 
-384 images au total ; livrer une bande par animation, je découpe.
+546 images au total ; livrer une bande par animation, je découpe.
 
 - A1 — props/villager_<CIV>_<a|b>_<0..5>.png — 72 images — cases 512×768 — villageois (homme, femme) de chaque civilisation qui marchent dans la ville
 - A2 — props/flame_<0..3>.png, props/brazier_<0..3>.png — 8 images — cases 512×768 — flammes des torches et braseros
 - A3 — props/worker_<CIV>_<0..3>.png — 24 images — cases 512×768 — chantier : ouvrier au marteau de chaque civilisation (échafaudages : compléments fixes § S11)
 - A4 — anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png — 14 images — cases 512×512 — moulin, forge, fonderie
-- A5 — map/units/<hoplite|archer|cavalry|catapult|merchant|settler>_walk_<0..5>.png — 36 images — cases 512×512 — cycles de marche sur la carte (armées, marchand, cortège de colons)
+- A5 — map/units/<hoplite|archer|cavalry|catapult|hero>_<CIV>_walk.png, merchant_walk.png, settler_walk.png, spy_walk.png (découpées en _walk_<0..5>) — 198 images — cases 33 planches de 1536×1024 (6 poses de 512×512 en 3 × 2) — cycles de marche sur la carte (armées de chaque civilisation, héros, marchand, cortège de colons, espion)
 - A6 — map/units/<classe>_attack_<0..2>.png, <classe>_hit_<0..1>.png, fx/arrow.png, fx/stone.png, fx/impact_<0..2>.png — 25 images — cases 512×512 — replay de bataille
 - A7 — map/fx/battle_<0..3>.png, map/fx/fire_<0..3>.png, map/fx/campfire_<0..3>.png — 12 images — cases 512×512 — combat, ville en feu, feu de camp
 - A8 — ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png — 16 images — cases 512×512 — effets d'interface
