@@ -237,6 +237,7 @@ function onWorldTerrainChanged() {
   releaseMapGround();
   _mapCitySig = ''; _mapDecorPlan.clear();
   if (typeof armyRouteCache !== 'undefined') armyRouteCache.clear();
+  if (typeof _armyRoutePending !== 'undefined') _armyRoutePending.clear();   // réponses en route pour l'ancienne carte : ignorées
   if (typeof terrainSpriteCache !== 'undefined') terrainSpriteCache.clear();
   if (typeof isoStatic !== 'undefined') isoStatic.key = '';
   if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender();

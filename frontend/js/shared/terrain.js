@@ -212,6 +212,16 @@
     const dist = (ax, ay, bx, by) => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));   // racine exacte partout
     const E = MAX_COORD - 12;   // les sources, juste à l'intérieur du bord
     const rivers = [];
+    // cours déjà tracés, rangés par carrés de 4 cases : une case est « près d'une rivière » à 4 cases au plus
+    const riverBuckets = new Map();
+    const nearRiver = (x, y) => {
+      const bx = Math.floor(x / 4), by = Math.floor(y / 4);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const b = riverBuckets.get((bx + dx) + ',' + (by + dy));
+        if (b) for (let i = 0; i < b.length; i += 2) if ((b[i] - x) * (b[i] - x) + (b[i + 1] - y) * (b[i + 1] - y) <= 16) return true;
+      }
+      return false;
+    };
     // comme sur la carte de référence : deux sources par bord du monde, dans un ordre tiré au hasard
     const sides = [0, 1, 2, 3, 0, 1, 2, 3];
     for (let i = sides.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [sides[i], sides[j]] = [sides[j], sides[i]]; }
@@ -227,7 +237,16 @@
       const pts = riverPath(cand, rivers.length);
       const nearEdge = pts.filter(([x, y]) => Math.min(x - MIN_COORD, MAX_COORD - x, y - MIN_COORD, MAX_COORD - y) < 14).length;
       if (pts.length < 120 || nearEdge > pts.length * 0.2) continue;
+      // une rivière peut en rejoindre une autre (un confluent), pas la croiser ni la longer à plusieurs reprises
+      let entries = 0, inside = false;
+      for (const [x, y] of pts) {
+        const near = nearRiver(x, y);
+        if (near && !inside) entries++;
+        inside = near;
+      }
+      if (entries > 1) continue;
       rivers.push(cand);
+      for (const [x, y] of pts) { const k = Math.floor(x / 4) + ',' + Math.floor(y / 4); let b = riverBuckets.get(k); if (!b) riverBuckets.set(k, b = []); b.push(x, y); }
     }
     const lakes = [];
     for (let tries = 0; lakes.length < LEGACY_LAKES.length && tries < 400; tries++) {
@@ -235,12 +254,19 @@
       if (lakes.some(o => dist(o.cx, o.cy, cx, cy) < 50)) continue;
       lakes.push({ cx, cy, radius: Math.round(pick(5, 10.99)) });
     }
+    // distance entre deux segments (chaînes) : 0 s'ils se croisent, sinon la plus courte des distances bout-segment
+    const pointSeg = (px, py, s) => { const dx = s.ex - s.sx, dy = s.ey - s.sy, L = dx * dx + dy * dy; const t = L ? Math.max(0, Math.min(1, ((px - s.sx) * dx + (py - s.sy) * dy) / L)) : 0; return dist(px, py, s.sx + t * dx, s.sy + t * dy); };
+    const side = (ax, ay, bx, by, cx, cy) => Math.sign((bx - ax) * (cy - ay) - (by - ay) * (cx - ax));   // coordonnées entières : exact
+    const segDist = (a, b) => (side(a.sx, a.sy, a.ex, a.ey, b.sx, b.sy) * side(a.sx, a.sy, a.ex, a.ey, b.ex, b.ey) < 0 && side(b.sx, b.sy, b.ex, b.ey, a.sx, a.sy) * side(b.sx, b.sy, b.ex, b.ey, a.ex, a.ey) < 0)
+      ? 0 : Math.min(pointSeg(a.sx, a.sy, b), pointSeg(a.ex, a.ey, b), pointSeg(b.sx, b.sy, a), pointSeg(b.ex, b.ey, a));
     const ranges = [];
     for (let tries = 0; ranges.length < LEGACY_RANGES.length && tries < 400; tries++) {
       const mx = pick(-120, 120), my = pick(-120, 120), ang = rng(), half = pick(45, 65);   // ang en unités de π
-      if (ranges.some(o => dist((o.sx + o.ex) / 2, (o.sy + o.ey) / 2, mx, my) < 80)) continue;
       const clamp = (v) => Math.max(MIN_COORD + 8, Math.min(MAX_COORD - 8, Math.round(v)));
-      ranges.push({ sx: clamp(mx - cosPi(ang) * half), sy: clamp(my - sinPi(ang) * half), ex: clamp(mx + cosPi(ang) * half), ey: clamp(my + sinPi(ang) * half), width: 3 + Math.floor(rng() * 3) });
+      const cand = { sx: clamp(mx - cosPi(ang) * half), sy: clamp(my - sinPi(ang) * half), ex: clamp(mx + cosPi(ang) * half), ey: clamp(my + sinPi(ang) * half), width: 3 + Math.floor(rng() * 3) };
+      // deux chaînes ne se touchent pas : un mur d'un seul tenant ou une vallée en cul-de-sac couperait la carte
+      if (ranges.some(o => segDist(cand, o) < cand.width + o.width + 12)) continue;
+      ranges.push(cand);
     }
     return { rivers, lakes, ranges };
   }
@@ -486,17 +512,40 @@
       if (isMainland(x, y)) { main++; if (t.biome === 'forest') mainTemperate++; }
     }
     const perRiver = RIVER_SOURCES.map((_, r) => crossings.filter(c => c.river === r).length);
+    // morceaux de biome détachés (une île de neige au milieu du tempéré…) : la taille du plus grand, hors morceau principal
+    const B = new Uint8Array(N * N), lab = new Int32Array(N * N).fill(-1), code = { forest: 0, snow: 1, desert: 2 };
+    for (let y = MIN_COORD; y <= MAX_COORD; y++) for (let x = MIN_COORD; x <= MAX_COORD; x++) B[(y - MIN_COORD) * N + (x - MIN_COORD)] = code[getTerrainType(x, y).biome];
+    const sizes = [[], [], []];
+    for (let i = 0; i < N * N; i++) {
+      if (lab[i] >= 0) continue;
+      const b = B[i], stack = [i];
+      lab[i] = i; let n = 0;
+      while (stack.length) {
+        const j = stack.pop(); n++;
+        const x = j % N, y = (j - x) / N;
+        for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+          if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+          const k = ny * N + nx;
+          if (lab[k] < 0 && B[k] === b) { lab[k] = i; stack.push(k); }
+        }
+      }
+      sizes[b].push(n);
+    }
+    const biomeEnclave = Math.max(0, ...sizes.map(a => a.sort((p, q) => q - p).slice(1)).flat());
     return {
       seed: WORLD_SEED, cells: N * N, snow: snow / (N * N), desert: desert / (N * N), temperate: temperate / (N * N),
       walkable: walkable / (N * N), mainland: walkable ? main / walkable : 0, mainlandTemperateCells: mainTemperate,
       rivers: RIVER_SOURCES.length, crossings: crossings.length, bridges: crossings.filter(c => riverTiles.get(c.cells[0][0] + ',' + c.cells[0][1]) === 'bridge').length,
-      crossingsPerRiver: perRiver, lakes: LAKES.length, ranges: RANGES.length
+      crossingsPerRiver: perRiver, lakes: LAKES.length, ranges: RANGES.length, biomeEnclave
     };
   }
-  // Une carte jouable : presque toute la terre d'un seul tenant, des biomes dans leurs proportions, chaque rivière traversable
+  // Une carte jouable : presque toute la terre d'un seul tenant, des biomes dans leurs proportions et d'un seul tenant (pas
+  // d'île de neige au milieu du tempéré au-delà de quelques cases), chaque rivière traversable
+  const BIOME_ENCLAVE_MAX = 150;
   function worldStatsOk(st) {
     return st.mainland >= 0.9 && st.snow >= 0.1 && st.snow <= 0.3 && st.desert >= 0.1 && st.desert <= 0.3 &&
-      st.mainlandTemperateCells >= 40000 && st.rivers === LEGACY_RIVERS.length && st.crossingsPerRiver.every(n => n >= 2);
+      st.mainlandTemperateCells >= 40000 && st.rivers === LEGACY_RIVERS.length && st.crossingsPerRiver.every(n => n >= 2) &&
+      (st.biomeEnclave === undefined || st.biomeEnclave <= BIOME_ENCLAVE_MAX);
   }
   const layout = () => ({ seed: WORLD_SEED, rivers: RIVER_SOURCES.map(r => ({ ...r })), lakes: LAKES.map(l => ({ ...l })), ranges: RANGES.map(r => ({ ...r })) });
 
@@ -507,6 +556,7 @@
   // Les tableaux de travail sont gardés d'un appel à l'autre (marqués par un numéro d'appel) ; chaque case n'est testée
   // qu'une fois par appel (passage, coût), ce qui ne change rien au chemin trouvé.
   const CELLS = WORLD_SIZE * WORLD_SIZE;
+  const POCKET_FLOOD_MAX = 5000;   // cases au plus pour reconnaître une poche fermée autour d'une destination
   let pfStamp = 0, pfSeen = null, pfClosed, pfG, pfCame, pfBlk, pfCost;
   function pfBuffers() {
     if (pfSeen) return;
@@ -554,6 +604,26 @@
       return top;
     };
     if (!inWorld(fromX, fromY)) return null;
+    // destination dans une poche fermée (hors de la terre ferme principale) : une petite inondation depuis elle, avec les
+    // mêmes règles de passage, dit tout de suite si le départ est atteignable (les mouvements sont symétriques) ; sans
+    // cela, A* parcourrait toute la terre ferme avant de renoncer. Deux cases de la terre ferme se rejoignent toujours
+    // (les villes et les points ne bouchent jamais un passage).
+    if (!(isMainland(fromX, fromY) && isMainland(toX, toY))) {
+      const seen = new Set([idx(toX, toY)]), stack = [toX, toY];
+      let reached = false;
+      while (stack.length && !reached && seen.size <= POCKET_FLOOD_MAX) {
+        const y = stack.pop(), x = stack.pop();
+        for (let dy = -1; dy <= 1 && !reached; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (blocked(nx, ny) || (dx && dy && blocked(x + dx, y) && blocked(x, y + dy))) continue;
+          if (nx === fromX && ny === fromY) { reached = true; break; }
+          const k = idx(nx, ny);
+          if (!seen.has(k)) { seen.add(k); stack.push(nx, ny); }
+        }
+      }
+      if (!reached && !stack.length) return null;   // la poche est fermée et le départ n'y est pas
+    }
     push({ x: fromX, y: fromY, g: 0, f: h(fromX, fromY) });
     const start = idx(fromX, fromY);
     pfSeen[start] = stamp; pfG[start] = 0; pfCame[start] = -1;

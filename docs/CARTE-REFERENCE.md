@@ -12,8 +12,9 @@ La liste des images à produire, avec les prompts prêts à coller : **[PROMPTS-
 ## Une carte par serveur (26 octobre 2026)
 
 Chaque serveur a sa propre carte, **tirée au hasard à sa création**. Le découpage, les règles et le style restent ceux de
-la référence : neige au nord, désert au sud, tempéré ailleurs, 8 longues rivières (2 sources par bord du monde) avec ponts et
-gués, 6 lacs, 4 chaînes de montagnes, forêts en massifs, rochers. Seule la disposition change d'un serveur à l'autre.
+la référence : neige au nord, désert au sud, tempéré ailleurs, 8 longues rivières (2 sources par bord du monde, au plus un
+confluent chacune) avec ponts et gués, 6 lacs, 4 chaînes de montagnes qui ne se touchent pas, forêts en massifs, rochers.
+Seule la disposition change d'un serveur à l'autre.
 
 | Carte de référence (graine 0, serveur ouvert) | Une carte au hasard (graine 123456) | Une autre (graine 2147483646) |
 |---|---|---|
@@ -22,9 +23,10 @@ gués, 6 lacs, 4 chaînes de montagnes, forêts en massifs, rochers. Seule la di
 - Tout le terrain se déduit d'une **graine** (0 à 2 147 483 646) gardée en base et publiée par `/api/world/info` ; le jeu
   dessine exactement la carte où marchent les armées. La **graine 0** est la carte de référence, gardée telle quelle pour le
   serveur déjà ouvert (au bit près : ses villes ne bougent pas).
-- Un serveur neuf **ne garde que des cartes jouables** : presque toute la terre d'un seul tenant (98 à 99 % sur 150 graines
-  essayées), neige et désert entre 10 et 30 % (17 à 24 % en pratique), chaque rivière traversable au moins deux fois (42 à
-  62 passages par carte).
+- Un serveur neuf **ne garde que des cartes jouables** : presque toute la terre d'un seul tenant (98 à 99 % sur 200 cartes
+  mesurées), neige et désert entre 10 et 30 % (17 à 24 % en pratique), d'un seul tenant chacun (pas d'île de neige ou de
+  désert de plus de 150 cases), chaque rivière traversable au moins deux fois (41 à 67 passages par carte). Environ une
+  graine sur deux passe ce contrôle ; le serveur en essaie jusqu'à 25 (une ou deux suffisent en général).
 - La graine d'un monde **ne change jamais** : une autre carte demande un nouveau serveur. On peut la choisir avant
   l'ouverture (`WORLD_SEED`, aperçu avec `node tools/apercu-carte.cjs --random=4`) ; voir `docs/DEPLOIEMENT.md`.
 - Les cartes au hasard n'utilisent que des calculs identiques sur tous les moteurs JavaScript (le serveur et l'iPhone ou
@@ -75,7 +77,7 @@ gués, 6 lacs, 4 chaînes de montagnes, forêts en massifs, rochers. Seule la di
 |---|---|---|---|
 | 1 | Disposition des biomes | ✅ | Nord enneigé, sud désertique, tempéré ailleurs (≈ 20 / 20 / 60 % sur toutes les cartes), frontière qui ondule. Zone de départ des joueurs : moitié tempérée. |
 | 2 | Villes sur 2 × 2 cases | ✅ | Départ, capitale déplacée, fondation, chemins, clic, surbrillance, siège, rencontres, génération des points. Aucune ville dans l'eau ni dans une poche fermée par les montagnes. |
-| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; sur la carte de référence 73 cases de pont et 33 de gué (39 passages), sur une carte au hasard 42 à 62 passages, au moins 2 par rivière ; chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
+| 3 | Rivières, ponts et gués | ✅ | 8 longues rivières de 2 à 3 cases de large ; sur la carte de référence 73 cases de pont et 33 de gué (39 passages), sur une carte au hasard 41 à 67 passages, au moins 2 par rivière ; chaque passage relie deux rives praticables. Gué = coût de marche × 2. |
 | 4 | Forêts en massifs | ✅ | Massifs de plusieurs cases ; −10 % de vitesse sauf Gaulois ; la durée du trajet suit le terrain traversé (client et serveur). |
 | 5 | Sol tempéré varié | ✅ | Herbe, herbe sèche (plus fréquente vers le désert), terre labourée, berges de sable au bord des rivières et des lacs ; plusieurs variantes de chaque sol mélangées par taches (en attendant leurs images, un léger voile les distingue). |
 | 6 | Relief | ✅ | Montagnes gardées, amas de rochers en zone tempérée et mesas du désert (infranchissables), rochers épars du désert (franchissables). Une ville que le nouveau terrain couperait du reste de la carte est déplacée près du bord au démarrage, avec ses armées, et son propriétaire est prévenu. |

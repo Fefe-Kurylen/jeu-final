@@ -29,9 +29,13 @@ function coordsFor(b) {
 const FACTION_BUILDING = { ROME: 'ROMAN_THERMAE', GAUL: 'GALLIC_BREWERY', GREEK: 'GREEK_TEMPLE', EGYPT: 'EGYPTIAN_IRRIGATION', HUN: 'HUN_WAR_TENT', SULTAN: 'SULTAN_DESERT_OUTPOST' };
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  // la carte du serveur (chaque serveur a la sienne)
-  const info = await (await fetch(`${API}/api/world/info`)).json().catch(() => ({}));
-  T.setWorldSeed(info.worldSeed ?? 0);
+  // la carte du serveur (chaque serveur a la sienne) ; sans elle, la ville d'aperçu pourrait être posée sur l'eau
+  let res = await fetch(`${API}/api/world/info`);
+  for (let i = 0; res.status === 503 && i < 30; i++) { await new Promise(r => setTimeout(r, 2000)); res = await fetch(`${API}/api/world/info`); }
+  const info = res.ok ? await res.json() : {};
+  if (!Number.isInteger(info.worldSeed)) throw new Error(`graine de la carte introuvable (${API}/api/world/info répond ${res.status})`);
+  T.setWorldSeed(info.worldSeed);
+  if (info.terrainSignature && info.terrainSignature !== T.signature) throw new Error('ce serveur dessine une autre carte que ce code (version différente)');
   const uid = Math.floor(Math.random() * 1e6);
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `preview${uid}@t.fr`, password: 'Test1234!', name: `Preview${uid}`, faction }) })).json();
   if (!reg.token) throw new Error('register: ' + JSON.stringify(reg));

@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS "WorldConfig" (
     "id" INTEGER NOT NULL DEFAULT 1,
     "seed" INTEGER NOT NULL,
-    "generator" INTEGER NOT NULL DEFAULT 2,
+    "generator" INTEGER NOT NULL,
     "readyAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "WorldConfig_pkey" PRIMARY KEY ("id")

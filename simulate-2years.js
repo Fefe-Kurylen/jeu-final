@@ -149,7 +149,7 @@ async function simulate() {
     const Terrain = require('./frontend/js/shared/terrain.js');
     const seed = Number.isInteger(Number(process.env.WORLD_SEED)) && process.env.WORLD_SEED !== '' ? Number(process.env.WORLD_SEED) : 0;
     Terrain.setWorldSeed(seed);
-    await prisma.$executeRawUnsafe(`INSERT INTO "WorldConfig" ("id", "seed") VALUES (1, ${Terrain.worldSeed}) ON CONFLICT ("id") DO UPDATE SET "seed" = EXCLUDED."seed"`).catch(() => {});
+    await prisma.$executeRawUnsafe(`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt") VALUES (1, ${Terrain.worldSeed}, ${Terrain.generator}, now()) ON CONFLICT ("id") DO UPDATE SET "seed" = EXCLUDED."seed", "generator" = EXCLUDED."generator", "readyAt" = EXCLUDED."readyAt"`).catch((e) => _log(`[SETUP] graine non notée en base (${e.message.split('\n')[0]}) : appliquer les migrations avant de lancer l'API sur cette base`));
     _log(`[SETUP] Carte : graine ${Terrain.worldSeed}`);
   }
 

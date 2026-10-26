@@ -391,8 +391,10 @@ await waitTick('army idle after spy', () => sql(`SELECT status FROM "Army" WHERE
   for (let r = 2; r < 60 && !blockedTile; r++) for (let dx = -r; dx <= r && !blockedTile; dx++) for (let dy = -r; dy <= r; dy++) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
     const x = cityA.x + dx, y = cityA.y + dy;
-    // a resource node or a city on a mountain makes the tile passable: pick a bare one
-    if (Terrain.inWorld(x, y) && Terrain.isBlocked(x, y) && sql(`SELECT (SELECT count(*) FROM "ResourceNode" WHERE x=${x} AND y=${y}) + (SELECT count(*) FROM "City" WHERE x=${x} AND y=${y})`) === '0') { blockedTile = { x, y }; break; }
+    // a resource node or a city on a mountain makes the tile passable, and so does the ring around a city (except over
+    // water): check it the way the server does, with the cities as objects, and pick a bare tile
+    const objs = new Map(); for (const c of [cityA, cityB]) for (const [cx, cy] of Terrain.cityCells(c.x, c.y)) objs.set(cx + ',' + cy, 'CITY');
+    if (Terrain.inWorld(x, y) && Terrain.isBlocked(x, y, objs) && sql(`SELECT (SELECT count(*) FROM "ResourceNode" WHERE x=${x} AND y=${y}) + (SELECT count(*) FROM "City" WHERE x=${x} AND y=${y})`) === '0') { blockedTile = { x, y }; break; }
   }
   if (blockedTile) await call('army move onto mountain/water -> 400', 'POST', `/api/army/${armyId}/move`, tA, blockedTile, 400);
   else assert('a blocked tile exists near the city', false, 'none within 60 tiles');

@@ -14,6 +14,8 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 require('dotenv').config();
 
+const WORLD_FATAL_EXIT = 78;   // code de sortie : carte du monde que cette version ne sait pas dessiner (le primaire n'insiste pas)
+
 // ========== MODE CLUSTER ==========
 // CLUSTER_WORKERS=auto -> un worker par CPU ; =N -> N workers ; absent/1 -> mono-processus
 const workersEnv = process.env.CLUSTER_WORKERS;
@@ -28,12 +30,23 @@ if (cluster.isPrimary && nWorkers > 1) {
   };
   // Seul le worker de tick execute le game loop et le seed (évite les doubles ticks)
   for (let i = 0; i < nWorkers; i++) fork(i === 0, i !== 0);
-  let stopping = false;
+  let stopping = false, fatalStop = false;
   cluster.on('exit', (worker, code) => {
-    if (stopping) { if (Object.keys(cluster.workers).length === 0) process.exit(0); return; }
+    if (stopping) { if (Object.keys(cluster.workers).length === 0) process.exit(fatalStop ? 1 : 0); return; }
+    // carte que ce code ne sait pas dessiner (src/game/world.js) : relancer ne servirait à rien, tout s'arrête en échec
+    if (code === WORLD_FATAL_EXIT) {
+      console.error('[CLUSTER] Carte du monde illisible par cette version : arrêt de tous les workers');
+      stopping = true; fatalStop = true;
+      if (Object.keys(cluster.workers).length === 0) process.exit(1);
+      for (const w of Object.values(cluster.workers)) w.process.kill('SIGTERM');
+      setTimeout(() => process.exit(1), 5000).unref();
+      return;
+    }
     const wasTick = worker.id === tickWorkerId;
     console.error(`[CLUSTER] Worker ${worker.process.pid} mort (code ${code}), redemarrage${wasTick ? ' (worker de tick)' : ''}...`);
-    fork(wasTick, true);
+    // le worker de tick reprend la préparation de la base (elle peut être restée à mi-chemin : migrations, graine,
+    // points de ressource) ; chaque étape se rejoue sans dommage
+    fork(wasTick, !wasTick);
   });
   // Graceful stop: every worker gets the signal, finishes its requests and releases the tick lease
   const stopAll = (signal) => {
@@ -251,7 +264,7 @@ async function startServer() {
       // démarrage par le processus qui prépare la base, lue par les autres. Une carte que ce code ne sait pas refaire
       // arrête le serveur : sans cela, il déplacerait toutes les villes en croyant les sauver.
       try { await loadWorldSeed({ setup: !SKIP_DB_SETUP }); }
-      catch (worldErr) { if (worldErr.fatal) { console.error(worldErr.message); process.exit(1); } throw worldErr; }
+      catch (worldErr) { if (worldErr.fatal) { console.error(worldErr.message); process.exit(WORLD_FATAL_EXIT); } throw worldErr; }
 
       if (!SKIP_DB_SETUP) {
         try { await repairData(); } catch (repairErr) { console.warn('Erreur réparation données:', repairErr.message); }

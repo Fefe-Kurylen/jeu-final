@@ -2032,25 +2032,59 @@ function drawIsoRock(x, y, size) {
 // between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
 const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1 };
 const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
-// Chemins calculés au plus 3 par image et pendant 25 ms au plus (un long trajet en demande davantage : les suivants marchent
-// en ligne droite le temps d'une image ou deux) ; le départ et l'arrivée comptent comme des cases d'objets (ville de 2 × 2
-// cases, point de ressource), même hors de la zone chargée
+// Chemins des armées : un trajet court se calcule tout de suite (au plus 3 par image et pendant 25 ms au plus) ; un long
+// trajet part dans route-worker.js, hors du fil principal, pour que la carte ne se fige pas. En attendant, l'armée marche
+// en ligne droite. Le départ et l'arrivée comptent comme des cases d'objets (ville de 2 × 2 cases, point de ressource),
+// même hors de la zone chargée.
 let armyRouteBudget = 3, armyRouteUntil = 0;
+const ARMY_ROUTE_FAR = 40;   // cases (plus grand écart en x ou en y) au-delà desquelles le trajet est calculé à part
+let _armyRouteWorker, _armyRouteSeq = 0;
+const _armyRoutePending = new Map();   // numéro de demande -> clé du cache
+function armyRouteWorker() {
+  if (_armyRouteWorker !== undefined) return _armyRouteWorker;
+  _armyRouteWorker = null;
+  try {
+    if (typeof Worker === 'function') {
+      const w = new Worker('js/route-worker.js');
+      w.onmessage = (e) => {
+        const key = _armyRoutePending.get(e.data?.id);
+        if (!key) return;
+        _armyRoutePending.delete(e.data.id);
+        armyRouteCache.set(key.key, e.data.path || key.straight);
+        if (typeof scheduleMapRender === 'function') scheduleMapRender();
+      };
+      w.onerror = () => { _armyRouteWorker = null; _armyRoutePending.clear(); };   // pas de fil à part : calcul sur place
+      _armyRouteWorker = w;
+    }
+  } catch (e) { _armyRouteWorker = null; }
+  return _armyRouteWorker;
+}
 function armyRoute(army) {
   if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
   const key = `${Terrain.epoch}|${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;   // epoch : la carte du serveur
   if (armyRouteCache.has(key)) return armyRouteCache.get(key);
   const straight = [[army.x, army.y], [army.targetX, army.targetY]];
-  if (armyRouteBudget <= 0 || (armyRouteBudget < 3 && performance.now() > armyRouteUntil)) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
-  armyRouteBudget--;
-  if (armyRouteCache.size > 300) armyRouteCache.clear();
   const base = typeof mapObjectCells !== 'undefined' ? mapObjectCells : new Map();
   const extra = new Map([[army.x + ',' + army.y, 'RESOURCE']]);
   const toCity = army.targetCityId || ['ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'RETURNING'].includes(army.status);
   if (toCity) for (const [cx, cy] of Terrain.cityCells(army.targetX, army.targetY)) extra.set(cx + ',' + cy, 'CITY');
   else extra.set(army.targetX + ',' + army.targetY, 'RESOURCE');
+  const faction = army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null);
+  if (armyRouteCache.size > 300) armyRouteCache.clear();
+  const far = Math.max(Math.abs(army.targetX - army.x), Math.abs(army.targetY - army.y)) > ARMY_ROUTE_FAR;
+  const worker = far ? armyRouteWorker() : null;
+  if (worker) {
+    for (const v of _armyRoutePending.values()) if (v.key === key) { mapMovingOnScreen = true; return straight; }   // déjà demandé
+    const id = ++_armyRouteSeq;
+    _armyRoutePending.set(id, { key, straight });
+    worker.postMessage({ id, seed: Terrain.worldSeed, from: [army.x, army.y], to: [army.targetX, army.targetY], objects: [...base.entries(), ...extra.entries()], faction });
+    mapMovingOnScreen = true;
+    return straight;
+  }
+  if (armyRouteBudget <= 0 || (armyRouteBudget < 3 && performance.now() > armyRouteUntil)) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
+  armyRouteBudget--;
   const objects = { has: (k) => extra.has(k) || base.has(k), get: (k) => extra.get(k) || base.get(k) };
-  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, undefined, { faction: army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null) });
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, undefined, { faction });
   const path = r ? r.path : straight;
   armyRouteCache.set(key, path);
   return path;

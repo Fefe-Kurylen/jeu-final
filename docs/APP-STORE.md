@@ -82,7 +82,7 @@ Pas de données de localisation, contacts, santé, photos, ni de publicité. **A
 | Fiche store : icône, 5-10 captures, vidéo 30 s, description, mots-clés | ✅ icône 1024 (`frontend/assets/images/icon-1024.png`), captures générées par `node tools/store-screenshots.cjs` (iPhone 6,7" 1290×2796 et 6,5" 1242×2688, iPad 12,9" 2048×2732 car l'app cible aussi l'iPad), textes ci-dessous ; 🔧 vidéo d'aperçu (enregistrer le simulateur, 15-30 s, format 886×1920 ou 1080×1920) |
 | Soumettre à la review | 🔧 build archivée + fiche complète + compte de test pour la review (Notes for Review : e-mail/mot de passe d'un compte avec une ville développée) |
 | Si refus → corriger et resoumettre | — |
-| Date de sortie avec serveur neuf | 🔧 `npx prisma migrate reset --force` sur la base de production juste avant l'ouverture, puis redémarrer l'API : le monde se régénère sur une **nouvelle carte tirée au hasard** (ou celle de `WORLD_SEED`, choisie avec `node tools/apercu-carte.cjs --random=4`) ; voir `docs/DEPLOIEMENT.md`, « Carte du serveur » |
+| Date de sortie avec serveur neuf | 🔧 juste avant l'ouverture : **arrêter l'API**, `npx prisma migrate reset --force` sur la base de production, puis redémarrer l'API : le monde se régénère sur une **nouvelle carte tirée au hasard** (ou celle de `WORLD_SEED`, choisie avec `node tools/apercu-carte.cjs --random=4`) ; voir `docs/DEPLOIEMENT.md`, « Carte du serveur » |
 
 ### Textes de fiche (brouillon)
 - **Nom** : Imperium Antiquitas

@@ -6,7 +6,7 @@ const fs = require('fs');
 let ESLint;
 try { ({ ESLint } = require('eslint')); } catch (e) { ({ ESLint } = require(path.join(process.env.ESLINT_HOME || '/opt/node-tools/node_modules', 'eslint'))); }
 const root = path.join(__dirname, '..', 'frontend');
-const files = ['js/shared/terrain.js', 'js/analytics.js', 'js/store.js', 'js/mobile.js', ...fs.readdirSync(root + '/js/app').filter(f => f.endsWith('.js')).sort().map(f => 'js/app/' + f), 'js/map.js', 'js/map-world.js'].map(f => path.join(root, f));
+const files = ['js/shared/terrain.js', 'js/analytics.js', 'js/store.js', 'js/mobile.js', ...fs.readdirSync(root + '/js/app').filter(f => f.endsWith('.js')).sort().map(f => 'js/app/' + f), 'js/map.js', 'js/map-world.js', 'js/route-worker.js'].map(f => path.join(root, f));
 // Top-level declarations of every file become shared globals
 const declared = new Set();
 for (const f of files) {

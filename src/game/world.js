@@ -53,11 +53,29 @@ function describe(seed) {
 
 const fatal = (msg) => Object.assign(new Error(msg), { fatal: true });
 
+// Les villes et les points d'un monde peuplé tiennent-ils sur la carte de cette graine ? Sur sa vraie carte, aucune ville
+// n'a les pieds dans l'eau ni sur le relief (le démarrage les en sort) et aucun point n'est dans l'eau ; sur une autre
+// carte, une bonne part tombe mal. Sert quand un monde peuplé n'a pas (ou plus) de graine en base.
+async function fitsSeed(seed) {
+  Terrain.setWorldSeed(seed);
+  const [cities, nodes] = await Promise.all([prisma.city.findMany({ select: { x: true, y: true } }), prisma.resourceNode.findMany({ select: { x: true, y: true } })]);
+  const badCell = (x, y) => { const f = Terrain.getTerrainType(x, y).feature; return !Terrain.inWorld(x, y) || Terrain.BLOCKED[f] || f === 'bridge' || f === 'ford'; };
+  const badCities = cities.filter(c => !Terrain.isMainland(c.x, c.y) || Terrain.cityCells(c.x, c.y).some(([x, y]) => badCell(x, y))).length;
+  const wetNodes = nodes.filter(n => !Terrain.inWorld(n.x, n.y) || Terrain.WATER[Terrain.getTerrainType(n.x, n.y).feature]).length;
+  const ok = badCities <= Math.max(2, cities.length * 0.02) && wetNodes <= Math.max(5, nodes.length * 0.02);
+  return { ok, cities: cities.length, badCities, nodes: nodes.length, wetNodes };
+}
+
+// La table WorldConfig pas encore créée (le worker de tick applique encore les migrations) : on attend comme pour la ligne
+const tableMissing = (e) => e?.code === 'P2021' || /does not exist/i.test(String(e?.message || ''));
+
 // Charge la graine du monde et l'applique au terrain. setup = ce processus prépare la base (processus unique ou worker de
 // tick) et peut choisir la graine d'un monde neuf ; sinon il attend que le worker de tick l'ait écrite.
 async function loadWorldSeed({ setup = true } = {}) {
   for (let attempt = 0; ; attempt++) {
-    const row = await prisma.worldConfig.findUnique({ where: { id: 1 } });
+    let row;
+    try { row = await prisma.worldConfig.findUnique({ where: { id: 1 } }); }
+    catch (e) { if (setup || !tableMissing(e)) throw e; row = null; }
     if (row) {
       try { Terrain.setWorldSeed(row.seed, row.generator); }
       catch (e) { throw fatal(`[MONDE] ${e.message}. Déployer une version du serveur qui sait dessiner cette carte ; ne pas changer la graine d'un monde ouvert.`); }
@@ -74,12 +92,23 @@ async function loadWorldSeed({ setup = true } = {}) {
     // Pas encore de graine : un monde déjà peuplé garde sa carte, un monde neuf reçoit la sienne
     const [cities, nodes, players] = await Promise.all([prisma.city.count(), prisma.resourceNode.count(), prisma.player.count()]);
     let seed, why, readyAt = null;
-    if (cities + nodes + players > 0) { seed = 0; readyAt = new Date(); why = `monde déjà peuplé (${players} joueurs, ${cities} villes, ${nodes} points) : sa carte est gardée`; }
+    if (cities + nodes + players > 0) {
+      // monde ouvert avant les cartes au hasard (carte de référence), ou dont la graine s'est perdue : on ne la remplace que
+      // si ses villes et ses points tiennent sur la carte choisie (WORLD_SEED pour rendre sa graine à un monde, sinon 0),
+      // car le démarrage déplacerait sinon toutes les villes « coincées »
+      const candidate = envSeed() ?? 0;
+      const fit = await fitsSeed(candidate);
+      if (!fit.ok) throw fatal(`[MONDE] Ce monde a ${players} joueurs et ${cities} villes mais pas de graine en base, et il ne tient pas sur la carte de la graine ${candidate} (${fit.badCities} villes sur l'eau ou le relief, ${fit.wetNodes} points dans l'eau) : ce n'est pas sa carte. Restaurer la ligne WorldConfig d'une sauvegarde, ou démarrer avec WORLD_SEED=<sa graine> (ligne [MONDE] du journal de son premier démarrage).`);
+      seed = candidate; readyAt = new Date();
+      why = `monde déjà peuplé (${players} joueurs, ${cities} villes, ${nodes} points), qui tient sur cette carte${candidate === 0 ? ' (carte de référence)' : ' (WORLD_SEED)'}`;
+    }
     else if (envSeed() !== null) { seed = envSeed(); why = 'WORLD_SEED'; }
     else { const p = pickRandomSeed(); seed = p.seed; why = `tirée au hasard (${p.tries} essai${p.tries > 1 ? 's' : ''})`; }
     // un autre processus a pu l'écrire entre-temps : la première écrite l'emporte, puis on relit
-    await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt") VALUES (1, ${seed}, ${Terrain.generatorFor(seed)}, ${readyAt}) ON CONFLICT ("id") DO NOTHING`;
-    console.log(`[MONDE] nouvelle carte, graine ${seed} : ${why}`);
+    const inserted = await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt") VALUES (1, ${seed}, ${Terrain.generatorFor(seed)}, ${readyAt}) ON CONFLICT ("id") DO NOTHING`;
+    const populated = readyAt !== null;   // monde déjà peuplé : sa graine est notée, ce n'est pas une nouvelle carte
+    console.log(!inserted ? '[MONDE] un autre processus a écrit la graine en même temps : la sienne est gardée'
+      : populated ? `[MONDE] graine ${seed} notée pour ce monde : ${why}` : `[MONDE] nouvelle carte, graine ${seed} : ${why}`);
   }
 }
 

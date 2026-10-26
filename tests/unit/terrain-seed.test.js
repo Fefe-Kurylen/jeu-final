@@ -23,7 +23,7 @@ function fingerprint() {
 // Empreintes de référence : la graine 0 est la carte du serveur ouvert (25 octobre 2026) ; les deux autres gardent les
 // cartes au hasard stables d'une version à l'autre (un serveur déjà ouvert sur une graine ne doit pas voir sa carte bouger).
 // Une empreinte qui change = la génération a changé : il faut alors une nouvelle TERRAIN_VERSION et minClientVersion.
-const GOLDEN = { 0: '44c69566', 123456: '3577a564', 2147483646: '5854d84f' };
+const GOLDEN = { 0: '44c69566', 123456: '609f1bed', 2147483646: '4f86b4c9' };
 
 test('graine 0 : exactement la carte de référence du serveur ouvert', () => {
   T.setWorldSeed(0);
@@ -68,13 +68,20 @@ test('le biome du serveur suit la graine (src/utils/biome.js)', () => {
   for (const [x, y] of [[0, 0], [-100, 50], [120, -130], [186, 186], [-187, -187], [40, 90]]) assert.equal(getBiome(x, y), T.getBiome(x, y));
 });
 
-// Graines essayées : quelques graines fixes et une au hasard (affichée en cas d'échec, pour la rejouer)
-const RANDOM_SEED = crypto.randomInt(1, T.MAX_SEED + 1);
-for (const seed of [1, 42, 77, 31337, 2147483646, RANDOM_SEED]) {
-  test(`graine ${seed} : une carte jouable, aux mêmes règles que la carte de référence`, () => {
+// Comme un serveur neuf : à partir d'une graine, la première qui passe le contrôle de jouabilité (il en essaie jusqu'à 25)
+function playableFrom(start) {
+  for (let s = start, k = 0; k < 25; s++, k++) { T.setWorldSeed(s); const st = T.worldStats(); if (T.worldStatsOk(st)) return { seed: s, st, tries: k + 1 }; }
+  return null;
+}
+// Graines de départ : quelques graines fixes et une au hasard (affichée en cas d'échec, pour la rejouer)
+const RANDOM_SEED = crypto.randomInt(1, T.MAX_SEED - 30);
+for (const start of [1, 42, 77, 31337, 2147483620, RANDOM_SEED]) {
+  test(`à partir de la graine ${start} : une carte jouable, aux mêmes règles que la carte de référence`, () => {
+    const p = playableFrom(start);
+    assert.ok(p, `aucune carte jouable en 25 graines à partir de ${start}`);
+    const { seed, st } = p;
     T.setWorldSeed(seed);
-    const st = T.worldStats();
-    assert.ok(T.worldStatsOk(st), `contrôle de jouabilité : ${JSON.stringify(st)}`);
+    assert.ok(st.biomeEnclave <= 150, `pas d'île de biome au-delà de 150 cases (${st.biomeEnclave}, graine ${seed})`);
     assert.ok(st.mainland >= 0.97, `presque toute la terre d'un seul tenant (${st.mainland})`);
     assert.ok(st.crossingsPerRiver.every(n => n >= 2), 'chaque rivière se traverse au moins deux fois');
     // biomes à leur place : neige au nord (x + y petit), désert au sud
@@ -125,21 +132,44 @@ test('une carte au hasard ne dépend d\'aucune fonction mathématique qui varie 
 });
 
 test('un trajet d\'un bout à l\'autre de la carte est trouvé (plus de 40 000 cases explorées)', () => {
-  // graine 432062107, deux capitales à 310 cases : l'ancienne limite de 40 000 cases explorées refusait l'attaque
-  T.setWorldSeed(432062107);
-  const r = T.findPath(176, 120, -133, -14);
+  // carte de référence : (131, −128) → (−67, 127), 426 cases de marche ; l'ancienne limite de 40 000 cases explorées le
+  // refusait (« Aucun chemin terrestre »), même sur le serveur ouvert
+  T.setWorldSeed(0);
+  const r = T.findPath(131, -128, -67, 127);
   assert.ok(r, 'trajet trouvé');
-  assert.ok(r.length > 400 && r.length < 480, `longueur ${r.length}`);
-  assert.equal(T.findPath(176, 120, -133, -14, null, 40000), null, 'avec l\'ancienne limite il ne l\'était pas');
+  assert.ok(r.length > 400 && r.length < 460, `longueur ${r.length}`);
+  assert.equal(T.findPath(131, -128, -67, 127, null, 40000), null, 'avec l\'ancienne limite il ne l\'était pas');
+});
+
+test('une destination dans une poche fermée est refusée tout de suite, sans parcourir toute la carte', () => {
+  T.setWorldSeed(0);
+  let pocket = null;
+  for (let y = -186; y <= 186 && !pocket; y++) for (let x = -186; x <= 186; x++) if (!T.isBlocked(x, y) && !T.isMainland(x, y)) { pocket = [x, y]; break; }
+  assert.ok(pocket, 'une poche fermée existe');
+  const t0 = process.hrtime.bigint();
+  assert.equal(T.findPath(0, 10, pocket[0], pocket[1]), null);
+  assert.ok(Number(process.hrtime.bigint() - t0) / 1e6 < 50, 'en moins de 50 ms');
+});
+
+test('les chaînes de montagnes d\'une carte au hasard ne se touchent pas', () => {
+  for (const seed of [1, 39595, 277165, 15838, 506816]) {
+    T.setWorldSeed(seed);
+    const R = T.layout().ranges;
+    const d = (px, py, s) => { const dx = s.ex - s.sx, dy = s.ey - s.sy, L = dx * dx + dy * dy, t = Math.max(0, Math.min(1, ((px - s.sx) * dx + (py - s.sy) * dy) / L)); return Math.hypot(px - s.sx - t * dx, py - s.sy - t * dy); };
+    for (let i = 0; i < R.length; i++) for (let j = i + 1; j < R.length; j++) {
+      const a = R[i], b = R[j], gap = Math.min(d(a.sx, a.sy, b), d(a.ex, a.ey, b), d(b.sx, b.sy, a), d(b.ex, b.ey, a));
+      assert.ok(gap >= a.width + b.width + 12, `graine ${seed} : chaînes ${i} et ${j} à ${gap.toFixed(1)} cases`);
+    }
+  }
 });
 
 test('générateur et empreinte : une carte faite par un autre générateur est refusée, l\'empreinte suit la carte', () => {
   T.setWorldSeed(0);
   assert.equal(T.generator, 2); assert.equal(T.signature, '3bd4567c');
-  T.setWorldSeed(432062107);
-  assert.equal(T.generator, 3); assert.equal(T.signature, 'feae179c');
+  T.setWorldSeed(123456);
+  assert.equal(T.generator, 3); assert.equal(T.signature, '41114dc9');
   assert.throws(() => T.setWorldSeed(5, 4), /générateur 4/, 'un générateur inconnu');
   assert.throws(() => T.setWorldSeed(0, 3), /générateur 3/, 'la carte de référence n\'est pas une carte au hasard');
-  assert.equal(T.worldSeed, 432062107, 'un refus ne change pas la carte en cours');
+  assert.equal(T.worldSeed, 123456, 'un refus ne change pas la carte en cours');
   T.setWorldSeed(5, 3); assert.equal(T.worldSeed, 5);
 });

@@ -22,7 +22,8 @@ const safeStorage = (() => {
 // /api/world/info. La dernière graine connue de ce serveur est gardée pour dessiner tout de suite la bonne carte au
 // prochain lancement, avant même la réponse du serveur (et hors ligne).
 const WORLD_SEED_KEY = 'world-seed:' + (API || (typeof location !== 'undefined' ? location.origin : ''));
-let worldSeedKnown = false;   // la graine de ce serveur est connue (réponse du serveur ou dernière visite)
+let worldSeedKnown = false;      // la graine de ce serveur est connue (réponse du serveur ou dernière visite)
+let worldSeedConfirmed = false;  // le serveur l'a donnée pendant cette session (sinon on la redemande en arrière-plan)
 (function restoreWorldSeed() {
   const saved = safeStorage.getItem(WORLD_SEED_KEY);
   if (saved !== null && saved !== '' && typeof Terrain !== 'undefined' && Terrain.setWorldSeed) { Terrain.setWorldSeed(Number(saved)); worldSeedKnown = true; }
@@ -30,7 +31,14 @@ let worldSeedKnown = false;   // la graine de ce serveur est connue (réponse du
 // Applique la graine du serveur ; si la carte change (premier lancement, autre serveur), tout ce qui garde du terrain est
 // refait et la vue en cours redessinée
 function applyWorldSeed(seed, signature) {
-  if (typeof Terrain === 'undefined' || !Terrain.setWorldSeed || typeof seed !== 'number') return;
+  if (typeof seed !== 'number') return;
+  if (typeof Terrain === 'undefined' || !Terrain.setWorldSeed) {
+    // terrain d'une version d'avant les cartes au hasard (fichier resté en cache) : il dessine bien la carte de référence ;
+    // une autre carte demande la nouvelle version
+    worldSeedKnown = true;
+    if (seed !== 0) onTerrainOutdated();
+    return;
+  }
   safeStorage.setItem(WORLD_SEED_KEY, String(seed));
   worldSeedKnown = true;
   const changed = Terrain.setWorldSeed(seed);
@@ -458,6 +466,8 @@ async function showGame() {
   await loadWorldInfo(); // Load world size first
   if (!worldSeedKnown) await loadWorldInfo();   // sans la carte du serveur, rien ne se dessine : une seconde tentative
   if (!worldSeedKnown) { setConnectOverlay('error'); return; }
+  // graine retenue d'une visite précédente, pas encore confirmée par le serveur (il démarrait) : on la redemande
+  if (!worldSeedConfirmed) confirmWorldSeedLater(2000);
   // Un seul aller-retour parallèle pour tout ce qui ne dépend pas des villes
   const [playerOk] = await Promise.all([loadPlayer(), loadBuildings(), loadUnits(), loadArmies(), loadPaintedManifest(), typeof loadItems === 'function' ? loadItems() : null, typeof loadTechnologies === 'function' ? loadTechnologies() : null]);
   if (!token) { setConnectOverlay(null); return; }   // session refusée : logout() a déjà remis l'écran de connexion
@@ -532,6 +542,15 @@ function onTerrainOutdated() {
   document.body.appendChild(bar);
 }
 
+// Redemande la carte du serveur en arrière-plan, de plus en plus espacé, jusqu'à sa réponse
+function confirmWorldSeedLater(delay) {
+  setTimeout(async () => {
+    if (worldSeedConfirmed || !token) return;
+    await loadWorldInfo();
+    if (!worldSeedConfirmed) confirmWorldSeedLater(Math.min(delay * 2, 60000));
+  }, delay);
+}
+
 // Load world info to get dynamic world size
 async function loadWorldInfo() {
   try {
@@ -544,6 +563,7 @@ async function loadWorldInfo() {
     if (res.ok) {
       const info = await res.json();
       applyWorldSeed(typeof info.worldSeed === 'number' ? info.worldSeed : 0, info.terrainSignature);   // un serveur d'avant les cartes au hasard joue la carte de référence
+      worldSeedConfirmed = true;
       updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies

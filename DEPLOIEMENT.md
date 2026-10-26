@@ -71,7 +71,7 @@ Les icônes et écrans de lancement sont générés depuis `tools/build-assets.c
 ## 6. Commandes utiles
 
 - Logs Render : Dashboard → service → **Logs** ; Fly : `fly logs`.
-- Réinitialiser la base (destructif) : `npx prisma migrate reset --force` ; au redémarrage, le serveur tire une **nouvelle carte** (ou prend `WORLD_SEED`).
+- Réinitialiser la base (destructif) : **arrêter l'API**, `npx prisma migrate reset --force`, puis redémarrer : le serveur tire une **nouvelle carte** (ou prend `WORLD_SEED`) ; vérifier la ligne `[MONDE] nouvelle carte` du journal.
 - Simulation d'équilibrage (2 ans de jeu en ~8 min) : `DATABASE_URL=... node simulate-2years.js` sur une base dédiée (elle est vidée au départ).
 
 ## 7. VPS avec HTTPS (Docker + Caddy)

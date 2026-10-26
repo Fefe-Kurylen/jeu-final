@@ -443,7 +443,7 @@ model Expedition {
 model WorldConfig {
   id        Int       @id @default(1)
   seed      Int
-  generator Int       @default(2) // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard)
+  generator Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
   readyAt   DateTime? // monde prêt (points de ressource posés) : le serveur ouvre
   createdAt DateTime  @default(now())
 }

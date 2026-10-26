@@ -19,15 +19,27 @@ const arg = (k) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); 
 const outDir = path.resolve(arg('out') || path.join(__dirname, '..', 'docs', 'img', 'cartes'));
 const scale = Math.max(1, Math.min(4, Number(arg('scale') || 2)));
 let seeds = [];
-if (arg('seed') !== null) seeds.push(Number(arg('seed')));
-if (arg('seeds')) seeds.push(...arg('seeds').split(',').map(Number));
+// une graine valable : un entier de 0 à Terrain.MAX_SEED, comme WORLD_SEED pour le serveur (sinon il la refuserait)
+const seedOf = (v) => {
+  const n = Number(v);
+  if (String(v).trim() === '' || !Number.isInteger(n) || n < 0 || n > Terrain.MAX_SEED) { console.error(`graine « ${v} » refusée : un entier de 0 à ${Terrain.MAX_SEED} est attendu`); process.exit(2); }
+  return n;
+};
+if (arg('seed') !== null) seeds.push(seedOf(arg('seed')));
+if (arg('seeds')) seeds.push(...arg('seeds').split(',').map(seedOf));
 if (arg('random')) for (let i = 0; i < Number(arg('random')); i++) seeds.push(1 + Math.floor(Math.random() * Terrain.MAX_SEED));
 
 async function main() {
+  let serverSignature = null;
   if (arg('server')) {
-    const info = await (await fetch(arg('server').replace(/\/$/, '') + '/api/world/info')).json();
+    const url = arg('server').replace(/\/$/, '') + '/api/world/info';
+    let res = await fetch(url);
+    for (let i = 0; res.status === 503 && i < 30; i++) { await new Promise(r => setTimeout(r, 2000)); res = await fetch(url); }   // serveur en démarrage
+    if (!res.ok) throw new Error(`${url} répond ${res.status}`);
+    const info = await res.json();
     if (!Number.isInteger(info.worldSeed)) throw new Error('ce serveur ne publie pas de graine (version d\'avant les cartes au hasard : carte de référence, graine 0)');
     seeds.push(info.worldSeed);
+    serverSignature = info.terrainSignature || null;
   }
   if (!seeds.length) { console.log('Usage : node tools/apercu-carte.cjs --seed=<n> | --seeds=a,b,c | --random=<nombre> | --server=<url> [--out=dossier] [--scale=1..4]'); process.exit(0); }
 
@@ -81,6 +93,7 @@ function render(seed) {
   const file = path.join(outDir, `carte-${seed}.png`);
   fs.writeFileSync(file, render(seed));
   const st = Terrain.worldStats();
+  if (serverSignature && seed === seeds[seeds.length - 1] && Terrain.signature !== serverSignature) console.warn(`  ⚠ empreinte ${Terrain.signature} au lieu de ${serverSignature} : ce serveur ne dessine pas la même carte que ce code (version différente)`);
   const pct = (v) => (v * 100).toFixed(1) + ' %';
   console.log(`graine ${seed}${seed === 0 ? ' (carte de référence)' : ''} -> ${path.relative(process.cwd(), file)}`);
   console.log(`  ${Terrain.worldStatsOk(st) ? 'jouable' : 'REFUSÉE par le contrôle'} : neige ${pct(st.snow)}, désert ${pct(st.desert)}, tempéré ${pct(st.temperate)} ; terre ferme d'un seul tenant ${pct(st.mainland)} ; ${st.rivers} rivières, ${st.crossings} passages (${st.bridges} ponts) ; ${st.lakes} lacs, ${st.ranges} chaînes`);
