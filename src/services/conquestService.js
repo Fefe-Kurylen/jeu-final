@@ -138,11 +138,7 @@ async function razeCity(cityId, byArmyId) {
       }
     }
     // market offers of the city are cancelled; the goods held for them go to the capital
-    const offers = await tx.marketOffer.findMany({ where: { cityId: city.id, status: 'ACTIVE' } });
-    for (const o of offers) {
-      const ok = await tx.marketOffer.updateMany({ where: { id: o.id, status: 'ACTIVE' }, data: { status: 'CANCELLED', cityId: capital?.id || null } });
-      if (ok.count === 1 && capital) await creditCity(tx, capital.id, { [o.sellResource]: o.sellAmount });
-    }
+    await require('./marketService').cancelOffersOfCity(tx, city.id, capital?.id || null);   // armées réservées libérées
     // the resource node comes back: no city on it, a tribe will settle again later
     await tx.resourceNode.updateMany({ where: { cityId: city.id }, data: { cityId: null, hasPlayerArmy: false, lastDefeat: new Date(), lastArmyDeparture: new Date() } });
     await tx.city.delete({ where: { id: city.id } });
@@ -168,6 +164,7 @@ async function relocateCapital(cityId, byArmyId) {
     // mission is cancelled and what it carries goes into the city (décision du 25 octobre 2026). An arrival being
     // resolved right now (claimed) finishes first and then walks to the new place.
     const { depositCarryTx } = require('./armyService');
+    await require('./marketService').cancelOffersOfCity(tx, city.id, city.id);   // offres annulées, marchandises rendues
     const campsLeft = new Set();
     for (const a of city.armies) {
       if (a.claimedAt) {

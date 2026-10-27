@@ -316,6 +316,7 @@
                             <button class="toolbar-btn active" onclick="showMarketTab('send')"><img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Envoyer</button>
                             <button class="toolbar-btn" onclick="showMarketTab('offers')"><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Offres</button>
                             <button class="toolbar-btn" onclick="showMarketTab('npc')"><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand</button>
+                            <button class="toolbar-btn" onclick="showMarketTab('routes')"><img class="ico" src="assets/images/3d/ui/map.webp" alt=""> Routes</button>
                         </div>
                         <div id="market-content" class="market-content">
                             <div id="market-section-send" class="market-section">
@@ -336,14 +337,17 @@
                                 <div class="market-create-offer">
                                     <h4>Créer une offre</h4>
                                     <div class="offer-form">
-                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Argile</option><option value="iron">Fer</option><option value="food">Blé</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue"></div>
-                                        <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">Bois</option><option value="stone" selected>Argile</option><option value="iron">Fer</option><option value="food">Blé</option></select><input type="number" id="market-buy-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité demandée"></div>
+                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue"></div>
+                                        <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">Bois</option><option value="stone" selected>Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-buy-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité demandée"></div>
+                                        <div class="offer-form-row"><label>Convoi</label><select id="market-offer-army" aria-label="Armée de transport"></select></div>
+                                        <p class="diplo-help" id="market-offer-help">L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (48 h au plus) ; à l'échange, chaque côté envoie son armée et une taxe est prélevée sur ce qu'elle transporte.</p>
                                         <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
                                     </div>
                                 </div>
                                 <div id="market-offers" class="offers-section"></div>
                             </div>
                             <div id="market-section-npc" class="market-section" style="display:none"></div>
+                            <div id="market-section-routes" class="market-section" style="display:none"><div id="market-routes-box"><p class="empty-state">Chargement…</p></div></div>
                         </div>
                     </div>
                 </div>
@@ -435,6 +439,7 @@
     <script src="js/app/10b-sheets.js"></script>
     <script src="js/app/10c-notifications.js"></script>
     <script src="js/app/11-market.js"></script>
+    <script src="js/app/11b-market-trade.js"></script>
     <script src="js/app/12-misc-init.js"></script>
     <script src="js/map.js"></script>
     <script src="js/map-world.js"></script>

@@ -102,4 +102,5 @@ const effects = {
   levelOf
 };
 
+effects.effectOf = effectOf;
 module.exports = effects;

@@ -5271,3 +5271,10 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .talent-desc { color: var(--text-muted); margin: 2px 0 4px; }
 .talent-lock { font-size: 11.5px; color: var(--text-muted); }
 .talent-reset { margin-top: 10px; }
+
+/* ---- Routes commerciales (11b-market-trade.js) ---- */
+.route-form { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.2); border: 1px solid rgba(201,162,39,.35); margin: 8px 0 12px; }
+.route-res { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; }
+.route-row { flex-wrap: wrap; gap: 6px; }
+.route-row.paused { opacity: .6; }
+.route-row small { color: var(--text-muted); margin-left: 6px; }

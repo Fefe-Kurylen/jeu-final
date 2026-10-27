@@ -188,7 +188,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'HARVESTING': { icon: '<img class="ico" src="assets/images/3d/ui/iron.webp" alt="">', label: 'Récolte', cls: 'harvesting' },
     'FOUNDING': { icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', label: 'Fondation', cls: 'moving' },
     'SUPPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'Renfort en route', cls: 'moving' },
-    'STATIONED': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'En renfort', cls: 'idle' }
+    'STATIONED': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'En renfort', cls: 'idle' },
+    'MARKET': { icon: '<img class="ico" src="assets/images/3d/ui/market.webp" alt="">', label: 'Offre du marché', cls: 'idle' }
   };
   const status = statusMap[army.status] || { icon: '', label: army.status, cls: 'unknown' };
   

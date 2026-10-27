@@ -118,7 +118,12 @@ const config = {
   market: {
     maxRatio: 3,                 // 1:3 ... 3:1 between the two sides of an offer
     maxActiveOffers: 10,
-    requireBuilding: true        // MARKET level >= 1 to post / accept offers and to send resources
+    requireBuilding: true,       // MARKET level >= 1 to post / accept offers and to send resources
+    // décision du 27 octobre 2026 (GDD economy_config.market)
+    offerHours: 48,              // une offre non prise revient au vendeur
+    p2pTaxPctBase: 10,           // taxe des échanges entre joueurs, −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au Trésor
+    treasureTaxReductionPctPerLevel: 0.25,
+    routes: { intervalHours: 2, pctOfStoragePer24h: 100, convoySpeed: 60, maxPerPlayer: 10 }   // routes entre ses villes : 100 % du stockage en 24 h au plus
   },
 
   // Generic input bounds

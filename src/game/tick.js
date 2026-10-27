@@ -96,6 +96,7 @@ async function gameTick() {
     await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
     await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
     await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
+    await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
     await step('harvest', () => processHarvesting(now));
 
     await step('flags', () => cleanupOrphanedFlags());

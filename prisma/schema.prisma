@@ -68,6 +68,8 @@ model Player {
   cities                 City[]
   armies                 Army[]
   hero                   Hero?
+  tradeRoutes            TradeRoute[]
+  tradeConvoys           TradeConvoy[]
   stats                  PlayerStats?
   ownedReports           BattleReport[]        @relation("ReportOwner")
   sentReports            BattleReport[]        @relation("Attacker")
@@ -383,7 +385,7 @@ model ResourceNode {
 }
 
 model MarketOffer {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   sellerId     String
   buyerId      String?
   cityId       String?
@@ -391,12 +393,17 @@ model MarketOffer {
   sellAmount   Int
   buyResource  String
   buyAmount    Int
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
+  status       String    @default("ACTIVE")
+  createdAt    DateTime  @default(now())
+  armyId       String? // armée de transport du vendeur, réservée (statut MARKET) jusqu'à l'échange (décision du 27 octobre 2026)
+  expiresAt    DateTime? // une offre non prise revient au vendeur au bout de 48 h
+  buyerCityId  String?
+  acceptedAt   DateTime?
 
   seller Player @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([status, expiresAt])
   @@index([sellerId])
   @@index([buyerId])
 }
@@ -827,4 +834,45 @@ model Bastion {
   alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
 
   @@index([x, y])
+}
+
+// Route commerciale automatique entre deux villes du même joueur (GDD market.internalRoutesBetweenOwnCities, décision du
+// 27 octobre 2026) : toutes les 2 h, un convoi part avec une part du stockage de la ville de départ, 100 % au plus en 24 h
+model TradeRoute {
+  id         String   @id @default(uuid())
+  playerId   String
+  fromCityId String
+  toCityId   String
+  wood       Boolean  @default(false)
+  stone      Boolean  @default(false)
+  iron       Boolean  @default(false)
+  food       Boolean  @default(false)
+  active     Boolean  @default(true)
+  nextSendAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([active, nextSendAt])
+  @@index([playerId])
+}
+
+// Convoi d'une route commerciale en chemin
+model TradeConvoy {
+  id         String   @id @default(uuid())
+  playerId   String
+  routeId    String?
+  fromCityId String
+  toCityId   String
+  wood       Int      @default(0)
+  stone      Int      @default(0)
+  iron       Int      @default(0)
+  food       Int      @default(0)
+  departedAt DateTime @default(now())
+  arrivalAt  DateTime
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([arrivalAt])
+  @@index([playerId])
 }

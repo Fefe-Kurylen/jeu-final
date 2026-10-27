@@ -41,7 +41,7 @@ function renderMarketOffers() {
           <span class="offer-arrow">→</span>
           <span class="offer-buy">${resourceIcons[offer.buyResource]} ${formatNum(offer.buyAmount)}</span>
         </div>
-        <div class="offer-ratio">Ratio: 1:${(offer.buyAmount / offer.sellAmount).toFixed(2)}</div>
+        <div class="offer-ratio">Ratio 1:${(offer.buyAmount / offer.sellAmount).toFixed(2)}${offer.city ? ` · depuis ${escapeHtml(offer.city.name)} (${offer.city.x}, ${offer.city.y})${currentCity ? `, ${Math.round(Math.hypot(offer.city.x - currentCity.x, offer.city.y - currentCity.y))} cases` : ''}` : ''}${offer.expiresAt ? ` · expire dans <span class="qd-timer" data-ends-at="${offer.expiresAt}">${formatTime(offer.expiresAt)}</span>` : ''}</div>
         <div class="offer-actions">
           ${isMyOffer 
             ? `<button class="btn btn-danger btn-small" onclick="cancelMarketOffer('${offer.id}')">Annuler</button>`
@@ -75,11 +75,12 @@ async function createMarketOffer() {
     const res = await fetch(`${API}/api/market/offer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ sellResource, sellAmount, buyResource, buyAmount, cityId: currentCity?.id })
+      body: JSON.stringify({ sellResource, sellAmount, buyResource, buyAmount, cityId: currentCity?.id, armyId: document.getElementById('market-offer-army')?.value || undefined })
     });
     
     if (res.ok) {
-      showToast('Offre créée!', 'success');
+      showToast((await res.json().catch(() => ({}))).message || 'Offre créée', 'success');
+      if (typeof loadArmies === 'function') loadArmies().then(() => typeof fillOfferArmySelect === 'function' && fillOfferArmySelect());
       document.getElementById('market-sell-amount').value = '';
       document.getElementById('market-buy-amount').value = '';
       await loadMarket();
@@ -95,18 +96,26 @@ async function createMarketOffer() {
   }
 }
 
-async function acceptMarketOffer(offerId) {
+// Accepter : choisir l'armée de la ville qui portera la contrepartie (11b-market-trade.js)
+function acceptMarketOffer(offerId) {
+  const offer = marketOffers.find(o => o.id === offerId);
+  if (offer && typeof openAcceptOffer === 'function') return openAcceptOffer(offer);
+  return confirmAcceptOffer(offerId, null);
+}
+async function confirmAcceptOffer(offerId, armyId) {
   if (_actionInProgress) return;
   _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}/accept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ cityId: currentCity?.id })
+      body: JSON.stringify({ cityId: currentCity?.id, armyId: armyId || undefined })
     });
     
     if (res.ok) {
-      showToast('Échange effectué!', 'success');
+      showToast((await res.json().catch(() => ({}))).message || 'Échange conclu', 'success');
+      if (typeof closeModal === 'function') closeModal();
+      if (typeof loadArmies === 'function') loadArmies();
       await loadMarket();
       await loadCities();
     } else {
@@ -130,7 +139,8 @@ async function cancelMarketOffer(offerId) {
     });
     
     if (res.ok) {
-      showToast('Offre annulée', 'success');
+      showToast('Offre annulée : marchandises rendues, armée libre', 'success');
+      if (typeof loadArmies === 'function') loadArmies();
       await loadMarket();
       await loadCities();
     } else {
@@ -457,6 +467,8 @@ function showMarketTab(subTab) {
 
   if (subTab === 'offers') loadMarket();
   if (subTab === 'npc') showNpcMerchant();
+  if (subTab === 'routes' && typeof loadTradeRoutes === 'function') loadTradeRoutes();
+  if (subTab === 'offers' && typeof fillOfferArmySelect === 'function') fillOfferArmySelect();
 }
 
 function filterBuildings(category) {

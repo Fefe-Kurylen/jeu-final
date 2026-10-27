@@ -689,6 +689,10 @@ async function handleTransport(army, now) {
   // a camp before the city blocks nothing (décision du 25 octobre 2026): the convoy delivers
   if (targetCity) {
     await creditCity(prisma, targetCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
+    if (army.missionType === 'MARKET_DELIVERY' && targetCity.playerId !== army.ownerId) {   // échange du marché livré
+      const got = [['wood', 'bois', army.carryWood], ['stone', 'pierre', army.carryStone], ['iron', 'fer', army.carryIron], ['food', 'nourriture', army.carryFood]].filter(x => x[2] > 0).map(x => `${x[2]} ${x[1]}`).join(', ');
+      notify(targetCity.playerId, 'market', '📦 Marchandises livrées', `Le convoi de ${army.owner?.name || 'votre partenaire'} a livré ${got || 'sa cargaison'} à ${targetCity.name}.`, { to: 'city', cityId: targetCity.id });
+    }
     await sendArmyHome(army, army.targetX, army.targetY, { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 });
   } else {
     // Destination vanished: the convoy brings its cargo back

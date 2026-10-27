@@ -43,6 +43,7 @@ const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
 function readyToLeave(army, verb) {
   if (!army) return { status: 404, error: 'Armée non trouvée' };
   if (army.isGarrison) return { status: 400, error: 'La garnison ne quitte pas la ville : créez une armée au point de ralliement' };
+  if (army.status === 'MARKET') return { status: 400, error: MARKET_BUSY };
   if (army.status !== 'IDLE') return { status: 400, error: 'Armée déjà en mission' };
   if (army.units.length === 0) return { status: 400, error: army.heroId ? `Le héros nécessite au moins 1 soldat pour ${verb}` : 'Armée vide' };
   return null;
@@ -127,6 +128,7 @@ async function transferUnits(tx, army, garrison, unitKey, newCount, currentInArm
 }
 
 // Both rows are locked through the city: every unit transfer of a city is serialized
+const MARKET_BUSY = 'Armée réservée pour une offre du marché : annulez l\'offre pour la libérer';
 async function loadArmyAndGarrison(tx, armyId, playerId) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
   if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
@@ -134,6 +136,7 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
   const army = await loadArmy(armyId, playerId, { city: true }, tx);
   if (!army) return { error: 'Armée non trouvée', status: 404 };
   if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
+  if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
   if (!garrison) return { error: 'Garnison introuvable', status: 404 };
@@ -588,6 +591,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (!army) return { error: 'Armee non trouvee', status: 404 };
       if (!army.city) return { error: 'Armee sans ville d\'origine', status: 400 };
       if (army.status === 'RETURNING') return { message: 'Armée déjà sur le chemin du retour', arrivalAt: army.arrivalAt };
+      if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
       if (army.status === 'EXPEDITION') return { error: 'Armée en expédition : impossible de la rappeler', status: 400 };
       if (army.claimedAt) return { error: 'Arrivée en cours de résolution, réessayez dans quelques secondes', status: 409 };
 

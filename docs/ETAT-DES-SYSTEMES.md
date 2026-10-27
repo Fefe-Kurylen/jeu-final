@@ -203,6 +203,28 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   `bastion_site`, en attendant la forteresse de la civilisation du chef), plaque « Bastion [TAG] » aux couleurs de la
   diplomatie, barre de vies, marque de siège ; les armées qui marchent sur un Bastion de son alliance se voient.
 
+## Marché et commerce (27 octobre 2026)
+
+Décisions du 27 octobre 2026 (GDD `economy_config.market`, `src/routes/market.js`, `src/services/marketService.js`,
+client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
+
+- **Échanges entre joueurs livrés par armées de transport** (GDD strict) : en publiant une offre, le vendeur choisit
+  une armée libre de la ville qui peut porter les marchandises ; elle **attend en ville** avec elles (statut « Offre du
+  marché » : elle ne part pas, ne se modifie pas, ne défend pas). À l'acceptation, l'acheteur choisit une armée de sa
+  ville qui porte la contrepartie ; **les deux armées partent**, chacune à sa vitesse, livrent à l'arrivée puis
+  rentrent. Le vendeur est prévenu de l'acceptation, chacun de la livraison. Pas d'échange avec un ennemi ; aucun convoi
+  n'entre ni ne sort d'une ville assiégée (on peut publier pendant un siège, pas conclure).
+- **Taxe des échanges** (GDD) : **10 %** de ce que transporte chaque convoi, **−1 % par niveau du Comptoir de
+  Commerce** de la ville qui envoie, **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au plus bas 0 %).
+- **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville, armée libre), il est prévenu.
+  Annuler une offre fait de même ; la chute ou le déplacement de la ville aussi.
+- **Routes commerciales entre ses villes** (Marché → Routes) : ville de départ (avec un Marché), ville d'arrivée,
+  ressources ; toutes les **2 h** un convoi part, sans armée, avec **1/12 du stockage** de la ville de départ pour
+  chaque ressource choisie, soit **100 % au plus en 24 h** (le GDD disait 30 % en 12 h). Il voyage à vitesse fixe ; ce
+  qui ne tient pas dans l'entrepôt d'arrivée revient. Rien ne part d'une ville assiégée ni n'y entre. 10 routes au
+  plus, pause et suppression à volonté.
+- Le marchand du serveur (PNJ) est inchangé : taxe de 30 %, −1 % par niveau du Marché (GDD).
+
 ## Messagerie (octobre 2026)
 
 Onglet **Messages** de la barre du bas (pastille des non-lus), `frontend/js/app/09c-chat.js`, `src/services/chatService.js`,
