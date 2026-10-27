@@ -620,7 +620,7 @@ await call('hero assign too many points -> 400', 'POST', '/api/hero/assign-point
   sql(`UPDATE "Hero" SET "diedAt"=now(), "reviveEndsAt"=NULL WHERE id='${heroA}'`);
   const hf = await call('hero: fallen', 'GET', '/api/hero', tA);
   assert('hero: fallen state with the price of resurrection (250 × level)', hf?.state === 'FALLEN' && hf?.revive?.cost?.wood === 250 * hf.level, JSON.stringify(hf?.revive));
-  await call('hero: a fallen hero cannot lead an army -> 400', 'POST', `/api/army/${armyId}/assign-hero`, tA, {}, 400);
+  await call('hero: a fallen hero cannot lead an army -> 400', 'POST', `/api/army/${garA}/assign-hero`, tA, {}, 400);
   sql(`DELETE FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='HERO_MANSION'`);
   await call('hero: no resurrection without the Domus -> 400', 'POST', '/api/hero/revive', tA, null, 400);
   sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityA.id}','HERO_MANSION',(SELECT COALESCE(MAX(slot),0)+1 FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND slot < 100),10)`);
