@@ -45,6 +45,7 @@ async function loadHero() {
       }
 
       panel.innerHTML = `
+        ${typeof heroStateHtml === 'function' ? heroStateHtml(hero) : ''}
         <div class="hero-full-panel">
           <!-- Left: Hero info + Stats -->
           <div class="hero-left-col">
@@ -75,28 +76,29 @@ async function loadHero() {
               <div class="hero-stat-row">
                 <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
                 <span class="stat-label">Attaque</span>
-                <span class="stat-val">${hero.attack + hero.atkPoints}</span>
+                <span class="stat-val">${hero.attack + hero.atkPoints} <small class="stat-pct">${typeof heroBonusLabel === 'function' ? heroBonusLabel(hero, 'attack') : ''}</small></span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('atk')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
                 <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
                 <span class="stat-label">Défense</span>
-                <span class="stat-val">${hero.defense + hero.defPoints}</span>
+                <span class="stat-val">${hero.defense + hero.defPoints} <small class="stat-pct">${typeof heroBonusLabel === 'function' ? heroBonusLabel(hero, 'defense') : ''}</small></span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('def')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
                 <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
                 <span class="stat-label">Vitesse</span>
-                <span class="stat-val">${hero.speed + hero.spdPoints}</span>
+                <span class="stat-val">${hero.speed + hero.spdPoints} <small class="stat-pct">${typeof heroBonusLabel === 'function' ? heroBonusLabel(hero, 'speed') : ''}</small></span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('spd')">+</button>` : ''}
               </div>
               <div class="hero-stat-row">
                 <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""></span>
                 <span class="stat-label">Logistique</span>
-                <span class="stat-val">${hero.logistics + hero.logPoints}</span>
+                <span class="stat-val">${hero.logistics + hero.logPoints} <small class="stat-pct">${typeof heroBonusLabel === 'function' ? heroBonusLabel(hero, 'logistics') : ''}</small></span>
                 ${hero.statPoints > 0 ? `<button class="stat-plus-btn" onclick="assignPoint('log')">+</button>` : ''}
               </div>
             </div>
+            <p class="diplo-help hero-stat-help">+0,1 % par point, jusqu'à +5 % par caractéristique ; l'équipement ajoute jusqu'à +5 % à part, les talents encore au-delà.</p>
             ${hero.statPoints > 0 ? `
               <div class="hero-free-points">
                 <span>Points à distribuer :</span>
@@ -131,6 +133,9 @@ async function loadHero() {
             </div>
           </div>
 
+          <!-- Talents (08b-hero-talents.js) -->
+          <div class="hero-talents" id="hero-talents"></div>
+
           <!-- Expeditions -->
           <div class="hero-expeditions">
             <h4 class="equipment-title"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> Expéditions</h4>
@@ -142,6 +147,7 @@ async function loadHero() {
         </div>
       `;
       loadExpeditions();
+      if (typeof renderHeroTalents === 'function') renderHeroTalents(hero);
     } else {
       panel.innerHTML = '<p style="color:var(--text-muted)">Aucun héros. Construisez une Demeure du Héros.</p>';
     }
@@ -264,9 +270,10 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
     console.error('Error loading hero:', e);
   }
 
-  // Calculate bonuses from building level
-  const xpBonus = buildingLevel * 2;
-  const statBonus = buildingLevel * 1;
+  // Effet réel du Domus (data/buildings.json) : résurrection en 24 h réduites de 2 % par niveau
+  const reviveH = 24 * (1 - Math.min(0.9, 0.02 * buildingLevel));
+  const domusBonusHtml = `<div class="bonus-grid"><div class="bonus-item"><span>${resIconHtml('clock')} Résurrection du héros :</span><span class="bonus-value">${formatDuration(Math.round(reviveH * 3600))}</span></div></div>
+    <p class="diplo-help">24 h de base, −2 % par niveau du Domus. Un héros tombe quand l'armée qu'il mène est anéantie.</p>`;
 
   title.innerHTML = `<span class="building-detail-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Domus du héros`;
 
@@ -281,10 +288,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         </div>
         <div class="building-bonus-section">
           <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Bonus du bâtiment (Niv.${buildingLevel})</h4>
-          <div class="bonus-grid">
-            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""> XP Bonus:</span><span>+${xpBonus}%</span></div>
-            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Stats Bonus:</span><span>+${statBonus}%</span></div>
-          </div>
+          ${domusBonusHtml}
         </div>
       </div>
     `;
@@ -344,10 +348,8 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         <!-- Building Bonus Section -->
         <div class="building-bonus-section">
           <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Bonus du Domus (Niv.${buildingLevel})</h4>
-          <div class="bonus-grid">
-            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""> XP Bonus:</span><span class="bonus-value">+${xpBonus}%</span></div>
-            <div class="bonus-item"><span><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Stats Bonus:</span><span class="bonus-value">+${statBonus}%</span></div>
-          </div>
+          ${domusBonusHtml}
+          ${typeof heroStateHtml === 'function' ? heroStateHtml(hero) : ''}
         </div>
 
         <!-- Actions Section -->

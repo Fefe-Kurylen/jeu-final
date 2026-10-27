@@ -585,6 +585,55 @@ await call('hero get', 'GET', '/api/hero', tA);
 await call('hero rename', 'POST', '/api/hero/rename', tA, { name: 'Scipio' });
 await call('hero assign-points', 'POST', '/api/hero/assign-points', tA, { atk: 2, def: 1, spd: 1, log: 1 });
 await call('hero assign too many points -> 400', 'POST', '/api/hero/assign-points', tA, { atk: 99, def: 0, spd: 0, log: 0 }, 400);
+// talents (décision du 27 octobre 2026) : 1 point par niveau gagné, trois branches, réinitialisation gratuite puis 100 or
+{
+  const h0 = await call('hero: bonuses and talent points', 'GET', '/api/hero', tA);
+  assert('hero: +0,1 % per point (base 5 + 2 points = +0,7 % attack), alive', h0?.bonuses?.attack === 0.7 && h0?.state === 'ALIVE' && h0?.talentPoints?.total === h0.level - 1, JSON.stringify({ b: h0?.bonuses, s: h0?.state, t: h0?.talentPoints }));
+  const cat = await call('hero: talent catalogue', 'GET', '/api/hero/talents', tA);
+  assert('hero: three branches of five talents', cat?.branches?.length === 3 && cat.branches.every(b => b.talents.length === 5));
+  const level0 = sql(`SELECT level FROM "Hero" WHERE "playerId"='${A.player.id}'`);
+  sql(`UPDATE "Hero" SET level=1, talents=NULL, "talentResets"=0 WHERE "playerId"='${A.player.id}'`);
+  await call('talents: no point at level 1 -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'c_assault' }, 400);
+  sql(`UPDATE "Hero" SET level=12 WHERE "playerId"='${A.player.id}'`);
+  await call('talents: unknown -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'nope' }, 400);
+  await call('talents: tier 2 locked before 5 points -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'c_siege' }, 400);
+  for (let i = 0; i < 5; i++) await call(`talents: Assaut rank ${i + 1}`, 'POST', '/api/hero/talents/learn', tA, { key: 'c_assault' });
+  await call('talents: Assaut past its max -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'c_assault' }, 400);
+  for (let i = 0; i < 3; i++) await call(`talents: Ingénieur de siège rank ${i + 1}`, 'POST', '/api/hero/talents/learn', tA, { key: 'c_siege' });
+  await call('talents: Vétéran needs 10 points -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'c_veteran' }, 400);
+  for (let i = 0; i < 2; i++) await call(`talents: Pillard rank ${i + 1}`, 'POST', '/api/hero/talents/learn', tA, { key: 'c_plunder' });
+  await call('talents: Vétéran unlocked at 10 points', 'POST', '/api/hero/talents/learn', tA, { key: 'c_veteran' });
+  await call('talents: the 11 points are spent -> 400', 'POST', '/api/hero/talents/learn', tA, { key: 'g_bulwark' }, 400);
+  const h1 = await call('talents: hero after learning', 'GET', '/api/hero', tA);
+  assert('talents: Assaut adds +5 % attack beyond the points', h1?.bonuses?.attack === 5.7 && h1?.talentPoints?.free === 0, JSON.stringify(h1?.bonuses));
+  await call('talents: first reset is free', 'POST', '/api/hero/talents/reset', tA);
+  await call('talents: learn again after the reset', 'POST', '/api/hero/talents/learn', tA, { key: 'i_quartermaster' });
+  sql(`UPDATE "Player" SET gold=50 WHERE id='${A.player.id}'`);
+  await call('talents: second reset without 100 gold -> 400', 'POST', '/api/hero/talents/reset', tA, null, 400);
+  sql(`UPDATE "Player" SET gold=150 WHERE id='${A.player.id}'`);
+  await call('talents: second reset for 100 gold', 'POST', '/api/hero/talents/reset', tA);
+  assert('talents: 100 gold paid, nothing left learned', sql(`SELECT gold FROM "Player" WHERE id='${A.player.id}'`) === '50' && sql(`SELECT coalesce(talents::text,'') FROM "Hero" WHERE "playerId"='${A.player.id}'`) === '{}');
+
+  // chute et résurrection au Domus : le héros tombé n'a plus d'armée ; ressuscité, il revient dans la garnison de la capitale
+  const heroA = sql(`SELECT id FROM "Hero" WHERE "playerId"='${A.player.id}'`);
+  sql(`UPDATE "Army" SET "heroId"=NULL WHERE "heroId"='${heroA}'`);
+  sql(`UPDATE "Hero" SET "diedAt"=now(), "reviveEndsAt"=NULL WHERE id='${heroA}'`);
+  const hf = await call('hero: fallen', 'GET', '/api/hero', tA);
+  assert('hero: fallen state with the price of resurrection (250 × level)', hf?.state === 'FALLEN' && hf?.revive?.cost?.wood === 250 * hf.level, JSON.stringify(hf?.revive));
+  await call('hero: a fallen hero cannot lead an army -> 400', 'POST', `/api/army/${armyId}/assign-hero`, tA, {}, 400);
+  sql(`DELETE FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND key='HERO_MANSION'`);
+  await call('hero: no resurrection without the Domus -> 400', 'POST', '/api/hero/revive', tA, null, 400);
+  sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityA.id}','HERO_MANSION',(SELECT COALESCE(MAX(slot),0)+1 FROM "CityBuilding" WHERE "cityId"='${cityA.id}' AND slot < 100),10)`);
+  richCity(cityA.id);
+  const rv = await call('hero: resurrection at the Domus', 'POST', '/api/hero/revive', tA);
+  const hours = (new Date(rv?.endsAt).getTime() - Date.now()) / 3600000;
+  assert('hero: 24 h less 2 % per Domus level (19,2 h at level 10)', hours > 19.1 && hours < 19.25, String(hours));
+  await call('hero: resurrection twice -> 400', 'POST', '/api/hero/revive', tA, null, 400);
+  sql(`UPDATE "Hero" SET "reviveEndsAt"=now()-interval '1 second' WHERE id='${heroA}'`);
+  await waitTick('hero revived', () => sql(`SELECT ("diedAt" IS NULL)::text FROM "Hero" WHERE id='${heroA}'`) === 'true');
+  assert('hero: back in the capital garrison', sql(`SELECT count(*) FROM "Army" WHERE "heroId"='${heroA}' AND "isGarrison" AND "cityId"='${cityA.id}'`) === '1');
+  sql(`UPDATE "Hero" SET level=${level0} WHERE id='${heroA}'`);
+}
 
 // ---------- EXPEDITIONS ----------
 const exps = await call('expeditions list', 'GET', '/api/expeditions', tA);

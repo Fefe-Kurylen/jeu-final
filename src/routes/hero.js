@@ -7,11 +7,33 @@ const { cleanText } = require('../utils/validation');
 const { itemsData } = require('../config/gamedata');
 const EQUIP_SLOTS = new Set(['head', 'chest', 'weapon', 'shield', 'legs', 'boots', 'ring', 'amulet']);
 
+const heroService = require('../services/heroService');
+const HE = require('../utils/heroEffects');
+const fail = (res, e) => (e.expose ? res.status(e.status).json({ error: e.message }) : sendError(res, e));
+
 router.get('/', auth, async (req, res) => {
   try {
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId }, include: { items: true, army: true } });
-    res.json(hero);
+    if (!hero) return res.json(hero);
+    const { domusLevel } = await heroService.capitalWithDomus(prisma, req.user.playerId);
+    res.json(heroService.heroView(hero, domusLevel));
   } catch (e) { sendError(res, e); }
+});
+
+// Talents (décision du 27 octobre 2026) : catalogue, apprendre un rang, réinitialiser ; résurrection au Domus
+router.get('/talents', auth, (req, res) => res.json(HE.catalog));
+router.post('/talents/learn', auth, async (req, res) => {
+  try {
+    const key = String(req.body?.key || '');
+    if (!HE.TALENTS.has(key)) return res.status(400).json({ error: 'Talent inconnu' });
+    res.json(await heroService.learnTalent(req.user.playerId, key));
+  } catch (e) { fail(res, e); }
+});
+router.post('/talents/reset', auth, async (req, res) => {
+  try { res.json(await heroService.resetTalents(req.user.playerId)); } catch (e) { fail(res, e); }
+});
+router.post('/revive', auth, async (req, res) => {
+  try { res.json(await heroService.startRevive(req.user.playerId)); } catch (e) { fail(res, e); }
 });
 
 // POST /api/hero/create

@@ -36,7 +36,7 @@ async function processExpeditions(now) {
         if (won) {
           xpGained = Math.max(5, Math.floor(exp.enemyPower * 0.25));
           const lootChance = { COMMON: 0.5, RARE: 0.3, EPIC: 0.15, LEGENDARY: 0.05 }[exp.lootTier] || 0.5;
-          if (Math.random() < lootChance) lootGained = { gold: Math.floor(50 + Math.random() * 100 * exp.difficulty) };
+          if (Math.random() < lootChance) lootGained = { gold: Math.floor((50 + Math.random() * 100 * exp.difficulty) * (1 + require('../../utils/heroEffects').talent(army?.hero, 'expeditionLootPct') / 100)) };   // talent Chasseur de trésors
           // Only a hero on the expedition brings an item back
           item = army?.heroId ? rollItem(exp.lootTier) : null;
           if (item) lootGained = { ...(lootGained || {}), item: item.key, itemName: item.name };

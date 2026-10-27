@@ -232,6 +232,7 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
     if (army.status !== 'IDLE' || !isHome(army, army.city)) return res.status(400).json({ error: 'Armée doit être en ville' });
     const hero = await prisma.hero.findFirst({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Héros non trouvé' });
+    if (hero.diedAt) return res.status(400).json({ error: 'Votre héros est tombé : ressuscitez-le au Domus du Héros' });
     const armyWithHero = await prisma.army.findFirst({ where: { heroId: hero.id, NOT: { id: army.id } }, include: { city: true } });
     if (armyWithHero) {
       // The hero can only switch between armies standing in the same city

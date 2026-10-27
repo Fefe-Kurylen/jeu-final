@@ -140,19 +140,15 @@ function getArmyMinSpeed(units, unitsData) {
   return minSpeed;
 }
 
-// Hero bonus on a non-combat stat: base points + assigned points, +0.5 %/point capped at +5 % (GDD)
-function heroStatMultiplier(hero, stat, pointsField) {
-  if (!hero) return 1;
-  let equipped = 0;
-  for (const item of hero.items || []) if (item && item.slot !== 'inventory' && item.stats) equipped += Number(item.stats[stat]) || 0;
-  const points = (hero[stat] || 0) + (hero[pointsField] || 0) + equipped;
-  return 1 + Math.min(config.combat.heroBonusMax, points * config.combat.heroBonusPerPoint);
+// Hero bonus on a non-combat stat: points, equipment and talents (utils/heroEffects.js)
+function heroStatMultiplier(hero, stat) {
+  return require('./heroEffects').statMult(hero, stat);
 }
 
 // Travel time for a concrete army: slowest unit, owner's faction speed bonus, hero speed bonus
 function getArmyTravelTime(units, fromX, fromY, toX, toY, faction, hero = null, distance = null, extraSpeedPct = 0) {
   const { unitsData, factionsData } = require('../config/gamedata');
-  const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed', 'spdPoints');
+  const speed = getArmyMinSpeed(units, unitsData) * heroStatMultiplier(hero, 'speed');
   return calculateTravelTime(fromX, fromY, toX, toY, speed, faction, factionsData, distance, extraSpeedPct);
 }
 
@@ -180,7 +176,7 @@ function getArmyCarryCapacity(units, unitsData, hero = null) {
     const carryPerUnit = unitData?.stats?.carry || unitData?.stats?.transport || 50;
     total += unit.count * carryPerUnit;
   }
-  return Math.floor(total * heroStatMultiplier(hero, 'logistics', 'logPoints'));
+  return Math.floor(total * heroStatMultiplier(hero, 'logistics'));
 }
 
 module.exports = {

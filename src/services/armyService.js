@@ -70,7 +70,7 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   let woundedBack = 0;
   if (totalAttackerLosses > 0 && army.cityId) {
     try {
-      const wounded = await calculateWoundedUnits(army.cityId, killed, army.owner?.faction, techPct(techRows, 'woundedBonusPct'));
+      const wounded = await calculateWoundedUnits(army.cityId, killed, army.owner?.faction, techPct(techRows, 'woundedBonusPct') + require('../utils/heroEffects').talent(army.hero, 'woundedPct'));
       if (wounded.length) woundedBack = await carryWounded(tx, army.id, wounded);   // ils rentrent avec l'armée
     } catch (e) { console.error('[WOUNDED]', e.message); }
   }
@@ -92,7 +92,7 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate) and Market / Trade Office of the home city
   const cityBuildings = fresh.cityId ? await tx.cityBuilding.findMany({ where: { cityId: fresh.cityId }, select: { key: true, level: true } }) : [];
   const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance
-  const room = Math.floor(getArmyCarryCapacity(fresh.units, unitsData, fresh.hero) * transportMult) - carrying;
+  const room = Math.floor(getArmyCarryCapacity(fresh.units, unitsData, fresh.hero) * transportMult * (1 + require('../utils/heroEffects').talent(fresh.hero, 'lootPct') / 100)) - carrying;   // talent Pillard
   const field = CARRY_FIELD[node.resourceType];
   if (!field || room <= 0) return {};
   const taken = await takeFromNode(tx, node.id, room);
@@ -139,15 +139,17 @@ async function fieldBattle(tx, army, holders, playerId, place) {
     fieldBattle: true, defenderFaction: lead.owner?.faction, attackerBonusPct: techPct(atkTech, 'attackBonusPct'), defenderBonusPct: techPct(lead.owner?.technologies, 'defenseBonusPct')
   });
   const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));
+  const engaged = require('./heroService').fought([army, ...holders]);   // héros des armées qui combattent avec des soldats
   const atk = await applyLossRate(tx, army.units, combat.attackerLossRate);
   let defTotal = 0; const defKilled = [];
   for (const h of holders) { const r = await applyLossRate(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
+  await require('./heroService').fallIfWiped(tx, engaged);   // une armée anéantie perd son héros
 
   // Wounded on both sides, hero XP as in a city battle
   try {
     // an attacker fighting at home (the city's riposte) sends its wounded straight to the Healing Tent
-    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct')); if (w.length) await (place.attackerAtHome ? addWoundedUnits(army.cityId, w, tx) : carryWounded(tx, army.id, w)); }
-    for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct')); if (w.length) await carryWounded(tx, h.id, w); }
+    if (atk.total > 0 && army.cityId) { const w = await calculateWoundedUnits(army.cityId, atk.killed, army.owner?.faction, techPct(atkTech, 'woundedBonusPct') + require('../utils/heroEffects').talent(army.hero, 'woundedPct')); if (w.length) await (place.attackerAtHome ? addWoundedUnits(army.cityId, w, tx) : carryWounded(tx, army.id, w)); }
+    for (const [h, killed] of defKilled) if (killed.length && h.cityId) { const w = await calculateWoundedUnits(h.cityId, killed, h.owner?.faction, techPct(h.owner?.technologies, 'woundedBonusPct') + require('../utils/heroEffects').talent(h.hero, 'woundedPct')); if (w.length) await carryWounded(tx, h.id, w); }
   } catch (e) { console.error('[WOUNDED]', e.message); }
   if (army.heroId) await awardHeroXp(army.heroId, Math.floor(defTotal * config.combat.heroXpPerKill * (combat.attackerWon ? 1 : 0.3)), tx);
   for (const h of holders) if (h.heroId) await awardHeroXp(h.heroId, Math.floor(atk.total * config.combat.heroXpPerKill * (combat.attackerWon ? 0.3 : 1)), tx);

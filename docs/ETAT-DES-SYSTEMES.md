@@ -273,9 +273,36 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 
 | Existe | Manque |
 |---|---|
-| Fiche, XP et niveaux (siège, raid, tribu, expédition), points attaque/défense/vitesse/logistique tous appliqués | Compétences / talents, portrait animé |
+| Fiche, XP et niveaux (siège, raid, tribu, expédition), points attaque/défense/vitesse/logistique tous appliqués, talents à 3 branches, chute et résurrection (ci-dessous) | Compétences actives, portrait animé |
 | **Équipement réel** : catalogue de 14 objets (`data/items.json`), bonus appliqués au combat, à la vitesse et à la logistique, inventaire, équiper/déséquiper/jeter, drop à la fin d'une expédition gagnée selon le palier de butin | Forge d'objets, enchantement, objets des raids/sièges |
 | Expéditions : 1 à 4 étoiles, puissance ennemie, durée, palier de butin, or, XP, objet | (les quêtes à objectifs sont en place : section Quêtes) |
+
+Décisions du 27 octobre 2026 (`src/utils/heroEffects.js`, `src/services/heroService.js`, `data/hero-talents.json`,
+client `frontend/js/app/08b-hero-talents.js`) :
+
+- **Caractéristiques** : **+0,1 % par point** (au lieu de 0,5 %), plafond **+5 %** par caractéristique gardé (GDD) :
+  50 points pour l'atteindre. Avec 4 points par niveau, un héros de niveau 30 (136 points) en maximise 2 à 3 sur 4.
+- **Équipement** inchangé (8 emplacements, 14 objets) : **+0,5 % par point d'objet**, plafonné à **+5 %** à part
+  (GDD « équipement plafonné à 5 % »). Le bonus de chaque caractéristique (points + objets + talents) s'affiche en %.
+- **Talents** : **1 point par niveau gagné** (29 au niveau 30), trois branches de 15 points (5 talents, paliers à 0, 5,
+  10 et 14 points dans la branche) : une branche pleine et presque une deuxième.
+  - Conquête : Assaut (+1 % d'attaque × 5), Ingénieur de siège (+4 % de dégâts aux murs × 3), Pillard (+4 % de butin
+    en raid, pillage et sur les points × 3), Vétéran (+5 % d'XP × 3), Seigneur de guerre (+5 % d'attaque).
+  - Garde : Rempart vivant (+1 % de défense × 5), Chirurgien (+3 points de blessés × 3), Gardien des murs (−5 % de
+    dégâts au mur de la ville qu'il défend × 3), Endurance (−10 % de temps de résurrection × 3), Dernier carré (+5 % de
+    défense).
+  - Intendance : Quartier-maître (+3 % de transport × 5), Éclaireur (+2 % de vitesse × 3), Explorateur (−5 % de durée
+    d'expédition × 3), Chasseur de trésors (+5 % d'or d'expédition × 3), Grand intendant (+5 % de transport, +3 % de
+    vitesse).
+  Les talents s'ajoutent au-delà des plafonds. Réinitialisation : la première gratuite, ensuite 100 or.
+- **Chute** : le héros tombe quand l'armée qu'il mène (ou la garnison qu'il commande) perd tous ses soldats dans un
+  combat (siège d'une ville, Bastion, combat en terrain ouvert). Un héros seul dans une garnison sans soldats ne combat
+  pas. Tombé, il garde niveau, points, talents et objets, quitte son armée, ne gagne plus d'XP et ne peut mener aucune
+  armée.
+- **Résurrection** au **Domus du Héros de la capitale** : 24 h réduites de 2 % par niveau du Domus (et du talent
+  Endurance), pour 250 bois, pierre, fer et 150 nourriture par niveau du héros ; il revient dans la garnison de la
+  capitale. Le panneau du Domus montre ce temps (les faux bonus « XP » et « stats » sont retirés).
+- Notifications : passage de niveau, chute, retour (lien vers l'écran du héros).
 
 ## Quêtes et tutoriel (26 octobre 2026)
 

@@ -34,7 +34,7 @@ async function pillage(tx, city, armies, survivors) {
   for (const r of RES) want[r] = Math.floor(Math.max(0, (city[r] - (protectedStock[r] || 0)) * (1 - shelter)) * F().pillagePct / 100);
   const BS = require('./bastionService');
   const allianceOf = new Map((await tx.allianceMember.findMany({ where: { playerId: { in: armies.map(a => a.ownerId) } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]));
-  const caps = armies.map(a => ({ a, cap: Math.max(0, Math.floor(getArmyCarryCapacity(survivors.get(a.id) || [], unitsData, a.hero) * (1 + getFactionBonus(a.owner?.faction, 'transportCapacity', factionsData) / 100) * BS.carryMultSync(allianceOf.get(a.ownerId)))) }));   // + Bastion d'alliance
+  const caps = armies.map(a => ({ a, cap: Math.max(0, Math.floor(getArmyCarryCapacity(survivors.get(a.id) || [], unitsData, a.hero) * (1 + getFactionBonus(a.owner?.faction, 'transportCapacity', factionsData) / 100) * BS.carryMultSync(allianceOf.get(a.ownerId)) * (1 + require('../utils/heroEffects').talent(a.hero, 'lootPct') / 100))) }));   // + Bastion d'alliance, talent Pillard
   const capacity = caps.reduce((t, c) => t + c.cap, 0);
   const wanted = RES.reduce((t, r) => t + want[r], 0);
   const share = wanted > 0 ? Math.min(1, capacity / wanted) : 0;

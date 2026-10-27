@@ -1,3 +1,4 @@
+const HE = require('../utils/heroEffects');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { calculateArmyPower, getFactionBonus } = require('../utils/calculations');
@@ -14,16 +15,14 @@ function equipmentStats(hero) {
   }
   return total;
 }
+// The hero as he fights: his row with items and talents (the bonus is read by heroBonus)
 function heroCombatStats(hero) {
-  if (!hero) return null;
-  const eq = equipmentStats(hero);
-  return { ...hero, attack: (hero.attack || 0) + (hero.atkPoints || 0) + eq.attack, defense: (hero.defense || 0) + (hero.defPoints || 0) + eq.defense };
+  return hero ? { ...hero } : null;
 }
 
-// GDD: +0.5% per hero point, capped at +5%
+// Points (+0,1 % each, cap +5 %), equipment (+0,5 % per point, cap +5 % apart) and talents (utils/heroEffects.js)
 function heroBonus(hero, stat) {
-  if (!hero) return 1;
-  return 1 + Math.min(config.combat.heroBonusMax, (hero[stat] || 0) * config.combat.heroBonusPerPoint);
+  return HE.statMult(hero, stat);
 }
 
 // Combat triangle, per attacking unit class vs the class it hits (GDD combat_config.json)
@@ -176,7 +175,9 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     let wallDamage = 0, strikers = snapA;
     if (wallUp) {
       // the blows fall on the wall first; what is left of the round once it is down reaches the soldiers
-      const dmg = snapA.reduce((t, a) => t + Math.max(0, a.count) * config.combat.roundDamageFactor * a.atk * (a.unitClass === 'SIEGE' ? W.engineMult : W.soldierMult), 0);
+      // talents : Ingénieur de siège (attaquant), Gardien des murs (héros qui défend la ville)
+      const wallTalent = Math.max(0, 1 + HE.talent(attackerHero, 'wallDamagePct') / 100 - HE.talent(defenderHero, 'wallGuardPct') / 100);
+      const dmg = wallTalent * snapA.reduce((t, a) => t + Math.max(0, a.count) * config.combat.roundDamageFactor * a.atk * (a.unitClass === 'SIEGE' ? W.engineMult : W.soldierMult), 0);
       wallDamage = Math.min(dmg, shield.hp);
       const rest = dmg > shield.hp && dmg > 0 ? 1 - shield.hp / dmg : 0;
       shield.hp = Math.max(0, shield.hp - dmg);

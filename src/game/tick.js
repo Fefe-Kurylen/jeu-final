@@ -95,6 +95,7 @@ async function gameTick() {
     await step('armies', () => processArmyMovements(now));
     await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
     await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
+    await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
     await step('harvest', () => processHarvesting(now));
 
     await step('flags', () => cleanupOrphanedFlags());

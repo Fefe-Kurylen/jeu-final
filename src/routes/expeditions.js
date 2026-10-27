@@ -28,13 +28,14 @@ router.post('/:id/start', auth, async (req, res) => {
       if (!expedition) return { error: 'Expedition non trouvee', status: 404 };
       const armyWhere = { ownerId: req.user.playerId, status: 'IDLE', isGarrison: false };
       if (armyId) armyWhere.id = armyId;
-      const candidates = await tx.army.findMany({ where: armyWhere, include: { units: true, city: true } });
+      const candidates = await tx.army.findMany({ where: armyWhere, include: { units: true, city: true, hero: true } });
       // Only an army standing in its city can leave on an expedition
       const army = candidates.find(a => a.units.length > 0 && a.city && a.x === a.city.x && a.y === a.city.y);
       if (!army) return { error: 'Armee requise avec des unites, en ville', status: 400 };
       await lockArmy(tx, army.id);
       const now = new Date();
-      const endsAt = new Date(now.getTime() + expedition.duration * 1000);
+      const shorter = 1 - Math.min(50, require('../utils/heroEffects').talent(army.hero, 'expeditionTimePct')) / 100;   // talent Explorateur
+      const endsAt = new Date(now.getTime() + Math.round(expedition.duration * shorter) * 1000);
       // Both transitions are conditional: the same army cannot be sent on two expeditions at once
       if (!(await transition(tx, 'army', army.id, 'IDLE', { status: 'EXPEDITION' }))) return { error: 'Armée déjà en mission', status: 409 };
       if (!(await transition(tx, 'expedition', expedition.id, 'AVAILABLE', { status: 'IN_PROGRESS', startedAt: now, endsAt, armyId: army.id }))) throw new Error('expedition raced');

@@ -376,6 +376,9 @@ async function handleAttack(army, now) {
 
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const defArmy of defenders) await applyLosses(tx, defArmy.units, result.defenderFinalUnits);
+    // une armée anéantie perd son héros (il tombe : résurrection au Domus, services/heroService.js)
+    const HS = require('../../services/heroService');
+    await HS.fallIfWiped(tx, HS.fought([...group.map(g => ({ ...g, units: rowsOf.get(g.id) })), ...defenders]), now);
     const campMinutes = army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
     // Won: a quarter of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
     let pillaged = null, structure = null;
@@ -445,18 +448,18 @@ async function handleAttack(army, now) {
       return Object.entries(k).filter(([, n]) => n > 0).map(([key, killed]) => ({ key, killed }));
     };
     const ownKilled = helpers.length ? killedOf(defenders.filter(d => d.ownerId === targetCity.playerId)) : result.defenderFinalUnits;
-    const defenderWounded = await calculateWoundedUnits(targetCity.id, ownKilled, targetCity.player.faction, T.techPct(defTech, 'woundedBonusPct'));
+    const defenderWounded = await calculateWoundedUnits(targetCity.id, ownKilled, targetCity.player.faction, T.techPct(defTech, 'woundedBonusPct') + require('../../utils/heroEffects').talent(defenderHero, 'woundedPct'));
     if (defenderWounded.length > 0) await addWoundedUnits(targetCity.id, defenderWounded);
     for (const h of helpers) {
       if (!h.cityId) continue;
-      const hw = await calculateWoundedUnits(h.cityId, killedOf([h]), h.owner?.faction, T.techPct(h.owner?.technologies, 'woundedBonusPct'));
+      const hw = await calculateWoundedUnits(h.cityId, killedOf([h]), h.owner?.faction, T.techPct(h.owner?.technologies, 'woundedBonusPct') + require('../../utils/heroEffects').talent(h.hero, 'woundedPct'));
       if (hw.length > 0) await carryWounded(prisma, h.id, hw);
     }
     for (const g of group) {
       if (!g.cityId) continue;
       // this camp's own dead, by unit type
       const killed = rowsOf.get(g.id).map(u => ({ key: u.unitKey, killed: u.count - Math.round(u.count * survivalRatio(result.attackerFinalUnits, u.unitKey)) }));
-      const attackerWounded = await calculateWoundedUnits(g.cityId, killed, g.owner?.faction, T.techPct(g.ownerId === army.ownerId ? atkTech : g.owner?.technologies, 'woundedBonusPct'));
+      const attackerWounded = await calculateWoundedUnits(g.cityId, killed, g.owner?.faction, T.techPct(g.ownerId === army.ownerId ? atkTech : g.owner?.technologies, 'woundedBonusPct') + require('../../utils/heroEffects').talent(g.hero, 'woundedPct'));
       if (attackerWounded.length > 0) await carryWounded(prisma, g.id, attackerWounded);   // ils rentrent avec l'armée
     }
   } catch (woundErr) { console.error('[WOUNDED]', woundErr.message); }
@@ -596,7 +599,7 @@ async function handleRaid(army, now) {
     // still has after the hideout; the stock is taken atomically at resolution time
     if (result.attackerWon) {
       const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * require('../../services/bastionService').carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
-      const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier;
+      const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier * (1 + require('../../utils/heroEffects').talent(army.hero, 'lootPct') / 100);   // talent Pillard
       const budget = carry * config.combat.raidLootPctOfCarry;
       const hideout = targetCity.buildings.find(b => b.key === 'HIDEOUT');
       let hideoutProtection = (hideout?.level || 0) * config.hideout.protectionPerLevel;

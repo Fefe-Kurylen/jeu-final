@@ -270,6 +270,11 @@ model Hero {
   logPoints  Int @default(0)
   statPoints Int @default(5)
 
+  talents      Json? // talents appris { clé: rang } (data/hero-talents.json), 1 point par niveau gagné
+  talentResets Int       @default(0) // réinitialisations faites (la première est gratuite)
+  diedAt       DateTime? // tombé au combat (son armée anéantie) : plus d'armée, plus de bonus jusqu'à la résurrection
+  reviveEndsAt DateTime? // résurrection en cours au Domus du Héros de la capitale
+
   player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   army   Army?
   items  HeroItem[]

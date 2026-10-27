@@ -272,6 +272,8 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: 1 } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
+    const HS = require('./heroService');
+    await HS.fallIfWiped(tx, HS.fought([...group.map(g => ({ ...g, units: rowsOf.get(g.id) })), ...defenders]), now);   // une armée anéantie perd son héros
     const livesBefore = livesOf(structure);
     let after = structure, destroyed = false;
     if (result.attackerWon) {   // une vie de moins (la part d'une vie en train de remonter est perdue)

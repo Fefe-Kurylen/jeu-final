@@ -47,6 +47,11 @@ const config = {
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
   // plus dur (mur bouclier 50 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
+  // Héros (décision du 27 octobre 2026) : résurrection au Domus payée selon le niveau du héros
+  hero: {
+    reviveCostPerLevel: { wood: 250, stone: 250, iron: 250, food: 150 }
+  },
+
   bastion: {
     minMembers: 15,
     cost: { wood: 500000, stone: 500000, iron: 500000, food: 250000 },
@@ -205,8 +210,10 @@ const config = {
     wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
     wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level
     moatBonusPerLevel: 0.005,    // GDD: +0.5% defender attack and defense per moat level
-    heroBonusPerPoint: 0.005,    // GDD: +0.5% per hero point...
-    heroBonusMax: 0.05,          // ...capped at +5%
+    heroBonusPerPoint: 0.001,    // +0.1 % per hero point (décision du 27 octobre 2026 : 50 points pour le plafond)...
+    heroBonusMax: 0.05,          // ...capped at +5 % per stat (GDD)
+    heroEquipmentPerPoint: 0.005, // equipment: +0.5 % per item point...
+    heroEquipmentMax: 0.05,       // ...capped at +5 % apart (GDD « équipement plafonné à 5 % »)
     heroXpPerKill: 0.25,         // GDD: XP per enemy unit destroyed
     heroXpPerTribeKill: 1,       // XP per tribe unit destroyed when clearing a resource node
     heroMaxLevel: 30,

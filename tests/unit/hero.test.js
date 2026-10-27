@@ -1,0 +1,72 @@
+// Héros (décision du 27 octobre 2026) : 0,1 % par point plafonné à 5 %, équipement plafonné à part, talents, chute
+require('./_env');
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://unit:unit@localhost:5432/unit';   // le client Prisma est créé, jamais interrogé
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const HE = require('../../src/utils/heroEffects');
+const HS = require('../../src/services/heroService');
+const near = (a, b) => Math.abs(a - b) < 1e-9;
+
+test('caractéristiques : +0,1 % par point, plafond +5 % atteint à 50 points', () => {
+  assert.ok(near(HE.statPct({ attack: 5, atkPoints: 5 }, 'attack'), 0.01));
+  assert.ok(near(HE.statPct({ attack: 5, atkPoints: 45 }, 'attack'), 0.05));
+  assert.ok(near(HE.statPct({ attack: 5, atkPoints: 200 }, 'attack'), 0.05));
+});
+
+test('équipement : +0,5 % par point d\'objet, plafonné à +5 % à part', () => {
+  const sword = { slot: 'weapon', stats: { attack: 4 } };
+  assert.ok(near(HE.statPct({ attack: 0, items: [sword] }, 'attack'), 0.02));
+  assert.ok(near(HE.statPct({ attack: 0, items: [sword, { slot: 'amulet', stats: { attack: 30 } }] }, 'attack'), 0.05));
+  assert.ok(near(HE.statPct({ attack: 0, items: [{ slot: 'inventory', stats: { attack: 4 } }] }, 'attack'), 0), 'un objet au sac ne compte pas');
+  assert.ok(near(HE.statPct({ attack: 5, atkPoints: 45, items: [sword] }, 'attack'), 0.07), 'les deux plafonds s\'ajoutent');
+});
+
+test('talents : effets par rang, au-delà des plafonds ; Grand intendant donne transport et vitesse', () => {
+  const hero = { level: 30, attack: 5, atkPoints: 45, talents: { c_assault: 5, c_warlord: 1, i_grand_steward: 1 } };
+  assert.ok(near(HE.statPct(hero, 'attack'), 0.05 + 0.10));
+  assert.equal(HE.talent(hero, 'carryPct'), 5);
+  assert.equal(HE.talent(hero, 'speedPct'), 3);
+  assert.equal(HE.talent({ talents: { c_assault: 99 } }, 'attackPct'), 5, 'un rang au-delà du maximum ne compte pas');
+  assert.equal(HE.talent(null, 'attackPct'), 0);
+});
+
+test('points de talent : 1 par niveau gagné, paliers de branche, maximum de rang', () => {
+  assert.equal(HE.talentPoints({ level: 1 }), 0);
+  assert.equal(HE.talentPoints({ level: 30 }), 29);
+  assert.match(HE.canLearn({ level: 1 }, 'c_assault'), /point/);
+  assert.equal(HE.canLearn({ level: 2 }, 'c_assault'), null);
+  assert.match(HE.canLearn({ level: 10, talents: { c_assault: 4 } }, 'c_siege'), /5 points/);
+  assert.equal(HE.canLearn({ level: 10, talents: { c_assault: 5 } }, 'c_siege'), null);
+  assert.match(HE.canLearn({ level: 10, talents: { c_assault: 5 } }, 'c_assault'), /maximum/);
+  assert.match(HE.canLearn({ level: 10, talents: { g_bulwark: 5 } }, 'c_siege'), /5 points/, 'les points d\'une autre branche ne débloquent rien');
+  assert.match(HE.canLearn({ level: 2 }, 'nope'), /inconnu/);
+  // 15 points par branche : une branche pleine et presque une deuxième au niveau 30
+  for (const b of HE.catalog.branches) assert.equal(b.talents.reduce((t, x) => t + x.maxRank, 0), 15);
+});
+
+test('résurrection : 24 h, −2 % par niveau du Domus, −10 % par rang d\'Endurance ; prix selon le niveau', () => {
+  assert.equal(HS.reviveSeconds({}, 0), 24 * 3600);
+  assert.equal(HS.reviveSeconds({}, 10), Math.round(24 * 3600 * 0.8));
+  assert.equal(HS.reviveSeconds({ talents: { g_endurance: 3 } }, 20), Math.round(24 * 3600 * 0.6 * 0.7));
+  assert.deepEqual(HS.reviveCost({ level: 10 }), { wood: 2500, stone: 2500, iron: 2500, food: 1500 });
+});
+
+test('chute : le héros d\'une armée anéantie tombe, celui d\'une armée qui garde des soldats non', async () => {
+  const left = { wiped: 0, alive: 3 };
+  const writes = [];
+  const tx = {
+    armyUnit: { aggregate: async ({ where }) => ({ _sum: { count: left[where.armyId] } }) },
+    hero: { findUnique: async ({ where }) => ({ id: where.id, name: 'H' + where.id, playerId: 'p', diedAt: null }), update: async (q) => writes.push(['hero', q.where.id, q.data]) },
+    army: { update: async (q) => writes.push(['army', q.where.id, q.data]) }
+  };
+  const armies = HS.fought([
+    { id: 'wiped', heroId: 'h1', units: [{ count: 10 }] },
+    { id: 'alive', heroId: 'h2', units: [{ count: 10 }] },
+    { id: 'empty', heroId: 'h3', units: [] }   // un héros seul dans une garnison vide ne combat pas
+  ]);
+  assert.deepEqual(armies.map(a => a.id), ['wiped', 'alive']);
+  const fallen = await HS.fallIfWiped(tx, armies);
+  assert.deepEqual(fallen.map(f => f.heroId), ['h1']);
+  assert.ok(writes.some(([k, id, d]) => k === 'army' && id === 'wiped' && d.heroId === null));
+  assert.ok(writes.some(([k, id, d]) => k === 'hero' && id === 'h1' && d.diedAt instanceof Date));
+});
