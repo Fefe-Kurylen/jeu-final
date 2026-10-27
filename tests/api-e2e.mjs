@@ -926,6 +926,28 @@ await call('ranking players', 'GET', '/api/ranking/players', tA);
 await call('ranking alliances', 'GET', '/api/ranking/alliances', tA);
 await call('ranking attackers', 'GET', '/api/ranking/attackers', tA);
 await call('ranking defenders', 'GET', '/api/ranking/defenders', tA);
+// classements (décision du 27 octobre 2026) : points de combat, rang personnel, semaine, médailles honorifiques
+{
+  const atk = await call('ranking: players by attack points', 'GET', '/api/ranking/players?sort=attack', tA);
+  assert('ranking: A has attack points from its battles, with its own rank', Number(sql(`SELECT "attackPoints" FROM "PlayerStats" WHERE "playerId"='${A.player.id}'`)) > 0 && atk?.me?.rank >= 1 && atk.me.value === Number(sql(`SELECT "attackPoints" FROM "PlayerStats" WHERE "playerId"='${A.player.id}'`)), JSON.stringify(atk?.me));
+  assert('ranking: sorted by value', (atk?.rows || []).every((r, i, a) => i === 0 || a[i - 1].value >= r.value) && atk.rows[0].rank === 1);
+  const al = await call('ranking: alliances by defense', 'GET', '/api/ranking/alliances?sort=defense', tA);
+  assert('ranking: alliance rows carry attack and defense sums', (al?.rows || []).every(r => typeof r.attackPoints === 'number' && typeof r.defensePoints === 'number'));
+  const wk = await call('ranking: this week attackers', 'GET', '/api/ranking/week?category=ATTACK', tA);
+  assert('ranking: the week counts A\'s points', !!wk?.me && wk.me.attackPoints > 0 && /^\d{4}-\d{2}-\d{2}$/.test(wk.week), JSON.stringify(wk?.me));
+  await call('ranking: unknown week category -> 400', 'GET', '/api/ranking/week?category=NOPE', tA, null, 400);
+  // la semaine précédente se clôt au tick : médailles pour le top 10 (joueurs) et le top 3 (alliances)
+  const prev = new Date(new Date(wk.week + 'T12:00:00Z').getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  sql(`DELETE FROM "Medal" WHERE week='${prev}'`); sql(`DELETE FROM "RankingWeek" WHERE week='${prev}'`);
+  sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","defensePoints",loot,"popStart") VALUES (gen_random_uuid(),'${A.player.id}','${prev}',90000000,0,5000,0), (gen_random_uuid(),'${B.player.id}','${prev}',0,80000000,0,0) ON CONFLICT ("playerId",week) DO UPDATE SET "attackPoints"=EXCLUDED."attackPoints", "defensePoints"=EXCLUDED."defensePoints", loot=EXCLUDED.loot`);
+  await waitTick('last week closed', () => sql(`SELECT count(*) FROM "RankingWeek" WHERE week='${prev}'`) === '1' && Number(sql(`SELECT count(*) FROM "Medal" WHERE week='${prev}'`)) > 0);
+  assert('ranking: A gets the gold medal of last week\'s attackers, B the defenders\'', sql(`SELECT rank FROM "Medal" WHERE week='${prev}' AND category='ATTACK' AND "playerId"='${A.player.id}'`) === '1' && sql(`SELECT rank FROM "Medal" WHERE week='${prev}' AND category='DEFENSE' AND "playerId"='${B.player.id}'`) === '1');
+  const md = await call('ranking: my medals', 'GET', '/api/ranking/medals', tA);
+  assert('ranking: the medal is listed', (md?.medals || []).some(m => m.week === prev && m.category === 'ATTACK' && m.rank === 1));
+  const prof = await call('ranking: medals on the public profile', 'GET', `/api/player/${A.player.id}`, tB);
+  assert('ranking: the profile shows medals and combat points', (prof?.medals || []).some(m => m.week === prev) && typeof prof?.stats?.attackPoints === 'number');
+  sql(`DELETE FROM "PlayerWeekStats" WHERE week='${prev}'`);
+}
 
 // ---------- FACTION / QUEUE / GOLD ----------
 await call('ROME builds GALLIC_BREWERY -> 400', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'GALLIC_BREWERY' }, 400);

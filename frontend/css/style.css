@@ -5148,9 +5148,9 @@ span.chat-author { cursor: default; }
 .support-where { color: var(--text-muted); font-size: 12px; }
 /* onglets de l'alliance (5) : défilent sur un téléphone au lieu d'être tronqués */
 @media (max-width: 760px) {
-  #tab-alliance .tab-toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: flex-start; }
-  #tab-alliance .tab-toolbar::-webkit-scrollbar { display: none; }
-  #tab-alliance .toolbar-btn { flex: 0 0 auto; white-space: nowrap; overflow: visible; text-overflow: clip; }
+  #tab-alliance .tab-toolbar, #tab-ranking .tab-toolbar, #tab-market .tab-toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: flex-start; }
+  #tab-alliance .tab-toolbar::-webkit-scrollbar, #tab-ranking .tab-toolbar::-webkit-scrollbar, #tab-market .tab-toolbar::-webkit-scrollbar { display: none; }
+  #tab-alliance .toolbar-btn, #tab-ranking .toolbar-btn, #tab-market .toolbar-btn { flex: 0 0 auto; white-space: nowrap; overflow: visible; text-overflow: clip; }
 }
 
 /* ========== QUÊTES (décision du 26 octobre 2026) ========== */
@@ -5278,3 +5278,26 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .route-row { flex-wrap: wrap; gap: 6px; }
 .route-row.paused { opacity: .6; }
 .route-row small { color: var(--text-muted); margin-left: 6px; }
+
+/* ---- Classements (09h-ranking.js) ---- */
+.ranking-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.ranking-chips .chip { padding: 5px 10px; border-radius: 14px; border: 1px solid rgba(201,162,39,.45); background: rgba(0,0,0,.25); color: inherit; font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.ranking-chips .chip.active { background: rgba(201,162,39,.35); border-color: #c9a227; }
+.ranking-me { padding: 8px 12px; border-radius: 8px; background: rgba(201,162,39,.15); border: 1px solid rgba(201,162,39,.5); margin: 6px 0 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ranking-pages { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
+.ranking-name small { color: var(--text-muted); margin-left: 6px; }
+.rank-num { display: inline-block; min-width: 1.6em; text-align: center; }
+.medal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.medal-card { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.22); border: 1px solid rgba(201,162,39,.3); }
+.medal-card .ico { width: 32px; height: 32px; }
+.medal-card.rank-1 { border-color: #e8c547; } .medal-card.rank-2 { border-color: #c0c6cf; } .medal-card.rank-3 { border-color: #c68a4c; }
+.medal-card small { display: block; color: var(--text-muted); }
+
+.ranking-list { display: flex; flex-direction: column; gap: 4px; }
+.ranking-row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 8px; background: rgba(0,0,0,.2); border: 1px solid rgba(201,162,39,.18); }
+.ranking-row:nth-child(odd) { background: rgba(0,0,0,.28); }
+.ranking-row:hover { border-color: rgba(201,162,39,.5); }
+.ranking-position { text-align: center; font-weight: 700; color: var(--text-muted); }
+.ranking-position .ico { width: 26px; height: 26px; }
+.ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-value { font-weight: 700; color: var(--gold, #c9a227); white-space: nowrap; }

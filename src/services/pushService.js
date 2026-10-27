@@ -86,7 +86,7 @@ function configured() { return !!(apnsToken() || fcmServiceAccount()); }
 //   { to: 'alliance', sub }        a section of the alliance tab (diplomacy, help, members)
 //   { to: 'hero' }                 the hero screen (level up, fall, resurrection)
 // `tab` is kept for the mobile apps already installed (they only know the tab).
-const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city', chat: 'messages', alliance: 'alliance', hero: 'hero' };
+const TAB_OF = { map: 'map', report: 'reports', spy: 'reports', army: 'army', siege: 'map', city: 'city', chat: 'messages', alliance: 'alliance', hero: 'hero', ranking: 'ranking' };
 const TO_OF_TAB = { reports: 'report', army: 'army', map: 'map', city: 'city' };
 function normalizeLink(data) {
   if (!data || typeof data !== 'object') return null;

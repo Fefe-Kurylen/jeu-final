@@ -274,6 +274,8 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
     const HS = require('./heroService');
     await HS.fallIfWiped(tx, HS.fought([...group.map(g => ({ ...g, units: rowsOf.get(g.id) })), ...defenders]), now);   // une armée anéantie perd son héros
+    const RK = require('./rankingService');
+    await RK.recordCombat(tx, { attackers: group.map(g => ({ playerId: g.ownerId, units: RK.unitCount(rowsOf.get(g.id)) })), defenders: RK.sideOf(defenders), attackerLosses: result.attackerFinalUnits, defenderLosses: result.defenderFinalUnits });   // classements
     const livesBefore = livesOf(structure);
     let after = structure, destroyed = false;
     if (result.attackerWon) {   // une vie de moins (la part d'une vie en train de remonter est perdue)

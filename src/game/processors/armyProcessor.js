@@ -409,6 +409,10 @@ async function handleAttack(army, now) {
     for (const helperId of new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))) {
       reportIds[helperId] = (await tx.battleReport.create({ data: { ...reportBase, loot: { ...loot(null), support: true }, result: reportResult(false, result.attackerWon), playerId: helperId, attackerId: army.ownerId, defenderId: targetCity.playerId } })).id;
     }
+    // classements : points de combat partagés selon les soldats engagés, pillage de chaque attaquant
+    const RK = require('../../services/rankingService');
+    await RK.recordCombat(tx, { attackers: group.map(g => ({ playerId: g.ownerId, units: RK.unitCount(rowsOf.get(g.id)) })), defenders: RK.sideOf(defenders), attackerLosses: result.attackerFinalUnits, defenderLosses: result.defenderFinalUnits });
+    if (pillaged) for (const g of group) await RK.recordLoot(tx, g.ownerId, Object.values(pillaged.carried.get(g.id) || {}).reduce((t, v) => t + (Number(v) || 0), 0));
     const winnerId = result.attackerWon ? army.ownerId : targetCity.playerId;
     const winField = result.attackerWon ? 'attacksWon' : 'defensesWon';
     await tx.playerStats.upsert({ where: { playerId: winnerId }, update: { [winField]: { increment: 1 } }, create: { playerId: winnerId, [winField]: 1 } });
@@ -636,6 +640,10 @@ async function handleRaid(army, now) {
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
       loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID' }
     };
+    // classements : points de combat et pillage (services/rankingService.js)
+    const RK = require('../../services/rankingService');
+    await RK.recordCombat(tx, { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders), attackerLosses: attackerUnits.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * result.attackerLossRate) })), defenderLosses: defenderUnits.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * result.defenderLossRate) })) });
+    if (result.attackerWon) await RK.recordLoot(tx, army.ownerId, ['wood', 'stone', 'iron', 'food'].reduce((t, k) => t + (Number(loot?.[k]) || 0), 0));
     const atkReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     const defReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     if (result.attackerWon) {

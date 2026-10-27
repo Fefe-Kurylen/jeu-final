@@ -100,15 +100,60 @@ model Player {
 }
 
 model PlayerStats {
-  id          String @id @default(uuid())
-  playerId    String @unique
-  attacksWon  Int    @default(0)
-  defensesWon Int    @default(0)
-  unitsKilled Int    @default(0)
-  unitsLost   Int    @default(0)
-  raidsWon    Int    @default(0)
+  id            String @id @default(uuid())
+  playerId      String @unique
+  attacksWon    Int    @default(0)
+  defensesWon   Int    @default(0)
+  unitsKilled   Int    @default(0)
+  unitsLost     Int    @default(0)
+  raidsWon      Int    @default(0)
+  // classements (décision du 27 octobre 2026) : points de combat façon Travian = entretien des unités ennemies tuées
+  attackPoints  Int    @default(0)
+  defensePoints Int    @default(0)
+  loot          Int    @default(0) // ressources prises aux autres joueurs (raids, pillage de siège)
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([attackPoints])
+  @@index([defensePoints])
+  @@index([loot])
+}
+
+// Compteurs de la semaine (lundi, heure de Paris) pour le top 10 hebdomadaire ; popStart : population au début de la semaine
+model PlayerWeekStats {
+  id            String @id @default(uuid())
+  playerId      String
+  week          String
+  attackPoints  Int    @default(0)
+  defensePoints Int    @default(0)
+  loot          Int    @default(0)
+  popStart      Int    @default(0)
+
+  @@unique([playerId, week])
+  @@index([week])
+}
+
+// Médaille de la semaine (honorifique) : joueur ou alliance, catégorie, rang 1 à 10
+model Medal {
+  id         String   @id @default(uuid())
+  playerId   String?
+  allianceId String?
+  week       String
+  category   String // ATTACK, DEFENSE, LOOT, CLIMB (joueurs) ; ALLIANCE_ATTACK, ALLIANCE_DEFENSE
+  rank       Int
+  value      Int
+  name       String // nom du joueur ou [TAG] de l'alliance au moment de la médaille
+  createdAt  DateTime @default(now())
+
+  @@index([playerId])
+  @@index([allianceId])
+  @@index([week])
+}
+
+// Semaines déjà closes (médailles distribuées)
+model RankingWeek {
+  week     String   @id
+  closedAt DateTime @default(now())
 }
 
 model City {

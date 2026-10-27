@@ -225,6 +225,23 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
   plus, pause et suppression à volonté.
 - Le marchand du serveur (PNJ) est inchangé : taxe de 30 %, −1 % par niveau du Marché (GDD).
 
+## Classements et médailles (27 octobre 2026)
+
+Décisions du 27 octobre 2026 (GDD `world_config.server.rankings`, `src/services/rankingService.js`,
+`src/routes/ranking.js`, client `frontend/js/app/09h-ranking.js`) :
+
+- **Points de combat façon Travian** : un ennemi tué vaut son entretien en nourriture (5 de base, 10 intermédiaire,
+  15 élite et siège, GDD). L'attaquant gagne des points d'attaque, le défenseur des points de défense, partagés entre les
+  joueurs d'un même camp selon les soldats engagés. Comptent : attaques et raids de villes, sièges, Bastions, combats sur
+  les points et en terrain ouvert ; une tribu tuée donne des points d'attaque (comme les animaux d'une oasis Travian).
+  **Pillage** : ressources prises aux autres joueurs (raids, pillage de siège).
+- **Classement des joueurs** par population, attaque, défense ou pillage, 50 par page, avec **son propre rang**
+  (« Voir ma place »). **Alliances** par population, attaque ou défense (somme des membres), avec le rang de la sienne.
+- **Semaine** (lundi 0 h, heure de Paris) : top 10 en attaque, défense, pillage et progression de population ; top 3 des
+  alliances en attaque et en défense ; ses propres chiffres de la semaine. Au lundi, la semaine close donne une
+  **médaille honorifique** (or, argent, bronze, puis rang) à chaque classé, prévenu par une notification ; les médailles
+  restent sur le profil public (avec les points d'attaque, de défense et le pillage) et dans l'onglet Médailles.
+
 ## Messagerie (octobre 2026)
 
 Onglet **Messages** de la barre du bas (pastille des non-lus), `frontend/js/app/09c-chat.js`, `src/services/chatService.js`,

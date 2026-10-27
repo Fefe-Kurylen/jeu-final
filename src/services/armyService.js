@@ -56,6 +56,8 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
     newDefenderUnits[unitType] = Math.max(0, count - losses);
   }
 
+  // classements : la tribu tuée donne des points d'attaque (comme les animaux d'une oasis Travian)
+  await require('./rankingService').recordCombat(tx, { attackers: [{ playerId, units: army.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killed, defenderLosses: Object.entries(node.defenderUnits || {}).map(([key, count]) => ({ key, killed: Math.floor(count * combat.defenderLossRate) })) });
   if (combat.attackerWon) {
     await tx.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: newDefenderUnits, defenderPower: 0, lastDefeat: new Date() } });
     if (army.heroId) await awardHeroXp(army.heroId, Math.floor(totalDefenderLosses * config.combat.heroXpPerTribeKill), tx);
@@ -140,10 +142,13 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   });
   const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));
   const engaged = require('./heroService').fought([army, ...holders]);   // héros des armées qui combattent avec des soldats
+  const RK = require('./rankingService');
+  const sides = { attackers: [{ playerId, units: RK.unitCount(army.units) }], defenders: RK.sideOf(holders) };   // avant les pertes
   const atk = await applyLossRate(tx, army.units, combat.attackerLossRate);
   let defTotal = 0; const defKilled = [];
   for (const h of holders) { const r = await applyLossRate(tx, h.units, combat.defenderLossRate); defTotal += r.total; defKilled.push([h, r.killed]); }
   await require('./heroService').fallIfWiped(tx, engaged);   // une armée anéantie perd son héros
+  await RK.recordCombat(tx, { ...sides, attackerLosses: atk.killed, defenderLosses: defKilled.flatMap(([, k]) => k) });   // classements
 
   // Wounded on both sides, hero XP as in a city battle
   try {

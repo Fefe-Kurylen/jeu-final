@@ -198,36 +198,7 @@ async function leaveAlliance() {
   await allianceAction('/api/alliance/leave', 'Alliance quittée');
 }
 
-// ========== RANKING ==========
-async function loadRanking(type) {
-  document.querySelectorAll('#tab-ranking .toolbar-btn').forEach(t => t.classList.remove('active'));
-  document.querySelector(`#tab-ranking .toolbar-btn[onclick*="'${type}'"]`)?.classList.add('active');
-  const content = document.getElementById('ranking-content');
-  const endpoints = { players: '/api/ranking/players', alliances: '/api/ranking/alliances', attackers: '/api/ranking/attackers', defenders: '/api/ranking/defenders' };
-  const valueOf = (item) => type === 'attackers' ? `${formatNum(item.attacksWon || 0)} victoires` : type === 'defenders' ? `${formatNum(item.defensesWon || 0)} défenses` : `${formatNum(item.population || 0)} pop`;
-
-  try {
-    const data = await fetchJson(endpoints[type] || endpoints.players);
-    content.innerHTML = data.length === 0 ? '<div class="empty-state">Aucun classement pour le moment</div>' : `
-      <div class="ranking-list">
-        ${data.map((item, i) => `
-          <div class="ranking-row ${item.id === player?.id ? 'me' : ''}" ${type !== 'alliances' && item.id ? `onclick="viewPlayerProfile('${item.id}')"` : ''}>
-            <span class="ranking-position ${i < 3 ? 'top' + (i + 1) : ''}">${i === 0 ? '<img class="ico" src="assets/images/3d/ui/medal.webp" alt="">' : i === 1 ? '<img class="ico" src="assets/images/3d/ui/medal_silver.webp" alt="">' : i === 2 ? '<img class="ico" src="assets/images/3d/ui/medal_bronze.webp" alt="">' : i + 1}</span>
-            <span class="ranking-name">${type === 'alliances' ? `[${escapeHtml(item.tag)}] ${escapeHtml(item.name)}` : `${item.alliance?.alliance?.tag ? `[${escapeHtml(item.alliance.alliance.tag)}] ` : ''}${escapeHtml(item.name)}`}</span>
-            <span class="ranking-value">${valueOf(item)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  } catch (e) {
-    console.warn('loadRanking error:', e);
-    renderLoadError(content, `loadRanking('${type}')`);
-  }
-}
-
-function showRanking(type) {
-  loadRanking(type);
-}
+// ========== RANKING ========== (09h-ranking.js)
 
 // ========== REPORTS ==========
 async function loadReports() {

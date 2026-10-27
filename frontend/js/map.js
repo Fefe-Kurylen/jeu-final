@@ -3099,10 +3099,13 @@ async function viewPlayerProfile(playerId) {
         ${p.relation && !p.relation.self && typeof diploBadge === 'function' ? `<div class="profile-stat"><span>Diplomatie:</span> ${diploBadge(p.relation.diplomacy || 'NEUTRAL')}</div>` : ''}
         ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${escapeHtml(p.hero.name)} (Niv.${p.hero.level})</strong></div>` : ''}
         ${p.stats ? `
-          <div class="profile-stat"><span>Attaques gagnées:</span> <strong>${p.stats.attacksWon}</strong></div>
-          <div class="profile-stat"><span>Défenses gagnées:</span> <strong>${p.stats.defensesWon}</strong></div>
+          <div class="profile-stat"><span>Points d'attaque:</span> <strong>${formatNum(p.stats.attackPoints || 0)}</strong></div>
+          <div class="profile-stat"><span>Points de défense:</span> <strong>${formatNum(p.stats.defensePoints || 0)}</strong></div>
+          <div class="profile-stat"><span>Pillage:</span> <strong>${formatNum(p.stats.loot || 0)}</strong></div>
+          <div class="profile-stat"><span>Attaques / défenses gagnées:</span> <strong>${p.stats.attacksWon} / ${p.stats.defensesWon}</strong></div>
         ` : ''}
       </div>
+      ${p.medals?.length && typeof medalsHtml === 'function' ? `<h4>${resIconHtml('medal')} Médailles (${p.medals.length})</h4>${medalsHtml(p.medals.slice(0, 12))}` : ''}
       <h4>${resIconHtml('city')} Villes</h4>
       <div class="profile-cities">
         ${(p.cities || []).map(c => `

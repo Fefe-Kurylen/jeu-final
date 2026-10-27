@@ -48,6 +48,7 @@ router.get('/:id', auth, async (req, res) => {
         hero: { select: { name: true, level: true } }
       }
     });
+    const medals = targetPlayer ? await prisma.medal.findMany({ where: { playerId: targetPlayer.id }, orderBy: [{ week: 'desc' }, { rank: 'asc' }], take: 50 }) : [];
     if (!targetPlayer) return res.status(404).json({ error: 'Joueur non trouvé' });
     // ce qui lie le joueur à celui qu'il regarde : amitié (demande envoyée, reçue, acceptée) et blocage
     const meId = req.user.playerId;
@@ -66,7 +67,8 @@ router.get('/:id', auth, async (req, res) => {
         id: targetPlayer.alliance.alliance.id, name: targetPlayer.alliance.alliance.name, tag: targetPlayer.alliance.alliance.tag, role: targetPlayer.alliance.role
       } : null,
       hero: targetPlayer.hero ? { name: targetPlayer.hero.name, level: targetPlayer.hero.level } : null,
-      stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon } : null,
+      stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon, attackPoints: targetPlayer.stats.attackPoints, defensePoints: targetPlayer.stats.defensePoints, loot: targetPlayer.stats.loot } : null,
+      medals: medals.map(m => ({ week: m.week, category: m.category, rank: m.rank, value: m.value })),
       createdAt: targetPlayer.createdAt, relation
     });
   } catch (e) {
