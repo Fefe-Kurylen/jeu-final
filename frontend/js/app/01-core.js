@@ -474,7 +474,7 @@ async function showGame() {
   if (!playerOk) { setConnectOverlay('error'); return; }
   await loadCities();
   if (!token) { setConnectOverlay(null); return; }
-  if (!cities.length) { setConnectOverlay('error'); return; }
+  if (!cities.length) { setConnectOverlay(typeof openJoinWorld === 'function' ? null : 'error'); return; }   // compte d'un monde précédent : l'écran pour rejoindre le monde (09i-world.js)
   if (typeof loadResearch === 'function') loadResearch();   // niveaux de technologie et file de recherche (non bloquant)
   setConnectOverlay(null);
   updateEmailBanner();

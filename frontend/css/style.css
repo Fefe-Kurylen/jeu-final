@@ -5307,7 +5307,8 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 
 /* ---- Cycle du serveur et Merveille (09i-world.js) ---- */
 .wonder-banner { margin: 6px 12px; padding: 8px 12px; border-radius: 8px; background: rgba(110, 80, 10, .85); border: 1px solid #e8c547; color: #fff4d0; font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; position: relative; z-index: 5; }
-.wonder-banner .btn { margin-left: auto; }
+#wonder-banner .btn, #world-ended-banner .btn { margin-left: auto; min-height: 0; height: auto; padding: 0 6px; border-width: 7px 9px; border-image-width: 7px 9px; font-size: 12px; line-height: 1.3; }
+#wonder-banner, #world-ended-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 12px; }
 .famine-banner.world-ended { background: rgba(60, 40, 90, .9); border-color: #b39ddb; }
 .wonder-head { margin-bottom: 6px; }
 .wonder-bar-fill { height: 12px; margin-bottom: 10px; }

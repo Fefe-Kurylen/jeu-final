@@ -105,7 +105,7 @@ async function renderWorldTab(content) {
       <h4>${resIconHtml('map')} Monde ${st.world} · jour ${st.day}</h4>
       ${st.ended ? `<p class="bastion-fallen">${resIconHtml('crown')} Monde terminé le ${frDate(st.endedAt)} : ${escapeHtml(st.winner || '')}. Un nouveau monde ouvre bientôt.</p>` : ''}
       <ul class="world-steps">
-        ${step(`Inscriptions ouvertes (${formatNum(st.registration.players)} / ${formatNum(st.registration.maxPlayers)} joueurs)`, st.openedAt, true)}
+        ${step(`Inscriptions ouvertes (${st.registration.players.toLocaleString('fr-FR')} / ${st.registration.maxPlayers.toLocaleString('fr-FR')} joueurs)`, st.openedAt, true)}
         ${step(st.registration.open ? 'Fin des inscriptions' : 'Inscriptions closes', st.registration.endsAt, !st.registration.open)}
         ${step('Sites de Merveille gardés par les Immortels', st.wonderSitesAt, st.sitesOpen)}
         ${step('Plans de construction (au-delà du niveau 50)', st.wonderPlansAt, st.plansOpen)}
@@ -147,6 +147,6 @@ function openJoinWorld() {
 async function confirmJoinWorld() {
   const faction = document.querySelector('input[name="join-faction"]:checked')?.value || 'ROME';
   const ok = await allianceRequestNoReload('/api/world/join', 'POST', { faction });
-  if (ok) { closeModal(); joinShown = false; if (typeof loadPlayer === 'function') await loadPlayer(); if (typeof loadCities === 'function') await loadCities(); if (typeof loadArmies === 'function') loadArmies(); }
+  if (ok) { closeModal(); joinShown = false; await showGame(); }   // la capitale existe : le jeu démarre comme à la connexion
   else joinShown = false;
 }
