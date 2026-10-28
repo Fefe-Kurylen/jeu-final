@@ -250,8 +250,8 @@ Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foo
   **toutes les armées que la ville nourrit** (en ville, en mission, en renfort chez un allié, en garnison de Bastion),
   moins les réductions des bâtiments de faction (Tente du chef de guerre hun, Avant-poste du désert) et de la technologie
   Intendance, 50 % au plus.
-- **Siège** (GDD `upkeep.siegeModifiersPct`) : une armée qui campe devant une ville coûte **+10 %** ; les armées dans
-  leur ville assiégée coûtent **−10 %**.
+- **Siège** (GDD `upkeep.siegeModifiersPct`) : une armée qui campe devant une ville coûte **+10 %** ; les armées à
+  l'arrêt dans leur ville assiégée coûtent **−10 %**.
 - **Famine façon Travian** : quand le grenier est vide et que la consommation dépasse la production, chaque heure
   meurent **juste assez de soldats** pour que la consommation repasse sous la production, **les plus gourmands d'abord**
   (élite et siège, puis intermédiaires, puis base), dans toutes les armées de la ville, en mission comprises. Une armée

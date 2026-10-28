@@ -107,7 +107,7 @@ function getUpkeepTableSql() {
 // production/h (champs, bonus, Plus, Irrigation, Agronomie, colonie, Bastion) et consommation/h de toutes les armées que la
 // ville nourrit (en ville, en mission, en renfort), réductions d'entretien comprises (bâtiments de faction + Intendance,
 // 50 % au plus) ; siège (GDD economy_config.upkeep.siegeModifiersPct) : +10 % pour une armée qui campe devant une ville,
-// −10 % pour les armées dans leur ville assiégée
+// −10 % pour les armées à l'arrêt dans leur ville assiégée
 const SIEGE_UP = config.army.siegeUpkeepPct;
 function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
   const [globalKey, globalPct] = fx.productionBonusKeys()[0];
@@ -141,7 +141,7 @@ function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
     ) AS tp ON tp."cityId" = c.id
     LEFT JOIN (
       SELECT a."cityId", SUM(au.count * ut.upkeep * (CASE WHEN a.status = 'BESIEGING' THEN ${1 + SIEGE_UP.attacker / 100}::float
-        WHEN hc."isSieged" AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)) AS total
+        WHEN hc."isSieged" AND a.status = 'IDLE' AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)) AS total
       FROM "Army" a JOIN "City" hc ON hc.id = a."cityId" JOIN "ArmyUnit" au ON au."armyId" = a.id
       JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
       GROUP BY a."cityId"
@@ -200,7 +200,7 @@ async function starve(r, now) {
     const armies = await tx.army.findMany({ where: { cityId: r.cityId, claimedAt: null }, include: { units: true, city: { select: { x: true, y: true, isSieged: true } } } });
     const groups = [];
     for (const a of armies) {
-      const mult = a.status === 'BESIEGING' ? 1 + SIEGE_UP.attacker / 100 : a.city?.isSieged && a.x === a.city.x && a.y === a.city.y ? 1 + SIEGE_UP.defender / 100 : 1;
+      const mult = a.status === 'BESIEGING' ? 1 + SIEGE_UP.attacker / 100 : a.city?.isSieged && a.status === 'IDLE' && a.x === a.city.x && a.y === a.city.y ? 1 + SIEGE_UP.defender / 100 : 1;
       for (const u of a.units) if (u.count > 0) groups.push({ u, a, eat: (RES_UP[unitsData.find(d => d.key === u.unitKey)?.tier] || RES_UP.base) * mult * factor });
     }
     groups.sort((x, y) => y.eat - x.eat || y.u.count - x.u.count);
