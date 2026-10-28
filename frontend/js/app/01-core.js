@@ -633,7 +633,8 @@ async function loadCities() {
           updateCitySelector();
           renderCity();
         }
-      }
+      } else if (typeof openJoinWorld === 'function') openJoinWorld();   // compte gardé d'un monde précédent (09i-world.js)
+      if (typeof checkWorldStatus === 'function') checkWorldStatus();
     }
   } catch (e) {
     console.warn('loadCities error:', e);
@@ -884,6 +885,7 @@ function renderCity() {
     timerFood.style.background = '';
   }
   updateFamineBanner(hoursToEmpty, netFood);
+  if (typeof updateWonderBar === 'function') updateWonderBar();
 
   // Update attack notification
   updateAttackNotification();

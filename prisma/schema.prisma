@@ -17,6 +17,7 @@ model Account {
   passwordHash    String
   tokenVersion    Int         @default(0) // bumped on password change: older tokens are refused
   emailVerifiedAt DateTime? // set by the verification link (or a password reset, which proves the mailbox)
+  titles          Json? // titres gagnés dans les mondes terminés (Panthéon), gardés d'un monde à l'autre
   createdAt       DateTime    @default(now())
   player          Player?
   tokens          AuthToken[]
@@ -173,13 +174,22 @@ model City {
   maxStorage     Int @default(1000)
   maxFoodStorage Int @default(1000)
 
-  wallHp        Float     @default(1000) // fractional: regenerates continuously on real elapsed time
-  wallMaxHp     Int       @default(1000)
-  goldAccrued   Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
-  isSieged      Boolean   @default(false)
-  wallStructure Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
-  siegeStarted  DateTime?
-  foodAlertAt   DateTime? // dernière alerte « grenier bientôt vide » (une toutes les 6 h au plus)
+  wallHp            Float     @default(1000) // fractional: regenerates continuously on real elapsed time
+  wallMaxHp         Int       @default(1000)
+  goldAccrued       Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
+  isSieged          Boolean   @default(false)
+  wallStructure     Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
+  siegeStarted      DateTime?
+  foodAlertAt       DateTime? // dernière alerte « grenier bientôt vide » (une toutes les 6 h au plus)
+  // Ville Merveille (décision du 28 octobre 2026) : fondée sur un site pris aux Immortels ; ne peut pas être rasée
+  isWonder          Boolean   @default(false)
+  wonderLevel       Int       @default(0)
+  wonderBuildEndsAt DateTime? // niveau en construction
+  wonderWood        Float     @default(0) // stock du chantier, sans plafond, rempli par les convois de l'alliance
+  wonderStone       Float     @default(0)
+  wonderIron        Float     @default(0)
+  wonderFood        Float     @default(0)
+  lastImmortalWave  DateTime?
 
   createdAt DateTime @default(now())
 
@@ -577,11 +587,18 @@ model Expedition {
 // gardée par le monde déjà ouvert). Une seule ligne, id = 1, jamais modifiée : changer la graine déplacerait toute la carte
 // sous les villes. Voir src/game/world.js et frontend/js/shared/terrain.js (setWorldSeed).
 model WorldConfig {
-  id        Int       @id @default(1)
-  seed      Int
-  generator Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
-  readyAt   DateTime? // monde prêt (points de ressource posés) : le serveur ouvre
-  createdAt DateTime  @default(now())
+  id               Int       @id @default(1)
+  seed             Int
+  generator        Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
+  readyAt          DateTime? // monde prêt (points de ressource posés) : le serveur ouvre ; le jour 1 du monde
+  createdAt        DateTime  @default(now())
+  // cycle du serveur (décision du 28 octobre 2026)
+  number           Int       @default(1) // numéro du monde (1, 2, 3…) : un nouveau monde reprend après le Panthéon
+  sitesSpawnedAt   DateTime? // sites de Merveille posés au centre (jour 120)
+  plansSpawnedAt   DateTime? // plans de construction posés (jour 150)
+  endedAt          DateTime? // une Merveille a atteint le niveau 100 : le monde est fini
+  winnerAllianceId String?
+  winnerName       String? // [TAG] Nom de l'alliance victorieuse et la ville, au moment de la victoire
 }
 
 // Lease taken by the single process that runs the game tick
@@ -921,4 +938,31 @@ model TradeConvoy {
 
   @@index([arrivalAt])
   @@index([playerId])
+}
+
+// Plan de construction d'une Merveille (jour 150) : pris aux Immortels, nécessaire à l'alliance au-delà du niveau 50 ;
+// un assaut gagné contre la capitale de son détenteur l'emporte
+model WonderPlan {
+  id         String    @id @default(uuid())
+  holderId   String? // joueur qui le détient (dans sa capitale)
+  capturedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([holderId])
+}
+
+// Panthéon : classement final de chaque monde terminé, gardé d'un monde à l'autre
+model HallOfFame {
+  id        String   @id @default(uuid())
+  world     Int
+  endedAt   DateTime
+  category  String // WONDER (alliance victorieuse), POPULATION, ATTACK, DEFENSE, ALLIANCE
+  rank      Int
+  name      String
+  accountId String? // pour les joueurs : leur compte, qui garde ses titres
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@index([world])
+  @@index([accountId])
 }

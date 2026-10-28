@@ -262,6 +262,39 @@ Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foo
 - L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
   siège, alors qu'il les ignorait.
 
+## Cycle du serveur et Merveille (28 octobre 2026)
+
+Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/hallOfFameService.js`,
+`src/routes/wonder.js`, `frontend/js/app/09i-world.js`, réglages `config.world`) :
+
+- **Un monde a une fin**, façon Travian : il se termine quand une **Merveille atteint le niveau 100**. Les Natars de
+  Travian s'appellent ici les **Immortels** (armée d'élite du Sultanat : fantassins du palais, archers perses, mamelouks).
+- **Inscriptions** ouvertes **2 mois** (60 jours après l'ouverture du monde), **5 000 joueurs** au plus ; ensuite
+  l'inscription répond « inscriptions closes » et le joueur attend le monde suivant.
+- **Calendrier** : jour 120, **12 sites de Merveille** apparaissent sur la carte, gardés par les Immortels ; jour 150,
+  **13 plans de construction** apparaissent, eux aussi gardés. Tous les joueurs sont prévenus. Onglet Classement →
+  **Monde** : jour du monde, dates, Merveilles en chantier, plans détenus, Panthéon.
+- **Prendre un site** : battre les Immortels (attaque comme sur un camp barbare), puis y **fonder une ville avec un
+  colon** : c'est la **Ville Merveille** (une par joueur, alliance obligatoire, hors quota de colonies). Les Immortels
+  reviennent sur un site libre au bout de 24 h.
+- **Prendre un plan** : battre les Immortels du camp ; le plan revient au joueur. Un joueur dont la **capitale est
+  prise** perd ses plans au profit de l'attaquant.
+- **Construire** : chaque niveau coûte des ressources (50 000 bois, pierre et fer, 15 000 nourriture au niveau 1,
+  +5 % par niveau) et du temps (1 h au niveau 1, +2,5 % par niveau). Les ressources viennent de l'alliance : les convois
+  et transports vers la Ville Merveille remplissent son **stock de Merveille** (sans plafond). Au-delà du **niveau 50**,
+  un membre de l'alliance doit détenir un plan.
+- **Défendre** : toutes les 12 h, une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau) ;
+  si la défense tombe, la Merveille perd **1 niveau**. Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
+  dégâts de rempart) ; la Ville Merveille ne peut pas être rasée.
+- **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
+  **Panthéon** : alliance victorieuse et top 10 en population, attaque, défense et alliances, gardé d'un monde à
+  l'autre. **Titres** sur le compte pour tous les membres de l'alliance victorieuse et le top 3 de chaque catégorie.
+- **Monde suivant** (`node tools/nouveau-monde.cjs`, par l'équipe, refusé tant que le monde n'est pas fini sauf
+  `--force`) : comptes, pseudo, or, abonnement Plus, achats, cosmétiques, médailles, titres et Panthéon sont gardés ;
+  villes, armées, héros, alliances, marché, rapports… repartent à zéro. Au démarrage suivant, une nouvelle carte
+  (taille fixe 374 × 374) est tirée, numérotée d'après le Panthéon. Chaque joueur **rejoint** le nouveau monde en
+  choisissant sa civilisation (`POST /api/world/join`).
+
 ## Messagerie (octobre 2026)
 
 Onglet **Messages** de la barre du bas (pastille des non-lus), `frontend/js/app/09c-chat.js`, `src/services/chatService.js`,

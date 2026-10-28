@@ -92,7 +92,8 @@ async function loadWorldSeed({ setup = true } = {}) {
     // Pas encore de graine : un monde déjà peuplé garde sa carte, un monde neuf reçoit la sienne
     const [cities, nodes, players] = await Promise.all([prisma.city.count(), prisma.resourceNode.count(), prisma.player.count()]);
     let seed, why, readyAt = null;
-    if (cities + nodes + players > 0) {
+    // des joueurs sans ville (comptes gardés pour le monde suivant, décision du 28 octobre 2026) ne fixent pas la carte
+    if (cities + nodes > 0) {
       // monde ouvert avant les cartes au hasard (carte de référence), ou dont la graine s'est perdue : on ne la remplace que
       // si ses villes et ses points tiennent sur la carte choisie (WORLD_SEED pour rendre sa graine à un monde, sinon 0),
       // car le démarrage déplacerait sinon toutes les villes « coincées »
@@ -105,7 +106,8 @@ async function loadWorldSeed({ setup = true } = {}) {
     else if (envSeed() !== null) { seed = envSeed(); why = 'WORLD_SEED'; }
     else { const p = pickRandomSeed(); seed = p.seed; why = `tirée au hasard (${p.tries} essai${p.tries > 1 ? 's' : ''})`; }
     // un autre processus a pu l'écrire entre-temps : la première écrite l'emporte, puis on relit
-    const inserted = await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt") VALUES (1, ${seed}, ${Terrain.generatorFor(seed)}, ${readyAt}) ON CONFLICT ("id") DO NOTHING`;
+    // numéro du monde : le suivant du dernier monde terminé (Panthéon), 1 pour le premier
+    const inserted = await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt", "number") VALUES (1, ${seed}, ${Terrain.generatorFor(seed)}, ${readyAt}, (SELECT COALESCE(MAX("world"), 0) + 1 FROM "HallOfFame")) ON CONFLICT ("id") DO NOTHING`;
     const populated = readyAt !== null;   // monde déjà peuplé : sa graine est notée, ce n'est pas une nouvelle carte
     console.log(!inserted ? '[MONDE] un autre processus a écrit la graine en même temps : la sienne est gardée'
       : populated ? `[MONDE] graine ${seed} notée pour ce monde : ${why}` : `[MONDE] nouvelle carte, graine ${seed} : ${why}`);

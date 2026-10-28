@@ -140,6 +140,7 @@ async function depositCarry(army, homeCity) {
 async function startHarvesting(army, nodeId) {
   return prisma.$transaction(async (tx) => {
     const node = await tx.resourceNode.findUnique({ where: { id: nodeId } });
+    if (require('../../services/wonderService').isSpecial(node)) return false;   // site de Merveille, plan : rien à récolter
     if (!node || !(await claimNode(tx, node.id, { playerId: army.ownerId, allianceId: army.owner?.alliance?.allianceId || null }))) return false;
     await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', missionType: 'HARVEST', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt: null, claimedAt: null, harvestResourceType: node.resourceType } });
     return true;
@@ -268,9 +269,11 @@ async function handleFoundComplete(army, now) {
     if (!node || node.cityId || !fresh || (fresh.settlers || 0) < 1) return null;
     if (!(await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }))) return null;   // a city rose next to it meanwhile
     const colonies = await tx.city.count({ where: { playerId: army.ownerId, isCapital: false } });
-    const name = (fresh.harvestResourceType || '').trim() || `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`;
+    const wonder = node.resourceType === 'WONDER';   // site de Merveille pris aux Immortels : la Ville Merveille
+    if (wonder && (await tx.city.count({ where: { playerId: army.ownerId, isWonder: true } }))) return null;
+    const name = (fresh.harvestResourceType || '').trim() || (wonder ? `Merveille de ${fresh.owner?.name || 'joueur'}` : `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`);
     const city = await tx.city.create({ data: {
-      playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false,
+      playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false, isWonder: wonder,
       wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood
     } });
     await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
@@ -382,10 +385,16 @@ async function handleAttack(army, now) {
     const campMinutes = army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
     // Won: a quarter of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
     let pillaged = null, structure = null;
+    let wonderLoss = null;
     if (result.attackerWon) {
       const survivors = new Map(group.map(g => [g.id, rowsOf.get(g.id).map(u => ({ unitKey: u.unitKey, count: Math.round(u.count * survivalRatio(result.attackerFinalUnits, u.unitKey)) }))]));
       pillaged = await pillage(tx, targetCity, group, survivors);
-      structure = await wearWallStructure(tx, targetCity);
+      const WS = require('../../services/wonderService');
+      // une Ville Merveille ne tombe pas : elle perd des niveaux (décision du 28 octobre 2026)
+      if (targetCity.isWonder) wonderLoss = await WS.loseLevels(tx, targetCity, config.world.wonderLevelsLostPerAssault, army.owner?.name || 'L\'ennemi');
+      else structure = await wearWallStructure(tx, targetCity);
+      // une capitale prise d'assaut perd ses plans de Merveille
+      if (targetCity.isCapital) await WS.stealPlans(tx, targetCity.playerId, army.ownerId);
     }
     const wallInfo = wall ? { wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: Math.round(wall.maxHp), wallBroken: result.wallHpEnd <= 0 } : {};
     const lives = structure ? { before: Math.round(structure.before * structure.needed), after: Math.round(structure.after * structure.needed), total: structure.needed, fallen: structure.fallen, fate: structure.fallen ? (targetCity.isCapital ? 'RELOCATED' : 'RAZED') : null } : null;
@@ -696,7 +705,10 @@ async function handleTransport(army, now) {
   const targetCity = await prisma.city.findUnique({ where: { id: army.targetCityId || '' } });
   // a camp before the city blocks nothing (décision du 25 octobre 2026): the convoy delivers
   if (targetCity) {
-    await creditCity(prisma, targetCity.id, { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood });
+    const load = { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood };
+    // Ville Merveille : tout va au stock du chantier, sans plafond (décision du 28 octobre 2026)
+    if (targetCity.isWonder) await require('../../services/wonderService').depositToWonder(prisma, targetCity.id, load);
+    else await creditCity(prisma, targetCity.id, load);
     if (army.missionType === 'MARKET_DELIVERY' && targetCity.playerId !== army.ownerId) {   // échange du marché livré
       const got = [['wood', 'bois', army.carryWood], ['stone', 'pierre', army.carryStone], ['iron', 'fer', army.carryIron], ['food', 'nourriture', army.carryFood]].filter(x => x[2] > 0).map(x => `${x[2]} ${x[1]}`).join(', ');
       notify(targetCity.playerId, 'market', '📦 Marchandises livrées', `Le convoi de ${army.owner?.name || 'votre partenaire'} a livré ${got || 'sa cargaison'} à ${targetCity.name}.`, { to: 'city', cityId: targetCity.id });

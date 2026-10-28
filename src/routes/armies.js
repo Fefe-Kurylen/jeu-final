@@ -462,7 +462,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
         if (!freshNode) return { error: 'Ressource non trouvée', status: 404 };
         if (!freshNode.hasDefenders && !freshNode.hasPlayerArmy) return { error: 'Ce point a changé entre-temps, rafraîchissez la carte', status: 409 };
         const r = freshNode.hasDefenders ? await resolveTribeCombat(fresh, freshNode, req.user.playerId, tx) : await resolveNodeHolderCombat(fresh, freshNode, req.user.playerId, tx);
-        if (r.success) {
+        if (r.success && !require('../services/wonderService').isSpecial(freshNode)) {
           if (await claimNode(tx, node.id, { playerId: req.user.playerId, allianceId: fresh.owner?.alliance?.allianceId || null })) {
             await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
             r.message = 'Tribu vaincue! Récolte démarrée (100/min)';
@@ -507,11 +507,18 @@ router.post('/:id/found-city', auth, async (req, res) => {
       const capital = await tx.city.findUnique({ where: { id: army.city.id }, include: { buildings: true } });
       const residence = capital.buildings.find(b => b.key === 'RESIDENCE');
       const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence?.level || 0));
-      const colonies = await tx.city.count({ where: { playerId: req.user.playerId, isCapital: false } });
-      if (colonies >= slots) return { error: slots ? `Limite atteinte : ${slots} ville(s) secondaire(s) avec cette Résidence` : 'Résidence niveau 10 requise', status: 400 };
-      if (capital.settlers < 1) return { error: 'Aucun colon disponible : formez-en un à la Résidence', status: 400 };
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
+      if (node.resourceType === 'PLAN') return { error: 'On ne fonde pas de ville sur un plan : battez les Immortels pour le prendre', status: 400 };
+      if (node.resourceType === 'WONDER') {
+        // Ville Merveille (décision du 28 octobre 2026) : dans une alliance, une par joueur, hors du compte des colonies
+        if (!(await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } }))) return { error: 'Une Ville Merveille se fonde pour une alliance : rejoignez-en une', status: 400 };
+        if (await tx.city.count({ where: { playerId: req.user.playerId, isWonder: true } })) return { error: 'Vous avez déjà une Ville Merveille', status: 400 };
+      } else {
+        const colonies = await tx.city.count({ where: { playerId: req.user.playerId, isCapital: false, isWonder: false } });
+        if (colonies >= slots) return { error: slots ? `Limite atteinte : ${slots} ville(s) secondaire(s) avec cette Résidence` : 'Résidence niveau 10 requise', status: 400 };
+      }
+      if (capital.settlers < 1) return { error: 'Aucun colon disponible : formez-en un à la Résidence', status: 400 };
       if (node.cityId) return { error: 'Une ville occupe déjà ce point', status: 400 };
       if (node.resourceType === 'GOLD') return { error: 'Impossible de fonder une ville sur un gisement d\'or', status: 400 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente : chassez-la d\'abord', status: 400 };
@@ -549,6 +556,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
       { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
+      if (require('../services/wonderService').isSpecial(node)) return { error: 'Rien à récolter ici', status: 400 };
       if (node.cityId) return { error: 'Une ville occupe ce point', status: 400 };
       if (node.hasDefenders && node.defenderPower > 0) return { error: 'Tribu encore présente - attaquez d\'abord!', status: 400 };
       if (node.hasPlayerArmy) {

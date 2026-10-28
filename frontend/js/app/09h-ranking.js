@@ -40,6 +40,7 @@ async function loadRanking(view = rankingState.view) {
     if (view === 'alliances') return renderAllianceRanking(content, await fetchJson(`/api/ranking/alliances?sort=${rankingState.allianceSort}`));
     if (view === 'week') return renderWeekRanking(content, await fetchJson(`/api/ranking/week?category=${rankingState.weekCat}`));
     if (view === 'medals') return renderMedals(content, await fetchJson('/api/ranking/medals'));
+    if (view === 'world' && typeof renderWorldTab === 'function') return renderWorldTab(content);   // 09i-world.js
     renderPlayerRanking(content, await fetchJson(`/api/ranking/players?sort=${rankingState.sort}&page=${rankingState.page}`));
   } catch (e) {
     if (e?.stale) return;

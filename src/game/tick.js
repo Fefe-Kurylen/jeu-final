@@ -71,6 +71,8 @@ async function gameTick() {
     try { TICK_HOURS = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
     if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
     if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
+    // monde terminé (une Merveille au niveau 100, décision du 28 octobre 2026) : figé jusqu'au nouveau monde
+    if (await require('../services/wonderService').isEnded().catch(() => false)) { await step('purge', () => purgeOldRecords(now)); return; }
 
     // a fall that failed after its assault is done first, before builds, research or expeditions touch the doomed city
     await step('falls', () => retryPendingFalls());
@@ -96,7 +98,8 @@ async function gameTick() {
     await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
     await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
     await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
-    await step('rankings', () => require('../services/rankingService').processRankings(now));   // clôture de la semaine, médailles
+    await step('rankings', () => require('../services/rankingService').processRankings(now));
+    await step('wonders', () => require('../services/wonderService').processWonders(now));   // sites et plans, niveaux de Merveille, vagues des Immortels   // clôture de la semaine, médailles
     await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
     await step('harvest', () => processHarvesting(now));
 

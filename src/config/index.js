@@ -47,6 +47,28 @@ const config = {
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
   // plus dur (mur bouclier 50 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
+  // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 5 000 joueurs ; fin par
+  // une Merveille façon Travian gardée par les Immortels
+  world: {
+    registrationDays: Number(process.env.WORLD_REGISTRATION_DAYS) || 60,
+    maxPlayers: 5000,
+    wonderSitesDay: Number(process.env.WONDER_SITES_DAY) || 120,
+    wonderPlansDay: Number(process.env.WONDER_PLANS_DAY) || 150,
+    wonderSites: 12,             // sites de Merveille autour du centre
+    wonderPlans: 13,             // plans de construction (nécessaires au-delà du niveau 50)
+    wonderMaxLevel: 100,
+    planNeededAbove: 50,
+    // coût et durée d'un niveau : base × facteur^(niveau − 1) ; tiré du stock de la Merveille (convois de l'alliance)
+    wonderCostBase: { wood: 50000, stone: 50000, iron: 50000, food: 15000 },
+    wonderCostFactor: 1.05,
+    wonderTimeBaseSec: 3600,
+    wonderTimeFactor: 1.025,
+    wonderLevelsLostPerAssault: 2,
+    immortalWaveHours: 12,       // les Immortels attaquent chaque Ville Merveille toutes les 12 h
+    immortalSitePower: 600000,   // puissance de la garnison d'un site (un camp barbare de niveau 3 ≈ 3 000 à 10 000)
+    immortalPlanPower: 900000
+  },
+
   // Héros (décision du 27 octobre 2026) : résurrection au Domus payée selon le niveau du héros
   hero: {
     reviveCostPerLevel: { wood: 250, stone: 250, iron: 250, food: 150 }

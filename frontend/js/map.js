@@ -619,7 +619,8 @@ async function loadMap() {
             isSieged: !!c.isSieged,
             siegedBy: c.siegedBy || null,
             wallDamage: c.wallDamage || 0,
-            population: c.player?.population || 0
+            population: c.player?.population || 0,
+            isWonder: !!c.isWonder, wonderLevel: c.wonderLevel || 0   // Ville Merveille (décision du 28 octobre 2026)
           });
         });
       }
@@ -1353,6 +1354,7 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
     const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : (isMyCity ? 'SELF' : isAlly ? 'SAME_ALLIANCE' : 'NEUTRAL');
     const plateBorder = rel === 'NEUTRAL' || typeof DIPLO_STYLE === 'undefined' ? '#6a4a2a' : DIPLO_STYLE[rel].color;
     if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), plateBorder, rel !== 'NEUTRAL' && rel !== 'SELF', tile.nameplate);
+    if (tile.isWonder && mapZoomLevel > 0.4) drawMapNamePlate(x, y + citySize * 0.35 + Math.max(9, 10 * mapZoomLevel) * 1.7, `Merveille · niv. ${tile.wonderLevel || 0}`, Math.max(9, 9.5 * mapZoomLevel), '#c9a227', true, 'gold');
     if (mapZoomLevel > 0.7 && tile.population) {
       const badgeX = x + citySize * 0.4;
       const badgeY = y - citySize * 0.5;
@@ -1430,7 +1432,9 @@ function drawIsoCity(x, y, tw, th, tile) {
   const colonyType = !isColony ? null : fortified ? (tileImages.cities[`colony_${fl}_fortified`] ? `colony_${fl}_fortified` : null) : (tileImages.cities['colony_' + fl] ? 'colony_' + fl : null);   // guide § S12
   // palier 2 « Ville » : sprite <civ>_t2 quand il est livré, sinon celui du village
   const townType = (tile.cityTier || 0) === 2 && tileImages.cities[faction.toLowerCase() + '_t2'] ? faction.toLowerCase() + '_t2' : faction.toLowerCase();
-  const cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
+  let cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
+  // Ville Merveille (décision du 28 octobre 2026) : image peinte par étape de la Merveille (0, 25, 50, 75, 100) quand elle est livrée
+  if (tile.isWonder) { const stage = [100, 75, 50, 25, 0].find(s => (tile.wonderLevel || 0) >= s); if (tileImages.cities[`wonder_${stage}`]) cityType = `wonder_${stage}`; }
 
   // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
   if (tileImages.cities[cityType] || tileImages.cities.default) {
@@ -1922,6 +1926,7 @@ function drawStockGauge(x, y, size, tile) {
 // Draw isometric resource node
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
+  if ((resType === 'wonder' || resType === 'plan') && typeof drawWonderNode === 'function') return drawWonderNode(x, y, tw, th, tile);   // 09i-world.js
   const size = Math.min(tw, th * 2) * 0.5;
   const imgSize = Math.max(tw, th * 2) * 1.3;
 
@@ -2890,6 +2895,7 @@ function showMapInfoPanel(x, y, tile) {
         <div class="panel-actions">
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
           ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
+          ${tile.isWonder && typeof openWonderPanel === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openWonderPanel('${tile.id}')">${resIconHtml('crown')} Merveille (niv. ${tile.wonderLevel || 0})</button>` : ''}
           ${mapShareButton(tile.x, tile.y)}
         </div>
       `;
@@ -2910,6 +2916,9 @@ function showMapInfoPanel(x, y, tile) {
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
       ${mine ? `<div class="panel-actions"><button class="btn btn-primary" onclick="closeMapPanel(); openNotificationLink({ to: 'army', armyId: '${String(tile.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('army')} Voir l'armée</button></div>` : ''}
     `;
+    panel.style.display = 'flex';
+  } else if (tile.type === 'RESOURCE' && (tile.resourceType === 'WONDER' || tile.resourceType === 'PLAN') && typeof renderWonderNodePanel === 'function') {
+    renderWonderNodePanel(tile, content);   // site de Merveille, plan (09i-world.js)
     panel.style.display = 'flex';
   } else if (tile.type === 'RESOURCE') {
     const resourceIcons = {
@@ -3043,6 +3052,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
     ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
+    ${tile.isWonder ? `<p class="wonder-line">${resIconHtml('crown')} <strong>Ville Merveille</strong> : niveau ${tile.wonderLevel || 0} / 100 ${typeof openWonderPanel === 'function' ? `<button class="btn btn-secondary btn-sm" onclick="closeMapPanel(); openWonderPanel('${String(tile.id).replace(/[^\w-]/g, '')}')">Voir</button>` : ''}</p>` : ''}
     <div class="panel-actions player-actions">
       ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
       <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>

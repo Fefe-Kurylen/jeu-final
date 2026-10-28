@@ -50,6 +50,8 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     if (!validatePassword(password)) return res.status(400).json({ error: 'Mot de passe: 8-100 caractères requis' });
     if (!validateName(name)) return res.status(400).json({ error: 'Pseudo: 3-20 caractères alphanumériques' });
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Faction invalide' });
+    // cycle du serveur (décision du 28 octobre 2026) : inscriptions ouvertes 60 jours, 5 000 joueurs, monde pas terminé
+    { const closed = await require('../services/wonderService').registrationBlocked(); if (closed) return res.status(403).json({ error: closed, registrationClosed: true }); }
 
     const normalizedEmail = email.toLowerCase();
     const exists = await prisma.account.findUnique({ where: { email: normalizedEmail } });
@@ -68,16 +70,9 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
       try {
         created = await prisma.$transaction(async (tx) => {
           await lockPlacement(tx);   // the place is chosen and taken under one lock (no overlapping 2 × 2 blocks)
-          const { x, y } = await findFreeSpawn({ db: tx });
           const account = await tx.account.create({ data: { email: normalizedEmail, passwordHash: hash } });
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
-          await tx.playerStats.create({ data: { playerId: player.id } });
-          const city = await tx.city.create({ data: { playerId: player.id, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 } });
-          await gatherArmiesOnBlock(tx, x, y);
-          await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
-          const hero = await tx.hero.create({ data: { playerId: player.id, name: `Heros de ${name}`, statPoints: 5 } });
-          await tx.army.create({ data: { ownerId: player.id, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
-          for (let i = 0; i < 3; i++) await createExpedition(player.id, tx);
+          const city = await require('../services/startService').createStart(tx, { playerId: player.id, name });
           return { account, player, city };
         }, { timeout: 20000 });
       } catch (e) {

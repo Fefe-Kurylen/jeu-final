@@ -11,6 +11,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 - **Portes `walls/<CIV>/gate.png`** : une seule porte par civilisation, valable pour tous les niveaux du Mur ; style du palier 2 de l'enceinte (`walls/<CIV>/2_tower`, `2_seg_z`, la face sud-est où la porte s'insère) ; même cadrage que les tours (losange au sol 2:1 à 51 % de la largeur, centre à 73 % de la hauteur), porte vue de face droite (arête sud-est), ouverture vers le bas-droit, battants ouverts, deux tourelles, torches ; 1024×1024.
 - **Bannière Google Play `store/feature-graphic.png`** (1024×500, opaque) : ville fortifiée des six civilisations sur un plateau vert à l'heure dorée, un héros romain au casque à crête rouge au premier plan à gauche, bannières et soldats en marche, palette chaude ; le tiers droit reste calme pour le titre, que j'ajoute ensuite (aucun texte dans l'image).
 - **Bâtiments, orientation** : l'entrée principale (porte, porche, perron, portail) est sur la face avant droite, vers le bas à droite de l'image : le sud-est, côté porte de la ville. Les guides 3D sont orientés ainsi ; la face avant gauche n'a pas de porte principale.
+- **Merveille** : la Ville Merveille est un grand monument antique au centre d'une ville fortifiée (bloc 2 × 2, même cadrage que `map/cities/capital_<civ>`), style neutre valable pour toutes les civilisations ; 5 étapes de chantier (fondations, échafaudages, à moitié, presque achevée, achevée et dorée). Les **Immortels** sont une armée d'élite perse : tentes pourpres et or, étendards au soleil ailé ; site gardé = leur camp autour de ruines monumentales, site libre = ruines seules, plan = petit camp fortifié autour d'un coffre et de rouleaux. Fond transparent, 1024×1024.
 - **Bastion d'alliance `map/cities/bastion.png` et `bastion_site.png`** : grande forteresse commune sur un bloc 2 × 2, même cadrage que les villes de la carte (`map/cities/capital_<civ>`), style neutre valable pour toutes les civilisations : enceinte de pierre massive à tours carrées, donjon central, bannières sans emblème ; le chantier montre la même emprise en construction (fondations, échafaudages, grue de bois, tas de pierres) ; fond transparent ; 1024×1024.
 - **Bannières d'alliance `banners/banner_<eagle|wolf|sun|bull>.png`** : étendard de tissu sur sa hampe plantée dans le sol, vu de trois quarts comme les drapeaux de la carte (`props/flag_*`), emblème brodé (aigle, loup, soleil, taureau), couleurs neutres valables pour toutes les civilisations, fond transparent ; 1024×1024, affichées en 128×192.
 - **Chantiers** (`<CLÉ>_site`) : même emprise et même silhouette que le bâtiment fini (le kit fournit son rendu comme guide), à moitié construit, techniques de la civilisation (guide § S10).
@@ -25,13 +26,13 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
-| 9 | Compléments fixes et visuels de boutique | 28 |
+| 9 | Compléments fixes et visuels de boutique | 29 |
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
 | 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 546 |
 | 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1885** |
+| | **Total** | **1886** |
 
 ## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
 
@@ -628,7 +629,7 @@ Sans la plaque parchemin, l'habillage peint ne s'active pas.
 
 - `ui/plate-parchment.png` — 1024×1024
 
-## 9. Compléments fixes et visuels de boutique (28)
+## 9. Compléments fixes et visuels de boutique (29)
 
 Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 
@@ -655,6 +656,7 @@ Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 - ui/crest_<CIV>.png × 6 — 1024×1024 — guide § S3
 - scenes/expedition-<forest|desert|mountain|ruins>.png × 4 — 1536×1024 — guide § S4
 - ui/btn-round.png, ui/btn-round-pressed.png — 1024×1024 — guide § S5
+- map/cities/wonder_<0|25|50|75|100>.png × 5 (Ville Merveille par étape), map/camps/wonder_site_immortals.png, wonder_site.png, immortals_plan.png — 1024×1024 — docs/LISTE-GRAPHISMES.md § 4
 - map/cities/bastion.png, map/cities/bastion_site.png (Bastion d'alliance debout et son chantier, bloc 2 × 2 de la carte) — 1024×1024 — docs/LISTE-GRAPHISMES.md § 4
 - banners/banner_<eagle|wolf|sun|bull>.png × 4 (bannières de la boutique d'alliance, plantées devant les villes sur la carte ; en vente une fois livrées) — 1024×1024 — docs/LISTE-GRAPHISMES.md § 4
 - store/ic_stat_notify.png (icône de notification Android, blanc sur transparent) — 96×96 — guide § N1

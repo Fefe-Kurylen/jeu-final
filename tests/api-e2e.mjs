@@ -1409,6 +1409,105 @@ if (MAIL_LOG) {
   sql(`UPDATE "City" SET food=50000 WHERE id='${cityB.id}'`);
 }
 
+// ---------- CYCLE DU SERVEUR ET MERVEILLE (décision du 28 octobre 2026) ----------
+// calendrier, inscriptions de 60 jours, sites et plans gardés par les Immortels, Ville Merveille, niveaux, vagues, victoire,
+// Panthéon et titres, monde figé ; puis remise en état pour les autres tests
+{
+  const W0 = sql(`SELECT "readyAt"::text FROM "WorldConfig" WHERE id=1`);
+  const setDay = (d) => sql(`UPDATE "WorldConfig" SET "readyAt"=now() - interval '${d - 1} days' - interval '1 hour' WHERE id=1`);
+  const st0 = await call('world: calendar', 'GET', '/api/world/state', null);
+  assert('world: day, registration open, wonder phases dated', st0?.day >= 1 && st0?.registration?.open === true && !!st0?.wonderSitesAt && st0?.sitesOpen === false, JSON.stringify(st0).slice(0, 200));
+  // inscriptions closes après 60 jours
+  setDay(61);
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%'`);
+  const late = await call('world: sign-up after 60 days -> 403', 'POST', '/api/auth/register', null, { email: `late${uid}@t.fr`, password: PASSWORD, name: `Tardif${uid}`, faction: 'ROME' }, 403);
+  assert('world: the refusal says registration is closed', late?.registrationClosed === true);
+  // jour 151 : sites et plans posés par le tick
+  setDay(151);
+  await waitTick('wonder sites and plans appear', () => sql(`SELECT ("sitesSpawnedAt" IS NOT NULL AND "plansSpawnedAt" IS NOT NULL)::text FROM "WorldConfig" WHERE id=1`) === 'true');
+  sql(`UPDATE "WorldConfig" SET "readyAt"='${W0}' WHERE id=1`);
+  const sites = Number(sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='WONDER'`)), plans = Number(sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='PLAN'`));
+  assert('world: 12 wonder sites and 13 plans, guarded by the Immortals', sites === 12 && plans === 13 && Number(sql(`SELECT min("defenderPower") FROM "ResourceNode" WHERE "resourceType"='WONDER'`)) > 500000, `${sites} ${plans}`);
+  assert('world: every player is told', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND kind='world'`)) >= 2);
+  const siteNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE "resourceType"='WONDER' ORDER BY x LIMIT 1`).split('|');
+  const planNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE "resourceType"='PLAN' ORDER BY x LIMIT 1`).split('|');
+  // un plan pris aux Immortels (garnison réduite pour le test)
+  const raider = mkTrader(A.player.id, cityA.id, 'Cohors', unitKeyFor('ROME', 'INFANTRY', 'elite'), 3000);
+  sql(`UPDATE "ResourceNode" SET "defenderUnits"='{"SUL_INF_PALAIS": 5}', "defenderPower"=500 WHERE id='${planNode[0]}'`);
+  await call('wonder: harvesting a plan site -> 400', 'POST', `/api/army/${raider}/collect-resource`, tA, { resourceNodeId: planNode[0] }, 400);
+  await call('wonder: attack the Immortals guarding a plan', 'POST', `/api/army/${raider}/raid-resource`, tA, { resourceNodeId: planNode[0] });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${raider}'`);
+  await waitTick('plan taken', () => sql(`SELECT count(*) FROM "WonderPlan" WHERE "holderId"='${A.player.id}'`) === '1');
+  assert('wonder: the plan site is gone, the army goes home', sql(`SELECT count(*) FROM "ResourceNode" WHERE id='${planNode[0]}'`) === '0' && sql(`SELECT status FROM "Army" WHERE id='${raider}'`) !== 'HARVESTING');
+  sql(`DELETE FROM "Army" WHERE id='${raider}'`);
+  // fondation de la Ville Merveille sur un site libéré
+  sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0, "lastDefeat"=now() WHERE id='${siteNode[0]}'`);
+  sql(`UPDATE "City" SET settlers=1, wood=50000, stone=50000, iron=50000, food=50000, "maxStorage"=100000, "maxFoodStorage"=100000 WHERE id='${cityA.id}'`);
+  const settlerArmy = mkTrader(A.player.id, cityA.id, 'Coloni', infKey, 20);
+  await call('wonder: found the Wonder City (no colony slot needed)', 'POST', `/api/army/${settlerArmy}/found-city`, tA, { resourceNodeId: siteNode[0], name: 'Babylone' });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${settlerArmy}'`);
+  await waitTick('wonder foundation started', () => sql(`SELECT status FROM "Army" WHERE id='${settlerArmy}'`) === 'FOUNDING');
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${settlerArmy}'`);
+  await waitTick('Wonder City founded', () => sql(`SELECT count(*) FROM "City" WHERE "playerId"='${A.player.id}' AND "isWonder"`) === '1');
+  const wonderId = sql(`SELECT id FROM "City" WHERE "playerId"='${A.player.id}' AND "isWonder"`);
+  const wv = await call('wonder: view', 'GET', `/api/wonder/${wonderId}`, tA);
+  assert('wonder: level 0, next level priced', wv?.level === 0 && wv?.next?.level === 1 && wv?.next?.cost?.wood === 50000 && wv?.mine === true, JSON.stringify(wv).slice(0, 200));
+  await call('wonder: a level without stock -> 400', 'POST', `/api/wonder/${wonderId}/build`, tA, null, 400);
+  await call('wonder: someone else cannot build it -> 403', 'POST', `/api/wonder/${wonderId}/build`, tB, null, 403);
+  // un convoi vers la Ville Merveille remplit le chantier, sans plafond
+  const conv = mkTrader(A.player.id, cityA.id, 'Plaustra', infKey, 400);
+  const [wx, wy] = [Number(siteNode[1]), Number(siteNode[2])];
+  await call('wonder: convoy to the Wonder City', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: wx, targetY: wy, resources: { wood: 20000, stone: 0, iron: 0, food: 0 } });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${conv}'`);
+  await waitTick('convoy into the wonder stock', () => Number(sql(`SELECT "wonderWood" FROM "City" WHERE id='${wonderId}'`)) >= 20000);
+  sql(`DELETE FROM "Army" WHERE id='${conv}'`);
+  sql(`UPDATE "City" SET "wonderWood"=10000000, "wonderStone"=10000000, "wonderIron"=10000000, "wonderFood"=10000000 WHERE id='${wonderId}'`);
+  await call('wonder: level 1 started', 'POST', `/api/wonder/${wonderId}/build`, tA);
+  await call('wonder: one level at a time -> 400', 'POST', `/api/wonder/${wonderId}/build`, tA, null, 400);
+  sql(`UPDATE "City" SET "wonderBuildEndsAt"=now()-interval '1 second' WHERE id='${wonderId}'`);
+  await waitTick('wonder level 1', () => sql(`SELECT "wonderLevel" FROM "City" WHERE id='${wonderId}'`) === '1');
+  // au-delà de 50, il faut un plan dans l'alliance
+  sql(`UPDATE "City" SET "wonderLevel"=50 WHERE id='${wonderId}'`);
+  sql(`UPDATE "WonderPlan" SET "holderId"='${B.player.id}' WHERE "holderId"='${A.player.id}'`);
+  await call('wonder: level 51 without a plan in the alliance -> 400', 'POST', `/api/wonder/${wonderId}/build`, tA, null, 400);
+  sql(`UPDATE "WonderPlan" SET "holderId"='${A.player.id}' WHERE "holderId"='${B.player.id}'`);
+  await call('wonder: level 51 with the plan', 'POST', `/api/wonder/${wonderId}/build`, tA);
+  sql(`UPDATE "City" SET "wonderBuildEndsAt"=NULL WHERE id='${wonderId}'`);
+  // une vague d'Immortels contre une Ville Merveille sans défense lui ôte un niveau
+  sql(`UPDATE "City" SET "lastImmortalWave"=now()-interval '13 hours' WHERE id='${wonderId}'`);
+  await waitTick('Immortal wave', () => sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='IMMORTALS'`) !== '0');
+  assert('wonder: the undefended Wonder City loses a level to the Immortals', sql(`SELECT "wonderLevel" FROM "City" WHERE id='${wonderId}'`) === '49');
+  const list = await call('wonder: list of Wonder Cities and plans', 'GET', '/api/wonder', tB);
+  assert('wonder: the list shows the city and the plan holder', (list?.wonders || []).some(w => w.cityId === wonderId) && (list?.plans || []).some(p => p.holder === A.player.name));
+  // victoire : niveau 100, monde figé, Panthéon, titres
+  sql(`UPDATE "City" SET "wonderLevel"=99, "wonderBuildEndsAt"=now()-interval '1 second' WHERE id='${wonderId}'`);
+  await waitTick('world won', () => sql(`SELECT ("endedAt" IS NOT NULL)::text FROM "WorldConfig" WHERE id=1`) === 'true');
+  const wn = sql(`SELECT number FROM "WorldConfig" WHERE id=1`);
+  assert('world: winner and Hall of Fame recorded', /Babylone/.test(sql(`SELECT "winnerName" FROM "WorldConfig" WHERE id=1`)) && Number(sql(`SELECT count(*) FROM "HallOfFame" WHERE world=${wn} AND category='WONDER'`)) === 1);
+  assert('world: the winners get a title on their account', /Bâtisseur de la Merveille/.test(sql(`SELECT coalesce(titles::text,'') FROM "Account" WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${A.player.id}')`)));
+  const hof = await call('world: Hall of Fame', 'GET', '/api/world/hall-of-fame', null);
+  assert('world: the Hall of Fame lists this world', (hof || []).some(w => String(w.world) === wn && w.categories?.WONDER?.length === 1));
+  await sleep(10500);   // cache « monde terminé » (10 s)
+  await call('world: a finished world is frozen -> 423', 'POST', `/api/army/create`, tA, { cityId: cityA.id, slot: 4, name: 'Trop tard' }, 423);
+  await call('world: reading still works', 'GET', '/api/cities', tA);
+  // remise en état pour la suite
+  sql(`UPDATE "WorldConfig" SET "endedAt"=NULL, "winnerName"=NULL, "winnerAllianceId"=NULL, "sitesSpawnedAt"=NULL, "plansSpawnedAt"=NULL WHERE id=1`);
+  sql(`DELETE FROM "HallOfFame" WHERE world=${wn}`);
+  sql(`UPDATE "Account" SET titles=NULL WHERE titles IS NOT NULL`);
+  sql(`DELETE FROM "City" WHERE id='${wonderId}'`);
+  sql(`DELETE FROM "ResourceNode" WHERE "resourceType" IN ('WONDER','PLAN')`);
+  sql(`DELETE FROM "WonderPlan"`);
+  sql(`DELETE FROM "Army" WHERE id='${settlerArmy}'`);
+  await sleep(10500);
+  // rejoindre le monde (compte gardé d'un monde précédent : un joueur sans ville)
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%'`);
+  const J = await call('world: a player for the next world', 'POST', '/api/auth/register', null, { email: `next${uid}@t.fr`, password: PASSWORD, name: `Novus${uid}`, faction: 'ROME' });
+  sql(`DELETE FROM "City" WHERE "playerId"='${J?.player?.id}'`); sql(`DELETE FROM "Hero" WHERE "playerId"='${J?.player?.id}'`);
+  await call('world: join with a new civilization', 'POST', '/api/world/join', J?.token, { faction: 'EGYPT' });
+  assert('world: a new capital in the new world, civilization changed', sql(`SELECT count(*) FROM "City" WHERE "playerId"='${J?.player?.id}' AND "isCapital"`) === '1' && sql(`SELECT faction FROM "Player" WHERE id='${J?.player?.id}'`) === 'EGYPT');
+  await call('world: join twice -> 400', 'POST', '/api/world/join', J?.token, { faction: 'EGYPT' }, 400);
+}
+
 // ---------- WRAP UP ----------
 const fails = results.filter(r => !r.ok);
 console.log(`\n==== ${results.length - fails.length}/${results.length} PASS ====`);

@@ -135,6 +135,7 @@ async function deliverConvoy(c) {
       kept[r] = Math.max(0, Math.min(c[r], Math.floor(cap - fresh[r])));
       back[r] = c[r] - kept[r];
     }
+    if (target.isWonder) { await require('./wonderService').depositToWonder(tx, target.id, c); return true; }   // chantier de la Merveille, sans plafond
     await creditCity(tx, target.id, kept);
     if (target.id !== c.fromCityId && Object.values(back).some(v => v > 0) && (await tx.city.findUnique({ where: { id: c.fromCityId }, select: { id: true } }))) await creditCity(tx, c.fromCityId, back);
     return true;

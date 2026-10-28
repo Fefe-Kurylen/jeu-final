@@ -5304,3 +5304,19 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 
 /* ---- Famine (décision du 28 octobre 2026) ---- */
 .famine-banner { margin: 6px 12px; padding: 8px 12px; border-radius: 8px; background: rgba(120, 20, 15, .85); border: 1px solid #e57373; color: #fbe9e7; font-size: 13px; z-index: 5; position: relative; }
+
+/* ---- Cycle du serveur et Merveille (09i-world.js) ---- */
+.wonder-banner { margin: 6px 12px; padding: 8px 12px; border-radius: 8px; background: rgba(110, 80, 10, .85); border: 1px solid #e8c547; color: #fff4d0; font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; position: relative; z-index: 5; }
+.wonder-banner .btn { margin-left: auto; }
+.famine-banner.world-ended { background: rgba(60, 40, 90, .9); border-color: #b39ddb; }
+.wonder-head { margin-bottom: 6px; }
+.wonder-bar-fill { height: 12px; margin-bottom: 10px; }
+.wonder-stock { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.wonder-stock span { padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.18); }
+.wonder-line { margin: 6px 0; }
+.world-card { padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.22); border: 1px solid rgba(201,162,39,.35); margin-bottom: 10px; }
+.world-steps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.world-steps li { opacity: .7; } .world-steps li.done { opacity: 1; }
+.world-steps small { color: var(--text-muted); margin-left: 6px; }
+.hof-cat { font-size: 13px; margin-top: 4px; } .hof-cat em { color: var(--gold, #c9a227); font-style: normal; margin-right: 6px; }
+.join-factions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin: 8px 0; }
