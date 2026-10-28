@@ -179,6 +179,7 @@ model City {
   isSieged      Boolean   @default(false)
   wallStructure Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
   siegeStarted  DateTime?
+  foodAlertAt   DateTime? // dernière alerte « grenier bientôt vide » (une toutes les 6 h au plus)
 
   createdAt DateTime @default(now())
 

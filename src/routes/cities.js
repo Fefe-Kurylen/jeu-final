@@ -91,11 +91,13 @@ router.get('/', auth, async (req, res) => {
       where: { playerId: req.user.playerId },
       include: { buildings: true, buildQueue: { orderBy: { startedAt: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
     });
+    // bilan de nourriture calculé par le serveur (réductions d'entretien, siège), le même que le tick
+    const balance = await require('../game/processors/resourceProcessor').foodBalance(cities.map(c => c.id)).catch(() => new Map());
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
       const cityTier = getCityTier(mainHallLevel);
-      return { ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier) };
+      return { ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), foodBalance: balance.get(city.id) || null };
     });
     res.json(citiesWithTier);
   } catch (e) {

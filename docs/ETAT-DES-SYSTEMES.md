@@ -57,8 +57,8 @@ d'un combat où le mur sert de bouclier.
   dont il a été lancé.
 - **Le camp** : l'armée arrivée **campe 1 h** devant la ville (statut `BESIEGING`, `campMinutes` = 60), puis le combat
   démarre tout seul. Plus de riposte automatique. **Pendant l'heure, la ville vit normalement** : production, or, marché,
-  convois, recrutement, constructions, recherches et soins continuent, rien n'est mis en pause. Entretien normal pour
-  l'assiégeant. Le rappel est un rappel normal. Si la diplomatie change pendant la marche (ou pendant l'heure), l'armée
+  convois, recrutement, constructions, recherches et soins continuent, rien n'est mis en pause. Entretien de l'assiégeant
+  +10 % et de la ville assiégée −10 % (GDD, décision du 28 octobre 2026). Le rappel est un rappel normal. Si la diplomatie change pendant la marche (ou pendant l'heure), l'armée
   fait demi-tour et les deux joueurs sont prévenus. Un camp qui perd tous ses engins rentre chez lui.
 - **Camps alliés** : les camps de joueurs alliés entre eux (même joueur, même alliance ou alliance déclarée alliée)
   combattent **ensemble**, à l'heure du premier arrivé ; chacun emporte sa part du butin selon sa capacité.
@@ -241,6 +241,26 @@ Décisions du 27 octobre 2026 (GDD `world_config.server.rankings`, `src/services
   alliances en attaque et en défense ; ses propres chiffres de la semaine. Au lundi, la semaine close donne une
   **médaille honorifique** (or, argent, bronze, puis rang) à chaque classé, prévenu par une notification ; les médailles
   restent sur le profil public (avec les points d'attaque, de défense et le pillage) et dans l'onglet Médailles.
+
+## Entretien et famine (28 octobre 2026)
+
+Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foodBalanceSql`, `processUpkeep`) :
+
+- **Entretien** : 5 (base), 10 (intermédiaire), 15 (élite, siège) de nourriture par unité et par heure (GDD), pour
+  **toutes les armées que la ville nourrit** (en ville, en mission, en renfort chez un allié, en garnison de Bastion),
+  moins les réductions des bâtiments de faction (Tente du chef de guerre hun, Avant-poste du désert) et de la technologie
+  Intendance, 50 % au plus.
+- **Siège** (GDD `upkeep.siegeModifiersPct`) : une armée qui campe devant une ville coûte **+10 %** ; les armées dans
+  leur ville assiégée coûtent **−10 %**.
+- **Famine façon Travian** : quand le grenier est vide et que la consommation dépasse la production, chaque heure
+  meurent **juste assez de soldats** pour que la consommation repasse sous la production, **les plus gourmands d'abord**
+  (élite et siège, puis intermédiaires, puis base), dans toutes les armées de la ville, en mission comprises. Une armée
+  qui meurt entièrement de faim perd son héros (il tombe).
+- **Alertes** : notification quand le grenier sera vide dans **moins de 6 h** (une toutes les 6 h au plus), puis à
+  chaque heure de famine avec les pertes. Bandeau rouge sous la barre de ressources ; le minuteur de la nourriture compte
+  jusqu'au grenier vide.
+- L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
+  siège, alors qu'il les ignorait.
 
 ## Messagerie (octobre 2026)
 

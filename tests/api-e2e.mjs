@@ -1367,6 +1367,48 @@ if (MAIL_LOG) {
   sql(`DELETE FROM "Account" WHERE email LIKE 'bast%_${uid}@t.fr'`);
 }
 
+// ---------- FAMINE (décision du 28 octobre 2026) ----------
+// bilan de nourriture du serveur, alerte à 6 h, famine façon Travian (juste assez de morts, armées en mission comprises),
+// siège : +10 % pour le camp, −10 % pour la ville assiégée
+{
+  const RP = createRequire(import.meta.url)('../src/game/processors/resourceProcessor.js');
+  const hunBase = unitKeyFor('HUN', 'INFANTRY', 'base'), hunElite = unitKeyFor('HUN', 'INFANTRY', 'elite');
+  const garB = sql(`SELECT id FROM "Army" WHERE "cityId"='${cityB.id}' AND "isGarrison" LIMIT 1`);
+  sql(`DELETE FROM "Army" WHERE "cityId"='${cityB.id}' AND NOT "isGarrison"`);
+  sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${garB}'`);
+  sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${garB}','${hunBase}','base',400), (gen_random_uuid(),'${garB}','${hunElite}','elite',100)`);
+  const away = mkTrader(B.player.id, cityB.id, 'Errante', hunElite, 50);
+  sql(`UPDATE "Army" SET status='MOVING', "missionType"='MOVE', "targetX"=x+5, "targetY"=y, "departedAt"=now(), "arrivalAt"=now()+interval '5 hours' WHERE id='${away}'`);
+  const bal = async () => (await RP.foodBalance([cityB.id])).get(cityB.id);
+  const b0 = await bal();
+  assert('famine: consumption counts the army on a mission (400 × 5 + 150 × 15)', b0.consumption === Math.round((400 * 5 + 150 * 15) * (1 - b0.reductionPct / 100)), JSON.stringify(b0));
+  const cities = await call('famine: cities carry the food balance', 'GET', '/api/cities', tB);
+  assert('famine: /api/cities gives the server balance', cities?.[0]?.foodBalance?.consumption === b0.consumption);
+  // siège : la ville assiégée nourrit ses armées 10 % moins cher
+  sql(`UPDATE "City" SET "isSieged"=true WHERE id='${cityB.id}'`);
+  const bs = await bal();
+  sql(`UPDATE "City" SET "isSieged"=false WHERE id='${cityB.id}'`);
+  assert('famine: a besieged city feeds its armies 10 % cheaper (not the one away)', Math.abs(bs.consumption - Math.round((400 * 5 * 0.9 + 100 * 15 * 0.9 + 50 * 15) * (1 - b0.reductionPct / 100))) <= 1, `${bs.consumption}`);
+  // alerte : grenier vide dans moins de 6 h
+  const deficit = b0.consumption - b0.production;
+  sql(`UPDATE "City" SET food=${Math.round(deficit * 3)}, "maxFoodStorage"=100000, "foodAlertAt"=NULL WHERE id='${cityB.id}'`);
+  RP.resetFamineClock(); await RP.processUpkeep(1 / 3600);
+  await sleep(500);
+  assert('famine: B is warned the granary will be empty within 6 h', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${B.player.id}' AND title LIKE '%Grenier bientôt vide%'`)) >= 1 && sql(`SELECT ("foodAlertAt" IS NOT NULL)::text FROM "City" WHERE id='${cityB.id}'`) === 'true');
+  // grenier vide : meurent juste assez de soldats, les plus gourmands d'abord (l'élite à 15)
+  sql(`UPDATE "City" SET food=0 WHERE id='${cityB.id}'`);
+  RP.resetFamineClock(); await RP.processUpkeep(1 / 3600);
+  await sleep(500);
+  const b1 = await bal();
+  const elite = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" au JOIN "Army" a ON a.id=au."armyId" WHERE a."cityId"='${cityB.id}' AND au."unitKey"='${hunElite}'`));
+  const base = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" au JOIN "Army" a ON a.id=au."armyId" WHERE a."cityId"='${cityB.id}' AND au."unitKey"='${hunBase}'`));
+  assert('famine: consumption back under production, no more deaths than needed', b1.consumption <= b1.production && b1.production - b1.consumption < 15, JSON.stringify(b1));
+  assert('famine: the hungriest (elite) die first', elite < 150 && (elite === 0 || base === 400), `elite=${elite} base=${base}`);
+  assert('famine: B is told of the deaths', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${B.player.id}' AND title LIKE '%Famine%'`)) >= 1);
+  sql(`DELETE FROM "Army" WHERE id='${away}'`);
+  sql(`UPDATE "City" SET food=50000 WHERE id='${cityB.id}'`);
+}
+
 // ---------- WRAP UP ----------
 const fails = results.filter(r => !r.ok);
 console.log(`\n==== ${results.length - fails.length}/${results.length} PASS ====`);

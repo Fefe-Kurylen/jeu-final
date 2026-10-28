@@ -263,8 +263,9 @@ const config = {
     baseSpeedTilesPerSec: 1 / 30,  // 1 tile per 30 seconds at speed 50
     baseSpeed: 50,
     upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
-    starvationLossRate: 0.1,       // per hour, armies standing in a city without food
-    starvationIntervalHours: 1
+    starvationIntervalHours: 1,    // famine façon Travian (décision du 28 octobre 2026) : vérifiée une fois par heure
+    famineAlertHours: 6,           // alerte quand le grenier sera vide dans moins de 6 h
+    siegeUpkeepPct: { attacker: 10, defender: -10 }   // GDD economy_config.upkeep.siegeModifiersPct
   },
 
   // Wounded

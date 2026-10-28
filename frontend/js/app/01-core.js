@@ -812,10 +812,12 @@ function renderCity() {
   const prod = getCityProduction(currentCity);
   let woodProd = prod.wood, stoneProd = prod.stone, ironProd = prod.iron, foodProd = prod.food;
   
-  // Calculate food consumption (upkeep) from armies
+  // Consommation des troupes : le bilan du serveur (réductions d'entretien et siège compris), sinon un calcul approché
   let foodConsumption = 0;
+  const fb = currentCity.foodBalance;
   const cityArmies = armies.filter(a => a.cityId === currentCity.id);
-  for (const army of cityArmies) {
+  if (fb) foodConsumption = fb.consumption;
+  else for (const army of cityArmies) {
     if (army.units) {
       for (const unit of army.units) {
         const unitDef = unitsData.find(u => u.key === unit.unitKey);
@@ -871,7 +873,9 @@ function renderCity() {
   if (timerWood) timerWood.textContent = calcTimeToFull(currentCity.wood, maxRes, woodProd);
   if (timerStone) timerStone.textContent = calcTimeToFull(currentCity.stone, maxRes, stoneProd);
   if (timerIron) timerIron.textContent = calcTimeToFull(currentCity.iron, maxRes, ironProd);
-  if (timerFood) timerFood.textContent = calcTimeToFull(currentCity.food, maxFood, netFood);
+  // en déficit, le minuteur de la nourriture compte jusqu'au grenier vide
+  const hoursToEmpty = netFood < 0 ? currentCity.food / -netFood : null;
+  if (timerFood) timerFood.textContent = hoursToEmpty === null ? calcTimeToFull(currentCity.food, maxFood, netFood) : calcTimeToFull(0, currentCity.food, -netFood);
 
   // Update food timer color if deficit
   if (timerFood && netFood < 0) {
@@ -879,6 +883,7 @@ function renderCity() {
   } else if (timerFood) {
     timerFood.style.background = '';
   }
+  updateFamineBanner(hoursToEmpty, netFood);
 
   // Update attack notification
   updateAttackNotification();
@@ -1181,6 +1186,22 @@ function fieldSiteUrl(type) { return paintedUrl(`fields/${cityBiome()}/${type}_s
 function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }
 // Icône 3D d'une ressource / d'une action (assets/images/3d/ui) pour les panneaux générés en HTML
 function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="${art(`ui/${key}.webp`)}" alt="">`; }
+
+// Bandeau de famine (décision du 28 octobre 2026) : grenier vide dans moins de 6 h, ou vide (les troupes meurent de faim)
+function updateFamineBanner(hoursToEmpty, netFood) {
+  let el = document.getElementById('famine-banner');
+  const show = hoursToEmpty !== null && hoursToEmpty < 6;
+  if (!show) { if (el) el.style.display = 'none'; return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'famine-banner'; el.className = 'famine-banner';
+    const anchor = document.getElementById('timer-food')?.closest('header, .resource-bar, .top-bar, .hud-top') || document.body.firstElementChild;
+    anchor.parentNode.insertBefore(el, anchor.nextSibling);
+  }
+  el.style.display = '';
+  el.innerHTML = hoursToEmpty <= 0.01
+    ? `${resIconHtml('skull')} <strong>Famine à ${escapeHtml(currentCity?.name || '')}</strong> : le grenier est vide, des soldats meurent de faim chaque heure (${formatNum(netFood)}/h). Produisez plus de nourriture ou réduisez vos armées.`
+    : `${resIconHtml('food')} <strong>Grenier bientôt vide à ${escapeHtml(currentCity?.name || '')}</strong> : encore ${formatDuration(Math.round(hoursToEmpty * 3600))} de nourriture (${formatNum(netFood)}/h). Ensuite, vos troupes mourront de faim.`;
+}
 
 // Entrée / « OK » du clavier soumet les formulaires de connexion et d'inscription (auth-enter-submit)
 document.addEventListener('keydown', (e) => {

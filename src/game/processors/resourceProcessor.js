@@ -103,52 +103,127 @@ function getUpkeepTableSql() {
   return _upkeepTableSql;
 }
 
-let lastStarvationAt = 0;
-
-async function processUpkeep(TICK_HOURS, now = new Date()) {
-  // 1) Décrément de nourriture : une seule requête SQL pour toutes les villes, réduction d'entretien des
-  //    bâtiments de faction (Tente de guerre hun, Avant-poste du désert) comprise
+// ---- bilan de nourriture d'une ville (décision du 28 octobre 2026) ----
+// production/h (champs, bonus, Plus, Irrigation, Agronomie, colonie, Bastion) et consommation/h de toutes les armées que la
+// ville nourrit (en ville, en mission, en renfort), réductions d'entretien comprises (bâtiments de faction + Intendance,
+// 50 % au plus) ; siège (GDD economy_config.upkeep.siegeModifiersPct) : +10 % pour une armée qui campe devant une ville,
+// −10 % pour les armées dans leur ville assiégée
+const SIEGE_UP = config.army.siegeUpkeepPct;
+function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
+  const [globalKey, globalPct] = fx.productionBonusKeys()[0];
+  const prodTechTable = techTableSql('productionBonusPct');
+  const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
   const upkeepKeys = fx.upkeepReductionKeys();
   const reductionTable = Prisma.join(upkeepKeys.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
-  const upkeepTechTable = techTableSql('upkeepReductionPct');   // Intendance : −1 %/niveau, même plafond que les bâtiments
-  await prisma.$executeRaw`
-    UPDATE "City" AS c SET food = GREATEST(0, c.food - cons.total * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0) * ${TICK_HOURS})
-    FROM (
-      SELECT a."cityId", SUM(au.count * ut.upkeep) AS total
-      FROM "Army" a
-      JOIN "ArmyUnit" au ON au."armyId" = a.id
-      JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
-      WHERE a."cityId" IS NOT NULL
-      GROUP BY a."cityId"
-    ) AS cons
+  const upkeepTechTable = techTableSql('upkeepReductionPct');
+  return Prisma.sql`
+    SELECT c.id AS "cityId", c."playerId", c.name, c.food, c."maxFoodStorage",
+      ((COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(p.gb, 0)) / 100.0)
+        * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float))::float AS prod,
+      (COALESCE(cons.total, 0) * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0))::float AS cons,
+      (LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)))::float AS "reductionPct"
+    FROM "City" c
     LEFT JOIN (
-      SELECT cb."cityId", SUM(cb.level * r.pct) AS pct
-      FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key
+      SELECT cb."cityId",
+        SUM(CASE WHEN cb.key = 'FARM' THEN pt.prod ELSE 0 END) AS f,
+        SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys}) THEN cb.level * ${BONUS.food.pct} ELSE 0 END) AS fb,
+        SUM(CASE WHEN cb.key = ${globalKey} THEN cb.level * ${globalPct} ELSE 0 END) AS gb,
+        MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem,
+        MAX(CASE WHEN bst.id IS NOT NULL THEN 1 ELSE 0 END) AS bast
+      FROM "CityBuilding" cb JOIN "City" ci ON ci.id = cb."cityId" LEFT JOIN "Player" pl ON pl.id = ci."playerId"
+      LEFT JOIN "AllianceMember" am ON am."playerId" = ci."playerId" LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'
+      LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod) ON pt.key = cb.key AND pt.level = cb.level
       GROUP BY cb."cityId"
-    ) AS red ON red."cityId" = cons."cityId"
+    ) AS p ON p."cityId" = c.id
     LEFT JOIN (
-      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct
-      FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
-      JOIN (VALUES ${upkeepTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
-      GROUP BY ci.id
-    ) AS tech ON tech."cityId" = cons."cityId"
-    WHERE c.id = cons."cityId" AND cons.total > 0
-  `;
+      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
+      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" GROUP BY ci.id
+    ) AS tp ON tp."cityId" = c.id
+    LEFT JOIN (
+      SELECT a."cityId", SUM(au.count * ut.upkeep * (CASE WHEN a.status = 'BESIEGING' THEN ${1 + SIEGE_UP.attacker / 100}::float
+        WHEN hc."isSieged" AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)) AS total
+      FROM "Army" a JOIN "City" hc ON hc.id = a."cityId" JOIN "ArmyUnit" au ON au."armyId" = a.id
+      JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
+      GROUP BY a."cityId"
+    ) AS cons ON cons."cityId" = c.id
+    LEFT JOIN (
+      SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId"
+    ) AS red ON red."cityId" = c.id
+    LEFT JOIN (
+      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
+      JOIN (VALUES ${upkeepTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" GROUP BY ci.id
+    ) AS tech ON tech."cityId" = c.id
+    WHERE ${cityFilter}`;
+}
+async function foodBalance(cityIds) {
+  const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(cityIds.length ? cityIds : ['-'])})`)}) b`;
+  return new Map(rows.map(r => [r.cityId, { production: Math.round(r.prod), consumption: Math.round(r.cons), net: Math.round(r.prod - r.cons), reductionPct: r.reductionPct, hoursLeft: r.cons > r.prod ? Math.max(0, r.food / (r.cons - r.prod)) : null }]));
+}
 
-  // 2) Famine : taux horaire, appliqué une fois par heure aux unités présentes dans une ville sans nourriture
+let lastStarvationAt = 0;
+const RES_UP = config.army.upkeepPerTier;
+
+async function processUpkeep(TICK_HOURS, now = new Date()) {
+  // 1) Décrément de nourriture : une seule requête pour toutes les villes (bilan ci-dessus)
+  await prisma.$executeRaw`
+    UPDATE "City" AS c SET food = GREATEST(0, c.food - b.cons * ${TICK_HOURS})
+    FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`)}) AS b
+    WHERE c.id = b."cityId" AND b.cons > 0
+  `;
+  // 2) Une fois par heure : alertes (grenier vide dans moins de 6 h) et famine façon Travian
   if (now.getTime() - lastStarvationAt < config.army.starvationIntervalHours * 3600000) return;
   lastStarvationAt = now.getTime();
-  const rate = config.army.starvationLossRate;
-  const starvedGroups = await prisma.$executeRaw`
-    UPDATE "ArmyUnit" AS au
-    SET count = au.count - GREATEST(1, FLOOR(au.count * ${rate}))
-    FROM "Army" a, "City" c
-    WHERE au."armyId" = a.id AND a."cityId" = c.id AND a.x = c.x AND a.y = c.y AND a.status = 'IDLE' AND c.food <= 0
-  `;
-  if (starvedGroups > 0) {
-    const deleted = await prisma.armyUnit.deleteMany({ where: { count: { lte: 0 } } });
-    console.log(`[STARVATION] ${starvedGroups} groupes d'unités affamés (${deleted.count} groupes anéantis)`);
+  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`)}) b WHERE b.cons > b.prod`;
+  for (const r of short) {
+    try {
+      if (r.food > 1) await foodAlert(r, now);
+      else await starve(r, now);
+    } catch (e) { console.error('[STARVATION]', r.cityId, e.message); }
   }
+}
+
+// Grenier vide dans moins de 6 h : prévenu (une fois toutes les 6 h au plus)
+async function foodAlert(r, now) {
+  const hours = r.food / Math.max(1e-9, r.cons - r.prod);
+  if (hours > config.army.famineAlertHours) return;
+  const ok = await prisma.city.updateMany({ where: { id: r.cityId, OR: [{ foodAlertAt: null }, { foodAlertAt: { lt: new Date(now.getTime() - config.army.famineAlertHours * 3600000) } }] }, data: { foodAlertAt: now } });
+  if (ok.count !== 1) return;
+  require('../../services/pushService').notify(r.playerId, 'famine', '🌾 Grenier bientôt vide', `${r.name} n'a plus que ${Math.max(1, Math.round(hours * 10) / 10).toString().replace('.', ',')} h de nourriture : vos troupes consomment ${Math.round(r.cons)}/h pour ${Math.round(r.prod)}/h produites. Sans nourriture, elles mourront de faim.`, { to: 'city', cityId: r.cityId });
+}
+
+// Famine façon Travian : le grenier est vide et la consommation dépasse la production ; meurent juste assez de soldats
+// pour que la consommation repasse sous la production, d'abord les plus gourmands, dans toutes les armées de la ville
+async function starve(r, now) {
+  const factor = 1 - (r.reductionPct || 0) / 100;
+  const lost = await prisma.$transaction(async (tx) => {
+    await require('../../utils/db').lockCity(tx, r.cityId);
+    const armies = await tx.army.findMany({ where: { cityId: r.cityId, claimedAt: null }, include: { units: true, city: { select: { x: true, y: true, isSieged: true } } } });
+    const groups = [];
+    for (const a of armies) {
+      const mult = a.status === 'BESIEGING' ? 1 + SIEGE_UP.attacker / 100 : a.city?.isSieged && a.x === a.city.x && a.y === a.city.y ? 1 + SIEGE_UP.defender / 100 : 1;
+      for (const u of a.units) if (u.count > 0) groups.push({ u, a, eat: (RES_UP[unitsData.find(d => d.key === u.unitKey)?.tier] || RES_UP.base) * mult * factor });
+    }
+    groups.sort((x, y) => y.eat - x.eat || y.u.count - x.u.count);
+    let deficit = r.cons - r.prod;
+    const killed = {};
+    const HS = require('../../services/heroService');
+    const engaged = HS.fought(armies);
+    for (const g of groups) {
+      if (deficit <= 1e-6) break;
+      const n = Math.min(g.u.count, Math.ceil(deficit / g.eat));
+      if (n <= 0) continue;
+      if (n >= g.u.count) await tx.armyUnit.delete({ where: { id: g.u.id } }); else await tx.armyUnit.update({ where: { id: g.u.id }, data: { count: { decrement: n } } });
+      deficit -= n * g.eat;
+      killed[g.u.unitKey] = (killed[g.u.unitKey] || 0) + n;
+    }
+    await HS.fallIfWiped(tx, engaged, now);   // une armée morte de faim perd son héros
+    return killed;
+  }, { timeout: 15000 });
+  const total = Object.values(lost).reduce((a, b) => a + b, 0);
+  if (!total) return;
+  const names = Object.entries(lost).map(([k, n]) => `${n} ${unitsData.find(u => u.key === k)?.name || k}`).join(', ');
+  console.log(`[STARVATION] ${r.name} : ${total} soldats morts de faim`);
+  require('../../services/pushService').notify(r.playerId, 'famine', '💀 Famine', `${r.name} n'a plus de nourriture : ${names} ${total > 1 ? 'sont morts' : 'est mort'} de faim. Produisez plus de nourriture ou réduisez vos armées.`, { to: 'city', cityId: r.cityId });
 }
 
 // Points de ressource : régénération linéaire depuis la dernière mise à jour (regenRate par heure),
@@ -202,4 +277,4 @@ async function processGoldIncome(TICK_HOURS) {
   ]);
 }
 
-module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome };
+module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome, foodBalance, foodBalanceSql, resetFamineClock: () => { lastStarvationAt = 0; } };

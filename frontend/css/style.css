@@ -5301,3 +5301,6 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .ranking-position .ico { width: 26px; height: 26px; }
 .ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ranking-value { font-weight: 700; color: var(--gold, #c9a227); white-space: nowrap; }
+
+/* ---- Famine (décision du 28 octobre 2026) ---- */
+.famine-banner { margin: 6px 12px; padding: 8px 12px; border-radius: 8px; background: rgba(120, 20, 15, .85); border: 1px solid #e57373; color: #fbe9e7; font-size: 13px; z-index: 5; position: relative; }
