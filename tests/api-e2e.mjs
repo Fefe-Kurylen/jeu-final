@@ -1457,9 +1457,10 @@ if (MAIL_LOG) {
   // un convoi vers la Ville Merveille remplit le chantier, sans plafond
   const conv = mkTrader(A.player.id, cityA.id, 'Plaustra', infKey, 400);
   const [wx, wy] = [Number(siteNode[1]), Number(siteNode[2])];
-  await call('wonder: convoy to the Wonder City', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: wx, targetY: wy, resources: { wood: 20000, stone: 0, iron: 0, food: 0 } });
-  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${conv}'`);
-  await waitTick('convoy into the wonder stock', () => Number(sql(`SELECT "wonderWood" FROM "City" WHERE id='${wonderId}'`)) >= 20000);
+  // le serveur prend la première armée disponible de la ville : une petite cargaison, puis l'armée partie est suivie
+  await call('wonder: convoy to the Wonder City', 'POST', '/api/trade/send', tA, { fromCityId: cityA.id, targetX: wx, targetY: wy, resources: { wood: 200, stone: 0, iron: 0, food: 0 } });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE "ownerId"='${A.player.id}' AND status='TRANSPORTING'`);
+  await waitTick('convoy into the wonder stock', () => Number(sql(`SELECT "wonderWood" FROM "City" WHERE id='${wonderId}'`)) >= 200);
   sql(`DELETE FROM "Army" WHERE id='${conv}'`);
   sql(`UPDATE "City" SET "wonderWood"=10000000, "wonderStone"=10000000, "wonderIron"=10000000, "wonderFood"=10000000 WHERE id='${wonderId}'`);
   await call('wonder: level 1 started', 'POST', `/api/wonder/${wonderId}/build`, tA);
