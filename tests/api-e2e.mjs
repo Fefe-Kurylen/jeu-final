@@ -446,12 +446,16 @@ await call('send SPY with an army -> 400', 'POST', '/api/armies/send', tA, { arm
 {
   // Terrain: a destination on a mountain or in water is refused; a valid move records the departure time
   let blockedTile = null;
+  // toutes les villes proches (l'abord de n'importe quelle ville rend une case praticable, pas seulement celui de A et B)
+  const near = sql(`SELECT x||','||y FROM "City" WHERE abs(x-${cityA.x}) <= 64 AND abs(y-${cityA.y}) <= 64`).split('\n').filter(Boolean).map(l => l.split(',').map(Number));
+  const objs = new Map();
+  for (const l of sql(`SELECT x||','||y FROM "ResourceNode" WHERE abs(x-${cityA.x}) <= 64 AND abs(y-${cityA.y}) <= 64`).split('\n').filter(Boolean)) objs.set(l, 'RESOURCE');
+  for (const [nx, ny] of near) for (const [cx, cy] of Terrain.cityCells(nx, ny)) objs.set(cx + ',' + cy, 'CITY');
   for (let r = 2; r < 60 && !blockedTile; r++) for (let dx = -r; dx <= r && !blockedTile; dx++) for (let dy = -r; dy <= r; dy++) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
     const x = cityA.x + dx, y = cityA.y + dy;
     // a resource node or a city on a mountain makes the tile passable, and so does the ring around a city (except over
     // water): check it the way the server does, with the cities as objects, and pick a bare tile
-    const objs = new Map(); for (const c of [cityA, cityB]) for (const [cx, cy] of Terrain.cityCells(c.x, c.y)) objs.set(cx + ',' + cy, 'CITY');
     if (Terrain.inWorld(x, y) && Terrain.isBlocked(x, y, objs) && sql(`SELECT (SELECT count(*) FROM "ResourceNode" WHERE x=${x} AND y=${y}) + (SELECT count(*) FROM "City" WHERE x=${x} AND y=${y})`) === '0') { blockedTile = { x, y }; break; }
   }
   if (blockedTile) await call('army move onto mountain/water -> 400', 'POST', `/api/army/${armyId}/move`, tA, blockedTile, 400);
