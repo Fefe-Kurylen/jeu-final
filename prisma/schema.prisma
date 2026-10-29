@@ -994,3 +994,18 @@ model HallOfFame {
   @@index([world])
   @@index([accountId])
 }
+
+// Annonce de l'équipe à tous les joueurs (décision du 29 octobre 2026) : notification dans le fil, push (si coché) et
+// bandeau en haut de l'écran jusqu'à bannerUntil (maintenance, événement)
+model Announcement {
+  id          String    @id @default(uuid())
+  title       String
+  body        String
+  bannerUntil DateTime?
+  push        Boolean   @default(false)
+  authorName  String
+  recipients  Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([bannerUntil])
+}

@@ -15,6 +15,11 @@
 // POST /api/admin/players/:id/role { role }  équipe : PLAYER, MODERATOR, ADMIN           (administrateur)
 // GET  /api/admin/team                       membres de l'équipe
 // GET  /api/admin/log?before=&action=        journal de l'équipe
+// GET  /api/admin/stats                      statistiques des 30 derniers jours             (administrateur)
+// GET  /api/admin/announcements              annonces envoyées                              (administrateur)
+// POST /api/admin/announcements { title, body, bannerHours, push }  annonce à tous les joueurs
+// POST /api/admin/announcements/:id/end      retirer le bandeau
+// GET  /api/announcements                    bandeaux en cours (tous les joueurs)
 const express = require('express');
 const router = express.Router();
 const prisma = require('../config/database');
@@ -244,6 +249,28 @@ router.get('/admin/log', need('log'), async (req, res) => {
     const rows = await prisma.adminLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50 });
     res.json({ log: rows });
   } catch (e) { fail(res, e); }
+});
+
+// ---- statistiques, annonces (administrateur) ----
+router.get('/admin/stats', need('stats'), async (req, res) => {
+  try { res.json(await require('../services/statsService').stats()); } catch (e) { fail(res, e); }
+});
+const ANN = () => require('../services/announcementService');
+router.get('/admin/announcements', need('announce'), async (req, res) => {
+  try { res.json({ announcements: await ANN().recent(), maxBannerHours: ANN().MAX_BANNER_HOURS, pushConfigured: require('../services/pushService').configured() }); } catch (e) { fail(res, e); }
+});
+router.post('/admin/announcements', need('announce'), async (req, res) => {
+  try {
+    const a = await ANN().create(req.staff, req.body || {});
+    res.json({ message: `Annonce envoyée à ${a.recipients.toLocaleString('fr-FR')} joueurs${a.push ? ' (push en cours)' : ''}`, announcement: a });
+  } catch (e) { fail(res, e); }
+});
+router.post('/admin/announcements/:id/end', need('announce'), async (req, res) => {
+  try { res.json(await ANN().endBanner(req.staff, req.params.id)); } catch (e) { fail(res, e); }
+});
+// bandeaux en cours, pour tous les joueurs connectés
+router.get('/announcements', auth, async (req, res) => {
+  try { res.json({ announcements: await ANN().active() }); } catch (e) { fail(res, e); }
 });
 
 module.exports = router;

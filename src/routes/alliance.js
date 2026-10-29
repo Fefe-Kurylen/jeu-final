@@ -47,6 +47,7 @@ router.post('/create', auth, async (req, res) => {
     const name = cleanText(req.body.name, 3, 30);
     if (!name) return res.status(400).json({ error: 'Nom invalide (3-30 caractères)' });
     if (!validateAllianceTag(tag)) return res.status(400).json({ error: 'Tag invalide (2-5 caractères alphanumériques)' });
+    { const NF = require('../utils/nameFilter'); const bad = NF.nameProblem(name) || NF.nameProblem(tag); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     const description = req.body.description ? (cleanText(String(req.body.description).substring(0, 400), 0, 200) || '') : '';
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });

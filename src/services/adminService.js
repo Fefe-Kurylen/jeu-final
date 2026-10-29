@@ -16,7 +16,7 @@ const LIMITS = { muteHours: 24 * 30, suspendDays: 30, moderatorSuspendDays: 7 };
 // droit -> rôle minimal
 const PERMS = {
   reports: 'MODERATOR', players: 'MODERATOR', mute: 'MODERATOR', suspend: 'MODERATOR', log: 'MODERATOR',
-  ban: 'ADMIN', world: 'ADMIN', team: 'ADMIN', email: 'ADMIN'
+  ban: 'ADMIN', world: 'ADMIN', team: 'ADMIN', email: 'ADMIN', announce: 'ADMIN', stats: 'ADMIN'
 };
 const can = (role, perm) => (RANK[role] || 0) >= (RANK[PERMS[perm]] ?? 99);
 const isStaff = (role) => (RANK[role] || 0) >= RANK.MODERATOR;

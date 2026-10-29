@@ -1560,6 +1560,7 @@ if (MAIL_LOG) {
   await call('admin: moderator cannot lift a ban -> 403', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tMo, { kind: 'BAN' }, 403);
   await call('admin: lift the ban', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tAd, { kind: 'BAN' });
   await call('admin: lift the mute', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tMo, { kind: 'MUTE' });
+  const again = await call('admin: login again once the ban is lifted', 'POST', '/api/auth/login', null, { email: `rixosus${uid}@t.fr`, password: PASSWORD });
   const sheet = await call('admin: player sheet', 'GET', `/api/admin/players/${Vi?.player?.id}`, tMo);
   assert('admin: the sheet keeps the history, no e-mail for a moderator', (sheet?.history || []).length >= 5 && sheet?.player?.email === undefined, `${sheet?.history?.length}`);
   const sheetA = await call('admin: player sheet (administrator)', 'GET', `/api/admin/players/${Vi?.player?.id}`, tAd);
@@ -1591,6 +1592,28 @@ if (MAIL_LOG) {
   const log = await call('admin: log', 'GET', '/api/admin/log', tMo);
   assert('admin: the log keeps the actions', ['ROLE', 'MUTE', 'SUSPEND', 'BAN', 'LIFT_BAN', 'REPORT_DISMISS', 'WORLD_SHIFT', 'WORLD_SETTINGS'].every(a => log?.log?.some(l => l.action === a)));
   await call('admin: dashboard', 'GET', '/api/admin/overview', tMo);
+  // noms choquants ou réservés refusés à la création (décision du 29 octobre 2026)
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%'`);
+  const badReg = await call('names: an offensive player name -> 400', 'POST', '/api/auth/register', null, { email: `bad${uid}@t.fr`, password: PASSWORD, name: `C0nn4rd${uid % 1000}`, faction: 'ROME' }, 400);
+  assert('names: the refusal says so', badReg?.badName === true);
+  await call('names: a staff name -> 400', 'POST', '/api/auth/register', null, { email: `adm${uid}@t.fr`, password: PASSWORD, name: `Admin${uid % 1000}`, faction: 'ROME' }, 400);
+  await call('names: an offensive hero name -> 400', 'POST', '/api/hero/rename', again?.token, { name: 'SaleNoir' }, 400);
+  await call('names: an offensive army name -> 400', 'POST', '/api/army/create', again?.token, { cityId: sql(`SELECT id FROM "City" WHERE "playerId"='${Vi?.player?.id}' LIMIT 1`), slot: 1, name: 'Hitler88' }, 400);
+  await call('names: an ordinary hero name passes', 'POST', '/api/hero/rename', again?.token, { name: 'Cocktail' });
+  // annonces : à tous les joueurs (fil + bandeau), administrateur seulement
+  await call('announce: moderator -> 403', 'POST', '/api/admin/announcements', tMo, { title: 'Essai', body: 'Texte', bannerHours: 1 }, 403);
+  await call('announce: a title is required -> 400', 'POST', '/api/admin/announcements', tAd, { title: '', body: 'Texte', bannerHours: 1 }, 400);
+  const ann = await call('announce: send to everyone', 'POST', '/api/admin/announcements', tAd, { title: `Maintenance ${uid}`, body: 'Le serveur redémarre ce soir à 23 h.', bannerHours: 2, push: false });
+  assert('announce: every player got it in the feed', Number(sql(`SELECT count(*) FROM "Notification" WHERE kind='announcement' AND title LIKE '%Maintenance ${uid}%'`)) === Number(sql(`SELECT count(*) FROM "Player"`)) && ann?.announcement?.recipients > 0);
+  const banners = await call('announce: banners for a player', 'GET', '/api/announcements', again?.token);
+  assert('announce: the banner is shown', !!banners?.announcements?.some(a => a.id === ann?.announcement?.id));
+  await call('announce: end the banner', 'POST', `/api/admin/announcements/${ann?.announcement?.id}/end`, tAd);
+  const banners2 = await call('announce: banners after the end', 'GET', '/api/announcements', again?.token);
+  assert('announce: no more banner', !banners2?.announcements?.some(a => a.id === ann?.announcement?.id));
+  // statistiques (administrateur)
+  await call('stats: moderator -> 403', 'GET', '/api/admin/stats', tMo, null, 403);
+  const st = await call('stats: 30 days', 'GET', '/api/admin/stats', tAd);
+  assert('stats: series of 30 days, funnel, civilizations', st?.signups?.length >= 30 && st?.active?.length >= 30 && st?.funnel?.[0]?.label === 'Inscrits' && st?.signups?.at(-1)?.v >= 3 && st?.factions?.length >= 1, JSON.stringify(st?.signups?.at(-1)));
   // fin : rôles rendus
   await call('admin: moderator back to player', 'POST', `/api/admin/players/${Mo?.player?.id}/role`, tAd, { role: 'PLAYER' });
   await call('admin: no more access -> 403', 'GET', '/api/admin/me', tMo, null, 403);

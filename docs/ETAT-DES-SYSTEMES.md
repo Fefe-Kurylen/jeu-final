@@ -289,6 +289,18 @@ outil `tools/admin.cjs`) :
   auteur, sa cible et son motif ; l'historique d'un joueur est sur sa fiche.
 - **Tableau de bord** : signalements en attente, joueurs, actifs sur 24 h et 7 jours, suspendus, bannis, en silence,
   équipe, état du monde.
+- **Noms choquants refusés à la création** (le jeu les empêche plutôt que de les faire renommer) : pseudo, nom et tag
+  d'alliance, héros, armées, ville fondée. Listes dans `data/name-filter.json` (mots refusés n'importe où dans le nom,
+  mots refusés seuls, noms réservés à l'équipe comme « Admin », « Modo », « Support », « Immortels ») plus les mots du
+  filtre du chat ; la comparaison ignore accents, casse, lettres répétées et chiffres « leet » (« C0nn4rd »), sans
+  bloquer les noms ordinaires (« Computer », « Cocktail »). `src/utils/nameFilter.js`.
+- **Annonces** (administrateur) : un titre et un texte envoyés à tous les joueurs, dans leur fil de notifications, en
+  push sur les téléphones si la case est cochée (envoyé par paquets en tâche de fond), et en **bandeau** en haut de
+  l'écran pendant 6 h à 30 jours (chaque joueur peut le fermer ; l'équipe peut le retirer). `src/services/announcementService.js`.
+- **Statistiques** (administrateur, 30 derniers jours, jours de Paris) : inscriptions et joueurs actifs par jour,
+  rétention J1 et J7, achats par jour et par produit, entonnoir du tutoriel (inscrits, premier bâtiment, chaque quête du
+  tutoriel, tutoriel terminé), combats et échanges au marché par jour, ressources échangées, civilisations choisies.
+  Graphiques à une couleur avec infobulle et tableau des valeurs. `src/services/statsService.js`.
 
 ## Cycle du serveur et Merveille (28 octobre 2026)
 

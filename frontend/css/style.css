@@ -5148,9 +5148,9 @@ span.chat-author { cursor: default; }
 .support-where { color: var(--text-muted); font-size: 12px; }
 /* onglets de l'alliance (5) : défilent sur un téléphone au lieu d'être tronqués */
 @media (max-width: 760px) {
-  #tab-alliance .tab-toolbar, #tab-ranking .tab-toolbar, #tab-market .tab-toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: flex-start; }
-  #tab-alliance .tab-toolbar::-webkit-scrollbar, #tab-ranking .tab-toolbar::-webkit-scrollbar, #tab-market .tab-toolbar::-webkit-scrollbar { display: none; }
-  #tab-alliance .toolbar-btn, #tab-ranking .toolbar-btn, #tab-market .toolbar-btn { flex: 0 0 auto; white-space: nowrap; overflow: visible; text-overflow: clip; }
+  #tab-alliance .tab-toolbar, #tab-ranking .tab-toolbar, #tab-market .tab-toolbar, #tab-admin .tab-toolbar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: flex-start; }
+  #tab-alliance .tab-toolbar::-webkit-scrollbar, #tab-ranking .tab-toolbar::-webkit-scrollbar, #tab-market .tab-toolbar::-webkit-scrollbar, #tab-admin .tab-toolbar::-webkit-scrollbar { display: none; }
+  #tab-alliance .toolbar-btn, #tab-ranking .toolbar-btn, #tab-market .toolbar-btn, #tab-admin .toolbar-btn { flex: 0 0 auto; white-space: nowrap; overflow: visible; text-overflow: clip; }
 }
 
 /* ========== QUÊTES (décision du 26 octobre 2026) ========== */
@@ -5355,3 +5355,31 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .admin-history { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .admin-history li { padding: 5px 8px; border-radius: 6px; background: rgba(0,0,0,.18); word-break: break-word; }
 .admin-history small { opacity: .75; }
+/* annonces : bandeau des joueurs, formulaire de l'équipe */
+#announcement-banner { margin: 6px 12px; display: flex; flex-direction: column; gap: 4px; position: relative; z-index: 5; }
+.announcement-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(30, 60, 90, .9); border: 1px solid #7fb2e5; color: #eef6ff; font-size: 13px; }
+.announcement-item span { flex: 1 1 auto; opacity: .9; }
+.announcement-item .banner-close { min-height: 0; min-width: 0; padding: 0 6px; background: none; border: 0; color: inherit; font-size: 18px; cursor: pointer; }
+.admin-input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 6px; margin: 4px 0; font: inherit; }
+/* statistiques : une couleur (or), tableau dépliable, infobulle au survol */
+.admin-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 10px 0; }
+.admin-chart { margin: 0; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid rgba(201,162,39,.3); position: relative; }
+.admin-chart figcaption { margin-bottom: 8px; color: #f3e2b0; }
+.admin-chart figcaption small { color: rgba(243,226,176,.7); }
+.admin-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; border-bottom: 1px solid rgba(243,226,176,.25); }
+.admin-bar-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; position: relative; cursor: default; }
+.admin-bar { display: block; width: 100%; max-width: 14px; background: #c9a227; border-radius: 4px 4px 0 0; }
+.admin-bar-col:hover .admin-bar { background: #f0c94a; }
+.admin-bar-label { position: absolute; top: -2px; font-style: normal; font-size: 10px; color: #f3e2b0; transform: translateY(-100%); white-space: nowrap; }
+.admin-axis { display: flex; justify-content: space-between; font-size: 10px; color: rgba(243,226,176,.6); margin-top: 3px; }
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: #1d1610; color: #f3e2b0; border: 1px solid #c9a227; padding: 3px 7px; border-radius: 5px; font-size: 11px; white-space: nowrap; z-index: 20; pointer-events: none; }
+.admin-hbar-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
+.admin-hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f3e2b0; }
+.admin-hbar-track { height: 10px; background: rgba(243,226,176,.08); border-radius: 0 4px 4px 0; }
+.admin-hbar { display: block; height: 100%; background: #c9a227; border-radius: 0 4px 4px 0; }
+.admin-hbar-value { color: rgba(243,226,176,.85); white-space: nowrap; }
+.admin-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.admin-table td { padding: 2px 6px; border-bottom: 1px solid rgba(243,226,176,.1); }
+.admin-table td:last-child { text-align: right; }
+.admin-chart details summary { cursor: pointer; font-size: 12px; color: rgba(243,226,176,.75); margin-top: 6px; }

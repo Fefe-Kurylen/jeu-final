@@ -196,6 +196,7 @@ router.post('/create', auth, async (req, res) => {
     const { cityId, slot } = req.body;
     if (!isId(cityId) || !Number.isInteger(slot) || slot < 1) return res.status(400).json({ error: 'cityId et slot requis' });
     const name = req.body.name === undefined || req.body.name === '' ? `Armée ${slot}` : cleanText(req.body.name, 2, 30);
+    { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!name) return res.status(400).json({ error: 'Nom invalide (2-30 caractères)' });
     const result = await prisma.$transaction(async (tx) => {
       await lockCity(tx, cityId);
@@ -217,6 +218,7 @@ router.post('/create', auth, async (req, res) => {
 async function renameArmy(req, res) {
   try {
     const name = cleanText(req.body.name, 2, 30);
+    { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!name) return res.status(400).json({ error: 'Nom invalide (2-30 caractères)' });
     const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId } });
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
@@ -491,6 +493,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body || {};
     const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 40) : '';
+    { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
     const result = await prisma.$transaction(async (tx) => {
       // lock order City then Army, as the other army routes (no deadlock with a launch from the same city)

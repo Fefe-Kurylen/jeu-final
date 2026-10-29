@@ -9,7 +9,7 @@ const ROLE_LABEL = { PLAYER: 'Joueur', MODERATOR: 'Modérateur', ADMIN: 'Adminis
 const ACTION_LABEL = {
   ROLE: 'Rôle', MUTE: 'Silence', SUSPEND: 'Suspension', BAN: 'Bannissement', LIFT_MUTE: 'Silence levé', LIFT_SUSPEND: 'Suspension levée', LIFT_BAN: 'Bannissement levé',
   REPORT_DELETE: 'Message supprimé', REPORT_DISMISS: 'Signalement classé', WORLD_SETTINGS: 'Calendrier', WORLD_SHIFT: 'Calendrier décalé', WORLD_END: 'Monde terminé',
-  WORLD_NEXT: 'Monde suivant demandé', WORLD_OPENED: 'Monde suivant ouvert'
+  WORLD_NEXT: 'Monde suivant demandé', WORLD_OPENED: 'Monde suivant ouvert', ANNOUNCE: 'Annonce', ANNOUNCE_END: 'Bandeau retiré'
 };
 const frDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 const adminCan = (perm) => !!adminState.me?.perms?.includes(perm);
@@ -17,8 +17,8 @@ async function adminPost(path, body) { return allianceRequestNoReload(`/api/admi
 
 function openAdmin(view) {
   if (typeof closeModal === 'function') closeModal();
+  if (view) adminState.view = view;   // avant showTab, qui charge la vue choisie
   showTab('admin');
-  if (view) adminState.view = view;
 }
 async function loadAdmin(view = adminState.view) {
   adminState.view = view;
@@ -33,6 +33,8 @@ async function loadAdmin(view = adminState.view) {
     if (view === 'players') return renderAdminPlayers(content);
     if (view === 'team') return renderAdminTeam(content, await fetchJson('/api/admin/team'));
     if (view === 'log') { adminState.logBefore = null; return renderAdminLog(content, await fetchJson('/api/admin/log')); }
+    if (view === 'announce') return renderAdminAnnounce(content);
+    if (view === 'stats') return renderAdminStats(content);
     renderAdminOverview(content, await fetchJson('/api/admin/overview'));
   } catch (e) {
     console.warn('loadAdmin', e);
@@ -259,4 +261,121 @@ async function adminMoreLog() {
     adminState.logBefore = d.log.length === 50 ? d.log[d.log.length - 1].createdAt : null;
     if (!adminState.logBefore) document.getElementById('admin-log-more').innerHTML = '';
   } catch (e) { showToast('Journal indisponible', 'error'); }
+}
+
+// ---- annonces (administrateur) ----
+async function renderAdminAnnounce(content) {
+  const d = await fetchJson('/api/admin/announcements');
+  const live = (a) => a.bannerUntil && new Date(a.bannerUntil) > new Date();
+  content.innerHTML = `
+    <div class="admin-card">
+      <h4>${resIconHtml('send')} Nouvelle annonce à tous les joueurs</h4>
+      <input type="text" id="an-title" maxlength="80" placeholder="Titre (maintenance ce soir, événement…)" class="admin-input">
+      <textarea id="an-body" maxlength="500" rows="3" placeholder="Texte (500 caractères au plus)" class="admin-input"></textarea>
+      <div class="admin-inline">
+        <label>Bandeau en haut de l'écran <select id="an-banner">${[[0, 'aucun'], [6, '6 h'], [24, '24 h'], [72, '3 jours'], [168, '7 jours'], [720, '30 jours']].map(([h, l]) => `<option value="${h}" ${h === 24 ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="admin-check"><input type="checkbox" id="an-push" ${d.pushConfigured ? '' : 'disabled'}> Push sur les téléphones${d.pushConfigured ? '' : ' (push non configuré sur ce serveur)'}</label>
+      </div>
+      <p class="diplo-help">Chaque joueur la reçoit dans son fil de notifications ; le bandeau reste affiché jusqu'à la date choisie (chaque joueur peut le fermer).</p>
+      <div class="profile-actions"><button class="btn btn-primary" onclick="adminSendAnnouncement()">Envoyer à tous les joueurs</button></div>
+    </div>
+    <h4>${resIconHtml('list')} Annonces envoyées</h4>
+    <div class="admin-list">${d.announcements.map(a => `
+      <div class="admin-card">
+        <div class="admin-card-head"><strong>${escapeHtml(a.title)}</strong> <small>${frDateTime(a.createdAt)} · ${escapeHtml(a.authorName)} · ${a.recipients.toLocaleString('fr-FR')} joueurs${a.push ? ' · push' : ''}</small></div>
+        <p>${escapeHtml(a.body)}</p>
+        ${live(a) ? `<small>Bandeau jusqu'au ${frDateTime(a.bannerUntil)}</small> <button class="btn btn-secondary btn-sm" onclick="adminEndBanner('${chatSafeId(a.id)}')">Retirer le bandeau</button>` : ''}
+      </div>`).join('') || '<div class="empty-state">Aucune annonce envoyée.</div>'}</div>`;
+}
+async function adminSendAnnouncement() {
+  const title = (document.getElementById('an-title')?.value || '').trim(), body = (document.getElementById('an-body')?.value || '').trim();
+  if (title.length < 3 || body.length < 3) return showToast('Titre et texte requis (3 caractères au moins)', 'error');
+  const push = !!document.getElementById('an-push')?.checked;
+  if (!(await confirmModal(`Envoyer « ${title} » à tous les joueurs${push ? ', avec un push sur leurs téléphones' : ''} ?`, { title: 'Annonce', okLabel: 'Envoyer' }))) return;
+  if (await adminPost('/announcements', { title, body, bannerHours: Number(document.getElementById('an-banner')?.value) || 0, push })) { loadAdmin('announce'); loadAnnouncements(); }
+}
+async function adminEndBanner(id) {
+  if (await adminPost(`/announcements/${id}/end`)) { loadAdmin('announce'); loadAnnouncements(); }
+}
+
+// ---- bandeau des annonces, pour tous les joueurs (fermé par le joueur : retenu sur l'appareil) ----
+let announcementsTimer = null;
+async function loadAnnouncements() {
+  if (!token) return;
+  let list = [];
+  try { list = (await fetchJson('/api/announcements')).announcements || []; } catch (e) { return; }
+  let closed = [];
+  try { closed = JSON.parse(safeStorage.getItem('closed_announcements') || '[]'); } catch (e) { closed = []; }
+  const show = list.filter(a => !closed.includes(a.id));
+  let el = document.getElementById('announcement-banner');
+  if (!show.length) { if (el) el.style.display = 'none'; }
+  else {
+    if (!el) {
+      el = document.createElement('div'); el.id = 'announcement-banner';
+      const anchor = document.querySelector('header.top-bar');
+      if (!anchor) return;
+      anchor.parentNode.insertBefore(el, anchor.nextSibling);
+    }
+    el.style.display = '';
+    el.innerHTML = show.map(a => `<div class="announcement-item">${resIconHtml('send')} <strong>${escapeHtml(a.title)}</strong> <span>${escapeHtml(a.body)}</span><button class="banner-close" aria-label="Fermer" onclick="closeAnnouncement('${chatSafeId(a.id)}')">×</button></div>`).join('');
+  }
+  if (!announcementsTimer) announcementsTimer = setInterval(loadAnnouncements, 5 * 60 * 1000);
+}
+function closeAnnouncement(id) {
+  let closed = [];
+  try { closed = JSON.parse(safeStorage.getItem('closed_announcements') || '[]'); } catch (e) { closed = []; }
+  closed = [...closed.filter(x => x !== id), id].slice(-30);
+  try { safeStorage.setItem('closed_announcements', JSON.stringify(closed)); } catch (e) { /* stockage indisponible : fermé pour cette session */ }
+  loadAnnouncements();
+}
+
+// ---- statistiques (administrateur) : une couleur par graphique, titre qui le nomme, infobulle, tableau des valeurs ----
+const shortDay = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+function barChart(title, points, unit) {
+  const max = Math.max(1, ...points.map(p => p.v));
+  const total = points.reduce((t, p) => t + p.v, 0);
+  const last = points[points.length - 1];
+  const peak = points.reduce((a, b) => (b.v > a.v ? b : a), points[0]);
+  return `<figure class="admin-chart">
+    <figcaption><strong>${title}</strong> <small>${formatNum(total)} sur 30 jours · aujourd'hui ${formatNum(last?.v || 0)}</small></figcaption>
+    <div class="admin-bars" role="img" aria-label="${escapeHtml(title)} : ${formatNum(total)} sur 30 jours">
+      ${points.map(p => `<div class="admin-bar-col" data-tip="${shortDay(p.d)} : ${p.v.toLocaleString('fr-FR')} ${unit}"><span class="admin-bar" style="height:${p.v ? Math.max(2, Math.round(100 * p.v / max)) : 0}%"></span>${p === peak && p.v ? `<em class="admin-bar-label">${formatNum(p.v)}</em>` : ''}</div>`).join('')}
+    </div>
+    <div class="admin-axis"><span>${shortDay(points[0].d)}</span><span>${shortDay(last.d)}</span></div>
+    <details><summary>Tableau</summary><table class="admin-table">${points.slice().reverse().map(p => `<tr><td>${shortDay(p.d)}</td><td>${p.v.toLocaleString('fr-FR')}</td></tr>`).join('')}</table></details>
+  </figure>`;
+}
+function hBars(title, rows, total) {
+  const max = Math.max(1, ...rows.map(r => r.n));
+  return `<figure class="admin-chart"><figcaption><strong>${title}</strong></figcaption>
+    ${rows.map(r => `<div class="admin-hbar-row" data-tip="${escapeHtml(r.label)} : ${r.n.toLocaleString('fr-FR')}${total ? ` (${Math.round(100 * r.n / Math.max(1, total))} %)` : ''}"><span class="admin-hbar-label">${escapeHtml(r.label)}</span><span class="admin-hbar-track"><span class="admin-hbar" style="width:${r.n ? Math.max(1, Math.round(100 * r.n / max)) : 0}%"></span></span><span class="admin-hbar-value">${r.n.toLocaleString('fr-FR')}${total ? ` · ${Math.round(100 * r.n / Math.max(1, total))} %` : ''}</span></div>`).join('') || '<p class="diplo-help">Rien sur la période.</p>'}
+  </figure>`;
+}
+const pct = (x) => (x === null || x === undefined ? '—' : `${Math.round(100 * x)} %`);
+async function renderAdminStats(content) {
+  const s = await fetchJson('/api/admin/stats');
+  const factionName = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
+  const players = s.factions.reduce((t, f) => t + f.n, 0);
+  const tile = (label, value, sub) => `<div class="admin-stat"><strong>${value}</strong><small>${label}</small>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  content.innerHTML = `
+    <p class="diplo-help">30 derniers jours, jours de Paris. Joueur actif : au moins une ouverture du jeu dans la journée.</p>
+    <div class="admin-stats">
+      ${tile('inscriptions', formatNum(s.signups.reduce((t, p) => t + p.v, 0)))}
+      ${tile('rétention J1', pct(s.retention.d1), `sur ${formatNum(s.retention.n1)} comptes`)}
+      ${tile('rétention J7', pct(s.retention.d7), `sur ${formatNum(s.retention.n7)} comptes`)}
+      ${tile('achats', formatNum(s.purchases.days.reduce((t, p) => t + p.v, 0)))}
+      ${tile('ressources échangées', formatNum(s.tradeVolume))}
+    </div>
+    <div class="admin-charts">
+      ${barChart('Inscriptions par jour', s.signups, 'comptes')}
+      ${barChart('Joueurs actifs par jour', s.active, 'joueurs')}
+      ${barChart('Achats par jour', s.purchases.days, 'achats')}
+      ${barChart('Combats par jour', s.battles, 'combats')}
+      ${barChart('Échanges au marché par jour', s.trades, 'échanges')}
+    </div>
+    <div class="admin-charts">
+      ${hBars('Entonnoir du tutoriel (nouveaux joueurs)', s.funnel.map(f => ({ label: f.label, n: f.n })), s.funnel[0]?.n || 0)}
+      ${hBars('Achats par produit', s.purchases.products.map(p => ({ label: p.name, n: p.n })))}
+      ${hBars('Civilisations', s.factions.map(f => ({ label: factionName[f.faction] || f.faction, n: f.n })), players)}
+    </div>`;
 }

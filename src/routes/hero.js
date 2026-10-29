@@ -40,6 +40,7 @@ router.post('/revive', auth, async (req, res) => {
 router.post('/create', auth, async (req, res) => {
   try {
     const name = cleanText(req.body.name, 2, 20);
+    { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!name) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const existing = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (existing) return res.status(400).json({ error: 'Vous avez deja un heros' });
@@ -52,6 +53,7 @@ router.post('/create', auth, async (req, res) => {
 router.post('/rename', auth, async (req, res) => {
   try {
     const name = cleanText(req.body.name, 2, 20);
+    { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!name) return res.status(400).json({ error: 'Nom invalide (2-20 caracteres)' });
     const hero = await prisma.hero.findUnique({ where: { playerId: req.user.playerId } });
     if (!hero) return res.status(404).json({ error: 'Heros non trouve' });

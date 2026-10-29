@@ -481,6 +481,7 @@ async function showGame() {
   if (typeof loadResearch === 'function') loadResearch();   // niveaux de technologie et file de recherche (non bloquant)
   setConnectOverlay(null);
   updateEmailBanner();
+  if (typeof loadAnnouncements === 'function') loadAnnouncements();   // bandeau des annonces de l'équipe (09j-admin.js)
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
   initFieldsCanvas();
