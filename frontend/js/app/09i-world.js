@@ -114,6 +114,7 @@ async function renderWorldTab(content) {
     </div>
     ${wl?.wonders?.length ? `<h4>${resIconHtml('crown')} Merveilles</h4><div class="ranking-list">${wl.wonders.map((w, i) => `<div class="ranking-row" onclick="openWonderPanel('${chatSafeId(w.cityId)}')"><span class="ranking-position">${i + 1}</span><span class="ranking-name">${escapeHtml(w.name)} <small>${w.alliance ? `[${escapeHtml(w.alliance.tag)}]` : escapeHtml(w.owner.name)}${w.building ? ' · en construction' : ''}</small></span><span class="ranking-value">niv. ${w.level}</span></div>`).join('')}</div>` : ''}
     ${wl?.plans?.length ? `<h4>${resIconHtml('reports')} Plans de construction</h4><p>${wl.plans.map(p => `${escapeHtml(p.holder || '—')}${p.allianceTag ? ` [${escapeHtml(p.allianceTag)}]` : ''}${p.mine ? ' (vous)' : ''}`).join(' · ')}</p>` : ''}
+    ${typeof invasionCardHtml === 'function' ? await invasionCardHtml() : ''}
     <h4>${resIconHtml('medal')} Panthéon</h4>
     ${hof.length ? hof.map(w => `<div class="world-card"><strong>Monde ${w.world}</strong> <small>terminé le ${frDate(w.endedAt)}</small>
       ${Object.entries(w.categories).map(([c, rows]) => `<div class="hof-cat"><em>${catName[c] || c}</em> ${rows.slice(0, c === 'WONDER' ? 1 : 3).map(r => `${r.rank}. ${escapeHtml(r.name)} <small>(${formatNum(r.value)})</small>`).join(' · ')}</div>`).join('')}</div>`).join('') : '<p class="empty-state">Aucun monde terminé pour l\'instant.</p>'}`;

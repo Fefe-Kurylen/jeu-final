@@ -653,7 +653,8 @@ async function loadMap() {
             defenderPower: r.defenderPower || 0,
             defenderUnits: r.defenderUnits || {},
             lastDefeat: r.lastDefeat,
-            respawnMinutes: r.respawnMinutes || 60
+            respawnMinutes: r.respawnMinutes || 60,
+            horde: r.horde || null   // donjon d'invasion barbare : niveau, étage, force de départ de l'étage
           });
         });
       }
@@ -1927,6 +1928,7 @@ function drawStockGauge(x, y, size, tile) {
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
   if ((resType === 'wonder' || resType === 'plan') && typeof drawWonderNode === 'function') return drawWonderNode(x, y, tw, th, tile);   // 09i-world.js
+  if (resType === 'horde' && typeof drawHordeNode === 'function') return drawHordeNode(x, y, tw, th, tile);   // donjon d'invasion barbare (09k-invasion.js)
   const size = Math.min(tw, th * 2) * 0.5;
   const imgSize = Math.max(tw, th * 2) * 1.3;
 
@@ -2916,6 +2918,9 @@ function showMapInfoPanel(x, y, tile) {
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
       ${mine ? `<div class="panel-actions"><button class="btn btn-primary" onclick="closeMapPanel(); openNotificationLink({ to: 'army', armyId: '${String(tile.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('army')} Voir l'armée</button></div>` : ''}
     `;
+    panel.style.display = 'flex';
+  } else if (tile.type === 'RESOURCE' && tile.resourceType === 'HORDE' && typeof renderHordeNodePanel === 'function') {
+    renderHordeNodePanel(tile, content);   // donjon d'invasion barbare (09k-invasion.js)
     panel.style.display = 'flex';
   } else if (tile.type === 'RESOURCE' && (tile.resourceType === 'WONDER' || tile.resourceType === 'PLAN') && typeof renderWonderNodePanel === 'function') {
     renderWonderNodePanel(tile, content);   // site de Merveille, plan (09i-world.js)

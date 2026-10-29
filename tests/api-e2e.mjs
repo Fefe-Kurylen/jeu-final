@@ -1620,6 +1620,82 @@ if (MAIL_LOG) {
   sql(`UPDATE "Account" SET role='PLAYER' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Ad?.player?.id}')`);
 }
 
+// ---------- INVASIONS BARBARES (décision du 29 octobre 2026) ----------
+// donjons d'alliance à 3 étages : lancés par l'équipe, attaqués étage par étage, trésor partagé selon les dégâts ;
+// réservés aux joueurs en alliance ; les hordes n'attaquent pas les villes ; fin de l'invasion
+{
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%' OR key LIKE 'auth:%'`);
+  sql(`UPDATE "Invasion" SET "endedAt"=now() WHERE "endedAt" IS NULL`);
+  sql(`DELETE FROM "ResourceNode" WHERE "resourceType"='HORDE'`);
+  const mk = (n) => call(`invasion: player ${n}`, 'POST', '/api/auth/register', null, { email: `${n.toLowerCase()}${uid}@t.fr`, password: PASSWORD, name: `${n}${uid}`, faction: 'ROME' });
+  const Boss = await mk('Imperator'), P1 = await mk('Ferox'), P2 = await mk('Fortis'), Solo = await mk('Solus');
+  sql(`UPDATE "Account" SET role='ADMIN' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Boss?.player?.id}')`);
+  const tag = `H${uid % 1000}`;
+  const al = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Venatores${uid}','${tag}','${P1?.player?.id}') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role) VALUES (gen_random_uuid(),'${al}','${P1?.player?.id}','LEADER'), (gen_random_uuid(),'${al}','${P2?.player?.id}','MEMBER')`);
+  const st0 = await call('invasion: state before', 'GET', '/api/invasion', P1?.token);
+  assert('invasion: none running, next weekend announced', st0?.active === false && !!st0?.nextStart);
+  await call('invasion: a player cannot launch one -> 403', 'POST', '/api/admin/invasion/start', P1?.token, { hours: 2 }, 403);
+  const started = await call('invasion: the team launches one', 'POST', '/api/admin/invasion/start', Boss?.token, { hours: 2 });
+  const nodes = Number(sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='HORDE'`));
+  assert('invasion: dungeons of the 5 levels on the map', nodes >= 35 && nodes === started?.invasion?.hordes && sql(`SELECT count(DISTINCT h.level) FROM "Horde" h JOIN "Invasion" i ON i.id=h."invasionId" WHERE i."endedAt" IS NULL`) === '5', `${nodes}`);
+  assert('invasion: level 5 near the centre, level 1 near the edges', Number(sql(`SELECT max(sqrt(h.x*h.x+h.y*h.y)) FROM "Horde" h JOIN "Invasion" i ON i.id=h."invasionId" WHERE i."endedAt" IS NULL AND h.level=5`)) < Number(sql(`SELECT min(sqrt(h.x*h.x+h.y*h.y)) FROM "Horde" h JOIN "Invasion" i ON i.id=h."invasionId" WHERE i."endedAt" IS NULL AND h.level=1`)));
+  assert('invasion: every player is told', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${Solo?.player?.id}' AND kind='invasion'`)) === 1);
+  await call('invasion: only one at a time -> 400', 'POST', '/api/admin/invasion/start', Boss?.token, { hours: 2 }, 400);
+  const st1 = await call('invasion: state while running', 'GET', '/api/invasion', P1?.token);
+  assert('invasion: running, dungeons listed by level', st1?.active === true && st1?.invasion?.byLevel?.length === 5 && st1.invasion.hordes.length === nodes && st1.invasion.inAlliance === true);
+  // un donjon de niveau 1, ses 3 étages
+  const [hNode, hx, hy] = sql(`SELECT h."nodeId"||'|'||h.x||'|'||h.y FROM "Horde" h JOIN "Invasion" i ON i.id=h."invasionId" WHERE i."endedAt" IS NULL AND h.level=1 AND h."destroyedAt" IS NULL ORDER BY h.x LIMIT 1`).split('|');
+  const view0 = await call('invasion: a dungeon', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
+  assert('invasion: 3 floors, the outpost first', view0?.floors?.length === 3 && view0.floors[0].current && view0.floors[0].name === 'Avant-poste' && view0.floor === 1, JSON.stringify(view0?.floors?.map(f => f.name)));
+  const map = await call('invasion: the map shows the dungeon', 'GET', `/api/map/viewport?x=${hx}&y=${hy}&radius=6`, P1?.token);
+  const onMap = (map?.resourceNodes || map?.nodes || []).find(n => n.id === hNode);
+  assert('invasion: map node carries the floor and its strength', onMap?.horde?.floor === 1 && onMap?.horde?.floorPower > 0, JSON.stringify(onMap?.horde));
+  const cityP1 = sql(`SELECT id FROM "City" WHERE "playerId"='${P1?.player?.id}' LIMIT 1`), cityP2 = sql(`SELECT id FROM "City" WHERE "playerId"='${P2?.player?.id}' LIMIT 1`), citySolo = sql(`SELECT id FROM "City" WHERE "playerId"='${Solo?.player?.id}' LIMIT 1`);
+  const elite = unitKeyFor('ROME', 'INFANTRY', 'elite');
+  const soloArmy = mkTrader(Solo?.player?.id, citySolo, 'Solitarii', elite, 100);
+  await call('invasion: a player without alliance -> 403', 'POST', `/api/army/${soloArmy}/raid-resource`, Solo?.token, { resourceNodeId: hNode }, 403);
+  // attaque repoussée : la garnison s'use quand même
+  const weak = mkTrader(P2?.player?.id, cityP2, 'Exigui', unitKeyFor('ROME', 'INFANTRY', 'base'), 60);
+  await call('invasion: a weak attack', 'POST', `/api/army/${weak}/raid-resource`, P2?.token, { resourceNodeId: hNode });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${weak}'`);
+  await waitTick('weak attack resolved', () => sql(`SELECT count(*) FROM "HordeDamage" WHERE "playerId"='${P2?.player?.id}'`) === '1');
+  const after = await call('invasion: dungeon after a lost attack', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
+  assert('invasion: still the outpost, but worn down', after?.floor === 1 && after.floors[0].left < view0.floors[0].power && after.contributors.some(c => c.points > 0), `${after?.floors?.[0]?.left} < ${view0?.floors?.[0]?.power}`);
+  assert('invasion: the weak army goes home', ['RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${weak}'`)));
+  // une grosse armée vainc les étages un par un
+  const big = mkTrader(P1?.player?.id, cityP1, 'Legio', elite, 6000);
+  for (const [fl, label] of [[2, 'outpost'], [3, 'ramparts']]) {
+    sql(`UPDATE "Army" SET status='IDLE', "arrivalAt"=NULL, "missionType"=NULL, "targetResourceId"=NULL, x=(SELECT x FROM "City" WHERE id='${cityP1}'), y=(SELECT y FROM "City" WHERE id='${cityP1}') WHERE id='${big}'`);
+    await call(`invasion: attack the ${label}`, 'POST', `/api/army/${big}/raid-resource`, P1?.token, { resourceNodeId: hNode });
+    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${big}'`);
+    await waitTick(`${label} beaten`, () => sql(`SELECT floor FROM "Horde" WHERE "nodeId"='${hNode}'`) === String(fl));
+  }
+  const v2 = await call('invasion: the chief floor', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
+  assert('invasion: floors done in order, the chief is next', v2?.floor === 3 && v2.floors[0].done && v2.floors[1].done && v2.floors[2].current);
+  const goldBefore = Number(sql(`SELECT gold FROM "Player" WHERE id='${P1?.player?.id}'`)), apBefore2 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`));
+  sql(`UPDATE "Army" SET status='IDLE', "arrivalAt"=NULL, "missionType"=NULL, "targetResourceId"=NULL, x=(SELECT x FROM "City" WHERE id='${cityP1}'), y=(SELECT y FROM "City" WHERE id='${cityP1}') WHERE id='${big}'`);
+  await call('invasion: attack the chief', 'POST', `/api/army/${big}/raid-resource`, P1?.token, { resourceNodeId: hNode });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${big}'`);
+  await waitTick('dungeon destroyed', () => sql(`SELECT ("destroyedAt" IS NOT NULL)::text FROM "Horde" WHERE "nodeId"='${hNode}'`) === 'true');
+  assert('invasion: the dungeon left the map', sql(`SELECT count(*) FROM "ResourceNode" WHERE id='${hNode}'`) === '0');
+  assert('invasion: the treasure is shared by damage (gold, alliance points)', Number(sql(`SELECT gold FROM "Player" WHERE id='${P1?.player?.id}'`)) > goldBefore && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`)) >= apBefore2);
+  assert('invasion: both fighters are told of their share', ['P1', 'P2'].every((_, i) => Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${[P1, P2][i]?.player?.id}' AND title LIKE '%Donjon barbare détruit%'`)) === 1));
+  assert('invasion: the cities were never attacked', sql(`SELECT count(*) FROM "BattleReport" WHERE "defenderId" IN ('${P1?.player?.id}','${P2?.player?.id}','${Solo?.player?.id}')`) === '0');
+  const st2 = await call('invasion: alliance ranking', 'GET', '/api/invasion', P2?.token);
+  assert('invasion: the alliance leads the ranking, one dungeon down', st2?.invasion?.alliances?.[0]?.tag === tag && st2.invasion.alliances[0].mine === true && st2.invasion.destroyed >= 1);
+  const dead = await call('invasion: a destroyed dungeon keeps its results', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
+  assert('invasion: destroyed, all floors done, shares add up', dead?.destroyed === true && dead.floors.every(f => f.done) && Math.abs(dead.contributors.reduce((t, c) => t + c.share, 0) - 1) < 0.01);
+  // fin par l'équipe : les donjons restants repartent
+  await call('invasion: the team ends it', 'POST', '/api/admin/invasion/end', Boss?.token);
+  assert('invasion: no dungeon left on the map', sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='HORDE'`) === '0');
+  const st3 = await call('invasion: state after', 'GET', '/api/invasion', P1?.token);
+  assert('invasion: over, its results still readable', st3?.active === false && st3?.invasion?.endedAt && st3.invasion.destroyed >= 1);
+  sql(`DELETE FROM "Army" WHERE id IN ('${big}','${weak}','${soloArmy}')`);
+  sql(`DELETE FROM "Alliance" WHERE id='${al}'`);
+  sql(`UPDATE "Account" SET role='PLAYER' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Boss?.player?.id}')`);
+}
+
 // ---------- WRAP UP ----------
 const fails = results.filter(r => !r.ok);
 console.log(`\n==== ${results.length - fails.length}/${results.length} PASS ====`);

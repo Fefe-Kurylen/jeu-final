@@ -5383,3 +5383,16 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .admin-table td { padding: 2px 6px; border-bottom: 1px solid rgba(243,226,176,.1); }
 .admin-table td:last-child { text-align: right; }
 .admin-chart details summary { cursor: pointer; font-size: 12px; color: rgba(243,226,176,.75); margin-top: 6px; }
+
+/* ---- Invasions barbares (09k-invasion.js, décision du 29 octobre 2026) ---- */
+.horde-floors { display: flex; flex-direction: column; gap: 5px; margin: 8px 0; }
+.horde-floor { display: grid; grid-template-columns: minmax(120px, 40%) 1fr auto; align-items: center; gap: 8px; font-size: 13px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,.15); }
+.horde-floor.current { background: rgba(160, 30, 20, .22); border: 1px solid rgba(214, 69, 53, .6); }
+.horde-floor.done { opacity: .6; text-decoration: line-through; }
+.horde-floor-bar { height: 8px; border-radius: 4px; background: rgba(0,0,0,.3); overflow: hidden; }
+.horde-floor-bar i { display: block; height: 100%; background: #d64535; border-radius: 4px; }
+.horde-contrib { margin: 4px 0; padding-left: 22px; font-size: 13px; }
+.horde-contrib li.me { font-weight: 700; }
+.invasion-live { border-color: rgba(214, 69, 53, .7) !important; }
+.invasion-levels { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.invasion-levels span { padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,.25); font-size: 13px; }

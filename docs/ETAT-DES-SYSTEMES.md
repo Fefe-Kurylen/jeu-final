@@ -262,6 +262,33 @@ Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foo
 - L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
   siège, alors qu'il les ignorait.
 
+## Invasions barbares (29 octobre 2026)
+
+Décisions du 29 octobre 2026 (`src/services/hordeService.js`, `src/routes/invasion.js`, `frontend/js/app/09k-invasion.js`,
+réglages `config.invasion`) — contenu **« donjon d'alliance »** : les hordes **n'attaquent jamais les joueurs**.
+
+- **Chaque week-end**, du **vendredi 18 h au dimanche 23 h** (heure de Paris), **43 donjons** de hordes apparaissent sur
+  la carte, annoncés à tous : 15 de niveau 1 près des bords, puis 12, 8, 5 et **3 de niveau 5 au centre** ; jamais à
+  moins de 4 cases d'une ville. Au terme, ceux qui restent repartent. L'administrateur peut aussi lancer une invasion
+  (2 à 72 h) ou terminer celle en cours (écran d'administration › Monde).
+- Un donjon a **3 étages** à vaincre dans l'ordre : **avant-poste** (unités de base), **remparts** (intermédiaires),
+  **chef de la horde** (élite), de force × 1, × 2, × 4 ; × 2,5 par niveau (avant-poste : 15 000 de puissance au niveau
+  1, 586 000 au niveau 5 ; chef : 2,3 millions au niveau 5). La **garnison de l'étage ne se reconstitue pas** : une
+  attaque repoussée lui retire quand même des soldats ; un étage vaincu laisse place au suivant ; le dernier vaincu
+  **détruit le donjon**.
+- **Seuls les joueurs en alliance** attaquent un donjon (attaque comme sur un camp, toujours à l'arrivée de l'armée,
+  qui rentre ensuite chez elle) ; plusieurs alliances peuvent attaquer le même donjon. Chaque attaque compte les
+  **dégâts** du joueur (points de combat : entretien des barbares tués), aussi comptés au classement d'attaque ; pertes
+  divisées comme contre un camp, blessés rapportés, expérience du héros.
+- **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
+  capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
+  d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,
+  objet rare dès le niveau 3, épique aux niveaux 4 et 5). Chaque participant est prévenu de sa part.
+- **Carte** : le donjon (forteresse sur un halo rouge en attendant l'image peinte), sa barre de vie et « Donjon niv. N ·
+  étage x/3 » ; panneau : les 3 étages et leur garnison restante, le trésor, les dégâts de chacun, Attaquer, Espionner.
+  **Classement › Monde** : invasion en cours (fin, donjons restants par niveau, alliances par dégâts, mes dégâts,
+  bouton « Donjon le plus proche ») ou la date de la prochaine.
+
 ## Administration (29 octobre 2026)
 
 Décisions du 29 octobre 2026 (`src/services/adminService.js`, `src/routes/admin.js`, `frontend/js/app/09j-admin.js`,

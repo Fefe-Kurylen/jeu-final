@@ -105,6 +105,9 @@ async function placeLevel(invasionId, level, count) {
       const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r);
       if (!Terrain.inWorld(x, y) || !Terrain.isMainland(x, y)) continue;
       if (!(await footprintFree(x, y, {}).catch(() => false))) continue;
+      // un donjon reste à 4 cases au moins des villes et des autres donjons (lisible sur la carte)
+      if (await prisma.city.findFirst({ where: { x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
+      if (await prisma.resourceNode.findFirst({ where: { resourceType: { in: ['HORDE', 'WONDER', 'PLAN'] }, x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
       const floors = floorsFor(level);
       try {
         await prisma.$transaction(async (tx) => {
@@ -126,7 +129,7 @@ async function startInvasion({ key, endsAt, manual = false, now = new Date() }) 
   for (const [level, count] of Object.entries(I.counts)) total += await placeLevel(inv.id, Number(level), count);
   await prisma.invasion.update({ where: { id: inv.id }, data: { hordes: total } });
   const until = endsAt.toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: TZ });
-  await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'invasion', ${'⚔️ Invasion barbare'}, ${`${total} donjons de hordes sont apparus sur la carte, jusqu'à ${until}. Avec votre alliance, abattez leurs trois étages : le trésor est partagé selon les dégâts. Les hordes n'attaquent pas les villes.`}, ${JSON.stringify({ to: 'ranking', tab: 'ranking' })}::jsonb FROM "Player" p`;
+  await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'invasion', ${'⚔️ Invasion barbare'}, ${`${total} donjons de hordes sont apparus sur la carte, jusqu'à ${until}. Avec votre alliance, abattez leurs trois étages : le trésor est partagé selon les dégâts. Les hordes n'attaquent pas les villes.`}, ${JSON.stringify({ to: 'world', tab: 'ranking' })}::jsonb FROM "Player" p`;
   console.log(`[INVASION] ${key} : ${total} donjons jusqu'au ${endsAt.toISOString()}`);
   return { ...inv, hordes: total };
 }

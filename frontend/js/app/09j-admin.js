@@ -9,7 +9,7 @@ const ROLE_LABEL = { PLAYER: 'Joueur', MODERATOR: 'Modérateur', ADMIN: 'Adminis
 const ACTION_LABEL = {
   ROLE: 'Rôle', MUTE: 'Silence', SUSPEND: 'Suspension', BAN: 'Bannissement', LIFT_MUTE: 'Silence levé', LIFT_SUSPEND: 'Suspension levée', LIFT_BAN: 'Bannissement levé',
   REPORT_DELETE: 'Message supprimé', REPORT_DISMISS: 'Signalement classé', WORLD_SETTINGS: 'Calendrier', WORLD_SHIFT: 'Calendrier décalé', WORLD_END: 'Monde terminé',
-  WORLD_NEXT: 'Monde suivant demandé', WORLD_OPENED: 'Monde suivant ouvert', ANNOUNCE: 'Annonce', ANNOUNCE_END: 'Bandeau retiré'
+  WORLD_NEXT: 'Monde suivant demandé', WORLD_OPENED: 'Monde suivant ouvert', ANNOUNCE: 'Annonce', ANNOUNCE_END: 'Bandeau retiré', INVASION_START: 'Invasion lancée', INVASION_END: 'Invasion terminée'
 };
 const frDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 const adminCan = (perm) => !!adminState.me?.perms?.includes(perm);
@@ -28,7 +28,7 @@ async function loadAdmin(view = adminState.view) {
   try {
     if (!adminState.me) adminState.me = await fetchJson('/api/admin/me');
     document.querySelectorAll('#tab-admin .toolbar-btn[data-perm]').forEach(b => { b.style.display = adminCan(b.dataset.perm) ? '' : 'none'; });
-    if (view === 'world') return renderAdminWorld(content, await fetchJson('/api/admin/world'));
+    if (view === 'world') { const [w, inv] = await Promise.all([fetchJson('/api/admin/world'), fetchJson('/api/invasion').catch(() => null)]); return renderAdminWorld(content, w, inv); }
     if (view === 'reports') return renderAdminReports(content, await fetchJson('/api/admin/reports'));
     if (view === 'players') return renderAdminPlayers(content);
     if (view === 'team') return renderAdminTeam(content, await fetchJson('/api/admin/team'));
@@ -65,7 +65,7 @@ function renderAdminOverview(content, d) {
 }
 
 // ---- monde (administrateur) ----
-function renderAdminWorld(content, d) {
+function renderAdminWorld(content, d, inv) {
   const st = d.state, S = d.settings, D = d.defaults;
   const field = (id, label, value, def, disabled, hint) => `<label class="admin-field"><span>${label}</span><input type="number" id="${id}" min="1" max="730" value="${value ?? ''}" placeholder="${def}" ${disabled ? 'disabled' : ''}><small>${hint}</small></label>`;
   content.innerHTML = `
@@ -96,6 +96,11 @@ function renderAdminWorld(content, d) {
     <div class="admin-inline"><input type="number" id="aw-shift" value="1" min="-60" max="60"> jours
       <button class="btn btn-secondary btn-sm" onclick="adminShift(1)">Avancer</button>
       <button class="btn btn-secondary btn-sm" onclick="adminShift(-1)">Repousser</button></div>`}
+    <h4>${resIconHtml('skull')} Invasion barbare</h4>
+    <p>${inv?.active ? `En cours jusqu'au ${frDateTime(inv.invasion.endsAt)} : ${inv.invasion.destroyed} donjon${inv.invasion.destroyed > 1 ? 's' : ''} détruit${inv.invasion.destroyed > 1 ? 's' : ''} sur ${inv.invasion.total}.` : `Chaque week-end (vendredi 18 h → dimanche 23 h)${inv?.nextStart ? ` ; la prochaine le ${frDateTime(inv.nextStart)}` : ''}.`}</p>
+    <div class="admin-inline">${inv?.active
+      ? `<button class="btn btn-secondary btn-sm" onclick="adminInvasion('end')">Terminer l'invasion</button>`
+      : `<select id="aw-inv-hours">${[2, 12, 24, 48, 72].map(h => `<option value="${h}" ${h === 48 ? 'selected' : ''}>${h} h</option>`).join('')}</select> <button class="btn btn-secondary btn-sm" onclick="adminInvasion('start')">Lancer une invasion maintenant</button>`}</div>
     <div class="admin-danger">
       <h4>${resIconHtml('skull')} Fin du monde</h4>
       ${st.ended ? '' : `<p class="diplo-help">Terminer le monde maintenant : la Merveille la plus haute l'emporte s'il y en a une, le Panthéon et les titres sont donnés, le jeu se fige.</p>
@@ -104,6 +109,16 @@ function renderAdminWorld(content, d) {
       ${st.ended ? '' : `<label class="admin-check"><input type="checkbox" id="aw-force"> Remettre à zéro sans terminer ce monde (pas de Panthéon pour lui)</label>`}
       <button class="btn btn-danger" ${d.resetRequestedAt ? 'disabled' : ''} onclick="adminNextWorld()">Ouvrir le monde suivant…</button>
     </div>`;
+}
+async function adminInvasion(action) {
+  if (action === 'start') {
+    const hours = Number(document.getElementById('aw-inv-hours')?.value) || 48;
+    if (!(await confirmModal(`Lancer une invasion barbare de ${hours} h ? Les donjons apparaissent tout de suite et tous les joueurs sont prévenus.`, { title: 'Invasion', okLabel: 'Lancer' }))) return;
+    if (await adminPost('/invasion/start', { hours })) loadAdmin('world');
+  } else {
+    if (!(await confirmModal('Terminer l\'invasion ? Les donjons restants repartent ; ceux déjà détruits ont donné leur trésor.', { title: 'Invasion', okLabel: 'Terminer', danger: true }))) return;
+    if (await adminPost('/invasion/end')) loadAdmin('world');
+  }
 }
 async function adminSaveCalendar() {
   const v = (id) => { const el = document.getElementById(id); return !el || el.disabled ? undefined : (el.value === '' ? null : Number(el.value)); };

@@ -166,6 +166,10 @@ function openNotificationLink(link) {
       showTab('alliance');
       if (link.sub && typeof showAllianceTab === 'function') showAllianceTab(String(link.sub));
       break;
+    case 'world':   // calendrier du monde, invasion barbare (onglet Classement › Monde)
+      showTab('ranking');
+      if (typeof showRanking === 'function') showRanking('world');
+      break;
     default:
       showTab(link.tab || 'city');
   }
