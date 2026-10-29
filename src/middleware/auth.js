@@ -19,9 +19,10 @@ async function playerState(playerId) {
   const now = Date.now();
   const cached = known.get(playerId);
   if (cached && cached.until > now) return cached;
-  const row = await prisma.player.findUnique({ where: { id: playerId }, select: { id: true, account: { select: { tokenVersion: true } } } });
+  const row = await prisma.player.findUnique({ where: { id: playerId }, select: { id: true, account: { select: { tokenVersion: true, bannedAt: true, banReason: true, suspendedUntil: true, suspendReason: true } } } });
   if (!row) return null;
-  const state = { until: now + KNOWN_TTL_MS, tokenVersion: row.account?.tokenVersion || 0 };
+  // suspension ou bannissement (administration, décision du 29 octobre 2026) : plus de requête acceptée
+  const state = { until: now + KNOWN_TTL_MS, tokenVersion: row.account?.tokenVersion || 0, sanction: require('../services/adminService').activeSanction(row.account) };
   known.set(playerId, state);
   // Activity marker (expeditions, rankings…), written at most every 10 minutes per player
   if ((seenWritten.get(playerId) || 0) < now - SEEN_WRITE_MS) {
@@ -48,6 +49,8 @@ async function verifyBearer(req) {
   if (typeof payload?.playerId !== 'string' || typeof payload?.id !== 'string') return null;
   const state = await playerState(payload.playerId);
   if (!state) return null;
+  // la sanction d'abord : elle change aussi tokenVersion (déconnexion), le joueur doit pourtant en lire le motif
+  if (state.sanction && (!state.sanction.until || new Date(state.sanction.until) > new Date())) return { sanctioned: state.sanction };
   if ((payload.v || 0) !== state.tokenVersion) return null;
   return payload;
 }
@@ -61,6 +64,7 @@ const auth = async (req, res, next) => {
     return res.status(503).json({ error: 'Service momentanément indisponible' });
   }
   if (!payload) return res.status(401).json({ error: 'Invalid token' });
+  if (payload.sanctioned) return res.status(401).json({ error: require('../services/adminService').sanctionMessage(payload.sanctioned), sanction: payload.sanctioned });
   req.user = payload;
   next();
 };

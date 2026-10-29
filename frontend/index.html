@@ -251,6 +251,21 @@
                         <div id="reports-list" class="list-container"></div>
                     </div>
                 </div>
+                <!-- Administration (équipe du jeu, 09j-admin.js) : ouverte depuis Paramètres › Administration -->
+                <div id="tab-admin" class="tab">
+                    <div class="tab-inner">
+                        <div class="tab-banner"><h2>Administration</h2></div>
+                        <div class="tab-toolbar">
+                            <button class="toolbar-btn active" data-view="overview" onclick="loadAdmin('overview')"><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Tableau de bord</button>
+                            <button class="toolbar-btn" data-view="world" data-perm="world" onclick="loadAdmin('world')"><img class="ico" src="assets/images/3d/ui/map.webp" alt=""> Monde</button>
+                            <button class="toolbar-btn" data-view="reports" onclick="loadAdmin('reports')"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Signalements</button>
+                            <button class="toolbar-btn" data-view="players" onclick="loadAdmin('players')"><img class="ico" src="assets/images/3d/ui/player.webp" alt=""> Joueurs</button>
+                            <button class="toolbar-btn" data-view="team" onclick="loadAdmin('team')"><img class="ico" src="assets/images/3d/ui/alliance.webp" alt=""> Équipe</button>
+                            <button class="toolbar-btn" data-view="log" data-perm="log" onclick="loadAdmin('log')"><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Journal</button>
+                        </div>
+                        <div id="admin-content" class="list-container"></div>
+                    </div>
+                </div>
                 <div id="tab-ranking" class="tab">
                     <div class="tab-inner">
                         <div class="tab-banner"><h2>Classement</h2></div>
@@ -438,6 +453,7 @@
     <script src="js/app/09g-bastion.js"></script>
     <script src="js/app/09h-ranking.js"></script>
     <script src="js/app/09i-world.js"></script>
+    <script src="js/app/09j-admin.js"></script>
     <script src="js/app/10-modals-misc.js"></script>
     <script src="js/app/10b-sheets.js"></script>
     <script src="js/app/10c-notifications.js"></script>

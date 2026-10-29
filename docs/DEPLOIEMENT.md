@@ -77,6 +77,21 @@ Les jetons envoyés sont à usage unique, stockés hachés, valables 24 h (confi
   `curl -H "x-admin-key: $ADMIN_KEY" https://api.exemple.fr/api/chat/admin/reports`
 - Limites : 500 caractères, 1 message toutes les 1,5 s, 15 par minute, pas deux fois le même texte en 30 s. Le chat global demande une adresse e-mail confirmée quand un vrai fournisseur d'e-mail est configuré.
 
+## Équipe du jeu : écran d'administration
+
+Depuis le 29 octobre 2026, l'équipe administre le jeu dans l'application (Paramètres › Administration), avec un rôle sur
+son compte de joueur. Le premier administrateur se nomme en ligne de commande, sur le serveur (mêmes variables
+d'environnement que le serveur) :
+
+```
+node tools/admin.cjs vous@exemple.fr ADMIN      # ou le pseudo ; MODERATOR, PLAYER pour retirer
+node tools/admin.cjs --list                     # membres de l'équipe
+```
+
+Ensuite, l'écran gère l'équipe (rôles), les signalements, les sanctions, le calendrier du monde et l'ouverture du monde
+suivant (sans redémarrage : le worker de tick le prépare en quelques secondes). `tools/nouveau-monde.cjs` reste possible,
+serveur arrêté. Les routes `x-admin-key` ci-dessus restent valables pour des scripts.
+
 ## Schéma de base de données : migrations versionnées
 
 Le schéma vit dans `prisma/schema.prisma` et son historique dans `prisma/migrations/` :

@@ -31,15 +31,25 @@ const isSpecial = (node) => !!node && SPECIAL.includes(node.resourceType);
 
 // ---- calendrier ----
 async function worldRow() { return prisma.worldConfig.findUnique({ where: { id: 1 } }); }
+// réglages du calendrier : ceux de l'équipe (écran d'administration, WorldConfig) sinon config.world
+function settingsOf(row) {
+  return {
+    registrationDays: row?.registrationDays ?? W.registrationDays,
+    wonderSitesDay: row?.wonderSitesDay ?? W.wonderSitesDay,
+    wonderPlansDay: row?.wonderPlansDay ?? W.wonderPlansDay,
+    registrationClosed: !!row?.registrationClosed
+  };
+}
 function phaseOf(row, now = new Date(), players = 0) {
   const opened = row?.readyAt ? new Date(row.readyAt) : null;
   const day = opened ? Math.floor((now - opened) / DAY) + 1 : 1;
   const at = (d) => (opened ? new Date(opened.getTime() + (d - 1) * DAY) : null);
-  const registrationEndsAt = at(W.registrationDays + 1);
+  const S = settingsOf(row);
+  const registrationEndsAt = at(S.registrationDays + 1);
   return {
-    world: row?.number || 1, day, openedAt: opened,
-    registration: { open: !row?.endedAt && day <= W.registrationDays && players < W.maxPlayers, endsAt: registrationEndsAt, players, maxPlayers: W.maxPlayers },
-    wonderSitesAt: at(W.wonderSitesDay), wonderPlansAt: at(W.wonderPlansDay),
+    world: row?.number || 1, day, openedAt: opened, settings: S,
+    registration: { open: !row?.endedAt && !S.registrationClosed && day <= S.registrationDays && players < W.maxPlayers, closedByStaff: S.registrationClosed, endsAt: registrationEndsAt, players, maxPlayers: W.maxPlayers },
+    wonderSitesAt: at(S.wonderSitesDay), wonderPlansAt: at(S.wonderPlansDay),
     sitesOpen: !!row?.sitesSpawnedAt, plansOpen: !!row?.plansSpawnedAt,
     ended: !!row?.endedAt, endedAt: row?.endedAt || null, winner: row?.winnerName || null
   };
@@ -52,7 +62,8 @@ async function worldState(now = new Date()) {
 async function registrationBlocked() {
   const st = await worldState();
   if (st.ended) return 'Ce monde est terminé : un nouveau monde ouvre bientôt.';
-  if (st.day > W.registrationDays) return `Les inscriptions de ce monde sont closes (ouvertes ${W.registrationDays} jours) : rendez-vous au prochain monde.`;
+  if (st.settings.registrationClosed) return 'Les inscriptions de ce monde sont closes : rendez-vous au prochain monde.';
+  if (st.day > st.settings.registrationDays) return `Les inscriptions de ce monde sont closes (ouvertes ${st.settings.registrationDays} jours) : rendez-vous au prochain monde.`;
   if (st.registration.players >= W.maxPlayers) return `Ce monde est complet (${W.maxPlayers} joueurs).`;
   return null;
 }
@@ -232,7 +243,7 @@ async function processWonders(now = new Date()) {
   const row = await worldRow();
   if (!row?.readyAt || row.endedAt) return;
   const st = phaseOf(row, now);
-  if (!row.sitesSpawnedAt && st.day >= W.wonderSitesDay) {
+  if (!row.sitesSpawnedAt && st.day >= st.settings.wonderSitesDay) {
     const ok = await prisma.worldConfig.updateMany({ where: { id: 1, sitesSpawnedAt: null }, data: { sitesSpawnedAt: now } });
     if (ok.count) {
       const n = await spawnNodes('WONDER', W.wonderSites, 12, 30, W.immortalSitePower);
@@ -240,7 +251,7 @@ async function processWonders(now = new Date()) {
       console.log(`[MONDE] ${n} sites de Merveille posés (jour ${st.day})`);
     }
   }
-  if (!row.plansSpawnedAt && st.day >= W.wonderPlansDay) {
+  if (!row.plansSpawnedAt && st.day >= st.settings.wonderPlansDay) {
     const ok = await prisma.worldConfig.updateMany({ where: { id: 1, plansSpawnedAt: null }, data: { plansSpawnedAt: now } });
     if (ok.count) {
       const n = await spawnNodes('PLAN', W.wonderPlans, 35, 55, W.immortalPlanPower);
@@ -268,4 +279,4 @@ async function processWonders(now = new Date()) {
   }
 }
 
-module.exports = { SPECIAL, isSpecial, phaseOf, worldState, worldRow, registrationBlocked, isEnded, immortalUnits, immortalPower, spawnNodes, onImmortalsBeaten, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };
+module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, isEnded, immortalUnits, immortalPower, spawnNodes, onImmortalsBeaten, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };

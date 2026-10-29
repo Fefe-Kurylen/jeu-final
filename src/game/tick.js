@@ -71,6 +71,9 @@ async function gameTick() {
     try { TICK_HOURS = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
     if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
     if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
+    // monde suivant demandé par l'équipe (écran d'administration, décision du 29 octobre 2026) : préparé ici, entre deux ticks
+    try { if (await require('../services/hallOfFameService').prepareNextWorld()) return; }
+    catch (e) { console.error('[MONDE] préparation du monde suivant :', e); return; }
     // monde terminé (une Merveille au niveau 100, décision du 28 octobre 2026) : figé jusqu'au nouveau monde
     if (await require('../services/wonderService').isEnded().catch(() => false)) { await step('purge', () => purgeOldRecords(now)); return; }
 

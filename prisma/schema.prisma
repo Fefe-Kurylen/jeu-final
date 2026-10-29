@@ -18,6 +18,12 @@ model Account {
   tokenVersion    Int         @default(0) // bumped on password change: older tokens are refused
   emailVerifiedAt DateTime? // set by the verification link (or a password reset, which proves the mailbox)
   titles          Json? // titres gagnés dans les mondes terminés (Panthéon), gardés d'un monde à l'autre
+  // administration (décision du 29 octobre 2026) : rôle de l'équipe, sanctions gardées d'un monde à l'autre
+  role            String      @default("PLAYER") // PLAYER, MODERATOR, ADMIN
+  suspendedUntil  DateTime? // connexion refusée jusqu'à cette date (les villes restent attaquables)
+  suspendReason   String?
+  bannedAt        DateTime? // bannissement définitif
+  banReason       String?
   createdAt       DateTime    @default(now())
   player          Player?
   tokens          AuthToken[]
@@ -587,18 +593,40 @@ model Expedition {
 // gardée par le monde déjà ouvert). Une seule ligne, id = 1, jamais modifiée : changer la graine déplacerait toute la carte
 // sous les villes. Voir src/game/world.js et frontend/js/shared/terrain.js (setWorldSeed).
 model WorldConfig {
-  id               Int       @id @default(1)
-  seed             Int
-  generator        Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
-  readyAt          DateTime? // monde prêt (points de ressource posés) : le serveur ouvre ; le jour 1 du monde
-  createdAt        DateTime  @default(now())
+  id                 Int       @id @default(1)
+  seed               Int
+  generator          Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
+  readyAt            DateTime? // monde prêt (points de ressource posés) : le serveur ouvre ; le jour 1 du monde
+  createdAt          DateTime  @default(now())
   // cycle du serveur (décision du 28 octobre 2026)
-  number           Int       @default(1) // numéro du monde (1, 2, 3…) : un nouveau monde reprend après le Panthéon
-  sitesSpawnedAt   DateTime? // sites de Merveille posés au centre (jour 120)
-  plansSpawnedAt   DateTime? // plans de construction posés (jour 150)
-  endedAt          DateTime? // une Merveille a atteint le niveau 100 : le monde est fini
-  winnerAllianceId String?
-  winnerName       String? // [TAG] Nom de l'alliance victorieuse et la ville, au moment de la victoire
+  number             Int       @default(1) // numéro du monde (1, 2, 3…) : un nouveau monde reprend après le Panthéon
+  sitesSpawnedAt     DateTime? // sites de Merveille posés au centre (jour 120)
+  plansSpawnedAt     DateTime? // plans de construction posés (jour 150)
+  endedAt            DateTime? // une Merveille a atteint le niveau 100 : le monde est fini
+  winnerAllianceId   String?
+  winnerName         String? // [TAG] Nom de l'alliance victorieuse et la ville, au moment de la victoire
+  // réglages de l'équipe (écran d'administration, décision du 29 octobre 2026) : null = valeurs de config.world
+  registrationDays   Int?
+  wonderSitesDay     Int?
+  wonderPlansDay     Int?
+  registrationClosed Boolean   @default(false) // inscriptions fermées à la main
+  resetRequestedAt   DateTime? // monde suivant demandé : le tick le prépare (remise à zéro, nouvelle carte)
+  resetRequestedBy   String?
+}
+
+// Journal de l'équipe (décision du 29 octobre 2026) : chaque action d'administration ou de modération, gardé d'un monde à l'autre
+model AdminLog {
+  id         String   @id @default(uuid())
+  actorId    String? // compte de l'auteur
+  actorName  String
+  action     String // ROLE, MUTE, SUSPEND, BAN, LIFT_*, REPORT_*, WORLD_*
+  targetId   String? // compte visé
+  targetName String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetId])
 }
 
 // Lease taken by the single process that runs the game tick

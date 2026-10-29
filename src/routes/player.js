@@ -20,7 +20,7 @@ router.get('/me', auth, async (req, res) => {
         stats: true,
         alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
         expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } },
-        account: { select: { emailVerifiedAt: true } }
+        account: { select: { emailVerifiedAt: true, role: true, titles: true } }
       }
     });
     if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
@@ -30,7 +30,7 @@ router.get('/me', auth, async (req, res) => {
     // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
     const questsClaimable = await require('../services/questService').claimableCount(player.id).catch(() => 0);   // pastille du bouton Quêtes
     const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
-    res.json({ ...rest, techLevels, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce });
+    res.json({ ...rest, techLevels, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
   } catch (e) {
     sendError(res, e);
   }

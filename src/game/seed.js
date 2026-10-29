@@ -187,4 +187,6 @@ async function rescueTrappedCities() {
   if (moved || gathered) invalidateObjectCells();
 }
 
-module.exports = { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities };
+// version du tirage des points de ressource (notée sur la table) : une version plus haute retire les points au démarrage
+const RESEED_VERSION = 3;
+module.exports = { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities, RESEED_VERSION };

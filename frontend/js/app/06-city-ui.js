@@ -172,6 +172,7 @@ function showTab(tabName) {
     case 'ranking': loadRanking('players'); break;
     case 'reports': if (typeof showReportsTab === 'function') showReportsTab(typeof currentReportTab !== 'undefined' ? currentReportTab : 'battles'); else loadReports(); break;
     case 'messages': loadChat(); break;
+    case 'admin': if (typeof loadAdmin === 'function') loadAdmin(); break;   // écran d'administration (09j-admin.js)
   }
 }
 

@@ -122,7 +122,7 @@ app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
 // ========== MONDE TERMINÉ ==========
 // Une Merveille a atteint le niveau 100 (décision du 28 octobre 2026) : le monde se lit encore (GET), mais ne se joue plus
 // jusqu'au nouveau monde ; comptes, achats, messagerie, notifications et paramètres restent ouverts
-const OPEN_WHEN_ENDED = ['/api/auth', '/api/purchases', '/api/chat', '/api/notifications', '/api/push', '/api/analytics', '/api/player/settings', '/api/player/account', '/api/world/join'];
+const OPEN_WHEN_ENDED = ['/api/admin', '/api/auth', '/api/purchases', '/api/chat', '/api/notifications', '/api/push', '/api/analytics', '/api/player/settings', '/api/player/account', '/api/world/join'];
 app.use('/api/', async (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   if (OPEN_WHEN_ENDED.some(p => req.originalUrl.startsWith(p))) return next();
@@ -153,7 +153,8 @@ app.use('/api/hero', heroRoutes);
 app.use('/api/quests', require('./routes/quests'));
 app.use('/api/spies', require('./routes/spies'));
 app.use('/api/bastion', require('./routes/bastion'));
-app.use('/api', require('./routes/wonder'));   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
+app.use('/api', require('./routes/wonder'));
+app.use('/api', require('./routes/admin'));   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
 app.use('/api/alliance', require('./routes/allianceHelp'));   // /help…, /shop… (avant /api/alliance/:id)
 app.use('/api/alliances', allianceRoutes);
 app.use('/api/alliance', allianceRoutes);
@@ -292,7 +293,7 @@ async function startServer() {
       try {
         if (SKIP_DB_SETUP) throw Object.assign(new Error('skip'), { _skip: true });
         const nodeCount = await prisma.resourceNode.count();
-        const RESEED_VERSION = 3;
+        const { RESEED_VERSION } = require('./game/seed');
         const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
         const lastSeedVersion = await prisma.$queryRawUnsafe(
           `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
@@ -321,7 +322,17 @@ async function startServer() {
 
       // Start game loop (un seul worker le fait en mode cluster)
       if (IS_TICK_WORKER) startGameLoop();
-      else console.log('[CLUSTER] Worker HTTP (pas de game loop)');
+      else {
+        console.log('[CLUSTER] Worker HTTP (pas de game loop)');
+        // monde suivant ouvert par le worker de tick (écran d'administration) : la nouvelle carte est relue ici
+        const Terrain = require('../frontend/js/shared/terrain.js');
+        setInterval(async () => {
+          try {
+            const row = await prisma.worldConfig.findUnique({ where: { id: 1 }, select: { seed: true, generator: true } });
+            if (row && row.seed !== Terrain.worldSeed) { Terrain.setWorldSeed(row.seed, row.generator); console.log(`[MONDE] nouvelle carte relue (graine ${row.seed})`); }
+          } catch (e) { /* base indisponible : on réessaiera */ }
+        }, 15000).unref();
+      }
 
       console.log('');
       console.log('==========================================');

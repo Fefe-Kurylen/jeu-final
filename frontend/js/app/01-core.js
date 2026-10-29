@@ -93,11 +93,13 @@ function _hasAuth(headers) {
   if (typeof headers.get === 'function') return !!headers.get('Authorization');
   return Object.keys(headers).some(k => k.toLowerCase() === 'authorization' && headers[k] && !/null|undefined$/.test(String(headers[k])));
 }
-function onSessionExpired() {
+function onSessionExpired(sanctionMessage) {
   if (_sessionEnded || !token) return;
   _sessionEnded = true;
-  if (typeof showToast === 'function') showToast('Session expirée, reconnectez-vous', 'error');
+  if (typeof showToast === 'function') showToast(sanctionMessage || 'Session expirée, reconnectez-vous', 'error');
   logout();
+  // compte suspendu ou banni (administration) : le motif reste affiché sur l'écran de connexion
+  if (sanctionMessage && typeof showAuthError === 'function') showAuthError(sanctionMessage, 30000);
 }
 window.fetch = function apiFetch(input, init = {}) {
   const url = typeof input === 'string' ? input : (input && input.url) || '';
@@ -115,7 +117,7 @@ window.fetch = function apiFetch(input, init = {}) {
   const authed = _hasAuth(init.headers);
   const p = _nativeFetch(input, options).then(res => {
     noteServerDate(res);
-    if (res.status === 401 && authed) onSessionExpired();
+    if (res.status === 401 && authed) res.clone().json().then(d => onSessionExpired(d?.sanction ? d.error : null), () => onSessionExpired());
     else if (res.status === 429 && Date.now() - _lastThrottleToast > 5000) { _lastThrottleToast = Date.now(); if (typeof showToast === 'function') showToast('Trop de requêtes, patientez un instant', 'error'); }
     return res;
   }).finally(() => { if (timer) clearTimeout(timer); if (key) _inflightMutations.delete(key); });
@@ -314,7 +316,7 @@ async function login() {
       showGame();
       if (typeof track === 'function') track('login_success');
     } else {
-      showAuthError(data.error || 'Erreur de connexion');
+      showAuthError(data.error || 'Erreur de connexion', data.sanction ? 30000 : 5000);   // compte suspendu ou banni : le motif reste lisible
     }
   } catch (e) {
     showAuthError('Erreur de connexion au serveur');
@@ -414,10 +416,11 @@ function logout() {
   document.getElementById('auth-screen').style.display = 'flex';
 }
 
-function showAuthError(msg) {
+function showAuthError(msg, ms = 5000) {
   const el = document.getElementById('auth-error');
   el.textContent = msg;
-  setTimeout(() => el.textContent = '', 5000);
+  clearTimeout(showAuthError._t);
+  showAuthError._t = setTimeout(() => el.textContent = '', ms);
 }
 
 // ========== GAME ==========
@@ -595,7 +598,8 @@ async function loadPlayer() {
       document.getElementById('res-gold').textContent = formatNum(player.gold || 0);
       return true;
     } else if (res.status === 401) {
-      onSessionExpired();
+      const d = await res.json().catch(() => ({}));
+      onSessionExpired(d?.sanction ? d.error : null);   // compte suspendu ou banni : son motif
       return false;
     }
     return !!player;   // transient error: keep the current session

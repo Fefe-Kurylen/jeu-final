@@ -27,23 +27,26 @@ async function addTitle(accountId, title) {
   if (!titles.includes(title)) await prisma.account.update({ where: { id: accountId }, data: { titles: [...titles, title] } });
 }
 
-async function endWorld(city, now = new Date()) {
-  const allianceName = city.player?.alliance?.alliance ? `[${city.player.alliance.alliance.tag}] ${city.player.alliance.alliance.name}` : city.player?.name || 'Inconnu';
-  const ok = await prisma.worldConfig.updateMany({ where: { id: 1, endedAt: null }, data: { endedAt: now, winnerAllianceId: city.player?.alliance?.allianceId || null, winnerName: `${allianceName} — ${city.name}` } });
+// city : la Ville Merveille victorieuse ; null quand l'équipe termine le monde (écran d'administration) : la Merveille la
+// plus haute l'emporte s'il y en a une, sinon le monde finit sans vainqueur
+async function endWorld(city, now = new Date(), { byStaff = false } = {}) {
+  if (!city && byStaff) city = await prisma.city.findFirst({ where: { isWonder: true, wonderLevel: { gte: 1 } }, orderBy: [{ wonderLevel: 'desc' }, { createdAt: 'asc' }], include: { player: { include: { alliance: { include: { alliance: true } } } } } });
+  const allianceName = !city ? 'Aucun vainqueur' : city.player?.alliance?.alliance ? `[${city.player.alliance.alliance.tag}] ${city.player.alliance.alliance.name}` : city.player?.name || 'Inconnu';
+  const ok = await prisma.worldConfig.updateMany({ where: { id: 1, endedAt: null }, data: { endedAt: now, winnerAllianceId: city?.player?.alliance?.allianceId || null, winnerName: city ? `${allianceName} — ${city.name}` : 'Aucun vainqueur (monde terminé par l\'équipe)' } });
   if (!ok.count) return null;
   require('./wonderService').forgetEnded();
   const world = (await prisma.worldConfig.findUnique({ where: { id: 1 } })).number;
-  const rows = [{ world, endedAt: now, category: 'WONDER', rank: 1, name: allianceName, accountId: null, value: city.wonderLevel }];
-  const members = city.player?.alliance?.allianceId ? await prisma.allianceMember.findMany({ where: { allianceId: city.player.alliance.allianceId }, include: { player: { select: { accountId: true } } } }) : [{ player: { accountId: city.player?.accountId } }];
+  const rows = city ? [{ world, endedAt: now, category: 'WONDER', rank: 1, name: allianceName, accountId: null, value: city.wonderLevel }] : [];
+  const members = !city ? [] : city.player?.alliance?.allianceId ? await prisma.allianceMember.findMany({ where: { allianceId: city.player.alliance.allianceId }, include: { player: { select: { accountId: true } } } }) : [{ player: { accountId: city.player?.accountId } }];
   for (const m of members) await addTitle(m.player?.accountId, TITLE.WONDER(world, 1));
   for (const [cat, sql] of [['POPULATION', 'p.population'], ['ATTACK', 'COALESCE(s."attackPoints", 0)'], ['DEFENSE', 'COALESCE(s."defensePoints", 0)']]) {
     (await topPlayers(sql)).forEach((r, i) => rows.push({ world, endedAt: now, category: cat, rank: i + 1, name: r.name, accountId: r.accountId, value: r.value }));
   }
   const alliances = await prisma.$queryRawUnsafe(`SELECT a.tag, a.name, SUM(p.population)::int AS value FROM "Alliance" a JOIN "AllianceMember" m ON m."allianceId" = a.id JOIN "Player" p ON p.id = m."playerId" GROUP BY a.id, a.tag, a.name ORDER BY value DESC LIMIT 10`);
   alliances.forEach((a, i) => rows.push({ world, endedAt: now, category: 'ALLIANCE', rank: i + 1, name: `[${a.tag}] ${a.name}`, accountId: null, value: a.value }));
-  await prisma.hallOfFame.createMany({ data: rows });
+  if (rows.length) await prisma.hallOfFame.createMany({ data: rows });
   for (const r of rows) if (r.accountId && TITLE[r.category] && r.rank <= 3) await addTitle(r.accountId, TITLE[r.category](world, r.rank));
-  await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'world', ${'🏆 Le monde est terminé'}, ${`La Merveille de ${city.name} atteint le niveau 100 : ${allianceName} remporte le monde ${world}. Le Panthéon garde le classement final ; un nouveau monde ouvre bientôt.`}, ${JSON.stringify({ to: 'ranking', tab: 'ranking' })}::jsonb FROM "Player" p`;
+  await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'world', ${'🏆 Le monde est terminé'}, ${city && !byStaff ? `La Merveille de ${city.name} atteint le niveau 100 : ${allianceName} remporte le monde ${world}. Le Panthéon garde le classement final ; un nouveau monde ouvre bientôt.` : `L'équipe du jeu a terminé le monde ${world}${city ? ` : ${allianceName} l'emporte avec la Merveille de ${city.name} (niveau ${city.wonderLevel})` : ''}. Le Panthéon garde le classement final ; un nouveau monde ouvre bientôt.`}, ${JSON.stringify({ to: 'ranking', tab: 'ranking' })}::jsonb FROM "Player" p`;
   console.log(`[MONDE] monde ${world} terminé : ${allianceName}`);
   return { world, winner: allianceName };
 }
@@ -79,6 +82,29 @@ async function newWorld({ force = false } = {}) {
   return { number, tables: tables.length };
 }
 
+// Monde suivant demandé depuis l'écran d'administration (WorldConfig.resetRequestedAt) : le worker de tick le prépare
+// entre deux ticks, sans redémarrer le serveur : remise à zéro, nouvelle carte, points de ressource, ouverture. Les autres
+// processus relisent la graine (src/server.js). Les joueurs le rejoignent en choisissant leur civilisation.
+async function prepareNextWorld() {
+  const row = await prisma.worldConfig.findUnique({ where: { id: 1 }, select: { resetRequestedAt: true, resetRequestedBy: true } });
+  if (row && !row.resetRequestedAt) return null;
+  // plus de ligne WorldConfig en cours de partie : une préparation interrompue après la remise à zéro, on la termine
+  if (!row && (await prisma.city.count()) > 0) return null;
+  const started = Date.now();
+  const { number, tables } = row ? await newWorld({ force: true }) : { number: ((await prisma.hallOfFame.aggregate({ _max: { world: true } }))._max.world || 0) + 1, tables: 0 };   // l'écran a déjà vérifié (monde fini, ou confirmation tapée)
+  const world = require('../game/world');
+  const seed = require('../game/seed');
+  await world.loadWorldSeed({ setup: true });
+  await seed.seedResourceNodes();
+  await prisma.$executeRawUnsafe(`COMMENT ON TABLE "ResourceNode" IS '${seed.RESEED_VERSION}'`);
+  await world.openWorld({ setup: true });
+  require('./wonderService').forgetEnded();
+  await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'world', ${`🌍 Le monde ${number} est ouvert`}, ${'Une nouvelle carte vous attend : choisissez votre civilisation pour recevoir votre capitale. Vos achats, cosmétiques, médailles et titres vous suivent.'}, ${JSON.stringify({ to: 'city' })}::jsonb FROM "Player" p`;
+  await require('./adminService').writeLog(prisma, { accountId: null, name: row?.resetRequestedBy || 'système' }, 'WORLD_OPENED', null, { number, tables, seconds: Math.round((Date.now() - started) / 1000) });
+  console.log(`[MONDE] monde ${number} ouvert (${tables} tables remises à zéro, ${Math.round((Date.now() - started) / 1000)} s)`);
+  return { number };
+}
+
 // Rejoindre le monde en cours (après un nouveau monde) : le joueur choisit sa civilisation, reçoit sa capitale
 async function joinWorld(playerId, faction) {
   const { lockPlacement } = require('../utils/spawn');
@@ -95,4 +121,4 @@ async function joinWorld(playerId, faction) {
   }, { timeout: 20000 });
 }
 
-module.exports = { endWorld, hallOfFame, newWorld, joinWorld, GAME_TABLES, TITLE };
+module.exports = { endWorld, hallOfFame, newWorld, prepareNextWorld, joinWorld, GAME_TABLES, TITLE };

@@ -262,6 +262,34 @@ Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foo
 - L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
   siège, alors qu'il les ignorait.
 
+## Administration (29 octobre 2026)
+
+Décisions du 29 octobre 2026 (`src/services/adminService.js`, `src/routes/admin.js`, `frontend/js/app/09j-admin.js`,
+outil `tools/admin.cjs`) :
+
+- **Rôles sur le compte** : Joueur, **Modérateur**, **Administrateur**. L'équipe voit le bouton **Administration** dans les
+  Paramètres. Le premier administrateur est nommé en ligne de commande (`node tools/admin.cjs <e-mail ou pseudo> ADMIN`),
+  les suivants depuis la fiche d'un joueur ; le dernier administrateur ne peut pas être retiré.
+- **Modérateur** : signalements du chat (classer, supprimer le message, supprimer et couper la messagerie 24 h), fiches
+  des joueurs, silence, suspension jusqu'à 7 jours, journal. **Administrateur** : en plus, bannissement, suspensions
+  jusqu'à 30 jours, e-mails des joueurs, le monde, l'équipe. Personne ne sanctionne un membre de l'équipe de rôle égal
+  ou supérieur, ni soi-même.
+- **Sanctions** (gardées d'un monde à l'autre, motif obligatoire) : **silence** du chat (1 h à 30 jours, le joueur est
+  prévenu) ; **suspension** de 1 à 30 jours (déconnecté tout de suite, connexion refusée, ses villes restent attaquables,
+  comme Travian) ; **bannissement** définitif. Le joueur suspendu ou banni lit le motif et la date de fin en se
+  connectant. Chaque sanction peut être levée.
+- **Monde** (administrateur) : durée des inscriptions, jour des sites de Merveille et des plans (vides = 60, 120, 150),
+  inscriptions fermées à la main, sites ou plans « maintenant », **décaler** tout le calendrier de ±60 jours,
+  **terminer le monde** (taper TERMINER : la Merveille la plus haute l'emporte, sinon « Aucun vainqueur » ; Panthéon et
+  titres), **ouvrir le monde suivant** (taper NOUVEAU MONDE ; le monde doit être terminé, sauf case « sans Panthéon »).
+  Le worker de tick prépare le monde suivant **sans redémarrer** (remise à zéro, nouvelle carte, points de ressource,
+  quelques secondes) ; les autres processus relisent la carte ; chaque joueur est prévenu et rejoint en choisissant sa
+  civilisation.
+- **Journal** : chaque action de l'équipe (rôles, sanctions, signalements, calendrier, fin et monde suivant) avec son
+  auteur, sa cible et son motif ; l'historique d'un joueur est sur sa fiche.
+- **Tableau de bord** : signalements en attente, joueurs, actifs sur 24 h et 7 jours, suspendus, bannis, en silence,
+  équipe, état du monde.
+
 ## Cycle du serveur et Merveille (28 octobre 2026)
 
 Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/hallOfFameService.js`,
@@ -289,7 +317,7 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
 - **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
   **Panthéon** : alliance victorieuse et top 10 en population, attaque, défense et alliances, gardé d'un monde à
   l'autre. **Titres** sur le compte pour tous les membres de l'alliance victorieuse et le top 3 de chaque catégorie.
-- **Monde suivant** (`node tools/nouveau-monde.cjs`, par l'équipe, refusé tant que le monde n'est pas fini sauf
+- **Monde suivant** (écran d'administration depuis le 29 octobre 2026, ou `node tools/nouveau-monde.cjs` serveur arrêté, par l'équipe, refusé tant que le monde n'est pas fini sauf
   `--force`) : comptes, pseudo, or, abonnement Plus, achats, cosmétiques, médailles, titres et Panthéon sont gardés ;
   villes, armées, héros, alliances, marché, rapports… repartent à zéro. Au démarrage suivant, une nouvelle carte
   (taille fixe 374 × 374) est tirée, numérotée d'après le Panthéon. Chaque joueur **rejoint** le nouveau monde en

@@ -5,7 +5,7 @@ const { verifyBearer } = require('./auth');
 module.exports = async function optionalAuth(req, res, next) {
   try {
     const payload = await verifyBearer(req);
-    if (payload) req.user = payload;
+    if (payload && !payload.sanctioned) req.user = payload;   // compte suspendu ou banni : anonyme
   } catch (e) { /* base indisponible : anonyme */ }
   next();
 };

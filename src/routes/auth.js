@@ -121,6 +121,9 @@ router.post('/login', rateLimit(config.rateLimit.maxAuth, 'auth'), async (req, r
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
     await clearFailures(normalizedEmail);
+    // compte suspendu ou banni : le motif, pas de jeton (administration, décision du 29 octobre 2026)
+    const sanctioned = require('../services/adminService').activeSanction(account);
+    if (sanctioned) return res.status(403).json({ error: require('../services/adminService').sanctionMessage(sanctioned), sanction: sanctioned });
 
     const token = signToken(account, account.player.id);
     res.json({ token, player: { id: account.player.id, name: account.player.name, faction: account.player.faction } });

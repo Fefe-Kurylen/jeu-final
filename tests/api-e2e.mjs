@@ -1509,6 +1509,94 @@ if (MAIL_LOG) {
   await call('world: join twice -> 400', 'POST', '/api/world/join', J?.token, { faction: 'EGYPT' }, 400);
 }
 
+// ---------- ADMINISTRATION (décision du 29 octobre 2026) ----------
+// rôles (administrateur, modérateur), droits, signalements, silence, suspension, bannissement, motif à la connexion,
+// calendrier du monde (réglages, inscriptions fermées, décalage), garde-fous du monde suivant, équipe, journal
+{
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%' OR key LIKE 'auth:%'`);
+  const mk = (n) => call(`admin: player ${n}`, 'POST', '/api/auth/register', null, { email: `${n.toLowerCase()}${uid}@t.fr`, password: PASSWORD, name: `${n}${uid}`, faction: 'ROME' });
+  const Ad = await mk('Praetor'), Mo = await mk('Lictor'), Vi = await mk('Rixosus');
+  const tAd = Ad?.token, tMo = Mo?.token;
+  await call('admin: a player has no access -> 403', 'GET', '/api/admin/me', tAd, null, 403);
+  sql(`UPDATE "Account" SET role='ADMIN' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Ad?.player?.id}')`);
+  const me = await call('admin: administrator rights', 'GET', '/api/admin/me', tAd);
+  assert('admin: the administrator has every right', ['world', 'team', 'ban', 'reports'].every(p => me?.perms?.includes(p)));
+  const pm = await call('admin: the player endpoint tells the role', 'GET', '/api/player/me', tAd);
+  assert('admin: role on /api/player/me', pm?.role === 'ADMIN', pm?.role);
+  await call('admin: name a moderator', 'POST', `/api/admin/players/${Mo?.player?.id}/role`, tAd, { role: 'MODERATOR' });
+  const mm = await call('admin: moderator rights', 'GET', '/api/admin/me', tMo);
+  assert('admin: a moderator has no world, team or ban right', mm?.role === 'MODERATOR' && !mm.perms.includes('world') && !mm.perms.includes('ban') && mm.perms.includes('suspend'));
+  await call('admin: moderator -> world 403', 'GET', '/api/admin/world', tMo, null, 403);
+  await call('admin: moderator -> roles 403', 'POST', `/api/admin/players/${Vi?.player?.id}/role`, tMo, { role: 'MODERATOR' }, 403);
+  await call('admin: moderator cannot ban -> 403', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tMo, { kind: 'BAN', reason: 'triche' }, 403);
+  await call('admin: moderator suspends 7 days at most -> 400', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tMo, { kind: 'SUSPEND', days: 10, reason: 'triche' }, 400);
+  await call('admin: moderator cannot sanction an administrator -> 403', 'POST', `/api/admin/players/${Ad?.player?.id}/sanction`, tMo, { kind: 'MUTE', hours: 2, reason: 'essai' }, 403);
+  await call('admin: a motive is required -> 400', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tMo, { kind: 'MUTE', hours: 2, reason: '' }, 400);
+  // signalement : un message grossier, signalé, puis classé par le modérateur
+  const msg = await call('admin: a rude message', 'POST', '/api/chat/messages', Vi?.token, { channel: 'global', text: `Message grossier ${uid}` });
+  await call('admin: reported by a player', 'POST', `/api/chat/messages/${msg?.message?.id}/report`, tAd, { reason: 'insulte' });
+  const reps = await call('admin: reports to handle', 'GET', '/api/admin/reports', tMo);
+  const rep = reps?.reports?.find(r => r.message.id === msg?.message?.id);
+  assert('admin: the report is listed with its message and author', rep?.message?.sender?.id === Vi?.player?.id && rep?.count === 1);
+  await call('admin: report dismissed', 'POST', `/api/admin/reports/${rep?.id}`, tMo, { action: 'dismiss' });
+  // silence : la messagerie est coupée, le joueur est prévenu
+  await call('admin: mute 2 h', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tMo, { kind: 'MUTE', hours: 2, reason: 'langage' });
+  assert('admin: the muted player is told', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${Vi?.player?.id}' AND kind='moderation'`)) >= 1);
+  await call('admin: a muted player cannot write', 'POST', '/api/chat/messages', Vi?.token, { channel: 'global', text: 'encore' }, [403, 429]);
+  // suspension : déconnecté, le motif à la connexion, puis levée
+  await call('admin: suspend 3 days', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tMo, { kind: 'SUSPEND', days: 3, reason: 'insultes répétées' });
+  const kicked = await call('admin: a suspended player is turned away -> 401', 'GET', '/api/player/me', Vi?.token, null, 401);
+  assert('admin: the refusal gives the motive', kicked?.sanction?.kind === 'SUSPEND' && /insultes répétées/.test(kicked?.error || ''), kicked?.error);
+  const login = await call('admin: login refused while suspended -> 403', 'POST', '/api/auth/login', null, { email: `rixosus${uid}@t.fr`, password: PASSWORD }, 403);
+  assert('admin: login says until when and why', /suspendu jusqu'au/.test(login?.error || '') && !login?.token);
+  await call('admin: lift the suspension', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tMo, { kind: 'SUSPEND' });
+  const back = await call('admin: login again after the lift', 'POST', '/api/auth/login', null, { email: `rixosus${uid}@t.fr`, password: PASSWORD });
+  // bannissement (administrateur), puis levée
+  await call('admin: ban', 'POST', `/api/admin/players/${Vi?.player?.id}/sanction`, tAd, { kind: 'BAN', reason: 'triche avérée' });
+  const banned = await call('admin: a banned player is turned away -> 401', 'GET', '/api/player/me', back?.token, null, 401);
+  assert('admin: banned, with its motive', banned?.sanction?.kind === 'BAN' && /triche avérée/.test(banned?.error || ''));
+  const found = await call('admin: search the sanctioned', 'GET', '/api/admin/players?filter=sanctioned', tMo);
+  assert('admin: the banned player is among the sanctioned', !!found?.players?.some(p => p.id === Vi?.player?.id && p.sanctions.bannedAt));
+  await call('admin: moderator cannot lift a ban -> 403', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tMo, { kind: 'BAN' }, 403);
+  await call('admin: lift the ban', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tAd, { kind: 'BAN' });
+  await call('admin: lift the mute', 'POST', `/api/admin/players/${Vi?.player?.id}/lift`, tMo, { kind: 'MUTE' });
+  const sheet = await call('admin: player sheet', 'GET', `/api/admin/players/${Vi?.player?.id}`, tMo);
+  assert('admin: the sheet keeps the history, no e-mail for a moderator', (sheet?.history || []).length >= 5 && sheet?.player?.email === undefined, `${sheet?.history?.length}`);
+  const sheetA = await call('admin: player sheet (administrator)', 'GET', `/api/admin/players/${Vi?.player?.id}`, tAd);
+  assert('admin: the administrator sees the e-mail', sheetA?.player?.email === `rixosus${uid}@t.fr`);
+  // monde : réglages, inscriptions fermées, décalage, garde-fous
+  const w0 = await call('admin: world', 'GET', '/api/admin/world', tAd);
+  const day0 = w0?.state?.day;
+  await call('admin: plans before sites -> 400', 'POST', '/api/admin/world/settings', tAd, { wonderSitesDay: 130, wonderPlansDay: 125 }, 400);
+  await call('admin: close registration', 'POST', '/api/admin/world/settings', tAd, { registrationClosed: true });
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%'`);
+  const closed = await call('admin: sign-up while closed -> 403', 'POST', '/api/auth/register', null, { email: `closed${uid}@t.fr`, password: PASSWORD, name: `Clausus${uid}`, faction: 'ROME' }, 403);
+  assert('admin: the refusal says registration is closed', closed?.registrationClosed === true);
+  await call('admin: reopen registration', 'POST', '/api/admin/world/settings', tAd, { registrationClosed: false, wonderSitesDay: 100 });
+  const w1 = await call('admin: world after the settings', 'GET', '/api/world/state', null);
+  assert('admin: the calendar follows the settings', w1?.registration?.open === true && w1?.settings?.wonderSitesDay === 100);
+  await call('admin: back to the default sites day', 'POST', '/api/admin/world/settings', tAd, { wonderSitesDay: null });
+  await call('admin: shift +2 days', 'POST', '/api/admin/world/shift', tAd, { days: 2 });
+  const w2 = await call('admin: world after the shift', 'GET', '/api/world/state', null);
+  assert('admin: the world is 2 days older', w2?.day === day0 + 2, `${day0} -> ${w2?.day}`);
+  await call('admin: shift back', 'POST', '/api/admin/world/shift', tAd, { days: -2 });
+  await call('admin: end without the word -> 400', 'POST', '/api/admin/world/end', tAd, { confirm: 'oui' }, 400);
+  await call('admin: next world without the words -> 400', 'POST', '/api/admin/world/next', tAd, { confirm: 'oui' }, 400);
+  await call('admin: next world while this one runs -> 400', 'POST', '/api/admin/world/next', tAd, { confirm: 'NOUVEAU MONDE' }, 400);
+  assert('admin: no next world was requested', sql(`SELECT ("resetRequestedAt" IS NULL)::text FROM "WorldConfig" WHERE id=1`) === 'true');
+  // équipe et journal
+  const team = await call('admin: team', 'GET', '/api/admin/team', tMo);
+  assert('admin: the team lists both members', ['ADMIN', 'MODERATOR'].every(r => team?.team?.some(t => t.role === r && [Ad?.player?.id, Mo?.player?.id].includes(t.id))));
+  await call('admin: the last administrator stays -> 400', 'POST', `/api/admin/players/${Ad?.player?.id}/role`, tAd, { role: 'PLAYER' }, sql(`SELECT count(*) FROM "Account" WHERE role='ADMIN'`) === '1' ? 400 : 'ok');
+  const log = await call('admin: log', 'GET', '/api/admin/log', tMo);
+  assert('admin: the log keeps the actions', ['ROLE', 'MUTE', 'SUSPEND', 'BAN', 'LIFT_BAN', 'REPORT_DISMISS', 'WORLD_SHIFT', 'WORLD_SETTINGS'].every(a => log?.log?.some(l => l.action === a)));
+  await call('admin: dashboard', 'GET', '/api/admin/overview', tMo);
+  // fin : rôles rendus
+  await call('admin: moderator back to player', 'POST', `/api/admin/players/${Mo?.player?.id}/role`, tAd, { role: 'PLAYER' });
+  await call('admin: no more access -> 403', 'GET', '/api/admin/me', tMo, null, 403);
+  sql(`UPDATE "Account" SET role='PLAYER' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Ad?.player?.id}')`);
+}
+
 // ---------- WRAP UP ----------
 const fails = results.filter(r => !r.ok);
 console.log(`\n==== ${results.length - fails.length}/${results.length} PASS ====`);

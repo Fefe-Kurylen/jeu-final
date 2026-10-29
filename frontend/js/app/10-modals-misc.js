@@ -298,6 +298,7 @@ function openSettings() {
       <div class="settings-row"><span>Faction</span><strong>${escapeHtml(player?.faction || '')}</strong></div>
       <div class="settings-row"><span>Version</span><strong>${escapeHtml(version)}</strong></div>
       <div class="settings-actions">
+        ${typeof isStaffRole === 'function' && isStaffRole(player?.role) ? '<button class="btn-primary" onclick="openAdmin()">Administration</button>' : ''}
         <button class="btn-primary" onclick="Store.openShop()">Boutique et abonnement</button>
         <button class="btn-secondary" onclick="Store.restore()">Restaurer les achats</button>
         ${native ? `<button class="btn-secondary" onclick="togglePush()">${pushOn ? 'Désactiver' : 'Activer'} les notifications</button>` : ''}
