@@ -1588,7 +1588,9 @@ if (MAIL_LOG) {
   // équipe et journal
   const team = await call('admin: team', 'GET', '/api/admin/team', tMo);
   assert('admin: the team lists both members', ['ADMIN', 'MODERATOR'].every(r => team?.team?.some(t => t.role === r && [Ad?.player?.id, Mo?.player?.id].includes(t.id))));
-  await call('admin: the last administrator stays -> 400', 'POST', `/api/admin/players/${Ad?.player?.id}/role`, tAd, { role: 'PLAYER' }, sql(`SELECT count(*) FROM "Account" WHERE role='ADMIN'`) === '1' ? 400 : 'ok');
+  // le dernier administrateur ne peut pas se retirer (vérifié seulement s'il est seul : sinon il perdrait ses droits pour la suite)
+  if (sql(`SELECT count(*) FROM "Account" WHERE role='ADMIN'`) === '1') await call('admin: the last administrator stays -> 400', 'POST', `/api/admin/players/${Ad?.player?.id}/role`, tAd, { role: 'PLAYER' }, 400);
+  else assert('admin: other administrators exist, the last-administrator rule is not tried here', true);
   const log = await call('admin: log', 'GET', '/api/admin/log', tMo);
   assert('admin: the log keeps the actions', ['ROLE', 'MUTE', 'SUSPEND', 'BAN', 'LIFT_BAN', 'REPORT_DISMISS', 'WORLD_SHIFT', 'WORLD_SETTINGS'].every(a => log?.log?.some(l => l.action === a)));
   await call('admin: dashboard', 'GET', '/api/admin/overview', tMo);
@@ -1656,7 +1658,7 @@ if (MAIL_LOG) {
   const soloArmy = mkTrader(Solo?.player?.id, citySolo, 'Solitarii', elite, 100);
   await call('invasion: a player without alliance -> 403', 'POST', `/api/army/${soloArmy}/raid-resource`, Solo?.token, { resourceNodeId: hNode }, 403);
   // attaque repoussée : la garnison s'use quand même
-  const weak = mkTrader(P2?.player?.id, cityP2, 'Exigui', unitKeyFor('ROME', 'INFANTRY', 'base'), 60);
+  const weak = mkTrader(P2?.player?.id, cityP2, 'Exigui', unitKeyFor('ROME', 'INFANTRY', 'base'), 130);   // 60 % de la force de l'avant-poste : repoussée, mais elle l'entame
   await call('invasion: a weak attack', 'POST', `/api/army/${weak}/raid-resource`, P2?.token, { resourceNodeId: hNode });
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${weak}'`);
   await waitTick('weak attack resolved', () => sql(`SELECT count(*) FROM "HordeDamage" WHERE "playerId"='${P2?.player?.id}'`) === '1');
