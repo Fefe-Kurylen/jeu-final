@@ -313,7 +313,8 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   « Rassemblement » dans le panneau d'un Bastion ennemi sur la carte. Mêmes règles (attente, capacité, une armée par
   joueur), mais il faut **au moins un engin de siège dans le groupe au départ**, sinon le rassemblement est annulé et
   chacun rentre. Devant le Bastion, **tout le groupe campe 1 h** comme un siège normal (l'alliance du Bastion est prévenue
-  au départ et peut briser le siège), puis **un seul assaut** avec toutes les armées, mené par le **héros du lanceur**.
+  au départ et peut briser le siège), puis **un seul assaut** avec toutes les armées. C'est **le héros de l'armée qui a lancé le rassemblement** qui donne
+  ses bonus (avec les technologies du lanceur) ; si cette armée a été rappelée pendant le camp, l'assaut se fait sans héros.
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
   capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,

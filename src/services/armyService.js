@@ -123,7 +123,7 @@ async function applyLossRate(tx, units, rate) {
 async function sendArmyHomeTx(tx, army) {
   const city = army.city || (army.cityId ? await tx.city.findUnique({ where: { id: army.cityId } }) : null);
   const units = (army.units || []).filter(u => u.count > 0);
-  const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, targetBastionId: null, claimedAt: null };   // also lifts a siege camp
+  const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, targetBastionId: null, rallyId: null, claimedAt: null };   // also lifts a siege camp
   if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
   const route = await findRoute(army.x, army.y, city.x, city.y, army.owner?.faction).catch(() => null);
   const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId));   // + Bastion d'alliance

@@ -235,8 +235,8 @@ async function fight(rally) {
 }
 
 // ---- arrivée devant un Bastion : tout le groupe campe 1 h, puis un seul assaut (bastionService.handleBastionBattle) ----
-// L'armée du lanceur finit de camper la première (1 ms plus tôt) : c'est elle qui mène l'assaut, avec son héros, et
-// elle entraîne les autres armées du camp de son alliance.
+// L'armée du lanceur finit de camper la première (1 ms plus tôt) et entraîne les autres armées du camp de son alliance ;
+// c'est toujours le héros de l'armée du lanceur qui mène l'assaut et donne ses bonus (aucun si elle a été rappelée).
 async function campAtBastion(rally, armies) {
   const { sendArmyHome } = require('../game/processors/armyProcessor');
   const now = new Date();
@@ -255,7 +255,7 @@ async function campAtBastion(rally, armies) {
   const ordered = [...armies.filter(a => a.ownerId === rally.leaderId), ...armies.filter(a => a.ownerId !== rally.leaderId)];
   await prisma.$transaction(async (tx) => {
     for (let i = 0; i < ordered.length; i++) {
-      await tx.army.update({ where: { id: ordered[i].id }, data: { status: 'BESIEGING', missionType: 'BASTION_ATTACK', x: bastion.x, y: bastion.y, targetX: bastion.x, targetY: bastion.y, targetBastionId: bastion.bastionId, rallyId: null, departedAt: now, arrivalAt: new Date(end + i), claimedAt: null } });
+      await tx.army.update({ where: { id: ordered[i].id }, data: { status: 'BESIEGING', missionType: 'BASTION_ATTACK', x: bastion.x, y: bastion.y, targetX: bastion.x, targetY: bastion.y, targetBastionId: bastion.bastionId, departedAt: now, arrivalAt: new Date(end + i), claimedAt: null } });   // rallyId gardé : l'assaut retrouve le lanceur
     }
     if (ordered.length) await tx.bastion.update({ where: { id: bastion.bastionId }, data: { isSieged: true } });
   }, TX);

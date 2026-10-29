@@ -1416,7 +1416,12 @@ if (MAIL_LOG) {
   assert('bastion rally: marching on the Bastion', sql(`SELECT status||':'||"targetBastionId" FROM "Army" WHERE id='${agmen}'`) === `RALLY_MARCH:${bId}`);
   sql(`UPDATE "Rally" SET "arrivalAt"=now()-interval '1 second' WHERE id='${r1?.rally?.id}'`);
   await waitTick('bastion rally camps', () => sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) === 'BESIEGING');
-  assert('bastion rally: the group camps 1 h before the Bastion, which is besieged', sql(`SELECT "missionType"||':'||round(extract(epoch FROM "arrivalAt"-now())/60)::int||':'||("rallyId" IS NULL) FROM "Army" WHERE id='${agmen}'`) === 'BASTION_ATTACK:60:true' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT "missionType"||':'||"arrivalAt" FROM "Army" WHERE id='${agmen}'`));
+  assert('bastion rally: the group camps 1 h before the Bastion, which is besieged', sql(`SELECT "missionType"||':'||round(extract(epoch FROM "arrivalAt"-now())/60)::int||':'||("rallyId" IS NULL) FROM "Army" WHERE id='${agmen}'`) === 'BASTION_ATTACK:60:false' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT "missionType"||':'||"arrivalAt" FROM "Army" WHERE id='${agmen}'`));
+  // l'assaut du rassemblement : mené par l'armée du lanceur (son héros), le lien au rassemblement est ensuite effacé
+  const reports0 = Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`));
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${agmen}'`);
+  await waitTick('bastion rally assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) > reports0);
+  assert('bastion rally: one assault, then the army leaves the rally', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`).startsWith('true:') && sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) !== 'BESIEGING', sql(`SELECT ("rallyId" IS NULL)::text||':'||status FROM "Army" WHERE id='${agmen}'`));
   sql(`DELETE FROM "Army" WHERE id IN ('${noEngine}','${agmen}')`);
   sql(`UPDATE "Bastion" SET "isSieged"=false WHERE id='${bId}'`);
   // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un

@@ -364,9 +364,20 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const maxHp = wallMaxHp();
     const attackerName = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
     const defHero = defenders.find(d => d.hero)?.hero || null;
-    const atkTech = await tx.playerTechnology.findMany({ where: { playerId: army.ownerId } });
+    // rassemblement : c'est le héros de l'armée qui a lancé le rassemblement qui mène l'assaut (et donne ses bonus) ;
+    // si cette armée n'est plus là, aucun héros. Hors rassemblement : le héros de l'armée dont le camp finit le premier.
+    let leadHero = army.hero || null, leadOwnerId = army.ownerId;
+    const rallyId = group.map(g => g.rallyId).find(Boolean);
+    if (rallyId) {
+      const rally = await tx.rally.findUnique({ where: { id: rallyId }, select: { leaderId: true } });
+      const lead = group.find(g => g.rallyId === rallyId && g.ownerId === rally?.leaderId);
+      leadHero = lead?.hero || null;
+      if (lead) leadOwnerId = lead.ownerId;
+      await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
+    }
+    const atkTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, 0, attackerName, `Bastion [${b.alliance.tag}]`,
-      heroCombatStats(army.hero), heroCombatStats(defHero), army.owner?.faction, defenders[0]?.owner?.faction || null, B.bonuses.garrisonDefensePct,
+      heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, defenders[0]?.owner?.faction || null, B.bonuses.garrisonDefensePct,
       { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: 1 } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
