@@ -447,9 +447,9 @@ await call('send SPY with an army -> 400', 'POST', '/api/armies/send', tA, { arm
   // Terrain: a destination on a mountain or in water is refused; a valid move records the departure time
   let blockedTile = null;
   // toutes les villes proches (l'abord de n'importe quelle ville rend une case praticable, pas seulement celui de A et B)
-  const near = sql(`SELECT x||','||y FROM "City" WHERE abs(x-${cityA.x}) <= 64 AND abs(y-${cityA.y}) <= 64`).split('\n').filter(Boolean).map(l => l.split(',').map(Number));
+  const near = sql(`SELECT x||','||y FROM "City" WHERE abs(x-(${cityA.x})) <= 64 AND abs(y-(${cityA.y})) <= 64`).split('\n').filter(Boolean).map(l => l.split(',').map(Number));
   const objs = new Map();
-  for (const l of sql(`SELECT x||','||y FROM "ResourceNode" WHERE abs(x-${cityA.x}) <= 64 AND abs(y-${cityA.y}) <= 64`).split('\n').filter(Boolean)) objs.set(l, 'RESOURCE');
+  for (const l of sql(`SELECT x||','||y FROM "ResourceNode" WHERE abs(x-(${cityA.x})) <= 64 AND abs(y-(${cityA.y})) <= 64`).split('\n').filter(Boolean)) objs.set(l, 'RESOURCE');
   for (const [nx, ny] of near) for (const [cx, cy] of Terrain.cityCells(nx, ny)) objs.set(cx + ',' + cy, 'CITY');
   for (let r = 2; r < 60 && !blockedTile; r++) for (let dx = -r; dx <= r && !blockedTile; dx++) for (let dy = -r; dy <= r; dy++) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
