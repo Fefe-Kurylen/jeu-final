@@ -118,7 +118,7 @@ async function startRevive(playerId) {
   });
   return out;
 }
-// Tick : résurrections achevées ; le héros revient dans la garnison de la capitale
+// Tick : résurrections achevées ; le héros revient dans la capitale, joint à aucune armée
 async function processRevivals(now = new Date()) {
   const due = await prisma.hero.findMany({ where: { reviveEndsAt: { lte: now } }, take: 200 });
   for (const hero of due) {
@@ -127,11 +127,11 @@ async function processRevivals(now = new Date()) {
         const ok = await tx.hero.updateMany({ where: { id: hero.id, reviveEndsAt: { lte: now } }, data: { diedAt: null, reviveEndsAt: null } });
         if (ok.count !== 1) return false;
         const { capital } = await capitalWithDomus(tx, hero.playerId);
-        const garrison = capital ? await tx.army.findFirst({ where: { cityId: capital.id, isGarrison: true, heroId: null } }) : null;
-        if (garrison && !(await tx.army.findFirst({ where: { heroId: hero.id } }))) await tx.army.update({ where: { id: garrison.id }, data: { heroId: hero.id } });
+        // il revient dans la capitale, joint à aucune armée : le joueur le joint depuis le panneau d'une armée
+        if (capital) await tx.hero.update({ where: { id: hero.id }, data: { cityId: capital.id } });
         return capital?.name || true;
       });
-      if (back) notify(hero.playerId, 'hero', '✨ Héros ressuscité', `${hero.name} est de retour${typeof back === 'string' ? ` dans la garnison de ${back}` : ''}.`, { to: 'hero' });
+      if (back) notify(hero.playerId, 'hero', '✨ Héros ressuscité', `${hero.name} est de retour${typeof back === 'string' ? ` à ${back}` : ''} : joignez-le à une armée (la garnison comprise) depuis le panneau de l'armée pour qu'il combatte.`, { to: 'hero' });
     } catch (e) { console.error('[HERO REVIVE]', e.message); }
   }
   return due.length;

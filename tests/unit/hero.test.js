@@ -70,3 +70,9 @@ test('chute : le héros d\'une armée anéantie tombe, celui d\'une armée qui g
   assert.ok(writes.some(([k, id, d]) => k === 'army' && id === 'wiped' && d.heroId === null));
   assert.ok(writes.some(([k, id, d]) => k === 'hero' && id === 'h1' && d.diedAt instanceof Date));
 });
+
+test('logistique (GDD) : réduit l\'entretien de l\'armée du héros, plus le transport', () => {
+  const hero = { logistics: 5, logPoints: 45, items: [], talents: {} };
+  assert.equal(HE.statPct(hero, 'logistics'), 0.05);   // 50 points × 0,1 % : le plafond de 5 %
+  assert.equal(HE.talent(hero, 'upkeepPct'), 0);
+});

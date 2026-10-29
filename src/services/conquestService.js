@@ -115,7 +115,7 @@ async function razeCity(cityId, byArmyId) {
       await tx.army.update({ where: { id: a.id }, data });
     }
     // the hero of an army destroyed with the city escapes to the capital
-    if (heroes.length && capitalGarrison && !capitalGarrison.heroId) await tx.army.update({ where: { id: capitalGarrison.id }, data: { heroId: heroes[0] } });
+    if (heroes.length && capitalGarrison) await tx.hero.update({ where: { id: heroes[0] }, data: { cityId: capitalGarrison.cityId } });   // il attend à la capitale, joint à aucune armée
     const owners = await turnBackHostiles(tx, city, byArmyId);
     // convoys heading to the razed colony (any owner) turn back with their cargo, the time they already walked
     const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { city: true } });

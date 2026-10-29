@@ -11,6 +11,7 @@ async function createStart(tx, { playerId, name }) {
   await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
   const hero = await tx.hero.create({ data: { playerId, name: `Heros de ${name}`, statPoints: 5 } });
   await tx.army.create({ data: { ownerId: playerId, cityId: city.id, heroId: hero.id, name: 'Garnison', x, y, status: 'IDLE', isGarrison: true } });
+  await tx.hero.update({ where: { id: hero.id }, data: { cityId: city.id } });
   for (let i = 0; i < 3; i++) await createExpedition(playerId, tx);
   return city;
 }

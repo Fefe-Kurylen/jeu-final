@@ -26,7 +26,10 @@ function renderArmies() {
   const cityArmies = armies.filter(a => a.cityId === currentCity?.id && !a.isGarrison);
   const maxArmies = getMaxArmies();
   const heroData = player?.hero;
-  const heroAssignedToArmy = cityArmies.find(a => a.heroId === heroData?.id);
+  // le héros ne combat que joint à une armée (la garnison comprise), depuis le panneau de l'armée (décision du 29 octobre 2026)
+  const heroAssignedToArmy = armies.find(a => a.heroId && a.heroId === heroData?.id);
+  const cityGarrison = armies.find(a => a.cityId === currentCity?.id && a.isGarrison);
+  const heroCityName = (cities || []).find(c => c.id === heroData?.cityId)?.name;
 
   // Rally Point info
   const rallyPoint = currentCity?.buildings?.find(b => b.key === 'RALLY_POINT');
@@ -93,10 +96,13 @@ function renderArmies() {
             <span><img class="ico" src="assets/images/3d/ui/bolt.webp" alt="">${(heroData?.speed || 5) + (heroData?.spdPoints || 0)}</span>
           </div>
           <div class="hero-assign-status">
-            ${heroAssignedToArmy 
-              ? `<span class="assigned-to">→ ${escapeHtml(heroAssignedToArmy.name)}</span>
-                 <button class="btn-unassign-small" onclick="unassignHero('${heroAssignedToArmy.id}')">Retirer</button>`
-              : `<span class="hero-available">✓ Disponible</span>`
+            ${heroAssignedToArmy
+              ? `<span class="assigned-to">→ ${escapeHtml(heroAssignedToArmy.name)}${heroAssignedToArmy.cityId !== currentCity?.id ? ` <small>(${escapeHtml((cities || []).find(c => c.id === heroAssignedToArmy.cityId)?.name || '')})</small>` : ''}</span>
+                 ${heroAssignedToArmy.status === 'IDLE' && heroAssignedToArmy.cityId === currentCity?.id ? `<button class="btn-unassign-small" onclick="unassignHero('${heroAssignedToArmy.id}')">Retirer</button>` : ''}`
+              : heroData?.diedAt
+                ? `<span class="hero-available">Tombé : ressuscitez-le au Domus</span>`
+                : `<span class="hero-free">En ville${heroCityName ? ` à ${escapeHtml(heroCityName)}` : ''}, joint à aucune armée : il ne combat pas.</span>
+                   ${cityGarrison && (!heroData?.cityId || heroData.cityId === currentCity?.id) ? `<button class="btn-unassign-small" onclick="assignHeroToArmy('${cityGarrison.id}')">Joindre à la garnison</button>` : ''}`
             }
           </div>
         </div>

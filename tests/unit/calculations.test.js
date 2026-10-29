@@ -41,11 +41,12 @@ test('travel time: never below one second, slower units take longer, hero speed 
   assert.ok(tHero >= Math.ceil(tInf / (1 + config.combat.heroBonusMax)) - 1);
 });
 
-test('carry capacity sums units and the hero logistics bonus is capped', () => {
+test('carry capacity sums units; the hero adds only its transport talents (logistics lowers upkeep, GDD)', () => {
   const inf = unitsData.find(u => u.class === 'INFANTRY' && u.tier === 'base');
   const per = inf.stats.carry || inf.stats.transport || 50;
   assert.equal(calc.getArmyCarryCapacity([{ unitKey: inf.key, count: 10 }], unitsData), per * 10);
-  assert.equal(calc.getArmyCarryCapacity([{ unitKey: inf.key, count: 10 }], unitsData, { logistics: 5, logPoints: 500 }), Math.floor(per * 10 * (1 + config.combat.heroBonusMax)));
+  assert.equal(calc.getArmyCarryCapacity([{ unitKey: inf.key, count: 10 }], unitsData, { logistics: 5, logPoints: 500 }), per * 10);
+  assert.equal(calc.getArmyCarryCapacity([{ unitKey: inf.key, count: 100 }], unitsData, { talents: { i_quartermaster: 2 } }), Math.floor(per * 100 * 1.06));
   assert.equal(calc.getArmyCarryCapacity([], unitsData), 0);
 });
 

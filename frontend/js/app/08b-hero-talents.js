@@ -12,7 +12,9 @@ async function loadTalentCatalog() {
 // « +1,2 % » à côté d'une caractéristique (points, équipement et talents compris)
 function heroBonusLabel(hero, stat) {
   const v = hero?.bonuses?.[stat];
-  return typeof v === 'number' ? `+${String(v).replace('.', ',')} %` : '';
+  if (typeof v !== 'number') return '';
+  // logistique (GDD) : moins d'entretien en nourriture pour l'armée qui porte le héros
+  return stat === 'logistics' ? `−${String(v).replace('.', ',')} % d'entretien` : `+${String(v).replace('.', ',')} %`;
 }
 
 // Bandeau d'état : tombé (bouton Ressusciter, prix, durée) ou résurrection en cours

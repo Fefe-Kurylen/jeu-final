@@ -250,6 +250,10 @@ await call('army set-unit 10 siege', 'POST', `/api/army/${armyId}/set-unit`, tA,
 await call('assign-hero (moves hero from garrison)', 'POST', `/api/army/${armyId}/assign-hero`, tA, {});
 assert('hero moved garrison -> army', sql(`SELECT count(*) FROM "Army" WHERE id='${armyId}' AND "heroId" IS NOT NULL`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE id='${garA}' AND "heroId" IS NOT NULL`) === '0');
 await call('army unassign-hero', 'POST', `/api/army/${armyId}/unassign-hero`, tA, {});
+// décision du 29 octobre 2026 : le héros retiré attend en ville, joint à aucune armée (ni la garnison) : il ne combat pas
+assert('hero: unassigned, it waits in the city with no army', sql(`SELECT count(*) FROM "Army" WHERE "heroId" IS NOT NULL AND "ownerId"='${A.player.id}'`) === '0' && sql(`SELECT "cityId" FROM "Hero" WHERE "playerId"='${A.player.id}'`) === cityA.id);
+await call('hero: joined to the garrison from the army panel', 'POST', `/api/army/${garA}/assign-hero`, tA, {});
+assert('hero: in the garrison again', sql(`SELECT count(*) FROM "Army" WHERE id='${garA}' AND "heroId" IS NOT NULL`) === '1');
 await call('army get other player army -> 404', 'GET', `/api/army/${armyId}`, tB, null, 404);
 
 // ---------- ATTACK ----------
@@ -660,7 +664,9 @@ await call('hero assign too many points -> 400', 'POST', '/api/hero/assign-point
   await call('hero: resurrection twice -> 400', 'POST', '/api/hero/revive', tA, null, 400);
   sql(`UPDATE "Hero" SET "reviveEndsAt"=now()-interval '1 second' WHERE id='${heroA}'`);
   await waitTick('hero revived', () => sql(`SELECT ("diedAt" IS NULL)::text FROM "Hero" WHERE id='${heroA}'`) === 'true');
-  assert('hero: back in the capital garrison', sql(`SELECT count(*) FROM "Army" WHERE "heroId"='${heroA}' AND "isGarrison" AND "cityId"='${cityA.id}'`) === '1');
+  assert('hero: back in the capital, joined to no army', sql(`SELECT count(*) FROM "Army" WHERE "heroId"='${heroA}'`) === '0' && sql(`SELECT "cityId" FROM "Hero" WHERE id='${heroA}'`) === cityA.id);
+  assert('hero: told to join an army', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND title LIKE '%Héros ressuscité%' AND body LIKE '%joignez-le%'`)) >= 1);
+  await call('hero: joined to the garrison after its resurrection', 'POST', `/api/army/${garA}/assign-hero`, tA, {});
   sql(`UPDATE "Hero" SET level=${level0} WHERE id='${heroA}'`);
 }
 

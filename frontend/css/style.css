@@ -5403,3 +5403,5 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .rally-meta { font-size: 12px; margin: 3px 0; opacity: .9; }
 .rally-armies { margin: 4px 0; padding-left: 18px; font-size: 12px; }
 .rally-armies li.me { font-weight: 700; }
+/* héros joint à aucune armée : il attend sans combattre (décision du 29 octobre 2026) */
+.hero-free { display: block; font-size: 12px; color: #c98a3a; margin-bottom: 4px; }

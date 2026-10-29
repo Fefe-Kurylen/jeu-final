@@ -109,7 +109,14 @@ function getUpkeepTableSql() {
 // 50 % au plus) ; siège (GDD economy_config.upkeep.siegeModifiersPct) : +10 % pour une armée qui campe devant une ville,
 // −10 % pour les armées à l'arrêt dans leur ville assiégée
 const SIEGE_UP = config.army.siegeUpkeepPct;
-function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
+// Logistique du héros (GDD) : l'armée qui porte le héros consomme moins ; une ligne (armée, part réduite) par héros joint
+async function heroUpkeepTable() {
+  const armies = await prisma.army.findMany({ where: { heroId: { not: null } }, select: { id: true, hero: { include: { items: true } } } });
+  const HE = require('../../utils/heroEffects');
+  const rows = armies.filter(a => a.hero && !a.hero.diedAt).map(a => [a.id, Math.max(0, Math.min(0.5, HE.statPct(a.hero, 'logistics')))]).filter(([, p]) => p > 0);
+  return rows.length ? Prisma.join(rows.map(([id, p]) => Prisma.sql`(${id}, ${p}::float)`)) : Prisma.sql`('-', 0::float)`;
+}
+function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('-', 0::float)`) {
   const [globalKey, globalPct] = fx.productionBonusKeys()[0];
   const prodTechTable = techTableSql('productionBonusPct');
   const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
@@ -141,9 +148,11 @@ function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
     ) AS tp ON tp."cityId" = c.id
     LEFT JOIN (
       SELECT a."cityId", SUM(au.count * ut.upkeep * (CASE WHEN a.status = 'BESIEGING' THEN ${1 + SIEGE_UP.attacker / 100}::float
-        WHEN hc."isSieged" AND a.status = 'IDLE' AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)) AS total
+        WHEN hc."isSieged" AND a.status = 'IDLE' AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)
+        * (1 - COALESCE(hl.pct, 0))) AS total
       FROM "Army" a JOIN "City" hc ON hc.id = a."cityId" JOIN "ArmyUnit" au ON au."armyId" = a.id
       JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
+      LEFT JOIN (VALUES ${heroTable}) AS hl(army, pct) ON hl.army = a.id
       GROUP BY a."cityId"
     ) AS cons ON cons."cityId" = c.id
     LEFT JOIN (
@@ -156,7 +165,7 @@ function foodBalanceSql(cityFilter = Prisma.sql`TRUE`) {
     WHERE ${cityFilter}`;
 }
 async function foodBalance(cityIds) {
-  const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(cityIds.length ? cityIds : ['-'])})`)}) b`;
+  const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(cityIds.length ? cityIds : ['-'])})`, await heroUpkeepTable())}) b`;
   return new Map(rows.map(r => [r.cityId, { production: Math.round(r.prod), consumption: Math.round(r.cons), net: Math.round(r.prod - r.cons), reductionPct: r.reductionPct, hoursLeft: r.cons > r.prod ? Math.max(0, r.food / (r.cons - r.prod)) : null }]));
 }
 
@@ -167,13 +176,13 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
   // 1) Décrément de nourriture : une seule requête pour toutes les villes (bilan ci-dessus)
   await prisma.$executeRaw`
     UPDATE "City" AS c SET food = GREATEST(0, c.food - b.cons * ${TICK_HOURS})
-    FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`)}) AS b
+    FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, await heroUpkeepTable())}) AS b
     WHERE c.id = b."cityId" AND b.cons > 0
   `;
   // 2) Une fois par heure : alertes (grenier vide dans moins de 6 h) et famine façon Travian
   if (now.getTime() - lastStarvationAt < config.army.starvationIntervalHours * 3600000) return;
   lastStarvationAt = now.getTime();
-  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`)}) b WHERE b.cons > b.prod`;
+  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, await heroUpkeepTable())}) b WHERE b.cons > b.prod`;
   for (const r of short) {
     try {
       if (r.food > 1) await foodAlert(r, now);

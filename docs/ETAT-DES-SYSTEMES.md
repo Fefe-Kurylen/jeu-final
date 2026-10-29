@@ -439,9 +439,22 @@ la Tente de soins, capacité limitée avec file d'attente, soins du défenseur b
 
 | Existe | Manque |
 |---|---|
-| Fiche, XP et niveaux (siège, raid, tribu, expédition), points attaque/défense/vitesse/logistique tous appliqués, talents à 3 branches, chute et résurrection (ci-dessous) | Compétences actives, portrait animé |
+| Fiche, XP et niveaux (siège, raid, tribu, expédition), points attaque/défense/vitesse/logistique tous appliqués, talents à 3 branches, chute et résurrection (ci-dessous) | Portrait animé (pas de compétences actives : décision du 29 octobre 2026, le héros n'a que des compétences passives, GDD) |
 | **Équipement réel** : catalogue de 14 objets (`data/items.json`), bonus appliqués au combat, à la vitesse et à la logistique, inventaire, équiper/déséquiper/jeter, drop à la fin d'une expédition gagnée selon le palier de butin | Forge d'objets, enchantement, objets des raids/sièges |
 | Expéditions : 1 à 4 étoiles, puissance ennemie, durée, palier de butin, or, XP, objet | (les quêtes à objectifs sont en place : section Quêtes) |
+
+Décisions du 29 octobre 2026 (GDD) :
+
+- **Compétences passives seulement** : ses caractéristiques, son équipement et ses talents ; pas de compétence à
+  déclencher. Pas de forge pour l'instant.
+- Le héros ne compte que s'il est **joint à une armée depuis le panneau de l'armée**, garnison comprise (pour défendre la
+  ville, on le joint à la garnison). Retiré d'une armée, son armée dissoute, ressuscité au Domus ou chassé d'une
+  capitale tombée : il **attend en ville sans combattre** (`Hero.cityId`) jusqu'à ce qu'on le joigne à une armée de
+  cette ville. Un nouveau joueur commence avec son héros joint à la garnison. Onglet Armée : où il attend et
+  « Joindre à la garnison ».
+- **Logistique** (GDD) : **réduit l'entretien en nourriture** de l'armée qui porte le héros (0,1 % par point, plafond
+  5 %, plus l'équipement), au lieu d'augmenter le transport ; la capacité de transport ne vient plus que des unités et
+  des talents d'Intendance (Quartier-maître, Grand intendant).
 
 Décisions du 27 octobre 2026 (`src/utils/heroEffects.js`, `src/services/heroService.js`, `data/hero-talents.json`,
 client `frontend/js/app/08b-hero-talents.js`) :

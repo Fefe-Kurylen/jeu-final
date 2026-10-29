@@ -239,6 +239,10 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
     if (!hero) return res.status(404).json({ error: 'Héros non trouvé' });
     if (hero.diedAt) return res.status(400).json({ error: 'Votre héros est tombé : ressuscitez-le au Domus du Héros' });
     const armyWithHero = await prisma.army.findFirst({ where: { heroId: hero.id, NOT: { id: army.id } }, include: { city: true } });
+    if (!armyWithHero && hero.cityId && hero.cityId !== army.cityId) {
+      const where = await prisma.city.findUnique({ where: { id: hero.cityId }, select: { name: true } });
+      return res.status(400).json({ error: `Le héros attend à ${where?.name || 'une autre ville'} : joignez-le à une armée de cette ville` });
+    }
     if (armyWithHero) {
       // The hero can only switch between armies standing in the same city
       if (armyWithHero.status !== 'IDLE' || armyWithHero.cityId !== army.cityId || !isHome(armyWithHero, armyWithHero.city)) {
@@ -247,7 +251,8 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
     }
     await prisma.$transaction([
       ...(armyWithHero ? [prisma.army.update({ where: { id: armyWithHero.id }, data: { heroId: null } })] : []),
-      prisma.army.update({ where: { id: army.id }, data: { heroId: hero.id } })
+      prisma.army.update({ where: { id: army.id }, data: { heroId: hero.id } }),
+      prisma.hero.update({ where: { id: hero.id }, data: { cityId: army.cityId } })
     ]);
     res.json({ message: 'Héros assigné' });
   } catch (e) {
@@ -263,13 +268,13 @@ router.post('/:id/unassign-hero', auth, async (req, res) => {
     if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
     if (army.status !== 'IDLE' || !isHome(army, army.city)) return res.status(400).json({ error: 'Armée doit être en ville' });
     if (!army.heroId) return res.json({ message: 'Aucun héros assigné' });
-    // A hero leaving a field army goes back to the garrison of the same city
-    const garrison = army.isGarrison ? null : await prisma.army.findFirst({ where: { cityId: army.cityId, isGarrison: true } });
+    // décision du 29 octobre 2026 : le héros retiré attend dans la ville, joint à aucune armée, et ne combat pas
+    // (garnison comprise) tant qu'on ne le joint pas à une armée depuis son panneau
     await prisma.$transaction([
       prisma.army.update({ where: { id: army.id }, data: { heroId: null } }),
-      ...(garrison && !garrison.heroId ? [prisma.army.update({ where: { id: garrison.id }, data: { heroId: army.heroId } })] : [])
+      prisma.hero.update({ where: { id: army.heroId }, data: { cityId: army.cityId } })
     ]);
-    res.json({ message: 'Héros retiré' });
+    res.json({ message: 'Héros retiré : il attend en ville sans combattre' });
   } catch (e) { sendError(res, e); }
 });
 
@@ -343,7 +348,7 @@ router.delete('/:id/disband', auth, async (req, res) => {
       const heroId = army.heroId;
       await tx.armyUnit.deleteMany({ where: { armyId: army.id } });
       await tx.army.delete({ where: { id: army.id } });
-      if (heroId && !garrison.heroId) await tx.army.update({ where: { id: garrison.id }, data: { heroId } });
+      if (heroId) await tx.hero.update({ where: { id: heroId }, data: { cityId: army.cityId } });   // il attend en ville, joint à aucune armée
       return { message: 'Armée dissoute' };
     });
     if (result.error) return res.status(result.status || 400).json(result);

@@ -168,7 +168,8 @@ function pointAlongPath(path, fraction) {
   const l = path[path.length - 1]; return { x: l[0], y: l[1] };
 }
 
-// Carry capacity of an army (hero logistics bonus when a hero rides with it)
+// Carry capacity of an army: units, plus the hero's transport talents (Intendance) when a hero rides with it.
+// The hero's logistics stat lowers the army's food upkeep instead (GDD, décision du 29 octobre 2026).
 function getArmyCarryCapacity(units, unitsData, hero = null) {
   let total = 0;
   for (const unit of units) {
@@ -176,7 +177,7 @@ function getArmyCarryCapacity(units, unitsData, hero = null) {
     const carryPerUnit = unitData?.stats?.carry || unitData?.stats?.transport || 50;
     total += unit.count * carryPerUnit;
   }
-  return Math.floor(total * heroStatMultiplier(hero, 'logistics'));
+  return Math.floor(total * (1 + require('./heroEffects').talent(hero, 'carryPct') / 100));
 }
 
 module.exports = {

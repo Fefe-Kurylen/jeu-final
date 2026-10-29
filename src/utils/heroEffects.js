@@ -10,7 +10,8 @@ const config = require('../config');
 const catalog = require('../../data/hero-talents.json');
 
 const POINTS_FIELD = { attack: 'atkPoints', defense: 'defPoints', speed: 'spdPoints', logistics: 'logPoints' };
-const TALENT_OF_STAT = { attack: 'attackPct', defense: 'defensePct', speed: 'speedPct', logistics: 'carryPct' };
+// logistique (GDD) : réduit l'entretien en nourriture de l'armée qui porte le héros (décision du 29 octobre 2026)
+const TALENT_OF_STAT = { attack: 'attackPct', defense: 'defensePct', speed: 'speedPct', logistics: 'upkeepPct' };
 const TALENTS = new Map(catalog.branches.flatMap(b => b.talents.map(t => [t.key, { ...t, branch: b.key }])));
 
 function equipmentPoints(hero, stat) {
