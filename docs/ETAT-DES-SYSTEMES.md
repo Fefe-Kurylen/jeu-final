@@ -315,6 +315,11 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   chacun rentre. Devant le Bastion, **tout le groupe campe 1 h** comme un siège normal (l'alliance du Bastion est prévenue
   au départ et peut briser le siège), puis **un seul assaut** avec toutes les armées. C'est **le héros de l'armée qui a lancé le rassemblement** qui donne
   ses bonus (avec les technologies du lanceur) ; si cette armée a été rappelée pendant le camp, l'assaut se fait sans héros.
+- **Fenêtre de la cible façon Rise of Kingdoms** (29 octobre 2026, `frontend/js/map.js` : `openMapPopupAt`) : toucher
+  une cible sur la carte (ville, Bastion, donjon, point de ressource, armée, case vide) ouvre une petite fenêtre juste
+  au-dessus d'elle (en dessous s'il n'y a pas la place), qui suit la carte quand on la déplace. Les actions sont des boutons
+  ronds à icône (Assiéger, Rassemblement, Espionner, Partager…) ; les explications et le détail des troupes d'une tribu
+  se déplient avec « Détails ».
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
   capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,

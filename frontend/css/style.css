@@ -5407,3 +5407,54 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .hero-free { display: block; font-size: 12px; color: #c98a3a; margin-bottom: 4px; }
 /* défi d'alliance de la semaine (09h-ranking.js) */
 .challenge-card { border-color: rgba(201,162,39,.7) !important; margin-bottom: 12px; }
+
+/* ---- Fenêtre de la cible sur la carte, façon Rise of Kingdoms (décision du 29 octobre 2026) ----
+   Ouverte juste au-dessus de la cible touchée (map.js : openMapPopupAt / positionMapPopup), compacte, actions en boutons
+   ronds à icône ; les explications (.diplo-help) se déplient avec « Détails ». */
+.map-info-panel.map-popup {
+  position: absolute;
+  width: 290px !important;
+  max-width: calc(100% - 16px);
+  max-height: min(62vh, 520px) !important;
+  overflow-y: auto;
+  bottom: auto !important;
+  right: auto !important;
+  z-index: 60;
+  flex-direction: column;
+  animation: map-popup-in .14s ease-out;
+}
+@keyframes map-popup-in { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+.map-info-panel.map-popup.popup-below { animation-name: map-popup-in-below; }
+@keyframes map-popup-in-below { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: none; } }
+.map-popup #map-panel-content { padding: 10px 12px 6px; }
+.map-popup #map-panel-content h3 { font-size: 15px; margin: 0 26px 4px 0; text-align: center; }
+.map-popup #map-panel-content p { font-size: 12px; margin: 3px 0; text-align: center; }
+.map-popup .panel-close { top: 6px; right: 6px; width: 24px !important; height: 24px !important; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; font-size: 15px; }
+.map-popup:not(.expanded) .diplo-help, .map-popup:not(.expanded) .spied-note, .map-popup:not(.expanded) .tribe-unit { display: none; }
+/* actions : boutons ronds à icône, libellé court dessous */
+.map-popup .panel-actions, .map-popup .panel-actions.player-actions {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 4px; margin-top: 8px;
+}
+.map-popup .panel-actions .btn {
+  flex: 0 0 76px; width: 76px !important; min-width: 0 !important; max-width: 76px; min-height: 0 !important; height: auto !important;
+  font-family: inherit !important; font-weight: 600; overflow-wrap: anywhere; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 2px; margin: 0; font-size: 10.5px; line-height: 1.15; white-space: normal; text-align: center;
+  background: none !important; border: 0 !important; border-image: none !important; box-shadow: none !important;
+  color: #f5e6c8; text-shadow: 0 1px 2px #000; text-transform: none; letter-spacing: 0;
+}
+.map-popup .panel-actions .btn::before { display: none; }
+.map-popup .panel-actions .btn img.ico, .map-popup .panel-actions .btn > img:first-child {
+  width: 24px; height: 24px; padding: 9px; box-sizing: content-box; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, #6d5a3a, #2c2214 70%); border: 2px solid #c9a227;
+  box-shadow: 0 2px 6px rgba(0,0,0,.6), inset 0 1px 2px rgba(255,255,255,.25);
+}
+.map-popup .panel-actions .btn-danger img.ico, .map-popup .panel-actions .btn-danger > img:first-child { background: radial-gradient(circle at 35% 30%, #b2402f, #4a1510 70%); border-color: #e8b04a; }
+.map-popup .panel-actions .btn-primary img.ico, .map-popup .panel-actions .btn-primary > img:first-child, .map-popup .panel-actions .btn-success img.ico { background: radial-gradient(circle at 35% 30%, #4f7f3a, #1d3314 70%); }
+.map-popup .panel-actions .btn:disabled { opacity: .45; }
+.map-popup .panel-actions .btn:not(:disabled):hover img.ico { filter: brightness(1.2); transform: translateY(-1px); }
+.map-popup .popup-more { display: block; }
+.map-info-panel:not(.map-popup) .popup-more, .map-popup:not(:has(.diplo-help, .spied-note, .tribe-unit)) .popup-more { display: none; }
+.popup-more {
+  align-self: center; flex: none; margin: 0 auto 8px; padding: 2px 12px; min-height: 0 !important; background: rgba(0,0,0,.25); color: #e8d5a8; border: 1px solid #8b6914;
+  border-radius: 10px; font-size: 11px; cursor: pointer;
+}

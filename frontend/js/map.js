@@ -778,6 +778,7 @@ function renderMapCore() {
   // Store for click detection and army movement lines
   window.mapScreenToWorld = screenToWorld;
   window.mapWorldToScreen = worldToScreen;
+  if (mapPopupAnchor) positionMapPopup();   // la fenêtre de la cible suit la carte
 
   // Cases visibles : tout le rectangle du monde qui couvre l'écran (un écran vertical en voit plus en hauteur), marge pour
   // les reliefs et les arbres qui dépassent de leur case
@@ -2692,6 +2693,7 @@ function onMapClick(e) {
   const picked = pickMapTile(e.clientX - rect.left, e.clientY - rect.top);
   mapSelectedTile = { x: picked.x, y: picked.y };
   showMapInfoPanel(picked.x, picked.y, picked.tile);
+  openMapPopupAt(picked);   // petite fenêtre au-dessus de la cible, façon Rise of Kingdoms
   renderMap();
 }
 
@@ -2765,6 +2767,7 @@ function onMapTouchEnd(e) {
     const picked = pickMapTile(touchStartPos.x - rect.left, touchStartPos.y - rect.top);
     mapSelectedTile = { x: picked.x, y: picked.y };
     showMapInfoPanel(picked.x, picked.y, picked.tile);
+    openMapPopupAt(picked);   // petite fenêtre au-dessus de la cible, façon Rise of Kingdoms
     renderMap();
   }
 
@@ -2955,7 +2958,7 @@ function showMapInfoPanel(x, y, tile) {
           <p style="margin: 0 0 5px 0; color: #f44;"><strong>${tribeIconHtml()} Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
-            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
+            `<p class="tribe-unit" style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
           ).join('')}
         </div>
       `;
@@ -3240,9 +3243,57 @@ async function confirmSendResources(armyId, cityId) {
   }
 }
 
+// ---- Petite fenêtre de la cible, façon Rise of Kingdoms (décision du 29 octobre 2026) ----
+// Toucher une cible sur la carte ouvre une fenêtre compacte juste au-dessus d'elle (en dessous s'il n'y a pas la place),
+// qui suit la carte quand on la déplace ; les actions sont des boutons ronds à icône ; « Détails » déplie les explications.
+let mapPopupAnchor = null;
+function openMapPopupAt(picked) {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel) return;
+  const t = picked.tile;
+  const block = t && typeof isMapBlock === 'function' && isMapBlock(t);
+  mapPopupAnchor = { wx: (t?.drawX ?? picked.x) + (block ? 0.5 : 0), wy: (t?.drawY ?? picked.y) + (block ? 0.5 : 0), lift: block ? 1.6 : t ? 1.1 : 0.4 };
+  panel.classList.add('map-popup');
+  panel.classList.remove('expanded');
+  positionMapPopup();
+}
+function positionMapPopup() {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel || !mapPopupAnchor || panel.style.display === 'none' || typeof window.mapWorldToScreen !== 'function' || !mapCanvas) return;
+  const host = panel.offsetParent || panel.parentElement;
+  if (!host) return;
+  const hr = host.getBoundingClientRect(), cr = mapCanvas.getBoundingClientRect();
+  const p = window.mapWorldToScreen(mapPopupAnchor.wx, mapPopupAnchor.wy);
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  const ax = cr.left - hr.left + p.x, top = cr.top - hr.top + p.y - tileH * mapPopupAnchor.lift, below = cr.top - hr.top + p.y + tileH * 0.6;
+  const w = panel.offsetWidth || 280, h = panel.offsetHeight || 200;
+  const left = Math.max(8, Math.min(hr.width - w - 8, ax - w / 2));
+  const offscreen = ax < 0 || ax > hr.width || below < 0 || top > hr.height;
+  panel.style.visibility = offscreen ? 'hidden' : '';
+  panel.style.left = left + 'px';
+  panel.style.right = 'auto';
+  if (top - h - 10 >= 4) { panel.style.top = Math.round(top - h - 10) + 'px'; panel.classList.remove('popup-below'); }
+  else { panel.style.top = Math.round(Math.min(hr.height - h - 8, below + 6)) + 'px'; panel.classList.add('popup-below'); }
+  panel.style.bottom = 'auto';
+  panel.style.setProperty('--popup-arrow', Math.round(Math.max(18, Math.min(w - 18, ax - left))) + 'px');
+}
+function toggleMapPopupDetails() {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel) return;
+  panel.classList.toggle('expanded');
+  const b = panel.querySelector('.popup-more');
+  if (b) b.textContent = panel.classList.contains('expanded') ? 'Moins ▴' : 'Détails ▾';
+  positionMapPopup();
+}
+// le contenu se remplit parfois après coup (diplomatie, rassemblements) : la fenêtre se recale
+if (typeof ResizeObserver === 'function') {
+  document.addEventListener('DOMContentLoaded', () => { const p = document.getElementById('map-info-panel'); if (p) new ResizeObserver(() => positionMapPopup()).observe(p); });
+}
+
 function closeMapPanel() {
   const panel = document.getElementById('map-info-panel');
-  if (panel) panel.style.display = 'none';
+  if (panel) { panel.style.display = 'none'; panel.classList.remove('expanded'); }
+  mapPopupAnchor = null;
   mapSelectedTile = null;
   renderMap();
 }
