@@ -2105,7 +2105,7 @@ function drawIsoRock(x, y, size) {
 // ========== ARMY ROUTES ==========
 // A moving army follows the same route the server computed (shared terrain): the sprite walks along it
 // between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
-const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1, SUPPORTING: 1 };
+const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1, SUPPORTING: 1, RALLY_JOIN: 1, RALLY_MARCH: 1 };   // RALLY_* : rassemblement d'alliance
 const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
 // Chemins des armées : un trajet court se calcule tout de suite (au plus 3 par image et pendant 25 ms au plus) ; un long
 // trajet part dans route-worker.js, hors du fil principal, pour que la carte ne se fige pas. En attendant, l'armée marche
@@ -2912,7 +2912,7 @@ function showMapInfoPanel(x, y, tile) {
     panel.style.display = 'flex';
   } else if (tile.type === 'ARMY') {
     const mine = tile.ownerId === player?.id;
-    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route vers un donjon', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
     content.innerHTML = `
       <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>

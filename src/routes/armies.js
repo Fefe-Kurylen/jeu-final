@@ -444,7 +444,8 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
     if (node.cityId) return res.status(400).json({ error: 'Une ville occupe ce point' });
     // donjon d'une invasion barbare (décision du 29 octobre 2026) : seuls les joueurs en alliance l'attaquent
-    if (node.resourceType === 'HORDE' && !(await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }))) return res.status(403).json({ error: 'Seuls les joueurs en alliance peuvent attaquer un donjon barbare' });
+    // un donjon ne s'attaque qu'en rassemblement d'alliance (façon Rise of Kingdoms, rallyService)
+    if (node.resourceType === 'HORDE') return res.status(400).json({ error: 'Un donjon ne s\'attaque qu\'en rassemblement d\'alliance : lancez-en un ou rejoignez celui de votre alliance', rallyOnly: true });
     // A raid is a fight: against the tribe, or against the army of another player holding the node (as on a Travian
     // oasis). An undefended, free node is simply collected; an ally's or one's own army is never attacked.
     const holders = node.hasPlayerArmy ? await prisma.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id }, select: { ownerId: true } }) : [];

@@ -64,7 +64,7 @@ async function hallOfFame() {
 
 // Nouveau monde : tout le jeu repart à zéro, comptes, joueurs (pseudo, or, Plus, achats, cosmétiques), médailles, titres
 // et Panthéon gardés. La carte est tirée à nouveau au prochain démarrage (WorldConfig recréée, numéro + 1).
-const GAME_TABLES = ['ArmyUnit', 'Army', 'WoundedUnit', 'BuildQueueItem', 'RecruitQueueItem', 'ResearchQueueItem', 'CityBuilding', 'MarketOffer', 'TradeConvoy', 'TradeRoute', 'Spy', 'SpyReport', 'BattleReport', 'Expedition', 'HeroItem', 'Hero', 'City', 'ResourceNode', 'Bastion', 'AllianceHelp', 'AllianceHelpRequest', 'AllianceAllyRequest', 'AllianceDiplomacy', 'AllianceInvite', 'AllianceMember', 'Alliance', 'PlayerTechnology', 'PlayerStats', 'PlayerWeekStats', 'QuestCounter', 'QuestClaim', 'WonderPlan', 'Notification', 'RankingWeek', 'HordeDamage', 'Horde', 'Invasion'];
+const GAME_TABLES = ['ArmyUnit', 'Army', 'WoundedUnit', 'BuildQueueItem', 'RecruitQueueItem', 'ResearchQueueItem', 'CityBuilding', 'MarketOffer', 'TradeConvoy', 'TradeRoute', 'Spy', 'SpyReport', 'BattleReport', 'Expedition', 'HeroItem', 'Hero', 'City', 'ResourceNode', 'Bastion', 'AllianceHelp', 'AllianceHelpRequest', 'AllianceAllyRequest', 'AllianceDiplomacy', 'AllianceInvite', 'AllianceMember', 'Alliance', 'PlayerTechnology', 'PlayerStats', 'PlayerWeekStats', 'QuestCounter', 'QuestClaim', 'WonderPlan', 'Notification', 'RankingWeek', 'HordeDamage', 'Horde', 'Invasion', 'Rally'];
 async function newWorld({ force = false } = {}) {
   const old = await prisma.worldConfig.findUnique({ where: { id: 1 } });
   if (old && !old.endedAt && !force) throw new Error('Le monde en cours n\'est pas terminé (option --force pour le remettre à zéro quand même)');

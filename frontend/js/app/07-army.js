@@ -189,7 +189,11 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'FOUNDING': { icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', label: 'Fondation', cls: 'moving' },
     'SUPPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'Renfort en route', cls: 'moving' },
     'STATIONED': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'En renfort', cls: 'idle' },
-    'MARKET': { icon: '<img class="ico" src="assets/images/3d/ui/market.webp" alt="">', label: 'Offre du marché', cls: 'idle' }
+    'MARKET': { icon: '<img class="ico" src="assets/images/3d/ui/market.webp" alt="">', label: 'Offre du marché', cls: 'idle' },
+    // rassemblement d'alliance contre un donjon (09l-rally.js)
+    'RALLY_JOIN': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rejoint un rassemblement', cls: 'moving' },
+    'RALLY_WAIT': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rassemblement (attente)', cls: 'idle' },
+    'RALLY_MARCH': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Rassemblement en route', cls: 'attacking' }
   };
   const status = statusMap[army.status] || { icon: '', label: army.status, cls: 'unknown' };
   

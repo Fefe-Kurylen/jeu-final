@@ -103,7 +103,8 @@ async function gameTick() {
     await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
     await step('rankings', () => require('../services/rankingService').processRankings(now));
     await step('wonders', () => require('../services/wonderService').processWonders(now));
-    await step('invasions', () => require('../services/hordeService').processInvasions(now));   // invasions barbares du week-end (décision du 29 octobre 2026)   // sites et plans, niveaux de Merveille, vagues des Immortels   // clôture de la semaine, médailles
+    await step('invasions', () => require('../services/hordeService').processInvasions(now));
+    await step('rallies', () => require('../services/rallyService').processRallies(now));   // rassemblements d'alliance contre les donjons   // invasions barbares du week-end (décision du 29 octobre 2026)   // sites et plans, niveaux de Merveille, vagues des Immortels   // clôture de la semaine, médailles
     await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
     await step('harvest', () => processHarvesting(now));
 

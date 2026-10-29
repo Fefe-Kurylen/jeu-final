@@ -155,7 +155,8 @@ app.use('/api/spies', require('./routes/spies'));
 app.use('/api/bastion', require('./routes/bastion'));
 app.use('/api', require('./routes/wonder'));
 app.use('/api', require('./routes/admin'));
-app.use('/api', require('./routes/invasion'));   // /api/invasion : invasions barbares du week-end   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
+app.use('/api', require('./routes/invasion'));
+app.use('/api', require('./routes/rally'));   // /api/rallies : rassemblements d'alliance contre les donjons   // /api/invasion : invasions barbares du week-end   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
 app.use('/api/alliance', require('./routes/allianceHelp'));   // /help…, /shop… (avant /api/alliance/:id)
 app.use('/api/alliances', allianceRoutes);
 app.use('/api/alliance', allianceRoutes);

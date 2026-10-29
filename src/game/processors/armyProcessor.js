@@ -729,4 +729,4 @@ async function handleTransport(army, now) {
   }
 }
 
-module.exports = { processArmyMovements };
+module.exports = { processArmyMovements, sendArmyHome };   // sendArmyHome : rassemblements d'alliance (rallyService)

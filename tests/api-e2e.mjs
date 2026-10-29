@@ -1655,30 +1655,78 @@ if (MAIL_LOG) {
   assert('invasion: map node carries the floor and its strength', onMap?.horde?.floor === 1 && onMap?.horde?.floorPower > 0, JSON.stringify(onMap?.horde));
   const cityP1 = sql(`SELECT id FROM "City" WHERE "playerId"='${P1?.player?.id}' LIMIT 1`), cityP2 = sql(`SELECT id FROM "City" WHERE "playerId"='${P2?.player?.id}' LIMIT 1`), citySolo = sql(`SELECT id FROM "City" WHERE "playerId"='${Solo?.player?.id}' LIMIT 1`);
   const elite = unitKeyFor('ROME', 'INFANTRY', 'elite');
+  // de quoi nourrir les armées du test (sinon la famine les décime pendant l'attente)
+  for (const c of [cityP1, cityP2, citySolo]) sql(`UPDATE "City" SET food=900000, "maxFoodStorage"=1000000 WHERE id='${c}'`);
   const soloArmy = mkTrader(Solo?.player?.id, citySolo, 'Solitarii', elite, 100);
-  await call('invasion: a player without alliance -> 403', 'POST', `/api/army/${soloArmy}/raid-resource`, Solo?.token, { resourceNodeId: hNode }, 403);
-  // attaque repoussée : la garnison s'use quand même
-  const weak = mkTrader(P2?.player?.id, cityP2, 'Exigui', unitKeyFor('ROME', 'INFANTRY', 'base'), 130);   // 60 % de la force de l'avant-poste : repoussée, mais elle l'entame
-  await call('invasion: a weak attack', 'POST', `/api/army/${weak}/raid-resource`, P2?.token, { resourceNodeId: hNode });
-  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${weak}'`);
-  await waitTick('weak attack resolved', () => sql(`SELECT count(*) FROM "HordeDamage" WHERE "playerId"='${P2?.player?.id}'`) === '1');
-  const after = await call('invasion: dungeon after a lost attack', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
+  // un donjon ne s'attaque qu'en rassemblement d'alliance (façon Rise of Kingdoms)
+  const rallyOnly = await call('rally: a lone attack on a dungeon -> 400', 'POST', `/api/army/${soloArmy}/raid-resource`, Solo?.token, { resourceNodeId: hNode }, 400);
+  assert('rally: the refusal points to the rally', rallyOnly?.rallyOnly === true);
+  await call('rally: a player without alliance cannot launch one -> 403', 'POST', '/api/rallies', Solo?.token, { armyId: soloArmy, nodeId: hNode, waitMinutes: 5 }, 403);
+  // fait arriver un rassemblement au donjon tout de suite
+  const toDungeon = (rallyId) => { sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE "rallyId"='${rallyId}' AND status='RALLY_MARCH'`); sql(`UPDATE "Rally" SET "arrivalAt"=now()-interval '1 second' WHERE id='${rallyId}'`); };
+  const homeAgain = (armyId, cityId) => sql(`UPDATE "Army" SET status='IDLE', "arrivalAt"=NULL, "missionType"=NULL, "targetResourceId"=NULL, "rallyId"=NULL, "claimedAt"=NULL, x=(SELECT x FROM "City" WHERE id='${cityId}'), y=(SELECT y FROM "City" WHERE id='${cityId}') WHERE id='${armyId}'`);
+  // rassemblement repoussé : la garnison s'use quand même
+  const weak = mkTrader(P2?.player?.id, cityP2, 'Exigui', unitKeyFor('ROME', 'INFANTRY', 'base'), 130);   // 60 % de la force de l'avant-poste : repoussé, mais il l'entame
+  await call('rally: a wait of 7 min -> 400', 'POST', '/api/rallies', P2?.token, { armyId: weak, nodeId: hNode, waitMinutes: 7 }, 400);
+  const r0 = await call('rally: launch a rally', 'POST', '/api/rallies', P2?.token, { armyId: weak, nodeId: hNode, waitMinutes: 5 });
+  const list0 = await call('rally: the alliance sees it', 'GET', `/api/rallies?nodeId=${hNode}`, P1?.token);
+  assert('rally: listed for the other member, with its leader and capacity', list0?.rallies?.length === 1 && list0.rallies[0].leader === `Fortis${uid}` && list0.rallies[0].capacity >= 3 && list0.rallies[0].armies.length === 1);
+  assert('rally: the leader\'s army waits in its city', sql(`SELECT status FROM "Army" WHERE id='${weak}'`) === 'RALLY_WAIT');
+  assert('rally: the alliance is told', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${P1?.player?.id}' AND kind='rally'`)) >= 1);
+  await call('rally: only the leader launches it early -> 403', 'POST', `/api/rallies/${r0?.rally?.id}/launch`, P1?.token, null, 403);
+  await call('rally: the leader launches it now', 'POST', `/api/rallies/${r0?.rally?.id}/launch`, P2?.token);
+  assert('rally: on its way to the dungeon', sql(`SELECT status FROM "Army" WHERE id='${weak}'`) === 'RALLY_MARCH' && sql(`SELECT status FROM "Rally" WHERE id='${r0?.rally?.id}'`) === 'MARCHING');
+  toDungeon(r0?.rally?.id);
+  await waitTick('weak rally resolved', () => sql(`SELECT count(*) FROM "HordeDamage" WHERE "playerId"='${P2?.player?.id}'`) === '1');
+  const after = await call('invasion: dungeon after a lost rally', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
   assert('invasion: still the outpost, but worn down', after?.floor === 1 && after.floors[0].left < view0.floors[0].power && after.contributors.some(c => c.points > 0), `${after?.floors?.[0]?.left} < ${view0?.floors?.[0]?.power}`);
-  assert('invasion: the weak army goes home', ['RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${weak}'`)));
-  // une grosse armée vainc les étages un par un
+  assert('rally: the army goes home after the fight', ['RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${weak}'`)) && sql(`SELECT "rallyId" FROM "Army" WHERE id='${weak}'`) === '');
+  // annuler, quitter, rejoindre deux fois
   const big = mkTrader(P1?.player?.id, cityP1, 'Legio', elite, 6000);
+  const help = mkTrader(P2?.player?.id, cityP2, 'Auxilia', elite, 300);
+  const rc = await call('rally: launch, to cancel', 'POST', '/api/rallies', P1?.token, { armyId: big, nodeId: hNode, waitMinutes: 60 });
+  homeAgain(weak, cityP2);
+  // trop loin : l'armée n'arriverait pas avant le départ
+  const far = await call('rally: too far to arrive in time -> 400', 'POST', `/api/rallies/${rc?.rally?.id}/join`, P2?.token, { armyId: help }, [200, 400]);
+  if (far?.error) {
+    // la ville de P2 rapprochée de celle de P1 (6 à 9 cases), là où aucune ville ne gêne et où la route passe
+    const [p1x, p1y] = sql(`SELECT x||'|'||y FROM "City" WHERE id='${cityP1}'`).split('|').map(Number);
+    for (const [dx, dy] of [[7, 0], [0, 7], [-7, 0], [0, -7], [7, 7], [-7, 7], [7, -7], [-7, -7], [9, 3], [3, 9], [-9, -3], [-3, -9]]) {
+      const nx = p1x + dx, ny = p1y + dy;
+      if (sql(`SELECT count(*) FROM "City" WHERE abs(x-(${nx}))<=3 AND abs(y-(${ny}))<=3 AND id<>'${cityP2}'`) !== '0') continue;
+      sql(`UPDATE "City" SET x=${nx}, y=${ny} WHERE id='${cityP2}'`);
+      sql(`UPDATE "Army" SET x=${nx}, y=${ny} WHERE "cityId"='${cityP2}' AND status='IDLE'`);
+      const r = await fetch(BASE + `/api/rallies/${rc?.rally?.id}/join`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${P2?.token}` }, body: JSON.stringify({ armyId: help }) });
+      if (r.ok) break;
+    }
+  }
+  assert('rally: a member joins once close enough', ['RALLY_JOIN', 'RALLY_WAIT'].includes(sql(`SELECT status FROM "Army" WHERE id='${help}'`)));
+  await call('rally: one army per player -> 400', 'POST', `/api/rallies/${rc?.rally?.id}/join`, P2?.token, { armyId: weak }, 400);
+  await call('rally: the member leaves', 'POST', `/api/rallies/${rc?.rally?.id}/leave`, P2?.token);
+  assert('rally: its army turns back', ['RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${help}'`)));
+  await call('rally: only the leader cancels -> 403', 'POST', `/api/rallies/${rc?.rally?.id}/cancel`, P2?.token, null, 403);
+  await call('rally: the leader cancels', 'POST', `/api/rallies/${rc?.rally?.id}/cancel`, P1?.token);
+  assert('rally: cancelled, the leader\'s army is free again', sql(`SELECT status FROM "Rally" WHERE id='${rc?.rally?.id}'`) === 'CANCELLED' && sql(`SELECT status FROM "Army" WHERE id='${big}'`) === 'IDLE');
+  // deux armées ensemble, étage par étage
+  homeAgain(help, cityP2);
   for (const [fl, label] of [[2, 'outpost'], [3, 'ramparts']]) {
-    sql(`UPDATE "Army" SET status='IDLE', "arrivalAt"=NULL, "missionType"=NULL, "targetResourceId"=NULL, x=(SELECT x FROM "City" WHERE id='${cityP1}'), y=(SELECT y FROM "City" WHERE id='${cityP1}') WHERE id='${big}'`);
-    await call(`invasion: attack the ${label}`, 'POST', `/api/army/${big}/raid-resource`, P1?.token, { resourceNodeId: hNode });
-    sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${big}'`);
+    homeAgain(big, cityP1);
+    const r = await call(`rally: launch against the ${label}`, 'POST', '/api/rallies', P1?.token, { armyId: big, nodeId: hNode, waitMinutes: 60 });
+    sql(`UPDATE "Army" SET status='RALLY_WAIT', "rallyId"='${r?.rally?.id}', "missionType"='RALLY', x=(SELECT x FROM "City" WHERE id='${cityP1}'), y=(SELECT y FROM "City" WHERE id='${cityP1}') WHERE id='${help}'`);   // déjà arrivée chez le lanceur
+    await call(`rally: depart against the ${label}`, 'POST', `/api/rallies/${r?.rally?.id}/launch`, P1?.token);
+    assert(`rally: both armies march together (${label})`, sql(`SELECT count(*) FROM "Army" WHERE "rallyId"='${r?.rally?.id}' AND status='RALLY_MARCH'`) === '2' && sql(`SELECT count(DISTINCT "arrivalAt") FROM "Army" WHERE "rallyId"='${r?.rally?.id}'`) === '1');
+    toDungeon(r?.rally?.id);
     await waitTick(`${label} beaten`, () => sql(`SELECT floor FROM "Horde" WHERE "nodeId"='${hNode}'`) === String(fl));
+    homeAgain(help, cityP2);
   }
   const v2 = await call('invasion: the chief floor', 'GET', `/api/invasion/horde/${hNode}`, P1?.token);
   assert('invasion: floors done in order, the chief is next', v2?.floor === 3 && v2.floors[0].done && v2.floors[1].done && v2.floors[2].current);
+  assert('rally: one report per player for a group fight', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${P2?.player?.id}' AND rounds->>'type'='HORDE' AND rounds->>'rally'='true'`)) >= 2);
   const goldBefore = Number(sql(`SELECT gold FROM "Player" WHERE id='${P1?.player?.id}'`)), apBefore2 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`));
-  sql(`UPDATE "Army" SET status='IDLE', "arrivalAt"=NULL, "missionType"=NULL, "targetResourceId"=NULL, x=(SELECT x FROM "City" WHERE id='${cityP1}'), y=(SELECT y FROM "City" WHERE id='${cityP1}') WHERE id='${big}'`);
-  await call('invasion: attack the chief', 'POST', `/api/army/${big}/raid-resource`, P1?.token, { resourceNodeId: hNode });
-  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${big}'`);
+  homeAgain(big, cityP1);
+  const rChief = await call('rally: launch against the chief', 'POST', '/api/rallies', P1?.token, { armyId: big, nodeId: hNode, waitMinutes: 60 });
+  await call('rally: depart against the chief', 'POST', `/api/rallies/${rChief?.rally?.id}/launch`, P1?.token);
+  toDungeon(rChief?.rally?.id);
   await waitTick('dungeon destroyed', () => sql(`SELECT ("destroyedAt" IS NOT NULL)::text FROM "Horde" WHERE "nodeId"='${hNode}'`) === 'true');
   assert('invasion: the dungeon left the map', sql(`SELECT count(*) FROM "ResourceNode" WHERE id='${hNode}'`) === '0');
   assert('invasion: the treasure is shared by damage (gold, alliance points)', Number(sql(`SELECT gold FROM "Player" WHERE id='${P1?.player?.id}'`)) > goldBefore && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${P2?.player?.id}'`)) >= apBefore2);
@@ -1693,7 +1741,7 @@ if (MAIL_LOG) {
   assert('invasion: no dungeon left on the map', sql(`SELECT count(*) FROM "ResourceNode" WHERE "resourceType"='HORDE'`) === '0');
   const st3 = await call('invasion: state after', 'GET', '/api/invasion', P1?.token);
   assert('invasion: over, its results still readable', st3?.active === false && st3?.invasion?.endedAt && st3.invasion.destroyed >= 1);
-  sql(`DELETE FROM "Army" WHERE id IN ('${big}','${weak}','${soloArmy}')`);
+  sql(`DELETE FROM "Army" WHERE id IN ('${big}','${weak}','${help}','${soloArmy}')`);
   sql(`DELETE FROM "Alliance" WHERE id='${al}'`);
   sql(`UPDATE "Account" SET role='PLAYER' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Boss?.player?.id}')`);
 }

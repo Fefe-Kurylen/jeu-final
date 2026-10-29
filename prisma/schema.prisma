@@ -289,10 +289,11 @@ model Army {
   settlers            Int     @default(0) // colons embarqués pour fonder une ville (mission FOUND, statut FOUNDING)
   woundedCarry        Json    @default("[]") // blessés qui rentrent avec l'armée : [{ unitKey, count }], déposés à la Tente de soins au retour
 
-  owner Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
-  hero  Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
-  units ArmyUnit[]
+  owner   Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  city    City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  hero    Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
+  units   ArmyUnit[]
+  rallyId String? // rassemblement d'alliance (donjons d'invasion, décision du 29 octobre 2026)
 
   @@index([ownerId])
   @@index([ownerId, status])
@@ -301,6 +302,7 @@ model Army {
   @@index([targetCityId])
   @@index([targetResourceId])
   @@index([targetBastionId])
+  @@index([rallyId])
 }
 
 model ArmyUnit {
@@ -1055,4 +1057,26 @@ model HordeDamage {
 
   @@unique([hordeId, playerId])
   @@index([playerId])
+}
+
+// Rassemblement d'alliance contre un donjon d'invasion (façon Rise of Kingdoms, décision du 29 octobre 2026) : les armées
+// se réunissent dans la ville du lanceur, partent ensemble à la fin de l'attente et livrent un seul combat
+model Rally {
+  id           String    @id @default(uuid())
+  allianceId   String
+  leaderId     String // joueur qui lance
+  cityId       String // sa ville : le point de rassemblement
+  targetNodeId String // le donjon (ResourceNode « HORDE »)
+  targetX      Int
+  targetY      Int
+  waitMinutes  Int
+  capacity     Int // armées au plus (Place de rassemblement du lanceur), la sienne comprise
+  status       String    @default("GATHERING") // GATHERING, MARCHING, DONE, CANCELLED
+  launchAt     DateTime // fin de l'attente
+  arrivalAt    DateTime? // arrivée au donjon
+  result       Json?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, launchAt])
+  @@index([allianceId])
 }

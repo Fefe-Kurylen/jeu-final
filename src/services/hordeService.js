@@ -157,32 +157,26 @@ function pickItem(tier) {
   const pool = itemsData.filter(i => i.tier === tier);
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 }
-async function attackHorde(army, nodeId) {
+// Un rassemblement d'alliance (rallyService) livre un seul combat : toutes ses armées contre la garnison de l'étage.
+// Héros du lanceur en tête (comme le commandant d'un rassemblement de Rise of Kingdoms) ; chaque armée perd la même part
+// de ses soldats ; les dégâts reviennent à chacun selon la puissance qu'il a amenée. armyIds[0] = l'armée du lanceur.
+async function attackHordeGroup(armyIds, nodeId) {
   const out = await prisma.$transaction(async (tx) => {
     const node = await tx.$queryRaw`SELECT * FROM "ResourceNode" WHERE id = ${nodeId} FOR UPDATE`.then(r => r[0]);
     const horde = node ? await tx.horde.findUnique({ where: { nodeId } }) : null;
     if (!node || !horde || horde.destroyedAt) return { gone: true };
-    const member = await tx.allianceMember.findUnique({ where: { playerId: army.ownerId } });
-    if (!member) return { noAlliance: true, x: node.x, y: node.y };
-    const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: { include: { items: true } }, owner: true } });
-    if (!fresh || !fresh.units.length) return { gone: true };
+    const armies = (await tx.army.findMany({ where: { id: { in: armyIds } }, include: { units: true, hero: { include: { items: true } }, owner: { include: { alliance: true } } } }))
+      .filter(a => a.units.some(u => u.count > 0) && a.owner?.alliance)
+      .sort((a, b) => armyIds.indexOf(a.id) - armyIds.indexOf(b.id));
+    if (!armies.length) return { gone: true, noArmy: true };
+    const lead = armies[0];
     const defenders = Object.entries(node.defenderUnits || {}).filter(([, n]) => n > 0).map(([unitKey, count]) => ({ unitKey, count, tier: tierOf(unitKey) }));
-    const techRows = await tx.playerTechnology.findMany({ where: { playerId: army.ownerId } });
-    const combat = resolveCombat(fresh.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenders, 0, heroCombatStats(fresh.hero), null, { attackerBonusPct: techPct(techRows, 'attackBonusPct'), winnerLossMultiplier: config.combat.tribeLossMultiplier });
-    // pertes de l'armée, blessés rapportés comme après un camp
-    let lost = 0; const killedOwn = [];
-    for (const u of fresh.units) {
-      const l = Math.floor(u.count * combat.attackerLossRate);
-      if (l <= 0) continue;
-      lost += l; killedOwn.push({ key: u.unitKey, killed: l });
-      if (l >= u.count) await tx.armyUnit.delete({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
-    }
-    if (lost > 0 && fresh.cityId) {
-      try {
-        const wounded = await calculateWoundedUnits(fresh.cityId, killedOwn, fresh.owner?.faction, techPct(techRows, 'woundedBonusPct') + require('../utils/heroEffects').talent(fresh.hero, 'woundedPct'));
-        if (wounded.length) await carryWounded(tx, fresh.id, wounded);
-      } catch (e) { console.error('[WOUNDED]', e.message); }
-    }
+    const leadTech = await tx.playerTechnology.findMany({ where: { playerId: lead.ownerId } });
+    const allUnits = armies.flatMap(a => a.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
+    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead.hero), null, { attackerBonusPct: techPct(leadTech, 'attackBonusPct'), winnerLossMultiplier: config.combat.tribeLossMultiplier });
+    // part de chaque armée : la puissance qu'elle amène
+    const powers = armies.map(a => calculateArmyPower(a.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), unitsData) || 1);
+    const totalPower = powers.reduce((t, p) => t + p, 0) || 1;
     // la garnison s'use : étage vaincu si l'attaque l'emporte, sinon ses pertes restent
     const killedHorde = [];
     const remaining = {};
@@ -193,10 +187,37 @@ async function attackHorde(army, nodeId) {
     }
     const RK = require('./rankingService');
     const points = RK.pointsOf(killedHorde);
-    await RK.recordCombat(tx, { attackers: [{ playerId: army.ownerId, units: fresh.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedHorde });
-    await tx.hordeDamage.upsert({ where: { hordeId_playerId: { hordeId: horde.id, playerId: army.ownerId } }, update: { points: { increment: points }, attacks: { increment: 1 }, allianceId: member.allianceId }, create: { hordeId: horde.id, playerId: army.ownerId, allianceId: member.allianceId, points, attacks: 1 } });
-    if (fresh.heroId && killedHorde.length) await awardHeroXp(fresh.heroId, Math.floor(killedHorde.reduce((t, k) => t + k.killed, 0) * config.combat.heroXpPerTribeKill), tx);
+    const kills = killedHorde.reduce((t, k) => t + k.killed, 0);
     const floorName = I.floors[horde.floor - 1];
+    const perArmy = [];
+    for (const [i, a] of armies.entries()) {
+      const share = powers[i] / totalPower;
+      let lost = 0; const killedOwn = [];
+      for (const u of a.units) {
+        const l = Math.floor(u.count * combat.attackerLossRate);
+        if (l <= 0) continue;
+        lost += l; killedOwn.push({ key: u.unitKey, killed: l });
+        if (l >= u.count) await tx.armyUnit.delete({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
+      }
+      const techRows = i === 0 ? leadTech : await tx.playerTechnology.findMany({ where: { playerId: a.ownerId } });
+      if (lost > 0 && a.cityId) {
+        try {
+          const wounded = await calculateWoundedUnits(a.cityId, killedOwn, a.owner?.faction, techPct(techRows, 'woundedBonusPct') + require('../utils/heroEffects').talent(a.hero, 'woundedPct'));
+          if (wounded.length) await carryWounded(tx, a.id, wounded);
+        } catch (e) { console.error('[WOUNDED]', e.message); }
+      }
+      const myPoints = Math.round(points * share);
+      await RK.recordCombat(tx, { attackers: [{ playerId: a.ownerId, units: a.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedHorde.map(k => ({ key: k.key, killed: Math.round(k.killed * share) })) });
+      await tx.hordeDamage.upsert({ where: { hordeId_playerId: { hordeId: horde.id, playerId: a.ownerId } }, update: { points: { increment: myPoints }, attacks: { increment: 1 }, allianceId: a.owner.alliance.allianceId }, create: { hordeId: horde.id, playerId: a.ownerId, allianceId: a.owner.alliance.allianceId, points: myPoints, attacks: 1 } });
+      if (a.heroId && kills) await awardHeroXp(a.heroId, Math.floor(kills * share * config.combat.heroXpPerTribeKill), tx);
+      const report = await tx.battleReport.create({ data: {
+        playerId: a.ownerId, attackerId: a.ownerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
+        attackerUnits: a.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenders,
+        attackerLosses: { totalAttackerLosses: lost, totalKilled: lost, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses: kills, totalKilled: kills, rate: combat.attackerWon ? 1 : combat.defenderLossRate },
+        loot: { attackerName: armies.length > 1 ? `Rassemblement de ${lead.owner?.name} (${armies.length} armées)` : a.owner?.name, defenderName: `Horde barbare · ${floorName}`, cityName: `Donjon barbare niv. ${horde.level} (${node.x}, ${node.y})`, type: 'HORDE', points: myPoints, rallyArmies: armies.length },
+        rounds: { type: 'HORDE', level: horde.level, floor: horde.floor, floorName, rally: armies.length > 1 } } });
+      perArmy.push({ armyId: a.id, ownerId: a.ownerId, name: a.name, lost, points: myPoints, reportId: report.id });
+    }
     let destroyed = false, nextFloor = horde.floor;
     if (combat.attackerWon) {
       if (horde.floor >= I.floors.length) destroyed = true;
@@ -209,17 +230,15 @@ async function attackHorde(army, nodeId) {
     } else {
       await tx.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: remaining, defenderPower: powerOf(remaining) } });
     }
-    const report = await tx.battleReport.create({ data: {
-      playerId: army.ownerId, attackerId: army.ownerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
-      attackerUnits: fresh.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenders,
-      attackerLosses: { totalAttackerLosses: lost, totalKilled: lost, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses: killedHorde.reduce((t, k) => t + k.killed, 0), totalKilled: killedHorde.reduce((t, k) => t + k.killed, 0), rate: combat.attackerWon ? 1 : combat.defenderLossRate },
-      loot: { attackerName: fresh.owner?.name, defenderName: `Horde barbare · ${floorName}`, cityName: `Donjon barbare niv. ${horde.level} (${node.x}, ${node.y})`, type: 'HORDE', points },
-      rounds: { type: 'HORDE', level: horde.level, floor: horde.floor, floorName } } });
     let treasure = null;
-    if (destroyed) treasure = await destroyHorde(tx, horde, node, army.ownerId, fresh.heroId);
-    return { won: combat.attackerWon, lost, points, floor: horde.floor, floorName, nextFloor, destroyed, treasure, level: horde.level, x: node.x, y: node.y, reportId: report.id, allianceId: member.allianceId };
+    if (destroyed) treasure = await destroyHorde(tx, horde, node, lead.ownerId, lead.heroId);   // le dernier coup : le lanceur
+    return { won: combat.attackerWon, points, floor: horde.floor, floorName, nextFloor, destroyed, treasure, level: horde.level, x: node.x, y: node.y, armies: perArmy, lost: perArmy.reduce((t, p) => t + p.lost, 0), reportId: perArmy[0]?.reportId };
   }, TX);
   return out;
+}
+// une armée seule (ancien chemin) : un rassemblement d'une armée
+async function attackHorde(army, nodeId) {
+  return attackHordeGroup([army.id], nodeId);
 }
 
 // Donjon détruit : trésor partagé selon les dégâts, objet rare au dernier coup, points d'alliance ; le point disparaît
@@ -253,13 +272,15 @@ async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
 // Prévient les participants après la transaction
 function announceOutcome(army, r) {
   if (r.destroyed && r.treasure) {
-    for (const s of r.treasure.shares) {
-      const pct = Math.round(s.share * 100);
-      notify(s.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${s.gain.wood.toLocaleString('fr-FR')} de chaque ressource dans votre capitale (dans la limite des entrepôts), ${s.gold} or, ${s.alliancePoints} points d'alliance.${s.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
+    for (const sh of r.treasure.shares) {
+      const pct = Math.round(sh.share * 100);
+      notify(sh.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${sh.gain.wood.toLocaleString('fr-FR')} de chaque ressource dans votre capitale (dans la limite des entrepôts), ${sh.gold} or, ${sh.alliancePoints} points d'alliance.${sh.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
     }
     return;
   }
-  notify(army.ownerId, 'battle', r.won ? `⚔️ ${r.floorName} vaincu` : '⚔️ Donjon : attaque repoussée', r.won ? `${army.name} a vaincu l'étage « ${r.floorName} » du donjon (${r.x}, ${r.y}) : place à l'étage suivant.` : `${army.name} a été repoussée par l'étage « ${r.floorName} » (${r.lost} pertes) mais la garnison s'use : ${r.points} points de dégâts pour vous.`, { to: 'report', reportId: r.reportId, x: r.x, y: r.y });
+  for (const p of r.armies || []) {
+    notify(p.ownerId, 'battle', r.won ? `⚔️ ${r.floorName} vaincu` : '⚔️ Donjon : rassemblement repoussé', r.won ? `Le rassemblement a vaincu l'étage « ${r.floorName} » du donjon (${r.x}, ${r.y}) : place à l'étage suivant. Vos dégâts : ${p.points} points.` : `Le rassemblement a été repoussé par l'étage « ${r.floorName} » (${p.lost} pertes pour ${p.name}) mais la garnison s'use : ${p.points} points de dégâts pour vous.`, { to: 'report', reportId: p.reportId, x: r.x, y: r.y });
+  }
 }
 
 // ---- lecture ----
@@ -298,4 +319,4 @@ async function hordeView(nodeId, playerId) {
   };
 }
 
-module.exports = { weekendWindow, nextWindowStart, parisParts, parisToUtc, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
+module.exports = { attackHordeGroup, weekendWindow, nextWindowStart, parisParts, parisToUtc, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
