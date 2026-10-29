@@ -14,7 +14,7 @@ test('noms réservés à l\'équipe refusés', () => {
   for (const n of ['Admin', 'AdminRome', 'Modo', 'Le_Moderateur', 'Support', 'Immortels', 'GM']) assert.match(nameProblem(n) || '', /réservé/, n);
 });
 test('noms ordinaires acceptés', () => {
-  for (const n of ['Hadrien', 'Cesar_92', 'Computer', 'Scunthorpe', 'Dickens', 'Badminton', 'Classe', 'Analyse', 'Sexton', 'Essex', 'Assassin', 'Kiss', 'Bastien', 'Nazareth', 'Anastasia', 'Cockpit', 'Cocktail', 'Gmail', 'Team_Rome', 'SPQR', 'Les Légions de Rome']) {
+  for (const n of ['Hadrien', 'Cesar_92', 'Computer', 'Scunthorpe', 'Dickens', 'Badminton', 'Classe', 'Analyse', 'Sexton', 'Essex', 'Assassin', 'Kiss', 'Bastien', 'Nazareth', 'Anastasia', 'Cockpit', 'Cocktail', 'Gmail', 'Team_Rome', 'SPQR', 'Les Légions de Rome', 'Arbiter', 'Habitant', 'Rabiteau']) {
     assert.equal(nameProblem(n), null, n);
   }
 });

@@ -69,11 +69,16 @@ async function loadAlliance() {
             <div id="alliance-sub-bastion" class="alliance-sub-section" style="display:${showSub('bastion')}">
               <div class="alliance-section" id="alliance-bastion-box"><p class="empty-state">Chargement…</p></div>
             </div>
+
+            <div id="alliance-sub-rallies" class="alliance-sub-section" style="display:${showSub('rallies')}">
+              <div class="alliance-section" id="alliance-rallies-box"><p class="empty-state">Chargement…</p></div>
+            </div>
           </div>
         `;
       if (typeof loadAllianceHelp === 'function') loadAllianceHelp();
       if (typeof loadAllianceShop === 'function') loadAllianceShop();
       if (typeof renderBastionSection === 'function') renderBastionSection(document.getElementById('alliance-bastion-box'));
+      if (typeof renderAllianceRallies === 'function') renderAllianceRallies(document.getElementById('alliance-rallies-box'));   // rassemblements d'alliance (09l-rally.js)
       return;
     }
 

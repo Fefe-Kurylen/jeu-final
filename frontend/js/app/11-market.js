@@ -449,6 +449,7 @@ function showAllianceTab(subTab) {
   const section = document.getElementById(`alliance-sub-${subTab}`);
   if (section) section.style.display = 'block';
   if (section && subTab === 'bastion' && typeof renderBastionSection === 'function') renderBastionSection(document.getElementById('alliance-bastion-box'));
+  if (section && subTab === 'rallies' && typeof renderAllianceRallies === 'function') renderAllianceRallies(document.getElementById('alliance-rallies-box'));
 
   // If sections don't exist yet, load fresh
   if (!section) loadAlliance();

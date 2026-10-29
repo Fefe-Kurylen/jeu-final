@@ -56,16 +56,17 @@ async function renderHordeNodePanel(tile, content) {
   const garrison = Object.entries(d.garrison || {}).filter(([, n]) => n > 0).map(([k, n]) => `<span class="unit-chip">${unitIconHtml(k, 'unit-ico-sm')} ${escapeHtml(getUnitName(k))} ×${formatNum(n)}</span>`).join(' ');
   const contrib = d.contributors.length ? `<ol class="horde-contrib">${d.contributors.map(c => `<li class="${c.me ? 'me' : ''}">${c.tag ? `[${escapeHtml(c.tag)}] ` : ''}${escapeHtml(c.name)} <small>${formatNum(c.points)} pts · ${Math.round(c.share * 100)} % · ${c.attacks} attaque${c.attacks > 1 ? 's' : ''}</small></li>`).join('')}</ol>` : '<p class="diplo-help">Personne n\'a encore attaqué ce donjon.</p>';
   content.innerHTML = `
-    <h3>${resIconHtml('skull')} Donjon barbare · niveau ${d.level}</h3>
+    <h3 data-horde-node="${id}">${resIconHtml('skull')} Donjon barbare · niveau ${d.level}</h3>
     <p>Position : (${d.x}, ${d.y})${d.endsAt && !d.destroyed ? ` · repart <span class="qd-timer" data-ends-at="${d.endsAt}">${formatTime(d.endsAt)}</span>` : ''}</p>
     ${d.destroyed ? '<p class="bastion-fallen">Donjon détruit : le trésor a été partagé.</p>' : ''}
     <div class="horde-floors">${floors}</div>
     ${!d.destroyed && garrison ? `<p><small>Garnison de l'étage :</small><br>${garrison}</p>` : ''}
-    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource, ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; une attaque repoussée use quand même la garnison.</p>
+    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource, ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
+    ${d.inAlliance && !d.destroyed && typeof hordeRalliesHtml === 'function' ? await hordeRalliesHtml(d.nodeId) : ''}
     <h4>${resIconHtml('ranking')} Dégâts</h4>${contrib}
     ${d.inAlliance && d.myAlliancePoints ? `<p><small>Votre alliance : ${formatNum(d.myAlliancePoints)} points sur ${formatNum(d.totalPoints)}</small></p>` : ''}
     <div class="panel-actions">
-      ${d.destroyed ? '' : d.inAlliance ? `<button class="btn btn-danger" onclick="raidResource('${id}', ${d.x}, ${d.y})" ${hasArmy ? '' : 'disabled title="Aucune armée disponible"'}>${resIconHtml('attack')} Attaquer l'étage ${d.floor}</button>` : '<p class="diplo-help">Rejoignez une alliance pour attaquer les donjons.</p>'}
+      ${d.destroyed ? '' : d.inAlliance ? `<button class="btn btn-danger" onclick="openRallyLaunch('${id}', ${d.x}, ${d.y}, ${d.level})" ${hasArmy ? '' : 'disabled title="Aucune armée disponible"'}>${resIconHtml('rally')} Lancer un rassemblement</button>` : '<p class="diplo-help">Rejoignez une alliance pour attaquer les donjons.</p>'}
       ${typeof openSpyMission === 'function' && !d.destroyed ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${id}', label: 'le donjon (${d.x}, ${d.y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
       ${typeof mapShareButton === 'function' ? mapShareButton(d.x, d.y) : ''}
     </div>`;

@@ -276,10 +276,17 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   1, 586 000 au niveau 5 ; chef : 2,3 millions au niveau 5). La **garnison de l'étage ne se reconstitue pas** : une
   attaque repoussée lui retire quand même des soldats ; un étage vaincu laisse place au suivant ; le dernier vaincu
   **détruit le donjon**.
-- **Seuls les joueurs en alliance** attaquent un donjon (attaque comme sur un camp, toujours à l'arrivée de l'armée,
-  qui rentre ensuite chez elle) ; plusieurs alliances peuvent attaquer le même donjon. Chaque attaque compte les
-  **dégâts** du joueur (points de combat : entretien des barbares tués), aussi comptés au classement d'attaque ; pertes
-  divisées comme contre un camp, blessés rapportés, expérience du héros.
+- Un donjon ne s'attaque qu'en **rassemblement d'alliance**, façon Rise of Kingdoms (`src/services/rallyService.js`,
+  `frontend/js/app/09l-rally.js`) : un membre le lance depuis le panneau du donjon avec une de ses armées et choisit
+  l'attente (**5, 10, 30 ou 60 min**) ; l'alliance est prévenue. Les membres y envoient **une armée chacun**, qui marche
+  jusqu'à la ville du lanceur et doit y arriver avant le départ (sinon l'envoi est refusé). Capacité selon la **Place de
+  rassemblement** du lanceur : **3 armées au niveau 1, 15 au niveau 20**, la sienne comprise. Le lanceur peut **partir
+  plus tôt** ou **annuler** ; un membre peut retirer son armée. Au départ, les armées arrivées partent **ensemble, à la
+  vitesse de la plus lente** (celles encore en route rentrent) et livrent **un seul combat** : le héros du lanceur en
+  tête, chaque armée perd la même part de ses soldats, les **dégâts** reviennent à chacun **selon la puissance qu'il a
+  amenée** (points de combat : entretien des barbares tués, aussi comptés au classement d'attaque), un rapport par
+  joueur ; puis chacun rentre chez lui. Plusieurs alliances peuvent attaquer le même donjon. Les rassemblements de
+  l'alliance sont dans **Alliance › Rassemblements** et dans le panneau du donjon.
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
   capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,
