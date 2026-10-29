@@ -2912,7 +2912,7 @@ function showMapInfoPanel(x, y, tile) {
     panel.style.display = 'flex';
   } else if (tile.type === 'ARMY') {
     const mine = tile.ownerId === player?.id;
-    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route vers un donjon', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
     content.innerHTML = `
       <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>

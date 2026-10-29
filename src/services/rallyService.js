@@ -8,11 +8,15 @@
 //   plus lente ; celles encore en route rentrent. Au donjon : un seul combat (hordeService.attackHordeGroup), puis chaque
 //   armée rentre chez elle. Le lanceur peut annuler tant que le rassemblement n'est pas parti ; un membre peut retirer
 //   son armée.
-// Armées : RALLY_JOIN (en route vers le lanceur), RALLY_WAIT (arrivée, attend), RALLY_MARCH (en route vers le donjon).
+// - Aussi contre un Bastion ennemi (décision du 29 octobre 2026, jamais contre une ville) : il faut au moins un engin de
+//   siège dans le groupe au départ, sinon le rassemblement est annulé. Devant le Bastion, tout le groupe campe 1 h comme
+//   un siège normal, puis un seul assaut mené par le héros du lanceur (bastionService.handleBastionBattle).
+// Armées : RALLY_JOIN (en route vers le lanceur), RALLY_WAIT (arrivée, attend), RALLY_MARCH (en route vers la cible).
 // ============================================================
 const prisma = require('../config/database');
 const { unitsData } = require('../config/gamedata');
-const { getArmyTravelTime, calculateArmyPower } = require('../utils/calculations');
+const { getArmyTravelTime, calculateArmyPower, countSiegeEngines } = require('../utils/calculations');
+const config = require('../config');
 const { routeLength } = require('../utils/pathfinding');
 const { techPct } = require('../utils/techEffects');
 const { notify } = require('./pushService');
@@ -43,20 +47,36 @@ async function freeArmy(armyId, playerId) {
 }
 
 // ---- lancer ----
-async function launch(playerId, { armyId, nodeId, waitMinutes }) {
+// la cible : un donjon d'invasion ou un Bastion ennemi
+async function bastionTarget(allianceId, bastionId) {
+  const b = await prisma.bastion.findUnique({ where: { id: String(bastionId) }, include: { alliance: { select: { tag: true } } } });
+  if (!b || b.status === 'DESTROYED') throw err(404, 'Bastion introuvable');
+  if (!['BUILDING', 'ACTIVE'].includes(b.status)) throw err(400, 'Ce Bastion n\'est encore qu\'un chantier sans murs : rien à assiéger');
+  const rel = await require('./bastionService').relationTo(allianceId, b.allianceId);
+  if (rel === 'SAME' || rel === 'ALLY') throw err(400, 'Impossible d\'attaquer le Bastion de votre alliance ou d\'une alliance alliée');
+  return { bastionId: b.id, x: b.x, y: b.y, label: `le Bastion [${b.alliance.tag}]`, ownerAllianceId: b.allianceId, tag: b.alliance.tag };
+}
+const targetLabel = (rally) => (rally.targetBastionId ? 'le Bastion' : 'le donjon');
+
+async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const wait = Number(waitMinutes);
   if (!WAITS.includes(wait)) throw err(400, 'Attente : 5, 10, 30 ou 60 minutes');
   const member = await prisma.allianceMember.findUnique({ where: { playerId } });
   if (!member) throw err(403, 'Seuls les joueurs en alliance peuvent lancer un rassemblement');
-  const node = await prisma.resourceNode.findUnique({ where: { id: String(nodeId) } });
-  const horde = node ? await prisma.horde.findUnique({ where: { nodeId: node.id } }) : null;
-  if (!node || node.resourceType !== 'HORDE' || !horde || horde.destroyedAt) throw err(404, 'Donjon introuvable (détruit ou reparti)');
+  let target;
+  if (bastionId) target = await bastionTarget(member.allianceId, bastionId);
+  else {
+    const node = await prisma.resourceNode.findUnique({ where: { id: String(nodeId) } });
+    const horde = node ? await prisma.horde.findUnique({ where: { nodeId: node.id } }) : null;
+    if (!node || node.resourceType !== 'HORDE' || !horde || horde.destroyedAt) throw err(404, 'Donjon introuvable (détruit ou reparti)');
+    target = { nodeId: node.id, x: node.x, y: node.y, label: `le donjon de niveau ${horde.level}` };
+  }
   const army = await freeArmy(armyId, playerId);
   const rp = await prisma.cityBuilding.findFirst({ where: { cityId: army.cityId, key: 'RALLY_POINT' }, orderBy: { level: 'desc' }, select: { level: true } });
   const capacity = capacityFor(rp?.level || 1);
   const launchAt = new Date(Date.now() + wait * 60000);
   const rally = await prisma.$transaction(async (tx) => {
-    const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: node.id, targetX: node.x, targetY: node.y, waitMinutes: wait, capacity, launchAt } });
+    const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });
     const ok = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE' }, data: { status: 'RALLY_WAIT', rallyId: r.id, missionType: 'RALLY', targetX: army.city.x, targetY: army.city.y, arrivalAt: null } });
     if (ok.count !== 1) throw err(409, 'Armée déjà en mission');
     return r;
@@ -64,8 +84,8 @@ async function launch(playerId, { armyId, nodeId, waitMinutes }) {
   // les membres de l'alliance sont prévenus
   const members = await prisma.allianceMember.findMany({ where: { allianceId: member.allianceId, playerId: { not: playerId } }, select: { playerId: true } });
   const leader = army.owner?.name || 'Un membre';
-  for (const m of members) notify(m.playerId, 'rally', '⚔️ Rassemblement d\'alliance', `${leader} rassemble l'alliance contre le donjon de niveau ${horde.level} en (${node.x}, ${node.y}) : départ dans ${wait} min depuis sa ville. Envoyez une armée !`, { to: 'alliance', sub: 'rallies' });
-  return { message: `Rassemblement lancé : départ dans ${wait} min (${capacity} armées au plus)`, rally };
+  for (const m of members) notify(m.playerId, 'rally', '⚔️ Rassemblement d\'alliance', `${leader} rassemble l'alliance contre ${target.label} en (${target.x}, ${target.y}) : départ dans ${wait} min depuis sa ville. Envoyez une armée !${target.bastionId ? ' Il faut au moins un engin de siège dans le groupe.' : ''}`, { to: 'alliance', sub: 'rallies' });
+  return { message: `Rassemblement lancé : départ dans ${wait} min (${capacity} armées au plus)${target.bastionId ? ' — au moins un engin de siège dans le groupe' : ''}`, rally };
 }
 
 // ---- rejoindre ----
@@ -130,7 +150,7 @@ async function cancel(playerId, rallyId, reason = null) {
   const armies = await prisma.army.findMany({ where: { rallyId: rally.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT'] } }, include: ARMY_INCLUDE });
   for (const a of armies) {
     await sendBack(a, leaderCity);
-    if (a.ownerId !== rally.leaderId) notify(a.ownerId, 'rally', '⚔️ Rassemblement annulé', `Le rassemblement contre le donjon (${rally.targetX}, ${rally.targetY}) est annulé${reason ? ` : ${reason}` : ''}. Votre armée rentre.`, { to: 'army', armyId: a.id });
+    if (a.ownerId !== rally.leaderId) notify(a.ownerId, 'rally', '⚔️ Rassemblement annulé', `Le rassemblement contre ${targetLabel(rally)} (${rally.targetX}, ${rally.targetY}) est annulé${reason ? ` : ${reason}` : ''}. Votre armée rentre.`, { to: 'army', armyId: a.id });
   }
   return { message: 'Rassemblement annulé : les armées rentrent' };
 }
@@ -139,14 +159,24 @@ async function launchNow(playerId, rallyId) {
   if (!rally || rally.status !== 'GATHERING') throw err(400, 'Ce rassemblement est déjà parti ou annulé');
   if (rally.leaderId !== playerId) throw err(403, 'Seul le lanceur fait partir le rassemblement');
   const r = await depart(rally, new Date());
-  if (!r) throw err(409, 'Ce rassemblement vient de partir');
+  if (!r) {
+    const after = await prisma.rally.findUnique({ where: { id: rally.id }, select: { status: true, result: true } });
+    if (after?.status === 'CANCELLED') throw err(400, `Rassemblement annulé : ${after.result?.reason || 'aucune armée au départ'}`);
+    throw err(409, 'Ce rassemblement vient de partir');
+  }
   return { message: `Le rassemblement part : ${r.armies} armée${r.armies > 1 ? 's' : ''}, arrivée dans ${Math.ceil(r.seconds / 60)} min` };
 }
 
 // ---- départ : les armées arrivées partent ensemble, à la vitesse de la plus lente ----
 async function depart(rally, now = new Date()) {
-  const node = await prisma.resourceNode.findUnique({ where: { id: rally.targetNodeId } });
-  if (!node) { await cancel(null, rally.id, 'le donjon est tombé ou reparti').catch(() => {}); return null; }
+  let node, bastion = null;
+  if (rally.targetBastionId) {
+    try { bastion = await bastionTarget(rally.allianceId, rally.targetBastionId); } catch (e) { await cancel(null, rally.id, e.message).catch(() => {}); return null; }
+    node = { x: bastion.x, y: bastion.y };
+  } else {
+    node = rally.targetNodeId ? await prisma.resourceNode.findUnique({ where: { id: rally.targetNodeId } }) : null;
+    if (!node) { await cancel(null, rally.id, 'le donjon est tombé ou reparti').catch(() => {}); return null; }
+  }
   const claimed = await prisma.rally.updateMany({ where: { id: rally.id, status: 'GATHERING' }, data: { status: 'MARCHING' } });
   if (!claimed.count) return null;
   const leaderCity = await prisma.city.findUnique({ where: { id: rally.cityId } });
@@ -160,12 +190,26 @@ async function depart(rally, now = new Date()) {
     await prisma.rally.update({ where: { id: rally.id }, data: { status: 'CANCELLED', result: { reason: 'aucune armée au départ' } } });
     return null;
   }
+  // Bastion : pas de siège sans au moins un engin dans le groupe
+  if (bastion && ready.reduce((t, a) => t + countSiegeEngines(a.units, unitsData), 0) < config.combat.siege.minEngines) {
+    await prisma.rally.update({ where: { id: rally.id }, data: { status: 'CANCELLED', result: { reason: 'aucun engin de siège' } } });
+    for (const a of ready) {
+      await sendBack(a, leaderCity);
+      notify(a.ownerId, 'rally', '⚔️ Rassemblement annulé', `Pas d'engin de siège dans le rassemblement contre ${bastion.label} : il est annulé, votre armée rentre.`, { to: 'army', armyId: a.id });
+    }
+    return null;
+  }
   let seconds = 0;
   for (const a of ready) seconds = Math.max(seconds, await travelSeconds(a, leaderCity.x, leaderCity.y, node.x, node.y));
   const arrivalAt = new Date(now.getTime() + seconds * 1000);
-  await prisma.army.updateMany({ where: { id: { in: ready.map(a => a.id) } }, data: { status: 'RALLY_MARCH', x: leaderCity.x, y: leaderCity.y, targetX: node.x, targetY: node.y, departedAt: now, arrivalAt } });
+  await prisma.army.updateMany({ where: { id: { in: ready.map(a => a.id) } }, data: { status: 'RALLY_MARCH', x: leaderCity.x, y: leaderCity.y, targetX: node.x, targetY: node.y, targetBastionId: bastion ? bastion.bastionId : null, departedAt: now, arrivalAt } });
   await prisma.rally.update({ where: { id: rally.id }, data: { arrivalAt, launchAt: now } });
-  for (const a of ready) notify(a.ownerId, 'rally', '⚔️ Le rassemblement part', `${ready.length} armée${ready.length > 1 ? 's' : ''} en route vers le donjon (${node.x}, ${node.y}) : arrivée dans ${Math.ceil(seconds / 60)} min.`, { to: 'map', x: node.x, y: node.y });
+  for (const a of ready) notify(a.ownerId, 'rally', '⚔️ Le rassemblement part', `${ready.length} armée${ready.length > 1 ? 's' : ''} en route vers ${bastion ? bastion.label : 'le donjon'} (${node.x}, ${node.y}) : arrivée dans ${Math.ceil(seconds / 60)} min.`, { to: 'map', x: node.x, y: node.y });
+  if (bastion) {   // l'alliance du Bastion est prévenue, comme pour une armée seule
+    const leaderName = ready.find(a => a.ownerId === rally.leaderId)?.owner?.name || ready[0].owner?.name || 'Une alliance';
+    const members = await prisma.allianceMember.findMany({ where: { allianceId: bastion.ownerAllianceId }, select: { playerId: true } });
+    for (const mm of members) notify(mm.playerId, 'attack_incoming', '⚔️ Bastion menacé', `Le rassemblement de ${leaderName} (${ready.length} armée${ready.length > 1 ? 's' : ''}) marche sur le Bastion de l'alliance (arrivée dans ${Math.max(1, Math.ceil(seconds / 60))} min).`, { to: 'map', x: node.x, y: node.y });
+  }
   return { armies: ready.length, seconds };
 }
 
@@ -174,6 +218,7 @@ async function fight(rally) {
   const claimed = await prisma.rally.updateMany({ where: { id: rally.id, status: 'MARCHING' }, data: { status: 'DONE' } });
   if (!claimed.count) return null;
   const armies = await prisma.army.findMany({ where: { rallyId: rally.id, status: 'RALLY_MARCH' }, include: ARMY_INCLUDE });
+  if (rally.targetBastionId) return campAtBastion(rally, armies);
   const ids = [...armies.filter(a => a.ownerId === rally.leaderId), ...armies.filter(a => a.ownerId !== rally.leaderId)].map(a => a.id);
   const H = require('./hordeService');
   let r = { gone: true };
@@ -187,6 +232,39 @@ async function fight(rally) {
   if (r.gone) for (const a of armies) notify(a.ownerId, 'rally', '⚔️ Donjon disparu', `Le donjon (${rally.targetX}, ${rally.targetY}) était déjà tombé ou reparti : votre armée rentre.`, { to: 'army', armyId: a.id });
   else H.announceOutcome(null, r);
   return r;
+}
+
+// ---- arrivée devant un Bastion : tout le groupe campe 1 h, puis un seul assaut (bastionService.handleBastionBattle) ----
+// L'armée du lanceur finit de camper la première (1 ms plus tôt) : c'est elle qui mène l'assaut, avec son héros, et
+// elle entraîne les autres armées du camp de son alliance.
+async function campAtBastion(rally, armies) {
+  const { sendArmyHome } = require('../game/processors/armyProcessor');
+  const now = new Date();
+  let bastion = null;
+  try { bastion = await bastionTarget(rally.allianceId, rally.targetBastionId); } catch (e) { bastion = null; }
+  if (!bastion) {
+    for (const a of armies) {
+      await prisma.army.update({ where: { id: a.id }, data: { x: rally.targetX, y: rally.targetY, rallyId: null, targetBastionId: null } });
+      await sendArmyHome(a, rally.targetX, rally.targetY, { rallyId: null, targetBastionId: null });
+      notify(a.ownerId, 'rally', '⚔️ Bastion hors d\'atteinte', `Le Bastion (${rally.targetX}, ${rally.targetY}) est tombé, inachevé ou devenu allié : votre armée rentre.`, { to: 'army', armyId: a.id });
+    }
+    await prisma.rally.update({ where: { id: rally.id }, data: { result: { gone: true } } });
+    return { gone: true };
+  }
+  const end = now.getTime() + config.combat.siege.campMinutes * 60000;
+  const ordered = [...armies.filter(a => a.ownerId === rally.leaderId), ...armies.filter(a => a.ownerId !== rally.leaderId)];
+  await prisma.$transaction(async (tx) => {
+    for (let i = 0; i < ordered.length; i++) {
+      await tx.army.update({ where: { id: ordered[i].id }, data: { status: 'BESIEGING', missionType: 'BASTION_ATTACK', x: bastion.x, y: bastion.y, targetX: bastion.x, targetY: bastion.y, targetBastionId: bastion.bastionId, rallyId: null, departedAt: now, arrivalAt: new Date(end + i), claimedAt: null } });
+    }
+    if (ordered.length) await tx.bastion.update({ where: { id: bastion.bastionId }, data: { isSieged: true } });
+  }, TX);
+  await prisma.rally.update({ where: { id: rally.id }, data: { result: { camp: true, armies: ordered.length, bastionId: bastion.bastionId } } });
+  const minutes = config.combat.siege.campMinutes;
+  for (const a of ordered) notify(a.ownerId, 'battle', '⛺ Camp du rassemblement', `${ordered.length} armée${ordered.length > 1 ? 's' : ''} campe${ordered.length > 1 ? 'nt' : ''} devant ${bastion.label} : assaut dans ${minutes} min.`, { to: 'map', x: bastion.x, y: bastion.y });
+  const members = await prisma.allianceMember.findMany({ where: { allianceId: bastion.ownerAllianceId }, select: { playerId: true } });
+  for (const mm of members) notify(mm.playerId, 'attack_incoming', '🏰 Bastion assiégé', `Un rassemblement de ${ordered.length} armée${ordered.length > 1 ? 's' : ''} campe devant le Bastion : assaut dans ${minutes} min. Brisez le siège avant.`, { to: 'map', x: bastion.x, y: bastion.y });
+  return { camp: true, armies: ordered.length };
 }
 
 // ---- tick ----
@@ -204,18 +282,19 @@ async function processRallies(now = new Date()) {
 }
 
 // ---- lecture ----
-async function listForPlayer(playerId, nodeId = null) {
+async function listForPlayer(playerId, nodeId = null, bastionId = null) {
   const member = await prisma.allianceMember.findUnique({ where: { playerId } });
   if (!member) return { rallies: [], inAlliance: false };
-  const where = { allianceId: member.allianceId, status: { in: ['GATHERING', 'MARCHING'] }, ...(nodeId ? { targetNodeId: String(nodeId) } : {}) };
+  const where = { allianceId: member.allianceId, status: { in: ['GATHERING', 'MARCHING'] }, ...(nodeId ? { targetNodeId: String(nodeId) } : {}), ...(bastionId ? { targetBastionId: String(bastionId) } : {}) };
   const rallies = await prisma.rally.findMany({ where, orderBy: { launchAt: 'asc' } });
   const out = [];
   for (const r of rallies) {
     const armies = await prisma.army.findMany({ where: { rallyId: r.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT', 'RALLY_MARCH'] } }, include: { units: true, owner: { select: { id: true, name: true } } } });
-    const horde = await prisma.horde.findUnique({ where: { nodeId: r.targetNodeId }, select: { level: true, floor: true } });
+    const horde = r.targetNodeId ? await prisma.horde.findUnique({ where: { nodeId: r.targetNodeId }, select: { level: true, floor: true } }) : null;
+    const bastion = r.targetBastionId ? await prisma.bastion.findUnique({ where: { id: r.targetBastionId }, select: { alliance: { select: { tag: true } } } }) : null;
     const leader = await prisma.player.findUnique({ where: { id: r.leaderId }, select: { name: true } });
     out.push({
-      id: r.id, status: r.status, leader: leader?.name || '?', mine: r.leaderId === playerId, targetNodeId: r.targetNodeId, x: r.targetX, y: r.targetY,
+      id: r.id, status: r.status, leader: leader?.name || '?', mine: r.leaderId === playerId, targetNodeId: r.targetNodeId, targetBastionId: r.targetBastionId, kind: r.targetBastionId ? 'BASTION' : 'HORDE', bastionTag: bastion?.alliance?.tag || null, x: r.targetX, y: r.targetY,
       level: horde?.level || null, floor: horde?.floor || null, launchAt: r.launchAt, arrivalAt: r.arrivalAt, capacity: r.capacity, waitMinutes: r.waitMinutes,
       joined: armies.some(a => a.ownerId === playerId),
       armies: armies.map(a => ({ id: a.id, owner: a.owner.name, mine: a.ownerId === playerId, status: a.status, arrivalAt: a.arrivalAt, units: unitCount(a.units), power: Math.round(calculateArmyPower(a.units, unitsData)) })),

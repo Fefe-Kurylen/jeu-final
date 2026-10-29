@@ -119,7 +119,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
         where: {
-          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING'] },
+          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH'] },   // RALLY_* : rassemblement (vu de son alliance, et de celle du Bastion visé)
           OR: [
             { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }

@@ -1067,7 +1067,8 @@ model Rally {
   allianceId   String
   leaderId     String // joueur qui lance
   cityId       String // sa ville : le point de rassemblement
-  targetNodeId String // le donjon (ResourceNode « HORDE »)
+  targetNodeId    String? // le donjon (ResourceNode « HORDE »)
+  targetBastionId String? // ou le Bastion ennemi (décision du 29 octobre 2026)
   targetX      Int
   targetY      Int
   waitMinutes  Int

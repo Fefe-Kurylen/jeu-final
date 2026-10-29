@@ -309,6 +309,11 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   amenée** (points de combat : entretien des barbares tués, aussi comptés au classement d'attaque), un rapport par
   joueur ; puis chacun rentre chez lui. Plusieurs alliances peuvent attaquer le même donjon. Les rassemblements de
   l'alliance sont dans **Alliance › Rassemblements** et dans le panneau du donjon.
+- **Rassemblement contre un Bastion ennemi** (décision du 29 octobre 2026 ; **jamais contre une ville**) : bouton
+  « Rassemblement » dans le panneau d'un Bastion ennemi sur la carte. Mêmes règles (attente, capacité, une armée par
+  joueur), mais il faut **au moins un engin de siège dans le groupe au départ**, sinon le rassemblement est annulé et
+  chacun rentre. Devant le Bastion, **tout le groupe campe 1 h** comme un siège normal (l'alliance du Bastion est prévenue
+  au départ et peut briser le siège), puis **un seul assaut** avec toutes les armées, mené par le **héros du lanceur**.
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
   capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,

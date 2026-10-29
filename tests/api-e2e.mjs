@@ -1402,6 +1402,23 @@ if (MAIL_LOG) {
   assert('bastion: the winner from outside stays before the Bastion', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`) === `IDLE:${spot?.x}:${spot?.y}` && sql(`SELECT status FROM "Army" WHERE id='${camp2}'`) !== 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`));
   sql(`DELETE FROM "Army" WHERE id IN ('${camp1}','${camp2}')`);
   refill(gar, 10);
+  // rassemblement d'alliance contre un Bastion ennemi (décision du 29 octobre 2026) : au moins un engin dans le groupe
+  await call('bastion rally: not against its own Bastion -> 400', 'POST', '/api/rallies', tA, { armyId: conv, bastionId: bId, waitMinutes: 5 }, 400);
+  const noEngine = mk(B.player.id, cityB.id, 'Pedites', [['HUN_INF_NOMADE', 'base', 50]]);
+  const r0 = await call('bastion rally: B launches one without an engine', 'POST', '/api/rallies', tB, { armyId: noEngine, bastionId: bId, waitMinutes: 5 });
+  await call('bastion rally: leaving without an engine -> 400', 'POST', `/api/rallies/${r0?.rally?.id}/launch`, tB, null, 400);
+  assert('bastion rally: no siege engine in the group, cancelled, the army stays home', sql(`SELECT status||':'||(result->>'reason') FROM "Rally" WHERE id='${r0?.rally?.id}'`) === 'CANCELLED:aucun engin de siège' && sql(`SELECT status FROM "Army" WHERE id='${noEngine}'`) === 'IDLE', sql(`SELECT status||':'||coalesce(result::text,'') FROM "Rally" WHERE id='${r0?.rally?.id}'`));
+  const agmen = mk(B.player.id, cityB.id, 'Agmen', [['HUN_SIEGE_SAPEUR', 'siege', 5], ['HUN_INF_NOMADE', 'base', 50]]);
+  const r1 = await call('bastion rally: B launches one with an engine', 'POST', '/api/rallies', tB, { armyId: agmen, bastionId: bId, waitMinutes: 5 });
+  const lB = await call('bastion rally: listed for B', 'GET', `/api/rallies?bastionId=${bId}`, tB);
+  assert('bastion rally: listed as a Bastion rally', lB?.rallies?.[0]?.kind === 'BASTION' && !!lB.rallies[0].bastionTag, JSON.stringify(lB?.rallies?.[0] || {}).slice(0, 160));
+  await call('bastion rally: B leaves now', 'POST', `/api/rallies/${r1?.rally?.id}/launch`, tB);
+  assert('bastion rally: marching on the Bastion', sql(`SELECT status||':'||"targetBastionId" FROM "Army" WHERE id='${agmen}'`) === `RALLY_MARCH:${bId}`);
+  sql(`UPDATE "Rally" SET "arrivalAt"=now()-interval '1 second' WHERE id='${r1?.rally?.id}'`);
+  await waitTick('bastion rally camps', () => sql(`SELECT status FROM "Army" WHERE id='${agmen}'`) === 'BESIEGING');
+  assert('bastion rally: the group camps 1 h before the Bastion, which is besieged', sql(`SELECT "missionType"||':'||round(extract(epoch FROM "arrivalAt"-now())/60)::int||':'||("rallyId" IS NULL) FROM "Army" WHERE id='${agmen}'`) === 'BASTION_ATTACK:60:true' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT "missionType"||':'||"arrivalAt" FROM "Army" WHERE id='${agmen}'`));
+  sql(`DELETE FROM "Army" WHERE id IN ('${noEngine}','${agmen}')`);
+  sql(`UPDATE "Bastion" SET "isSieged"=false WHERE id='${bId}'`);
   // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un
   sql(`UPDATE "Bastion" SET structure=0.1, "structureAt"=now(), "isSieged"=true WHERE id='${bId}'`);
   sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()-interval '1 second', "claimedAt"=NULL WHERE id='${siege}'`);

@@ -106,6 +106,9 @@ async function renderBastionMapPanel(tile, content) {
   if (mine && tile.status === 'FUNDING') actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'SUPPLY')">${resIconHtml('item_crate')} Ravitailler</button>`);
   if (friendly && tile.status !== 'FUNDING' && !tile.isSieged) actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'GARRISON')">${resIconHtml('defense')} Garnison</button>`);
   if (!friendly && tile.status !== 'FUNDING') actions.push(`<button class="btn btn-danger" onclick="closeMapPanel(); openBastionSend('${id}', 'ATTACK')">${resIconHtml('attack')} Assiéger</button>`);
+  // rassemblement d'alliance contre un Bastion ennemi (décision du 29 octobre 2026)
+  const inAlliance = !!(typeof player !== 'undefined' && player?.allianceId) || !!bastionState?.inAlliance;
+  if (!friendly && tile.status !== 'FUNDING' && inAlliance && typeof openRallyLaunch === 'function') actions.push(`<button class="btn btn-danger" onclick="closeMapPanel(); openRallyLaunch('${id}', ${tile.x}, ${tile.y}, '${escapeHtml(tile.allianceTag || '')}', 'BASTION')">${resIconHtml('rally')} Rassemblement</button>`);
   if (tile.isSieged && tile.status !== 'FUNDING') actions.push(`<button class="btn btn-danger" onclick="closeMapPanel(); openBastionSend('${id}', 'BREAK')">${resIconHtml('attack')} Briser le siège</button>`);
   if (mine) actions.push(`<button class="btn btn-secondary" onclick="closeMapPanel(); showTab('alliance'); showAllianceTab('bastion')">${resIconHtml('alliance')} Détails</button>`);
   content.innerHTML = `
@@ -113,8 +116,10 @@ async function renderBastionMapPanel(tile, content) {
     <p>Position : (${tile.x}, ${tile.y}) · ${typeof diploBadge === 'function' ? diploBadge(rel === 'SELF' ? 'SAME_ALLIANCE' : rel) : ''}</p>
     <p>${escapeHtml(tile.allianceName || '')} — ${bastionStatusLabel(tile.status)}</p>
     ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives} / 10${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
-    ${!friendly && tile.status !== 'FUNDING' ? '<p class="diplo-help">Il faut au moins un engin de siège. Camp d\'1 h, puis assaut contre la garnison derrière un mur 50 fois plus solide qu\'un mur 20 ; 10 assauts gagnés le rasent.</p>' : ''}
-    <div class="panel-actions">${actions.join('')}${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}</div>`;
+    ${!friendly && tile.status !== 'FUNDING' ? '<p class="diplo-help">Il faut au moins un engin de siège. Camp d\'1 h, puis assaut contre la garnison derrière un mur 50 fois plus solide qu\'un mur 20 ; 10 assauts gagnés le rasent. En rassemblement, toute votre alliance attaque ensemble.</p>' : ''}
+    <div class="panel-actions">${actions.join('')}${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}</div>
+    <div class="bastion-rallies"></div>`;
+  if (!friendly && typeof bastionRalliesHtml === 'function') { const box = content.querySelector('.bastion-rallies'); bastionRalliesHtml(tile.id).then(h => { if (box) box.innerHTML = h; }); }
 }
 
 // Choix de l'armée (et du chargement pour un convoi)
