@@ -262,6 +262,20 @@ Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foo
 - L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
   siège, alors qu'il les ignorait.
 
+## Défi d'alliance de la semaine (29 octobre 2026)
+
+GDD « Compétitions alliances » (`src/services/challengeService.js`, `GET /api/ranking/challenge`, carte dans
+Classement › Semaine et dans l'aperçu de l'alliance) :
+
+- Chaque semaine (lundi 0 h → lundi 0 h, heure de Paris), un **thème** tiré au sort, le même pour tous et jamais deux
+  semaines de suite : **Assaut** (points d'attaque), **Rempart** (points de défense), **Butin** (ressources pillées),
+  **Bâtisseurs** (population gagnée), **Entraide** (aides données entre membres), **Chasseurs de hordes** (dégâts aux
+  donjons d'invasion).
+- Classement des alliances en direct, selon ce que font leurs membres actuels ; place de son alliance.
+- À la clôture (avec les médailles de la semaine), les **3 premières alliances** gagnent **300 / 200 / 100 points
+  d'alliance pour chaque membre** et une **médaille d'alliance** « Défi … » ; les membres sont prévenus.
+- Pas de bonus de ressources le week-end (décision du 29 octobre 2026) ; les artefacts viendront plus tard.
+
 ## Invasions barbares (29 octobre 2026)
 
 Décisions du 29 octobre 2026 (`src/services/hordeService.js`, `src/routes/invasion.js`, `frontend/js/app/09k-invasion.js`,

@@ -48,6 +48,7 @@ async function loadAlliance() {
                   </div>` : ''}
                 <button onclick="leaveAlliance()" class="btn btn-danger" style="margin-top:20px">Quitter l'alliance</button>
               </div>
+              <div id="challenge-alliance-box"></div>
             </div>
 
             <div id="alliance-sub-members" class="alliance-sub-section" style="display:${showSub('members')}">
@@ -79,6 +80,7 @@ async function loadAlliance() {
       if (typeof loadAllianceShop === 'function') loadAllianceShop();
       if (typeof renderBastionSection === 'function') renderBastionSection(document.getElementById('alliance-bastion-box'));
       if (typeof renderAllianceRallies === 'function') renderAllianceRallies(document.getElementById('alliance-rallies-box'));   // rassemblements d'alliance (09l-rally.js)
+      if (typeof loadChallengeCard === 'function') loadChallengeCard('challenge-alliance-box', { compact: true });   // défi d'alliance de la semaine (09h-ranking.js)
       return;
     }
 

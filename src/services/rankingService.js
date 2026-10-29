@@ -84,6 +84,7 @@ async function closeWeek(week) {
     (await allianceWeekTop(week, field, 3)).forEach((r, i) => medals.push({ allianceId: r.allianceId, week, category: cat, rank: i + 1, value: r.value, name: `[${r.tag}]` }));
   }
   if (medals.length) await prisma.medal.createMany({ data: medals });
+  try { await require('./challengeService').close(week); } catch (e) { console.error('[DÉFI] clôture :', e.message); }   // défi d'alliance de la semaine
   for (const m of medals) {
     if (m.playerId) notify(m.playerId, 'ranking', '🏅 Médaille de la semaine', `${m.rank}${m.rank === 1 ? 'er' : 'e'} des ${CAT_LABEL[m.category]} de la semaine (${m.value.toLocaleString('fr-FR')}).`, { to: 'ranking' });
   }
@@ -98,7 +99,11 @@ async function processRankings(now = new Date()) {
   if (previous === current) return null;
   if (await prisma.rankingWeek.findUnique({ where: { week: previous } })) return null;
   const seen = await prisma.playerWeekStats.count({ where: { week: previous } });
-  if (!seen) { await prisma.rankingWeek.createMany({ data: [{ week: previous }], skipDuplicates: true }); return 0; }
+  if (!seen) {
+    const claimed = await prisma.rankingWeek.createMany({ data: [{ week: previous }], skipDuplicates: true });
+    if (claimed.count) { try { await require('./challengeService').close(previous); } catch (e) { console.error('[DÉFI] clôture :', e.message); } }   // aides ou donjons sans combat de joueur
+    return 0;
+  }
   return closeWeek(previous);
 }
 

@@ -1752,6 +1752,42 @@ if (MAIL_LOG) {
   sql(`UPDATE "Account" SET role='PLAYER' WHERE id=(SELECT "accountId" FROM "Player" WHERE id='${Boss?.player?.id}')`);
 }
 
+// ---------- DÉFI D'ALLIANCE DE LA SEMAINE (décision du 29 octobre 2026) ----------
+{
+  sql(`DELETE FROM "RateLimitBucket" WHERE key LIKE 'register:%' OR key LIKE 'auth:%'`);
+  const mk = (n) => call(`challenge: player ${n}`, 'POST', '/api/auth/register', null, { email: `${n.toLowerCase()}${uid}@t.fr`, password: PASSWORD, name: `${n}${uid}`, faction: 'ROME' });
+  const C1 = await mk('Certator'), C2 = await mk('Aemulus');
+  const tag = `D${uid % 1000}`;
+  const al = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Agon${uid}','${tag}','${C1?.player?.id}') RETURNING id`).split('\n')[0];
+  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role) VALUES (gen_random_uuid(),'${al}','${C1?.player?.id}','LEADER'), (gen_random_uuid(),'${al}','${C2?.player?.id}','MEMBER')`);
+  const week = sql(`SELECT to_char(date_trunc('week', (now() AT TIME ZONE 'Europe/Paris')), 'YYYY-MM-DD')`);
+  // de quoi être premier sur les thèmes tirés des classements de la semaine
+  for (const p of [C1, C2]) sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","defensePoints",loot,"popStart") VALUES (gen_random_uuid(),'${p?.player?.id}','${week}',9000000,9000000,900000000,0) ON CONFLICT ("playerId",week) DO UPDATE SET "attackPoints"=9000000,"defensePoints"=9000000,loot=900000000,"popStart"=0`);
+  sql(`UPDATE "Player" SET population=900000 WHERE id IN ('${C1?.player?.id}','${C2?.player?.id}')`);
+  const ch = await call('challenge: this week', 'GET', '/api/ranking/challenge', C1?.token);
+  assert('challenge: a theme, its label, the rewards and the end of the week', !!ch?.theme && !!ch?.label && ch?.rewards?.length === 3 && new Date(ch.endsAt) > new Date(), JSON.stringify(ch).slice(0, 160));
+  if (['ATTACK', 'DEFENSE', 'LOOT', 'CLIMB'].includes(ch?.theme)) assert('challenge: our alliance leads the live ranking', ch.rows[0]?.tag === tag && ch.rows[0].mine === true && ch.me?.rank === 1, JSON.stringify(ch.rows?.[0]));
+  else assert('challenge: a theme without data yet leaves our alliance unranked', ch?.me?.inAlliance === true);
+  // clôture d'une semaine passée dont le thème est Assaut : 300 points d'alliance par membre et une médaille
+  const { createRequire } = await import('module');
+  const req = createRequire(import.meta.url);
+  const CS = req('../src/services/challengeService.js');
+  let past = new Date('2020-01-06T12:00:00Z');
+  while (CS.themeFor(past.toISOString().slice(0, 10)) !== 'ATTACK') past = new Date(past.getTime() + 7 * 86400000);
+  const pastKey = past.toISOString().slice(0, 10);
+  sql(`DELETE FROM "PlayerWeekStats" WHERE week='${pastKey}'`); sql(`DELETE FROM "Medal" WHERE week='${pastKey}'`);
+  for (const p of [C1, C2]) sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","popStart") VALUES (gen_random_uuid(),'${p?.player?.id}','${pastKey}',5000,0)`);
+  const ap0 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`));
+  const closed = await CS.close(pastKey);
+  assert('challenge: closing the week rewards the winning alliance', closed?.theme === 'ATTACK' && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)) === ap0 + 300, `${ap0} -> ${sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)}`);
+  assert('challenge: an alliance medal for the winner', sql(`SELECT count(*) FROM "Medal" WHERE "allianceId"='${al}' AND week='${pastKey}' AND category='CHALLENGE_ATTACK' AND rank=1`) === '1');
+  const md = await call('challenge: the medal shows on the alliance medals', 'GET', '/api/ranking/medals', C2?.token);
+  assert('challenge: listed with the alliance medals', !!md?.allianceMedals?.some(m => m.category === 'CHALLENGE_ATTACK'));
+  sql(`DELETE FROM "PlayerWeekStats" WHERE week IN ('${pastKey}','${week}') AND "playerId" IN ('${C1?.player?.id}','${C2?.player?.id}')`);
+  sql(`DELETE FROM "Medal" WHERE week='${pastKey}'`);
+  sql(`DELETE FROM "Alliance" WHERE id='${al}'`);
+}
+
 // ---------- WRAP UP ----------
 const fails = results.filter(r => !r.ok);
 console.log(`\n==== ${results.length - fails.length}/${results.length} PASS ====`);

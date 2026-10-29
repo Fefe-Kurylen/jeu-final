@@ -7,7 +7,25 @@ let rankingState = { view: 'players', sort: 'population', page: 1, allianceSort:
 const RANK_SORTS = [['population', 'Population', 'population'], ['attack', 'Attaque', 'attack'], ['defense', 'Défense', 'defense'], ['loot', 'Pillage', 'item_crate']];
 const ALLIANCE_SORTS_UI = [['population', 'Population', 'population'], ['attack', 'Attaque', 'attack'], ['defense', 'Défense', 'defense']];
 const WEEK_CATS = [['ATTACK', 'Attaquants', 'attack'], ['DEFENSE', 'Défenseurs', 'defense'], ['LOOT', 'Pilleurs', 'item_crate'], ['CLIMB', 'Progression', 'population'], ['ALLIANCE_ATTACK', 'Alliances (attaque)', 'alliance'], ['ALLIANCE_DEFENSE', 'Alliances (défense)', 'alliance']];
-const MEDAL_LABEL = { ATTACK: 'Attaquants', DEFENSE: 'Défenseurs', LOOT: 'Pilleurs', CLIMB: 'Progression', ALLIANCE_ATTACK: 'Alliances en attaque', ALLIANCE_DEFENSE: 'Alliances en défense' };
+const MEDAL_LABEL = { ATTACK: 'Attaquants', DEFENSE: 'Défenseurs', LOOT: 'Pilleurs', CLIMB: 'Progression', ALLIANCE_ATTACK: 'Alliances en attaque', ALLIANCE_DEFENSE: 'Alliances en défense',
+  CHALLENGE_ATTACK: 'Défi Assaut', CHALLENGE_DEFENSE: 'Défi Rempart', CHALLENGE_LOOT: 'Défi Butin', CHALLENGE_CLIMB: 'Défi Bâtisseurs', CHALLENGE_HELP: 'Défi Entraide', CHALLENGE_DUNGEON: 'Défi Chasseurs de hordes' };
+
+// Défi d'alliance de la semaine (GDD « compétitions alliances », décision du 29 octobre 2026) : thème, classement, place
+function challengeCardHtml(c, { compact = false } = {}) {
+  if (!c) return '';
+  const rows = c.rows.slice(0, compact ? 3 : 10);
+  return `<div class="world-card challenge-card">
+    <h4>${resIconHtml('medal')} Défi d'alliance de la semaine : « ${escapeHtml(c.label)} »</h4>
+    <p class="diplo-help">Classement des alliances selon les ${escapeHtml(c.what)}. Fin <span class="qd-timer" data-ends-at="${c.endsAt}">${formatTime(c.endsAt)}</span> (lundi 0 h). Les 3 premières gagnent ${c.rewards.join(' / ')} points d'alliance pour chaque membre et une médaille.</p>
+    ${c.me?.inAlliance ? `<div class="ranking-me">Votre alliance : ${c.me.rank ? `<strong>${c.me.rank}${c.me.rank === 1 ? 're' : 'e'}</strong> · ${formatNum(c.me.value)} ${escapeHtml(c.unit)}` : 'pas encore classée'}</div>` : '<p class="diplo-help">Rejoignez une alliance pour participer.</p>'}
+    <div class="ranking-list">${rows.length ? rows.map(r => rowHtml(r.rank, `[${escapeHtml(r.tag)}] ${escapeHtml(r.name)}`, r.value, c.unit, { me: r.mine, onclick: typeof openAllianceSheet === 'function' ? `openAllianceSheet('${chatSafeId(r.allianceId)}')` : '' })).join('') : '<div class="empty-state">Aucune alliance classée pour l\'instant</div>'}</div>
+  </div>`;
+}
+async function loadChallengeCard(boxId, opts) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  try { box.innerHTML = challengeCardHtml(await window.fetchJson('/api/ranking/challenge'), opts); } catch (e) { box.innerHTML = ''; }
+}
 const VALUE_UNIT = { population: 'hab.', attack: 'pts', defense: 'pts', loot: 'ress.' };
 
 function medalIcon(rank) {
@@ -74,10 +92,12 @@ function renderWeekRanking(content, d) {
   const unit = d.category === 'LOOT' ? 'ress.' : d.category === 'CLIMB' ? 'hab.' : 'pts';
   const me = d.me ? `<div class="ranking-me">Votre semaine : ${resIconHtml('attack')} ${formatNum(d.me.attackPoints)} · ${resIconHtml('defense')} ${formatNum(d.me.defensePoints)} · ${resIconHtml('item_crate')} ${formatNum(d.me.loot)} · ${resIconHtml('population')} +${formatNum(d.me.climb)}</div>` : '';
   content.innerHTML = `
+    <div id="challenge-week-box"></div>
     ${chips(WEEK_CATS, d.category, 'setWeekCat')}
     <p class="diplo-help">Semaine du ${new Date(d.week + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}, close dans <span class="qd-timer" data-ends-at="${d.endsAt}">${formatTime(d.endsAt)}</span> (lundi 0 h, heure de Paris). Les 10 premiers joueurs de chaque catégorie et les 3 premières alliances en attaque et en défense reçoivent une médaille.</p>
     ${me}
     <div class="ranking-list">${d.rows.length ? d.rows.map((r, i) => rowHtml(i + 1, isAlliance ? `[${escapeHtml(r.tag)}] ${escapeHtml(r.name)}` : escapeHtml(r.name), r.value, unit, { me: !isAlliance && r.playerId === player?.id, onclick: isAlliance ? '' : `viewPlayerProfile('${chatSafeId(r.playerId)}')` })).join('') : '<div class="empty-state">Personne encore cette semaine</div>'}</div>`;
+  loadChallengeCard('challenge-week-box');
 }
 function medalsHtml(medals) {
   if (!medals?.length) return '<p class="empty-state">Aucune médaille pour l\'instant.</p>';

@@ -63,6 +63,10 @@ router.get('/alliances', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
+// GET /api/ranking/challenge — défi d'alliance de la semaine (thème, classement des alliances, place de la mienne)
+router.get('/challenge', auth, async (req, res) => {
+  try { res.json(await require('../services/challengeService').current(req.user.playerId)); } catch (e) { sendError(res, e); }
+});
 router.get('/week', auth, async (req, res) => {
   try {
     const category = String(req.query.category || 'ATTACK').toUpperCase();
