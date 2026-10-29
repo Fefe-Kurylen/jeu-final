@@ -65,8 +65,9 @@ async function renderBastionSection(box) {
     ${b.status !== 'FUNDING' ? `<h4>${resIconHtml('army')} Garnison <small>${b.garrison.length} armée${b.garrison.length > 1 ? 's' : ''}</small></h4>
       ${b.garrison.length ? `<div class="bastion-garrison">${b.garrison.map(g => `<div class="member-row"><span class="member-name">${escapeHtml(g.name)} <small>${escapeHtml(g.owner?.name || '')}${g.status === 'SUPPORTING' ? ' · en route' : ''}</small></span>
         <span>${g.units.map(u => `${formatNum(u.count)} ${escapeHtml(typeof getUnitName === 'function' ? getUnitName(u.key) : u.key)}`).join(', ')}</span>
-        ${g.owner?.id === player?.id ? `<button class="btn btn-secondary btn-sm" onclick="recallBastionArmy('${chatSafeId(g.id)}')">Rappeler</button>` : ''}</div>`).join('')}</div>` : '<p class="empty-state">Aucune armée en garnison.</p>'}
-      ${b.isSieged ? '<p class="diplo-help">Pendant un siège, aucune troupe n\'entre au Bastion.</p>' : `<button class="btn btn-primary" onclick="openBastionSend('${chatSafeId(b.id)}', 'GARRISON')">${resIconHtml('defense')} Envoyer en garnison</button>`}` : ''}`;
+        ${g.owner?.id === player?.id ? `${b.isSieged && g.status === 'STATIONED' ? `<button class="btn btn-danger btn-sm" onclick="bastionSortie('${chatSafeId(b.id)}', '${chatSafeId(g.id)}')">${resIconHtml('attack')} Sortie</button>` : ''}<button class="btn btn-secondary btn-sm" onclick="recallBastionArmy('${chatSafeId(g.id)}')">Rappeler</button>` : ''}</div>`).join('')}</div>` : '<p class="empty-state">Aucune armée en garnison.</p>'}
+      ${b.isSieged ? `<p class="diplo-help">Pendant un siège, aucune troupe n'entre au Bastion. Chaque armée de la garnison peut faire une sortie contre le camp ennemi : elle se bat seule, hors des murs ; victorieuse, elle reste au Bastion, vaincue, elle rentre à la capitale.</p>
+        <button class="btn btn-danger" onclick="openBastionSend('${chatSafeId(b.id)}', 'BREAK')">${resIconHtml('attack')} Briser le siège</button>` : `<button class="btn btn-primary" onclick="openBastionSend('${chatSafeId(b.id)}', 'GARRISON')">${resIconHtml('defense')} Envoyer en garnison</button>`}` : ''}`;
 }
 
 async function placeBastion(x, y) {
@@ -105,6 +106,7 @@ async function renderBastionMapPanel(tile, content) {
   if (mine && tile.status === 'FUNDING') actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'SUPPLY')">${resIconHtml('item_crate')} Ravitailler</button>`);
   if (friendly && tile.status !== 'FUNDING' && !tile.isSieged) actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'GARRISON')">${resIconHtml('defense')} Garnison</button>`);
   if (!friendly && tile.status !== 'FUNDING') actions.push(`<button class="btn btn-danger" onclick="closeMapPanel(); openBastionSend('${id}', 'ATTACK')">${resIconHtml('attack')} Assiéger</button>`);
+  if (tile.isSieged && tile.status !== 'FUNDING') actions.push(`<button class="btn btn-danger" onclick="closeMapPanel(); openBastionSend('${id}', 'BREAK')">${resIconHtml('attack')} Briser le siège</button>`);
   if (mine) actions.push(`<button class="btn btn-secondary" onclick="closeMapPanel(); showTab('alliance'); showAllianceTab('bastion')">${resIconHtml('alliance')} Détails</button>`);
   content.innerHTML = `
     <h3>${resIconHtml('defense')} ${escapeHtml(tile.name)}</h3>
@@ -117,8 +119,11 @@ async function renderBastionMapPanel(tile, content) {
 
 // Choix de l'armée (et du chargement pour un convoi)
 function openBastionSend(bastionId, mission) {
-  const ready = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && (a.units || []).some(u => u.count > 0));
-  const title = { SUPPLY: 'Ravitailler le Bastion', GARRISON: 'Garnison du Bastion', ATTACK: 'Assiéger le Bastion' }[mission];
+  const hasUnits = (a) => (a.units || []).some(u => u.count > 0);
+  let ready = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && hasUnits(a));
+  // briser le siège : aussi les armées de sa garnison dans ce Bastion (sortie)
+  if (mission === 'BREAK') ready = [...(armies || []).filter(a => a.status === 'STATIONED' && a.targetBastionId === bastionId && hasUnits(a)), ...ready];
+  const title = { SUPPLY: 'Ravitailler le Bastion', GARRISON: 'Garnison du Bastion', ATTACK: 'Assiéger le Bastion', BREAK: 'Briser le siège du Bastion' }[mission];
   if (!ready.length) {
     openSheetModal(title, `<p>Aucune armée disponible : formez une armée au Point de ralliement.</p>
       <div class="profile-actions"><button class="btn btn-primary" onclick="closeModal(); showTab('army')">Onglet Armée</button><button class="btn btn-secondary" onclick="closeModal()">Fermer</button></div>`);
@@ -126,15 +131,21 @@ function openBastionSend(bastionId, mission) {
   }
   const cityName = (id) => (cities || []).find(c => c.id === id)?.name || '';
   openSheetModal(title, `
-    <label class="form-row">Armée <select id="bastion-army">${ready.map(a => `<option value="${chatSafeId(a.id)}" ${a.cityId === currentCity?.id ? 'selected' : ''}>${escapeHtml(a.name)}${cityName(a.cityId) ? ' — ' + escapeHtml(cityName(a.cityId)) : ''}</option>`).join('')}</select></label>
+    <label class="form-row">Armée <select id="bastion-army">${ready.map(a => `<option value="${chatSafeId(a.id)}" ${a.cityId === currentCity?.id ? 'selected' : ''}>${escapeHtml(a.name)}${a.status === 'STATIONED' ? ' — garnison du Bastion (sortie)' : cityName(a.cityId) ? ' — ' + escapeHtml(cityName(a.cityId)) : ''}</option>`).join('')}</select></label>
     ${mission === 'SUPPLY' ? `<div class="bastion-load">${BASTION_RES.map(([k, label]) => `<label class="form-row">${resIconHtml(k)} ${label} <input type="number" min="0" step="100" id="bastion-load-${k}" value="0"></label>`).join('')}</div>
       <p class="diplo-help">Les ressources sont prises dans la ville de l'armée, dans la limite de sa capacité de transport. Le surplus revient.</p>` : ''}
     ${mission === 'GARRISON' ? '<p class="diplo-help">L\'armée défend le Bastion (+10 % de défense) jusqu\'à ce que vous la rappeliez. Son entretien reste à votre charge.</p>' : ''}
     ${mission === 'ATTACK' ? '<p class="diplo-help">Il faut au moins un engin de siège dans l\'armée. Toute l\'alliance du Bastion est prévenue.</p>' : ''}
+    ${mission === 'BREAK' ? '<p class="diplo-help">L\'armée attaque seule toutes les armées qui campent devant le Bastion, en terrain ouvert. Victorieuse, elle reste là d\'où elle a attaqué (dans le Bastion pour une sortie de la garnison, devant lui sinon) ; vaincue, elle rentre (à la capitale pour une sortie).</p>' : ''}
     <div class="profile-actions">
-      <button class="btn ${mission === 'ATTACK' ? 'btn-danger' : 'btn-primary'}" onclick="sendToBastion('${chatSafeId(bastionId)}', '${mission}')">Envoyer</button>
+      <button class="btn ${mission === 'ATTACK' || mission === 'BREAK' ? 'btn-danger' : 'btn-primary'}" onclick="sendToBastion('${chatSafeId(bastionId)}', '${mission}')">Envoyer</button>
       <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
     </div>`);
+}
+// Sortie d'une armée de sa garnison (onglet Alliance › Bastion)
+async function bastionSortie(bastionId, armyId) {
+  const r = await allianceRequestNoReload(`/api/bastion/${bastionId}/send`, 'POST', { armyId, mission: 'BREAK' });
+  if (r) { if (typeof loadArmies === 'function') loadArmies(); setTimeout(() => renderBastionSection(document.getElementById('alliance-bastion-box')), 400); }
 }
 async function sendToBastion(bastionId, mission) {
   const armyId = document.getElementById('bastion-army')?.value;

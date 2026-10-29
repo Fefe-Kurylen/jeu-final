@@ -1,5 +1,5 @@
 // Bastion d'alliance (décision du 26 octobre 2026) : GET /api/bastion (celui de son alliance), POST /api/bastion/place
-// { x, y }, POST /api/bastion/:id/send { armyId, mission: SUPPLY | GARRISON | ATTACK, resources }
+// { x, y }, POST /api/bastion/:id/send { armyId, mission: SUPPLY | GARRISON | ATTACK | BREAK (briser le siège, sortie de la garnison), resources }
 const express = require('express');
 const router = express.Router();
 const { sendError } = require('../utils/httpError');

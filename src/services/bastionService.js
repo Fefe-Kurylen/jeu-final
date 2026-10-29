@@ -17,7 +17,7 @@ const { routeLength } = require('../utils/pathfinding');
 const { footprintFree, lockPlacement } = require('../utils/spawn');
 const { transition, debitCity, lockCity } = require('../utils/db');
 const { resolveCombatDetailed, heroCombatStats } = require('./combatService');
-const { relationsOf } = require('./diplomacyService');
+const { relationsOf, getRelation } = require('./diplomacyService');
 const { notify } = require('./pushService');
 const T = require('../utils/techEffects');
 const fx = require('../utils/buildingEffects');
@@ -132,6 +132,7 @@ async function relationTo(playerAllianceId, bastionAllianceId) {
 async function send(playerId, bastionId, { armyId, mission, resources }) {
   const b = await prisma.bastion.findUnique({ where: { id: bastionId || '' }, include: { alliance: { select: { tag: true, name: true } } } });
   if (!b || b.status === 'DESTROYED') throw httpError(404, 'Bastion introuvable');
+  if (mission === 'BREAK') return breakSiege(playerId, b, armyId);
   const result = await prisma.$transaction(async (tx) => {
     const army = await loadReadyArmy(tx, playerId, armyId);
     const rel = await relationTo(army.owner?.alliance?.allianceId || null, b.allianceId);
@@ -173,6 +174,103 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
     for (const mm of members) notify(mm.playerId, 'attack_incoming', '⚔️ Bastion menacé', `${result.attackerName || 'Un joueur'} marche sur le Bastion de l'alliance (arrivée dans ${Math.max(1, Math.round(result.travelTime / 60))} min).`, { to: 'map', x: b.x, y: b.y });
   }
   return result;
+}
+
+// ---- briser le siège d'un Bastion (décision du 29 octobre 2026) ----
+// N'importe quel joueur peut attaquer le camp ennemi devant un Bastion, depuis l'extérieur, sauf les camps de son
+// alliance ou d'une alliance alliée. Un joueur de la garnison fait une sortie avec une de ses armées : chaque armée se
+// bat seule, en terrain ouvert (ni mur bouclier ni +10 % de garnison). Victoire : l'armée reste là d'où elle a attaqué
+// (dans le Bastion pour une sortie, devant lui sinon). Défaite : les survivants rentrent (à la capitale pour une sortie).
+const ARMY_FULL = { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } } };
+async function hostileCampOwners(playerId, bastionId, db = prisma) {
+  const camp = await db.army.findMany({ where: { status: 'BESIEGING', targetBastionId: bastionId, NOT: { ownerId: playerId } }, select: { ownerId: true } });
+  const owners = [...new Set(camp.map(c => c.ownerId))];
+  const hostile = [];
+  for (const id of owners) if ((await getRelation(playerId, id, db)).canAttack) hostile.push(id);
+  return { owners, hostile };
+}
+async function breakSiege(playerId, b, armyId) {
+  if (!['BUILDING', 'ACTIVE'].includes(b.status)) throw httpError(400, 'Ce Bastion n\'est pas assiégé');
+  const { owners, hostile } = await hostileCampOwners(playerId, b.id);
+  if (!owners.length) throw httpError(400, 'Ce Bastion n\'est pas assiégé');
+  if (!hostile.length) throw httpError(400, 'Les armées qui assiègent ce Bastion sont de votre alliance ou d\'une alliance alliée');
+  const result = await prisma.$transaction(async (tx) => {
+    const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { status: true, targetBastionId: true } });
+    if (!probe) throw httpError(404, 'Armée non trouvée');
+    const sortie = probe.status === 'STATIONED' && probe.targetBastionId === b.id;   // une armée de la garnison
+    let army;
+    if (sortie) {
+      army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: ARMY_FULL });
+      if (!army.units.some(u => u.count > 0)) throw httpError(400, 'Armée vide');
+    } else {
+      if (probe.status === 'STATIONED') throw httpError(400, 'Cette armée tient garnison ailleurs : rappelez-la d\'abord');
+      army = await loadReadyArmy(tx, playerId, armyId);
+    }
+    const travel = sortie ? B.sortieSeconds : await travelSeconds(army, b);
+    const now = new Date(), arrivalAt = new Date(now.getTime() + travel * 1000);
+    const data = { status: 'ATTACKING', missionType: sortie ? 'BASTION_SORTIE' : 'BASTION_BREAK', targetX: b.x, targetY: b.y, targetBastionId: b.id, targetCityId: null, arrivalAt, departedAt: now };
+    if (!(await transition(tx, 'army', army.id, sortie ? 'STATIONED' : 'IDLE', data))) throw httpError(409, 'Armée déjà en mission');
+    return { sortie, travel, arrivalAt, attackerName: army.owner?.name };
+  }, { timeout: 15000 });
+  const minutes = Math.max(1, Math.round(result.travel / 60));
+  for (const id of hostile) notify(id, 'attack_incoming', '⚔️ Attaque contre votre siège', `${result.attackerName || 'Un joueur'} ${result.sortie ? 'fait une sortie du Bastion' : 'marche sur votre camp devant le Bastion'} [${b.alliance.tag}] (combat dans ${result.sortie ? 'un instant' : `${minutes} min`}).`, { to: 'map', x: b.x, y: b.y });
+  return { message: result.sortie ? 'Sortie de la garnison : votre armée attaque le camp ennemi' : `Armée en route pour briser le siège du Bastion (${minutes} min)`, travelTime: result.travel, arrivalAt: result.arrivalAt, sortie: result.sortie };
+}
+
+// Une sortie vaincue rentre à la capitale si un emplacement d'armée y est libre, sinon dans sa ville
+async function capitalHomeTx(tx, army) {
+  const cap = await tx.city.findFirst({ where: { playerId: army.ownerId, isCapital: true }, include: { buildings: { select: { key: true, level: true } } } });
+  if (!cap || cap.id === army.cityId) return null;
+  const used = new Set((await tx.army.findMany({ where: { cityId: cap.id, isGarrison: false }, select: { slot: true } })).map(a => a.slot));
+  let slot = null;
+  for (let s = 1; s <= fx.maxArmies(cap.buildings); s++) if (!used.has(s)) { slot = s; break; }
+  if (!slot) return null;
+  await tx.army.update({ where: { id: army.id }, data: { cityId: cap.id, slot } });
+  return cap;
+}
+
+async function handleBreakArrival(army, now, sendArmyHome) {
+  const sortie = army.missionType === 'BASTION_SORTIE';
+  const { fieldBattle, sendArmyHomeTx } = require('./armyService');
+  const out = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${army.targetBastionId || ''} FOR UPDATE`;
+    const b = await tx.bastion.findUnique({ where: { id: army.targetBastionId || '' }, include: { alliance: { select: { tag: true } } } });
+    const alive = b && ['BUILDING', 'ACTIVE'].includes(b.status);
+    const camp = alive ? await tx.army.findMany({ where: { status: 'BESIEGING', targetBastionId: b.id, claimedAt: null, NOT: { ownerId: army.ownerId } }, include: { units: true, city: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } } } }) : [];
+    const hostile = [];
+    for (const c of camp) if (c.units.some(u => u.count > 0) && (await getRelation(army.ownerId, c.ownerId, tx)).canAttack) hostile.push(c);
+    const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
+    const backInside = { status: 'STATIONED', x: b?.x ?? army.x, y: b?.y ?? army.y, arrivalAt: null, claimedAt: null, departedAt: null, missionType: 'BASTION_GARRISON' };
+    if (!alive || !hostile.length || !units.some(u => u.count > 0)) {
+      if (sortie && alive) { await tx.army.update({ where: { id: army.id }, data: backInside }); return { b, fought: false, fate: 'inside' }; }
+      return { b, fought: false, fate: 'home' };
+    }
+    const tag = `[${b.alliance.tag}]`;
+    const res = await fieldBattle(tx, { ...army, units }, hostile, army.ownerId, { x: b.x, y: b.y, where: `Siège du Bastion ${tag}`, type: 'SIEGE_BREAK', rounds: { type: 'SIEGE_BREAK', bastionId: b.id } });
+    const won = res.combat.attackerWon;
+    if (won) for (const h of hostile) await sendArmyHomeTx(tx, h);
+    await refreshSieged(tx, b.id);
+    let fate = 'home', home = null;
+    const left = (await tx.armyUnit.findMany({ where: { armyId: army.id } })).some(u => u.count > 0);
+    if (won && sortie) { await tx.army.update({ where: { id: army.id }, data: backInside }); fate = 'inside'; }
+    else if (won && left) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: b.x, y: b.y, targetX: null, targetY: null, targetBastionId: null, arrivalAt: null, claimedAt: null, missionType: null } }); fate = 'guard'; }
+    else if (sortie) home = await capitalHomeTx(tx, army);
+    return { b, tag, fought: true, won, fate, home, owners: [...new Set(hostile.map(h => h.ownerId))], defenderName: res.defenderName, reportIds: res.reportIds };
+  }, { timeout: 15000 });
+  const { b } = out;
+  if (out.fought) {
+    const at = { x: b.x, y: b.y };
+    const { won, tag, reportIds } = out;
+    notify(army.ownerId, 'battle', won ? '⚔️ Siège brisé' : '⚔️ Siège maintenu', won ? `${army.name} a chassé ${out.defenderName} de devant le Bastion ${tag}.` : `${army.name} a été repoussée par le camp devant le Bastion ${tag}${sortie ? ' : les survivants rentrent' + (out.home ? ` à ${out.home.name}` : '') : ''}.`, { to: 'report', reportId: reportIds[army.ownerId], ...at });
+    for (const id of out.owners) notify(id, 'battle', won ? '🏰 Siège levé' : '🏰 Attaque repoussée', won ? `Votre camp devant le Bastion ${tag} a été chassé par ${army.owner?.name || 'un joueur'}.` : `Votre camp devant le Bastion ${tag} a repoussé ${army.owner?.name || 'une armée'}.`, { to: 'report', reportId: reportIds[id], ...at });
+    if (won) {
+      const members = await prisma.allianceMember.findMany({ where: { allianceId: b.allianceId }, select: { playerId: true } });
+      for (const mm of members) if (mm.playerId !== army.ownerId) notify(mm.playerId, 'battle', '🏰 Siège du Bastion brisé', `${army.owner?.name || 'Un joueur'} a chassé le camp ennemi devant le Bastion.`, { to: 'map', ...at });
+    }
+  }
+  if (out.fate === 'inside') return;
+  if (out.fate === 'guard') { notify(army.ownerId, 'battle', '🛡️ Garde devant le Bastion', `${army.name} reste devant le Bastion. Rappelez-la quand vous voulez.`, { to: 'map', x: b.x, y: b.y, armyId: army.id }); return; }
+  await sendArmyHome(out.home ? { ...army, cityId: out.home.id } : army, army.targetX ?? army.x, army.targetY ?? army.y, { targetBastionId: null });
 }
 
 // ---- arrivées (tick, depuis armyProcessor) ----
@@ -352,4 +450,4 @@ async function bastionsIn(x0, x1, y0, y1) {
   return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { livesOf, refreshSieged, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { breakSiege, handleBreakArrival, livesOf, refreshSieged, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };

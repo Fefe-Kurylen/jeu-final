@@ -55,6 +55,7 @@ async function processArmyMovements(now) {
         const BS = require('../../services/bastionService');
         if (army.missionType === 'BASTION_SUPPLY') await BS.handleSupplyArrival(army, sendArmyHome);
         else if (army.missionType === 'BASTION_GARRISON') await BS.handleGarrisonArrival(army, sendArmyHome);
+        else if (army.missionType === 'BASTION_SORTIE' || army.missionType === 'BASTION_BREAK') await BS.handleBreakArrival(army, now, sendArmyHome);   // briser le siège
         else if (army.status === 'BESIEGING') await BS.handleBastionBattle(army, now, sendArmyHome);
         else await BS.handleAttackArrival(army, sendArmyHome);
       } else if (army.status === 'BESIEGING') {

@@ -1359,11 +1359,49 @@ if (MAIL_LOG) {
   assert('bastion: besieged, the camp lasts 1 h', sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true' && sql(`SELECT round(extract(epoch FROM "arrivalAt"-now())/60)::int FROM "Army" WHERE id='${siege}'`) === '60');
   sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "missionType"=NULL, "targetBastionId"=NULL WHERE id='${conv}'`);
   await call('bastion: no garrison enters during a siege -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'GARRISON' }, 400);
+  // briser le siège (décision du 29 octobre 2026) : sortie de la garnison, chaque armée seule, en terrain ouvert
+  const so = await call('bastion: A\'s garrison makes a sortie', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'BREAK' });
+  assert('bastion: the sortie fights in 30 s', so?.sortie === true && so.travelTime === 30 && sql(`SELECT status||':'||"missionType" FROM "Army" WHERE id='${gar}'`) === 'ATTACKING:BASTION_SORTIE', JSON.stringify(so));
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${gar}'`);
+  await waitTick('sortie fought', () => sql(`SELECT status FROM "Army" WHERE id='${gar}'`) !== 'ATTACKING');
+  assert('bastion: the beaten sortie leaves the Bastion, the camp stays', ['RETURNING', 'IDLE'].includes(sql(`SELECT status FROM "Army" WHERE id='${gar}'`)) && sql(`SELECT "targetBastionId" IS NULL FROM "Army" WHERE id='${gar}'`) === 't' && sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'true', sql(`SELECT status FROM "Army" WHERE id='${gar}'`));
+  assert('bastion: a siege-break report for the sortie and the camp', Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='SIEGE_BREAK' AND rounds->>'bastionId'='${bId}' AND "playerId" IN ('${A.player.id}','${B.player.id}')`)) === 2);
+  await call('bastion: the besieger cannot break its own siege -> 400', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'BREAK' }, 400);
+  const ob = await call('bastion: A attacks the camp from outside', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'BREAK' });
+  assert('bastion: the outside attack marches', ob?.sortie === false && ob.travelTime > 30 && sql(`SELECT "missionType" FROM "Army" WHERE id='${conv}'`) === 'BASTION_BREAK', JSON.stringify(ob));
+  // la garnison et le convoi reviennent à leur place pour l'assaut
+  sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${gar}'`); sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${gar}','ROM_INF_MILICIEN','base',10)`);
+  sql(`UPDATE "Army" SET status='STATIONED', x=${spot?.x}, y=${spot?.y}, "targetX"=${spot?.x}, "targetY"=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_GARRISON', "arrivalAt"=NULL, "claimedAt"=NULL WHERE id='${gar}'`);
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "missionType"=NULL, "targetBastionId"=NULL, "claimedAt"=NULL WHERE id='${conv}'`);
   sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${siege}'`);
   await waitTick('first assault', () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`)) >= 2);
   const lives1 = sql(`SELECT loot->'lives'->>'after' FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'bastionId'='${bId}' ORDER BY "createdAt" DESC LIMIT 1`);
   assert('bastion: assault won, 9 lives left of 10, a report for each side', lives1 === '9' && Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'bastionId'='${bId}'`)) === 1, lives1);
   assert('bastion: the attacker goes home and the siege is lifted', sql(`SELECT status FROM "Army" WHERE id='${siege}'`) === 'RETURNING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false');
+  // une sortie victorieuse reste au Bastion ; une attaque victorieuse du dehors reste devant lui
+  const weakCamp = (name) => {
+    const id = mk(B.player.id, cityB.id, name, [['HUN_INF_NOMADE', 'base', 3]]);
+    sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetX"=${spot?.x}, "targetY"=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()+interval '1 hour' WHERE id='${id}'`);
+    sql(`UPDATE "Bastion" SET "isSieged"=true WHERE id='${bId}'`);
+    return id;
+  };
+  const refill = (id, n) => { sql(`DELETE FROM "ArmyUnit" WHERE "armyId"='${id}'`); sql(`INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) VALUES (gen_random_uuid(),'${id}','ROM_INF_MILICIEN','base',${n})`); };
+  refill(gar, 3000);   // la garnison a péri dans l'assaut : on la reforme
+  sql(`UPDATE "Army" SET status='STATIONED', x=${spot?.x}, y=${spot?.y}, "targetX"=${spot?.x}, "targetY"=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_GARRISON', "arrivalAt"=NULL, "claimedAt"=NULL WHERE id='${gar}'`);
+  const camp1 = weakCamp('Vexillum');
+  await call('bastion: a strong sortie', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'BREAK' });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${gar}'`);
+  await waitTick('winning sortie', () => sql(`SELECT status FROM "Army" WHERE id='${gar}'`) !== 'ATTACKING');
+  assert('bastion: the winning sortie stays in the Bastion, the siege is lifted', sql(`SELECT status||':'||"targetBastionId" FROM "Army" WHERE id='${gar}'`) === `STATIONED:${bId}` && sql(`SELECT status FROM "Army" WHERE id='${camp1}'`) !== 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false', sql(`SELECT status FROM "Army" WHERE id='${gar}'`) + ' / ' + sql(`SELECT status FROM "Army" WHERE id='${camp1}'`));
+  const camp2 = weakCamp('Turma');
+  refill(conv, 3000);
+  sql(`UPDATE "Army" SET status='IDLE', x=(SELECT x FROM "City" WHERE id='${cityA.id}'), y=(SELECT y FROM "City" WHERE id='${cityA.id}'), "targetX"=NULL, "targetY"=NULL, "arrivalAt"=NULL, "missionType"=NULL, "targetBastionId"=NULL, "claimedAt"=NULL WHERE id='${conv}'`);
+  await call('bastion: a strong army from outside', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: conv, mission: 'BREAK' });
+  sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${conv}'`);
+  await waitTick('winning outside attack', () => sql(`SELECT status FROM "Army" WHERE id='${conv}'`) !== 'ATTACKING');
+  assert('bastion: the winner from outside stays before the Bastion', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`) === `IDLE:${spot?.x}:${spot?.y}` && sql(`SELECT status FROM "Army" WHERE id='${camp2}'`) !== 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`));
+  sql(`DELETE FROM "Army" WHERE id IN ('${camp1}','${camp2}')`);
+  refill(gar, 10);
   // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un
   sql(`UPDATE "Bastion" SET structure=0.1, "structureAt"=now(), "isSieged"=true WHERE id='${bId}'`);
   sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()-interval '1 second', "claimedAt"=NULL WHERE id='${siege}'`);

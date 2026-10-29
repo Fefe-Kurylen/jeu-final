@@ -98,6 +98,7 @@ const config = {
     buildDays: 3,
     cooldownDays: 7,
     wallMultiplier: 50,
+    sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     wallReferenceLevel: 20,
     assaults: 10,
     regenHours: 72,

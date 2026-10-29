@@ -7,7 +7,8 @@
 //   plusieurs instants entre deux ticks, et l'approche la plus serrée entre deux instants est testée, pour ne pas rater
 //   deux armées qui se croisent de face.
 // - La case d'une ville est laissée aux règles du siège (camp, sortie, retour au bercail, convois) ; seule exception, la
-//   garde : une armée qui garde la ville d'un autre joueur combat l'ennemi qui arrive sur la ville.
+//   garde : une armée qui garde la ville d'un autre joueur combat l'ennemi qui arrive sur la ville. Pareil pour la case
+//   d'un Bastion (décision du 29 octobre 2026) : une armée qui garde le Bastion combat l'ennemi qui vient l'assiéger.
 // - Deux armées qui viennent de se battre ne se rebattent pas (le perdant quitte la case) : `rematchMinutes`.
 
 const prisma = require('../../config/database');
@@ -86,6 +87,13 @@ function allowedOnCity(cityAt, p, q) {
   return guardOf(p, q) || guardOf(q, p);
 }
 
+// Bastion tiles too: the only fight there is a guard standing before the Bastion against an enemy coming to besiege it
+function allowedOnBastion(b, p, q) {
+  const guardOf = (g, o) => g.status === 'IDLE' && g.x === b.x && g.y === b.y
+    && o.status === 'ATTACKING' && o.missionType === 'BASTION_ATTACK' && o.targetX === b.x && o.targetY === b.y;
+  return guardOf(p, q) || guardOf(q, p);
+}
+
 async function processEncounters(now) {
   const nowMs = now.getTime();
   const window = E().lookBackSeconds * 1000;
@@ -127,6 +135,10 @@ async function processEncounters(now) {
   const { cityCells } = require('../../utils/pathfinding').Terrain;
   const cityAtTile = new Map();
   for (const c of cities) for (const [cx, cy] of cityCells(c.x, c.y)) cityAtTile.set(`${cx},${cy}`, c);
+  // les Bastions aussi (2 × 2 cases) : leur case relève des règles du siège (camp, sortie, briser le siège)
+  const bastions = await prisma.bastion.findMany({ where: { status: { not: 'DESTROYED' }, x: { gte: Math.min(...xs) - 2, lte: Math.max(...xs) + 1 }, y: { gte: Math.min(...ys) - 2, lte: Math.max(...ys) + 1 } }, select: { id: true, x: true, y: true } });
+  const bastionAtTile = new Map();
+  for (const b of bastions) for (const [cx, cy] of cityCells(b.x, b.y)) bastionAtTile.set(`${cx},${cy}`, b);
 
   // the first instant each enemy pair is on the same tile (or crosses between two instants)
   const R2 = E().meetDistance ** 2;
@@ -147,6 +159,8 @@ async function processEncounters(now) {
       if (!hit) continue;
       const cityAt = cityAtTile.get(`${hit.x},${hit.y}`);
       if (cityAt && !allowedOnCity(cityAt, p, q)) break;   // the siege rules handle the city tile
+      const bastionAt = bastionAtTile.get(`${hit.x},${hit.y}`);
+      if (bastionAt && !allowedOnBastion(bastionAt, p, q)) break;   // idem pour un Bastion
       found.push({ p, q, ...hit, cityAt: cityAt || null });
       break;
     }

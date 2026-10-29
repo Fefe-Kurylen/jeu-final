@@ -199,6 +199,14 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 50 fois plus solide
   qu'un mur 20** ; chaque assaut gagné lui ôte **une vie sur 10**, les vies remontent en **72 h**. À la dernière, il est
   **rasé** : plus de bonus, garnison renvoyée, **7 jours** avant d'en rebâtir un. Rapports de bataille pour chaque camp.
+- **Briser le siège** (décision du 29 octobre 2026) : **n'importe quel joueur** peut attaquer le camp ennemi devant un
+  Bastion (Carte → Bastion → « Briser le siège »), sauf les camps de son alliance ou d'une alliance alliée. Un joueur de la
+  garnison fait une **sortie** avec une de ses armées (Alliance → Bastion → « Sortie », combat 30 s après) : **chaque
+  armée se bat seule**, contre tout le camp, **en terrain ouvert** (ni mur bouclier ni +10 % de garnison). Victoire : le
+  camp rentre chez lui et l'armée **reste là d'où elle a attaqué** (dans le Bastion pour une sortie, devant lui sinon).
+  Défaite : les survivants rentrent, **à la capitale** pour une sortie (si un emplacement d'armée y est libre, sinon
+  dans leur ville). La case du Bastion relève des règles du siège : pas de rencontre d'armées dessus, sauf une armée qui
+  garde le Bastion contre l'ennemi qui vient l'assiéger.
 - **Carte** : le Bastion se dessine comme une forteresse 2 × 2 (image peinte `map/cities/bastion`, chantier
   `bastion_site`, en attendant la forteresse de la civilisation du chef), plaque « Bastion [TAG] » aux couleurs de la
   diplomatie, barre de vies, marque de siège ; les armées qui marchent sur un Bastion de son alliance se voient.
