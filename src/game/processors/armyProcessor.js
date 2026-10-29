@@ -159,6 +159,15 @@ async function handleRaidResource(army) {
     await sendArmyHome(army, army.targetX, army.targetY, { targetResourceId: null });
     return;
   }
+  // donjon d'une horde (invasion barbare, décision du 29 octobre 2026) : un étage attaqué, puis l'armée rentre
+  if (node.resourceType === 'HORDE') {
+    const H = require('../../services/hordeService');
+    const r = await H.attackHorde(army, node.id);
+    await sendArmyHome(army, node.x, node.y, { targetResourceId: null });
+    if (r.noAlliance) notify(army.ownerId, 'battle', '⚔️ Donjon barbare', `${army.name} rentre : seuls les joueurs en alliance peuvent attaquer un donjon.`, { to: 'map', x: node.x, y: node.y });
+    else if (!r.gone) H.announceOutcome(army, r);
+    return;
+  }
   const outcome = await prisma.$transaction(async (tx) => {
     // Tribe first; otherwise the army of another player holding the node; a free node is simply taken
     const fresh = await tx.resourceNode.findUnique({ where: { id: node.id } });

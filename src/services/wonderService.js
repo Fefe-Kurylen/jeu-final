@@ -23,7 +23,7 @@ const Terrain = require('../../frontend/js/shared/terrain.js');
 
 const W = config.world;
 const DAY = 86400000;
-const SPECIAL = ['WONDER', 'PLAN'];
+const SPECIAL = ['WONDER', 'PLAN', 'HORDE'];   // HORDE : donjon d'une invasion barbare (hordeService)
 const RES = ['wood', 'stone', 'iron', 'food'];
 const STOCK = { wood: 'wonderWood', stone: 'wonderStone', iron: 'wonderIron', food: 'wonderFood' };
 const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
@@ -136,7 +136,7 @@ async function onImmortalsBeaten(tx, node, playerId) {
 }
 // Les Immortels reviennent sur un site resté vide 24 h (plans : aussitôt réarmés s'ils n'ont pas été pris)
 async function respawnImmortals(now) {
-  const due = await prisma.resourceNode.findMany({ where: { resourceType: { in: SPECIAL }, hasDefenders: false, cityId: null, hasPlayerArmy: false, lastDefeat: { lte: new Date(now.getTime() - DAY) } } });
+  const due = await prisma.resourceNode.findMany({ where: { resourceType: { in: ['WONDER', 'PLAN'] }, hasDefenders: false, cityId: null, hasPlayerArmy: false, lastDefeat: { lte: new Date(now.getTime() - DAY) } } });
   for (const n of due) {
     const units = immortalUnits(n.resourceType === 'PLAN' ? W.immortalPlanPower : W.immortalSitePower);
     await prisma.resourceNode.updateMany({ where: { id: n.id, hasDefenders: false, cityId: null, hasPlayerArmy: false }, data: { hasDefenders: true, defenderUnits: units, defenderPower: immortalPower(units), lastDefeat: null } });

@@ -49,6 +49,24 @@ const config = {
   // plus dur (mur bouclier 50 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 5 000 joueurs ; fin par
   // une Merveille façon Travian gardée par les Immortels
+  // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
+  // donjons de hordes apparaissent sur la carte ; contenu d'alliance (aucune attaque contre les joueurs). Donjon à 3 étages
+  // (avant-poste, remparts, chef), garnisons qui s'usent au fil des attaques ; trésor partagé selon les dégâts.
+  invasion: {
+    startDay: 5, startHour: 18,          // vendredi 18 h (heure de Paris)
+    endDay: 0, endHour: 23,              // dimanche 23 h
+    counts: { 1: 15, 2: 12, 3: 8, 4: 5, 5: 3 },                            // donjons par niveau
+    rings: { 1: [150, 178], 2: [120, 150], 3: [90, 120], 4: [55, 90], 5: [22, 55] },   // distance au centre : bords → niveau 1, centre → niveau 5
+    floors: ['Avant-poste', 'Remparts', 'Chef de la horde'],
+    floorTier: ['base', 'intermediate', 'elite'],
+    floorPowerMult: [1, 2, 4],
+    basePower: 15000, levelFactor: 2.5,  // puissance de l'avant-poste au niveau 1, × 2,5 par niveau
+    treasure: { resources: 8000, gold: 40, alliancePoints: 30, resourceFactor: 2.5, goldFactor: 2 },   // par ressource, au niveau 1
+    itemChance: [0.15, 0.25, 0.35, 0.5, 0.7],                               // objet rare au dernier coup, par niveau
+    itemTier: ['COMMON', 'COMMON', 'RARE', 'EPIC', 'EPIC'],
+    manualHours: 48                       // invasion lancée par l'équipe
+  },
+
   world: {
     registrationDays: Number(process.env.WORLD_REGISTRATION_DAYS) || 60,
     maxPlayers: 5000,

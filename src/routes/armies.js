@@ -443,6 +443,8 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
     const node = await prisma.resourceNode.findUnique({ where: { id: resourceNodeId } });
     if (!node) return res.status(404).json({ error: 'Ressource non trouvée' });
     if (node.cityId) return res.status(400).json({ error: 'Une ville occupe ce point' });
+    // donjon d'une invasion barbare (décision du 29 octobre 2026) : seuls les joueurs en alliance l'attaquent
+    if (node.resourceType === 'HORDE' && !(await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId } }))) return res.status(403).json({ error: 'Seuls les joueurs en alliance peuvent attaquer un donjon barbare' });
     // A raid is a fight: against the tribe, or against the army of another player holding the node (as on a Travian
     // oasis). An undefended, free node is simply collected; an ally's or one's own army is never attacked.
     const holders = node.hasPlayerArmy ? await prisma.army.findMany({ where: { status: { in: ['HARVESTING', 'FOUNDING'] }, targetResourceId: node.id }, select: { ownerId: true } }) : [];
@@ -454,7 +456,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
       if (!relation.canAttack) return res.status(403).json({ error: relation.status === 'SAME_ALLIANCE' ? 'Ce point est tenu par votre alliance : lancez une collecte' : 'Impossible d\'attaquer une armée alliée' });
     }
     const distance = Math.sqrt(Math.pow(node.x - army.x, 2) + Math.pow(node.y - army.y, 2));
-    if (distance <= 1.5) {
+    if (distance <= 1.5 && node.resourceType !== 'HORDE') {   // un donjon se combat toujours à l'arrivée (hordeService)
       // Adjacent: the fight is resolved now, under the army row lock so it cannot be resolved twice
       const result = await prisma.$transaction(async (tx) => {
         await lockArmy(tx, army.id);
@@ -513,6 +515,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
       const node = await tx.resourceNode.findUnique({ where: { id: resourceNodeId } });
       if (!node) return { error: 'Ressource non trouvée', status: 404 };
       if (node.resourceType === 'PLAN') return { error: 'On ne fonde pas de ville sur un plan : battez les Immortels pour le prendre', status: 400 };
+      if (node.resourceType === 'HORDE') return { error: 'On ne fonde pas de ville sur un donjon barbare', status: 400 };
       if (node.resourceType === 'WONDER') {
         // Ville Merveille (décision du 28 octobre 2026) : dans une alliance, une par joueur, hors du compte des colonies
         if (!(await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } }))) return { error: 'Une Ville Merveille se fonde pour une alliance : rejoignez-en une', status: 400 };

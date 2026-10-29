@@ -162,7 +162,11 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       for (const a of held) (holdersByNode[a.targetResourceId] ||= []).push({ playerId: a.ownerId, name: a.owner?.name, allianceId: a.owner?.alliance?.allianceId || null, founding: a.status === 'FOUNDING', faction: a.owner?.faction || null });
     }
     const quantize = (amount, max) => (max > 0 ? Math.round(Math.round(amount / max * 4) / 4 * max) : amount);
-    const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [] }));
+    // donjons d'une invasion barbare : étage en cours et garnison de départ de l'étage (barre de vie sur la carte)
+    const hordeIds = nodes.filter(n => n.resourceType === 'HORDE').map(n => n.id);
+    const hordes = hordeIds.length ? await prisma.horde.findMany({ where: { nodeId: { in: hordeIds } }, select: { nodeId: true, level: true, floor: true, floors: true } }) : [];
+    const hordeBy = new Map(hordes.map(h => [h.nodeId, { level: h.level, floor: h.floor, floors: h.floors.length, floorPower: h.floors[h.floor - 1]?.power || 1 }]));
+    const resourceNodes = nodes.map(n => ({ ...n, amount: quantize(n.amount, n.maxAmount), holders: holdersByNode[n.id] || [], ...(hordeBy.has(n.id) ? { horde: hordeBy.get(n.id) } : {}) }));
     return { cities: citiesWithTier, resourceNodes, armies, cityOwner, bastions, bastionAlliance, center: { x: centerX, y: centerY }, radius: r };
 }
 

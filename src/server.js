@@ -154,7 +154,8 @@ app.use('/api/quests', require('./routes/quests'));
 app.use('/api/spies', require('./routes/spies'));
 app.use('/api/bastion', require('./routes/bastion'));
 app.use('/api', require('./routes/wonder'));
-app.use('/api', require('./routes/admin'));   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
+app.use('/api', require('./routes/admin'));
+app.use('/api', require('./routes/invasion'));   // /api/invasion : invasions barbares du week-end   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
 app.use('/api/alliance', require('./routes/allianceHelp'));   // /help…, /shop… (avant /api/alliance/:id)
 app.use('/api/alliances', allianceRoutes);
 app.use('/api/alliance', allianceRoutes);
@@ -207,7 +208,7 @@ async function repairData() {
   const floorCase = Prisma.sql`CASE ${Prisma.join(Object.entries(RN.baseAmountByLevel).map(([l, v]) => Prisma.sql`WHEN level = ${Number(l)} THEN ${Math.floor(v * 0.8 * RN.maxFactor)}`), ' ')} ELSE 0 END`;
   await prisma.$executeRaw`
     UPDATE "ResourceNode" SET "maxAmount" = ${floorCase}
-    WHERE "resourceType" NOT IN ('GOLD', 'WONDER', 'PLAN') AND "maxAmount" < ${floorCase}`;
+    WHERE "resourceType" NOT IN ('GOLD', 'WONDER', 'PLAN', 'HORDE') AND "maxAmount" < ${floorCase}`;
   // Gold nodes at the GDD scale (config.map.goldNode): a small stock per level, refilled in 12 h; older seeds held 500-3000 gold
   const goldHours = config.map.goldNode.intervalHours;
   const goldCase = Prisma.sql`CASE ${Prisma.join(Object.entries(config.map.goldNode.lootByLevel).map(([l, v]) => Prisma.sql`WHEN level = ${Number(l)} THEN ${v}`), ' ')} ELSE ${config.map.goldNode.lootByLevel[1]} END`;
@@ -216,7 +217,7 @@ async function repairData() {
     WHERE "resourceType" = 'GOLD' AND "maxAmount" <> ${goldCase}`;
   await prisma.$executeRaw`
     UPDATE "ResourceNode" SET "regenRate" = GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN ROUND("maxAmount"::float / ${goldHours}) ELSE "maxAmount" / ${RN.regenHours} END)
-    WHERE "resourceType" NOT IN ('WONDER', 'PLAN') AND "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN ROUND("maxAmount"::float / ${goldHours}) ELSE "maxAmount" / ${RN.regenHours} END)`;
+    WHERE "resourceType" NOT IN ('WONDER', 'PLAN', 'HORDE') AND "regenRate" <> GREATEST(1, CASE WHEN "resourceType" = 'GOLD' THEN ROUND("maxAmount"::float / ${goldHours}) ELSE "maxAmount" / ${RN.regenHours} END)`;
   // Tribe power on the same scale as an army's power (older seeds stored 100 × level × soldiers/100).
   // Recomputed from the stored units at every boot: idempotent, and respawned tribes already use this scale.
   {

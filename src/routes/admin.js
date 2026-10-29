@@ -251,6 +251,30 @@ router.get('/admin/log', need('log'), async (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
+// ---- invasion barbare (administrateur) : lancer maintenant pour N heures, ou terminer celle en cours ----
+router.post('/admin/invasion/start', need('world'), async (req, res) => {
+  try {
+    const H = require('../services/hordeService');
+    if (await H.activeInvasion()) return res.status(400).json({ error: 'Une invasion est déjà en cours' });
+    const hours = Math.round(Number(req.body?.hours) || config.invasion.manualHours);
+    if (hours < 1 || hours > 168) return res.status(400).json({ error: 'Durée : 1 à 168 heures' });
+    const inv = await H.startInvasion({ key: `manual-${Date.now()}`, endsAt: new Date(Date.now() + hours * 3600000), manual: true });
+    if (!inv) return res.status(409).json({ error: 'Invasion impossible à lancer (une autre vient de commencer ?)' });
+    await A.writeLog(prisma, req.staff, 'INVASION_START', null, { hours, hordes: inv.hordes });
+    res.json({ message: `Invasion lancée : ${inv.hordes} donjons pour ${hours} h`, invasion: inv });
+  } catch (e) { fail(res, e); }
+});
+router.post('/admin/invasion/end', need('world'), async (req, res) => {
+  try {
+    const H = require('../services/hordeService');
+    const inv = await H.activeInvasion();
+    if (!inv) return res.status(400).json({ error: 'Aucune invasion en cours' });
+    const r = await H.endInvasion(inv);
+    await A.writeLog(prisma, req.staff, 'INVASION_END', null, r || {});
+    res.json({ message: `Invasion terminée${r ? ` : ${r.left} donjons repartis` : ''}` });
+  } catch (e) { fail(res, e); }
+});
+
 // ---- statistiques, annonces (administrateur) ----
 router.get('/admin/stats', need('stats'), async (req, res) => {
   try { res.json(await require('../services/statsService').stats()); } catch (e) { fail(res, e); }

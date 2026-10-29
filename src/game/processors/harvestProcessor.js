@@ -105,7 +105,7 @@ let lastReinforceAt = 0;
 async function reinforceTribes(now) {
   if (now.getTime() - lastReinforceAt < config.tick.tribeReinforceMinutes * 60000) return 0;
   lastReinforceAt = now.getTime();
-  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null, cityId: null, resourceType: { notIn: ['WONDER', 'PLAN'] } }, select: { id: true, x: true, y: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
+  const guarded = await prisma.resourceNode.findMany({ where: { hasDefenders: true, hasPlayerArmy: false, lastDefeat: null, cityId: null, resourceType: { notIn: ['WONDER', 'PLAN', 'HORDE'] } }, select: { id: true, x: true, y: true, level: true, amount: true, maxAmount: true, resourceType: true, defenderUnits: true } });
   let reinforced = 0;
   for (const node of guarded) {
     const soldiers = Object.values(node.defenderUnits || {}).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -123,7 +123,7 @@ async function reinforceTribes(now) {
 
 async function processTribeRespawn(now) {
   await reinforceTribes(now);
-  const defeatedNodes = await prisma.resourceNode.findMany({ where: { hasDefenders: false, lastDefeat: { not: null }, hasPlayerArmy: false, cityId: null, resourceType: { notIn: ['WONDER', 'PLAN'] } } });   // les Immortels reviennent par wonderService
+  const defeatedNodes = await prisma.resourceNode.findMany({ where: { hasDefenders: false, lastDefeat: { not: null }, hasPlayerArmy: false, cityId: null, resourceType: { notIn: ['WONDER', 'PLAN', 'HORDE'] } } });   // les Immortels reviennent par wonderService
   for (const node of defeatedNodes) {
     let respawnTime;
     if (node.lastArmyDeparture) {

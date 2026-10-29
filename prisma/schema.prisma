@@ -1009,3 +1009,50 @@ model Announcement {
 
   @@index([bannerUntil])
 }
+
+// Invasions barbares (décision du 29 octobre 2026) : une par week-end (ou lancée par l'équipe)
+model Invasion {
+  id        String    @id @default(uuid())
+  key       String    @unique // date du vendredi (AAAA-MM-JJ), ou « manual-… »
+  startedAt DateTime  @default(now())
+  endsAt    DateTime
+  endedAt   DateTime?
+  manual    Boolean   @default(false)
+  hordes    Int       @default(0)
+  destroyed Int       @default(0)
+
+  @@index([endedAt])
+}
+
+// Donjon d'une horde : un point spécial de la carte (ResourceNode « HORDE », garnison de l'étage en cours), 3 étages
+model Horde {
+  id          String    @id @default(uuid())
+  invasionId  String
+  nodeId      String    @unique
+  x           Int
+  y           Int
+  level       Int
+  floor       Int       @default(1) // étage en cours : 1 avant-poste, 2 remparts, 3 chef de la horde
+  floors      Json // garnison de départ de chaque étage : [{ units, power }]
+  destroyedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  damage HordeDamage[]
+
+  @@index([invasionId])
+}
+
+// Dégâts de chaque joueur sur un donjon (points de combat : entretien des barbares tués), pour le partage du trésor
+model HordeDamage {
+  id         String  @id @default(uuid())
+  hordeId    String
+  playerId   String
+  allianceId String?
+  points     Int     @default(0)
+  attacks    Int     @default(0)
+
+  horde Horde @relation(fields: [hordeId], references: [id], onDelete: Cascade)
+
+  @@unique([hordeId, playerId])
+  @@index([playerId])
+}
