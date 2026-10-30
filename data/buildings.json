@@ -525,7 +525,7 @@
     {
       "key": "WALL",
       "name": "Mur",
-      "description": "Rempart de la ville : donne un bonus de défense aux troupes et doit être abattu par les engins de siège avant un assaut. Il se répare avec le temps.",
+      "description": "Rempart de la ville, bâti sur l'enceinte : il ne prend aucun emplacement autour du Bâtiment principal. Il donne un bonus de défense aux troupes et doit être abattu par les engins de siège avant un assaut. Il se répare avec le temps.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -635,7 +635,6 @@
     {
       "key": "GREAT_BARRACKS",
       "name": "Grande Caserne",
-      "description": "Seconde caserne : recrute aussi l'infanterie et les archers et accélère leur formation de 4 % par niveau. Demande une Caserne au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -652,12 +651,11 @@
         "unlockEliteTier": 15,
         "trainTimeReductionPctPerLevel": 4.0
       },
-      "description": "Permet de recruter de l'infanterie et archers hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
+      "description": "Seconde caserne, dans une colonie : forme l'infanterie et les archers (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit leur temps de formation de 4 % par niveau. Demande une Caserne au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis la Caserne de la capitale."
     },
     {
       "key": "GREAT_STABLE",
       "name": "Grande Écurie",
-      "description": "Seconde écurie : recrute aussi la cavalerie et accélère sa formation de 4 % par niveau. Demande une Écurie au niveau 20.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -674,7 +672,7 @@
         "unlockEliteTier": 15,
         "trainTimeReductionPctPerLevel": 4.0
       },
-      "description": "Permet de recruter de la cavalerie hors capitale. Débloque BASE niv.1, INTER niv.7, ELITE niv.15. Réduit le temps de recrutement de 4% par niveau."
+      "description": "Seconde écurie, dans une colonie : forme la cavalerie (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit son temps de formation de 4 % par niveau. Demande une Écurie au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis l'Écurie de la capitale."
     },
     {
       "key": "EMBASSY",
@@ -831,7 +829,6 @@
     {
       "key": "RESIDENCE",
       "name": "Résidence",
-      "description": "Résidence du gouverneur : réduit le temps de construction et formera les colons des futures villes.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -851,14 +848,14 @@
         "settlerCost": { "wood": 0, "stone": 0, "iron": 0, "food": 0 },
         "settlerVulnerable": true,
         "cityFoundationTimeSec": 86400,
-        "secondaryCityBonusPct": 20
+        "secondaryCityBonusPct": 20,
+        "colonyNodeBonusPctPerNodeLevel": 15
       },
-      "description": "Réduit le temps de construction de 0.25% par niveau. Permet de former des colons (niv.10/15/20) pour fonder jusqu'à 3 villes secondaires sur des points de ressource (+20% production)."
+      "description": "Réduit le temps de construction de 0,25 % par niveau. Forme les colons (1 au niveau 10, 2 au niveau 15, 3 au niveau 20) qui fondent jusqu'à 3 colonies sur des gisements. Une colonie produit 20 % de plus, et son gisement lui donne encore +15 % par niveau du gisement (1 à 3) sur sa seule ressource : bois, pierre, fer ou céréales."
     },
     {
       "key": "TRADE_OFFICE",
       "name": "Comptoir de Commerce",
-      "description": "Comptoir des caravanes : agrandit la capacité de transport des armées et des convois marchands.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -871,10 +868,11 @@
       "timeL20Sec": 259200,
       "effects": {
         "notInCapital": true,
+        "bestLevelForAllCities": true,
         "p2pTaxReductionPctPerLevel": 1.0,
         "armyTransportCapacityBonusPctPerLevel": 1.0
       },
-      "description": "Réduit la taxe P2P de 1% par niveau et augmente la capacité de transport des armées lors du commerce entre joueurs de 1% par niveau."
+      "description": "Réduit la taxe des échanges entre joueurs de 1 % par niveau et augmente la capacité de transport des armées de 1 % par niveau. Le meilleur Comptoir de vos colonies vaut pour toutes vos villes, capitale comprise : les niveaux ne s'additionnent pas."
     },
     {
       "key": "ROMAN_THERMAE",

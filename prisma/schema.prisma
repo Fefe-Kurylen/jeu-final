@@ -186,7 +186,9 @@ model City {
   isSieged          Boolean   @default(false)
   wallStructure     Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
   siegeStarted      DateTime?
-  foodAlertAt       DateTime? // dernière alerte « grenier bientôt vide » (une toutes les 6 h au plus)
+  foodAlertAt       DateTime? // dernière alerte « grenier bientôt vide » du joueur, notée sur sa capitale (config.army.famineAlertHours)
+  idleAlertAt       DateTime? // dernière alerte « File de construction vide » (config.city.idleAlertHours)
+  storageAlertAt    DateTime? // dernière alerte « dépôt plein dans 1 h » (config.city.storageAlertHours)
   // Ville Merveille (décision du 28 octobre 2026) : fondée sur un site pris aux Immortels ; ne peut pas être rasée
   isWonder          Boolean   @default(false)
   wonderLevel       Int       @default(0)
@@ -215,7 +217,7 @@ model City {
 model CityBuilding {
   id     String @id @default(uuid())
   cityId String
-  slot   Int
+  slot   Int // 0 : Bâtiment principal, 1-19 : anneau, 20 : Mur sur l'enceinte (config.city.wallSlot), 101-118 : champs
   key    String
   level  Int    @default(1)
 

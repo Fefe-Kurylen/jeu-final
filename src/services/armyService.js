@@ -90,8 +90,8 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: true, owner: true } });
   if (!fresh) return {};
   const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
-  // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate), Market / Trade Office of the home city and
-  // Desert Outpost of the capital
+  // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate), Market of the home city, best Trade Office
+  // of the player's cities and Desert Outpost of the capital
   const cityBuildings = fresh.cityId ? await tx.cityBuilding.findMany({ where: { cityId: fresh.cityId }, select: { key: true, level: true } }) : [];
   const buildings = fx.withCapital(cityBuildings, await capitalBuildingsOf(tx, fresh.ownerId));
   const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance

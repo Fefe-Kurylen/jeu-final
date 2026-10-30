@@ -2,6 +2,9 @@
 
 *Imperium Antiquitas — rapport de décision — 30 octobre 2026*
 
+> **Mise à jour du 30 octobre 2026 au soir** : les décisions sont prises et appliquées. Ce que devient chaque recommandation :
+> dernière partie, « Décisions appliquées le 30 octobre 2026 ». Les chiffres ci-dessous sont ceux d'avant ces décisions.
+
 **Votre question.** Les coûts sont-ils équilibrés face à l'entretien des armées, à la production de nourriture et au stockage ?
 
 **D'où viennent les chiffres.**
@@ -532,3 +535,54 @@ La « valeur au combat » est une mesure qui prédit exactement le résultat des
 - **Plafonds après (a) (recommandation 12).** `rewardCap` dans `src/services/questService.js` et `routePct` dans `src/services/marketService.js`.
 - **Soins (recommandation 6).** `config.wounded` et `src/services/woundedService.js`. Fiche périmée : `docs/ETAT-DES-SYSTEMES.md` (soins pendant un siège, Grand Dépôt « protégé »).
 - **Simulation (recommandation 15).** `CAPITAL_SKIP` et `COLONY_SKIP` dans `tools/sim/modules/10-economy.cjs`. Ajouter `--modules=economy,military,war` pour mesurer les combats entre joueurs.
+
+---
+
+## Décisions appliquées le 30 octobre 2026
+
+Décisions du propriétaire du jeu, prises le 30 octobre 2026 et appliquées le même jour (serveur, client, outils, documents).
+Les règles sont décrites dans `docs/ETAT-DES-SYSTEMES.md` (« Économie, placement et stock partagé »), les chiffres dans
+`docs/EQUILIBRAGE.md` § 14.
+
+### Deux décisions nouvelles, hors des recommandations
+
+- **Stock partagé entre les villes d'un joueur.** Chaque ville garde ce qu'elle produit, avec son propre plafond. Les
+  constructions, les recrutements, la recherche, les soins, le héros et la fondation d'une ville se paient sur la somme des
+  stocks de toutes les villes (la ville de l'action d'abord, puis celle qui en a le plus). L'entretien des troupes se paie
+  sur tous les greniers ; la famine ne vient que quand ils sont tous vides. Toute unité formée ou soignée apparaît dans la
+  capitale ; une colonie n'a pas de garnison propre. Pillage, raids, siège, cachette, marché et transports restent propres
+  à chaque ville. L'idée de convois automatiques vers la capitale est abandonnée.
+- **Placement des bâtiments.** 18 bâtiments sont réservés à la capitale et valent pour tout le joueur (Place de
+  rassemblement, Académie, Tente de soins, Tour de guet, Caserne, Écurie, Atelier, Forge, Ambassade, Chambre au Trésor,
+  Domus, Résidence, bâtiment de la civilisation) ; 10 sont réservés aux colonies (Moulin, Boulangerie, Scierie, Tailleur de
+  pierre, Fonderie, Comptoir, Grand dépôt, Grand silo, Grande caserne, Grande écurie) ; Marché, Dépôt, Silo, Cachette, Mur,
+  Bâtiment principal et champs vont partout. **Les Douves sont supprimées du jeu.**
+
+### Recommandation par recommandation
+
+| N° | Recommandation | Décision | Ce qui a été fait |
+|---|---|---|---|
+| 1 | Ne plus perdre de ressources à la réception | Appliquée | Une ville qui reçoit ne baisse jamais : `GREATEST(x, LEAST(x + gain, plafond))` dans `creditCity`. |
+| 2 | Trésor des invasions | Appliquée (variante simple) | La part de chaque joueur va dans sa capitale, puis dans ses autres villes (`creditPlayer`) ; la notification dit ce qui a été versé et ce qui a été perdu faute de place. |
+| 3 | Champs plus chers (× 1,45) | Appliquée | Ferme, Bûcheron, Carrière et Mine de fer coûtent × 1,45 par niveau, le reste × 1,28 ; un seul calcul (`buildCostFor`) pour le serveur, les quêtes, le client et les outils. |
+| 4 | Champs et Bâtiment principal plus longs (V7b, × 1,30) | Appliquée | Temps × 1,30 par niveau pour ces 5 bâtiments, × 1,2 pour les autres ; la recherche reste à × 1,2. |
+| 5 | Entretien 5 / 9 / 13 | Appliquée | 5 / 9 / 13, engins 15 ; les 8 retouches d'endurance du tableau sont faites. Mesure refaite : 3 intermédiaires restent sous leur base (Archer gaulois, Toxote, Cavalier du désert du Sultanat), à décider. |
+| 6 | Soins payants et plus lents | Appliquée | 30 % du prix de recrutement ; 10 % du temps de formation × 0,95^(Tente − 1) par unité, les soins à la suite ; or 1 / 2 / 3 / 3 par unité ; les blessés qui attendent mangent. Une seule Tente, dans la capitale, pour tout le joueur ; les soignés rejoignent la capitale. Pendant un siège, les soins continuent ; la fiche « État des systèmes » est corrigée. |
+| 7 | Merveille × 5 | Appliquée | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 ; la Merveille entière vaut 2,15 G. |
+| 8 | Immortels plus forts | Appliquée | Site 3 M, plan 4,5 M, vague 20 000 × niveau^1,35. Un mur 20 sans défenseurs ne tient plus seul que jusqu'à la Merveille 2. |
+| 9 | Donjons et âge du monde | Appliquée : force réglée sur les joueurs | Au lancement, avant-poste du niveau 1 = la moitié de la puissance médiane des joueurs actifs (3 000 au moins), × 1,8 par niveau ; notée sur l'invasion. Sous 5 joueurs mesurés, l'ancienne formule (âge du monde) reste. Le trésor garde l'âge du monde. |
+| 10 | Ciblage des armées mélangées | Option A appliquée | Les coups de chaque round se répartissent sur toutes les lignes de soldats selon leur solidité ; les engins sont visés après les soldats. Mesure refaite : 25 % d'élite et 75 % de base gagnent de 36 à 42 % contre une armée de base pure à entretien 5 / 9 / 13, sans exception hunnique. |
+| 11 | Pillage | Option B appliquée | 30 % et 24 h gardés (GDD) ; le raid est présenté comme du harcèlement dans le client (fenêtre de raid, carte) et les documents. |
+| 12 | Plafonds des quêtes et des routes | Option A appliquée | Récompenses de quêtes et routes commerciales calculées sur le Dépôt et le Silo seuls (80 000 et 13 333 au plus). |
+| 13 | Emplacements de la capitale | Réglée par le placement | La capitale n'a plus que 18 bâtiments possibles pour 19 emplacements (le Grand dépôt est un bâtiment des colonies) ; les gros prix se paient sur le stock de toutes les villes. Rôle des niveaux 21 à 30 du Bâtiment principal : toujours à décider. |
+| 14 | Message « Dépôt trop petit » | Appliquée | « Ressources insuffisantes : il manque … (toutes vos villes comprises) », ou « Stockage trop petit (…) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie) », affichés par le client. |
+| 15 | Joueurs automatiques de la simulation | Appliquée (sauf le module de guerre) | Plan de construction lu dans les données (plus de liste à part, plus de Douves), coûts du serveur, paiement sur le stock de toutes les villes, plus de marge de 95 %, Grand dépôt et Grand silo en colonie, Chambre au Trésor et Tente de soins jusqu'au 20, soins payés, entretien sur tous les greniers. Troisième colonie : la Résidence 20 (130 668 de nourriture) se compare au stockage de toutes les villes moins l'entretien d'un pas, au lieu du seul grenier de la capitale moins 6 h d'entretien. Le module de guerre reste inachevé. |
+| 16 | Documents périmés | Appliquée | « État des systèmes » (Grand dépôt, soins pendant un siège), commentaires du code (Agronomie à 0,5 % par niveau, puissance des Immortels) corrigés. |
+
+### Ce qui reste à décider
+
+- Les 3 intermédiaires encore sous leur base par céréale (Archer gaulois −1,9 %, Toxote −11,1 %, Cavalier du désert du
+  Sultanat −31,0 %) : il faudrait +1, +3 et +14 d'endurance.
+- Le rôle des niveaux 21 à 30 du Bâtiment principal (recommandation 13).
+- Une nouvelle simulation longue (6 ans) avec ces règles, module de guerre compris, pour vérifier les dates de la partie 4.
+

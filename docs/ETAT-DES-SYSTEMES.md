@@ -97,7 +97,7 @@ autres ×1,2. La recherche garde ×1,28 et ×1,2.
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette (seule protection du pillage depuis le 30 octobre 2026), un raid par cible et par jour ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
+| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette (seule protection du pillage depuis le 30 octobre 2026), un raid par jour sur une même ville pour chaque attaquant (le raid est un harcèlement, pas un revenu : recommandation 11) ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport |
 | Espionnage par espions dédiés (section Espionnage et vision, 26 octobre 2026) | Espions dessinés en marche sur la carte (image `map/units/spy` à produire) |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |

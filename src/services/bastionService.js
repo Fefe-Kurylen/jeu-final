@@ -108,7 +108,8 @@ async function place(playerId, x, y) {
 }
 
 // ---- envoyer une armée vers le bastion (ravitaillement, garnison, siège) ----
-// l'armée avec sa ville (Marché, Comptoir) et les bâtiments « capitale seulement » de son joueur (Irrigation, Poste du désert)
+// l'armée avec sa ville (Marché) et les bâtiments partagés de son joueur (Irrigation et Poste du désert de la capitale,
+// meilleur Comptoir de ses villes)
 const ARMY_FULL = { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } }, cities: fx.CAPITAL_BUILDINGS } } };
 async function loadReadyArmy(tx, playerId, armyId) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
@@ -149,7 +150,7 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
       const load = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Number(resources?.[r]) || 0))]));
       const total = RES.reduce((t, r) => t + load[r], 0);
       if (total <= 0) throw httpError(400, 'Entrez des ressources à envoyer');
-      // Marché et Comptoir de la ville, Poste du désert de la capitale
+      // Marché de la ville, meilleur Comptoir des villes du joueur, Poste du désert de la capitale
       const mult = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(fx.withCapital(army.city?.buildings, fx.capitalOf(army.owner))) / 100) * (await carryMult(playerId));
       const cap = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);
       if (total > cap) throw httpError(400, `Capacité insuffisante (max ${cap})`);

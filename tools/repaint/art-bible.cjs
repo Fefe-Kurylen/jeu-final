@@ -55,7 +55,7 @@ ${table(['Type', 'Images concernées', 'Composition'], Object.entries(P.COMPOSIT
 ## 2. Inventaire
 
 ${table(['Catégorie', 'Fichiers', 'Détail'], [
-  ['buildings', counts.buildings, '39 bâtiments × 6 civilisations × 3 paliers (courant, _t1, _t3) × 2 (normal, _snow)'],
+  ['buildings', counts.buildings, `${Object.keys(P.BUILDING).length} bâtiments × 6 civilisations × 3 paliers (courant, _t1, _t3) × 2 (normal, _snow)`],
   ['fields', counts.fields, '4 types × 3 paliers × 3 biomes'], ['plots', counts.plots, '3 biomes × 2 variantes'], ['props', counts.props, 'décors de scène + volutes de fumée + ondes'],
   ['map', counts.map, 'villes (6 + capitales + défaut), ressources × biomes, relief (isolé, _x, _y, _xy), unités en marche'],
   ['walls', counts.walls, '6 civilisations × 3 paliers × (2 courtines hautes, 2 murets, 1 tour) × neige'],
@@ -73,7 +73,7 @@ ${table(['Clé', 'Architecture'], Object.entries(P.FACTION))}
 ### Coiffes des unités et héros par civilisation
 
 ${table(['Clé', 'Coiffe'], Object.entries(P.HEAD))}
-### Les 39 bâtiments (\`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`)
+### Les ${Object.keys(P.BUILDING).length} bâtiments (\`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png\`)
 
 **Orientation** : l'entrée principale de chaque bâtiment est sur sa face avant droite, vers le bas à droite de l'image (sud-est, côté porte de la ville), comme dans le guide 3D. Phrase ajoutée à chaque prompt de bâtiment : « ${P.ENTRANCE} »
 

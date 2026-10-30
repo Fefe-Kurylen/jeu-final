@@ -1,6 +1,8 @@
 // families.cjs — le tour du jeu écran par écran : chaque famille d'images (test sur le nom de fichier), où elle se voit,
 // la référence du prompt et la priorité. Partagé par liste-graphismes.cjs (docs/GRAPHISMES-COMPLET.md) et
 // generation-complete.cjs (docs/GENERATION-COMPLETE.md).
+const { BUILDING } = require('./prompts.cjs');   // sujets des bâtiments : un par bâtiment des données (38 sans les Douves)
+
 function classify(files, painted) {
   const taken = new Set();
   const fam = (title, test, where, ref, prio, note = '') => {
@@ -15,7 +17,7 @@ function classify(files, painted) {
       fam('Bustes des héros (choix de civilisation, cartes d\'armée)', f => /^heroes\/[A-Z]+_bust\.webp$/.test(f), 'cartes de civilisation, armées', '§ 3.5', '★★☆')
     ]],
     ['Ville : scène isométrique', [
-      fam('Bâtiments, palier courant (niveaux 7-13), 39 × 6 civilisations', f => /^buildings\/[A-Z]+\/[A-Z_]+\.webp$/.test(f), 'vue ville, vignettes, fiches', '§ 3.1', '★★★'),
+      fam(`Bâtiments, palier courant (niveaux 7-13), ${Object.keys(BUILDING).length} × 6 civilisations`, f => /^buildings\/[A-Z]+\/[A-Z_]+\.webp$/.test(f), 'vue ville, vignettes, fiches', '§ 3.1', '★★★'),
       fam('Bâtiments, paliers 1 et 3 (niveaux 1-6 et 14-20)', f => /^buildings\/[A-Z]+\/[A-Z_]+_t[13]\.webp$/.test(f), 'vue ville, fiches (3 paliers)', '§ 3.1', '★☆☆'),
       fam('Chantiers : chaque bâtiment en construction par civilisation', f => /^buildings\/.*_site\.webp$/.test(f), 'bâtiment en première construction', 'guide § S10', '★★☆'),
       fam('Échafaudages par civilisation (trois tailles)', f => /^props\/scaffold_/.test(f), 'bâtiment en amélioration', 'guide § S11', '★★★'),

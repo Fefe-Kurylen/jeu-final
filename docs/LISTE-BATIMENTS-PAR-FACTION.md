@@ -1,6 +1,6 @@
 # Bâtiments à produire, civilisation par civilisation
 
-Chaque civilisation affiche **34 bâtiments** : 33 communs et son bâtiment de faction. Les cinq bâtiments des autres
+Chaque civilisation affiche **33 bâtiments** : 32 communs et son bâtiment de faction. Les cinq bâtiments des autres
 civilisations (Thermes, Brasserie, Temple, Poste d'irrigation, Tente de guerre, Poste du désert) ne sont jamais montrés
 chez elle : inutile de les peindre pour elle.
 
@@ -15,11 +15,11 @@ Ordre conseillé : celui du tableau (ce que le joueur construit et voit en premi
 
 Généré par `node tools/liste-graphismes.cjs`.
 
-## Rome (`buildings/ROME/`) — 82 images à produire sur 102 (20 peintes)
+## Rome (`buildings/ROME/`) — 79 images à produire sur 99 (20 peintes)
 
 Architecture à ajouter à chaque prompt : *Roman architecture: pale sandstone ashlar walls, terracotta tiled roofs, marble columns, red vexillum banners, amphorae*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -52,17 +52,16 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ✅ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ☐ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
-| 34 | `ROMAN_THERMAE` | Thermes | Roman baths with a pool of blue water and columns | Bâtiment principal 10, Tente de soins 5 | ✅ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
+| 33 | `ROMAN_THERMAE` | Thermes | Roman baths with a pool of blue water and columns | Bâtiment principal 10, Tente de soins 5 | ✅ | ☐ | ☐ |
 
-## Gaule (`buildings/GAUL/`) — 68 images à produire sur 102 (34 peintes)
+## Gaule (`buildings/GAUL/`) — 66 images à produire sur 99 (33 peintes)
 
 Architecture à ajouter à chaque prompt : *Gallic architecture: timber and wattle walls, thatched roofs, carved wooden beams, palisade stakes, green banners, barrels*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -95,17 +94,16 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ✅ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ✅ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ✅ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ✅ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ✅ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ✅ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ✅ | ☐ | ☐ |
-| 34 | `GALLIC_BREWERY` | Brasserie | a Gallic brewery with barrels and a smoking chimney | Bâtiment principal 10, Ferme 10 | ✅ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ✅ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ✅ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ✅ | ☐ | ☐ |
+| 33 | `GALLIC_BREWERY` | Brasserie | a Gallic brewery with barrels and a smoking chimney | Bâtiment principal 10, Ferme 10 | ✅ | ☐ | ☐ |
 
-## Grèce (`buildings/GREEK/`) — 98 images à produire sur 102 (4 peintes)
+## Grèce (`buildings/GREEK/`) — 95 images à produire sur 99 (4 peintes)
 
 Architecture à ajouter à chaque prompt : *Greek architecture: white marble walls, fluted columns, triangular pediments, blue slate roofs, blue banners, amphorae*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -138,17 +136,16 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ☐ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ☐ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
-| 34 | `GREEK_TEMPLE` | Temple | a Greek temple with fluted columns and a pediment | Bâtiment principal 10, Académie 10 | ☐ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
+| 33 | `GREEK_TEMPLE` | Temple | a Greek temple with fluted columns and a pediment | Bâtiment principal 10, Académie 10 | ☐ | ☐ | ☐ |
 
-## Égypte (`buildings/EGYPT/`) — 68 images à produire sur 102 (34 peintes)
+## Égypte (`buildings/EGYPT/`) — 66 images à produire sur 99 (33 peintes)
 
 Architecture à ajouter à chaque prompt : *Egyptian architecture: sandstone walls with hieroglyph friezes, flat roofs with merlons, lotus columns, gold trims, teal and ochre accents, obelisks*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -181,17 +178,16 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ✅ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ✅ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ✅ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ✅ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ✅ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ✅ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ✅ | ☐ | ☐ |
-| 34 | `EGYPTIAN_IRRIGATION` | Poste d'Irrigation | irrigation channels of blue water crossing green crops, with a shaduf | Bâtiment principal 10, Ferme 10 | ✅ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ✅ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ✅ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ✅ | ☐ | ☐ |
+| 33 | `EGYPTIAN_IRRIGATION` | Poste d'Irrigation | irrigation channels of blue water crossing green crops, with a shaduf | Bâtiment principal 10, Ferme 10 | ✅ | ☐ | ☐ |
 
-## Huns (`buildings/HUN/`) — 102 images à produire sur 102 (0 peintes)
+## Huns (`buildings/HUN/`) — 99 images à produire sur 99 (0 peintes)
 
 Architecture à ajouter à chaque prompt : *Hunnic steppe architecture: felt yurts, hides and timber, pointed conical roofs, horsetail standards, red banners, spears and campfires*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -224,17 +220,16 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ☐ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ☐ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
-| 34 | `HUN_WAR_TENT` | Tente de Guerre | a large war tent with a banner, spears and a campfire | Bâtiment principal 10, Écurie 10 | ☐ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
+| 33 | `HUN_WAR_TENT` | Tente de Guerre | a large war tent with a banner, spears and a campfire | Bâtiment principal 10, Écurie 10 | ☐ | ☐ | ☐ |
 
-## Sultanat (`buildings/SULTAN/`) — 102 images à produire sur 102 (0 peintes)
+## Sultanat (`buildings/SULTAN/`) — 99 images à produire sur 99 (0 peintes)
 
 Architecture à ajouter à chaque prompt : *Sultanate architecture: whitewashed plaster walls, onion domes covered with teal mosaic, horseshoe arches, a slender minaret, gold crescents, lanterns*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door.*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -267,9 +262,8 @@ Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place 
 | 27 | `TREASURE_CHAMBER` | Chambre au Trésor | a fortified treasure chamber in dark stone with torches and a heavy door | Bâtiment principal 10 | ☐ | ☐ | ☐ |
 | 28 | `GREAT_SILO` | Grand Silo | two tall grain silos side by side | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
 | 29 | `GREAT_WAREHOUSE` | Grand Dépôt | a large storehouse with crates and barrels | Bâtiment principal 10, Chambre au Trésor 5 | ☐ | ☐ | ☐ |
-| 30 | `MOAT` | Douves | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge | Bâtiment principal 10, Mur 5 | ☐ | ☐ | ☐ |
-| 31 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
-| 32 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
-| 33 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
-| 34 | `SULTAN_DESERT_OUTPOST` | Poste du Désert | a desert outpost with a minaret, a small dome and a palm tree | Bâtiment principal 10, Place du marché 5 | ☐ | ☐ | ☐ |
+| 30 | `TRADE_OFFICE` | Comptoir de Commerce | a trade office with caravan goods, sacks and a cart | Place du marché 10, Bâtiment principal 10 | ☐ | ☐ | ☐ |
+| 31 | `GREAT_BARRACKS` | Grande Caserne | a large barracks with two banners | Caserne 20 | ☐ | ☐ | ☐ |
+| 32 | `GREAT_STABLE` | Grande Écurie | a large stable with horses | Écurie 20 | ☐ | ☐ | ☐ |
+| 33 | `SULTAN_DESERT_OUTPOST` | Poste du Désert | a desert outpost with a minaret, a small dome and a palm tree | Bâtiment principal 10, Place du marché 5 | ☐ | ☐ | ☐ |
 

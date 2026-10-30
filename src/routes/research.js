@@ -2,13 +2,14 @@
 // Technologies researched at the Academy, Travian-style small bonuses (data/technologies.json, utils/techEffects.js):
 // the player's state, starting a level, cancelling an item. Research is per player and runs one at a time (one more may
 // wait in the queue). Académie et Temple grec réservés à la capitale (décision du 30 octobre 2026) : toute ville lance une
-// recherche avec ceux de la capitale ; le prix vient de la ville, puis des autres villes du joueur (stock partagé).
+// recherche avec ceux de la capitale ; le prix vient de la ville, puis des autres villes du joueur (stock partagé). Lancer
+// et annuler verrouillent toutes les villes du joueur : rejoués après un interblocage rare avec le tick (withDeadlockRetry).
 const express = require('express');
 const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, buildingsWithCapital, isId } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, buildingsWithCapital, withDeadlockRetry, isId } = require('../utils/db');
 const T = require('../utils/techEffects');
 const { processResearch, startNextQueued, lockResearch } = require('../game/processors/researchProcessor');
 
@@ -55,7 +56,7 @@ router.post('/start', auth, async (req, res) => {
     if (typeof cityId !== 'string' || !isId(cityId) || typeof techKey !== 'string') return res.status(400).json({ error: 'Ville et technologie requises' });
     const tech = T.techOf(techKey);
     if (!tech) return res.status(400).json({ error: 'Technologie inconnue' });
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // le prix peut venir de toutes les villes
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: { select: { key: true, level: true } } } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
@@ -77,7 +78,7 @@ router.post('/start', auth, async (req, res) => {
       const endsAt = new Date(startAt.getTime() + durationSec * 1000);
       const queueItem = await tx.researchQueueItem.create({ data: { playerId: city.playerId, cityId: city.id, techKey: tech.key, targetLevel, cost, startedAt: startAt, endsAt, status: running ? 'QUEUED' : 'RUNNING' } });
       return { message: running ? 'Recherche ajoutée à la file' : 'Recherche lancée', queueItem, durationSec, cost };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }
@@ -88,7 +89,7 @@ router.post('/start', auth, async (req, res) => {
 // Chaque niveau annulé est rendu à la ville qui l'a lancé, puis ce qui n'y tient pas aux autres villes (creditPlayer).
 router.delete('/:itemId', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // toutes les villes, avant le verrou de la file
       await lockResearch(tx, req.user.playerId);
       const item = await tx.researchQueueItem.findFirst({ where: { id: req.params.itemId, playerId: req.user.playerId } });
@@ -115,7 +116,7 @@ router.delete('/:itemId', auth, async (req, res) => {
       }
       await startNextQueued(tx, item.playerId, new Date());
       return { message: `Recherche annulée${lostNote(lost)}`, cancelled, refund, lost };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }

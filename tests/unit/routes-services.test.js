@@ -226,10 +226,10 @@ test('marché : le convoi d\'un échange marche plus vite quand la capitale est 
     const army = { ownerId: 'p1', units: [{ unitKey: unit.key, tier: unit.tier, count: 10 }], hero: null };
     const to = { x: 12, y: 0 }, from = { id: 'c1', x: 0, y: 0, buildings: IRRIGATION_20 };   // l'Irrigation de la colonie ne compte pas
     let asked = null;
-    const capitalDb = (buildings) => ({ city: { findFirst: async (q) => { asked = q.where; return { buildings }; } } });
+    const capitalDb = (buildings) => ({ city: { findMany: async (q) => { asked = q.where; return [{ isCapital: true, buildings }]; } } });
     const plain = await MS.travelSecondsBetween(army, from, to, 'EGYPT', [], capitalDb([]));
     const irrigated = await MS.travelSecondsBetween(army, { ...from, buildings: [] }, to, 'EGYPT', [], capitalDb(IRRIGATION_20));
     assert.ok(irrigated < plain, `${irrigated} < ${plain}`);
-    assert.deepEqual(asked, { playerId: 'p1', isCapital: true });
+    assert.deepEqual(asked, { playerId: 'p1' });
   } finally { restore(); }
 });

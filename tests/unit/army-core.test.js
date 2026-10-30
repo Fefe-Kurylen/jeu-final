@@ -84,20 +84,21 @@ test('resolveTribeCombat : Immortels d\'élite et camp d\'or combattent avec la 
 
 test('Irrigation de la capitale (capitale seulement) : vitesse de marche de toutes les armées du joueur', async () => {
   let asked = null;
-  const db = { city: { findFirst: async (q) => { asked = q; return { buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 10 }, { key: 'FARM', level: 20 }] }; } } };
+  // villes du joueur avec leurs bâtiments partagés : l'Irrigation d'une colonie (d'avant la migration 0030) ne compte pas
+  const db = { city: { findMany: async (q) => { asked = q; return [{ isCapital: false, buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }] }, { isCapital: true, buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 10 }] }]; } } };
   assert.equal(await playerMarchPct(db, 'p1'), 5);
-  assert.equal(asked.where.playerId, 'p1');
-  assert.equal(asked.where.isCapital, true);
-  // sans joueur : aucune requête (elle lirait la capitale de n'importe qui)
+  assert.deepEqual(asked.where, { playerId: 'p1' });
+  // sans joueur : aucune requête (elle lirait les villes de n'importe qui)
   asked = null;
   assert.equal(await playerMarchPct(db, null), 0);
   assert.equal(asked, null);
-  // chargée avec le joueur (include fx.CAPITAL_BUILDINGS) : les seuls bâtiments « capitale seulement » de sa capitale
+  // chargée avec le joueur (include fx.CAPITAL_BUILDINGS) : les bâtiments « capitale seulement » de sa capitale
   assert.equal(fx.marchSpeedBonusPct(fx.capitalOf({ cities: [{ buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }] }] })), 10);
   assert.deepEqual(fx.capitalOf({}), []);
-  assert.deepEqual(fx.CAPITAL_BUILDINGS.where, { isCapital: true });
+  assert.equal(fx.CAPITAL_BUILDINGS.where, undefined, 'toutes ses villes (le meilleur Comptoir peut être dans n\'importe laquelle)');
+  assert.equal(fx.CAPITAL_BUILDINGS.select.isCapital, true);
   const keys = fx.CAPITAL_BUILDINGS.select.buildings.where.key.in;
-  assert.ok(keys.includes('EGYPTIAN_IRRIGATION') && keys.includes('RALLY_POINT') && !keys.includes('MARKET') && !keys.includes('GREAT_WAREHOUSE'));
+  assert.ok(keys.includes('EGYPTIAN_IRRIGATION') && keys.includes('RALLY_POINT') && keys.includes('TRADE_OFFICE') && !keys.includes('MARKET') && !keys.includes('GREAT_WAREHOUSE'));
 });
 
 test('stockage au démarrage : Grand dépôt et Grand silo comptent dans maxStorage / maxFoodStorage', async () => {

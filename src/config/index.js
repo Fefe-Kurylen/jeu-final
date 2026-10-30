@@ -196,6 +196,13 @@ const config = {
   // City layout: ring slots 1-19 (0 = Main Hall), typed field slots 101-118
   city: {
     maxSlot: 19,
+    // Mur sur l'enceinte (décision du 30 octobre 2026) : sa place fixe, hors de l'anneau 1-19 et des champs 101-118
+    wallSlot: 20,
+    // Alertes d'aide au suivi (décision du 30 octobre 2026) : « File de construction vide » au plus une fois par ville toutes
+    // les 6 h ; « dépôt plein dans 1 h » au plus une fois par ville toutes les 12 h
+    idleAlertHours: 6,
+    storageAlertHours: 12,
+    storageAlertLeadHours: 1,
     // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
     foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
     maxSecondaryCities: 3,
@@ -334,7 +341,7 @@ const config = {
     // GDD : 5 / 10 / 15 ; décision du 30 octobre 2026 (rapport économie, recommandation 5) : 5 / 9 / 13, engins 15
     upkeepPerTier: { base: 5, intermediate: 9, elite: 13, siege: 15 },
     starvationIntervalHours: 1,    // famine façon Travian (décision du 28 octobre 2026) : vérifiée une fois par heure
-    famineAlertHours: 6,           // alerte quand le grenier sera vide dans moins de 6 h
+    famineAlertHours: 12,          // alerte quand les greniers du joueur seront vides dans moins de 12 h (décision du 30 octobre 2026), une fois par 12 h au plus
     siegeUpkeepPct: { attacker: 10, defender: -10 }   // GDD economy_config.upkeep.siegeModifiersPct
   },
 

@@ -3,8 +3,8 @@
 // - Échanges entre joueurs livrés par armées de transport : l'armée du vendeur est réservée à la création de l'offre
 //   (statut MARKET, elle attend en ville avec les marchandises) ; à l'acceptation, elle part vers la ville de l'acheteur
 //   et une armée de l'acheteur part vers celle du vendeur, chacune à sa vitesse ; livraison à l'arrivée, puis retour.
-// - Taxe des échanges : 10 % de ce que chaque convoi transporte, −1 % par niveau du Comptoir de Commerce de la ville
-//   qui envoie, −0,25 % par niveau de la Chambre au Trésor de sa capitale.
+// - Taxe des échanges : 10 % de ce que chaque convoi transporte, −1 % par niveau du meilleur Comptoir de Commerce des
+//   villes du joueur (décision du 30 octobre 2026, sans somme), −0,25 % par niveau de la Chambre au Trésor de sa capitale.
 // - Une offre non prise revient au vendeur au bout de 48 h (marchandises dans la ville, armée libérée).
 // - Routes commerciales entre ses propres villes : toutes les 2 h un convoi (sans armée) emporte 1/12 du stockage de la
 //   ville de départ pour chaque ressource choisie, soit 100 % au plus en 24 h ; il voyage à vitesse fixe. Ce stockage est
@@ -23,21 +23,22 @@ const { notify } = require('./pushService');
 
 const M = config.market;
 const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
-const levelOf = (buildings, key) => (buildings || []).find(b => b.key === key)?.level || 0;
 
-// Taxe d'un convoi qui part de cette ville (en %)
+// Taxe d'un convoi qui part de cette ville (en %) : le meilleur Comptoir des villes du joueur (décision du 30 octobre
+// 2026, sans somme) et la Chambre au Trésor de la capitale
 async function p2pTaxPct(db, cityId) {
   const city = await db.city.findUnique({ where: { id: cityId }, select: { playerId: true, buildings: { select: { key: true, level: true } } } });
   if (!city) return M.p2pTaxPctBase;
-  const capital = await db.city.findFirst({ where: { playerId: city.playerId, isCapital: true }, select: { buildings: { where: { key: 'TREASURE_CHAMBER' }, select: { key: true, level: true } } } });
-  const office = levelOf(city.buildings, 'TRADE_OFFICE') * fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1);
-  const treasure = levelOf(capital?.buildings, 'TREASURE_CHAMBER') * M.treasureTaxReductionPctPerLevel;
+  const buildings = await buildingsWithCapital(db, city);
+  const office = fx.levelOf(buildings, 'TRADE_OFFICE') * fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1);
+  const treasure = fx.levelOf(buildings, 'TREASURE_CHAMBER') * M.treasureTaxReductionPctPerLevel;
   return Math.max(0, Math.round((M.p2pTaxPctBase - office - treasure) * 100) / 100);
 }
 const afterTax = (amount, pct) => Math.floor(amount * (1 - pct / 100));
 
-// Capacité d'une armée pour le commerce : mêmes bonus qu'un convoi (civilisation, Marché et Comptoir de la ville,
-// Avant-poste du désert de la capitale, Bastion). `buildings` : ceux de la ville, avec ceux de la capitale (buildingsWithCapital)
+// Capacité d'une armée pour le commerce : mêmes bonus qu'un convoi (civilisation, Marché de la ville, meilleur Comptoir
+// des villes du joueur, Avant-poste du désert de la capitale, Bastion). `buildings` : ceux de la ville, avec ceux partagés
+// par les villes du joueur (buildingsWithCapital)
 async function tradeCapacity(army, buildings, faction, playerId) {
   const mult = (1 + getFactionBonus(faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(playerId));
   return Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);

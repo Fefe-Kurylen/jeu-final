@@ -5,6 +5,7 @@ const { Prisma } = require('@prisma/client');
 const config = require('../../config');
 const { unitsData, buildingsData } = require('../../config/gamedata');
 const { getProductionAtLevel } = require('../../utils/calculations');
+const { RES_FR } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const T = require('../../utils/techEffects');
 // (techKey, pctPerLevel) VALUES table for an effect; a harmless row when no technology carries it
@@ -57,55 +58,81 @@ function effectPctSql(pairs, only = () => Prisma.empty) {
     GROUP BY e."cityId"`;
 }
 
-async function processResourceProduction(TICK_HOURS) {
-  // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node.
-  // Multiplicateurs par ville : abonnement Plus, et bonus global de production (Irrigation égyptienne de la capitale)
-  const prodTechTable = techTableSql('productionBonusPct');   // Agronomie : +1 %/niveau sur tous les champs
+// Bonus de gisement des colonies (décision du 30 octobre 2026, fx.colonyNodeBonusPct) : niveau du gisement × 15 points
+// de % sur sa seule ressource, ajoutés à ceux des bâtiments de production (Scierie…), avant le bonus des colonies ; rien
+// pour la capitale ni la Ville Merveille. Une ligne par ville (GROUP BY : jamais une ville en double dans les jointures)
+const NODE_TYPE = Object.fromEntries(Object.entries(fx.NODE_RESOURCE).map(([type, r]) => [r, type]));   // wood -> WOOD
+function siteBonusSql(only) {
+  const pct = (r) => Prisma.sql`MAX(CASE WHEN rn."resourceType" = ${NODE_TYPE[r]} THEN rn.level ELSE 0 END) * ${fx.colonyNodeBonusPct(1)}::float`;
+  return Prisma.sql`
+    SELECT rn."cityId", ${pct('wood')} AS w, ${pct('stone')} AS s, ${pct('iron')} AS i, ${pct('food')} AS f
+    FROM "ResourceNode" rn JOIN "City" ci ON ci.id = rn."cityId" AND NOT ci."isCapital" AND NOT ci."isWonder"
+    ${only('rn."cityId"')}
+    GROUP BY rn."cityId"`;
+}
+
+// Production par heure de chaque ville, une ligne par ville ; seul calcul de la production (tick, bilan de nourriture,
+// alerte « dépôt plein ») : (champs × (1 + bâtiments de production + gisement) + base 5/5/5/10) × abonnement Plus ×
+// Irrigation de la capitale (50 % au plus) × Agronomie × colonie (+20 %) × Bastion d'alliance.
+// `only(colonne)` : filtre des villes demandées (bilan de nourriture)
+function productionSql(only = () => Prisma.empty) {
+  const prodTechTable = techTableSql('productionBonusPct');   // Agronomie : +0,5 %/niveau sur tous les champs (data/technologies.json)
   const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;   // GDD: a secondary city produces +20 %
-  await prisma.$executeRaw`
-    UPDATE "City" AS c SET
-      wood  = GREATEST(c.wood, LEAST(c.wood  + (COALESCE(p.w, 0) * (1 + COALESCE(p.wb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float), c."maxStorage")),
-      stone = GREATEST(c.stone, LEAST(c.stone + (COALESCE(p.s, 0) * (1 + COALESCE(p.sb, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float), c."maxStorage")),
-      iron  = GREATEST(c.iron, LEAST(c.iron  + (COALESCE(p.i, 0) * (1 + COALESCE(p.ib, 0) / 100.0) + 5)  * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float), c."maxStorage")),
-      food  = GREATEST(c.food, LEAST(c.food  + (COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * ${TICK_HOURS} * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float), c."maxFoodStorage"))
+  return Prisma.sql`
+    SELECT x."cityId",
+      (x.w * (1 + x.wb / 100.0) + 5)  * x.mult AS wood,
+      (x.s * (1 + x.sb / 100.0) + 5)  * x.mult AS stone,
+      (x.i * (1 + x.ib / 100.0) + 5)  * x.mult AS iron,
+      (x.f * (1 + x.fb / 100.0) + 10) * x.mult AS food
     FROM (
-      SELECT cb."cityId",
-        SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
-        SUM(CASE WHEN cb.key = 'QUARRY'    THEN pt.prod ELSE 0 END) AS s,
-        SUM(CASE WHEN cb.key = 'IRON_MINE' THEN pt.prod ELSE 0 END) AS i,
-        SUM(CASE WHEN cb.key = 'FARM'      THEN pt.prod ELSE 0 END) AS f,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.wood.keys})  THEN cb.level * ${BONUS.wood.pct}  ELSE 0 END) AS wb,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.stone.keys}) THEN cb.level * ${BONUS.stone.pct} ELSE 0 END) AS sb,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.iron.keys})  THEN cb.level * ${BONUS.iron.pct}  ELSE 0 END) AS ib,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb,
-        MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem,
-        MAX(CASE WHEN bst.id IS NOT NULL THEN 1 ELSE 0 END) AS bast
-      FROM "CityBuilding" cb
-      JOIN "City" ci ON ci.id = cb."cityId"
-      LEFT JOIN "Player" pl ON pl.id = ci."playerId"
-      LEFT JOIN "AllianceMember" am ON am."playerId" = ci."playerId"
-      LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de production
-      LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod)
-        ON pt.key = cb.key AND pt.level = cb.level
-      GROUP BY cb."cityId"
-    ) AS p
-    LEFT JOIN (
-      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct
-      FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
-      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
-      GROUP BY ci.id
-    ) AS tp ON tp."cityId" = p."cityId"
-    LEFT JOIN (${effectPctSql(fx.productionBonusKeys())}) AS gp ON gp."cityId" = p."cityId"
-    WHERE c.id = p."cityId" AND ${NOT_FULL}
-  `;
-  // Villes sans aucun bâtiment : production de base uniquement
+      SELECT ct.id AS "cityId",
+        COALESCE(p.w, 0) AS w, COALESCE(p.s, 0) AS s, COALESCE(p.i, 0) AS i, COALESCE(p.f, 0) AS f,
+        COALESCE(p.wb, 0) + COALESCE(site.w, 0) AS wb, COALESCE(p.sb, 0) + COALESCE(site.s, 0) AS sb,
+        COALESCE(p.ib, 0) + COALESCE(site.i, 0) AS ib, COALESCE(p.fb, 0) + COALESCE(site.f, 0) AS fb,
+        (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0) * (1 + COALESCE(tp.pct, 0) / 100.0)
+          * (CASE WHEN ct."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float) AS mult
+      FROM "City" ct
+      LEFT JOIN (
+        SELECT cb."cityId",
+          SUM(CASE WHEN cb.key = 'LUMBER'    THEN pt.prod ELSE 0 END) AS w,
+          SUM(CASE WHEN cb.key = 'QUARRY'    THEN pt.prod ELSE 0 END) AS s,
+          SUM(CASE WHEN cb.key = 'IRON_MINE' THEN pt.prod ELSE 0 END) AS i,
+          SUM(CASE WHEN cb.key = 'FARM'      THEN pt.prod ELSE 0 END) AS f,
+          SUM(CASE WHEN cb.key = ANY(${BONUS.wood.keys})  THEN cb.level * ${BONUS.wood.pct}  ELSE 0 END) AS wb,
+          SUM(CASE WHEN cb.key = ANY(${BONUS.stone.keys}) THEN cb.level * ${BONUS.stone.pct} ELSE 0 END) AS sb,
+          SUM(CASE WHEN cb.key = ANY(${BONUS.iron.keys})  THEN cb.level * ${BONUS.iron.pct}  ELSE 0 END) AS ib,
+          SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys})  THEN cb.level * ${BONUS.food.pct}  ELSE 0 END) AS fb,
+          MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem,
+          MAX(CASE WHEN bst.id IS NOT NULL THEN 1 ELSE 0 END) AS bast
+        FROM "CityBuilding" cb
+        JOIN "City" ci ON ci.id = cb."cityId"
+        LEFT JOIN "Player" pl ON pl.id = ci."playerId"
+        LEFT JOIN "AllianceMember" am ON am."playerId" = ci."playerId"
+        LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de production
+        LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod) ON pt.key = cb.key AND pt.level = cb.level
+        ${only('cb."cityId"')}
+        GROUP BY cb."cityId"
+      ) AS p ON p."cityId" = ct.id
+      LEFT JOIN (
+        SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
+        JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" ${only('ci.id')} GROUP BY ci.id
+      ) AS tp ON tp."cityId" = ct.id
+      LEFT JOIN (${effectPctSql(fx.productionBonusKeys(), only)}) AS gp ON gp."cityId" = ct.id
+      LEFT JOIN (${siteBonusSql(only)}) AS site ON site."cityId" = ct.id
+      ${only('ct.id')}
+    ) AS x`;
+}
+
+async function processResourceProduction(TICK_HOURS) {
+  // 100 % SQL : une seule requête pour toutes les villes (productionSql), aucune lecture côté Node
   await prisma.$executeRaw`
     UPDATE "City" AS c SET
-      wood  = GREATEST(c.wood, LEAST(c.wood  + 5  * ${TICK_HOURS}, c."maxStorage")),
-      stone = GREATEST(c.stone, LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage")),
-      iron  = GREATEST(c.iron, LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage")),
-      food  = GREATEST(c.food, LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage"))
-    WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id) AND ${NOT_FULL}
+      wood  = GREATEST(c.wood,  LEAST(c.wood  + pr.wood  * ${TICK_HOURS}, c."maxStorage")),
+      stone = GREATEST(c.stone, LEAST(c.stone + pr.stone * ${TICK_HOURS}, c."maxStorage")),
+      iron  = GREATEST(c.iron,  LEAST(c.iron  + pr.iron  * ${TICK_HOURS}, c."maxStorage")),
+      food  = GREATEST(c.food,  LEAST(c.food  + pr.food  * ${TICK_HOURS}, c."maxFoodStorage"))
+    FROM (${productionSql()}) AS pr
+    WHERE c.id = pr."cityId" AND ${NOT_FULL}
   `;
 }
 
@@ -122,7 +149,7 @@ function getUpkeepTableSql() {
 }
 
 // ---- bilan de nourriture d'une ville (décision du 28 octobre 2026) ----
-// production/h (champs, bonus, Plus, Irrigation de la capitale, Agronomie, colonie, Bastion) et consommation/h de toutes
+// production/h des 4 ressources (productionSql ; bois, pierre et fer servent à l'alerte « dépôt plein ») et consommation/h de toutes
 // les armées que la ville nourrit (en ville, en mission, en renfort) et de ses blessés qui attendent un soin
 // (config.wounded.woundedPayUpkeep, décision du 30 octobre 2026), réductions d'entretien comprises (bâtiments de faction
 // de la capitale + Intendance, 50 % au plus) ; siège (GDD economy_config.upkeep.siegeModifiersPct) : +10 % pour une armée
@@ -145,33 +172,14 @@ async function heroUpkeepTable(cityIds = null) {
 // ids : villes demandées, répétées dans chaque sous-requête (PostgreSQL n'y pousse pas un IN de plusieurs valeurs)
 function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('-', 0::float)`, ids = null) {
   const only = (col) => ids ? Prisma.sql`WHERE ${Prisma.raw(col)} IN (${Prisma.join(ids)})` : Prisma.empty;
-  const prodTechTable = techTableSql('productionBonusPct');
-  const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
   const upkeepTechTable = techTableSql('upkeepReductionPct');
   return Prisma.sql`
-    SELECT c.id AS "cityId", c."playerId", c.name, c.food, c."maxFoodStorage",
-      ((COALESCE(p.f, 0) * (1 + COALESCE(p.fb, 0) / 100.0) + 10) * (1 + COALESCE(p.prem, 0) * ${PREMIUM_BONUS}) * (1 + LEAST(50, COALESCE(gp.pct, 0)) / 100.0)
-        * (1 + COALESCE(tp.pct, 0) / 100.0) * (CASE WHEN c."isCapital" THEN 1 ELSE ${colonyMult} END) * (1 + COALESCE(p.bast, 0) * ${BASTION_PROD}::float))::float AS prod,
+    SELECT c.id AS "cityId", c."playerId", c.name, c.wood, c.stone, c.iron, c.food, c."maxStorage", c."maxFoodStorage",
+      pr.wood::float AS "prodWood", pr.stone::float AS "prodStone", pr.iron::float AS "prodIron", pr.food::float AS prod,
       ((COALESCE(cons.total, 0) + COALESCE(wd.total, 0)) * (1 - LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)) / 100.0))::float AS cons,
       (LEAST(50, COALESCE(red.pct, 0) + COALESCE(tech.pct, 0)))::float AS "reductionPct"
     FROM "City" c
-    LEFT JOIN (
-      SELECT cb."cityId",
-        SUM(CASE WHEN cb.key = 'FARM' THEN pt.prod ELSE 0 END) AS f,
-        SUM(CASE WHEN cb.key = ANY(${BONUS.food.keys}) THEN cb.level * ${BONUS.food.pct} ELSE 0 END) AS fb,
-        MAX(CASE WHEN pl."premiumUntil" > ${new Date()} THEN 1 ELSE 0 END) AS prem,
-        MAX(CASE WHEN bst.id IS NOT NULL THEN 1 ELSE 0 END) AS bast
-      FROM "CityBuilding" cb JOIN "City" ci ON ci.id = cb."cityId" LEFT JOIN "Player" pl ON pl.id = ci."playerId"
-      LEFT JOIN "AllianceMember" am ON am."playerId" = ci."playerId" LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'
-      LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod) ON pt.key = cb.key AND pt.level = cb.level
-      ${only('cb."cityId"')}
-      GROUP BY cb."cityId"
-    ) AS p ON p."cityId" = c.id
-    LEFT JOIN (
-      SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
-      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" ${only('ci.id')} GROUP BY ci.id
-    ) AS tp ON tp."cityId" = c.id
-    LEFT JOIN (${effectPctSql(fx.productionBonusKeys(), only)}) AS gp ON gp."cityId" = c.id
+    JOIN (${productionSql(only)}) AS pr ON pr."cityId" = c.id
     LEFT JOIN (
       SELECT a."cityId", SUM(au.count * ut.upkeep * (CASE WHEN a.status = 'BESIEGING' THEN ${1 + SIEGE_UP.attacker / 100}::float
         WHEN hc."isSieged" AND a.status = 'IDLE' AND a.x = hc.x AND a.y = hc.y THEN ${1 + SIEGE_UP.defender / 100}::float ELSE 1.0 END)
@@ -216,22 +224,24 @@ const feeds = (c) => Prisma.sql`(EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityI
 const OF_FEEDING_PLAYERS = Prisma.sql`c."playerId" IN (SELECT f."playerId" FROM "City" f WHERE ${feeds('f')})`;
 
 async function processUpkeep(TICK_HOURS, now = new Date()) {
-  const heroTable = await heroUpkeepTable();   // une seule fois par tick, pour les deux requêtes
+  const heroTable = await heroUpkeepTable();   // une seule fois par tick, pour toutes les requêtes
   // 1) Entretien du tick, une seule requête pour tous les joueurs : chaque ville paie ses troupes avec son grenier (paid) ;
-  //    le manque de tout le joueur (somme des lack) est pris dans ce qui reste aux autres villes (spare), la plus riche
-  //    d'abord : chacune donne ce que les villes passées avant elle n'ont pas couvert. Écrit en différence
-  //    (c.food − taken) : une écriture concurrente n'est pas perdue. Grenier vide et rien à donner : rien à écrire.
+  //    le manque de tout le joueur (somme des lack) est pris dans ce qui reste aux autres villes (spare), la plus pleine
+  //    d'abord (reste rapporté au plafond du Silo, comme les dépenses : utils/db.js planDebit) : chacune donne ce que les
+  //    villes passées avant elle n'ont pas couvert. Écrit en différence (c.food − taken) : une écriture concurrente n'est
+  //    pas perdue. Grenier vide et rien à donner : rien à écrire.
   await prisma.$executeRaw`
     WITH own AS (
       SELECT b."cityId" AS id, b."playerId",
         LEAST(GREATEST(b.food, 0), b.cons * ${TICK_HOURS}) AS paid,
         GREATEST(b.food - b.cons * ${TICK_HOURS}, 0) AS spare,
+        GREATEST(b.food - b.cons * ${TICK_HOURS}, 0) / GREATEST(b."maxFoodStorage", 1) AS fill,
         GREATEST(b.cons * ${TICK_HOURS} - GREATEST(b.food, 0), 0) AS lack
       FROM (${foodBalanceSql(OF_FEEDING_PLAYERS, heroTable)}) AS b
     ), shared AS (
       SELECT id, paid + LEAST(spare, GREATEST(
           SUM(lack) OVER (PARTITION BY "playerId")
-          - COALESCE(SUM(spare) OVER (PARTITION BY "playerId" ORDER BY spare DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
+          - COALESCE(SUM(spare) OVER (PARTITION BY "playerId" ORDER BY fill DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
         0)) AS taken
       FROM own
     )
@@ -239,8 +249,9 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
     FROM shared AS s
     WHERE c.id = s.id AND s.taken > 0
   `;
-  // 2) Une fois par heure, sur le total de chaque joueur : alerte (greniers vides dans moins de 6 h) et famine façon Travian
-  //    (tous ses greniers vides). La réduction d'entretien est la même dans toutes ses villes (capitale, technologies).
+  // 2) Une fois par heure, sur le total de chaque joueur : alerte (greniers vides dans moins de config.army.famineAlertHours
+  //    heures) et famine façon Travian (tous ses greniers vides). La réduction d'entretien est la même dans toutes ses
+  //    villes (capitale, technologies). Puis l'alerte « dépôt plein » de chaque ville.
   if (now.getTime() - lastStarvationAt < config.army.starvationIntervalHours * 3600000) return;
   lastStarvationAt = now.getTime();
   const short = await prisma.$queryRaw`
@@ -253,9 +264,11 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
       else await starve(r, now);
     } catch (e) { console.error('[STARVATION]', r.playerId, e.message); }
   }
+  await storageAlerts(heroTable, now).catch(e => console.error('[STORAGE ALERT]', e.message));
 }
 
-// Greniers du joueur vides dans moins de 6 h : prévenu (une fois toutes les 6 h au plus, noté sur sa capitale)
+// Greniers du joueur vides dans moins de config.army.famineAlertHours heures (12, décision du 30 octobre 2026) : prévenu
+// une fois par tel délai au plus, noté sur sa capitale
 async function foodAlert(r, now) {
   const hours = r.food / Math.max(1e-9, r.cons - r.prod);
   if (hours > config.army.famineAlertHours) return;
@@ -316,6 +329,38 @@ async function starve(r, now) {
   require('../../services/pushService').notify(r.playerId, 'famine', '💀 Famine', `Vos greniers sont vides : ${names} ${total > 1 ? 'sont morts' : 'est mort'} de faim${lost.wounded ? ` (dont ${lost.wounded} blessé${lost.wounded > 1 ? 's' : ''} qui attendai${lost.wounded > 1 ? 'ent' : 't'} un soin)` : ''}. Produisez plus de nourriture, soignez vos blessés ou réduisez vos armées.`, { to: 'city', cityId: lost.capitalId });
 }
 
+// « [ville] : dépôt plein dans 1 h » (décision du 30 octobre 2026, aide au suivi) : une ressource qui atteindra son plafond
+// dans moins de config.city.storageAlertLeadHours heures (pas une déjà pleine : la ville a été prévenue avant) ; céréales :
+// production moins l'entretien des troupes de la ville. Au plus une alerte par ville toutes les storageAlertHours heures.
+const fullSoonSql = (stock, cap, gain) => Prisma.sql`(${Prisma.raw(gain)} > 0 AND ${Prisma.raw(stock)} < ${Prisma.raw(cap)}
+  AND ${Prisma.raw(cap)} - ${Prisma.raw(stock)} <= ${Prisma.raw(gain)} * ${config.city.storageAlertLeadHours}::float)`;
+async function storageAlerts(heroTable, now) {
+  const cutoff = new Date(now.getTime() - config.city.storageAlertHours * 3600000);
+  const rows = await prisma.$queryRaw`
+    SELECT * FROM (
+      SELECT b."cityId", b."playerId", b.name,
+        ${fullSoonSql('b.wood', 'b."maxStorage"', 'b."prodWood"')} AS wood,
+        ${fullSoonSql('b.stone', 'b."maxStorage"', 'b."prodStone"')} AS stone,
+        ${fullSoonSql('b.iron', 'b."maxStorage"', 'b."prodIron"')} AS iron,
+        ${fullSoonSql('b.food', 'b."maxFoodStorage"', '(b.prod - b.cons)')} AS food
+      FROM (${foodBalanceSql(Prisma.sql`(c."storageAlertAt" IS NULL OR c."storageAlertAt" < ${cutoff})`, heroTable)}) AS b
+    ) s
+    WHERE s.wood OR s.stone OR s.iron OR s.food`;
+  for (const r of rows) {
+    try {
+      const noted = await prisma.city.updateMany({ where: { id: r.cityId, OR: [{ storageAlertAt: null }, { storageAlertAt: { lt: cutoff } }] }, data: { storageAlertAt: now } });
+      if (noted.count === 1) require('../../services/pushService').notify(r.playerId, 'storage_full', '📦 Stock bientôt plein', storageAlertText(r), { to: 'city', cityId: r.cityId });
+    } catch (e) { console.error('[STORAGE ALERT]', r.cityId, e.message); }
+  }
+}
+// « Colonie 1 : dépôt plein dans 1 h (bois, fer) ; silo plein dans 1 h. » (`row` : nom de la ville, une case par ressource)
+function storageAlertText(row) {
+  const lead = `${String(config.city.storageAlertLeadHours).replace('.', ',')} h`;
+  const depot = ['wood', 'stone', 'iron'].filter(r => row[r]).map(r => RES_FR[r]);
+  const parts = [...(depot.length ? [`dépôt plein dans ${lead} (${depot.join(', ')})`] : []), ...(row.food ? [`silo plein dans ${lead}`] : [])];
+  return `${row.name} : ${parts.join(' ; ')}. Dépensez ou agrandissez le stockage.`;
+}
+
 // Points de ressource : régénération linéaire depuis la dernière mise à jour (regenRate par heure),
 // écrite seulement quand au moins 1 unité est gagnée (sinon FLOOR(…) = 0 à chaque tick de 30 s)
 async function processResourceRegen(now) {
@@ -367,4 +412,4 @@ async function processGoldIncome(TICK_HOURS) {
   ]);
 }
 
-module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome, foodBalance, foodBalanceSql, playerFoodBalance, resetFamineClock: () => { lastStarvationAt = 0; } };
+module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome, foodBalance, foodBalanceSql, productionSql, playerFoodBalance, storageAlertText, resetFamineClock: () => { lastStarvationAt = 0; } };

@@ -1,5 +1,5 @@
 // ============================================================================
-// 50-buildings.js — les 39 bâtiments de la ville, modélisés avec la grammaire de chaque faction.
+// 50-buildings.js — les 38 bâtiments de la ville, modélisés avec la grammaire de chaque faction.
 // Chaque modèle : (g, faction, opts{snow}) -> construit dans g, centré sur la parcelle (2×2 unités,
 // coordonnées iso de −1 à 1). La parcelle au sol est un sprite séparé (plots).
 // ============================================================================

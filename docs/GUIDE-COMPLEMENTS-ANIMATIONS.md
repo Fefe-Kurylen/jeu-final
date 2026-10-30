@@ -133,8 +133,8 @@ Prompt commun (remplace le style isométrique) :
 | `terrain/water_lake` | calm clear blue lake water, soft ripples, a few light reflections | étangs de la ville, lacs de carte |
 | `terrain/water_deep` | deep dark-blue water with slow swells | mers et grands lacs de carte |
 | `terrain/water_river` | flowing water with diagonal streaks and small white foam lines | rivières (le code oriente le courant) |
-| `terrain/water_shallow` | shallow turquoise water with a sandy bottom visible | oasis, rives, douves |
-| `terrain/ice` | pale blue cracked ice with white frost lines | lacs gelés, douves en biome neige |
+| `terrain/water_shallow` | shallow turquoise water with a sandy bottom visible | oasis, rives |
+| `terrain/ice` | pale blue cracked ice with white frost lines | lacs gelés |
 
 #### T3. Dallages et chemins (11)
 
@@ -215,7 +215,7 @@ Obligatoire pour que les notifications push ne s'affichent pas en carré blanc. 
 
 ### 3.1 Déjà animé (rien à produire)
 
-Fumée des cheminées (4 volutes 3D), drapeaux (8 phases × 8 couleurs), ondes des bassins et des douves (4 phases), marche des armées sur la carte (trottinement, balancement, poussière), ligne de marche, oiseaux, lueurs de nuit, marteau du chantier, icône de production flottante, replay de bataille (déplacements, flèches et pierres tracés), ondulation du clic, apparition des bulles d'action.
+Fumée des cheminées (4 volutes 3D), drapeaux (8 phases × 8 couleurs), ondes des bassins (4 phases), marche des armées sur la carte (trottinement, balancement, poussière), ligne de marche, oiseaux, lueurs de nuit, marteau du chantier, icône de production flottante, replay de bataille (déplacements, flèches et pierres tracés), ondulation du clic, apparition des bulles d'action.
 
 ### A1. Villageois dans la ville — `props/villager_<a|b|c>_<0..5>.png` (3 personnages × 6 phases) ★★★
 
@@ -446,11 +446,11 @@ figurine en pied (`figures/<CLASSE>_<CIV>`) et le jeton (`busts/`), la fiche d'u
 existe en rendu 3D ; ce qui manque pour les fiches est donc la version peinte de ces images (`docs/A-GENERER.md` étapes 1,
 6 et 12), plus les icônes de technologies (§ S8), le portrait du colon (§ S12) et les chefs de tribu (§ S14).
 
-## S16. Ville fidèle à sa civilisation : ornements de plaza, douves (`props/plaza_<CIV>_<statue|fountain|stall>.png` × 18, `walls/<CIV>/moat_<seg_x|seg_z|corner>.png` × 18)
+## S16. Ville fidèle à sa civilisation : ornements de plaza (`props/plaza_<CIV>_<statue|fountain|stall>.png` × 18)
 
 Autour du Bâtiment principal, trois ornements par civilisation (statue sur socle, fontaine ou puits, étal de marché à auvent)
-dans son architecture ; cadre prop 512×768. Les douves (bâtiment Douves) : tronçons diagonaux coupés net aux deux bouts et
-angle, eau calme bordée de pierre, même cadrage que l'enceinte ; à brancher dans la scène à la livraison. Les villageois
+dans son architecture ; cadre prop 512×768. Les douves (`walls/<CIV>/moat_*`) ne sont plus à produire : le bâtiment Douves
+est supprimé du jeu depuis le 30 octobre 2026. Les villageois
 (A1) et les ouvriers (A3) sont déjà par civilisation ; les gens des champs (A12) et les animaux (A13) restent communs.
 
 ## S17. Fiches d'unité : une figurine et un jeton par unité (`figures/units/<CLÉ>.png` × 60, `busts/units/<CLÉ>.png` × 60)

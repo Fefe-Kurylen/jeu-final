@@ -287,7 +287,7 @@ async function handleFoundComplete(army, now) {
       wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood
     } });
     await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
-    await tx.army.create({ data: { ownerId: army.ownerId, cityId: city.id, name: 'Garnison', x: node.x, y: node.y, status: 'IDLE', isGarrison: true } });
+    // pas de garnison : une colonie n'a pas de troupes propres, seules les armées qu'on y envoie la défendent (§ 1 bis)
     await gatherArmiesOnBlock(tx, node.x, node.y);
     // The node is the city's ground now: no tribe, no harvest, respawns if the city disappears
     await tx.resourceNode.update({ where: { id: node.id }, data: { cityId: city.id, hasPlayerArmy: false, hasDefenders: false, defenderPower: 0, amount: 0, lastDefeat: null, lastArmyDeparture: null } });

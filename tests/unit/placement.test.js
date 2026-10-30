@@ -50,8 +50,9 @@ test('effets « capitale seulement » : une colonie lit ceux de sa capitale, gar
   assert.equal(fx.defenseBonusPct(b), 10);   // Forge 20 de la capitale
   assert.equal(fx.transportBonusPct(b), 4 * 5 + 10 + 10);   // Marché et Comptoir de la colonie, Poste du désert de la capitale
   assert.equal(fx.marchSpeedBonusPct(b), 4);
-  // include Prisma : seuls les bâtiments « capitale seulement » de la capitale sont chargés
-  assert.deepEqual(sorted(fx.CAPITAL_BUILDINGS.select.buildings.where.key.in), sorted(CAPITAL));
+  // include Prisma : seuls les bâtiments partagés sont chargés (« capitale seulement », et le Comptoir : son meilleur
+  // niveau parmi les villes du joueur vaut partout, décision des colonies du 30 octobre 2026)
+  assert.deepEqual(sorted(fx.CAPITAL_BUILDINGS.select.buildings.where.key.in), sorted([...CAPITAL, 'TRADE_OFFICE']));
   assert.deepEqual(fx.capitalOf({ cities: [{ buildings: capital }] }), capital);
 });
 

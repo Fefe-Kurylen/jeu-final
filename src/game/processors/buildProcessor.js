@@ -54,6 +54,27 @@ async function syncWallHp(cityId, wallLevel, db = prisma) {
   await db.city.update({ where: { id: cityId }, data: { wallMaxHp: max, wallHp: max } });
 }
 
+// Emplacement d'un bâtiment qui sort de terre : le Mur a sa place fixe sur l'enceinte (config.city.wallSlot, décision du
+// 30 octobre 2026), les autres prennent celui du chantier, ou le suivant libre sans jamais prendre celui du Mur
+function newBuildingSlot(item, buildings) {
+  const wallSlot = config.city.wallSlot;
+  if (item.buildingKey === 'WALL') return wallSlot;
+  const used = new Set(buildings.map(x => x.slot));
+  let slot = item.slot ?? 1;
+  while (used.has(slot) || slot === wallSlot) slot++;
+  return slot;
+}
+
+// « File de construction vide à [ville] » (décision du 30 octobre 2026, aide au suivi) : quand le dernier chantier d'une
+// ville se termine ; au plus une alerte par ville toutes les config.city.idleAlertHours heures (notée sur la ville)
+async function idleQueueAlert(city, cityId, now) {
+  if (await prisma.buildQueueItem.count({ where: { cityId } })) return;
+  const cutoff = new Date(now.getTime() - config.city.idleAlertHours * 3600000);
+  const noted = await prisma.city.updateMany({ where: { id: cityId, OR: [{ idleAlertAt: null }, { idleAlertAt: { lt: cutoff } }] }, data: { idleAlertAt: now } });
+  if (noted.count !== 1) return;
+  notify(city.playerId, 'build_idle', '🏗️ File de construction vide', `File de construction vide à ${city.name} : lancez un nouveau chantier.`, { to: 'city', cityId });
+}
+
 // Démarre les constructions en attente tant que des places sont libres (tick, lecture des villes, annulation), avec la
 // durée fixée à la mise en file. Un niveau attend que le niveau inférieur du même bâtiment (même emplacement) ait quitté
 // la file : deux niveaux d'un bâtiment ne se construisent jamais en même temps. `tx` tient le verrou de la ville.
@@ -85,6 +106,7 @@ async function processBuilds(now, { playerId = null } = {}) {
   }
   for (const cityId of Object.keys(buildsByCityId)) {
     const cityBuilds = buildsByCityId[cityId];
+    let finishedIn = null;   // la ville d'un chantier terminé à ce passage (joueur, nom)
     for (const b of cityBuilds) {
       try {
         const owner = await prisma.$transaction(async (tx) => {
@@ -99,10 +121,7 @@ async function processBuilds(now, { playerId = null } = {}) {
             // A level never goes down because of a stale queue item
             if (existing.level < b.targetLevel) await tx.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } });
           } else {
-            const usedSlots = new Set(freshBuildings.map(x => x.slot));
-            let newSlot = b.slot ?? 1;
-            while (usedSlots.has(newSlot)) newSlot++;
-            await tx.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel } });
+            await tx.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newBuildingSlot(b, freshBuildings), level: b.targetLevel } });
           }
           // Storage follows the warehouse / silo levels (Great Warehouse and Great Silo too), wall HP follows the wall level
           if (STORAGE_KEYS[b.buildingKey]) await syncCityStorage(b.cityId, tx);
@@ -112,6 +131,7 @@ async function processBuilds(now, { playerId = null } = {}) {
           return city;
         });
         if (!owner) continue;
+        finishedIn = owner;
         require('../../services/questService').bumpLater(owner.playerId, 'build_done', 1);   // quêtes
         notify(owner.playerId, 'build_done', '🏗️ Construction terminée', `${buildingName(b.buildingKey)} niveau ${b.targetLevel} à ${owner.name}`, { to: 'city', cityId: b.cityId });
         console.log(`[BUILD] ${b.buildingKey} niveau ${b.targetLevel} terminé`);
@@ -127,7 +147,8 @@ async function processBuilds(now, { playerId = null } = {}) {
     } catch (e) {
       console.error('[BUILD ERROR] promotion:', e.message);   // repris à la prochaine fin ou annulation dans la ville
     }
+    if (finishedIn) await idleQueueAlert(finishedIn, cityId, now).catch(e => console.error('[BUILD ERROR] alerte file vide:', e.message));
   }
 }
 
-module.exports = { processBuilds, syncAllCityStorage, promoteQueued };
+module.exports = { processBuilds, syncAllCityStorage, promoteQueued, newBuildingSlot };

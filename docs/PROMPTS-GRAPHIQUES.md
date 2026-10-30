@@ -54,7 +54,7 @@ Palier 3 : `Repaint the subject shown in the second image (a plain 3D render use
 
 | Catégorie | Fichiers | Détail |
 |---|---|---|
-| buildings | 1404 | 39 bâtiments × 6 civilisations × 3 paliers (courant, _t1, _t3) × 2 (normal, _snow) |
+| buildings | 1368 | 38 bâtiments × 6 civilisations × 3 paliers (courant, _t1, _t3) × 2 (normal, _snow) |
 | fields | 36 | 4 types × 3 paliers × 3 biomes |
 | plots | 6 | 3 biomes × 2 variantes |
 | props | 14 | décors de scène + volutes de fumée + ondes |
@@ -94,7 +94,7 @@ Palier 3 : `Repaint the subject shown in the second image (a plain 3D render use
 | HUN | fur-trimmed pointed felt cap |
 | SULTAN | white turban with a gem |
 
-### Les 39 bâtiments (`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png`)
+### Les 38 bâtiments (`buildings/<CIV>/<CLÉ>[_t1|_t3][_snow].png`)
 
 **Orientation** : l'entrée principale de chaque bâtiment est sur sa face avant droite, vers le bas à droite de l'image (sud-est, côté porte de la ville), comme dans le guide 3D. Phrase ajoutée à chaque prompt de bâtiment : « Its main entrance (door, porch, steps or gateway) is on the front-RIGHT face of the building, facing the lower right of the image, exactly like the guide; the front-left face has no main door. »
 
@@ -110,7 +110,6 @@ Palier 3 : `Repaint the subject shown in the second image (a plain 3D render use
 | HEALING_TENT | a field hospital tent with a red cross banner |
 | MARKET | a market stall with a striped awning, crates, pots, baskets of goods and a scale |
 | WALL | a fortified city gate with two towers, torches and a heavy wooden door |
-| MOAT | a ring-shaped moat filled with water around a small grassy island with a wooden footbridge |
 | MILL | a windmill with four sails |
 | BAKERY | a bakery with a stone oven, a smoking chimney and loaves of bread |
 | GREAT_SILO | two tall grain silos side by side |

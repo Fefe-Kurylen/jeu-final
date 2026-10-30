@@ -12,9 +12,9 @@ Généré par `node tools/liste-graphismes.cjs` à partir des manifestes `fronte
 
 | | Images |
 |---|---|
-| Visuels affichés par le jeu, hors neige et animations | **1127** |
-| Déjà peints | 189 |
-| Restant à produire | **938** |
+| Visuels affichés par le jeu, hors neige et animations | **1109** |
+| Déjà peints | 187 |
+| Restant à produire | **922** |
 | Champs, parcelles et décors du biome neige, **reportés à plus tard** (les variantes `_snow` des bâtiments et de l'enceinte sont retirées de la liste : le rendu 3D enneigé reste en jeu) | 16 (dont 0 déjà peintes) |
 | Animations conservées en rendu 3D (drapeaux 8 phases × 8 couleurs, fumée et ondes 4 phases) | 72 |
 | Emblème (icône de l'application, favicon, splash), conservé | 1 |
@@ -24,7 +24,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
-1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : `docs/LISTE-BATIMENTS-PAR-FACTION.md`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
+1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 33 bâtiments × 6 civilisations (liste par civilisation : `docs/LISTE-BATIMENTS-PAR-FACTION.md`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
 4. **Carte du monde** : villes (14), ressources (15), camps barbares (15), sol, relief et décor (124), armées en marche (29).
@@ -39,20 +39,20 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — `buildings/<CIV>/<CLÉ>[_t1|_t3].png`
 
-34 bâtiments par civilisation (33 communs + son bâtiment de faction ; liste détaillée par civilisation dans `docs/LISTE-BATIMENTS-PAR-FACTION.md`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+33 bâtiments par civilisation (32 communs + son bâtiment de faction ; liste détaillée par civilisation dans `docs/LISTE-BATIMENTS-PAR-FACTION.md`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
 **_t3** (niveaux 14-20, monumentale). Pas de version neige à produire (décision d'octobre 2026 : le rendu 3D enneigé reste). Taille 1024×1024, cadre « building ».
 
 | Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant |
 |---|---|---|---|---|---|
-| Rome | 20 / 34 | 0 / 34 | 0 / 34 | **82** |
-| Gaule | 34 / 34 | 0 / 34 | 0 / 34 | **68** |
-| Grèce | 4 / 34 | 0 / 34 | 0 / 34 | **98** |
-| Égypte | 34 / 34 | 0 / 34 | 0 / 34 | **68** |
-| Huns | 0 / 34 | 0 / 34 | 0 / 34 | **102** |
-| Sultanat | 0 / 34 | 0 / 34 | 0 / 34 | **102** |
-| **Total** | 92 / 204 | 0 / 204 | 0 / 204 | **520** |
+| Rome | 20 / 33 | 0 / 33 | 0 / 33 | **79** |
+| Gaule | 33 / 33 | 0 / 33 | 0 / 33 | **66** |
+| Grèce | 4 / 33 | 0 / 33 | 0 / 33 | **95** |
+| Égypte | 33 / 33 | 0 / 33 | 0 / 33 | **66** |
+| Huns | 0 / 33 | 0 / 33 | 0 / 33 | **99** |
+| Sultanat | 0 / 33 | 0 / 33 | 0 / 33 | **99** |
+| **Total** | 90 / 198 | 0 / 198 | 0 / 198 | **504** |
 
-Priorité : le palier courant des 6 civilisations (112 restants), puis _t1, puis _t3. Neige reportée.
+Priorité : le palier courant des 6 civilisations (108 restants), puis _t1, puis _t3. Neige reportée.
 
 ### 3.2 Champs, parcelles, décors, textures de sol
 

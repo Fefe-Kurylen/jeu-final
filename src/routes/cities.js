@@ -8,7 +8,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
-const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, isId } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, withDeadlockRetry, isId } = require('../utils/db');
 const { getRelation, sameAllianceAs, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
@@ -30,15 +30,22 @@ async function settleDueQueues(playerId) {
 }
 
 const FIELD_KEYS = Object.keys(config.city.fieldSlots);
+// Bâtiment qui forme chaque classe dans la capitale, et ligne de la file de recrutement : une Grande caserne / Grande écurie
+// de colonie remplit la même ligne que la Caserne / l'Écurie (le client lit la file avec ces clés)
 const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
+// Dans une colonie : SA Grande caserne ou SA Grande écurie, jamais la Caserne de la capitale (décision du 30 octobre 2026) ;
+// pas d'engins de siège (l'Atelier est réservé à la capitale)
+const COLONY_RECRUIT_BUILDING = { INFANTRY: 'GREAT_BARRACKS', ARCHER: 'GREAT_BARRACKS', CAVALRY: 'GREAT_STABLE' };
 
 // Highest level among buildings of a key (fields like FARM exist on several slots).
 // A city without a Main Hall counts as having it at level 1, as in the level cap rule below.
 const maxBuildingLevel = (buildings, key) => buildings.reduce((m, b) => (b.key === key && b.level > m ? b.level : m), key === 'MAIN_HALL' ? 1 : 0);
 
-// Slot a building may occupy: fields live on typed slots (101-118), the Main Hall in the centre (0),
-// everything else on a free ring slot (1-19). Returns null when the request is invalid.
+// Slot a building may occupy: fields live on typed slots (101-118), the Main Hall in the centre (0), the Wall on the
+// enclosure (config.city.wallSlot, décision du 30 octobre 2026) whatever the slot sent, everything else on a free ring slot
+// (1-19). The Wall never takes a ring slot, so it never counts among the used ones. Returns null when the request is invalid.
 function resolveSlot(buildingKey, slot, existing, city) {
+  if (buildingKey === 'WALL') return config.city.wallSlot;
   if (existing) return existing.slot;
   if (FIELD_KEYS.includes(buildingKey)) return config.city.fieldSlots[buildingKey].includes(slot) ? slot : null;
   if (buildingKey === 'MAIN_HALL') return 0;
@@ -52,7 +59,24 @@ function resolveSlot(buildingKey, slot, existing, city) {
   return null;
 }
 
-// Stock partagé (décision du 30 octobre 2026) : une dépense refusée dit ce qui manque, toutes les villes comprises
+// Le palier des unités se lit sur le bâtiment qui les forme dans la ville (unlockBaseTier / unlockIntermediateTier /
+// unlockEliteTier, data/buildings.json), les engins sur l'Atelier (config.recruit.siegeWorkshopLevel)
+const TIER_UNLOCK = { base: 'unlockBaseTier', intermediate: 'unlockIntermediateTier', elite: 'unlockEliteTier' };
+const TIER_FR = { base: 'les unités de base', intermediate: 'les unités intermédiaires', elite: 'les unités d\'élite', siege: 'les engins de siège' };
+// Raison pour laquelle la ville ne peut pas former l'unité (null si elle le peut)
+function recruitBlocker(unit, city) {
+  const key = (city.isCapital ? RECRUIT_BUILDING : COLONY_RECRUIT_BUILDING)[unit.class];
+  if (!key) return 'Les engins de siège se forment à l\'Atelier de la capitale';
+  const def = buildingsData.find(b => b.key === key);
+  const level = maxBuildingLevel(city.buildings, key);
+  const need = unit.class === 'SIEGE' ? config.recruit.siegeWorkshopLevel : def.effects?.[TIER_UNLOCK[unit.tier]] || 1;
+  if (level >= need) return null;
+  return level ? `${def.name} niveau ${need} nécessaire à ${city.name} pour ${TIER_FR[unit.tier]}` : `${def.name} nécessaire à ${city.name}`;
+}
+
+// Stock partagé (décision du 30 octobre 2026) : une dépense refusée dit ce qui manque, toutes les villes comprises.
+// Les dépenses et les remboursements verrouillent toutes les villes du joueur : la transaction est rejouée si elle croise un
+// verrou du tick (interblocage rare, withDeadlockRetry)
 const refused = (paid, cost) => ({ error: missingMessage(paid), status: 400, cost, missing: paid.missing });
 const scaleCost = (cost, rate) => Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.floor(v * rate)]));
 
@@ -71,11 +95,21 @@ router.get('/', auth, async (req, res) => {
     // de nourriture de tout le joueur : l'entretien puise dans tous ses greniers (§ 1 bis, affichage et alerte du client)
     const totals = stockTotals(cities);
     const playerStock = { ...totals, foodBalance: RP.playerFoodBalance([...balance.values()], totals.food) };
+    // gisement de chaque colonie (le point de ressource sur lequel elle est fondée) et vies de chaque ville (décision du
+    // 30 octobre 2026 : vue « Mes villes », bonus du gisement affiché dans la ville)
+    const [nodes, owner] = await Promise.all([
+      prisma.resourceNode.findMany({ where: { cityId: { in: cities.map(c => c.id) } }, select: { cityId: true, resourceType: true, level: true } }),
+      prisma.player.findUnique({ where: { id: req.user.playerId }, select: { faction: true } })
+    ]);
+    const nodeOf = new Map(nodes.map(n => [n.cityId, n]));
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
       const cityTier = getCityTier(mainHallLevel);
-      return { ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), foodBalance: balance.get(city.id) || null, playerStock };
+      return {
+        ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), foodBalance: balance.get(city.id) || null, playerStock,
+        site: fx.citySite(city, nodeOf.get(city.id)), lives: { total: assaultsToFall(city, owner?.faction), left: assaultsLeft(city, owner?.faction) }
+      };
     });
     res.json(citiesWithTier);
   } catch (e) {
@@ -96,7 +130,7 @@ router.post('/:id/build', auth, async (req, res) => {
     const isField = FIELD_KEYS.includes(buildingKey);
     if (isField && slot === null) return res.status(400).json({ error: 'Emplacement requis pour un champ' });
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // le prix peut venir de toutes les villes
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
@@ -175,7 +209,7 @@ router.post('/:id/build', auth, async (req, res) => {
       });
 
       return { message: status === 'RUNNING' ? 'Construction lancee' : 'Construction ajoutee a la file', queueItem, durationSec, cost };
-    });
+    }));
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
@@ -194,7 +228,8 @@ router.post('/:id/recruit', auth, async (req, res) => {
     const unit = unitsData.find(u => u.key === unitKey);
     if (!unit) return res.status(400).json({ error: 'Unite inconnue' });
 
-    const result = await prisma.$transaction(async (tx) => {
+    // depuis la ville elle-même ou depuis la Caserne / l'Écurie de la capitale (« Lieu de formation ») avec l'id de la colonie
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // le prix peut venir de toutes les villes
       const city = await tx.city.findFirst({
         where: { id: req.params.id, playerId: req.user.playerId },
@@ -202,37 +237,8 @@ router.post('/:id/recruit', auth, async (req, res) => {
       });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       if (unit.faction !== city.player.faction) return { error: 'Unité d\'une autre faction', status: 400 };
-
-      const barracks = city.buildings.find(b => b.key === 'BARRACKS');
-      const stable = city.buildings.find(b => b.key === 'STABLE');
-      const workshop = city.buildings.find(b => b.key === 'WORKSHOP');
-      const greatBarracks = city.buildings.find(b => b.key === 'GREAT_BARRACKS');
-      const greatStable = city.buildings.find(b => b.key === 'GREAT_STABLE');
-
-      // Unlock thresholds come from building data (GDD: unlockIntermediateTier=7, unlockEliteTier=15)
-      const barracksDef = buildingsData.find(b => b.key === 'BARRACKS');
-      const stableDef = buildingsData.find(b => b.key === 'STABLE');
-      const unlockInterBarracks = barracksDef?.effects?.unlockIntermediateTier || 7;
-      const unlockEliteBarracks = barracksDef?.effects?.unlockEliteTier || 15;
-      const unlockInterStable = stableDef?.effects?.unlockIntermediateTier || 7;
-      const unlockEliteStable = stableDef?.effects?.unlockEliteTier || 15;
-
-      if (unit.class === 'INFANTRY' || unit.class === 'ARCHER') {
-        const recruitBuilding = barracks || greatBarracks;
-        if (!recruitBuilding) return { error: 'Caserne requise', status: 400 };
-        if (unit.tier === 'intermediate' && recruitBuilding.level < unlockInterBarracks) return { error: `Caserne niveau ${unlockInterBarracks} requise pour unités intermédiaires`, status: 400 };
-        if (unit.tier === 'elite' && recruitBuilding.level < unlockEliteBarracks) return { error: `Caserne niveau ${unlockEliteBarracks} requise pour unités élite`, status: 400 };
-      }
-      if (unit.class === 'CAVALRY') {
-        const recruitBuilding = stable || greatStable;
-        if (!recruitBuilding) return { error: 'Écurie requise', status: 400 };
-        if (unit.tier === 'intermediate' && recruitBuilding.level < unlockInterStable) return { error: `Écurie niveau ${unlockInterStable} requise`, status: 400 };
-        if (unit.tier === 'elite' && recruitBuilding.level < unlockEliteStable) return { error: `Écurie niveau ${unlockEliteStable} requise`, status: 400 };
-      }
-      if (unit.class === 'SIEGE') {
-        if (!workshop) return { error: 'Atelier requis', status: 400 };
-        if (workshop.level < config.recruit.siegeWorkshopLevel) return { error: `Atelier niveau ${config.recruit.siegeWorkshopLevel} requis`, status: 400 };
-      }
+      const blocker = recruitBlocker(unit, city);
+      if (blocker) return { error: blocker, status: 400 };
 
       const recruitBuildingKey = RECRUIT_BUILDING[unit.class] || 'BARRACKS';
       if (city.recruitQueue.filter(q => q.buildingKey === recruitBuildingKey).length >= config.recruit.maxBatchesPerBuilding) return { error: `File de recrutement pleine (max ${config.recruit.maxBatchesPerBuilding} lots)`, status: 400 };
@@ -243,7 +249,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
       if (!paid.ok) return refused(paid, cost);
 
       // Per-class base time with tier multiplier (GDD unit_training_times.json), reduced by the buildings that train it in
-      // this city (Caserne de la capitale, Grande caserne d'une colonie)
+      // this city (Caserne de la capitale, Grande caserne d'une colonie : jamais celles d'une autre ville)
       // Entraînement (technologie) : −1 % de temps de recrutement par niveau, après les bâtiments
       const techLevels = T.levelsFrom(await tx.playerTechnology.findMany({ where: { playerId: city.playerId } }));
       const timePerUnit = Math.max(1, Math.round(baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100) * T.techReductionMult(techLevels, 'trainTimeReductionPct')));
@@ -259,8 +265,8 @@ router.post('/:id/recruit', auth, async (req, res) => {
       });
 
       // § 1 bis : toute unité formée apparaît dans la capitale (une colonie n'a pas de garnison propre)
-      return { message: city.isCapital ? 'Recrutement lancé' : 'Recrutement lancé : les unités rejoindront la garnison de la capitale', queueItem, durationSec: totalTime, timePerUnit, cost };
-    });
+      return { message: city.isCapital ? 'Recrutement lancé' : `Recrutement lancé à ${city.name} : les unités rejoindront la garnison de la capitale`, queueItem, durationSec: totalTime, timePerUnit, cost };
+    }));
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
@@ -274,7 +280,7 @@ router.post('/:id/recruit', auth, async (req, res) => {
 // settlers travelling with armies and settlers in training.
 router.post('/:id/settlers', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // le prix peut venir de toutes les villes
       const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, include: { buildings: true, recruitQueue: true } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
@@ -304,7 +310,7 @@ router.post('/:id/settlers', auth, async (req, res) => {
       const durationSec = fx.settlerTrainTimeSec();
       const queueItem = await tx.recruitQueueItem.create({ data: { cityId: city.id, unitKey: 'SETTLER', count: 1, buildingKey: 'RESIDENCE', startedAt: startAt, endsAt: new Date(startAt.getTime() + durationSec * 1000), status: 'RUNNING' } });
       return { message: 'Formation d\'un colon lancée', queueItem, durationSec, cost, slots, used: used + 1 };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }
@@ -315,7 +321,7 @@ router.post('/:id/settlers', auth, async (req, res) => {
 // Le remboursement va à la ville, puis ce qui n'y tient pas aux autres villes du joueur (creditPlayer).
 router.delete('/:id/build/:itemId', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);
       const city = cities.find(c => c.id === req.params.id);
       if (!city) return { error: 'Ville non trouvee', status: 404 };
@@ -336,7 +342,7 @@ router.delete('/:id/build/:itemId', auth, async (req, res) => {
       const { lost } = await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
       await promoteQueued(tx, city.id, new Date());
       return { message: `Construction annulée${lostNote(lost)}`, cancelled: toCancel.length, refund, lost };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }
@@ -346,7 +352,7 @@ router.delete('/:id/build/:itemId', auth, async (req, res) => {
 // city, then to the player's other cities, creditPlayer), the batches scheduled after it in the same building start earlier
 router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);
       const city = cities.find(c => c.id === req.params.id);
       if (!city) return { error: 'Ville non trouvee', status: 404 };
@@ -372,7 +378,7 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
         await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(Math.max(floor, start - shiftMs)), endsAt: new Date(Math.max(floor, end - shiftMs)) } });
       }
       return { message: `Recrutement annulé${lostNote(lost)}`, refund, lost };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }
@@ -397,11 +403,11 @@ router.post('/:id/wounded/start', auth, async (req, res) => {
     const { unitKey, count } = req.body || {};
     if (!unitKey || typeof unitKey !== 'string') return res.status(400).json({ error: 'unitKey requis' });
     if (count !== undefined && (!Number.isInteger(count) || count < 1)) return res.status(400).json({ error: 'Nombre invalide' });
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       const cities = await lockPlayerCities(tx, req.user.playerId);   // lits et prix comptés pour tout le joueur
       if (!cities.some(c => c.id === req.params.id)) return { error: 'Ville non trouvée', status: 404 };
       return W.startHealing(tx, req.user.playerId, req.params.id, unitKey, count, cities);
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json({ message: `Soin de ${result.started} blessé${result.started > 1 ? 's' : ''} lancé`, ...result });
   } catch (e) {
@@ -414,12 +420,12 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
   try {
     const { unitKey } = req.body || {};
     if (!unitKey || typeof unitKey !== 'string') return res.status(400).json({ error: 'unitKey requis' });
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       // les villes du joueur d'abord (ordre des id) : les guéris rejoignent la garnison de la capitale
       const cities = await lockPlayerCities(tx, req.user.playerId);
       if (!cities.some(c => c.id === req.params.id)) return { error: 'Ville non trouvée', status: 404 };
       return { success: true, ...(await W.healNow(tx, req.user.playerId, req.params.id, unitKey)) };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
@@ -504,3 +510,5 @@ router.get('/incoming-attacks', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.resolveSlot = resolveSlot;
+module.exports.recruitBlocker = recruitBlocker;

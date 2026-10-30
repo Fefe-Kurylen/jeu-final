@@ -16,7 +16,7 @@ const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBo
 const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
-const { lockArmy, lockCity, debitCity, lockPlayerCities, debitPlayer, missingMessage, buildingsWithCapital, transition, isId, claimNode } = require('../utils/db');
+const { lockArmy, lockCity, debitCity, lockPlayerCities, debitPlayer, missingMessage, buildingsWithCapital, withDeadlockRetry, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
@@ -150,7 +150,8 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
   if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-  if (!garrison) return { error: 'Garnison introuvable', status: 404 };
+  // une colonie fondée depuis le 30 octobre 2026 n'a pas de garnison (pas de troupes propres, § 1 bis)
+  if (!garrison) return army.city?.isCapital ? { error: 'Garnison introuvable', status: 404 } : { error: 'Une colonie n\'a pas de garnison : ses armées gardent leurs troupes, les nouvelles troupes arrivent dans la capitale', status: 400 };
   return { army, garrison };
 }
 
@@ -541,7 +542,8 @@ router.post('/:id/found-city', auth, async (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 40) : '';
     { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
-    const result = await prisma.$transaction(async (tx) => {
+    // toutes les villes verrouillées : rejoué après un interblocage rare avec le tick (withDeadlockRetry)
+    const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
       // lock order City then Army, as the other army routes: all the player's cities first, the foundation resources may
       // come from any of them (stock partagé, capitale d'abord)
       const cities = await lockPlayerCities(tx, req.user.playerId);
@@ -586,7 +588,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
       });
       if (!ok) throw new Error('army busy');
       return { message: `Colon en route : la ville sera fondée ${Math.round(fx.cityFoundationTimeSec() / 3600)} h après l'arrivée`, travelTime, arrivalAt, foundationTimeSec: fx.cityFoundationTimeSec() };
-    });
+    }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }

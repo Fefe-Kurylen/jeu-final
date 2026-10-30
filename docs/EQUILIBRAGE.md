@@ -484,3 +484,65 @@ complet.
 51 027 (niveau 29 → 30). Cumul : 2 562 XP pour le niveau 10, 27 033 pour le niveau 20, 254 786 pour le niveau 30 (25,6 millions
 avec l'ancien × 1,5, hors de portée). Les héros existants gardent leur XP ; leur seuil est recalculé à leur niveau actuel
 (migration `0029_age_rallies_indexes`).
+
+## 14. Économie, placement et stock partagé (décisions du 30 octobre 2026, au soir)
+
+Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` ; règles détaillées dans `docs/ETAT-DES-SYSTEMES.md`
+(« Économie, placement et stock partagé »), correspondance recommandation par recommandation à la fin du rapport.
+
+| Sujet | Règle appliquée | Où | Chiffres |
+|---|---|---|---|
+| Stock | Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, soins, héros et fondation se paient sur la somme des villes (ville de l'action d'abord, puis la plus riche) ; pas de convoi automatique | `src/utils/db.js` (`debitPlayer`, `creditPlayer`) | refus : « il manque … (toutes vos villes comprises) » |
+| Entretien | Tous les greniers paient : chaque ville ses troupes d'abord, le manque pris dans les autres ; famine seulement greniers tous vides | `resourceProcessor.processUpkeep` | — |
+| Unités | Toute unité formée ou soignée apparaît dans la capitale ; pas de garnison propre dans les colonies | `recruitProcessor`, `woundedService` | — |
+| Placement | 18 bâtiments « capitale seulement » (effets pour tout le joueur), 10 « colonies seulement », 10 partout ; Douves supprimées | `data/buildings.json`, migration `0030` | capitale 18 bâtiments au plus, colonie 15 (19 emplacements) |
+| Coûts (rec. 3) | Champs × 1,45 par niveau, le reste × 1,28 | `config.build.fieldCostMultiplier` | 18 champs 1 → 20 : 17,0 M par ville (2,24 M avant) ; remboursement d'un champ 60 h au niveau 10, 276 h au niveau 20 |
+| Temps (rec. 4) | Champs et Bâtiment principal × 1,30 par niveau, le reste et la recherche × 1,2 | `config.build.slowTimeMultiplier` | champ 1 → 20 : 26 h brutes ; Bâtiment principal 1 → 30 : 437 h brutes |
+| Entretien (rec. 5) | 5 / 9 / 13, engins 15 ; 8 fiches retouchées (endurance seule) | `config.army.upkeepPerTier`, `data/units.json` | tableau ci-dessous |
+| Soins (rec. 6) | 30 % du prix de recrutement ; 10 % du temps de formation × 0,95^(Tente − 1) par unité, l'un après l'autre ; or 1 / 2 / 3 / 3 ; les blessés qui attendent mangent | `config.wounded`, `woundedService` | fantassin de base : 38 ressources, 13,6 s à la Tente 20 ; 4 000 lits ≈ 15 h |
+| Merveille (rec. 7) | × 5 | `config.world.wonderCostBase` | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 ; niveaux 1 à 50 : 173 M ; Merveille entière : 2,15 G |
+| Immortels (rec. 8) | × 5 | `config.world.immortal*` | site 3 M, plan 4,5 M ; vague 20 000 × niveau^1,35 : 3,93 M au niveau 50, 10 M au niveau 100 |
+| Donjons (rec. 9) | Avant-poste du niveau 1 = max(3 000 ; 50 % de la puissance médiane des joueurs actifs), × 1,8 par niveau, étages × 1 / × 2 / × 4 ; ancienne formule sous 5 joueurs mesurés ; le trésor garde l'âge du monde | `config.invasion.powerRef`, `Invasion.basePower` | chef du niveau 1 = 2 joueurs médians ; du niveau 5 ≈ 21 |
+| Trésor (rec. 2) | Capitale d'abord, puis les autres villes ; la notification dit ce qui a été perdu faute de place | `hordeService.destroyHorde` | — |
+| Ciblage (rec. 10) | Coups de chaque round répartis sur toutes les lignes de soldats selon leur solidité totale ; engins visés après les soldats | `combatService.resolveCombatDetailed` | tableau ci-dessous |
+| Pillage (rec. 11) | GDD gardé (30 % de la capacité, un raid par jour sur une même ville et par attaquant) ; présenté comme du harcèlement | client, documents | — |
+| Plafonds (rec. 12) | Récompenses de quêtes et routes commerciales calculées sur le Dépôt et le Silo seuls | `questService.rewardCap`, `marketService.routeSendCap` | 80 000 par récompense au plus, 13 333 par envoi de route (Dépôt 20) |
+
+**Intermédiaire contre base, à entretien égal** (X = indice d'échange à céréale égale, R = contre une armée de référence ;
+mesure du lot B, `units-measure.cjs`) :
+
+| Unité | Endurance avant → après | X avant → après | R avant → après |
+|---|---|---|---|
+| Equites (Rome) | 60 → 65 | −6,0 % → +10,3 % | −3,7 % → +4,5 % |
+| Triarii gaulois | 60 → 65 | +26,0 % → +41,2 % | +17,0 % → +35,2 % |
+| Cavalier gaulois | 60 → 65 | −3,6 % → +14,9 % | −2,8 % → +5,3 % |
+| Archer du désert (Égypte) | 52 → 57 | +0,9 % → +26,1 % | +1,4 % → +11,6 % |
+| Cavalerie du pharaon | 65 → 70 | −12,4 % → +2,4 % | −7,4 % → +0,4 % |
+| Archer du camp (Huns) | 50 → 57 | +6,8 % → +36,0 % | +2,8 % → +19,8 % |
+| Tireur du désert (Sultanat) | 52 → 62 | −3,0 % → +38,9 % | 0,0 % → +25,2 % |
+| Cavalier hun | 60 → 78 | −29,9 % → +20,7 % | −18,8 % → +7,5 % |
+
+Intermédiaires sous leur base : 8 lignes sur 18 avant, 3 après. Restent sous leur base, hors de la liste décidée : Archer
+gaulois (−1,9 %), Toxote (−11,1 %), Cavalier du désert du Sultanat (−31,0 %) ; il leur faudrait +1, +3 et +14 d'endurance
+(à décider, `docs/BACKLOG.md`). Quatre intermédiaires dépassent l'indice 1,25 de la règle D12 (Archer du désert égyptien,
+Archer du camp, Tireur du désert, Cavalier hun) : le test des fiches les excepte.
+
+**Armées mélangées contre une armée de base pure, à nourriture égale** (moteur avant → après la répartition des coups) :
+
+| Entretien | 25 % d'élite + 75 % de base | 50 % d'élite + 50 % de base |
+|---|---|---|
+| 5 / 9 / 13 | −10 à +8 % → **+35,8 à +42,2 %** | +1 à +39 % → **+52,3 à +65,1 %** |
+| GDD 5 / 10 / 15 | −16 à −28 % → +5,5 à +12,0 % | −16 à −32 % → +10,3 à +26,4 % |
+
+Ces gains dépassent les « +11 à 29 % sauf les Huns » du rapport : la mesure du lot B ne montre pas d'exception hunnique. Les
+armées d'un seul palier ne changent pas.
+
+**Vagues d'Immortels** (mur 20 sans défenseurs, mangonneaux pour 15 % de la vague) : le mur tient jusqu'à la Merveille 2,
+tombe au 2e round au niveau 12 et dès le 1er round à partir du niveau 20 (il tenait jusqu'au niveau 6 avant le × 5).
+
+**Outils** : `tools/simulate-colonies.cjs`, `tools/simulate-research.cjs`, `tools/simulate-factions.cjs` et
+`simulate-2years.js` calculent coûts et temps avec `buildCostFor` / `buildSecondsFor`. Les joueurs automatiques de la
+simulation longue (`tools/sim`) suivent le placement des données, paient sur le stock de toutes leurs villes
+(`tools/sim/stock.cjs`, même répartition que le serveur), bâtissent Grand dépôt et Grand silo dans les colonies, la
+Chambre au Trésor jusqu'au niveau 20 et la Tente de soins jusqu'au 20, paient leurs soins et comptent l'entretien sur tous
+leurs greniers.

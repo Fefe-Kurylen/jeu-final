@@ -6,7 +6,9 @@ const auth = require('../middleware/auth');
 const { unitsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
 const { bannerImage } = require('../services/allianceShopService');
-const { getCityTier, getCityTierName, mainHallLevelOf } = require('../utils/calculations');
+const { getCityTier, getCityTierName, mainHallLevelOf, getArmyTravelTime } = require('../utils/calculations');
+const fx = require('../utils/buildingEffects');
+const { footprintFree } = require('../utils/spawn');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
@@ -56,11 +58,14 @@ router.get('/world/info', async (req, res) => {
 const viewportCache = new Map();
 const VIEWPORT_TTL_MS = 3000;
 const VIEWPORT_CACHE_MAX = 2000;
+// « Sites libres » de chaque joueur (GET /api/map/free-sites), gardés 15 s : la place libre se vérifie point par point en base
+const freeSitesCache = new Map();
+const FREE_SITES_TTL_MS = 15000;
 // centre arrondi à 10 cases et rayon élargi de 5 : les joueurs qui regardent la même région partagent une entrée
 const VIEWPORT_Q = 10;
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of viewportCache) if (now > v.expires) viewportCache.delete(k);
+  for (const cache of [viewportCache, freeSitesCache]) for (const [k, v] of cache) if (now > v.expires) cache.delete(k);
 }, 10000).unref();
 
 router.get('/map/viewport', auth, async (req, res) => {
@@ -176,6 +181,60 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     return { cities: citiesWithTier, resourceNodes, armies, cityOwner, bastions, bastionAlliance, center: { x: centerX, y: centerY }, radius: r };
 }
 
+// ---- Filtre « Sites libres » (décision du 30 octobre 2026) ----
+// Cercle du centre, disputé : la plupart des gisements de niveau 3 et les sites de Merveille y sont (même cercle que le semis
+// des points, src/game/seed.js)
+const CENTER_RADIUS = Math.floor(BASE_WORLD_SIZE / 2) * (config.map.centerRadiusPct ?? 35) / 100;
+const FREE_SITES_LIMIT = 30, FREE_SITES_MAX = 100;
+
+// Les gisements où le joueur peut fonder une colonie (bois, pierre, fer ou céréales : ni or, ni plan, ni donjon, ni site de
+// Merveille), du plus proche au plus lointain depuis sa capitale : ni ville, ni armée sur le point, ni colon en route, et la
+// place d'une ville 2 × 2 (comme à la fondation, routes/armies.js found-city). Chacun avec le bonus de sa ressource dans
+// une colonie (fx.colonyNodeBonusPct). Temps de marche à la vitesse de l'infanterie de base de sa civilisation, en ligne
+// droite, avec ses bonus de vitesse (technologie, Bastion, Irrigation de la capitale) : l'ordre des distances est celui des temps.
+async function freeSitesFor(playerId, limit) {
+  const owner = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { technologies: true, alliance: { select: { allianceId: true } }, cities: { ...fx.CAPITAL_BUILDINGS, select: { ...fx.CAPITAL_BUILDINGS.select, isCapital: true, x: true, y: true } } }
+  });
+  const capital = owner?.cities?.find(c => c.isCapital);
+  if (!capital) return [];
+  const [nodes, settlers] = await Promise.all([
+    prisma.resourceNode.findMany({ where: { resourceType: { in: Object.keys(fx.NODE_RESOURCE) }, cityId: null, hasPlayerArmy: false }, select: { id: true, x: true, y: true, resourceType: true, level: true, hasDefenders: true, defenderPower: true } }),
+    // colons en route : la fondation elle-même tient déjà le point (hasPlayerArmy)
+    prisma.army.findMany({ where: { status: 'MOVING', missionType: 'FOUND', targetResourceId: { not: null } }, select: { targetResourceId: true } })
+  ]);
+  const promised = new Set(settlers.map(a => a.targetResourceId));
+  const candidates = nodes.filter(n => !promised.has(n.id)).map(n => ({ n, d: Math.hypot(n.x - capital.x, n.y - capital.y) })).sort((a, b) => a.d - b.d);
+  const free = [];
+  for (let i = 0; i < candidates.length && free.length < limit; i += limit) {
+    const chunk = candidates.slice(i, i + limit);
+    const room = await Promise.all(chunk.map(({ n }) => footprintFree(n.x, n.y, { ignoreNodeId: n.id })));
+    for (let k = 0; k < chunk.length && free.length < limit; k++) if (room[k]) free.push(chunk[k].n);
+  }
+  const escort = unitsData.filter(u => u.faction === owner.faction && u.class === 'INFANTRY' && u.tier === 'base').map(u => ({ unitKey: u.key, count: 1 }));
+  const speedPct = require('./armies').speedTechPct({ owner });
+  return free.map(n => ({
+    id: n.id, x: n.x, y: n.y, type: n.resourceType, level: n.level, bonusPct: fx.colonyNodeBonusPct(n.level),
+    travelSec: getArmyTravelTime(escort, capital.x, capital.y, n.x, n.y, owner.faction, null, null, speedPct),
+    tribePower: n.hasDefenders ? n.defenderPower : 0,
+    central: Math.hypot(n.x, n.y) < CENTER_RADIUS
+  }));
+}
+
+// GET /api/map/free-sites?limit= — [{ id, x, y, type, level, bonusPct, travelSec, tribePower, central }]
+router.get('/map/free-sites', auth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit) || FREE_SITES_LIMIT), FREE_SITES_MAX);
+    const key = `${req.user.playerId}:${limit}`;
+    const cached = freeSitesCache.get(key);
+    if (cached && Date.now() < cached.expires) return res.json(cached.data);
+    const data = await freeSitesFor(req.user.playerId, limit);
+    if (freeSitesCache.size < VIEWPORT_CACHE_MAX) freeSitesCache.set(key, { data, expires: Date.now() + FREE_SITES_TTL_MS });
+    res.json(data);
+  } catch (e) { sendError(res, e); }
+});
+
 // Catalogues de jeu (statiques, très cacheables)
 router.get('/technologies', auth, (req, res) => {
   res.set('Cache-Control', 'private, max-age=3600');
@@ -187,3 +246,4 @@ router.get('/items', (req, res) => {
 });
 
 module.exports = router;
+module.exports.freeSitesFor = freeSitesFor;

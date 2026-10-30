@@ -19,7 +19,7 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 
 | Étape | Contenu | Images |
 |---|---|---|
-| 1 | Bâtiments, palier courant (niveaux 7-13), par civilisation | 112 |
+| 1 | Bâtiments, palier courant (niveaux 7-13), par civilisation | 108 |
 | 2 | Textures de sol de base et dallages (changent le plus l'aspect de la ville) | 25 |
 | 3 | Champs, parcelles, décors de scène | 27 |
 | 4 | Enceinte (courtines, murets, tours) par civilisation et palier du Mur | 85 |
@@ -27,15 +27,15 @@ Généré par `node tools/liste-graphismes.cjs` ; s'actualise à chaque import (
 | 6 | Unités et héros (figurines, bustes, héros) | 64 |
 | 7 | Scènes (connexion, estrades des héros, bandeaux, champ de bataille) | 14 |
 | 8 | Habillage d'interface restant | 1 |
-| 9 | Compléments fixes et visuels de boutique | 30 |
+| 9 | Compléments fixes et visuels de boutique | 29 |
 | 10 | Eau et glace, sols des champs, décalques, bordures | 30 |
 | 11 | Animations (bandes de phases, voir guide § 0 et § A1-A11) | 546 |
-| 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 408 |
+| 12 | Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) | 396 |
 | 13 | Chantiers : chaque bâtiment en construction par civilisation, champs en chantier, enceinte en chantier | 198 |
 | 14 | Fiches d'unité : une figurine et un jeton par unité (les figurines et jetons de classe restent en repli) | 120 |
-| | **Total** | **1887** |
+| | **Total** | **1870** |
 
-## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (112)
+## 1. Bâtiments, palier courant (niveaux 7-13), par civilisation (108)
 
 Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (dossier `guides/` + `prompts/`) ou `docs/LISTE-BATIMENTS-PAR-FACTION.md`.
 
@@ -48,7 +48,6 @@ Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (do
 - `buildings/ROME/HIDEOUT.png` — 1024×1024
 - `buildings/ROME/IRON_MINE.png` — 1024×1024
 - `buildings/ROME/LUMBER.png` — 1024×1024
-- `buildings/ROME/MOAT.png` — 1024×1024
 - `buildings/ROME/QUARRY.png` — 1024×1024
 - `buildings/ROME/SAWMILL.png` — 1024×1024
 - `buildings/ROME/STONEMASON.png` — 1024×1024
@@ -69,7 +68,6 @@ Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (do
 - `buildings/GREEK/MAIN_HALL.png` — 1024×1024
 - `buildings/GREEK/MARKET.png` — 1024×1024
 - `buildings/GREEK/MILL.png` — 1024×1024
-- `buildings/GREEK/MOAT.png` — 1024×1024
 - `buildings/GREEK/QUARRY.png` — 1024×1024
 - `buildings/GREEK/RALLY_POINT.png` — 1024×1024
 - `buildings/GREEK/RESIDENCE.png` — 1024×1024
@@ -103,7 +101,6 @@ Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (do
 - `buildings/HUN/MAIN_HALL.png` — 1024×1024
 - `buildings/HUN/MARKET.png` — 1024×1024
 - `buildings/HUN/MILL.png` — 1024×1024
-- `buildings/HUN/MOAT.png` — 1024×1024
 - `buildings/HUN/QUARRY.png` — 1024×1024
 - `buildings/HUN/RALLY_POINT.png` — 1024×1024
 - `buildings/HUN/RESIDENCE.png` — 1024×1024
@@ -136,7 +133,6 @@ Guide et prompt de chaque fichier : `node tools/repaint.cjs --kit=<dossier>` (do
 - `buildings/SULTAN/MAIN_HALL.png` — 1024×1024
 - `buildings/SULTAN/MARKET.png` — 1024×1024
 - `buildings/SULTAN/MILL.png` — 1024×1024
-- `buildings/SULTAN/MOAT.png` — 1024×1024
 - `buildings/SULTAN/QUARRY.png` — 1024×1024
 - `buildings/SULTAN/RALLY_POINT.png` — 1024×1024
 - `buildings/SULTAN/RESIDENCE.png` — 1024×1024
@@ -630,7 +626,7 @@ Sans la plaque parchemin, l'habillage peint ne s'active pas.
 
 - `ui/plate-parchment.png` — 1024×1024
 
-## 9. Compléments fixes et visuels de boutique (30)
+## 9. Compléments fixes et visuels de boutique (29)
 
 Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 
@@ -649,7 +645,6 @@ Fiches et prompts dans `docs/GUIDE-COMPLEMENTS-ANIMATIONS.md`.
 - scenes/vignette-tribe-<forest|desert|snow>.png × 3 (camps des tribus, en tête des rapports) — 1536×1024 — guide § S14
 - ui/tribe.png (icône tribu locale) — 1024×1024 — guide § S14
 - props/plaza_<CIV>_<statue|fountain|stall>.png × 18 (ornements de plaza par civilisation) — 512×768 — guide § S16
-- walls/<CIV>/moat_<seg_x|seg_z|corner>.png × 18 (douves) — 1024×1024 — guide § S16
 - figures/units/<CLÉ>.png × 60 et busts/units/<CLÉ>.png × 60 (une figurine et un jeton par unité, fiches d'unité) — 1024×1536 / 1024×1024 — guide § S17
 - map/units/hero_<CIV>.png × 6 (héros en tête d'armée), map/units/spy.png (espion) — 1024×1024 — guide § S18
 - heroes/<CIV>_t<2|3>.png × 12 et heroes/<CIV>_bust_t<2|3>.png × 12 (héros par palier de niveau) — 1024×1536 / 1024×1024 — guide § S19
@@ -723,7 +718,7 @@ Guide § T2, T4, T5, T6.
 - A17 — map/fx/rain_<0..3>.png, map/fx/snowfall_<0..3>.png — 8 images — cases 512×512 — météo sur la carte
 - A18 — map/units/hero_<CIV>_attack_<0..2>.png — 18 images — cases 512×512 — héros au combat dans le replay
 
-## 12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) (408)
+## 12. Bâtiments, palier 1 (niveaux 1-6) puis palier 3 (niveaux 14-20) (396)
 
 `--kit --tiers`. Après tout le reste.
 
@@ -746,7 +741,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/ROME/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/ROME/MARKET_t1.png` — 1024×1024
 - `buildings/ROME/MILL_t1.png` — 1024×1024
-- `buildings/ROME/MOAT_t1.png` — 1024×1024
 - `buildings/ROME/QUARRY_t1.png` — 1024×1024
 - `buildings/ROME/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/ROME/RESIDENCE_t1.png` — 1024×1024
@@ -781,7 +775,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/GAUL/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/GAUL/MARKET_t1.png` — 1024×1024
 - `buildings/GAUL/MILL_t1.png` — 1024×1024
-- `buildings/GAUL/MOAT_t1.png` — 1024×1024
 - `buildings/GAUL/QUARRY_t1.png` — 1024×1024
 - `buildings/GAUL/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/GAUL/RESIDENCE_t1.png` — 1024×1024
@@ -815,7 +808,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/GREEK/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/GREEK/MARKET_t1.png` — 1024×1024
 - `buildings/GREEK/MILL_t1.png` — 1024×1024
-- `buildings/GREEK/MOAT_t1.png` — 1024×1024
 - `buildings/GREEK/QUARRY_t1.png` — 1024×1024
 - `buildings/GREEK/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/GREEK/RESIDENCE_t1.png` — 1024×1024
@@ -849,7 +841,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/EGYPT/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/EGYPT/MARKET_t1.png` — 1024×1024
 - `buildings/EGYPT/MILL_t1.png` — 1024×1024
-- `buildings/EGYPT/MOAT_t1.png` — 1024×1024
 - `buildings/EGYPT/QUARRY_t1.png` — 1024×1024
 - `buildings/EGYPT/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/EGYPT/RESIDENCE_t1.png` — 1024×1024
@@ -883,7 +874,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/HUN/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/HUN/MARKET_t1.png` — 1024×1024
 - `buildings/HUN/MILL_t1.png` — 1024×1024
-- `buildings/HUN/MOAT_t1.png` — 1024×1024
 - `buildings/HUN/QUARRY_t1.png` — 1024×1024
 - `buildings/HUN/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/HUN/RESIDENCE_t1.png` — 1024×1024
@@ -916,7 +906,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/SULTAN/MAIN_HALL_t1.png` — 1024×1024
 - `buildings/SULTAN/MARKET_t1.png` — 1024×1024
 - `buildings/SULTAN/MILL_t1.png` — 1024×1024
-- `buildings/SULTAN/MOAT_t1.png` — 1024×1024
 - `buildings/SULTAN/QUARRY_t1.png` — 1024×1024
 - `buildings/SULTAN/RALLY_POINT_t1.png` — 1024×1024
 - `buildings/SULTAN/RESIDENCE_t1.png` — 1024×1024
@@ -950,7 +939,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/ROME/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/ROME/MARKET_t3.png` — 1024×1024
 - `buildings/ROME/MILL_t3.png` — 1024×1024
-- `buildings/ROME/MOAT_t3.png` — 1024×1024
 - `buildings/ROME/QUARRY_t3.png` — 1024×1024
 - `buildings/ROME/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/ROME/RESIDENCE_t3.png` — 1024×1024
@@ -985,7 +973,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/GAUL/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/GAUL/MARKET_t3.png` — 1024×1024
 - `buildings/GAUL/MILL_t3.png` — 1024×1024
-- `buildings/GAUL/MOAT_t3.png` — 1024×1024
 - `buildings/GAUL/QUARRY_t3.png` — 1024×1024
 - `buildings/GAUL/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/GAUL/RESIDENCE_t3.png` — 1024×1024
@@ -1019,7 +1006,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/GREEK/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/GREEK/MARKET_t3.png` — 1024×1024
 - `buildings/GREEK/MILL_t3.png` — 1024×1024
-- `buildings/GREEK/MOAT_t3.png` — 1024×1024
 - `buildings/GREEK/QUARRY_t3.png` — 1024×1024
 - `buildings/GREEK/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/GREEK/RESIDENCE_t3.png` — 1024×1024
@@ -1053,7 +1039,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/EGYPT/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/EGYPT/MARKET_t3.png` — 1024×1024
 - `buildings/EGYPT/MILL_t3.png` — 1024×1024
-- `buildings/EGYPT/MOAT_t3.png` — 1024×1024
 - `buildings/EGYPT/QUARRY_t3.png` — 1024×1024
 - `buildings/EGYPT/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/EGYPT/RESIDENCE_t3.png` — 1024×1024
@@ -1087,7 +1072,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/HUN/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/HUN/MARKET_t3.png` — 1024×1024
 - `buildings/HUN/MILL_t3.png` — 1024×1024
-- `buildings/HUN/MOAT_t3.png` — 1024×1024
 - `buildings/HUN/QUARRY_t3.png` — 1024×1024
 - `buildings/HUN/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/HUN/RESIDENCE_t3.png` — 1024×1024
@@ -1120,7 +1104,6 @@ Guide § T2, T4, T5, T6.
 - `buildings/SULTAN/MAIN_HALL_t3.png` — 1024×1024
 - `buildings/SULTAN/MARKET_t3.png` — 1024×1024
 - `buildings/SULTAN/MILL_t3.png` — 1024×1024
-- `buildings/SULTAN/MOAT_t3.png` — 1024×1024
 - `buildings/SULTAN/QUARRY_t3.png` — 1024×1024
 - `buildings/SULTAN/RALLY_POINT_t3.png` — 1024×1024
 - `buildings/SULTAN/RESIDENCE_t3.png` — 1024×1024

@@ -16,12 +16,12 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Écran | Familles | Images | Déjà peintes | Restant |
 |---|---|---|---|---|
 | Inscription et connexion | 4 | 20 | 0 | **20** |
-| Ville : scène isométrique | 27 | 1328 | 114 | **1214** |
+| Ville : scène isométrique | 26 | 1292 | 112 | **1180** |
 | Carte du monde | 17 | 637 | 0 | **637** |
 | Armée, combat, héros | 11 | 247 | 0 | **247** |
 | Écrans et interface | 6 | 116 | 75 | **41** |
 | Boutique et application | 3 | 3 | 0 | **3** |
-| **Total** | 68 | **2351** | 189 | **2162** |
+| **Total** | 67 | **2315** | 187 | **2128** |
 
 ## Inscription et connexion
 
@@ -36,8 +36,8 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 
 | Famille | Images | Peintes | Où | Prompt | Priorité |
 |---|---|---|---|---|---|
-| Bâtiments, palier courant (niveaux 7-13), 39 × 6 civilisations | 204 | 92 | vue ville, vignettes, fiches | § 3.1 | ★★★ |
-| Bâtiments, paliers 1 et 3 (niveaux 1-6 et 14-20) | 408 | 0 | vue ville, fiches (3 paliers) | § 3.1 | ★☆☆ |
+| Bâtiments, palier courant (niveaux 7-13), 38 × 6 civilisations | 198 | 90 | vue ville, vignettes, fiches | § 3.1 | ★★★ |
+| Bâtiments, paliers 1 et 3 (niveaux 1-6 et 14-20) | 396 | 0 | vue ville, fiches (3 paliers) | § 3.1 | ★☆☆ |
 | Chantiers : chaque bâtiment en construction par civilisation | 168 | 0 | bâtiment en première construction | guide § S10 | ★★☆ |
 | Échafaudages par civilisation (trois tailles) | 18 | 0 | bâtiment en amélioration | guide § S11 | ★★★ |
 | Ouvriers par civilisation (animation A3) | 24 | 0 | devant les chantiers | guide § A3 | ★★★ |
@@ -47,7 +47,6 @@ Tout nom de cette liste est reconnu par l'import (`node tools/check-incoming.cjs
 | Enceinte : courtines, murets et tours, 3 paliers × 6 civilisations | 90 | 5 | autour de la ville (palier du Bâtiment principal) | § 3.3 | ★★★ |
 | Portes de la ville par civilisation | 6 | 0 | arête sud-est de l'enceinte | guide § S1 | ★★★ |
 | Enceinte en chantier | 18 | 0 | Mur en travaux | guide § S10 | ★☆☆ |
-| Douves par civilisation | 18 | 0 | bâtiment Douves (à brancher) | guide § S16 | ★☆☆ |
 | Ornements de plaza par civilisation (statue, fontaine, étal) | 18 | 0 | autour du Bâtiment principal | guide § S16 | ★★☆ |
 | Villageois de chaque civilisation (homme, femme), marche 6 phases | 72 | 0 | avenues et plaza | guide § A1 | ★★★ |
 | Gens des champs au travail | 16 | 0 | anneau des champs | guide § A12 | ★★☆ |
@@ -132,7 +131,7 @@ emblème 3D (icône, favicon, splash ; version peinte : N3). Les variantes neige
 2. Ce qui fait vivre la ville : échafaudages, ouvriers, villageois, flammes, bâtiments vivants, ornements de plaza.
 3. Les systèmes récents : camps barbares, colons et colonies, technologies, chantiers par bâtiment.
 4. Les fiches : une figurine et un jeton par unité, héros par palier, vignettes.
-5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints, douves.
+5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints.
 
 ## Non classé (3)
 

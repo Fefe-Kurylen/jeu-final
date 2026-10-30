@@ -25,6 +25,26 @@ function curve(key, prefix, level) {
 }
 
 const CAPITAL_ONLY_KEYS = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
+// Bâtiments de colonie dont le meilleur niveau parmi les villes du joueur vaut pour toutes ses villes, capitale comprise,
+// sans somme des niveaux (décision du 30 octobre 2026 : Comptoir de commerce, effects.bestLevelForAllCities)
+const BEST_OF_PLAYER_KEYS = buildingsData.filter(b => b.effects?.bestLevelForAllCities).map(b => b.key);
+const SHARED_KEYS = [...CAPITAL_ONLY_KEYS, ...BEST_OF_PLAYER_KEYS];
+// Bâtiments partagés par toutes les villes d'un joueur, tirés de ses villes [{ isCapital, buildings }] : ceux « capitale
+// seulement » de la capitale (une ville sans indication isCapital compte comme la capitale) et, pour le Comptoir, le
+// meilleur niveau de toutes ses villes
+function sharedBuildings(cities) {
+  const list = cities || [];
+  const capital = list.find(c => c.isCapital !== false);
+  const shared = (capital?.buildings || []).filter(b => CAPITAL_ONLY_KEYS.includes(b.key));
+  for (const key of BEST_OF_PLAYER_KEYS) {
+    const level = list.reduce((m, c) => Math.max(m, levelOf(c.buildings, key)), 0);
+    if (level > 0) shared.push({ key, level });
+  }
+  return shared;
+}
+// Ressource que donne un gisement à la colonie fondée dessus (bonus de gisement) ; or, Merveille… : aucune
+const NODE_RESOURCE = { WOOD: 'wood', STONE: 'stone', IRON: 'iron', FOOD: 'food' };
+const colonyNodeBonusPct = (nodeLevel) => Math.max(0, Math.floor(Number(nodeLevel) || 0)) * effectOf('RESIDENCE', 'colonyNodeBonusPctPerNodeLevel');
 const TRAIN_BUILDINGS = { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] };
 
 const effects = {
@@ -93,23 +113,37 @@ const effects = {
   settlerCost: () => defOf('RESIDENCE')?.effects?.settlerCost || { wood: 0, stone: 0, iron: 0, food: 0 },
   cityFoundationTimeSec: () => effectOf('RESIDENCE', 'cityFoundationTimeSec', 86400),
   secondaryCityBonusPct: () => effectOf('RESIDENCE', 'secondaryCityBonusPct', 20),
-  // Bâtiments « capitale seulement » (décision du 30 octobre 2026 : une seule suffit, bonus général pour le joueur) :
-  // les effets d'une ville se calculent avec SES bâtiments, sauf ceux réservés à la capitale, lus dans la capitale.
-  // withCapital(bâtiments de la ville, bâtiments de la capitale) → liste à passer aux autres fonctions de ce fichier
+  // Bonus de gisement d'une colonie (décision du 30 octobre 2026) : +15 % par niveau du gisement (1-3) sur la seule
+  // ressource du gisement, en plus du bonus des colonies ; rien pour la capitale ni la Ville Merveille (pas de gisement
+  // de bois, pierre, fer ou céréales). Le tick l'applique en SQL (resourceProcessor) avec les mêmes données.
+  colonyNodeBonusPct,
+  NODE_RESOURCE,
+  // Gisement d'une ville pour l'affichage : { type, level, bonusPct }, null pour la capitale, la Ville Merveille ou une
+  // ville sans gisement. `node` : le point de ressource dont cityId est la ville
+  citySite: (city, node) => (!city || city.isCapital || city.isWonder || !node || !NODE_RESOURCE[node.resourceType]
+    ? null : { type: node.resourceType, level: node.level, bonusPct: colonyNodeBonusPct(node.level) }),
+  // Bâtiments partagés par toutes les villes du joueur (décision du 30 octobre 2026) : ceux « capitale seulement » (une
+  // seule suffit, bonus général pour le joueur) sont lus dans la capitale ; pour le Comptoir, le meilleur niveau des
+  // villes du joueur vaut partout. withCapital(bâtiments de la ville, bâtiments partagés) → liste à passer aux autres
+  // fonctions de ce fichier (levelOf y prend le plus haut niveau d'un bâtiment présent deux fois : jamais de somme)
   withCapital: (cityBuildings, capitalBuildings) => {
     if (!capitalBuildings || capitalBuildings === cityBuildings) return cityBuildings || [];
-    const own = (cityBuildings || []).filter(b => !defOf(b.key)?.effects?.capitalOnly);
-    const fromCapital = (capitalBuildings || []).filter(b => defOf(b.key)?.effects?.capitalOnly);
-    return own.concat(fromCapital);
+    const own = (cityBuildings || []).filter(b => !CAPITAL_ONLY_KEYS.includes(b.key));
+    const shared = (capitalBuildings || []).filter(b => SHARED_KEYS.includes(b.key));
+    return own.concat(shared);
   },
-  // Les bâtiments « capitale seulement » d'un joueur chargé avec lui : CAPITAL_BUILDINGS se met sous le joueur dans un
-  // include Prisma (`owner: { include: { cities: fx.CAPITAL_BUILDINGS } }`), capitalOf(joueur) les lit (relus en base :
-  // utils/db.js capitalBuildingsOf)
-  CAPITAL_BUILDINGS: { where: { isCapital: true }, select: { buildings: { where: { key: { in: CAPITAL_ONLY_KEYS } }, select: { key: true, level: true } } } },
-  capitalOf: (player) => player?.cities?.[0]?.buildings || [],
+  // Les bâtiments partagés d'un joueur chargé avec lui : CAPITAL_BUILDINGS se met sous le joueur dans un include Prisma
+  // (`owner: { include: { cities: fx.CAPITAL_BUILDINGS } }`, ses villes avec leurs seuls bâtiments partagés),
+  // capitalOf(joueur) les lit (relus en base : utils/db.js capitalBuildingsOf)
+  CAPITAL_BUILDINGS: { select: { isCapital: true, buildings: { where: { key: { in: SHARED_KEYS } }, select: { key: true, level: true } } } },
+  capitalOf: (player) => sharedBuildings(player?.cities),
+  sharedBuildings,
   // Buildings reserved to the capital or to secondary cities (data flags)
   capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
   notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
+  // Bâtiment dont le meilleur niveau parmi les villes du joueur vaut pour toutes (Comptoir), ou partagé tout court
+  bestOfPlayer: (key) => BEST_OF_PLAYER_KEYS.includes(key),
+  sharedKey: (key) => SHARED_KEYS.includes(key),
   levelOf
 };
 

@@ -1148,6 +1148,12 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     const aca = await call('build ACADEMY in the colony -> 400 (capital only)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'ACADEMY' }, 400);
     await call('build BARRACKS in the colony -> 400 (capital only: Great Barracks outside)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'BARRACKS' }, 400);
     assert('the refusal says the building belongs to the capital', /réservé à la capitale/.test(emb?.error || '') && /réservé à la capitale/.test(aca?.error || ''), `${emb?.error} / ${aca?.error}`);
+    { // la Place de rassemblement de la capitale fixe le nombre d'armées de chaque ville : la colonie n'en a pas, elle forme
+      // quand même une armée (sans cette règle : aucune)
+      assert('the colony has no Rally Point of its own', sql(`SELECT count(*) FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='RALLY_POINT'`) === '0');
+      const ca = await call('army create in the colony (Rally Point of the capital)', 'POST', '/api/army/create', tA, { cityId: colony[0], slot: 1, name: 'Praesidium' });
+      if (ca?.army?.id) sql(`DELETE FROM "Army" WHERE id='${ca.army.id}'`);
+    }
     { // une construction dans la colonie se paie sur toutes les villes : ce que la colonie a, puis la capitale
       richCity(cityA.id);
       sql(`UPDATE "City" SET wood=50, stone=50, iron=50 WHERE id='${colony[0]}'`);
@@ -1193,11 +1199,11 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       sql(`UPDATE "City" SET food=50000, "maxFoodStorage"=100000 WHERE id='${colony[0]}'`);
       const unitsOfA = () => Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" WHERE a."ownerId"='${A.player.id}'`));
       const famines = () => Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND title LIKE '%Famine%'`));
-      const u0 = unitsOfA(), f0 = famines();
+      const u0 = unitsOfA(), f0 = famines();   // aucune mort ; un lot de recrues qui finit entre-temps peut en ajouter
       RPu.resetFamineClock(); await RPu.processUpkeep(1 / 60);   // une minute d'entretien, puis le contrôle de l'heure
       await sleep(500);
       const colFood = Number(sql(`SELECT floor(food) FROM "City" WHERE id='${colony[0]}'`));
-      assert('shared upkeep: the empty capital feeds its troops from the colony granary, nobody starves', consA > 0 && colFood < 50000 && unitsOfA() === u0 && famines() === f0, `consumption ${consA}/h, colony food ${colFood}, units ${u0} -> ${unitsOfA()}`);
+      assert('shared upkeep: the empty capital feeds its troops from the colony granary, nobody starves', consA > 0 && colFood < 50000 && unitsOfA() >= u0 && famines() === f0, `consumption ${consA}/h, colony food ${colFood}, units ${u0} -> ${unitsOfA()}`);
       sql(`UPDATE "City" SET food=50000 WHERE id='${cityA.id}'`);
     }
     { // un raid ne prend que dans la ville attaquée (stock propre à chaque ville) : B harcèle la colonie de A
@@ -1595,12 +1601,12 @@ if (MAIL_LOG) {
   const bs = await bal();
   sql(`UPDATE "City" SET "isSieged"=false WHERE id='${cityB.id}'`);
   assert('famine: a besieged city feeds its armies 10 % cheaper (not the one away)', Math.abs(bs.consumption - Math.round((400 * UP.base * 0.9 + 100 * UP.elite * 0.9 + 50 * UP.elite) * (1 - b0.reductionPct / 100))) <= 1, `${bs.consumption}`);
-  // alerte : grenier vide dans moins de 6 h
+  // alerte : greniers vides dans moins de config.army.famineAlertHours (3 h de réserve ici)
   const deficit = b0.consumption - b0.production;
   sql(`UPDATE "City" SET food=${Math.round(deficit * 3)}, "maxFoodStorage"=100000, "foodAlertAt"=NULL WHERE id='${cityB.id}'`);
   RP.resetFamineClock(); await RP.processUpkeep(1 / 3600);
   await sleep(500);
-  assert('famine: B is warned the granary will be empty within 6 h', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${B.player.id}' AND title LIKE '%Grenier bientôt vide%'`)) >= 1 && sql(`SELECT ("foodAlertAt" IS NOT NULL)::text FROM "City" WHERE id='${cityB.id}'`) === 'true');
+  assert('famine: B is warned before the granaries run empty', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${B.player.id}' AND title LIKE '%Grenier bientôt vide%'`)) >= 1 && sql(`SELECT ("foodAlertAt" IS NOT NULL)::text FROM "City" WHERE id='${cityB.id}'`) === 'true');
   // greniers vides (B n'a qu'une ville) : meurent juste assez de soldats, les plus gourmands d'abord (l'élite à 13)
   sql(`UPDATE "City" SET food=0 WHERE id='${cityB.id}'`);
   RP.resetFamineClock(); await RP.processUpkeep(1 / 3600);

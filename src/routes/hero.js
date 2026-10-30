@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const { cleanText } = require('../utils/validation');
 const { itemsData } = require('../config/gamedata');
+const { withDeadlockRetry } = require('../utils/db');
 const EQUIP_SLOTS = new Set(['head', 'chest', 'weapon', 'shield', 'legs', 'boots', 'ring', 'amulet']);
 
 const heroService = require('../services/heroService');
@@ -32,8 +33,9 @@ router.post('/talents/learn', auth, async (req, res) => {
 router.post('/talents/reset', auth, async (req, res) => {
   try { res.json(await heroService.resetTalents(req.user.playerId)); } catch (e) { fail(res, e); }
 });
+// la résurrection se paie sur toutes les villes (verrouillées) : rejouée après un interblocage rare avec le tick
 router.post('/revive', auth, async (req, res) => {
-  try { res.json(await heroService.startRevive(req.user.playerId)); } catch (e) { fail(res, e); }
+  try { res.json(await withDeadlockRetry(() => heroService.startRevive(req.user.playerId))); } catch (e) { fail(res, e); }
 });
 
 // POST /api/hero/create

@@ -47,9 +47,10 @@ async function creditCity(tx, cityId, gain) {
 
 // ---- Stock partagé entre les villes d'un joueur (décision du 30 octobre 2026) ----
 // Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, héros, soins et fondation
-// puisent d'abord dans la ville de l'action, puis dans les autres villes du joueur (celle qui en a le plus d'abord).
-// L'entretien des troupes puise aussi dans tous les greniers (resourceProcessor.processUpkeep, § 1 bis). Le marché, les
-// transports, les convois, le pillage et les raids restent propres à chaque ville.
+// puisent d'abord dans la ville de l'action, puis dans les autres villes du joueur, la plus pleine d'abord (stock rapporté
+// à son plafond : Dépôt pour bois, pierre et fer, Silo pour les céréales ; décision des colonies, question 8).
+// L'entretien des troupes puise aussi dans tous les greniers (resourceProcessor.processUpkeep, § 1 bis), dans le même
+// ordre. Le marché, les transports, les convois, le pillage et les raids restent propres à chaque ville.
 
 // Verrouille toutes les villes du joueur, toujours dans le même ordre (id), pour éviter les interblocages ;
 // renvoie leurs stocks et plafonds
@@ -60,7 +61,13 @@ async function lockPlayerCities(tx, playerId) {
   return rows.map(r => ({ id: r.id, isCapital: !!r.isCapital, wood: Number(r.wood) || 0, stone: Number(r.stone) || 0, iron: Number(r.iron) || 0, food: Number(r.food) || 0, maxStorage: Number(r.maxStorage) || 0, maxFoodStorage: Number(r.maxFoodStorage) || 0 }));
 }
 
-// Répartition d'un prix sur les villes (pur, testable) : la ville `cityId` d'abord, puis les autres par stock décroissant.
+// Remplissage d'un stock : part de son plafond (Silo pour les céréales, Dépôt pour le reste) ; plafond nul : plein s'il
+// reste quelque chose
+const capOf = (c, r) => (r === 'food' ? c.maxFoodStorage : c.maxStorage);
+const fillRatio = (c, r) => (capOf(c, r) > 0 ? c[r] / capOf(c, r) : (c[r] > 0 ? Infinity : 0));
+
+// Répartition d'un prix sur les villes (pur, testable) : la ville `cityId` d'abord, puis les autres de la plus pleine à la
+// moins pleine (fillRatio), à égalité la plus riche.
 // Renvoie { ok, missing, tooSmall, takenByCity: { [id]: { wood, stone, iron, food } } } ; `missing` = ce qui manque au
 // total, `tooSmall` = les ressources dont le prix dépasse le stockage de toutes les villes réunies (recommandation 14)
 function planDebit(cities, cityId, cost) {
@@ -68,7 +75,7 @@ function planDebit(cities, cityId, cost) {
   for (const r of RESOURCES) {
     let need = amount(cost, r);
     if (!need) continue;
-    const order = [...cities].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : (b[r] - a[r]) || (a.id < b.id ? -1 : 1)));
+    const order = [...cities].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : (fillRatio(b, r) - fillRatio(a, r)) || (b[r] - a[r]) || (a.id < b.id ? -1 : 1)));
     for (const c of order) {
       if (need <= 0) break;
       const take = Math.min(need, Math.max(0, Math.floor(c[r])));
@@ -154,16 +161,16 @@ function stockTotals(cities) {
   return t;
 }
 
-// Bâtiments « capitale seulement » (décision du 30 octobre 2026) : les effets d'une ville se calculent avec ses
-// bâtiments et ceux de la capitale du joueur réservés à la capitale (fx.withCapital)
+// Bâtiments partagés par les villes d'un joueur (décision du 30 octobre 2026) : les effets d'une ville se calculent avec
+// ses bâtiments, ceux de la capitale réservés à la capitale et le meilleur Comptoir de ses villes (fx.withCapital) ;
+// une requête
 async function capitalBuildingsOf(db, playerId) {
-  if (!playerId) return [];   // sans joueur, Prisma ignorerait le filtre et rendrait la capitale de n'importe qui
-  const capital = await db.city.findFirst({ where: { playerId, isCapital: true }, select: { buildings: { select: { key: true, level: true } } } });
-  return capital?.buildings || [];
+  if (!playerId) return [];   // sans joueur, Prisma ignorerait le filtre et rendrait les villes de n'importe qui
+  const fx = require('./buildingEffects');
+  return fx.capitalOf({ cities: await db.city.findMany({ where: { playerId }, ...fx.CAPITAL_BUILDINGS }) });
 }
-// `city` porte playerId, isCapital et buildings
+// `city` porte playerId et buildings ; la capitale aussi profite du meilleur Comptoir des colonies
 async function buildingsWithCapital(db, city) {
-  if (city.isCapital) return city.buildings || [];
   return require('./buildingEffects').withCapital(city.buildings || [], await capitalBuildingsOf(db, city.playerId));
 }
 
@@ -233,6 +240,16 @@ async function takeFromNode(tx, nodeId, want) {
   return rows.length ? Math.floor(Number(rows[0].taken) || 0) : 0;
 }
 
+// Interblocage (rare) : une route de dépense verrouille les villes du joueur par id (lockPlayerCities) pendant que les
+// grandes requêtes du tick écrivent les villes dans leur propre ordre ; PostgreSQL annule alors l'une des deux (40P01,
+// P2034 pour Prisma). `fn` lance toute la transaction : elle a été annulée en entier, on la relance (`tries` essais au plus)
+const isDeadlock = (e) => e?.code === 'P2034' || e?.code === '40P01' || e?.meta?.code === '40P01' || /deadlock detected/i.test(e?.message || '');
+async function withDeadlockRetry(fn, tries = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await fn(); } catch (e) { if (attempt >= tries || !isDeadlock(e)) throw e; }
+  }
+}
+
 // Status transition guarded by the expected current status; false when another request won the race
 async function transition(tx, model, id, fromStatus, data) {
   const res = await tx[model].updateMany({ where: { id, status: fromStatus }, data });
@@ -241,4 +258,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, transition, isId };
+module.exports = { RESOURCES, RES_FR, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, withDeadlockRetry, transition, isId };

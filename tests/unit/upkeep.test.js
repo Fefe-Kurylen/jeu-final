@@ -59,12 +59,17 @@ test('entretien du tick : une seule requête pour tous les joueurs, partage du m
     const { sql, values } = writes[0];
     assert.match(sql, /UPDATE "City" AS c SET food = GREATEST\(0, c\.food - s\.taken\)/, 'écrit en différence, jamais sous 0');
     assert.match(sql, /SUM\(lack\) OVER \(PARTITION BY "playerId"\)/, 'le manque se compte sur tout le joueur');
-    assert.match(sql, /ORDER BY spare DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING/, 'la ville qui a le plus de nourriture donne d\'abord');
+    assert.match(sql, /GREATEST\(b\.food - b\.cons \* \?, 0\) \/ GREATEST\(b\."maxFoodStorage", 1\) AS fill/, 'remplissage : le reste rapporté au plafond du Silo');
+    assert.match(sql, /ORDER BY fill DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING/, 'la ville la plus pleine donne d\'abord (décision des colonies, question 8)');
     assert.match(sql, /c\."playerId" IN \(SELECT f\."playerId" FROM "City" f WHERE/, 'toutes les villes des joueurs qui nourrissent quelqu\'un');
     assert.ok(values.includes(1 / 120), 'durée du tick');
-    // contrôle horaire : agrégé par joueur, pas par ville
-    assert.equal(reads.length, 1);
+    // contrôle horaire : famine agrégée par joueur, puis l'alerte « dépôt plein » des villes pas prévenues depuis 12 h
+    assert.equal(reads.length, 2);
     assert.match(reads[0], /GROUP BY b\."playerId" HAVING SUM\(b\.cons\) > SUM\(b\.prod\)/);
+    assert.match(reads[1], /WHERE \(c\."storageAlertAt" IS NULL OR c\."storageAlertAt" < \?\)/);
+    assert.match(reads[1], /\(b\."prodWood" > 0 AND b\.wood < b\."maxStorage"\s+AND b\."maxStorage" - b\.wood <= b\."prodWood" \* \?::float\) AS wood/, 'plein dans moins d\'1 h, pas déjà plein');
+    assert.match(reads[1], /\(\(b\.prod - b\.cons\) > 0 AND b\.food < b\."maxFoodStorage"/, 'céréales : production moins l\'entretien de la ville');
+    assert.match(reads[1], /WHERE s\.wood OR s\.stone OR s\.iron OR s\.food/);
   } finally { s.restore(); RP.resetFamineClock(); }
 });
 
@@ -89,7 +94,7 @@ function famineDb({ players, cities, armies = [], wounded = [] }) {
     over: {
       army: { findMany: async () => [] },
       $executeRaw: async () => 0,
-      $queryRaw: async () => players,
+      $queryRaw: async (strings, ...values) => (sqlOf(strings, values).includes('"storageAlertAt"') ? [] : players),   // alerte « dépôt plein » : aucune ville
       $transaction: async (fn) => fn(tx),
       city: {
         findFirst: async ({ where }) => cities.find(c => c.isCapital && c.playerId === where.playerId) || null,

@@ -10,6 +10,7 @@ const config = require('../../src/config');
 const { buildingsData, unitsData } = require('../../src/config/gamedata');
 const db = require('../../src/utils/db');
 const calc = require('../../src/utils/calculations');
+const fx = require('../../src/utils/buildingEffects');
 const W = require('../../src/services/woundedService');
 
 const city = (id, stock, { cap = 10000, foodCap = cap, isCapital = false } = {}) => ({ id, isCapital, wood: stock, stone: stock, iron: stock, food: stock, maxStorage: cap, maxFoodStorage: foodCap });
@@ -109,15 +110,23 @@ test('stock de toutes les villes : somme des stocks (arrondie) et des plafonds',
   assert.equal(db.planDebit(halves, 'a', { wood: 150 }).ok, true);
 });
 
-test('bâtiments d\'une colonie : les siens, et ceux réservés à la capitale lus dans la capitale (une requête)', async () => {
+test('bâtiments d\'une ville : les siens, ceux réservés à la capitale lus dans la capitale, le meilleur Comptoir des villes (une requête)', async () => {
   let asked = null;
-  const tx = { city: { findFirst: async (q) => { asked = q.where; return { buildings: [{ key: 'ACADEMY', level: 10 }, { key: 'MARKET', level: 20 }] }; } } };
-  const colony = { playerId: 'p1', isCapital: false, buildings: [{ key: 'MARKET', level: 5 }, { key: 'ACADEMY', level: 3 }] };
+  // l'include charge les seuls bâtiments partagés de chaque ville (fx.CAPITAL_BUILDINGS) : la base ne renvoie pas le Marché
+  const rows = [{ isCapital: true, buildings: [{ key: 'ACADEMY', level: 10 }] }, { isCapital: false, buildings: [{ key: 'TRADE_OFFICE', level: 12 }] }];
+  const tx = { city: { findMany: async (q) => { asked = q; return rows; } } };
+  const colony = { playerId: 'p1', isCapital: false, buildings: [{ key: 'MARKET', level: 5 }, { key: 'ACADEMY', level: 3 }, { key: 'TRADE_OFFICE', level: 4 }] };
   const got = await db.buildingsWithCapital(tx, colony);
-  assert.deepEqual(asked, { playerId: 'p1', isCapital: true });
-  assert.deepEqual(got, [{ key: 'MARKET', level: 5 }, { key: 'ACADEMY', level: 10 }], 'Marché de la colonie, Académie de la capitale');
-  const capital = { ...colony, isCapital: true };
-  assert.equal(await db.buildingsWithCapital({ city: { findFirst: async () => assert.fail('pas de requête pour la capitale') } }, capital), capital.buildings);
+  assert.deepEqual(asked.where, { playerId: 'p1' });
+  assert.deepEqual(got, [{ key: 'MARKET', level: 5 }, { key: 'TRADE_OFFICE', level: 4 }, { key: 'ACADEMY', level: 10 }, { key: 'TRADE_OFFICE', level: 12 }],
+    'Marché et Comptoir de la colonie, Académie de la capitale, meilleur Comptoir du joueur');
+  assert.equal(fx.levelOf(got, 'TRADE_OFFICE'), 12, 'le meilleur niveau, sans somme');
+  // la capitale aussi profite du meilleur Comptoir de ses colonies
+  const capital = { playerId: 'p1', isCapital: true, buildings: [{ key: 'ACADEMY', level: 10 }, { key: 'MARKET', level: 20 }] };
+  const capB = await db.buildingsWithCapital(tx, capital);
+  assert.equal(fx.levelOf(capB, 'TRADE_OFFICE'), 12);
+  assert.equal(fx.levelOf(capB, 'MARKET'), 20);
+  assert.deepEqual(await db.buildingsWithCapital({ city: { findMany: async () => assert.fail('pas de requête sans joueur') } }, { buildings: [] }), []);
 });
 
 // ---- coût et durée d'un niveau (recommandations 3 et 4) ----
@@ -210,7 +219,7 @@ test('blessés : part des pertes selon la tente de la capitale, la civilisation,
 function healDb({ rows, capital, nowHealing = [] }) {
   const updates = [];
   const tx = fakeTx({
-    city: { findFirst: async () => ({ buildings: capital }) },
+    city: { findMany: async () => [{ isCapital: true, buildings: capital }] },
     woundedUnit: {
       findFirst: async ({ where }) => rows.find(r => r.cityId === where.cityId && r.unitKey === where.unitKey) || null,
       findMany: async () => nowHealing,
@@ -259,7 +268,7 @@ test('soins : la fin d\'un soin vient après les soins en cours ; la liste des b
   let stock = [{ wood: 50000, stone: 50000, iron: 50000, food: 50000 }];
   Object.assign(prisma, {
     woundedUnit: { findMany: async ({ where }) => (where.count ? [{ count: 50, healsAt: busy }] : [{ id: 'w1', cityId: 'col', unitKey: inf.key, count: 0, waiting: 300, healsAt: W.NO_HEAL, city: { name: 'Colonie' } }]) },
-    city: { findFirst: async () => ({ buildings: tent(1) }), findMany: async () => stock }
+    city: { findMany: async (q) => (q.select.buildings ? [{ isCapital: true, buildings: tent(1) }] : stock) }
   });
   try {
     const [row] = await W.woundedView('p1');
