@@ -86,11 +86,16 @@ function clampCam(view) {
   cityCam.y = Math.max(-ly, Math.min(ly, cityCam.y));
 }
 function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; cityCam.auto = true; }
-// Recentre la vue sur un emplacement (bâtiment 0-19 ou champ 101-118), zoome si besoin et ouvre sa bulle d'action :
+// Cellule (gx, gy) d'un emplacement : anneau 0-19, champ 101-118, Mur (sa place sur l'enceinte : la porte)
+function isoSlotCell(slot) {
+  if (slot === cityWallSlot()) return isoGateCell(0);
+  return slot >= 100 ? ISO_FIELD_CELLS[slot - 100] : ISO_CITY_CELLS[slot];
+}
+// Recentre la vue sur un emplacement (bâtiment 0-19, champ 101-118 ou Mur), zoome si besoin et ouvre sa bulle d'action :
 // « Voir dans la ville » des fiches, façon Rise of Kingdoms
 function focusCitySlot(slot, zoom = 1.7) {
   if (!cityCanvas) return false;
-  const cell = slot >= 100 ? ISO_FIELD_CELLS[slot - 100] : ISO_CITY_CELLS[slot];
+  const cell = isoSlotCell(slot);
   if (!cell) return false;
   cityCam.auto = false;
   cityCam.zoom = Math.max(cityCam.zoom, zoom);
@@ -105,7 +110,8 @@ function focusCitySlot(slot, zoom = 1.7) {
 }
 
 // ---------- Emplacements (contrat citySlots conservé : slot, x, y, size, fixed, isField, fieldType…) ----------
-// Une seule liste : les bâtiments (slots 0-19) et les champs (slots 101-118, numérotation du serveur)
+// Une seule liste : les bâtiments (slots 0-19), les champs (slots 101-118, numérotation du serveur) et le Mur (wall : sa
+// place fixe sur l'enceinte, ancrée à la porte ; on la touche sur toute l'enceinte, voir isoOnEnclosure)
 function calculateCitySlots() {
   if (!cityCanvas) return;
   const { W, cx, cy } = isoLayout('city');
@@ -122,6 +128,11 @@ function calculateCitySlots() {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
     citySlots.push({ slot: 100 + s, fieldSlot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
+  }
+  const wallSlot = cityWallSlot();
+  if (wallSlot !== null) {
+    const [gx, gy] = isoGateCell(0), p = isoPos(gx, gy, W, cx, cy);
+    citySlots.push({ slot: wallSlot, wall: true, fixedKey: 'WALL', gx, gy, x: p.x, y: p.y, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, ring: 'wall', layout: { W, cx, cy } });
   }
 }
 
@@ -576,6 +587,9 @@ function drawIsoNight(ctx, lit, view = null) {
   });
 }
 
+// Mur sur l'enceinte (décision du 30 octobre 2026) : il a sa place fixe hors de l'anneau (config.city.wallSlot, transmis par
+// /api/player/me) ; on le bâtit et on l'ouvre en touchant l'enceinte, jamais sur un emplacement de l'anneau
+function cityWallSlot() { return player?.economy?.city?.wallSlot ?? null; }
 function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key === 'WALL')?.level || 0; }
 function cityMainHallLevel() { return (currentCity?.buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1); }
 
@@ -728,6 +742,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   isoOverlayQueue = [];
   for (const s of citySlots) {
     const hovered = cityHoveredSlot === s.slot || citySelectedSlot === s.slot;
+    if (s.wall) { drawIsoWallPlace(ctx, s, wallLevel, hovered, night); continue; }
     if (s.isField) {
       const building = getFieldBuildingAtSlot(s.slot, s.fieldType);
       const isBuilding = currentCity?.buildQueue?.some(q => q.buildingKey === s.fieldType && q.slot === s.slot && q.status === 'RUNNING');
@@ -766,6 +781,32 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
   return { overlay, built, lit, flags };
 }
 
+// Place du Mur sur l'enceinte : sans Mur, le tracé de l'enceinte en pointillé et un « + » à la porte (le toucher pour le
+// bâtir) ; enceinte surlignée quand on la touche ; chantier et badge de niveau au-dessus de la porte
+function isoEnclosurePath(ctx, s) {
+  const { W, cx, cy } = s.layout, R = R_WALL;
+  const pts = [[-R, -R], [R, -R], [R, R], [-R, R]].map(([gx, gy]) => isoPos(gx, gy, W, cx, cy));
+  ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath();
+}
+function drawIsoWallPlace(ctx, s, wallLevel, hovered, night) {
+  const inWork = (currentCity?.buildQueue || []).some(q => q.buildingKey === 'WALL' && q.status === 'RUNNING');
+  if (!wallLevel) {
+    isoEnclosurePath(ctx, s);
+    ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5; ctx.strokeStyle = night ? 'rgba(255,240,200,0.3)' : 'rgba(255,240,200,0.55)'; ctx.stroke(); ctx.setLineDash([]);
+    if (!inWork) drawIsoEmptyCell(ctx, s, hovered, night);
+  }
+  // couche d'overlay : dessinée à chaque image sur le canvas affiché (cityCtx à ce moment-là), par-dessus les murs
+  isoOverlay(() => {
+    const c = cityCtx;
+    if (hovered) {
+      isoEnclosurePath(c, s);
+      c.lineWidth = 2.5; c.strokeStyle = 'rgba(255,215,0,0.85)'; c.shadowColor = '#ffd700'; c.shadowBlur = 12; c.stroke(); c.shadowBlur = 0;
+    }
+    if (wallLevel && isoShowBadges(hovered)) drawTravianLevelBadge(wallLevel, hovered, isoBadgeSpec(s.x, s.y - s.hh * 2, s.hw, s.hh));
+    if (inWork) drawBuildIndicator(c, s.x, s.y - s.hw * 1.6 + Math.sin(Date.now() / 200) * 3, Math.max(16, s.hw * 0.7));
+  });
+}
+
 // ---------- Bulles d'action (façon Rise of Kingdoms) ----------
 // Un toucher sur un bâtiment, un champ ou un emplacement libre affiche son nom, son niveau et des boutons ronds
 // (Améliorer / Construire, Recruter, Marché…, Infos) au-dessus de lui ; le bâtiment reste surligné tant que la bulle est ouverte
@@ -786,6 +827,10 @@ function cityActionSpec(s) {
     const b = getFieldBuildingAtSlot(s.slot, s.fieldType), level = b?.level || 0, name = getBuildingName(s.fieldType);
     const main = { label: level > 0 ? 'Améliorer' : 'Construire', icon: ico('build'), primary: true, run: () => openFieldBuildPanel(s.slot) };
     return { title: name, level, buttons: [main, infos(s.fieldType)] };
+  }
+  if (s.wall) {
+    const level = cityWallLevel();
+    return { title: getBuildingName('WALL'), level, buttons: [{ label: level > 0 ? 'Améliorer' : 'Construire', icon: ico('build'), primary: true, run: () => openBuildPanel(s.slot) }, infos('WALL')] };
   }
   const building = getBuildingAtSlot(s.slot);
   const key = s.fixed ? s.fixedKey : building?.key;
@@ -821,25 +866,38 @@ function positionCityActions() {
   if (!el || cityActions.slot === null || el.style.display === 'none') return;
   const s = citySlots.find(x => x.slot === cityActions.slot);
   if (!s) { hideCityActions(); return; }
-  const lift = s.isField ? s.hw * 0.95 : s.hw * (s.fixed ? 1.45 : 1.25);
+  const lift = s.isField ? s.hw * 0.95 : s.hw * (s.fixed || s.wall ? 1.45 : 1.25);
   const x = Math.max(90, Math.min(cityViewW - 90, s.x)), y = Math.max(6, s.y - lift);
   el.style.left = `${x}px`; el.style.top = `${y}px`;
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && typeof hideCityActions === 'function') hideCityActions(); });
 
 // ---------- Détection du survol / clic (cellule au sol ou corps du bâtiment au-dessus) ----------
+// Largeur (cellules) de la bande de l'enceinte qu'on peut toucher, de part et d'autre du tracé des murs, et hauteur des
+// murs (largeurs de cellule) au-dessus de leur pied
+const ISO_WALL_HIT = 0.45, ISO_WALL_BODY = 0.4;
+// Le point (mx, my) de l'écran est-il au sol sur l'enceinte ? (inverse de isoPos, puis distance au tracé des murs)
+function isoOnEnclosure(s, mx, my) {
+  const { W, cx, cy } = s.layout;
+  const a = (mx - cx) / (W * ISO_SP / 2), b = (my - cy) / (W * ISO_SP / 4);   // a = gx - gy, b = gx + gy
+  const gx = (a + b) / 2, gy = (b - a) / 2;
+  return Math.abs(Math.max(Math.abs(gx), Math.abs(gy)) - R_WALL) <= ISO_WALL_HIT;
+}
 function isoHitSlot(mx, my) {
-  // 1) la parcelle au sol sous le curseur (prévisible, comme Travian) ; 2) sinon le corps d'un bâtiment
-  // au-dessus de sa parcelle, de l'avant vers l'arrière
-  const ordered = [...citySlots].sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy) || b.y - a.y);
+  // 1) la parcelle au sol sous le curseur (prévisible, comme Travian), puis l'enceinte au sol ; 2) sinon le corps d'un
+  // bâtiment au-dessus de sa parcelle, de l'avant vers l'arrière, puis le corps des murs
+  const wall = citySlots.find(s => s.wall);
+  const ordered = citySlots.filter(s => !s.wall).sort((a, b) => (b.gx + b.gy) - (a.gx + a.gy) || b.y - a.y);
   for (const s of ordered) {
     const dx = Math.abs(mx - s.x), dy = my - s.y;
     if (dx / s.hw + Math.abs(dy) / s.hh <= 1) return s.slot;
   }
+  if (wall && isoOnEnclosure(wall, mx, my)) return wall.slot;
   for (const s of ordered) {
     const dx = Math.abs(mx - s.x), dy = my - s.y;
     if (dx <= s.hw * 0.6 && dy < 0 && -dy <= s.hw * 1.0) return s.slot;
   }
+  if (wall && cityWallLevel() > 0 && isoOnEnclosure(wall, mx, my + wall.layout.W * ISO_WALL_BODY)) return wall.slot;
   return null;
 }
 function onCityMouseMove(e) {

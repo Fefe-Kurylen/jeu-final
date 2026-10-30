@@ -387,32 +387,6 @@ function getBuildingName(key) {
   return fallbackNames[key] || key;
 }
 
-// ========== VILLAGE LIST MODAL ==========
-function openVillageList() {
-  if (!cities || cities.length === 0) {
-    showToast('Aucune ville', 'warning');
-    return;
-  }
-
-  let html = '<div class="village-list">';
-  cities.forEach(city => {
-    const isActive = city.id === currentCity?.id;
-    html += `
-      <div class="village-list-item ${isActive ? 'active' : ''}" onclick="selectCity('${city.id}'); closeModal();">
-        <span class="village-icon">${city.isCapital ? '<img class="ico" src="assets/images/3d/ui/crown.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">'}</span>
-        <div class="village-details">
-          <span class="village-name">${escapeHtml(city.name)}</span>
-          <span class="village-coords">(${city.x}|${city.y})</span>
-        </div>
-        <span class="village-pop">${city.cityTierName || 'Village'}</span>
-      </div>
-    `;
-  });
-  html += '</div>';
-
-  showModal('Vos villages', html);
-}
-
 // ========== TAB SUB-TABS ==========
 function showArmyTab(subTab) {
   document.querySelectorAll('#tab-army .toolbar-btn').forEach(b => b.classList.remove('active'));

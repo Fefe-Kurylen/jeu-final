@@ -141,3 +141,117 @@ async function confirmFoundCity(nodeId) {
   await Promise.all([loadArmies(), loadCities()]);
   if (typeof loadMap === 'function') loadMap();
 }
+
+// ========== VUE « MES VILLES » (décision du 30 octobre 2026 : moins de micro-gestion) ==========
+// Une ligne par ville, tirée de GET /api/cities (déjà en mémoire, aucune requête en plus) : gisement, les 4 stocks avec
+// « plein dans … », la file de construction (« File vide » en rouge), le recrutement, les armées stationnées, les vies et
+// l'attaque en approche ; en tête, les totaux de toutes les villes et le bilan de nourriture commun (l'entretien de toutes
+// les troupes puise dans tous les greniers). Toucher une ligne ouvre la ville.
+const lastEndOf = (queue) => (queue || []).reduce((m, q) => Math.max(m, new Date(q.endsAt).getTime() || 0), 0);
+const countdownHtml = (ms) => `<span class="qd-timer" data-ends-at="${new Date(ms).toISOString()}">${formatTime(ms)}</span>`;
+// Un stock : barre, quantité et plafond, puis quand il sera plein (ou vide, pour une nourriture en baisse)
+function stockBarHtml(res, amount, cap, perHour) {
+  let when = '';
+  if (amount >= cap) when = '<span class="mv-full">plein</span>';
+  else if (perHour > 0) when = `plein dans ${formatDuration(Math.round((cap - amount) / perHour * 3600))}`;
+  else if (perHour < 0) when = `<span class="mv-warn">vide dans ${formatDuration(Math.round(amount / -perHour * 3600))}</span>`;
+  return `<div class="mv-stock">${resIconHtml(res)}<div class="storage-bar${res === 'food' ? ' food' : ''}"><div style="width:${cap > 0 ? Math.min(100, amount / cap * 100) : 0}%"></div></div>`
+    + `<span class="mv-amount">${formatNum(amount)} / ${formatNum(cap)}</span><span class="mv-when">${when}</span></div>`;
+}
+function myCityRowHtml(city, nowMs) {
+  // production de la ville (gisement compris) ; nourriture : son bilan à elle, entretien de ses propres troupes déduit
+  const prod = getCityProduction(city), net = Number(city.foodBalance?.net);
+  const perHour = { ...prod, food: Number.isFinite(net) ? net : prod.food };
+  const stocks = RES_KEYS.map(r => stockBarHtml(r, Math.floor(city[r] || 0), (r === 'food' ? city.maxFoodStorage : city.maxStorage) || 0, perHour[r])).join('');
+  const builds = city.buildQueue || [], recruits = city.recruitQueue || [];
+  const buildHtml = builds.length
+    ? `${resIconHtml('build')} ${builds.length} chantier${builds.length > 1 ? 's' : ''} · file vide dans ${countdownHtml(lastEndOf(builds))}`
+    : `<span class="mv-idle">${resIconHtml('build')} File vide</span>`;
+  const training = recruits.reduce((s, q) => s + (q.count || 0), 0);
+  const recruitHtml = recruits.length ? `${resIconHtml('recruit')} ${formatNum(training)} en formation · fin dans ${countdownHtml(lastEndOf(recruits))}` : `${resIconHtml('recruit')} Aucun recrutement`;
+  // armées du joueur posées dans la ville (la garnison de la capitale, celles envoyées défendre une colonie)
+  const here = (armies || []).filter(a => a.status === 'IDLE' && a.x === city.x && a.y === city.y && (a.units || []).length);
+  const soldiers = here.reduce((s, a) => s + a.units.reduce((t, u) => t + u.count, 0), 0);
+  const armyHtml = `${resIconHtml('army')} ${here.length ? `${here.length} armée${here.length > 1 ? 's' : ''} · ${formatNum(soldiers)} soldats` : 'Aucune armée'}`;
+  const livesHtml = city.lives ? `<span class="mv-lives${city.lives.left < city.lives.total ? ' mv-warn' : ''}">${resIconHtml('defense')} Vies ${city.lives.left}/${city.lives.total}</span>` : '';
+  const attack = (incomingAttacks || []).filter(a => a.targetCityId === city.id && (a.type === 'SIEGE' || new Date(a.arrivalAt).getTime() > nowMs))
+    .sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))[0];
+  const attackHtml = attack ? `<span class="mv-attack">${resIconHtml('attack')} ${attack.type === 'SIEGE' ? 'Siège : assaut dans' : 'Attaque dans'} ${countdownHtml(new Date(attack.arrivalAt).getTime())}</span>` : '';
+  return `
+    <div class="village-list-item mv-row${city.id === currentCity?.id ? ' active' : ''}${attack ? ' mv-threat' : ''}" onclick="selectCity('${city.id}'); closeModal();">
+      <div class="mv-head">
+        <span class="village-icon">${resIconHtml(city.isCapital ? 'crown' : 'city')}</span>
+        <span class="village-name">${escapeHtml(city.name)}</span>
+        <span class="village-coords">(${city.x}|${city.y})</span>
+        <span class="village-pop">${escapeHtml(city.cityTierName || '')}</span>
+        ${siteBadgeHtml(city.site)}
+        ${livesHtml}
+        ${attackHtml}
+      </div>
+      <div class="mv-stocks">${stocks}</div>
+      <div class="mv-lines"><span>${buildHtml}</span><span>${recruitHtml}</span><span>${armyHtml}</span></div>
+    </div>`;
+}
+function myCitiesTotalsHtml() {
+  const t = playerStock(), fb = t.foodBalance;
+  const stocks = RES_KEYS.map(r => `<span>${resIconHtml(r)} ${formatNum(t[r] || 0)} / ${formatNum((r === 'food' ? t.maxFoodStorage : t.maxStorage) || 0)}</span>`).join('');
+  const food = fb ? `<div class="mv-food${fb.net < 0 ? ' mv-warn' : ''}">${resIconHtml('food')} Nourriture de toutes vos villes : ${fb.net < 0 ? '−' : '+'}${formatNum(Math.abs(fb.net))}/h`
+    + `${fb.hoursLeft === null || fb.hoursLeft === undefined ? '' : ` · greniers vides dans ${formatDuration(Math.round(fb.hoursLeft * 3600))}`}`
+    + ' <small>(l\'entretien de toutes vos troupes puise dans tous vos greniers)</small></div>' : '';
+  return `<div class="mv-totals"><div class="mv-totals-title">Toutes vos villes</div><div class="mv-totals-stocks">${stocks}</div>${food}</div>`;
+}
+function openVillageList() {
+  if (!cities || cities.length === 0) {
+    showToast('Aucune ville', 'warning');
+    return;
+  }
+  const now = serverNow();
+  const rows = [...cities].sort((a, b) => Number(!!b.isCapital) - Number(!!a.isCapital)).map(c => myCityRowHtml(c, now)).join('');
+  showModal('Mes villes', `<div class="village-list my-cities">${myCitiesTotalsHtml()}${rows}</div>`);
+}
+
+// ========== « SITES LIBRES » (décision du 30 octobre 2026) ==========
+// Les gisements où fonder une colonie, du plus proche au plus lointain de la capitale (GET /api/map/free-sites) : ressource,
+// niveau, bonus dans une colonie, temps de marche depuis la capitale, force de la tribu à chasser d'abord, et un
+// avertissement pour le cercle du centre, disputé. Filtres : ressource et niveau du gisement.
+const FREE_SITES_FETCH = 100;   // le serveur en rend au plus 100 (routes/map.js)
+const freeSites = { list: [], type: '', minLevel: 0 };
+async function openFreeSites() {
+  showModal('Sites libres', '<p class="empty-state">Chargement…</p>');
+  try {
+    const res = await fetch(`${API}/api/map/free-sites?limit=${FREE_SITES_FETCH}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { showModal('Sites libres', `<p class="empty-state">${escapeHtml(data?.error || 'Liste indisponible')}</p>`); return; }
+    freeSites.list = Array.isArray(data) ? data : [];
+  } catch (e) {
+    showModal('Sites libres', '<p class="empty-state">Liste indisponible (hors ligne ?)</p>');
+    return;
+  }
+  renderFreeSites();
+}
+function setFreeSitesFilter(key, value) {
+  freeSites[key] = value;
+  renderFreeSites();
+}
+function freeSiteRowHtml(s) {
+  const tribe = s.tribePower > 0;
+  return `
+    <div class="fs-row">
+      <div class="fs-main">${siteBadgeHtml(s, 'dans une colonie')} <span class="village-coords">(${s.x}|${s.y})</span></div>
+      <div class="fs-info">${resIconHtml('clock')} ${formatDuration(s.travelSec)} depuis la capitale · ${tribe ? `${resIconHtml('defense')} tribu : force ${formatNum(s.tribePower)}, à chasser avant de fonder` : 'pas de tribu'}</div>
+      ${s.central ? `<div class="fs-central">${resIconHtml('attack')} Centre de la carte : site disputé, vos voisins le visent aussi</div>` : ''}
+      <div class="fs-actions">
+        <button type="button" class="btn-secondary btn-small" onclick="closeModal(); showTab('map'); centerMapOn(${s.x}, ${s.y})">Voir</button>
+        ${tribe ? '' : `<button type="button" class="btn-primary btn-small" onclick="closeModal(); foundCityAt('${escapeHtml(s.id)}', ${s.x}, ${s.y}, '${escapeHtml(s.type)}', ${s.level})">Fonder</button>`}
+      </div>
+    </div>`;
+}
+function renderFreeSites() {
+  const chip = (key, value, label) => `<button type="button" class="fs-chip${freeSites[key] === value ? ' active' : ''}" onclick="setFreeSitesFilter('${key}', ${typeof value === 'number' ? value : `'${value}'`})">${label}</button>`;
+  const levels = [...new Set(freeSites.list.map(s => s.level))].sort((a, b) => a - b);
+  const filters = `<div class="fs-filters">${chip('type', '', 'Toutes')}${Object.entries(SITE_RESOURCE).map(([type, res]) => chip('type', type, `${resIconHtml(res)} ${SITE_NAMES[res]}`)).join('')}</div>`
+    + `<div class="fs-filters">${chip('minLevel', 0, 'Tous niveaux')}${levels.slice(1).map(l => chip('minLevel', l, `Niveau ${l}${l < levels.at(-1) ? ' et plus' : ''}`)).join('')}</div>`;
+  const shown = freeSites.list.filter(s => (!freeSites.type || s.type === freeSites.type) && s.level >= freeSites.minLevel);
+  const rows = shown.length ? shown.map(freeSiteRowHtml).join('') : '<p class="empty-state">Aucun site libre avec ces filtres près de votre capitale.</p>';
+  showModal('Sites libres', `<div class="free-sites"><p class="fs-intro">Les gisements où fonder une colonie, du plus proche au plus lointain de votre capitale.</p>${filters}<div class="fs-list">${rows}</div></div>`);
+}

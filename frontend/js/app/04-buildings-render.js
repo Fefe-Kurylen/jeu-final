@@ -97,7 +97,9 @@ function getBuildingAtSlot(slotNum) {
   const buildings = currentCity?.buildings || [];
   // The centre slot always holds the Main Hall, wherever older data stored it
   if (slotNum === 0) return buildings.find(b => b.key === 'MAIN_HALL') || buildings.find(b => b.slot === 0);
-  return buildings.find(b => b.slot === slotNum && b.key !== 'MAIN_HALL');
+  // Le Mur est sur l'enceinte, à sa place fixe (cityWallSlot) : jamais sur un emplacement de l'anneau
+  if (slotNum === cityWallSlot()) return buildings.find(b => b.key === 'WALL');
+  return buildings.find(b => b.slot === slotNum && b.key !== 'MAIN_HALL' && b.key !== 'WALL');
 }
 
 // Animation de clic (ripple effect)
@@ -200,6 +202,12 @@ function cityTooltipHtml(slotNum) {
       ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
       ${def?.effects?.capitalOnly ? '<p class="tt-hint">Bâtiment de la capitale : son bonus vaut pour toutes vos villes</p>' : ''}
       <p class="tt-hint">${building.level < ttEffectiveMax ? 'Cliquez pour améliorer' : building.level >= maxLevel ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${ttMainHallLevel})`}</p>
+    `;
+  }
+  if (slot?.wall) {
+    return `
+      <h4><span class="tt-icon">${buildingIconHtml('WALL')}</span> ${getBuildingName('WALL')}</h4>
+      <p class="tt-hint">Pas encore bâti : touchez l'enceinte pour construire le Mur</p>
     `;
   }
   if (slot?.fixed) {

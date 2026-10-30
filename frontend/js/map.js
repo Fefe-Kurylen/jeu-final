@@ -2971,6 +2971,7 @@ function showMapInfoPanel(x, y, tile) {
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
       <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}<span class="star-empty">${'☆'.repeat(Math.max(0, 3 - tile.level))}</span></strong> (${tile.level}/3)</p>
+      ${typeof siteText === 'function' && siteText(tile.resourceType, tile.level) ? `<p class="site-line">${siteText(tile.resourceType, tile.level)}</p>` : ''}
       <p>Stock : <strong>${tile.spied ? formatNum(tile.amount) + ' / ' + formatNum(tile.maxAmount) : stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
       ${spiedHtml}
       <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
@@ -2985,7 +2986,7 @@ function showMapInfoPanel(x, y, tile) {
           <p style="margin: 0; font-size: 12px; opacity: .85;">Fondation en cours : le point ne peut plus être récolté.</p>
         ` : `
           <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} ${holders.length ? 'Collecter (point partagé)' : 'Collecter'}</button>
-          ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
+          ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y}, '${tile.resourceType}', ${tile.level})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
         <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
         ${typeof openSpyMission === 'function' ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: 'le point (${x}, ${y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
