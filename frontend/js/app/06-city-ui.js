@@ -199,7 +199,7 @@ function renderBuildings(filter) {
         <div class="stats">
           Coût: ${resIconHtml('wood')}${formatNum(b.costL1?.wood || 50)} ${resIconHtml('stone')}${formatNum(b.costL1?.stone || 50)} ${resIconHtml('iron')}${formatNum(b.costL1?.iron || 50)} ${resIconHtml('food')}${formatNum(b.costL1?.food || 50)}
         </div>
-        ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--error);">${resIconHtml('clock')} File de construction pleine (4/4)</p>` :
+        ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--red-light);">${resIconHtml('clock')} File de construction pleine (${buildQueueMax()}/${buildQueueMax()})</p>` :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
           blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">${resIconHtml('lock')} Bat. principal Niv.${rbMainHallLevel} requis</p>` :
           '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
@@ -211,7 +211,7 @@ function renderBuildings(filter) {
 async function build(buildingKey) {
   if (_buildInProgress) return;
   if (isBuildQueueFull()) {
-    showToast('File de construction pleine (4/4)', 'error');
+    showToast(`File de construction pleine (${buildQueueMax()}/${buildQueueMax()})`, 'error');
     return;
   }
   _buildInProgress = true;

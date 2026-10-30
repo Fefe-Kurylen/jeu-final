@@ -36,7 +36,7 @@ async function loadAlliance() {
                   <div class="alliance-emblem"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></div>
                   <div class="alliance-info">
                     <h3>[${escapeHtml(myAlliance.tag)}] ${escapeHtml(myAlliance.name)}</h3>
-                    <div class="alliance-tag">${myAlliance.members.length} membres · ${roleLabel(myRole)}</div>
+                    <div class="alliance-tag">${myAlliance.members.length}${mine.maxMembers ? ` / ${mine.maxMembers}` : ''} membres · ${roleLabel(myRole)}</div>
                     ${myAlliance.description ? `<p style="font-size:12px;color:var(--text-muted)">${escapeHtml(myAlliance.description)}</p>` : ''}
                   </div>
                 </div>
@@ -100,8 +100,8 @@ async function loadAlliance() {
       </div>` : ''}
       <div style="margin-bottom:30px">
         <h3 style="color:var(--gold);margin-bottom:15px">Créer une alliance</h3>
-        <input type="text" id="alliance-name" placeholder="Nom de l'alliance" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border);color:var(--text);border-radius:4px">
-        <input type="text" id="alliance-tag" placeholder="Tag (2-5 caractères)" maxlength="5" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border);color:var(--text);border-radius:4px">
+        <input type="text" id="alliance-name" placeholder="Nom de l'alliance" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border-dark);color:var(--text-light);border-radius:4px">
+        <input type="text" id="alliance-tag" placeholder="Tag (2-5 caractères)" maxlength="5" style="width:100%;padding:10px;margin-bottom:10px;background:var(--bg-light);border:1px solid var(--border-dark);color:var(--text-light);border-radius:4px">
         <button onclick="createAlliance()" class="btn">Créer</button>
       </div>
       <h3 style="color:var(--gold);margin-bottom:15px">Alliances existantes</h3>

@@ -281,9 +281,12 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? army.x ?? '?'}, ${army.targetY ?? army.y ?? '?'})</span>
         ` : army.status === 'BESIEGING' ? `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">↩️ Lever le camp</button>
-          <span class="destination-badge" title="L'armée campe 1 h devant la ville, puis le combat démarre tout seul ; le mur sert de bouclier, vos engins le frappent bien plus fort que vos soldats ; l'armée rentre ensuite chez elle">Combat dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}</span>
+          <span class="destination-badge" title="L'armée campe 1 h devant la ville, puis le combat démarre tout seul ; le mur sert de bouclier et seuls vos engins l'abîment ; l'armée rentre ensuite chez elle">Combat dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
+        ` : army.status === 'TRANSPORTING' && army.missionType === 'MARKET_DELIVERY' ? `
+          <span class="destination-badge" title="Convoi d'un échange du marché : il livre puis rentre tout seul, on ne peut pas le rappeler">${resIconHtml('market')} Livraison d'un échange</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
@@ -481,7 +484,7 @@ function openArmyComposition(armyId) {
 function siegeCapLine(army, availableUnits) {
   if (!availableUnits.some(u => u.unit?.class === 'SIEGE')) return '';
   const inArmy = (army.units || []).filter(u => unitsData.find(d => d.key === u.unitKey)?.class === 'SIEGE').reduce((t, u) => t + u.count, 0);
-  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong id="comp-siege-count">${formatNum(inArmy)}</strong> (au moins 1 pour assiéger ; au combat, un engin frappe le mur 10 fois plus fort qu'un soldat)</p>`;
+  return `<p class="comp-siege-cap" style="font-size:12px;margin:4px 0 8px">Engins de siège : <strong id="comp-siege-count">${formatNum(inArmy)}</strong> (au moins 1 pour assiéger ; au combat, seuls les engins abîment le mur)</p>`;
 }
 
 // Render a unit row in composition modal
@@ -918,7 +921,7 @@ function showArmyMissionModal(armyId, mission) {
   const raid = mission === 'RAID';
   document.getElementById('modal-body').innerHTML = `
     <h3>${raid ? 'Piller une ville' : 'Attaquer une ville'}</h3>
-    <p style="margin-bottom:10px;color:var(--wood-medium)">${raid ? 'Volez des ressources à l\'ennemi ! ' : ''}Coordonnées de la ville cible</p>
+    <p style="margin-bottom:10px;color:var(--text-muted)">${raid ? 'Volez des ressources à l\'ennemi ! ' : ''}Coordonnées de la ville cible</p>
     <input type="number" id="mission-x" placeholder="X" style="width:48%;display:inline-block">
     <input type="number" id="mission-y" placeholder="Y" style="width:48%;display:inline-block">
     ${raid
@@ -999,14 +1002,14 @@ async function openBreakSiege(cityId) {
   // army (a sortie from the walls included) only the camps the diplomacy lets it attack
   const ready = idle.filter(a => (a.cityId === siege.cityId && !(a.x === siege.x && a.y === siege.y)) ? siege.canForce : siege.canSortie);
   const wall = siege.wallLevel > 0
-    ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> au prochain combat. Tant qu'il tient, les coups de l'attaquant tombent sur lui ; les engins le frappent 10 fois plus fort que les soldats.</p>`
+    ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> au prochain combat. Tant qu'il tient, les coups de l'attaquant tombent sur lui et seuls les engins l'abîment ; une fois tombé, le combat dure encore au moins 5 rounds.</p>`
     : '<p>Pas de mur : rien ne protège les défenseurs au combat.</p>';
   const lives = siege.livesLeft, livesTotal = siege.livesTotal;
   document.getElementById('modal-body').innerHTML = `
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>
       ${wall}
-      <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille un quart du stock non protégé (dans la limite de ce que l'armée porte) ; tout remonte en 48 h.</p>
+      <p>Vies de la ville : <strong>${lives} / ${livesTotal}</strong> avant la chute (${siege.fate === 'RELOCATED' ? 'la capitale serait déplacée près du bord de la carte' : 'la ville serait détruite'}). Chaque combat gagné par l'attaquant ôte une vie, la même part des PV du mur et pille un quart du stock hors cachette (dans la limite de ce que l'armée porte) ; tout remonte en 48 h.</p>
       <ul class="siege-camp" style="margin:6px 0 10px;padding-left:18px">${siege.besiegers.map(b => `<li><strong>${escapeHtml(b.owner || '?')}</strong>, ${escapeHtml(b.name || 'Armée')} : ${formatNum(b.soldiers)} soldats dont ${formatNum(b.engines)} engins de siège${b.assaultAt ? ` · combat dans <strong>${siegeTimeLeft(new Date(b.assaultAt) - now)}</strong>` : ''}</li>`).join('')}</ul>
       <p style="font-size:12px;opacity:.85">Le camp attend 1 h avant le combat ; la ville vit normalement mais ses armées ne sortent que pour attaquer le camp. N'importe quel joueur peut attaquer le camp (sauf ceux de son alliance ou d'une alliance alliée) : il combat tous les camps à la fois, et s'il gagne il reste devant la ville pour la garder.</p>
       ${siege.canBreak ? (ready.length ? `

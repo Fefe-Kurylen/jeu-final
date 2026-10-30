@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const prompts = require('./prompts.cjs');
-const { TEXTURE, DECAL, EDGE, ICON_DESC, BUILDING, PROP, MAP, RES, TERRAIN, CLASS, SCENE } = prompts;
+const { TEXTURE, DECAL, EDGE, ICON_DESC, PROP, MAP, TERRAIN, CLASS } = prompts;
 
 const CIVS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const CIV_FR = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };

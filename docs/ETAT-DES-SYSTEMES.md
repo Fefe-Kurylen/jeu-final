@@ -1,6 +1,26 @@
-# État des systèmes de jeu (octobre 2026)
+# État des systèmes de jeu (octobre 2026, mis à jour le 30 octobre 2026)
 
 Ce qui existe, ce qui manque, et les images ou animations à produire. Référence : Travian pour les mécaniques, Rise of Kingdoms pour la lisibilité et le mouvement.
+
+## Décisions d'équilibrage du 30 octobre 2026 (D1 à D12)
+
+Décisions du propriétaire, appliquées le 30 octobre 2026. Chacune est décrite dans sa section ; les chiffres sont dans
+`docs/EQUILIBRAGE.md` § 13.
+
+| | Décision | Section |
+|---|---|---|
+| D1 | Grand Dépôt et Grand Silo = stockage (3 fois un dépôt ou un silo de même niveau), plus de réserve protégée : seule la cachette protège du pillage | Bâtiments, Siège, Espionnage |
+| D2 | Formation à la Caserne et à l'Écurie : GDD gardé (−0,5 % par niveau) | Bâtiments |
+| D3 | Alliance : 60 membres au plus | Diplomatie et alliance |
+| D4 | Défenseurs des camps à leur palier, camps d'or à +40 % au combat ; rassemblements d'alliance contre les sites et plans de Merveille | Brigands, Invasions, Cycle du serveur et Merveille |
+| D5 | Brèche : le combat dure encore au moins 5 rounds après la chute du mur | Siège |
+| D6 | Seuls les engins de siège abîment le mur ; mur du Bastion à 10 fois un mur 20 | Siège, Bastion, Cycle du serveur et Merveille |
+| D7 | Donjons d'invasion de plus en plus forts avec l'âge du monde | Invasions |
+| D8 | Défi de la semaine : 750 / 500 / 250 points par membre, seuls les membres arrivés avant le vendredi comptent | Défi d'alliance |
+| D9 | XP du héros : × 1,25 par niveau | Héros |
+| D10 | Moteur de bataille du GDD (option B du rapport des unités) | Combat |
+| D11 | Cavalerie : coût du GDD gardé, rôle de vitesse, textes corrigés | Combat |
+| D12 | 20 fiches d'unités hors norme retouchées (±3 à 10 %) | Combat |
 
 ## Carte et déplacements
 
@@ -17,10 +37,26 @@ Ce qui existe, ce qui manque, et les images ou animations à produire. Référen
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round (triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette, stockage protégé, un raid par cible et par jour ; **siège qui dure** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
+| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette (seule protection du pillage depuis le 30 octobre 2026), un raid par cible et par jour ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport |
 | Espionnage par espions dédiés (section Espionnage et vision, 26 octobre 2026) | Espions dessinés en marche sur la carte (image `map/units/spy` à produire) |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
+
+Moteur de bataille et unités (décisions du 30 octobre 2026, `src/services/combatService.js`, `data/units.json`,
+`docs/RAPPORT-UNITES.md`, chiffres dans `docs/EQUILIBRAGE.md` § 2) :
+
+- **D10, moteur du GDD (option B)** : un coup fait ATK × coefficient × triangle, sans soustraction de la défense ni plancher ;
+  la défense donne la **solidité** de l'unité (END + 0,55 × DEF × coefficient, mur, douves et bonus de défense compris ; la
+  « réduction des pertes » de Rome la multiplie) ; 18 % des dégâts par round, 15 rounds, ciblage élite → intermédiaire → base
+  → siège. Coefficients de **bataille** 1 / 1,35 / 1,9 (siège 0,75, `config.combat.battleTierCoefficients`) ; la **puissance**
+  (pillages, camps, rencontres, hordes, affichage) garde 1 / 1,25 / 1,55. **Triangle +50 %** (+20 % avant). Mesuré : chaque
+  palier vaut à peu près son prix (1 intermédiaire ≈ 1,8 unité de base, 1 élite ≈ 1,7 intermédiaire) et la bonne classe gagne
+  tous les combats du triangle.
+- **D11, cavalerie** : coût du GDD (160) gardé. Son rôle est la vitesse (éclairer, frapper vite, intercepter, renforcer), pas
+  le pillage ni le transport : les six descriptions de cavaliers de base sont corrigées (le nom « Cavalier pillard » reste).
+- **D12, fiches retouchées** : 20 unités hors norme corrigées de 3 à 10 % sur l'attaque, la défense et l'endurance, sans
+  changer leur caractère ; toutes reviennent entre 0,80 et 1,25 de l'indice de leur palier (quatre fiches non retouchées sont
+  juste au-dessus, 1,26 à 1,29, laissées telles quelles).
 
 ## Espionnage et vision (26 octobre 2026)
 
@@ -31,7 +67,7 @@ Façon Travian et GDD (`espionage_config`) : `src/services/spyService.js`, route
   prêts tout de suite (onglet Armée → Espions, ou bulle de la Tour de guet). **Les armées n'espionnent plus.**
 - **Missions** depuis la carte (« Espionner » sur une ville ou un point), au choix pour une ville :
   - **Ressources et troupes** : les troupes présentes (garnison, armées en ville, renforts alliés) et **les ressources
-    qu'un pillage pourrait prendre** (hors cachette et réserves protégées), à la centaine près ; pas les bâtiments ;
+    qu'un pillage pourrait prendre** (hors cachette, seule protection depuis le 30 octobre 2026), à la centaine près ; pas les bâtiments ;
   - **Défenses et troupes** : les troupes, le mur (niveau, points de vie, santé de la muraille), les douves, la Tour de
     guet, la cachette (part cachée) et le bonus de défense.
   - **Point de ressource** : stock exact, tribu (unités, puissance) ou armées qui récoltent ; le point garde son stock
@@ -45,7 +81,7 @@ Façon Travian et GDD (`espionage_config`) : `src/services/spyService.js`, route
   toujours. Qui récolte un point ne se voit que pour soi et son alliance, ou après l'avoir espionné (sinon « occupé ») ;
   le stock d'un point reste montré par quarts sans espion.
 
-## Siège (refonte du 25 octobre 2026)
+## Siège (refonte du 25 octobre 2026, décisions du 30 octobre 2026)
 
 Le siège qui dure (usure du mur pendant des heures, ville bloquée) a été remplacé, avec le joueur, par un camp court suivi
 d'un combat où le mur sert de bouclier.
@@ -66,14 +102,20 @@ d'un combat où le mur sert de bouclier.
   siège ») ; une armée rappelée avant d'avoir quitté sa case rentre aussitôt.
 - **Le combat : le mur bouclier** (`combatService.resolveCombatDetailed`, option `wall`). Tant que le mur tient, tous les
   coups de l'attaquant tombent sur lui et les soldats de la ville ne prennent rien ; les défenseurs, eux, frappent
-  normalement. Un engin frappe le mur avec toute sa force, un soldat avec un dixième (`wallShield`) : **un engin frappe le
-  mur environ 10 fois plus fort qu'un soldat**. Le bonus de défense du mur (+1 % par niveau) baisse avec ses PV. Mur à 0 :
-  les coups touchent les soldats. Si le mur tient jusqu'à la fin du combat (15 rounds), la ville gagne. Après le combat,
-  l'armée rentre chez elle.
-  - Simulation (Rome contre 600 fantassins et 300 archers gaulois) : contre un mur niveau 20 intact, 1 000 soldats avec
-    20 engins ne passent pas ; avec 100 engins le mur tombe au 10e round ; 3 000 soldats et 50 engins percent au 6e round
-    et gagnent. Un mur qui a perdu la moitié de ses vies tombe deux fois plus vite.
-- **Victoire de l'attaquant** : il pille **25 % du stock non protégé** (au-dessus des grands entrepôts et de la cachette),
+  normalement. **Seuls les engins abîment le mur** (décision du 30 octobre 2026, D6, GDD `onlySiegeEnginesDamageWall`) : un
+  engin le frappe de toute sa force, un soldat ne lui fait rien (`wallShield.soldierMult` 0 ; un dixième de sa force avant).
+  Les engins du Sultanat frappent le mur +25 % (chaque engin porte le bonus de sa civilisation), ceux d'une attaque hunnique
+  +10 % ; un mur gaulois encaisse 1/1,2 des coups (défense chez soi). Le bonus de défense du mur (+1 % par niveau) baisse
+  avec ses PV. Mur à 0 : les coups touchent les soldats et **le combat dure encore au moins 5 rounds** (décision du
+  30 octobre 2026, D5, `config.combat.siege.roundsAfterBreach`) ; l'attaquant ne gagne que s'il bat les défenseurs. Si le mur
+  tient jusqu'à la fin du combat (15 rounds), la ville gagne. Après le combat, l'armée rentre chez elle.
+  - Simulation (`node tools/simulate-colonies.cjs` : Rome, Triarii et catapultes, contre 600 Triarii et 300 archers
+    gaulois) : contre un mur niveau 20 intact, 1 000 soldats avec 100 engins ne percent pas ; avec 200 engins le mur tombe
+    au 10e round mais la ville tient ; 3 000 soldats et 50 engins ne percent plus (ils perçaient au 6e round quand les soldats
+    abîmaient le mur) ; 3 000 soldats et 150 engins percent au 14e round et gagnent. Un mur qui a perdu la moitié de ses
+    vies vaut un mur 10 plein (`docs/EQUILIBRAGE.md` § 12).
+- **Victoire de l'attaquant** : il pille **25 % du stock hors cachette** (les grands dépôts ne protègent plus rien depuis
+  le 30 octobre 2026, D1),
   dans la limite de ce que ses armées portent ; ce qu'elles ne portent pas reste à la ville. La ville perd **une vie**.
 - **Les vies** (`City.wallStructure` = part des vies restantes) : **4 pour une capitale, 2 pour une ville secondaire, une
   de plus pour une ville égyptienne (5 et 3)**. Chaque vie perdue ôte **la même part des PV du mur** (25 % pour une
@@ -139,7 +181,7 @@ d'un combat où le mur sert de bouclier.
 
 | Existe | Manque |
 |---|---|
-| Alliances sur invitation, rôles (chef, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) | Sortie de la garnison du Bastion contre le camp ennemi (briser le siège) |
+| Alliances sur invitation, rôles (chef, officier, membre), promotion, exclusion, transfert de direction, dissolution ; Ambassade requise (rejoindre niv. 5, fonder niv. 7) ; **60 membres au plus** (30 octobre 2026) | (la sortie de la garnison du Bastion est en place depuis le 29 octobre 2026 : section Bastion) |
 | Diplomatie à 3 statuts (décision du 26 octobre 2026, ci-dessous) | Pacte de non-agression et guerre avec effets : écartés (3 statuts gardés, GDD) |
 | Aide d'alliance, points d'alliance, boutique d'alliance, renfort allié, liste des membres détaillée, Bastion d'alliance (ci-dessous) | Classement d'alliance détaillé |
 
@@ -177,6 +219,14 @@ Décisions du 26 octobre 2026 (`src/routes/alliance.js`, `src/services/diplomacy
   (onglet Armée → Renforts alliés reçus). Une rupture d'alliance, une déclaration de guerre, un départ ou une exclusion
   de l'alliance, ou la chute de la ville renvoient les renforts chez eux. En marche, un renfort croise les armées
   ennemies comme toute armée.
+- **60 membres au plus** (décision du 30 octobre 2026, D3, `config.alliance.maxMembers`) : l'adhésion compte les membres dans
+  la transaction, sous verrou de la ligne de l'alliance (deux adhésions simultanées se suivent ; une adhésion ne passe pas
+  pendant une dissolution) ; une alliance pleine refuse l'adhésion (« Alliance complète (60 membres au plus) : un membre doit
+  partir avant que vous puissiez entrer ») et l'invitation. La page de l'alliance affiche le plafond.
+- **Diplomatie qui change pendant une marche** (30 octobre 2026) : une attaque, un raid ou un siège vers un joueur devenu
+  allié fait demi-tour (les deux joueurs sont prévenus) ; un transport ou un convoi vers un joueur devenu ennemi rentre avec
+  sa cargaison ; une armée qui va prendre un point de ressource tenu par une armée alliée, même devenue alliée en route,
+  rentre sans combattre. Un seul prédicat d'alliance (`diplomacyService`) sert aux armées, aux villes et au Bastion.
 
 ## Bastion d'alliance (26 octobre 2026)
 
@@ -196,9 +246,15 @@ Décisions du 26 octobre 2026 (`src/services/bastionService.js`, `src/routes/bas
   veulent ; l'entretien reste payé par leur ville. **Aucune troupe n'entre pendant un siège.** Une garnison dont le
   joueur n'est plus membre ni allié rentre seule.
 - **Siège et chute** (« comme une ville, en plus dur ») : il faut au moins un engin de siège ; toute l'alliance est
-  prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 50 fois plus solide
-  qu'un mur 20** ; chaque assaut gagné lui ôte **une vie sur 10**, les vies remontent en **72 h**. À la dernière, il est
+  prévenue de la marche. **Camp d'1 h**, puis assaut contre la garnison derrière un **mur bouclier 10 fois plus solide
+  qu'un mur 20** (200 000 PV ; 50 fois jusqu'au 30 octobre 2026, D6), que seuls les engins abîment (≈ 1 650 catapultes pour
+  une brèche au 10e round : l'affaire d'un rassemblement) ; chaque assaut gagné lui ôte **une vie sur 10**, les vies
+  remontent en **72 h**. À la dernière, il est
   **rasé** : plus de bonus, garnison renvoyée, **7 jours** avant d'en rebâtir un. Rapports de bataille pour chaque camp.
+  Au Bastion, qui n'est la ville de personne, aucun bonus « chez soi » (défense gauloise, attaque du Sultanat) ; une garnison
+  d'une seule civilisation garde ses bonus d'unités (Rome : défense, points de vie en siège), une garnison mêlée a la
+  défense des unités en moyenne selon les soldats de chacune. Les assaillants ont la civilisation, le héros et les
+  technologies de l'armée qui mène l'assaut.
 - **Briser le siège** (décision du 29 octobre 2026) : **n'importe quel joueur** peut attaquer le camp ennemi devant un
   Bastion (Carte → Bastion → « Briser le siège »), sauf les camps de son alliance ou d'une alliance alliée. Un joueur de la
   garnison fait une **sortie** avec une de ses armées (Alliance → Bastion → « Sortie », combat 30 s après) : **chaque
@@ -219,9 +275,15 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
 - **Échanges entre joueurs livrés par armées de transport** (GDD strict) : en publiant une offre, le vendeur choisit
   une armée libre de la ville qui peut porter les marchandises ; elle **attend en ville** avec elles (statut « Offre du
   marché » : elle ne part pas, ne se modifie pas, ne défend pas). À l'acceptation, l'acheteur choisit une armée de sa
-  ville qui porte la contrepartie ; **les deux armées partent**, chacune à sa vitesse, livrent à l'arrivée puis
-  rentrent. Le vendeur est prévenu de l'acceptation, chacun de la livraison. Pas d'échange avec un ennemi ; aucun convoi
-  n'entre ni ne sort d'une ville assiégée (on peut publier pendant un siège, pas conclure).
+  ville qui porte la contrepartie ; **les deux armées partent**, chacune à sa vitesse (Irrigation égyptienne comprise),
+  livrent à l'arrivée puis rentrent. Le vendeur est prévenu de l'acceptation, chacun de la livraison. Pas d'échange avec un
+  ennemi ; aucun convoi n'entre ni ne sort d'une ville assiégée (on peut publier pendant un siège, pas conclure), et un envoi
+  par armée (`/trade/send`) ne part pas d'une ville assiégée.
+- **Livraison** (30 octobre 2026) : **un convoi d'échange conclu ne peut pas être rappelé** (l'onglet Armée montre
+  « Livraison d'un échange » au lieu de « Rappeler ») ; ce qui ne tient pas dans l'entrepôt d'arrivée **revient à
+  l'expéditeur** avec l'armée, comme pour les envois par armée entre villes (une Ville Merveille prend tout, sans plafond) ;
+  un convoi vers un joueur devenu ennemi en route rentre avec sa cargaison. L'acheteur est averti avant d'accepter si sa ville
+  n'a pas la place de tout recevoir.
 - **Taxe des échanges** (GDD) : **10 %** de ce que transporte chaque convoi, **−1 % par niveau du Comptoir de
   Commerce** de la ville qui envoie, **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au plus bas 0 %).
 - **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville, armée libre), il est prévenu.
@@ -230,7 +292,9 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
   ressources ; toutes les **2 h** un convoi part, sans armée, avec **1/12 du stockage** de la ville de départ pour
   chaque ressource choisie, soit **100 % au plus en 24 h** (le GDD disait 30 % en 12 h). Il voyage à vitesse fixe ; ce
   qui ne tient pas dans l'entrepôt d'arrivée revient. Rien ne part d'une ville assiégée ni n'y entre. 10 routes au
-  plus, pause et suppression à volonté.
+  plus, pause et suppression à volonté. **Une seule route active par ville de départ et par ressource** ; la cadence de 2 h
+  appartient à la ville et à la ressource (30 octobre 2026) : elle survit à la pause, à la reprise et à la re-création d'une
+  route, qui ne font donc pas partir un convoi de plus.
 - Le marchand du serveur (PNJ) est inchangé : taxe de 30 %, −1 % par niveau du Marché (GDD).
 
 ## Classements et médailles (27 octobre 2026)
@@ -279,9 +343,13 @@ Classement › Semaine et dans l'aperçu de l'alliance) :
   semaines de suite : **Assaut** (points d'attaque), **Rempart** (points de défense), **Butin** (ressources pillées),
   **Bâtisseurs** (population gagnée), **Entraide** (aides données entre membres), **Chasseurs de hordes** (dégâts aux
   donjons d'invasion).
-- Classement des alliances en direct, selon ce que font leurs membres actuels ; place de son alliance.
-- À la clôture (avec les médailles de la semaine), les **3 premières alliances** gagnent **300 / 200 / 100 points
-  d'alliance pour chaque membre** et une **médaille d'alliance** « Défi … » ; les membres sont prévenus.
+- Classement des alliances en direct, selon ce que font leurs membres ; place de son alliance. **Seuls comptent**, pour le
+  score comme pour la récompense, **les membres arrivés dans l'alliance avant le vendredi 0 h (heure de Paris)** de la
+  semaine (décision du 30 octobre 2026, D8, `config.alliance.challengeJoinDeadline`, `AllianceMember.joinedAt`) : recruter
+  des joueurs forts pour le week-end ne rapporte rien. La carte du défi indique la limite et si l'on compte.
+- À la clôture (avec les médailles de la semaine), les **3 premières alliances** gagnent **750 / 500 / 250 points
+  d'alliance pour chaque membre qui compte** (D8 ; 300 / 200 / 100 avant le 30 octobre 2026) et une **médaille d'alliance**
+  « Défi … » ; seuls ces membres sont payés et prévenus.
 - Pas de bonus de ressources le week-end (décision du 29 octobre 2026) ; les artefacts viendront plus tard.
 
 ## Invasions barbares (29 octobre 2026)
@@ -295,9 +363,14 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   (2 à 72 h) ou terminer celle en cours (écran d'administration › Monde).
 - Un donjon a **3 étages** à vaincre dans l'ordre : **avant-poste** (unités de base), **remparts** (intermédiaires),
   **chef de la horde** (élite), de force × 1, × 2, × 4 ; × 2,5 par niveau (avant-poste : 15 000 de puissance au niveau
-  1, 586 000 au niveau 5 ; chef : 2,3 millions au niveau 5). La **garnison de l'étage ne se reconstitue pas** : une
+  1, 586 000 au niveau 5 ; chef : 2,3 millions au niveau 5), puis × l'âge du monde (ci-dessous). La **garnison de l'étage ne se reconstitue pas** : une
   attaque repoussée lui retire quand même des soldats ; un étage vaincu laisse place au suivant ; le dernier vaincu
   **détruit le donjon**.
+- **Âge du monde** (décision du 30 octobre 2026, D7, `config.invasion`) : au lancement d'une invasion, multiplicateur =
+  min(6 ; 1 + 0,35 × (semaine du monde − 3)), soit × 1 les trois premières semaines, × 1,35 la 4e, × 2,75 la 8e et × 6 dès la
+  18e ; il est noté sur l'invasion (`Invasion.ageMult`) et ne bouge plus jusqu'à sa fin. Un donjon de niveau L en prend
+  mult^((L − 1)/4) : le niveau 1 ne change jamais, le niveau 5 prend tout le facteur. Il s'applique à la puissance des étages
+  et aux **ressources** du trésor (pas à l'or ni aux points d'alliance). Tableau : `docs/EQUILIBRAGE.md` § 13.
 - Un donjon ne s'attaque qu'en **rassemblement d'alliance**, façon Rise of Kingdoms (`src/services/rallyService.js`,
   `frontend/js/app/09l-rally.js`) : un membre le lance depuis le panneau du donjon avec une de ses armées et choisit
   l'attente (**5, 10, 30 ou 60 min**) ; l'alliance est prévenue. Les membres y envoient **une armée chacun**, qui marche
@@ -315,13 +388,20 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   chacun rentre. Devant le Bastion, **tout le groupe campe 1 h** comme un siège normal (l'alliance du Bastion est prévenue
   au départ et peut briser le siège), puis **un seul assaut** avec toutes les armées. C'est **le héros de l'armée qui a lancé le rassemblement** qui donne
   ses bonus (avec les technologies du lanceur) ; si cette armée a été rappelée pendant le camp, l'assaut se fait sans héros.
+- **Rassemblement contre un site ou un plan de Merveille** (décision du 30 octobre 2026, D4) : bouton « Rassemblement » dans
+  le panneau d'un site ou d'un plan encore gardé par les Immortels (alliance requise). Mêmes règles qu'un donjon (attente,
+  capacité, une armée par joueur, départ ensemble) ; refusé si les Immortels sont déjà vaincus ou si une Ville Merveille
+  s'y dresse, et revérifié au départ puis à l'arrivée, sous verrou du point. À l'arrivée, **un seul combat de groupe** (par
+  la puissance) mené par le héros et les technologies de l'armée du lanceur (sans héros si elle a été rappelée) ; chaque
+  armée perd la même part de ses soldats ; la prise suit les règles d'une armée seule et **revient au lanceur** (plan dans sa
+  capitale, ou site libre 24 h pour y fonder la Ville Merveille). Repoussé, le rassemblement laisse la garnison entamée.
 - **Fenêtre de la cible façon Rise of Kingdoms** (29 octobre 2026, `frontend/js/map.js` : `openMapPopupAt`) : toucher
   une cible sur la carte (ville, Bastion, donjon, point de ressource, armée, case vide) ouvre une petite fenêtre juste
   au-dessus d'elle (en dessous s'il n'y a pas la place), qui suit la carte quand on la déplace. Les actions sont des boutons
   ronds à icône (Assiéger, Rassemblement, Espionner, Partager…) ; les explications et le détail des troupes d'une tribu
   se déplient avec « Détails ».
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
-  capitale (8 000 de chaque au niveau 1, × 2,5 par niveau ; dans la limite des entrepôts), or (40 → 640), points
+  capitale (8 000 de chaque au niveau 1, × 2,5 par niveau, × l'âge du monde ; dans la limite des entrepôts), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,
   objet rare dès le niveau 3, épique aux niveaux 4 et 5). Chaque participant est prévenu de sa part.
 - **Carte** : le donjon (forteresse sur un halo rouge en attendant l'image peinte), sa barre de vie et « Donjon niv. N ·
@@ -382,17 +462,22 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
 - **Calendrier** : jour 120, **12 sites de Merveille** apparaissent sur la carte, gardés par les Immortels ; jour 150,
   **13 plans de construction** apparaissent, eux aussi gardés. Tous les joueurs sont prévenus. Onglet Classement →
   **Monde** : jour du monde, dates, Merveilles en chantier, plans détenus, Panthéon.
-- **Prendre un site** : battre les Immortels (attaque comme sur un camp barbare), puis y **fonder une ville avec un
-  colon** : c'est la **Ville Merveille** (une par joueur, alliance obligatoire, hors quota de colonies). Les Immortels
+- **Prendre un site** : battre les Immortels (attaque comme sur un camp barbare, seul ou en rassemblement d'alliance depuis
+  le 30 octobre 2026), puis y **fonder une ville avec un colon** : c'est la **Ville Merveille** (une par joueur, alliance obligatoire, hors quota de colonies). Les Immortels
   reviennent sur un site libre au bout de 24 h.
-- **Prendre un plan** : battre les Immortels du camp ; le plan revient au joueur. Un joueur dont la **capitale est
+- **Prendre un plan** : battre les Immortels du camp, seul ou en rassemblement d'alliance ; le plan revient au joueur (au
+  lanceur pour un rassemblement). Un joueur dont la **capitale est
   prise** perd ses plans au profit de l'attaquant.
 - **Construire** : chaque niveau coûte des ressources (50 000 bois, pierre et fer, 15 000 nourriture au niveau 1,
   +5 % par niveau) et du temps (1 h au niveau 1, +2,5 % par niveau). Les ressources viennent de l'alliance : les convois
   et transports vers la Ville Merveille remplissent son **stock de Merveille** (sans plafond). Au-delà du **niveau 50**,
   un membre de l'alliance doit détenir un plan.
 - **Défendre** : toutes les 12 h, une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau) ;
-  si la défense tombe, la Merveille perd **1 niveau**. Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
+  si la défense tombe, la Merveille perd **1 niveau**. Comme seuls les engins abîment le mur (D6), chaque vague amène des
+  **mangonneaux pour 15 % de sa puissance** (règle retenue le 30 octobre 2026, comme les Natars de Travian qui viennent avec
+  béliers et catapultes) : un mur 20 sans défenseurs tient seul jusqu'au niveau 6 de la Merveille, puis tombe au 7e round au
+  niveau 12, au 4e au niveau 20, dès le 1er au niveau 100, et les défenseurs doivent battre la vague. Une vague ne laisse pas
+  de dégâts au mur (ce n'est pas un siège). Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
   dégâts de rempart) ; la Ville Merveille ne peut pas être rasée.
 - **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
   **Panthéon** : alliance victorieuse et top 10 en population, attaque, défense et alliances, gardé d'un monde à
@@ -448,6 +533,12 @@ le stock exact pendant 1 h ; les camps **varient de ± 20 %** d'un camp à l'aut
 la **difficulté de la position** : × 0,5 aux bords de la carte, où les joueurs apparaissent (camp de niveau 1 ≈ 50
 soldats), jusqu'à × 1,3 au centre (niveau 3 ≈ 1 950 soldats). Une ville secondaire se fonde sur un point libéré de sa tribu
 (section « Villes secondaires ») : le point disparaît de la carte tant que la ville existe. Graphismes : 18 sprites de camps prévus (`map/camps/`), affichés dès livraison.
+
+Décidé le 30 octobre 2026 (D4, `armyService.resolveTribeCombat`, `utils/tribeDefenders.js`) : au combat, **chaque défenseur
+d'un camp porte son palier** (intermédiaire, élite), comme dans la puissance affichée sur la carte ; un **camp d'or garde au
+combat ses +40 %** (`config.map.camps.goldDefenseBonusPct`), comme à l'affichage. Jusque-là, les camps de niveau 2 et 3 et
+les camps d'or étaient plus faibles au combat que ce que la carte annonçait. Une armée qui va prendre un point tenu par une
+armée alliée (même devenue alliée pendant la marche) rentre sans combattre. Chiffres refaits : `docs/EQUILIBRAGE.md` § 9.
 
 ## Blessés et soins (revue d'octobre 2026)
 
@@ -516,6 +607,10 @@ client `frontend/js/app/08b-hero-talents.js`) :
   Endurance), pour 250 bois, pierre, fer et 150 nourriture par niveau du héros ; il revient dans la garnison de la
   capitale. Le panneau du Domus montre ce temps (les faux bonus « XP » et « stats » sont retirés).
 - Notifications : passage de niveau, chute, retour (lien vers l'écran du héros).
+- **XP** (décision du 30 octobre 2026, D9, `heroXpService.awardHeroXp`, `config.hero`) : 100 XP pour passer au niveau 2, puis
+  **× 1,25 par niveau** au lieu de × 1,5 : 27 033 XP cumulés pour le niveau 20, 254 786 pour le niveau 30 (25,6 millions
+  avant, hors de portée). Les héros existants gardent leur XP ; leur seuil est recalculé à leur niveau actuel (migration
+  `0029_age_rallies_indexes`).
 
 ## Quêtes et tutoriel (26 octobre 2026)
 
@@ -527,7 +622,9 @@ code), moteur `src/services/questService.js`, routes `/api/quests`, client `fron
   prendre ; panneau à onglets Tutoriel, Tâches, Du jour, Semaine, Succès.
 - **Récompenses : ressources seules**, livrées dans la ville affichée, si son entrepôt et son grenier ont la place
   (sinon refus, avec le conseil de dépenser, d'agrandir ou de choisir une autre ville). Une récompense ne se prend qu'une
-  fois (table `QuestClaim`).
+  fois (table `QuestClaim`). Les récompenses calculées sur la production (quêtes du jour, de la semaine, succès) sont
+  **plafonnées à la moitié du plus grand dépôt (du plus grand silo pour la nourriture)** du joueur, pour rester livrables
+  dans une seule ville (30 octobre 2026).
 - **Tutoriel** (16 étapes, dans l'ordre) : bûcheron, carrière, mine de fer, ferme, un champ niveau 2, Bâtiment principal
   2, entrepôt, grenier, Place de rassemblement, Bâtiment principal 3, caserne, 5 soldats, une armée, une tribu battue, une
   expédition, l'Ambassade. Bandeau de l'étape en cours au-dessus de la barre du bas (masquable) ; **« Aller »** ouvre le
@@ -542,7 +639,9 @@ code), moteur `src/services/questService.js`, routes `/api/quests`, client `fron
 - **Quêtes du jour** : 4 tirées chaque jour pour chaque joueur parmi 9 (constructions, recrutement, combat gagné, tribu,
   expédition, aides d'alliance, recherche, récolte, convoi — seulement celles que le joueur peut faire), + un bonus quand
   toutes sont prises. Récompense : **une demi-heure de production de ses villes** par quête (150 au moins), une heure pour
-  le bonus. Nouvelles quêtes à minuit, heure de Paris.
+  le bonus. Nouvelles quêtes à minuit, heure de Paris. Une quête prise **reste dans la liste** (cochée) jusqu'au tirage
+  suivant : une autre quête remplie entre-temps ne la remplace pas, et la liste ne donne jamais plus de récompenses que de
+  places (même règle pour la semaine).
 - **Quêtes de la semaine** : 3 tirées chaque lundi, objectifs plus gros ; 1 h 30 de production par quête (500 au moins),
   2 h pour le bonus.
 - **Succès** : attaques et défenses gagnées, raids, ennemis vaincus, constructions, aides d'alliance, expéditions,
@@ -585,24 +684,31 @@ Déjà en place, sans image supplémentaire (code) : marche des armées sur la c
 
 Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.js`, `game/processors/*`, `services/combatService.js`, `services/woundedService.js`, `routes/market.js`, `routes/alliance.js`) et comparé aux données (`data/buildings.json`) et à l'affichage client (`getBuildingEffect`).
 
-**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv.), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv., réparation +1 %/niv.), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (3 600 → 600 000 protégés), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15 ; espions niv. 5 et 10 ; alerte des espions ennemis niv. 5, 10, 15), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (+1 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv. : GDD gardé, décision du 30 octobre 2026, D2), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv. ; seuls les engins l'abîment ; ses PV remontent avec les vies de la ville, en 48 h), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (**stockage** : 3 fois un silo ou un dépôt de même niveau, 3 600 → 480 000, ajoutés à la capacité de la ville ; plus aucune réserve protégée, seule la cachette protège : décision du 30 octobre 2026, D1), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15 ; espions niv. 5 et 10 ; alerte des espions ennemis niv. 5, 10, 15), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (taxe des échanges −1 %/niv., convois +1 %/niv.), Irrigation égyptienne (production +1 %/niv., marche +0,5 %/niv.), Poste du Désert (transport +1 %/niv., entretien −0,5 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+
+**Capacité de stockage** (`calculations.cityStorageCaps`) : somme des dépôts et grands dépôts (bois, pierre, fer), somme des
+silos et grands silos (nourriture), 1 000 au moins ; recalculée à chaque construction terminée d'un de ces quatre bâtiments et
+au démarrage du serveur. Dépôt 20 + Grand Dépôt 20 = 160 000 + 480 000 = 640 000.
+
+**File de construction** (30 octobre 2026) : deux niveaux d'un même bâtiment (même emplacement) ne sont jamais en chantier en
+même temps ; le niveau suivant attend la fin du précédent, même si une file est libre.
 
 **Écarts constatés** :
 
 | Bâtiment | Constat | Conséquence |
 |---|---|---|
 | Bâtiment principal 25-30 | Les réductions de construction (principal + Académie + Résidence) sont plafonnées à 60 % : atteint dès le niveau 24, les niveaux 25 à 30 n'apportent plus rien (sauf 5 points de population par niveau) | Affichage corrigé (plafond indiqué) ; à décider : relever le plafond ou donner un effet propre aux niveaux 25 et 30 |
-| Domus du héros | Aucun effet serveur : le héros (équipement, expéditions) est accessible sans elle, il n'a ni mort ni résurrection (`heroResurrection*` sans objet) | Textes corrigés ; à décider : lui donner un vrai effet (XP du héros, durée des expéditions…) |
+| Domus du héros | Réglé le 27 octobre 2026 : le héros tombe au combat et ressuscite au Domus de la capitale (24 h, −2 % par niveau du Domus) | Voir la section Héros |
 | Grande Caserne / Grande Écurie | Pas de seconde file de recrutement : même file que la Caserne/Écurie ; apporte seulement −4 %/niv. de temps (cumul plafonné à 60 %) et l'accès au recrutement sans Caserne | Textes corrigés |
 | Comptoir / Marché | Le bonus de capacité (Marché 5 %/niv. + Comptoir 1 %/niv.) s'applique ensemble aux convois marchands et au transport par armée, pas au butin des raids | Textes corrigés |
-| Bonus égyptien « santé des murs » | Portait sur le bonus de défense du mur au lieu des points de vie | Corrigé : points de vie du mur (1 250 PV par niveau pour l'Égypte avec le bonus à +25 %, construction et réparation), voir `docs/EQUILIBRAGE.md` |
-| Bonus de civilisation | Relevés de 5 points en octobre 2026 à la demande (Rome −15 % pertes en siège et +10 % défense, Gaule +15 % cachette et +20 % défense chez soi, Grèce −15 % temps de construction et +15 % blessés, Égypte +15 % transport et +25 % PV des murs, Huns +20 % vitesse et +10 % attaque en siège, Sultanat +25 % dégâts des engins et +15 % attaque en défense) puis défense gauloise chez soi portée à 20 % et transport égyptien à 20 % | Simulation avant/après dans `docs/EQUILIBRAGE.md` § 7 : classement inchangé, Rome et le Sultanat renforcés ; textes client lus depuis les données |
-| Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; l'élite devient le meilleur rapport puissance / entretien, l'intermédiaire le meilleur rapport puissance / ressources, voir `docs/EQUILIBRAGE.md` |
+| Bonus égyptien « santé des murs » | Portait sur le bonus de défense du mur au lieu des points de vie | Corrigé : points de vie du mur (1 250 PV par niveau pour l'Égypte avec le bonus à +25 %, dès la construction ; ils remontent avec les vies de la ville), voir `docs/EQUILIBRAGE.md` |
+| Bonus de civilisation | Relevés de 5 points en octobre 2026 à la demande (Rome −15 % pertes en siège et +10 % défense, Gaule +15 % cachette et +20 % défense chez soi, Grèce −15 % temps de construction et +15 % blessés, Égypte +15 % transport et +25 % PV des murs, Huns +20 % vitesse et +10 % attaque en siège, Sultanat +25 % dégâts des engins et +15 % attaque en défense) puis défense gauloise chez soi portée à 20 % et transport égyptien à 20 % ; le 30 octobre 2026, le bonus des engins du Sultanat est vérifié actif (chaque engin porte le bonus de sa civilisation) et la défense gauloise chez soi protège aussi son mur | Mesures refaites sur le moteur actuel dans `docs/EQUILIBRAGE.md` § 7 : Sultanat meilleur défenseur, Rome meilleure attaquante ; textes client lus depuis les données |
+| Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients de puissance 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; depuis le 30 octobre 2026 (D10), la bataille utilise ceux du GDD (1 / 1,35 / 1,9) avec la solidité, et chaque palier vaut à peu près son prix ; voir `docs/EQUILIBRAGE.md` § 2 |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
 | Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
-| Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée), l'enceinte dessinée suivent le Bâtiment principal (le minimum d'engins par palier a été supprimé le 25 octobre 2026 : 1 engin suffit) (10 et 20), plus le niveau du Mur | Le Mur garde bonus, points de vie et réparation ; `docs/EQUILIBRAGE.md` § 11 |
+| Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée) et l'enceinte dessinée suivent le Bâtiment principal (10 et 20), plus le niveau du Mur ; le minimum d'engins par palier a été supprimé le 25 octobre 2026 (1 engin suffit) | Le Mur garde son bonus et ses points de vie, que seuls les engins abîment (30 octobre 2026) ; `docs/EQUILIBRAGE.md` § 11 et 12 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
-| Irrigation (vitesse de marche), Poste du désert (taxe entre villes), Comptoir (`p2pTax`) | Fonctions absentes du jeu | Voir `docs/BACKLOG.md` |
+| Irrigation (vitesse de marche), Poste du Désert (taxe entre villes), Comptoir (`p2pTax`) | En place : la taxe des échanges du Comptoir depuis le marché du 27 octobre 2026 ; la vitesse de marche de l'Irrigation depuis le 30 octobre 2026, dans tous les trajets partis de la ville (armées, retours, espions, convois du marché, ravitaillement du Bastion) et dans l'estimation du client. La « taxe entre villes » du Poste du Désert n'existe plus dans les données : les envois entre ses propres villes restent sans taxe | Voir `docs/BACKLOG.md` |
 
 ## Villes secondaires (octobre 2026)
 
@@ -612,7 +718,10 @@ Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/syst
 - **Colons** : la Résidence, réservée à la capitale (Hôtel de ville 5), forme des colons gratuits en 3 h
   (`POST /api/city/:id/settlers`) : 1 colon au niveau 10, 2 au niveau 15, 3 au niveau 20, chaque colon valant une ville
   secondaire (villes existantes + colons prêts + colons en route + colons en formation ≤ places). Le colon attend dans la
-  capitale (`City.settlers`), onglet « Colons » de la Résidence.
+  capitale (`City.settlers`), onglet « Colons » de la Résidence. La **Ville Merveille ne compte pas** dans ces places (hors
+  quota, décision du 28 octobre 2026, à la formation comme à la fondation) ; quand toutes les places sont prises par des
+  colonies fondées et qu'aucun colon n'attend, la Résidence forme **un colon de plus** pour la Ville Merveille, si le joueur
+  n'en a pas encore (30 octobre 2026). L'onglet Colons ne compte pas non plus la Ville Merveille parmi les colonies.
 - **Fondation** (`POST /api/army/:id/found-city { resourceNodeId, name }`) : une armée de la capitale (unités obligatoires)
   emmène un colon et 3 000 de chaque ressource, prélevés dans la capitale, vers un point de ressource libre (ni tribu, ni
   armée, ni ville). À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec
@@ -634,10 +743,11 @@ Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/syst
 - **Niveaux** : le Bâtiment principal d'une ville secondaire s'arrête au niveau 20 (`config.city.secondaryMainHallMaxLevel`,
   la capitale seule monte à 30) ; comme il plafonne tous les autres bâtiments, une colonie ne dépasse 20 nulle part. Le GDD
   ne chiffre pas ce plafond : décision d'octobre 2026, à ajuster en jouant.
-- **Paliers de ville et murailles** (décision d'octobre 2026) : le palier Village / Ville / Ville Fortifiée, l'aspect de
-  l'enceinte dans la scène de ville et sur la carte, et le minimum d'engins de siège de l'attaquant (1 / 10 / 20) suivent le
-  **niveau du Bâtiment principal** (1-9, 10-19, 20+ ; `config.cityTiers`), plus le niveau du Mur. Le Mur garde son rôle
-  défensif (bonus, points de vie à abattre, réparation) et reste nécessaire pour qu'une enceinte soit dessinée.
+- **Paliers de ville et murailles** (décision d'octobre 2026) : le palier Village / Ville / Ville Fortifiée et l'aspect de
+  l'enceinte dans la scène de ville et sur la carte suivent le **niveau du Bâtiment principal** (1-9, 10-19, 20+ ;
+  `config.cityTiers`), plus le niveau du Mur. Le palier ne fixe plus le minimum d'engins de l'attaquant (1 / 10 / 20
+  jusqu'au 25 octobre 2026 ; 1 engin suffit désormais). Le Mur garde son rôle défensif (bonus, points de vie que seuls les
+  engins abattent) et reste nécessaire pour qu'une enceinte soit dessinée.
 - **Interface** : onglet « Colons » (places, colons prêts / en route / en formation, file, formation), bouton « Fonder une
   ville » dans la bulle d'un point libre (choix de l'armée, nom), statut « Fondation » et nombre de colons sur la carte
   d'armée, « Ville en fondation par … » dans la bulle du point, sélecteur de villes. Icône du colon à produire

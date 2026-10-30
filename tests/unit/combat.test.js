@@ -2,7 +2,7 @@ require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { resolveCombat, resolveCombatDetailed, heroBonus } = require('../../src/services/combatService');
-const { unitsData } = require('../../src/config/gamedata');
+const { unitsData, factionsData } = require('../../src/config/gamedata');
 const config = require('../../src/config');
 
 const unit = (faction, cls, tier) => unitsData.find(u => u.faction === faction && u.class === cls && u.tier === tier);
@@ -96,6 +96,16 @@ test('battle engine: wall and moat raise the defenders\' solidity, not the blows
   const solid = legion.stats.endurance + config.combat.defenseDamageMult * legion.stats.defense * C.elite * m;
   assert.equal(kills(20, 10), Math.floor(1000 * config.combat.roundDamageFactor * romeInf.stats.attack / solid));
   assert.ok(kills(20, 10) < kills(0, 0));
+});
+
+test('battle engine: Rome\'s loss reduction multiplies the whole solidity (endurance and defence)', () => {
+  const legion = unit('ROME', 'INFANTRY', 'elite'), C = config.combat.battleTierCoefficients;
+  const bonus = (type) => 1 + (factionsData.ROME.bonuses.find(b => b.type === type)?.value || 0) / 100;
+  const kills = resolveCombatDetailed([group(hunInf, 1000)], [group(legion, 100000)], 0, 0, 'A', 'B', null, null, null, 'ROME').rounds[0].attackerKills[0].killed;
+  // solidité = (END + 0,55 × DEF × coef × « +10 % défense ») × « réduction des pertes »
+  const solid = (legion.stats.endurance + config.combat.defenseDamageMult * legion.stats.defense * C.elite * bonus('unitDefense')) * bonus('siegeLossReduction');
+  assert.ok(bonus('siegeLossReduction') > 1);
+  assert.equal(kills, Math.floor(1000 * config.combat.roundDamageFactor * hunInf.stats.attack / solid));
 });
 
 test('battle engine: at equal cost each tier is worth about its price (no tier crushes the one below)', () => {

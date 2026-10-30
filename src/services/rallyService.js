@@ -11,6 +11,9 @@
 // - Aussi contre un Bastion ennemi (décision du 29 octobre 2026, jamais contre une ville) : il faut au moins un engin de
 //   siège dans le groupe au départ, sinon le rassemblement est annulé. Devant le Bastion, tout le groupe campe 1 h comme
 //   un siège normal, puis un seul assaut mené par le héros du lanceur (bastionService.handleBastionBattle).
+// - Aussi contre les Immortels d'un site ou d'un plan de Merveille gardé (décision du 30 octobre 2026), comme pour un
+//   donjon : à l'arrivée, un seul combat de groupe (wonderService.attackImmortalsGroup) mené par le héros de l'armée du
+//   lanceur ; la prise suit les règles d'une armée seule et revient au lanceur (le plan est à lui, le site est libre 24 h).
 // - Au départ, si la ville du lanceur a disparu ou est assiégée, le rassemblement est annulé et chacun rentre.
 // Armées : RALLY_JOIN (en route vers le lanceur), RALLY_WAIT (arrivée, attend), RALLY_MARCH (en route vers la cible).
 // ============================================================
@@ -26,7 +29,7 @@ const { unitCount } = require('./rankingService');
 
 const WAITS = [5, 10, 30, 60];
 const TX = { timeout: 20000 };
-const err = (status, message) => Object.assign(new Error(message), { status, expose: true });
+const { httpError: err } = require('../utils/httpError');
 const capacityFor = (rallyPointLevel) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rallyPointLevel) - 1) * 12 / 19)));
 
 async function travelSeconds(army, fromX, fromY, toX, toY) {
@@ -49,36 +52,44 @@ async function freeArmy(armyId, playerId) {
 }
 
 // ---- lancer ----
-// la cible : un donjon d'invasion ou un Bastion ennemi
+// la cible : un donjon d'invasion, un site ou un plan de Merveille gardé par les Immortels, ou un Bastion ennemi
+const KIND_LABEL = { HORDE: 'le donjon', WONDER: 'le site de Merveille', PLAN: 'le plan de Merveille', BASTION: 'le Bastion' };
+// nature de la cible d'un rassemblement (lignes d'avant le 30 octobre 2026 : sans targetKind)
+const kindOf = (rally) => rally.targetKind || (rally.targetBastionId ? 'BASTION' : 'HORDE');
+// un point de la carte attaquable en rassemblement, ou la raison du refus (404 / 400)
+async function nodeTarget(nodeId) {
+  const node = nodeId ? await prisma.resourceNode.findUnique({ where: { id: String(nodeId) } }) : null;
+  if (node && (node.resourceType === 'WONDER' || node.resourceType === 'PLAN')) {
+    if (node.cityId) throw err(400, 'Une Ville Merveille occupe déjà ce site');
+    if (!node.hasDefenders || !(node.defenderPower > 0)) throw err(400, node.resourceType === 'PLAN' ? 'Ce plan n\'est plus gardé' : 'Les Immortels de ce site sont déjà vaincus : fondez-y la Ville Merveille avec un colon');
+    return { nodeId: node.id, kind: node.resourceType, x: node.x, y: node.y, label: `${KIND_LABEL[node.resourceType]} gardé par les Immortels` };
+  }
+  const horde = node && node.resourceType === 'HORDE' ? await prisma.horde.findUnique({ where: { nodeId: node.id } }) : null;
+  if (!node || node.resourceType !== 'HORDE' || !horde || horde.destroyedAt) throw err(404, 'Cible introuvable : donjon détruit ou reparti, ou point sans Immortels');
+  return { nodeId: node.id, kind: 'HORDE', x: node.x, y: node.y, label: `le donjon de niveau ${horde.level}` };
+}
 async function bastionTarget(allianceId, bastionId) {
   const b = await prisma.bastion.findUnique({ where: { id: String(bastionId) }, include: { alliance: { select: { tag: true } } } });
   if (!b || b.status === 'DESTROYED') throw err(404, 'Bastion introuvable');
   if (!['BUILDING', 'ACTIVE'].includes(b.status)) throw err(400, 'Ce Bastion n\'est encore qu\'un chantier sans murs : rien à assiéger');
   const rel = await require('./bastionService').relationTo(allianceId, b.allianceId);
   if (rel === 'SAME' || rel === 'ALLY') throw err(400, 'Impossible d\'attaquer le Bastion de votre alliance ou d\'une alliance alliée');
-  return { bastionId: b.id, x: b.x, y: b.y, label: `le Bastion [${b.alliance.tag}]`, ownerAllianceId: b.allianceId, tag: b.alliance.tag };
+  return { bastionId: b.id, kind: 'BASTION', x: b.x, y: b.y, label: `le Bastion [${b.alliance.tag}]`, ownerAllianceId: b.allianceId, tag: b.alliance.tag };
 }
-const targetLabel = (rally) => (rally.targetBastionId ? 'le Bastion' : 'le donjon');
+const targetLabel = (rally) => KIND_LABEL[kindOf(rally)] || 'la cible';
 
 async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const wait = Number(waitMinutes);
   if (!WAITS.includes(wait)) throw err(400, 'Attente : 5, 10, 30 ou 60 minutes');
   const member = await prisma.allianceMember.findUnique({ where: { playerId } });
   if (!member) throw err(403, 'Seuls les joueurs en alliance peuvent lancer un rassemblement');
-  let target;
-  if (bastionId) target = await bastionTarget(member.allianceId, bastionId);
-  else {
-    const node = await prisma.resourceNode.findUnique({ where: { id: String(nodeId) } });
-    const horde = node ? await prisma.horde.findUnique({ where: { nodeId: node.id } }) : null;
-    if (!node || node.resourceType !== 'HORDE' || !horde || horde.destroyedAt) throw err(404, 'Donjon introuvable (détruit ou reparti)');
-    target = { nodeId: node.id, x: node.x, y: node.y, label: `le donjon de niveau ${horde.level}` };
-  }
+  const target = bastionId ? await bastionTarget(member.allianceId, bastionId) : await nodeTarget(nodeId);
   const army = await freeArmy(armyId, playerId);
   const rp = await prisma.cityBuilding.findFirst({ where: { cityId: army.cityId, key: 'RALLY_POINT' }, orderBy: { level: 'desc' }, select: { level: true } });
   const capacity = capacityFor(rp?.level || 1);
   const launchAt = new Date(Date.now() + wait * 60000);
   const rally = await prisma.$transaction(async (tx) => {
-    const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });
+    const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetKind: target.kind, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });
     const ok = await tx.army.updateMany({ where: { id: army.id, status: 'IDLE' }, data: { status: 'RALLY_WAIT', rallyId: r.id, missionType: 'RALLY', targetX: army.city.x, targetY: army.city.y, arrivalAt: null } });
     if (ok.count !== 1) throw err(409, 'Armée déjà en mission');
     return r;
@@ -187,7 +198,9 @@ async function depart(rally, now = new Date()) {
     node = { x: bastion.x, y: bastion.y };
   } else {
     node = rally.targetNodeId ? await prisma.resourceNode.findUnique({ where: { id: rally.targetNodeId } }) : null;
-    if (!node) { await cancel(null, rally.id, 'le donjon est tombé ou reparti').catch(() => {}); return null; }
+    const gone = !node ? (kindOf(rally) === 'HORDE' ? 'le donjon est tombé ou reparti' : kindOf(rally) === 'PLAN' ? 'le plan a déjà été pris' : 'le site a disparu')
+      : kindOf(rally) !== 'HORDE' && (!node.hasDefenders || node.cityId) ? 'les Immortels ont déjà été vaincus' : null;
+    if (gone) { await cancel(null, rally.id, gone).catch(() => {}); return null; }
   }
   // la ville du lanceur disparue (compte supprimé, colonie rasée) : annulé, chacun rentre d'où il est ; assiégée : ses
   // armées ne sortent que pour briser le siège (comme au lancement), annulé aussi
@@ -232,7 +245,7 @@ async function depart(rally, now = new Date()) {
     }
     return null;
   }
-  for (const a of group) notify(a.ownerId, 'rally', '⚔️ Le rassemblement part', `${group.length} armée${group.length > 1 ? 's' : ''} en route vers ${bastion ? bastion.label : 'le donjon'} (${node.x}, ${node.y}) : arrivée dans ${Math.ceil(seconds / 60)} min.`, { to: 'map', x: node.x, y: node.y });
+  for (const a of group) notify(a.ownerId, 'rally', '⚔️ Le rassemblement part', `${group.length} armée${group.length > 1 ? 's' : ''} en route vers ${bastion ? bastion.label : targetLabel(rally)} (${node.x}, ${node.y}) : arrivée dans ${Math.ceil(seconds / 60)} min.`, { to: 'map', x: node.x, y: node.y });
   if (bastion) {   // l'alliance du Bastion est prévenue, comme pour une armée seule
     const leaderName = group.find(a => a.ownerId === rally.leaderId)?.owner?.name || group[0].owner?.name || 'Une alliance';
     const members = await prisma.allianceMember.findMany({ where: { allianceId: bastion.ownerAllianceId }, select: { playerId: true } });
@@ -241,7 +254,7 @@ async function depart(rally, now = new Date()) {
   return { armies: group.length, seconds };
 }
 
-// ---- arrivée au donjon : un seul combat, puis chacun rentre ----
+// ---- arrivée au donjon (ou devant les Immortels) : un seul combat, puis chacun rentre ----
 async function fight(rally) {
   const claimed = await prisma.rally.updateMany({ where: { id: rally.id, status: 'MARCHING' }, data: { status: 'DONE' } });
   if (!claimed.count) return null;
@@ -252,6 +265,7 @@ async function fight(rally) {
   }
   if (rally.targetBastionId) return campAtBastion(rally, armies);
   const ids = [...armies.filter(a => a.ownerId === rally.leaderId), ...armies.filter(a => a.ownerId !== rally.leaderId)].map(a => a.id);
+  if (kindOf(rally) !== 'HORDE') return fightImmortals(rally, armies, ids);
   const H = require('./hordeService');
   let r = { gone: true };
   try { if (ids.length) r = await H.attackHordeGroup(ids, rally.targetNodeId); } catch (e) { console.error('[RALLY] combat :', e.message); }
@@ -263,6 +277,29 @@ async function fight(rally) {
   await prisma.rally.update({ where: { id: rally.id }, data: { result: r.gone ? { gone: true } : { won: r.won, floor: r.floor, destroyed: r.destroyed, points: r.points, armies: ids.length } } });
   if (r.gone) for (const a of armies) notify(a.ownerId, 'rally', '⚔️ Donjon disparu', `Le donjon (${rally.targetX}, ${rally.targetY}) était déjà tombé ou reparti : votre armée rentre.`, { to: 'army', armyId: a.id });
   else H.announceOutcome(null, r);
+  return r;
+}
+
+// ---- arrivée devant les Immortels d'un site ou d'un plan : un seul combat de groupe, puis chacun rentre ----
+async function fightImmortals(rally, armies, ids) {
+  const WS = require('./wonderService');
+  let r = { gone: true };
+  try { r = await WS.attackImmortalsGroup(ids, rally.targetNodeId, rally.leaderId); } catch (e) { console.error('[RALLY] Immortels :', e.message); }
+  const { sendArmyHome } = require('../game/processors/armyProcessor');
+  for (const a of armies) {
+    await prisma.army.update({ where: { id: a.id }, data: { x: rally.targetX, y: rally.targetY, rallyId: null } });
+    await sendArmyHome(a, rally.targetX, rally.targetY, { rallyId: null });
+  }
+  const what = targetLabel(rally);
+  await prisma.rally.update({ where: { id: rally.id }, data: { result: r.gone ? { gone: true } : { won: r.won, kind: r.kind, plan: r.plan, captorId: r.captorId, armies: r.armies.length } } });
+  if (r.gone) {
+    for (const a of armies) notify(a.ownerId, 'rally', '⚔️ Immortels déjà vaincus', `Plus d'Immortels à combattre devant ${what} (${rally.targetX}, ${rally.targetY}) : votre armée rentre.`, { to: 'army', armyId: a.id });
+    return r;
+  }
+  const prize = r.kind === 'PLAN' ? `le plan revient à ${r.captorName || 'son lanceur'}` : 'le site est libre 24 h : fondez-y la Ville Merveille de l\'alliance avec un colon';
+  for (const p of r.armies) {
+    notify(p.ownerId, 'rally', r.won ? '⚔️ Immortels vaincus' : '⚔️ Rassemblement repoussé', r.won ? `Le rassemblement a battu les Immortels de ${what} (${r.x}, ${r.y}) : ${prize}.` : `Les Immortels de ${what} (${r.x}, ${r.y}) ont repoussé le rassemblement (${p.lost} pertes pour ${p.name}) ; leur garnison reste entamée.`, { to: 'report', reportId: p.reportId, x: r.x, y: r.y });
+  }
   return r;
 }
 
@@ -328,12 +365,15 @@ async function listForPlayer(playerId, nodeId = null, bastionId = null) {
   const out = [];
   for (const r of rallies) {
     const armies = await prisma.army.findMany({ where: { rallyId: r.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT', 'RALLY_MARCH'] } }, include: { units: true, owner: { select: { id: true, name: true } } } });
-    const horde = r.targetNodeId ? await prisma.horde.findUnique({ where: { nodeId: r.targetNodeId }, select: { level: true, floor: true } }) : null;
+    const kind = kindOf(r);
+    const horde = r.targetNodeId && kind === 'HORDE' ? await prisma.horde.findUnique({ where: { nodeId: r.targetNodeId }, select: { level: true, floor: true } }) : null;
+    const guard = r.targetNodeId && kind !== 'HORDE' ? await prisma.resourceNode.findUnique({ where: { id: r.targetNodeId }, select: { defenderPower: true, hasDefenders: true } }) : null;
     const bastion = r.targetBastionId ? await prisma.bastion.findUnique({ where: { id: r.targetBastionId }, select: { alliance: { select: { tag: true } } } }) : null;
     const leader = await prisma.player.findUnique({ where: { id: r.leaderId }, select: { name: true } });
     out.push({
-      id: r.id, status: r.status, leader: leader?.name || '?', mine: r.leaderId === playerId, targetNodeId: r.targetNodeId, targetBastionId: r.targetBastionId, kind: r.targetBastionId ? 'BASTION' : 'HORDE', bastionTag: bastion?.alliance?.tag || null, x: r.targetX, y: r.targetY,
-      level: horde?.level || null, floor: horde?.floor || null, launchAt: r.launchAt, arrivalAt: r.arrivalAt, capacity: r.capacity, waitMinutes: r.waitMinutes,
+      id: r.id, status: r.status, leader: leader?.name || '?', mine: r.leaderId === playerId, targetNodeId: r.targetNodeId, targetBastionId: r.targetBastionId, kind, bastionTag: bastion?.alliance?.tag || null, x: r.targetX, y: r.targetY,
+      level: horde?.level || null, floor: horde?.floor || null, guardPower: guard ? (guard.hasDefenders ? guard.defenderPower : 0) : null,   // WONDER, PLAN : puissance des Immortels
+      launchAt: r.launchAt, arrivalAt: r.arrivalAt, capacity: r.capacity, waitMinutes: r.waitMinutes,
       joined: armies.some(a => a.ownerId === playerId),
       armies: armies.map(a => ({ id: a.id, owner: a.owner.name, mine: a.ownerId === playerId, status: a.status, arrivalAt: a.arrivalAt, units: unitCount(a.units), power: Math.round(calculateArmyPower(a.units, unitsData)) })),
       power: armies.reduce((t, a) => t + Math.round(calculateArmyPower(a.units, unitsData)), 0)
@@ -342,4 +382,4 @@ async function listForPlayer(playerId, nodeId = null, bastionId = null) {
   return { rallies: out, inAlliance: true };
 }
 
-module.exports = { WAITS, capacityFor, launch, join, leave, cancel, launchNow, depart, fight, processRallies, listForPlayer };
+module.exports = { WAITS, KIND_LABEL, kindOf, capacityFor, launch, join, leave, cancel, launchNow, depart, fight, processRallies, listForPlayer };

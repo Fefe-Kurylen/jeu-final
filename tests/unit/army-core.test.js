@@ -35,6 +35,14 @@ test('camp : chaque unité porte son palier, clés anciennes converties', () => 
   assert.deepEqual(units.map(u => [u.unitKey, u.tier, u.count]), [[elite, 'elite', 5], [inter, 'intermediate', 3], ['GRE_INF_HOPLITE', 'intermediate', 2]]);
   assert.equal(campBonusPct('GOLD'), 40);
   assert.equal(campBonusPct('WOOD'), 0);
+  // le bonus d'or se lit dans la config (map.camps.goldDefenseBonusPct)
+  const config = require('../../src/config');
+  const saved = config.map.camps.goldDefenseBonusPct;
+  try {
+    config.map.camps.goldDefenseBonusPct = 25;
+    assert.equal(campBonusPct('GOLD'), 25);
+    assert.equal(campPower({ [elite]: 10 }, 'GOLD'), Math.round(calculateArmyPower(campUnits({ [elite]: 10 }), unitsData) * 1.25));
+  } finally { config.map.camps.goldDefenseBonusPct = saved; }
 });
 
 test('camp d\'or : puissance affichée × 1,4, la même que celle du combat', () => {
@@ -81,6 +89,10 @@ test('Irrigation : vitesse de marche de la ville, lue une fois si les bâtiments
   assert.equal(await cityMarchPct(db, { id: 'c2' }), 5);
   assert.equal(asked.where.cityId, 'c2');
   assert.equal(asked.where.key, 'EGYPTIAN_IRRIGATION');
+  // une ville sans id ni bâtiments chargés : aucune requête (elle lirait l'Irrigation de toutes les villes)
+  asked = null;
+  assert.equal(await cityMarchPct(db, { x: 1, y: 2 }), 0);
+  assert.equal(asked, null);
 });
 
 test('stockage au démarrage : Grand dépôt et Grand silo comptent dans maxStorage / maxFoodStorage', async () => {

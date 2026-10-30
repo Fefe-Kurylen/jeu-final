@@ -1,6 +1,9 @@
-// Rassemblements d'alliance contre les donjons d'invasion et les Bastions ennemis (décision du 29 octobre 2026, services/rallyService.js)
-// GET  /api/rallies?nodeId=&bastionId=   rassemblements de mon alliance en cours (tous, ou ceux d'une cible)
-// POST /api/rallies { armyId, nodeId | bastionId, waitMinutes }   lancer (attente 5, 10, 30 ou 60 min)
+// Rassemblements d'alliance contre les donjons d'invasion, les sites et plans de Merveille gardés par les Immortels
+// (30 octobre 2026) et les Bastions ennemis (décision du 29 octobre 2026, services/rallyService.js)
+// GET  /api/rallies?nodeId=&bastionId=   rassemblements de mon alliance en cours (tous, ou ceux d'une cible) ; kind :
+//                                        HORDE, WONDER, PLAN ou BASTION
+// POST /api/rallies { armyId, nodeId | bastionId, waitMinutes }   lancer (attente 5, 10, 30 ou 60 min) ; nodeId : un
+//                                        donjon, un site ou un plan de Merveille gardé
 // POST /api/rallies/:id/join { armyId }               envoyer une armée
 // POST /api/rallies/:id/leave                         retirer son armée
 // POST /api/rallies/:id/cancel                        annuler (le lanceur)
@@ -9,8 +12,8 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const R = require('../services/rallyService');
-const { sendError } = require('../utils/httpError');
-const fail = (res, e) => (e?.status && e.expose ? res.status(e.status).json({ error: e.message }) : sendError(res, e));
+const { sendFail } = require('../utils/httpError');
+const fail = (res, e) => sendFail(res, e, { noRoute: true, context: 'rally' });   // pas de chemin vers le lanceur : 400
 
 router.get('/rallies', auth, async (req, res) => {
   try { res.json({ ...(await R.listForPlayer(req.user.playerId, req.query.nodeId || null, req.query.bastionId || null)), waits: R.WAITS }); } catch (e) { fail(res, e); }

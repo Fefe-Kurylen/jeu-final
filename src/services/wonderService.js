@@ -10,8 +10,11 @@
 //   gagné contre la capitale d'un détenteur emporte ses plans.
 // - La Merveille monte de 1 à 100 : le propriétaire lance chaque niveau, payé par le stock du chantier (sans plafond),
 //   que remplissent les convois des membres vers la Ville Merveille ; coût et durée grimpent à chaque niveau.
-// - Les Immortels attaquent chaque Ville Merveille toutes les 12 h (de plus en plus fort) ; un assaut gagné par eux ou
-//   par un rival lui ôte des niveaux. La Ville Merveille ne peut pas être rasée.
+// - Les Immortels attaquent chaque Ville Merveille toutes les 12 h (de plus en plus fort), mangonneaux compris : seuls les
+//   engins abîment le mur ; un assaut gagné par eux ou par un rival lui ôte des niveaux. La Ville Merveille ne peut pas
+//   être rasée.
+// - Sites et plans gardés s'attaquent aussi en rassemblement d'alliance (décision du 30 octobre 2026, rallyService) : un
+//   seul combat de groupe (attackImmortalsGroup), la prise revient au lanceur.
 // - Niveau 100 : le monde est fini (WorldConfig.endedAt), Panthéon et titres (services/hallOfFameService.js).
 // ============================================================
 const prisma = require('../config/database');
@@ -20,13 +23,13 @@ const { unitsData } = require('../config/gamedata');
 const { calculateArmyPower } = require('../utils/calculations');
 const { notify } = require('./pushService');
 const Terrain = require('../../frontend/js/shared/terrain.js');
+const { httpError } = require('../utils/httpError');
 
 const W = config.world;
 const DAY = 86400000;
 const SPECIAL = ['WONDER', 'PLAN', 'HORDE'];   // HORDE : donjon d'une invasion barbare (hordeService)
 const RES = ['wood', 'stone', 'iron', 'food'];
 const STOCK = { wood: 'wonderWood', stone: 'wonderStone', iron: 'wonderIron', food: 'wonderFood' };
-const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
 const isSpecial = (node) => !!node && SPECIAL.includes(node.resourceType);
 
 // ---- calendrier ----
@@ -90,14 +93,27 @@ async function isEnded() {
 }
 
 // ---- les Immortels ----
+// Garnisons des sites et des plans : l'élite du Sultanat (fantassins du palais, archers perses, mamelouks)
 const IMMORTAL_MIX = [['SUL_INF_PALAIS', 0.45], ['SUL_ARC_PERSE', 0.3], ['SUL_CAV_MAMELOUK', 0.25]];
-function immortalUnits(power) {
-  const unitPower = (key) => calculateArmyPower([{ unitKey: key, tier: 'elite', count: 1 }], unitsData) || 1;
+// Vagues contre une Ville Merveille (décision du 30 octobre 2026) : seuls les engins abîment le mur (GDD
+// onlySiegeEnginesDamageWall). Comme les Natars de Travian, qui viennent avec béliers et catapultes, les Immortels amènent
+// des mangonneaux : 15 % de la puissance de la vague, pris sur ses soldats. Un mur 20 sans défenseurs tient jusqu'au
+// niveau 6 de la Merveille ; il tombe au 7e round au niveau 12, au 4e au niveau 20, dès le 1er au niveau 100, et les
+// défenseurs doivent alors battre la vague (avec les soldats seuls à × 0,1 sur le mur, avant le 30 octobre : jusqu'au 11).
+const WAVE_SIEGE_SHARE = 0.15;
+const WAVE_MIX = [...IMMORTAL_MIX.map(([key, share]) => [key, share * (1 - WAVE_SIEGE_SHARE)]), ['SUL_SIEGE_MANGONNEAU', WAVE_SIEGE_SHARE]];
+// chaque unité à son palier (élite, engin de siège)
+const tierOf = (key) => unitsData.find(u => u.key === key)?.tier || 'elite';
+const immortalLines = (units) => Object.entries(units || {}).filter(([, n]) => n > 0).map(([unitKey, count]) => ({ unitKey, tier: tierOf(unitKey), count }));
+function immortalUnits(power, mix = IMMORTAL_MIX) {
   const units = {};
-  for (const [key, share] of IMMORTAL_MIX) units[key] = Math.max(1, Math.round(power * share / unitPower(key)));
+  for (const [key, share] of mix) units[key] = Math.max(1, Math.round(power * share / (calculateArmyPower(immortalLines({ [key]: 1 }), unitsData) || 1)));
   return units;
 }
-const immortalPower = (units) => Math.round(calculateArmyPower(Object.entries(units).map(([unitKey, count]) => ({ unitKey, tier: 'elite', count })), unitsData));
+const immortalPower = (units) => Math.round(calculateArmyPower(immortalLines(units), unitsData));
+// une vague contre une Merveille de ce niveau : de plus en plus forte
+const wavePower = (wonderLevel) => Math.round(4000 * Math.pow(wonderLevel, 1.35));
+const waveUnits = (wonderLevel) => immortalUnits(wavePower(wonderLevel), WAVE_MIX);
 
 // emplacements libres autour du centre, sur un anneau, pour un point (et pour une ville 2 × 2 sur les sites)
 async function ringSpots(count, rMin, rMax, needBlock) {
@@ -148,6 +164,85 @@ async function onImmortalsBeaten(tx, node, playerId) {
   }
   return {};
 }
+// Rassemblement d'alliance contre les Immortels d'un site ou d'un plan (décision du 30 octobre 2026) : un seul combat de
+// puissance, comme une armée seule (armyService.resolveTribeCombat), toutes les armées ensemble. Le héros de l'armée du
+// lanceur mène, avec ses technologies (rien s'il a rappelé son armée) ; chaque armée perd la même part de ses soldats ;
+// points de combat et XP se partagent selon la puissance amenée. Gagné : prise comme pour une armée seule
+// (onImmortalsBeaten), au profit du lanceur. armyIds : l'armée du lanceur d'abord.
+const IMMORTAL_NAME = { WONDER: 'Site de Merveille', PLAN: 'Plan de Merveille' };
+async function attackImmortalsGroup(armyIds, nodeId, leaderId) {
+  const { resolveCombat, heroCombatStats } = require('./combatService');
+  const { calculateWoundedUnits, carryWounded } = require('./woundedService');
+  const { awardHeroXp } = require('./heroXpService');
+  const { techPct } = require('../utils/techEffects');
+  const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders');
+  const RK = require('./rankingService');
+  return prisma.$transaction(async (tx) => {
+    const node = await tx.$queryRaw`SELECT * FROM "ResourceNode" WHERE id = ${nodeId} FOR UPDATE`.then(r => r[0]);
+    // plan déjà pris (point supprimé), site déjà libéré ou bâti : rien à combattre
+    if (!node || !IMMORTAL_NAME[node.resourceType] || !node.hasDefenders || node.cityId) return { gone: true, kind: node?.resourceType || null };
+    const armies = (await tx.army.findMany({ where: { id: { in: armyIds } }, include: { units: true, hero: { include: { items: true } }, owner: true } }))
+      .filter(a => a.units.some(u => u.count > 0))
+      .sort((a, b) => armyIds.indexOf(a.id) - armyIds.indexOf(b.id));
+    if (!armies.length) return { gone: true, noArmy: true, kind: node.resourceType };
+    const lead = armies.find(a => a.ownerId === leaderId) || null;
+    const leader = await tx.player.findUnique({ where: { id: leaderId }, select: { id: true, name: true } });
+    const captorId = leader ? leader.id : armies[0].ownerId;   // compte du lanceur supprimé : la première armée
+    const defenders = campUnits(node.defenderUnits);
+    const leadTech = lead ? await tx.playerTechnology.findMany({ where: { playerId: lead.ownerId } }) : [];
+    // civilisation de chaque armée sur ses lignes (Rome : « +10 % défense » armée par armée)
+    const allUnits = armies.flatMap(a => a.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count, faction: a.owner?.faction || null })));
+    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead?.hero || null), null, { attackerBonusPct: techPct(leadTech, 'attackBonusPct'), defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
+    // les Immortels perdent leur part, comme devant une armée seule
+    const killedImm = [];
+    const remaining = {};
+    for (const [key, n] of Object.entries(node.defenderUnits || {})) {
+      const l = Math.floor(n * combat.defenderLossRate);
+      if (l > 0) killedImm.push({ key, killed: l });
+      remaining[key] = Math.max(0, n - l);
+    }
+    const kills = killedImm.reduce((t, k) => t + k.killed, 0);
+    const powers = armies.map(a => calculateArmyPower(a.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), unitsData) || 1);
+    const totalPower = powers.reduce((t, p) => t + p, 0) || 1;
+    const label = `${IMMORTAL_NAME[node.resourceType]} (${node.x}, ${node.y})`;
+    const perArmy = [];
+    for (const [i, a] of armies.entries()) {
+      const share = powers[i] / totalPower;
+      let lost = 0; const killedOwn = [];
+      for (const u of a.units) {
+        const l = Math.floor(u.count * combat.attackerLossRate);
+        if (l <= 0) continue;
+        lost += l; killedOwn.push({ key: u.unitKey, killed: l });
+        if (l >= u.count) await tx.armyUnit.delete({ where: { id: u.id } }); else await tx.armyUnit.update({ where: { id: u.id }, data: { count: { decrement: l } } });
+      }
+      if (lost > 0 && a.cityId) {   // blessés : ils rentrent avec l'armée (Tente de soins de sa ville)
+        try {
+          const techRows = a === lead ? leadTech : await tx.playerTechnology.findMany({ where: { playerId: a.ownerId } });
+          const wounded = await calculateWoundedUnits(a.cityId, killedOwn, a.owner?.faction, techPct(techRows, 'woundedBonusPct') + require('../utils/heroEffects').talent(a.hero, 'woundedPct'));
+          if (wounded.length) await carryWounded(tx, a.id, wounded);
+        } catch (e) { console.error('[WOUNDED]', e.message); }
+      }
+      await RK.recordCombat(tx, { attackers: [{ playerId: a.ownerId, units: a.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedImm.map(k => ({ key: k.key, killed: Math.round(k.killed * share) })) });
+      if (combat.attackerWon && a.heroId && kills) await awardHeroXp(a.heroId, Math.floor(kills * share * config.combat.heroXpPerTribeKill), tx);
+      const report = await tx.battleReport.create({ data: {
+        playerId: a.ownerId, attackerId: a.ownerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
+        attackerUnits: a.units.map(u => ({ key: u.unitKey, count: u.count })), defenderUnits: defenders,
+        attackerLosses: { totalAttackerLosses: lost, totalKilled: lost, rate: combat.attackerLossRate }, defenderLosses: { totalDefenderLosses: kills, totalKilled: kills, rate: combat.defenderLossRate },
+        loot: { attackerName: armies.length > 1 ? `Rassemblement de ${leader?.name || armies[0].owner?.name} (${armies.length} armées)` : a.owner?.name, defenderName: 'Immortels', cityName: label, type: 'TRIBE', rallyArmies: armies.length },
+        rounds: { type: 'TRIBE_RAID', resourceType: node.resourceType, rally: armies.length > 1 } } });
+      perArmy.push({ armyId: a.id, ownerId: a.ownerId, name: a.name, lost, reportId: report.id });
+    }
+    let capture = null;
+    if (combat.attackerWon) {
+      await tx.resourceNode.update({ where: { id: node.id }, data: { hasDefenders: false, defenderUnits: remaining, defenderPower: 0, lastDefeat: new Date() } });
+      capture = await onImmortalsBeaten(tx, node, captorId);   // plan au lanceur, site libre 24 h
+    } else {
+      await tx.resourceNode.update({ where: { id: node.id }, data: { defenderUnits: remaining, defenderPower: campPower(remaining, node.resourceType) } });
+    }
+    return { won: combat.attackerWon, kind: node.resourceType, x: node.x, y: node.y, label, captorId, captorName: leader?.name || armies[0].owner?.name || null, plan: !!capture?.plan, kills, armies: perArmy, lost: perArmy.reduce((t, p) => t + p.lost, 0), reportId: perArmy[0]?.reportId };
+  }, { timeout: 20000 });
+}
+
 // Les Immortels reviennent sur un site resté vide 24 h (plans : aussitôt réarmés s'ils n'ont pas été pris)
 async function respawnImmortals(now) {
   const due = await prisma.resourceNode.findMany({ where: { resourceType: { in: ['WONDER', 'PLAN'] }, hasDefenders: false, cityId: null, hasPlayerArmy: false, lastDefeat: { lte: new Date(now.getTime() - DAY) } } });
@@ -222,11 +317,12 @@ async function stealPlans(db, fromPlayerId, toPlayerId) {
   return r.count;
 }
 
-// Vague d'Immortels contre une Ville Merveille : combat contre ses défenseurs, derrière le mur ; perdu = un niveau en moins
+// Vague d'Immortels contre une Ville Merveille : combat contre ses défenseurs, derrière le mur que seuls ses mangonneaux
+// abîment ; perdu = un niveau en moins. Le mur n'en garde pas de dégâts (une vague n'est pas un siège).
 async function immortalWave(city, now) {
   const { resolveCombatDetailed } = require('./combatService');
-  const power = Math.round(4000 * Math.pow(city.wonderLevel, 1.35));
-  const atk = Object.entries(immortalUnits(power)).map(([unitKey, count]) => ({ unitKey, tier: 'elite', count }));
+  const { wallHpNow } = require('../game/processors/siegeProcessor');
+  const atk = immortalLines(waveUnits(city.wonderLevel));
   const outcome = await prisma.$transaction(async (tx) => {
     await require('../utils/db').lockCity(tx, city.id);
     const full = await tx.city.findUnique({ where: { id: city.id }, include: { buildings: true, player: true, armies: { where: { status: { in: ['IDLE', 'STATIONED'] } }, include: { units: true } } } });
@@ -235,14 +331,16 @@ async function immortalWave(city, now) {
     const merged = {};
     for (const a of defenders) for (const u of a.units) if (u.count > 0) (merged[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
     const wallLevel = full.buildings.find(b => b.key === 'WALL')?.level || 0;
-    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 0, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, null, wallLevel > 0 ? { hp: full.wallHp, maxHp: full.wallMaxHp } : null);
+    const wall = wallLevel > 0 && full.wallMaxHp > 0 ? { hp: wallHpNow(full), maxHp: full.wallMaxHp } : null;
+    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 0, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, null, wall);
+    const wallInfo = wall ? { wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: Math.round(wall.maxHp), wallBroken: result.wallHpEnd <= 0 } : {};
     const ratio = (key) => { const r = result.defenderFinalUnits.find(x => x.key === key); return r && r.initial > 0 ? r.remaining / r.initial : 1; };
     for (const a of defenders) for (const u of a.units) {
       const n = Math.round(u.count * ratio(u.unitKey));
       if (n <= 0) await tx.armyUnit.deleteMany({ where: { id: u.id } }); else if (n !== u.count) await tx.armyUnit.update({ where: { id: u.id }, data: { count: n } });
     }
     await tx.city.update({ where: { id: full.id }, data: { lastImmortalWave: now } });
-    const report = await tx.battleReport.create({ data: { playerId: full.playerId, defenderId: full.playerId, x: full.x, y: full.y, result: result.attackerWon ? 'LOSE' : 'WIN', winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits, attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled }, defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled }, loot: { type: 'IMMORTALS', attackerName: 'Immortels', defenderName: full.player.name, cityName: full.name, cityId: full.id, rounds: result.rounds } } });
+    const report = await tx.battleReport.create({ data: { playerId: full.playerId, defenderId: full.playerId, x: full.x, y: full.y, result: result.attackerWon ? 'LOSE' : 'WIN', winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER', attackerUnits: result.attackerInitialUnits, defenderUnits: result.defenderInitialUnits, attackerLosses: { rate: result.attackerLossRate, units: result.attackerFinalUnits, totalKilled: result.attackerTotalKilled }, defenderLosses: { rate: result.defenderLossRate, units: result.defenderFinalUnits, totalKilled: result.defenderTotalKilled }, loot: { type: 'IMMORTALS', attackerName: 'Immortels', defenderName: full.player.name, cityName: full.name, cityId: full.id, rounds: result.rounds, ...wallInfo } } });
     let lost = null;
     if (result.attackerWon) lost = await loseLevels(tx, full, 1, 'Une vague d\'Immortels');
     await require('./rankingService').recordCombat(tx, { attackers: [], defenders: [{ playerId: full.playerId, units: 1 }], attackerLosses: result.attackerFinalUnits, defenderLosses: [] });
@@ -293,4 +391,4 @@ async function processWonders(now = new Date()) {
   }
 }
 
-module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, spawnNodes, onImmortalsBeaten, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };
+module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, immortalLines, WAVE_MIX, wavePower, waveUnits, spawnNodes, onImmortalsBeaten, attackImmortalsGroup, IMMORTAL_NAME, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };

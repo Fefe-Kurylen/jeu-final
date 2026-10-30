@@ -3594,8 +3594,7 @@ window.addEventListener('resize', () => {
         cityViewH = Math.max(container.clientHeight, 200);
         sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
-      calculateCitySlots();
-      if (currentCityView === 'fields') calculateFieldSlots();
+      calculateCitySlots();   // ville et champs : une seule scène
       renderCityCanvas();
     }
   }, 150);

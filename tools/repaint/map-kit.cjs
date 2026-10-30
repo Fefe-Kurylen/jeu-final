@@ -15,7 +15,6 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const T = require('./targets.cjs');
 const P = require('./prompts.cjs');
-const MW = require('./map-world.cjs');
 
 const DOC = path.join(ROOT, 'docs', 'PROMPTS-CARTE.md');
 const CSV = path.join(ROOT, 'docs', 'prompts-carte.csv');

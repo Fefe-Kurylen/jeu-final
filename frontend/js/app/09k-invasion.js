@@ -86,12 +86,13 @@ async function invasionCardHtml() {
   const inv = s.invasion;
   if (!s.active) {
     return `<div class="world-card"><h4>${resIconHtml('skull')} Invasions barbares</h4>
-      <p>Chaque week-end, du vendredi 18 h au dimanche 23 h, des donjons de hordes apparaissent sur la carte : abattez leurs trois étages avec votre alliance pour partager leur trésor. Les hordes n'attaquent pas les villes.</p>
+      <p>Chaque week-end, du vendredi 18 h au dimanche 23 h, des donjons de hordes apparaissent sur la carte : abattez leurs trois étages avec votre alliance pour partager leur trésor. Les hordes n'attaquent pas les villes. À partir de la 4e semaine du monde, les donjons et les ressources de leur trésor grossissent chaque semaine.</p>
       ${s.nextStart ? `<p><strong>Prochaine invasion</strong> : ${new Date(s.nextStart).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>` : ''}
       ${inv?.endedAt ? `<p><small>Dernière invasion : ${inv.destroyed} donjon${inv.destroyed > 1 ? 's' : ''} détruit${inv.destroyed > 1 ? 's' : ''} sur ${inv.total}${inv.alliances[0] ? ` · meilleure alliance [${escapeHtml(inv.alliances[0].tag)}]` : ''}</small></p>` : ''}</div>`;
   }
   return `<div class="world-card invasion-live"><h4>${resIconHtml('skull')} Invasion barbare en cours</h4>
     <p>Fin <span class="qd-timer" data-ends-at="${inv.endsAt}">${formatTime(inv.endsAt)}</span> · ${inv.destroyed} donjon${inv.destroyed > 1 ? 's' : ''} détruit${inv.destroyed > 1 ? 's' : ''} sur ${inv.total}${inv.myPoints ? ` · vos dégâts : ${formatNum(inv.myPoints)} pts` : ''}</p>
+    ${Number(inv.ageMult) > 1 ? `<p><small>Âge du monde : les donjons de niveau 5 sont ${String(+Number(inv.ageMult).toFixed(2)).replace('.', ',')} fois plus forts, leur trésor en ressources aussi (un peu moins aux niveaux 2 à 4, rien au niveau 1).</small></p>` : ''}
     <div class="invasion-levels">${inv.byLevel.map(l => `<span><strong>Niv. ${l.level}</strong> ${l.left} restant${l.left > 1 ? 's' : ''} sur ${l.total}</span>`).join('')}</div>
     ${!inv.inAlliance ? '<p class="diplo-help">Rejoignez une alliance pour attaquer les donjons.</p>' : ''}
     ${inv.hordes.length ? `<div class="profile-actions"><button class="btn btn-primary btn-sm" onclick="invasionGoNearest()">${resIconHtml('map')} Donjon le plus proche</button></div>` : ''}

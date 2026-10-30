@@ -209,15 +209,15 @@ function renderTradeReports() {
     const got = isSeller ? { res: t.buyResource, amount: t.buyAmount } : { res: t.sellResource, amount: t.sellAmount };
     const date = new Date(t.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     return `
-      <div class="report-item" style="padding:10px;margin-bottom:6px;background:var(--bg-tertiary);border-radius:8px;">
+      <div class="report-item" style="padding:10px;margin-bottom:6px;background:var(--bg-medium);border-radius:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>${isSeller ? '<img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Vendu' : '<img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Achet\u00e9'}</span>
-          <span style="color:var(--text-secondary);font-size:0.85em;">${date}</span>
+          <span style="color:var(--text-muted);font-size:0.85em;">${date}</span>
         </div>
         <div style="margin-top:4px;">
-          <span style="color:var(--error)">${resIcons[gave.res] || ''} -${formatNum(gave.amount)} ${resNames[gave.res] || gave.res}</span>
+          <span style="color:var(--red-light)">${resIcons[gave.res] || ''} -${formatNum(gave.amount)} ${resNames[gave.res] || gave.res}</span>
           →
-          <span style="color:var(--success)">${resIcons[got.res] || ''} +${formatNum(got.amount)} ${resNames[got.res] || got.res}</span>
+          <span style="color:var(--green-light)">${resIcons[got.res] || ''} +${formatNum(got.amount)} ${resNames[got.res] || got.res}</span>
         </div>
       </div>
     `;
@@ -294,7 +294,7 @@ function renderSpyReportCard(report, opts = {}) {
         <p><strong>${escapeHtml(report.cityName || '')}</strong>${report.targetName ? ` de ${escapeHtml(report.targetName)}` : ''} à (${report.targetX}, ${report.targetY})</p>
         <div class="spy-section"><h4>${resIconHtml('gold')} Ressources à portée d'un pillage</h4><div class="spy-resources">
           ${Object.entries(report.resources || {}).map(([res, val]) => `<span>${resourceIcons[res] || res} ≈ ${formatNum(val)}</span>`).join('')}</div>
-          <p class="diplo-help">Hors cachette et réserves protégées, à la centaine près.</p></div>
+          <p class="diplo-help">Hors cachette (seule protection contre le pillage), à la centaine près.</p></div>
         <div class="spy-section"><h4>${resIconHtml('attack')} Troupes</h4>${troops(report.armies)}</div>${shareBtn}</div>`;
     }
     if (report.targetType === 'COUNTER_SPY') {

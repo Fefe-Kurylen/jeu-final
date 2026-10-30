@@ -98,9 +98,9 @@ async function refreshData(force = false) {
   lastRefresh = now;
   
   try {
-    // Charger en parallèle pour plus de rapidité
-    await Promise.all([
-      loadCities(),
+    // Charger en parallèle pour plus de rapidité ; la ville est dessinée une seule fois, après tous les chargements
+    const [citiesChanged] = await Promise.all([
+      loadCities({ render: false }),
       loadArmies(),
       loadPlayer(),
       typeof refreshNotificationBadge === 'function' ? refreshNotificationBadge() : null,
@@ -111,11 +111,8 @@ async function refreshData(force = false) {
     // Une recherche en cours : suivre son avancement (niveau atteint, file promue)
     if (typeof research !== 'undefined' && research?.queue?.length && typeof loadResearch === 'function') loadResearch();
     
-    // Mettre à jour l'UI seulement si l'onglet ville est actif
-    const cityTab = document.getElementById('tab-city');
-    if (cityTab?.classList.contains('active')) {
-      renderCity();
-    }
+    // Ville redessinée si ses données ont changé ou si son onglet est affiché
+    if (citiesChanged || document.getElementById('tab-city')?.classList.contains('active')) renderCity();
     
     // Mettre à jour la carte si active
     const mapTab = document.getElementById('tab-map');

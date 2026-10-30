@@ -98,3 +98,34 @@ test('logistique (GDD) : réduit l\'entretien de l\'armée du héros, plus le tr
   assert.equal(HE.statPct(hero, 'logistics'), 0.05);   // 50 points × 0,1 % : le plafond de 5 %
   assert.equal(HE.talent(hero, 'upkeepPct'), 0);
 });
+
+// ---- XP (décision du 30 octobre 2026) : 100 XP pour le niveau 2, puis × 1,25 par niveau ----
+const XP = require('../../src/services/heroXpService');
+const config = require('../../src/config');
+test('XP : 100 pour le niveau 2, puis × 1,25 par niveau (arrondi par défaut)', () => {
+  assert.equal(config.hero.xpFirstLevel, 100);
+  assert.equal(config.hero.xpLevelFactor, 1.25);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map(XP.xpToNextAt), [100, 125, 156, 195, 243, 303]);
+  assert.equal(XP.xpToNextAt(30), 63783);
+  // la migration 0029 recalcule les héros existants avec la même chaîne
+  const sql = require('fs').readFileSync(require('path').join(__dirname, '../../prisma/migrations/0029_age_rallies_indexes/migration.sql'), 'utf8');
+  assert.match(sql, /SELECT 1, 100\s+UNION ALL\s+SELECT level \+ 1, FLOOR\(need \* 1\.25\)::int FROM chain WHERE level < 30/);
+  assert.equal(config.combat.heroMaxLevel, 30);
+});
+
+test('XP : montée de plusieurs niveaux d\'un coup, seuil × 1,25 à chaque niveau, XP gardée', async () => {
+  let row = { id: 'h1', playerId: 'p1', name: 'H', level: 1, xp: 90, xpToNextLevel: 100, statPoints: 0, diedAt: null, talents: {} };
+  const tx = { hero: { findUnique: async () => ({ ...row }), update: async ({ data }) => { row = { ...row, ...data }; return row; } } };
+  const prisma = require('../../src/config/database');
+  const saved = prisma.notification;
+  prisma.notification = { create: async () => ({ id: 'n' }) };   // avis de montée de niveau : aucune écriture réelle
+  try {
+    const r = await XP.awardHeroXp('h1', 200, tx);   // 290 XP : niveau 2 (−100), niveau 3 (−125), reste 65
+    assert.deepEqual(r, { level: 3, leveledUp: true });
+    assert.deepEqual([row.level, row.xp, row.xpToNextLevel, row.statPoints], [3, 65, 156, 8]);
+    // un héros recalculé par la migration dont l'XP dépasse déjà le nouveau seuil monte au prochain gain
+    row = { ...row, level: 5, xp: 400, xpToNextLevel: XP.xpToNextAt(5) };
+    await XP.awardHeroXp('h1', 1, tx);
+    assert.deepEqual([row.level, row.xp, row.xpToNextLevel], [6, 401 - 243, 303]);
+  } finally { prisma.notification = saved; }
+});

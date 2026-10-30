@@ -1,8 +1,18 @@
 // ========== HERO XP SERVICE ==========
 // Point unique d'attribution d'XP avec montée de niveau.
-// Courbe : 100 XP pour le niv.2, ×1.5 par niveau, +4 points de stat par niveau, niveau max 30 (GDD).
+// Courbe (décision du 30 octobre 2026) : 100 XP pour le niv. 2, puis × 1,25 par niveau (× 1,5 avant), +4 points de stat
+// par niveau, niveau max 30 (GDD). Les héros existants ont leur seuil recalculé par la migration 0029.
 const prisma = require('../config/database');
 const config = require('../config');
+
+// seuil du niveau suivant après `xpToNext` (arrondi par défaut, comme la migration)
+const nextThreshold = (xpToNext) => Math.floor(xpToNext * config.hero.xpLevelFactor);
+// XP à gagner pour quitter le niveau `level` : chaîne × xpLevelFactor depuis xpFirstLevel
+function xpToNextAt(level) {
+  let need = config.hero.xpFirstLevel;
+  for (let l = 1; l < level; l++) need = nextThreshold(need);
+  return need;
+}
 
 async function awardHeroXp(heroId, xpGained, tx = prisma) {
   if (!heroId || !xpGained || xpGained <= 0) return null;
@@ -16,7 +26,7 @@ async function awardHeroXp(heroId, xpGained, tx = prisma) {
   while (xp >= xpToNext && level < config.combat.heroMaxLevel) {
     xp -= xpToNext;
     level++;
-    xpToNext = Math.floor(xpToNext * 1.5);
+    xpToNext = nextThreshold(xpToNext);
     statPoints += 4;
   }
   if (level >= config.combat.heroMaxLevel) xp = 0;
@@ -28,4 +38,4 @@ async function awardHeroXp(heroId, xpGained, tx = prisma) {
   return { level, leveledUp: level > hero.level };
 }
 
-module.exports = { awardHeroXp };
+module.exports = { awardHeroXp, xpToNextAt };

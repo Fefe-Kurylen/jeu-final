@@ -13,8 +13,7 @@ const HE = require('../utils/heroEffects');
 const { notify } = require('./pushService');
 const { debitCity, lockCity } = require('../utils/db');
 const { buildingsData } = require('../config/gamedata');
-
-const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
+const { httpError } = require('../utils/httpError');
 const RES = ['wood', 'stone', 'iron', 'food'];
 const DOMUS = buildingsData.find(b => b.key === 'HERO_MANSION')?.effects || {};
 

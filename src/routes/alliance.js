@@ -340,4 +340,3 @@ router.get('/player/:targetPlayerId', auth, async (req, res) => {
 });
 
 module.exports = router;
-module.exports.allianceFull = allianceFull;

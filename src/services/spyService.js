@@ -22,7 +22,7 @@ const { routeLength } = require('../utils/pathfinding');
 const { notify } = require('./pushService');
 
 const S = config.spies;
-const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
+const { httpError } = require('../utils/httpError');
 const RES = ['wood', 'stone', 'iron', 'food'];
 
 async function watchtowerLevelOf(playerId, db = prisma) {

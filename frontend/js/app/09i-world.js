@@ -38,20 +38,27 @@ function renderWonderNodePanel(tile, content) {
   const site = tile.resourceType === 'WONDER';
   const id = chatSafeId(tile.id);
   const hasArmy = (armies || []).some(a => a.status === 'IDLE' && !a.isGarrison && (a.units || []).length > 0);
+  // rassemblement d'alliance contre les Immortels (décision du 30 octobre 2026), comme pour un donjon
+  const inAlliance = !!(typeof player !== 'undefined' && player?.allianceId);
+  const canRally = tile.hasDefenders && inAlliance && typeof openRallyLaunch === 'function';
+  const rallyReady = canRally && typeof rallyArmies === 'function' && rallyArmies().length > 0;
   const guard = tile.hasDefenders ? `<p>${resIconHtml('defense')} Garnison des Immortels : <strong>${formatNum(tile.defenderPower || 0)}</strong> de puissance</p>` : `<p class="diplo-help">Les Immortels sont vaincus${tile.lastDefeat ? ` : ils reviennent ${formatTime(new Date(new Date(tile.lastDefeat).getTime() + 86400000).toISOString())} après leur défaite si personne n'y fonde de ville` : ''}.</p>`;
   content.innerHTML = `
-    <h3>${resIconHtml(site ? 'crown' : 'reports')} ${site ? 'Site de Merveille' : 'Plan de construction'}</h3>
+    <h3 data-wonder-node="${id}">${resIconHtml(site ? 'crown' : 'reports')} ${site ? 'Site de Merveille' : 'Plan de construction'}</h3>
     <p>Position : (${tile.x}, ${tile.y})</p>
     ${guard}
     <p class="diplo-help">${site
       ? 'Battez la garnison des Immortels, puis fondez-y une ville avec un colon : elle devient la Ville Merveille de votre alliance (une par joueur). La première alliance qui monte sa Merveille au niveau 100 gagne le monde.'
-      : 'Battez la garnison des Immortels pour prendre le plan : il reste dans votre capitale et permet à votre alliance de monter sa Merveille au-delà du niveau 50. Un assaut gagné contre votre capitale l\'emporterait.'}</p>
+      : 'Battez la garnison des Immortels pour prendre le plan : il reste dans votre capitale et permet à votre alliance de monter sa Merveille au-delà du niveau 50. Un assaut gagné contre votre capitale l\'emporterait.'}${canRally ? ' Seul ou en rassemblement d\'alliance : la prise revient à celui qui le lance.' : ''}</p>
     <div class="panel-actions">
       ${tile.hasDefenders ? `<button class="btn btn-danger" onclick="raidResource('${id}', ${tile.x}, ${tile.y})" ${hasArmy ? '' : 'disabled title="Aucune armée disponible"'}>${resIconHtml('attack')} Attaquer les Immortels</button>` : ''}
+      ${canRally ? `<button class="btn btn-danger" onclick="closeMapPanel(); openRallyLaunch('${id}', ${tile.x}, ${tile.y}, null, '${site ? 'WONDER' : 'PLAN'}')" ${rallyReady ? '' : 'disabled title="Aucune armée libre dans ses murs"'}>${resIconHtml('rally')} Rassemblement</button>` : ''}
       ${site && !tile.hasDefenders && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${id}', ${tile.x}, ${tile.y})">${resIconHtml('crown')} Fonder la Ville Merveille</button>` : ''}
       ${typeof openSpyMission === 'function' ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${id}', label: '${site ? 'le site de Merveille' : 'le plan'} (${tile.x}, ${tile.y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
       ${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}
-    </div>`;
+    </div>
+    <div class="node-rallies"></div>`;
+  if (inAlliance && typeof fillNodeRallies === 'function') fillNodeRallies(content.querySelector('.node-rallies'), tile.id);   // rassemblements de son alliance contre ce nœud
 }
 
 // ---- Ville Merveille ----

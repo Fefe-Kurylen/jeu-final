@@ -11,6 +11,9 @@
 //   partagé selon les dégâts ; le dernier coup a une chance d'objet rare pour le héros.
 // - Le donjon est un point spécial de la carte (ResourceNode « HORDE ») : il se voit, s'espionne et s'attaque comme un
 //   camp ; rien à récolter, pas de ville à y fonder.
+// - Âge du monde (décision du 30 octobre 2026) : au lancement, mult = min(ageMax, 1 + ageFactorPerWeek × max(0, semaine du
+//   monde − ageFromWeek)), noté sur l'invasion ; un donjon de niveau L prend × mult^((L − 1)/4) sur la puissance de ses
+//   étages et sur les ressources de son trésor (ni l'or, ni les points d'alliance). Le niveau 1 ne change pas.
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
@@ -82,18 +85,31 @@ function garrison(power, tier) {
   }
   return units;
 }
-const floorPower = (level, floor) => Math.round(I.basePower * Math.pow(I.levelFactor, level - 1) * I.floorPowerMult[floor - 1]);
-function floorsFor(level) {
-  return I.floors.map((name, i) => { const units = garrison(floorPower(level, i + 1), I.floorTier[i]); return { name, units, power: powerOf(units) }; });
+// ---- âge du monde ----
+// multiplicateur d'une invasion lancée le jour `day` du monde (semaine 1 = jours 1 à 7)
+function ageMultFor(day) {
+  const week = Math.floor((Math.max(1, Number(day) || 1) - 1) / 7) + 1;
+  return Math.min(I.ageMax, 1 + I.ageFactorPerWeek * Math.max(0, week - I.ageFromWeek));
 }
-function treasureFor(level) {
+// part de ce multiplicateur pour un donjon de niveau L : rien au niveau 1, tout au niveau 5
+const levelAgeMult = (level, mult = 1) => Math.pow(Math.max(1, Number(mult) || 1), (level - 1) / 4);
+async function currentAgeMult(now = new Date()) {
+  try { return ageMultFor((await require('./wonderService').worldState(now)).day); } catch (e) { console.error('[INVASION] âge du monde :', e.message); return 1; }
+}
+
+const floorPower = (level, floor, mult = 1) => Math.round(I.basePower * Math.pow(I.levelFactor, level - 1) * I.floorPowerMult[floor - 1] * levelAgeMult(level, mult));
+function floorsFor(level, mult = 1) {
+  return I.floors.map((name, i) => { const units = garrison(floorPower(level, i + 1, mult), I.floorTier[i]); return { name, units, power: powerOf(units) }; });
+}
+// trésor d'un donjon : l'âge du monde (mult de l'invasion) grossit les ressources seulement
+function treasureFor(level, mult = 1) {
   const T = I.treasure;
-  const res = Math.round(T.resources * Math.pow(T.resourceFactor, level - 1));
+  const res = Math.round(T.resources * Math.pow(T.resourceFactor, level - 1) * levelAgeMult(level, mult));
   return { wood: res, stone: res, iron: res, food: res, gold: Math.round(T.gold * Math.pow(T.goldFactor, level - 1)), alliancePoints: Math.round(T.alliancePoints * Math.pow(T.goldFactor, level - 1)), itemChance: I.itemChance[level - 1], itemTier: I.itemTier[level - 1] };
 }
 
 // ---- début et fin d'une invasion ----
-async function placeLevel(invasionId, level, count) {
+async function placeLevel(invasionId, level, count, mult = 1) {
   const [rMin, rMax] = I.rings[level];
   const { footprintFree } = require('../utils/spawn');
   let made = 0;
@@ -108,7 +124,7 @@ async function placeLevel(invasionId, level, count) {
       // un donjon reste à 4 cases au moins des villes et des autres donjons (lisible sur la carte)
       if (await prisma.city.findFirst({ where: { x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
       if (await prisma.resourceNode.findFirst({ where: { resourceType: { in: ['HORDE', 'WONDER', 'PLAN'] }, x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
-      const floors = floorsFor(level);
+      const floors = floorsFor(level, mult);
       try {
         await prisma.$transaction(async (tx) => {
           const node = await tx.resourceNode.create({ data: { x, y, resourceType: 'HORDE', level, amount: 0, maxAmount: 0, regenRate: 0, biome: Terrain.getTerrainType(x, y).biome || 'forest', hasDefenders: true, defenderUnits: floors[0].units, defenderPower: floors[0].power, respawnMinutes: 0 } });
@@ -123,14 +139,15 @@ async function placeLevel(invasionId, level, count) {
 }
 async function startInvasion({ key, endsAt, manual = false, now = new Date() }) {
   if (await prisma.invasion.findFirst({ where: { endedAt: null } })) return null;
+  const ageMult = await currentAgeMult(now);   // fixé une fois pour toute l'invasion
   let inv;
-  try { inv = await prisma.invasion.create({ data: { key, startedAt: now, endsAt, manual } }); } catch (e) { return null; }   // déjà lancée (autre processus)
+  try { inv = await prisma.invasion.create({ data: { key, startedAt: now, endsAt, manual, ageMult } }); } catch (e) { return null; }   // déjà lancée (autre processus)
   let total = 0;
-  for (const [level, count] of Object.entries(I.counts)) total += await placeLevel(inv.id, Number(level), count);
+  for (const [level, count] of Object.entries(I.counts)) total += await placeLevel(inv.id, Number(level), count, ageMult);
   await prisma.invasion.update({ where: { id: inv.id }, data: { hordes: total } });
   const until = endsAt.toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: TZ });
   await prisma.$executeRaw`INSERT INTO "Notification" ("id", "playerId", "kind", "title", "body", "link") SELECT gen_random_uuid(), p.id, 'invasion', ${'⚔️ Invasion barbare'}, ${`${total} donjons de hordes sont apparus sur la carte, jusqu'à ${until}. Avec votre alliance, abattez leurs trois étages : le trésor est partagé selon les dégâts. Les hordes n'attaquent pas les villes.`}, ${JSON.stringify({ to: 'world', tab: 'ranking' })}::jsonb FROM "Player" p`;
-  console.log(`[INVASION] ${key} : ${total} donjons jusqu'au ${endsAt.toISOString()}`);
+  console.log(`[INVASION] ${key} : ${total} donjons jusqu'au ${endsAt.toISOString()} (âge du monde × ${ageMult.toFixed(2)})`);
   return { ...inv, hordes: total };
 }
 async function endInvasion(inv, now = new Date()) {
@@ -248,8 +265,8 @@ async function attackHorde(army, nodeId) {
 async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
   await tx.horde.update({ where: { id: horde.id }, data: { destroyedAt: new Date(), floor: I.floors.length } });
   await tx.resourceNode.delete({ where: { id: node.id } });
-  await tx.invasion.update({ where: { id: horde.invasionId }, data: { destroyed: { increment: 1 } } });
-  const T = treasureFor(horde.level);
+  const inv = await tx.invasion.update({ where: { id: horde.invasionId }, data: { destroyed: { increment: 1 } } });
+  const T = treasureFor(horde.level, inv?.ageMult);
   // un compte supprimé laisse ses lignes de dégâts : seuls les joueurs encore là se partagent le trésor
   const dealt = await tx.hordeDamage.findMany({ where: { hordeId: horde.id, points: { gt: 0 } } });
   const alive = new Set((await tx.player.findMany({ where: { id: { in: dealt.map(r => r.playerId) } }, select: { id: true } })).map(p => p.id));
@@ -301,7 +318,7 @@ async function invasionState(playerId, now = new Date()) {
   const hordes = await prisma.horde.findMany({ where: { invasionId: last.id }, select: { nodeId: true, x: true, y: true, level: true, floor: true, destroyedAt: true } });
   const alliances = await prisma.$queryRawUnsafe(`SELECT a.id, a.tag, a.name, SUM(d.points)::int AS points, COUNT(DISTINCT d."hordeId")::int AS hordes FROM "HordeDamage" d JOIN "Horde" h ON h.id = d."hordeId" JOIN "Alliance" a ON a.id = d."allianceId" WHERE h."invasionId" = $1 GROUP BY a.id, a.tag, a.name ORDER BY points DESC LIMIT 10`, last.id);
   const mine = playerId ? await prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(d.points), 0)::int AS points FROM "HordeDamage" d JOIN "Horde" h ON h.id = d."hordeId" WHERE h."invasionId" = $1 AND d."playerId" = $2`, last.id, playerId) : [{ points: 0 }];
-  out.invasion = { id: last.id, startedAt: last.startedAt, endsAt: last.endsAt, endedAt: last.endedAt, manual: last.manual, total: last.hordes, destroyed: last.destroyed,
+  out.invasion = { id: last.id, startedAt: last.startedAt, endsAt: last.endsAt, endedAt: last.endedAt, manual: last.manual, total: last.hordes, destroyed: last.destroyed, ageMult: last.ageMult ?? 1,
     byLevel: [1, 2, 3, 4, 5].map(l => ({ level: l, left: hordes.filter(h => h.level === l && !h.destroyedAt).length, total: hordes.filter(h => h.level === l).length })),
     hordes: inv ? hordes.filter(h => !h.destroyedAt).map(h => ({ nodeId: h.nodeId, x: h.x, y: h.y, level: h.level, floor: h.floor })) : [],
     alliances: alliances.map(a => ({ ...a, mine: a.id === member?.allianceId })), myPoints: mine[0]?.points || 0, inAlliance: !!member };
@@ -317,7 +334,7 @@ async function hordeView(nodeId, playerId) {
   const players = await prisma.player.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, alliance: { select: { alliance: { select: { tag: true } } } } } });
   const byId = new Map(players.map(p => [p.id, p]));
   const total = horde.damage.reduce((t, d) => t + d.points, 0);
-  const T = treasureFor(horde.level);
+  const T = treasureFor(horde.level, inv?.ageMult);
   return {
     nodeId: horde.nodeId, x: horde.x, y: horde.y, level: horde.level, floor: horde.floor, destroyed: !!horde.destroyedAt, endsAt: inv?.endsAt,
     floors: horde.floors.map((f, i) => ({ name: f.name, power: f.power, done: i + 1 < horde.floor || !!horde.destroyedAt, current: i + 1 === horde.floor && !horde.destroyedAt, left: i + 1 === horde.floor ? (node?.defenderPower ?? 0) : i + 1 < horde.floor ? 0 : f.power })),
@@ -328,4 +345,4 @@ async function hordeView(nodeId, playerId) {
   };
 }
 
-module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
+module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, ageMultFor, levelAgeMult, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };

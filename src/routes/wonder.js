@@ -7,7 +7,7 @@
 // POST /api/wonder/:cityId/build   lancer le niveau suivant
 const express = require('express');
 const router = express.Router();
-const { sendError } = require('../utils/httpError');
+const { sendError, sendFail } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const WS = require('../services/wonderService');
@@ -15,7 +15,7 @@ const HF = require('../services/hallOfFameService');
 const { isId } = require('../utils/db');
 const { validateFaction } = require('../utils/validation');
 
-const fail = (res, e) => (e.expose ? res.status(e.status).json({ error: e.message }) : sendError(res, e));
+const fail = (res, e) => sendFail(res, e, { context: 'wonder' });
 
 router.get('/world/state', async (req, res) => {
   try { res.json(await WS.worldState()); } catch (e) { sendError(res, e); }

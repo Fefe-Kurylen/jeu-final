@@ -26,7 +26,8 @@ function settlerSlotsFor(level) {
   return 0;
 }
 const capitalCity = () => (cities || []).find(c => c.isCapital) || null;
-const secondaryCities = () => (cities || []).filter(c => !c.isCapital);
+// la Ville Merveille n'est pas une colonie : hors quota (routes/cities.js, décision du 28 octobre 2026)
+const secondaryCities = () => (cities || []).filter(c => !c.isCapital && !c.isWonder);
 const settlersTravelling = () => (armies || []).reduce((s, a) => s + (a.settlers || 0), 0);
 
 // Onglet « Colons » du panneau de la Résidence
@@ -38,7 +39,9 @@ function colonyTabHtml(level) {
   const used = colonies.length + available + settlersTravelling() + training.length;
   const fx = residenceEffects();
   const trainH = Math.round((fx.settlerTrainTimeSec || 10800) / 3600), foundH = Math.round((fx.cityFoundationTimeSec || 86400) / 3600), bonus = fx.secondaryCityBonusPct || 20;
-  const canTrain = currentCity?.isCapital && slots > 0 && used < slots;
+  // un colon de plus pour la Ville Merveille quand toutes les places sont des colonies fondées et qu'aucun colon n'attend
+  const forWonder = used >= slots && colonies.length >= slots && used === colonies.length && !(cities || []).some(c => c.isWonder);
+  const canTrain = currentCity?.isCapital && slots > 0 && (used < slots || forWonder);
   const nextLevel = slots >= 3 ? null : slots === 2 ? 20 : slots === 1 ? 15 : 10;
   return `
     <div class="special-tab-content">
@@ -46,7 +49,7 @@ function colonyTabHtml(level) {
       <p>Résidence niveau <strong>${level}</strong> : <strong>${slots}</strong> colon${slots > 1 ? 's' : ''} (1 au niveau 10, 2 au niveau 15, 3 au niveau 20)${nextLevel ? ` · le suivant au niveau ${nextLevel}` : ''}.</p>
       <p>Villes secondaires : <strong>${colonies.length}</strong>${colonies.length ? ' (' + colonies.map(c => escapeHtml(c.name)).join(', ') + ')' : ''} · colons prêts dans la capitale : <strong>${available}</strong> · en route : <strong>${settlersTravelling()}</strong> · en formation : <strong>${training.length}</strong></p>
       ${training.length ? `<div class="research-queue">${training.map(q => `<div class="research-queue-item running"><span class="rq-name">Colon en formation</span><span class="rq-state"><span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span></span><button type="button" class="btn-small" onclick="cancelRecruit('${q.id}')" title="Annuler" aria-label="Annuler">✕</button></div>`).join('')}</div>` : ''}
-      <button type="button" class="btn-primary" ${canTrain ? '' : 'disabled'} onclick="trainSettler()">${canTrain ? `Former un colon (${trainH} h)` : !currentCity?.isCapital ? 'Capitale seulement' : slots === 0 ? 'Résidence niveau 10 requise' : 'Tous les colons sont engagés'}</button>
+      <button type="button" class="btn-primary" ${canTrain ? '' : 'disabled'} onclick="trainSettler()">${canTrain ? `Former un colon${forWonder ? ' pour la Ville Merveille' : ''} (${trainH} h)` : !currentCity?.isCapital ? 'Capitale seulement' : slots === 0 ? 'Résidence niveau 10 requise' : 'Tous les colons sont engagés'}</button>
       <p class="research-empty" style="margin-top:8px">Pour fonder une ville : une armée de la capitale emmène un colon et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource sur un point de ressource libre (bulle du point sur la carte, « Fonder une ville »). La fondation dure ${foundH} h sur place ; la colonie produit +${bonus} %. Le colon est perdu si l'armée est battue en chemin.</p>
     </div>`;
 }

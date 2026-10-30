@@ -15,7 +15,7 @@ const R = path.join(__dirname, '..');
 const config = require(R + '/src/config');
 const { buildingsData } = require(R + '/src/config/gamedata');
 const T = require(R + '/src/utils/techEffects');
-const { getProductionAtLevel, getStorageAtLevel } = require(R + '/src/utils/calculations');
+const { getProductionAtLevel, cityStorageCaps } = require(R + '/src/utils/calculations');
 const fx = require(R + '/src/utils/buildingEffects');
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.+)$/); return m ? [m[1], Number(m[2])] : [a, true]; }));
@@ -75,7 +75,8 @@ const techPct = eff => T.techPct(levels, eff) * effectScale;
 const city = { MAIN_HALL: 1, ACADEMY: 0, WAREHOUSE: 0, SILO: 0 };
 const fields = Object.entries(config.city.fieldSlots).flatMap(([k, v]) => v.map(() => ({ key: k, level: 0 })));
 const stock = { wood: 500, stone: 500, iron: 500, food: 500 };
-const capOf = r => Math.max(1000, getStorageAtLevel(STORE_OF[r], city[STORE_OF[r]], buildingsData));
+// stockage comme le serveur (calculations.cityStorageCaps : dépôts et silos additionnés, 1 000 au moins)
+const capOf = r => cityStorageCaps([{ key: 'WAREHOUSE', level: city.WAREHOUSE }, { key: 'SILO', level: city.SILO }], buildingsData)[r === 'food' ? 'maxFoodStorage' : 'maxStorage'];
 const prod = {};
 const refreshProd = () => { for (const r of RES) prod[r] = (BASE_PROD[r] + fields.reduce((s, f) => s + (FIELD_RES[f.key] === r ? getProductionAtLevel(f.key, f.level, buildingsData) : 0), 0)) * (1 + techPct('productionBonusPct') / 100); };
 refreshProd();

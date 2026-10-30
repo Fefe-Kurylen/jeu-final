@@ -172,11 +172,33 @@ function cityProductionMultiplier(city) {
   return colony * plus * (1 + Math.min(50, irrigation) / 100) * (1 + tech / 100);
 }
 
-// Storage given by a warehouse (or silo) level: exponential 1 200 -> 160 000, like the server
-function getStorageAtLevel(level) {
-  if (level <= 0) return 1000;
-  if (level >= 20) return 160000;
-  return Math.round(1200 * Math.pow(160000 / 1200, (level - 1) / 19));
+// Capacité d'un bâtiment de stockage à un niveau, comme le serveur (utils/calculations.js) : courbe storageL1/L20
+// (foodStorageL1/L20 pour les silos) des données. Grand dépôt et Grand silo : 3 fois un dépôt ou un silo de même
+// niveau, en plus (décision du 30 octobre 2026) ; sans dépôt ni silo, la ville garde 1 000
+const STORAGE_PREFIX = { WAREHOUSE: 'storage', GREAT_WAREHOUSE: 'storage', SILO: 'foodStorage', GREAT_SILO: 'foodStorage' };
+function getStorageAtLevel(level, key = 'WAREHOUSE') {
+  const great = key === 'GREAT_WAREHOUSE' || key === 'GREAT_SILO';
+  if (level <= 0) return great ? 0 : 1000;
+  const fx = window.buildingsData?.find?.(b => b.key === key)?.effects || {};
+  const p = STORAGE_PREFIX[key] || 'storage', mult = great ? 3 : 1;
+  const l1 = Number(fx[p + 'L1']) || 1200 * mult, l20 = Number(fx[p + 'L20']) || 160000 * mult;
+  if (level >= 20) return l20;
+  return Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19));
+}
+
+// Vitesse de marche des armées parties d'une ville, en % (comme l'extraSpeedPct du serveur) : technologies (Cartographie),
+// Bastion d'alliance debout, Irrigation égyptienne de la ville (0,5 % par niveau, 50 % au plus). Le bonus de
+// civilisation se compte à part (factionBonusPct 'armySpeed')
+function irrigationSpeedPct(city) {
+  const per = Number(window.buildingsData?.find?.(b => b.key === 'EGYPTIAN_IRRIGATION')?.effects?.marchSpeedBonusPctPerLevel) || 0.5;
+  // niveau le plus haut, comme levelOf du serveur (utils/buildingEffects.js marchSpeedBonusPct)
+  return Math.min(50, (city?.buildings || []).reduce((m, b) => (b.key === 'EGYPTIAN_IRRIGATION' && b.level > m ? b.level : m), 0) * per);
+}
+function armySpeedExtraPct(city) {
+  const tech = typeof techPctClient === 'function' ? techPctClient('armySpeedBonusPct') : 0;
+  const bs = typeof bastionState !== 'undefined' ? bastionState : null;
+  const bastion = bs?.bastion?.status === 'ACTIVE' ? Number(bs.rules?.bonuses?.armySpeedPct ?? 5) || 0 : 0;
+  return tech + bastion + irrigationSpeedPct(city);
 }
 
 // ========== CACHE SYSTEM ==========
@@ -753,7 +775,6 @@ function updateAttackNotification() {
   if (!countEl && active.length > 1 && iconEl) {
     countEl = document.createElement('span');
     countEl.className = 'attack-count';
-    countEl.style.cssText = 'color:#fff;font-size:12px;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)';
     iconEl.after(countEl);
   }
   if (countEl) {
@@ -786,16 +807,6 @@ function renderCity() {
   // Storage capacity is computed by the server (warehouse / silo curves)
   const maxRes = currentCity.maxStorage || 1000;
   const maxFood = currentCity.maxFoodStorage || 1000;
-
-  // Update max displays
-  const maxWoodEl = document.getElementById('max-wood');
-  const maxStoneEl = document.getElementById('max-stone');
-  const maxIronEl = document.getElementById('max-iron');
-  const maxFoodEl = document.getElementById('max-food');
-  if (maxWoodEl) maxWoodEl.textContent = formatNum(maxRes);
-  if (maxStoneEl) maxStoneEl.textContent = formatNum(maxRes);
-  if (maxIronEl) maxIronEl.textContent = formatNum(maxRes);
-  if (maxFoodEl) maxFoodEl.textContent = formatNum(maxFood);
 
   // Update resource progress bars
   const woodPct = Math.min(100, (currentCity.wood / maxRes) * 100);
@@ -899,7 +910,6 @@ function renderCity() {
   // Render queues (sidebar)
   renderBuildQueue();
   renderRecruitQueue();
-  renderMovingArmies();
 
   if (document.getElementById('wounded-list')) loadWounded();   // seulement quand le panneau de la tente de soins est ouvert
 }

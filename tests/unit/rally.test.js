@@ -42,14 +42,15 @@ function table(rows) {
     findMany: async ({ where } = {}) => rows.filter(x => matches(x, where)).map(copy),
     count: async ({ where } = {}) => rows.filter(x => matches(x, where)).length,
     update: async ({ where, data }) => Object.assign(rows.find(x => x.id === where.id), data),
+    create: async ({ data }) => { const row = { id: `new${rows.length + 1}`, ...data }; rows.push(row); return { ...row }; },
     updateMany: async ({ where, data }) => { const hit = rows.filter(x => matches(x, where)); for (const x of hit) Object.assign(x, data); return { count: hit.length }; }
   };
 }
-function fakeDb({ cities = [], armies = [], rallies = [], nodes = [], members = [], bastions = [] }) {
-  const names = ['army', 'rally', 'city', 'resourceNode', 'allianceMember', 'bastion', 'notification', '$transaction'];
+function fakeDb({ cities = [], armies = [], rallies = [], nodes = [], members = [], bastions = [], buildings = [], hordes = [], players = [] }) {
+  const names = ['army', 'rally', 'city', 'resourceNode', 'allianceMember', 'bastion', 'cityBuilding', 'horde', 'player', 'notification', '$transaction'];
   const saved = Object.fromEntries(names.map(n => [n, prisma[n]]));
   const notes = [], sentHome = [], hooks = { onRoute: null };
-  const db = { army: table(armies), rally: table(rallies), city: table(cities), resourceNode: table(nodes), allianceMember: table(members), bastion: table(bastions) };
+  const db = { army: table(armies), rally: table(rallies), city: table(cities), resourceNode: table(nodes), allianceMember: table(members), bastion: table(bastions), cityBuilding: table(buildings), horde: table(hordes), player: table(players) };
   db.notification = { create: async ({ data }) => { notes.push(data); return { id: String(notes.length) }; } };
   const $queryRaw = async (strings, ...values) => {
     if (strings.join('?').includes('"Rally"')) { const r = rallies.find(x => x.id === values[0]); return r ? [{ status: r.status }] : []; }
@@ -226,4 +227,101 @@ test('rencontres : les marches d\'un rassemblement sont candidates, la garde d\'
   assert.ok(!enc.allowedOnBastion(b, guard, at('RALLY_MARCH', { targetBastionId: 'b2' })));
   assert.ok(!enc.allowedOnBastion(b, guard, at('RALLY_JOIN')));
   assert.ok(!enc.allowedOnCity({ x: 0, y: -10, playerId: 'p1' }, { status: 'IDLE', x: 0, y: -10, ownerId: 'g' }, at('RALLY_JOIN', { targetX: 0, targetY: -10 })));   // la case d'une ville reste aux règles du siège
+});
+
+// ---- sites et plans de Merveille gardés par les Immortels (décision du 30 octobre 2026) ----
+const WS = require('../../src/services/wonderService');
+const immortalNode = (id, type, extra = {}) => ({ id, x: 10, y: -10, resourceType: type, hasDefenders: true, defenderPower: 500000, cityId: null, ...extra });
+
+test('lancer : un site ou un plan de Merveille gardé s\'attaque en rassemblement ; libéré, bâti ou absent, refusé', async () => {
+  const leader = cityRow('cA', 'p1', 0, -10);
+  const db = fakeDb({
+    cities: [leader], members: [{ playerId: 'p1', allianceId: 'A1' }, { playerId: 'p2', allianceId: 'A1' }],
+    nodes: [immortalNode('w1', 'WONDER'), immortalNode('w2', 'WONDER', { hasDefenders: false, defenderPower: 0 }), immortalNode('w3', 'WONDER', { cityId: 'cW' }), immortalNode('pl1', 'PLAN'), { id: 'n9', x: 3, y: 3, resourceType: 'WOOD' }],
+    armies: [armyRow('a1', 'p1', leader), armyRow('a2', 'p1', leader)]
+  });
+  try {
+    const out = await R.launch('p1', { armyId: 'a1', nodeId: 'w1', waitMinutes: 10 });
+    assert.equal(out.rally.targetKind, 'WONDER');
+    assert.equal(out.rally.targetNodeId, 'w1');
+    assert.equal(db.army('a1').status, 'RALLY_WAIT');
+    assert.ok(db.notes.some(n => n.playerId === 'p2' && /site de Merveille gardé par les Immortels/.test(n.body)));
+    await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'w2', waitMinutes: 10 }), (e) => e.status === 400 && /déjà vaincus/.test(e.message));
+    await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'w3', waitMinutes: 10 }), (e) => e.status === 400 && /Ville Merveille/.test(e.message));
+    await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'n9', waitMinutes: 10 }), (e) => e.status === 404);
+    const plan = await R.launch('p1', { armyId: 'a2', nodeId: 'pl1', waitMinutes: 5 });
+    assert.equal(plan.rally.targetKind, 'PLAN');
+  } finally { db.restore(); }
+});
+
+test('départ : Immortels déjà vaincus par d\'autres (ou plan déjà pris), le rassemblement est annulé', async () => {
+  const leader = cityRow('cA', 'p1', 0, -10), home = cityRow('cB', 'p2', 4, -12);
+  const db = fakeDb({
+    cities: [leader, home], nodes: [immortalNode('w1', 'WONDER', { hasDefenders: false })],
+    rallies: [rallyRow({ targetNodeId: 'w1', targetKind: 'WONDER' }), rallyRow({ id: 'r2', targetNodeId: 'gone', targetKind: 'PLAN' })],
+    armies: [armyRow('a1', 'p1', leader, waiting(leader, 'r1')), armyRow('a2', 'p2', home, waiting(leader, 'r1'))]
+  });
+  try {
+    assert.equal(await R.depart(db.rally('r1')), null);
+    assert.equal(db.rally('r1').status, 'CANCELLED');
+    assert.equal(db.rally('r1').result.reason, 'les Immortels ont déjà été vaincus');
+    assert.ok(db.notes.some(n => n.playerId === 'p2' && /site de Merveille/.test(n.body)));
+    assert.equal(await R.depart(db.rally('r2')), null);
+    assert.equal(db.rally('r2').result.reason, 'le plan a déjà été pris');
+  } finally { db.restore(); }
+});
+
+test('arrivée devant les Immortels : un seul combat de groupe, armée du lanceur en tête, puis chacun rentre', async () => {
+  const leader = cityRow('cA', 'p1', 0, -10), home = cityRow('cB', 'p2', 4, -12);
+  const march = (extra = {}) => ({ status: 'RALLY_MARCH', missionType: 'RALLY', rallyId: 'r1', x: 0, y: -10, targetX: 10, targetY: -10, ...extra });
+  const db = fakeDb({
+    cities: [leader, home], nodes: [immortalNode('pl1', 'PLAN')],
+    rallies: [rallyRow({ status: 'MARCHING', targetNodeId: 'pl1', targetKind: 'PLAN', arrivalAt: new Date(Date.now() - 1000) })],
+    armies: [armyRow('a2', 'p2', home, march()), armyRow('a1', 'p1', leader, march())]
+  });
+  const saved = WS.attackImmortalsGroup;
+  const calls = [];
+  WS.attackImmortalsGroup = async (ids, nodeId, leaderId) => {
+    calls.push({ ids, nodeId, leaderId });
+    return { won: true, kind: 'PLAN', x: 10, y: -10, captorId: 'p1', captorName: 'Aulus', plan: true, armies: [{ armyId: 'a1', ownerId: 'p1', name: 'a1', lost: 3, reportId: 'rp1' }, { armyId: 'a2', ownerId: 'p2', name: 'a2', lost: 5, reportId: 'rp2' }] };
+  };
+  try {
+    const r = await R.fight(db.rally('r1'));
+    assert.equal(r.won, true);
+    assert.deepEqual(calls, [{ ids: ['a1', 'a2'], nodeId: 'pl1', leaderId: 'p1' }]);
+    assert.equal(db.rally('r1').status, 'DONE');
+    assert.deepEqual(db.rally('r1').result, { won: true, kind: 'PLAN', plan: true, captorId: 'p1', armies: 2 });
+    assert.deepEqual(db.sentHome.map(s => s.id).sort(), ['a1', 'a2']);
+    for (const id of ['a1', 'a2']) { assert.equal(db.army(id).status, 'RETURNING'); assert.equal(db.army(id).rallyId, null); }
+    assert.ok(db.notes.some(n => n.playerId === 'p2' && /le plan revient à Aulus/.test(n.body)));
+  } finally { WS.attackImmortalsGroup = saved; db.restore(); }
+});
+
+test('liste : la nature de la cible (site, plan, donjon, Bastion) et la puissance des Immortels', async () => {
+  const db = fakeDb({
+    members: [{ playerId: 'p1', allianceId: 'A1' }], players: [{ id: 'p1', name: 'Aulus' }],
+    nodes: [immortalNode('w1', 'WONDER', { defenderPower: 123456 })],
+    rallies: [rallyRow({ targetNodeId: 'w1', targetKind: 'WONDER' }), rallyRow({ id: 'r2', targetNodeId: 'h1', targetKind: null })]
+  });
+  try {
+    const { rallies } = await R.listForPlayer('p1');
+    assert.deepEqual(rallies.map(r => [r.id, r.kind, r.guardPower]), [['r1', 'WONDER', 123456], ['r2', 'HORDE', null]]);
+    assert.equal(R.kindOf({ targetBastionId: 'b1' }), 'BASTION');
+  } finally { db.restore(); }
+});
+
+// ---- route : erreurs métier et absence de chemin rendues au joueur ----
+test('route : une erreur métier garde son statut, l\'absence de chemin vers le lanceur donne 400', async () => {
+  const router = require('../../src/routes/rally');
+  const join = router.stack.find(l => l.route && l.route.path === '/rallies/:id/join' && l.route.methods.post).route.stack.at(-1).handle;
+  const res = () => { const r = { statusCode: 200, body: null }; r.status = (c) => { r.statusCode = c; return r; }; r.json = (b) => { r.body = b; return r; }; return r; };
+  const saved = R.join;
+  try {
+    R.join = async () => { throw Object.assign(new Error('Aucun chemin terrestre vers cette destination'), { code: 'NO_ROUTE', status: 400 }); };
+    const r1 = res(); await join({ user: { playerId: 'p1' }, params: { id: 'r1' }, body: { armyId: 'a1' } }, r1);
+    assert.deepEqual([r1.statusCode, r1.body.error], [400, 'Aucun chemin terrestre vers cette destination']);
+    R.join = async () => { const { httpError } = require('../../src/utils/httpError'); throw httpError(403, 'Ce rassemblement est celui d\'une autre alliance'); };
+    const r2 = res(); await join({ user: { playerId: 'p1' }, params: { id: 'r1' }, body: { armyId: 'a1' } }, r2);
+    assert.equal(r2.statusCode, 403);
+  } finally { R.join = saved; }
 });

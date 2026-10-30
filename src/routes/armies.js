@@ -1,7 +1,7 @@
 const express = require('express');
 const { notify } = require('../services/pushService');
 const router = express.Router();
-const { sendError } = require('../utils/httpError');
+const { sendError, sendFail } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
@@ -164,7 +164,7 @@ router.post('/support/:id/send-back', auth, async (req, res) => {
   try {
     if (!isId(req.params.id)) return res.status(400).json({ error: 'Armée invalide' });
     res.json(await require('../services/supportService').sendBack(req.user.playerId, req.params.id));
-  } catch (e) { if (e.expose) return res.status(e.status).json({ error: e.message }); sendError(res, e); }
+  } catch (e) { sendFail(res, e); }
 });
 // POST /api/army/:id/support { targetCityId } — envoie l'armée défendre la ville d'un membre de l'alliance ou d'un allié
 router.post('/:id/support', auth, async (req, res) => {
@@ -799,3 +799,6 @@ router.get('/', auth, async (req, res) => {
 });
 
 module.exports = router;
+// calculs de marche et de charge, pour les tests
+module.exports.speedTechPct = speedTechPct;
+module.exports.transportCapacity = transportCapacity;

@@ -241,8 +241,8 @@ const config = {
     targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
     // Siège (décision du 25 octobre 2026) : l'armée qui attaque une ville campe 1 h devant elle, puis le combat démarre
     // tout seul. Pendant l'heure, la ville vit normalement ; n'importe quel joueur peut attaquer le camp. Au combat, le
-    // mur sert de bouclier : tant qu'il tient, les coups de l'attaquant tombent sur lui, les engins le frappent bien plus
-    // fort que les soldats ; son bonus de défense baisse avec ses PV.
+    // mur sert de bouclier : tant qu'il tient, les coups de l'attaquant tombent sur lui et seuls les engins l'abîment ;
+    // son bonus de défense baisse avec ses PV. Tombé, le combat dure encore roundsAfterBreach rounds au moins.
     siege: {
       campMinutes: 60,                // durée du camp avant le combat
       minEngines: 1,                  // pas de siège sans au moins un engin

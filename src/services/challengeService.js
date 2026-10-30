@@ -4,12 +4,15 @@
 //   jeu compte déjà : points d'attaque, points de défense, pillage, progression de population, aides données aux
 //   membres, dégâts infligés aux donjons d'invasion. Jamais deux semaines de suite le même thème.
 // - Classement des alliances en direct (membres actuels). À la clôture de la semaine, les 3 premières gagnent des
-//   points d'alliance pour chacun de leurs membres (300 / 200 / 100) et une médaille d'alliance.
+//   points d'alliance pour chacun de leurs membres (750 / 500 / 250 depuis le 30 octobre 2026) et une médaille d'alliance.
+// - Seuls les membres arrivés avant le vendredi 0 h de la semaine (heure de Paris, config.alliance.challengeJoinDeadline)
+//   comptent dans le score et touchent la récompense : une recrue de fin de semaine n'apporte ni ne prend rien.
 // - Entraide et Chasseurs de hordes se lisent dans les compteurs journaliers (QuestCounter, jours de Paris de la
 //   semaine) : une aide ou des dégâts comptent la semaine où ils ont lieu, même si la demande d'aide est purgée ensuite.
 // ============================================================
 const prisma = require('../config/database');
-const { weekInfo } = require('./questService');
+const config = require('../config');
+const { weekInfo, dayStart } = require('./questService');
 const { notify } = require('./pushService');
 
 const THEMES = {
@@ -21,7 +24,7 @@ const THEMES = {
   DUNGEON: { label: 'Chasseurs de hordes', what: 'dégâts infligés aux donjons barbares', unit: 'pts' }
 };
 const ORDER = Object.keys(THEMES);
-const REWARD_POINTS = [300, 200, 100];
+const REWARD_POINTS = config.alliance.challengeRewardPoints;
 
 const hashOf = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 // clé de jour décalée de n jours (calendrier de Paris : les clés sont des dates)
@@ -43,15 +46,22 @@ function boundsOf(week) {
   const startOf = (k) => weekInfo(new Date(`${k}T12:00:00Z`)).start;
   return { start: startOf(week), end: startOf(shiftKey(week, 7)) };
 }
+// limite d'arrivée dans l'alliance pour compter dans le défi : le vendredi 0 h de la semaine, heure de Paris
+function joinDeadline(week) {
+  const { day, hour } = config.alliance.challengeJoinDeadline;   // 1 = lundi … 5 = vendredi
+  return new Date(dayStart(new Date(`${shiftKey(week, day - 1)}T12:00:00Z`)).getTime() + (hour || 0) * 3600000);
+}
 
-// classement des alliances pour un thème et une semaine : [{ allianceId, tag, name, value }]
+// classement des alliances pour un thème et une semaine : [{ allianceId, tag, name, value }] ; membres actuels arrivés
+// avant la limite de la semaine (joinDeadline)
 async function scores(week, theme = themeFor(week), limit = 10) {
   const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
   const field = { ATTACK: 'attackPoints', DEFENSE: 'defensePoints', LOOT: 'loot' }[theme];
+  const deadline = joinDeadline(week);
   let rows;
-  if (field) rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(w."${field}")::int AS value FROM "PlayerWeekStats" w JOIN "AllianceMember" m ON m."playerId" = w."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE w.week = $1 GROUP BY a.id HAVING SUM(w."${field}") > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, week);
-  else if (theme === 'CLIMB') rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(GREATEST(0, p.population - w."popStart"))::int AS value FROM "PlayerWeekStats" w JOIN "Player" p ON p.id = w."playerId" JOIN "AllianceMember" m ON m."playerId" = w."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE w.week = $1 GROUP BY a.id HAVING SUM(GREATEST(0, p.population - w."popStart")) > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, week);
-  else if (COUNTER[theme]) rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(c."value")::int AS value FROM "QuestCounter" c JOIN "AllianceMember" m ON m."playerId" = c."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE c."key" = $1 AND c."period" IN ($2, $3, $4, $5, $6, $7, $8) GROUP BY a.id HAVING SUM(c."value") > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, COUNTER[theme], ...daysOf(week));
+  if (field) rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(w."${field}")::int AS value FROM "PlayerWeekStats" w JOIN "AllianceMember" m ON m."playerId" = w."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE w.week = $1 AND m."joinedAt" < $2 GROUP BY a.id HAVING SUM(w."${field}") > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, week, deadline);
+  else if (theme === 'CLIMB') rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(GREATEST(0, p.population - w."popStart"))::int AS value FROM "PlayerWeekStats" w JOIN "Player" p ON p.id = w."playerId" JOIN "AllianceMember" m ON m."playerId" = w."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE w.week = $1 AND m."joinedAt" < $2 GROUP BY a.id HAVING SUM(GREATEST(0, p.population - w."popStart")) > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, week, deadline);
+  else if (COUNTER[theme]) rows = await q(`SELECT a.id AS "allianceId", a.tag, a.name, SUM(c."value")::int AS value FROM "QuestCounter" c JOIN "AllianceMember" m ON m."playerId" = c."playerId" JOIN "Alliance" a ON a.id = m."allianceId" WHERE c."key" = $1 AND c."period" IN ($2, $3, $4, $5, $6, $7, $8) AND m."joinedAt" < $9 GROUP BY a.id HAVING SUM(c."value") > 0 ORDER BY value DESC, a.tag LIMIT ${Number(limit)}`, COUNTER[theme], ...daysOf(week), deadline);
   else rows = [];
   return rows;
 }
@@ -63,20 +73,24 @@ async function current(playerId, now = new Date()) {
   const rows = await scores(week.key, theme, 200);
   const member = playerId ? await prisma.allianceMember.findUnique({ where: { playerId } }) : null;
   const mineIdx = member ? rows.findIndex(r => r.allianceId === member.allianceId) : -1;
+  const joinBy = joinDeadline(week.key);
   return {
-    week: week.key, endsAt: boundsOf(week.key).end, theme, ...THEMES[theme], rewards: REWARD_POINTS,
+    week: week.key, endsAt: boundsOf(week.key).end, theme, ...THEMES[theme], rewards: REWARD_POINTS, joinDeadline: joinBy,
     rows: rows.slice(0, 10).map((r, i) => ({ rank: i + 1, ...r, mine: r.allianceId === member?.allianceId })),
-    me: member ? { inAlliance: true, rank: mineIdx >= 0 ? mineIdx + 1 : null, value: mineIdx >= 0 ? rows[mineIdx].value : 0 } : { inAlliance: false }
+    // eligible : arrivé avant la limite, il compte et sera récompensé
+    me: member ? { inAlliance: true, rank: mineIdx >= 0 ? mineIdx + 1 : null, value: mineIdx >= 0 ? rows[mineIdx].value : 0, eligible: new Date(member.joinedAt) < joinBy } : { inAlliance: false }
   };
 }
 
-// clôture (appelée à la clôture de la semaine des classements) : points d'alliance et médailles des 3 premières
+// clôture (appelée à la clôture de la semaine des classements) : points d'alliance et médailles des 3 premières ; seuls
+// les membres arrivés avant la limite de la semaine sont payés
 async function close(week) {
   const theme = themeFor(week);
   const top = await scores(week, theme, 3);
+  const deadline = joinDeadline(week);
   for (const [i, r] of top.entries()) {
     const pts = REWARD_POINTS[i];
-    const members = await prisma.allianceMember.findMany({ where: { allianceId: r.allianceId }, select: { playerId: true } });
+    const members = await prisma.allianceMember.findMany({ where: { allianceId: r.allianceId, joinedAt: { lt: deadline } }, select: { playerId: true } });
     await prisma.$transaction([
       prisma.player.updateMany({ where: { id: { in: members.map(m => m.playerId) } }, data: { alliancePoints: { increment: pts } } }),
       prisma.medal.create({ data: { allianceId: r.allianceId, week, category: `CHALLENGE_${theme}`, rank: i + 1, value: r.value, name: `[${r.tag}]` } })
@@ -86,4 +100,4 @@ async function close(week) {
   return { theme, winners: top.length };
 }
 
-module.exports = { THEMES, ORDER, REWARD_POINTS, COUNTER, themeFor, boundsOf, daysOf, scores, current, close };
+module.exports = { THEMES, ORDER, REWARD_POINTS, COUNTER, themeFor, boundsOf, joinDeadline, daysOf, scores, current, close };

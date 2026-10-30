@@ -116,7 +116,7 @@ async function renderBastionMapPanel(tile, content) {
     <p>Position : (${tile.x}, ${tile.y}) · ${typeof diploBadge === 'function' ? diploBadge(rel === 'SELF' ? 'SAME_ALLIANCE' : rel) : ''}</p>
     <p>${escapeHtml(tile.allianceName || '')} — ${bastionStatusLabel(tile.status)}</p>
     ${lives !== null ? `<p>${resIconHtml('defense')} Vies : ${lives} / 10${tile.isSieged ? ` · <span class="bastion-sieged">assiégé</span>` : ''}</p>` : '<p class="diplo-help">Un chantier sans murs ne peut pas être attaqué.</p>'}
-    ${!friendly && tile.status !== 'FUNDING' ? '<p class="diplo-help">Il faut au moins un engin de siège. Camp d\'1 h, puis assaut contre la garnison derrière un mur 50 fois plus solide qu\'un mur 20 ; 10 assauts gagnés le rasent. En rassemblement, toute votre alliance attaque ensemble.</p>' : ''}
+    ${!friendly && tile.status !== 'FUNDING' ? '<p class="diplo-help">Il faut au moins un engin de siège. Camp d\'1 h, puis assaut contre la garnison derrière un mur 10 fois plus solide qu\'un mur 20, que seuls les engins abîment ; 10 assauts gagnés le rasent. En rassemblement, toute votre alliance attaque ensemble.</p>' : ''}
     <div class="panel-actions">${actions.join('')}${typeof mapShareButton === 'function' ? mapShareButton(tile.x, tile.y) : ''}</div>
     <div class="bastion-rallies"></div>`;
   if (!friendly && typeof bastionRalliesHtml === 'function') { const box = content.querySelector('.bastion-rallies'); bastionRalliesHtml(tile.id).then(h => { if (box) box.innerHTML = h; }); }

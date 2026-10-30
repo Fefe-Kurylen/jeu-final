@@ -1,0 +1,41 @@
+require('./_env');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+// Les outils de simulation (docs/EQUILIBRAGE.md § 6) tournent avec la config et le moteur actuels : pas de clé disparue
+// (undefined, NaN) dans ce qu'ils impriment
+const ROOT = path.join(__dirname, '..', '..');
+function run(tool, ...args) {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', tool), ...args], { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
+  assert.equal(r.status, 0, `${tool} : ${r.stderr}`);
+  assert.doesNotMatch(r.stdout, /undefined|NaN/, `${tool} imprime une valeur manquante`);
+  return r.stdout;
+}
+
+test('simulate-colonies: one engine for every tier, wall breach and Bastion figures', () => {
+  const out = run('simulate-colonies.cjs');
+  assert.match(out, /\| Ville Fortifiée \| niveau 20\+ \| [^|]+\| [^|]+\| 1 \|/);
+  assert.match(out, /\| niveau 20 \| 20\s000 \| [^|]+\| 110 \/ 165 \/ 330 \|/);   // séparateur des milliers : espace fine
+  assert.match(out, /Bastion \(10 × mur 20\) \| 200\s000 \|/);
+  assert.match(out, /3\s000 soldats \+ 150 engins \| brèche round \d+, l'attaquant gagne/);
+});
+
+test('simulate-factions: city attacks use the wall shield and the engines of each civilisation', () => {
+  const out = run('simulate-factions.cjs', '5');
+  assert.match(out, /Mur 10 en bouclier \(10000 PV, 12500 pour l'Égypte\)/);
+  assert.match(out, /SULTAN attaque : ATT .* r4/);
+  assert.match(out, /Sultanat : dégâts d'un engin au mur ×1\.25 : 15\.19 PV par round/);
+});
+
+test('simulate-tribes: gold camps fight with their +40 %', () => {
+  const out = run('simulate-tribes.cjs', '--samples=30');
+  assert.match(out, /Camp d'or : \+40 % au combat/);
+  assert.match(out, /^ {2}or 3 \|/m);
+});
+
+test('simulate-research: the simulated game reaches Academy 20 and maxes every technology', () => {
+  const out = run('simulate-research.cjs');
+  assert.match(out, /Académie 20 au jour \d+\.\d ; toutes les technologies au maximum au jour \d+\.\d/);
+});

@@ -52,9 +52,9 @@
       "class": "INFANTRY",
       "tier": "elite",
       "stats": {
-        "attack": 65,
-        "defense": 90,
-        "endurance": 85,
+        "attack": 63,
+        "defense": 82,
+        "endurance": 77,
         "speed": 40,
         "transport": 50
       },
@@ -135,7 +135,7 @@
     {
       "key": "ROM_CAV_AUXILIAIRE",
       "name": "Cavalerie auxiliaire",
-      "description": "Cavalier léger levé chez les peuples alliés : rapide, idéal pour éclairer et piller.",
+      "description": "Cavalier léger levé chez les peuples alliés : rapide, idéal pour éclairer et frapper vite.",
       "faction": "ROME",
       "class": "CAVALRY",
       "tier": "base",
@@ -251,8 +251,8 @@
       "tier": "intermediate",
       "stats": {
         "attack": 45,
-        "defense": 60,
-        "endurance": 55,
+        "defense": 66,
+        "endurance": 60,
         "speed": 50,
         "transport": 55
       },
@@ -272,9 +272,9 @@
       "class": "INFANTRY",
       "tier": "elite",
       "stats": {
-        "attack": 85,
-        "defense": 70,
-        "endurance": 75,
+        "attack": 77,
+        "defense": 63,
+        "endurance": 68,
         "speed": 45,
         "transport": 45
       },
@@ -294,9 +294,9 @@
       "class": "ARCHER",
       "tier": "base",
       "stats": {
-        "attack": 30,
-        "defense": 25,
-        "endurance": 40,
+        "attack": 33,
+        "defense": 26,
+        "endurance": 44,
         "speed": 60,
         "transport": 60
       },
@@ -355,7 +355,7 @@
     {
       "key": "GAU_CAV_CHASSEUR",
       "name": "Chasseur monté",
-      "description": "Cavalier léger des bois, l'un des plus rapides pour piller et éclairer.",
+      "description": "Cavalier léger des bois, l'un des plus rapides pour éclairer et surprendre l'ennemi.",
       "faction": "GAUL",
       "class": "CAVALRY",
       "tier": "base",
@@ -470,9 +470,9 @@
       "class": "INFANTRY",
       "tier": "intermediate",
       "stats": {
-        "attack": 48,
-        "defense": 70,
-        "endurance": 60,
+        "attack": 46,
+        "defense": 67,
+        "endurance": 58,
         "speed": 45,
         "transport": 50
       },
@@ -492,9 +492,9 @@
       "class": "INFANTRY",
       "tier": "elite",
       "stats": {
-        "attack": 70,
-        "defense": 78,
-        "endurance": 90,
+        "attack": 64,
+        "defense": 71,
+        "endurance": 86,
         "speed": 40,
         "transport": 45
       },
@@ -514,9 +514,9 @@
       "class": "ARCHER",
       "tier": "base",
       "stats": {
-        "attack": 30,
-        "defense": 30,
-        "endurance": 40,
+        "attack": 33,
+        "defense": 31,
+        "endurance": 43,
         "speed": 60,
         "transport": 60
       },
@@ -575,7 +575,7 @@
     {
       "key": "GRE_CAV_ECLAIREUR",
       "name": "Éclaireur",
-      "description": "Cavalier thessalien très rapide, parfait pour reconnaître et piller.",
+      "description": "Cavalier thessalien très rapide, parfait pour reconnaître le terrain et intercepter.",
       "faction": "GREEK",
       "class": "CAVALRY",
       "tier": "base",
@@ -668,9 +668,9 @@
       "class": "INFANTRY",
       "tier": "base",
       "stats": {
-        "attack": 28,
-        "defense": 30,
-        "endurance": 45,
+        "attack": 30,
+        "defense": 33,
+        "endurance": 49,
         "speed": 55,
         "transport": 70
       },
@@ -690,9 +690,9 @@
       "class": "INFANTRY",
       "tier": "intermediate",
       "stats": {
-        "attack": 55,
-        "defense": 55,
-        "endurance": 60,
+        "attack": 53,
+        "defense": 53,
+        "endurance": 55,
         "speed": 50,
         "transport": 55
       },
@@ -712,9 +712,9 @@
       "class": "INFANTRY",
       "tier": "elite",
       "stats": {
-        "attack": 80,
-        "defense": 70,
-        "endurance": 80,
+        "attack": 72,
+        "defense": 64,
+        "endurance": 75,
         "speed": 45,
         "transport": 45
       },
@@ -734,9 +734,9 @@
       "class": "ARCHER",
       "tier": "base",
       "stats": {
-        "attack": 40,
-        "defense": 30,
-        "endurance": 40,
+        "attack": 38,
+        "defense": 28,
+        "endurance": 37,
         "speed": 60,
         "transport": 60
       },
@@ -756,9 +756,9 @@
       "class": "ARCHER",
       "tier": "intermediate",
       "stats": {
-        "attack": 60,
-        "defense": 45,
-        "endurance": 55,
+        "attack": 57,
+        "defense": 43,
+        "endurance": 52,
         "speed": 55,
         "transport": 50
       },
@@ -795,7 +795,7 @@
     {
       "key": "EGY_CAV_DESERT",
       "name": "Cavalier du désert",
-      "description": "Cavalier léger des pistes caravanières, très rapide, idéal pour piller.",
+      "description": "Cavalier léger des pistes caravanières, très rapide : le premier arrivé pour frapper ou renforcer.",
       "faction": "EGYPT",
       "class": "CAVALRY",
       "tier": "base",
@@ -932,9 +932,9 @@
       "class": "INFANTRY",
       "tier": "elite",
       "stats": {
-        "attack": 70,
-        "defense": 55,
-        "endurance": 65,
+        "attack": 76,
+        "defense": 60,
+        "endurance": 71,
         "speed": 50,
         "transport": 50
       },
@@ -954,9 +954,9 @@
       "class": "ARCHER",
       "tier": "base",
       "stats": {
-        "attack": 40,
+        "attack": 38,
         "defense": 25,
-        "endurance": 40,
+        "endurance": 38,
         "speed": 65,
         "transport": 60
       },
@@ -998,9 +998,9 @@
       "class": "ARCHER",
       "tier": "elite",
       "stats": {
-        "attack": 80,
-        "defense": 45,
-        "endurance": 60,
+        "attack": 84,
+        "defense": 49,
+        "endurance": 65,
         "speed": 55,
         "transport": 45
       },
@@ -1015,12 +1015,12 @@
     {
       "key": "HUN_CAV_PILLARD",
       "name": "Cavalier pillard",
-      "description": "Cavalier des razzias, le plus rapide de tous : fait pour piller et s'évanouir dans la steppe.",
+      "description": "Cavalier hunnique, l'un des plus rapides du jeu : il frappe vite, intercepte et s'évanouit dans la steppe.",
       "faction": "HUN",
       "class": "CAVALRY",
       "tier": "base",
       "stats": {
-        "attack": 45,
+        "attack": 43,
         "defense": 30,
         "endurance": 50,
         "speed": 90,
@@ -1108,9 +1108,9 @@
       "class": "INFANTRY",
       "tier": "base",
       "stats": {
-        "attack": 30,
-        "defense": 25,
-        "endurance": 45,
+        "attack": 33,
+        "defense": 26,
+        "endurance": 47,
         "speed": 60,
         "transport": 70
       },
@@ -1174,9 +1174,9 @@
       "class": "ARCHER",
       "tier": "base",
       "stats": {
-        "attack": 40,
-        "defense": 30,
-        "endurance": 45,
+        "attack": 36,
+        "defense": 27,
+        "endurance": 41,
         "speed": 60,
         "transport": 60
       },
@@ -1196,9 +1196,9 @@
       "class": "ARCHER",
       "tier": "intermediate",
       "stats": {
-        "attack": 60,
-        "defense": 45,
-        "endurance": 55,
+        "attack": 57,
+        "defense": 43,
+        "endurance": 52,
         "speed": 55,
         "transport": 50
       },
@@ -1235,14 +1235,14 @@
     {
       "key": "SUL_CAV_BEDOUIN",
       "name": "Cavalier bédouin",
-      "description": "Cavalier bédouin sur son cheval arabe : vitesse et capacité de pillage maximales.",
+      "description": "Cavalier bédouin sur son cheval arabe, l'un des plus rapides du jeu : il éclaire, intercepte et renforce au loin.",
       "faction": "SULTAN",
       "class": "CAVALRY",
       "tier": "base",
       "stats": {
-        "attack": 35,
-        "defense": 25,
-        "endurance": 50,
+        "attack": 38,
+        "defense": 27,
+        "endurance": 55,
         "speed": 90,
         "transport": 70
       },

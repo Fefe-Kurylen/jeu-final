@@ -172,7 +172,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       const ok = await transition(tx, 'marketOffer', offer.id, 'ACTIVE', { status: 'COMPLETED', buyerId: req.user.playerId, buyerCityId: buyerCity.id, acceptedAt: now });
       if (!ok) throw new Error('offer raced');
       // pas de refus : ce qui ne tiendra pas dans l'entrepôt à l'arrivée repartira chez le vendeur, l'acheteur est prévenu
-      const room = MS.roomFor(await tx.city.findUnique({ where: { id: buyerCity.id }, select: { [offer.sellResource]: true, maxStorage: true, maxFoodStorage: true } }), offer.sellResource);
+      const room = MS.roomFor(await tx.city.findUnique({ where: { id: buyerCity.id }, select: { [offer.sellResource]: true, maxStorage: true, maxFoodStorage: true, isWonder: true } }), offer.sellResource);
       const warning = toBuyer > room ? `Attention : ${buyerCity.name} n'a de place que pour ${room} ${MS.RES_FR[offer.sellResource]} en ce moment ; ce qui ne tiendra pas à l'arrivée repartira chez le vendeur.` : null;
       return { message: `Échange conclu : vos ${toSeller} ${MS.RES_FR[offer.buyResource]} partent avec ${pick.army.name}, ${toBuyer} ${MS.RES_FR[offer.sellResource]} arrivent dans ${Math.max(1, Math.round(tSeller / 60))} min${warning ? `. ${warning}` : ''}`, warning, toBuyer, toSeller, sellerTax, buyerTax, arrivalAt: new Date(now.getTime() + tSeller * 1000), offer, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name };
     });

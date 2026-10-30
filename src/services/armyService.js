@@ -19,8 +19,9 @@ const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders'
 // Irrigation égyptienne de la ville d'une armée : vitesse de marche de ses armées (et de ses espions)
 const MARCH_BUILDINGS = { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } };
 async function cityMarchPct(db, city) {
-  if (!city) return 0;
-  return fx.marchSpeedBonusPct(city.buildings || await db.cityBuilding.findMany({ where: { cityId: city.id, ...MARCH_BUILDINGS.where }, select: MARCH_BUILDINGS.select }));
+  if (city?.buildings) return fx.marchSpeedBonusPct(city.buildings);
+  if (!city?.id) return 0;   // sans id, la requête lirait l'Irrigation de toutes les villes
+  return fx.marchSpeedBonusPct(await db.cityBuilding.findMany({ where: { cityId: city.id, ...MARCH_BUILDINGS.where }, select: MARCH_BUILDINGS.select }));
 }
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
@@ -36,7 +37,7 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
   // Art de la guerre (technologie) : bonus d'attaque du joueur
   const techRows = await tx.playerTechnology.findMany({ where: { playerId } });
   // A camp is a static target: the winner loses less than in a raid on a city (config.combat.tribeLossMultiplier)
-  // camp d'or : +40 % comme sa puissance affichée (campPower)
+  // camp d'or : +40 % (config.map.camps.goldDefenseBonusPct) comme sa puissance affichée (campPower)
   const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null, { attackerFaction: army.owner?.faction, attackerBonusPct: techPct(techRows, 'attackBonusPct'), defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
 
   let totalAttackerLosses = 0;

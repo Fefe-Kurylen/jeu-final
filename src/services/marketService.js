@@ -61,9 +61,11 @@ async function travelSecondsBetween(army, from, to, faction, technologies, db = 
   return getArmyTravelTime(army.units, from.x, from.y, to.x, to.y, faction, army.hero, len, speedPct);
 }
 
-// Place libre d'une ville pour une ressource (entrepôt, ou silo pour la nourriture)
+// Place libre d'une ville pour une ressource (entrepôt, ou silo pour la nourriture) ; la Ville Merveille reçoit tout
+// au stock du chantier, sans plafond (comme à l'arrivée d'un convoi)
 function roomFor(city, res) {
   if (!city) return 0;
+  if (city.isWonder) return Infinity;
   const cap = res === 'food' ? city.maxFoodStorage : city.maxStorage;
   return Math.max(0, Math.floor((cap || 0) - (city[res] || 0)));
 }

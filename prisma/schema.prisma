@@ -303,6 +303,8 @@ model Army {
   @@index([targetResourceId])
   @@index([targetBastionId])
   @@index([rallyId])
+  @@index([x, y]) // armées sur une case (rencontres, vision de la carte)
+  @@index([targetX, targetY]) // armées en route vers une case
 }
 
 model ArmyUnit {
@@ -675,6 +677,7 @@ model Notification {
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, createdAt])
+  @@index([playerId, readAt]) // compteur des non lues
   @@index([createdAt], type: Brin)
 }
 
@@ -772,7 +775,7 @@ model ChatMessage {
   translations ChatTranslation[]
   reports      ChatReport[]
 
-  @@index([channel, createdAt])
+  @@index([channel, createdAt, senderId]) // remplace (channel, createdAt) : fil d'un canal, auteurs bloqués écartés
   @@index([allianceId, createdAt])
   @@index([conversation, createdAt])
   @@index([recipientId, createdAt])
@@ -1031,6 +1034,7 @@ model Invasion {
   manual    Boolean   @default(false)
   hordes    Int       @default(0)
   destroyed Int       @default(0)
+  ageMult   Float     @default(1) // âge du monde au lancement (décision du 30 octobre 2026) : × ageMult^((niveau − 1)/4)
 
   @@index([endedAt])
 }
@@ -1075,8 +1079,9 @@ model Rally {
   allianceId   String
   leaderId     String // joueur qui lance
   cityId       String // sa ville : le point de rassemblement
-  targetNodeId    String? // le donjon (ResourceNode « HORDE »)
+  targetNodeId    String? // le donjon (ResourceNode « HORDE »), ou un site ou un plan de Merveille gardé (WONDER, PLAN)
   targetBastionId String? // ou le Bastion ennemi (décision du 29 octobre 2026)
+  targetKind      String? // HORDE, WONDER, PLAN (Immortels, décision du 30 octobre 2026) ou BASTION ; vide avant le 30 octobre
   targetX      Int
   targetY      Int
   waitMinutes  Int

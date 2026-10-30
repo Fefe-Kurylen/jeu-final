@@ -1,7 +1,7 @@
 // ============================================================
 // 10b-sheets.js — Fiches d'information des unités et des bâtiments, bouton « i »
 // Portée globale partagée (ordre de chargement dans index.html). Les règles affichées sont celles du serveur :
-// routes/cities.js (coûts, temps, prérequis de recrutement), services/combatService.js (triangle, paliers),
+// routes/cities.js (coûts, temps, prérequis de recrutement), services/combatService.js (triangle, paliers, solidité),
 // utils/buildingEffects.js (effets des bâtiments), config (entretien, vitesse de marche).
 // ============================================================
 
@@ -12,10 +12,12 @@ const SHEET_CATEGORY_NAMES = { BASE: 'Infrastructure', INTERMEDIATE: 'Militaire'
 // Règles du serveur reprises à l'identique (config/index.js, combatService.js, routes/cities.js, utils/buildingEffects.js)
 const SHEET_RULES = {
   beats: { INFANTRY: 'CAVALRY', CAVALRY: 'ARCHER', ARCHER: 'INFANTRY' },
-  triangleBonusPct: 20,
-  tierCoeff: { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 },
+  triangleBonusPct: 50,          // config.combat.triangle : +50 % depuis le 30 octobre 2026
+  tierCoeff: { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 },         // PUISSANCE (camps, pillages, affichage)
+  battleTierCoeff: { base: 1, intermediate: 1.35, elite: 1.9, siege: 0.75 },    // BATAILLE (config.combat.battleTierCoefficients)
+  defenseWeight: 0.55,           // solidité = END + 0,55 × DEF × coef (config.combat.defenseDamageMult)
   upkeep: { base: 5, intermediate: 10, elite: 15, siege: 15 },
-  engineWallTimes: 10,           // config.combat.siege.wallShield : un engin frappe le mur 10 fois plus fort qu'un soldat
+  // config.combat.siege.wallShield.soldierMult = 0 : seuls les engins abîment le mur
   tilesPerHourFactor: 2.4, // 1 case en 30 s à vitesse 50 → 2,4 × vitesse cases par heure (calculations.js)
   trainBuildings: { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] },
   siegeWorkshopLevel: 5,
@@ -102,6 +104,15 @@ function unitSheetRequirement(unit) {
   return { keys, level, building, ok: !!building && building.level >= level };
 }
 
+// Cases par heure d'une armée de cette vitesse (la plus lente de ses unités), comme calculations.js calculateTravelTime :
+// bonus de civilisation, puis technologies, Bastion et Irrigation de la ville de départ (01-core.js armySpeedExtraPct).
+// Sans civilisation ni ville : la vitesse nue.
+function armyTilesPerHour(speed, faction, city) {
+  const civ = faction ? factionBonusPct(faction, 'armySpeed', faction === 'HUN' ? 20 : 0) : 0;
+  const extra = city && typeof armySpeedExtraPct === 'function' ? armySpeedExtraPct(city) : 0;
+  return { tilesPerHour: speed * SHEET_RULES.tilesPerHourFactor * (1 + civ / 100) * (1 + extra / 100), civ, extra };
+}
+
 // Temps de formation d'une unité dans la ville courante (réductions des bâtiments d'entraînement, max 60 %)
 function unitTrainTimeInCity(unit) {
   const keys = SHEET_RULES.trainBuildings[unit.class] || ['BARRACKS'];
@@ -125,13 +136,20 @@ function showUnitInfoModal(unitKey) {
   const tierColor = TIER_COLORS[unit.tier] || '#888';
   const coeff = SHEET_RULES.tierCoeff[unit.tier] || 1;
   const power = Math.round((attack + defense) * coeff);
+  // bataille (moteur du GDD) : un coup fait ATK × coef, la solidité vaut END + 0,55 × DEF × coef
+  const bCoeff = SHEET_RULES.battleTierCoeff[unit.tier] || 1;
+  const hit = Math.round(attack * bCoeff), toughness = Math.round(endurance + SHEET_RULES.defenseWeight * defense * bCoeff);
+  const mine = !player?.faction || player.faction === unit.faction;
+  // marche : avec les bonus du joueur (civilisation, recherches, Bastion, Irrigation de la ville) pour ses propres unités
+  const march = mine ? armyTilesPerHour(speed, unit.faction, currentCity) : armyTilesPerHour(speed, null, null);
+  const tilesPerHour = march.tilesPerHour;
+  const speedNote = [march.civ ? `civilisation +${march.civ} %` : '', march.extra ? `ville et recherches +${+march.extra.toFixed(1)} %` : ''].filter(Boolean).join(', ');
   const beats = SHEET_RULES.beats[unit.class];
   const beatenBy = Object.keys(SHEET_RULES.beats).find(k => SHEET_RULES.beats[k] === unit.class);
   const req = unitSheetRequirement(unit);
   const train = unitTrainTimeInCity(unit);
   const cost = unit.recruitCost || { wood: 0, stone: 0, iron: 0, food: 0 };
   const upkeep = SHEET_RULES.upkeep[unit.tier] || 5;
-  const mine = !player?.faction || player.faction === unit.faction;
   const reqName = req.keys.map(k => getBuildingName(k)).join(' ou ');
   const pct = SHEET_RULES.triangleBonusPct;
 
@@ -185,7 +203,8 @@ function showUnitInfoModal(unitKey) {
         </div>
         <div class="sheet-grid">
           ${sheetKv('Puissance par unité', `${power} <small>(attaque + défense) × ${coeff}</small>`)}
-          ${sheetKv('Marche', `≈ ${Math.round(speed * SHEET_RULES.tilesPerHourFactor)} cases/h <small>l'armée va à la vitesse de son unité la plus lente</small>`)}
+          ${sheetKv('Coup et solidité', `${hit} · ${toughness} <small>en bataille : attaque × ${bCoeff} ; endurance + ${String(SHEET_RULES.defenseWeight).replace('.', ',')} × défense × ${bCoeff}</small>`)}
+          ${sheetKv('Marche', `≈ ${Math.round(tilesPerHour)} cases/h <small>${speedNote ? `${speedNote} ; ` : ''}l'armée va à la vitesse de son unité la plus lente</small>`)}
           ${sheetKv('Butin transporté', `${transport} <small>ressources par unité</small>`)}
           ${sheetKv('Entretien', `${upkeep} <small>céréales par heure</small>`)}
         </div>
@@ -196,7 +215,7 @@ function showUnitInfoModal(unitKey) {
         <div class="sheet-matchups">
           ${beats ? `<div class="sheet-matchup strong"><span class="mk">Fort contre</span> ${unitIconHtml(beats, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beats]}</b><small>+${pct} % de dégâts infligés à cette classe</small></div>` : ''}
           ${beatenBy ? `<div class="sheet-matchup weak"><span class="mk">Vulnérable face à</span> ${unitIconHtml(beatenBy, 'unit-ico-sm')} <b>${SHEET_CLASS_NAMES[beatenBy]}</b><small>+${pct} % de dégâts subis de cette classe</small></div>` : ''}
-          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>Au combat d'un siège, le mur sert de bouclier : chaque engin le frappe ${SHEET_RULES.engineWallTimes} fois plus fort qu'un soldat ; il faut au moins un engin pour assiéger une ville ; pris pour cible en dernier.</small></div>` : ''}
+          ${unit.class === 'SIEGE' ? `<div class="sheet-matchup siege"><span class="mk">Siège</span> <b>Abat la muraille</b><small>Au combat d'un siège, le mur sert de bouclier et seuls les engins l'abîment (les coups des soldats n'y font rien) ; il faut au moins un engin pour assiéger une ville ; pris pour cible en dernier.</small></div>` : ''}
           ${unit.tier === 'elite' ? `<div class="sheet-matchup"><span class="mk">Ciblage</span> <b>Visée en premier</b><small>L'ennemi concentre ses coups sur les unités d'élite, puis intermédiaires, de base, et enfin les engins.</small></div>` : ''}
         </div>
       </div>
@@ -207,7 +226,7 @@ function showUnitInfoModal(unitKey) {
           ${sheetKv('Coût par unité', `<span class="sheet-costs">${sheetCostHtml(cost, currentCity)}</span>`)}
           ${sheetKv('Formation', train.pct > 0 ? `${formatDuration(train.seconds)} <small>${formatDuration(train.base)} − ${train.pct.toFixed(1).replace(/\.0$/, '')} % (bâtiments de cette ville)</small>` : `${formatDuration(train.base)} <small>par unité</small>`)}
           ${sheetKv('Entraînée dans', `${reqName} <small>niveau ${req.level} minimum</small>`)}
-          ${sheetKv('Palier', `${SHEET_TIER_NAMES[unit.tier] || unit.tier} <small>coefficient de combat × ${coeff}</small>`)}
+          ${sheetKv('Palier', `${SHEET_TIER_NAMES[unit.tier] || unit.tier} <small>bataille × ${bCoeff} · puissance × ${coeff}</small>`)}
         </div>
         ${status}
       </div>
@@ -227,18 +246,18 @@ function buildingFunctions(key, fx) {
     RALLY_POINT: [['1 armée en campagne', 1, tab('army')], ['2 armées', 5], ['3 armées', 10], ['4 armées', 15], ['5 armées', 20]],
     BARRACKS: [['Recruter infanterie et archers de base', fx.unlockBaseTier || 1, 'recruit'], ['Unités intermédiaires', fx.unlockIntermediateTier || 7], ['Unités d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
     STABLE: [['Recruter la cavalerie de base', fx.unlockBaseTier || 1, 'recruit'], ['Cavalerie intermédiaire', fx.unlockIntermediateTier || 7], ['Cavalerie d\'élite', fx.unlockEliteTier || 15], ['Entraînement plus rapide (−0,5 % par niveau)', 1]],
-    WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1], ['Un engin frappe le mur 10 fois plus fort qu\'un soldat', 1, tab('army')]],
+    WORKSHOP: [['Engins de siège', SHEET_RULES.siegeWorkshopLevel, 'recruit'], ['Fabrication plus rapide (−4 % par niveau)', 1], ['Seuls les engins abîment le mur', 1, tab('army')]],
     ACADEMY: [['Construction plus rapide (−1 % par niveau)', 1], ['Recherche de technologies (une technologie ne dépasse pas le niveau de l\'Académie)', 1, 'panel'], ['Recherche plus rapide (−1 % par niveau)', 1]],
     FORGE: [['Défense de toutes les troupes de la ville (+0,5 % par niveau)', 1]],
     FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],
     SILO: [['Capacité de stockage des céréales', 1]], WAREHOUSE: [['Capacité de stockage du bois, de la pierre et du fer', 1]],
-    HIDEOUT: [['Ressources à l\'abri des pillages (1 % par niveau, max 20 %)', 1]],
+    HIDEOUT: [['Ressources à l\'abri des pillages (1 % par niveau, max 20 %) : la seule protection', 1]],
     HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés', 1, 'panel']],
     MARKET: [['Échanges avec le marchand itinérant', 1, tab('market')], ['Échanges entre joueurs', 1, tab('market')], ['Envoi de ressources par armée', 1, tab('army')], ['Convois plus grands (+5 % par niveau)', 1]],
-    WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Réparation plus rapide', 1]],
+    WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Seuls les engins de siège l\'abîment', 1]],
     MOAT: [['Attaque et défense des défenseurs (+0,5 % par niveau)', 1]],
     MILL: [['Céréales +5 % par niveau', 1]], BAKERY: [['Céréales +5 % par niveau', 1]], SAWMILL: [['Bois +5 % par niveau', 1]], STONEMASON: [['Pierre +5 % par niveau', 1]], FOUNDRY: [['Fer +5 % par niveau', 1]],
-    GREAT_SILO: [['Céréales impossibles à piller', 1]], GREAT_WAREHOUSE: [['Bois, pierre et fer impossibles à piller', 1]],
+    GREAT_SILO: [['Stockage des céréales (3 fois un silo de même niveau, en plus)', 1]], GREAT_WAREHOUSE: [['Stockage du bois, de la pierre et du fer (3 fois un dépôt de même niveau, en plus)', 1]],
     GREAT_BARRACKS: [['Recruter infanterie et archers', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]], GREAT_STABLE: [['Recruter la cavalerie', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]],
     EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')], ['Aide d\'alliance', null]],
     TREASURE_CHAMBER: [['Or chaque jour (10 → 200)', 1, tab('inventory')]],
@@ -249,9 +268,9 @@ function buildingFunctions(key, fx) {
     ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
     GALLIC_BREWERY: [['Défense de la ville (+1 % par niveau)', 1]],
     GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide (−1 % par niveau)', 1]],
-    EGYPTIAN_IRRIGATION: [['Toute la production (+1 % par niveau)', 1], ['Vitesse de marche', null]],
+    EGYPTIAN_IRRIGATION: [['Toute la production (+1 % par niveau)', 1], ['Vitesse de marche des armées et des espions partis de la ville (+0,5 % par niveau)', 1]],
     HUN_WAR_TENT: [['Entretien réduit (−0,5 % par niveau)', 1], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
-    SULTAN_DESERT_OUTPOST: [['Entretien réduit (−0,5 % par niveau)', 1], ['Taxe entre villes', null]]
+    SULTAN_DESERT_OUTPOST: [['Entretien réduit (−0,5 % par niveau)', 1], ['Capacité de transport (+1 % par niveau)', 1]]
   };
   return F[key] || [];
 }

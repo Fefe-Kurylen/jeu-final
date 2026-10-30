@@ -323,9 +323,12 @@ async function adminEndBanner(id) {
 }
 
 // ---- bandeau des annonces, pour tous les joueurs (fermé par le joueur : retenu sur l'appareil) ----
-let announcementsTimer = null;
+// Sondage toutes les 5 min, page affichée seulement ; une échéance passée page cachée est rattrapée au retour
+let announcementsTimer = null, announcementsMissed = false;
 async function loadAnnouncements() {
   if (!token) return;
+  if (!announcementsTimer) announcementsTimer = setInterval(() => { if (document.visibilityState === 'visible') loadAnnouncements(); else announcementsMissed = true; }, 5 * 60 * 1000);
+  announcementsMissed = false;
   let list = [];
   try { list = (await fetchJson('/api/announcements')).announcements || []; } catch (e) { return; }
   let closed = [];
@@ -343,8 +346,8 @@ async function loadAnnouncements() {
     el.style.display = '';
     el.innerHTML = show.map(a => `<div class="announcement-item">${resIconHtml('send')} <strong>${escapeHtml(a.title)}</strong> <span>${escapeHtml(a.body)}</span><button class="banner-close" aria-label="Fermer" onclick="closeAnnouncement('${chatSafeId(a.id)}')">×</button></div>`).join('');
   }
-  if (!announcementsTimer) announcementsTimer = setInterval(loadAnnouncements, 5 * 60 * 1000);
 }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && announcementsMissed && announcementsTimer) loadAnnouncements(); });
 function closeAnnouncement(id) {
   let closed = [];
   try { closed = JSON.parse(safeStorage.getItem('closed_announcements') || '[]'); } catch (e) { closed = []; }

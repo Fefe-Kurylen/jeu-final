@@ -337,6 +337,28 @@ function switchBuildingTab(tabId, btn) {
   if (btn) btn.classList.add('active');
 }
 
+// Onglet Stockage des dépôts et silos : apport de ce bâtiment et capacité de la ville (somme calculée par le serveur :
+// dépôts, silos, Grand dépôt et Grand silo à 3 fois un dépôt ou un silo de même niveau). Seule la cachette protège du pillage.
+function storageTabHtml(buildingKey, level) {
+  const food = buildingKey.endsWith('SILO');
+  const max = food ? (currentCity?.maxFoodStorage || 1000) : (currentCity?.maxStorage || 1000);
+  const rows = (food ? [['food', 'Nourriture']] : [['wood', 'Bois'], ['stone', 'Pierre'], ['iron', 'Fer']]).map(([k, label]) => `
+              <div class="storage-row">
+                <span>${resIconHtml(k)} ${label}:</span>
+                <div class="storage-bar${food ? ' food' : ''}"><div style="width:${Math.min(100, ((currentCity?.[k] || 0) / max) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.[k] || 0)} / ${formatNum(max)}</span>
+              </div>`).join('');
+  return `
+          <div class="special-tab-content">
+            <h4>${resIconHtml(food ? 'food' : 'market')} Capacité de stockage${food ? ' nourriture' : ''}</h4>
+            <p>Ce bâtiment : <strong>${formatNum(getStorageAtLevel(level, buildingKey))}</strong> · toute la ville : <strong>${formatNum(max)}</strong></p>
+            <div class="storage-bars">${rows}
+            </div>
+            <p class="info-note">Seule la cachette met des ressources à l'abri des pillages.</p>
+          </div>
+        `;
+}
+
 // Helper: Get special tabs for specific building types
 function getBuildingSpecialTabs(buildingKey, level, slotNum) {
   const tabs = [];
@@ -424,52 +446,14 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
       break;
 
     case 'WAREHOUSE':
+    case 'GREAT_WAREHOUSE':
+    case 'SILO':
+    case 'GREAT_SILO':
       tabs.push({
         id: 'storage',
-        icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
+        icon: `<img class="ico" src="assets/images/3d/ui/${buildingKey.endsWith('SILO') ? 'food' : 'item_crate'}.webp" alt="">`,
         name: 'Stockage',
-        content: `
-          <div class="special-tab-content">
-            <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Capacité de stockage</h4>
-            <div class="storage-bars">
-              <div class="storage-row">
-                <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> Bois:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.wood / getStorageAtLevel(level)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.wood || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
-              </div>
-              <div class="storage-row">
-                <span><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> Pierre:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.stone / getStorageAtLevel(level)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.stone || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
-              </div>
-              <div class="storage-row">
-                <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> Fer:</span>
-                <div class="storage-bar"><div style="width:${Math.min(100, (currentCity?.iron / getStorageAtLevel(level)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.iron || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
-              </div>
-            </div>
-          </div>
-        `
-      });
-      break;
-
-    case 'SILO':
-      tabs.push({
-        id: 'food-storage',
-        icon: '<img class="ico" src="assets/images/3d/ui/food.webp" alt="">',
-        name: 'Stockage',
-        content: `
-          <div class="special-tab-content">
-            <h4><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> Capacité de stockage nourriture</h4>
-            <div class="storage-bars">
-              <div class="storage-row">
-                <span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> Nourriture:</span>
-                <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / getStorageAtLevel(level)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.food || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
-              </div>
-            </div>
-          </div>
-        `
+        content: storageTabHtml(buildingKey, level)
       });
       break;
 
@@ -1176,7 +1160,7 @@ function getBuildingDescription(key) {
     MAIN_HALL: 'Réduit le temps de construction',
     BARRACKS: 'Entraîne l\'infanterie et les archers',
     STABLE: 'Entraîne la cavalerie',
-    WORKSHOP: 'Construit les engins de siège, qui frappent le mur bien plus fort que les soldats',
+    WORKSHOP: 'Construit les engins de siège, les seuls à abîmer le mur',
     ACADEMY: 'Recherche et formation',
     FORGE: 'Améliore l\'équipement',
     MARKET: 'Commerce et échanges',
@@ -1196,8 +1180,8 @@ function getBuildingDescription(key) {
     SAWMILL: 'Augmente production bois',
     STONEMASON: 'Augmente production pierre',
     FOUNDRY: 'Augmente production fer',
-    GREAT_SILO: 'Stockage protégé nourriture',
-    GREAT_WAREHOUSE: 'Stockage protégé ressources',
+    GREAT_SILO: 'Grand stockage de nourriture',
+    GREAT_WAREHOUSE: 'Grand stockage de ressources',
     GREAT_BARRACKS: 'Recrutement hors capitale',
     GREAT_STABLE: 'Cavalerie hors capitale',
     WATCHTOWER: 'Détection et espionnage',
@@ -1209,9 +1193,9 @@ function getBuildingDescription(key) {
     ROMAN_THERMAE: 'Soins rapides (Rome)',
     GALLIC_BREWERY: 'Défense siège (Gaule)',
     GREEK_TEMPLE: 'Recherche bonus (Grèce)',
-    EGYPTIAN_IRRIGATION: 'Production bonus (Égypte)',
+    EGYPTIAN_IRRIGATION: 'Production et marche (Égypte)',
     HUN_WAR_TENT: 'Entretien réduit (Huns)',
-    SULTAN_DESERT_OUTPOST: 'Commerce bonus (Sultanat)'
+    SULTAN_DESERT_OUTPOST: 'Transport et entretien (Sultanat)'
   };
   return descriptions[key] || 'Bâtiment';
 }
@@ -1390,8 +1374,4 @@ async function cancelRecruit(itemId) {
     if (res.ok) { await loadCities(); renderCity(); }
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }
-
-// Les éléments de l'ancienne barre des mouvements n'existent plus : rien à dessiner.
-// À supprimer avec son appel dans renderCity (01-core.js).
-function renderMovingArmies() {}
 

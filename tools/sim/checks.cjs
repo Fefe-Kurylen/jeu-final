@@ -6,11 +6,11 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const { calculateArmyPower } = require(path.join(ROOT, 'src/utils/calculations'));
 const { unitsData } = require(path.join(ROOT, 'src/config/gamedata'));
+const config = require(path.join(ROOT, 'src/config'));
 
 const MOVING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH', 'BESIEGING'];
 
 async function invariants(prisma, clock) {
-  const now = new Date(clock.now());
   const late = new Date(clock.now() - 13 * 3600000);   // deux pas de 6 h et un peu : une arrivée aurait dû être jouée
   const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
   const out = [];
@@ -32,6 +32,7 @@ async function invariants(prisma, clock) {
   await add('Bastion assiégé sans camp', `SELECT b.id FROM "Bastion" b WHERE b."isSieged" AND NOT EXISTS (SELECT 1 FROM "Army" a WHERE a.status = 'BESIEGING' AND a."targetBastionId" = b.id)`);
   await add('camp devant une cible qui n\'est pas marquée assiégée', `SELECT a.id, a."targetCityId", a."targetBastionId" FROM "Army" a LEFT JOIN "City" c ON c.id = a."targetCityId" LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'BESIEGING' AND a."claimedAt" IS NULL AND ((c.id IS NOT NULL AND NOT c."isSieged") OR (b.id IS NOT NULL AND NOT b."isSieged"))`);
   await add('garnison d\'un Bastion disparu ou rasé', `SELECT a.id FROM "Army" a LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'STATIONED' AND a."targetBastionId" IS NOT NULL AND (b.id IS NULL OR b.status = 'DESTROYED')`);
+  await add('alliance au-delà du nombre de membres permis', `SELECT "allianceId", count(*)::int AS n FROM "AllianceMember" GROUP BY 1 HAVING count(*) > $1`, config.alliance.maxMembers);   // 60 (décision du 30 octobre 2026)
   await add('or ou points d\'alliance négatifs', `SELECT id, name, gold, "alliancePoints" FROM "Player" WHERE gold < 0 OR "alliancePoints" < 0`);
   await add('armée d\'une ville qui n\'est pas à son propriétaire', `SELECT a.id, a.name, a.status FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."ownerId" <> c."playerId"`);
   await add('plusieurs capitales', `SELECT "playerId", count(*)::int AS n FROM "City" WHERE "isCapital" GROUP BY 1 HAVING count(*) > 1`);

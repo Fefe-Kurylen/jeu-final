@@ -4,7 +4,7 @@ Relecture complète de la base du jeu (API, boucle de jeu, schéma, client, dép
 
 ## Verdict d'ensemble
 
-L'architecture est saine et n'avait pas à être refaite : API Express fine, logique de jeu dans un tick unique protégé par un bail en base, dépenses conditionnelles en SQL, client canvas optimisé (scène statique rasterisée, couche animée séparée). Les faiblesses étaient des **détails de robustesse** (concurrence, idempotence, dérive du schéma, session) et deux **bugs bloquants côté client**. Tout ce qui suit a été corrigé sauf mention contraire.
+L'architecture est saine et n'avait pas à être refaite : API Express fine, logique de jeu dans un tick unique protégé par un bail en base, dépenses conditionnelles en SQL, client canvas optimisé (scène statique rasterisée, couche animée séparée). Les faiblesses étaient des **détails de robustesse** (concurrence, idempotence, dérive du schéma, session) et deux **bugs bloquants côté client**. Tout ce qui suit a été corrigé sauf mention contraire. Document d'octobre 2026, complété le 30 octobre 2026 là où le jeu a changé depuis (stockage, mur, marché) ; l'état à jour de chaque système est dans `docs/ETAT-DES-SYSTEMES.md`.
 
 ## Ce qui a été corrigé
 
@@ -23,7 +23,7 @@ L'architecture est saine et n'avait pas à être refaite : API Express fine, log
 - Fin de construction atomique sous verrou, jamais de suppression d'item sur erreur, un niveau ne redescend jamais ; expéditions et soins idempotents (claim conditionnel) ; recrutement consommé avant d'être crédité.
 - Points de ressource : un seul récolteur par point (flag pris conditionnellement), prélèvement SQL qui ne passe jamais sous zéro, raid refusé sur un point sans défenseurs ou déjà occupé, butin de tribu chargé dans l'armée (plus de téléportation dans la ville).
 - Raid : cooldown de 24 h revérifié à l'arrivée et comptage des raids en vol (plusieurs armées lancées ensemble ne pillent qu'une fois).
-- Marché : bâtiment Marché requis, ratio borné 1:3, 10 offres actives, verrous pris dans un ordre fixe (plus d'interblocage possible), refus quand l'entrepôt ne peut pas recevoir, échange PNJ qui ne fait jamais payer ce qui serait détruit.
+- Marché : bâtiment Marché requis, ratio borné 1:3, 10 offres actives, verrous pris dans un ordre fixe (plus d'interblocage possible), refus quand l'entrepôt ne peut pas recevoir, échange PNJ qui ne fait jamais payer ce qui serait détruit. Depuis les échanges livrés par armées (27 octobre 2026) et l'audit du 30 octobre 2026 : un convoi d'échange conclu ne peut pas être rappelé, et ce qui ne tient pas dans l'entrepôt d'arrivée revient à l'expéditeur.
 - Famine limitée aux armées à l'arrêt en ville ; PV de mur fractionnaires (régénération réellement en 24 h).
 - Temps de jeu : chaque tick applique le **temps réellement écoulé** (horloge de la base, plafond 6 h) ; files échues réglées à la lecture.
 
@@ -51,7 +51,7 @@ L'architecture est saine et n'avait pas à être refaite : API Express fine, log
 
 ## Second passage (ce qui restait)
 
-- **Effets de bâtiments** lus dans les données et appliqués par le serveur (`src/utils/buildingEffects.js`) : réductions de temps de construction (Bâtiment principal, Académie, Résidence) et d'entraînement (Caserne, Écurie, Atelier, grandes casernes), défense de la ville (Forge, Brasserie gauloise), stockage protégé des raids (Grand Dépôt, Grand Silo), or quotidien de la Chambre au Trésor, réduction d'entretien (Tente de guerre, Avant-poste), production globale (Irrigation), bonus de convoi (Marché, Comptoir), armées en campagne selon la Place de rassemblement (1/3/5), Ambassade pour rejoindre (5) et fonder (7) une alliance, Tour de guet (contre-espionnage, attaquant et effectifs révélés), taxe du marchand, régénération du mur, soins et blessés des bâtiments de faction. L'affichage client des effets reprend exactement ces règles.
+- **Effets de bâtiments** lus dans les données et appliqués par le serveur (`src/utils/buildingEffects.js`) : réductions de temps de construction (Bâtiment principal, Académie, Résidence) et d'entraînement (Caserne, Écurie, Atelier, grandes casernes), défense de la ville (Forge, Brasserie gauloise), Grand Dépôt et Grand Silo (réserve protégée des raids à l'époque ; depuis le 30 octobre 2026, du stockage façon Travian, trois fois un dépôt de même niveau, et seule la cachette protège), or quotidien de la Chambre au Trésor, réduction d'entretien (Tente de guerre, Poste du Désert), production globale et, depuis le 30 octobre 2026, vitesse de marche (Irrigation égyptienne), bonus de convoi (Marché, Comptoir), armées en campagne selon la Place de rassemblement (1/3/5), Ambassade pour rejoindre (5) et fonder (7) une alliance, Tour de guet (contre-espionnage, attaquant et effectifs révélés), taxe du marchand, régénération du mur (remplacée le 25 octobre 2026 par les vies de la ville : les PV du mur remontent avec elles en 48 h), soins et blessés des bâtiments de faction. L'affichage client des effets reprend exactement ces règles.
 - **Annulation** d'une construction (remboursement intégral en attente, moitié en cours, niveaux suivants annulés avec) et d'un recrutement (moitié, lots suivants avancés).
 - **Transferts d'unités** par incréments conditionnels et recrutement sous verrou de ville : plus de valeur absolue écrasée.
 - **E-mail** : confirmation d'adresse à l'inscription, « mot de passe oublié » avec page publique de réinitialisation, changement de mot de passe dans les paramètres ; fournisseurs `log`, `smtp`, `resend` ; avec un vrai fournisseur, le commerce exige une adresse confirmée.
@@ -61,8 +61,8 @@ L'architecture est saine et n'avait pas à être refaite : API Express fine, log
 ## Ce qui reste volontairement en l'état
 
 - **Courbes de coût/temps** : le serveur utilise `coût L1 × 1,28^(n−1)` et ignore les colonnes `costL20/timeL20Sec` des données ; choix d'équilibrage à trancher en jouant, pas un bug.
-- **Colons et villes secondaires** (Résidence), **recherche** (Académie), **aide d'alliance** (Ambassade), **espions comme unités** (Tour de guet) : fonctionnalités entières, pas des réglages ; l'interface l'indique.
-- **Renfort allié** (mission SUPPORT) et **blessés de l'attaquant** soignables à distance : règles de jeu à concevoir.
+- **Colons et villes secondaires** (Résidence), **recherche** (Académie), **aide d'alliance** (Ambassade), **espions comme unités** (Tour de guet) : fonctionnalités entières, mises en place depuis (octobre 2026, voir `docs/ETAT-DES-SYSTEMES.md`).
+- **Renfort allié** (mission SUPPORT, en place depuis le 26 octobre 2026) et **blessés de l'attaquant** (ils rentrent avec leur armée et sont soignés à la Tente de leur ville) : réglés depuis.
 - **`bcryptjs`** (JavaScript pur) : coût CPU visible sous forte charge de connexions ; `bcrypt` natif ou argon2 si besoin.
 
 ## Comment vérifier

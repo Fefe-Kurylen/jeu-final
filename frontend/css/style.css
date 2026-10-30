@@ -458,6 +458,14 @@ html, body {
   font-size: 16px;
 }
 
+/* plusieurs attaques : compteur à côté de l'icône (01-core.js updateAttackNotification) */
+.attack-count {
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
 .attack-timer {
   color: #ffffff;
   font-size: 13px;
@@ -892,14 +900,14 @@ tr:hover, .queue-item:hover, .card:hover {
 }
 
 /* ========== COUNTDOWN TIMERS STYLING ========== */
-.activity-timer, .queue-time {
+.queue-time {
   font-family: 'Courier New', monospace;
   font-weight: 600;
   color: #f5e6c8;
   transition: color 0.3s ease;
 }
 
-.activity-timer.countdown-done, .queue-time.countdown-done {
+.queue-time.countdown-done {
   color: #7fbc5a !important;
   animation: doneFlash 0.5s ease 3;
 }
@@ -1928,21 +1936,6 @@ tr:hover, .queue-item:hover, .card:hover {
 .toast.success { border-color: var(--green); }
 .toast.error { border-color: var(--red); }
 
-.activity-timer {
-  margin-left: auto;
-  font-family: monospace;
-  color: var(--gold-light);
-  font-size: 11px;
-}
-.activity-more {
-  background: var(--gold-dark);
-  color: #1a1a1a;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 600;
-}
-
 /* ========== VILLAGE LIST MODAL ========== */
 .village-list {
   display: flex;
@@ -2863,15 +2856,10 @@ tr:hover, .queue-item:hover, .card:hover {
   border: 1px solid transparent;
 }
 
-.unit-recruit-card:hover:not(.disabled) {
+.unit-recruit-card:hover {
   border-color: var(--gold);
   transform: translateY(-3px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.unit-recruit-card.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .unit-recruit-header {
@@ -2942,14 +2930,6 @@ tr:hover, .queue-item:hover, .card:hover {
 
 .unit-mini-cost.insufficient span {
   color: var(--red);
-}
-
-.unit-blocked {
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--gold);
-  text-align: center;
-  padding: 4px;
-  font-size: 10px;
 }
 
 /* No units available */
@@ -3926,7 +3906,6 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 #replay-canvas { display: block; width: 100%; height: 240px; border: 2px solid #8b6914; border-radius: 10px; background: #3a5a2a; box-shadow: inset 0 0 30px rgba(0,0,0,0.45); }
 .replay-arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; margin-top: 10px; }
 .replay-side h4 { margin: 0 0 4px; font-size: 13px; color: #3a2a14; font-family: 'Cinzel', serif; }
-.replay-units { display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; }
 .replay-hp-bar { height: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; margin: 6px 0 2px; }
 .hp-fill { height: 100%; transition: width 0.4s; } .attacker-hp { background: #b22a22; } .defender-hp { background: #2d5c9c; }
 .replay-count { font-size: 12px; color: #5a4020; }

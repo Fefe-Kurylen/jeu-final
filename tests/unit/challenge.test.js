@@ -22,11 +22,17 @@ test('thème : le même pour tous (tiré de la date du lundi), jamais celui de l
   }
   assert.ok(seen.size >= 5, [...seen].join(' '));   // les thèmes tournent
 });
-test('bornes d\'une semaine de Paris, récompenses des 3 premières', () => {
+test('bornes d\'une semaine de Paris, récompenses des 3 premières (750 / 500 / 250 depuis le 30 octobre 2026)', () => {
   const b = C.boundsOf('2026-10-26');
   assert.equal(b.start.toISOString(), '2026-10-25T23:00:00.000Z');   // lundi 0 h à Paris (heure d'hiver)
   assert.equal(b.end - b.start, 7 * 86400000);
-  assert.deepEqual(C.REWARD_POINTS, [300, 200, 100]);
+  assert.deepEqual(C.REWARD_POINTS, [750, 500, 250]);
+});
+test('arrivée dans l\'alliance : avant le vendredi 0 h de la semaine, heure de Paris (heure d\'été comme d\'hiver)', () => {
+  assert.equal(C.joinDeadline('2026-10-26').toISOString(), '2026-10-29T23:00:00.000Z');   // vendredi 30 octobre 2026, heure d'hiver
+  assert.equal(C.joinDeadline('2027-10-25').toISOString(), '2027-10-28T22:00:00.000Z');   // vendredi 29 octobre 2027, encore l'heure d'été
+  assert.equal(C.joinDeadline('2027-03-22').toISOString(), '2027-03-25T23:00:00.000Z');   // avant le passage à l'heure d'été
+  for (const w of ['2026-10-26', '2027-03-22', '2027-10-25']) { const b = C.boundsOf(w), d = C.joinDeadline(w); assert.ok(d > b.start && d < b.end, w); }
 });
 test('semaines du changement d\'heure : la fin est le lundi 0 h suivant, sans trou ni chevauchement', () => {
   const recul = C.boundsOf('2027-10-25');   // heure d'hiver le dimanche 31 octobre : 169 h
@@ -62,13 +68,40 @@ test('Entraide et Chasseurs de hordes : compteurs des jours de la semaine, allia
     await C.scores('2027-10-25', 'HELP');
     await C.scores('2027-10-25', 'DUNGEON');
   } finally { restore(); }
-  assert.deepEqual(calls[0].args, ['help_given', ...C.daysOf('2027-10-25')]);
-  assert.deepEqual(calls[1].args, ['horde_points', ...C.daysOf('2027-10-25')]);
+  const deadline = C.joinDeadline('2027-10-25');
+  assert.deepEqual(calls[0].args, ['help_given', ...C.daysOf('2027-10-25'), deadline]);
+  assert.deepEqual(calls[1].args, ['horde_points', ...C.daysOf('2027-10-25'), deadline]);
   for (const { sql } of calls) {
     assert.match(sql, /"QuestCounter"/);
     assert.match(sql, /JOIN "AllianceMember" m ON m\."playerId" = c\."playerId"/);   // membres actuels
+    assert.match(sql, /m\."joinedAt" < \$9/);   // arrivés avant le vendredi 0 h
     assert.doesNotMatch(sql, /AllianceHelp"|HordeDamage|"createdAt"/);   // ni les aides purgées, ni la date du donjon
   }
+});
+
+test('score et récompense : seuls les membres arrivés avant le vendredi 0 h comptent et sont payés', async () => {
+  const week = '2026-10-26', deadline = C.joinDeadline(week);
+  const calls = [], paidWhere = [], medals = [];
+  const restore = stub({
+    $queryRawUnsafe: async (sql, ...args) => { calls.push({ sql, args }); return calls.length === 1 ? [{ allianceId: 'A1', tag: 'ABC', name: 'Alpha', value: 900 }] : []; },
+    allianceMember: { findMany: async ({ where }) => { paidWhere.push(where); return [{ playerId: 'early' }]; } },
+    player: { updateMany: (q) => ({ op: 'pay', q }) },
+    medal: { create: (q) => { medals.push(q.data); return { op: 'medal' }; } },
+    notification: { create: async () => ({ id: 'n1' }) },   // avis aux membres payés : aucune écriture réelle
+    $transaction: async (ops) => ops
+  });
+  try {
+    for (const theme of ['ATTACK', 'CLIMB']) await C.scores(week, theme);
+    calls.length = 0;
+    const r = await C.close(week);
+    assert.equal(r.winners, 1);
+  } finally { restore(); }
+  // les trois requêtes de score filtrent sur l'arrivée dans l'alliance
+  assert.match(calls[0].sql, /m\."joinedAt" < \$2/);
+  assert.deepEqual(calls[0].args.slice(-1), [deadline]);
+  // la récompense : membres de l'alliance arrivés avant la limite
+  assert.deepEqual(paidWhere, [{ allianceId: 'A1', joinedAt: { lt: deadline } }]);
+  assert.equal(medals[0].rank, 1);
 });
 
 test('carte du défi : fin au lundi 0 h de Paris, même la semaine du changement d\'heure', async () => {

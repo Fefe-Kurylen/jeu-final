@@ -96,3 +96,70 @@ test('fiche d\'un donjon : reparti = introuvable, détruit = résultats gardés'
   assert.ok(dead.floors.every(f => f.done));
   assert.equal(dead.contributors[0].share, 1);
 });
+
+// ---- âge du monde (décision du 30 octobre 2026) ----
+test('âge du monde : × 1 jusqu\'à la semaine 3, +0,35 par semaine ensuite, plafond × 6', () => {
+  assert.equal(H.ageMultFor(1), 1);
+  assert.equal(H.ageMultFor(21), 1);   // semaine 3
+  assert.ok(Math.abs(H.ageMultFor(22) - 1.35) < 1e-9);   // semaine 4
+  assert.ok(Math.abs(H.ageMultFor(28) - 1.35) < 1e-9);
+  assert.ok(Math.abs(H.ageMultFor(29) - 1.7) < 1e-9);   // semaine 5
+  assert.equal(H.ageMultFor(7 * 17 + 1), invasion.ageMax);   // semaine 18 : 6,25 plafonné
+  assert.equal(H.ageMultFor(400), invasion.ageMax);
+  assert.equal(H.ageMultFor(undefined), 1);
+  // par niveau : rien au niveau 1, tout au niveau 5
+  assert.equal(H.levelAgeMult(1, 6), 1);
+  assert.ok(Math.abs(H.levelAgeMult(5, 6) - 6) < 1e-9);
+  assert.ok(Math.abs(H.levelAgeMult(3, 4) - 2) < 1e-9);
+  assert.equal(H.levelAgeMult(4, undefined), 1);
+});
+
+test('âge du monde : étages plus forts et trésor plus riche en ressources, ni or ni points d\'alliance', () => {
+  const sum = (fs) => fs.reduce((t, f) => t + f.power, 0);
+  assert.equal(sum(H.floorsFor(1, 6)), sum(H.floorsFor(1)));   // niveau 1 inchangé
+  const ratio = sum(H.floorsFor(5, 2)) / sum(H.floorsFor(5));
+  assert.ok(Math.abs(ratio - 2) < 0.02, String(ratio));
+  assert.ok(Math.abs(H.floorPower(5, 1, 2) - H.floorPower(5, 1) * 2) <= 1);
+  const t = H.treasureFor(5), old = H.treasureFor(5, 2);
+  assert.equal(old.wood, Math.round(invasion.treasure.resources * Math.pow(invasion.treasure.resourceFactor, 4) * 2));
+  assert.equal(old.food, old.wood);
+  assert.equal(old.gold, t.gold);
+  assert.equal(old.alliancePoints, t.alliancePoints);
+  assert.deepEqual(H.treasureFor(1, 6), H.treasureFor(1));
+});
+
+test('âge du monde : fixé au lancement de l\'invasion et noté sur sa ligne ; le trésor le relit', async () => {
+  const cfg = require('../../src/config');
+  const savedCounts = cfg.invasion.counts;
+  cfg.invasion.counts = {};   // aucun donjon posé : seul le lancement est vérifié
+  const created = [];
+  const day = 7 * 4 + 3;   // semaine 5 du monde
+  const restore = stub({
+    invasion: { findFirst: async () => null, create: async ({ data }) => { created.push(data); return { id: 'i1', ...data }; }, update: async ({ data }) => ({ id: 'i1', ...data }) },
+    worldConfig: { findUnique: async () => ({ id: 1, readyAt: new Date(Date.now() - (day - 1) * 86400000 - 3600000) }) },
+    player: { count: async () => 10 },
+    $executeRaw: async () => 0
+  });
+  const savedLog = console.log; console.log = () => {};
+  try {
+    const inv = await H.startInvasion({ key: 'test-age', endsAt: new Date(Date.now() + 3600000) });
+    assert.ok(inv);
+  } finally { restore(); console.log = savedLog; cfg.invasion.counts = savedCounts; }
+  assert.equal(created.length, 1);
+  assert.ok(Math.abs(created[0].ageMult - H.ageMultFor(day)) < 1e-9);
+  assert.ok(Math.abs(created[0].ageMult - 1.7) < 1e-9);
+  // destruction d'un donjon de niveau 5 de cette invasion : ressources × 1,7, or inchangé
+  const paid = [];
+  const tx = {
+    horde: { update: async () => ({}) }, resourceNode: { delete: async () => ({}) },
+    invasion: { update: async () => ({ id: 'i1', ageMult: 1.7 }) },
+    hordeDamage: { findMany: async () => [{ playerId: 'a', points: 100 }] },
+    player: { findMany: async () => [{ id: 'a' }], updateMany: async ({ data }) => { paid.push(data.gold.increment); return { count: 1 }; } },
+    city: { findFirst: async () => ({ id: 'cap-a' }) }, $executeRaw: async () => 1,
+    hero: { findUnique: async () => null }, heroItem: { create: async () => ({}) }
+  };
+  const t = await H.destroyHorde(tx, { id: 'h1', invasionId: 'i1', level: 5 }, { id: 'n1', x: 0, y: 0 }, 'a', null);
+  assert.equal(t.shares[0].gain.wood, H.treasureFor(5, 1.7).wood);
+  assert.ok(t.shares[0].gain.wood > H.treasureFor(5).wood);
+  assert.deepEqual(paid, [H.treasureFor(5).gold]);
+});

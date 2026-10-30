@@ -34,7 +34,6 @@ const bNoSnow = b.filter(x => !isSnow(x)), wallsNoSnow = walls.filter(x => !isSn
 const missingIcons = icons.filter(f => !painted.has(f)).map(f => f.replace('ui/', '').replace('.webp', ''));
 const missingFrames = frames.filter(f => !painted.has(f)).map(f => f.replace('ui/', '').replace('.webp', ''));
 const missingProps = propsNoSnow.filter(f => !painted.has(f)).map(f => f.replace('props/', '').replace('.webp', ''));
-const missingWalls = walls.filter(f => !painted.has(f));
 
 let md = `# Liste de tous les graphismes du jeu
 
@@ -84,7 +83,7 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 |---|---|---|---|---|---|
 `;
 for (const f of FACTIONS) {
-  const cur = bsel(f, 'cur'), t1 = bsel(f, 't1'), t3 = bsel(f, 't3'), snow = bsel(f, 'snow');
+  const cur = bsel(f, 'cur'), t1 = bsel(f, 't1'), t3 = bsel(f, 't3');
   const tot = [...cur, ...t1, ...t3];
   md += `| ${FN[f]} | ${cell(cur)} | ${cell(t1)} | ${cell(t3)} | **${n(tot) - p(tot)}** |\n`;
 }

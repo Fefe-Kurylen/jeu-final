@@ -63,9 +63,9 @@ function targetSoldiers(level, resourcePercent = 1.0, difficulty = 1) {
   return Math.max(floor, Math.floor(expectedSoldiers(level, resourcePercent) * Math.max(0.1, difficulty)));
 }
 
-// Camp d'or : défenseurs plus forts de 40 %, au combat (bonus de défense de resolveCombat) comme dans la puissance affichée
-const GOLD_CAMP_BONUS_PCT = 40;
-const campBonusPct = (resourceType) => (resourceType === 'GOLD' ? GOLD_CAMP_BONUS_PCT : 0);
+// Camp d'or : défenseurs plus forts (config.map.camps.goldDefenseBonusPct, 40 %), au combat (bonus de défense de
+// resolveCombat) comme dans la puissance affichée
+const campBonusPct = (resourceType) => (resourceType === 'GOLD' ? require('../config').map.camps.goldDefenseBonusPct || 0 : 0);
 
 // Unités d'un camp (tribu ou Immortels) telles qu'elles combattent : clés anciennes converties, palier de chaque unité
 const LEGACY_KEYS = { warrior: 'GRE_INF_HOPLITE', archer: 'GRE_ARC_TOXOTE', cavalry: 'GRE_CAV_GREC', elite: 'GRE_INF_SPARTIATE' };

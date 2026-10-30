@@ -4,7 +4,7 @@
 // décor dense (bosquets, rangée d'arbres sous les murs, buissons entre les parcelles), murs et tours,
 // caméra (déplacement au doigt, zoom pincé, molette, double tap pour recadrer), nuit avec lumières,
 // et bulles d'action au toucher d'un bâtiment (Améliorer, Recruter, Infos…).
-// Chargé après 02/03/04 : définit calculateCitySlots, calculateFieldSlots, renderCityView et onCityMouseMove
+// Chargé après 02/03/04 : définit calculateCitySlots, renderCityView et onCityMouseMove
 // (le dessin des sprites reste dans 03/04).
 // ============================================================
 
@@ -124,7 +124,6 @@ function calculateCitySlots() {
     citySlots.push({ slot: 100 + s, fieldSlot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
   }
 }
-function calculateFieldSlots() { calculateCitySlots(); }
 
 // ---------- Primitives canvas ----------
 function isoDiamondPath(ctx, x, y, hw, hh) {

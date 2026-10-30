@@ -231,11 +231,12 @@ function getBuildingEffect(key, level) {
     'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     // Defence
     'FORGE': `Défense de la ville: +${(level * 0.5).toFixed(1)}%`,
-    'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (1 + factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) / 100)))} PV${factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'wallHealth', 25)} % de bonus de civilisation)` : ''} · réparation +${level}% plus rapide`,
+    'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (1 + factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) / 100)))} PV${factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'wallHealth', 25)} % de bonus de civilisation)` : ''} · seuls les engins l'abîment`,
     'MOAT': `Défenseurs: +${(level * 0.5).toFixed(1)}% attaque et défense`,
-    'HIDEOUT': `Ressources cachées des raids: ${Math.min(level, 20)}%`,
-    'GREAT_SILO': `Nourriture à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
-    'GREAT_WAREHOUSE': `Ressources à l'abri des raids: ${formatNum(curve(3600, 600000))}`,
+    // la cachette seule protège du pillage (Gaule : +15 %, 20 % au plus) ; Grand silo et Grand dépôt : du stockage
+    'HIDEOUT': `Ressources à l'abri des pillages: ${+Math.min(20, level * (1 + factionBonusPct(player?.faction, 'hideoutCapacity', player?.faction === 'GAUL' ? 15 : 0) / 100)).toFixed(1)}%`,
+    'GREAT_SILO': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_SILO'))} (3 × un silo)`,
+    'GREAT_WAREHOUSE': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_WAREHOUSE'))} (3 × un dépôt)`,
     'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
     'WATCHTOWER': `${level >= 10 ? '2 espions' : level >= 5 ? '1 espion' : 'Espion au niv. 5'} · espions ennemis : ${level >= 15 ? 'qui et quand' : level >= 10 ? 'quand' : level >= 5 ? 'passage' : 'niv. 5'} · attaquant révélé niv. 10, effectifs niv. 15`,
     // Resource fields
@@ -244,8 +245,8 @@ function getBuildingEffect(key, level) {
     'QUARRY': `Pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
     'IRON_MINE': `Fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
     // Economy
-    'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
-    'SILO': `Capacité: ${formatNum(getStorageAtLevel(level))}`,
+    'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level, 'WAREHOUSE'))}`,
+    'SILO': `Capacité: ${formatNum(getStorageAtLevel(level, 'SILO'))}`,
     'MARKET': `Taxe du marchand: ${Math.max(5, 30 - Math.max(0, level - 1))}% · convois +${level * 5}%`,
     'TRADE_OFFICE': `Convois: +${level}% de capacité`,
     'MILL': `Céréales: +${level * 5}%`,
@@ -262,9 +263,9 @@ function getBuildingEffect(key, level) {
     'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% de temps · blessés +${(level * 0.5).toFixed(1)}%`,
     'GALLIC_BREWERY': `Défense de la ville: +${level}%`,
     'GREEK_TEMPLE': `Blessés au lieu de morts: +${(level * 0.5).toFixed(1)}%`,
-    'EGYPTIAN_IRRIGATION': `Production: +${level}%`,
+    'EGYPTIAN_IRRIGATION': `Production: +${level}% · marche des armées: +${+(level * 0.5).toFixed(1)}%`,
     'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}% · blessés +${(level * 0.5).toFixed(1)}%`,
-    'SULTAN_DESERT_OUTPOST': `Entretien: -${(level * 0.5).toFixed(1)}%`
+    'SULTAN_DESERT_OUTPOST': `Entretien: -${(level * 0.5).toFixed(1)}% · transport: +${level}%`
   };
   return effects[key] || null;
 }

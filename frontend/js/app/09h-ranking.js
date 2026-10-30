@@ -16,8 +16,8 @@ function challengeCardHtml(c, { compact = false } = {}) {
   const rows = c.rows.slice(0, compact ? 3 : 10);
   return `<div class="world-card challenge-card">
     <h4>${resIconHtml('medal')} Défi d'alliance de la semaine : « ${escapeHtml(c.label)} »</h4>
-    <p class="diplo-help">Classement des alliances selon les ${escapeHtml(c.what)}. Fin <span class="qd-timer" data-ends-at="${c.endsAt}">${formatTime(c.endsAt)}</span> (lundi 0 h). Les 3 premières gagnent ${c.rewards.join(' / ')} points d'alliance pour chaque membre et une médaille.</p>
-    ${c.me?.inAlliance ? `<div class="ranking-me">Votre alliance : ${c.me.rank ? `<strong>${c.me.rank}${c.me.rank === 1 ? 're' : 'e'}</strong> · ${formatNum(c.me.value)} ${escapeHtml(c.unit)}` : 'pas encore classée'}</div>` : '<p class="diplo-help">Rejoignez une alliance pour participer.</p>'}
+    <p class="diplo-help">Classement des alliances selon les ${escapeHtml(c.what)}. Fin <span class="qd-timer" data-ends-at="${c.endsAt}">${formatTime(c.endsAt)}</span> (lundi 0 h). Les 3 premières gagnent ${c.rewards.join(' / ')} points d'alliance pour chaque membre et une médaille.${c.joinDeadline ? ` Seuls les membres arrivés avant le ${new Date(c.joinDeadline).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })} (heure de Paris) comptent et sont récompensés.` : ''}</p>
+    ${c.me?.inAlliance ? `<div class="ranking-me">Votre alliance : ${c.me.rank ? `<strong>${c.me.rank}${c.me.rank === 1 ? 're' : 'e'}</strong> · ${formatNum(c.me.value)} ${escapeHtml(c.unit)}` : 'pas encore classée'}${c.me.eligible === false ? ' · arrivé après la limite, vous ne comptez pas cette semaine' : ''}</div>` : '<p class="diplo-help">Rejoignez une alliance pour participer.</p>'}
     <div class="ranking-list">${rows.length ? rows.map(r => rowHtml(r.rank, `[${escapeHtml(r.tag)}] ${escapeHtml(r.name)}`, r.value, c.unit, { me: r.mine, onclick: typeof openAllianceSheet === 'function' ? `openAllianceSheet('${chatSafeId(r.allianceId)}')` : '' })).join('') : '<div class="empty-state">Aucune alliance classée pour l\'instant</div>'}</div>
   </div>`;
 }

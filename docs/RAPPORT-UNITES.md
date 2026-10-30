@@ -10,6 +10,7 @@
 - **Vous avez raison pour la cavalerie.** Dans le GDD, elle porte autant que l'infanterie. Elle paie sa vitesse, pas un meilleur transport. Les textes du jeu qui en font « le meilleur pillard » ne viennent pas du GDD.
 - **Notre recommandation est l'option B.** On remet la formule de dégâts du GDD et ses coefficients d'origine (1 / 1,35 / 1,9), et on renforce le triangle de +20 % à +50 %. Mesuré : chaque palier redevient proportionnel à son prix, et le triangle fonctionne dans 78 à 100 % des combats.
 - **Certaines unités restent trop fortes ou trop faibles, quelle que soit l'option.** Cela vient de petits écarts dans les fiches elles-mêmes. On pourra les corriger ensuite, fiche par fiche, si vous le souhaitez (liste au point 6).
+- **Mise à jour du 30 octobre 2026 : c'est fait.** L'option B est en place, les textes de la cavalerie sont corrigés et les 20 fiches du point 6 sont retouchées (±3 à 10 %). Elles sont toutes revenues entre 0,80 et 1,25, et le triangle marche partout. Quatre fiches non retouchées passent juste au-dessus (1,26 à 1,29) : voir le point 7 « Retouches appliquées ».
 
 ---
 
@@ -258,6 +259,8 @@ Engins de siège : 60 minutes, 15 céréales/heure.
 
 ## 6. Les unités qui restent hors équilibre
 
+*Situation avant les retouches, avec les fiches du GDD. Pour les valeurs appliquées et les nouvelles mesures, voir le point 7.*
+
 **Comment lire :** l'indice compare une armée faite de cette seule unité à une armée mixte du même palier, à prix égal.
 - 1,00 = l'unité vaut son prix.
 - **Trop forte** : 1,30 ou plus. **Trop faible** : 0,77 ou moins.
@@ -331,6 +334,171 @@ Les autres cavaliers restent entre 0,82 et 1,18.
 - **Les unités de base gauloises** ont peu de défense (25).
 - Dans le GDD, ces écarts sont petits (±10 %). Mais dans une bataille où toutes les unités frappent à chaque manche, le nombre compte beaucoup. Un petit avantage devient alors un gros écart. Aucune option ne peut l'effacer sans toucher aux fiches.
 - Si vous voulez corriger ces fiches dans un deuxième temps, il faudra les régler une par une, puis les mesurer à nouveau. Nous ne proposons pas encore de valeurs : elles n'ont pas été mesurées.
+
+---
+
+## 7. Retouches appliquées
+
+*30 octobre 2026. Décisions D10 (option B), D11 (textes de la cavalerie) et D12 (retouches des fiches).*
+
+### 7.1 Ce qui a été fait
+
+- **Moteur de bataille : option B** (D10), déjà en place. La défense redevient de la solidité. Coefficients de bataille 1 / 1,35 / 1,9, triangle +50 %. La puissance (pillages, camps, hordes) garde 1 / 1,25 / 1,55.
+- **Cavalerie : textes corrigés** (D11). Son coût reste celui du GDD (160 à la base).
+  - Les 6 descriptions de cavaliers de base parlent maintenant de vitesse : éclairer, frapper vite, intercepter, renforcer.
+  - Plus aucune description de cavalier ne parle de pillage ni de transport. Le nom « Cavalier pillard » est gardé.
+- **20 fiches retouchées** (D12) : les unités trop fortes et trop faibles du point 6.
+  - Seules l'attaque, la défense et l'endurance changent, de 3 à 10 % par valeur.
+  - Vitesse, transport, coût, temps de formation et entretien ne changent pas.
+  - Les 34 autres fiches restent exactement celles du GDD.
+- **Chaque fiche garde son caractère :**
+  - le Champion gaulois reste l'infanterie la plus offensive (77) ;
+  - le Spartiate garde la plus grande endurance de l'infanterie (86) ;
+  - le Légionnaire garde la meilleure défense de l'infanterie d'élite (82) ;
+  - l'Archer d'élite hun garde la plus forte attaque des archers (84) ;
+  - l'Archer nomade garde sa défense fragile (25) ;
+  - le Fantassin du Nil reste équilibré (53 en attaque et en défense) ;
+  - l'Hoplite reste un peu plus offensif que les Triarii (46 contre 45) ;
+  - l'Esclave égyptien reste peu combatif (30) mais endurant (49) ;
+  - l'Archer du désert (Égypte) et le Tireur du désert (Sultanat) avaient la même fiche : ils la gardent commune.
+
+### 7.2 Comment nous avons mesuré
+
+- Même méthode qu'au point 6, avec le moteur du jeu tel qu'il est maintenant (option B).
+- Une armée faite de cette seule unité affronte l'armée de référence de son palier (ses 18 unités à parts égales), à prix égal (240 000 ressources), une fois en attaque et une fois en défense.
+- 1,00 = l'unité vaut son prix. La cavalerie est comparée aux cavaliers de son palier (1,00 = moyenne des cavaliers).
+- **But : chaque fiche retouchée entre 0,80 et 1,25.**
+- La colonne « indice avant » est mesurée avec le même moteur et les fiches du GDD. Elle diffère de la colonne B du point 6 de 0,03 au plus.
+- Les valeurs ont été cherchées une à une (valeurs entières, essais automatiques). Ensuite, nous avons vérifié les paliers, le triangle et les factions.
+
+### 7.3 Tableau avant / après
+
+*Fiche : attaque / défense / endurance. Variation : attaque / défense / endurance.*
+
+**Trop fortes : baissées**
+
+| Unité | Faction, palier | Avant | Après | Variation | Indice avant | Indice après |
+|---|---|---|---|---|---|---|
+| Archer du désert | Sultanat, base | 40/30/45 | **36/27/41** | −10 % / −10 % / −9 % | 1,82 | **1,23** |
+| Archer du Nil | Égypte, base | 40/30/40 | **38/28/37** | −5 % / −7 % / −8 % | 1,60 | **1,21** |
+| Archer nomade | Huns, base | 40/25/40 | **38/25/38** | −5 % / = / −5 % | 1,48 | **1,17** |
+| Fantassin du Nil | Égypte, inter. | 55/55/60 | **53/53/55** | −4 % / −4 % / −8 % | 1,45 | **1,23** |
+| Hoplite | Grèce, inter. | 48/70/60 | **46/67/58** | −4 % / −4 % / −3 % | 1,37 | **1,19** |
+| Archer du désert | Égypte, inter. | 60/45/55 | **57/43/52** | −5 % / −4 % / −5 % | 1,44 | **1,23** |
+| Tireur du désert | Sultanat, inter. | 60/45/55 | **57/43/52** | −5 % / −4 % / −5 % | 1,44 | **1,23** |
+| Champion gaulois | Gaule, élite | 85/70/75 | **77/63/68** | −9 % / −10 % / −9 % | 1,65 | **1,24** |
+| Guerrier du temple | Égypte, élite | 80/70/80 | **72/64/75** | −10 % / −9 % / −6 % | 1,61 | **1,22** |
+| Spartiate | Grèce, élite | 70/78/90 | **64/71/86** | −9 % / −9 % / −4 % | 1,58 | **1,23** |
+| Légionnaire romain | Rome, élite | 65/90/85 | **63/82/77** | −3 % / −9 % / −9 % | 1,49 | **1,23** |
+| Cavalier pillard *(parmi les cavaliers)* | Huns, base | 45/30/50 | **43/30/50** | −4 % / = / = | 1,41 | **1,16** |
+
+**Trop faibles : montées**
+
+| Unité | Faction, palier | Avant | Après | Variation | Indice avant | Indice après |
+|---|---|---|---|---|---|---|
+| Chasseur gaulois | Gaule, base | 30/25/40 | **33/26/44** | +10 % / +4 % / +10 % | 0,68 | **1,06** |
+| Esclave égyptien | Égypte, base | 28/30/45 | **30/33/49** | +7 % / +10 % / +9 % | 0,74 | **1,09** |
+| Guerrier du désert | Sultanat, base | 30/25/45 | **33/26/47** | +10 % / +4 % / +4 % | 0,78 | **1,11** |
+| Archer paysan | Grèce, base | 30/30/40 | **33/31/43** | +10 % / +3 % / +8 % | 0,76 | **1,15** |
+| Triarii gaulois | Gaule, inter. | 45/60/55 | **45/66/60** | = / +10 % / +9 % | 0,77 | **1,12** |
+| Nomade vétéran | Huns, élite | 70/55/65 | **76/60/71** | +9 % / +9 % / +9 % | 0,71 | **1,19** |
+| Archer d'élite hun | Huns, élite | 80/45/60 | **84/49/65** | +5 % / +9 % / +8 % | 0,77 | **1,23** |
+| Cavalier bédouin *(parmi les cavaliers)* | Sultanat, base | 35/25/50 | **38/27/55** | +9 % / +8 % / +10 % | 0,79 | **1,01** |
+
+**Les 20 fiches retouchées sont maintenant entre 1,01 et 1,24.**
+
+### 7.4 Les mesures finales
+
+**Paliers** *(combien d'unités du palier inférieur vaut une unité ; moyenne des 6 factions)*
+
+| | Prix | Avant retouches | Après |
+|---|---|---|---|
+| 1 intermédiaire vaut … unités de base | 1,80 | 1,84 | **1,81** |
+| 1 élite vaut … intermédiaires | 1,78 | 1,69 | **1,68** |
+| 1 élite vaut … unités de base | 3,20 | 3,11 | **3,05** |
+
+- Les paliers restent proportionnels à leur prix.
+- L'élite perd un peu (−2 %), parce que les 4 fantassins d'élite les plus forts ont été baissés. Elle reste environ 5 % sous son prix, comme avant.
+- À dépense égale (but : 1,00), intermédiaire contre base passe de 1,17 à 1,04, et élite contre intermédiaire de 0,75 à 0,73.
+- Élite contre base passe de 0,89 à 0,74 : les unités de base les plus faibles ont été montées, et les fantassins d'élite les plus forts baissés. Par unité, l'écart au prix reste petit (3,05 pour 3,2).
+- Puissance (pillages, camps, hordes) : 1,14 / 0,92 / 1,05 avant, 1,13 / 0,91 / 1,03 après. Presque rien ne change.
+
+**Triangle** *(part des 36 combats entre factions gagnés par la bonne classe, à prix égal)*
+
+| Lien | Base | Intermédiaire | Élite |
+|---|---|---|---|
+| Infanterie bat cavalerie | 100 → 100 % | 100 → 100 % | 100 → 100 % |
+| Cavalerie bat archers | 78 → **100 %** | 94 → **100 %** | 100 → 100 % |
+| Archers battent infanterie | 100 → 100 % | 100 → 100 % | 100 → 100 % |
+
+- Le triangle marche maintenant dans tous les combats, à tous les paliers, aussi derrière un mur 10.
+
+**Factions** *(armées mixtes, indice contre les 5 autres factions, avec le nombre de victoires sur 5 ; fiches seules, sans bonus de faction)*
+
+| Palier | Rome | Gaule | Grèce | Égypte | Huns | Sultanat | Écart fort ÷ faible |
+|---|---|---|---|---|---|---|---|
+| Base, avant | 0,98 (2) | 0,79 (0) | 0,82 (1) | 1,13 (4) | 1,32 (5) | 1,05 (3) | 1,66 |
+| **Base, après** | 0,92 (0) | 0,92 (1) | 0,93 (2) | 1,11 (5) | 1,05 (3) | 1,09 (4) | **1,20** |
+| Intermédiaire, avant | 1,03 (3) | 0,81 (0) | 0,99 (2) | 1,30 (5) | 0,90 (1) | 1,04 (4) | 1,59 |
+| **Intermédiaire, après** | 1,13 (5) | 1,05 (4) | 0,90 (0) | 1,06 (3) | 0,97 (2) | 0,90 (1) | **1,25** |
+| Élite, avant | 1,26 (5) | 1,12 (3) | 1,06 (2) | 1,13 (4) | 0,68 (0) | 0,87 (1) | 1,86 |
+| **Élite, après** | 1,20 (5) | 0,94 (0) | 1,00 (3) | 1,01 (4) | 0,94 (1) | 0,94 (0) | **1,28** |
+
+- L'écart entre la faction la plus forte et la plus faible passe de 1,6–1,9 à 1,2–1,3.
+- La Gaule de base (0,79 → 0,92) et les Huns d'élite (0,68 → 0,94) ne sont plus loin derrière.
+- Rome devient première à l'intermédiaire et à l'élite (1,13 et 1,20). Ses fiches n'ont pas changé : ce sont les autres factions qui se sont rapprochées d'elle.
+
+**Unités**
+
+| | Avant | Après |
+|---|---|---|
+| Unités hors de 0,80–1,25 | 20 | **4** (non retouchées, voir 7.5) |
+| Écart entre la meilleure et la moins bonne unité d'un palier | 2,69 | **1,43** |
+| Rapportées à leur classe *(infanterie et archers ensemble, cavalerie à part)* | 0,59 à 1,77 | **0,82 à 1,16** |
+
+### 7.5 Ce qui reste à surveiller
+
+**4 fiches non retouchées passent juste au-dessus de 1,25.**
+
+| Unité | Faction, palier | Indice avant | Après | Rapporté à sa classe |
+|---|---|---|---|---|
+| Archer vétéran | Rome, inter. | 1,23 | 1,27 | 1,07 |
+| Guerrier du croissant | Sultanat, inter. | 1,20 | 1,26 | 1,06 |
+| Archer d'élite romain | Rome, élite | 1,25 | 1,29 | 1,06 |
+| Défenseur du palais | Sultanat, élite | 1,22 | 1,26 | 1,03 |
+
+- Leurs fiches n'ont pas changé. Elles montent parce que l'armée de référence de leur palier s'est affaiblie : on y a baissé 4 unités trop fortes pour 1 ou 2 montées.
+- Comparées à l'infanterie et aux archers de leur palier, elles sont dans la norme (1,03 à 1,07).
+- Le chiffre brut est haut parce que la cavalerie, qui paie sa vitesse, tire la référence vers le bas. L'infanterie et les archers sont en moyenne à 1,07 (base), 1,19 (intermédiaire) et 1,22 (élite).
+- Les baisser à leur tour ferait monter les autres de la même façon. **Nous conseillons de ne pas y toucher.**
+- Pour la même raison, les fiches baissées de l'intermédiaire et de l'élite finissent près de 1,25 (1,19 à 1,24). Plus bas, ce sont les autres fiches qui passaient au-dessus de 1,25.
+- Mesuré à la relecture : −3 % sur ces 4 fiches fait passer 5 autres fiches à 1,25 ou plus (Triarii romains 1,28 ; Champion gaulois et Archer du pharaon 1,26 ; Fantassin du Nil et Spartiate 1,25). Les Triarii romains, non retouchés, sont déjà à la limite (1,15 → 1,24).
+- En ne retouchant que les 20 fiches de la liste (±10 %), le meilleur réglage trouvé laisse encore une fiche à 1,26 à l'intermédiaire et à 1,28 à l'élite. Mettre les 54 fiches sous 1,25 demande donc de toucher d'autres fiches que celles de la liste.
+
+**Autres remarques**
+
+- Les mesures sont très sensibles : 1 point d'attaque sur un archer de base change son indice de 8 à 9 %. C'est pourquoi les retouches restent petites.
+- Les indices bougent un peu avec la taille des armées. Fiches hors de 0,80–1,25, avant → après : 22 → 6 à 60 000 ressources par camp (6 fiches de base et intermédiaires non retouchées entre 0,76 et 0,80), 20 → 0 à 120 000, 20 → 4 à 240 000 (la mesure du rapport), 20 → 3 à 480 000 (Archer d'élite romain 1,29, Défenseur du palais 1,26, Archer du désert du Sultanat 1,25).
+- Rien n'est mesuré avec les bonus de faction, les héros ou les technologies.
+- Les camps barbares, les hordes et les Immortels utilisent les mêmes fiches : leur force bouge un peu avec elles.
+
+### 7.6 Textes de la cavalerie (D11)
+
+| Unité | Avant | Après |
+|---|---|---|
+| Cavalerie auxiliaire (Rome) | … rapide, idéal pour éclairer et piller. | … rapide, idéal pour éclairer et frapper vite. |
+| Chasseur monté (Gaule) | … l'un des plus rapides pour piller et éclairer. | … l'un des plus rapides pour éclairer et surprendre l'ennemi. |
+| Éclaireur (Grèce) | … très rapide, parfait pour reconnaître et piller. | … très rapide, parfait pour reconnaître le terrain et intercepter. |
+| Cavalier du désert (Égypte) | … très rapide, idéal pour piller. | … très rapide : le premier arrivé pour frapper ou renforcer. |
+| Cavalier pillard (Huns) | Cavalier des razzias, le plus rapide de tous : fait pour piller et s'évanouir dans la steppe. | Cavalier hunnique, l'un des plus rapides du jeu : il frappe vite, intercepte et s'évanouit dans la steppe. |
+| Cavalier bédouin (Sultanat) | … vitesse et capacité de pillage maximales. | … l'un des plus rapides du jeu : il éclaire, intercepte et renforce au loin. |
+
+### 7.7 Pour refaire les mesures
+
+- `node /tmp/claude-0/-home-user-jeu-final/32df8b96-a8b5-5bff-befe-027768644bdf/scratchpad/units-measure.cjs` : mesure complète, avant (fiches du GDD) et après (`data/units.json`). Le script écrit `units-measure.md` et `units-measure.json` à côté de lui.
+- Option `--quick` : indices des unités seulement. Option `--try fiches.json` : essayer d'autres valeurs, en mémoire seulement.
+- Test : `tests/unit/units-retouches.test.js` (fiches, textes de la cavalerie, indices des 20 fiches, triangle).
+- L'ancien script des options A, B et C (point 3) est gardé sous `units-measure.v1-options.cjs.bak`. Il ne tourne plus, car le moteur a changé.
 
 ---
 
