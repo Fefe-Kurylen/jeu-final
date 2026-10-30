@@ -66,6 +66,12 @@ test('titres du Panthéon', () => {
 // ---- vagues : seuls les engins abîment le mur (décision du 30 octobre 2026) ----
 const { resolveCombatDetailed } = require('../../src/services/combatService');
 const { unitsData } = require('../../src/config/gamedata');
+test('vagues d\'Immortels × 5 (recommandation 8) : immortalWaveBase × niveau^immortalWaveExp, réglée dans la configuration', () => {
+  assert.equal(W.wavePower(1), world.immortalWaveBase);
+  assert.equal(W.wavePower(50), Math.round(world.immortalWaveBase * Math.pow(50, world.immortalWaveExp)));
+  assert.ok(Math.abs(W.wavePower(50) - 3.93e6) < 0.01e6 && Math.abs(W.wavePower(100) - 10.0e6) < 0.05e6, `${W.wavePower(50)} / ${W.wavePower(100)}`);
+});
+
 test('vagues d\'Immortels : 15 % de mangonneaux, la puissance de la vague inchangée', () => {
   for (const level of [1, 10, 50, 100]) {
     const units = W.waveUnits(level);
@@ -84,7 +90,7 @@ test('vagues d\'Immortels : 15 % de mangonneaux, la puissance de la vague inchan
 test('vagues d\'Immortels : sans engins un mur ne tombe jamais ; avec, il tient tôt et tombe plus tard', () => {
   const wall = { hp: 20000, maxHp: 20000 };   // mur 20
   const defenders = (power) => [['ROM_INF_LEGIONNAIRE', 0.4], ['ROM_ARC_ELITE', 0.3], ['ROM_CAV_LOURDE', 0.3]].map(([unitKey, s]) => ({ unitKey, tier: 'elite', count: Math.round(power * s / 220) }));
-  const fight = (atk, level) => resolveCombatDetailed(atk, defenders(W.wavePower(level) * 0.5), 20, 0, 'Immortels', 'D', null, null, 'SULTAN', 'ROME', 0, null, { ...wall });
+  const fight = (atk, level) => resolveCombatDetailed(atk, defenders(W.wavePower(level) * 0.5), 20, 'Immortels', 'D', null, null, 'SULTAN', 'ROME', 0, null, { ...wall });
   // l'ancienne vague (soldats seuls) : le mur reste debout quelle que soit sa force, la Merveille ne perdrait jamais de niveau
   const soldiersOnly = fight(W.immortalLines(W.immortalUnits(W.wavePower(60))), 60);
   assert.equal(soldiersOnly.wallHpEnd, 20000);

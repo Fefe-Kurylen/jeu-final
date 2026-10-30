@@ -74,7 +74,7 @@ function renderWounded(wounded) {
           <span class="wounded-count">${w.waiting}x ${escapeHtml(w.unitName || w.unitKey)}${where} en attente</span>
           ${w.healable > 0
             ? `<span class="wounded-time">${healCostHtml(w.healCost)} · ${formatDuration(w.healSeconds)}</span>
-          <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}')" title="Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}">Soigner ${w.healable}</button>`
+          <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}')" title="${costShortfall(w.healCost) || `Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}`}">Soigner ${w.healable}</button>`
             : '<span class="wounded-time">tous les lits sont pris</span>'}
         </div>` : '';
     return inBed + queue;
@@ -506,7 +506,7 @@ function showUnitDetail(unitKey) {
     `;
     
     btn.classList.toggle('disabled', !canAfford);
-    btn.title = canAfford ? '' : 'Ressources insuffisantes';
+    btn.title = canAfford ? '' : costShortfall({ wood: totalWood, stone: totalStone, iron: totalIron, food: totalFood });
   };
   
   setTimeout(() => {

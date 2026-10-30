@@ -325,3 +325,14 @@ test('route : une erreur métier garde son statut, l\'absence de chemin vers le 
     assert.equal(r2.statusCode, 403);
   } finally { R.join = saved; }
 });
+
+// ---- Place de rassemblement « capitale seulement » (décision du 30 octobre 2026) ----
+test('lancer : la capacité suit la Place de rassemblement de la capitale, même depuis une colonie', async () => {
+  const colony = cityRow('cC', 'p1', 0, -10);
+  const owner = { id: 'p1', name: 'p1', faction: null, technologies: [], cities: [{ buildings: [{ key: 'RALLY_POINT', level: 10 }] }] };   // include fx.CAPITAL_BUILDINGS
+  const db = fakeDb({ cities: [colony], members: [{ playerId: 'p1', allianceId: 'A1' }], nodes: [immortalNode('w1', 'WONDER')], armies: [armyRow('a1', 'p1', colony, { owner })] });
+  try {
+    const out = await R.launch('p1', { armyId: 'a1', nodeId: 'w1', waitMinutes: 10 });
+    assert.equal(out.rally.capacity, R.capacityFor(10));
+  } finally { db.restore(); }
+});

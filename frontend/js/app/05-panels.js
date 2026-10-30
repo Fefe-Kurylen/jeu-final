@@ -134,7 +134,7 @@ function openBuildPanel(slotNum) {
             <div class="upgrade-action">
               <div class="build-time"><span class="time-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span> ${timeStr}</div>
               <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : '❌ Ressources insuffisantes'}
+                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : `❌ ${costShortfall(nextCost)}`}
               </button>
             </div>
           ` : `
@@ -553,7 +553,7 @@ function openFieldBuildPanel(slotNum) {
             <span class="${stockOf('food') >= cost.food ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(cost.food)}</span>
           </div>
           <p style="font-size:12px;color:#888"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
-  const buttonLabel = queueFull ? `${resIconHtml('clock')} File pleine` : targetLevel > mainHallLevel ? `${resIconHtml('lock')} Bât. principal Niv.${targetLevel} requis` : !canAfford ? 'Ressources insuffisantes' : null;
+  const buttonLabel = queueFull ? `${resIconHtml('clock')} File pleine` : targetLevel > mainHallLevel ? `${resIconHtml('lock')} Bât. principal Niv.${targetLevel} requis` : !canAfford ? costShortfall(cost) : null;
 
   if (level > 0) {
     // Existing field - show upgrade
@@ -899,6 +899,7 @@ function openUnitRecruitModal(unitKey, buildingKey) {
     `;
     
     btn.classList.toggle('disabled', !canAfford);
+    btn.title = canAfford ? '' : costShortfall({ wood: totalWood, stone: totalStone, iron: totalIron, food: totalFood });
   };
   
   setTimeout(() => {
@@ -1044,7 +1045,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
             <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}"
                     onclick="upgradeBuilding('${buildingKey}', ${slotNum})"
                     ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-              ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : '❌ Ressources insuffisantes'}
+              ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : `❌ ${costShortfall(nextCost)}`}
             </button>
           </div>
         </div>

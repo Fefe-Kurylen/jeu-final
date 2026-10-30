@@ -78,7 +78,7 @@
     S.tree = (g, cx, cy, s = 1, i = 0, biome = 'forest') => { if (biome === 'desert') return i % 3 === 2 ? P.cactus(g, cx, cy, s * 0.8) : P.palm(g, cx, cy, s * 0.9); if (biome === 'snow') return P.pine(g, cx, cy, s, '#2f6a3a', true); if (f === 'EGYPT' || f === 'SULTAN') return P.palm(g, cx, cy, s * 0.9); if (f === 'GREEK') return i % 2 ? cypress(g, cx, cy, s) : P.oak(g, cx, cy, s * 0.9, '#7f9c62'); if (f === 'ROME') return i % 3 === 2 ? cypress(g, cx, cy, s) : P.oak(g, cx, cy, s * 0.9); if (f === 'HUN') return i % 2 ? P.pine(g, cx, cy, s * 0.9, '#5a8a34') : P.oak(g, cx, cy, s * 0.8, '#6a9a3c'); return P.pine(g, cx, cy, s); };
     // Ornements de parcelle (coins avant)
     S.flourish = (g, key) => {
-      const NO = new Set(['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT', 'MARKET', 'GREEK_TEMPLE']);
+      const NO = new Set(['WALL', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT', 'MARKET', 'GREEK_TEMPLE']);
       if (NO.has(key)) return;
       const L = [-0.82, 0.55], B = [0.5, 0.82];
       if (f === 'ROME') { P.amphora(g, L[0], L[1], 0, 0.22); P.bush(g, B[0], B[1], 0.8); }

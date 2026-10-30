@@ -472,9 +472,11 @@ router.get('/incoming-attacks', auth, async (req, res) => {
   try {
     const playerCities = await prisma.city.findMany({
       where: { playerId: req.user.playerId },
-      select: { id: true, name: true, x: true, y: true, buildings: { where: { key: 'WATCHTOWER' }, select: { level: true } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, buildings: { where: { key: 'WATCHTOWER' }, select: { level: true } } }
     });
     const cityIds = playerCities.map(c => c.id);
+    // Tour de guet « capitale seulement » (décision du 30 octobre 2026) : sa tour veille sur toutes les villes du joueur
+    const watchtower = playerCities.find(c => c.isCapital)?.buildings?.[0]?.level || 0;
 
     const incomingArmies = await prisma.army.findMany({
       where: { targetCityId: { in: cityIds }, OR: [{ status: { in: ['ATTACKING', 'RAIDING'] }, missionType: { not: 'BREAK_SIEGE' }, arrivalAt: { gt: new Date() } }, { status: 'BESIEGING' }] },
@@ -484,7 +486,6 @@ router.get('/incoming-attacks', auth, async (req, res) => {
 
     const attacks = incomingArmies.map(a => {
       const targetCity = playerCities.find(c => c.id === a.targetCityId);
-      const watchtower = targetCity?.buildings?.[0]?.level || 0;
       return {
         // a siege is visible from the walls: its leader and its assault time are always known
         id: a.id, type: a.status === 'BESIEGING' ? 'SIEGE' : (a.missionType || a.status), arrivalAt: a.arrivalAt, targetCity: targetCity?.name || 'Ville', targetCityId: a.targetCityId,

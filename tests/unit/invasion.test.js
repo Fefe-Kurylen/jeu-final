@@ -57,7 +57,7 @@ test('destruction : un contributeur dont le compte est supprimé n\'empêche pas
       findMany: async ({ where }) => where.id.in.filter(id => players.has(id)).map(id => ({ id })),
       updateMany: async ({ where, data }) => { if (where.id === 'c') return { count: 0 }; paid.push({ id: where.id, gold: data.gold.increment }); return { count: 1 }; }
     },
-    city: { findFirst: async ({ where }) => ({ id: `cap-${where.playerId}` }) },
+    $queryRaw: async (sql, playerId) => [{ id: `cap-${playerId}`, isCapital: true, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 1e9, maxFoodStorage: 1e9 }],
     $executeRaw: async (sql, ...v) => { credited.push(v[v.length - 1]); return 1; },
     hero: { findUnique: async () => null },
     heroItem: { create: async () => ({}) }
@@ -138,6 +138,7 @@ test('âge du monde : fixé au lancement de l\'invasion et noté sur sa ligne ; 
     invasion: { findFirst: async () => null, create: async ({ data }) => { created.push(data); return { id: 'i1', ...data }; }, update: async ({ data }) => ({ id: 'i1', ...data }) },
     worldConfig: { findUnique: async () => ({ id: 1, readyAt: new Date(Date.now() - (day - 1) * 86400000 - 3600000) }) },
     player: { count: async () => 10 },
+    $queryRaw: async () => [],   // aucun joueur mesuré : formule de l'âge du monde
     $executeRaw: async () => 0
   });
   const savedLog = console.log; console.log = () => {};
@@ -148,6 +149,7 @@ test('âge du monde : fixé au lancement de l\'invasion et noté sur sa ligne ; 
   assert.equal(created.length, 1);
   assert.ok(Math.abs(created[0].ageMult - H.ageMultFor(day)) < 1e-9);
   assert.ok(Math.abs(created[0].ageMult - 1.7) < 1e-9);
+  assert.equal(created[0].basePower, null);
   // destruction d'un donjon de niveau 5 de cette invasion : ressources × 1,7, or inchangé
   const paid = [];
   const tx = {
@@ -155,11 +157,93 @@ test('âge du monde : fixé au lancement de l\'invasion et noté sur sa ligne ; 
     invasion: { update: async () => ({ id: 'i1', ageMult: 1.7 }) },
     hordeDamage: { findMany: async () => [{ playerId: 'a', points: 100 }] },
     player: { findMany: async () => [{ id: 'a' }], updateMany: async ({ data }) => { paid.push(data.gold.increment); return { count: 1 }; } },
-    city: { findFirst: async () => ({ id: 'cap-a' }) }, $executeRaw: async () => 1,
+    $queryRaw: async () => [{ id: 'cap-a', isCapital: true, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 1e9, maxFoodStorage: 1e9 }], $executeRaw: async () => 1,
     hero: { findUnique: async () => null }, heroItem: { create: async () => ({}) }
   };
   const t = await H.destroyHorde(tx, { id: 'h1', invasionId: 'i1', level: 5 }, { id: 'n1', x: 0, y: 0 }, 'a', null);
   assert.equal(t.shares[0].gain.wood, H.treasureFor(5, 1.7).wood);
   assert.ok(t.shares[0].gain.wood > H.treasureFor(5).wood);
   assert.deepEqual(paid, [H.treasureFor(5).gold]);
+});
+
+// ---- force réglée sur les joueurs (décision du 30 octobre 2026, rapport économie, recommandation 9) ----
+const { calculateArmyPower } = require('../../src/utils/calculations');
+const { unitsData } = require('../../src/config/gamedata');
+const P = invasion.powerRef;
+
+test('donjons : avant-poste du niveau 1 = max(minimum, médiane × part), seulement avec assez de joueurs mesurés', () => {
+  assert.equal(H.outpostPower([]), null);
+  assert.equal(H.outpostPower(Array(P.minPlayers - 1).fill(100000)), null);
+  assert.equal(H.outpostPower([0, 0, 0, 0, 0, 100000]), null, 'les joueurs sans puissance ne comptent pas');
+  const five = [10000, 50000, 80000, 120000, 900000];   // médiane 80 000
+  assert.equal(H.outpostPower(five), Math.round(80000 * P.outpostPctOfMedian / 100));
+  assert.equal(H.outpostPower([...five, 100000]), Math.round(90000 * P.outpostPctOfMedian / 100), 'nombre pair : moyenne des deux du milieu');
+  assert.equal(H.outpostPower(Array(P.minPlayers).fill(100)), P.minOutpost);
+});
+
+test('donjons : étages × 1 / 2 / 4 et × levelFactor par niveau sur la puissance mesurée, sans l\'âge du monde', () => {
+  const bp = 40000;
+  assert.equal(H.floorPower(1, 1, 6, bp), bp);
+  assert.equal(H.floorPower(1, 3, 1, bp), 4 * bp);   // chef du niveau 1 : 2 joueurs médians avec 50 %
+  assert.equal(H.floorPower(5, 3, 6, bp), Math.round(4 * bp * Math.pow(P.levelFactor, 4)));
+  assert.ok(Math.abs(H.floorPower(5, 3, 1, bp) / (bp * 100 / P.outpostPctOfMedian) - 21) < 0.1, 'chef du niveau 5 ≈ 21 joueurs médians');
+  // sans mesure (invasions d'avant, trop peu de joueurs) : la formule de l'âge du monde
+  assert.equal(H.floorPower(5, 1, 2), H.floorPower(5, 1, 2, null));
+  const f = H.floorsFor(2, 1, bp);
+  assert.ok(Math.abs(f[0].power - bp * P.levelFactor) / (bp * P.levelFactor) < 0.05);
+});
+
+test('donjons : puissance des joueurs actifs lue en une requête (toutes leurs unités), notée sur l\'invasion', async () => {
+  const rows = [];
+  for (let i = 1; i <= 6; i++) rows.push({ playerId: `p${i}`, unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 100 * i }, { playerId: `p${i}`, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 10 });
+  let since = null;
+  const db = { $queryRaw: async (sql, s) => { since = s; return rows; } };
+  const now = new Date('2026-11-06T18:00:00Z');
+  const bp = await H.measuredBasePower(now, db);
+  assert.equal(since.getTime(), now.getTime() - P.activeDays * 86400000);
+  const power = (i) => calculateArmyPower([{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 100 * i }, { unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 10 }], unitsData);
+  assert.equal(bp, H.outpostPower([1, 2, 3, 4, 5, 6].map(power)));
+  // au lancement : notée sur la ligne Invasion
+  const cfg = require('../../src/config');
+  const savedCounts = cfg.invasion.counts;
+  cfg.invasion.counts = {};
+  const created = [];
+  const restore = stub({
+    invasion: { findFirst: async () => null, create: async ({ data }) => { created.push(data); return { id: 'i2', ...data }; }, update: async ({ data }) => ({ id: 'i2', ...data }) },
+    worldConfig: { findUnique: async () => ({ id: 1, readyAt: new Date(Date.now() - 3600000) }) },
+    $queryRaw: async () => rows,
+    $executeRaw: async () => 0
+  });
+  const savedLog = console.log; console.log = () => {};
+  try { await H.startInvasion({ key: 'test-power', endsAt: new Date(Date.now() + 3600000) }); } finally { restore(); console.log = savedLog; cfg.invasion.counts = savedCounts; }
+  assert.equal(created[0].basePower, bp);
+});
+
+test('trésor (recommandation 2) : la capitale d\'abord, le surplus dans les autres villes, la notification dit ce qui est perdu', async () => {
+  // capitale presque pleine, une colonie avec 1 000 de place en bois ; le niveau 1 donne 8 000 de chaque ressource
+  const cities = [
+    { id: 'cap', isCapital: true, wood: 9500, stone: 0, iron: 0, food: 0, maxStorage: 10000, maxFoodStorage: 1e9 },
+    { id: 'col', isCapital: false, wood: 1000, stone: 0, iron: 0, food: 0, maxStorage: 2000, maxFoodStorage: 1e9 }
+  ];
+  const credited = {};
+  const tx = {
+    horde: { update: async () => ({}) }, resourceNode: { delete: async () => ({}) },
+    invasion: { update: async () => ({ id: 'i1', ageMult: 1 }) },
+    hordeDamage: { findMany: async () => [{ playerId: 'a', points: 100 }] },
+    player: { findMany: async () => [{ id: 'a' }], updateMany: async () => ({ count: 1 }) },
+    $queryRaw: async () => cities.map(c => ({ ...c })),
+    $executeRaw: async (sql, ...v) => { credited[v[v.length - 1]] = v[0]; return 1; },
+    hero: { findUnique: async () => null }, heroItem: { create: async () => ({}) }
+  };
+  const t = await H.destroyHorde(tx, { id: 'h1', invasionId: 'i1', level: 1 }, { id: 'n1', x: 3, y: 4 }, 'a', null);
+  const T = H.treasureFor(1);
+  assert.deepEqual(credited, { cap: 500, col: 1000 });   // bois : 500 dans la capitale, 1 000 dans la colonie
+  assert.equal(t.shares[0].lost.wood, T.wood - 1500);
+  assert.equal(t.shares[0].lost.stone, 0);
+  const notes = [];
+  const restore = stub({ notification: { create: async ({ data }) => { notes.push(data); return { id: 'n' }; } } });
+  try { H.announceOutcome(null, { destroyed: true, treasure: t, level: 1, x: 3, y: 4 }); await new Promise(r => setTimeout(r, 10)); } finally { restore(); }
+  assert.equal(notes.length, 1);
+  assert.match(notes[0].body, new RegExp(`${(1500).toLocaleString('fr-FR')} bois, .* rangés dans vos villes \\(la capitale d.abord\\)`));
+  assert.match(notes[0].body, new RegExp(`Perdu faute de place dans vos entrepôts : ${(T.wood - 1500).toLocaleString('fr-FR')} bois\\.`));
 });

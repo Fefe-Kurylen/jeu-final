@@ -9,15 +9,16 @@ const { BUILDING: SUBJECT, FACTION: ARCHI } = require('./repaint/prompts.cjs');
 const { buildAllTargets } = require('./repaint/targets.cjs');
 // Camps barbares : pas de rendu 3D, uniquement dans le registre des livrables
 const mapCamps = buildAllTargets().filter(t => t.file.startsWith('map/camps/')).map(t => t.file);
-// Un bâtiment de faction (Thermes, Brasserie…) n'est jamais affiché chez une autre civilisation : ses rendus 3D
-// dans les autres dossiers ne sont pas à produire
-const foreignFaction = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3)?(?:_snow)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !!(d && d.faction && d.faction !== m[1]); };
+// Rendus 3D jamais affichés, donc pas à produire : un bâtiment de faction (Thermes, Brasserie…) dans les dossiers des
+// autres civilisations, un bâtiment retiré du jeu (Douves, 30 octobre 2026)
+const notShown = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3)?(?:_snow)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !d || !!(d.faction && d.faction !== m[1]); };
 const cat = (c) => m3d.categories[c] || [];
 const n = (list) => list.length, p = (list) => list.filter(f => painted.has(f)).length;
 const row = (label, list, size, usage) => `| ${label} | ${n(list)} | ${p(list)} | **${n(list) - p(list)}** | ${size} | ${usage} |`;
 const FACTIONS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
+const COMMON = buildingsData.filter(x => !x.faction).length;   // bâtiments communs ; + 1 bâtiment de faction par civilisation
 const FN = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
-const b = cat('buildings').filter(f => !foreignFaction(f) && !/_snow\.webp$/.test(f));   // variantes neige retirées de la liste (octobre 2026)
+const b = cat('buildings').filter(f => !notShown(f) && !/_snow\.webp$/.test(f));   // variantes neige retirées de la liste (octobre 2026)
 const bsel = (f, v) => b.filter(x => x.startsWith(`buildings/${f}/`) && (v === 'cur' ? !/_t1|_t3|_snow/.test(x) : v === 't1' ? /_t1\.webp$/.test(x) : v === 't3' ? /_t3\.webp$/.test(x) : /_snow\.webp$/.test(x)));
 const cell = (list) => `${p(list)} / ${n(list)}`;
 const walls = cat('walls').filter(f => !/_snow\.webp$/.test(f)), fields = cat('fields'), plots = cat('plots'), props = cat('props').filter(x => !/puff|ripple/.test(x));
@@ -61,7 +62,7 @@ Les variantes enneigées ne sont pas à produire pour l'instant (décision d'oct
 
 ## 2. Ordre de production conseillé (du plus visible au moins visible)
 
-1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : 34 bâtiments × 6 civilisations (liste par civilisation : \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
+1. **Bâtiments de sa propre ville, palier courant** (niveaux 7-13) : ${COMMON + 1} bâtiments × 6 civilisations (liste par civilisation : \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`). Commencer par la civilisation qu'on joue le plus ; Rome, Gaule et Égypte sont les plus avancées (voir la matrice § 3.1).
 2. **Champs** (4 types × 3 paliers × 3 biomes), **parcelles vides** (3 biomes × 2) et **décors** de scène : ce que l'on voit autour de la ville à chaque connexion.
 3. **Enceinte** : courtines et tours par civilisation et par palier du Mur (6 × 3 × 5), puis les variantes neige.
 4. **Carte du monde** : villes (${n(mapCities)}), ressources (${n(mapRes)}), camps barbares (${n(mapCamps)}), sol, relief et décor (${n(mapWorld)}), armées en marche (${n(mapUnits)}).
@@ -76,7 +77,7 @@ Colonnes : total d'images, déjà peintes, **restant**, taille, où le joueur le
 
 ### 3.1 Bâtiments — \`buildings/<CIV>/<CLÉ>[_t1|_t3].png\`
 
-34 bâtiments par civilisation (33 communs + son bâtiment de faction ; liste détaillée par civilisation dans \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
+${COMMON + 1} bâtiments par civilisation (${COMMON} communs + son bâtiment de faction ; liste détaillée par civilisation dans \`docs/LISTE-BATIMENTS-PAR-FACTION.md\`), chacun en 3 versions : courante (niveaux 7-13), **_t1** (niveaux 1-6, petite et simple),
 **_t3** (niveaux 14-20, monumentale). Pas de version neige à produire (décision d'octobre 2026 : le rendu 3D enneigé reste). Taille 1024×1024, cadre « building ».
 
 | Civilisation | Courant (peints / total) | Palier 1 (_t1) | Palier 3 (_t3) | Restant |
@@ -217,14 +218,14 @@ La liste complète de tout ce qu'il faut produire, famille par famille, est dans
 `;
 fs.writeFileSync(root + 'docs/LISTE-GRAPHISMES.md', md);
 
-// ---- docs/LISTE-BATIMENTS-PAR-FACTION.md : les 34 bâtiments d'une civilisation, dans l'ordre où le joueur les voit
-const ORDER = ['MAIN_HALL', 'FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WAREHOUSE', 'SILO', 'RALLY_POINT', 'BARRACKS', 'MARKET', 'ACADEMY', 'FORGE', 'STABLE', 'WALL', 'HEALING_TENT', 'HIDEOUT', 'WATCHTOWER', 'EMBASSY', 'HERO_MANSION', 'RESIDENCE', 'WORKSHOP', 'MILL', 'SAWMILL', 'STONEMASON', 'FOUNDRY', 'BAKERY', 'TREASURE_CHAMBER', 'GREAT_SILO', 'GREAT_WAREHOUSE', 'MOAT', 'TRADE_OFFICE', 'GREAT_BARRACKS', 'GREAT_STABLE'];
+// ---- docs/LISTE-BATIMENTS-PAR-FACTION.md : les bâtiments d'une civilisation, dans l'ordre où le joueur les voit
+const ORDER = ['MAIN_HALL', 'FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WAREHOUSE', 'SILO', 'RALLY_POINT', 'BARRACKS', 'MARKET', 'ACADEMY', 'FORGE', 'STABLE', 'WALL', 'HEALING_TENT', 'HIDEOUT', 'WATCHTOWER', 'EMBASSY', 'HERO_MANSION', 'RESIDENCE', 'WORKSHOP', 'MILL', 'SAWMILL', 'STONEMASON', 'FOUNDRY', 'BAKERY', 'TREASURE_CHAMBER', 'GREAT_SILO', 'GREAT_WAREHOUSE', 'TRADE_OFFICE', 'GREAT_BARRACKS', 'GREAT_STABLE'];
 const factionBuilding = Object.fromEntries(buildingsData.filter(x => x.faction).map(x => [x.faction, x.key]));
 const unlockText = (d) => (d.prereq || []).length ? d.prereq.map(p => `${buildingsData.find(x => x.key === p.key)?.name || p.key} ${p.level}`).join(', ') : '—';
 const mark = (file) => painted.has(file) ? '✅' : '☐';
 let bf = `# Bâtiments à produire, civilisation par civilisation
 
-Chaque civilisation affiche **34 bâtiments** : 33 communs et son bâtiment de faction. Les cinq bâtiments des autres
+Chaque civilisation affiche **${COMMON + 1} bâtiments** : ${COMMON} communs et son bâtiment de faction. Les cinq bâtiments des autres
 civilisations (Thermes, Brasserie, Temple, Poste d'irrigation, Tente de guerre, Poste du désert) ne sont jamais montrés
 chez elle : inutile de les peindre pour elle.
 
@@ -248,7 +249,7 @@ for (const civ of FACTIONS) {
 
 Architecture à ajouter à chaque prompt : *${ARCHI[civ]}*
 
-Orientation à ajouter à chaque prompt (sauf champs, Douves, Irrigation, Place de rassemblement) : *${require('./repaint/prompts.cjs').ENTRANCE}*
+Orientation à ajouter à chaque prompt (sauf champs, Irrigation, Place de rassemblement) : *${require('./repaint/prompts.cjs').ENTRANCE}*
 
 | # | Clé (fichier) | Bâtiment | Sujet (anglais, pour le prompt) | Débloqué par | Courant | _t1 | _t3 |
 |---|---|---|---|---|---|---|---|
@@ -288,7 +289,6 @@ const STATIC = [
   ['scenes/vignette-tribe-<forest|desert|snow>.png × 3 (camps des tribus, en tête des rapports)', '1536×1024', 'guide § S14'],
   ['ui/tribe.png (icône tribu locale)', '1024×1024', 'guide § S14'],
   ['props/plaza_<CIV>_<statue|fountain|stall>.png × 18 (ornements de plaza par civilisation)', '512×768', 'guide § S16'],
-  ['walls/<CIV>/moat_<seg_x|seg_z|corner>.png × 18 (douves)', '1024×1024', 'guide § S16'],
   ['figures/units/<CLÉ>.png × 60 et busts/units/<CLÉ>.png × 60 (une figurine et un jeton par unité, fiches d\'unité)', '1024×1536 / 1024×1024', 'guide § S17'],
   ['map/units/hero_<CIV>.png × 6 (héros en tête d\'armée), map/units/spy.png (espion)', '1024×1024', 'guide § S18'],
   ['heroes/<CIV>_t<2|3>.png × 12 et heroes/<CIV>_bust_t<2|3>.png × 12 (héros par palier de niveau)', '1024×1536 / 1024×1024', 'guide § S19'],
@@ -384,7 +384,7 @@ console.log('docs/LISTE-GRAPHISMES.md écrit :', n(all), 'visuels,', p(all), 'pe
 // ---- docs/GRAPHISMES-COMPLET.md : TOUT ce qu'il faut graphiquement, écran par écran, famille par famille ----
 {
   const reg = buildAllTargets();
-  const files = reg.map(t => t.file).filter(f => !foreignFaction(f));   // un bâtiment propre à une civilisation n'existe que chez elle
+  const files = reg.map(t => t.file).filter(f => !notShown(f));   // un bâtiment propre à une civilisation n'existe que chez elle
   const { screens, rest } = require('./repaint/families.cjs').classify(files, painted);
   const storeRows = require('./repaint/targets.cjs').STORE || [{ file: 'store/ic_stat_notify.png', size: [96, 96], role: 'Icône de notification Android' }, { file: 'store/feature-graphic.png', size: [1024, 500], role: 'Bannière Google Play' }, { file: 'store/icon-1024.png', size: [1024, 1024], role: 'Icône de l\'application peinte' }];
   const tot = (arr) => arr.reduce((t, x) => t + x.total, 0), done = (arr) => arr.reduce((t, x) => t + x.done, 0);
@@ -428,7 +428,7 @@ emblème 3D (icône, favicon, splash ; version peinte : N3). Les variantes neige
 2. Ce qui fait vivre la ville : échafaudages, ouvriers, villageois, flammes, bâtiments vivants, ornements de plaza.
 3. Les systèmes récents : camps barbares, colons et colonies, technologies, chantiers par bâtiment.
 4. Les fiches : une figurine et un jeton par unité, héros par palier, vignettes.
-5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints, douves.
+5. Le reste : paliers 1 et 3 des bâtiments, animations d'ambiance, météo, drapeaux et fumées peints.
 `;
   if (rest.length) gc += `\n## Non classé (${rest.length})\n\n${rest.map(f => '- ' + f).join('\n')}\n`;
   fs.writeFileSync(root + 'docs/GRAPHISMES-COMPLET.md', gc);

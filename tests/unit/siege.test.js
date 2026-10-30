@@ -12,7 +12,7 @@ const g = (u, n) => ({ unitKey: u.key, tier: u.tier, count: n });
 const inf = unit('ROME', 'INFANTRY', 'intermediate'), eng = unit('ROME', 'SIEGE', 'siege');
 const def = [g(unit('GAUL', 'INFANTRY', 'intermediate'), 600), g(unit('GAUL', 'ARCHER', 'intermediate'), 300)];
 const wall = (level, share = 1) => ({ hp: level * config.combat.wallHpPerLevel * share, maxHp: level * config.combat.wallHpPerLevel });
-const fight = (atk, level, share = 1, defenders = def) => resolveCombatDetailed(atk, defenders, level, 0, 'A', 'D', null, null, 'ROME', 'GAUL', 0, null, wall(level, share));
+const fight = (atk, level, share = 1, defenders = def) => resolveCombatDetailed(atk, defenders, level, 'A', 'D', null, null, 'ROME', 'GAUL', 0, null, wall(level, share));
 const breachRound = (r) => r.rounds.findIndex(x => x.wallHp === 0) + 1;
 
 test('the camp lasts one hour before the battle', () => {
@@ -87,7 +87,7 @@ test('a breach gives roundsAfterBreach more rounds: the attacker wins only if he
 test('Sultan siege engines strike the wall 25 % harder (siegeEngineAttack); a Gallic wall takes 1/1.2 of the blows', () => {
   const sulEng = unit('SULTAN', 'SIEGE', 'siege'), egyEng = unit('EGYPT', 'SIEGE', 'siege');
   assert.equal(sulEng.stats.attack, egyEng.stats.attack);
-  const firstHit = (engine, defFaction) => resolveCombatDetailed([g(engine, 20)], def, 20, 0, 'A', 'D', null, null, null, defFaction, 0, null, wall(20)).rounds[0].wallDamage;
+  const firstHit = (engine, defFaction) => resolveCombatDetailed([g(engine, 20)], def, 20, 'A', 'D', null, null, null, defFaction, 0, null, wall(20)).rounds[0].wallDamage;
   const plain = firstHit(egyEng, 'GREEK');
   assert.ok(plain > 0);
   assert.ok(Math.abs(firstHit(sulEng, 'GREEK') / plain - 1.25) < 0.01);

@@ -167,3 +167,35 @@ test('colons : la Ville Merveille n\'est pas une colonie, un colon de plus pour 
   ctx.armies = [{ settlers: 1 }];
   assert.match(ctx.colonyTabHtml(10), /disabled/);
 });
+
+// Décision du 30 octobre 2026 : coût et durée d'un niveau (champs ×1,45, champs et Bâtiment principal ×1,30) avec les
+// réglages du serveur (player.economy, /api/player/me), réduction du temps par l'Académie de la capitale, entretien
+// 5 / 9 / 13 / 15, stock de toutes les villes pour les boutons
+test('économie : coût, durée, réduction de la capitale et entretien comme le serveur ; prix comparés au stock de toutes les villes', { skip }, () => {
+  const config = require('../../src/config');
+  const fx = require('../../src/utils/buildingEffects');
+  const { buildCostFor, buildSecondsFor } = require('../../src/utils/calculations');
+  const ctx = makeContext({ player: { faction: 'ROME', economy: { build: config.build, upkeepPerTier: config.army.upkeepPerTier } }, techPctClient: () => 0 });
+  vm.runInContext(pick(src('01-core.js'), ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'unitUpkeep', 'effectBuildings']), ctx);
+  vm.runInContext(pick(src('05-panels.js'), ['getBuildCost', 'getCityBuildTimeReductionPct', 'getBuildTime']), ctx);
+  for (const key of ['FARM', 'IRON_MINE', 'MAIN_HALL', 'ACADEMY', 'WAREHOUSE']) {
+    const def = BUILDINGS.find(b => b.key === key);
+    for (const L of [1, 7, 20]) {
+      assert.deepEqual({ ...ctx.getBuildCost(def, L) }, buildCostFor(def, L), `coût ${key} ${L}`);
+      assert.equal(ctx.getBuildTime(def, L), buildSecondsFor(def, L), `durée ${key} ${L}`);
+    }
+  }
+  // colonie : son Bâtiment principal, l'Académie et la Résidence de la capitale (pas les siennes)
+  const capital = { id: 'c0', isCapital: true, buildings: [{ key: 'ACADEMY', level: 10 }, { key: 'RESIDENCE', level: 20 }, { key: 'MAIN_HALL', level: 20 }] };
+  const colony = { id: 'c1', isCapital: false, buildings: [{ key: 'MAIN_HALL', level: 8 }, { key: 'ACADEMY', level: 20 }], playerStock: { wood: 500, stone: 500, iron: 500, food: 500, maxStorage: 4000, maxFoodStorage: 2000 }, wood: 10 };
+  ctx.cities = [capital, colony];
+  ctx.currentCity = colony;
+  assert.equal(ctx.getCityBuildTimeReductionPct(), fx.buildTimeReductionPct(fx.withCapital(colony.buildings, capital.buildings)));
+  assert.equal(vm.runInContext('canPayCost({ wood: 400, stone: 0 })', ctx), true, 'le total des villes, pas le stock de la colonie');
+  assert.equal(vm.runInContext('canPayCost({ wood: 600 })', ctx), false);
+  // message du bouton (recommandation 14) : ce qui manque, ou un stockage trop petit pour le prix
+  assert.equal(vm.runInContext('costShortfall({ wood: 400 })', ctx), '');
+  assert.equal(vm.runInContext('costShortfall({ wood: 600, iron: 1500 })', ctx), 'Il manque 100 de bois, 1000 de fer');
+  assert.match(vm.runInContext('costShortfall({ wood: 600, food: 2500 })', ctx), /^Stockage trop petit \(nourriture\)/);
+  assert.deepEqual(['base', 'intermediate', 'elite', 'siege'].map(t => vm.runInContext(`unitUpkeep({ tier: '${t}' })`, ctx)), [5, 9, 13, 15]);
+});

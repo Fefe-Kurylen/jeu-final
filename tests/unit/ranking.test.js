@@ -5,10 +5,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const RK = require('../../src/services/rankingService');
 
-test('points de combat : 5 par unité de base, 10 intermédiaire, 15 élite et siège (GDD)', () => {
-  assert.equal(RK.pointsOf([{ key: 'ROM_INF_MILICIEN', killed: 10 }]), 50);
-  assert.equal(RK.pointsOf([{ key: 'ROM_INF_TRIARII', killed: 10 }]), 100);
-  assert.equal(RK.pointsOf([{ key: 'ROM_INF_LEGIONNAIRE', killed: 2 }, { key: 'ROM_SIEGE_CATAPULTE', killed: 1 }]), 45);
+test('points de combat : l\'entretien de l\'unité tuée (5 / 9 / 13, engins 15 depuis le 30 octobre 2026), lu dans la configuration', () => {
+  const UP = require('../../src/config').army.upkeepPerTier;
+  assert.deepEqual(UP, { base: 5, intermediate: 9, elite: 13, siege: 15 });
+  assert.equal(RK.pointsOf([{ key: 'ROM_INF_MILICIEN', killed: 10 }]), 10 * UP.base);
+  assert.equal(RK.pointsOf([{ key: 'ROM_INF_TRIARII', killed: 10 }]), 10 * UP.intermediate);
+  assert.equal(RK.pointsOf([{ key: 'ROM_INF_LEGIONNAIRE', killed: 2 }, { key: 'ROM_SIEGE_CATAPULTE', killed: 1 }]), 2 * UP.elite + UP.siege);
   // forme des résultats de combat détaillé : initial / remaining
   assert.equal(RK.pointsOf([{ key: 'ROM_INF_MILICIEN', initial: 30, remaining: 10 }]), 100);
   assert.equal(RK.pointsOf([]), 0);

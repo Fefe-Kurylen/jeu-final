@@ -91,7 +91,7 @@ function techCardHtml(t, a, level) {
   const canPay = canPayCost(cost);   // stock de toutes les villes
   const blocker = a ? a.blocker : 'Chargement…';
   const startable = !!a && !blocker && canPay;
-  const reason = blocker || (cost && !canPay ? 'Ressources insuffisantes' : '');
+  const reason = blocker || (cost && !canPay ? costShortfall(cost) : '');
   const costHtml = cost
     ? TECH_RESOURCES.map(r => `<span class="tc-cost ${stockOf(r) >= (cost[r] || 0) ? 'ok' : 'missing'}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('')
     : '<span class="tc-cost">Niveau maximum atteint</span>';

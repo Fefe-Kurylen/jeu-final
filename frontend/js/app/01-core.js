@@ -141,9 +141,19 @@ function escapeHtml(value) {
 // couleurs des prix se basent sur leur total, que le serveur renvoie avec chaque ville (playerStock, GET /api/cities).
 // Le marché, les transports, l'entretien et le pillage restent ceux de la ville.
 const RES_KEYS = ['wood', 'stone', 'iron', 'food'];
+const RES_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 const playerStock = () => currentCity?.playerStock || {};
 const stockOf = (res) => playerStock()[res] || 0;
 const canPayCost = (cost) => !!cost && RES_KEYS.every(r => stockOf(r) >= (cost[r] || 0));
+// Pourquoi un prix ne passe pas, comme le message du serveur (recommandation 14) : stockage de toutes les villes trop petit,
+// sinon ce qui manque ; '' si le joueur peut payer
+function costShortfall(cost) {
+  if (canPayCost(cost)) return '';
+  const total = playerStock();
+  const tooSmall = RES_KEYS.filter(r => (cost[r] || 0) > ((r === 'food' ? total.maxFoodStorage : total.maxStorage) || 0));
+  if (tooSmall.length) return `Stockage trop petit (${tooSmall.map(r => RES_NAMES[r]).join(', ')}) : il faut plus de Dépôt ou de Silo`;
+  return `Il manque ${RES_KEYS.filter(r => stockOf(r) < (cost[r] || 0)).map(r => `${formatNum(Math.ceil(cost[r] - stockOf(r)))} de ${RES_NAMES[r]}`).join(', ')}`;
+}
 // Entretien d'une unité (céréales par heure) : le réglage du serveur (config.army.upkeepPerTier, /api/player/me)
 function unitUpkeep(unit) {
   const perTier = player?.economy?.upkeepPerTier || {};
@@ -1210,14 +1220,13 @@ function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="${art(
 
 // Barre de ressources : le stock et le plafond de la ville restent affichés ; l'info-bulle et une petite ligne « Σ » donnent
 // le total de toutes les villes, dans lequel puisent constructions, recrutements, recherche, soins et héros
-const RES_LABELS = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
 function updateStockTotals(maxRes, maxFood) {
   const total = playerStock(), several = (cities || []).length > 1;
   for (const r of RES_KEYS) {
     const box = document.getElementById(`res-${r}`)?.closest('.resource-box');
     if (!box) continue;
     const cap = r === 'food' ? maxFood : maxRes, totalCap = r === 'food' ? total.maxFoodStorage : total.maxStorage;
-    box.title = `${RES_LABELS[r]} : ${formatNum(currentCity[r] || 0)} / ${formatNum(cap)} dans cette ville`
+    box.title = `${RES_NAMES[r]} : ${formatNum(currentCity[r] || 0)} / ${formatNum(cap)} dans cette ville`
       + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins et héros y puisent ; marché, transports et pillage restent ceux de la ville)` : '');
     let line = box.querySelector('.res-total');
     if (!several) { if (line) line.remove(); continue; }

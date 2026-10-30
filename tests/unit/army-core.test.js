@@ -9,7 +9,8 @@ const { unitsData } = require('../../src/config/gamedata');
 const { calculateArmyPower } = require('../../src/utils/calculations');
 const { generateTribeDefenders, campUnits, campPower, campBonusPct } = require('../../src/utils/tribeDefenders');
 const { resolveCombat } = require('../../src/services/combatService');
-const { resolveTribeCombat, cityMarchPct } = require('../../src/services/armyService');
+const { resolveTribeCombat, playerMarchPct } = require('../../src/services/armyService');
+const fx = require('../../src/utils/buildingEffects');
 
 // Transaction simulée : enregistre les écritures, répond vide aux lectures
 function fakeTx() {
@@ -81,18 +82,22 @@ test('resolveTribeCombat : Immortels d\'élite et camp d\'or combattent avec la 
   assert.equal(upd[2].data.defenderPower, campPower(upd[2].data.defenderUnits, 'GOLD'));
 });
 
-test('Irrigation : vitesse de marche de la ville, lue une fois si les bâtiments ne sont pas chargés', async () => {
-  assert.equal(await cityMarchPct(null, null), 0);
-  assert.equal(await cityMarchPct(null, { id: 'c', buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }] }), 10);
+test('Irrigation de la capitale (capitale seulement) : vitesse de marche de toutes les armées du joueur', async () => {
   let asked = null;
-  const db = { cityBuilding: { findMany: async (q) => { asked = q; return [{ key: 'EGYPTIAN_IRRIGATION', level: 10 }]; } } };
-  assert.equal(await cityMarchPct(db, { id: 'c2' }), 5);
-  assert.equal(asked.where.cityId, 'c2');
-  assert.equal(asked.where.key, 'EGYPTIAN_IRRIGATION');
-  // une ville sans id ni bâtiments chargés : aucune requête (elle lirait l'Irrigation de toutes les villes)
+  const db = { city: { findFirst: async (q) => { asked = q; return { buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 10 }, { key: 'FARM', level: 20 }] }; } } };
+  assert.equal(await playerMarchPct(db, 'p1'), 5);
+  assert.equal(asked.where.playerId, 'p1');
+  assert.equal(asked.where.isCapital, true);
+  // sans joueur : aucune requête (elle lirait la capitale de n'importe qui)
   asked = null;
-  assert.equal(await cityMarchPct(db, { x: 1, y: 2 }), 0);
+  assert.equal(await playerMarchPct(db, null), 0);
   assert.equal(asked, null);
+  // chargée avec le joueur (include fx.CAPITAL_BUILDINGS) : les seuls bâtiments « capitale seulement » de sa capitale
+  assert.equal(fx.marchSpeedBonusPct(fx.capitalOf({ cities: [{ buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }] }] })), 10);
+  assert.deepEqual(fx.capitalOf({}), []);
+  assert.deepEqual(fx.CAPITAL_BUILDINGS.where, { isCapital: true });
+  const keys = fx.CAPITAL_BUILDINGS.select.buildings.where.key.in;
+  assert.ok(keys.includes('EGYPTIAN_IRRIGATION') && keys.includes('RALLY_POINT') && !keys.includes('MARKET') && !keys.includes('GREAT_WAREHOUSE'));
 });
 
 test('stockage au démarrage : Grand dépôt et Grand silo comptent dans maxStorage / maxFoodStorage', async () => {
