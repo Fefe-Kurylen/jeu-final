@@ -3,7 +3,8 @@
 Vérification de ce que le jeu applique réellement (code serveur) contre ce que les données annoncent, et lecture des
 courbes. Chiffres tirés de `data/*.json` et `src/config/index.js` ; calculs reproductibles avec les commandes du § 6.
 Mise à jour du 30 octobre 2026 : décisions d'équilibrage D1 à D12 du propriétaire (§ 13) et chiffres refaits avec les
-outils sur le moteur actuel (§ 2, 7, 8, 9, 11, 12).
+outils sur le moteur actuel (§ 2, 7, 8, 9, 11, 12) ; le soir, décisions sur l'économie, le placement des bâtiments et le
+stock partagé entre les villes (§ 14).
 
 ## 1. Bonus de civilisation : définis, appliqués, et où
 
@@ -42,8 +43,9 @@ Coûts : les coûts des 60 unités dans les données sont exactement ceux que le
 
 **Moteur de bataille du GDD (décision du 30 octobre 2026, D10, option B de `docs/RAPPORT-UNITES.md`).** Un coup fait
 ATK × coefficient × triangle, sans soustraction de la défense ni plancher ; la défense entre dans la **solidité** de l'unité :
-END + 0,55 × DEF × coefficient (`config.combat.defenseDamageMult`), mur, douves et bonus de défense compris. On garde
-l'amortissement (18 % des dégâts par round), les 15 rounds et le ciblage par palier. Deux jeux de coefficients :
+END + 0,55 × DEF × coefficient (`config.combat.defenseDamageMult`), mur et bonus de défense compris. On garde
+l'amortissement (18 % des dégâts par round) et les 15 rounds ; depuis le 30 octobre 2026 au soir, les coups de chaque round se
+répartissent sur toutes les lignes de soldats selon leur solidité totale (§ 14). Deux jeux de coefficients :
 
 - **bataille** (combats de ville, Bastion, vagues d'Immortels) : ceux du GDD, **1 / 1,35 / 1,9** (siège 0,75),
   `config.combat.battleTierCoefficients` ;
@@ -78,14 +80,15 @@ puissance du client et dans les fiches d'unités) ; le siège reste à 0,75, les
 
 Lecture : la base reste le choix du début de partie (unité la moins chère et la plus rapide à former, aucun niveau de caserne
 exigé) ; l'intermédiaire est le meilleur rapport puissance / ressources ; l'élite est le meilleur rapport puissance / entretien,
-donc le choix de qui a des ressources mais peu de champs. Le ciblage « l'élite est visée en premier » garde son sens. Sur les
-18 lignes faction × classe, l'élite vaut au moins autant que la base par céréale dans 16 cas ; les 2 exceptions (infanterie
-grecque, cavalerie hunnique) restent à 0,1 point près.
+donc le choix de qui a des ressources mais peu de champs. Sur les 18 lignes faction × classe, l'élite vaut au moins autant
+que la base par céréale dans 16 cas ; les 2 exceptions (infanterie grecque, cavalerie hunnique) restent à 0,1 point près.
+Depuis le 30 octobre 2026 au soir, l'entretien est de 5 / 9 / 13 (§ 14) : puissance par céréale 14,0 / 16,0 / 17,3 dans
+l'exemple ci-dessus.
 
 Conséquences vérifiées : la puissance affichée des armées et des tribus (recalculée au démarrage du serveur) augmente pour les
 paliers supérieurs ; les expéditions sont un peu plus faciles pour une armée d'élite (puissance / 7 : ≈ 10 par unité de base,
-20 intermédiaire, 35 élite) ; rien d'autre ne dépend de ces coefficients. Variante non retenue : entretien de l'élite ramené de
-15 à 12. Pour le prix de chaque palier à nourriture égale, voir aussi `docs/RAPPORT-ECONOMIE.md`.
+20 intermédiaire, 35 élite) ; rien d'autre ne dépend de ces coefficients. Variante non retenue en octobre : entretien de
+l'élite ramené de 15 à 12 (le 30 octobre 2026 au soir, l'entretien est passé à 5 / 9 / 13, § 14). Pour le prix de chaque palier à nourriture égale, voir aussi `docs/RAPPORT-ECONOMIE.md`.
 
 Cavalerie (décision du 30 octobre 2026, D11) : moins de puissance par ressource (coût 160 du GDD, gardé, contre 125) mais 1,5
 à 1,8 × plus rapide. **Son rôle est la vitesse** : éclairer, frapper vite, intercepter, renforcer ; pas le pillage ni le
@@ -112,9 +115,13 @@ armée depuis le 25 octobre 2026 ✅.
 
 ## 4. Bâtiments : courbes
 
-- Coût × 1,28 par niveau, temps × 1,2 par niveau (serveur et client identiques) ; `costL20` / `timeL20Sec` des données sont ignorés (backlog).
-- Champs : amortissement d'une amélioration entre 20 h et 64 h (niveau 2 : 64 h, niveau 10 : 20 h, niveau 20 : 27 h). Début de partie lent
-  mais régulier ; production × 450 entre les niveaux 1 et 20 (10 → 4 500/h), comme Travian. Analyse complète des coûts, de
+- Depuis le 30 octobre 2026 (recommandations 3 et 4, `calculations.buildCostFor` / `buildSecondsFor`, mêmes chiffres au
+  serveur, au client, dans les quêtes et les outils) : **champs × 1,45 de coût par niveau**, autres bâtiments × 1,28 ; **champs et
+  Bâtiment principal × 1,30 de temps par niveau**, autres bâtiments et recherche × 1,2. `costL20` / `timeL20Sec` des données
+  restent ignorés (backlog).
+- Champs : amortissement d'une amélioration de 69 h au niveau 2, 60 h au niveau 10 et 276 h au niveau 20 (20 à 64 h avant,
+  Travian : 104 h et 9 470 h) ; les 18 champs d'une ville du niveau 1 au 20 coûtent 17,0 M (2,24 M avant). Le plus gros prix
+  d'un champ 20 (116 410 de pierre) tient dans un Dépôt 19. Production × 450 entre les niveaux 1 et 20 (10 → 4 500/h), comme Travian. Analyse complète des coûts, de
   l'entretien et du stockage : `docs/RAPPORT-ECONOMIE.md` (30 octobre 2026).
 - Stockage : un dépôt se remplit en ≈ 9 h avec quatre champs du même niveau, du niveau 5 au niveau 20 : une connexion toutes les 8 h suffit. ✅
 - **Grand Dépôt et Grand Silo = stockage, façon Travian (décision du 30 octobre 2026, D1).** Ils ne protègent plus rien : chacun
@@ -123,8 +130,10 @@ armée depuis le 25 octobre 2026 ✅.
   Pas de nouveau plafond de coût : les derniers niveaux, qui dépassaient la capacité d'un dépôt 20, deviennent payables. **Seule
   la cachette protège du pillage** (1 % par niveau, 20 % au plus, Gaule +15 %) : raids, pillage de siège et rapport d'espion.
 - Formation : Caserne et Écurie −0,5 % de temps par niveau, comme le GDD (décision du 30 octobre 2026, D2 : inchangé).
-- Temps cumulés : Bâtiment principal 1 → 30 en 59 h ; un champ 1 → 20 en 8 h ; tous les bâtiments au maximum ≈ 111 jours avec deux files
-  et sans réduction, ≈ 45 à 60 jours avec le Bâtiment principal au maximum. Rythme d'une saison de quelques mois. ✅
+- Temps cumulés bruts (sans réduction) depuis le 30 octobre 2026 : Bâtiment principal 1 → 20 en 31,5 h et 1 → 30 en 437 h
+  (59 h avant) ; un champ 1 → 20 en 26 h (8 h avant). Les réductions de temps (60 % au plus) divisent ces durées par 2,5.
+  Dates attendues pour un joueur (`docs/RAPPORT-ECONOMIE.md` § 4.4, réglage V7b) : champs au niveau 20 vers les jours 48 à 67
+  selon le rythme de connexion, capitale complète vers les jours 63 à 98. ✅
 - Nourriture : six fermes niveau 10 nourrissent ≈ 420 unités de base ; niveau 20, ≈ 5 400. Cohérent avec les files de recrutement.
 - Mur : +1 % de défense par niveau (max +20 %) et 1 000 PV par niveau (1 250 pour l'Égypte). Seuls les engins l'abîment
   (12,15 PV par catapulte et par round) ; ses PV suivent les vies de la ville et remontent avec elles en 48 h (§ 12). Le bonus
@@ -133,9 +142,10 @@ armée depuis le 25 octobre 2026 ✅.
 ## 5. Combat
 
 Moteur de bataille du GDD (D10, § 2) : triangle +50 % (infanterie > cavalerie > archers > infanterie), coefficients de bataille
-1 / 1,35 / 1,9 (siège 0,75), solidité END + 0,55 × DEF, 15 rounds à 18 %, ciblage élite → intermédiaire → base → siège ; mur
-en bouclier au siège (seuls les engins l'abîment, au moins 5 rounds après la brèche : D5, D6), bonus du mur et douves
-(+0,5 %/niv.), bonus de ville (Forge, Brasserie), héros plafonné à +5 %. Combats par la puissance (pillages, camps, rencontres,
+1 / 1,35 / 1,9 (siège 0,75), solidité END + 0,55 × DEF, 15 rounds à 18 %, coups répartis sur toutes les lignes de soldats
+selon leur solidité (engins visés après les soldats, § 14) ; mur en bouclier au siège (seuls les engins l'abîment, au moins
+5 rounds après la brèche : D5, D6), bonus du mur, bonus de ville (Forge et Brasserie de la capitale), héros plafonné à +5 %.
+Les Douves n'existent plus (30 octobre 2026). Combats par la puissance (pillages, camps, rencontres,
 hordes) : pertes du perdant 30 %, butin ≤ 30 % du transport, cachette seule protection (D1). Tous vérifiés
 (`tests/unit/combat.test.js`, `tests/unit/units-retouches.test.js`, `tests/api-e2e.mjs`).
 
@@ -334,8 +344,8 @@ Valeurs du GDD, appliquées sans changement (`data/buildings.json` RESIDENCE, `c
 |---|---|---|
 | Résidence (capitale, Hôtel de ville 5) | niveau 1 : 700 bois, 500 pierre, 300 fer, 1 200 nourriture, 33 min ; courbes ×1,28 / ×1,2 | niveau 10 cumulé ≈ 104 000 ressources et 14 h de chantier ; niveau 15 ≈ 382 000 et 40 h ; niveau 20 ≈ 1 334 000 et 103 h |
 | Colons | 1 au niveau 10, 2 au 15, 3 au 20 (3 colonies au plus) ; formation 3 h, gratuite, un à la fois | la Résidence est le vrai prix de la colonie |
-| Fondation | 3 000 de chaque ressource transportées + 24 h sur place, l'armée immobilisée | 12 000 ressources, ≈ 2 jours de production des champs de départ |
-| Colonie | Hôtel de ville 1, garnison, 3 000 de chaque, +20 % de production | base 6 / 6 / 6 / 12 par heure avant les champs |
+| Fondation | 3 000 de chaque ressource transportées (prises sur toutes les villes, la capitale d'abord) + 24 h sur place, l'armée immobilisée | 12 000 ressources, ≈ 2 jours de production des champs de départ |
+| Colonie | Hôtel de ville 1, ligne de garnison vide (les unités formées vont à la capitale), 3 000 de chaque, +20 % de production | base 6 / 6 / 6 / 12 par heure avant les champs |
 
 Lecture : la première colonie arrive quand la capitale a déjà une Résidence 10, soit environ au moment où ses champs de
 niveau 8 à 10 produisent 1 000 à 1 500 de chaque ressource par heure ; les 12 000 de la fondation représentent alors moins
@@ -357,7 +367,7 @@ Règles appliquées, chiffrées par `node tools/simulate-colonies.cjs` (refait l
 
 | Règle | Source | Effet |
 |---|---|---|
-| Caserne, Écurie, Atelier réservés à la capitale ; Grandes caserne / écurie seulement en colonie, prérequis (Caserne 20, Écurie 20) lus dans la capitale | GDD (descriptions « hors capitale ») | une colonie ne forme des troupes qu'après Caserne 20 dans la capitale : 360 777 ressources et 4,3 j de chantier cumulés ; jamais d'engins de siège hors capitale |
+| Caserne, Écurie, Atelier réservés à la capitale ; Grandes caserne / écurie seulement en colonie, prérequis (Caserne 20, Écurie 20) lus dans la capitale | GDD (descriptions « hors capitale ») | une colonie ne forme des troupes qu'après Caserne 20 dans la capitale : 360 734 ressources et 4,3 j de chantier cumulés ; jamais d'engins de siège hors capitale ; les recrues rejoignent la capitale (30 octobre 2026) |
 | Bâtiment principal 20 au plus en colonie (30 dans la capitale) | décision (le GDD ne chiffre pas) | aucun effet sur la production (les autres bâtiments s'arrêtent à 20) ; les niveaux 21-30 restent le privilège de la capitale (population, réduction de temps déjà plafonnée) |
 | Palier de ville et enceinte fixés par le Bâtiment principal (1-9 Village, 10-19 Ville, 20+ Ville Fortifiée) ; plus de minimum d'engins par palier depuis le 25 octobre 2026 | décision (« le Bâtiment principal fait évoluer les murailles ») | voir ci-dessous |
 
