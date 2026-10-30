@@ -47,3 +47,6 @@ tools/repaint/raw/
 tools/repaint/raw-*/
 tools/repaint/out/
 store/preview/
+
+# Simulation longue (tools/sim)
+sim-out/

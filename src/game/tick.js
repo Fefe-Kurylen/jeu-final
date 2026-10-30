@@ -71,54 +71,60 @@ async function gameTick() {
     try { TICK_HOURS = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
     if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
     if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
-    // monde suivant demandé par l'équipe (écran d'administration, décision du 29 octobre 2026) : préparé ici, entre deux ticks
-    try { if (await require('../services/hallOfFameService').prepareNextWorld()) return; }
-    catch (e) { console.error('[MONDE] préparation du monde suivant :', e); return; }
-    // monde terminé (une Merveille au niveau 100, décision du 28 octobre 2026) : figé jusqu'au nouveau monde
-    if (await require('../services/wonderService').isEnded().catch(() => false)) { await step('purge', () => purgeOldRecords(now)); return; }
-
-    // a fall that failed after its assault is done first, before builds, research or expeditions touch the doomed city
-    await step('falls', () => retryPendingFalls());
-
-    const healedCount = await step('heal', () => processHealedUnits());
-    if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
-
-    await step('production', () => processResourceProduction(TICK_HOURS));
-    await step('upkeep', () => processUpkeep(TICK_HOURS, now));
-    await step('wallRegen', () => processWallRegen(TICK_HOURS));
-    await step('gold', () => processGoldIncome(TICK_HOURS));
-
-    await step('builds', () => processBuilds(now));
-    await step('recruits', () => processRecruits(now));
-    await step('research', () => processResearch(now));
-
-    await step('expeditions', () => processExpeditions(now));
-    await step('newExpeditions', () => generateNewExpeditions());
-
-    await step('encounters', () => processEncounters(now));   // enemy armies on the same tile fight, before the arrivals
-    await step('sieges', () => processSieges());   // camps without engines or now allied go home
-    await step('armies', () => processArmyMovements(now));
-    await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
-    await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
-    await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
-    await step('rankings', () => require('../services/rankingService').processRankings(now));
-    await step('wonders', () => require('../services/wonderService').processWonders(now));
-    await step('invasions', () => require('../services/hordeService').processInvasions(now));
-    await step('rallies', () => require('../services/rallyService').processRallies(now));   // rassemblements d'alliance contre les donjons   // invasions barbares du week-end (décision du 29 octobre 2026)   // sites et plans, niveaux de Merveille, vagues des Immortels   // clôture de la semaine, médailles
-    await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
-    await step('harvest', () => processHarvesting(now));
-
-    await step('flags', () => cleanupOrphanedFlags());
-    await step('population', () => updatePopulation(now));
-    await step('tribeRespawn', () => processTribeRespawn(now));
-    await step('regen', () => processResourceRegen(now, TICK_HOURS));
-    await step('purge', () => purgeOldRecords(now));
+    await runTickSteps(now, TICK_HOURS, step);
   } catch (e) {
     if (e instanceof LeaseLost) console.warn('[TICK]', e.message);
     else console.error('[TICK] error:', e);
   } finally {
     tickRunning = false;
   }
+}
+
+// The game steps of one tick, in order. step(name, fn) runs one isolated step (the live tick renews its lease in it);
+// the long simulation (tools/sim) calls this with its own clock and step runner, so it plays exactly the same steps.
+async function runTickSteps(now, TICK_HOURS, step) {
+  // monde suivant demandé par l'équipe (écran d'administration, décision du 29 octobre 2026) : préparé ici, entre deux ticks
+  try { if (await require('../services/hallOfFameService').prepareNextWorld()) return; }
+  catch (e) { console.error('[MONDE] préparation du monde suivant :', e); return; }
+  // monde terminé (une Merveille au niveau 100, décision du 28 octobre 2026) : figé jusqu'au nouveau monde
+  if (await require('../services/wonderService').isEnded().catch(() => false)) { await step('purge', () => purgeOldRecords(now)); return; }
+
+  // a fall that failed after its assault is done first, before builds, research or expeditions touch the doomed city
+  await step('falls', () => retryPendingFalls());
+
+  const healedCount = await step('heal', () => processHealedUnits());
+  if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
+
+  await step('production', () => processResourceProduction(TICK_HOURS));
+  await step('upkeep', () => processUpkeep(TICK_HOURS, now));
+  await step('wallRegen', () => processWallRegen(TICK_HOURS));
+  await step('gold', () => processGoldIncome(TICK_HOURS));
+
+  await step('builds', () => processBuilds(now));
+  await step('recruits', () => processRecruits(now));
+  await step('research', () => processResearch(now));
+
+  await step('expeditions', () => processExpeditions(now));
+  await step('newExpeditions', () => generateNewExpeditions());
+
+  await step('encounters', () => processEncounters(now));   // enemy armies on the same tile fight, before the arrivals
+  await step('sieges', () => processSieges());   // camps without engines or now allied go home
+  await step('armies', () => processArmyMovements(now));
+  await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
+  await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
+  await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
+  await step('rankings', () => require('../services/rankingService').processRankings(now));   // clôture de la semaine, médailles, défi d'alliance
+  await step('wonders', () => require('../services/wonderService').processWonders(now));   // sites et plans, niveaux de Merveille, vagues des Immortels
+  await step('invasions', () => require('../services/hordeService').processInvasions(now));   // invasions barbares du week-end
+  await step('rallies', () => require('../services/rallyService').processRallies(now));   // rassemblements d'alliance (donjons, Bastions)
+  await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
+  await step('harvest', () => processHarvesting(now));
+
+  await step('flags', () => cleanupOrphanedFlags());
+  await step('population', () => updatePopulation(now));
+  await step('tribeRespawn', () => processTribeRespawn(now));
+  await step('regen', () => processResourceRegen(now, TICK_HOURS));
+  await step('purge', () => purgeOldRecords(now));
 }
 
 function startGameLoop() {
@@ -128,4 +134,4 @@ function startGameLoop() {
   return setInterval(gameTick, config.tick.intervalMs);
 }
 
-module.exports = { gameTick, startGameLoop, releaseTickLease };
+module.exports = { gameTick, startGameLoop, releaseTickLease, runTickSteps };
