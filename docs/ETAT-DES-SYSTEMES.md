@@ -1,4 +1,4 @@
-# État des systèmes de jeu (octobre 2026, mis à jour le 30 octobre 2026)
+# État des systèmes de jeu (octobre 2026, mis à jour le 30 octobre 2026 au soir)
 
 Ce qui existe, ce qui manque, et les images ou animations à produire. Référence : Travian pour les mécaniques, Rise of Kingdoms pour la lisibilité et le mouvement.
 
@@ -22,6 +22,66 @@ Décisions du propriétaire, appliquées le 30 octobre 2026. Chacune est décrit
 | D11 | Cavalerie : coût du GDD gardé, rôle de vitesse, textes corrigés | Combat |
 | D12 | 20 fiches d'unités hors norme retouchées (±3 à 10 %) | Combat |
 
+## Économie, placement et stock partagé (décisions du 30 octobre 2026, au soir)
+
+Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` (ce que devient chaque recommandation : même document,
+« Décisions appliquées le 30 octobre 2026 »). Chiffres dans `docs/EQUILIBRAGE.md` § 14.
+
+**Chaque ville garde son stock ; les dépenses puisent dans toutes les villes** (`src/utils/db.js` : `lockPlayerCities`,
+`debitPlayer`, `creditPlayer`) :
+- Chaque ville garde ce qu'elle produit, avec son propre plafond (Dépôt, Silo, Grand dépôt, Grand silo). **Pas de convoi
+  automatique** entre les villes (idée abandonnée).
+- **Se paient sur la somme des stocks de toutes les villes** : constructions, recrutements (troupes, colons), recherche,
+  soins des blessés, résurrection du héros, fondation d'une ville. Le prix est pris d'abord dans la ville de l'action (la
+  capitale pour les soins, le héros et la fondation), puis, ressource par ressource, dans la ville qui en a le plus. Toutes
+  les villes du joueur sont verrouillées au début de la dépense, toujours dans le même ordre.
+- **Refus** seulement si la somme ne suffit pas, avec ce qui manque : « Ressources insuffisantes : il manque 1 200 de bois
+  et 300 de fer (toutes vos villes comprises) ». Un prix plus gros que le stockage de toutes les villes réunies : « Stockage
+  trop petit (bois) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie) »
+  (recommandation 14).
+- **Remboursements** (annulation d'un chantier, d'un recrutement, d'une recherche) : à la ville qui a payé, puis le surplus
+  aux autres villes selon leur place libre ; ce qui ne tient nulle part est perdu, et le message le dit. Un colon annulé rend
+  la moitié de son prix, comme une troupe. Le trésor des invasions suit la même règle (capitale d'abord).
+- **Une ville qui reçoit des ressources ne baisse jamais** (recommandation 1) : une colonie garde ses 3 000 de départ même
+  au-dessus de son plafond ; seule la production s'arrête.
+- **Restent propres à chaque ville** : marché (offres, achats, marchand du serveur), envois par armée, routes commerciales,
+  convois vers le Bastion ou la Merveille, pillage, raids, siège, cachette, récompenses de quêtes.
+- **Client** : la barre de ressources garde le stock et le plafond de la ville ; son info-bulle et une petite ligne « Σ »
+  donnent le total du joueur. Boutons et couleur des prix suivent ce total ; un refus affiche le message du serveur.
+  `GET /api/cities` porte `playerStock` sur chaque ville (stocks et plafonds réunis, bilan de nourriture de tout le
+  joueur) ; `GET /api/player/me` porte `economy` (multiplicateurs de construction, entretien par palier, règles des soins),
+  que le client lit au lieu de recopier des chiffres.
+
+**Toute unité formée ou soignée apparaît dans la capitale** : les troupes formées dans la Grande caserne ou la Grande écurie
+d'une colonie rejoignent la garnison de la capitale (le temps de formation reste celui du bâtiment de la colonie), les
+blessés guéris aussi. **Pas de garnison propre dans les colonies** : de nouvelles unités n'y arrivent jamais seules ; une
+colonie n'est défendue que par les armées qu'on y envoie (les troupes déjà présentes restent). L'entretien de toutes les
+troupes se paie sur tous les greniers (« Entretien et famine »).
+
+**Placement des bâtiments** (`data/buildings.json` : `effects.capitalOnly`, `effects.notInCapital` ; refus serveur
+« Bâtiment réservé à la capitale » ou « … aux villes secondaires », bâtiment caché ou marqué dans le client) :
+
+| Où | Bâtiments |
+|---|---|
+| Partout | Bâtiment principal, champs, Marché, Dépôt, Silo, Cachette, Mur |
+| Capitale seulement | Place de rassemblement, Académie, Tente de soins, Tour de guet, Caserne, Écurie, Atelier, Forge, Ambassade, Chambre au Trésor, Domus du Héros, Résidence, bâtiment de la civilisation |
+| Colonies seulement | Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie, Comptoir de commerce, Grand dépôt, Grand silo, Grande caserne, Grande écurie |
+| Supprimé | Douves : données, combat, rapport d'espion, client et outils ; la migration `0030_placement_moat` efface les Douves et les bâtiments mal placés, avec leurs chantiers |
+
+- 19 emplacements autour du Bâtiment principal : une capitale a au plus 18 bâtiments possibles, une colonie 15.
+- **Un bâtiment de la capitale vaut pour tout le joueur** (« une seule suffit », `fx.withCapital`) : nombre d'armées de
+  chaque ville (Place de rassemblement), lits et vitesse des soins (Tente de soins, Thermes), alertes et vision (Tour de
+  guet), défense (Forge, Brasserie), recherche et réduction du temps de construction (Académie, Résidence), production de
+  l'Irrigation dans toutes les villes, vitesse de marche (Irrigation), entretien (Tente de guerre, Avant-poste du désert),
+  transport (Avant-poste du désert), taxe des échanges (Chambre au Trésor). Un bâtiment des colonies n'agit que sur sa
+  colonie (Moulin, Scierie, Comptoir…). Un prérequis « capitale seulement » d'un bâtiment de colonie se lit dans la
+  capitale (Caserne 20 pour la Grande caserne, Chambre au Trésor 5 pour le Grand dépôt et le Grand silo).
+
+**Coûts et temps de construction** (recommandations 3 et 4 ; `calculations.buildCostFor` / `buildSecondsFor`, seul endroit
+du calcul, repris par les quêtes, le client et les outils) : les champs (Ferme, Bûcheron, Carrière, Mine de fer) coûtent
+×1,45 par niveau, les autres bâtiments ×1,28 ; les champs et le Bâtiment principal prennent ×1,30 de temps par niveau, les
+autres ×1,2. La recherche garde ×1,28 et ×1,2.
+
 ## Carte et déplacements
 
 | Existe | Manque |
@@ -37,7 +97,7 @@ Décisions du propriétaire, appliquées le 30 octobre 2026. Chacune est décrit
 
 | Existe | Manque |
 |---|---|
-| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, douves, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette (seule protection du pillage depuis le 30 octobre 2026), un raid par cible et par jour ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
+| Bataille round par round au moteur du GDD (ci-dessous : triangle des classes, mur, Forge, Brasserie, héros, équipement), raids plafonnés à 30 % de la capacité, cachette (seule protection du pillage depuis le 30 octobre 2026), un raid par cible et par jour ; **siège** (section suivante) | (le renfort allié est en place depuis le 26 octobre 2026 : section Diplomatie et alliance) |
 | Rapports : deux exemplaires (attaquant, défenseur), **tableau avant → après par unité**, bandeau de synthèse (pertes des deux côtés, butin, PV de mur, rounds), replay 2.5D | Rapport d'arrivée de transport |
 | Espionnage par espions dédiés (section Espionnage et vision, 26 octobre 2026) | Espions dessinés en marche sur la carte (image `map/units/spy` à produire) |
 | Alertes d'attaque : compte à rebours ; attaquant révélé par la Tour de guet niveau 10, effectifs niveau 15 | Son/notification native à l'arrivée (push existe pour « attaque en approche ») |
@@ -46,9 +106,11 @@ Moteur de bataille et unités (décisions du 30 octobre 2026, `src/services/comb
 `docs/RAPPORT-UNITES.md`, chiffres dans `docs/EQUILIBRAGE.md` § 2) :
 
 - **D10, moteur du GDD (option B)** : un coup fait ATK × coefficient × triangle, sans soustraction de la défense ni plancher ;
-  la défense donne la **solidité** de l'unité (END + 0,55 × DEF × coefficient, mur, douves et bonus de défense compris ; la
-  « réduction des pertes » de Rome la multiplie) ; 18 % des dégâts par round, 15 rounds, ciblage élite → intermédiaire → base
-  → siège. Coefficients de **bataille** 1 / 1,35 / 1,9 (siège 0,75, `config.combat.battleTierCoefficients`) ; la **puissance**
+  la défense donne la **solidité** de l'unité (END + 0,55 × DEF × coefficient, mur et bonus de défense compris ; la
+  « réduction des pertes » de Rome la multiplie) ; 18 % des dégâts par round, 15 rounds. **Ciblage** (recommandation 10,
+  30 octobre 2026) : les coups de chaque round se répartissent sur toutes les lignes de soldats adverses selon leur solidité
+  totale (au lieu des élites d'abord) ; ce qui reste d'une ligne détruite passe aux lignes encore debout ; le triangle reste
+  par classe ; les engins de siège ne sont visés qu'après les soldats. Coefficients de **bataille** 1 / 1,35 / 1,9 (siège 0,75, `config.combat.battleTierCoefficients`) ; la **puissance**
   (pillages, camps, rencontres, hordes, affichage) garde 1 / 1,25 / 1,55. **Triangle +50 %** (+20 % avant). Mesuré : chaque
   palier vaut à peu près son prix (1 intermédiaire ≈ 1,8 unité de base, 1 élite ≈ 1,7 intermédiaire) et la bonne classe gagne
   tous les combats du triangle.
@@ -68,8 +130,8 @@ Façon Travian et GDD (`espionage_config`) : `src/services/spyService.js`, route
 - **Missions** depuis la carte (« Espionner » sur une ville ou un point), au choix pour une ville :
   - **Ressources et troupes** : les troupes présentes (garnison, armées en ville, renforts alliés) et **les ressources
     qu'un pillage pourrait prendre** (hors cachette, seule protection depuis le 30 octobre 2026), à la centaine près ; pas les bâtiments ;
-  - **Défenses et troupes** : les troupes, le mur (niveau, points de vie, santé de la muraille), les douves, la Tour de
-    guet, la cachette (part cachée) et le bonus de défense.
+  - **Défenses et troupes** : les troupes, le mur (niveau, points de vie, santé de la muraille), la Tour de guet de la
+    capitale, la cachette (part cachée) et le bonus de défense.
   - **Point de ressource** : stock exact, tribu (unités, puissance) ou armées qui récoltent ; le point garde son stock
     exact et ses occupants affichés pour l'espion pendant 1 h.
 - **Toujours réussi** : l'espion part de la ville choisie (vitesse 80, même chemin que les armées), le rapport est écrit
@@ -123,7 +185,9 @@ d'un combat où le mur sert de bouclier.
   carte suit les vies perdues.
 - **Chute, à la dernière vie** :
   - **ville secondaire détruite** : troupes présentes perdues, héros enfui vers la capitale, armées en mission rattachées à
-    la capitale, offres du marché rendues à la capitale, recherches et files perdues, le point de ressource redevient libre ;
+    la capitale, offres du marché rendues à la capitale, recherches et files perdues (les niveaux de recherche en file
+    ailleurs qui en dépendaient sont remboursés à la ville qui les a payés, puis aux autres villes), le point de ressource
+    redevient libre ;
   - **capitale déplacée** au hasard près d'un bord de la carte, jamais sur un point de ressource : **toutes ses armées sont
     téléportées** à la nouvelle place, même en mission (missions annulées, charge déposée), toutes ses vies reviennent, son
     alliance est prévenue de la nouvelle position.
@@ -285,12 +349,17 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
   un convoi vers un joueur devenu ennemi en route rentre avec sa cargaison. L'acheteur est averti avant d'accepter si sa ville
   n'a pas la place de tout recevoir.
 - **Taxe des échanges** (GDD) : **10 %** de ce que transporte chaque convoi, **−1 % par niveau du Comptoir de
-  Commerce** de la ville qui envoie, **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au plus bas 0 %).
+  Commerce** de la ville qui envoie (une colonie : le Comptoir est un bâtiment des colonies depuis le 30 octobre 2026),
+  **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au plus bas 0 %).
+- **Stock propre à chaque ville** (30 octobre 2026) : le marché, les envois et les routes prennent et livrent dans la ville
+  choisie, jamais dans les autres (le stock partagé ne vaut que pour les dépenses). La capacité d'une armée de transport
+  compte le Marché et le Comptoir de sa ville et l'Avant-poste du désert de la capitale ; sa vitesse, l'Irrigation de la capitale.
 - **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville, armée libre), il est prévenu.
   Annuler une offre fait de même ; la chute ou le déplacement de la ville aussi.
 - **Routes commerciales entre ses villes** (Marché → Routes) : ville de départ (avec un Marché), ville d'arrivée,
-  ressources ; toutes les **2 h** un convoi part, sans armée, avec **1/12 du stockage** de la ville de départ pour
-  chaque ressource choisie, soit **100 % au plus en 24 h** (le GDD disait 30 % en 12 h). Il voyage à vitesse fixe ; ce
+  ressources ; toutes les **2 h** un convoi part, sans armée, avec **1/12 du Dépôt** (du Silo pour la nourriture) de la ville
+  de départ pour chaque ressource choisie, soit **100 % au plus en 24 h** (le GDD disait 30 % en 12 h). Le Grand dépôt et
+  le Grand silo ne comptent pas dans ce calcul (recommandation 12, 30 octobre 2026) : Dépôt 20 = 13 333 par envoi. Il voyage à vitesse fixe ; ce
   qui ne tient pas dans l'entrepôt d'arrivée revient. Rien ne part d'une ville assiégée ni n'y entre. 10 routes au
   plus, pause et suppression à volonté. **Une seule route active par ville de départ et par ressource** ; la cadence de 2 h
   appartient à la ville et à la ressource (30 octobre 2026) : elle survit à la pause, à la reprise et à la re-création d'une
@@ -302,8 +371,8 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
 Décisions du 27 octobre 2026 (GDD `world_config.server.rankings`, `src/services/rankingService.js`,
 `src/routes/ranking.js`, client `frontend/js/app/09h-ranking.js`) :
 
-- **Points de combat façon Travian** : un ennemi tué vaut son entretien en nourriture (5 de base, 10 intermédiaire,
-  15 élite et siège, GDD). L'attaquant gagne des points d'attaque, le défenseur des points de défense, partagés entre les
+- **Points de combat façon Travian** : un ennemi tué vaut son entretien en nourriture (5 de base, 9 intermédiaire,
+  13 élite, 15 siège depuis le 30 octobre 2026 ; lu dans `config.army.upkeepPerTier`). L'attaquant gagne des points d'attaque, le défenseur des points de défense, partagés entre les
   joueurs d'un même camp selon les soldats engagés. Comptent : attaques et raids de villes, sièges, Bastions, combats sur
   les points et en terrain ouvert ; une tribu tuée donne des points d'attaque (comme les animaux d'une oasis Travian).
   **Pillage** : ressources prises aux autres joueurs (raids, pillage de siège).
@@ -314,25 +383,32 @@ Décisions du 27 octobre 2026 (GDD `world_config.server.rankings`, `src/services
   **médaille honorifique** (or, argent, bronze, puis rang) à chaque classé, prévenu par une notification ; les médailles
   restent sur le profil public (avec les points d'attaque, de défense et le pillage) et dans l'onglet Médailles.
 
-## Entretien et famine (28 octobre 2026)
+## Entretien et famine (28 octobre 2026, entretien de tout le joueur le 30 octobre 2026)
 
-Décisions du 28 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foodBalanceSql`, `processUpkeep`) :
+Décisions du 28 et du 30 octobre 2026 (`src/game/processors/resourceProcessor.js` : `foodBalanceSql`, `processUpkeep`,
+`playerFoodBalance`) :
 
-- **Entretien** : 5 (base), 10 (intermédiaire), 15 (élite, siège) de nourriture par unité et par heure (GDD), pour
-  **toutes les armées que la ville nourrit** (en ville, en mission, en renfort chez un allié, en garnison de Bastion),
-  moins les réductions des bâtiments de faction (Tente du chef de guerre hun, Avant-poste du désert) et de la technologie
-  Intendance, 50 % au plus.
+- **Entretien** : **5 (base), 9 (intermédiaire), 13 (élite), 15 (siège)** de nourriture par unité et par heure
+  (`config.army.upkeepPerTier`, recommandation 5 ; le GDD disait 5 / 10 / 15), pour **toutes les armées que la ville
+  nourrit** (en ville, en mission, en renfort chez un allié, en garnison de Bastion) et pour **les blessés qui attendent
+  un soin** (`config.wounded.woundedPayUpkeep`), moins les réductions des bâtiments de faction de la capitale (Tente de
+  guerre hunnique, Avant-poste du désert) et de la technologie Intendance, 50 % au plus. Les blessés au lit ne mangent pas.
+- **Tous les greniers paient** (§ 1 bis) : à chaque tick, chaque ville paie d'abord ses propres troupes avec son grenier ;
+  ce qui manque est pris dans les autres villes du joueur, celle qui a le plus de nourriture d'abord. Une seule requête SQL
+  pour tous les joueurs, écrite en différence (une écriture en même temps n'est pas perdue).
 - **Siège** (GDD `upkeep.siegeModifiersPct`) : une armée qui campe devant une ville coûte **+10 %** ; les armées à
   l'arrêt dans leur ville assiégée coûtent **−10 %**.
-- **Famine façon Travian** : quand le grenier est vide et que la consommation dépasse la production, chaque heure
-  meurent **juste assez de soldats** pour que la consommation repasse sous la production, **les plus gourmands d'abord**
-  (élite et siège, puis intermédiaires, puis base), dans toutes les armées de la ville, en mission comprises. Une armée
-  qui meurt entièrement de faim perd son héros (il tombe).
-- **Alertes** : notification quand le grenier sera vide dans **moins de 6 h** (une toutes les 6 h au plus), puis à
-  chaque heure de famine avec les pertes. Bandeau rouge sous la barre de ressources ; le minuteur de la nourriture compte
-  jusqu'au grenier vide.
-- L'affichage de la consommation vient du serveur (`/api/cities` → `foodBalance`) : il tient compte des réductions et du
-  siège, alors qu'il les ignorait.
+- **Famine façon Travian**, seulement quand **tous les greniers du joueur sont vides** et que sa consommation dépasse sa
+  production : chaque heure meurent **juste assez de soldats** pour que la consommation repasse sous la production ; les
+  **blessés qui attendent** meurent en premier, puis **les plus gourmands** (siège et élite, puis intermédiaires, puis
+  base), dans toutes les armées de toutes ses villes, en mission comprises. La nourriture est relue sous le verrou de toutes
+  ses villes avant la moindre mort. Une armée qui meurt entièrement de faim perd son héros (il tombe).
+- **Alertes** : une notification par joueur quand ses greniers seront vides dans **moins de 6 h** (une toutes les 6 h au
+  plus, notée sur la capitale), puis à chaque heure de famine avec les pertes. Bandeau rouge sous la barre de ressources
+  (« Greniers bientôt vides … dans toutes vos villes ») ; le minuteur de la nourriture compte jusqu'aux greniers vides.
+- **Affichage** : le bilan vient du serveur, réductions et siège compris : `GET /api/cities` → `foodBalance` (la ville) et
+  `playerStock.foodBalance` (tout le joueur : production, consommation, bilan, heures avant les greniers vides) ; le client
+  affiche le bilan du joueur.
 
 ## Défi d'alliance de la semaine (29 octobre 2026)
 
@@ -362,15 +438,20 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   moins de 4 cases d'une ville. Au terme, ceux qui restent repartent. L'administrateur peut aussi lancer une invasion
   (2 à 72 h) ou terminer celle en cours (écran d'administration › Monde).
 - Un donjon a **3 étages** à vaincre dans l'ordre : **avant-poste** (unités de base), **remparts** (intermédiaires),
-  **chef de la horde** (élite), de force × 1, × 2, × 4 ; × 2,5 par niveau (avant-poste : 15 000 de puissance au niveau
-  1, 586 000 au niveau 5 ; chef : 2,3 millions au niveau 5), puis × l'âge du monde (ci-dessous). La **garnison de l'étage ne se reconstitue pas** : une
+  **chef de la horde** (élite), de force × 1, × 2, × 4. **Force réglée sur les joueurs** (recommandation 9, 30 octobre 2026,
+  `config.invasion.powerRef`) : au lancement, le serveur mesure la puissance médiane des joueurs actifs (vus dans les 7
+  derniers jours, puissance > 0 : toutes leurs unités, armées et garnisons) ; l'avant-poste du niveau 1 vaut la moitié de
+  cette médiane (3 000 au moins), puis × 1,8 par niveau ; le chef du niveau 1 vaut donc 2 joueurs médians, celui du niveau 5
+  environ 21. Cette puissance est notée sur l'invasion (`Invasion.basePower`). Avec moins de 5 joueurs mesurés, l'ancienne
+  formule reste : 15 000 au niveau 1, × 2,5 par niveau, puis × l'âge du monde (ci-dessous). La **garnison de l'étage ne se reconstitue pas** : une
   attaque repoussée lui retire quand même des soldats ; un étage vaincu laisse place au suivant ; le dernier vaincu
   **détruit le donjon**.
 - **Âge du monde** (décision du 30 octobre 2026, D7, `config.invasion`) : au lancement d'une invasion, multiplicateur =
   min(6 ; 1 + 0,35 × (semaine du monde − 3)), soit × 1 les trois premières semaines, × 1,35 la 4e, × 2,75 la 8e et × 6 dès la
   18e ; il est noté sur l'invasion (`Invasion.ageMult`) et ne bouge plus jusqu'à sa fin. Un donjon de niveau L en prend
-  mult^((L − 1)/4) : le niveau 1 ne change jamais, le niveau 5 prend tout le facteur. Il s'applique à la puissance des étages
-  et aux **ressources** du trésor (pas à l'or ni aux points d'alliance). Tableau : `docs/EQUILIBRAGE.md` § 13.
+  mult^((L − 1)/4) : le niveau 1 ne change jamais, le niveau 5 prend tout le facteur. Il s'applique aux **ressources** du
+  trésor (pas à l'or ni aux points d'alliance), et à la puissance des étages seulement quand la force n'a pas pu être
+  mesurée sur les joueurs. Tableau : `docs/EQUILIBRAGE.md` § 13.
 - Un donjon ne s'attaque qu'en **rassemblement d'alliance**, façon Rise of Kingdoms (`src/services/rallyService.js`,
   `frontend/js/app/09l-rally.js`) : un membre le lance depuis le panneau du donjon avec une de ses armées et choisit
   l'attente (**5, 10, 30 ou 60 min**) ; l'alliance est prévenue. Les membres y envoient **une armée chacun**, qui marche
@@ -401,7 +482,8 @@ réglages `config.invasion`) — contenu **« donjon d'alliance »** : les horde
   ronds à icône (Assiéger, Rassemblement, Espionner, Partager…) ; les explications et le détail des troupes d'une tribu
   se déplient avec « Détails ».
 - **Trésor** à la destruction, **partagé selon les dégâts** entre tous ceux qui ont frappé : ressources livrées dans la
-  capitale (8 000 de chaque au niveau 1, × 2,5 par niveau, × l'âge du monde ; dans la limite des entrepôts), or (40 → 640), points
+  capitale puis, s'il n'y tient pas, dans les autres villes du joueur (8 000 de chaque au niveau 1, × 2,5 par niveau, × l'âge
+  du monde ; ce qui ne tient nulle part est perdu et la notification le dit, recommandation 2), or (40 → 640), points
   d'alliance (30 → 480) ; le **dernier coup** a une chance d'**objet** pour le héros (15 % au niveau 1, 70 % au niveau 5,
   objet rare dès le niveau 3, épique aux niveaux 4 et 5). Chaque participant est prévenu de sa part.
 - **Carte** : le donjon (forteresse sur un halo rouge en attendant l'image peinte), sa barre de vie et « Donjon niv. N ·
@@ -468,15 +550,19 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
 - **Prendre un plan** : battre les Immortels du camp, seul ou en rassemblement d'alliance ; le plan revient au joueur (au
   lanceur pour un rassemblement). Un joueur dont la **capitale est
   prise** perd ses plans au profit de l'attaquant.
-- **Construire** : chaque niveau coûte des ressources (50 000 bois, pierre et fer, 15 000 nourriture au niveau 1,
-  +5 % par niveau) et du temps (1 h au niveau 1, +2,5 % par niveau). Les ressources viennent de l'alliance : les convois
+- **Construire** : chaque niveau coûte des ressources (250 000 bois, pierre et fer, 75 000 nourriture au niveau 1,
+  +5 % par niveau : cinq fois plus que d'abord, décision du 30 octobre 2026, recommandation 7 ; la Merveille entière vaut
+  2,15 milliards) et du temps (1 h au niveau 1, +2,5 % par niveau). Les ressources viennent de l'alliance : les convois
   et transports vers la Ville Merveille remplissent son **stock de Merveille** (sans plafond). Au-delà du **niveau 50**,
   un membre de l'alliance doit détenir un plan.
+- **Immortels cinq fois plus forts** (décision du 30 octobre 2026, recommandation 8) : garnison d'un site 3 millions, d'un
+  plan 4,5 millions ; vague contre une Ville Merveille = 20 000 × niveau^1,35 (3,93 millions au niveau 50, 10 millions au
+  niveau 100, `wonderService.wavePower`).
 - **Défendre** : toutes les 12 h, une **vague d'Immortels** attaque chaque Merveille (force croissante avec le niveau) ;
   si la défense tombe, la Merveille perd **1 niveau**. Comme seuls les engins abîment le mur (D6), chaque vague amène des
   **mangonneaux pour 15 % de sa puissance** (règle retenue le 30 octobre 2026, comme les Natars de Travian qui viennent avec
-  béliers et catapultes) : un mur 20 sans défenseurs tient seul jusqu'au niveau 6 de la Merveille, puis tombe au 7e round au
-  niveau 12, au 4e au niveau 20, dès le 1er au niveau 100, et les défenseurs doivent battre la vague. Une vague ne laisse pas
+  béliers et catapultes) : un mur 20 sans défenseurs ne tient seul que jusqu'au niveau 2 de la Merveille, puis tombe au 2e
+  round au niveau 12 et dès le 1er à partir du niveau 20 ; les défenseurs doivent battre la vague. Une vague ne laisse pas
   de dégâts au mur (ce n'est pas un siège). Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
   dégâts de rempart) ; la Ville Merveille ne peut pas être rasée.
 - **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
@@ -540,25 +626,32 @@ combat ses +40 %** (`config.map.camps.goldDefenseBonusPct`), comme à l'affichag
 les camps d'or étaient plus faibles au combat que ce que la carte annonçait. Une armée qui va prendre un point tenu par une
 armée alliée (même devenue alliée pendant la marche) rentre sans combattre. Chiffres refaits : `docs/EQUILIBRAGE.md` § 9.
 
-## Blessés et soins (revue d'octobre 2026)
+## Blessés et soins (revue d'octobre 2026, soins payants le 30 octobre 2026)
 
-Règles du GDD (`wounded_and_healing.md`, `combat_config.woundedSystem`) : une part des pertes devient des blessés, soignés à
-la Tente de soins, capacité limitée avec file d'attente, soins du défenseur bloqués pendant un siège.
+Règles du GDD (`wounded_and_healing.md`, `combat_config.woundedSystem`) et décision du 30 octobre 2026 (recommandation 6,
+`src/services/woundedService.js`, `config.wounded`) :
 
-- **Appliqué** : 30 % des pertes deviennent des blessés, + 3 % par niveau de Tente, plafond 70 %, bonus grec, Médecine et
-  bâtiments ; guérison avec le temps ou immédiate contre 1 or par soldat.
-- **Décidé et appliqué (octobre 2026)** : les blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point de
-  ressource, des deux côtés) **rentrent avec elle** (`Army.woundedCarry`) et n'entrent à la Tente qu'au retour ; une armée
-  sans survivant ne ramène personne. La carte d'armée affiche les blessés transportés.
-- **Décidé et appliqué (octobre 2026)** : la Tente a **200 lits par niveau** (`config.wounded.bedsPerLevel`, 4 000 au niveau
-  20) ; les blessés au-delà attendent en file (`WoundedUnit.waiting`) et prennent les lits libérés par les guérisons ou par
-  un soin à l'or, qui ne soigne que les blessés au lit. Aucun soldat n'est perdu dans la file.
-- **Décidé et appliqué (octobre 2026)** : une ville est **assiégée quand l'armée attaquante campe devant elle** (statut
-  `BESIEGING`, voir « Siège qui dure »). Tant que l'attaque marche encore,
-  la ville peut tout faire. Pendant le siège : **recrutement et formation de colons refusés**, **aucun soin** (ni guérison
-  avec le temps, ni soin à l'or) ; **former une armée reste permis** avec les troupes présentes. Le compte à rebours des soins est en pause pendant le
-  siège et repart de lui-même à sa levée ; les blessés dont le temps était déjà écoulé reviennent aussitôt. Soin à l'or et
-  accélération des soins : à revoir plus tard. Les blessés d'une armée en déplacement ne se soignent qu'une fois rentrés en ville (règle 1).
+- **Part des pertes qui reviennent blessées** : 30 %, + 3 % par niveau de la Tente de soins de la capitale, plafond 70 %,
+  bonus grec, Médecine et bâtiments de faction de la capitale. Sans Tente dans la capitale, aucun blessé.
+- **Les blessés d'une armée hors de sa ville** (attaque, tribu, combat sur un point de ressource, des deux côtés) **rentrent
+  avec elle** (`Army.woundedCarry`) ; une armée sans survivant ne ramène personne. La carte d'armée affiche les blessés
+  transportés.
+- **Un blessé arrive en attente** dans sa ville (`WoundedUnit.waiting`) : il n'est pas soigné tout seul et **mange comme un
+  soldat** ; en famine, les blessés qui attendent meurent les premiers.
+- **Une seule Tente, dans la capitale, pour tout le joueur** : ses lits (**200 par niveau**, 4 000 au niveau 20) et sa
+  vitesse servent aux blessés de toutes les villes ; chaque blessé reste noté dans sa ville.
+- **Soin payant** (`POST /api/city/:id/wounded/start { unitKey, count? }`) : le joueur lance le soin des blessés qui
+  attendent ; il paie **30 % du prix de recrutement** de l'unité (38 pour un fantassin de base), sur le stock de toutes ses
+  villes, la capitale d'abord. Les blessés prennent un lit et guérissent **l'un après l'autre** : **10 % du temps de
+  formation de base** par unité × 0,95^(niveau de Tente − 1), Thermes romains compris, **après les soins déjà en cours**.
+  `GET /api/city/:id/wounded` donne les blessés de toutes les villes (ville, nombre au lit, nombre en attente) et, pour
+  chaque ligne, combien le bouton peut soigner (`healable` : autant que de lits libres et que le stock paie), le prix et
+  la durée.
+- **Soin immédiat à l'or** des blessés déjà au lit : 1 / 2 / 3 / 3 or par unité (base / intermédiaire / élite / siège).
+- **Les blessés guéris rejoignent la garnison de la capitale** (§ 1 bis), quelle que soit leur ville.
+- **Pendant un siège**, rien n'est mis en pause : les soins continuent (voir « Siège »).
+- Effet calculé (`docs/RAPPORT-ECONOMIE.md`, recommandation 6) : une perte coûte environ 51 % du prix de l'unité au lieu de 30 %, et
+  4 000 lits demandent environ 15 h à la Tente 20 au lieu de 11 minutes.
 
 ## Héros
 
@@ -604,8 +697,8 @@ client `frontend/js/app/08b-hero-talents.js`) :
   pas. Tombé, il garde niveau, points, talents et objets, quitte son armée, ne gagne plus d'XP et ne peut mener aucune
   armée.
 - **Résurrection** au **Domus du Héros de la capitale** : 24 h réduites de 2 % par niveau du Domus (et du talent
-  Endurance), pour 250 bois, pierre, fer et 150 nourriture par niveau du héros ; il revient dans la garnison de la
-  capitale. Le panneau du Domus montre ce temps (les faux bonus « XP » et « stats » sont retirés).
+  Endurance), pour 250 bois, pierre, fer et 150 nourriture par niveau du héros, pris dans toutes les villes du joueur, la
+  capitale d'abord (30 octobre 2026) ; il revient dans la garnison de la capitale. Le panneau du Domus montre ce temps (les faux bonus « XP » et « stats » sont retirés).
 - Notifications : passage de niveau, chute, retour (lien vers l'écran du héros).
 - **XP** (décision du 30 octobre 2026, D9, `heroXpService.awardHeroXp`, `config.hero`) : 100 XP pour passer au niveau 2, puis
   **× 1,25 par niveau** au lieu de × 1,5 : 27 033 XP cumulés pour le niveau 20, 254 786 pour le niveau 30 (25,6 millions
@@ -624,7 +717,8 @@ code), moteur `src/services/questService.js`, routes `/api/quests`, client `fron
   (sinon refus, avec le conseil de dépenser, d'agrandir ou de choisir une autre ville). Une récompense ne se prend qu'une
   fois (table `QuestClaim`). Les récompenses calculées sur la production (quêtes du jour, de la semaine, succès) sont
   **plafonnées à la moitié du plus grand dépôt (du plus grand silo pour la nourriture)** du joueur, pour rester livrables
-  dans une seule ville (30 octobre 2026).
+  dans une seule ville (30 octobre 2026) ; ce plafond ne compte que le Dépôt et le Silo, pas le Grand dépôt ni le Grand silo
+  (recommandation 12 : 80 000 par ressource au plus, comme avant la décision D1).
 - **Tutoriel** (16 étapes, dans l'ordre) : bûcheron, carrière, mine de fer, ferme, un champ niveau 2, Bâtiment principal
   2, entrepôt, grenier, Place de rassemblement, Bâtiment principal 3, caserne, 5 soldats, une armée, une tribu battue, une
   expédition, l'Ambassade. Bandeau de l'étape en cours au-dessus de la barre du bas (masquable) ; **« Aller »** ouvre le
@@ -684,11 +778,19 @@ Déjà en place, sans image supplémentaire (code) : marche des armées sur la c
 
 Vérifié dans le code serveur (`src/utils/buildingEffects.js`, `routes/cities.js`, `game/processors/*`, `services/combatService.js`, `services/woundedService.js`, `routes/market.js`, `routes/alliance.js`) et comparé aux données (`data/buildings.json`) et à l'affichage client (`getBuildingEffect`).
 
-**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv. : GDD gardé, décision du 30 octobre 2026, D2), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv. ; seuls les engins l'abîment ; ses PV remontent avec les vies de la ville, en 48 h), Douves (+0,5 %/niv. attaque et défense), Grand Silo/Grand Dépôt (**stockage** : 3 fois un silo ou un dépôt de même niveau, 3 600 → 480 000, ajoutés à la capacité de la ville ; plus aucune réserve protégée, seule la cachette protège : décision du 30 octobre 2026, D1), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15 ; espions niv. 5 et 10 ; alerte des espions ennemis niv. 5, 10, 15), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (taxe des échanges −1 %/niv., convois +1 %/niv.), Irrigation égyptienne (production +1 %/niv., marche +0,5 %/niv.), Poste du Désert (transport +1 %/niv., entretien −0,5 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+**Conformes aux données, niveaux 1 à 20** : production des champs (courbe 10 → 350 → 4 500/h), stockage Silo/Dépôt (1 200 → 160 000), Moulin/Boulangerie/Scierie/Tailleur/Fonderie (+5 %/niv., 5 niveaux), Place de rassemblement (1 → 5 armées), Caserne/Écurie (paliers 7 et 15, −0,5 %/niv. : GDD gardé, décision du 30 octobre 2026, D2), Atelier (siège dès 5, −4 %/niv.), Académie (−1 %/niv.), Forge (+0,5 %/niv.), Cachette (1 %/niv., max 20 %), Tente de soins (30 % + 3 %/niv., max 70 %), Mur (+1 %/niv., 1 000 PV/niv. ; seuls les engins l'abîment ; ses PV remontent avec les vies de la ville, en 48 h), Grand Silo/Grand Dépôt (**stockage** : 3 fois un silo ou un dépôt de même niveau, 3 600 → 480 000, ajoutés à la capacité de la ville ; plus aucune réserve protégée, seule la cachette protège : décision du 30 octobre 2026, D1), Ambassade (rejoindre 5, fonder 7), Chambre au trésor (10 → 200 or/jour), Tour de guet (attaquant niv. 10, effectifs niv. 15 ; espions niv. 5 et 10 ; alerte des espions ennemis niv. 5, 10, 15), Résidence (−0,25 %/niv.), Marché (taxe 30 % −1/niv., min 5 %, convois +5 %/niv.), Comptoir (taxe des échanges −1 %/niv., convois +1 %/niv.), Irrigation égyptienne (production +1 %/niv., marche +0,5 %/niv.), Poste du Désert (transport +1 %/niv., entretien −0,5 %/niv.), les six bâtiments de faction (soins, défense, blessés, production, entretien).
+
+**Douves** : supprimées du jeu le 30 octobre 2026 (données, combat, rapports, client, outils ; migration `0030_placement_moat`).
+
+**Placement** (30 octobre 2026) : capitale seulement, colonies seulement ou partout, selon le tableau de la section
+« Économie, placement et stock partagé » ; les effets d'un bâtiment de la capitale valent pour toutes les villes du joueur.
 
 **Capacité de stockage** (`calculations.cityStorageCaps`) : somme des dépôts et grands dépôts (bois, pierre, fer), somme des
 silos et grands silos (nourriture), 1 000 au moins ; recalculée à chaque construction terminée d'un de ces quatre bâtiments et
-au démarrage du serveur. Dépôt 20 + Grand Dépôt 20 = 160 000 + 480 000 = 640 000.
+au démarrage du serveur. Une colonie : Dépôt 20 + Grand Dépôt 20 = 160 000 + 480 000 = 640 000 ; la capitale n'a plus de
+Grand dépôt (bâtiment des colonies), mais les dépenses puisent dans le stock de toutes les villes : c'est le stockage réuni
+qui doit tenir un gros prix (Chambre au Trésor 20 : 313 604 de bois). Les plafonds des récompenses de quêtes et des routes
+commerciales ne comptent que le Dépôt et le Silo (recommandation 12).
 
 **File de construction** (30 octobre 2026) : deux niveaux d'un même bâtiment (même emplacement) ne sont jamais en chantier en
 même temps ; le niveau suivant attend la fin du précédent, même si une file est libre.
@@ -699,13 +801,13 @@ même temps ; le niveau suivant attend la fin du précédent, même si une file 
 |---|---|---|
 | Bâtiment principal 25-30 | Les réductions de construction (principal + Académie + Résidence) sont plafonnées à 60 % : atteint dès le niveau 24, les niveaux 25 à 30 n'apportent plus rien (sauf 5 points de population par niveau) | Affichage corrigé (plafond indiqué) ; à décider : relever le plafond ou donner un effet propre aux niveaux 25 et 30 |
 | Domus du héros | Réglé le 27 octobre 2026 : le héros tombe au combat et ressuscite au Domus de la capitale (24 h, −2 % par niveau du Domus) | Voir la section Héros |
-| Grande Caserne / Grande Écurie | Pas de seconde file de recrutement : même file que la Caserne/Écurie ; apporte seulement −4 %/niv. de temps (cumul plafonné à 60 %) et l'accès au recrutement sans Caserne | Textes corrigés |
+| Grande Caserne / Grande Écurie | Bâtiments des colonies : la file de recrutement de la colonie (clé Caserne / Écurie), −4 %/niv. de temps (cumul plafonné à 60 %) ; les recrues rejoignent la garnison de la capitale (30 octobre 2026) | Textes corrigés ; panneau de recrutement ouvert depuis le bâtiment |
 | Comptoir / Marché | Le bonus de capacité (Marché 5 %/niv. + Comptoir 1 %/niv.) s'applique ensemble aux convois marchands et au transport par armée, pas au butin des raids | Textes corrigés |
 | Bonus égyptien « santé des murs » | Portait sur le bonus de défense du mur au lieu des points de vie | Corrigé : points de vie du mur (1 250 PV par niveau pour l'Égypte avec le bonus à +25 %, dès la construction ; ils remontent avec les vies de la ville), voir `docs/EQUILIBRAGE.md` |
 | Bonus de civilisation | Relevés de 5 points en octobre 2026 à la demande (Rome −15 % pertes en siège et +10 % défense, Gaule +15 % cachette et +20 % défense chez soi, Grèce −15 % temps de construction et +15 % blessés, Égypte +15 % transport et +25 % PV des murs, Huns +20 % vitesse et +10 % attaque en siège, Sultanat +25 % dégâts des engins et +15 % attaque en défense) puis défense gauloise chez soi portée à 20 % et transport égyptien à 20 % ; le 30 octobre 2026, le bonus des engins du Sultanat est vérifié actif (chaque engin porte le bonus de sa civilisation) et la défense gauloise chez soi protège aussi son mur | Mesures refaites sur le moteur actuel dans `docs/EQUILIBRAGE.md` § 7 : Sultanat meilleur défenseur, Rome meilleure attaquante ; textes client lus depuis les données |
 | Paliers d'unités (coefficients de combat) | L'élite (×1,21) rapportait moins de puissance par ressource et par céréale d'entretien que l'unité de base : aucune raison de la former | Réglé (octobre 2026) : coefficients de puissance 1,0 / 1,25 / 1,55 côté serveur, client et fiches ; depuis le 30 octobre 2026 (D10), la bataille utilise ceux du GDD (1 / 1,35 / 1,9) avec la solidité, et chaque palier vaut à peu près son prix ; voir `docs/EQUILIBRAGE.md` § 2 |
 | Tour de guet | Les alertes d'attaque sont visibles dès le niveau 0 (la donnée `alertArmyIncomingLevel` 5 n'est pas appliquée) | Plus généreux que prévu ; à décider |
-| Forge, Ambassade, Chambre, Domus, Résidence, Caserne, Écurie, Atelier (`capitalOnly`), Grande Caserne/Écurie (`notInCapital`) | Appliqué depuis octobre 2026 : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale | Voir la section « Villes secondaires » |
+| Placement capitale / colonie (`capitalOnly`, `notInCapital`) | Tableau complet du 30 octobre 2026 (section « Économie, placement et stock partagé ») : refus serveur (« Bâtiment réservé à la capitale / aux villes secondaires ») et mention dans la liste de construction ; prérequis d'une colonie sur un bâtiment réservé lus dans la capitale ; effets des bâtiments de la capitale pour tout le joueur | Voir aussi « Villes secondaires » |
 | Mur : palier visuel et palier de ville | Depuis octobre 2026 le palier (Village / Ville / Ville Fortifiée) et l'enceinte dessinée suivent le Bâtiment principal (10 et 20), plus le niveau du Mur ; le minimum d'engins par palier a été supprimé le 25 octobre 2026 (1 engin suffit) | Le Mur garde son bonus et ses points de vie, que seuls les engins abîment (30 octobre 2026) ; `docs/EQUILIBRAGE.md` § 11 et 12 |
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
 | Irrigation (vitesse de marche), Poste du Désert (taxe entre villes), Comptoir (`p2pTax`) | En place : la taxe des échanges du Comptoir depuis le marché du 27 octobre 2026 ; la vitesse de marche de l'Irrigation depuis le 30 octobre 2026, dans tous les trajets partis de la ville (armées, retours, espions, convois du marché, ravitaillement du Bastion) et dans l'estimation du client. La « taxe entre villes » du Poste du Désert n'existe plus dans les données : les envois entre ses propres villes restent sans taxe | Voir `docs/BACKLOG.md` |
@@ -723,9 +825,10 @@ Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/syst
   colonies fondées et qu'aucun colon n'attend, la Résidence forme **un colon de plus** pour la Ville Merveille, si le joueur
   n'en a pas encore (30 octobre 2026). L'onglet Colons ne compte pas non plus la Ville Merveille parmi les colonies.
 - **Fondation** (`POST /api/army/:id/found-city { resourceNodeId, name }`) : une armée de la capitale (unités obligatoires)
-  emmène un colon et 3 000 de chaque ressource, prélevés dans la capitale, vers un point de ressource libre (ni tribu, ni
-  armée, ni ville). À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec
-  son Hôtel de ville niveau 1, sa garnison et les 3 000 de chaque ressource (le stock de départ reste disponible même au-dessus
+  emmène un colon et 3 000 de chaque ressource, pris dans toutes les villes du joueur, la capitale d'abord (30 octobre 2026),
+  vers un point de ressource libre (ni tribu, ni armée, ni ville). À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la
+  ville naît ensuite sur la case du point avec son Hôtel de ville niveau 1, une ligne de garnison vide et les 3 000 de chaque
+  ressource (le stock de départ reste disponible même au-dessus
   du dépôt de 1 000 : la production ne fait jamais baisser un stock), et l'armée rentre. Si le point n'est plus libre à
   l'arrivée, l'armée rentre avec le colon et les ressources.
 - **Vulnérabilité** : pendant les 24 h, l'armée fondatrice tient le point comme une récolteuse et peut être attaquée
@@ -734,12 +837,17 @@ Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/syst
 - **Le point sous la ville** : il garde `cityId`, disparaît de la carte et des tirages (pas de récolte, de régénération, de
   renfort de tribu ni de réapparition) ; il redevient libre, tribu comprise, quand la ville disparaît (suppression du compte).
 - **Bonus** : une ville secondaire produit +20 % (SQL de production et affichage client).
-- **Restrictions** (relecture complète du GDD, octobre 2026) : Forge (table du GDD), Chambre au trésor (`economy_config`),
-  Ambassade (`alliance.md` : « capitale uniquement »), Résidence (`resource_points.json`) et Domus seulement dans la
-  capitale ; **Caserne, Écurie et Atelier aussi** : le GDD décrit les Grandes caserne et écurie comme ce qui « permet de
-  recruter hors capitale », une colonie ne forme donc des troupes qu'avec elles (prérequis Caserne 20 / Écurie 20 lus dans
-  la capitale), et jamais d'engins de siège. Grande Caserne et Grande Écurie seulement dans les colonies. Refus serveur et
-  mention dans la liste de construction.
+- **Placement** (décision du 30 octobre 2026, tableau dans « Économie, placement et stock partagé ») : la capitale garde le
+  militaire et tout ce qui agit pour le joueur entier (Place de rassemblement, Académie, Tente de soins, Tour de guet,
+  Caserne, Écurie, Atelier, Forge, Ambassade, Chambre au Trésor, Domus, Résidence, bâtiment de la civilisation) ; une
+  colonie est une ville d'économie (Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie, Comptoir, Grand dépôt, Grand
+  silo) et peut former des troupes avec une Grande caserne ou une Grande écurie (prérequis Caserne 20 / Écurie 20 lus dans la
+  capitale), jamais d'engins de siège. Marché, Dépôt, Silo, Cachette et Mur partout. Refus serveur et mention dans la liste
+  de construction.
+- **Stock et troupes d'une colonie** (§ 1 bis) : son stock reste à elle (pillage, raids, marché), mais il paie aussi les
+  constructions, recrutements, recherches et soins de toutes les villes du joueur, et son grenier nourrit toutes ses
+  troupes. Les unités formées dans la colonie et les blessés guéris rejoignent la garnison de la capitale ; une colonie
+  n'est défendue que par les armées qu'on y envoie.
 - **Niveaux** : le Bâtiment principal d'une ville secondaire s'arrête au niveau 20 (`config.city.secondaryMainHallMaxLevel`,
   la capitale seule monte à 30) ; comme il plafonne tous les autres bâtiments, une colonie ne dépasse 20 nulle part. Le GDD
   ne chiffre pas ce plafond : décision d'octobre 2026, à ajuster en jouant.
