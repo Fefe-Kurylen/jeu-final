@@ -138,7 +138,7 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
     const rel = await relationTo(army.owner?.alliance?.allianceId || null, b.allianceId);
     const travel = await travelSeconds(army, b);
     const now = new Date(), arrivalAt = new Date(now.getTime() + travel * 1000);
-    const base = { targetX: b.x, targetY: b.y, targetBastionId: b.id, targetCityId: null, arrivalAt, departedAt: now };
+    const base = { targetX: b.x, targetY: b.y, targetBastionId: b.id, targetCityId: null, rallyId: null, arrivalAt, departedAt: now };   // armée seule : aucun ancien rassemblement
     if (mission === 'SUPPLY') {
       if (rel !== 'SAME') throw httpError(403, 'Seuls les membres de l\'alliance ravitaillent son Bastion');
       if (b.status !== 'FUNDING') throw httpError(400, 'Le Bastion a déjà toutes ses ressources');
@@ -208,7 +208,7 @@ async function breakSiege(playerId, b, armyId) {
     }
     const travel = sortie ? B.sortieSeconds : await travelSeconds(army, b);
     const now = new Date(), arrivalAt = new Date(now.getTime() + travel * 1000);
-    const data = { status: 'ATTACKING', missionType: sortie ? 'BASTION_SORTIE' : 'BASTION_BREAK', targetX: b.x, targetY: b.y, targetBastionId: b.id, targetCityId: null, arrivalAt, departedAt: now };
+    const data = { status: 'ATTACKING', missionType: sortie ? 'BASTION_SORTIE' : 'BASTION_BREAK', targetX: b.x, targetY: b.y, targetBastionId: b.id, targetCityId: null, rallyId: null, arrivalAt, departedAt: now };
     if (!(await transition(tx, 'army', army.id, sortie ? 'STATIONED' : 'IDLE', data))) throw httpError(409, 'Armée déjà en mission');
     return { sortie, travel, arrivalAt, attackerName: army.owner?.name };
   }, { timeout: 15000 });
@@ -217,7 +217,8 @@ async function breakSiege(playerId, b, armyId) {
   return { message: result.sortie ? 'Sortie de la garnison : votre armée attaque le camp ennemi' : `Armée en route pour briser le siège du Bastion (${minutes} min)`, travelTime: result.travel, arrivalAt: result.arrivalAt, sortie: result.sortie };
 }
 
-// Une sortie vaincue rentre à la capitale si un emplacement d'armée y est libre, sinon dans sa ville
+// Une sortie vaincue rentre à la capitale si un emplacement d'armée y est libre, sinon dans sa ville. Les emplacements
+// sont lus sous le verrou de la capitale (celui de la création d'armée), pris par handleBreakArrival avant le Bastion.
 async function capitalHomeTx(tx, army) {
   const cap = await tx.city.findFirst({ where: { playerId: army.ownerId, isCapital: true }, include: { buildings: { select: { key: true, level: true } } } });
   if (!cap || cap.id === army.cityId) return null;
@@ -233,6 +234,12 @@ async function handleBreakArrival(army, now, sendArmyHome) {
   const sortie = army.missionType === 'BASTION_SORTIE';
   const { fieldBattle, sendArmyHomeTx } = require('./armyService');
   const out = await prisma.$transaction(async (tx) => {
+    // une sortie vaincue peut prendre un emplacement à la capitale : son verrou d'abord, puis le Bastion (ordre ville puis
+    // Bastion, comme relocateCapital)
+    if (sortie) {
+      const cap = await tx.city.findFirst({ where: { playerId: army.ownerId, isCapital: true }, select: { id: true } });
+      if (cap) await lockCity(tx, cap.id);
+    }
     await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${army.targetBastionId || ''} FOR UPDATE`;
     const b = await tx.bastion.findUnique({ where: { id: army.targetBastionId || '' }, include: { alliance: { select: { tag: true } } } });
     const alive = b && ['BUILDING', 'ACTIVE'].includes(b.status);
@@ -343,6 +350,9 @@ async function applyLosses(tx, units, finalUnits) {
   }
 }
 
+// Un rassemblement dont le groupe campe devant ce Bastion : parti (DONE) et dirigé vers lui
+const campingRally = (rally, bastionId) => !!rally && rally.status === 'DONE' && rally.targetBastionId === bastionId;
+
 // L'heure du camp est passée : assaut contre la garnison derrière le mur bouclier
 async function handleBastionBattle(army, now, sendArmyHome) {
   const outcome = await prisma.$transaction(async (tx) => {
@@ -363,16 +373,20 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const structure = structureNow(b, now.getTime());
     const maxHp = wallMaxHp();
     const attackerName = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
-    const defHero = defenders.find(d => d.hero)?.hero || null;
+    const defHero = require('./heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // rassemblement : c'est le héros de l'armée qui a lancé le rassemblement qui mène l'assaut (et donne ses bonus) ;
     // si cette armée n'est plus là, aucun héros. Hors rassemblement : le héros de l'armée dont le camp finit le premier.
+    // Seul compte un rassemblement qui campe devant ce Bastion (un ancien rallyId resté sur une armée est ignoré).
     let leadHero = army.hero || null, leadOwnerId = army.ownerId;
-    const rallyId = group.map(g => g.rallyId).find(Boolean);
-    if (rallyId) {
-      const rally = await tx.rally.findUnique({ where: { id: rallyId }, select: { leaderId: true } });
-      const lead = group.find(g => g.rallyId === rallyId && g.ownerId === rally?.leaderId);
-      leadHero = lead?.hero || null;
-      if (lead) leadOwnerId = lead.ownerId;
+    const rallyIds = [...new Set(group.map(g => g.rallyId).filter(Boolean))];
+    if (rallyIds.length) {
+      const rallies = await tx.rally.findMany({ where: { id: { in: rallyIds } }, select: { id: true, leaderId: true, status: true, targetBastionId: true } });
+      const rally = rallyIds.map(id => rallies.find(r => r.id === id)).find(r => campingRally(r, b.id));
+      if (rally) {
+        const lead = group.find(g => g.rallyId === rally.id && g.ownerId === rally.leaderId);
+        leadHero = lead?.hero || null;
+        if (lead) leadOwnerId = lead.ownerId;
+      }
       await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     }
     const atkTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
@@ -407,7 +421,7 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     for (const id of new Set(defenders.map(d => d.ownerId))) if (!reportIds[id]) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'LOSE' : 'WIN', playerId: id, attackerId: army.ownerId, defenderId: id } })).id;
     return { b, group, defenders, result, destroyed, lives, reportIds };
   }, { timeout: 15000 });
-  if (outcome.gone) { await sendHome(army, sendArmyHome); return; }
+  if (outcome.gone) { await sendHome(army, sendArmyHome, { rallyId: null }); return; }
   const { b, group, defenders, result, destroyed, lives, reportIds } = outcome;
   const tag = `[${b.alliance.tag}]`;
   for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });
@@ -423,9 +437,17 @@ async function handleBastionBattle(army, now, sendArmyHome) {
   await refreshSieged(prisma, b.id);
 }
 
+// Drapeau de siège recalculé d'après les camps (un camp parti sans passer par refreshSieged : capitale déplacée, compte
+// supprimé…), comme siegeProcessor.syncSiegeFlags pour les villes
+async function syncSieged() {
+  await prisma.$executeRaw`UPDATE "Bastion" b SET "isSieged" = true WHERE b."isSieged" = false AND b.status IN ('BUILDING', 'ACTIVE') AND EXISTS (SELECT 1 FROM "Army" a WHERE a."targetBastionId" = b.id AND a.status = 'BESIEGING')`;
+  await prisma.$executeRaw`UPDATE "Bastion" b SET "isSieged" = false WHERE b."isSieged" = true AND NOT EXISTS (SELECT 1 FROM "Army" a WHERE a."targetBastionId" = b.id AND a.status = 'BESIEGING')`;
+}
+
 // Tick : chantiers achevés ; arrivées dispatchées par armyProcessor
 async function processBastions(now = new Date()) {
   await releaseOrphanGarrisons().catch(e => console.error('[BASTION] garnisons :', e.message));
+  await syncSieged().catch(e => console.error('[BASTION] sièges :', e.message));
   const done = await prisma.bastion.findMany({ where: { status: 'BUILDING', buildEndsAt: { lte: now } }, select: { id: true, allianceId: true, x: true, y: true } });
   for (const b of done) {
     const ok = await prisma.bastion.updateMany({ where: { id: b.id, status: 'BUILDING' }, data: { status: 'ACTIVE', activatedAt: now, structure: 1, structureAt: now } });
@@ -461,4 +483,4 @@ async function bastionsIn(x0, x1, y0, y1) {
   return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, campingRally, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };

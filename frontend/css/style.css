@@ -4062,8 +4062,8 @@ tr.marked, .list-item.marked {
     max-height: 90vh;
   }
 
-  /* Map info panel responsive */
-  .map-info-panel {
+  /* Map info panel responsive (la fenêtre de la cible, .map-popup, garde la position calculée par map.js) */
+  .map-info-panel:not(.map-popup) {
     width: calc(100% - 20px) !important;
     left: 10px !important;
     right: 10px !important;

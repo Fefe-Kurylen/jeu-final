@@ -6,12 +6,18 @@ const prisma = require('../config/database');
 const DAYS = 30;
 const DAY_SQL = (col) => `to_char(("${col}" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Paris', 'YYYY-MM-DD')`;
 
-// les 30 jours (Paris), du plus ancien au plus récent
+// les 30 jours (Paris), du plus ancien au plus récent : comptés au calendrier depuis la date de Paris du jour (des pas de
+// 24 h sauteraient ou doubleraient un jour autour des changements d'heure)
 function dayKeys(now = new Date()) {
   const fmt = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const today = new Date(`${fmt.format(now)}T12:00:00Z`);
   const keys = [];
-  for (let i = DAYS - 1; i >= 0; i--) keys.push(fmt.format(new Date(now.getTime() - i * 86400000)));
-  return [...new Set(keys)];
+  for (let i = DAYS - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    keys.push(d.toISOString().slice(0, 10));
+  }
+  return keys;
 }
 // [{ d, n }] -> une valeur par jour (0 les jours sans rien)
 function series(keys, rows, field = 'n') {

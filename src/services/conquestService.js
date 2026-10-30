@@ -78,7 +78,8 @@ async function turnBackHostiles(tx, city, except) {
   return [...new Set(hostiles.map(a => a.ownerId))];
 }
 
-// Ville secondaire rasée : troupes et blessés présents perdus, armées en mission rattachées à la capitale, héros sauvé
+// Ville secondaire rasée : troupes et blessés présents perdus, armées en mission rattachées à la capitale, héros enfui
+// vers la capitale
 async function razeCity(cityId, byArmyId) {
   return prisma.$transaction(async (tx) => {
     // lock order of the market routes: offers first, then the city
@@ -92,7 +93,6 @@ async function razeCity(cityId, byArmyId) {
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || city.isCapital || city.wallStructure > 0) return null;
     const capital = await tx.city.findFirst({ where: { playerId: city.playerId, isCapital: true } });
-    const capitalGarrison = capital ? await tx.army.findFirst({ where: { cityId: capital.id, isGarrison: true } }) : null;
     const usedSlots = new Set(capital ? (await tx.army.findMany({ where: { cityId: capital.id, isGarrison: false }, select: { slot: true } })).map(a => a.slot) : []);
     const heroes = [];
     const ownerFaction = (await tx.player.findUnique({ where: { id: city.playerId }, select: { faction: true } }))?.faction || null;
@@ -114,8 +114,9 @@ async function razeCity(cityId, byArmyId) {
       }
       await tx.army.update({ where: { id: a.id }, data });
     }
-    // the hero of an army destroyed with the city escapes to the capital
-    if (heroes.length && capitalGarrison) await tx.hero.update({ where: { id: heroes[0] }, data: { cityId: capitalGarrison.cityId } });   // il attend à la capitale, joint à aucune armée
+    // le héros s'enfuit vers la capitale : celui d'une armée détruite avec la ville, celui qui y attendait sans armée, et
+    // celui d'une armée en mission désormais rattachée à la capitale ; jamais un Hero.cityId vers une ville supprimée
+    await tx.hero.updateMany({ where: { playerId: city.playerId, OR: [{ cityId: city.id }, { id: { in: heroes } }] }, data: { cityId: capital?.id ?? null } });
     const owners = await turnBackHostiles(tx, city, byArmyId);
     // convoys heading to the razed colony (any owner) turn back with their cargo, the time they already walked
     const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { city: true } });
@@ -165,7 +166,7 @@ async function relocateCapital(cityId, byArmyId) {
     // resolved right now (claimed) finishes first and then walks to the new place.
     const { depositCarryTx } = require('./armyService');
     await require('./marketService').cancelOffersOfCity(tx, city.id, city.id);   // offres annulées, marchandises rendues
-    const campsLeft = new Set();
+    const campsLeft = new Set(), bastionCampsLeft = new Set();
     for (const a of city.armies) {
       if (a.claimedAt) {
         if (a.status === 'RETURNING') await tx.army.update({ where: { id: a.id }, data: { targetX: pos.x, targetY: pos.y } });
@@ -177,11 +178,15 @@ async function relocateCapital(cityId, byArmyId) {
       }
       if (a.status === 'EXPEDITION') await tx.expedition.updateMany({ where: { armyId: a.id, status: 'IN_PROGRESS' }, data: { status: 'EXPIRED' } });
       if (a.status === 'BESIEGING' && a.targetCityId) campsLeft.add(a.targetCityId);
+      if (a.status === 'BESIEGING' && a.targetBastionId) bastionCampsLeft.add(a.targetBastionId);   // camp devant un Bastion
       if (!a.isGarrison) await depositCarryTx(tx, a.id, city.id);
-      await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
+      // mission annulée : plus de cible ni de rassemblement (un ancien rallyId fausserait le héros d'un assaut de Bastion)
+      await tx.army.update({ where: { id: a.id }, data: { status: 'IDLE', x: pos.x, y: pos.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, rallyId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
     }
     const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
     for (const id of campsLeft) await refreshSiegeFlag(tx, id);
+    const { refreshSieged } = require('./bastionService');
+    for (const id of bastionCampsLeft) await refreshSieged(tx, id);   // le Bastion n'est plus assiégé s'il n'y reste aucun camp
     // every convoy on its way to the city (its owner's or a friend's) follows it to its new place, and takes the extra way
     const convoys = await tx.army.findMany({ where: { targetCityId: city.id, status: 'TRANSPORTING', claimedAt: null }, include: { units: true, owner: { select: { faction: true } } } });
     const lenByFaction = new Map();   // the extra way, per civilisation (forests do not slow the Gauls)

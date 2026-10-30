@@ -15,12 +15,21 @@ const frDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: 'numeri
 const adminCan = (perm) => !!adminState.me?.perms?.includes(perm);
 async function adminPost(path, body) { return allianceRequestNoReload(`/api/admin${path}`, 'POST', body || {}); }
 
+// un autre compte connecté sur la même page (déconnexion puis connexion, sans rechargement) : rien de la session d'avant
+// (rôle, droits, vue, recherche)
+function adminSession() {
+  if (adminState.token !== token) adminState = { view: 'overview', me: null, q: '', filter: '', logBefore: null, token };
+}
 function openAdmin(view) {
   if (typeof closeModal === 'function') closeModal();
+  adminSession();
+  adminState.me = null;   // rôle et droits relus à chaque ouverture : un rôle changé entre-temps est pris en compte
   if (view) adminState.view = view;   // avant showTab, qui charge la vue choisie
   showTab('admin');
 }
-async function loadAdmin(view = adminState.view) {
+async function loadAdmin(view) {
+  adminSession();
+  view = view || adminState.view;
   adminState.view = view;
   const content = document.getElementById('admin-content');
   if (!content) return;
@@ -33,8 +42,8 @@ async function loadAdmin(view = adminState.view) {
     if (view === 'players') return renderAdminPlayers(content);
     if (view === 'team') return renderAdminTeam(content, await fetchJson('/api/admin/team'));
     if (view === 'log') { adminState.logBefore = null; return renderAdminLog(content, await fetchJson('/api/admin/log')); }
-    if (view === 'announce') return renderAdminAnnounce(content);
-    if (view === 'stats') return renderAdminStats(content);
+    if (view === 'announce') return await renderAdminAnnounce(content);   // await : une erreur passe par le catch ci-dessous
+    if (view === 'stats') return await renderAdminStats(content);
     renderAdminOverview(content, await fetchJson('/api/admin/overview'));
   } catch (e) {
     console.warn('loadAdmin', e);
@@ -214,12 +223,12 @@ async function openAdminPlayer(id) {
       <p><small>Compte créé le ${frDate(p.accountCreatedAt)} · vu ${frDateTime(p.lastSeenAt)}${p.email ? ` · ${escapeHtml(p.email)}` : ''} · ${ROLE_LABEL[p.role]} · ${d.reported} message${d.reported > 1 ? 's' : ''} signalé${d.reported > 1 ? 's' : ''}</small></p>
       <h4>Sanctions en cours</h4>
       <div class="admin-current">
-        ${s.bannedAt ? `<div>${sanctionBadges({ bannedAt: s.bannedAt })} ${escapeHtml(s.banReason || '')} ${adminCan('ban') ? `<button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'BAN')">Lever</button>` : ''}</div>` : ''}
-        ${s.suspendedUntil ? `<div>${sanctionBadges({ suspendedUntil: s.suspendedUntil })} ${escapeHtml(s.suspendReason || '')} <button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'SUSPEND')">Lever</button></div>` : ''}
-        ${s.mutedUntil ? `<div>${sanctionBadges({ mutedUntil: s.mutedUntil })} <button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'MUTE')">Lever</button></div>` : ''}
+        ${s.bannedAt ? `<div>${sanctionBadges({ bannedAt: s.bannedAt })} ${escapeHtml(s.banReason || '')} ${adminCan('ban') && !staffTarget ? `<button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'BAN')">Lever</button>` : ''}</div>` : ''}
+        ${s.suspendedUntil ? `<div>${sanctionBadges({ suspendedUntil: s.suspendedUntil })} ${escapeHtml(s.suspendReason || '')} ${staffTarget ? '' : `<button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'SUSPEND')">Lever</button>`}</div>` : ''}
+        ${s.mutedUntil ? `<div>${sanctionBadges({ mutedUntil: s.mutedUntil })} ${staffTarget ? '' : `<button class="btn btn-secondary btn-sm" onclick="adminLift('${pid}', 'MUTE')">Lever</button>`}</div>` : ''}
         ${!s.bannedAt && !s.suspendedUntil && !s.mutedUntil ? '<p>Aucune.</p>' : ''}
       </div>
-      ${staffTarget ? '<p class="diplo-help">Membre de l\'équipe : sanction impossible.</p>' : `
+      ${staffTarget ? '<p class="diplo-help">Membre de l\'équipe : sanction et levée impossibles.</p>' : `
       <h4>Sanctionner</h4>
       <textarea id="ap-reason" maxlength="300" rows="2" placeholder="Motif (le joueur le verra)"></textarea>
       <div class="admin-inline">

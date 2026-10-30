@@ -95,8 +95,9 @@ async function processArmyMovements(now) {
   }
 }
 
+// une armée qui se pose ou rentre ne fait plus partie d'aucun rassemblement (rallyId effacé)
 async function setArmyIdle(armyId, extraData = {}) {
-  await prisma.army.update({ where: { id: armyId }, data: { status: 'IDLE', targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, claimedAt: null, missionType: null, ...extraData } });
+  await prisma.army.update({ where: { id: armyId }, data: { status: 'IDLE', targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, claimedAt: null, missionType: null, rallyId: null, ...extraData } });
 }
 
 // Sends the army back to its city at the speed of its surviving units (owner faction and hero bonuses applied).
@@ -120,7 +121,7 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   const travelTime = fixedSpeed
     ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, speedPct)
     : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, speedPct);
-  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, targetBastionId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
+  await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: homeCity.x, targetY: homeCity.y, targetCityId: null, targetBastionId: null, rallyId: null, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), claimedAt: null, ...extraData } });
 }
 
 // Armies physically standing in the city defend it (allied reinforcements stationed there too); armies away on missions do not
@@ -380,7 +381,7 @@ async function handleAttack(army, now) {
     const wallLevel = wallLevelOf(targetCity.buildings);
     const wall = wallLevel > 0 ? { hp: wallHpNow(targetCity), maxHp: targetCity.wallMaxHp } : null;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
-    const defenderHero = defenders.find(a => a.hero)?.hero || null;
+    const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // Technologies of both players (the leading camp's for the attackers): Art de la guerre, Discipline; Médecine below
     const [atkTech, defTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
     const techMods = { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: T.techBonusMult(defTech, 'attackBonusPct'), def: T.techBonusMult(defTech, 'defenseBonusPct') } };
@@ -611,7 +612,7 @@ async function handleRaid(army, now) {
     const defenderUnits = defenders.flatMap(a => a.units);
     const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
     const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
-    const defenderHero = defenders.find(a => a.hero)?.hero || null;
+    const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // Technologies: Art de la guerre (attacker's power), Discipline (defender's power)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
     const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });

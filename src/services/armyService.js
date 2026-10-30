@@ -139,7 +139,7 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
   const lead = holders[0];
   const atkTech = await tx.playerTechnology.findMany({ where: { playerId } });
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(lead.hero), {
+  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(require('./heroService').leadingHero(holders)), {   // un héros sans soldats ne combat pas
     fieldBattle: true, defenderFaction: lead.owner?.faction, attackerBonusPct: techPct(atkTech, 'attackBonusPct'), defenderBonusPct: techPct(lead.owner?.technologies, 'defenseBonusPct')
   });
   const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));

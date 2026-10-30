@@ -52,7 +52,10 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     { const bad = require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }   // noms choquants ou de l'équipe refusés (décision du 29 octobre 2026)
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Faction invalide' });
     // cycle du serveur (décision du 28 octobre 2026) : inscriptions ouvertes 60 jours, 5 000 joueurs, monde pas terminé
-    { const closed = await require('../services/wonderService').registrationBlocked(); if (closed) return res.status(403).json({ error: closed, registrationClosed: true }); }
+    const WS = require('../services/wonderService');
+    // monde suivant en préparation : 503, réessayer dans un instant ; inscriptions closes : 403
+    const closedReply = (closed) => (closed === WS.PREPARING ? res.set('Retry-After', '10').status(503) : res.status(403)).json({ error: closed, registrationClosed: true });
+    { const closed = await WS.registrationBlocked(); if (closed) return closedReply(closed); }
 
     const normalizedEmail = email.toLowerCase();
     const exists = await prisma.account.findUnique({ where: { email: normalizedEmail } });
@@ -71,6 +74,9 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
       try {
         created = await prisma.$transaction(async (tx) => {
           await lockPlacement(tx);   // the place is chosen and taken under one lock (no overlapping 2 × 2 blocks)
+          // relu sous le verrou : une remise à zéro du monde demandée entre-temps ne reçoit pas de capitale
+          const closed = await WS.registrationBlocked(tx);
+          if (closed) return { closed };
           const account = await tx.account.create({ data: { email: normalizedEmail, passwordHash: hash } });
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
           const city = await require('../services/startService').createStart(tx, { playerId: player.id, name });
@@ -86,6 +92,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
       }
     }
     if (!created) return res.status(503).json({ error: 'Carte saturée, réessayez' });
+    if (created.closed) return closedReply(created.closed);
     if (created.city) noteCityCells(created.city.x, created.city.y);
 
     // The verification link leaves in the background: a mail outage never blocks a sign-up

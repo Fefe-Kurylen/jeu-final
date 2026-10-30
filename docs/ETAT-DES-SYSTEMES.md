@@ -351,7 +351,8 @@ outil `tools/admin.cjs`) :
   titres), **ouvrir le monde suivant** (taper NOUVEAU MONDE ; le monde doit être terminé, sauf case « sans Panthéon »).
   Le worker de tick prépare le monde suivant **sans redémarrer** (remise à zéro, nouvelle carte, points de ressource,
   quelques secondes) ; les autres processus relisent la carte ; chaque joueur est prévenu et rejoint en choisissant sa
-  civilisation.
+  civilisation. Pendant la préparation, rejoindre et s'inscrire répondent « monde en préparation » (503, réessayer dans
+  un instant) : aucune ville n'est posée sur l'ancienne carte.
 - **Journal** : chaque action de l'équipe (rôles, sanctions, signalements, calendrier, fin et monde suivant) avec son
   auteur, sa cible et son motif ; l'historique d'un joueur est sur sa fiche.
 - **Tableau de bord** : signalements en attente, joueurs, actifs sur 24 h et 7 jours, suspendus, bannis, en silence,

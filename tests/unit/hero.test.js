@@ -57,8 +57,9 @@ test('chute : le héros d\'une armée anéantie tombe, celui d\'une armée qui g
   const tx = {
     armyUnit: { aggregate: async ({ where }) => ({ _sum: { count: left[where.armyId] } }) },
     hero: { findUnique: async ({ where }) => ({ id: where.id, name: 'H' + where.id, playerId: 'p', diedAt: null }), update: async (q) => writes.push(['hero', q.where.id, q.data]) },
-    army: { update: async (q) => writes.push(['army', q.where.id, q.data]) }
+    army: { updateMany: async (q) => { writes.push(['army', q.where.id, q.data]); return { count: q.where.heroId === held[q.where.id] ? 1 : 0 }; } }
   };
+  const held = { wiped: 'h1', alive: 'h2' };   // le héros que chaque armée mène encore au moment de la chute
   const armies = HS.fought([
     { id: 'wiped', heroId: 'h1', units: [{ count: 10 }] },
     { id: 'alive', heroId: 'h2', units: [{ count: 10 }] },
@@ -69,6 +70,27 @@ test('chute : le héros d\'une armée anéantie tombe, celui d\'une armée qui g
   assert.deepEqual(fallen.map(f => f.heroId), ['h1']);
   assert.ok(writes.some(([k, id, d]) => k === 'army' && id === 'wiped' && d.heroId === null));
   assert.ok(writes.some(([k, id, d]) => k === 'hero' && id === 'h1' && d.diedAt instanceof Date));
+});
+
+test('chute : un héros qui a déjà quitté l\'armée anéantie (lecture faite avant le combat) ne tombe pas', async () => {
+  const writes = [];
+  const tx = {
+    armyUnit: { aggregate: async () => ({ _sum: { count: 0 } }) },
+    hero: { findUnique: async ({ where }) => ({ id: where.id, name: 'H', playerId: 'p', diedAt: null }), update: async (q) => writes.push(['hero', q.where.id, q.data]) },
+    army: { updateMany: async () => ({ count: 0 }) }   // l'armée ne le mène plus : rien n'est détaché
+  };
+  const fallen = await HS.fallIfWiped(tx, [{ id: 'g', heroId: 'h1', units: [{ count: 5 }] }]);
+  assert.deepEqual(fallen, []);
+  assert.equal(writes.length, 0, 'le héros n\'est pas marqué tombé');
+});
+
+test('défense : seul le héros d\'une armée qui a des soldats commande, jamais un héros tombé', () => {
+  const h1 = { id: 'h1' }, h2 = { id: 'h2' }, dead = { id: 'h3', diedAt: new Date() };
+  assert.equal(HS.leadingHero([{ hero: h1, units: [] }, { hero: null, units: [{ count: 50 }] }]), null, 'un héros seul dans une armée vide ne combat pas');
+  assert.equal(HS.leadingHero([{ hero: h1, units: [{ count: 0 }] }, { hero: h2, units: [{ count: 3 }] }]), h2);
+  assert.equal(HS.leadingHero([{ hero: dead, units: [{ count: 9 }] }]), null);
+  assert.equal(HS.leadingHero([{ hero: h1, units: [{ count: 1 }] }]), h1);
+  assert.equal(HS.leadingHero(null), null);
 });
 
 test('logistique (GDD) : réduit l\'entretien de l\'armée du héros, plus le transport', () => {

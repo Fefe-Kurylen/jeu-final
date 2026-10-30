@@ -18,7 +18,8 @@ const { pointAlongPath } = require('../../utils/calculations');
 const { lockCity } = require('../../utils/db');
 const { notify } = require('../../services/pushService');
 
-const MARCHING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING'];
+// les armées d'un rassemblement marchent aussi (vers le lanceur, puis vers la cible) : elles se croisent comme les autres
+const MARCHING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH'];
 const STANDING = ['BESIEGING', 'HARVESTING', 'FOUNDING', 'IDLE'];   // IDLE: only outside its own city (a guard, a halted army)
 const E = () => config.combat.encounters;
 
@@ -74,7 +75,7 @@ const boxOf = (a) => isMarching(a)
   : { x0: a.x - 1, x1: a.x + 1, y0: a.y - 1, y1: a.y + 1 };
 const boxesMeet = (p, q) => p.x0 <= q.x1 && q.x0 <= p.x1 && p.y0 <= q.y1 && q.y0 <= p.y1;
 
-const SELECT = { id: true, name: true, ownerId: true, owner: { select: { faction: true } }, cityId: true, status: true, missionType: true, isGarrison: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, departedAt: true, arrivalAt: true, claimedAt: true, city: { select: { x: true, y: true } }, units: { select: { count: true } } };
+const SELECT = { id: true, name: true, ownerId: true, owner: { select: { faction: true } }, cityId: true, status: true, missionType: true, isGarrison: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, targetBastionId: true, departedAt: true, arrivalAt: true, claimedAt: true, city: { select: { x: true, y: true } }, units: { select: { count: true } } };
 // A candidate: not a garrison, not claimed by an arrival being resolved, with soldiers, and not standing in its own city
 const isCandidate = (a) => !a.isGarrison && !a.claimedAt && a.units.some(u => u.count > 0) && (MARCHING.includes(a.status) || STANDING.includes(a.status)) && !(a.status === 'IDLE' && a.city && a.x === a.city.x && a.y === a.city.y);
 
@@ -88,9 +89,11 @@ function allowedOnCity(cityAt, p, q) {
 }
 
 // Bastion tiles too: the only fight there is a guard standing before the Bastion against an enemy coming to besiege it
+// (une armée seule ou un rassemblement en marche vers ce Bastion)
 function allowedOnBastion(b, p, q) {
-  const guardOf = (g, o) => g.status === 'IDLE' && g.x === b.x && g.y === b.y
-    && o.status === 'ATTACKING' && o.missionType === 'BASTION_ATTACK' && o.targetX === b.x && o.targetY === b.y;
+  const besieger = (o) => ((o.status === 'ATTACKING' && o.missionType === 'BASTION_ATTACK') || (o.status === 'RALLY_MARCH' && o.targetBastionId === b.id))
+    && o.targetX === b.x && o.targetY === b.y;
+  const guardOf = (g, o) => g.status === 'IDLE' && g.x === b.x && g.y === b.y && besieger(o);
   return guardOf(p, q) || guardOf(q, p);
 }
 
@@ -242,4 +245,4 @@ async function resolveMeeting({ p, q, x, y, cityAt }, sideOf, now) {
   return outcome;
 }
 
-module.exports = { processEncounters, tileAt, closestApproach2 };
+module.exports = { processEncounters, tileAt, closestApproach2, isCandidate, isMarching, allowedOnCity, allowedOnBastion };

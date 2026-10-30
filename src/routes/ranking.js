@@ -78,7 +78,7 @@ router.get('/week', auth, async (req, res) => {
     else return res.status(400).json({ error: 'Catégorie inconnue' });
     const mine = await prisma.playerWeekStats.findUnique({ where: { playerId_week: { playerId: req.user.playerId, week: week.key } } });
     const pop = mine ? (await prisma.player.findUnique({ where: { id: req.user.playerId }, select: { population: true } }))?.population || 0 : 0;
-    res.json({ week: week.key, endsAt: new Date(week.start.getTime() + 7 * 86400000), category, label: RK.CAT_LABEL[category], rows, me: mine ? { attackPoints: mine.attackPoints, defensePoints: mine.defensePoints, loot: mine.loot, climb: Math.max(0, pop - mine.popStart) } : null });
+    res.json({ week: week.key, endsAt: require('../services/challengeService').boundsOf(week.key).end, category, label: RK.CAT_LABEL[category], rows, me: mine ? { attackPoints: mine.attackPoints, defensePoints: mine.defensePoints, loot: mine.loot, climb: Math.max(0, pop - mine.popStart) } : null });
   } catch (e) { sendError(res, e); }
 });
 

@@ -83,7 +83,9 @@ async function fallIfWiped(tx, armies, now = new Date()) {
     if ((left._sum.count || 0) > 0) continue;
     const hero = await tx.hero.findUnique({ where: { id: a.heroId } });
     if (!hero || hero.diedAt) continue;
-    await tx.army.update({ where: { id: a.id }, data: { heroId: null } });
+    // il ne tombe que s'il mène encore cette armée (pas d'après une lecture faite avant le combat)
+    const detached = await tx.army.updateMany({ where: { id: a.id, heroId: hero.id }, data: { heroId: null } });
+    if (detached.count !== 1) continue;
     await tx.hero.update({ where: { id: hero.id }, data: { diedAt: now, reviveEndsAt: null } });
     fallen.push({ heroId: hero.id, name: hero.name, playerId: hero.playerId });
   }
@@ -93,6 +95,9 @@ async function fallIfWiped(tx, armies, now = new Date()) {
 const unitsOf = (a) => (a?.units || []).reduce((t, u) => t + (u.count || 0), 0);
 // les armées qui avaient des soldats au début du combat
 const fought = (armies) => (armies || []).filter(a => a && a.heroId && unitsOf(a) > 0);
+// le héros qui commande la défense : celui d'une armée qui a des soldats au début du combat (un héros seul dans une
+// armée ou une garnison sans soldats ne combat pas), jamais un héros tombé
+const leadingHero = (armies) => (armies || []).find(a => a?.hero && !a.hero.diedAt && unitsOf(a) > 0)?.hero || null;
 
 // ---- résurrection ----
 async function capitalWithDomus(db, playerId) {
@@ -137,4 +142,4 @@ async function processRevivals(now = new Date()) {
   return due.length;
 }
 
-module.exports = { heroView, learnTalent, resetTalents, fallIfWiped, fought, startRevive, processRevivals, reviveCost, reviveSeconds, capitalWithDomus, stateOf, httpError };
+module.exports = { heroView, learnTalent, resetTalents, fallIfWiped, fought, leadingHero, startRevive, processRevivals, reviveCost, reviveSeconds, capitalWithDomus, stateOf, httpError };

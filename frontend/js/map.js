@@ -2875,6 +2875,7 @@ function gotoCoords() {
 }
 
 function showMapInfoPanel(x, y, tile) {
+  mapPanelSeq++;   // nouvelle cible : les réponses encore en route pour l'ancienne seront jetées
   const panel = document.getElementById('map-info-panel');
   const content = document.getElementById('map-panel-content');
   if (!panel || !content) return;
@@ -3018,11 +3019,15 @@ function mapShareButton(x, y) {
 
 // Async version to check diplomacy
 async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content) {
+  const seq = mapPanelSeq;
+  // la fenêtre s'ouvre tout de suite sur cette ville, sans les boutons de la cible précédente
+  content.innerHTML = `<h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3><p class="empty-state">Chargement…</p>`;
+  panel.style.display = 'flex';
   // Check diplomatic status
   let diplomacyStatus = 'NEUTRAL';
   let canTransport = true;
   let canAttack = true;
-  
+
   try {
     const res = await fetch(`${API}/api/diplomacy/player/${tile.playerId}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -3036,7 +3041,8 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
   } catch (e) {
     console.error('Error checking diplomacy:', e);
   }
-  
+  if (seq !== mapPanelSeq) return;   // autre cible touchée ou fenêtre fermée entre-temps : réponse jetée
+
   // Status display
   const statusColors = {   // couleurs de la diplomatie (DIPLO_STYLE, 09d-alliance.js)
     'ALLY': '#4fb3e8',
@@ -3247,6 +3253,9 @@ async function confirmSendResources(armyId, cityId) {
 // Toucher une cible sur la carte ouvre une fenêtre compacte juste au-dessus d'elle (en dessous s'il n'y a pas la place),
 // qui suit la carte quand on la déplace ; les actions sont des boutons ronds à icône ; « Détails » déplie les explications.
 let mapPopupAnchor = null;
+// numéro de la cible affichée (showMapInfoPanel, closeMapPanel) : un panneau rempli après coup (diplomatie, donjon)
+// ne s'écrit que si la cible n'a pas changé entre-temps
+let mapPanelSeq = 0;
 function openMapPopupAt(picked) {
   const panel = document.getElementById('map-info-panel');
   if (!panel) return;
@@ -3254,8 +3263,14 @@ function openMapPopupAt(picked) {
   const block = t && typeof isMapBlock === 'function' && isMapBlock(t);
   mapPopupAnchor = { wx: (t?.drawX ?? picked.x) + (block ? 0.5 : 0), wy: (t?.drawY ?? picked.y) + (block ? 0.5 : 0), lift: block ? 1.6 : t ? 1.1 : 0.4 };
   panel.classList.add('map-popup');
-  panel.classList.remove('expanded');
+  setMapPopupExpanded(panel, false);
   positionMapPopup();
+}
+// replie ou déplie la fenêtre, avec le libellé du bouton qui va avec
+function setMapPopupExpanded(panel, on) {
+  panel.classList.toggle('expanded', on);
+  const b = panel.querySelector('.popup-more');
+  if (b) b.textContent = on ? 'Moins ▴' : 'Détails ▾';
 }
 function positionMapPopup() {
   const panel = document.getElementById('map-info-panel');
@@ -3265,14 +3280,18 @@ function positionMapPopup() {
   const hr = host.getBoundingClientRect(), cr = mapCanvas.getBoundingClientRect();
   const p = window.mapWorldToScreen(mapPopupAnchor.wx, mapPopupAnchor.wy);
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const ax = cr.left - hr.left + p.x, top = cr.top - hr.top + p.y - tileH * mapPopupAnchor.lift, below = cr.top - hr.top + p.y + tileH * 0.6;
+  // la place au-dessus de la cible se mesure sous la barre de commandes (zoom, accueil, aller à) : la fenêtre ne s'y pose pas.
+  // En dessous, elle reste entière dans l'onglet, qui coupe ce qui dépasse : sur un écran trop bas pour elle, mieux vaut
+  // mordre sur la barre que perdre ses boutons
+  const canvasTop = cr.top - hr.top, minTop = canvasTop + 4;
+  const ax = cr.left - hr.left + p.x, top = canvasTop + p.y - tileH * mapPopupAnchor.lift, below = canvasTop + p.y + tileH * 0.6;
   const w = panel.offsetWidth || 280, h = panel.offsetHeight || 200;
   const left = Math.max(8, Math.min(hr.width - w - 8, ax - w / 2));
-  const offscreen = ax < 0 || ax > hr.width || below < 0 || top > hr.height;
+  const offscreen = ax < 0 || ax > hr.width || below < canvasTop || top > hr.height;
   panel.style.visibility = offscreen ? 'hidden' : '';
   panel.style.left = left + 'px';
   panel.style.right = 'auto';
-  if (top - h - 10 >= 4) { panel.style.top = Math.round(top - h - 10) + 'px'; panel.classList.remove('popup-below'); }
+  if (top - h - 10 >= minTop) { panel.style.top = Math.round(top - h - 10) + 'px'; panel.classList.remove('popup-below'); }
   else { panel.style.top = Math.round(Math.min(hr.height - h - 8, below + 6)) + 'px'; panel.classList.add('popup-below'); }
   panel.style.bottom = 'auto';
   panel.style.setProperty('--popup-arrow', Math.round(Math.max(18, Math.min(w - 18, ax - left))) + 'px');
@@ -3280,9 +3299,7 @@ function positionMapPopup() {
 function toggleMapPopupDetails() {
   const panel = document.getElementById('map-info-panel');
   if (!panel) return;
-  panel.classList.toggle('expanded');
-  const b = panel.querySelector('.popup-more');
-  if (b) b.textContent = panel.classList.contains('expanded') ? 'Moins ▴' : 'Détails ▾';
+  setMapPopupExpanded(panel, !panel.classList.contains('expanded'));
   positionMapPopup();
 }
 // le contenu se remplit parfois après coup (diplomatie, rassemblements) : la fenêtre se recale
@@ -3292,7 +3309,8 @@ if (typeof ResizeObserver === 'function') {
 
 function closeMapPanel() {
   const panel = document.getElementById('map-info-panel');
-  if (panel) { panel.style.display = 'none'; panel.classList.remove('expanded'); }
+  if (panel) { panel.style.display = 'none'; setMapPopupExpanded(panel, false); }
+  mapPanelSeq++;   // une réponse encore en route ne rouvre pas la fenêtre
   mapPopupAnchor = null;
   mapSelectedTile = null;
   renderMap();

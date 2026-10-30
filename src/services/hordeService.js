@@ -209,6 +209,8 @@ async function attackHordeGroup(armyIds, nodeId) {
       const myPoints = Math.round(points * share);
       await RK.recordCombat(tx, { attackers: [{ playerId: a.ownerId, units: a.units.reduce((t, u) => t + u.count, 0) }], defenders: [], attackerLosses: killedOwn, defenderLosses: killedHorde.map(k => ({ key: k.key, killed: Math.round(k.killed * share) })) });
       await tx.hordeDamage.upsert({ where: { hordeId_playerId: { hordeId: horde.id, playerId: a.ownerId } }, update: { points: { increment: myPoints }, attacks: { increment: 1 }, allianceId: a.owner.alliance.allianceId }, create: { hordeId: horde.id, playerId: a.ownerId, allianceId: a.owner.alliance.allianceId, points: myPoints, attacks: 1 } });
+      // défi « Chasseurs de hordes » : les dégâts comptent le jour (de Paris) où ils sont infligés
+      await require('./questService').bump(a.ownerId, 'horde_points', myPoints, tx);
       if (a.heroId && kills) await awardHeroXp(a.heroId, Math.floor(kills * share * config.combat.heroXpPerTribeKill), tx);
       const report = await tx.battleReport.create({ data: {
         playerId: a.ownerId, attackerId: a.ownerId, x: node.x, y: node.y, result: combat.attackerWon ? 'WIN' : 'LOSE', winner: combat.attackerWon ? 'ATTACKER' : 'DEFENDER',
@@ -247,16 +249,20 @@ async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
   await tx.resourceNode.delete({ where: { id: node.id } });
   await tx.invasion.update({ where: { id: horde.invasionId }, data: { destroyed: { increment: 1 } } });
   const T = treasureFor(horde.level);
-  const rows = await tx.hordeDamage.findMany({ where: { hordeId: horde.id, points: { gt: 0 } } });
+  // un compte supprimé laisse ses lignes de dégâts : seuls les joueurs encore là se partagent le trésor
+  const dealt = await tx.hordeDamage.findMany({ where: { hordeId: horde.id, points: { gt: 0 } } });
+  const alive = new Set((await tx.player.findMany({ where: { id: { in: dealt.map(r => r.playerId) } }, select: { id: true } })).map(p => p.id));
+  const rows = dealt.filter(r => alive.has(r.playerId));
   const total = rows.reduce((t, r) => t + r.points, 0) || 1;
   const shares = [];
   for (const r of rows) {
     const share = r.points / total;
     const gain = { wood: Math.floor(T.wood * share), stone: Math.floor(T.stone * share), iron: Math.floor(T.iron * share), food: Math.floor(T.food * share) };
+    const gold = Math.floor(T.gold * share), ap = Math.floor(T.alliancePoints * share);
+    const paid = await tx.player.updateMany({ where: { id: r.playerId }, data: { gold: { increment: gold }, alliancePoints: { increment: ap } } });
+    if (!paid.count) continue;   // supprimé entre-temps : pas de part
     const capital = await tx.city.findFirst({ where: { playerId: r.playerId, isCapital: true }, select: { id: true } });
     if (capital) await creditCity(tx, capital.id, gain);
-    const gold = Math.floor(T.gold * share), ap = Math.floor(T.alliancePoints * share);
-    await tx.player.update({ where: { id: r.playerId }, data: { gold: { increment: gold }, alliancePoints: { increment: ap } } });
     shares.push({ playerId: r.playerId, share, gain, gold, alliancePoints: ap });
   }
   // dernier coup : une chance d'objet pour le héros qui l'a porté (ou le héros du joueur)
@@ -304,6 +310,8 @@ async function hordeView(nodeId, playerId) {
   const horde = await prisma.horde.findUnique({ where: { nodeId: String(nodeId) }, include: { damage: { orderBy: { points: 'desc' } } } });
   if (!horde) return null;
   const [node, inv, member] = await Promise.all([prisma.resourceNode.findUnique({ where: { id: horde.nodeId } }), prisma.invasion.findUnique({ where: { id: horde.invasionId } }), playerId ? prisma.allianceMember.findUnique({ where: { playerId } }) : null]);
+  // reparti à la fin de l'invasion (point retiré, jamais détruit) : introuvable, comme pour la carte
+  if (!horde.destroyedAt && (!node || inv?.endedAt)) return null;
   const ids = horde.damage.map(d => d.playerId);
   const players = await prisma.player.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, alliance: { select: { alliance: { select: { tag: true } } } } } });
   const byId = new Map(players.map(p => [p.id, p]));
@@ -319,4 +327,4 @@ async function hordeView(nodeId, playerId) {
   };
 }
 
-module.exports = { attackHordeGroup, weekendWindow, nextWindowStart, parisParts, parisToUtc, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
+module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };

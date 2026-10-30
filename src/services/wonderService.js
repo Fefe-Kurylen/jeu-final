@@ -58,9 +58,23 @@ async function worldState(now = new Date()) {
   const [row, players] = await Promise.all([worldRow(), prisma.player.count()]);
   return phaseOf(row, now, players);
 }
-// inscription possible ? null si oui, sinon la raison
-async function registrationBlocked() {
-  const st = await worldState();
+// Monde suivant demandé, en cours de remise à zéro (plus de ligne WorldConfig) ou carte pas encore ouverte (readyAt) :
+// ni inscription ni arrivée, la capitale serait posée sur une carte qui va changer
+const PREPARING = 'Le monde suivant se prépare : réessayez dans un instant.';
+const preparing = (row) => !row || !row.readyAt || !!row.resetRequestedAt;
+// Worker HTTP (mode cluster) : il relit la graine toutes les 15 s (src/server.js) ; avant de placer une capitale, sa carte
+// est remise sur celle de la base. false si ce code ne sait pas la dessiner.
+function syncWorldSeed(row) {
+  if (!row || row.seed === Terrain.worldSeed) return true;
+  try { Terrain.setWorldSeed(row.seed, row.generator); console.log(`[MONDE] nouvelle carte relue (graine ${row.seed})`); return true; }
+  catch (e) { console.warn('[MONDE] graine illisible :', e.message); return false; }
+}
+// inscription possible ? null si oui, sinon la raison. db = la transaction de l'inscription, sous lockPlacement : le
+// contrôle et la pose de la capitale ne laissent pas passer une remise à zéro entre les deux
+async function registrationBlocked(db = prisma, now = new Date()) {
+  const row = await db.worldConfig.findUnique({ where: { id: 1 } });
+  if (preparing(row) || !syncWorldSeed(row)) return PREPARING;
+  const st = phaseOf(row, now, await db.player.count());
   if (st.ended) return 'Ce monde est terminé : un nouveau monde ouvre bientôt.';
   if (st.settings.registrationClosed) return 'Les inscriptions de ce monde sont closes : rendez-vous au prochain monde.';
   if (st.day > st.settings.registrationDays) return `Les inscriptions de ce monde sont closes (ouvertes ${st.settings.registrationDays} jours) : rendez-vous au prochain monde.`;
@@ -279,4 +293,4 @@ async function processWonders(now = new Date()) {
   }
 }
 
-module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, isEnded, immortalUnits, immortalPower, spawnNodes, onImmortalsBeaten, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };
+module.exports = { SPECIAL, isSpecial, settingsOf, phaseOf, worldState, worldRow, registrationBlocked, PREPARING, preparing, syncWorldSeed, isEnded, immortalUnits, immortalPower, spawnNodes, onImmortalsBeaten, levelCost, levelSeconds, allianceHasPlan, wonderView, startLevel, depositToWonder, loseLevels, stealPlans, immortalWave, processWonders, httpError, forgetEnded: () => { endedCache.at = 0; } };

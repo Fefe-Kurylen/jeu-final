@@ -40,10 +40,16 @@ function drawHordeNode(x, y, tw, th, tile) {
 }
 
 async function renderHordeNodePanel(tile, content) {
-  content.innerHTML = '<p class="diplo-help">Chargement du donjon…</p>';
+  // cible affichée (map.js) : si le joueur touche autre chose ou ferme la fenêtre pendant le chargement, la réponse est jetée
+  const seq = mapPanelSeq;
+  // pas de .diplo-help ici : la fenêtre repliée le cacherait et n'afficherait qu'un cadre vide
+  content.innerHTML = '<p class="empty-state">Chargement du donjon…</p>';
   let d;
   try { d = await fetchJson(`/api/invasion/horde/${encodeURIComponent(tile.id)}`); }
-  catch (e) { content.innerHTML = '<p class="empty-state">Ce donjon est détruit ou reparti.</p>'; return; }
+  catch (e) { if (seq === mapPanelSeq) content.innerHTML = '<p class="empty-state">Ce donjon est détruit ou reparti.</p>'; return; }
+  if (seq !== mapPanelSeq) return;
+  const rallies = d.inAlliance && !d.destroyed && typeof hordeRalliesHtml === 'function' ? await hordeRalliesHtml(d.nodeId) : '';
+  if (seq !== mapPanelSeq) return;
   const id = chatSafeId(d.nodeId);
   const hasArmy = (armies || []).some(a => a.status === 'IDLE' && !a.isGarrison && (a.units || []).length > 0);
   const floors = d.floors.map((f, i) => {
@@ -62,7 +68,7 @@ async function renderHordeNodePanel(tile, content) {
     <div class="horde-floors">${floors}</div>
     ${!d.destroyed && garrison ? `<p><small>Garnison de l'étage :</small><br>${garrison}</p>` : ''}
     <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource, ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
-    ${d.inAlliance && !d.destroyed && typeof hordeRalliesHtml === 'function' ? await hordeRalliesHtml(d.nodeId) : ''}
+    ${rallies}
     <h4>${resIconHtml('ranking')} Dégâts</h4>${contrib}
     ${d.inAlliance && d.myAlliancePoints ? `<p><small>Votre alliance : ${formatNum(d.myAlliancePoints)} points sur ${formatNum(d.totalPoints)}</small></p>` : ''}
     <div class="panel-actions">

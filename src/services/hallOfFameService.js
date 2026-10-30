@@ -108,10 +108,16 @@ async function prepareNextWorld() {
 // Rejoindre le monde en cours (après un nouveau monde) : le joueur choisit sa civilisation, reçoit sa capitale
 async function joinWorld(playerId, faction) {
   const { lockPlacement } = require('../utils/spawn');
-  const blocked = await require('./wonderService').registrationBlocked();
-  if (blocked) throw Object.assign(new Error(blocked), { status: 403, expose: true });
+  const WS = require('./wonderService');
+  // monde suivant en préparation : 503, le joueur réessaie dans un instant ; inscriptions closes : 403
+  const refuse = (reason) => Object.assign(new Error(reason), { status: reason === WS.PREPARING ? 503 : 403, expose: true });
+  const blocked = await WS.registrationBlocked();
+  if (blocked) throw refuse(blocked);
   return prisma.$transaction(async (tx) => {
     await lockPlacement(tx);
+    // relu sous le verrou : une remise à zéro demandée entre-temps ne reçoit pas de capitale sur l'ancienne carte
+    const blockedNow = await WS.registrationBlocked(tx);
+    if (blockedNow) throw refuse(blockedNow);
     const player = await tx.player.findUnique({ where: { id: playerId } });
     if (!player) throw Object.assign(new Error('Joueur introuvable'), { status: 404, expose: true });
     if (await tx.city.count({ where: { playerId } })) throw Object.assign(new Error('Vous êtes déjà dans ce monde'), { status: 400, expose: true });

@@ -102,7 +102,7 @@ function renderArmies() {
               : heroData?.diedAt
                 ? `<span class="hero-available">Tombé : ressuscitez-le au Domus</span>`
                 : `<span class="hero-free">En ville${heroCityName ? ` à ${escapeHtml(heroCityName)}` : ''}, joint à aucune armée : il ne combat pas.</span>
-                   ${cityGarrison && (!heroData?.cityId || heroData.cityId === currentCity?.id) ? `<button class="btn-unassign-small" onclick="assignHeroToArmy('${cityGarrison.id}')">Joindre à la garnison</button>` : ''}`
+                   ${cityGarrison && (!heroData?.cityId || heroData.cityId === currentCity?.id || (currentCity?.isCapital && !(cities || []).some(c => c.id === heroData.cityId))) ? `<button class="btn-unassign-small" onclick="assignHeroToArmy('${cityGarrison.id}')">Joindre à la garnison</button>` : ''}`
             }
           </div>
         </div>

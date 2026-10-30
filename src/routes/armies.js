@@ -229,32 +229,49 @@ async function renameArmy(req, res) {
 router.patch('/:id/rename', auth, renameArmy);
 router.post('/:id/rename', auth, renameArmy);
 
+// Joindre ou retirer le héros : sous le verrou de la ville de l'armée (celui que prend tout combat qui peut le faire
+// tomber), puis celui du héros (ordre de startRevive) ; l'armée, le héros et son armée actuelle sont relus sous ces verrous
+async function lockHeroMove(tx, armyId, playerId) {
+  const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
+  if (!probe) return { error: 'Armée non trouvée', status: 404 };
+  if (probe.cityId) await lockCity(tx, probe.cityId);
+  await tx.$queryRaw`SELECT id FROM "Hero" WHERE "playerId" = ${playerId} FOR UPDATE`;
+  const army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: { city: true } });
+  if (!army) return { error: 'Armée non trouvée', status: 404 };
+  if (army.cityId !== probe.cityId) return { error: 'Armée rattachée à une autre ville, réessayez', status: 409 };
+  if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
+  return { army };
+}
+
 // POST /api/army/:id/assign-hero
 router.post('/:id/assign-hero', auth, async (req, res) => {
   try {
-    const army = await loadArmy(req.params.id, req.user.playerId, { city: true });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE' || !isHome(army, army.city)) return res.status(400).json({ error: 'Armée doit être en ville' });
-    const hero = await prisma.hero.findFirst({ where: { playerId: req.user.playerId } });
-    if (!hero) return res.status(404).json({ error: 'Héros non trouvé' });
-    if (hero.diedAt) return res.status(400).json({ error: 'Votre héros est tombé : ressuscitez-le au Domus du Héros' });
-    const armyWithHero = await prisma.army.findFirst({ where: { heroId: hero.id, NOT: { id: army.id } }, include: { city: true } });
-    if (!armyWithHero && hero.cityId && hero.cityId !== army.cityId) {
-      const where = await prisma.city.findUnique({ where: { id: hero.cityId }, select: { name: true } });
-      return res.status(400).json({ error: `Le héros attend à ${where?.name || 'une autre ville'} : joignez-le à une armée de cette ville` });
-    }
-    if (armyWithHero) {
-      // The hero can only switch between armies standing in the same city
-      if (armyWithHero.status !== 'IDLE' || armyWithHero.cityId !== army.cityId || !isHome(armyWithHero, armyWithHero.city)) {
-        return res.status(400).json({ error: 'Héros déjà assigné à une autre armée hors de la ville' });
+    const playerId = req.user.playerId;
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await lockHeroMove(tx, req.params.id, playerId);
+      if (locked.error) return locked;
+      const { army } = locked;
+      const hero = await tx.hero.findFirst({ where: { playerId } });
+      if (!hero) return { error: 'Héros non trouvé', status: 404 };
+      if (hero.diedAt) return { error: 'Votre héros est tombé : ressuscitez-le au Domus du Héros', status: 400 };
+      const armyWithHero = await tx.army.findFirst({ where: { heroId: hero.id, NOT: { id: army.id } }, include: { city: true } });
+      if (!armyWithHero && hero.cityId && hero.cityId !== army.cityId) {
+        // sa ville n'existe plus (colonie rasée) : il s'est enfui vers la capitale
+        const where = (await tx.city.findFirst({ where: { id: hero.cityId, playerId }, select: { id: true, name: true } }))
+          || (await tx.city.findFirst({ where: { playerId, isCapital: true }, select: { id: true, name: true } }));
+        if (where && where.id !== army.cityId) return { error: `Le héros attend à ${where.name} : joignez-le à une armée de cette ville`, status: 400 };
       }
-    }
-    await prisma.$transaction([
-      ...(armyWithHero ? [prisma.army.update({ where: { id: armyWithHero.id }, data: { heroId: null } })] : []),
-      prisma.army.update({ where: { id: army.id }, data: { heroId: hero.id } }),
-      prisma.hero.update({ where: { id: hero.id }, data: { cityId: army.cityId } })
-    ]);
-    res.json({ message: 'Héros assigné' });
+      // The hero can only switch between armies standing in the same city
+      if (armyWithHero && (armyWithHero.status !== 'IDLE' || armyWithHero.cityId !== army.cityId || !isHome(armyWithHero, armyWithHero.city))) {
+        return { error: 'Héros déjà assigné à une autre armée hors de la ville', status: 400 };
+      }
+      if (armyWithHero) await tx.army.update({ where: { id: armyWithHero.id }, data: { heroId: null } });
+      await tx.army.update({ where: { id: army.id }, data: { heroId: hero.id } });
+      await tx.hero.update({ where: { id: hero.id }, data: { cityId: army.cityId } });
+      return { message: 'Héros assigné' };
+    });
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
   } catch (e) {
     if (e.code === 'P2002') return res.status(409).json({ error: 'Héros déjà assigné, réessayez' });
     sendError(res, e);
@@ -264,17 +281,19 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
 // POST /api/army/:id/unassign-hero
 router.post('/:id/unassign-hero', auth, async (req, res) => {
   try {
-    const army = await loadArmy(req.params.id, req.user.playerId, { city: true });
-    if (!army) return res.status(404).json({ error: 'Armée non trouvée' });
-    if (army.status !== 'IDLE' || !isHome(army, army.city)) return res.status(400).json({ error: 'Armée doit être en ville' });
-    if (!army.heroId) return res.json({ message: 'Aucun héros assigné' });
-    // décision du 29 octobre 2026 : le héros retiré attend dans la ville, joint à aucune armée, et ne combat pas
-    // (garnison comprise) tant qu'on ne le joint pas à une armée depuis son panneau
-    await prisma.$transaction([
-      prisma.army.update({ where: { id: army.id }, data: { heroId: null } }),
-      prisma.hero.update({ where: { id: army.heroId }, data: { cityId: army.cityId } })
-    ]);
-    res.json({ message: 'Héros retiré : il attend en ville sans combattre' });
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await lockHeroMove(tx, req.params.id, req.user.playerId);
+      if (locked.error) return locked;
+      const { army } = locked;
+      if (!army.heroId) return { message: 'Aucun héros assigné' };
+      // décision du 29 octobre 2026 : le héros retiré attend dans la ville, joint à aucune armée, et ne combat pas
+      // (garnison comprise) tant qu'on ne le joint pas à une armée depuis son panneau
+      await tx.army.update({ where: { id: army.id }, data: { heroId: null } });
+      await tx.hero.update({ where: { id: army.heroId }, data: { cityId: army.cityId } });
+      return { message: 'Héros retiré : il attend en ville sans combattre' };
+    });
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    res.json(result);
   } catch (e) { sendError(res, e); }
 });
 
@@ -597,6 +616,9 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
   } catch (e) { if (noRoute(res, e)) return; sendError(res, e); }
 });
 
+// les marches d'un rassemblement (vers le lanceur, puis vers la cible) se rappellent aussi depuis leur position sur la route
+const RECALL_EN_ROUTE = [...OUTBOUND, 'RALLY_JOIN', 'RALLY_MARCH'];
+
 // POST /api/army/:id/return — also recalls an army that is still on its way
 router.post('/:id/return', auth, async (req, res) => {
   try {
@@ -605,7 +627,7 @@ router.post('/:id/return', auth, async (req, res) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { status: true, targetCityId: true, cityId: true } });
       const campCityId = probe?.status === 'BESIEGING' || probe?.status === 'STATIONED' ? probe.targetCityId : null;   // a camp, or a reinforcement in an allied city
       if (campCityId) await lockCity(tx, campCityId);
-      else if (OUTBOUND.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
+      else if (RECALL_EN_ROUTE.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
       await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
       if (!army) return { error: 'Armee non trouvee', status: 404 };
@@ -616,7 +638,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (army.claimedAt) return { error: 'Arrivée en cours de résolution, réessayez dans quelques secondes', status: 409 };
 
       let fromX = army.x, fromY = army.y;
-      if (OUTBOUND.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
+      if (RECALL_EN_ROUTE.includes(army.status) && army.arrivalAt && army.targetX !== null && army.targetY !== null) {
         // Position is only written on arrival: find where the army is on its route right now
         const total = army.departedAt ? (new Date(army.arrivalAt).getTime() - new Date(army.departedAt).getTime()) / 1000 : 0;
         const remaining = Math.max(0, (new Date(army.arrivalAt).getTime() - Date.now()) / 1000);
@@ -628,7 +650,7 @@ router.post('/:id/return', auth, async (req, res) => {
         // inside, with its load, and never has to fight its way through a camp it did not cross
         if (isHome(army, army.city) && fromX === army.city.x && fromY === army.city.y) {
           await depositCarryTx(tx, army.id, army.city.id);
-          await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null } });
+          await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', x: army.city.x, y: army.city.y, targetX: null, targetY: null, targetCityId: null, targetBastionId: null, arrivalAt: null, departedAt: null, claimedAt: null, missionType: null, targetResourceId: null, harvestResourceType: null, rallyId: null } });
           return { message: 'Armée rentrée en ville', travelTime: 0 };
         }
       } else if (army.status === 'IDLE' && isHome(army, army.city)) {

@@ -38,7 +38,7 @@ async function add(tx, playerId, field, value) {
   if (!playerId || v <= 0) return;
   const week = weekInfo().key;
   await tx.playerStats.upsert({ where: { playerId }, update: { [field]: { increment: v } }, create: { playerId, [field]: v } });
-  // la ligne de la semaine retient la population au moment où elle naît (progression de la semaine)
+  // la ligne de la semaine naît d'ordinaire au relevé du lundi (snapshotWeek) ; sinon ici, avec la population du moment
   await tx.$executeRawUnsafe(
     `INSERT INTO "PlayerWeekStats" ("id", "playerId", "week", "${field}", "popStart") SELECT gen_random_uuid(), $1, $2, $3, COALESCE((SELECT population FROM "Player" WHERE id = $1), 0)
      ON CONFLICT ("playerId", "week") DO UPDATE SET "${field}" = "PlayerWeekStats"."${field}" + EXCLUDED."${field}"`, playerId, week, v);
@@ -60,7 +60,7 @@ const CAT_LABEL = { ATTACK: 'attaquants', DEFENSE: 'défenseurs', LOOT: 'pilleur
 
 async function weekTop(week, category, limit = 10) {
   if (category === 'CLIMB') {
-    // progression : population actuelle moins celle du début de la semaine (joueurs vus cette semaine-là)
+    // progression : population actuelle moins celle relevée au début de la semaine (ou à l'arrivée du joueur)
     const rows = await prisma.$queryRawUnsafe(`SELECT w."playerId", p.name, p.faction, (p.population - w."popStart")::int AS value FROM "PlayerWeekStats" w JOIN "Player" p ON p.id = w."playerId" WHERE w.week = $1 AND p.population > w."popStart" ORDER BY value DESC, p.name LIMIT ${Number(limit)}`, week);
     return rows;
   }
@@ -92,8 +92,19 @@ async function closeWeek(week) {
   await prisma.playerWeekStats.deleteMany({ where: { week: { lt: old.toISOString().slice(0, 10) } } });
   return medals.length;
 }
-// Tick : à partir du lundi, la semaine précédente est close si elle ne l'est pas encore
+// Population de départ de la semaine pour tous les joueurs (progression, défi « Bâtisseurs »), qu'ils combattent ou non :
+// relevée au premier tick de la semaine, puis pour chaque nouveau joueur dès que sa population est calculée.
+// Une ligne déjà là (relevé ou premier combat) garde la sienne.
+async function snapshotWeek(now = new Date()) {
+  return prisma.$executeRawUnsafe(
+    `INSERT INTO "PlayerWeekStats" ("id", "playerId", "week", "popStart") SELECT gen_random_uuid(), p.id, $1, p.population FROM "Player" p
+     WHERE p.population > 0 AND NOT EXISTS (SELECT 1 FROM "PlayerWeekStats" w WHERE w."playerId" = p.id AND w.week = $1)
+     ON CONFLICT ("playerId", "week") DO NOTHING`, weekInfo(now).key);
+}
+
+// Tick : relevé de la semaine en cours ; à partir du lundi, la semaine précédente est close si elle ne l'est pas encore
 async function processRankings(now = new Date()) {
+  try { await snapshotWeek(now); } catch (e) { console.error('[CLASSEMENTS] relevé de la semaine :', e.message); }
   const current = weekInfo(now).key;
   const previous = weekInfo(new Date(weekInfo(now).start.getTime() - 12 * 3600000)).key;
   if (previous === current) return null;
@@ -107,4 +118,4 @@ async function processRankings(now = new Date()) {
   return closeWeek(previous);
 }
 
-module.exports = { pointsOf, shares, recordCombat, recordLoot, sideOf, unitCount, weekTop, allianceWeekTop, closeWeek, processRankings, CAT_LABEL, PLAYER_CATS, UPKEEP };
+module.exports = { pointsOf, shares, recordCombat, recordLoot, sideOf, unitCount, weekTop, allianceWeekTop, closeWeek, snapshotWeek, processRankings, CAT_LABEL, PLAYER_CATS, UPKEEP };

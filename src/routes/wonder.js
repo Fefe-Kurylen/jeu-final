@@ -28,7 +28,7 @@ router.post('/world/join', auth, async (req, res) => {
     const faction = String(req.body?.faction || '').toUpperCase();
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Civilisation invalide' });
     res.json(await HF.joinWorld(req.user.playerId, faction));
-  } catch (e) { fail(res, e); }
+  } catch (e) { if (e.message === WS.PREPARING) res.set('Retry-After', '10'); fail(res, e); }   // monde suivant en préparation
 });
 
 router.get('/wonder', auth, async (req, res) => {

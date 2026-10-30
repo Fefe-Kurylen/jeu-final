@@ -43,3 +43,12 @@ test('vies entières : une vie compte une fois remontée, le dernier assaut rase
   assert.equal(bastion.livesOf(0.1001), 1);
   assert.equal(bastion.livesOf(0.0999), 0);
 });
+
+test('assaut d\'un rassemblement : seul un rassemblement parti vers ce Bastion désigne le héros (un ancien rallyId est ignoré)', () => {
+  assert.equal(bastion.campingRally({ status: 'DONE', targetBastionId: 'b1' }, 'b1'), true);
+  assert.equal(bastion.campingRally({ status: 'DONE', targetBastionId: 'b2' }, 'b1'), false, 'un rassemblement vers un autre Bastion');
+  assert.equal(bastion.campingRally({ status: 'DONE', targetBastionId: null }, 'b1'), false, 'un rassemblement contre un donjon');
+  assert.equal(bastion.campingRally({ status: 'CANCELLED', targetBastionId: 'b1' }, 'b1'), false);
+  assert.equal(bastion.campingRally({ status: 'GATHERING', targetBastionId: 'b1' }, 'b1'), false);
+  assert.equal(bastion.campingRally(undefined, 'b1'), false, 'un rassemblement introuvable');
+});

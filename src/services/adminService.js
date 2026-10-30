@@ -105,6 +105,9 @@ async function lift(actor, playerId, kind) {
   const target = await targetOf(playerId);
   const perm = kind === 'BAN' ? 'ban' : kind === 'SUSPEND' ? 'suspend' : 'mute';
   if (!['MUTE', 'SUSPEND', 'BAN'].includes(kind)) throw httpError(400, 'Sanction : MUTE, SUSPEND ou BAN');
+  // mêmes gardes que pour sanctionner : ni soi-même, ni un membre de l'équipe de rôle égal ou supérieur
+  if (target.accountId === actor.accountId) throw httpError(400, 'Vous ne pouvez pas lever vos propres sanctions');
+  if ((RANK[target.role] || 0) >= (RANK[actor.role] || 0)) throw httpError(403, 'Ce membre de l\'équipe a un rôle égal ou supérieur au vôtre');
   if (!can(actor.role, perm)) throw httpError(403, kind === 'BAN' ? 'Seul un administrateur peut lever un bannissement' : 'Droit insuffisant');
   await prisma.$transaction(async (tx) => {
     if (kind === 'MUTE') await tx.player.update({ where: { id: target.playerId }, data: { chatMutedUntil: null } });
@@ -121,13 +124,22 @@ async function setRole(actor, playerId, role) {
   if (!can(actor.role, 'team')) throw httpError(403, 'Seul un administrateur gère l\'équipe');
   if (!ROLES.includes(role)) throw httpError(400, 'Rôle : PLAYER, MODERATOR ou ADMIN');
   const target = await targetOf(playerId);
-  if (target.account.bannedAt) throw httpError(400, 'Ce compte est banni');
-  if (target.role === role) return { message: `${target.name} a déjà ce rôle` };
-  if (target.role === 'ADMIN' && role !== 'ADMIN' && (await prisma.account.count({ where: { role: 'ADMIN' } })) <= 1) throw httpError(400, 'Il faut garder au moins un administrateur');
-  await prisma.$transaction(async (tx) => {
+  // les changements de rôle passent un par un, relus sous le verrou : deux administrateurs qui se retirent en même temps
+  // ne laissent pas le jeu sans administrateur
+  const changed = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('admin:team'))`;
+    const me = await tx.account.findUnique({ where: { id: actor.accountId }, select: { role: true, bannedAt: true } });
+    if (!me || me.bannedAt || !can(me.role, 'team')) throw httpError(403, 'Seul un administrateur gère l\'équipe');
+    const acc = await tx.account.findUnique({ where: { id: target.accountId }, select: { role: true, bannedAt: true } });
+    if (!acc) throw httpError(404, 'Joueur introuvable');
+    if (acc.bannedAt) throw httpError(400, 'Ce compte est banni');
+    if (acc.role === role) return false;
+    if (acc.role === 'ADMIN' && role !== 'ADMIN' && (await tx.account.count({ where: { role: 'ADMIN' } })) <= 1) throw httpError(400, 'Il faut garder au moins un administrateur');
     await tx.account.update({ where: { id: target.accountId }, data: { role } });
-    await writeLog(tx, actor, 'ROLE', target, { from: target.role, to: role });
+    await writeLog(tx, actor, 'ROLE', target, { from: acc.role, to: role });
+    return true;
   });
+  if (!changed) return { message: `${target.name} a déjà ce rôle` };
   const label = { PLAYER: 'joueur', MODERATOR: 'modérateur', ADMIN: 'administrateur' }[role];
   if (role !== 'PLAYER') await require('./pushService').notify(target.playerId, 'moderation', 'Équipe du jeu', `Vous êtes maintenant ${label} : l'écran d'administration est dans les paramètres.`, { to: 'admin', tab: 'admin' });
   return { message: `${target.name} est maintenant ${label}` };

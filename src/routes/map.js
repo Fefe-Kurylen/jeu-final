@@ -40,6 +40,8 @@ router.get('/world/info', async (req, res) => {
     // siège et chute des villes (octobre 2026)
     siege: { campMinutes: config.combat.siege.campMinutes, minEngines: config.combat.siege.minEngines, engineWallMult: config.combat.siege.wallShield.engineMult, soldierWallMult: config.combat.siege.wallShield.soldierMult, fallAssaults: config.combat.fall.assaults, fallExtraAssaults: config.combat.fall.extraAssaults, wallHealthRegenHours: config.combat.fall.regenHours, pillagePct: config.combat.fall.pillagePct } };
   try {
+    // monde suivant tout juste ouvert : la carte de ce processus suit celle de la base avant d'être annoncée au client
+    { const WS = require('../services/wonderService'); const row = await WS.worldRow(); if (!WS.preparing(row)) WS.syncWorldSeed(row); }
     const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
     const resourceCount = await prisma.resourceNode.count();
     // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
