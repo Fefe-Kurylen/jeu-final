@@ -126,7 +126,9 @@ function getUpkeepTableSql() {
 // les armées que la ville nourrit (en ville, en mission, en renfort) et de ses blessés qui attendent un soin
 // (config.wounded.woundedPayUpkeep, décision du 30 octobre 2026), réductions d'entretien comprises (bâtiments de faction
 // de la capitale + Intendance, 50 % au plus) ; siège (GDD economy_config.upkeep.siegeModifiersPct) : +10 % pour une armée
-// qui campe devant une ville, −10 % pour les armées à l'arrêt dans leur ville assiégée
+// qui campe devant une ville, −10 % pour les armées à l'arrêt dans leur ville assiégée.
+// Entretien généralisé (décision du 30 octobre 2026 au soir, § 1 bis) : chaque ville paie d'abord ses propres troupes, le
+// manque est pris dans les autres greniers du joueur ; alerte et famine portent sur le total du joueur (processUpkeep).
 const SIEGE_UP = config.army.siegeUpkeepPct;
 // Logistique du héros (GDD) : l'armée qui porte le héros consomme moins ; une ligne (armée, part réduite) par héros joint
 // cityIds : armées de ces villes seulement (null = tout le monde) ; seuls les champs lus par statPct sont chargés
@@ -198,50 +200,84 @@ async function foodBalance(cityIds) {
   const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(ids)})`, await heroUpkeepTable(ids), ids)}) b`;
   return new Map(rows.map(r => [r.cityId, { production: Math.round(r.prod), consumption: Math.round(r.cons), net: Math.round(r.prod - r.cons), reductionPct: r.reductionPct, hoursLeft: r.cons > r.prod ? Math.max(0, r.food / (r.cons - r.prod)) : null }]));
 }
+// Bilan de tout le joueur (§ 1 bis : l'entretien puise dans tous ses greniers, la famine ne vient qu'avec leur total vide) :
+// `balances` : bilans de ses villes (foodBalance), `food` : nourriture de toutes ses villes réunies
+function playerFoodBalance(balances, food) {
+  const production = balances.reduce((s, b) => s + (b?.production || 0), 0);
+  const consumption = balances.reduce((s, b) => s + (b?.consumption || 0), 0);
+  return { production, consumption, net: production - consumption, hoursLeft: consumption > production ? Math.max(0, food) / (consumption - production) : null };
+}
 
 let lastStarvationAt = 0;
 const RES_UP = config.army.upkeepPerTier;
-// Villes qui nourrissent quelqu'un : des armées, ou des blessés qui attendent un soin
-const FEEDS = Prisma.sql`(EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id) OR EXISTS (SELECT 1 FROM "WoundedUnit" w2 WHERE w2."cityId" = c.id AND w2.waiting > 0))`;
+// Ville qui nourrit quelqu'un : des armées, ou des blessés qui attendent un soin (`c` : alias de la ville)
+const feeds = (c) => Prisma.sql`(EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = ${Prisma.raw(c)}.id) OR EXISTS (SELECT 1 FROM "WoundedUnit" w2 WHERE w2."cityId" = ${Prisma.raw(c)}.id AND w2.waiting > 0))`;
+// Toutes les villes des joueurs dont une ville nourrit quelqu'un : leurs greniers paient l'entretien ensemble
+const OF_FEEDING_PLAYERS = Prisma.sql`c."playerId" IN (SELECT f."playerId" FROM "City" f WHERE ${feeds('f')})`;
 
 async function processUpkeep(TICK_HOURS, now = new Date()) {
   const heroTable = await heroUpkeepTable();   // une seule fois par tick, pour les deux requêtes
-  // 1) Décrément de nourriture : une seule requête pour toutes les villes (bilan ci-dessus) ; grenier déjà vide : rien à écrire
+  // 1) Entretien du tick, une seule requête pour tous les joueurs : chaque ville paie ses troupes avec son grenier (paid) ;
+  //    le manque de tout le joueur (somme des lack) est pris dans ce qui reste aux autres villes (spare), la plus riche
+  //    d'abord : chacune donne ce que les villes passées avant elle n'ont pas couvert. Écrit en différence
+  //    (c.food − taken) : une écriture concurrente n'est pas perdue. Grenier vide et rien à donner : rien à écrire.
   await prisma.$executeRaw`
-    UPDATE "City" AS c SET food = GREATEST(0, c.food - b.cons * ${TICK_HOURS})
-    FROM (${foodBalanceSql(FEEDS, heroTable)}) AS b
-    WHERE c.id = b."cityId" AND b.cons > 0 AND c.food <> 0
+    WITH own AS (
+      SELECT b."cityId" AS id, b."playerId",
+        LEAST(GREATEST(b.food, 0), b.cons * ${TICK_HOURS}) AS paid,
+        GREATEST(b.food - b.cons * ${TICK_HOURS}, 0) AS spare,
+        GREATEST(b.cons * ${TICK_HOURS} - GREATEST(b.food, 0), 0) AS lack
+      FROM (${foodBalanceSql(OF_FEEDING_PLAYERS, heroTable)}) AS b
+    ), shared AS (
+      SELECT id, paid + LEAST(spare, GREATEST(
+          SUM(lack) OVER (PARTITION BY "playerId")
+          - COALESCE(SUM(spare) OVER (PARTITION BY "playerId" ORDER BY spare DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
+        0)) AS taken
+      FROM own
+    )
+    UPDATE "City" AS c SET food = GREATEST(0, c.food - s.taken)
+    FROM shared AS s
+    WHERE c.id = s.id AND s.taken > 0
   `;
-  // 2) Une fois par heure : alertes (grenier vide dans moins de 6 h) et famine façon Travian
+  // 2) Une fois par heure, sur le total de chaque joueur : alerte (greniers vides dans moins de 6 h) et famine façon Travian
+  //    (tous ses greniers vides). La réduction d'entretien est la même dans toutes ses villes (capitale, technologies).
   if (now.getTime() - lastStarvationAt < config.army.starvationIntervalHours * 3600000) return;
   lastStarvationAt = now.getTime();
-  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(FEEDS, heroTable)}) b WHERE b.cons > b.prod`;
+  const short = await prisma.$queryRaw`
+    SELECT b."playerId", SUM(b.food)::float AS food, SUM(b.prod)::float AS prod, SUM(b.cons)::float AS cons, MAX(b."reductionPct")::float AS "reductionPct"
+    FROM (${foodBalanceSql(OF_FEEDING_PLAYERS, heroTable)}) AS b
+    GROUP BY b."playerId" HAVING SUM(b.cons) > SUM(b.prod)`;
   for (const r of short) {
     try {
       if (r.food > 1) await foodAlert(r, now);
       else await starve(r, now);
-    } catch (e) { console.error('[STARVATION]', r.cityId, e.message); }
+    } catch (e) { console.error('[STARVATION]', r.playerId, e.message); }
   }
 }
 
-// Grenier vide dans moins de 6 h : prévenu (une fois toutes les 6 h au plus)
+// Greniers du joueur vides dans moins de 6 h : prévenu (une fois toutes les 6 h au plus, noté sur sa capitale)
 async function foodAlert(r, now) {
   const hours = r.food / Math.max(1e-9, r.cons - r.prod);
   if (hours > config.army.famineAlertHours) return;
-  const ok = await prisma.city.updateMany({ where: { id: r.cityId, OR: [{ foodAlertAt: null }, { foodAlertAt: { lt: new Date(now.getTime() - config.army.famineAlertHours * 3600000) } }] }, data: { foodAlertAt: now } });
+  const capital = await prisma.city.findFirst({ where: { playerId: r.playerId, isCapital: true }, select: { id: true } });
+  if (!capital) return;
+  const ok = await prisma.city.updateMany({ where: { id: capital.id, OR: [{ foodAlertAt: null }, { foodAlertAt: { lt: new Date(now.getTime() - config.army.famineAlertHours * 3600000) } }] }, data: { foodAlertAt: now } });
   if (ok.count !== 1) return;
-  require('../../services/pushService').notify(r.playerId, 'famine', '🌾 Grenier bientôt vide', `${r.name} n'a plus que ${Math.max(1, Math.round(hours * 10) / 10).toString().replace('.', ',')} h de nourriture : vos troupes consomment ${Math.round(r.cons)}/h pour ${Math.round(r.prod)}/h produites. Sans nourriture, elles mourront de faim.`, { to: 'city', cityId: r.cityId });
+  require('../../services/pushService').notify(r.playerId, 'famine', '🌾 Grenier bientôt vide', `Vos greniers n'ont plus que ${Math.max(1, Math.round(hours * 10) / 10).toString().replace('.', ',')} h de nourriture : vos troupes consomment ${Math.round(r.cons)}/h pour ${Math.round(r.prod)}/h produites dans toutes vos villes. Sans nourriture, elles mourront de faim.`, { to: 'city', cityId: capital.id });
 }
 
-// Famine façon Travian : le grenier est vide et la consommation dépasse la production ; meurent juste assez de bouches pour
-// que la consommation repasse sous la production : d'abord les blessés qui attendent un soin (ils ne combattent pas), puis
-// les soldats les plus gourmands, dans toutes les armées de la ville
+// Famine façon Travian : tous les greniers du joueur sont vides et la consommation dépasse la production ; meurent juste
+// assez de bouches pour que la consommation repasse sous la production : d'abord les blessés qui attendent un soin (ils
+// ne combattent pas), puis les soldats les plus gourmands, dans toutes les armées de toutes ses villes
 async function starve(r, now) {
   const factor = 1 - (r.reductionPct || 0) / 100;
   const tierUpkeep = (unitKey) => RES_UP[unitsData.find(d => d.key === unitKey)?.tier] || RES_UP.base;
   const lost = await prisma.$transaction(async (tx) => {
-    await require('../../utils/db').lockCity(tx, r.cityId);
-    const armies = await tx.army.findMany({ where: { cityId: r.cityId, claimedAt: null }, include: { units: true, city: { select: { x: true, y: true, isSieged: true } } } });
+    const cities = await require('../../utils/db').lockPlayerCities(tx, r.playerId);
+    const empty = { killed: {}, wounded: 0, capitalId: (cities.find(c => c.isCapital) || cities[0])?.id };
+    if (cities.reduce((s, c) => s + Math.max(0, c.food), 0) > 1) return empty;   // nourri entre-temps
+    const ids = cities.map(c => c.id);
+    const armies = await tx.army.findMany({ where: { cityId: { in: ids }, claimedAt: null }, include: { units: true, city: { select: { x: true, y: true, isSieged: true } } } });
     const groups = [];
     for (const a of armies) {
       const mult = a.status === 'BESIEGING' ? 1 + SIEGE_UP.attacker / 100 : a.city?.isSieged && a.status === 'IDLE' && a.x === a.city.x && a.y === a.city.y ? 1 + SIEGE_UP.defender / 100 : 1;
@@ -250,7 +286,7 @@ async function starve(r, now) {
       }
     }
     if (config.wounded.woundedPayUpkeep) {
-      for (const w of await tx.woundedUnit.findMany({ where: { cityId: r.cityId, waiting: { gt: 0 } } })) {
+      for (const w of await tx.woundedUnit.findMany({ where: { cityId: { in: ids }, waiting: { gt: 0 } } })) {
         groups.push({ unitKey: w.unitKey, count: w.waiting, wounded: true, eat: tierUpkeep(w.unitKey) * factor, kill: (n) => tx.woundedUnit.update({ where: { id: w.id }, data: { waiting: { decrement: n } } }) });
       }
     }
@@ -269,15 +305,15 @@ async function starve(r, now) {
       killed[g.unitKey] = (killed[g.unitKey] || 0) + n;
       if (g.wounded) wounded += n;
     }
-    if (wounded) await tx.woundedUnit.deleteMany({ where: { cityId: r.cityId, count: 0, waiting: 0 } });
+    if (wounded) await tx.woundedUnit.deleteMany({ where: { cityId: { in: ids }, count: 0, waiting: 0 } });
     await HS.fallIfWiped(tx, engaged, now);   // une armée morte de faim perd son héros
-    return { killed, wounded };
+    return { ...empty, killed, wounded };
   }, { timeout: 15000 });
   const total = Object.values(lost.killed).reduce((a, b) => a + b, 0);
   if (!total) return;
   const names = Object.entries(lost.killed).map(([k, n]) => `${n} ${unitsData.find(u => u.key === k)?.name || k}`).join(', ');
-  console.log(`[STARVATION] ${r.name} : ${total} soldats morts de faim`);
-  require('../../services/pushService').notify(r.playerId, 'famine', '💀 Famine', `${r.name} n'a plus de nourriture : ${names} ${total > 1 ? 'sont morts' : 'est mort'} de faim${lost.wounded ? ` (dont ${lost.wounded} blessé${lost.wounded > 1 ? 's' : ''} qui attendai${lost.wounded > 1 ? 'ent' : 't'} un soin)` : ''}. Produisez plus de nourriture, soignez vos blessés ou réduisez vos armées.`, { to: 'city', cityId: r.cityId });
+  console.log(`[STARVATION] joueur ${r.playerId} : ${total} soldats morts de faim`);
+  require('../../services/pushService').notify(r.playerId, 'famine', '💀 Famine', `Vos greniers sont vides : ${names} ${total > 1 ? 'sont morts' : 'est mort'} de faim${lost.wounded ? ` (dont ${lost.wounded} blessé${lost.wounded > 1 ? 's' : ''} qui attendai${lost.wounded > 1 ? 'ent' : 't'} un soin)` : ''}. Produisez plus de nourriture, soignez vos blessés ou réduisez vos armées.`, { to: 'city', cityId: lost.capitalId });
 }
 
 // Points de ressource : régénération linéaire depuis la dernière mise à jour (regenRate par heure),
@@ -331,4 +367,4 @@ async function processGoldIncome(TICK_HOURS) {
   ]);
 }
 
-module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome, foodBalance, foodBalanceSql, resetFamineClock: () => { lastStarvationAt = 0; } };
+module.exports = { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome, foodBalance, foodBalanceSql, playerFoodBalance, resetFamineClock: () => { lastStarvationAt = 0; } };

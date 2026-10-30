@@ -870,8 +870,12 @@ function renderCity() {
     for (const unit of army.units || []) foodConsumption += unit.count * unitUpkeep(unitsData.find(u => u.key === unit.unitKey));
   }
   
-  // Net food production (bilan du serveur quand il est là)
-  const netFood = fb && Number.isFinite(Number(fb.net)) ? Number(fb.net) : foodProd - foodConsumption;
+  // Net food production of the city (bilan du serveur quand il est là)
+  const cityNetFood = fb && Number.isFinite(Number(fb.net)) ? Number(fb.net) : foodProd - foodConsumption;
+  // Bilan affiché : celui de tout le joueur (décision du 30 octobre 2026, § 1 bis : l'entretien de toutes ses troupes puise
+  // dans tous ses greniers, la famine ne vient qu'avec leur total vide), donné par le serveur (playerStock.foodBalance)
+  const pfb = playerStock().foodBalance;
+  const netFood = pfb ? pfb.net : cityNetFood;
   
   // Update production display (Travian style: "/h: X")
   const prodWoodEl = document.getElementById('prod-wood');
@@ -894,15 +898,16 @@ function renderCity() {
   }
 
   // Calculate time until warehouse full (Travian timer style)
-  function calcTimeToFull(current, max, prodPerH) {
-    if (prodPerH <= 0 || current >= max) return '00:00:00';
-    const remaining = max - current;
-    const hoursLeft = remaining / prodPerH;
-    const totalSec = Math.floor(hoursLeft * 3600);
+  function formatHms(seconds) {
+    const totalSec = Math.max(0, Math.floor(seconds));
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  function calcTimeToFull(current, max, prodPerH) {
+    if (prodPerH <= 0 || current >= max) return '00:00:00';
+    return formatHms((max - current) / prodPerH * 3600);
   }
 
   const timerWood = document.getElementById('timer-wood');
@@ -912,9 +917,10 @@ function renderCity() {
   if (timerWood) timerWood.textContent = calcTimeToFull(currentCity.wood, maxRes, woodProd);
   if (timerStone) timerStone.textContent = calcTimeToFull(currentCity.stone, maxRes, stoneProd);
   if (timerIron) timerIron.textContent = calcTimeToFull(currentCity.iron, maxRes, ironProd);
-  // en déficit, le minuteur de la nourriture compte jusqu'au grenier vide
-  const hoursToEmpty = netFood < 0 ? currentCity.food / -netFood : null;
-  if (timerFood) timerFood.textContent = hoursToEmpty === null ? calcTimeToFull(currentCity.food, maxFood, netFood) : calcTimeToFull(0, currentCity.food, -netFood);
+  // en déficit, le minuteur de la nourriture compte jusqu'aux greniers vides (ceux de toutes les villes) ; sinon jusqu'au
+  // grenier plein de la ville, avec son propre bilan
+  const hoursToEmpty = pfb ? pfb.hoursLeft : netFood < 0 ? currentCity.food / -netFood : null;
+  if (timerFood) timerFood.textContent = hoursToEmpty === null ? calcTimeToFull(currentCity.food, maxFood, cityNetFood) : formatHms(hoursToEmpty * 3600);
 
   // Update food timer color if deficit
   if (timerFood && netFood < 0) {
@@ -1228,7 +1234,8 @@ function updateStockTotals(maxRes, maxFood) {
     if (!box) continue;
     const cap = r === 'food' ? maxFood : maxRes, totalCap = r === 'food' ? total.maxFoodStorage : total.maxStorage;
     box.title = `${RES_NAMES[r]} : ${formatNum(currentCity[r] || 0)} / ${formatNum(cap)} dans cette ville`
-      + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins et héros y puisent ; marché, transports et pillage restent ceux de la ville)` : '');
+      + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins et héros y puisent ; marché, transports et pillage restent ceux de la ville)` : '')
+      + (several && r === 'food' && total.foodBalance ? `\nBilan par heure de toutes vos villes : ${formatNum(total.foodBalance.net)} (l'entretien de toutes vos troupes puise dans tous vos greniers)` : '');
     let line = box.querySelector('.res-total');
     if (!several) { if (line) line.remove(); continue; }
     if (!line) {
@@ -1252,9 +1259,11 @@ function updateFamineBanner(hoursToEmpty, netFood) {
     anchor.parentNode.insertBefore(el, anchor.nextSibling);
   }
   el.style.display = '';
+  // l'entretien puise dans tous les greniers (§ 1 bis) : avec plusieurs villes, l'alerte porte sur leur total
+  const several = (cities || []).length > 1;
   el.innerHTML = hoursToEmpty <= 0.01
-    ? `${resIconHtml('skull')} <strong>Famine à ${escapeHtml(currentCity?.name || '')}</strong> : le grenier est vide, des soldats meurent de faim chaque heure (${formatNum(netFood)}/h). Produisez plus de nourriture ou réduisez vos armées.`
-    : `${resIconHtml('food')} <strong>Grenier bientôt vide à ${escapeHtml(currentCity?.name || '')}</strong> : encore ${formatDuration(Math.round(hoursToEmpty * 3600))} de nourriture (${formatNum(netFood)}/h). Ensuite, vos troupes mourront de faim.`;
+    ? `${resIconHtml('skull')} <strong>Famine ${several ? 'dans vos villes' : `à ${escapeHtml(currentCity?.name || '')}`}</strong> : ${several ? 'tous vos greniers sont vides' : 'le grenier est vide'}, des soldats meurent de faim chaque heure (${formatNum(netFood)}/h). Produisez plus de nourriture ou réduisez vos armées.`
+    : `${resIconHtml('food')} <strong>${several ? 'Greniers bientôt vides' : `Grenier bientôt vide à ${escapeHtml(currentCity?.name || '')}`}</strong> : encore ${formatDuration(Math.round(hoursToEmpty * 3600))} de nourriture${several ? ' dans toutes vos villes' : ''} (${formatNum(netFood)}/h). Ensuite, vos troupes mourront de faim.`;
 }
 
 // Entrée / « OK » du clavier soumet les formulaires de connexion et d'inscription (auth-enter-submit)

@@ -8,7 +8,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
-const { lockCity, lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, isId } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, isId } = require('../utils/db');
 const { getRelation, sameAllianceAs, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
@@ -65,9 +65,12 @@ router.get('/', auth, async (req, res) => {
       include: { buildings: true, buildQueue: { orderBy: { startedAt: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
     });
     // bilan de nourriture calculé par le serveur (réductions d'entretien, siège), le même que le tick
-    const balance = await require('../game/processors/resourceProcessor').foodBalance(cities.map(c => c.id)).catch(() => new Map());
-    // stock de toutes les villes réunies : les dépenses y puisent (barre de ressources, boutons et prix du client)
-    const playerStock = stockTotals(cities);
+    const RP = require('../game/processors/resourceProcessor');
+    const balance = await RP.foodBalance(cities.map(c => c.id)).catch(() => new Map());
+    // stock de toutes les villes réunies : les dépenses y puisent (barre de ressources, boutons et prix du client) ; bilan
+    // de nourriture de tout le joueur : l'entretien puise dans tous ses greniers (§ 1 bis, affichage et alerte du client)
+    const totals = stockTotals(cities);
+    const playerStock = { ...totals, foodBalance: RP.playerFoodBalance([...balance.values()], totals.food) };
     const citiesWithTier = cities.map(city => {
       const wallLevel = city.buildings.find(b => b.key === 'WALL')?.level || 0;
       const mainHallLevel = mainHallLevelOf(city.buildings);
@@ -255,7 +258,8 @@ router.post('/:id/recruit', auth, async (req, res) => {
         data: { cityId: city.id, unitKey, count, buildingKey, startedAt: startAt, endsAt, status: 'RUNNING' }
       });
 
-      return { message: 'Recrutement lance', queueItem, durationSec: totalTime, timePerUnit, cost };
+      // § 1 bis : toute unité formée apparaît dans la capitale (une colonie n'a pas de garnison propre)
+      return { message: city.isCapital ? 'Recrutement lancé' : 'Recrutement lancé : les unités rejoindront la garnison de la capitale', queueItem, durationSec: totalTime, timePerUnit, cost };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
@@ -411,10 +415,10 @@ router.post('/:id/wounded/heal', auth, async (req, res) => {
     const { unitKey } = req.body || {};
     if (!unitKey || typeof unitKey !== 'string') return res.status(400).json({ error: 'unitKey requis' });
     const result = await prisma.$transaction(async (tx) => {
-      const city = await tx.city.findFirst({ where: { id: req.params.id, playerId: req.user.playerId }, select: { id: true } });
-      if (!city) return { error: 'Ville non trouvée', status: 404 };
-      await lockCity(tx, city.id);   // garnison de la ville
-      return { success: true, ...(await W.healNow(tx, req.user.playerId, city.id, unitKey)) };
+      // les villes du joueur d'abord (ordre des id) : les guéris rejoignent la garnison de la capitale
+      const cities = await lockPlayerCities(tx, req.user.playerId);
+      if (!cities.some(c => c.id === req.params.id)) return { error: 'Ville non trouvée', status: 404 };
+      return { success: true, ...(await W.healNow(tx, req.user.playerId, req.params.id, unitKey)) };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);

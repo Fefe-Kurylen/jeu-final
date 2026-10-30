@@ -19,7 +19,8 @@ Object.setPrototypeOf(global.Date, OrigDate);
 const config = require('./src/config');
 const prisma = require('./src/config/database');
 const { unitsData, buildingsData } = require('./src/config/gamedata');
-const { getProductionAtLevel, cityStorageCaps } = require('./src/utils/calculations');
+const { getProductionAtLevel, cityStorageCaps, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('./src/utils/calculations');
+const fx = require('./src/utils/buildingEffects');
 
 // Override tick config: each tick = 6 hours of game time (faster simulation)
 const TICK_HOURS = 6.0;
@@ -72,27 +73,24 @@ const BUILD_ORDER = [
   {k:'FARM',t:15},{k:'MAIN_HALL',t:15},{k:'LUMBER',t:14},{k:'QUARRY',t:14},{k:'IRON_MINE',t:14},
   {k:'MILL',t:5},{k:'SAWMILL',t:5},{k:'STONEMASON',t:5},{k:'FOUNDRY',t:5},
   {k:'ACADEMY',t:10},{k:'FORGE',t:10},{k:'STABLE',t:7},{k:'BARRACKS',t:15},
-  {k:'WORKSHOP',t:5},{k:'WALL',t:12},{k:'MOAT',t:5},{k:'WAREHOUSE',t:15},{k:'SILO',t:15},
+  {k:'WORKSHOP',t:5},{k:'WALL',t:12},{k:'WAREHOUSE',t:15},{k:'SILO',t:15},
   {k:'RALLY_POINT',t:5},{k:'RESIDENCE',t:5},{k:'HERO_MANSION',t:10},
   {k:'TREASURE_CHAMBER',t:10},{k:'HEALING_TENT',t:12},
   // Phase 6: Endgame
   {k:'FARM',t:18},{k:'MAIN_HALL',t:20},{k:'LUMBER',t:18},{k:'QUARRY',t:18},{k:'IRON_MINE',t:18},
-  {k:'BARRACKS',t:20},{k:'STABLE',t:15},{k:'WALL',t:18},{k:'MOAT',t:10},
+  {k:'BARRACKS',t:20},{k:'STABLE',t:15},{k:'WALL',t:18},
   {k:'WAREHOUSE',t:20},{k:'SILO',t:20},{k:'RALLY_POINT',t:10},{k:'RESIDENCE',t:10},
   {k:'TREASURE_CHAMBER',t:15},
-];
+].filter(o => !fx.notInCapital(o.k));   // chaque joueur n'a que sa capitale : pas de Moulin, Scierie… (colonies seulement)
 
 // --- HELPERS ---
+// coût et temps d'un niveau : ceux du serveur (utils/calculations.js, champs et Bâtiment principal plus chers et plus lents)
 function getBuildCost(key, level) {
   const def = buildingsData.find(b => b.key === key);
-  if (!def) return null;
-  const base = def.costL1 || {wood:100,stone:100,iron:80,food:50};
-  const m = Math.pow(config.build.costMultiplierBase, level - 1);
-  return {wood:Math.floor(base.wood*m),stone:Math.floor(base.stone*m),iron:Math.floor(base.iron*m),food:Math.floor(base.food*m)};
+  return def ? buildCostFor(def, level) : null;
 }
 function getBuildTime(key, level) {
-  const def = buildingsData.find(b => b.key === key);
-  return Math.floor((def?.timeL1Sec||60) * Math.pow(config.build.timeMultiplierBase, level - 1));
+  return buildSecondsFor(buildingsData.find(b => b.key === key), level);
 }
 function canAfford(c, cost) { return c.wood>=cost.wood && c.stone>=cost.stone && c.iron>=cost.iron && c.food>=cost.food; }
 function unitFor(faction, tier, cls) { return unitsData.find(u => u.faction===faction && u.tier===tier && u.class===cls); }
@@ -477,20 +475,10 @@ async function aiAction(player, hour, now, tick, players) {
     if (count < 1) break recruit_block;
 
     const uDef = unitsData.find(u => u.key === unitKey);
-    const classCosts = config.recruit.baseCosts[uDef?.class] || config.recruit.baseCosts.INFANTRY;
-    const tierCostMult = config.recruit.tierCostMultipliers[tier] || 1.0;
-    const cost = {
-      wood: Math.ceil(classCosts.wood * tierCostMult * count),
-      stone: Math.ceil(classCosts.stone * tierCostMult * count),
-      iron: Math.ceil(classCosts.iron * tierCostMult * count),
-      food: Math.ceil(classCosts.food * tierCostMult * count)
-    };
+    const cost = recruitCostFor(uDef, count);   // prix et temps du serveur (routes/cities.js)
     if (!canAfford(city, cost)) break recruit_block;
 
-    const classBaseTime = config.recruit.baseTimeSec[uDef?.class] || 360;
-    const tierTimeMult = config.recruit.tierTimeMultipliers[tier] || 1.0;
-    const baseTime = Math.ceil(classBaseTime * tierTimeMult);
-    const totalTime = baseTime * count;
+    const totalTime = Math.ceil(baseTrainSecondsFor(uDef)) * count;
     const endsAt = new global.Date(simulatedTime + totalTime*1000);
 
     try {

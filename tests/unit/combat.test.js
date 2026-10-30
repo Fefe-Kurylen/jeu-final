@@ -120,6 +120,21 @@ test('battle engine: each round\'s blows are spread over every tier by total sol
   assert.ok(Math.abs(k2[romeArc.key] / k2[romeInf.key] - config.combat.triangle.CAVALRY_vs_ARCHER) < 0.01);
 });
 
+test('battle engine: a line wiped out by its share passes the rest of the blows to the lines still standing', () => {
+  // la cavalerie frappe les archers × triangle : une petite ligne d'archers tombe avant la grosse ligne d'infanterie
+  const romeArc = unit('ROME', 'ARCHER', 'base'), F = config.combat.roundDamageFactor, tri = config.combat.triangle.CAVALRY_vs_ARCHER;
+  const solid = (u) => u.stats.endurance + config.combat.defenseDamageMult * u.stats.defense;   // palier de base : coefficient 1
+  const a = 100, b = 10000, atk = romeCav.stats.attack, pool = a * solid(romeArc) + b * solid(romeInf);
+  const n = Math.round(1.2 * pool / (F * atk * tri));   // assez pour anéantir sa part d'archers, pas l'infanterie
+  const r = resolveCombatDetailed([group(romeCav, n)], [group(romeArc, a), group(romeInf, b)], 0, 'A', 'B');
+  const kills = Object.fromEntries(r.rounds[0].attackerKills.map(k => [k.key, k.killed]));
+  assert.equal(kills[romeArc.key], a);
+  // l'infanterie reçoit sa part et le reste des coups non utilisés sur les archers
+  const usedOnArchers = a * solid(romeArc) / (atk * tri);
+  assert.equal(kills[romeInf.key], Math.floor((n * F - usedOnArchers) * atk / solid(romeInf)));
+  assert.ok(kills[romeInf.key] < b);
+});
+
 test('battle engine: at equal food, an army mixing elites into its base beats a pure base army in every civilisation', () => {
   const UP = config.army.upkeepPerTier, budget = 9600;
   const army = (f, shares) => ['INFANTRY', 'ARCHER', 'CAVALRY'].flatMap(c => Object.entries(shares).map(([t, s]) => group(unit(f, c, t), Math.round(budget * s / 3 / UP[t]))));

@@ -1,8 +1,10 @@
 // ========== RECRUIT QUEUE PROCESSOR ==========
+// Toute unité formée apparaît dans la garnison de la capitale, troupes de la Grande caserne / Grande écurie d'une colonie
+// comprises (décision du 30 octobre 2026, § 1 bis : pas de garnison propre dans les colonies). Le colon reste dans la ville
+// qui l'a formé (la capitale, seule à avoir une Résidence qui en forme).
 
 const prisma = require('../../config/database');
-const { unitsData } = require('../../config/gamedata');
-const { lockCity } = require('../../utils/db');
+const { capitalGarrisonId, addArmyUnits } = require('../../utils/db');
 
 async function processRecruits(now, { playerId = null } = {}) {
   const recruits = await prisma.recruitQueueItem.findMany({
@@ -14,11 +16,8 @@ async function processRecruits(now, { playerId = null } = {}) {
   for (const r of recruits) {
     try {
       await prisma.$transaction(async (tx) => {
-        await lockCity(tx, r.cityId);
-        let garrison = await tx.army.findFirst({ where: { cityId: r.cityId, isGarrison: true } });
-        if (!garrison) {
-          garrison = await tx.army.create({ data: { ownerId: r.city.playerId, cityId: r.cityId, name: 'Garnison', x: r.city.x, y: r.city.y, status: 'IDLE', isGarrison: true } });
-        }
+        // la capitale d'abord (verrou de ville, puis la ligne de la file, comme l'annulation d'un recrutement)
+        const garrisonId = await capitalGarrisonId(tx, r.city.playerId, r.cityId);
         // The item is consumed first (conditional): a second executor credits nothing
         const taken = await tx.recruitQueueItem.deleteMany({ where: { id: r.id, status: 'RUNNING' } });
         if (taken.count !== 1) throw Object.assign(new Error('already processed'), { _skip: true });
@@ -27,13 +26,7 @@ async function processRecruits(now, { playerId = null } = {}) {
           await tx.city.update({ where: { id: r.cityId }, data: { settlers: { increment: r.count } } });
           return;
         }
-        const tier = unitsData.find(u => u.key === r.unitKey)?.tier || 'base';
-        // Increment in SQL so several batches finishing in the same tick all add up
-        await tx.armyUnit.upsert({
-          where: { armyId_unitKey: { armyId: garrison.id, unitKey: r.unitKey } },
-          update: { count: { increment: r.count } },
-          create: { armyId: garrison.id, unitKey: r.unitKey, tier, count: r.count }
-        });
+        await addArmyUnits(tx, garrisonId, r.unitKey, r.count);
       }, { timeout: 15000 });
       if (r.unitKey !== 'SETTLER') require('../../services/questService').bumpLater(r.city.playerId, 'units_recruited', r.count);   // quêtes
       console.log(`[RECRUIT] ${r.count}x ${r.unitKey}`);

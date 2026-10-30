@@ -74,9 +74,12 @@ function foundCityAt(nodeId, x, y) {
   const candidates = (armies || []).filter(a => a.status === 'IDLE' && !a.isGarrison && a.cityId === capital.id && a.x === capital.x && a.y === capital.y && (a.units || []).length > 0);
   if (!candidates.length) { showToast('Aucune armée disponible dans la capitale', 'error'); return; }
   const fx = residenceEffects();
+  // ce qui manque dans toutes les villes réunies pour les ressources de la fondation (recommandation 14)
+  const short = costShortfall(Object.fromEntries(RES_KEYS.map(r => [r, COLONY_RULES.foundationTransport])));
   document.getElementById('modal-body').innerHTML = `
     <h3>${settlerPortrait('unit-ico-sm') || settlerIcon()} Fonder une ville en (${x}, ${y})</h3>
     <p>Un colon part avec l'armée choisie et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource (prises dans la capitale, puis dans vos autres villes) ; la ville est prête ${Math.round((fx.cityFoundationTimeSec || 86400) / 3600)} h après l'arrivée. Le point ne doit plus avoir de tribu ni d'armée.</p>
+    ${short ? `<p class="missing">${escapeHtml(short)} (toutes vos villes comprises)</p>` : ''}
     <label style="display:block; margin:10px 0 5px;">Armée :</label>
     <select id="found-army-select" style="width:100%; padding:8px; margin-bottom:10px;">${candidates.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${(a.units || []).reduce((s, u) => s + u.count, 0)} unités)</option>`).join('')}</select>
     <label style="display:block; margin:10px 0 5px;">Nom de la ville (facultatif) :</label>

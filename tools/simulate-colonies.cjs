@@ -5,8 +5,10 @@
 //  2. percer le mur : seuls les engins l'abîment (décision du 30 octobre 2026) ; engins pour une brèche selon le niveau du
 //     mur et le Bastion, puis combats de siège réels (Rome contre une ville gauloise, moteur services/combatService.js) ;
 //  3. économie d'une colonie : production d'une ville secondaire (+20 %) contre la capitale à développement égal, prix
-//     de la fondation et de la Résidence, amortissement ;
-//  4. militaire hors capitale : la Grande caserne demande Caserne 20 dans la capitale ; coût et délai de ce verrou.
+//     de la fondation et de la Résidence, amortissement ; bâtiments réservés aux colonies, stock partagé ;
+//  4. militaire hors capitale : la Grande caserne demande Caserne 20 dans la capitale ; coût et délai de ce verrou ; les
+//     unités formées rejoignent la capitale (décision du 30 octobre 2026).
+// Coûts et temps des bâtiments : utils/calculations.js buildCostFor / buildSecondsFor (les mêmes que le serveur).
 //   node tools/simulate-colonies.cjs
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'simulation-only-secret-0123456789abcdef0123456789';
@@ -14,14 +16,13 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://simulation:
 const path = require('path');
 const config = require(path.join(__dirname, '..', 'src', 'config'));
 const { buildingsData, unitsData, factionsData } = require(path.join(__dirname, '..', 'src', 'config', 'gamedata'));
-const { getProductionAtLevel, getFactionBonus } = require(path.join(__dirname, '..', 'src', 'utils', 'calculations'));
+const { getProductionAtLevel, getFactionBonus, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require(path.join(__dirname, '..', 'src', 'utils', 'calculations'));
 const fx = require(path.join(__dirname, '..', 'src', 'utils', 'buildingEffects'));
 const { resolveCombatDetailed } = require(path.join(__dirname, '..', 'src', 'services', 'combatService'));
 
-const COST_GROWTH = config.build.costMultiplierBase, TIME_GROWTH = config.build.timeMultiplierBase;
 const def = (k) => buildingsData.find(b => b.key === k);
-const costAt = (k, L) => { const c = def(k).costL1; const m = Math.pow(COST_GROWTH, L - 1); return Object.fromEntries(Object.entries(c).map(([r, v]) => [r, Math.round(v * m)])); };
-const timeAt = (k, L) => Math.round(def(k).timeL1Sec * Math.pow(TIME_GROWTH, L - 1));
+const costAt = (k, L) => buildCostFor(def(k), L);
+const timeAt = (k, L) => buildSecondsFor(def(k), L);
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 const cumul = (k, from, to) => { const c = { wood: 0, stone: 0, iron: 0, food: 0 }; let t = 0; for (let L = from; L <= to; L++) { const x = costAt(k, L); for (const r in c) c[r] += x[r] || 0; t += timeAt(k, L); } return { cost: c, total: sum(c), timeH: t / 3600 }; };
 const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
@@ -51,9 +52,9 @@ console.log(`Le palier fixe l'aspect de la ville et de son enceinte ; depuis le 
 // engineMult ; un soldat × soldierMult (0 : seuls les engins abîment le mur). Mur : wallHpPerLevel PV par niveau.
 console.log('## 2. Percer le mur (mur bouclier, seuls les engins l\'abîment)\n');
 const siege = unitsData.filter(u => u.class === 'SIEGE');
-// Même formule que routes/cities.js (recruitCost) : coût de base de la classe × multiplicateur du palier
-const unitCost = (u) => { const base = config.recruit.baseCosts[u.class] || config.recruit.baseCosts.INFANTRY; const m = config.recruit.tierCostMultipliers[u.tier] || 1; return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, Math.ceil(v * m)])); };
-const unitTime = (u) => u.recruitTimeSec || u.trainTimeSec || 0;
+// Prix et temps de formation d'une unité : ceux du serveur (routes/cities.js, recrutement)
+const unitCost = (u) => recruitCostFor(u, 1);
+const unitTime = (u) => baseTrainSecondsFor(u);
 const W = config.combat.siege.wallShield;
 const cata = siege.find(u => u.key === 'ROM_SIEGE_CATAPULTE') || siege[0];
 const cataCost = sum(unitCost(cata));
@@ -79,7 +80,7 @@ const defenders = [{ unitKey: GINF, tier: 'intermediate', count: 600 }, { unitKe
 const siegeFight = (soldiers, engines, wallLevel, lives) => {
   const maxHp = wallLevel * config.combat.wallHpPerLevel * fb('GAUL', 'wallHealth');
   const atk = [{ unitKey: RINF, tier: 'intermediate', count: soldiers }, { unitKey: cata.key, tier: 'siege', count: engines }];
-  const r = resolveCombatDetailed(atk, defenders, wallLevel, 0, 'Rome', 'Gaule', null, null, 'ROME', 'GAUL', 0, null, { hp: maxHp * lives, maxHp });
+  const r = resolveCombatDetailed(atk, defenders, wallLevel, 'Rome', 'Gaule', null, null, 'ROME', 'GAUL', 0, null, { hp: maxHp * lives, maxHp });
   const breach = r.rounds.findIndex(x => x.wallHp === 0) + 1;
   return `${breach ? `brèche round ${breach}` : 'pas de brèche'}, ${r.attackerWon ? 'l\'attaquant gagne' : 'la ville tient'} (pertes ${Math.round(r.attackerLossRate * 100)} % / ${Math.round(r.defenderLossRate * 100)} %)`;
 };
@@ -105,6 +106,10 @@ console.log(`\nFondation : ${fmt(found)} ressources transportées ; Résidence 1
 const gain10 = 4 * (4 * getProductionAtLevel('LUMBER', 10, buildingsData) + 5) * (bonus - 1);
 console.log(`Une colonie aux champs de niveau 10 rend ${fmt(gain10)} ressources de plus par heure que la même ville sans bonus : la fondation (${fmt(found)}) est amortie par le seul bonus en ${h(found / gain10)}, la Résidence 10 en ${h(res10.total / gain10)} ; sans le bonus, une colonie reste une seconde ville complète (ses champs produisent comme ceux de la capitale).`);
 console.log(`Plafond : Bâtiment principal ${cap} au plus dans une colonie (30 dans la capitale) ; les autres bâtiments s'arrêtent à 20 de toute façon, le plafond n'enlève donc rien à la production, il réserve à la capitale les niveaux 21-30 du Bâtiment principal (population, réduction de temps déjà plafonnée à 60 % dès 24).`);
+// placement (décision du 30 octobre 2026) : lu dans les données (effects.capitalOnly / effects.notInCapital)
+const names = (keep) => buildingsData.filter(b => !b.faction && keep(b.key)).map(b => b.name).join(', ');
+console.log(`Bâtiments des colonies seulement : ${names(fx.notInCapital)}. Bâtiments de la capitale seulement (leurs effets valent pour toutes les villes du joueur) : ${names(fx.capitalOnly)}, et le bâtiment de la civilisation.`);
+console.log(`Stock : chaque ville garde ce qu'elle produit, avec son propre plafond ; constructions, recrutements, recherche, soins, héros et fondation se paient sur la somme des villes (la ville de l'action d'abord), l'entretien des troupes sur la somme des greniers. Pillage, raids, marché et transports ne touchent que la ville concernée.`);
 
 // ---------- 4. militaire hors capitale ----------
 console.log('\n## 4. Recrutement hors capitale\n');
@@ -112,4 +117,5 @@ const b20 = cumul('BARRACKS', 1, 20), s20 = cumul('STABLE', 1, 20);
 const gb1 = costAt('GREAT_BARRACKS', 1), gs1 = costAt('GREAT_STABLE', 1);
 console.log(`Caserne, Écurie et Atelier sont réservés à la capitale (GDD : « hors capitale », Grandes caserne et écurie). La Grande caserne d'une colonie demande Caserne 20 dans la capitale : ${fmt(b20.total)} ressources et ${h(b20.timeH)} de chantier cumulés ; la Grande écurie demande Écurie 20 : ${fmt(s20.total)} et ${h(s20.timeH)}.`);
 console.log(`Grande caserne niveau 1 : ${fmt(sum(gb1))} ressources ; Grande écurie niveau 1 : ${fmt(sum(gs1))}. Les engins de siège ne se fabriquent que dans la capitale.`);
-console.log(`Lecture : une colonie est d'abord une ville économique (+20 %) ; elle ne forme des troupes qu'une fois la capitale au bout de ses casernes, soit après plusieurs semaines ; la capitale reste le cœur militaire (Forge, Atelier, Résidence, Ambassade, Chambre au trésor, Domus).`);
+console.log(`Toute unité formée rejoint la garnison de la capitale, celles d'une Grande caserne de colonie comprises (le temps de formation reste celui du bâtiment de la colonie) ; une colonie n'est défendue que par les armées qu'on y envoie.`);
+console.log(`Lecture : une colonie est d'abord une ville économique (+20 %, Moulin, Scierie, Grand dépôt…) ; ses Grandes caserne et écurie ajoutent une file de formation une fois la capitale au bout de ses casernes, soit après plusieurs semaines ; la capitale reste le cœur militaire (Forge, Atelier, Résidence, Ambassade, Chambre au Trésor, Domus).`);

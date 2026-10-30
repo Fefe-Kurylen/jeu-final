@@ -104,7 +104,7 @@ function unitSheetRequirement(unit) {
 }
 
 // Cases par heure d'une armée de cette vitesse (la plus lente de ses unités), comme calculations.js calculateTravelTime :
-// bonus de civilisation, puis technologies, Bastion et Irrigation de la ville de départ (01-core.js armySpeedExtraPct).
+// bonus de civilisation, puis technologies, Bastion et Irrigation de la capitale (01-core.js armySpeedExtraPct).
 // Sans civilisation ni ville : la vitesse nue.
 function armyTilesPerHour(speed, faction, city) {
   const civ = faction ? factionBonusPct(faction, 'armySpeed', faction === 'HUN' ? 20 : 0) : 0;
@@ -139,10 +139,10 @@ function showUnitInfoModal(unitKey) {
   const bCoeff = SHEET_RULES.battleTierCoeff[unit.tier] || 1;
   const hit = Math.round(attack * bCoeff), toughness = Math.round(endurance + SHEET_RULES.defenseWeight * defense * bCoeff);
   const mine = !player?.faction || player.faction === unit.faction;
-  // marche : avec les bonus du joueur (civilisation, recherches, Bastion, Irrigation de la ville) pour ses propres unités
+  // marche : avec les bonus du joueur (civilisation, recherches, Bastion, Irrigation de la capitale) pour ses propres unités
   const march = mine ? armyTilesPerHour(speed, unit.faction, currentCity) : armyTilesPerHour(speed, null, null);
   const tilesPerHour = march.tilesPerHour;
-  const speedNote = [march.civ ? `civilisation +${march.civ} %` : '', march.extra ? `ville et recherches +${+march.extra.toFixed(1)} %` : ''].filter(Boolean).join(', ');
+  const speedNote = [march.civ ? `civilisation +${march.civ} %` : '', march.extra ? `recherches, Bastion et Irrigation +${+march.extra.toFixed(1)} %` : ''].filter(Boolean).join(', ');
   const beats = SHEET_RULES.beats[unit.class];
   const beatenBy = Object.keys(SHEET_RULES.beats).find(k => SHEET_RULES.beats[k] === unit.class);
   const req = unitSheetRequirement(unit);
@@ -157,7 +157,8 @@ function showUnitInfoModal(unitKey) {
     status = `<p class="sheet-status muted">Unité de ${SHEET_FACTION_NAMES[unit.faction] || unit.faction} : votre civilisation ne peut pas la recruter.</p>`;
   } else if (currentCity) {
     if (req.ok) {
-      status = `<p class="sheet-status ok">Recrutable à ${escapeHtml(currentCity.name || 'votre ville')} — ${getBuildingName(req.building.key)} niveau ${req.building.level}.</p>`;
+      // toute unité formée rejoint la capitale (décision du 30 octobre 2026, § 1 bis)
+      status = `<p class="sheet-status ok">Recrutable à ${escapeHtml(currentCity.name || 'votre ville')} — ${getBuildingName(req.building.key)} niveau ${req.building.level}${currentCity.isCapital ? '' : ' ; les recrues rejoignent la capitale'}.</p>`;
       if (typeof openUnitRecruitModal === 'function') action = `<button type="button" class="btn-primary" onclick="openUnitRecruitModal('${sheetKey(unit.key)}', '${sheetKey(req.building.key)}')">Recruter</button>`;
       action = `<button type="button" class="btn-secondary" onclick="locateBuildingInCity('${sheetKey(req.building.key)}')">Voir ${escapeHtml(getBuildingName(req.building.key))} dans la ville</button>` + action;
     } else if (req.building) {
@@ -251,12 +252,12 @@ function buildingFunctions(key, fx) {
     FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],
     SILO: [['Capacité de stockage des céréales', 1]], WAREHOUSE: [['Capacité de stockage du bois, de la pierre et du fer', 1]],
     HIDEOUT: [['Ressources à l\'abri des pillages (1 % par niveau, max 20 %) : la seule protection', 1]],
-    HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés', 1, 'panel']],
+    HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés de toutes vos villes (ils rejoignent la capitale)', 1, 'panel']],
     MARKET: [['Échanges avec le marchand itinérant', 1, tab('market')], ['Échanges entre joueurs', 1, tab('market')], ['Envoi de ressources par armée', 1, tab('army')], ['Convois plus grands (+5 % par niveau)', 1]],
     WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Seuls les engins de siège l\'abîment', 1]],
     MILL: [['Céréales +5 % par niveau', 1]], BAKERY: [['Céréales +5 % par niveau', 1]], SAWMILL: [['Bois +5 % par niveau', 1]], STONEMASON: [['Pierre +5 % par niveau', 1]], FOUNDRY: [['Fer +5 % par niveau', 1]],
     GREAT_SILO: [['Stockage des céréales (3 fois un silo de même niveau, en plus)', 1]], GREAT_WAREHOUSE: [['Stockage du bois, de la pierre et du fer (3 fois un dépôt de même niveau, en plus)', 1]],
-    GREAT_BARRACKS: [['Recruter infanterie et archers', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]], GREAT_STABLE: [['Recruter la cavalerie', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]],
+    GREAT_BARRACKS: [['Recruter infanterie et archers (les recrues rejoignent la capitale)', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]], GREAT_STABLE: [['Recruter la cavalerie (les recrues rejoignent la capitale)', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]],
     EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')], ['Aide d\'alliance', null]],
     TREASURE_CHAMBER: [['Or chaque jour (10 → 200)', 1, tab('inventory')]],
     HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')]],
@@ -313,9 +314,11 @@ function showBuildingInfoModal(buildingKey) {
   const faction = player?.faction || 'ROME';
   const description = def.description || getBuildingDescription(key);
 
-  // Prérequis (état dans la ville du bâtiment)
+  // Prérequis (état dans la ville du bâtiment) : un prérequis réservé à la capitale (Caserne 20 de la Grande caserne…) se lit
+  // dans la capitale, comme sur le serveur (routes/cities.js)
+  const prereqBuildings = effectBuildings(home);
   const prereqHtml = prereqs.length ? `<div class="sheet-chips">${prereqs.map(p => {
-    const met = !home ? null : ((p.key === 'MAIN_HALL' && p.level <= 1) || cityBuildings.some(b => b.key === p.key && b.level >= p.level));
+    const met = !home ? null : ((p.key === 'MAIN_HALL' && p.level <= 1) || prereqBuildings.some(b => b.key === p.key && b.level >= p.level));
     return `<span class="sheet-chip ${met === null ? '' : met ? 'met' : 'unmet'}">${buildingIconHtml(p.key, 'b-ico-xs')} ${escapeHtml(getBuildingName(p.key))} niv. ${p.level}${met === null ? '' : ` <span class="st">${met ? '✓' : '✗'}</span>`} ${infoBtnHtml('building', p.key, 'info-btn-sm')}</span>`;
   }).join('')}</div>` : '<p class="sheet-note">Aucun prérequis.</p>';
 
@@ -347,6 +350,7 @@ function showBuildingInfoModal(buildingKey) {
     const where = fromCapital ? `Dans votre capitale ${escapeHtml(home.name || '')}` : `À ${escapeHtml(home.name || 'votre ville')}`;
     cityLine = existing || key === 'MAIN_HALL'
       ? `<p class="sheet-status ok">${where} : niveau ${level} / ${maxLevel}${sameKey.length > 1 ? ` (le plus développé des ${sameKey.length})` : ''}${level < maxLevel && level >= effectiveMax && key !== 'MAIN_HALL' ? ` — limité par le Bâtiment principal (niv. ${mainHallLevel})` : ''}.<br><b>${getBuildingEffect(key, level) || ''}</b></p>`
+      : fx.notInCapital && home.isCapital ? '<p class="sheet-status muted">Se construit dans une colonie, pas dans la capitale.</p>'
       : `<p class="sheet-status muted">Pas encore construit ${fromCapital ? 'dans votre capitale' : `à ${escapeHtml(home.name || 'votre ville')}`}.</p>`;
   }
 

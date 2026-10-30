@@ -244,6 +244,21 @@ test('trésor (recommandation 2) : la capitale d\'abord, le surplus dans les aut
   const restore = stub({ notification: { create: async ({ data }) => { notes.push(data); return { id: 'n' }; } } });
   try { H.announceOutcome(null, { destroyed: true, treasure: t, level: 1, x: 3, y: 4 }); await new Promise(r => setTimeout(r, 10)); } finally { restore(); }
   assert.equal(notes.length, 1);
-  assert.match(notes[0].body, new RegExp(`${(1500).toLocaleString('fr-FR')} bois, .* rangés dans vos villes \\(la capitale d.abord\\)`));
-  assert.match(notes[0].body, new RegExp(`Perdu faute de place dans vos entrepôts : ${(T.wood - 1500).toLocaleString('fr-FR')} bois\\.`));
+  assert.match(notes[0].body, new RegExp(`${T.wood.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes`));
+  assert.match(notes[0].body, new RegExp(`plus de place dans vos villes : ${(T.wood - 1500).toLocaleString('fr-FR')} de bois perdus\\.`));
+});
+
+test('trésor : les villes d\'un joueur sont verrouillées avant sa ligne (même ordre que les dépenses), joueurs pris par id', async () => {
+  const calls = [];
+  const tx = {
+    horde: { update: async () => ({}) }, resourceNode: { delete: async () => ({}) },
+    invasion: { update: async () => ({ id: 'i1', ageMult: 1 }) },
+    hordeDamage: { findMany: async () => [{ playerId: 'b', points: 100 }, { playerId: 'a', points: 100 }] },
+    player: { findMany: async () => [{ id: 'a' }, { id: 'b' }], updateMany: async ({ where }) => { calls.push(`pay ${where.id}`); return { count: 1 }; } },
+    $queryRaw: async (sql, playerId) => { calls.push(`lock ${playerId}`); return [{ id: `cap-${playerId}`, isCapital: true, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 1e9, maxFoodStorage: 1e9 }]; },
+    $executeRaw: async () => 1,
+    hero: { findUnique: async () => null }, heroItem: { create: async () => ({}) }
+  };
+  await H.destroyHorde(tx, { id: 'h1', invasionId: 'i1', level: 1 }, { id: 'n1', x: 0, y: 0 }, 'a', null);
+  assert.deepEqual(calls, ['lock a', 'pay a', 'lock b', 'pay b']);
 });

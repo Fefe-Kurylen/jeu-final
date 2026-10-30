@@ -203,3 +203,19 @@ test('économie : coût, durée, réduction de la capitale et entretien comme le
   assert.equal(vm.runInContext('costShortfall({ wood: 600, food: 2500 })', ctx), db.missingMessage({ tooSmall: ['food'] }));
   assert.deepEqual(['base', 'intermediate', 'elite', 'siege'].map(t => vm.runInContext(`unitUpkeep({ tier: '${t}' })`, ctx)), [5, 9, 13, 15]);
 });
+
+test('famine : avec plusieurs villes, le bandeau porte sur tous les greniers (entretien généralisé, § 1 bis)', { skip }, () => {
+  const banner = { style: {}, innerHTML: '' };
+  const ctx = makeContext({ document: { getElementById: (id) => (id === 'famine-banner' ? banner : null) }, formatDuration: (s) => `${s} s`, currentCity: { name: 'Roma' } });
+  vm.runInContext(pick(src('01-core.js'), ['updateFamineBanner']), ctx);
+  ctx.cities = [{ id: 'c0' }, { id: 'c1' }];
+  ctx.updateFamineBanner(3, -100);
+  assert.match(banner.innerHTML, /Greniers bientôt vides<\/strong> : encore 10800 s de nourriture dans toutes vos villes \(-100\/h\)/);
+  ctx.updateFamineBanner(0, -100);
+  assert.match(banner.innerHTML, /Famine dans vos villes<\/strong> : tous vos greniers sont vides/);
+  ctx.cities = [{ id: 'c0' }];
+  ctx.updateFamineBanner(3, -100);
+  assert.match(banner.innerHTML, /Grenier bientôt vide à Roma<\/strong> : encore 10800 s de nourriture \(-100\/h\)/);
+  ctx.updateFamineBanner(null, 50);
+  assert.equal(banner.style.display, 'none');
+});

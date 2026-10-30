@@ -54,3 +54,56 @@ test('effets « capitale seulement » : une colonie lit ceux de sa capitale, gar
   assert.deepEqual(sorted(fx.CAPITAL_BUILDINGS.select.buildings.where.key.in), sorted(CAPITAL));
   assert.deepEqual(fx.capitalOf({ cities: [{ buildings: capital }] }), capital);
 });
+
+// ---- client : fiches et armées lisent les bâtiments « capitale seulement » dans la capitale ----
+const vm = require('vm');
+let acorn = null;
+try { acorn = require('acorn'); } catch (e) { /* acorn vient avec eslint (dépendance de dev) */ }
+const FRONT = path.join(__dirname, '..', '..', 'frontend', 'js', 'app');
+// les déclarations de premier niveau d'un fichier du client qui portent ces noms
+function pick(file, names) {
+  const code = fs.readFileSync(path.join(FRONT, file), 'utf8');
+  const found = new Map();
+  for (const node of acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'script' }).body) {
+    const name = node.type === 'FunctionDeclaration' ? node.id.name : node.type === 'VariableDeclaration' ? node.declarations[0].id.name : null;
+    if (names.includes(name)) found.set(name, code.slice(node.start, node.end));
+  }
+  assert.deepEqual([...found.keys()].sort(), [...names].sort());
+  return [...found.values()].join('\n');
+}
+function clientContext(cities, currentCity) {
+  const sheets = [];
+  const ctx = {
+    window: { buildingsData }, buildingsData, unitsData: [], player: { faction: 'ROME' }, cities, currentCity, sheets,
+    openSheetModal: (title, html) => sheets.push(html), sheetBuildingGallery: () => '', infoBtnHtml: () => '', buildingIconHtml: () => '',
+    unitIconHtml: () => '', resIconHtml: () => '', escapeHtml: (s) => String(s), formatNum: String, formatDuration: () => '', getBuildingName: (k) => k,
+    getBuildingDescription: () => '', getBuildingEffect: () => '', getBuildCost: () => ({ wood: 0, stone: 0, iron: 0, food: 0 }), getBuildTime: () => 0,
+    showToast: () => {}, showTab: () => {}
+  };
+  vm.createContext(ctx);
+  vm.runInContext(pick('01-core.js', ['effectBuildings']), ctx);
+  vm.runInContext(pick('10b-sheets.js', ['SHEET_FACTION_NAMES', 'SHEET_CATEGORY_NAMES', 'SHEET_RULES', 'sheetKey', 'sheetUnits', 'sheetBuildings', 'buildingFunctions', 'sheetFunctionsHtml', 'showBuildingInfoModal']), ctx);
+  vm.runInContext(pick('07-army.js', ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'getMaxArmies']), ctx);
+  return ctx;
+}
+
+test('client : une colonie lit la Place de rassemblement, la Forge et les prérequis réservés à la capitale dans la capitale', { skip: acorn ? false : 'acorn absent' }, () => {
+  const capital = { id: 'c0', name: 'Roma', isCapital: true, buildings: [{ key: 'MAIN_HALL', slot: 0, level: 20 }, { key: 'BARRACKS', slot: 1, level: 20 }, { key: 'RALLY_POINT', slot: 2, level: 10 }, { key: 'FORGE', slot: 3, level: 12 }] };
+  const colony = { id: 'c1', name: 'Colonie', isCapital: false, buildings: [{ key: 'MAIN_HALL', slot: 0, level: 12 }, { key: 'RALLY_POINT', slot: 2, level: 1 }] };   // Place d'avant la migration
+  const ctx = clientContext([capital, colony], colony);
+  assert.equal(ctx.getMaxArmies(), 3);   // Place de rassemblement 10 de la capitale, pas la 1 de la colonie
+  // Grande caserne vue d'une colonie : le prérequis Caserne 20 est rempli par la capitale (comme routes/cities.js)
+  ctx.showBuildingInfoModal('GREAT_BARRACKS');
+  assert.match(ctx.sheets.at(-1), /sheet-chip met">\s*BARRACKS niv\. 20/);
+  assert.match(ctx.sheets.at(-1), /les recrues rejoignent la capitale/);
+  // Forge vue d'une colonie : la fiche suit celle de la capitale, sans raccourci vers la colonie
+  ctx.showBuildingInfoModal('FORGE');
+  assert.match(ctx.sheets.at(-1), /Dans votre capitale Roma : niveau 12/);
+  assert.match(ctx.sheets.at(-1), /Capitale seulement/);
+  assert.doesNotMatch(ctx.sheets.at(-1), /Voir dans la ville/);
+  // vu de la capitale, un bâtiment des colonies ne se construit pas là
+  ctx.currentCity = capital;
+  ctx.showBuildingInfoModal('MILL');
+  assert.match(ctx.sheets.at(-1), /Se construit dans une colonie, pas dans la capitale/);
+  assert.match(ctx.sheets.at(-1), /Colonies seulement/);
+});

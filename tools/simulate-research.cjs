@@ -15,7 +15,7 @@ const R = path.join(__dirname, '..');
 const config = require(R + '/src/config');
 const { buildingsData } = require(R + '/src/config/gamedata');
 const T = require(R + '/src/utils/techEffects');
-const { getProductionAtLevel, cityStorageCaps } = require(R + '/src/utils/calculations');
+const { getProductionAtLevel, cityStorageCaps, buildCostFor, buildSecondsFor } = require(R + '/src/utils/calculations');
 const fx = require(R + '/src/utils/buildingEffects');
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.+)$/); return m ? [m[1], Number(m[2])] : [a, true]; }));
@@ -26,12 +26,13 @@ const hm = s => (s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${(s / 36
 const n = v => Math.round(v).toLocaleString('fr-FR').replace(/ /g, ' ');
 
 const academy = buildingsData.find(b => b.key === 'ACADEMY');
-const bCost = (b, L) => Math.floor(sum(b.costL1) * Math.pow(config.build.costMultiplierBase, L - 1));
-const bTime = (b, L, mainHall) => Math.floor((b.timeL1Sec || 60) * Math.pow(config.build.timeMultiplierBase, L - 1) * (1 - Math.min(60, 2.5 * mainHall) / 100));
+// coût et temps d'un niveau de bâtiment : ceux du serveur (champs ×1,45 et ×1,30, Bâtiment principal ×1,30 de temps)
+const bCost = (b, L) => sum(buildCostFor(b, L));
+const bTime = (b, L, mainHall) => Math.floor(buildSecondsFor(b, L) * (1 - fx.buildTimeReductionPct([{ key: 'MAIN_HALL', level: mainHall }]) / 100));
 const rCost = (t, L) => Math.floor(sum(t.costL1) * Math.pow(RULES.costGrowth, L - 1));
 const rTime = (t, L, academyLevel) => Math.max(1, Math.floor(Math.floor((t.timeL1Sec || 600) * Math.pow(RULES.timeGrowth, L - 1)) * (1 - Math.min(RULES.timeReductionMaxPct, academyLevel) / 100)));
 
-console.log(`Courbes : constructions coût ×${config.build.costMultiplierBase} et temps ×${config.build.timeMultiplierBase} par niveau ; recherche coût ×${RULES.costGrowth} et temps ×${RULES.timeGrowth} par niveau, ${MAXL(T.TECHS[0])} niveaux.`);
+console.log(`Courbes : constructions coût ×${config.build.costMultiplierBase} (champs ×${config.build.fieldCostMultiplier}) et temps ×${config.build.timeMultiplierBase} (champs et Bâtiment principal ×${config.build.slowTimeMultiplier}) par niveau ; recherche coût ×${RULES.costGrowth} et temps ×${RULES.timeGrowth} par niveau, ${MAXL(T.TECHS[0])} niveaux.`);
 console.log('\n=== 1. Niveau par niveau : un niveau de technologie contre le niveau d\'Académie qui le débloque (réductions du même niveau) ===');
 const first = T.techOf('AGRONOMY'), second = T.techOf('ENGINEERING');
 console.log('niv. | Académie coût / temps | ' + first.name + ' coût / temps (ratio) | ' + second.name + ' coût / temps (ratio)');
@@ -59,7 +60,7 @@ console.log(`Ville entière (${cityBuildings.length} bâtiments et ${fieldSlots.
 
 console.log('\n=== 2. Partie simulée : champs, Bâtiment principal, entrepôts et Académie payés, stocks plafonnés, deux files de construction, une de recherche ===');
 // Règles du serveur (routes/cities.js, resourceProcessor.js) : départ à 500 de chaque, Bâtiment principal 1, aucun champ ; rien
-// au-dessus du Bâtiment principal (Académie : Bât. principal 3) ; coût × 1,28 par niveau ressource par ressource (− Ingénierie) ;
+// au-dessus du Bâtiment principal (Académie : Bât. principal 3) ; coût et temps de calculations.buildCostFor / buildSecondsFor (− Ingénierie) ;
 // production de base 5/5/5/10 + champs (+ Agronomie) ; stocks plafonnés par l'Entrepôt et le Silo (1 000 au moins) ; temps réduits
 // par le Bâtiment principal et l'Académie (buildingEffects). Stratégie : un entrepôt quand un coût visé ou un stock touche le
 // plafond, l'Académie dès qu'elle est permise et payable, sinon le moins cher entre le Bâtiment principal (jusqu'à 20) et le champ
@@ -80,9 +81,9 @@ const capOf = r => cityStorageCaps([{ key: 'WAREHOUSE', level: city.WAREHOUSE },
 const prod = {};
 const refreshProd = () => { for (const r of RES) prod[r] = (BASE_PROD[r] + fields.reduce((s, f) => s + (FIELD_RES[f.key] === r ? getProductionAtLevel(f.key, f.level, buildingsData) : 0), 0)) * (1 + techPct('productionBonusPct') / 100); };
 refreshProd();
-const buildCostOf = (k, L) => T.scaleCost(Object.fromEntries(RES.map(r => [r, Math.floor((defOf(k).costL1[r] || 0) * Math.pow(config.build.costMultiplierBase, L - 1))])), Math.max(0, 1 - techPct('buildCostReductionPct') / 100));
+const buildCostOf = (k, L) => T.scaleCost(buildCostFor(defOf(k), L), Math.max(0, 1 - techPct('buildCostReductionPct') / 100));
 const researchCostOf = (t, L) => Object.fromEntries(RES.map(r => [r, Math.floor((t.costL1[r] || 0) * Math.pow(RULES.costGrowth, L - 1))]));
-const buildSec = (k, L) => Math.max(1, Math.floor(Math.floor((defOf(k).timeL1Sec || 60) * Math.pow(config.build.timeMultiplierBase, L - 1)) * (1 - fx.buildTimeReductionPct([{ key: 'MAIN_HALL', level: city.MAIN_HALL }, { key: 'ACADEMY', level: city.ACADEMY }]) / 100)));
+const buildSec = (k, L) => Math.max(1, Math.floor(buildSecondsFor(defOf(k), L) * (1 - fx.buildTimeReductionPct([{ key: 'MAIN_HALL', level: city.MAIN_HALL }, { key: 'ACADEMY', level: city.ACADEMY }]) / 100)));
 const canPay = (c, keep = null) => RES.every(r => stock[r] - c[r] >= (keep ? keep[r] * 0.5 : 0));
 const running = [];   // chantiers en cours : { key, field, level, endsAt (minutes), cost }
 const busy = (key, field = null) => running.some(q => q.key === key && q.field === field);

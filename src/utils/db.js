@@ -48,7 +48,8 @@ async function creditCity(tx, cityId, gain) {
 // ---- Stock partagé entre les villes d'un joueur (décision du 30 octobre 2026) ----
 // Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, héros, soins et fondation
 // puisent d'abord dans la ville de l'action, puis dans les autres villes du joueur (celle qui en a le plus d'abord).
-// Le marché, les transports, les convois, l'entretien, le pillage et les raids restent propres à chaque ville.
+// L'entretien des troupes puise aussi dans tous les greniers (resourceProcessor.processUpkeep, § 1 bis). Le marché, les
+// transports, les convois, le pillage et les raids restent propres à chaque ville.
 
 // Verrouille toutes les villes du joueur, toujours dans le même ordre (id), pour éviter les interblocages ;
 // renvoie leurs stocks et plafonds
@@ -165,6 +166,30 @@ async function buildingsWithCapital(db, city) {
   return require('./buildingEffects').withCapital(city.buildings || [], await capitalBuildingsOf(db, city.playerId));
 }
 
+// Toute unité formée ou soignée apparaît dans la capitale (décision du 30 octobre 2026, § 1 bis : pas de garnison propre
+// dans les colonies). Garnison de la capitale du joueur, créée au besoin, sous le verrou de la capitale ; sans capitale
+// (cas d'erreur), celle de `fallbackCityId`. Renvoie l'id de la garnison, null s'il n'y a aucune ville.
+async function capitalGarrisonId(tx, playerId, fallbackCityId = null) {
+  const select = { id: true, x: true, y: true };
+  const city = await tx.city.findFirst({ where: { playerId, isCapital: true }, select })
+    || (fallbackCityId ? await tx.city.findUnique({ where: { id: fallbackCityId }, select }) : null);
+  if (!city) return null;
+  await lockCity(tx, city.id);
+  const garrison = await tx.army.findFirst({ where: { cityId: city.id, isGarrison: true }, select: { id: true } })
+    || await tx.army.create({ data: { ownerId: playerId, cityId: city.id, name: 'Garnison', x: city.x, y: city.y, status: 'IDLE', isGarrison: true }, select: { id: true } });
+  return garrison.id;
+}
+// Ajoute `count` unités à une armée (incrément SQL : plusieurs ajouts du même tick s'additionnent)
+async function addArmyUnits(tx, armyId, unitKey, count) {
+  if (!armyId || !(count > 0)) return;
+  const tier = require('../config/gamedata').unitsData.find(u => u.key === unitKey)?.tier || 'base';
+  await tx.armyUnit.upsert({
+    where: { armyId_unitKey: { armyId, unitKey } },
+    update: { count: { increment: count } },
+    create: { armyId, unitKey, tier, count }
+  });
+}
+
 // Takes up to `want` of each resource, never below zero; returns what was actually taken
 async function plunderCity(tx, cityId, want) {
   const w = amount(want, 'wood'), s = amount(want, 'stone'), i = amount(want, 'iron'), f = amount(want, 'food');
@@ -215,4 +240,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, plunderCity, claimNode, takeFromNode, transition, isId };
+module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, transition, isId };

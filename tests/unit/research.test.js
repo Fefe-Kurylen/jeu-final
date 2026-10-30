@@ -80,9 +80,9 @@ test('researchBlocker: Academy required, technology never above the Academy, pre
 test('technologies nudge the combat a little in the right direction, never by much', () => {
   const inf = unit('ROME', 'INFANTRY', 'base'), arc = unit('ROME', 'ARCHER', 'base');
   const side = () => [{ unitKey: inf.key, tier: 'base', count: 200 }, { unitKey: arc.key, tier: 'base', count: 200 }];
-  const plain = resolveCombatDetailed(side(), side(), 10, 0, 'A', 'D', null, null, null, null, 0);
-  const atkTech = resolveCombatDetailed(side(), side(), 10, 0, 'A', 'D', null, null, null, null, 0, { attacker: { atk: 1.05, def: 1.05 } });
-  const defTech = resolveCombatDetailed(side(), side(), 10, 0, 'A', 'D', null, null, null, null, 0, { defender: { def: 1.05 } });
+  const plain = resolveCombatDetailed(side(), side(), 10, 'A', 'D', null, null, null, null, 0);
+  const atkTech = resolveCombatDetailed(side(), side(), 10, 'A', 'D', null, null, null, null, 0, { attacker: { atk: 1.05, def: 1.05 } });
+  const defTech = resolveCombatDetailed(side(), side(), 10, 'A', 'D', null, null, null, null, 0, { defender: { def: 1.05 } });
   assert.ok(atkTech.attackerLossRate < plain.attackerLossRate && atkTech.defenderLossRate > plain.defenderLossRate, 'maxed attack/defence research helps the attacker');
   assert.ok(defTech.attackerLossRate > plain.attackerLossRate, 'maxed Discipline helps the defender');
   assert.ok(Math.abs(atkTech.attackerLossRate - plain.attackerLossRate) < 0.15, 'a +5 % research does not turn a battle around');

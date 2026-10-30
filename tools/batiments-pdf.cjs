@@ -48,7 +48,7 @@ const EFFECT = {
   WALL: (L) => `Défense +${L} % · ${fmt(L * 1000)} PV de mur · réparation +${L} %`,
   MILL: (L) => `Céréales +${L * 5} %`, BAKERY: (L) => `Céréales +${L * 5} %`, SAWMILL: (L) => `Bois +${L * 5} %`, STONEMASON: (L) => `Pierre +${L * 5} %`, FOUNDRY: (L) => `Fer +${L * 5} %`,
   GREAT_SILO: (L) => `Capacité +${fmt(storage('GREAT_SILO', L))} céréales (3 fois un silo)`, GREAT_WAREHOUSE: (L) => `Capacité +${fmt(storage('GREAT_WAREHOUSE', L))} (bois, pierre, fer ; 3 fois un dépôt)`,
-  GREAT_BARRACKS: (L) => `Recrute aussi infanterie et archers · entraînement −${L * 4} % (cumulé avec la Caserne, max 60 %)`, GREAT_STABLE: (L) => `Recrute aussi la cavalerie · entraînement −${L * 4} % (cumulé avec l'Écurie, max 60 %)`,
+  GREAT_BARRACKS: (L) => `Recrute infanterie et archers dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} %`, GREAT_STABLE: (L) => `Recrute la cavalerie dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} %`,
   EMBASSY: (L) => L >= 7 ? 'Rejoindre et fonder une alliance' : L >= 5 ? 'Rejoindre une alliance (fonder au niv. 7)' : 'Alliance : rejoindre au niv. 5, fonder au niv. 7',
   TREASURE_CHAMBER: (L) => `${curve(10, 200, L)} or par jour`,
   HERO_MANSION: () => 'Accès au héros depuis la ville',

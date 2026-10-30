@@ -27,7 +27,7 @@ const { resolveCombat, heroCombatStats } = require('./combatService');
 const { calculateWoundedUnits, carryWounded } = require('./woundedService');
 const { awardHeroXp } = require('./heroXpService');
 const { techPct } = require('../utils/techEffects');
-const { lockPlayerCities, creditPlayer } = require('../utils/db');
+const { lockPlayerCities, creditPlayer, lostNote } = require('../utils/db');
 const { notify } = require('./pushService');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
@@ -315,10 +315,11 @@ async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
     const share = r.points / total;
     const gain = { wood: Math.floor(T.wood * share), stone: Math.floor(T.stone * share), iron: Math.floor(T.iron * share), food: Math.floor(T.food * share) };
     const gold = Math.floor(T.gold * share), ap = Math.floor(T.alliancePoints * share);
+    // villes verrouillées avant la ligne du joueur, comme les dépenses (heroService) : jamais d'interblocage avec elles
+    const cities = await lockPlayerCities(tx, r.playerId);
     const paid = await tx.player.updateMany({ where: { id: r.playerId }, data: { gold: { increment: gold }, alliancePoints: { increment: ap } } });
     if (!paid.count) continue;   // supprimé entre-temps : pas de part
     // la capitale d'abord, le surplus dans les autres villes selon leur place ; ce qui ne tient nulle part est perdu
-    const cities = await lockPlayerCities(tx, r.playerId);
     const { lost } = await creditPlayer(tx, r.playerId, cities.find(c => c.isCapital)?.id, gain, cities);
     shares.push({ playerId: r.playerId, share, gain, lost, gold, alliancePoints: ap });
   }
@@ -332,19 +333,13 @@ async function destroyHorde(tx, horde, node, lastHitterId, lastHeroId) {
   return { shares, item, level: horde.level, x: node.x, y: node.y, lastHitterId };
 }
 
-// « 1 200 bois, 800 fer » : les ressources non nulles, en français
-const RES = ['wood', 'stone', 'iron', 'food'];
-const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
-const resText = (r) => RES.filter(k => r[k] > 0).map(k => `${r[k].toLocaleString('fr-FR')} ${RES_FR[k]}`).join(', ');
-
 // Prévient les participants après la transaction
 function announceOutcome(army, r) {
   if (r.destroyed && r.treasure) {
     for (const sh of r.treasure.shares) {
       const pct = Math.round(sh.share * 100);
-      const paid = resText(Object.fromEntries(RES.map(k => [k, sh.gain[k] - (sh.lost?.[k] || 0)]))), lost = resText(sh.lost || {});
-      const stored = paid ? `${paid} rangés dans vos villes (la capitale d'abord)` : 'aucune ressource (vos entrepôts sont pleins)';
-      notify(sh.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${stored}, ${sh.gold} or, ${sh.alliancePoints} points d'alliance.${lost ? ` Perdu faute de place dans vos entrepôts : ${lost}.` : ''}${sh.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
+      // ressources rangées dans la capitale puis dans les autres villes ; la fin dit ce qui n'a tenu nulle part (lostNote)
+      notify(sh.playerId, 'invasion', '🏆 Donjon barbare détruit', `Le donjon de niveau ${r.level} en (${r.x}, ${r.y}) est tombé. Votre part du trésor (${pct} % des dégâts) : ${sh.gold} or, ${sh.alliancePoints} points d'alliance et ${sh.gain.wood.toLocaleString('fr-FR')} de chaque ressource, rangées dans votre capitale puis dans vos autres villes${lostNote(sh.lost)}.${sh.playerId === r.treasure.lastHitterId && r.treasure.item ? ` Dernier coup : votre héros trouve « ${r.treasure.item.name} ».` : ''}`, { to: 'map', x: r.x, y: r.y });
     }
     return;
   }

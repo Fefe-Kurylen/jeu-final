@@ -6,7 +6,8 @@
 // ========== WOUNDED UNITS ==========
 // Décision du 30 octobre 2026 (services/woundedService.js) : une seule Tente de soins, dans la capitale, pour les blessés de
 // toutes les villes. Un blessé attend (il mange comme un soldat) jusqu'à ce que le joueur paie son soin ; au lit, il guérit
-// après les soins déjà lancés, puis rejoint la garnison de sa ville. Les prix et les durées viennent du serveur.
+// après les soins déjà lancés, puis rejoint la garnison de la capitale (§ 1 bis). Prix, durées et nombre soignable (lits
+// libres, stock de toutes les villes) viennent du serveur.
 function healingTabHtml(level) {
   const W = player?.economy?.wounded || {};
   const civ = factionBonusPct(player?.faction, 'woundedConversion', player?.faction === 'GREEK' ? 15 : 0);
@@ -16,7 +17,7 @@ function healingTabHtml(level) {
           <div class="special-tab-content">
             <h4>${resIconHtml('endurance')} Tente de soins</h4>
             <p>${rate} % des pertes de toutes vos villes reviennent blessées${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}. Un blessé attend qu'on paie son soin, et mange en attendant comme un soldat.</p>
-            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} / ${gold.siege} or par unité (base / intermédiaire / élite / engins).</p>
+            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} / ${gold.siege} or par unité (base / intermédiaire / élite / engins). Guéris, ils rejoignent la garnison de la capitale.</p>
             <p style="font-size:11px">Capacité : <strong>${formatNum(level * (W.bedsPerLevel || 0))}</strong> lits pour toutes vos villes.</p>
             <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
@@ -74,21 +75,21 @@ function renderWounded(wounded) {
           <span class="wounded-count">${w.waiting}x ${escapeHtml(w.unitName || w.unitKey)}${where} en attente</span>
           ${w.healable > 0
             ? `<span class="wounded-time" title="Guéris dans ${formatDuration(w.healSeconds)}, après les soins en cours">${healCostHtml(w.healCost)} · ${formatDuration(w.healSeconds)}</span>
-          <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}')" title="${costShortfall(w.healCost) || `Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}`}">Soigner ${w.healable}</button>`
+          <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}', ${w.healable})" title="${costShortfall(w.healCost) || `Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}`}">Soigner ${w.healable}</button>`
             : '<span class="wounded-time">tous les lits sont pris</span>'}
         </div>` : '';
     return inBed + queue;
   }).join('');
 }
 
-async function woundedAction(cityId, path, unitKey) {
+async function woundedAction(cityId, path, body) {
   if (_actionInProgress) return null;
   _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/city/${cityId}/wounded/${path}`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unitKey })
+      body: JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { showToast(data.error || 'Erreur', 'error'); return null; }
@@ -101,9 +102,9 @@ async function woundedAction(cityId, path, unitKey) {
   }
 }
 
-// Soin payé en ressources (stock de toutes les villes) : les blessés prennent un lit
-async function startHeal(cityId, unitKey) {
-  const data = await woundedAction(cityId, 'start', unitKey);
+// Soin payé en ressources (stock de toutes les villes) : `count` blessés prennent un lit (ceux que le stock paie)
+async function startHeal(cityId, unitKey, count) {
+  const data = await woundedAction(cityId, 'start', { unitKey, count });
   if (!data) return;
   showToast(data.message || 'Soin lancé', 'success');
   await loadCities();   // le prix est parti des villes
@@ -112,7 +113,7 @@ async function startHeal(cityId, unitKey) {
 
 // Soin immédiat des blessés au lit, en or
 async function healWounded(cityId, unitKey) {
-  const data = await woundedAction(cityId, 'heal', unitKey);
+  const data = await woundedAction(cityId, 'heal', { unitKey });
   if (!data) return;
   showToast(`${data.healed} unités soignées ! (-${data.goldSpent} or)`, 'success');
   loadWounded();
@@ -238,7 +239,7 @@ function renderBuildings(filter) {
         <h3>${buildingIconHtml(b.key)} ${b.name} ${infoBtnHtml('building', b.key)}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
-          Coût: ${RES_KEYS.map(r => `${resIconHtml(r)}${formatNum(cost[r])}`).join(' ')}
+          Coût: ${RES_KEYS.map(r => `<span class="${stockOf(r) >= cost[r] ? '' : 'missing'}">${resIconHtml(r)}${formatNum(cost[r])}</span>`).join(' ')}
         </div>
         ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--red-light);">${resIconHtml('clock')} File de construction pleine (${buildQueueMax()}/${buildQueueMax()})</p>` :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
@@ -320,7 +321,9 @@ function renderUnits(filter) {
     units = units.filter(u => u.class === filter);
   }
   
-  grid.innerHTML = units.map(u => `
+  // § 1 bis (décision du 30 octobre 2026) : une colonie n'a pas de garnison propre, ses recrues rejoignent la capitale
+  const colonyNote = currentCity.isCapital ? '' : '<p class="recruit-hint" style="grid-column:1/-1">Les unités formées ici rejoignent la garnison de la capitale ; envoyez une armée pour défendre cette ville.</p>';
+  grid.innerHTML = colonyNote + units.map(u => `
     <div class="unit-card" onclick="showUnitDetail('${u.key}')">
       <div class="unit-card-header" style="border-color: ${TIER_COLORS[u.tier]}">
         <span class="unit-class-icon">${unitFigureHtml(u.key, 'unit-figure', u.name)}</span>
@@ -540,7 +543,7 @@ async function recruit(unitKey) {
     closeModal();
 
     if (res.ok) {
-      showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé !`, 'success');
+      showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé !${currentCity.isCapital ? '' : ' Les unités rejoindront la capitale.'}`, 'success');
       await loadCities();
       renderCity();
     } else {

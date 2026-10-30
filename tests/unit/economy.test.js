@@ -256,9 +256,10 @@ test('soins : la fin d\'un soin vient après les soins en cours ; la liste des b
   const prisma = require('../../src/config/database');
   const busy = new Date(Date.now() + 3600000);
   const saved = { woundedUnit: prisma.woundedUnit, city: prisma.city };
+  let stock = [{ wood: 50000, stone: 50000, iron: 50000, food: 50000 }];
   Object.assign(prisma, {
     woundedUnit: { findMany: async ({ where }) => (where.count ? [{ count: 50, healsAt: busy }] : [{ id: 'w1', cityId: 'col', unitKey: inf.key, count: 0, waiting: 300, healsAt: W.NO_HEAL, city: { name: 'Colonie' } }]) },
-    city: { findFirst: async () => ({ buildings: tent(1) }) }
+    city: { findFirst: async () => ({ buildings: tent(1) }), findMany: async () => stock }
   });
   try {
     const [row] = await W.woundedView('p1');
@@ -267,6 +268,15 @@ test('soins : la fin d\'un soin vient après les soins en cours ; la liste des b
     assert.deepEqual(row.healCost, W.healCostFor(inf, 150));
     assert.ok(Math.abs(row.healSeconds - (3600 + 150 * 36)) <= 2, `${row.healSeconds} s : l'heure en cours, puis 150 × 36 s`);
     assert.equal(row.instantGold, 0, 'personne au lit : pas de soin à l\'or');
+    // stock de deux villes qui ne paie que 40 soins : le bouton en soigne 40
+    const c40 = W.healCostFor(inf, 40);
+    stock = [{ wood: c40.wood, stone: c40.stone, iron: 0, food: c40.food }, { wood: 0, stone: 0, iron: c40.iron + 5, food: 0 }];
+    const [part] = await W.woundedView('p1');
+    assert.equal(part.healable, 40);
+    assert.deepEqual(part.healCost, c40);
+    // rien de payable : tous les lits libres, pour montrer ce qui manque
+    stock = [{ wood: 0, stone: 0, iron: 0, food: 0 }];
+    assert.equal((await W.woundedView('p1'))[0].healable, 150);
   } finally { Object.assign(prisma, saved); }
 });
 

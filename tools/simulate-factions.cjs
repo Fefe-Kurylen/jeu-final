@@ -15,7 +15,7 @@ const R = path.join(__dirname, '..');
 const config = require(R + '/src/config');
 const { unitsData, factionsData } = require(R + '/src/config/gamedata');
 const { resolveCombat, resolveCombatDetailed } = require(R + '/src/services/combatService');
-const { calculateTravelTime, getFactionBonus } = require(R + '/src/utils/calculations');
+const { calculateTravelTime, getFactionBonus, buildSecondsFor } = require(R + '/src/utils/calculations');
 const F = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const snap = JSON.parse(JSON.stringify(factionsData));
 const argv = process.argv.slice(2);
@@ -36,7 +36,7 @@ function fight(aF, dF, aUnits, dUnits) {
   const e = engineOf(aF || 'ROME');
   const atk = ENGINES > 0 ? [...aUnits, { unitKey: e.key, tier: e.tier, count: ENGINES }] : aUnits;
   const hp = wallHp(dF);
-  return resolveCombatDetailed(atk, dUnits, WALL, 0, 'A', 'D', null, null, aF, dF, 0, null, WALL > 0 ? { hp, maxHp: hp } : null);
+  return resolveCombatDetailed(atk, dUnits, WALL, 'A', 'D', null, null, aF, dF, 0, null, WALL > 0 ? { hp, maxHp: hp } : null);
 }
 const breachOf = r => { const i = r.rounds.findIndex(x => x.wallHp === 0); return i < 0 ? 'r—' : `r${i + 1}`; };
 const cell = r => `${r.attackerWon ? 'ATT' : 'DÉF'} ${pct(r.attackerLossRate)}/${pct(r.defenderLossRate)} ${breachOf(r)}`;
@@ -83,7 +83,8 @@ console.log('\n=== 4. Pillage (résolution par puissance) : multiplicateur de d�
 for (const d of [0, DELTA]) { setDelta(d); console.log((d === 0 ? 'actuel' : `+${DELTA}    `) + ' : ' + F.map(f => { const r = resolveCombat(army('ROME', 100), army('ROME', 100), 0, null, null, { defenderFaction: f }); return `${f} ×${(r.defenderPower / r.attackerPower).toFixed(3)}`; }).join(' | ')); }
 
 console.log('\n=== 5. Économie et logistique : chaque bonus de chaque civilisation ===');
-const hours20 = Array.from({ length: 20 }, (_, i) => 1800 * Math.pow(config.build.timeMultiplierBase, i)).reduce((a, b) => a + b, 0) / 3600;
+// un bâtiment ordinaire (pas un champ ni le Bâtiment principal, plus lents) de 30 min au niveau 1 : temps des 20 niveaux
+const hours20 = Array.from({ length: 20 }, (_, i) => buildSecondsFor({ key: 'BARRACKS', timeL1Sec: 1800 }, i + 1)).reduce((a, b) => a + b, 0) / 3600;
 const t100 = calculateTravelTime(0, 0, 100, 0, 50, null, null, 100);
 // Mur bouclier (siège du 25 octobre 2026, seuls les engins l'abîment depuis le 30 octobre 2026) : un engin frappe le mur
 // une fois par round, de roundDamageFactor × attaque × coefficient de bataille de son palier × engineMult (× « siegeEngineAttack »

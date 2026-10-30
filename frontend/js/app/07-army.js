@@ -918,12 +918,12 @@ async function moveArmy(armyId) {
 }
 
 // Attaque ou raid d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer).
-// Le raid est un harcèlement, pas un revenu (rapport économie, recommandation 11) : petit butin, une fois par jour par ville
+// Le raid est un harcèlement, pas un revenu (rapport économie, recommandation 11) : petit butin, un raid par jour sur une même ville
 function showArmyMissionModal(armyId, mission) {
   const raid = mission === 'RAID';
   document.getElementById('modal-body').innerHTML = `
     <h3>${raid ? 'Raid sur une ville' : 'Attaquer une ville'}</h3>
-    ${raid ? '<p class="diplo-help">Un raid harcèle l\'ennemi : un combat court qui use ses troupes. Le butin reste petit (une part de ce que vos soldats portent, hors cachette) et une même ville ne subit qu\'un raid par jour : ce n\'est pas une source de revenus.</p>' : ''}
+    ${raid ? '<p class="diplo-help">Un raid harcèle l\'ennemi : un combat court qui use ses troupes. Le butin reste petit (au plus une part de ce que vos soldats peuvent porter, hors cachette) et vous ne lancez qu\'un raid par jour sur une même ville : ce n\'est pas une source de revenus.</p>' : ''}
     <p style="margin-bottom:10px;color:var(--text-muted)">Coordonnées de la ville cible</p>
     <input type="number" id="mission-x" placeholder="X" style="width:48%;display:inline-block">
     <input type="number" id="mission-y" placeholder="Y" style="width:48%;display:inline-block">
