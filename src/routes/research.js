@@ -8,7 +8,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, buildingsWithCapital, isId } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, buildingsWithCapital, isId } = require('../utils/db');
 const T = require('../utils/techEffects');
 const { processResearch, startNextQueued, lockResearch } = require('../game/processors/researchProcessor');
 
@@ -108,9 +108,13 @@ router.delete('/:itemId', auth, async (req, res) => {
         byCity.set(q.cityId, own);
       }
       if (!cancelled) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
-      for (const [cityId, own] of byCity) await creditPlayer(tx, item.playerId, cityId, own, cities);
+      const lost = { wood: 0, stone: 0, iron: 0, food: 0 };
+      for (const [cityId, own] of byCity) {
+        const out = await creditPlayer(tx, item.playerId, cityId, own, cities);
+        for (const k of Object.keys(lost)) lost[k] += out.lost[k];
+      }
       await startNextQueued(tx, item.playerId, new Date());
-      return { message: 'Recherche annulée', cancelled, refund };
+      return { message: `Recherche annulée${lostNote(lost)}`, cancelled, refund, lost };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);

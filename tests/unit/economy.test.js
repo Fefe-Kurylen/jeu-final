@@ -42,7 +42,9 @@ test('dépense : refusée seulement si la somme des villes ne suffit pas ; le ma
   assert.deepEqual(plan.tooSmall, []);
   assert.equal(db.missingMessage(plan), `Ressources insuffisantes : il manque ${(100).toLocaleString('fr-FR')} de bois (toutes vos villes comprises)`);
   const both = db.planDebit(cities, 'a', { wood: 1500, stone: 1300 });
-  assert.match(db.missingMessage(both), /il manque 1.200 de bois, 1.000 de pierre \(toutes vos villes comprises\)/);
+  assert.match(db.missingMessage(both), /il manque 1.200 de bois et 1.000 de pierre \(toutes vos villes comprises\)$/);
+  const three = db.planDebit(cities, 'a', { wood: 1500, stone: 1300, food: 400 });
+  assert.match(db.missingMessage(three), /il manque 1.200 de bois, 1.000 de pierre et 100 de nourriture \(/, 'virgules, puis « et » avant le dernier');
 });
 
 test('dépense : un prix plus grand que le stockage de toutes les villes réunies demande plus de capacité (recommandation 14)', () => {
@@ -80,6 +82,13 @@ test('remboursement : la ville jusqu\'à son plafond, puis les autres selon leur
   assert.deepEqual(db.planCredit(over, 'a', { stone: 500 }).credited, { b: { wood: 0, stone: 500, iron: 0, food: 0 } });
 });
 
+test('remboursement : le message dit ce qui n\'a tenu dans aucune ville, rien sinon', () => {
+  assert.equal(db.lostNote({ wood: 0, stone: 0, iron: 0, food: 0 }), '');
+  assert.equal(db.lostNote({ wood: 200, stone: 0, iron: 0, food: 30 }), ' ; plus de place dans vos villes : 200 de bois et 30 de nourriture perdus');
+  const full = [city('a', 1000, { cap: 1000 })];
+  assert.equal(`Construction annulée${db.lostNote(db.planCredit(full, 'a', { iron: 50 }).lost)}`, 'Construction annulée ; plus de place dans vos villes : 50 de fer perdus');
+});
+
 test('creditPlayer : une écriture creditCity par ville créditée (GREATEST : jamais un stock qui baisse)', async () => {
   const tx = fakeTx();
   const out = await db.creditPlayer(tx, 'p1', 'a', { wood: 300 }, [city('a', 900, { cap: 1000 }), city('b', 0, { cap: 1000 })]);
@@ -93,6 +102,11 @@ test('stock de toutes les villes : somme des stocks (arrondie) et des plafonds',
   assert.deepEqual(db.stockTotals([city('a', 100.6, { cap: 1200, foodCap: 2000 }), city('b', 50, { cap: 3000, foodCap: 1000 })]),
     { wood: 150, stone: 150, iron: 150, food: 150, maxStorage: 4200, maxFoodStorage: 3000 });
   assert.deepEqual(db.stockTotals([]), { wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 0, maxFoodStorage: 0 });
+  // 100,6 + 50,6 : 150 comme planDebit (qui prend chaque ville à l'unité près), pas 151
+  const halves = [city('a', 100.6), city('b', 50.6)];
+  assert.equal(db.stockTotals(halves).wood, 150);
+  assert.equal(db.planDebit(halves, 'a', { wood: 151 }).ok, false);
+  assert.equal(db.planDebit(halves, 'a', { wood: 150 }).ok, true);
 });
 
 test('bâtiments d\'une colonie : les siens, et ceux réservés à la capitale lus dans la capitale (une requête)', async () => {
@@ -231,4 +245,52 @@ test('lancer un soin : refus clairs (pas de tente, lits pleins, ressources) et r
   const poor = healDb({ rows: [row], capital: tent(1) });
   await assert.rejects(W.startHealing(poor.tx, 'p1', 'cap', inf.key, 5, [city('cap', 10, { isCapital: true })]), /il manque .* \(toutes vos villes comprises\)/);
   assert.equal(poor.tx.writes.length + poor.updates.length, 0);
+});
+
+test('soins : la fin d\'un soin vient après les soins en cours ; la liste des blessés montre ce délai complet', async () => {
+  const inf = unit('ROME', 'INFANTRY', 'base');
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  assert.equal(W.healEndsAt(0, inf, 10, tent(1), now).getTime(), now + 360 * 1000, 'tente libre : 10 × 36 s');
+  assert.equal(W.healEndsAt(now + 3600000, inf, 10, tent(1), now).getTime(), now + 3600000 + 360 * 1000, 'après l\'heure de soins déjà lancée');
+  // GET /wounded : 150 lits libres sur 200 à la tente 1, une heure de soins en cours
+  const prisma = require('../../src/config/database');
+  const busy = new Date(Date.now() + 3600000);
+  const saved = { woundedUnit: prisma.woundedUnit, city: prisma.city };
+  Object.assign(prisma, {
+    woundedUnit: { findMany: async ({ where }) => (where.count ? [{ count: 50, healsAt: busy }] : [{ id: 'w1', cityId: 'col', unitKey: inf.key, count: 0, waiting: 300, healsAt: W.NO_HEAL, city: { name: 'Colonie' } }]) },
+    city: { findFirst: async () => ({ buildings: tent(1) }) }
+  });
+  try {
+    const [row] = await W.woundedView('p1');
+    assert.equal(row.cityName, 'Colonie');
+    assert.equal(row.healable, 150);
+    assert.deepEqual(row.healCost, W.healCostFor(inf, 150));
+    assert.ok(Math.abs(row.healSeconds - (3600 + 150 * 36)) <= 2, `${row.healSeconds} s : l'heure en cours, puis 150 × 36 s`);
+    assert.equal(row.instantGold, 0, 'personne au lit : pas de soin à l\'or');
+  } finally { Object.assign(prisma, saved); }
+});
+
+// ---- convoi d'une route commerciale : verrous dans l'ordre des id, comme lockPlayerCities ----
+test('livraison d\'un convoi : les villes d\'arrivée et de départ sont verrouillées dans l\'ordre des id (pas d\'interblocage avec une dépense)', async () => {
+  const prisma = require('../../src/config/database');
+  const MS = require('../../src/services/marketService');
+  const locks = [], credits = [];
+  const cities = { 'a-from': { id: 'a-from', playerId: 'p1', wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 5000, maxFoodStorage: 5000 }, 'b-to': { id: 'b-to', playerId: 'p1', wood: 900, stone: 0, iron: 0, food: 0, maxStorage: 1000, maxFoodStorage: 1000 } };
+  const tx = {
+    tradeConvoy: { deleteMany: async () => ({ count: 1 }) },
+    city: { findUnique: async ({ where }) => cities[where.id] || null, findFirst: async ({ where }) => cities[where.id] || null },
+    $queryRaw: async (strings, ...values) => { locks.push(values[0]); return []; },
+    $executeRaw: async (strings, ...values) => { credits.push([values[0], values.at(-1)]); return 1; }
+  };
+  const saved = { tradeRoute: prisma.tradeRoute, tradeConvoy: prisma.tradeConvoy, $transaction: prisma.$transaction };
+  Object.assign(prisma, {
+    tradeRoute: { findMany: async () => [] },
+    tradeConvoy: { findMany: async () => [{ id: 'cv1', playerId: 'p1', fromCityId: 'a-from', toCityId: 'b-to', wood: 300, stone: 0, iron: 0, food: 0 }] },
+    $transaction: async (fn) => fn(tx)
+  });
+  try {
+    await MS.processTradeRoutes(new Date());
+    assert.deepEqual(locks, ['a-from', 'b-to'], 'ordre des id, pas l\'ordre arrivée puis départ');
+    assert.deepEqual(credits, [[100, 'b-to'], [200, 'a-from']], '100 tiennent à l\'arrivée, 200 reviennent au départ');
+  } finally { Object.assign(prisma, saved); }
 });

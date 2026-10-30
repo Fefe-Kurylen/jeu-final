@@ -145,14 +145,15 @@ const RES_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourritur
 const playerStock = () => currentCity?.playerStock || {};
 const stockOf = (res) => playerStock()[res] || 0;
 const canPayCost = (cost) => !!cost && RES_KEYS.every(r => stockOf(r) >= (cost[r] || 0));
-// Pourquoi un prix ne passe pas, comme le message du serveur (recommandation 14) : stockage de toutes les villes trop petit,
-// sinon ce qui manque ; '' si le joueur peut payer
+// Pourquoi un prix ne passe pas, comme le message du serveur (utils/db.js missingMessage, recommandation 14) : stockage de
+// toutes les villes trop petit, sinon ce qui manque (« 100 de bois et 1000 de fer ») ; '' si le joueur peut payer
 function costShortfall(cost) {
   if (canPayCost(cost)) return '';
   const total = playerStock();
   const tooSmall = RES_KEYS.filter(r => (cost[r] || 0) > ((r === 'food' ? total.maxFoodStorage : total.maxStorage) || 0));
-  if (tooSmall.length) return `Stockage trop petit (${tooSmall.map(r => RES_NAMES[r]).join(', ')}) : il faut plus de Dépôt ou de Silo`;
-  return `Il manque ${RES_KEYS.filter(r => stockOf(r) < (cost[r] || 0)).map(r => `${formatNum(Math.ceil(cost[r] - stockOf(r)))} de ${RES_NAMES[r]}`).join(', ')}`;
+  if (tooSmall.length) return `Stockage trop petit (${tooSmall.map(r => RES_NAMES[r]).join(', ')}) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie)`;
+  const parts = RES_KEYS.filter(r => stockOf(r) < (cost[r] || 0)).map(r => `${formatNum(Math.ceil(cost[r] - stockOf(r)))} de ${RES_NAMES[r]}`);
+  return `Il manque ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} et ${parts.at(-1)}` : parts[0]}`;
 }
 // Entretien d'une unité (céréales par heure) : le réglage du serveur (config.army.upkeepPerTier, /api/player/me)
 function unitUpkeep(unit) {

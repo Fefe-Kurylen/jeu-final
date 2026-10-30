@@ -97,12 +97,22 @@ async function debitPlayer(tx, playerId, cityId, cost, cities = null) {
   return plan;
 }
 
-// Message clair quand la somme des villes ne suffit pas
+// Des quantités en toutes lettres : « 1 200 de bois et 300 de fer » ('' si rien)
 const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
+function resourceList(amounts) {
+  const parts = RESOURCES.filter(r => amounts?.[r] > 0).map(r => `${Math.ceil(amounts[r]).toLocaleString('fr-FR')} de ${RES_FR[r]}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} et ${parts.at(-1)}` : parts.join('');
+}
+// Message clair quand la somme des villes ne suffit pas
 function missingMessage(result) {
   if (result.tooSmall?.length) return `Stockage trop petit (${result.tooSmall.map(r => RES_FR[r]).join(', ')}) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie)`;
-  const parts = RESOURCES.filter(r => result.missing?.[r] > 0).map(r => `${Math.ceil(result.missing[r]).toLocaleString('fr-FR')} de ${RES_FR[r]}`);
-  return parts.length ? `Ressources insuffisantes : il manque ${parts.join(', ')} (toutes vos villes comprises)` : 'Ressources insuffisantes';
+  const list = resourceList(result.missing);
+  return list ? `Ressources insuffisantes : il manque ${list} (toutes vos villes comprises)` : 'Ressources insuffisantes';
+}
+// Fin du message d'un remboursement (creditPlayer) quand une part n'a tenu dans aucune ville ('' sinon)
+function lostNote(lost) {
+  const list = resourceList(lost);
+  return list ? ` ; plus de place dans vos villes : ${list} perdus` : '';
 }
 
 // Répartition d'un gain (pur, testable) : la ville `cityId` jusqu'à son plafond, puis les autres villes du joueur, celle
@@ -136,10 +146,10 @@ async function creditPlayer(tx, playerId, cityId, gain, cities = null) {
 }
 
 // Stock et plafonds réunis de toutes les villes d'un joueur (barre de ressources, boutons du client)
+// (chaque stock compté à l'unité près, comme planDebit : le client et le serveur tombent d'accord sur ce qui se paie)
 function stockTotals(cities) {
   const t = { wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 0, maxFoodStorage: 0 };
-  for (const c of cities || []) for (const k of Object.keys(t)) t[k] += Number(c[k]) || 0;
-  for (const r of RESOURCES) t[r] = Math.floor(t[r]);
+  for (const c of cities || []) for (const k of Object.keys(t)) t[k] += Math.floor(Number(c[k]) || 0);
   return t;
 }
 
@@ -205,4 +215,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, stockTotals, capitalBuildingsOf, buildingsWithCapital, plunderCity, claimNode, takeFromNode, transition, isId };
+module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, plunderCity, claimNode, takeFromNode, transition, isId };

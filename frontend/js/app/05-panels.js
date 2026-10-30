@@ -1336,7 +1336,7 @@ async function cancelBuild(itemId, running) {
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/build/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json().catch(() => ({}));
-    showToast(res.ok ? 'Construction annulée' : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
+    showToast(res.ok ? (data.message || 'Construction annulée') : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
     if (res.ok) { await loadCities(); renderCity(); }
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }
@@ -1346,7 +1346,7 @@ async function cancelRecruit(itemId) {
   try {
     const res = await fetch(`${API}/api/city/${currentCity.id}/recruit/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json().catch(() => ({}));
-    showToast(res.ok ? 'Recrutement annulé' : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
+    showToast(res.ok ? (data.message || 'Recrutement annulé') : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
     if (res.ok) { await loadCities(); renderCity(); }
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }

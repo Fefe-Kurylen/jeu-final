@@ -160,7 +160,9 @@ async function deliverConvoy(c) {
     const to = await tx.city.findUnique({ where: { id: c.toCityId } });
     const target = to && to.playerId === c.playerId ? to : await tx.city.findFirst({ where: { id: c.fromCityId, playerId: c.playerId } });
     if (!target) return false;
-    await lockCity(tx, target.id);
+    // ville d'arrivée et ville de départ (le surplus y revient), dans l'ordre des id comme lockPlayerCities : pas
+    // d'interblocage avec une dépense qui verrouille toutes les villes du joueur
+    for (const id of [...new Set([target.id, c.fromCityId])].sort()) await lockCity(tx, id);
     const fresh = await tx.city.findUnique({ where: { id: target.id } });
     // ce qui ne tient pas dans l'entrepôt d'arrivée revient à la ville de départ
     const kept = {}, back = {};

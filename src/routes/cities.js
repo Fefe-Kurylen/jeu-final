@@ -8,7 +8,7 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
-const { lockCity, lockPlayerCities, debitPlayer, creditPlayer, missingMessage, stockTotals, capitalBuildingsOf, isId } = require('../utils/db');
+const { lockCity, lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, isId } = require('../utils/db');
 const { getRelation, sameAllianceAs, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
@@ -329,9 +329,9 @@ router.delete('/:id/build/:itemId', auth, async (req, res) => {
         const part = scaleCost(def ? scaleCost(buildCostFor(def, q.targetLevel), techMult) : { wood: 0, stone: 0, iron: 0, food: 0 }, q.status === 'QUEUED' ? 1 : 0.5);
         for (const k of Object.keys(refund)) refund[k] += part[k];
       }
-      await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
+      const { lost } = await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
       await promoteQueued(tx, city.id, new Date());
-      return { message: 'Construction annulée', cancelled: toCancel.length, refund };
+      return { message: `Construction annulée${lostNote(lost)}`, cancelled: toCancel.length, refund, lost };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
@@ -353,7 +353,7 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
       const unit = unitsData.find(u => u.key === item.unitKey);
       const paidCost = item.unitKey === 'SETTLER' ? scaleCost(fx.settlerCost(), item.count) : unit ? recruitCostFor(unit, item.count) : { wood: 0, stone: 0, iron: 0, food: 0 };
       const refund = scaleCost(paidCost, 0.5);
-      await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
+      const { lost } = await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
       // the batches after it move up by the time it still occupied (all of it if it had not started, what was left of it
       // if it was training), start and end together: their own length, siege pauses included, is kept
       const nowMs = Date.now();
@@ -367,7 +367,7 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
         const start = new Date(q.startedAt).getTime(), end = new Date(q.endsAt).getTime();
         await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(Math.max(floor, start - shiftMs)), endsAt: new Date(Math.max(floor, end - shiftMs)) } });
       }
-      return { message: 'Recrutement annulé', refund };
+      return { message: `Recrutement annulé${lostNote(lost)}`, refund, lost };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);

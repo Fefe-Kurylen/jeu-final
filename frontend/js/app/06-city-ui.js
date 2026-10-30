@@ -16,7 +16,7 @@ function healingTabHtml(level) {
           <div class="special-tab-content">
             <h4>${resIconHtml('endurance')} Tente de soins</h4>
             <p>${rate} % des pertes de toutes vos villes reviennent blessées${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}. Un blessé attend qu'on paie son soin, et mange en attendant comme un soldat.</p>
-            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} or par unité (base / intermédiaire / élite et engins).</p>
+            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} / ${gold.siege} or par unité (base / intermédiaire / élite / engins).</p>
             <p style="font-size:11px">Capacité : <strong>${formatNum(level * (W.bedsPerLevel || 0))}</strong> lits pour toutes vos villes.</p>
             <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
           </div>
@@ -73,7 +73,7 @@ function renderWounded(wounded) {
           <span class="wounded-icon">${resIconHtml('endurance')}</span>
           <span class="wounded-count">${w.waiting}x ${escapeHtml(w.unitName || w.unitKey)}${where} en attente</span>
           ${w.healable > 0
-            ? `<span class="wounded-time">${healCostHtml(w.healCost)} · ${formatDuration(w.healSeconds)}</span>
+            ? `<span class="wounded-time" title="Guéris dans ${formatDuration(w.healSeconds)}, après les soins en cours">${healCostHtml(w.healCost)} · ${formatDuration(w.healSeconds)}</span>
           <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}')" title="${costShortfall(w.healCost) || `Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}`}">Soigner ${w.healable}</button>`
             : '<span class="wounded-time">tous les lits sont pris</span>'}
         </div>` : '';

@@ -195,7 +195,11 @@ test('économie : coût, durée, réduction de la capitale et entretien comme le
   assert.equal(vm.runInContext('canPayCost({ wood: 600 })', ctx), false);
   // message du bouton (recommandation 14) : ce qui manque, ou un stockage trop petit pour le prix
   assert.equal(vm.runInContext('costShortfall({ wood: 400 })', ctx), '');
-  assert.equal(vm.runInContext('costShortfall({ wood: 600, iron: 1500 })', ctx), 'Il manque 100 de bois, 1000 de fer');
-  assert.match(vm.runInContext('costShortfall({ wood: 600, food: 2500 })', ctx), /^Stockage trop petit \(nourriture\)/);
+  assert.equal(vm.runInContext('costShortfall({ wood: 600, iron: 1500 })', ctx), 'Il manque 100 de bois et 1000 de fer');
+  assert.equal(vm.runInContext('costShortfall({ wood: 600, stone: 501, iron: 1500 })', ctx), 'Il manque 100 de bois, 1 de pierre et 1000 de fer');
+  assert.equal(vm.runInContext('costShortfall({ food: 501 })', ctx), 'Il manque 1 de nourriture');
+  // même message que le serveur quand le prix dépasse le stockage de toutes les villes
+  const db = require('../../src/utils/db');
+  assert.equal(vm.runInContext('costShortfall({ wood: 600, food: 2500 })', ctx), db.missingMessage({ tooSmall: ['food'] }));
   assert.deepEqual(['base', 'intermediate', 'elite', 'siege'].map(t => vm.runInContext(`unitUpkeep({ tier: '${t}' })`, ctx)), [5, 9, 13, 15]);
 });
