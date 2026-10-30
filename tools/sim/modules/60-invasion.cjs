@@ -313,8 +313,9 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
     if (targeted.has(n.nodeId) || !(n.power > 0)) continue;
     const p = plan(n, n.power * g.margin);
     if (!p.solo && !p.group) continue;
-    // le trésor au plus près : ce qu'il reste à abattre (étage en cours et suivants), un donjon presque fini d'abord
-    const score = treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (n.floor === 3 ? 1.3 : 1) - p.march / 600000;
+    // le trésor au plus près : ce qu'il reste à abattre (étage en cours et suivants), un donjon presque fini d'abord, le
+    // plus haut niveau que l'alliance peut battre (objet plus probable au dernier coup)
+    const score = treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (n.floor === 3 ? 1.3 : 1) * (1 + 0.2 * (n.level - 1)) - p.march / 600000;
     if (!target || score > target.score) target = { n, score };
   }
   if (!target) { bump(m, 'noTarget'); return; }
@@ -332,7 +333,8 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   if (o.rows.length) await fill(bot, B, m, o);
   if (B.left() < 1 || !countOf(army.units)) return;
   const power = powerOf(army.units);
-  const solo = power >= need && p.solo && (joinPot < need * 0.5 || ctx.rand() < 0.5);
+  // assez fort seul : il part seul s'il n'attend personne, sinon une fois sur quatre (l'alliance se rassemble d'habitude)
+  const solo = power >= need && p.solo && (joinPot < need * 0.25 || ctx.rand() < 0.25);
   if (!solo && power + joinPot < need) { bump(m, 'tooWeak'); return; }
   const close = joiners.length > 0 && joiners.every(x => x.secs < 1200);
   const wait = solo ? 5 : (close && ctx.rand() < 0.2 ? 30 : 60);

@@ -47,6 +47,7 @@ const SUPPORT_RANGE = 120;
 const WAVE_MAX = 6;              // armées par vague
 const SPY_FRESH_H = 30;          // un rapport sert pendant 30 h (raids) ; le conseil veut des défenses de moins de 24 h
 const BASTION_GAP = 40;          // pas entre deux opérations contre le Bastion ennemi (10 jours)
+let STEP_H = 6;                  // heures par pas (ctx.OPT.stepHours)
 
 // ---------- petites aides ----------
 const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -75,6 +76,9 @@ function recruitCost(unit, n) {
 }
 const buildCost = (key, level) => { const base = buildingsData.find(b => b.key === key)?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 }; const m = Math.pow(config.build.costMultiplierBase, level - 1); return Object.fromEntries(RES.map(r => [r, Math.floor((base[r] || 0) * m)])); };
 const rallyCapacity = (rp) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rp) - 1) * 12 / 19)));
+
+// connecté à ce pas : le joueur joue un pas sur deux (bot.turn), comme le harnais
+const online = (ctx, b) => !!b.mem?.alwaysOn || (ctx.step + (b.turn || 0)) % 2 === 0;
 
 // rôle du joueur (stable : tiré du nom)
 function roleOf(bot) {
@@ -413,6 +417,7 @@ async function raidTurn(bot, ctx, v, m, B, cap) {
   if (!r.ok) { m.nr = ctx.step + 2; return; }
   ost.status = 'RAIDING';
   bump(m, 'raids'); bump(m, 'raidLootEst', Math.round(best.est.loot));
+  if (bot.group === 'SOLO') bump(m, 'soloRaids');
   m.nr = ctx.step + (role === 'raider' ? 6 : 3);
 }
 
@@ -472,7 +477,9 @@ async function alerts(ctx, v) {
     const fightAt = Math.min(...camps.map(c => new Date(c.arrivalAt).getTime()));
     let need = campPowerSeen(camps) * 1.3;
     let sent = 0;
-    const helpers = ctx.bots.filter(b => b.playerId && (b.playerId === city.playerId || v.friend(b.playerId, city.playerId)) && camps.some(c => v.canAttack(b.playerId, c.ownerId)));
+    // qui répond : les joueurs connectés à ce pas ; le propriétaire, prévenu sur son téléphone, une fois sur deux sinon
+    const ownerAwake = ctx.rand() < 0.5;
+    const helpers = ctx.bots.filter(b => b.playerId && (b.playerId === city.playerId || v.friend(b.playerId, city.playerId)) && camps.some(c => v.canAttack(b.playerId, c.ownerId)) && (online(ctx, b) || (b.playerId === city.playerId && ownerAwake)));
     // la ville elle-même d'abord (sortie), puis les plus proches
     const options = [];
     for (const b of helpers) {
@@ -496,6 +503,7 @@ async function alerts(ctx, v) {
       sent++; BREAKS.set(cityId, (BREAKS.get(cityId) || 0) + 1);
       bump(m, o.sortie ? 'sorties' : 'breakSieges');
     }
+    if (!helpers.length) { const K = stats(ctx); K.breakNobodyOnline = (K.breakNobodyOnline || 0) + 1; }
     if (!sent) for (const b of helpers) { const m = memOf(b, v); bump(m, 'breakTooWeak'); break; }
   }
   // Bastions assiégés : sortie de la garnison, ou armée du dehors
@@ -504,7 +512,7 @@ async function alerts(ctx, v) {
     if (!camps.length || budget.left <= 0) continue;
     const fightAt = Math.min(...camps.map(c => new Date(c.arrivalAt).getTime()));
     const need = campPowerSeen(camps) * 1.3;
-    const members = ctx.bots.filter(x => x.playerId && v.allianceOf.get(x.playerId) === b.allianceId);
+    const members = ctx.bots.filter(x => x.playerId && v.allianceOf.get(x.playerId) === b.allianceId && online(ctx, x));
     const options = [];
     for (const x of members) {
       for (const a of (v.armiesOf.get(x.playerId) || [])) if (a.status === 'STATIONED' && a.targetBastionId === b.id && !a.claimedAt && soldiersOf(a.units) > 0) options.push({ b: x, army: a, sortie: true, p: powerOf(a.units) });
@@ -544,7 +552,7 @@ async function supports(ctx, v) {
     const city = v.cityById.get(x.targetCityId);
     if (!city || city.isSieged) continue;
     const arrival = new Date(x.arrivalAt).getTime();
-    const helpers = ctx.bots.filter(b => b.playerId && b.playerId !== city.playerId && ['SAME', 'ALLY'].includes(v.rel(b.playerId, city.playerId)) && v.canAttack(b.playerId, x.ownerId));
+    const helpers = ctx.bots.filter(b => b.playerId && b.playerId !== city.playerId && online(ctx, b) && ['SAME', 'ALLY'].includes(v.rel(b.playerId, city.playerId)) && v.canAttack(b.playerId, x.ownerId));
     const options = [];
     for (const b of helpers) {
       for (const r of readyArmies(v, b, c => !c.isSieged)) {
@@ -572,13 +580,23 @@ async function supports(ctx, v) {
 
 // ---------- conseil de guerre : sièges des villes ennemies ----------
 // bataille simulée avec la formule du jeu (mur bouclier), sur ce que les espions et les rapports ont vu
-function simulateSiege(v, target, intel, attackers, attackerFaction, hoursAhead = 7) {
+// Une vague lancée au pas s campe au tick s+1 (le camp commence à l'heure du tick) et combat au tick s+2 (12 h plus tard) ;
+// les vies remontent de 1/48 par heure, au tick, avant les combats. `state` : l'état prévu au combat quand une vague de
+// l'alliance doit combattre avant celle-ci ({ structure, troops } d'après la bataille simulée de cette vague).
+const livesOfCity = (c) => (c.isCapital ? config.combat.fall.assaults.capital : config.combat.fall.assaults.secondary) + (config.combat.fall.extraAssaults[String(c.player?.faction || '').toUpperCase()] || 0);
+const REGEN_STEP = (h) => h / config.combat.fall.regenHours;
+function simulateSiege(v, target, intel, attackers, attackerFaction, state = null) {
   const wallLevel = intel?.wall?.level ?? wallLevelOf(target);
   const maxHp = intel?.wall?.maxHp || wallLevel * config.combat.wallHpPerLevel;
-  const structure = Math.min(1, Math.round((target.wallStructure ?? 1) * 10) / 10 + hoursAhead / config.combat.fall.regenHours);   // la fumée sur la carte, par dixièmes
-  const defenders = scale(merge(intel?.troops || []), 1.3);
+  const seen = Math.round((target.wallStructure ?? 1) * 10) / 10;   // la fumée sur la carte, par dixièmes
+  const structure = state ? Math.min(1, state.structure) : Math.min(1, seen + (seen < 1 ? REGEN_STEP(2 * STEP_H) : 0));
+  const defenders = scale(merge(state ? state.troops : (intel?.troops || [])), 1.3);
   const res = combat().resolveCombatDetailed(merge(attackers), defenders, wallLevel, intel?.wall?.moat || 0, 'a', 'd', null, null, attackerFaction, target.player?.faction || null, intel?.wall?.defBonus || 0, null, wallLevel > 0 ? { hp: maxHp * structure, maxHp } : null);
-  return { won: res.attackerWon, wallEnd: res.wallHpEnd, wallStart: res.wallHpStart, rounds: res.rounds.length };
+  // l'état de la ville après cette bataille, si elle est gagnée : une vie de moins, la garnison qui reste
+  const n = livesOfCity(target);
+  const after = Math.max(0, structure - 1 / n);
+  const left = res.defenderFinalUnits.map(u => ({ unitKey: u.key, count: Math.round(u.remaining / 1.3) })).filter(u => u.count > 0);
+  return { won: res.attackerWon, wallEnd: res.wallHpEnd, wallStart: res.wallHpStart, rounds: res.rounds.length, structure, after, fall: res.attackerWon && after <= 0.5 / n + 1e-9, left };
 }
 
 // un guerrier prêt : armée chez elle dans la capitale (où sont les engins), à portée de la cible
@@ -613,7 +631,7 @@ function chooseTarget(ctx, v, g, alId, enemies, wm) {
     const wallHp = wallLevelOf(c) * config.combat.wallHpPerLevel * (c.wallStructure ?? 1);
     const e = intelOf(alId, c.id);
     const def = e?.troops ? powerOf(e.troops) : 30000;
-    const score = (c.isCapital ? 2.5 : 1) * (wallHp + 3000) * (def + 15000) * (1 + (near[0] + near[1]) / 200);
+    const score = (c.isCapital ? 4 : 1) * (wallHp + 3000) * (def + 15000) * (1 + (near[0] + near[1]) / 200);
     if (!best || score < best.score) best = { c, score };
   }
   return best ? best.c : null;
@@ -672,43 +690,34 @@ async function council(ctx, v, S, g) {
   // une vague par pas au plus : les vies remontent (une colonie retrouve une vie en 24 h, une capitale en 12 h), deux
   // victoires doivent se suivre de près (les vagues de deux pas voisins combattent à 6 h d'écart)
   if (ctx.step - (camp.lw ?? -99) < 1) return;
+  // Une vague lancée au pas s combat au tick s+2. Une colonie ne tombe que si deux victoires se suivent de près (sa vie
+  // perdue remonte en 24 h) : la vague lancée au pas précédent n'a pas encore combattu, la suivante (un tick plus tard)
+  // vise l'état prévu après elle (une vie de moins, la garnison qui reste) ; les guerriers de l'alliance restent en ville
+  // entre-temps (pas de raid), pour former cette seconde vague.
+  const prev = camp.pw && camp.pw.s === ctx.step - 1 ? camp.pw : null;
+  if (prev?.fall) return;   // la vague en route doit suffire à faire tomber la ville
+  const state = prev ? { structure: Math.min(1, prev.after + REGEN_STEP(STEP_H)), troops: prev.left || [] } : null;
   const cands = siegeCandidates(ctx, v, g, target);
   // une vague doit gagner la bataille simulée et peser plus que la plus forte armée ennemie venue briser nos sièges
-  // (apprise des rapports : wm.foe, qui s'oublie lentement). Une colonie ne tombe que si deux victoires se suivent de
-  // près (sa vie perdue remonte en 24 h) : quand il y a assez d'armées, le conseil forme deux vagues, la seconde part au
-  // pas suivant (les batailles tombent à 6 h d'écart) ; l'alliance garde ses armées en ville entre-temps (pas de raid).
+  // (apprise des rapports : wm.foe, qui s'oublie lentement)
   const foe = wm.foe || 0;
   const pick = (pool, need) => {
     const ch = []; let p = 0, sm = null;
     for (const c of pool.slice(0, WAVE_MAX)) {
       ch.push(c); p += powerOf(c.units);
-      sm = simulateSiege(v, target, intel, ch.flatMap(x => x.units), ch[0].b.faction);
+      sm = simulateSiege(v, target, intel, ch.flatMap(x => x.units), ch[0].b.faction, state);
       if (sm.won && p >= need) return { ch, sim: sm, power: p };
     }
     return null;
   };
-  const ours = (a) => v.allianceOf.get(a.ownerId) === alId;
-  const pending = v.camps.some(c => c.targetCityId === target.id && ours(c));
-  const wounded = (target.wallStructure ?? 1) < 0.95;
-  let plan = null, kind = 'main';
-  if (camp.nx && ctx.step <= (camp.nxs ?? -9) + 1) {
-    plan = pick(cands.filter(c => camp.nx.includes(c.army.id)), 0.8 * foe);
-    if (plan) kind = 'second';
-    delete camp.nx;
-  }
+  const kind = prev ? 'followUp' : (target.wallStructure ?? 1) < 0.95 ? 'wounded' : 'main';
+  const plan = pick(cands, (kind === 'main' ? 1.1 : 0.9) * foe);
   if (!plan) {
-    kind = pending || wounded ? 'followUp' : 'main';
-    plan = pick(cands, (kind === 'main' ? 1.1 : 0.9) * foe);
-    if (!plan) {
-      camp.idle++;
-      bump(wm, !cands.length ? 'waveNoArmy' : pick(cands, 0) ? 'waveFearBreak' : 'waveTooWeak');
-      return;
-    }
-    if (kind === 'main') {
-      const second = pick(cands.filter(c => !plan.ch.includes(c)), 0.8 * foe);
-      if (second) { camp.nx = second.ch.map(c => c.army.id); camp.nxs = ctx.step + 1; wm.muster = Math.max(wm.muster || 0, ctx.step + 2); bump(wm, 'doubleWaves'); }
-    }
+    camp.idle++;
+    bump(wm, !cands.length ? 'waveNoArmy' : pick(cands, 0) ? 'waveFearBreak' : prev ? 'followUpTooWeak' : 'waveTooWeak');
+    return;
   }
+  if (!plan.sim.fall && cands.length > plan.ch.length) wm.muster = Math.max(wm.muster || 0, ctx.step + 2);
   const chosen = plan.ch, sim = plan.sim;
   // partir : les engins de la garnison montent dans l'armée, puis l'attaque (les camps arrivent au même tick)
   let launched = 0, eng = 0, sold = 0;
@@ -733,7 +742,9 @@ async function council(ctx, v, S, g) {
   }
   if (!launched) { camp.idle++; return; }
   camp.w = (camp.w || 0) + 1; camp.lw = ctx.step; camp.idle = 0;
-  ctx.event('siege_wave', { alliance: tag, city: target.name, owner: target.player?.name, capital: target.isCapital, wave: kind, armies: launched, power: Math.round(plan.power), foe, engines: eng, soldiers: sold, wall: sim.wallStart != null ? Math.round(sim.wallStart) : null, predicted: sim.won ? 'win' : 'loss' });
+  camp.pw = { s: ctx.step, after: Math.round(sim.after * 1000) / 1000, fall: sim.fall, left: sim.left.slice(0, 10) };
+  if (prev) bump(wm, 'followUpWaves');
+  ctx.event('siege_wave', { alliance: tag, city: target.name, owner: target.player?.name, capital: target.isCapital, wave: kind, armies: launched, power: Math.round(plan.power), foe, engines: eng, soldiers: sold, wall: sim.wallStart != null ? Math.round(sim.wallStart) : null, structure: Math.round(sim.structure * 100) / 100, predicted: sim.fall ? 'fall' : sim.won ? 'win' : 'loss' });
 }
 
 // ---------- le Bastion ennemi : rassemblement d'alliance ou siège seul, de loin en loin ----------
@@ -1015,11 +1026,13 @@ async function afterStep(ctx) {
     let v;
     try { v = await snapshot(ctx, true); } catch (e) { fail(ctx, 'snapshot', e); return; }
     if (v.ended) return;
+    STEP_H = ctx.OPT.stepHours || 6;
     const S = { left: STEP_CALLS };
+    // les rapports de bataille du tick d'abord : le conseil décide sur la garnison qui reste et les vies perdues
+    try { await bookkeeping(ctx, v); } catch (e) { fail(ctx, 'bookkeeping', e); }
     for (const g of ['A', 'B']) { try { await council(ctx, v, S, g); } catch (e) { fail(ctx, `council ${g}`, e); } }
     for (const g of ['A', 'B']) { try { await bastionOps(ctx, v, S, g); } catch (e) { fail(ctx, `bastion ${g}`, e); } }
     try { await supports(ctx, v); } catch (e) { fail(ctx, 'supports', e); }
-    try { await bookkeeping(ctx, v); } catch (e) { fail(ctx, 'bookkeeping', e); }
     const total = Math.round(ctx.OPT.days * 24 / ctx.OPT.stepHours);
     if (ctx.step % 28 === 0 || ctx.step === total) { try { await summary(ctx, v); } catch (e) { fail(ctx, 'summary', e); } }
   }

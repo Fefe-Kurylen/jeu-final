@@ -786,7 +786,7 @@ const _mapObjectsOrder = [];   // fiches des objets à dessiner, tableau réutil
 // bateaux, nuages : 5 à 9 images par seconde) : une fois la vue immobile, ils sont dessinés une fois dans un canvas à part,
 // recopié ensuite à chaque image. Pendant un geste (la vue change à chaque image), dessin direct, sans copie de plus.
 // Les objets (villes, points, armées) et leurs étiquettes restent dessinés à chaque image, dans leur ordre.
-let mapStaticCanvas = null, mapStaticKey = '', mapStaticPrevKey = '', mapStaticVersion = 0;
+let mapStaticCanvas = null, mapStaticKey = '', mapStaticPrevKey = '', mapStaticVersion = 0, mapStaticFailUntil = 0;
 // Autre chose que l'animation a changé (image chargée, vue, données) : la couche fixe et l'empreinte du sol sont refaites
 function invalidateMapStatic() { mapStaticVersion++; forgetMapGroundSignature(); }
 // En quittant la carte (releaseMapGround) : la mémoire de la couche est rendue
@@ -800,19 +800,26 @@ function mapStaticLayerCtx(w, h, scale) {
   if (!mapStaticCanvas) mapStaticCanvas = document.createElement('canvas');
   if (mapStaticCanvas.width !== pw || mapStaticCanvas.height !== ph) { mapStaticCanvas.width = pw; mapStaticCanvas.height = ph; }
   const g = mapStaticCanvas.getContext('2d');
-  if (!g) { releaseMapStatic(); return null; }
+  if (!g) { releaseMapStatic(); mapStaticFailUntil = performance.now() + 2000; return null; }   // nouvel essai dans 2 s
   g.setTransform(scale, 0, 0, scale, 0, 0);
   return g;
+}
+// Copie de la couche pixel pour pixel (sans rééchantillonnage quand la densité de l'écran n'est pas entière, ex. 2,625)
+function blitMapStatic() {
+  mapCtx.save();
+  mapCtx.setTransform(1, 0, 0, 1, 0, 0);
+  mapCtx.drawImage(mapStaticCanvas, 0, 0, mapCanvas.width, mapCanvas.height);
+  mapCtx.restore();
 }
 function drawMapStaticLayer(worldToScreen, w, h, tileW, tileH, night) {
   const scale = canvasScale();
   // tout ce dont dépend la couche ; _mapObjectsSig porte aussi la carte du serveur (Terrain.epoch) et les sprites chargés
   const key = [mapOffsetX, mapOffsetY, mapZoomLevel, w, h, scale, night ? 1 : 0, showMapGrid ? 1 : 0, _mapObjectsSig, mapStaticVersion].join('|');
-  if (mapStaticCanvas && key === mapStaticKey) { mapCtx.drawImage(mapStaticCanvas, 0, 0, w, h); return; }
+  if (mapStaticCanvas && key === mapStaticKey) { blitMapStatic(); return; }
   const still = key === mapStaticPrevKey;   // même vue qu'à l'image précédente : la couche vaut d'être gardée
   mapStaticPrevKey = key;
   mapStaticKey = '';
-  const layer = still ? mapStaticLayerCtx(w, h, scale) : null;
+  const layer = still && performance.now() >= mapStaticFailUntil ? mapStaticLayerCtx(w, h, scale) : null;
   const main = mapCtx;
   let complete = false;
   if (layer) mapCtx = layer;
@@ -822,7 +829,7 @@ function drawMapStaticLayer(worldToScreen, w, h, tileW, tileH, night) {
     mapCtx = main;
   }
   if (!layer) return;
-  mapCtx.drawImage(mapStaticCanvas, 0, 0, w, h);
+  blitMapStatic();
   if (complete) mapStaticKey = key;   // sol encore incomplet (morceaux en cours, zoom étiré) : refaite à l'image suivante
 }
 // Contenu de la couche fixe : fond, sol, grille, chemins, puis les éléments posés des cases visibles de haut en bas (les
@@ -866,7 +873,8 @@ let _mapObjectsSig = '';
 function rebuildMapObjectCells() {
   let hsh = 0, n = 0;
   const mix = (kind, x, y) => { hsh = Math.imul(hsh ^ kind, 0x9e3779b1); hsh = Math.imul(hsh ^ (x | 0), 0x85ebca6b); hsh = Math.imul(hsh ^ (y | 0), 0xc2b2ae35); n++; };
-  for (const o of mapData) if (o.type === 'RESOURCE') mix(1, o.x, o.y); else if (isMapBlock(o)) mix(2, o.x, o.y);
+  // ville et Bastion à part : seules les villes ont champs et chemin (rebuildMapCityRings)
+  for (const o of mapData) if (o.type === 'RESOURCE') mix(1, o.x, o.y); else if (isMapBlock(o)) mix(o.type === 'CITY' ? 2 : 3, o.x, o.y);
   for (const c of cities) mix(2, c.x, c.y);
   const sig = Terrain.epoch + ':' + (tilesetLoaded ? 1 : 0) + ':' + n + ':' + hsh;
   if (sig === _mapObjectsSig) return;
@@ -2535,15 +2543,19 @@ function onMapMouseDown(e) {
 
 // Use requestAnimationFrame to batch map renders. includeMinimapAndUI : la vue, les données ou les images ont changé (pas
 // seulement l'animation) : la couche fixe de la carte est refaite
-let mapRenderScheduled = false;
+// La demande de mini-carte et de zoom est gardée même quand une image simple (survol, ambiance) est déjà prévue : la molette
+// et le clavier passent par ici, la dernière valeur du zoom doit s'afficher
+let mapRenderScheduled = false, mapRenderWithUI = false;
 function scheduleMapRender(includeMinimapAndUI = false) {
-  if (includeMinimapAndUI) invalidateMapStatic();
+  if (includeMinimapAndUI) { invalidateMapStatic(); mapRenderWithUI = true; }
   if (!mapRenderScheduled) {
     mapRenderScheduled = true;
     requestAnimationFrame(() => {
+      const withUI = mapRenderWithUI;
+      mapRenderWithUI = false;
       try {
         renderMap();
-        if (includeMinimapAndUI) {
+        if (withUI) {
           renderMinimap();
           updateMapUI();
         }

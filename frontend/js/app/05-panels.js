@@ -1120,7 +1120,7 @@ const BUILD_MAX_RUNNING = 2, BUILD_MAX_QUEUED = 2;
 function buildQueuedMax() {
   const ent = window.Store?.entitlements;
   const premium = (player?.premiumUntil && new Date(player.premiumUntil).getTime() > serverNow()) || ent?.premium;
-  return BUILD_MAX_QUEUED + (premium ? (Number(ent?.perks?.extraBuildQueue) || 1) : 0);
+  return BUILD_MAX_QUEUED + (premium ? (Number(ent?.perks?.extraBuildQueue ?? 1) || 0) : 0);
 }
 function buildQueueMax() { return BUILD_MAX_RUNNING + buildQueuedMax(); }
 
