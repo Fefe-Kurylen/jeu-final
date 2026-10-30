@@ -169,8 +169,12 @@ function effectBuildings(city = currentCity) {
   return (city.buildings || []).filter(b => !capitalOnly(b.key)).concat((capital.buildings || []).filter(b => capitalOnly(b.key)));
 }
 
-// Production horaire d'une ville par ressource, comme resourceProcessor : base 5/5/5/10 + champs × bâtiments bonus, puis
-// un multiplicateur commun aux quatre ressources (colonie, Plus, Irrigation égyptienne, Agronomie, Bastion d'alliance).
+// Ressource d'un gisement (type d'un point de ressource où l'on peut fonder une colonie, décision du 30 octobre 2026)
+const SITE_RESOURCE = { WOOD: 'wood', STONE: 'stone', IRON: 'iron', FOOD: 'food' };
+
+// Production horaire d'une ville par ressource, comme resourceProcessor : base 5/5/5/10 + champs × (bâtiments bonus +
+// gisement de la colonie), puis un multiplicateur commun aux quatre ressources (colonie, Plus, Irrigation égyptienne,
+// Agronomie, Bastion d'alliance).
 // Le bilan de nourriture du serveur (foodBalance.production, arrondi à l'unité) porte ce multiplicateur complet : le
 // multiplicateur connu du client est gardé s'il redonne ce chiffre, sinon (Bastion…) on prend le rapport au chiffre du
 // serveur ; sans bilan, les bonus connus du client (le Bastion n'y est pas)
@@ -183,6 +187,10 @@ function getCityProduction(city) {
     if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
     if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
   });
+  // gisement de la colonie : son bonus (city.site.bonusPct, donné par le serveur) s'ajoute à ceux des bâtiments de
+  // production, sur sa seule ressource ; ni la capitale ni la Ville Merveille n'en ont (site null)
+  const siteRes = SITE_RESOURCE[city?.site?.type];
+  if (siteRes) bonus[siteRes] += Number(city.site.bonusPct) || 0;
   const base = {
     wood: 5 + fields.wood * (1 + bonus.wood / 100),
     stone: 5 + fields.stone * (1 + bonus.stone / 100),
@@ -930,6 +938,7 @@ function renderCity() {
   }
   updateFamineBanner(hoursToEmpty, netFood);
   if (typeof updateWonderBar === 'function') updateWonderBar();
+  updateCitySiteBadge();
 
   // Update attack notification
   updateAttackNotification();

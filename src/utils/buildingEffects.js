@@ -137,12 +137,10 @@ const effects = {
   // capitalOf(joueur) les lit (relus en base : utils/db.js capitalBuildingsOf)
   CAPITAL_BUILDINGS: { select: { isCapital: true, buildings: { where: { key: { in: SHARED_KEYS } }, select: { key: true, level: true } } } },
   capitalOf: (player) => sharedBuildings(player?.cities),
-  sharedBuildings,
   // Buildings reserved to the capital or to secondary cities (data flags)
   capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
   notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
-  // Bâtiment dont le meilleur niveau parmi les villes du joueur vaut pour toutes (Comptoir), ou partagé tout court
-  bestOfPlayer: (key) => BEST_OF_PLAYER_KEYS.includes(key),
+  // Bâtiment partagé par toutes les villes du joueur : « capitale seulement », ou meilleur niveau des villes (Comptoir)
   sharedKey: (key) => SHARED_KEYS.includes(key),
   levelOf
 };

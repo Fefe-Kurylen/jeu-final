@@ -8,7 +8,8 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const buildings = JSON.parse(fs.readFileSync(path.join(root, 'data/buildings.json'), 'utf8')).buildings;
 const config = require(path.join(root, 'src/config'));
-const { buildCostFor, buildSecondsFor, getStorageAtLevel } = require(path.join(root, 'src/utils/calculations'));
+const { buildCostFor, buildSecondsFor, getStorageAtLevel, getFactionBonus } = require(path.join(root, 'src/utils/calculations'));
+const { factionsData } = require(path.join(root, 'src/config/gamedata'));
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=?(.*)$/); return m ? [m[1], m[2] || true] : [a, true]; }));
 
 const FN = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
@@ -88,7 +89,7 @@ const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>
   .k { font-weight: normal; font-size: 6.5pt; color: #7a6648; } th .k { color: #d9c69a; } .box { background: #f7efdc; border: 1px solid #c9b78a; padding: 6px 8px; margin: 6px 0 10px; }
 </style></head><body>
 <h1>Imperium Antiquitas — les bâtiments et leurs attributs</h1>
-<div class="box"><p><b>Toutes les civilisations ont le même nombre de bâtiments : ${common.length + 1}</b> — les ${common.length} bâtiments communs ci-dessous, plus <b>un seul bâtiment spécial</b> par civilisation (tableau 2). Seul le bâtiment spécial change d'une civilisation à l'autre. Les Grecs construisent 10 % plus vite ; les autres bonus de civilisation passent par les unités et le bâtiment spécial.</p>
+<div class="box"><p><b>Toutes les civilisations ont le même nombre de bâtiments : ${common.length + 1}</b> — les ${common.length} bâtiments communs ci-dessous, plus <b>un seul bâtiment spécial</b> par civilisation (tableau 2). Seul le bâtiment spécial change d'une civilisation à l'autre. Les Grecs construisent ${getFactionBonus('GREEK', 'buildTimeReduction', factionsData)} % plus vite ; les autres bonus de civilisation passent par les unités et le bâtiment spécial.</p>
 <p>Coût d'un niveau = coût niv. 1 × ${fr(B.costMultiplierBase)} par niveau (champs × ${fr(B.fieldCostMultiplier)}) ; temps = temps niv. 1 × ${fr(B.timeMultiplierBase)} par niveau (champs et Bâtiment principal × ${fr(B.slowTimeMultiplier)}), avant les réductions du Bâtiment principal (2,5 %/niv.), de l'Académie (1 %/niv.) et de la Résidence (0,25 %/niv.), plafonnées à 60 %. Un bâtiment ne dépasse jamais le niveau du Bâtiment principal (qui monte à 30). Chaque niveau construit rapporte 5 points de population. « À venir » = effet présent dans les données mais pas encore actif dans le jeu.</p></div>
 <h2>1. Les ${common.length} bâtiments communs à toutes les civilisations</h2>
 <table>${head('')}<tbody>${common.map(d => row(d)).join('')}</tbody></table>

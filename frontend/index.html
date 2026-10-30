@@ -205,7 +205,7 @@
                 <div id="tab-fields" class="tab">
                 </div>
                 <div id="tab-city" class="tab active">
-                    <div class="view-canvas-container"><canvas id="city-canvas"></canvas><div class="canvas-tooltip" id="city-tooltip" style="display:none"></div><div id="city-actions" class="city-actions" style="display:none" role="group" aria-label="Actions du bâtiment"></div></div>
+                    <div class="view-canvas-container"><canvas id="city-canvas"></canvas><button type="button" id="city-site-badge" class="city-site-badge" style="display:none" onclick="showCitySiteInfo()"></button><div class="canvas-tooltip" id="city-tooltip" style="display:none"></div><div id="city-actions" class="city-actions" style="display:none" role="group" aria-label="Actions du bâtiment"></div></div>
                 </div>
                 <div id="tab-map" class="tab">
                     <div class="map-view">
@@ -214,6 +214,7 @@
                             <span id="zoom-level">100%</span>
                             <button onclick="mapZoom(0.2)" class="map-btn" aria-label="Zoom avant"><img src="assets/images/ui/plus.svg" alt=""></button>
                             <button onclick="centerOnCapital()" class="map-btn btn-home" aria-label="Centrer sur la capitale"><img src="assets/images/3d/ui/home.webp" alt=""></button>
+                            <button onclick="openFreeSites()" class="map-btn btn-free-sites" title="Sites libres : où fonder une colonie" aria-label="Sites libres"><img src="assets/images/3d/ui/pin.webp" alt=""><span>Sites libres</span></button>
                             <div class="map-goto">
                                 <input type="number" id="goto-x" placeholder="X" inputmode="numeric" aria-label="Coordonnée X">
                                 <input type="number" id="goto-y" placeholder="Y" inputmode="numeric" aria-label="Coordonnée Y">
