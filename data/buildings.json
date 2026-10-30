@@ -52,6 +52,7 @@
       "timeL1Sec": 900,
       "timeL20Sec": 64800,
       "effects": {
+        "capitalOnly": true,
         "maxArmies": {
           "l1": 1,
           "l10": 3,
@@ -237,6 +238,7 @@
       "timeL1Sec": 1800,
       "timeL20Sec": 72000,
       "effects": {
+        "capitalOnly": true,
         "researchTimeReductionPctPerLevel": 1.0,
         "buildTimeReductionPctPerLevel": 1.0
       }
@@ -268,8 +270,8 @@
       "timeL1Sec": 2400,
       "timeL20Sec": 86400,
       "effects": {
-        "globalDefenseBonusPctPerLevel": 0.5,
-        "capitalOnly": true
+        "capitalOnly": true,
+        "globalDefenseBonusPctPerLevel": 0.5
       }
     },
     {
@@ -516,7 +518,9 @@
       },
       "timeL1Sec": 1200,
       "timeL20Sec": 86400,
-      "effects": {}
+      "effects": {
+        "capitalOnly": true
+      }
     },
     {
       "key": "WALL",
@@ -547,38 +551,6 @@
       "effects": {}
     },
     {
-      "key": "MOAT",
-      "name": "Douves",
-      "description": "Fossé rempli d'eau au pied du mur : renforce l'attaque et la défense des défenseurs.",
-      "category": "ADVANCED",
-      "maxLevel": 20,
-      "prereq": [
-        {
-          "key": "MAIN_HALL",
-          "level": 10
-        },
-        {
-          "key": "WALL",
-          "level": 5
-        }
-      ],
-      "costL1": {
-        "wood": 600,
-        "stone": 800,
-        "iron": 900,
-        "food": 300
-      },
-      "costL20": {
-        "wood": 120000,
-        "stone": 160000,
-        "iron": 180000,
-        "food": 60000
-      },
-      "timeL1Sec": 14400,
-      "timeL20Sec": 432000,
-      "effects": {}
-    },
-    {
       "key": "MILL",
       "name": "Moulin",
       "description": "Moulin à vent qui augmente la production de céréales de toute la ville (5 niveaux).",
@@ -592,6 +564,7 @@
       "timeL1Sec": 1800,
       "timeL5Sec": 19020,
       "effects": {
+        "notInCapital": true,
         "foodProdBonusPctL1": 5,
         "foodProdBonusPctL5": 25
       },
@@ -613,6 +586,7 @@
       "timeL1Sec": 4620,
       "timeL5Sec": 28380,
       "effects": {
+        "notInCapital": true,
         "foodProdBonusPctL1": 5,
         "foodProdBonusPctL5": 25
       },
@@ -633,6 +607,7 @@
       "timeL1Sec": 6960,
       "timeL20Sec": 172800,
       "effects": {
+        "notInCapital": true,
         "foodStorageL1": 3600,
         "foodStorageL20": 480000
       }
@@ -652,6 +627,7 @@
       "timeL1Sec": 6960,
       "timeL20Sec": 172800,
       "effects": {
+        "notInCapital": true,
         "storageL1": 3600,
         "storageL20": 480000
       }
@@ -779,6 +755,7 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 108000,
       "effects": {
+        "capitalOnly": true,
         "visionRangeL1": 5,
         "visionRangePerLevel": 6,
         "alertArmyIncomingLevel": 5,
@@ -803,6 +780,7 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
+        "notInCapital": true,
         "ironProdBonusPctL1": 5,
         "ironProdBonusPctL5": 25
       },
@@ -823,6 +801,7 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
+        "notInCapital": true,
         "stoneProdBonusPctL1": 5,
         "stoneProdBonusPctL5": 25
       },
@@ -843,6 +822,7 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
+        "notInCapital": true,
         "woodProdBonusPctL1": 5,
         "woodProdBonusPctL5": 25
       },
@@ -890,6 +870,7 @@
       "timeL1Sec": 3600,
       "timeL20Sec": 259200,
       "effects": {
+        "notInCapital": true,
         "p2pTaxReductionPctPerLevel": 1.0,
         "armyTransportCapacityBonusPctPerLevel": 1.0
       },
@@ -911,6 +892,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "healTimeReductionPctPerLevel": 1.5,
         "woundedInsteadOfDeadBonusPctPerLevel": 0.5
       },
@@ -932,6 +914,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "siegeDefenseBonusPctPerLevel": 1.0
       },
       "description": "Bâtiment exclusif Gaule. Augmente la défense des unités de 1% par niveau lors d'un siège subi."
@@ -952,6 +935,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "researchTimeReductionPctPerLevel": 1.0,
         "deathReductionPctPerLevel": 0.5
       },
@@ -973,6 +957,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "globalProductionBonusPctPerLevel": 1.0,
         "marchSpeedBonusPctPerLevel": 0.5
       },
@@ -994,6 +979,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "upkeepReductionPctPerLevel": 0.5,
         "deathReductionPctPerLevel": 0.5
       },
@@ -1015,6 +1001,7 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
+        "capitalOnly": true,
         "armyTransportCapacityBonusPctPerLevel": 1.0,
         "upkeepReductionPctPerLevel": 0.5
       },

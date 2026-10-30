@@ -60,7 +60,8 @@ async function lockPlayerCities(tx, playerId) {
 }
 
 // Répartition d'un prix sur les villes (pur, testable) : la ville `cityId` d'abord, puis les autres par stock décroissant.
-// Renvoie { ok, missing, takenByCity: { [id]: { wood, stone, iron, food } } } ; `missing` = ce qui manque au total
+// Renvoie { ok, missing, tooSmall, takenByCity: { [id]: { wood, stone, iron, food } } } ; `missing` = ce qui manque au
+// total, `tooSmall` = les ressources dont le prix dépasse le stockage de toutes les villes réunies (recommandation 14)
 function planDebit(cities, cityId, cost) {
   const takenByCity = {}, missing = {};
   for (const r of RESOURCES) {
@@ -76,7 +77,10 @@ function planDebit(cities, cityId, cost) {
     }
     if (need > 0) missing[r] = need;
   }
-  return { ok: Object.keys(missing).length === 0, missing, takenByCity };
+  const ok = Object.keys(missing).length === 0;
+  const capacity = stockTotals(cities);
+  const tooSmall = ok ? [] : RESOURCES.filter(r => amount(cost, r) > (r === 'food' ? capacity.maxFoodStorage : capacity.maxStorage));
+  return { ok, missing, tooSmall, takenByCity };
 }
 
 // Débite un prix sur le stock de toutes les villes du joueur (rien n'est changé si la somme ne suffit pas).
@@ -84,18 +88,13 @@ function planDebit(cities, cityId, cost) {
 async function debitPlayer(tx, playerId, cityId, cost, cities = null) {
   const list = cities || await lockPlayerCities(tx, playerId);
   const plan = planDebit(list, cityId, cost);
-  if (!plan.ok) {
-    const capacity = { wood: 0, stone: 0, iron: 0, food: 0 };
-    for (const c of list) { capacity.wood += c.maxStorage; capacity.stone += c.maxStorage; capacity.iron += c.maxStorage; capacity.food += c.maxFoodStorage; }
-    const tooSmall = RESOURCES.filter(r => amount(cost, r) > capacity[r]);
-    return { ...plan, tooSmall };
-  }
+  if (!plan.ok) return plan;
   for (const [id, t] of Object.entries(plan.takenByCity)) {
     if (!(await debitCity(tx, id, t))) throw new Error('debitPlayer: stock changé sous verrou');   // ne doit pas arriver
     const c = list.find(x => x.id === id);
     if (c) for (const r of RESOURCES) c[r] -= t[r];
   }
-  return { ...plan, tooSmall: [] };
+  return plan;
 }
 
 // Message clair quand la somme des villes ne suffit pas
@@ -106,20 +105,18 @@ function missingMessage(result) {
   return parts.length ? `Ressources insuffisantes : il manque ${parts.join(', ')} (toutes vos villes comprises)` : 'Ressources insuffisantes';
 }
 
-// Crédite la ville, puis verse le surplus dans les autres villes du joueur selon la place libre ;
-// renvoie { credited: { [id]: gain }, lost: { wood, stone, iron, food } } (ce qui n'a tenu nulle part)
-async function creditPlayer(tx, playerId, cityId, gain, cities = null) {
-  const list = cities || await lockPlayerCities(tx, playerId);
+// Répartition d'un gain (pur, testable) : la ville `cityId` jusqu'à son plafond, puis les autres villes du joueur, celle
+// qui a le plus de place d'abord. Met à jour les stocks de `cities` ; renvoie { credited: { [id]: gain }, lost }
+function planCredit(cities, cityId, gain) {
   const credited = {}, lost = { wood: 0, stone: 0, iron: 0, food: 0 };
   for (const r of RESOURCES) {
     let left = amount(gain, r);
     if (!left) continue;
-    const capOf = (c) => (r === 'food' ? c.maxFoodStorage : c.maxStorage);
-    const order = [...list].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : (capOf(b) - b[r]) - (capOf(a) - a[r])));
+    const roomOf = (c) => Math.max(0, Math.floor((r === 'food' ? c.maxFoodStorage : c.maxStorage) - c[r]));
+    const order = [...cities].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : roomOf(b) - roomOf(a)));
     for (const c of order) {
       if (left <= 0) break;
-      const room = Math.max(0, Math.floor(capOf(c) - c[r]));
-      const put = Math.min(left, room);
+      const put = Math.min(left, roomOf(c));
       if (put <= 0) continue;
       (credited[c.id] ||= { wood: 0, stone: 0, iron: 0, food: 0 })[r] += put;
       c[r] += put;
@@ -127,8 +124,35 @@ async function creditPlayer(tx, playerId, cityId, gain, cities = null) {
     }
     lost[r] = left;
   }
-  for (const [id, g] of Object.entries(credited)) await creditCity(tx, id, g);
   return { credited, lost };
+}
+
+// Crédite la ville, puis verse le surplus dans les autres villes du joueur selon la place libre (remboursements) ;
+// renvoie { credited, lost } (`lost` : ce qui n'a tenu nulle part)
+async function creditPlayer(tx, playerId, cityId, gain, cities = null) {
+  const plan = planCredit(cities || await lockPlayerCities(tx, playerId), cityId, gain);
+  for (const [id, g] of Object.entries(plan.credited)) await creditCity(tx, id, g);
+  return plan;
+}
+
+// Stock et plafonds réunis de toutes les villes d'un joueur (barre de ressources, boutons du client)
+function stockTotals(cities) {
+  const t = { wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 0, maxFoodStorage: 0 };
+  for (const c of cities || []) for (const k of Object.keys(t)) t[k] += Number(c[k]) || 0;
+  for (const r of RESOURCES) t[r] = Math.floor(t[r]);
+  return t;
+}
+
+// Bâtiments « capitale seulement » (décision du 30 octobre 2026) : les effets d'une ville se calculent avec ses
+// bâtiments et ceux de la capitale du joueur réservés à la capitale (fx.withCapital)
+async function capitalBuildingsOf(db, playerId) {
+  const capital = await db.city.findFirst({ where: { playerId, isCapital: true }, select: { buildings: { select: { key: true, level: true } } } });
+  return capital?.buildings || [];
+}
+// `city` porte playerId, isCapital et buildings
+async function buildingsWithCapital(db, city) {
+  if (city.isCapital) return city.buildings || [];
+  return require('./buildingEffects').withCapital(city.buildings || [], await capitalBuildingsOf(db, city.playerId));
 }
 
 // Takes up to `want` of each resource, never below zero; returns what was actually taken
@@ -181,4 +205,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, missingMessage, plunderCity, claimNode, takeFromNode, transition, isId };
+module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, stockTotals, capitalBuildingsOf, buildingsWithCapital, plunderCity, claimNode, takeFromNode, transition, isId };

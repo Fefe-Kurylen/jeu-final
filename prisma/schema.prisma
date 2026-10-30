@@ -1035,6 +1035,7 @@ model Invasion {
   hordes    Int       @default(0)
   destroyed Int       @default(0)
   ageMult   Float     @default(1) // âge du monde au lancement (décision du 30 octobre 2026) : × ageMult^((niveau − 1)/4)
+  basePower Float? // avant-poste du niveau 1 d'après la puissance médiane des joueurs (recommandation 9) ; nul : formule de l'âge du monde
 
   @@index([endedAt])
 }

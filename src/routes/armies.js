@@ -11,12 +11,12 @@ const { calculateArmyPower, countSiegeEngines, getArmyTravelTime, getArmyCarryCa
 const T = require('../utils/techEffects');
 const bastionBonus = () => require('../services/bastionService');
 // Cartographie (technologie) + Bastion d'alliance actif (+5 %, décision du 26 octobre 2026) + Irrigation égyptienne de la
-// ville de l'armée (bâtiment chargé par loadArmy)
-const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct') + bastionBonus().speedPctSync(army?.owner?.alliance?.allianceId) + fx.marchSpeedBonusPct(army?.city?.buildings);
-const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx, MARCH_BUILDINGS } = require('../services/armyService');
+// capitale du joueur (bâtiment « capitale seulement », chargé avec le propriétaire par loadArmy)
+const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct') + bastionBonus().speedPctSync(army?.owner?.alliance?.allianceId) + fx.marchSpeedBonusPct(fx.capitalOf(army?.owner));
+const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
 const { getRelation, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
-const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
+const { lockArmy, lockCity, debitCity, lockPlayerCities, debitPlayer, missingMessage, buildingsWithCapital, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
@@ -28,16 +28,18 @@ const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'S
 
 // Héros avec ses objets portés seulement (le sac ne sert ni au combat ni à la charge, il vient de /api/hero)
 const HERO_EQUIPPED = { include: { items: { where: { slot: { not: 'inventory' } } } } };
-// L'armée, ses unités, son propriétaire (technologies, alliance), son héros et sa ville (avec l'Irrigation pour la marche)
+// L'armée, ses unités, son propriétaire (technologies, alliance, bâtiments « capitale seulement » de sa capitale), son
+// héros et sa ville
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, hero: HERO_EQUIPPED, city: { include: { buildings: MARCH_BUILDINGS } }, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } }, cities: fx.CAPITAL_BUILDINGS } }, hero: HERO_EQUIPPED, city: true, ...include } });
 
-// Charge d'une armée qui transporte ou récolte : unités et héros, civilisation, Marché / Comptoir / Avant-poste de sa ville
-// (`cityBuildings`), Bastion d'alliance ; la même que harvestProcessor applique à la récolte
+// Charge d'une armée qui transporte ou récolte : unités et héros, civilisation, Marché / Comptoir de sa ville et
+// Avant-poste du désert de la capitale (`cityBuildings`), Bastion d'alliance ; la même que harvestProcessor applique à la récolte
 const transportCapacity = (army, cityBuildings) => Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero)
   * (1 + getFactionBonus(army.owner?.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100)
   * bastionBonus().carryMultSync(army.owner?.alliance?.allianceId));
-const cityBuildingsOf = (db, cityId) => (cityId ? db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } }) : []);
+// bâtiments de la ville de l'armée, ceux « capitale seulement » lus dans la capitale (chargée par loadArmy)
+const cityBuildingsOf = async (db, army) => fx.withCapital(army.cityId ? await db.cityBuilding.findMany({ where: { cityId: army.cityId }, select: { key: true, level: true } }) : [], fx.capitalOf(army.owner));
 
 // Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
 const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY, army.owner?.faction), speedTechPct(army));
@@ -211,8 +213,9 @@ router.post('/create', auth, async (req, res) => {
       await lockCity(tx, cityId);
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: true } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
-      const maxArmies = fx.maxArmies(city.buildings);
-      if (slot > maxArmies) return { error: `Emplacement ${slot} non débloqué : Place de rassemblement niveau ${fx.rallyLevelForArmies(slot)} requise.`, status: 400 };
+      // Place de rassemblement « capitale seulement » : chaque ville a autant d'armées que la place de la capitale en permet
+      const maxArmies = fx.maxArmies(await buildingsWithCapital(tx, city));
+      if (slot > maxArmies) return { error: `Emplacement ${slot} non débloqué : Place de rassemblement niveau ${fx.rallyLevelForArmies(slot)} requise dans la capitale.`, status: 400 };
       const existingArmy = await tx.army.findFirst({ where: { cityId, slot, isGarrison: false } });
       if (existingArmy) return { error: `Slot ${slot} déjà occupé`, status: 400 };
       const army = await tx.army.create({ data: { ownerId: req.user.playerId, cityId, slot, name, x: city.x, y: city.y, status: 'IDLE', isGarrison: false } });
@@ -530,7 +533,8 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
 });
 
 // POST /api/army/:id/found-city { resourceNodeId, name? } — send an army with a settler and the foundation resources
-// (GDD: 3 000 of each) from the capital to a free resource node; the city rises 24 h after the army arrives.
+// (GDD: 3 000 of each, taken from the capital first, then from the player's other cities) from the capital to a free
+// resource node; the city rises 24 h after the army arrives.
 router.post('/:id/found-city', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body || {};
@@ -538,9 +542,9 @@ router.post('/:id/found-city', auth, async (req, res) => {
     { const bad = name && require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }
     if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
     const result = await prisma.$transaction(async (tx) => {
-      // lock order City then Army, as the other army routes (no deadlock with a launch from the same city)
-      const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
-      if (probe?.cityId) await lockCity(tx, probe.cityId);
+      // lock order City then Army, as the other army routes: all the player's cities first, the foundation resources may
+      // come from any of them (stock partagé, capitale d'abord)
+      const cities = await lockPlayerCities(tx, req.user.playerId);
       await lockArmy(tx, req.params.id);
       const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       const err = readyToLeave(army, 'fonder une ville');
@@ -548,7 +552,6 @@ router.post('/:id/found-city', auth, async (req, res) => {
       { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
       if (!army.city || !army.city.isCapital) return { error: 'Seule une armée de la capitale peut fonder une ville', status: 400 };
       if (!isHome(army, army.city)) return { error: 'L\'armée doit être dans la capitale', status: 400 };
-      await lockCity(tx, army.city.id);
       const capital = await tx.city.findUnique({ where: { id: army.city.id }, include: { buildings: true } });
       const residence = capital.buildings.find(b => b.key === 'RESIDENCE');
       const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence?.level || 0));
@@ -571,7 +574,8 @@ router.post('/:id/found-city', auth, async (req, res) => {
       if (node.hasPlayerArmy) return { error: 'Une armée occupe ce point', status: 409 };
       if (!(await footprintFree(node.x, node.y, { ignoreNodeId: node.id, db: tx }))) return { error: 'Pas assez de place : une ville occupe 2 × 2 cases, les trois cases à côté du point doivent être libres (ni ville, ni point, ni relief, ni eau)', status: 400 };
       const cost = config.city.foundationTransport;
-      if (!(await debitCity(tx, capital.id, cost))) return { error: `Il faut ${cost.wood} de chaque ressource dans la capitale pour fonder une ville`, status: 400, cost };
+      const paid = await debitPlayer(tx, req.user.playerId, capital.id, cost, cities);
+      if (!paid.ok) return { error: missingMessage(paid), status: 400, cost, missing: paid.missing };
       await tx.city.update({ where: { id: capital.id }, data: { settlers: { decrement: 1 } } });
       const travelTime = await travelTo(army, node.x, node.y);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
@@ -630,7 +634,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
         await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, departedAt: new Date(), missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
         return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
       }
-      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army.cityId));   // capacité complète, celle de la récolte
+      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army));   // capacité complète, celle de la récolte
       // The node is taken conditionally: free, or already held by one's own or allied armies (shared harvest)
       if (!(await claimNode(tx, node.id, { playerId: req.user.playerId, allianceId: army.owner?.alliance?.allianceId || null }))) return { error: 'Une armée adverse récolte déjà ce point : attaquez-la', status: 409 };
       await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
@@ -732,7 +736,7 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
       if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
-      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army.city.id));
+      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army));
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
       const travelTime = await travelTo(army, targetCity.x, targetCity.y);

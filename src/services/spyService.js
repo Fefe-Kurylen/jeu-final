@@ -5,11 +5,12 @@
 // - Un espion part d'une de ses villes vers une ville (mission RESOURCES « Ressources et troupes » ou DEFENSES
 //   « Défenses et troupes ») ou un point de ressource (NODE) ; il réussit toujours : le rapport est écrit à son arrivée,
 //   puis il rentre (même durée).
-// - La ville espionnée est prévenue selon sa Tour de guet : niv. 5 « un espion est venu », niv. 10 l'heure, niv. 15 qui.
-//   Plus d'interception.
+// - La ville espionnée est prévenue selon la Tour de guet du joueur : niv. 5 « un espion est venu », niv. 10 l'heure,
+//   niv. 15 qui. Plus d'interception. La Tour de guet est un bâtiment « capitale seulement » (décision du 30 octobre 2026) :
+//   celle de la capitale compte pour les espions et les alertes de toutes les villes du joueur.
 // - Ressources et troupes : les troupes présentes et la partie des ressources qu'un pillage pourrait prendre (hors
 //   cachette, seule protection depuis le 30 octobre 2026), arrondie à la centaine. Défenses et troupes : les troupes, le mur (niveau, santé),
-//   les douves, la Tour de guet, la cachette et le bonus de défense. Point : stock exact, tribu ou armées qui récoltent ;
+//   la Tour de guet, la cachette et le bonus de défense. Point : stock exact, tribu ou armées qui récoltent ;
 //   le point garde son stock exact affiché pour l'espion pendant 1 h.
 // ============================================================
 const prisma = require('../config/database');
@@ -20,15 +21,14 @@ const { factionsData } = require('../config/gamedata');
 const { calculateTravelTime } = require('../utils/calculations');
 const { routeLength } = require('../utils/pathfinding');
 const { notify } = require('./pushService');
+const { capitalBuildingsOf } = require('../utils/db');
 
 const S = config.spies;
 const { httpError } = require('../utils/httpError');
 const RES = ['wood', 'stone', 'iron', 'food'];
 
-async function watchtowerLevelOf(playerId, db = prisma) {
-  const rows = await db.cityBuilding.findMany({ where: { key: 'WATCHTOWER', city: { playerId } }, select: { level: true } });
-  return rows.reduce((m, r) => Math.max(m, r.level), 0);
-}
+// Tour de guet du joueur : celle de sa capitale
+const watchtowerLevelOf = async (playerId, db = prisma) => fx.watchtowerLevel(await capitalBuildingsOf(db, playerId));
 
 const publicSpy = (s) => ({ id: s.id, slot: s.slot, status: s.status, mission: s.mission, fromCityId: s.fromCityId, fromX: s.fromX, fromY: s.fromY, targetX: s.targetX, targetY: s.targetY, targetCityId: s.targetCityId, targetNodeId: s.targetNodeId, departedAt: s.departedAt, arrivalAt: s.arrivalAt, returnAt: s.returnAt });
 
@@ -60,7 +60,7 @@ async function recruit(playerId, slot) {
 
 // Envoie un espion libre depuis une de ses villes vers une ville (mission RESOURCES | DEFENSES) ou un point (NODE)
 async function send(playerId, { fromCityId, targetCityId, targetNodeId, mission }) {
-  const from = await prisma.city.findFirst({ where: { id: fromCityId || undefined, playerId }, orderBy: { isCapital: 'desc' }, select: { id: true, name: true, x: true, y: true, player: { select: { faction: true, technologies: true } }, buildings: { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } } } });
+  const from = await prisma.city.findFirst({ where: { id: fromCityId || undefined, playerId }, orderBy: { isCapital: 'desc' }, select: { id: true, name: true, x: true, y: true, player: { select: { faction: true, technologies: true, cities: fx.CAPITAL_BUILDINGS } } } });
   if (!from) throw httpError(400, 'Choisissez une de vos villes de départ');
   let target, kind;
   if (targetNodeId) {
@@ -75,7 +75,7 @@ async function send(playerId, { fromCityId, targetCityId, targetNodeId, mission 
     kind = mission;
   }
   const len = await routeLength(from.x, from.y, target.x, target.y, from.player.faction);   // lève NO_ROUTE s'il n'y a pas de chemin
-  const travel = calculateTravelTime(from.x, from.y, target.x, target.y, S.speed, from.player.faction, factionsData, len, T.techPct(from.player.technologies, 'armySpeedBonusPct') + fx.marchSpeedBonusPct(from.buildings));   // + Irrigation de la ville de départ
+  const travel = calculateTravelTime(from.x, from.y, target.x, target.y, S.speed, from.player.faction, factionsData, len, T.techPct(from.player.technologies, 'armySpeedBonusPct') + fx.marchSpeedBonusPct(fx.capitalOf(from.player)));   // + Irrigation de la capitale
   const now = new Date(), arrivalAt = new Date(now.getTime() + travel * 1000);
   const free = await prisma.spy.findFirst({ where: { playerId, status: 'IDLE' }, orderBy: { slot: 'asc' } });
   if (!free) throw httpError(400, (await prisma.spy.count({ where: { playerId } })) ? 'Vos espions sont tous en mission' : 'Recrutez d\'abord un espion (Tour de guet niveau 5)');
@@ -121,8 +121,11 @@ function hideoutShare(city) {
 }
 
 async function cityReport(spy, owner) {
-  const city = await prisma.city.findUnique({ where: { id: spy.targetCityId || '' }, include: { buildings: { select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true } } } });
+  const city = await prisma.city.findUnique({ where: { id: spy.targetCityId || '' }, include: { buildings: { select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, cities: fx.CAPITAL_BUILDINGS } } } });
   if (!city) return null;
+  // la ville avec les bâtiments « capitale seulement » de son joueur (Tour de guet, Forge, Brasserie)
+  const buildings = fx.withCapital(city.buildings, fx.capitalOf(city.player));
+  const tower = fx.watchtowerLevel(buildings);
   const armies = await troopsIn(city);
   const base = { playerId: spy.playerId, targetPlayerId: city.playerId, targetCityId: city.id, targetX: city.x, targetY: city.y, targetType: 'CITY', targetName: city.player?.name || null, cityName: city.name, success: true, armies };
   let data;
@@ -131,10 +134,10 @@ async function cityReport(spy, owner) {
     const wallLevel = wallLevelOf(city.buildings);
     data = { mission: 'DEFENSES', defenses: {
       wallLevel, wallHp: Math.round(wallHpNow(city)), wallMaxHp: city.wallMaxHp || 0, structurePct: Math.round(Math.max(0, Math.min(1, city.wallStructure ?? 1)) * 100),
-      moatLevel: levelOf(city.buildings, 'MOAT'), watchtowerLevel: levelOf(city.buildings, 'WATCHTOWER'), hideoutLevel: levelOf(city.buildings, 'HIDEOUT'),
-      hideoutPct: Math.round(hideoutShare(city) * 100), defenseBonusPct: Math.round(fx.defenseBonusPct(city.buildings) || 0), sieged: !!city.isSieged
+      watchtowerLevel: tower, hideoutLevel: levelOf(city.buildings, 'HIDEOUT'),
+      hideoutPct: Math.round(hideoutShare(city) * 100), defenseBonusPct: Math.round(fx.defenseBonusPct(buildings) || 0), sieged: !!city.isSieged
     } };
-    base.buildings = ['WALL', 'MOAT', 'WATCHTOWER', 'HIDEOUT'].map(k => ({ key: k, level: levelOf(city.buildings, k) })).filter(b => b.level > 0);
+    base.buildings = ['WALL', 'WATCHTOWER', 'HIDEOUT'].map(k => ({ key: k, level: levelOf(buildings, k) })).filter(b => b.level > 0);
     base.resources = {};
   } else {
     // la partie des ressources qu'un pillage pourrait prendre : hors cachette (seule protection), à la centaine près
@@ -144,8 +147,7 @@ async function cityReport(spy, owner) {
     data = { mission: 'RESOURCES', visible: 'pillable' };
   }
   const report = await prisma.spyReport.create({ data: { ...base, data } });
-  // la ville est prévenue selon sa Tour de guet
-  const tower = levelOf(city.buildings, 'WATCHTOWER');
+  // la ville est prévenue selon la Tour de guet de la capitale
   const W = config.spies.alertLevels;
   let alert = null;
   if (tower >= W.seen) {

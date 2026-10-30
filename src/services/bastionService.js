@@ -108,21 +108,23 @@ async function place(playerId, x, y) {
 }
 
 // ---- envoyer une armée vers le bastion (ravitaillement, garnison, siège) ----
+// l'armée avec sa ville (Marché, Comptoir) et les bâtiments « capitale seulement » de son joueur (Irrigation, Poste du désert)
+const ARMY_FULL = { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } }, cities: fx.CAPITAL_BUILDINGS } } };
 async function loadReadyArmy(tx, playerId, armyId) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
   if (!probe) throw httpError(404, 'Armée non trouvée');
   if (probe.cityId) await lockCity(tx, probe.cityId);
-  const army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } } } });
+  const army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: ARMY_FULL });
   if (army.isGarrison) throw httpError(400, 'La garnison ne quitte pas la ville : créez une armée au point de ralliement');
   if (army.status !== 'IDLE') throw httpError(400, 'Armée déjà en mission');
   if (!army.units.some(u => u.count > 0)) throw httpError(400, 'Armée vide');
   if (army.city?.isSieged && army.x === army.city.x && army.y === army.city.y) throw httpError(400, 'Ville assiégée : vos armées ne sortent que pour attaquer le camp ennemi');
   return army;
 }
-// Cartographie, Bastion actif et Irrigation de la ville de l'armée (bâtiments chargés par loadReadyArmy / ARMY_FULL)
+// Cartographie, Bastion actif et Irrigation de la capitale (bâtiments chargés par ARMY_FULL)
 async function travelSeconds(army, b) {
   const len = await routeLength(army.x, army.y, b.x, b.y, army.owner?.faction);
-  return getArmyTravelTime(army.units, army.x, army.y, b.x, b.y, army.owner?.faction, army.hero, len, T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city?.buildings));
+  return getArmyTravelTime(army.units, army.x, army.y, b.x, b.y, army.owner?.faction, army.hero, len, T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await speedPct(army.ownerId)) + fx.marchSpeedBonusPct(fx.capitalOf(army.owner)));
 }
 
 async function relationTo(playerAllianceId, bastionAllianceId) {
@@ -147,7 +149,8 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
       const load = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Number(resources?.[r]) || 0))]));
       const total = RES.reduce((t, r) => t + load[r], 0);
       if (total <= 0) throw httpError(400, 'Entrez des ressources à envoyer');
-      const mult = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(army.city?.buildings || []) / 100) * (await carryMult(playerId));
+      // Marché et Comptoir de la ville, Poste du désert de la capitale
+      const mult = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(fx.withCapital(army.city?.buildings, fx.capitalOf(army.owner))) / 100) * (await carryMult(playerId));
       const cap = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);
       if (total > cap) throw httpError(400, `Capacité insuffisante (max ${cap})`);
       if (!army.city || army.x !== army.city.x || army.y !== army.city.y) throw httpError(400, 'L\'armée doit être en ville pour charger des ressources');
@@ -183,7 +186,6 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
 // alliance ou d'une alliance alliée. Un joueur de la garnison fait une sortie avec une de ses armées : chaque armée se
 // bat seule, en terrain ouvert (ni mur bouclier ni +10 % de garnison). Victoire : l'armée reste là d'où elle a attaqué
 // (dans le Bastion pour une sortie, devant lui sinon). Défaite : les survivants rentrent (à la capitale pour une sortie).
-const ARMY_FULL = { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } } };
 async function hostileCampOwners(playerId, bastionId, db = prisma) {
   const camp = await db.army.findMany({ where: { status: 'BESIEGING', targetBastionId: bastionId, NOT: { ownerId: playerId } }, select: { ownerId: true } });
   const owners = [...new Set(camp.map(c => c.ownerId))];
@@ -402,7 +404,7 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     }
     const atkTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
     const garrison = garrisonFaction(defenders);
-    const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, 0, attackerName, `Bastion [${b.alliance.tag}]`,
+    const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, attackerName, `Bastion [${b.alliance.tag}]`,
       heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
       { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: garrison.def } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);

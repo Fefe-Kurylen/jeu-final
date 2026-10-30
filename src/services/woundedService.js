@@ -1,37 +1,60 @@
+// ============================================================
+// Blessés et Tente de soins (décision du 30 octobre 2026, rapport économie, recommandation 6)
+// - Une seule Tente de soins, dans la capitale : les blessés de toutes les villes du joueur y passent (lits et vitesse de
+//   la tente de la capitale, Thermes romains de la capitale compris). Chaque blessé reste rattaché à sa ville : guéri, il
+//   rejoint la garnison de cette ville.
+// - Un blessé arrive en attente (colonne `waiting`) : il n'est pas soigné et mange comme un soldat (config.wounded.woundedPayUpkeep).
+// - Le joueur lance le soin : il paie healCostPct (30) % du recrutement de l'unité, sur le stock de toutes ses villes ; les
+//   blessés prennent un lit (bedsPerLevel par niveau de tente, pour tout le joueur) et guérissent l'un après l'autre :
+//   healTimePctOfTraining (10) % du temps de formation de base par unité × healLevelReduction^(tente − 1), après les soins
+//   déjà en cours. Colonne `count` : blessés au lit, guéris à `healsAt`.
+// - Soin immédiat des blessés au lit : instantHealGoldPerTier or par unité (1 / 2 / 3 / 3 selon le palier).
+// ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
-const { unitsData } = require('../config/gamedata');
-const { getFactionBonus } = require('../utils/calculations');
-const { factionsData } = require('../config/gamedata');
+const { unitsData, factionsData } = require('../config/gamedata');
+const { getFactionBonus, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
+const { capitalBuildingsOf, debitPlayer, missingMessage } = require('../utils/db');
+const { httpError } = require('../utils/httpError');
 const fx = require('../utils/buildingEffects');
 
-// techBonusPct: the player's Medicine research, in percent points
-async function calculateWoundedUnits(cityId, killedUnits, faction, techBonusPct = 0) {
-  const buildings = await prisma.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
-  const healingTent = buildings.find(b => b.key === 'HEALING_TENT');
-  if (!healingTent) return [];
+const W = config.wounded;
+const NO_HEAL = new Date('9999-01-01T00:00:00Z');   // échéance d'une ligne sans personne au lit
+const unitOf = (key) => unitsData.find(u => u.key === key);
+const tentLevelOf = (buildings) => fx.levelOf(buildings, 'HEALING_TENT');
 
-  let woundedRate = config.wounded.baseRate + (healingTent.level * config.wounded.bonusPerHealingLevel);
-  const greekBonus = getFactionBonus(faction, 'woundedConversion', factionsData);
-  woundedRate += greekBonus / 100;
-  woundedRate += (Number(techBonusPct) || 0) / 100;   // Médecine (technologie)
-  woundedRate += fx.woundedBonusPct(buildings) / 100;   // Thermes romains, Temple grec, Tente de guerre hun
-  woundedRate = Math.min(config.wounded.maxRate, woundedRate);
-
-  const woundedUnits = [];
-  for (const unit of killedUnits) {
-    if (unit.killed > 0) {
-      const wounded = Math.floor(unit.killed * woundedRate);
-      if (wounded > 0) {
-        woundedUnits.push({ unitKey: unit.key, count: wounded });
-      }
-    }
-  }
-  return woundedUnits;
+// ---- formules (pures) ; `buildings` : les bâtiments de la capitale ----
+const bedsFor = (buildings) => tentLevelOf(buildings) * W.bedsPerLevel;
+const healCostFor = (unit, count) => Object.fromEntries(Object.entries(recruitCostFor(unit, count)).map(([r, v]) => [r, Math.ceil(v * W.healCostPct / 100)]));
+function healSecondsPerUnit(unit, buildings) {
+  const tent = Math.max(1, tentLevelOf(buildings));
+  return baseTrainSecondsFor(unit) * W.healTimePctOfTraining / 100 * Math.pow(W.healLevelReduction, tent - 1) * (1 - fx.healTimeReductionPct(buildings) / 100);
+}
+const healSecondsFor = (unit, count, buildings) => Math.max(1, Math.ceil(count * healSecondsPerUnit(unit, buildings)));
+const instantHealGold = (unit, count) => count * (W.instantHealGoldPerTier[unit?.tier] ?? W.instantHealGoldPerTier.base);
+// Part des pertes qui reviennent blessées : tente de la capitale, civilisation, Médecine, Thermes / Temple / Tente de guerre
+function woundedRate(buildings, faction, techBonusPct = 0) {
+  const rate = W.baseRate + tentLevelOf(buildings) * W.bonusPerHealingLevel + getFactionBonus(faction, 'woundedConversion', factionsData) / 100
+    + (Number(techBonusPct) || 0) / 100 + fx.woundedBonusPct(buildings) / 100;
+  return Math.min(W.maxRate, rate);
 }
 
-// Blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point) : ils rentrent avec elle et n'entrent à la
-// Tente de soins qu'au retour (depositCarriedWounded). Une armée sans survivant ne ramène personne : ses blessés sont perdus.
+// Bâtiments de la capitale du joueur à qui appartient la ville
+async function capitalBuildingsOfCity(db, cityId) {
+  const capital = await db.city.findFirst({ where: { isCapital: true, player: { cities: { some: { id: cityId } } } }, select: { buildings: { select: { key: true, level: true } } } });
+  return capital?.buildings || [];
+}
+
+// Blessés d'un combat (sans Tente de soins dans la capitale : aucun) ; techBonusPct : Médecine du joueur, en points de %
+async function calculateWoundedUnits(cityId, killedUnits, faction, techBonusPct = 0) {
+  const buildings = await capitalBuildingsOfCity(prisma, cityId);
+  if (!tentLevelOf(buildings)) return [];
+  const rate = woundedRate(buildings, faction, techBonusPct);
+  return (killedUnits || []).map(u => ({ unitKey: u.key, count: Math.floor((u.killed || 0) * rate) })).filter(w => w.count > 0);
+}
+
+// Blessés d'une armée hors de sa ville (attaque, tribu, combat sur un point) : ils rentrent avec elle et n'arrivent chez
+// les blessés qu'au retour (depositCarriedWounded). Une armée sans survivant ne ramène personne : ses blessés sont perdus.
 async function carryWounded(db, armyId, woundedUnits) {
   if (!woundedUnits || !woundedUnits.length) return 0;
   const left = await db.armyUnit.aggregate({ where: { armyId }, _sum: { count: true } });
@@ -51,84 +74,115 @@ async function depositCarriedWounded(armyId, cityId) {
   return carried.reduce((s, w) => s + w.count, 0);
 }
 
-// Tente de soins : lits par niveau (config.wounded.bedsPerLevel) ; les blessés au-delà attendent en file (waiting) et
-// prennent les lits libérés. Une ligne sans personne au lit garde une échéance lointaine (NO_HEAL).
-const NO_HEAL = new Date('9999-01-01T00:00:00Z');
-const bedsFor = (buildings) => (buildings.find(b => b.key === 'HEALING_TENT')?.level || 0) * config.wounded.bedsPerLevel;
-function healDelayMs(buildings) {
-  const healingLevel = buildings.find(b => b.key === 'HEALING_TENT')?.level || 1;
-  return config.wounded.baseHealMinutes * Math.pow(config.wounded.healLevelReduction, healingLevel - 1) * (1 - fx.healTimeReductionPct(buildings) / 100) * 60000;
-}
-
+// Nouveaux blessés d'une ville : ils attendent que le joueur lance leur soin
 async function addWoundedUnits(cityId, woundedUnits, db = prisma) {
-  if (!woundedUnits || woundedUnits.length === 0) return;
-  const buildings = await db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
-  const healsAt = new Date(Date.now() + healDelayMs(buildings));
-  const inBeds = (await db.woundedUnit.aggregate({ where: { cityId }, _sum: { count: true } }))._sum.count || 0;
-  let free = Math.max(0, bedsFor(buildings) - inBeds);
-  for (const unit of woundedUnits) {
-    const bed = Math.min(free, unit.count), wait = unit.count - bed;
-    free -= bed;
-    // A new batch in beds pushes the healing time of the whole group to its own completion
+  for (const w of woundedUnits || []) {
+    if (!(w.count > 0)) continue;
     await db.woundedUnit.upsert({
-      where: { cityId_unitKey: { cityId, unitKey: unit.unitKey } },
-      update: { count: { increment: bed }, waiting: { increment: wait }, ...(bed > 0 ? { healsAt } : {}) },
-      create: { cityId, unitKey: unit.unitKey, count: bed, waiting: wait, healsAt: bed > 0 ? healsAt : NO_HEAL }
+      where: { cityId_unitKey: { cityId, unitKey: w.unitKey } },
+      update: { waiting: { increment: w.count } },
+      create: { cityId, unitKey: w.unitKey, count: 0, waiting: w.count, healsAt: NO_HEAL }
     });
   }
 }
 
-// Fait entrer la file d'attente dans les lits libres (après une guérison ou un soin à l'or)
-async function admitWaiting(db, cityId) {
-  const buildings = await db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } });
-  const rows = await db.woundedUnit.findMany({ where: { cityId }, orderBy: { id: 'asc' } });
-  let free = Math.max(0, bedsFor(buildings) - rows.reduce((s, r) => s + r.count, 0));
-  const healsAt = new Date(Date.now() + healDelayMs(buildings));
-  for (const r of rows) {
-    if (free <= 0) break;
-    if (r.waiting <= 0) continue;
-    const n = Math.min(free, r.waiting); free -= n;
-    await db.woundedUnit.update({ where: { id: r.id }, data: { count: { increment: n }, waiting: { decrement: n }, healsAt } });
-  }
-  await db.woundedUnit.deleteMany({ where: { cityId, count: 0, waiting: 0 } });
+// État de la tente du joueur : bâtiments de la capitale, lits, blessés au lit, fin des soins en cours
+async function tentState(db, playerId) {
+  const buildings = await capitalBuildingsOf(db, playerId);
+  const healing = await db.woundedUnit.findMany({ where: { city: { playerId }, count: { gt: 0 } }, select: { count: true, healsAt: true } });
+  const beds = bedsFor(buildings), inBeds = healing.reduce((s, w) => s + w.count, 0);
+  return { buildings, beds, inBeds, free: Math.max(0, beds - inBeds), busyUntil: Math.max(0, ...healing.map(w => new Date(w.healsAt).getTime())) };
 }
 
-async function processHealedUnits() {
-  const now = new Date();
-  const due = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now } }, take: 500 });
-  if (due.length === 0) return 0;
-  const healedUnits = due;   // a camp before the city pauses nothing (décision du 25 octobre 2026)
+// Blessés de toutes les villes du joueur, avec ce que coûte et dure le soin de ceux qui attendent (autant que de lits libres)
+async function woundedView(playerId) {
+  const [rows, tent] = await Promise.all([
+    prisma.woundedUnit.findMany({ where: { city: { playerId } }, include: { city: { select: { name: true } } }, orderBy: { id: 'asc' } }),
+    tentState(prisma, playerId)
+  ]);
+  return rows.map(({ city, ...w }) => {
+    const unit = unitOf(w.unitKey), n = Math.min(w.waiting, tent.free);
+    return {
+      ...w, cityName: city?.name, unitName: unit?.name || w.unitKey, faction: unit?.faction, class: unit?.class, tier: unit?.tier,
+      timeToHeal: w.count > 0 ? Math.max(0, new Date(w.healsAt).getTime() - Date.now()) : null,
+      healable: n, healCost: n > 0 ? healCostFor(unit, n) : null, healSeconds: n > 0 ? healSecondsFor(unit, n, tent.buildings) : null,
+      instantGold: w.count > 0 ? instantHealGold(unit, w.count) : 0
+    };
+  });
+}
 
-  const cityIds = [...new Set(healedUnits.map(w => w.cityId))];
-  const garrisons = await prisma.army.findMany({ where: { cityId: { in: cityIds }, isGarrison: true }, select: { id: true, cityId: true } });
-  const garrisonByCity = new Map(garrisons.map(g => [g.cityId, g.id]));
+// Lance le soin de `wanted` blessés (tous ceux qui attendent si absent) d'un type dans une ville : paiement sur toutes les
+// villes (la capitale d'abord, la tente y est), lits du joueur, fin après les soins en cours. `cities` : lockPlayerCities.
+async function startHealing(tx, playerId, cityId, unitKey, wanted, cities) {
+  const unit = unitOf(unitKey);
+  const row = unit ? await tx.woundedUnit.findFirst({ where: { cityId, unitKey } }) : null;
+  if (!row || row.waiting <= 0) throw httpError(404, 'Aucun blessé de ce type n\'attend de soin');
+  const tent = await tentState(tx, playerId);
+  if (tent.beds <= 0) throw httpError(400, 'Construisez la Tente de soins dans votre capitale pour soigner vos blessés');
+  if (tent.free <= 0) throw httpError(400, `Les ${tent.beds} lits de la Tente de soins sont occupés : attendez la fin des soins en cours`);
+  const n = Math.min(row.waiting, tent.free, wanted > 0 ? wanted : row.waiting);
+  const cost = healCostFor(unit, n);
+  const paid = await debitPlayer(tx, playerId, cities.find(c => c.isCapital)?.id || cityId, cost, cities);
+  if (!paid.ok) throw httpError(400, missingMessage(paid));
+  // les soins se suivent : ces blessés guérissent après ceux déjà au lit (leur ligne comprise)
+  const healsAt = new Date(Math.max(Date.now(), tent.busyUntil) + healSecondsFor(unit, n, tent.buildings) * 1000);
+  await tx.woundedUnit.update({ where: { id: row.id }, data: { count: { increment: n }, waiting: { decrement: n }, healsAt } });
+  return { started: n, cost, healsAt };
+}
 
+// Guéris : ils rejoignent la garnison de leur ville (chaque ville en a une depuis sa fondation)
+async function toGarrison(db, garrisonId, unitKey, count) {
+  if (!garrisonId) return;
+  await db.armyUnit.upsert({
+    where: { armyId_unitKey: { armyId: garrisonId, unitKey } },
+    update: { count: { increment: count } },
+    create: { armyId: garrisonId, unitKey, tier: unitOf(unitKey)?.tier || 'base', count }
+  });
+}
+
+// Les blessés au lit d'une ligne quittent la tente : la ligne est prise sous condition (même nombre au lit, même échéance),
+// un second exécutant ne compte rien ; elle disparaît s'il n'y a plus personne en attente. Renvoie false si elle a changé.
+async function takeBeds(tx, row) {
+  const taken = await tx.woundedUnit.updateMany({ where: { id: row.id, count: row.count, healsAt: row.healsAt }, data: { count: 0, healsAt: NO_HEAL } });
+  if (taken.count !== 1) return false;
+  await tx.woundedUnit.deleteMany({ where: { id: row.id, waiting: 0 } });
+  return true;
+}
+
+// Soin immédiat, à l'or, des blessés au lit d'un type dans une ville
+async function healNow(tx, playerId, cityId, unitKey) {
+  const row = await tx.woundedUnit.findFirst({ where: { cityId, unitKey } });
+  if (!row) throw httpError(404, 'Pas de blessés de ce type');
+  if (row.count <= 0) throw httpError(400, 'Seuls les blessés au lit se soignent à l\'or : lancez d\'abord leur soin');
+  const gold = instantHealGold(unitOf(unitKey), row.count);
+  const paid = await tx.player.updateMany({ where: { id: playerId, gold: { gte: gold } }, data: { gold: { decrement: gold } } });
+  if (paid.count !== 1) throw httpError(400, `Pas assez d'or (${gold} requis)`);
+  if (!(await takeBeds(tx, row))) throw httpError(409, 'Ces blessés viennent de guérir');
+  await toGarrison(tx, (await tx.army.findFirst({ where: { cityId, isGarrison: true }, select: { id: true } }))?.id, unitKey, row.count);
+  return { healed: row.count, goldSpent: gold };
+}
+
+// Tick : soins terminés, les guéris rejoignent la garnison de leur ville ; ceux qui attendent encore gardent la ligne
+async function processHealedUnits(now = new Date()) {
+  const due = await prisma.woundedUnit.findMany({ where: { healsAt: { lte: now }, count: { gt: 0 } }, take: 500 });
+  if (!due.length) return 0;
+  const garrisons = await prisma.army.findMany({ where: { cityId: { in: [...new Set(due.map(w => w.cityId))] }, isGarrison: true }, select: { id: true, cityId: true } });
+  const garrisonOf = new Map(garrisons.map(g => [g.cityId, g.id]));
   let healed = 0;
-  for (let i = 0; i < healedUnits.length; i += 50) {
-    const batch = healedUnits.slice(i, i + 50);
+  for (let i = 0; i < due.length; i += 50) {
+    const batch = due.slice(i, i + 50);
     await prisma.$transaction(async (tx) => {
-      for (const wounded of batch) {
-        // The row is consumed first (conditional on its healing time): a second executor credits nothing; soldiers still
-        // waiting for a bed keep the row
-        const taken = wounded.waiting > 0
-          ? await tx.woundedUnit.updateMany({ where: { id: wounded.id, healsAt: wounded.healsAt }, data: { count: 0, healsAt: NO_HEAL } })
-          : await tx.woundedUnit.deleteMany({ where: { id: wounded.id, healsAt: wounded.healsAt } });
-        if (taken.count !== 1) continue;
+      for (const w of batch) {
+        if (!(await takeBeds(tx, w))) continue;
         healed++;
-        const garrisonId = garrisonByCity.get(wounded.cityId);
-        if (!garrisonId) continue;
-        const unitDef = unitsData.find(u => u.key === wounded.unitKey);
-        await tx.armyUnit.upsert({
-          where: { armyId_unitKey: { armyId: garrisonId, unitKey: wounded.unitKey } },
-          update: { count: { increment: wounded.count } },
-          create: { armyId: garrisonId, unitKey: wounded.unitKey, tier: unitDef?.tier || 'base', count: wounded.count }
-        });
+        await toGarrison(tx, garrisonOf.get(w.cityId), w.unitKey, w.count);
       }
     }, { timeout: 15000 });
   }
-  // Beds freed: the waiting list moves in
-  for (const cityId of cityIds) { try { await admitWaiting(prisma, cityId); } catch (e) { console.error('[WOUNDED] admit', e.message); } }
   return healed;
 }
 
-module.exports = { calculateWoundedUnits, addWoundedUnits, processHealedUnits, carryWounded, depositCarriedWounded, admitWaiting, bedsFor };
+module.exports = {
+  calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded, processHealedUnits, woundedView, startHealing, healNow,
+  bedsFor, healCostFor, healSecondsPerUnit, healSecondsFor, instantHealGold, woundedRate, NO_HEAL
+};

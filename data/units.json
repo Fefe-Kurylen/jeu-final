@@ -164,7 +164,7 @@
       "stats": {
         "attack": 60,
         "defense": 55,
-        "endurance": 60,
+        "endurance": 65,
         "speed": 70,
         "transport": 55
       },
@@ -252,7 +252,7 @@
       "stats": {
         "attack": 45,
         "defense": 66,
-        "endurance": 60,
+        "endurance": 65,
         "speed": 50,
         "transport": 55
       },
@@ -384,7 +384,7 @@
       "stats": {
         "attack": 65,
         "defense": 50,
-        "endurance": 60,
+        "endurance": 65,
         "speed": 75,
         "transport": 55
       },
@@ -758,7 +758,7 @@
       "stats": {
         "attack": 57,
         "defense": 43,
-        "endurance": 52,
+        "endurance": 57,
         "speed": 55,
         "transport": 50
       },
@@ -824,7 +824,7 @@
       "stats": {
         "attack": 60,
         "defense": 50,
-        "endurance": 65,
+        "endurance": 70,
         "speed": 80,
         "transport": 55
       },
@@ -978,7 +978,7 @@
       "stats": {
         "attack": 60,
         "defense": 40,
-        "endurance": 50,
+        "endurance": 57,
         "speed": 60,
         "transport": 50
       },
@@ -1044,7 +1044,7 @@
       "stats": {
         "attack": 65,
         "defense": 45,
-        "endurance": 60,
+        "endurance": 78,
         "speed": 85,
         "transport": 60
       },
@@ -1198,7 +1198,7 @@
       "stats": {
         "attack": 57,
         "defense": 43,
-        "endurance": 52,
+        "endurance": 62,
         "speed": 55,
         "transport": 50
       },

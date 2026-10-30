@@ -11,18 +11,14 @@ const { calculateWoundedUnits, carryWounded, addWoundedUnits } = require('./woun
 const { resolveCombat, heroCombatStats } = require('./combatService');
 const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
-const { takeFromNode, creditCity } = require('../utils/db');
+const { takeFromNode, creditCity, capitalBuildingsOf } = require('../utils/db');
 const { techPct } = require('../utils/techEffects');
 const { getRelation } = require('./diplomacyService');
 const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders');
 
-// Irrigation égyptienne de la ville d'une armée : vitesse de marche de ses armées (et de ses espions)
-const MARCH_BUILDINGS = { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } };
-async function cityMarchPct(db, city) {
-  if (city?.buildings) return fx.marchSpeedBonusPct(city.buildings);
-  if (!city?.id) return 0;   // sans id, la requête lirait l'Irrigation de toutes les villes
-  return fx.marchSpeedBonusPct(await db.cityBuilding.findMany({ where: { cityId: city.id, ...MARCH_BUILDINGS.where }, select: MARCH_BUILDINGS.select }));
-}
+// Irrigation égyptienne : bâtiment « capitale seulement » (décision du 30 octobre 2026), elle accélère toutes les armées,
+// tous les convois et tous les espions du joueur, d'où qu'ils partent (une requête ; `db` = prisma ou la transaction)
+const playerMarchPct = async (db, playerId) => (playerId ? fx.marchSpeedBonusPct(await capitalBuildingsOf(db, playerId)) : 0);
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
 // raids on the same node from the same army cannot both be resolved.
@@ -94,9 +90,11 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: true, owner: true } });
   if (!fresh) return {};
   const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
-  // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate) and Market / Trade Office of the home city
+  // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate), Market / Trade Office of the home city and
+  // Desert Outpost of the capital
   const cityBuildings = fresh.cityId ? await tx.cityBuilding.findMany({ where: { cityId: fresh.cityId }, select: { key: true, level: true } }) : [];
-  const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance
+  const buildings = fx.withCapital(cityBuildings, await capitalBuildingsOf(tx, fresh.ownerId));
+  const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance
   const room = Math.floor(getArmyCarryCapacity(fresh.units, unitsData, fresh.hero) * transportMult * (1 + require('../utils/heroEffects').talent(fresh.hero, 'lootPct') / 100)) - carrying;   // talent Pillard
   const field = CARRY_FIELD[node.resourceType];
   if (!field || room <= 0) return {};
@@ -127,7 +125,7 @@ async function sendArmyHomeTx(tx, army) {
   const reset = { harvestResourceType: null, targetResourceId: null, targetCityId: null, targetBastionId: null, rallyId: null, claimedAt: null };   // also lifts a siege camp
   if (!city || !units.length) { await tx.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } }); return; }
   const route = await findRoute(army.x, army.y, city.x, city.y, army.owner?.faction).catch(() => null);
-  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await cityMarchPct(tx, city));   // + Bastion d'alliance, Irrigation
+  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await playerMarchPct(tx, army.ownerId));   // + Bastion d'alliance, Irrigation
   const travelTime = getArmyTravelTime(units, army.x, army.y, city.x, city.y, army.owner?.faction, army.hero, route ? route.length : null, speed);
   await tx.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: city.x, targetY: city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
 }
@@ -249,4 +247,4 @@ async function depositCarryTx(tx, armyId, cityId) {
   await tx.army.update({ where: { id: armyId }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] } });
 }
 
-module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle, depositCarryTx, cityMarchPct, MARCH_BUILDINGS };
+module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle, depositCarryTx, playerMarchPct };

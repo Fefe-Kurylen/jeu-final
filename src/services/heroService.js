@@ -5,13 +5,14 @@
 // - Chute : le héros tombe quand l'armée qu'il mène (ou la garnison qu'il commande) perd tous ses soldats dans un
 //   combat ; il garde son niveau, ses points, ses talents et ses objets mais n'apporte plus rien.
 // - Résurrection : au Domus du Héros de la capitale, 24 h réduites de 2 % par niveau du Domus (et du talent
-//   Endurance), payée en ressources selon son niveau ; il revient dans la garnison de la capitale.
+//   Endurance), payée en ressources selon son niveau (la capitale d'abord, puis les autres villes du joueur : stock
+//   partagé, décision du 30 octobre 2026) ; il revient dans la garnison de la capitale.
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
 const HE = require('../utils/heroEffects');
 const { notify } = require('./pushService');
-const { debitCity, lockCity } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, missingMessage } = require('../utils/db');
 const { buildingsData } = require('../config/gamedata');
 const { httpError } = require('../utils/httpError');
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -105,9 +106,9 @@ async function capitalWithDomus(db, playerId) {
 }
 async function startRevive(playerId) {
   const out = await prisma.$transaction(async (tx) => {
+    const cities = await lockPlayerCities(tx, playerId);   // villes d'abord, puis le héros
     const { capital, domusLevel } = await capitalWithDomus(tx, playerId);
     if (!capital) throw httpError(400, 'Pas de capitale');
-    await lockCity(tx, capital.id);
     await tx.$queryRaw`SELECT id FROM "Hero" WHERE "playerId" = ${playerId} FOR UPDATE`;
     const hero = await tx.hero.findUnique({ where: { playerId } });
     if (!hero) throw httpError(404, 'Héros non trouvé');
@@ -115,7 +116,8 @@ async function startRevive(playerId) {
     if (hero.reviveEndsAt) throw httpError(400, 'Résurrection déjà en cours');
     if (domusLevel < 1) throw httpError(400, 'Construisez le Domus du Héros dans votre capitale pour le ressusciter');
     const cost = reviveCost(hero);
-    if (!(await debitCity(tx, capital.id, cost))) throw httpError(400, `Ressources insuffisantes dans ${capital.name}`);
+    const paid = await debitPlayer(tx, playerId, capital.id, cost, cities);
+    if (!paid.ok) throw httpError(400, missingMessage(paid));
     const endsAt = new Date(Date.now() + reviveSeconds(hero, domusLevel) * 1000);
     await tx.hero.update({ where: { id: hero.id }, data: { reviveEndsAt: endsAt } });
     return { message: `Résurrection en cours au Domus de ${capital.name}`, endsAt, cost };

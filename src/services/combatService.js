@@ -46,7 +46,7 @@ function makeSide(units, mods) {
   });
 }
 
-// Solidité d'une unité (moteur du GDD) : END + 0,55 × DEF, DEF portant déjà coefficient, bonus, mur et douves ;
+// Solidité d'une unité (moteur du GDD) : END + 0,55 × DEF, DEF portant déjà coefficient, bonus et mur ;
 // « réduction des pertes » (Rome) la multiplie
 function solidity(u) {
   return (u.end + config.combat.defenseDamageMult * u.def) * u.hpMult;
@@ -58,36 +58,39 @@ function hitDamage(a, t) {
   return a.atk * triangleBonus(a.unitClass, t.unitClass);
 }
 
-// One side strikes: each group spends its attackers on the enemy by targeting priority
-// (elite > intermediate > base > siege, GDD); the surplus of a wiped tier spills onto the next one.
-// `attackers` is a pre-round snapshot so both sides strike simultaneously.
+// Un camp frappe ; `attackers` est l'état d'avant le round (les deux camps frappent en même temps). Chaque ligne répartit
+// ses coups sur tous les soldats ennemis à la fois, au prorata de la solidité totale de chaque ligne (décision du
+// 30 octobre 2026, rapport économie, recommandation 10 : plus d'élites visées d'abord) ; le surplus d'une ligne anéantie
+// passe aux lignes encore debout. Les engins de siège, derrière les soldats, ne sont touchés qu'une fois les soldats tombés.
+const TARGET_GROUPS = [(d) => d.tier !== 'siege', (d) => d.tier === 'siege'];
 function strike(attackers, defenders) {
   const kills = {};
   for (const a of attackers) {
     if (a.count <= 0) continue;
     let budget = a.count * config.combat.roundDamageFactor;
-    for (const tier of config.combat.targetingPriority) {
-      if (budget <= 1e-9) break;
-      const targets = defenders.filter(d => d.tier === tier && d.count > 0);
-      if (!targets.length) continue;
-      const pool = targets.reduce((s, d) => s + d.count * d.hp, 0);
-      const allocated = budget;
-      for (const t of targets) {
-        if (t.count <= 0) continue;
-        const units = allocated * (t.count * t.hp) / pool;
-        const perUnit = hitDamage(a, t);
-        const hpLeft = t.count * t.hp;
-        const dmg = units * perUnit + t.carry;
-        if (dmg >= hpLeft) {
-          kills[t.key] = (kills[t.key] || 0) + t.count;
-          budget -= Math.max(0, (hpLeft - t.carry) / perUnit);
-          t.count = 0; t.carry = 0;
-        } else {
-          const killed = Math.floor(dmg / t.hp);
-          kills[t.key] = (kills[t.key] || 0) + killed;
-          budget -= units;
-          t.count -= killed; t.carry = dmg - killed * t.hp;
+    for (const inGroup of TARGET_GROUPS) {
+      let targets;
+      while (budget > 1e-9 && (targets = defenders.filter(d => d.count > 0 && inGroup(d))).length) {
+        const pool = targets.reduce((s, d) => s + d.count * d.hp, 0);
+        const allocated = budget;
+        let wiped = false;
+        for (const t of targets) {
+          const units = allocated * (t.count * t.hp) / pool;
+          const perUnit = hitDamage(a, t);
+          const hpLeft = t.count * t.hp;
+          const dmg = units * perUnit + t.carry;
+          if (dmg >= hpLeft) {
+            kills[t.key] = (kills[t.key] || 0) + t.count;
+            budget -= Math.max(0, (hpLeft - t.carry) / perUnit);
+            t.count = 0; t.carry = 0; wiped = true;
+          } else {
+            const killed = Math.floor(dmg / t.hp);
+            kills[t.key] = (kills[t.key] || 0) + killed;
+            budget -= units;
+            t.count -= killed; t.carry = dmg - killed * t.hp;
+          }
         }
+        if (!wiped) break;   // tout le budget a porté : rien à reporter
       }
     }
   }
@@ -105,7 +108,7 @@ function sidePower(units, faction) {
 
 // Simple power-based resolution (raids, tribe fights). GDD raid rule: a fight stops once a side drops
 // below 70%, so the loser never loses more than 30%.
-// opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
+// opts: { defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
 // attackerFaction — the attacking player's civilisation (Rome's unit defence)
 // attackerBonusPct / defenderBonusPct — the players' technologies (Art de la guerre, Discipline), in percent
 // winnerLossMultiplier — overrides config.combat.winnerLossMultiplier (tribe fights)
@@ -116,10 +119,9 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 
   const attackerPower = sidePower(attackerUnits, opts.attackerFaction) * attackerHeroBonus * (1 + (opts.attackerBonusPct || 0) / 100);
   const wallBonus = 1 + defenderWallLevel * config.combat.wallBonusPerLevel;   // « wallHealth » (Égypte) porte sur les points de vie du mur, pas sur ce bonus
-  const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
   // fieldBattle: an army fighting on a resource node, not in its city — no « défense chez soi »
   const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * (opts.fieldBattle ? 1 : fb(opts.defenderFaction, 'cityDefense')) * (1 + (opts.defenderBonusPct || 0) / 100);
-  const defenderPower = sidePower(defenderUnits, opts.defenderFaction) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
+  const defenderPower = sidePower(defenderUnits, opts.defenderFaction) * wallBonus * cityBonus * defenderHeroBonus;
 
   const attackerWon = attackerPower > defenderPower;
   const ratio = attackerWon ? defenderPower / Math.max(1, attackerPower) : attackerPower / Math.max(1, defenderPower);
@@ -143,14 +145,12 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 // defence bonus fades with the hit points it has left; once it is down, the blows reach the soldiers and the battle goes
 // on for roundsAfterBreach more rounds at least. The attacker wins only if the wall is down and he beats the defenders.
 // Without `wall`, the wall is a plain defence bonus (raids, simulations).
-function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null, wall = null) {
-  // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead);
-  // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
+function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null, wall = null) {
+  // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead)
   const shield = wall && wallLevel > 0 && wall.maxHp > 0 ? { hp: Math.max(0, Math.min(wall.maxHp, wall.hp)), maxHp: wall.maxHp } : null;
   const wallHpStart = shield ? shield.hp : null;
   const wallBonusNow = () => 1 + wallLevel * config.combat.wallBonusPerLevel * (shield ? shield.hp / shield.maxHp : 1);
   const wallBonus = wallBonusNow();
-  const moatBonus = 1 + moatLevel * config.combat.moatBonusPerLevel;
 
   const attackers = makeSide(attackerUnits, {
     atk: fb(attackerFaction, 'siegeAttack') * heroBonus(attackerHero, 'attack') * (techMods?.attacker?.atk || 1),
@@ -158,14 +158,14 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     hp: fb(attackerFaction, 'siegeLossReduction')
   });
   const defenders = makeSide(defenderUnits, {
-    atk: moatBonus * fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack') * (techMods?.defender?.atk || 1),
+    atk: fb(defenderFaction, 'defendingCityAttack') * heroBonus(defenderHero, 'attack') * (techMods?.defender?.atk || 1),
     def: (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense') * (techMods?.defender?.def || 1),
     hp: fb(defenderFaction, 'siegeLossReduction')
   });
-  // the wall and moat part of the defence, recomputed each round (the wall's bonus fades as it is battered) : il entre
-  // dans la solidité des défenseurs
+  // the wall part of the defence, recomputed each round (the wall's bonus fades as it is battered) : il entre dans la
+  // solidité des défenseurs
   for (const d of defenders) d.def0 = d.def;
-  const applyWallDefense = () => { const m = wallBonusNow() + moatBonus - 1; for (const d of defenders) { d.def = d.def0 * m; d.hp = solidity(d); } };
+  const applyWallDefense = () => { const m = wallBonusNow(); for (const d of defenders) { d.def = d.def0 * m; d.hp = solidity(d); } };
   applyWallDefense();
   const W = config.combat.siege.wallShield;
   // brèche : le mur tombé, le combat dure encore roundsAfterBreach rounds au moins (l'attaquant doit battre les défenseurs)
@@ -229,7 +229,7 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     attackerTotalKilled, defenderTotalKilled,
     attackerInitialUnits, defenderInitialUnits,
     attackerFinalUnits, defenderFinalUnits,
-    rounds, wallBonus, moatBonus
+    rounds, wallBonus
   };
 }
 

@@ -207,8 +207,21 @@ function buildSecondsFor(buildingDef, level) {
   return Math.floor((buildingDef?.timeL1Sec || 60) * Math.pow(growth, Math.max(0, level - 1)));
 }
 
+// Recrutement (GDD formulas.json) : prix d'un lot = prix de la classe × multiplicateur du palier × nombre (arrondi au-dessus) ;
+// temps de formation de base d'une unité = temps de la classe × multiplicateur du palier (avant bâtiments et technologies)
+function recruitCostFor(unit, count) {
+  const classCosts = config.recruit.baseCosts[unit?.class] || config.recruit.baseCosts.INFANTRY;
+  const tierMult = config.recruit.tierCostMultipliers[unit?.tier] || 1;
+  return { wood: Math.ceil(classCosts.wood * tierMult * count), stone: Math.ceil(classCosts.stone * tierMult * count), iron: Math.ceil(classCosts.iron * tierMult * count), food: Math.ceil(classCosts.food * tierMult * count) };
+}
+const baseTrainSecondsFor = (unit) => (config.recruit.baseTimeSec[unit?.class] || 360) * (config.recruit.tierTimeMultipliers[unit?.tier] || 1);
+
+// Plafond des récompenses de quêtes et des routes commerciales (rapport économie, recommandation 12, option A) : le
+// stockage de la ville par le Dépôt et le Silo seuls, sans le Grand dépôt ni le Grand silo
+const storageCapsWithoutGreat = (buildings, buildingsData) => cityStorageCaps((buildings || []).filter(b => b.key === 'WAREHOUSE' || b.key === 'SILO'), buildingsData);
+
 module.exports = {
-  buildCostFor, buildSecondsFor,
+  buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor, storageCapsWithoutGreat,
   mainHallLevelOf,
   lerpExp,
   getProductionAtLevel,

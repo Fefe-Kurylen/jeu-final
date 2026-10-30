@@ -332,7 +332,7 @@ async function immortalWave(city, now) {
     for (const a of defenders) for (const u of a.units) if (u.count > 0) (merged[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
     const wallLevel = full.buildings.find(b => b.key === 'WALL')?.level || 0;
     const wall = wallLevel > 0 && full.wallMaxHp > 0 ? { hp: wallHpNow(full), maxHp: full.wallMaxHp } : null;
-    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 0, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, null, wall);
+    const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, null, wall);
     const wallInfo = wall ? { wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: Math.round(wall.maxHp), wallBroken: result.wallHpEnd <= 0 } : {};
     const ratio = (key) => { const r = result.defenderFinalUnits.find(x => x.key === key); return r && r.initial > 0 ? r.remaining / r.initial : 1; };
     for (const a of defenders) for (const u of a.units) {

@@ -7,13 +7,15 @@
 //   qui envoie, −0,25 % par niveau de la Chambre au Trésor de sa capitale.
 // - Une offre non prise revient au vendeur au bout de 48 h (marchandises dans la ville, armée libérée).
 // - Routes commerciales entre ses propres villes : toutes les 2 h un convoi (sans armée) emporte 1/12 du stockage de la
-//   ville de départ pour chaque ressource choisie, soit 100 % au plus en 24 h ; il voyage à vitesse fixe.
+//   ville de départ pour chaque ressource choisie, soit 100 % au plus en 24 h ; il voyage à vitesse fixe. Ce stockage est
+//   celui du Dépôt et du Silo seuls, sans les Grands (rapport économie, recommandation 12, option A).
+// - Marché, offres, échanges et routes restent propres à chaque ville (pas de stock partagé, décision du 30 octobre 2026).
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
-const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus, calculateTravelTime } = require('../utils/calculations');
-const { debitCity, creditCity, lockCity, RESOURCES } = require('../utils/db');
+const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus, calculateTravelTime, storageCapsWithoutGreat } = require('../utils/calculations');
+const { debitCity, creditCity, lockCity, buildingsWithCapital, RESOURCES } = require('../utils/db');
 const { routeLength } = require('../utils/pathfinding');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');
@@ -34,9 +36,11 @@ async function p2pTaxPct(db, cityId) {
 }
 const afterTax = (amount, pct) => Math.floor(amount * (1 - pct / 100));
 
-// Capacité d'une armée pour le commerce : mêmes bonus qu'un convoi (civilisation, Marché + Comptoir, Bastion)
+// Capacité d'une armée pour le commerce : mêmes bonus qu'un convoi (civilisation, Marché et Comptoir de la ville,
+// Avant-poste du désert de la capitale, Bastion). `city` : la ville de l'armée (id, playerId, isCapital)
 async function tradeCapacity(db, army, city, faction, playerId) {
-  const buildings = city.buildings || await db.cityBuilding.findMany({ where: { cityId: city.id }, select: { key: true, level: true } });
+  const own = city.buildings || await db.cityBuilding.findMany({ where: { cityId: city.id }, select: { key: true, level: true } });
+  const buildings = await buildingsWithCapital(db, { ...city, playerId, buildings: own });
   const mult = (1 + getFactionBonus(faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(playerId));
   return Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);
 }
@@ -53,11 +57,11 @@ async function pickTransportArmy(db, city, playerId, faction, amount, armyId = n
   return fit;
 }
 
-// Trajet d'un convoi d'échange depuis sa ville `from` : Cartographie, Bastion d'alliance et Irrigation de cette ville
-// (bâtiments de `from` s'ils sont chargés, sinon relus par `db`)
+// Trajet d'un convoi d'échange depuis sa ville `from` : Cartographie, Bastion d'alliance et Irrigation de la capitale du
+// joueur (relue par `db`)
 async function travelSecondsBetween(army, from, to, faction, technologies, db = prisma) {
   const len = await routeLength(from.x, from.y, to.x, to.y, faction);
-  const speedPct = T.techPct(technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await require('./armyService').cityMarchPct(db, from));
+  const speedPct = T.techPct(technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await require('./armyService').playerMarchPct(db, army.ownerId));
   return getArmyTravelTime(army.units, from.x, from.y, to.x, to.y, faction, army.hero, len, speedPct);
 }
 
@@ -105,6 +109,11 @@ async function expireOffers(now = new Date()) {
 
 // ---- routes commerciales entre ses villes ----
 const routePct = () => M.routes.pctOfStoragePer24h / (24 / M.routes.intervalHours) / 100;   // part du stockage par envoi
+// Charge d'un envoi au plus, par ressource : la part du stockage du Dépôt (bois, pierre, fer) et du Silo de la ville
+function routeSendCap(buildings) {
+  const caps = storageCapsWithoutGreat(buildings);
+  return { other: Math.floor(caps.maxStorage * routePct()), food: Math.floor(caps.maxFoodStorage * routePct()) };
+}
 const isBlocked = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 // La cadence vaut pour la ville de départ et la ressource, pas pour la route : le dernier envoi est gardé dans la table des
 // limites partagées (purgée au bout d'un jour), pour qu'une route reprise, recréée ou remplacée ne reparte pas plus tôt
@@ -126,12 +135,12 @@ async function sendRouteConvoy(route, now) {
     // cadence de la ville de départ pas encore écoulée (garde-fou) : la route attend la fin
     const until = await routeCadenceUntil(tx, from.id, RESOURCES.filter(r => route[r]));
     if (until > now) { await tx.tradeRoute.update({ where: { id: route.id }, data: { nextSendAt: until } }); return { skipped: 'cadence' }; }
-    const fresh = await tx.city.findUnique({ where: { id: from.id } });
+    const fresh = await tx.city.findUnique({ where: { id: from.id }, include: { buildings: { select: { key: true, level: true } } } });
+    const sendCap = routeSendCap(fresh.buildings);
     const load = {};
     for (const r of RESOURCES) {
       if (!route[r]) continue;
-      const cap = r === 'food' ? fresh.maxFoodStorage : fresh.maxStorage;
-      load[r] = Math.max(0, Math.floor(Math.min(fresh[r], cap * routePct())));
+      load[r] = Math.max(0, Math.floor(Math.min(fresh[r], r === 'food' ? sendCap.food : sendCap.other)));
     }
     if (!Object.values(load).some(v => v > 0)) return { skipped: 'vide' };
     if (!(await debitCity(tx, from.id, load))) return { skipped: 'stock' };
@@ -174,4 +183,4 @@ async function processTradeRoutes(now = new Date()) {
   return { routes: routes.length, convoys: convoys.length };
 }
 
-module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, roomFor, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, routeCadenceUntil, RES_FR };
+module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, roomFor, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, routeSendCap, routeCadenceUntil, RES_FR };

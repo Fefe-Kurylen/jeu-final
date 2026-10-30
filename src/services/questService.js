@@ -16,7 +16,7 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const config = require('../config');
 const { buildingsData } = require('../config/gamedata');
-const { getProductionAtLevel } = require('../utils/calculations');
+const { getProductionAtLevel, buildCostFor, storageCapsWithoutGreat } = require('../utils/calculations');
 const { lockCity } = require('../utils/db');
 
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/quests.json'), 'utf-8'));
@@ -79,19 +79,17 @@ const scaled = (prod, hours, min, cap = null) => Object.fromEntries(RES.map(r =>
   const v = (prod[r] || 0) * hours;
   return [r, round10(Math.max(min, cap ? Math.min(v, Math.floor(cap[r] / 10) * 10) : v))];
 }));
-// Plafond : la moitié du plus grand entrepôt (grenier pour la nourriture) du joueur, sinon une récompense à l'échelle de
-// toutes ses villes dépasserait le stockage d'une seule et ne se prendrait jamais
+// Plafond : la moitié du plus grand dépôt (silo pour la nourriture) du joueur, sinon une récompense à l'échelle de toutes
+// ses villes dépasserait le stockage d'une seule et ne se prendrait jamais. Dépôt et Silo seuls, sans le Grand dépôt ni le
+// Grand silo (rapport économie, recommandation 12, option A : les récompenses ne grossissent pas avec eux)
 const REWARD_CAP_SHARE = 0.5;
 function rewardCap(cities) {
-  const store = Math.max(0, ...cities.map(c => c.maxStorage || 0)), food = Math.max(0, ...cities.map(c => c.maxFoodStorage || 0));
+  const caps = cities.map(c => storageCapsWithoutGreat(c.buildings));
+  const store = Math.max(0, ...caps.map(c => c.maxStorage)), food = Math.max(0, ...caps.map(c => c.maxFoodStorage));
   return { wood: store * REWARD_CAP_SHARE, stone: store * REWARD_CAP_SHARE, iron: store * REWARD_CAP_SHARE, food: food * REWARD_CAP_SHARE };
 }
-function buildCost(key, level) {
-  const def = buildingsData.find(b => b.key === key);
-  const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
-  const mult = Math.pow(config.build.costMultiplierBase, Math.max(0, level - 1));
-  return Object.fromEntries(RES.map(r => [r, Math.floor((base[r] || 0) * mult)]));
-}
+// Coût d'un niveau de bâtiment, celui que paie le joueur (utils/calculations.js buildCostFor)
+const buildCost = (key, level) => buildCostFor(buildingsData.find(b => b.key === key), level);
 function taskReward(t, level) {
   if (t.rewardFactor) {
     const c = buildCost(t.goal.building, level);
@@ -127,7 +125,7 @@ async function loadState(playerId) {
   const now = new Date(), today = dayKey(now), week = weekInfo(now), ds = dayStart(now), d30 = new Date(now.getTime() - 30 * 86400000);
   const [player, cities, counters, claims, techs, nonGarrison, reports] = await Promise.all([
     prisma.player.findUnique({ where: { id: playerId }, select: { id: true, population: true, tutorialDone: true, alliance: { select: { allianceId: true } }, hero: { select: { level: true } }, stats: true } }),
-    prisma.city.findMany({ where: { playerId }, select: { id: true, name: true, isCapital: true, maxStorage: true, maxFoodStorage: true, buildings: { select: { key: true, level: true, slot: true } } } }),
+    prisma.city.findMany({ where: { playerId }, select: { id: true, name: true, isCapital: true, buildings: { select: { key: true, level: true, slot: true } } } }),
     prisma.questCounter.findMany({ where: { playerId, period: { in: ['ALL', ...week.days] } }, select: { period: true, key: true, value: true } }),
     prisma.questClaim.findMany({ where: { playerId, period: { in: ['', today, week.key] } }, select: { questKey: true, period: true } }),
     prisma.playerTechnology.aggregate({ where: { playerId }, _sum: { level: true } }),

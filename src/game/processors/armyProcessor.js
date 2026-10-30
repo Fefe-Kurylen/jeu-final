@@ -11,12 +11,12 @@ const T = require('../../utils/techEffects');   // technologies des joueurs (att
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
-const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx, raidCooldownWhere, cityMarchPct, MARCH_BUILDINGS } = require('../../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx, raidCooldownWhere, playerMarchPct } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
-const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
+const { creditCity, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
@@ -102,7 +102,7 @@ async function setArmyIdle(armyId, extraData = {}) {
 // Sends the army back to its city at the speed of its surviving units (owner faction and hero bonuses applied).
 // An army with no unit left has nothing to march with: it is put back in its city immediately.
 async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = null) {
-  const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId }, include: { buildings: MARCH_BUILDINGS } }) : null;
+  const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
   if (!homeCity) {
     await setArmyIdle(army.id, extraData);
     return;
@@ -116,7 +116,7 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   const faction = army.owner?.faction;
   const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y, army.owner?.faction).catch(() => null);
   const distance = route ? route.length : null;
-  const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + (await cityMarchPct(prisma, homeCity));   // + Bastion d'alliance, Irrigation
+  const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + (await playerMarchPct(prisma, army.ownerId));   // + Bastion d'alliance, Irrigation de la capitale
   const travelTime = fixedSpeed
     ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, speedPct)
     : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, speedPct);
@@ -358,13 +358,14 @@ async function handleAttack(army, now) {
     const defenderUnits = defenders.flatMap(a => a.units);
     const wallLevel = wallLevelOf(targetCity.buildings);
     const wall = wallLevel > 0 ? { hp: wallHpNow(targetCity), maxHp: targetCity.wallMaxHp } : null;
-    const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
+    // Forge et Brasserie gauloise de la capitale du défenseur : elles défendent toutes ses villes
+    const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));
     // Technologies of both players (the leading camp's for the attackers): Art de la guerre, Discipline; Médecine below
     const [atkTech, defTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
     const techMods = { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: T.techBonusMult(defTech, 'attackBonusPct'), def: T.techBonusMult(defTech, 'defenseBonusPct') } };
     const ownerNames = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
-    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, moatLevel, ownerNames, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, fx.defenseBonusPct(targetCity.buildings), techMods, wall);
+    const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, ownerNames, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, defenseBonusPct, techMods, wall);
 
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const defArmy of defenders) await applyLosses(tx, defArmy.units, result.defenderFinalUnits);
@@ -591,12 +592,12 @@ async function handleRaid(army, now) {
     const attackerUnits = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     const defenders = defendingArmies(targetCity);
     const defenderUnits = defenders.flatMap(a => a.units);
-    const wallLevel = targetCity.buildings.find(b => b.key === 'WALL')?.level || 0;
-    const moatLevel = targetCity.buildings.find(b => b.key === 'MOAT')?.level || 0;
+    const wallLevel = wallLevelOf(targetCity.buildings);
+    const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));   // Forge et Brasserie de la capitale
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // Technologies: Art de la guerre (attacker's power), Discipline (defender's power)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
 
     // appliquées, rapport et classements comptent les mêmes pertes
     const atkLosses = raidLosses(attackerUnits, result.attackerLossRate), defLosses = raidLosses(defenderUnits, result.defenderLossRate);

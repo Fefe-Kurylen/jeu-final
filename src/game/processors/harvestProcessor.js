@@ -12,7 +12,6 @@ const T = require('../../utils/techEffects');
 const { talent } = require('../../utils/heroEffects');
 const { generateTribeDefenders, targetSoldiers, campDifficultyAt, tribeFactionOf } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
-const { MARCH_BUILDINGS } = require('../../services/armyService');
 
 // Carry capacity per unit key, sent once as a VALUES table
 let _carryTableSql = null;
@@ -21,9 +20,13 @@ function getCarryTableSql() {
   _carryTableSql = Prisma.join(unitsData.map(u => Prisma.sql`(${u.key}, ${u.stats?.carry || u.stats?.transport || 50}::int)`));
   return _carryTableSql;
 }
-// Transport bonuses, as for raids and convoys: civilization (Egypt, Sultanate) and Market / Trade Office of the home city
+// Transport bonuses, as for raids and convoys: civilization (Egypt, Sultanate), Market / Trade Office of the home city and
+// Desert Outpost of the capital (bâtiment « capitale seulement » : lu dans la capitale du joueur, quelle que soit la ville)
 const factionTransportSql = () => Prisma.join(Object.keys(factionsData).map(f => Prisma.sql`(${f}, ${getFactionBonus(f, 'transportCapacity', factionsData) || 0}::float)`));
-const transportBuildingsSql = () => Prisma.join(fx.transportBonusKeys().map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`));
+const transportBuildingsSql = (capital) => {
+  const rows = fx.transportBonusKeys().filter(([k]) => fx.capitalOnly(k) === capital);
+  return rows.length ? Prisma.join(rows.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`)) : Prisma.sql`(NULL::text, 0::float)`;
+};
 
 async function leaveNode(army, node) {
   // Allies may share a node: it is released only when the last harvesting army leaves
@@ -34,7 +37,7 @@ async function leaveNode(army, node) {
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
     const route = await findRoute(army.x, army.y, army.city.x, army.city.y, army.owner?.faction).catch(() => null);
-    const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city.buildings);   // + Bastion d'alliance, Irrigation, comme sendArmyHome
+    const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(fx.capitalOf(army.owner));   // + Bastion d'alliance, Irrigation de la capitale, comme sendArmyHome
     const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, speedPct);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
   } else {
@@ -52,7 +55,7 @@ async function processHarvesting(now) {
   //    The node rows are locked for the statement so a concurrent fight or claim waits.
   const harvested = await prisma.$queryRaw`
     WITH cap AS (
-      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0) * (CASE WHEN MAX(bst.id) IS NOT NULL THEN ${1 + config.bastion.bonuses.carryPct / 100}::float ELSE 1.0 END) * COALESCE(hm.mult, 1.0))::int AS capacity
+      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0) + COALESCE(tc.pct, 0)) / 100.0) * (CASE WHEN MAX(bst.id) IS NOT NULL THEN ${1 + config.bastion.bonuses.carryPct / 100}::float ELSE 1.0 END) * COALESCE(hm.mult, 1.0))::int AS capacity
       FROM "Army" a
       LEFT JOIN "ArmyUnit" au ON au."armyId" = a.id
       LEFT JOIN (VALUES ${getCarryTableSql()}) AS ut(key, carry) ON ut.key = au."unitKey"
@@ -60,10 +63,11 @@ async function processHarvesting(now) {
       LEFT JOIN "AllianceMember" am ON am."playerId" = a."ownerId"
       LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de transport
       LEFT JOIN (VALUES ${factionTransportSql()}) AS fb(faction, pct) ON fb.faction = pl.faction
-      LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql()}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
+      LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql(false)}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
+      LEFT JOIN (SELECT c."playerId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN "City" c ON c.id = cb."cityId" AND c."isCapital" JOIN (VALUES ${transportBuildingsSql(true)}) AS r(key, pct) ON r.key = cb.key GROUP BY c."playerId") AS tc ON tc."playerId" = a."ownerId"
       LEFT JOIN (VALUES ${heroSql}) AS hm(army_id, mult) ON hm.army_id = a.id   -- talents de transport du héros
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST'
-      GROUP BY a.id, fb.pct, tb.pct, hm.mult
+      GROUP BY a.id, fb.pct, tb.pct, tc.pct, hm.mult
     ), take AS (
       SELECT a.id AS army_id, n.id AS node_id, n."resourceType" AS rt,
         GREATEST(0, LEAST(${perTick}, FLOOR(n.amount / GREATEST(1, (SELECT COUNT(*) FROM "Army" a2 WHERE a2.status = 'HARVESTING' AND a2."missionType" = 'HARVEST' AND a2."targetResourceId" = n.id))), cap.capacity - (a."carryWood" + a."carryStone" + a."carryIron" + a."carryFood" + a."carryGold")))::int AS qty
@@ -95,7 +99,7 @@ async function processHarvesting(now) {
   const leavers = all.filter(a => !busy.has(a.id));
   for (const { id } of leavers) {
     try {
-      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: { include: { buildings: MARCH_BUILDINGS } }, owner: { include: { technologies: true } }, hero: { include: { items: true } } } });
+      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: true, owner: { include: { technologies: true, cities: fx.CAPITAL_BUILDINGS } }, hero: { include: { items: true } } } });
       if (!army || army.status !== 'HARVESTING') continue;
       const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
       await leaveNode(army, node);

@@ -3,7 +3,7 @@
 // - Un donjon ne s'attaque qu'en rassemblement. Un membre le lance depuis sa ville avec une de ses armées et choisit
 //   l'attente (5, 10, 30 ou 60 min). Les membres de son alliance y envoient une armée (une par joueur), qui marche jusqu'à
 //   la ville du lanceur ; elle doit y arriver avant le départ. Capacité : 3 armées à la Place de rassemblement niveau 1
-//   du lanceur, jusqu'à 15 au niveau 20, la sienne comprise.
+//   (celle de la capitale du lanceur), jusqu'à 15 au niveau 20, la sienne comprise.
 // - À la fin de l'attente (ou plus tôt si le lanceur le décide), les armées arrivées partent ensemble à la vitesse de la
 //   plus lente ; celles encore en route rentrent. Au donjon : un seul combat (hordeService.attackHordeGroup), puis chaque
 //   armée rentre chez elle. Le lanceur peut annuler tant que le rassemblement n'est pas parti ; un membre peut retirer
@@ -34,10 +34,10 @@ const capacityFor = (rallyPointLevel) => Math.max(3, Math.min(15, 3 + Math.floor
 
 async function travelSeconds(army, fromX, fromY, toX, toY) {
   const units = army.units.filter(u => u.count > 0);
-  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city?.buildings);   // + Irrigation de sa ville
+  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(fx.capitalOf(army.owner));   // + Irrigation de sa capitale
   return getArmyTravelTime(units, fromX, fromY, toX, toY, army.owner?.faction, army.hero, await routeLength(fromX, fromY, toX, toY, army.owner?.faction), speed);
 }
-const ARMY_INCLUDE = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: true } }, city: { include: { buildings: { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } } } } };
+const ARMY_INCLUDE = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: true, cities: fx.CAPITAL_BUILDINGS } }, city: true };
 
 // une armée libre, dans sa ville, prête à partir
 async function freeArmy(armyId, playerId) {
@@ -85,8 +85,8 @@ async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   if (!member) throw err(403, 'Seuls les joueurs en alliance peuvent lancer un rassemblement');
   const target = bastionId ? await bastionTarget(member.allianceId, bastionId) : await nodeTarget(nodeId);
   const army = await freeArmy(armyId, playerId);
-  const rp = await prisma.cityBuilding.findFirst({ where: { cityId: army.cityId, key: 'RALLY_POINT' }, orderBy: { level: 'desc' }, select: { level: true } });
-  const capacity = capacityFor(rp?.level || 1);
+  // Place de rassemblement de la capitale (bâtiment « capitale seulement ») : elle vaut pour toutes les villes du lanceur
+  const capacity = capacityFor(fx.levelOf(fx.capitalOf(army.owner), 'RALLY_POINT') || 1);
   const launchAt = new Date(Date.now() + wait * 60000);
   const rally = await prisma.$transaction(async (tx) => {
     const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetKind: target.kind, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });

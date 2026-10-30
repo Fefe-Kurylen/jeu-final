@@ -1,13 +1,14 @@
 // ========== RESEARCH ROUTES ==========
 // Technologies researched at the Academy, Travian-style small bonuses (data/technologies.json, utils/techEffects.js):
-// the player's state, starting a level, cancelling an item. Research is per player; it is paid by the city that hosts
-// the Academy and runs one at a time (one more may wait in the queue).
+// the player's state, starting a level, cancelling an item. Research is per player and runs one at a time (one more may
+// wait in the queue). Académie et Temple grec réservés à la capitale (décision du 30 octobre 2026) : toute ville lance une
+// recherche avec ceux de la capitale ; le prix vient de la ville, puis des autres villes du joueur (stock partagé).
 const express = require('express');
 const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, buildingsWithCapital, isId } = require('../utils/db');
 const T = require('../utils/techEffects');
 const { processResearch, startNextQueued, lockResearch } = require('../game/processors/researchProcessor');
 
@@ -38,7 +39,10 @@ router.get('/', auth, async (req, res) => {
     const cityId = req.query.cityId;
     if (typeof cityId === 'string' && isId(cityId)) {
       const c = await prisma.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: { select: { key: true, level: true } } } });
-      if (c) city = { id: c.id, academyLevel: academyLevelOf(c.buildings), timeReductionPct: T.researchTimeReductionPct(c.buildings), technologies: availability(levels, c.buildings, queue) };
+      if (c) {
+        const buildings = await buildingsWithCapital(prisma, c);
+        city = { id: c.id, academyLevel: academyLevelOf(buildings), timeReductionPct: T.researchTimeReductionPct(buildings), technologies: availability(levels, buildings, queue) };
+      }
     }
     res.json({ levels, queue, rules: T.RULES, city });
   } catch (e) { sendError(res, e); }
@@ -52,20 +56,20 @@ router.post('/start', auth, async (req, res) => {
     const tech = T.techOf(techKey);
     if (!tech) return res.status(400).json({ error: 'Technologie inconnue' });
     const result = await prisma.$transaction(async (tx) => {
-      await lockCity(tx, cityId);
+      const cities = await lockPlayerCities(tx, req.user.playerId);   // le prix peut venir de toutes les villes
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { buildings: { select: { key: true, level: true } } } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       await lockResearch(tx, city.playerId);   // the queue is shared by all the player's cities
+      const buildings = await buildingsWithCapital(tx, city);
       const rows = await tx.playerTechnology.findMany({ where: { playerId: city.playerId } });
       const queue = await tx.researchQueueItem.findMany({ where: { playerId: city.playerId } });
-      const blocker = T.researchBlocker(tech, rows, city.buildings, queue);
+      const blocker = T.researchBlocker(tech, rows, buildings, queue);
       if (blocker) return { error: blocker, status: 400 };
       const targetLevel = T.nextLevelFor(tech, rows, queue);
       const cost = T.researchCost(tech, targetLevel);
-      if (!(await debitCity(tx, city.id, cost))) {
-        return { error: 'Ressources insuffisantes', status: 400, cost, have: { wood: Math.floor(city.wood), stone: Math.floor(city.stone), iron: Math.floor(city.iron), food: Math.floor(city.food) } };
-      }
-      const durationSec = T.researchTimeSec(tech, targetLevel, city.buildings);
+      const paid = await debitPlayer(tx, city.playerId, city.id, cost, cities);
+      if (!paid.ok) return { error: missingMessage(paid), status: 400, cost, missing: paid.missing };
+      const durationSec = T.researchTimeSec(tech, targetLevel, buildings);
       const now = new Date();
       const running = queue.some(q => q.status === 'RUNNING');
       // Behind the running research: starts when the last item of the queue ends
@@ -81,20 +85,15 @@ router.post('/start', auth, async (req, res) => {
 
 // DELETE /api/research/:itemId — cancel: full refund while queued, half once started (same rule as constructions).
 // Later levels of the same technology waiting in the queue depend on it and are cancelled (and refunded) too.
+// Chaque niveau annulé est rendu à la ville qui l'a lancé, puis ce qui n'y tient pas aux autres villes (creditPlayer).
 router.delete('/:itemId', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const cities = await lockPlayerCities(tx, req.user.playerId);   // toutes les villes, avant le verrou de la file
+      await lockResearch(tx, req.user.playerId);
       const item = await tx.researchQueueItem.findFirst({ where: { id: req.params.itemId, playerId: req.user.playerId } });
       if (!item) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
-      const laterWhere = { playerId: item.playerId, techKey: item.techKey, targetLevel: { gt: item.targetLevel } };
-      // chaque niveau annulé est rendu à la ville qui l'a payé : ces villes sont verrouillées dans l'ordre, avant la file
-      const payers = (await tx.researchQueueItem.findMany({ where: laterWhere, select: { cityId: true } })).map(q => q.cityId);
-      const locked = [...new Set([item.cityId, ...payers])].sort();
-      for (const id of locked) await lockCity(tx, id);
-      await lockResearch(tx, item.playerId);
-      const later = await tx.researchQueueItem.findMany({ where: laterWhere });
-      // niveau ajouté entre-temps depuis une autre ville : jamais de verrou de ville après celui de la file
-      if (later.some(q => !locked.includes(q.cityId))) return { error: 'La file de recherche vient de changer : réessayez', status: 409 };
+      const later = await tx.researchQueueItem.findMany({ where: { playerId: item.playerId, techKey: item.techKey, targetLevel: { gt: item.targetLevel } } });
       const refund = { wood: 0, stone: 0, iron: 0, food: 0 };
       const byCity = new Map();
       let cancelled = 0;
@@ -109,7 +108,7 @@ router.delete('/:itemId', auth, async (req, res) => {
         byCity.set(q.cityId, own);
       }
       if (!cancelled) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
-      for (const [cityId, own] of byCity) await creditCity(tx, cityId, own);
+      for (const [cityId, own] of byCity) await creditPlayer(tx, item.playerId, cityId, own, cities);
       await startNextQueued(tx, item.playerId, new Date());
       return { message: 'Recherche annulée', cancelled, refund };
     });

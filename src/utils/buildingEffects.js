@@ -24,6 +24,7 @@ function curve(key, prefix, level) {
   return Math.round(lerpExp(L1, L20, (level - 1) / 19));
 }
 
+const CAPITAL_ONLY_KEYS = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
 const TRAIN_BUILDINGS = { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] };
 
 const effects = {
@@ -31,7 +32,7 @@ const effects = {
   buildTimeReductionPct: (buildings) => sumPct(buildings, ['MAIN_HALL', 'ACADEMY', 'RESIDENCE'], 'buildTimeReductionPctPerLevel', 60),
   // Training time of a unit class: the buildings that train it (max 60 %)
   trainTimeReductionPct: (buildings, unitClass) => sumPct(buildings, TRAIN_BUILDINGS[unitClass] || ['BARRACKS'], 'trainTimeReductionPctPerLevel', 60),
-  // City defence: Forge 0.5 %/level everywhere, Gallic Brewery 1 %/level (max 50 %)
+  // Défense de chaque ville du joueur : Forge 0,5 %/niveau et Brasserie gauloise 1 %/niveau de la capitale (max 50 %)
   defenseBonusPct: (buildings) => cap(levelOf(buildings, 'FORGE') * effectOf('FORGE', 'globalDefenseBonusPctPerLevel') + levelOf(buildings, 'GALLIC_BREWERY') * effectOf('GALLIC_BREWERY', 'siegeDefenseBonusPctPerLevel'), 50),
   // Grand dépôt et Grand silo : du stockage (utils/calculations.js cityStorageCaps), plus aucune réserve protégée ;
   // seule la cachette protège du pillage (config.hideout)
@@ -44,7 +45,7 @@ const effects = {
   productionBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'globalProductionBonusPctPerLevel', 50),
   // Carrying capacity of convoys: Market 5 %/level, Trade Office 1 %/level, Sultan Desert Outpost 1 %/level
   transportBonusPct: (buildings) => cap(levelOf(buildings, 'MARKET') * effectOf('MARKET', 'playerTransportBonusPctPerLevel') + levelOf(buildings, 'TRADE_OFFICE') * effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel') + levelOf(buildings, 'SULTAN_DESERT_OUTPOST') * effectOf('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel'), 200),
-  // Marche des armées et des espions partis de la ville : Irrigation égyptienne 0,5 %/niveau
+  // Marche de toutes les armées et de tous les espions du joueur : Irrigation égyptienne de la capitale, 0,5 %/niveau
   marchSpeedBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'marchSpeedBonusPctPerLevel', 50),
   // Field armies allowed by the Rally Point: 1 at L1, 3 at L10, 5 at L20 (one more every 5 levels)
   maxArmies: (buildings) => {
@@ -101,6 +102,11 @@ const effects = {
     const fromCapital = (capitalBuildings || []).filter(b => defOf(b.key)?.effects?.capitalOnly);
     return own.concat(fromCapital);
   },
+  // Les bâtiments « capitale seulement » d'un joueur chargé avec lui : CAPITAL_BUILDINGS se met sous le joueur dans un
+  // include Prisma (`owner: { include: { cities: fx.CAPITAL_BUILDINGS } }`), capitalOf(joueur) les lit (relus en base :
+  // utils/db.js capitalBuildingsOf)
+  CAPITAL_BUILDINGS: { where: { isCapital: true }, select: { buildings: { where: { key: { in: CAPITAL_ONLY_KEYS } }, select: { key: true, level: true } } } },
+  capitalOf: (player) => player?.cities?.[0]?.buildings || [],
   // Buildings reserved to the capital or to secondary cities (data flags)
   capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
   notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
