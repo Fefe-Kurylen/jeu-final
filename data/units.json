@@ -3,6 +3,7 @@
     {
       "key": "ROM_INF_MILICIEN",
       "name": "Milicien romain",
+      "description": "Citoyen levé à la hâte, pilum et bouclier en main : une défense honnête pour un prix modique.",
       "faction": "ROME",
       "class": "INFANTRY",
       "tier": "base",
@@ -24,6 +25,7 @@
     {
       "key": "ROM_INF_TRIARII",
       "name": "Triarii",
+      "description": "Vétérans de la troisième ligne, lance en avant : le mur sur lequel se brisent les charges.",
       "faction": "ROME",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -45,6 +47,7 @@
     {
       "key": "ROM_INF_LEGIONNAIRE",
       "name": "Légionnaire romain",
+      "description": "Soldat professionnel au scutum et au gladius, discipliné et cuirassé : la meilleure infanterie défensive de Rome.",
       "faction": "ROME",
       "class": "INFANTRY",
       "tier": "elite",
@@ -66,6 +69,7 @@
     {
       "key": "ROM_ARC_MILICIEN",
       "name": "Archer milicien",
+      "description": "Tireur occasionnel recruté dans les faubourgs ; peu coûteux, utile en nombre.",
       "faction": "ROME",
       "class": "ARCHER",
       "tier": "base",
@@ -87,6 +91,7 @@
     {
       "key": "ROM_ARC_VETERAN",
       "name": "Archer vétéran",
+      "description": "Auxiliaire aguerri, précis et endurant, qui tient sa place derrière la ligne des boucliers.",
       "faction": "ROME",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -108,6 +113,7 @@
     {
       "key": "ROM_ARC_ELITE",
       "name": "Archer d’élite romain",
+      "description": "Sagittaire de l'armée régulière, arc composite et cuirasse : des volées meurtrières à longue portée.",
       "faction": "ROME",
       "class": "ARCHER",
       "tier": "elite",
@@ -129,6 +135,7 @@
     {
       "key": "ROM_CAV_AUXILIAIRE",
       "name": "Cavalerie auxiliaire",
+      "description": "Cavalier léger levé chez les peuples alliés : rapide, idéal pour éclairer et piller.",
       "faction": "ROME",
       "class": "CAVALRY",
       "tier": "base",
@@ -150,6 +157,7 @@
     {
       "key": "ROM_CAV_EQUITES",
       "name": "Equites",
+      "description": "Cavalerie de l'ordre équestre, bien équipée et polyvalente.",
       "faction": "ROME",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -171,6 +179,7 @@
     {
       "key": "ROM_CAV_LOURDE",
       "name": "Cavalerie lourde romaine",
+      "description": "Cataphractaires cuirassés de pied en cap : une charge qui enfonce les lignes d'archers.",
       "faction": "ROME",
       "class": "CAVALRY",
       "tier": "elite",
@@ -192,6 +201,7 @@
     {
       "key": "ROM_SIEGE_CATAPULTE",
       "name": "Catapulte romaine",
+      "description": "Engin de torsion servi par des ingénieurs : lent et fragile, mais il éventre les murailles.",
       "faction": "ROME",
       "class": "SIEGE",
       "tier": "siege",
@@ -213,6 +223,7 @@
     {
       "key": "GAU_INF_GUERRIER",
       "name": "Guerrier gaulois",
+      "description": "Combattant farouche à l'épée longue : frappe fort, encaisse peu, coûte peu.",
       "faction": "GAUL",
       "class": "INFANTRY",
       "tier": "base",
@@ -234,6 +245,7 @@
     {
       "key": "GAU_INF_TRIARII",
       "name": "Triarii gaulois",
+      "description": "Guerrier aguerri protégé d'une cotte de mailles, solide dans la mêlée.",
       "faction": "GAUL",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -255,6 +267,7 @@
     {
       "key": "GAU_INF_CHAMPION",
       "name": "Champion gaulois",
+      "description": "Héros de la tribu, redouté pour sa fureur au combat : l'infanterie la plus offensive du jeu.",
       "faction": "GAUL",
       "class": "INFANTRY",
       "tier": "elite",
@@ -276,6 +289,7 @@
     {
       "key": "GAU_ARC_CHASSEUR",
       "name": "Chasseur gaulois",
+      "description": "Chasseur des forêts converti au tir de guerre, rapide et bon marché.",
       "faction": "GAUL",
       "class": "ARCHER",
       "tier": "base",
@@ -297,6 +311,7 @@
     {
       "key": "GAU_ARC_GAULOIS",
       "name": "Archer gaulois",
+      "description": "Tireur entraîné qui couvre les charges des guerriers.",
       "faction": "GAUL",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -318,6 +333,7 @@
     {
       "key": "GAU_ARC_NOBLE",
       "name": "Archer noble",
+      "description": "Fils de la noblesse armé d'un grand arc d'if : précis, résistant, décisif en défense.",
       "faction": "GAUL",
       "class": "ARCHER",
       "tier": "elite",
@@ -339,6 +355,7 @@
     {
       "key": "GAU_CAV_CHASSEUR",
       "name": "Chasseur monté",
+      "description": "Cavalier léger des bois, l'un des plus rapides pour piller et éclairer.",
       "faction": "GAUL",
       "class": "CAVALRY",
       "tier": "base",
@@ -360,6 +377,7 @@
     {
       "key": "GAU_CAV_GAULOIS",
       "name": "Cavalier gaulois",
+      "description": "Cavalerie réputée dans tout le monde antique : un bon équilibre d'attaque et de vitesse.",
       "faction": "GAUL",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -381,6 +399,7 @@
     {
       "key": "GAU_CAV_NOBLE",
       "name": "Cavalier noble",
+      "description": "Noble en armure sur un cheval de guerre : charge puissante et grande mobilité.",
       "faction": "GAUL",
       "class": "CAVALRY",
       "tier": "elite",
@@ -402,6 +421,7 @@
     {
       "key": "GAU_SIEGE_BELIER",
       "name": "Bélier gaulois",
+      "description": "Tronc ferré sous un toit de cuir, poussé jusqu'aux portes : lent, mais implacable contre les murs.",
       "faction": "GAUL",
       "class": "SIEGE",
       "tier": "siege",
@@ -423,6 +443,7 @@
     {
       "key": "GRE_INF_JEUNE",
       "name": "Jeune guerrier",
+      "description": "Éphèbe en formation, lance et bouclier léger : une infanterie de base équilibrée.",
       "faction": "GREEK",
       "class": "INFANTRY",
       "tier": "base",
@@ -444,6 +465,7 @@
     {
       "key": "GRE_INF_HOPLITE",
       "name": "Hoplite",
+      "description": "Citoyen-soldat en phalange, bouclier hoplon et longue lance : excellent en défense.",
       "faction": "GREEK",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -465,6 +487,7 @@
     {
       "key": "GRE_INF_SPARTIATE",
       "name": "Spartiate",
+      "description": "Guerrier formé dès l'enfance, d'une endurance hors du commun : il ne recule jamais.",
       "faction": "GREEK",
       "class": "INFANTRY",
       "tier": "elite",
@@ -486,6 +509,7 @@
     {
       "key": "GRE_ARC_PAYSAN",
       "name": "Archer paysan",
+      "description": "Paysan armé d'un arc de chasse ; peu coûteux, à employer en masse.",
       "faction": "GREEK",
       "class": "ARCHER",
       "tier": "base",
@@ -507,6 +531,7 @@
     {
       "key": "GRE_ARC_TOXOTE",
       "name": "Toxote",
+      "description": "Archer crétois de métier, réputé pour sa précision.",
       "faction": "GREEK",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -528,6 +553,7 @@
     {
       "key": "GRE_ARC_ELITE",
       "name": "Archer d’élite grec",
+      "description": "Tireur d'élite protégé d'un linothorax : des volées puissantes et une bonne tenue au combat.",
       "faction": "GREEK",
       "class": "ARCHER",
       "tier": "elite",
@@ -549,6 +575,7 @@
     {
       "key": "GRE_CAV_ECLAIREUR",
       "name": "Éclaireur",
+      "description": "Cavalier thessalien très rapide, parfait pour reconnaître et piller.",
       "faction": "GREEK",
       "class": "CAVALRY",
       "tier": "base",
@@ -570,6 +597,7 @@
     {
       "key": "GRE_CAV_GREC",
       "name": "Cavalier grec",
+      "description": "Cavalerie des cités, mobile et bien armée.",
       "faction": "GREEK",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -591,6 +619,7 @@
     {
       "key": "GRE_CAV_ELITE",
       "name": "Cavalerie d’élite grecque",
+      "description": "Compagnons à cheval équipés de la sarisse : la cavalerie la plus rapide de son palier.",
       "faction": "GREEK",
       "class": "CAVALRY",
       "tier": "elite",
@@ -612,6 +641,7 @@
     {
       "key": "GRE_SIEGE_CATAPULTE",
       "name": "Catapulte grecque",
+      "description": "Lithobole conçu par les ingénieurs de Syracuse : lent et fragile, redoutable contre les remparts.",
       "faction": "GREEK",
       "class": "SIEGE",
       "tier": "siege",
@@ -633,6 +663,7 @@
     {
       "key": "EGY_INF_ESCLAVE",
       "name": "Esclave égyptien",
+      "description": "Travailleur réquisitionné, peu combatif mais endurant et capable de porter de lourdes charges.",
       "faction": "EGYPT",
       "class": "INFANTRY",
       "tier": "base",
@@ -654,6 +685,7 @@
     {
       "key": "EGY_INF_NIL",
       "name": "Fantassin du Nil",
+      "description": "Soldat de métier armé du khopesh et d'un bouclier de cuir, équilibré en attaque et en défense.",
       "faction": "EGYPT",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -675,6 +707,7 @@
     {
       "key": "EGY_INF_TEMPLE",
       "name": "Guerrier du temple",
+      "description": "Garde sacré au service du pharaon : une infanterie offensive et résistante.",
       "faction": "EGYPT",
       "class": "INFANTRY",
       "tier": "elite",
@@ -696,6 +729,7 @@
     {
       "key": "EGY_ARC_NIL",
       "name": "Archer du Nil",
+      "description": "Archer des rives du fleuve, bon tireur pour un prix modeste.",
       "faction": "EGYPT",
       "class": "ARCHER",
       "tier": "base",
@@ -717,6 +751,7 @@
     {
       "key": "EGY_ARC_DESERT",
       "name": "Archer du désert",
+      "description": "Tireur nubien, précis et rompu aux longues marches.",
       "faction": "EGYPT",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -738,6 +773,7 @@
     {
       "key": "EGY_ARC_PHARAON",
       "name": "Archer du pharaon",
+      "description": "Archer de la garde royale à l'arc composite : la meilleure attaque à distance de son palier.",
       "faction": "EGYPT",
       "class": "ARCHER",
       "tier": "elite",
@@ -759,6 +795,7 @@
     {
       "key": "EGY_CAV_DESERT",
       "name": "Cavalier du désert",
+      "description": "Cavalier léger des pistes caravanières, très rapide, idéal pour piller.",
       "faction": "EGYPT",
       "class": "CAVALRY",
       "tier": "base",
@@ -780,6 +817,7 @@
     {
       "key": "EGY_CAV_PHARAON",
       "name": "Cavalerie du pharaon",
+      "description": "Cavalerie royale, rapide et endurante.",
       "faction": "EGYPT",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -801,6 +839,7 @@
     {
       "key": "EGY_CAV_CHAR_LOURD",
       "name": "Char lourd",
+      "description": "Char de guerre à deux chevaux, archer et conducteur : charge lourde et grande endurance.",
       "faction": "EGYPT",
       "class": "CAVALRY",
       "tier": "elite",
@@ -822,6 +861,7 @@
     {
       "key": "EGY_SIEGE_MANGONNEAU",
       "name": "Mangonneau égyptien",
+      "description": "Machine de jet à contrepoids : lente, mais elle écrase les murailles.",
       "faction": "EGYPT",
       "class": "SIEGE",
       "tier": "siege",
@@ -843,6 +883,7 @@
     {
       "key": "HUN_INF_NOMADE",
       "name": "Guerrier nomade",
+      "description": "Cavalier descendu de cheval, vif et agressif, peu protégé.",
       "faction": "HUN",
       "class": "INFANTRY",
       "tier": "base",
@@ -864,6 +905,7 @@
     {
       "key": "HUN_INF_GARDE",
       "name": "Garde tribale",
+      "description": "Garde du chef de clan, mieux équipée et solide en mêlée.",
       "faction": "HUN",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -885,6 +927,7 @@
     {
       "key": "HUN_INF_VETERAN",
       "name": "Nomade vétéran",
+      "description": "Vétéran des grandes chevauchées, redoutable à l'attaque.",
       "faction": "HUN",
       "class": "INFANTRY",
       "tier": "elite",
@@ -906,6 +949,7 @@
     {
       "key": "HUN_ARC_NOMADE",
       "name": "Archer nomade",
+      "description": "Tireur des steppes, rapide et agressif, fragile au corps à corps.",
       "faction": "HUN",
       "class": "ARCHER",
       "tier": "base",
@@ -927,6 +971,7 @@
     {
       "key": "HUN_ARC_CAMP",
       "name": "Archer du camp",
+      "description": "Archer aguerri du campement, puissant à l'attaque.",
       "faction": "HUN",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -948,6 +993,7 @@
     {
       "key": "HUN_ARC_ELITE",
       "name": "Archer d’élite hun",
+      "description": "Maître de l'arc composite réflexe : une attaque à distance dévastatrice.",
       "faction": "HUN",
       "class": "ARCHER",
       "tier": "elite",
@@ -969,6 +1015,7 @@
     {
       "key": "HUN_CAV_PILLARD",
       "name": "Cavalier pillard",
+      "description": "Cavalier des razzias, le plus rapide de tous : fait pour piller et s'évanouir dans la steppe.",
       "faction": "HUN",
       "class": "CAVALRY",
       "tier": "base",
@@ -990,6 +1037,7 @@
     {
       "key": "HUN_CAV_INTER",
       "name": "Cavalier hun",
+      "description": "Archer monté vif et puissant, cœur de l'armée hunnique.",
       "faction": "HUN",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -1011,6 +1059,7 @@
     {
       "key": "HUN_CAV_ELITE",
       "name": "Horde d’Attila",
+      "description": "Garde d'Attila, cavalerie d'élite à la charge terrifiante.",
       "faction": "HUN",
       "class": "CAVALRY",
       "tier": "elite",
@@ -1032,6 +1081,7 @@
     {
       "key": "HUN_SIEGE_SAPEUR",
       "name": "Sapeurs huns",
+      "description": "Sapeurs qui minent et incendient les murs : un peu plus rapides que les engins, tout aussi fragiles.",
       "faction": "HUN",
       "class": "SIEGE",
       "tier": "siege",
@@ -1053,6 +1103,7 @@
     {
       "key": "SUL_INF_DESERT",
       "name": "Guerrier du désert",
+      "description": "Guerrier tribal endurant, cimeterre et petit bouclier, qui porte de lourdes charges.",
       "faction": "SULTAN",
       "class": "INFANTRY",
       "tier": "base",
@@ -1074,6 +1125,7 @@
     {
       "key": "SUL_INF_CROISSANT",
       "name": "Guerrier du croissant",
+      "description": "Fantassin de la garde du croissant, équilibré en attaque et en défense.",
       "faction": "SULTAN",
       "class": "INFANTRY",
       "tier": "intermediate",
@@ -1095,6 +1147,7 @@
     {
       "key": "SUL_INF_PALAIS",
       "name": "Défenseur du palais",
+      "description": "Garde du palais en cotte de mailles : une infanterie très solide en défense.",
       "faction": "SULTAN",
       "class": "INFANTRY",
       "tier": "elite",
@@ -1116,6 +1169,7 @@
     {
       "key": "SUL_ARC_DESERT",
       "name": "Archer du désert",
+      "description": "Archer des oasis, bon tireur pour un prix modeste.",
       "faction": "SULTAN",
       "class": "ARCHER",
       "tier": "base",
@@ -1137,6 +1191,7 @@
     {
       "key": "SUL_ARC_TIREUR",
       "name": "Tireur du désert",
+      "description": "Tireur d'élite des caravanes, précis et endurant.",
       "faction": "SULTAN",
       "class": "ARCHER",
       "tier": "intermediate",
@@ -1158,6 +1213,7 @@
     {
       "key": "SUL_ARC_PERSE",
       "name": "Archer perse",
+      "description": "Archer de tradition perse à l'arc composite : une attaque à distance redoutable.",
       "faction": "SULTAN",
       "class": "ARCHER",
       "tier": "elite",
@@ -1179,6 +1235,7 @@
     {
       "key": "SUL_CAV_BEDOUIN",
       "name": "Cavalier bédouin",
+      "description": "Cavalier bédouin sur son cheval arabe : vitesse et capacité de pillage maximales.",
       "faction": "SULTAN",
       "class": "CAVALRY",
       "tier": "base",
@@ -1200,6 +1257,7 @@
     {
       "key": "SUL_CAV_DESERT",
       "name": "Cavalier du désert",
+      "description": "Cavalerie légère rapide, vive à l'attaque.",
       "faction": "SULTAN",
       "class": "CAVALRY",
       "tier": "intermediate",
@@ -1221,6 +1279,7 @@
     {
       "key": "SUL_CAV_MAMELOUK",
       "name": "Mamelouk du palais",
+      "description": "Cavalier esclave devenu soldat d'élite : une charge puissante et rapide.",
       "faction": "SULTAN",
       "class": "CAVALRY",
       "tier": "elite",
@@ -1242,6 +1301,7 @@
     {
       "key": "SUL_SIEGE_MANGONNEAU",
       "name": "Mangonneau oriental",
+      "description": "Trébuchet à traction servi par des ingénieurs : lent et fragile, dévastateur contre les murs.",
       "faction": "SULTAN",
       "class": "SIEGE",
       "tier": "siege",

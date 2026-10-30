@@ -38,3 +38,15 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 *.apk
 *.ipa
+
+# planches de contrôle du rendu 3D
+tools/render3d/out/
+
+# repeinture par IA : réponses brutes et guides de vérification
+tools/repaint/raw/
+tools/repaint/raw-*/
+tools/repaint/out/
+store/preview/
+
+# Simulation longue (tools/sim)
+sim-out/

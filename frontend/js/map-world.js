@@ -1,0 +1,721 @@
+// ============================================================================
+// map-world.js — carte du monde au style de la carte de référence (docs/CARTE-REFERENCE.md, décisions du 25 octobre 2026)
+//  - LE SOL : une texture répétable par type de sol (painted/map/world/ground/<sol>.webp ; en attendant, les textures de
+//    sol existantes), projetée en isométrique et ancrée sur le monde, donc sans raccord visible. Les fondus irréguliers
+//    entre sols sont découpés ici, sur une grille décalée d'une demi-case : chaque losange de cette grille a pour coins les
+//    centres de 4 cases, et chaque sol y occupe la zone proche des coins qui le portent (Terrain.groundAt) ;
+//  - LA GRILLE : très légère, toujours visible (on peut la masquer avec la touche G) ;
+//  - LES ÉLÉMENTS POSÉS : forêts, rochers, montagnes, ponts, gués, dunes, ruines, palmiers, bateaux et quais
+//    (painted/map/world/<…>.webp, cadrés comme les demande tools/repaint/map-world.cjs) ; tant qu'ils ne sont pas livrés,
+//    les sprites et dessins d'avant.
+// ============================================================================
+
+const MAP_GROUND_LAYERS = Terrain.GROUND_LAYERS;   // de la couche la plus basse à la plus haute
+const MAP_GROUND_INDEX = Object.fromEntries(MAP_GROUND_LAYERS.map((g, i) => [g, i]));
+const MAP_GROUND_CELLS_PER_TEXTURE = 6;            // une texture peinte couvre 6 × 6 cases
+// Repli tant que la texture peinte n'est pas livrée : texture de sol existante (elle couvre 2 cases) et voile de couleur
+// quand ce n'est pas la bonne texture, ou simple couleur
+const MAP_GROUND_FALLBACK = {
+  water: { tex: 'water_lake', color: '#3f78a8' },
+  ice: { tex: 'ice', color: '#b4d0de' },
+  sand: { tex: 'sand_ripples', color: '#d9bc80', veil: 0.1 },
+  earth: { tex: 'soil_tilled', color: '#8a6440', veil: 0.3 },
+  drygrass: { tex: 'grass_dry', color: '#c9a54e', veil: 0.55 },
+  grass: { tex: 'grass_hills', color: '#6a9a48', veil: 0 },
+  snow: { tex: 'tundra', color: '#eef3f7', veil: 0 }
+};
+const MAP_NIGHT_VEIL = 'rgba(8,14,30,0.55)';
+// Variantes de chaque sol (Terrain.groundVariantAt) : couche = type × 4 + variante − 1, les variantes d'un même sol se
+// fondent entre elles comme deux sols voisins. Image d'une variante absente : celle de la variante 1 ; sans aucune image
+// du sol, un léger voile distingue les variantes en attendant.
+const MAP_GROUND_MAXV = 4;
+const MAP_GROUND_COMBINED = MAP_GROUND_LAYERS.flatMap(g => Array.from({ length: MAP_GROUND_MAXV }, (_, i) => ({ g, v: i + 1 })));
+const MAP_VARIANT_TINT = [null, 'rgba(255,255,255,0.07)', 'rgba(20,30,0,0.08)', 'rgba(255,235,170,0.08)'];
+const MAP_ORIGIN0 = { x: 0, y: 0 };
+function mapGroundFills(tw, th) { return MAP_GROUND_COMBINED.map(({ g, v }) => mapGroundFill(g, v, tw, th, MAP_ORIGIN0)); }
+
+// ---- textures du sol ----
+const _mapGroundPatterns = new Map();   // url@taille -> CanvasPattern
+// D'où vient le sol d'une variante : l'image peinte de la variante, sinon celle de la variante 1, sinon la texture de sol
+// existante (ou une couleur) ; une image peinte qui ne se charge pas est remplacée par le repli
+function mapGroundSource(layer, variant) {
+  const fb = MAP_GROUND_FALLBACK[layer];
+  const paintedUrl = (n) => `assets/images/painted/map/world/ground/${layer}_${n}.webp`;
+  const painted = (n) => typeof paintedSet !== 'undefined' && paintedSet.has(`map/world/ground/${layer}_${n}.webp`) && !(typeof spriteFailed === 'function' && spriteFailed(paintedUrl(n)));
+  const own = painted(variant) ? variant : painted(1) ? 1 : 0;
+  if (own) return { url: paintedUrl(own), cells: MAP_GROUND_CELLS_PER_TEXTURE, veil: 0, tint: null, color: fb.color };
+  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(fb.tex) : null;
+  return { url, cells: 2, veil: url && !url.includes('/' + fb.tex + '.') ? fb.veil || 0 : 0, tint: MAP_VARIANT_TINT[variant - 1] || null, color: fb.color };
+}
+// Ce dont dépend le dessin du sol en dehors du zoom (sans fabriquer de motif) : texture prête ou couleur, par variante
+function mapGroundSignature() {
+  return MAP_GROUND_COMBINED.map(({ g, v }) => { const src = mapGroundSource(g, v); return (src.url && typeof getSprite === 'function' && getSprite(src.url) ? src.url : src.color) + (src.tint ? '+' : ''); }).join('|');
+}
+const MAP_PATTERN_MAX = 640;   // côté maximal d'un motif (mémoire) ; au-delà, la texture est légèrement agrandie
+function mapGroundFill(layer, variant, tw, th, origin) {
+  const fb = MAP_GROUND_FALLBACK[layer];
+  const { url, cells, veil, tint } = mapGroundSource(layer, variant);
+  const img = url && typeof getSprite === 'function' ? getSprite(url) : null;
+  if (!img || typeof DOMMatrix !== 'function') return { style: fb.color, veil: 0, color: fb.color, tint };
+  // résolution du motif : environ un pixel d'écran par pixel de texture (paliers pour ne pas tout refaire en zoomant)
+  const want = cells * Math.hypot(tw, th) / 2 * Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);   // à la résolution des morceaux de sol
+  const size = Math.round(Math.max(32, Math.min(img.naturalWidth || 1024, MAP_PATTERN_MAX, Math.pow(2, Math.round(Math.log2(Math.max(want, 1)) * 2) / 2))));
+  const key = url + '@' + size;
+  let pattern = _mapGroundPatterns.get(key);
+  if (pattern) { _mapGroundPatterns.delete(key); _mapGroundPatterns.set(key, pattern); }   // le plus récent en dernier
+  if (!pattern) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    if (!g) { c.width = c.height = 0; return { style: fb.color, veil: 0, color: fb.color, tint }; }   // plus de mémoire de canvas (iOS) : couleur
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, size, size);
+    pattern = mapCtx.createPattern(c, 'repeat');
+    if (!pattern || typeof pattern.setTransform !== 'function') return { style: fb.color, veil: 0, color: fb.color, tint };
+    _mapGroundPatterns.set(key, pattern);
+    while (_mapGroundPatterns.size > 32) _mapGroundPatterns.delete(_mapGroundPatterns.keys().next().value);
+  }
+  // projection isométrique : un pixel du motif = cells / size case, l'axe x du motif suit l'axe x du monde
+  const k = cells / size;
+  try { pattern.setTransform(new DOMMatrix([k * tw / 2, k * th / 2, -k * tw / 2, k * th / 2, origin.x, origin.y])); } catch (e) { return { style: fb.color, veil: 0, color: fb.color, tint }; }
+  return { style: pattern, veil, color: fb.color, url, tint };
+}
+
+// ---- fondus : forme de chaque sol dans un losange de la grille décalée ----
+// Coordonnées locales (p, q) dans [0, 1]² : coin haut = case (vx, vy), droite = (vx+1, vy), bas = (vx+1, vy+1),
+// gauche = (vx, vy+1). Le champ de chaque sol (interpolation de ses coins, plus un bruit pris dans les coordonnées du
+// monde) est continu d'un losange à l'autre : les bords se raccordent sans couture.
+const MAP_BLEND_SOFT = 0.36, MAP_BLEND_HARD = 0.5;   // bord adouci (demi-opaque) puis bord net
+const _mapBlendCache = new Map();   // "vx,vy" -> [{ layer, soft: [poly…], hard: [poly…] }] pour la finesse _mapBlendN
+let _mapBlendN = 0;
+const MAP_BLEND_CACHE_MAX = 4000;   // les morceaux de sol gardent le dessin : ce cache ne sert qu'aux morceaux redessinés
+function mapBlendNoise(X, Y) {
+  return (Terrain.valueNoise(X, Y, 91919, 0.8) - 0.5) * 0.45 + (Terrain.valueNoise(X, Y, 92929, 0.3) - 0.5) * 0.2;
+}
+// Région { champ > seuil } découpée en carrés (marching squares) : liste de polygones [p, q, p, q, …] ; les carrés
+// entièrement couverts d'une même rangée sont fusionnés
+function mapBlendPolys(values, n, t) {
+  const out = [];
+  const at = (i, j) => values[j * (n + 1) + i];
+  for (let j = 0; j < n; j++) {
+    let run = -1;
+    const flush = (end) => { if (run >= 0) { out.push([run / n, j / n, end / n, j / n, end / n, (j + 1) / n, run / n, (j + 1) / n]); run = -1; } };
+    for (let i = 0; i < n; i++) {
+      const pts = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+      const v = pts.map(([a, b]) => at(a, b));
+      if (v.every(x => x > t)) { if (run < 0) run = i; continue; }
+      flush(i);
+      if (v.every(x => x <= t)) continue;
+      const poly = [];
+      for (let k = 0; k < 4; k++) {
+        const a = pts[k], b = pts[(k + 1) % 4], va = v[k], vb = v[(k + 1) % 4];
+        if (va > t) poly.push(a[0] / n, a[1] / n);
+        if ((va > t) !== (vb > t)) {
+          const s = (t - va) / (vb - va);
+          poly.push((a[0] + (b[0] - a[0]) * s) / n, (a[1] + (b[1] - a[1]) * s) / n);
+        }
+      }
+      if (poly.length >= 6) out.push(poly);
+    }
+    flush(n);
+  }
+  return out;
+}
+function mapBlendShapes(vx, vy, corners, n) {
+  if (n !== _mapBlendN) { _mapBlendCache.clear(); _mapBlendN = n; }   // autre finesse (zoom) : on repart de zéro
+  const key = vx + ',' + vy;
+  let shapes = _mapBlendCache.get(key);
+  if (shapes) { _mapBlendCache.delete(key); _mapBlendCache.set(key, shapes); return shapes; }   // le plus récent en dernier
+  shapes = [];
+  const lo = Math.min(...corners);
+  const layers = [...new Set(corners)].filter(l => l > lo).sort((a, b) => a - b);
+  const noise = new Float32Array((n + 1) * (n + 1));
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) noise[j * (n + 1) + i] = mapBlendNoise(vx + i / n, vy + j / n);
+  for (const L of layers) {
+    const [mT, mR, mB, mL] = corners.map(c => (c >= L ? 1 : 0));
+    const values = new Float32Array((n + 1) * (n + 1));
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+      const p = i / n, q = j / n;
+      values[j * (n + 1) + i] = mT * (1 - p) * (1 - q) + mR * p * (1 - q) + mB * p * q + mL * (1 - p) * q + noise[j * (n + 1) + i];
+    }
+    shapes.push({ layer: L, soft: mapBlendPolys(values, n, MAP_BLEND_SOFT).map(p => Float32Array.from(p)), hard: mapBlendPolys(values, n, MAP_BLEND_HARD).map(p => Float32Array.from(p)) });
+  }
+  _mapBlendCache.set(key, shapes);
+  if (_mapBlendCache.size > MAP_BLEND_CACHE_MAX) _mapBlendCache.delete(_mapBlendCache.keys().next().value);
+  return shapes;
+}
+
+// Cases visibles : rectangle du monde qui couvre l'écran (avec une marge)
+function mapVisibleBounds(screenToWorldF, w, h) {
+  const pts = [[0, 0], [w, 0], [0, h], [w, h]].map(([sx, sy]) => screenToWorldF(sx, sy));
+  return {   // marge : les reliefs et les arbres des cases juste sous l'écran dépassent vers le haut
+    x0: Math.min(...pts.map(p => p.x)) - 4, x1: Math.max(...pts.map(p => p.x)) + 4,
+    y0: Math.min(...pts.map(p => p.y)) - 4, y1: Math.max(...pts.map(p => p.y)) + 4
+  };
+}
+
+// ---- le sol, par morceaux mis en cache ----
+// Le sol ne change pas : il est dessiné par carrés de MAP_CHUNK pixels dans un repère lié au monde (origine = centre de
+// la case 0,0), puis recopié à chaque image. Un zoom refait les morceaux une fois le geste terminé ; pendant le geste,
+// les morceaux de l'échelle précédente sont étirés.
+const MAP_CHUNK = 256;
+const MAP_CHUNK_MAX_DPR = 2;      // au-delà (téléphones dpr 3), les morceaux sont agrandis : 2,25 fois moins de mémoire
+const MAP_CHUNKS_PER_FRAME = 4;   // morceaux neufs dessinés par image ; les suivants aux images suivantes (pas d'à-coup)
+const MAP_POOL_MAX = 6;
+const _mapChunks = new Map();     // "i,j" -> canvas (ordre d'utilisation : le plus ancien en tête)
+const _mapChunkPool = [];
+let _mapChunkState = null;        // { key, tw, th, night, sig, scale, fills }
+let _mapLastTw = 0, _mapZoomAt = 0, _mapZoomTimer = null, _mapChunkPending = false;
+let _mapChunkFailUntil = 0;       // plus de mémoire de canvas : pas de nouveau morceau avant cette heure (couleurs en attendant)
+const mapTabActive = () => !!document.getElementById('tab-map')?.classList.contains('active');
+
+// Dessine le sol des cases d'un rectangle du repère du monde [X0, X0+size] × [Y0, Y0+size] dans ctx (déjà décalé)
+function renderMapGroundRect(ctx, X0, Y0, size, tw, th, night, fills) {
+  const toWorld = (X, Y) => ({ x: X / tw + Y / th, y: Y / th - X / tw });
+  const pts = [toWorld(X0, Y0), toWorld(X0 + size, Y0), toWorld(X0, Y0 + size), toWorld(X0 + size, Y0 + size)];
+  const x0 = Math.floor(Math.min(...pts.map(p => p.x))) - 2, x1 = Math.ceil(Math.max(...pts.map(p => p.x))) + 1;
+  const y0 = Math.floor(Math.min(...pts.map(p => p.y))) - 2, y1 = Math.ceil(Math.max(...pts.map(p => p.y))) + 1;
+  const W = x1 - x0 + 2;
+  const grid = new Uint8Array(W * (y1 - y0 + 2));
+  for (let y = y0; y <= y1 + 1; y++) for (let x = x0; x <= x1 + 1; x++) grid[(y - y0) * W + (x - x0)] = MAP_GROUND_INDEX[Terrain.groundAt(x, y)] * MAP_GROUND_MAXV + Terrain.groundVariantAt(x, y) - 1;
+  const g = (x, y) => grid[(y - y0) * W + (x - x0)];
+  const L = MAP_GROUND_COMBINED.length;
+  const base = new Array(L).fill(null), soft = base.slice(), hard = base.slice();
+  const path = (arr, i) => arr[i] || (arr[i] = new Path2D());
+  const n = tw >= 90 ? 4 : tw >= 44 ? 3 : tw >= 24 ? 2 : 1;   // finesse des fondus selon la taille des cases
+  const withSoft = tw >= 30;
+  const e = 0.6;   // léger recouvrement des losanges pleins : pas de fil clair entre deux losanges
+  const addPolys = (arr, layer, polys, cx, cy) => {
+    if (!polys.length) return;
+    const p2 = path(arr, layer);
+    for (const poly of polys) {
+      for (let k = 0; k < poly.length; k += 2) {
+        const p = poly[k], q = poly[k + 1];
+        const X = cx + (p - q) * tw / 2, Y = cy + (p + q - 1) * th / 2;
+        if (k === 0) p2.moveTo(X, Y); else p2.lineTo(X, Y);
+      }
+      p2.closePath();
+    }
+  };
+  for (let vy = y0; vy <= y1; vy++) for (let vx = x0; vx <= x1; vx++) {
+    const cx = (vx - vy) * tw / 2, cy = (vx + vy + 1) * th / 2;   // centre du losange décalé (vx+½, vy+½)
+    if (cx < X0 - tw || cx > X0 + size + tw || cy < Y0 - th || cy > Y0 + size + th) continue;
+    const c0 = g(vx, vy), c1 = g(vx + 1, vy), c2 = g(vx + 1, vy + 1), c3 = g(vx, vy + 1);
+    const lo = Math.min(c0, c1, c2, c3);
+    const b = path(base, lo);
+    b.moveTo(cx, cy - th / 2 - e); b.lineTo(cx + tw / 2 + e * 2, cy); b.lineTo(cx, cy + th / 2 + e); b.lineTo(cx - tw / 2 - e * 2, cy); b.closePath();
+    if (c0 === lo && c1 === lo && c2 === lo && c3 === lo) continue;
+    for (const s of mapBlendShapes(vx, vy, [c0, c1, c2, c3], n)) { if (withSoft) addPolys(soft, s.layer, s.soft, cx, cy); addPolys(hard, s.layer, s.hard, cx, cy); }
+  }
+  const fill = (p2, i, alpha) => {
+    if (!p2) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fills[i].style; ctx.fill(p2);
+    if (fills[i].veil) { ctx.globalAlpha = alpha * fills[i].veil; ctx.fillStyle = fills[i].color; ctx.fill(p2); }
+    if (fills[i].tint) { ctx.globalAlpha = alpha; ctx.fillStyle = fills[i].tint; ctx.fill(p2); }
+  };
+  for (let i = 0; i < L; i++) fill(base[i], i, 1);
+  for (let i = 0; i < L; i++) { fill(soft[i], i, 0.5); fill(hard[i], i, 1); }
+  ctx.globalAlpha = 1;
+  if (night) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = MAP_NIGHT_VEIL; ctx.fillRect(X0, Y0, size, size); ctx.globalCompositeOperation = 'source-over'; }
+}
+
+// Un canvas libéré : gardé pour resservir (quelques-uns), sinon sa mémoire est rendue tout de suite
+function mapDropChunk(c) { if (_mapChunkPool.length < MAP_POOL_MAX) _mapChunkPool.push(c); else { c.width = 0; c.height = 0; } }
+// En quittant la carte : toute la mémoire du sol est rendue (elle se redessine au retour)
+function releaseMapGround() {
+  clearTimeout(_mapZoomTimer); _mapZoomTimer = null;
+  for (const c of _mapChunks.values()) { c.width = 0; c.height = 0; }
+  for (const c of _mapChunkPool) { c.width = 0; c.height = 0; }
+  _mapChunks.clear(); _mapChunkPool.length = 0; _mapChunkState = null;
+  _mapBlendCache.clear(); _mapGroundPatterns.clear();
+}
+
+// La carte du serveur vient d'arriver ou a changé (applyWorldSeed, 01-core.js) : tout ce qui garde du terrain est refait,
+// puis la vue en cours est redessinée. Les clés des caches portent aussi Terrain.epoch, par sécurité.
+function onWorldTerrainChanged() {
+  releaseMapGround();
+  _mapCitySig = ''; _mapDecorPlan.clear();
+  if (typeof armyRouteCache !== 'undefined') armyRouteCache.clear();
+  if (typeof _armyRoutePending !== 'undefined') _armyRoutePending.clear();   // réponses en route pour l'ancienne carte : ignorées
+  if (typeof terrainSpriteCache !== 'undefined') terrainSpriteCache.clear();
+  if (typeof isoStatic !== 'undefined') isoStatic.key = '';
+  if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender();
+  else if (typeof renderCityCanvas === 'function' && typeof currentCity !== 'undefined' && currentCity) renderCityCanvas();
+}
+
+function mapRenderChunk(i, j, st) {
+  const c = _mapChunkPool.pop() || document.createElement('canvas');
+  const px = Math.round(MAP_CHUNK * st.scale);
+  if (c.width !== px) { c.width = px; c.height = px; }
+  const ctx = c.getContext('2d');
+  if (!ctx) { c.width = 0; c.height = 0; _mapChunkFailUntil = performance.now() + 2000; return null; }   // plus de mémoire de canvas (iOS) : couleur de repli, nouvel essai dans 2 s
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, px, px);
+  ctx.setTransform(px / MAP_CHUNK, 0, 0, px / MAP_CHUNK, -i * px, -j * px);
+  if (!st.fills) st.fills = mapGroundFills(st.tw, st.th);
+  renderMapGroundRect(ctx, i * MAP_CHUNK, j * MAP_CHUNK, MAP_CHUNK, st.tw, st.th, st.night, st.fills);
+  _mapChunks.set(i + ',' + j, c);
+  return c;
+}
+
+function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
+  _mapNight = !!night;
+  const scale = Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);
+  const now = performance.now();
+  const failing = now < _mapChunkFailUntil;
+  if (tw !== _mapLastTw) { _mapLastTw = tw; _mapZoomAt = now; }
+  const sig = mapGroundSignature();
+  const key = [Terrain.epoch, tw, th, scale, night ? 1 : 0, sig].join('|');   // epoch : la carte du serveur (graine)
+  let st = _mapChunkState, s = 1, budget = MAP_CHUNKS_PER_FRAME;
+  if (!st || st.key !== key) {
+    const zooming = st && now - _mapZoomAt < 250 && st.night === night && st.sig === sig && st.scale === scale;
+    if (zooming) {
+      s = tw / st.tw; budget = 0;   // pendant le geste : les morceaux de l'échelle précédente, étirés ; tout est refait après
+      clearTimeout(_mapZoomTimer);
+      _mapZoomTimer = setTimeout(() => { _mapZoomTimer = null; if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender(); }, 280);
+    } else {
+      for (const c of _mapChunks.values()) mapDropChunk(c);
+      _mapChunks.clear();
+      st = _mapChunkState = { key, tw, th, night, sig, scale, fills: null };
+    }
+  }
+  const origin = worldToScreen(0, 0);
+  const dpr = canvasScale();
+  const ox = Math.round(origin.x * dpr) / dpr, oy = Math.round(origin.y * dpr) / dpr;
+  const CS = MAP_CHUNK * s;
+  const i0 = Math.floor(-ox / CS), i1 = Math.floor((w - ox) / CS), j0 = Math.floor(-oy / CS), j1 = Math.floor((h - oy) / CS);
+  // les morceaux du centre de l'écran d'abord ; ceux qui manquent prennent la couleur de leur sol en attendant
+  const order = [];
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) order.push([i, j, Math.hypot(ox + (i + 0.5) * CS - w / 2, oy + (j + 0.5) * CS - h / 2)]);
+  order.sort((p, q) => p[2] - q[2]);
+  let missing = 0;
+  for (const [i, j] of order) {
+    const k = i + ',' + j;
+    let c = _mapChunks.get(k);
+    if (c) { _mapChunks.delete(k); _mapChunks.set(k, c); }
+    else if (budget > 0 && !failing) { budget--; c = mapRenderChunk(i, j, st); }
+    if (c) { mapCtx.drawImage(c, ox + i * CS, oy + j * CS, CS, CS); continue; }
+    missing++;
+    const X = (i + 0.5) * MAP_CHUNK, Y = (j + 0.5) * MAP_CHUNK;   // centre du morceau, dans le repère du monde à l'échelle st
+    const g = Terrain.groundAt(Math.round(X / st.tw + Y / st.th), Math.round(Y / st.th - X / st.tw));
+    mapCtx.fillStyle = MAP_GROUND_FALLBACK[g]?.color || '#6a9a48';
+    mapCtx.fillRect(ox + i * CS, oy + j * CS, CS + 0.5, CS + 0.5);
+    if (st.night) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fillRect(ox + i * CS, oy + j * CS, CS + 0.5, CS + 0.5); }
+  }
+  // la suite à l'image suivante (ou dans 2 s si la mémoire de canvas manque), seulement si la carte est toujours affichée
+  if (missing && s === 1 && !_mapChunkPending) {
+    _mapChunkPending = true;
+    const again = () => { _mapChunkPending = false; if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender(); };
+    if (now < _mapChunkFailUntil) setTimeout(again, _mapChunkFailUntil - now + 20); else requestAnimationFrame(again);
+  }
+  const keep = (i1 - i0 + 1) * (j1 - j0 + 1) + 8;
+  while (_mapChunks.size > keep) { const k = _mapChunks.keys().next().value; const c = _mapChunks.get(k); _mapChunks.delete(k); mapDropChunk(c); }
+}
+
+// ---- la grille : bords des cases (les cases sont centrées sur les coordonnées entières) ----
+function drawMapGrid(worldToScreen, bounds, night) {
+  if (!showMapGrid) return;
+  const { x0, x1, y0, y1 } = bounds;
+  const p2 = new Path2D();
+  for (let x = x0; x <= x1; x++) { const a = worldToScreen(x + 0.5, y0 - 0.5), b = worldToScreen(x + 0.5, y1 + 0.5); p2.moveTo(a.x, a.y); p2.lineTo(b.x, b.y); }
+  for (let y = y0; y <= y1; y++) { const a = worldToScreen(x0 - 0.5, y + 0.5), b = worldToScreen(x1 + 0.5, y + 0.5); p2.moveTo(a.x, a.y); p2.lineTo(b.x, b.y); }
+  const fade = Math.max(0.35, Math.min(1, mapZoomLevel / 0.6));   // de loin, plus discrète
+  mapCtx.strokeStyle = night ? `rgba(220,230,255,${0.07 * fade})` : `rgba(40,32,16,${0.09 * fade})`;
+  mapCtx.lineWidth = 0.6;
+  mapCtx.stroke(p2);
+}
+
+// ---- éléments posés ----
+// Cadrage des images de tools/repaint/map-world.cjs : losange d'une case = 50 % de la largeur, centre à 75 % de la hauteur
+const WORLD_OBJECT_FOOTPRINT = 0.5, WORLD_OBJECT_CENTER_Y = 0.75;
+// Ville sur 2 × 2 cases : losange 2 × 2 = 90 % de la largeur, centre à 68 % de la hauteur
+const WORLD_CITY_FOOTPRINT = 0.9, WORLD_CITY_CENTER_Y = 0.68;
+// Sprites de la carte d'avant (ressources 1,3 case de large, armées 1,2) → même échelle au nouveau cadrage
+const WORLD_SPRITE_SCALE = 1 / (WORLD_OBJECT_FOOTPRINT * 1.3);
+const WORLD_ARMY_SCALE = 1 / (WORLD_OBJECT_FOOTPRINT * 1.2);   // drawIsoArmy dessine ses sprites à 1,2 case
+
+// Image peinte livrée et chargeable (une image absente ou en erreur ne compte pas : le dessin de repli prend le relais)
+function worldHas(p) { return typeof paintedSet !== 'undefined' && paintedSet.has(p) && !(typeof spriteFailed === 'function' && spriteFailed('assets/images/painted/' + p)); }
+function worldArt(p) {
+  if (!worldHas(p) || typeof getSprite !== 'function') return null;
+  return getSprite('assets/images/painted/' + p);
+}
+// Une variante peinte parmi n, choisie au hasard (déterministe) pour la case ; null si aucune n'est livrée
+function worldVariant(prefix, n, wx, wy, seed) {
+  if (typeof paintedSet === 'undefined') return null;
+  const start = Math.floor(Terrain.seededRandom(wx, wy, seed) * n);
+  for (let k = 0; k < n; k++) { const p = `${prefix}${((start + k) % n) + 1}.webp`; if (worldHas(p)) return p; }
+  return null;
+}
+function drawWorldObject(img, x, y, tw) {
+  const S = tw / WORLD_OBJECT_FOOTPRINT;
+  mapCtx.drawImage(img, x - S / 2, y - S * WORLD_OBJECT_CENTER_Y, S, S);
+}
+function drawWorldCityImage(img, x, y, blockW) {
+  const S = blockW / WORLD_CITY_FOOTPRINT;
+  mapCtx.drawImage(img, x - S / 2, y - S * WORLD_CITY_CENTER_Y, S, S);
+}
+
+const MAP_WET = { water: 1, frozen: 1, oasis: 1, river: 1, bridge: 1, ford: 1 };
+const MAP_MOUNTAIN_BIOME = { forest: 'temperate', snow: 'snow', desert: 'desert' };
+// Montagnes infranchissables : tempérées, enneigées, mesas du désert
+function mapIsMountain(t) { return t.feature === 'mountain' || t.feature === 'icemountain' || t.feature === 'mesa'; }
+// Le pont et le gué traversent la rivière de rive à rive selon un axe de la grille (Terrain.crossingAxisAt)
+function mapCrossingAlongX(wx, wy) { return Terrain.crossingAxisAt(wx, wy) === 'x'; }
+
+// Image peinte de l'élément posé sur une case (chemin painted/), ou null
+function worldFeatureArt(wx, wy, terrain) {
+  const f = terrain.feature, biome = terrain.biome;
+  if (f === 'tree' || f === 'snowtree') {
+    const kind = f === 'tree' ? 'temperate' : 'snow';
+    let around = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === f && !terrainBlockedAt(wx + dx, wy + dy)) around++;
+    const dense = worldVariant(`map/world/forest/${kind}_`, 4, wx, wy, 5151), edge = worldVariant(`map/world/forest/${kind}_edge_`, 3, wx, wy, 5152);
+    return around >= 3 ? (dense || edge) : (edge || dense);
+  }
+  if (mapIsMountain(terrain)) {
+    const key = MAP_MOUNTAIN_BIOME[biome] || 'temperate';
+    const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; return mapIsMountain(getTerrainType(wx + dx, wy + dy)); };
+    const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
+    const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
+    // plusieurs modèles par forme (3 variantes), choisis au hasard pour la case ; repli sur la montagne isolée
+    return worldVariant(`map/world/mountains/${key}${suffix}_`, 3, wx, wy, 5161) || worldVariant(`map/world/mountains/${key}_`, 3, wx, wy, 5161);
+  }
+  if (f === 'boulders') return worldVariant('map/world/rocks/boulders_', 4, wx, wy, 5153);
+  if (f === 'rocks') return worldVariant('map/world/rocks/desert_', 3, wx, wy, 5154);
+  if (f === 'dunes') return worldVariant('map/world/desert/dunes_', 3, wx, wy, 5155);
+  if (f === 'ruins') return worldVariant('map/world/desert/ruins_', 3, wx, wy, 5156);
+  if (f === 'bridge' || f === 'ford') { const p = `map/world/river/${f}_${mapCrossingAlongX(wx, wy) ? 'x' : 'y'}.webp`; return worldHas(p) ? p : null; }
+  return null;
+}
+
+// ---- décor des cases libres, comme sur la carte de référence (rien n'est semé au hasard partout) ----
+// Champs de blé autour des villes (2 à 4 cases de leurs murs) et sur la terre labourée, par groupes ; une meule à côté
+// d'un champ ; un chemin de terre qui part de la porte (face sud-est) de chaque ville ; buissons et arbres isolés au bord de
+// l'eau ; agaves sur l'herbe sèche, la terre et le sable, cactus au désert ; quelques cailloux ; décor givré sous la neige.
+let mapCityNear = new Map();   // "x,y" -> distance (en cases, au plus 5) au bloc 2 × 2 de la ville la plus proche
+let mapRoadCells = new Set();  // cases traversées par un chemin de terre (sans décor)
+let mapRoads = [];             // [[{x, y}, …], …] tracés en coordonnées du monde
+let _mapCitySig = '';
+let _mapNight = false;         // nuit : posé par drawMapGround à chaque image
+// Décor de chaque case (mapDecorAt), gardé tant que les villes et les points de ressource ne changent pas
+const _mapDecorPlan = new Map();
+const MAP_DECOR_PLAN_MAX = 60000;
+const mapCellKey = (wx, wy) => (wx + 32768) * 65536 + (wy + 32768);
+function rebuildMapCityRings() {
+  const list = [];
+  const seen = new Set();
+  const add = (c) => { const k = c.x + ',' + c.y; if (!seen.has(k)) { seen.add(k); list.push({ x: c.x, y: c.y }); } };
+  for (const o of mapData) if (o.type === 'CITY') add(o);
+  for (const c of (typeof cities !== 'undefined' ? cities : [])) add(c);
+  // signature : toutes les cases d'objets (villes et points de ressource), dont dépendent les chemins, les champs et le décor
+  let h = 0, n = 0;
+  for (const k of mapObjectCells.keys()) { let x = 0; for (let i = 0; i < k.length; i++) x = (x * 31 + k.charCodeAt(i)) | 0; h = (h + x) | 0; n++; }
+  const sig = Terrain.epoch + ':' + n + ':' + h + ':' + list.length;   // et la carte du serveur (graine)
+  if (sig === _mapCitySig) return;
+  _mapCitySig = sig;
+  _mapDecorPlan.clear();
+  mapCityNear = new Map(); mapRoadCells = new Set(); mapRoads = [];
+  for (const c of list) for (let dy = -5; dy <= 6; dy++) for (let dx = -5; dx <= 6; dx++) {
+    const d = Math.max(dx < 0 ? -dx : dx > 1 ? dx - 1 : 0, dy < 0 ? -dy : dy > 1 ? dy - 1 : 0);   // 0 sur le bloc, 1 sur la couronne
+    const k = (c.x + dx) + ',' + (c.y + dy);
+    if (!mapCityNear.has(k) || mapCityNear.get(k) > d) mapCityNear.set(k, d);
+  }
+  // chemin de terre : il sort par la porte, au milieu de la face sud-est (vers +x), et serpente sur 4 à 6 cases ; on essaie
+  // plusieurs directions et on garde le tracé le plus long avant le premier obstacle (voir mapTraceRoad)
+  for (const c of list) {
+    const len = 4 + Math.floor(Terrain.seededRandom(c.x, c.y, 6201) * 3), ph = Terrain.seededRandom(c.x, c.y, 6202) * 6.28;
+    let best = null, bestScore = 0;
+    // la porte au milieu du mur, sinon un peu de côté (une ressource ou de l'eau contre le coin de la porte)
+    search: for (const y0 of [0.5, 0.25, 0.75]) for (const [hx, hy] of MAP_ROAD_HEADINGS) {
+      const r = mapTraceRoad(c, y0, hx, hy, len, ph), L = r.pts.length;
+      // un chemin qui finit dans le vide fait au moins 2 cases ; un chemin qui mène quelque part (point de ressource,
+      // lisière de forêt, berge, ville voisine) peut être plus court ; à longueur égale, la porte du milieu
+      const score = (r.dest ? (L >= 3 ? L + 4 : 0) : L > 8 ? L : 0) - (y0 === 0.5 ? 0 : 0.5);
+      if (score > bestScore) { best = r; bestScore = score; }
+      if (L > len * 4 && y0 === 0.5) break search;   // tracé complet depuis le milieu de la porte
+    }
+    if (best) { mapRoads.push(best.pts); for (const k of best.marks) mapRoadCells.add(k); }
+  }
+}
+// Un tracé de chemin depuis la porte, dans la direction (hx, hy) : il s'arrête à l'eau ou à un objet dès la porte, puis à
+// tout élément posé (relief, forêt, rochers…) et avant un relief juste au sud, dont l'image le cacherait. Les cases que la
+// trace touche (des deux côtés) restent sans décor.
+const MAP_ROAD_HEADINGS = [[1, 0], [1, 0.45], [1, -0.45], [0.8, 0.8], [0.8, -0.8], [0.5, 1], [0.5, -1]];
+const MAP_ROAD_HALF = 0.14;   // demi-largeur de la trace, en cases (avec sa bordure)
+function mapTraceRoad(c, y0, hx, hy, len, ph) {
+  const n = Math.hypot(hx, hy), ux = hx / n, uy = hy / n;
+  const pts = [], marks = [];
+  for (let k = 0; k <= len * 4; k++) {
+    const t = k / 4, wob = Math.sin(t * 0.9 + ph) * 0.45 * Math.min(1, t / 1.5);
+    const px = c.x + 1.5 + ux * t - uy * wob, py = c.y + y0 + uy * t + ux * wob;
+    const cells = new Set();
+    for (const [ox, oy] of [[0, 0], [-MAP_ROAD_HALF, -MAP_ROAD_HALF], [MAP_ROAD_HALF, -MAP_ROAD_HALF], [-MAP_ROAD_HALF, MAP_ROAD_HALF], [MAP_ROAD_HALF, MAP_ROAD_HALF]]) cells.add(Math.round(px + ox) + ',' + Math.round(py + oy));
+    let into = false;   // le chemin entre sous les premiers arbres d'une forêt, puis s'arrête
+    for (const key of cells) {
+      const [cx, cy] = key.split(',').map(Number);
+      if (cx >= c.x && cx <= c.x + 1 && cy >= c.y && cy <= c.y + 1) continue;   // le bloc de la ville elle-même
+      const f = getTerrainType(cx, cy).feature;
+      if (MAP_WET[f] || mapObjectCells.has(key)) return { pts, marks, dest: t >= 0.6 };   // berge, point de ressource, ville voisine
+      if (t < 0.6 || !f || terrainBlockedAt(cx, cy)) continue;   // (autour d'une ville, le relief est effacé)
+      if (Terrain.FOREST[f]) { into = true; continue; }
+      return { pts, marks, dest: false };   // relief, rochers, dunes, ruines : le chemin s'arrête avant
+    }
+    if (!into && t >= 0.6) for (const key of cells) {   // un relief juste au sud : son image cacherait le chemin
+      const [cx, cy] = key.split(',').map(Number);
+      for (const [dx, dy] of [[1, 0], [0, 1], [1, 1]]) if (mapIsMountain(getTerrainType(cx + dx, cy + dy)) && !terrainBlockedAt(cx + dx, cy + dy)) return { pts, marks, dest: false };
+    }
+    pts.push({ x: px, y: py });
+    if (into) return { pts, marks, dest: true };
+    if (t >= 0.6) marks.push(...cells);
+  }
+  return { pts, marks, dest: false };
+}
+// Chemins de terre, dessinés sur le sol avant les éléments posés
+// texture du chemin : un motif à elle, accroché au monde (il suit la carte quand on la déplace) et à l'échelle du zoom
+let _mapRoadPattern = null, _mapRoadSrc = null;
+const MAP_ROAD_TEX_CELLS = 1.5;   // la texture couvre 1,5 case de large
+function mapRoadPattern(worldToScreen, tw) {
+  const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl('road_dirt') : null;
+  const img = url && typeof getSprite === 'function' ? getSprite(url) : null;
+  if (!img || typeof DOMMatrix !== 'function') return null;
+  if (_mapRoadSrc !== img) {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'); if (!g) return null;
+    g.drawImage(img, 0, 0, 256, 256);
+    _mapRoadPattern = mapCtx.createPattern(c, 'repeat'); _mapRoadSrc = img;
+  }
+  if (!_mapRoadPattern || typeof _mapRoadPattern.setTransform !== 'function') return null;
+  const o = worldToScreen(0, 0), k = tw * MAP_ROAD_TEX_CELLS / 256;
+  _mapRoadPattern.setTransform(new DOMMatrix().translate(o.x, o.y).scale(k));
+  return _mapRoadPattern;
+}
+function drawMapRoads(worldToScreen, tw, night) {
+  if (!mapRoads.length) return;
+  const tex = mapRoadPattern(worldToScreen, tw);
+  mapCtx.save();
+  mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
+  for (const pts of mapRoads) {
+    const sp = pts.map(p => worldToScreen(p.x, p.y));
+    const trace = () => { mapCtx.beginPath(); sp.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y))); };
+    trace(); mapCtx.strokeStyle = 'rgba(110,86,50,0.45)'; mapCtx.lineWidth = tw * 0.2; mapCtx.stroke();
+    trace(); mapCtx.strokeStyle = tex || '#c9ad78'; mapCtx.lineWidth = tw * 0.14; mapCtx.stroke();
+    if (tex) { mapCtx.strokeStyle = 'rgba(214,186,128,0.45)'; mapCtx.stroke(); }
+    if (night) { mapCtx.strokeStyle = MAP_NIGHT_VEIL; mapCtx.lineWidth = tw * 0.2; mapCtx.stroke(); }
+  }
+  mapCtx.restore();
+}
+
+const MAP_SHORE = (wx, wy) => { for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (MAP_WET[getTerrainType(wx + dx, wy + dy).feature]) return true; return false; };
+// Le champ de blé d'une case libre (sans relief), comme sur la carte de référence : quelques parcelles de 2 × 2 cases à 2 ou
+// 3 cases des murs (environ 6 cases par ville), et sur la terre labourée ; jamais contre l'eau ni sur la plage
+const mapParcel = (v) => Math.floor(v / 2);
+function mapWheatAt(wx, wy) {
+  const t = getTerrainType(wx, wy);
+  if (t.feature || t.biome !== 'forest' || mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return false;
+  const g = Terrain.groundAt(wx, wy);
+  if (g === 'water' || g === 'ice' || g === 'sand') return false;
+  const near = mapCityNear.get(wx + ',' + wy);
+  const px = mapParcel(wx), py = mapParcel(wy);
+  if (!(Terrain.valueNoise(px, py, 6102, 1.5) > 0.4)) return false;
+  const r = Terrain.seededRandom(px, py, 6103);
+  if (!((near >= 2 && near <= 3 && r < 0.45) || (g === 'earth' && r < 0.2))) return false;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if ((dx || dy) && (MAP_WET[getTerrainType(wx + dx, wy + dy).feature] || Terrain.groundAt(wx + dx, wy + dy) === 'sand')) return false;
+  }
+  return true;
+}
+// Le décor d'une case libre : { kind, prefix, n } (images map/world/fields|decor/…) ou null ; calculé une fois par case
+function mapDecorAt(wx, wy, terrain) {
+  const key = mapCellKey(wx, wy);
+  let d = _mapDecorPlan.get(key);
+  if (d !== undefined) return d;
+  d = mapDecorPlanAt(wx, wy, terrain);
+  if (_mapDecorPlan.size >= MAP_DECOR_PLAN_MAX) _mapDecorPlan.clear();
+  _mapDecorPlan.set(key, d);
+  return d;
+}
+function mapDecorPlanAt(wx, wy, terrain) {
+  if (terrain.feature || mapRoadCells.has(wx + ',' + wy)) return null;
+  const g = Terrain.groundAt(wx, wy);
+  if (g === 'water' || g === 'ice') return null;
+  const r = Terrain.seededRandom(wx, wy, 6101);
+  if (terrain.biome === 'snow') {
+    if (r < 0.04) return { kind: 'snowbush', prefix: 'map/world/decor/snow_bush_', n: 2 };
+    if (r > 0.95) return { kind: 'snowstones', prefix: 'map/world/decor/snow_stones_', n: 2 };
+    return null;
+  }
+  if (terrain.biome === 'desert') {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === 'oasis') return null;   // les palmiers de l'oasis
+    if (r < 0.05) return { kind: 'cactus', prefix: 'map/world/decor/cactus_', n: 2 };
+    if (r > 0.95) return { kind: 'desertstones', prefix: 'map/world/decor/desert_stones_', n: 3 };
+    return null;
+  }
+  if (mapWheatAt(wx, wy)) return { kind: 'wheat', prefix: 'map/world/fields/wheat_', n: 3 };
+  if (MAP_SHORE(wx, wy)) return r < 0.32 ? (r < 0.1 ? { kind: 'tree', prefix: 'map/world/decor/tree_', n: 3 } : { kind: 'bush', prefix: 'map/world/decor/bush_', n: 3 }) : null;
+  const r2 = Terrain.seededRandom(wx, wy, 6104);
+  if (r2 < 0.16) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (mapWheatAt(wx + dx, wy + dy)) return { kind: 'haystack', prefix: 'map/world/decor/haystack_', n: 2 };
+  if ((g === 'drygrass' || g === 'earth') && r < 0.07) return { kind: 'agave', prefix: 'map/world/decor/agave_', n: 3 };
+  if (g === 'grass' && r < 0.018) return { kind: 'tree', prefix: 'map/world/decor/tree_', n: 3 };
+  if (r > 0.94) return { kind: 'stones', prefix: 'map/world/decor/stones_', n: 3 };
+  return null;
+}
+// Repli dessiné d'un décor, tant que son image n'est pas livrée
+function drawLegacyDecor(kind, x, y, tw, th, wx, wy) {
+  const j = (s) => Terrain.seededRandom(wx, wy, s) - 0.5;
+  if (kind === 'wheat') {
+    const k = 0.99;   // les cases d'une parcelle se touchent
+    mapCtx.beginPath(); mapCtx.moveTo(x, y - th / 2 * k); mapCtx.lineTo(x + tw / 2 * k, y); mapCtx.lineTo(x, y + th / 2 * k); mapCtx.lineTo(x - tw / 2 * k, y); mapCtx.closePath();
+    mapCtx.fillStyle = '#d8b04a'; mapCtx.fill();
+    if (_mapNight) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fill(); }   // le champ fait partie du sol : même voile de nuit
+    if (tw < 24) return;   // de loin, pas de sillons
+    mapCtx.strokeStyle = _mapNight ? 'rgba(40,34,20,0.55)' : 'rgba(150,108,30,0.55)'; mapCtx.lineWidth = Math.max(0.6, tw * 0.012);
+    mapCtx.beginPath();   // les sillons en un seul tracé
+    for (let i = 1; i < 6; i++) { const u = i / 6 - 0.5; mapCtx.moveTo(x - tw / 4 * k + u * tw / 2 * k, y - th / 4 * k - u * th / 2 * k); mapCtx.lineTo(x + tw / 4 * k + u * tw / 2 * k, y + th / 4 * k - u * th / 2 * k); }
+    mapCtx.stroke();
+    return;
+  }
+  if (kind === 'haystack') {
+    const s = tw * 0.12;
+    mapCtx.fillStyle = 'rgba(0,0,0,0.18)'; mapCtx.beginPath(); mapCtx.ellipse(x + s * 0.4, y + s * 0.15, s * 1.1, s * 0.45, 0, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.fillStyle = '#d9b354'; mapCtx.beginPath(); mapCtx.ellipse(x, y - s * 0.4, s, s * 0.85, 0, Math.PI, 0); mapCtx.lineTo(x + s, y); mapCtx.lineTo(x - s, y); mapCtx.closePath(); mapCtx.fill();
+    if (_mapNight) { mapCtx.fillStyle = MAP_NIGHT_VEIL; mapCtx.fill(); }
+    return;
+  }
+  if (kind === 'stones' || kind === 'snowstones' || kind === 'desertstones') {
+    mapCtx.fillStyle = kind === 'snowstones' ? '#c9d2da' : kind === 'desertstones' ? '#b48a5a' : '#9a958a';
+    for (let i = 0; i < 3; i++) { mapCtx.beginPath(); mapCtx.ellipse(x + j(6110 + i) * tw * 0.4, y + j(6120 + i) * th * 0.4, tw * 0.035, th * 0.05, 0, 0, Math.PI * 2); mapCtx.fill(); }
+    return;
+  }
+  if (kind === 'agave' || kind === 'cactus') {
+    mapCtx.strokeStyle = kind === 'cactus' ? '#4f8a3a' : '#6c9a4a'; mapCtx.lineWidth = Math.max(1, tw * 0.02); mapCtx.lineCap = 'round';
+    const bx = x + j(6130) * tw * 0.3, by = y + j(6131) * th * 0.3, hgt = th * 0.45;
+    for (let i = -2; i <= 2; i++) { mapCtx.beginPath(); mapCtx.moveTo(bx, by); mapCtx.lineTo(bx + i * tw * 0.025, by - hgt * (1 - Math.abs(i) * 0.18)); mapCtx.stroke(); }
+    return;
+  }
+  if (kind === 'bush' || kind === 'snowbush') {
+    mapCtx.fillStyle = kind === 'snowbush' ? '#dfe8ee' : '#4f7f35';
+    const bx = x + j(6140) * tw * 0.3, by = y + j(6141) * th * 0.3;
+    for (const [ox, oy, rr] of [[-0.05, 0, 0.07], [0.05, -0.01, 0.06], [0, -0.05, 0.065]]) { mapCtx.beginPath(); mapCtx.arc(bx + ox * tw, by + oy * tw, rr * tw, 0, Math.PI * 2); mapCtx.fill(); }
+    return;
+  }
+  if (kind === 'tree') { drawIsoTree(x + j(6150) * tw * 0.2, y - th * 0.15, tw * 0.3, th * 0.75, Terrain.seededRandom(wx, wy, 6151)); }
+}
+
+// Décor sans effet sur le jeu : palmiers au bord des oasis, bateaux et quais sur l'eau (seulement peints, sauf les palmiers)
+function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
+  const f = terrain.feature;
+  if (!f && terrain.biome === 'desert') {
+    if (mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return;   // pas de palmier sur un chemin ni contre une ville
+    let oasis = false;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === 'oasis') { oasis = true; break; }
+    if (!oasis || Terrain.seededRandom(wx, wy, 5157) > 0.6) return;
+    const p = worldVariant('map/world/desert/palms_', 3, wx, wy, 5158), img = p && worldArt(p);
+    if (img) drawWorldObject(img, x, y, tw);
+    else if (!p) { drawPalmTree(x - tw * 0.12, y - th * 0.05, tw * 0.14, th * 0.9); drawPalmTree(x + tw * 0.12, y + th * 0.05, tw * 0.12, th * 0.75); }
+    return;
+  }
+  if ((f === 'water' || f === 'river') && terrain.biome !== 'snow') {
+    const r = Terrain.seededRandom(wx, wy, 5159);
+    if (r < 0.012) { drawMapBoat(x, y, tw, th, wx, wy); return; }
+    if (r < 0.04) {
+      const landX = !MAP_WET[getTerrainType(wx - 1, wy).feature], landY = !MAP_WET[getTerrainType(wx, wy - 1).feature];
+      const p = landX ? 'map/world/water/dock_x.webp' : landY ? 'map/world/water/dock_y.webp' : null;
+      const img = p && worldArt(p);
+      if (img) drawWorldObject(img, x, y, tw);
+    }
+  }
+}
+
+// ---- ambiance, légère (décision du 26 octobre 2026, d'après la vidéo de référence) ----
+// Un bateau glisse doucement d'avant en arrière le long de l'eau autour de sa case, en tanguant ; quelques nuages passent
+// lentement au-dessus de la carte. Rien ne bouge si l'appareil demande de réduire les animations.
+const mapReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawMapBoat(x, y, tw, th, wx, wy) {
+  const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
+  const ph = Terrain.seededRandom(wx, wy, 5161) * 6.28, period = 26 + Terrain.seededRandom(wx, wy, 5162) * 18;
+  // le long de l'eau : l'axe dont les deux voisins sont de l'eau
+  const wet = (dx, dy) => MAP_WET[getTerrainType(wx + dx, wy + dy).feature] && getTerrainType(wx + dx, wy + dy).feature !== 'bridge' && getTerrainType(wx + dx, wy + dy).feature !== 'ford';
+  const alongX = wet(1, 0) && wet(-1, 0), alongY = wet(0, 1) && wet(0, -1);
+  const a = Math.sin(t * 6.283 / period + ph), v = Math.cos(t * 6.283 / period + ph);
+  const s = (alongX || alongY) ? a * 0.32 : 0;
+  const ux = alongX ? 1 : 0, uy = alongX ? 0 : alongY ? 1 : 0;
+  const bx = x + (ux - uy) * s * tw / 2, by = y + (ux + uy) * s * th / 2 + Math.sin(t * 1.3 + ph) * th * 0.015;
+  const dir = ((ux - uy) * v) < 0 ? -1 : 1;   // la proue dans le sens de la marche
+  if (!still && (alongX || alongY)) mapAmbientOnScreen = true;
+  const p = worldVariant('map/world/water/boat_', 3, wx, wy, 5160), img = p && worldArt(p);
+  mapCtx.save(); mapCtx.translate(bx, by); if (dir < 0) mapCtx.scale(-1, 1);
+  if (img) drawWorldObject(img, 0, 0, tw);
+  else if (!p) {   // repli dessiné : coque et voile
+    const k = tw * 0.16;
+    mapCtx.fillStyle = 'rgba(20,40,70,0.25)'; mapCtx.beginPath(); mapCtx.ellipse(0, k * 0.15, k * 1.1, k * 0.32, 0, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.fillStyle = '#7a4e2a'; mapCtx.beginPath(); mapCtx.moveTo(-k, -k * 0.1); mapCtx.lineTo(k, -k * 0.1); mapCtx.lineTo(k * 0.6, k * 0.25); mapCtx.lineTo(-k * 0.7, k * 0.25); mapCtx.closePath(); mapCtx.fill();
+    mapCtx.strokeStyle = '#5a3a1e'; mapCtx.lineWidth = Math.max(1, tw * 0.012); mapCtx.beginPath(); mapCtx.moveTo(0, -k * 0.1); mapCtx.lineTo(0, -k * 1.3); mapCtx.stroke();
+    mapCtx.fillStyle = '#f2eee2'; mapCtx.beginPath(); mapCtx.moveTo(k * 0.05, -k * 1.25); mapCtx.quadraticCurveTo(k * 0.75, -k * 0.7, k * 0.05, -k * 0.2); mapCtx.closePath(); mapCtx.fill();
+  }
+  mapCtx.restore();
+}
+// Nuages : un par case d'une grille large du monde (une sur trois environ), qui dérive avec le vent et revient dans sa
+// case ; légers (peu opaques), leur ombre à peine visible au sol
+const MAP_CLOUD_CELL = 16, MAP_CLOUD_SPEED = 0.18;   // cases ; cases par seconde
+function drawMapClouds(worldToScreen, w, h, tw, night) {
+  const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
+  const screenToCell = (sx, sy) => { const o = worldToScreen(0, 0), dx = (sx - o.x) / (tw / 2), dy = (sy - o.y) / (tw / 4); return { x: (dx + dy) / 2, y: (dy - dx) / 2 }; };
+  const corners = [screenToCell(0, 0), screenToCell(w, 0), screenToCell(0, h), screenToCell(w, h)];
+  const gx0 = Math.floor(Math.min(...corners.map(c => c.x)) / MAP_CLOUD_CELL) - 1, gx1 = Math.ceil(Math.max(...corners.map(c => c.x)) / MAP_CLOUD_CELL) + 1;
+  const gy0 = Math.floor(Math.min(...corners.map(c => c.y)) / MAP_CLOUD_CELL) - 1, gy1 = Math.ceil(Math.max(...corners.map(c => c.y)) / MAP_CLOUD_CELL) + 1;
+  let drawn = 0;
+  for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+    if (Terrain.seededRandom(gx, gy, 7301) > 0.34) continue;
+    const drift = ((t * MAP_CLOUD_SPEED + Terrain.seededRandom(gx, gy, 7302) * MAP_CLOUD_CELL) % MAP_CLOUD_CELL);   // vers le sud-est
+    const cx = gx * MAP_CLOUD_CELL + drift, cy = gy * MAP_CLOUD_CELL + Terrain.seededRandom(gx, gy, 7303) * MAP_CLOUD_CELL;
+    const p = worldToScreen(cx, cy);
+    const v = worldVariant('map/world/fx/cloud_', 3, gx, gy, 7305), img = v && worldArt(v);
+    if (v && !img) continue;   // image en cours de chargement
+    // sans image livrée : un voile à peine visible, plus petit (le repli ne doit pas noyer le décor)
+    const size = tw * (img ? 3 + Terrain.seededRandom(gx, gy, 7304) * 3 : 1.5 + Terrain.seededRandom(gx, gy, 7304) * 1.5);
+    if (p.x < -size * 1.5 || p.x > w + size * 1.5 || p.y < -size || p.y > h + size) continue;
+    drawn++;
+    const lift = size * 0.9;   // le nuage flotte au-dessus de son ombre
+    const fade = Math.min(1, drift / 2, (MAP_CLOUD_CELL - drift) / 2);   // apparaît et s'efface en douceur aux bords de sa case
+    mapCtx.save();
+    mapCtx.globalAlpha = (night ? 0.035 : 0.07) * fade * (img ? 1 : 0.6);   // ombre au sol
+    mapCtx.fillStyle = '#1c2a18'; mapCtx.beginPath(); mapCtx.ellipse(p.x, p.y, size * 0.55, size * 0.22, 0, 0, Math.PI * 2); mapCtx.fill();
+    mapCtx.globalAlpha = (night ? 0.12 : 0.3) * fade * (img ? 1 : 0.33);
+    if (img) mapCtx.drawImage(img, p.x - size * 0.75, p.y - lift - size * 0.4, size * 1.5, size * 0.8);
+    else {
+      for (let k = 0; k < 4; k++) {   // repli dessiné : quelques boules de brume
+        const ox = (Terrain.seededRandom(gx * 7 + k, gy, 7306) - 0.5) * size * 0.9, oy = (Terrain.seededRandom(gx, gy * 7 + k, 7307) - 0.5) * size * 0.25, r = size * (0.22 + Terrain.seededRandom(gx + k, gy + k, 7308) * 0.18);
+        const g = mapCtx.createRadialGradient(p.x + ox, p.y - lift + oy, 0, p.x + ox, p.y - lift + oy, r);
+        g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        mapCtx.fillStyle = g; mapCtx.beginPath(); mapCtx.arc(p.x + ox, p.y - lift + oy, r, 0, Math.PI * 2); mapCtx.fill();
+      }
+    }
+    mapCtx.restore();
+  }
+  if (drawn && !still) mapAmbientOnScreen = true;
+}
+
+// Élément posé d'une case (passe des éléments, triée de haut en bas) : image peinte, sinon le rendu d'avant
+function drawMapCellFeature(x, y, tw, th, wx, wy) {
+  const terrain = getTerrainType(wx, wy);
+  const f = terrain.feature;
+  if (terrainBlockedAt(wx, wy) && !MAP_WET[f]) return;   // relief et décor effacés sous et autour des villes, sur les points de ressource
+  if (!f) {   // case libre : son décor (champ, meule, cailloux, plantes…), comme sur la carte de référence
+    const d = mapDecorAt(wx, wy, terrain);
+    if (d) {
+      const p = worldVariant(d.prefix, d.n, wx, wy, 6160), img = p && worldArt(p);
+      if (img) drawWorldObject(img, x, y, tw);
+      else if (!p) drawLegacyDecor(d.kind, x, y, tw, th, wx, wy);
+    }
+    if (terrain.biome !== 'desert') return;
+  }
+  drawMapDecor(x, y, tw, th, wx, wy, terrain);
+  if (!f || f === 'water' || f === 'frozen' || f === 'oasis' || f === 'river') return;   // l'eau fait partie du sol
+  const p = typeof paintedSet !== 'undefined' ? worldFeatureArt(wx, wy, terrain) : null;
+  const img = p && worldArt(p);
+  if (img) { drawWorldObject(img, x, y, tw); return; }
+  if (p) return;   // image peinte en cours de chargement
+  drawLegacyFeature(x, y, tw, th, wx, wy, terrain);
+}

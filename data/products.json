@@ -1,0 +1,32 @@
+[
+  {
+    "id": "imperium.plus.monthly",
+    "type": "subscription",
+    "entitlement": "plus",
+    "name": "Imperium Plus",
+    "description": "Une file de construction supplémentaire, +5 % de production dans toutes vos villes et le bandeau doré sur la carte. Essai gratuit de 7 jours, puis abonnement mensuel renouvelable.",
+    "perks": ["+1 construction en file d'attente", "+5 % de production de ressources", "Bandeau doré sur la carte"],
+    "priceHint": "4,99 € / mois"
+  },
+  {
+    "id": "imperium.cosmetic.golden_banner",
+    "type": "cosmetic",
+    "name": "Bannière dorée",
+    "description": "Vos villes arborent une bannière dorée sur la carte du monde.",
+    "priceHint": "2,99 €"
+  },
+  {
+    "id": "imperium.cosmetic.crimson_banner",
+    "type": "cosmetic",
+    "name": "Bannière pourpre",
+    "description": "Une bannière pourpre impériale pour vos villes sur la carte.",
+    "priceHint": "2,99 €"
+  },
+  {
+    "id": "imperium.cosmetic.lanterns",
+    "type": "cosmetic",
+    "name": "Lanternes de fête",
+    "description": "Des lanternes illuminent votre ville la nuit.",
+    "priceHint": "1,99 €"
+  }
+]

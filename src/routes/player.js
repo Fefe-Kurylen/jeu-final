@@ -1,24 +1,38 @@
 const express = require('express');
 const router = express.Router();
+const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
+const config = require('../config');
+const { levelsFrom } = require('../utils/techEffects');
+const { getRelation } = require('../services/diplomacyService');
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
   try {
     const player = await prisma.player.findUnique({
       where: { id: req.user.playerId },
+      // Charge utile réduite (rafraîchie toutes les 15 s sur mobile) : les villes détaillées viennent de /api/cities,
+      // les membres d'alliance de /api/alliance/mine
       include: {
-        cities: { include: { buildings: true, buildQueue: true, recruitQueue: true, armies: { include: { units: true } } } },
+        cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
         hero: { include: { items: true } },
         stats: true,
-        alliance: { include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true } } } } } } } },
-        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } }
+        alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
+        expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } },
+        account: { select: { emailVerifiedAt: true, role: true, titles: true } }
       }
     });
-    res.json(player);
+    if (!player) return res.status(401).json({ error: 'Compte supprimé ou introuvable' });   // jeton encore valide mais compte effacé
+    const { account, ...rest } = player;
+    // Researched technology levels { KEY: level }: the client applies the same cost and time formulas as the server
+    const techLevels = levelsFrom(await prisma.playerTechnology.findMany({ where: { playerId: player.id } }));
+    // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
+    const questsClaimable = await require('../services/questService').claimableCount(player.id).catch(() => 0);   // pastille du bouton Quêtes
+    const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
+    res.json({ ...rest, techLevels, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 
@@ -30,25 +44,35 @@ router.get('/:id', auth, async (req, res) => {
       include: {
         cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
         stats: true,
-        alliance: { include: { alliance: { select: { name: true, tag: true } } } },
+        alliance: { include: { alliance: { select: { id: true, name: true, tag: true } } } },
         hero: { select: { name: true, level: true } }
       }
     });
+    const medals = targetPlayer ? await prisma.medal.findMany({ where: { playerId: targetPlayer.id }, orderBy: [{ week: 'desc' }, { rank: 'asc' }], take: 50 }) : [];
     if (!targetPlayer) return res.status(404).json({ error: 'Joueur non trouvé' });
+    // ce qui lie le joueur à celui qu'il regarde : amitié (demande envoyée, reçue, acceptée) et blocage
+    const meId = req.user.playerId;
+    const [friendship, block] = targetPlayer.id === meId ? [null, null] : await Promise.all([
+      prisma.friendship.findFirst({ where: { OR: [{ requesterId: meId, addresseeId: targetPlayer.id }, { requesterId: targetPlayer.id, addresseeId: meId }] } }),
+      prisma.playerBlock.findUnique({ where: { blockerId_blockedId: { blockerId: meId, blockedId: targetPlayer.id } } })
+    ]);
+    const diplomacy = (await getRelation(meId, targetPlayer.id)).status;   // SELF, SAME_ALLIANCE, ALLY, NEUTRAL, ENEMY
+    const relation = { self: targetPlayer.id === meId, diplomacy, blocked: !!block, friend: !friendship ? null : friendship.status === 'ACCEPTED' ? 'friends' : friendship.requesterId === meId ? 'sent' : 'received', requestId: friendship?.status === 'PENDING' ? friendship.id : null };
 
     res.json({
       id: targetPlayer.id, name: targetPlayer.name, faction: targetPlayer.faction,
       population: targetPlayer.population, citiesCount: targetPlayer.cities.length,
       cities: targetPlayer.cities,
       alliance: targetPlayer.alliance?.alliance ? {
-        name: targetPlayer.alliance.alliance.name, tag: targetPlayer.alliance.alliance.tag, role: targetPlayer.alliance.role
+        id: targetPlayer.alliance.alliance.id, name: targetPlayer.alliance.alliance.name, tag: targetPlayer.alliance.alliance.tag, role: targetPlayer.alliance.role
       } : null,
       hero: targetPlayer.hero ? { name: targetPlayer.hero.name, level: targetPlayer.hero.level } : null,
-      stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon } : null,
-      createdAt: targetPlayer.createdAt
+      stats: targetPlayer.stats ? { attacksWon: targetPlayer.stats.attacksWon, defensesWon: targetPlayer.stats.defensesWon, attackPoints: targetPlayer.stats.attackPoints, defensePoints: targetPlayer.stats.defensePoints, loot: targetPlayer.stats.loot } : null,
+      medals: medals.map(m => ({ week: m.week, category: m.category, rank: m.rank, value: m.value })),
+      createdAt: targetPlayer.createdAt, relation
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    sendError(res, e);
   }
 });
 

@@ -1,0 +1,39 @@
+{
+  "_comment": "Talents du héros (décision du 27 octobre 2026) : 1 point par niveau gagné (29 au niveau 30), trois branches ; un talent se débloque quand la branche a reçu `requires` points. Chaque effet vaut sa valeur × le rang. Réinitialisation : la première gratuite, ensuite resetGold or.",
+  "resetGold": 100,
+  "branches": [
+    {
+      "key": "conquest", "name": "Conquête", "icon": "attack",
+      "description": "Attaque, sièges et pillage.",
+      "talents": [
+        { "key": "c_assault", "name": "Assaut", "maxRank": 5, "requires": 0, "effects": { "attackPct": 1 }, "description": "+1 % d'attaque de l'armée du héros par rang." },
+        { "key": "c_siege", "name": "Ingénieur de siège", "maxRank": 3, "requires": 5, "effects": { "wallDamagePct": 4 }, "description": "+4 % de dégâts contre les murs par rang." },
+        { "key": "c_plunder", "name": "Pillard", "maxRank": 3, "requires": 5, "effects": { "lootPct": 4 }, "description": "+4 % de butin pris en raid, en pillage et sur les points par rang." },
+        { "key": "c_veteran", "name": "Vétéran", "maxRank": 3, "requires": 10, "effects": { "heroXpPct": 5 }, "description": "+5 % d'expérience gagnée par le héros par rang." },
+        { "key": "c_warlord", "name": "Seigneur de guerre", "maxRank": 1, "requires": 14, "effects": { "attackPct": 5 }, "description": "+5 % d'attaque de l'armée du héros." }
+      ]
+    },
+    {
+      "key": "guard", "name": "Garde", "icon": "defense",
+      "description": "Défense, murs et blessés.",
+      "talents": [
+        { "key": "g_bulwark", "name": "Rempart vivant", "maxRank": 5, "requires": 0, "effects": { "defensePct": 1 }, "description": "+1 % de défense de l'armée du héros par rang." },
+        { "key": "g_medic", "name": "Chirurgien", "maxRank": 3, "requires": 5, "effects": { "woundedPct": 3 }, "description": "+3 points de blessés soignables plutôt que tués par rang, dans les combats du héros." },
+        { "key": "g_walls", "name": "Gardien des murs", "maxRank": 3, "requires": 5, "effects": { "wallGuardPct": 5 }, "description": "−5 % de dégâts subis par le mur de la ville que défend le héros, par rang." },
+        { "key": "g_endurance", "name": "Endurance", "maxRank": 3, "requires": 10, "effects": { "reviveTimePct": 10 }, "description": "−10 % de temps de résurrection par rang." },
+        { "key": "g_last_stand", "name": "Dernier carré", "maxRank": 1, "requires": 14, "effects": { "defensePct": 5 }, "description": "+5 % de défense de l'armée du héros." }
+      ]
+    },
+    {
+      "key": "stewardship", "name": "Intendance", "icon": "item_crate",
+      "description": "Transport, marche et expéditions.",
+      "talents": [
+        { "key": "i_quartermaster", "name": "Quartier-maître", "maxRank": 5, "requires": 0, "effects": { "carryPct": 3 }, "description": "+3 % de capacité de transport de l'armée du héros par rang." },
+        { "key": "i_pathfinder", "name": "Éclaireur", "maxRank": 3, "requires": 5, "effects": { "speedPct": 2 }, "description": "+2 % de vitesse de l'armée du héros par rang." },
+        { "key": "i_explorer", "name": "Explorateur", "maxRank": 3, "requires": 5, "effects": { "expeditionTimePct": 5 }, "description": "−5 % de durée des expéditions du héros par rang." },
+        { "key": "i_treasure", "name": "Chasseur de trésors", "maxRank": 3, "requires": 10, "effects": { "expeditionLootPct": 5 }, "description": "+5 % d'or et de ressources rapportés d'expédition par rang." },
+        { "key": "i_grand_steward", "name": "Grand intendant", "maxRank": 1, "requires": 14, "effects": { "carryPct": 5, "speedPct": 3 }, "description": "+5 % de transport et +3 % de vitesse de l'armée du héros." }
+      ]
+    }
+  ]
+}

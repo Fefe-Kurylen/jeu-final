@@ -1,0 +1,19 @@
+{
+  "_comment": "Noms refusés à la création (pseudo, alliance et tag, héros, armée, ville) — décision du 29 octobre 2026 : le jeu empêche les noms choquants au lieu de les faire renommer après coup. La comparaison ignore les accents, la casse, les lettres répétées et le langage « leet » (0→o, 1→i, 3→e, 4→a, 5→s, @→a, $→s, 7→t). « contains » : refusé s'il apparaît n'importe où dans le nom collé (« XxConnardxX ») ; ne mettre que des mots de 5 lettres ou plus sans sens courant (une lettre doublée d'un mot court reste exigée : « chatte » ne bloque pas « Château ») ; les expressions du chat y sont ajoutées collées (« Salejuif »). « tokens » : refusé seulement comme mot entier (séparé par _ - espace, chiffres ou majuscule : « Pd_du_92 », « SaleNoir ») ; les mots du filtre du chat (data/chat-filter.json) y sont ajoutés. « reserved » : noms de l'équipe et du jeu, refusés comme mot entier, ou en début de nom pour ceux de 5 lettres ou plus.",
+  "contains": [
+    "connard", "connasse", "salope", "salopard", "encule", "fdpute", "filsdepute", "niquetamere", "niquetamer", "batard",
+    "bougnoul", "youpin", "negre", "nigger", "nigga", "faggot", "tranny", "motherfuck", "fucker", "fucking",
+    "bitch", "bastard", "asshole", "whore", "pussy", "petasse", "branleur", "trisomique", "tapette", "gouine",
+    "hitler", "neonazi", "nazism", "siegheil", "heilhitler", "auschwitz", "holocaust", "shoah", "jihad", "djihad", "daech", "daesh",
+    "isisfighter", "alqaeda", "pedophile", "pedophil", "pedobear", "violeur", "viol3ur", "rapist", "incest", "zoophil",
+    "penis", "vagin", "chatte", "couille", "nichon", "boobs", "porno", "pornhub", "xvideo", "sexe", "sexy", "cocaine"
+  ],
+  "tokens": [
+    "pd", "pede", "tg", "fdp", "ntm", "pute", "bite", "cul", "zob", "teub", "fuck", "shit", "dick", "cunt", "slut", "fag", "kike", "spic", "chink",
+    "kkk", "ss", "nsdap", "kys", "porn", "sex", "rape", "cock", "anal", "nazi", "nazis", "negro", "negros", "niga"
+  ],
+  "reserved": [
+    "admin", "administrateur", "administrator", "moderateur", "moderator", "modo", "staff", "support", "assistance",
+    "systeme", "system", "officiel", "official", "imperium", "immortels", "gamemaster", "gm"
+  ]
+}

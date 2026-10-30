@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: monjeu
+          POSTGRES_PASSWORD: monjeu123
+          POSTGRES_DB: monjeu
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U monjeu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://monjeu:monjeu123@localhost:5432/monjeu
+      JWT_SECRET: ci-only-secret-0123456789abcdef0123456789abcdef
+      NODE_ENV: test
+      PORT: 3000
+      API_BASE: http://localhost:3000
+      PUBLIC_URL: http://localhost:3000
+      EMAIL_PROVIDER: log
+      EMAIL_LOG_FILE: /tmp/mails.jsonl
+      TRANSLATE_PROVIDER: log
+      ADMIN_KEY: ci-only-admin-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Frontend static check (shared globals, undefined identifiers)
+        run: npm run lint
+      - name: Unit tests (no database needed)
+        run: npm run test:unit
+      - name: Apply the versioned migrations to an empty database
+        run: npx prisma migrate deploy
+      - name: Start the API
+        run: |
+          nohup node src/server.js > server.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fs http://localhost:3000/api/health > /dev/null; then echo "API ready"; break; fi
+            sleep 3
+          done
+          curl -fs http://localhost:3000/api/health
+      - name: API end-to-end tests
+        run: node tests/api-e2e.mjs
+      - name: Store-compliance end-to-end tests
+        run: node tests/compliance-e2e.mjs
+      - name: Server log
+        if: always()
+        run: tail -n 120 server.log

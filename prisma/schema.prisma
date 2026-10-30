@@ -8,55 +8,169 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Deleting an account deletes the player and everything the player owns (cascades below);
+// what other players must keep (battle reports) only loses its link to the deleted player.
+
 model Account {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  player       Player?
+  id              String      @id @default(uuid())
+  email           String      @unique
+  passwordHash    String
+  tokenVersion    Int         @default(0) // bumped on password change: older tokens are refused
+  emailVerifiedAt DateTime? // set by the verification link (or a password reset, which proves the mailbox)
+  titles          Json? // titres gagnés dans les mondes terminés (Panthéon), gardés d'un monde à l'autre
+  // administration (décision du 29 octobre 2026) : rôle de l'équipe, sanctions gardées d'un monde à l'autre
+  role            String      @default("PLAYER") // PLAYER, MODERATOR, ADMIN
+  suspendedUntil  DateTime? // connexion refusée jusqu'à cette date (les villes restent attaquables)
+  suspendReason   String?
+  bannedAt        DateTime? // bannissement définitif
+  banReason       String?
+  createdAt       DateTime    @default(now())
+  player          Player?
+  tokens          AuthToken[]
+}
+
+// One-time tokens sent by e-mail (address verification, password reset); only the hash is stored
+model AuthToken {
+  id        String    @id @default(uuid())
+  accountId String
+  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, type])
+}
+
+// Rate-limit counters shared by every process (login, sign-up, admin): one row per key and window
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime
+  count       Int      @default(0)
 }
 
 model Player {
-  id         String   @id @default(uuid())
-  accountId  String   @unique
-  name       String   @unique
-  faction    String
-  gold       Int      @default(0)
-  population Int      @default(0)
-  createdAt  DateTime @default(now())
+  id                String    @id @default(uuid())
+  accountId         String    @unique
+  name              String    @unique
+  faction           String
+  gold              Int       @default(0)
+  population        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now()) // last authenticated request (10 min resolution)
+  premiumUntil      DateTime? // abonnement « Plus » vérifié côté serveur (null = pas d'abonnement)
+  cosmetics         Json? // identifiants des cosmétiques possédés
+  chatLang          String? // langue des messages du joueur (fr, en…) : celle de ses messages, et celle de la traduction automatique
+  chatAutoTranslate Boolean   @default(true)
+  chatMutedUntil    DateTime? // messagerie coupée par la modération jusqu'à cette date
+  alliancePoints    Int       @default(0) // gagnés en aidant les membres de son alliance, dépensés à la boutique d'alliance
+  shopCosmetics     Json? // cosmétiques achetés à la boutique d'alliance (identifiants), distincts des achats intégrés
+  nameplate         String? // plaque de nom choisie (cosmétique), dessinée sous ses villes sur la carte
+  banner            String? // bannière choisie (cosmétique), plantée devant ses villes sur la carte
+  tutorialDone      Boolean   @default(false) // tutoriel des quêtes terminé ou passé
 
-  account      Account          @relation(fields: [accountId], references: [id])
-  cities       City[]
-  armies       Army[]
-  hero         Hero?
-  stats        PlayerStats?
-  sentReports  BattleReport[]   @relation("Attacker")
-  recvReports  BattleReport[]   @relation("Defender")
-  spyReports   SpyReport[]
-  marketOffers MarketOffer[]
-  alliance     AllianceMember?
-  expeditions  Expedition[]
+  account                Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  cities                 City[]
+  armies                 Army[]
+  hero                   Hero?
+  tradeRoutes            TradeRoute[]
+  tradeConvoys           TradeConvoy[]
+  stats                  PlayerStats?
+  ownedReports           BattleReport[]        @relation("ReportOwner")
+  sentReports            BattleReport[]        @relation("Attacker")
+  recvReports            BattleReport[]        @relation("Defender")
+  spyReports             SpyReport[]
+  marketOffers           MarketOffer[]
+  alliance               AllianceMember?
+  expeditions            Expedition[]
+  pushTokens             PushToken[]
+  notifications          Notification[]
+  purchases              Purchase[]
+  technologies           PlayerTechnology[]
+  researchQueue          ResearchQueueItem[]
+  chatMessages           ChatMessage[]
+  chatReports            ChatReport[]
+  chatReads              ChatRead[]
+  blocks                 PlayerBlock[]         @relation("Blocker")
+  blockedBy              PlayerBlock[]         @relation("Blocked")
+  friendRequestsSent     Friendship[]          @relation("FriendRequester")
+  friendRequestsReceived Friendship[]          @relation("FriendAddressee")
+  helpRequests           AllianceHelpRequest[]
+  helpsGiven             AllianceHelp[]
+  questCounters          QuestCounter[]
+  questClaims            QuestClaim[]
+  spies                  Spy[]
+
+  @@index([lastSeenAt])
 }
 
 model PlayerStats {
-  id           String @id @default(uuid())
-  playerId     String @unique
-  attacksWon   Int    @default(0)
-  defensesWon  Int    @default(0)
-  unitsKilled  Int    @default(0)
-  unitsLost    Int    @default(0)
-  raidsWon     Int    @default(0)
+  id            String @id @default(uuid())
+  playerId      String @unique
+  attacksWon    Int    @default(0)
+  defensesWon   Int    @default(0)
+  unitsKilled   Int    @default(0)
+  unitsLost     Int    @default(0)
+  raidsWon      Int    @default(0)
+  // classements (décision du 27 octobre 2026) : points de combat façon Travian = entretien des unités ennemies tuées
+  attackPoints  Int    @default(0)
+  defensePoints Int    @default(0)
+  loot          Int    @default(0) // ressources prises aux autres joueurs (raids, pillage de siège)
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([attackPoints])
+  @@index([defensePoints])
+  @@index([loot])
+}
+
+// Compteurs de la semaine (lundi, heure de Paris) pour le top 10 hebdomadaire ; popStart : population au début de la semaine
+model PlayerWeekStats {
+  id            String @id @default(uuid())
+  playerId      String
+  week          String
+  attackPoints  Int    @default(0)
+  defensePoints Int    @default(0)
+  loot          Int    @default(0)
+  popStart      Int    @default(0)
+
+  @@unique([playerId, week])
+  @@index([week])
+}
+
+// Médaille de la semaine (honorifique) : joueur ou alliance, catégorie, rang 1 à 10
+model Medal {
+  id         String   @id @default(uuid())
+  playerId   String?
+  allianceId String?
+  week       String
+  category   String // ATTACK, DEFENSE, LOOT, CLIMB (joueurs) ; ALLIANCE_ATTACK, ALLIANCE_DEFENSE
+  rank       Int
+  value      Int
+  name       String // nom du joueur ou [TAG] de l'alliance au moment de la médaille
+  createdAt  DateTime @default(now())
+
+  @@index([playerId])
+  @@index([allianceId])
+  @@index([week])
+}
+
+// Semaines déjà closes (médailles distribuées)
+model RankingWeek {
+  week     String   @id
+  closedAt DateTime @default(now())
 }
 
 model City {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   playerId  String
   name      String
   x         Int
   y         Int
-  isCapital Boolean  @default(false)
+  isCapital Boolean @default(false)
+  settlers  Int     @default(0) // colons formés à la Résidence, en attente dans la capitale
 
   wood  Float @default(500)
   stone Float @default(500)
@@ -66,18 +180,32 @@ model City {
   maxStorage     Int @default(1000)
   maxFoodStorage Int @default(1000)
 
-  wallHp       Int      @default(1000)
-  wallMaxHp    Int      @default(1000)
-  isSieged     Boolean  @default(false)
-  siegeStarted DateTime?
+  wallHp            Float     @default(1000) // fractional: regenerates continuously on real elapsed time
+  wallMaxHp         Int       @default(1000)
+  goldAccrued       Float     @default(0) // Treasure Chamber income accumulated until a whole gold coin is paid
+  isSieged          Boolean   @default(false)
+  wallStructure     Float     @default(1) // santé de la muraille (1 = 100 %) : chaque assaut gagné en ôte une part ; à 0 la ville tombe
+  siegeStarted      DateTime?
+  foodAlertAt       DateTime? // dernière alerte « grenier bientôt vide » (une toutes les 6 h au plus)
+  // Ville Merveille (décision du 28 octobre 2026) : fondée sur un site pris aux Immortels ; ne peut pas être rasée
+  isWonder          Boolean   @default(false)
+  wonderLevel       Int       @default(0)
+  wonderBuildEndsAt DateTime? // niveau en construction
+  wonderWood        Float     @default(0) // stock du chantier, sans plafond, rempli par les convois de l'alliance
+  wonderStone       Float     @default(0)
+  wonderIron        Float     @default(0)
+  wonderFood        Float     @default(0)
+  lastImmortalWave  DateTime?
 
   createdAt DateTime @default(now())
 
-  player       Player             @relation(fields: [playerId], references: [id])
-  buildings    CityBuilding[]
-  buildQueue   BuildQueueItem[]
-  recruitQueue RecruitQueueItem[]
-  armies       Army[]
+  player        Player              @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  buildings     CityBuilding[]
+  buildQueue    BuildQueueItem[]
+  researchQueue ResearchQueueItem[]
+  recruitQueue  RecruitQueueItem[]
+  armies        Army[]
+  wounded       WoundedUnit[]
 
   @@unique([x, y])
   @@index([playerId])
@@ -85,13 +213,11 @@ model City {
 }
 
 model CityBuilding {
-  id          String @id @default(uuid())
-  cityId      String
-  slot        Int
-  key         String
-  level       Int    @default(1)
-  category    String @default("BASE")
-  prodPerHour Int    @default(0)
+  id     String @id @default(uuid())
+  cityId String
+  slot   Int
+  key    String
+  level  Int    @default(1)
 
   city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
@@ -134,7 +260,6 @@ model RecruitQueueItem {
 model Army {
   id         String  @id @default(uuid())
   ownerId    String
-  playerId   String?
   cityId     String?
   name       String
   slot       Int     @default(0)
@@ -148,31 +273,36 @@ model Army {
   targetY          Int?
   targetCityId     String?
   targetResourceId String?
-  arrivesAt        DateTime?
+  targetBastionId  String? // Bastion d'alliance visé (ravitaillement, garnison, siège)
   arrivalAt        DateTime?
-  returnsAt        DateTime?
+  departedAt       DateTime? // start of the current move: the client animates the march between departedAt and arrivalAt
+  claimedAt        DateTime? // set by the tick while an arrival is being resolved (never twice)
 
-  mission     String?
   missionType String?
   carryWood   Int     @default(0)
   carryStone  Int     @default(0)
   carryIron   Int     @default(0)
   carryFood   Int     @default(0)
+  carryGold   Int     @default(0)
 
-  // Récolte progressive
-  harvestStartedAt DateTime?  // Quand la récolte a commencé
-  harvestResourceType String? // Type de ressource en cours de récolte
+  harvestResourceType String? // type de ressource en cours de récolte
+  settlers            Int     @default(0) // colons embarqués pour fonder une ville (mission FOUND, statut FOUNDING)
+  woundedCarry        Json    @default("[]") // blessés qui rentrent avec l'armée : [{ unitKey, count }], déposés à la Tente de soins au retour
 
-  owner Player     @relation(fields: [ownerId], references: [id])
-  city  City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
-  hero  Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
-  units ArmyUnit[]
+  owner   Player     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  city    City?      @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  hero    Hero?      @relation(fields: [heroId], references: [id], onDelete: SetNull)
+  units   ArmyUnit[]
+  rallyId String? // rassemblement d'alliance (donjons d'invasion, décision du 29 octobre 2026)
 
   @@index([ownerId])
   @@index([ownerId, status])
   @@index([cityId])
   @@index([status, arrivalAt])
   @@index([targetCityId])
+  @@index([targetResourceId])
+  @@index([targetBastionId])
+  @@index([rallyId])
 }
 
 model ArmyUnit {
@@ -188,13 +318,12 @@ model ArmyUnit {
 }
 
 model Hero {
-  id       String @id @default(uuid())
-  playerId String @unique
-  ownerId  String?
-  name     String
-  level    Int    @default(1)
-  xp       Int    @default(0)
-  xpToNextLevel Int @default(100)
+  id            String @id @default(uuid())
+  playerId      String @unique
+  name          String
+  level         Int    @default(1)
+  xp            Int    @default(0)
+  xpToNextLevel Int    @default(100)
 
   attack    Int @default(5)
   defense   Int @default(5)
@@ -206,19 +335,24 @@ model Hero {
   spdPoints  Int @default(0)
   logPoints  Int @default(0)
   statPoints Int @default(5)
-  freePoints Int @default(0)
 
-  player Player @relation(fields: [playerId], references: [id])
+  talents      Json? // talents appris { clé: rang } (data/hero-talents.json), 1 point par niveau gagné
+  talentResets Int       @default(0) // réinitialisations faites (la première est gratuite)
+  diedAt       DateTime? // tombé au combat (son armée anéantie) : plus d'armée, plus de bonus jusqu'à la résurrection
+  reviveEndsAt DateTime? // résurrection en cours au Domus du Héros de la capitale
+  cityId       String? // joint à aucune armée : la ville où il attend, sans combattre (décision du 29 octobre 2026)
+
+  player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   army   Army?
   items  HeroItem[]
 }
 
 model HeroItem {
-  id       String @id @default(uuid())
-  heroId   String
-  itemKey  String
-  slot     String
-  stats    Json?
+  id      String @id @default(uuid())
+  heroId  String
+  itemKey String
+  slot    String
+  stats   Json?
 
   hero Hero @relation(fields: [heroId], references: [id], onDelete: Cascade)
 }
@@ -227,15 +361,19 @@ model WoundedUnit {
   id      String   @id @default(uuid())
   cityId  String
   unitKey String
-  count   Int
+  count   Int // dans un lit, guérit à healsAt
+  waiting Int      @default(0) // en file d'attente : prend un lit libéré (capacité de la Tente de soins)
   healsAt DateTime
 
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
   @@unique([cityId, unitKey])
+  @@index([healsAt])
 }
 
 model BattleReport {
   id             String   @id @default(uuid())
-  playerId       String?
+  playerId       String? // owner of this copy of the report
   attackerId     String?
   defenderId     String?
   x              Int
@@ -246,22 +384,21 @@ model BattleReport {
   defenderUnits  Json?
   attackerLosses Json?
   defenderLosses Json?
-  attackerLost   Json?
-  defenderLost   Json?
   loot           Json?
   rounds         Json?
   createdAt      DateTime @default(now())
 
-  attacker Player? @relation("Attacker", fields: [attackerId], references: [id])
-  defender Player? @relation("Defender", fields: [defenderId], references: [id])
+  owner    Player? @relation("ReportOwner", fields: [playerId], references: [id], onDelete: Cascade)
+  attacker Player? @relation("Attacker", fields: [attackerId], references: [id], onDelete: SetNull)
+  defender Player? @relation("Defender", fields: [defenderId], references: [id], onDelete: SetNull)
 
   @@index([playerId, createdAt])
+  @@index([attackerId, defenderId, createdAt])
 }
 
 model SpyReport {
   id             String   @id @default(uuid())
   playerId       String
-  ownerId        String?
   targetPlayerId String?
   targetCityId   String?
   targetType     String?
@@ -276,9 +413,10 @@ model SpyReport {
   data           Json?
   createdAt      DateTime @default(now())
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, createdAt])
+  @@index([targetPlayerId])
 }
 
 model ResourceNode {
@@ -286,7 +424,7 @@ model ResourceNode {
   x            Int
   y            Int
   resourceType String
-  level        Int      @default(1)  // 1, 2, 3 (3 = richest, near center)
+  level        Int      @default(1) // 1, 2, 3 (3 = richest, near center)
   amount       Int      @default(1000)
   maxAmount    Int      @default(1000)
   regenRate    Int      @default(10)
@@ -294,38 +432,45 @@ model ResourceNode {
   biome        String   @default("forest") // forest, desert, snow
 
   // Tribus locales défenseurs
-  hasDefenders    Boolean @default(true)
-  defenderPower   Int     @default(100)    // Puissance totale des défenseurs
-  defenderUnits   Json?                     // Ex: {"warrior": 20, "archer": 10}
-  lastDefeat      DateTime?                 // Dernière défaite (respawn après X temps)
-  respawnMinutes  Int     @default(60)      // Temps de respawn des défenseurs
+  hasDefenders   Boolean   @default(true)
+  defenderPower  Int       @default(100) // Puissance totale des défenseurs (même échelle que la puissance d'une armée)
+  defenderUnits  Json? // Ex: {"GRE_INF_HOPLITE": 20}
+  lastDefeat     DateTime? // Dernière défaite (respawn après X temps)
+  respawnMinutes Int       @default(60) // Temps de respawn des défenseurs
 
   // Système de régénération lié aux armées
-  lastArmyDeparture DateTime?              // Quand la dernière armée a quitté le point
-  hasPlayerArmy     Boolean @default(false) // Une armée joueur est présente sur le point
+  lastArmyDeparture DateTime? // Quand la dernière armée a quitté le point
+  hasPlayerArmy     Boolean   @default(false) // Une armée joueur est présente sur le point
+  cityId            String? // ville secondaire fondée sur ce point : plus de tribu ni de récolte tant qu'elle existe
 
   @@unique([x, y])
   @@index([hasDefenders, lastDefeat])
   @@index([hasPlayerArmy])
+  @@index([cityId])
 }
 
 model MarketOffer {
-  id           String   @id @default(uuid())
-  playerId     String?
-  sellerId     String?
+  id           String    @id @default(uuid())
+  sellerId     String
   buyerId      String?
   cityId       String?
   sellResource String
   sellAmount   Int
   buyResource  String
   buyAmount    Int
-  status       String   @default("ACTIVE")
-  createdAt    DateTime @default(now())
+  status       String    @default("ACTIVE")
+  createdAt    DateTime  @default(now())
+  armyId       String? // armée de transport du vendeur, réservée (statut MARKET) jusqu'à l'échange (décision du 27 octobre 2026)
+  expiresAt    DateTime? // une offre non prise revient au vendeur au bout de 48 h
+  buyerCityId  String?
+  acceptedAt   DateTime?
 
-  player Player? @relation(fields: [playerId], references: [id])
+  seller Player @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  @@index([status])
+  @@index([status, createdAt])
+  @@index([status, expiresAt])
   @@index([sellerId])
+  @@index([buyerId])
 }
 
 model Alliance {
@@ -336,21 +481,25 @@ model Alliance {
   leaderId    String?
   createdAt   DateTime @default(now())
 
-  members   AllianceMember[]
-  diplomacy AllianceDiplomacy[] @relation("AllianceSource")
-  targetOf  AllianceDiplomacy[] @relation("AllianceTarget")
+  members              AllianceMember[]
+  diplomacy            AllianceDiplomacy[]   @relation("AllianceSource")
+  targetOf             AllianceDiplomacy[]   @relation("AllianceTarget")
+  invites              AllianceInvite[]
+  allyRequestsSent     AllianceAllyRequest[] @relation("AllyRequestFrom")
+  allyRequestsReceived AllianceAllyRequest[] @relation("AllyRequestTo")
+  helpRequests         AllianceHelpRequest[]
+  bastion              Bastion?
 }
 
 model AllianceMember {
   id         String   @id @default(uuid())
   allianceId String
   playerId   String   @unique
-  ownerId    String?
   role       String   @default("MEMBER")
   joinedAt   DateTime @default(now())
 
   alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
-  player   Player   @relation(fields: [playerId], references: [id])
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 }
 
 model AllianceDiplomacy {
@@ -366,16 +515,66 @@ model AllianceDiplomacy {
   @@unique([allianceId, targetAllianceId])
 }
 
+// Proposition d'alliance entre deux alliances (décision du 26 octobre 2026) : le statut ALLY n'existe que des deux côtés,
+// une fois la proposition acceptée ; ENNEMI se déclare seul
+model AllianceAllyRequest {
+  id             String   @id @default(uuid())
+  fromAllianceId String
+  toAllianceId   String
+  createdAt      DateTime @default(now())
+
+  from Alliance @relation("AllyRequestFrom", fields: [fromAllianceId], references: [id], onDelete: Cascade)
+  to   Alliance @relation("AllyRequestTo", fields: [toAllianceId], references: [id], onDelete: Cascade)
+
+  @@unique([fromAllianceId, toAllianceId])
+  @@index([toAllianceId])
+}
+
+// Demande d'aide d'alliance (décision du 26 octobre 2026) sur une construction, une recherche ou les soins d'une ville :
+// chaque membre aide une fois, chaque aide retire 1 % du temps restant (1 minute au moins), plafond selon l'Ambassade
+model AllianceHelpRequest {
+  id         String    @id @default(uuid())
+  allianceId String
+  playerId   String
+  cityId     String
+  kind       String // BUILD, RESEARCH, HEAL
+  targetId   String // BuildQueueItem, ResearchQueueItem, ou la ville pour les soins
+  label      String
+  helps      Int       @default(0)
+  maxHelps   Int
+  createdAt  DateTime  @default(now())
+  closedAt   DateTime?
+
+  alliance Alliance       @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  given    AllianceHelp[]
+
+  @@index([allianceId, closedAt])
+  @@index([playerId, kind, targetId])
+}
+
+model AllianceHelp {
+  id        String   @id @default(uuid())
+  requestId String
+  helperId  String
+  points    Int      @default(0) // points d'alliance gagnés par cette aide (0 au-delà du plafond du jour)
+  createdAt DateTime @default(now())
+
+  request AllianceHelpRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  helper  Player              @relation(fields: [helperId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, helperId])
+  @@index([helperId, createdAt])
+}
+
 model Expedition {
   id         String    @id @default(uuid())
   playerId   String
-  ownerId    String?
   armyId     String?
   difficulty Int
   enemyPower Int
   duration   Int       @default(1800)
   lootTier   String    @default("COMMON")
-  rewards    Json?
   expiresAt  DateTime
   startedAt  DateTime?
   endsAt     DateTime?
@@ -385,8 +584,501 @@ model Expedition {
   lootGained Json?
   createdAt  DateTime  @default(now())
 
-  player Player @relation(fields: [playerId], references: [id])
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, status])
   @@index([status, endsAt])
+  @@index([status, expiresAt])
+  @@index([armyId])
+}
+
+// Carte du serveur : sa graine, tirée au hasard au premier démarrage d'un serveur neuf (graine 0 = carte de référence,
+// gardée par le monde déjà ouvert). Une seule ligne, id = 1, jamais modifiée : changer la graine déplacerait toute la carte
+// sous les villes. Voir src/game/world.js et frontend/js/shared/terrain.js (setWorldSeed).
+model WorldConfig {
+  id                 Int       @id @default(1)
+  seed               Int
+  generator          Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
+  readyAt            DateTime? // monde prêt (points de ressource posés) : le serveur ouvre ; le jour 1 du monde
+  createdAt          DateTime  @default(now())
+  // cycle du serveur (décision du 28 octobre 2026)
+  number             Int       @default(1) // numéro du monde (1, 2, 3…) : un nouveau monde reprend après le Panthéon
+  sitesSpawnedAt     DateTime? // sites de Merveille posés au centre (jour 120)
+  plansSpawnedAt     DateTime? // plans de construction posés (jour 150)
+  endedAt            DateTime? // une Merveille a atteint le niveau 100 : le monde est fini
+  winnerAllianceId   String?
+  winnerName         String? // [TAG] Nom de l'alliance victorieuse et la ville, au moment de la victoire
+  // réglages de l'équipe (écran d'administration, décision du 29 octobre 2026) : null = valeurs de config.world
+  registrationDays   Int?
+  wonderSitesDay     Int?
+  wonderPlansDay     Int?
+  registrationClosed Boolean   @default(false) // inscriptions fermées à la main
+  resetRequestedAt   DateTime? // monde suivant demandé : le tick le prépare (remise à zéro, nouvelle carte)
+  resetRequestedBy   String?
+}
+
+// Journal de l'équipe (décision du 29 octobre 2026) : chaque action d'administration ou de modération, gardé d'un monde à l'autre
+model AdminLog {
+  id         String   @id @default(uuid())
+  actorId    String? // compte de l'auteur
+  actorName  String
+  action     String // ROLE, MUTE, SUSPEND, BAN, LIFT_*, REPORT_*, WORLD_*
+  targetId   String? // compte visé
+  targetName String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetId])
+}
+
+// Lease taken by the single process that runs the game tick
+model TickLock {
+  id          Int       @id
+  owner       String
+  lockedUntil DateTime
+  lastTickAt  DateTime? // game time is caught up from this timestamp (database clock)
+}
+
+// Joining an alliance requires an invitation from one of its officers
+model AllianceInvite {
+  id         String   @id @default(uuid())
+  allianceId String
+  playerId   String
+  createdAt  DateTime @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@unique([allianceId, playerId])
+  @@index([playerId])
+}
+
+// Jeton de notification push d'un appareil (supprimé avec le compte)
+// In-game notifications (décision du 25 octobre 2026): every alert is first a message in the game, with a link to what it
+// is about; the mobile push is sent from it
+model Notification {
+  id        String    @id @default(uuid())
+  playerId  String
+  kind      String
+  title     String
+  body      String
+  link      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+}
+
+model PushToken {
+  id         String   @id @default(uuid())
+  playerId   String
+  token      String   @unique
+  platform   String // ios | android | web
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Achat ou abonnement vérifié côté serveur (RevenueCat), jamais accordé sur la seule parole du client
+model Purchase {
+  id            String    @id @default(uuid())
+  playerId      String
+  store         String    @default("app_store")
+  productId     String
+  transactionId String    @unique
+  purchasedAt   DateTime
+  expiresAt     DateTime?
+  status        String    @default("ACTIVE") // ACTIVE | EXPIRED | REFUNDED
+  raw           Json?
+  createdAt     DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+}
+
+// Événements d'usage internes (entonnoir d'activation), anonymisés à la suppression du compte
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  playerId  String?
+  event     String
+  props     Json?
+  platform  String?
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([playerId, createdAt])
+}
+
+// ============== TECHNOLOGIES (recherche à l'Académie, data/technologies.json) ==============
+model PlayerTechnology {
+  id       String @id @default(uuid())
+  playerId String
+  techKey  String
+  level    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, techKey])
+}
+
+model ResearchQueueItem {
+  id          String   @id @default(uuid())
+  playerId    String
+  cityId      String
+  techKey     String
+  targetLevel Int
+  cost        Json?
+  startedAt   DateTime
+  endsAt      DateTime
+  status      String   @default("RUNNING") // RUNNING, QUEUED
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, status])
+  @@index([status, endsAt])
+}
+
+// ---- Messagerie (décision du 26 octobre 2026) ----
+// Canaux : GLOBAL (tout le serveur), ALLIANCE (allianceId), FRIENDS (lu par les amis de l'auteur), PRIVATE (conversation
+// "<idA>:<idB>", identifiants triés). Conservation : 7 jours pour le global, 90 jours pour le reste (purge de la boucle).
+model ChatMessage {
+  id           String   @id @default(uuid())
+  channel      String
+  allianceId   String?
+  conversation String?
+  recipientId  String? // PRIVATE : le destinataire
+  senderId     String
+  text         String
+  lang         String? // langue déclarée par l'auteur au moment de l'envoi (traduction automatique si elle diffère)
+  share        Json? // rapport de bataille, rapport d'espionnage ou position partagés (copie, lisible par tout le canal)
+  createdAt    DateTime @default(now())
+
+  sender       Player            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  translations ChatTranslation[]
+  reports      ChatReport[]
+
+  @@index([channel, createdAt])
+  @@index([allianceId, createdAt])
+  @@index([conversation, createdAt])
+  @@index([recipientId, createdAt])
+  @@index([senderId, createdAt])
+}
+
+// Traductions déjà faites (DeepL) : un message n'est traduit qu'une fois par langue
+model ChatTranslation {
+  id        String   @id @default(uuid())
+  messageId String
+  lang      String
+  text      String
+  fromLang  String?
+  createdAt DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, lang])
+}
+
+// Signalement d'un message à la modération
+model ChatReport {
+  id         String    @id @default(uuid())
+  messageId  String
+  reporterId String
+  reason     String
+  createdAt  DateTime  @default(now())
+  handledAt  DateTime?
+  action     String? // dismiss | delete | mute
+
+  message  ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter Player      @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, reporterId])
+  @@index([handledAt, createdAt])
+}
+
+// Dernier message lu par canal (badge des messages non lus) : "global", "alliance", "friends", "private:<idJoueur>"
+model ChatRead {
+  id         String   @id @default(uuid())
+  playerId   String
+  channelKey String
+  lastReadAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, channelKey])
+}
+
+// Un joueur bloqué : ses messages sont cachés partout et il ne peut plus écrire en privé à celui qui l'a bloqué
+model PlayerBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker Player @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Player @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// Amitié : une demande (PENDING) que l'autre accepte (ACCEPTED)
+model Friendship {
+  id          String    @id @default(uuid())
+  requesterId String
+  addresseeId String
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  requester Player @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee Player @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+}
+
+// ---- Quêtes (décision du 26 octobre 2026, data/quests.json) ----
+// Compteurs d'actions par jour (period = "2026-10-26", heure de Paris) et au total (period = "ALL") : constructions
+// terminées, soldats recrutés, recherches, expéditions, récoltes, convois, aides d'alliance
+model QuestCounter {
+  id       String @id @default(uuid())
+  playerId String
+  period   String
+  key      String
+  value    Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, period, key])
+}
+
+// Récompense prise : period "" (tutoriel, tâches, succès), le jour (quotidiennes) ou le lundi de la semaine
+model QuestClaim {
+  id        String   @id @default(uuid())
+  playerId  String
+  questKey  String
+  period    String   @default("")
+  claimedAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, questKey, period])
+  @@index([playerId])
+}
+
+// Espions (décision du 26 octobre 2026, GDD espionage_config) : 2 au plus par compte, débloqués par la Tour de guet
+// (niv. 5 et 10) contre 20 puis 200 or, prêts tout de suite. Un espion part d'une ville vers une ville (mission RESOURCES
+// ou DEFENSES) ou un point de ressource (NODE), rapporte toujours (le rapport est écrit à l'arrivée) puis rentre.
+model Spy {
+  id           String    @id @default(uuid())
+  playerId     String
+  slot         Int // 1 ou 2
+  status       String    @default("IDLE") // IDLE, OUT (en route vers la cible), RETURNING
+  mission      String? // RESOURCES, DEFENSES, NODE
+  fromCityId   String?
+  fromX        Int?
+  fromY        Int?
+  targetX      Int?
+  targetY      Int?
+  targetCityId String?
+  targetNodeId String?
+  departedAt   DateTime?
+  arrivalAt    DateTime?
+  returnAt     DateTime?
+  claimedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, slot])
+  @@index([status, arrivalAt])
+  @@index([status, returnAt])
+}
+
+// Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : un par alliance d'au moins 15 membres,
+// placé par le chef ou un officier ; les membres y apportent les ressources par convois (FUNDING), puis 3 jours de
+// chantier (BUILDING), puis il donne ses bonus à tous les membres (ACTIVE). Il se défend comme une ville, en plus dur
+// (mur bouclier 50 fois un mur 20, 10 vies) ; rasé (DESTROYED), il ne se rebâtit que 7 jours plus tard.
+model Bastion {
+  id            String    @id @default(uuid())
+  allianceId    String    @unique
+  x             Int
+  y             Int
+  status        String    @default("FUNDING") // FUNDING, BUILDING, ACTIVE, DESTROYED
+  wood          Int       @default(0) // ressources déjà livrées
+  stone         Int       @default(0)
+  iron          Int       @default(0)
+  food          Int       @default(0)
+  buildEndsAt   DateTime?
+  structure     Float     @default(1) // vies restantes (1 = toutes), remontent avec le temps
+  structureAt   DateTime  @default(now()) // instant de la dernière valeur de structure
+  isSieged      Boolean   @default(false)
+  activatedAt   DateTime?
+  destroyedAt   DateTime?
+  cooldownUntil DateTime?
+  createdAt     DateTime  @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@index([x, y])
+}
+
+// Route commerciale automatique entre deux villes du même joueur (GDD market.internalRoutesBetweenOwnCities, décision du
+// 27 octobre 2026) : toutes les 2 h, un convoi part avec une part du stockage de la ville de départ, 100 % au plus en 24 h
+model TradeRoute {
+  id         String   @id @default(uuid())
+  playerId   String
+  fromCityId String
+  toCityId   String
+  wood       Boolean  @default(false)
+  stone      Boolean  @default(false)
+  iron       Boolean  @default(false)
+  food       Boolean  @default(false)
+  active     Boolean  @default(true)
+  nextSendAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([active, nextSendAt])
+  @@index([playerId])
+}
+
+// Convoi d'une route commerciale en chemin
+model TradeConvoy {
+  id         String   @id @default(uuid())
+  playerId   String
+  routeId    String?
+  fromCityId String
+  toCityId   String
+  wood       Int      @default(0)
+  stone      Int      @default(0)
+  iron       Int      @default(0)
+  food       Int      @default(0)
+  departedAt DateTime @default(now())
+  arrivalAt  DateTime
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([arrivalAt])
+  @@index([playerId])
+}
+
+// Plan de construction d'une Merveille (jour 150) : pris aux Immortels, nécessaire à l'alliance au-delà du niveau 50 ;
+// un assaut gagné contre la capitale de son détenteur l'emporte
+model WonderPlan {
+  id         String    @id @default(uuid())
+  holderId   String? // joueur qui le détient (dans sa capitale)
+  capturedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([holderId])
+}
+
+// Panthéon : classement final de chaque monde terminé, gardé d'un monde à l'autre
+model HallOfFame {
+  id        String   @id @default(uuid())
+  world     Int
+  endedAt   DateTime
+  category  String // WONDER (alliance victorieuse), POPULATION, ATTACK, DEFENSE, ALLIANCE
+  rank      Int
+  name      String
+  accountId String? // pour les joueurs : leur compte, qui garde ses titres
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@index([world])
+  @@index([accountId])
+}
+
+// Annonce de l'équipe à tous les joueurs (décision du 29 octobre 2026) : notification dans le fil, push (si coché) et
+// bandeau en haut de l'écran jusqu'à bannerUntil (maintenance, événement)
+model Announcement {
+  id          String    @id @default(uuid())
+  title       String
+  body        String
+  bannerUntil DateTime?
+  push        Boolean   @default(false)
+  authorName  String
+  recipients  Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([bannerUntil])
+}
+
+// Invasions barbares (décision du 29 octobre 2026) : une par week-end (ou lancée par l'équipe)
+model Invasion {
+  id        String    @id @default(uuid())
+  key       String    @unique // date du vendredi (AAAA-MM-JJ), ou « manual-… »
+  startedAt DateTime  @default(now())
+  endsAt    DateTime
+  endedAt   DateTime?
+  manual    Boolean   @default(false)
+  hordes    Int       @default(0)
+  destroyed Int       @default(0)
+
+  @@index([endedAt])
+}
+
+// Donjon d'une horde : un point spécial de la carte (ResourceNode « HORDE », garnison de l'étage en cours), 3 étages
+model Horde {
+  id          String    @id @default(uuid())
+  invasionId  String
+  nodeId      String    @unique
+  x           Int
+  y           Int
+  level       Int
+  floor       Int       @default(1) // étage en cours : 1 avant-poste, 2 remparts, 3 chef de la horde
+  floors      Json // garnison de départ de chaque étage : [{ units, power }]
+  destroyedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  damage HordeDamage[]
+
+  @@index([invasionId])
+}
+
+// Dégâts de chaque joueur sur un donjon (points de combat : entretien des barbares tués), pour le partage du trésor
+model HordeDamage {
+  id         String  @id @default(uuid())
+  hordeId    String
+  playerId   String
+  allianceId String?
+  points     Int     @default(0)
+  attacks    Int     @default(0)
+
+  horde Horde @relation(fields: [hordeId], references: [id], onDelete: Cascade)
+
+  @@unique([hordeId, playerId])
+  @@index([playerId])
+}
+
+// Rassemblement d'alliance contre un donjon d'invasion (façon Rise of Kingdoms, décision du 29 octobre 2026) : les armées
+// se réunissent dans la ville du lanceur, partent ensemble à la fin de l'attente et livrent un seul combat
+model Rally {
+  id           String    @id @default(uuid())
+  allianceId   String
+  leaderId     String // joueur qui lance
+  cityId       String // sa ville : le point de rassemblement
+  targetNodeId    String? // le donjon (ResourceNode « HORDE »)
+  targetBastionId String? // ou le Bastion ennemi (décision du 29 octobre 2026)
+  targetX      Int
+  targetY      Int
+  waitMinutes  Int
+  capacity     Int // armées au plus (Place de rassemblement du lanceur), la sienne comprise
+  status       String    @default("GATHERING") // GATHERING, MARCHING, DONE, CANCELLED
+  launchAt     DateTime // fin de l'attente
+  arrivalAt    DateTime? // arrivée au donjon
+  result       Json?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, launchAt])
+  @@index([allianceId])
 }

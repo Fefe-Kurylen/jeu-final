@@ -1,0 +1,28 @@
+{
+  "_comment": "Boutique d'alliance (décision du 26 octobre 2026) : on y dépense les points d'alliance gagnés en aidant ses alliés (10 par aide, 300 au plus par 24 h). Prix en points. Ressources livrées dans la ville choisie (dans la limite de l'entrepôt), objets de héros dans le sac du héros, cosmétiques gardés pour toujours. Une bannière n'est en vente qu'une fois son image livrée (image).",
+  "items": [
+    { "key": "res_wood",   "type": "resources", "name": "Chargement de bois",       "price": 80,  "give": { "wood": 1000 } },
+    { "key": "res_stone",  "type": "resources", "name": "Chargement de pierre",     "price": 80,  "give": { "stone": 1000 } },
+    { "key": "res_iron",   "type": "resources", "name": "Chargement de fer",        "price": 80,  "give": { "iron": 1000 } },
+    { "key": "res_food",   "type": "resources", "name": "Chargement de nourriture", "price": 80,  "give": { "food": 1000 } },
+    { "key": "res_convoy", "type": "resources", "name": "Convoi d'alliance",        "price": 400, "give": { "wood": 1500, "stone": 1500, "iron": 1500, "food": 1500 } },
+
+    { "key": "hero_iron_sword",    "type": "hero_item", "item": "iron_sword",    "price": 250 },
+    { "key": "hero_wooden_shield", "type": "hero_item", "item": "wooden_shield", "price": 250 },
+    { "key": "hero_bronze_helm",   "type": "hero_item", "item": "bronze_helm",   "price": 250 },
+    { "key": "hero_leather_armor", "type": "hero_item", "item": "leather_armor", "price": 250 },
+    { "key": "hero_leather_pants", "type": "hero_item", "item": "leather_pants", "price": 250 },
+    { "key": "hero_iron_boots",    "type": "hero_item", "item": "iron_boots",    "price": 250 },
+
+    { "key": "nameplate_bronze", "type": "nameplate", "style": "bronze", "name": "Plaque de bronze",  "price": 600,  "description": "Plaque de nom couleur bronze sous vos villes, sur la carte" },
+    { "key": "nameplate_silver", "type": "nameplate", "style": "silver", "name": "Plaque d'argent",   "price": 1200, "description": "Plaque de nom couleur argent sous vos villes, sur la carte" },
+    { "key": "nameplate_laurel", "type": "nameplate", "style": "laurel", "name": "Plaque de laurier", "price": 1800, "description": "Plaque de nom vert laurier sous vos villes, sur la carte" },
+    { "key": "nameplate_gold",   "type": "nameplate", "style": "gold",   "name": "Plaque d'or",       "price": 3000, "description": "Plaque de nom dorée sous vos villes, sur la carte" },
+    { "key": "nameplate_purple", "type": "nameplate", "style": "purple", "name": "Plaque pourpre",    "price": 3000, "description": "Plaque de nom pourpre impériale sous vos villes, sur la carte" },
+
+    { "key": "banner_eagle", "type": "banner", "name": "Bannière de l'aigle",   "price": 2000, "image": "assets/images/painted/banners/banner_eagle.webp", "description": "Bannière plantée devant vos villes, sur la carte" },
+    { "key": "banner_wolf",  "type": "banner", "name": "Bannière du loup",      "price": 2000, "image": "assets/images/painted/banners/banner_wolf.webp",  "description": "Bannière plantée devant vos villes, sur la carte" },
+    { "key": "banner_sun",   "type": "banner", "name": "Bannière du soleil",    "price": 2000, "image": "assets/images/painted/banners/banner_sun.webp",   "description": "Bannière plantée devant vos villes, sur la carte" },
+    { "key": "banner_bull",  "type": "banner", "name": "Bannière du taureau",   "price": 2000, "image": "assets/images/painted/banners/banner_bull.webp",  "description": "Bannière plantée devant vos villes, sur la carte" }
+  ]
+}

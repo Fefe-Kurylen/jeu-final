@@ -2,64 +2,136 @@
 // Runs every 30 seconds to process all game events
 // Each subsystem is handled by its own processor module
 
+const os = require('os');
 const config = require('../config');
+const prisma = require('../config/database');
 const { processHealedUnits } = require('../services/woundedService');
-const { processResourceProduction, processUpkeep, processResourceRegen } = require('./processors/resourceProcessor');
-const { processBuilds } = require('./processors/buildProcessor');
+const { processResourceProduction, processUpkeep, processResourceRegen, processWallRegen, processGoldIncome } = require('./processors/resourceProcessor');
+const { processBuilds, syncAllCityStorage } = require('./processors/buildProcessor');
 const { processRecruits } = require('./processors/recruitProcessor');
+const { processResearch } = require('./processors/researchProcessor');
 const { processExpeditions, generateNewExpeditions } = require('./processors/expeditionProcessor');
 const { processArmyMovements } = require('./processors/armyProcessor');
+const { processSieges, retryPendingFalls } = require('./processors/siegeProcessor');
+const { processEncounters } = require('./processors/encounterProcessor');
 const { processHarvesting, processTribeRespawn } = require('./processors/harvestProcessor');
-const { updatePopulation, cleanupOrphanedFlags } = require('./processors/worldProcessor');
+const { updatePopulation, cleanupOrphanedFlags, purgeOldRecords } = require('./processors/worldProcessor');
 
 let tickRunning = false;
+const LEASE_OWNER = `${os.hostname()}:${process.pid}`;
+
+// A single executor at a time, across processes and deployments: the lease lives in the DB.
+// Returns null when another live process holds it (e.g. the previous instance during a rollout),
+// otherwise the number of hours elapsed since the previous tick, measured on the database clock
+// and capped: production, upkeep and wall regeneration are computed on real time, so a late tick,
+// a restart or a deployment never loses (nor duplicates) production.
+async function acquireTickLease() {
+  const until = new Date(Date.now() + config.tick.leaseMs);
+  const rows = await prisma.$queryRaw`
+    WITH prev AS (SELECT "lastTickAt" FROM "TickLock" WHERE id = 1)
+    INSERT INTO "TickLock" (id, owner, "lockedUntil", "lastTickAt") VALUES (1, ${LEASE_OWNER}, ${until}, (NOW() AT TIME ZONE 'UTC'))
+    ON CONFLICT (id) DO UPDATE SET owner = EXCLUDED.owner, "lockedUntil" = EXCLUDED."lockedUntil", "lastTickAt" = (NOW() AT TIME ZONE 'UTC')
+    WHERE "TickLock".owner = EXCLUDED.owner OR "TickLock"."lockedUntil" < (NOW() AT TIME ZONE 'UTC')
+    RETURNING (SELECT "lastTickAt" FROM prev) AS prev, (NOW() AT TIME ZONE 'UTC') AS now`;
+  if (rows.length !== 1) return null;
+  const prev = rows[0].prev ? new Date(rows[0].prev).getTime() : null;
+  const now = new Date(rows[0].now).getTime();
+  if (!prev) return config.tick.tickHours;
+  const elapsedHours = (now - prev) / 3600000;
+  return Math.min(config.tick.maxCatchUpHours, Math.max(0, elapsedHours));
+}
+
+// Renews the lease between two steps; false when another process took it over (this tick must stop)
+async function renewTickLease() {
+  const until = new Date(Date.now() + config.tick.leaseMs);
+  const n = await prisma.$executeRaw`UPDATE "TickLock" SET "lockedUntil" = ${until} WHERE id = 1 AND owner = ${LEASE_OWNER} AND "lockedUntil" >= ${new Date()}`;
+  return n === 1;
+}
+
+async function releaseTickLease() {
+  await prisma.$executeRaw`UPDATE "TickLock" SET "lockedUntil" = ${new Date()} WHERE id = 1 AND owner = ${LEASE_OWNER}`;
+}
+
+// Each step is isolated: a failure in one subsystem must not skip the others for this tick.
+// The lease is renewed first: if another process holds it now, the rest of this tick is abandoned.
+class LeaseLost extends Error {}
+async function step(name, fn) {
+  if (!(await renewTickLease())) throw new LeaseLost(`lease lost before step ${name}`);
+  try { return await fn(); } catch (e) { console.error(`[TICK] ${name} error:`, e); }
+}
 
 async function gameTick() {
   if (tickRunning) return;
   tickRunning = true;
 
   const now = new Date();
-  const TICK_HOURS = config.tick.tickHours;
 
   try {
-    // Heal wounded units
-    const healedCount = await processHealedUnits();
-    if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
-
-    // Resource production & upkeep
-    await processResourceProduction(TICK_HOURS);
-    await processUpkeep(TICK_HOURS);
-
-    // Construction & recruitment queues
-    await processBuilds(now);
-    await processRecruits(now);
-
-    // Expeditions
-    await processExpeditions(now);
-    await generateNewExpeditions();
-
-    // Army movement & combat
-    await processArmyMovements(now);
-
-    // Harvesting
-    await processHarvesting(now);
-
-    // World state maintenance
-    await cleanupOrphanedFlags();
-    await updatePopulation();
-    await processTribeRespawn(now);
-    await processResourceRegen(now, TICK_HOURS);
-
+    let TICK_HOURS = null;
+    try { TICK_HOURS = await acquireTickLease(); } catch (e) { console.error('[TICK] lease error:', e.message); return; }
+    if (TICK_HOURS === null) { console.warn('[TICK] lease held by another process, skipping'); return; }
+    if (TICK_HOURS > config.tick.tickHours * 4) console.log(`[TICK] catching up ${(TICK_HOURS * 60).toFixed(1)} min of game time`);
+    await runTickSteps(now, TICK_HOURS, step);
   } catch (e) {
-    console.error('Tick error:', e);
+    if (e instanceof LeaseLost) console.warn('[TICK]', e.message);
+    else console.error('[TICK] error:', e);
   } finally {
     tickRunning = false;
   }
 }
 
+// The game steps of one tick, in order. step(name, fn) runs one isolated step (the live tick renews its lease in it);
+// the long simulation (tools/sim) calls this with its own clock and step runner, so it plays exactly the same steps.
+async function runTickSteps(now, TICK_HOURS, step) {
+  // monde suivant demandé par l'équipe (écran d'administration, décision du 29 octobre 2026) : préparé ici, entre deux ticks
+  try { if (await require('../services/hallOfFameService').prepareNextWorld()) return; }
+  catch (e) { console.error('[MONDE] préparation du monde suivant :', e); return; }
+  // monde terminé (une Merveille au niveau 100, décision du 28 octobre 2026) : figé jusqu'au nouveau monde
+  if (await require('../services/wonderService').isEnded().catch(() => false)) { await step('purge', () => purgeOldRecords(now)); return; }
+
+  // a fall that failed after its assault is done first, before builds, research or expeditions touch the doomed city
+  await step('falls', () => retryPendingFalls());
+
+  const healedCount = await step('heal', () => processHealedUnits());
+  if (healedCount > 0) console.log(`[TICK] ${healedCount} wounded unit groups healed`);
+
+  await step('production', () => processResourceProduction(TICK_HOURS));
+  await step('upkeep', () => processUpkeep(TICK_HOURS, now));
+  await step('wallRegen', () => processWallRegen(TICK_HOURS));
+  await step('gold', () => processGoldIncome(TICK_HOURS));
+
+  await step('builds', () => processBuilds(now));
+  await step('recruits', () => processRecruits(now));
+  await step('research', () => processResearch(now));
+
+  await step('expeditions', () => processExpeditions(now));
+  await step('newExpeditions', () => generateNewExpeditions());
+
+  await step('encounters', () => processEncounters(now));   // enemy armies on the same tile fight, before the arrivals
+  await step('sieges', () => processSieges());   // camps without engines or now allied go home
+  await step('armies', () => processArmyMovements(now));
+  await step('spies', () => require('../services/spyService').processSpies(now));   // espions : rapports et retours
+  await step('bastions', () => require('../services/bastionService').processBastions(now));   // chantiers de Bastion achevés
+  await step('heroes', () => require('../services/heroService').processRevivals(now));   // résurrections au Domus achevées
+  await step('rankings', () => require('../services/rankingService').processRankings(now));   // clôture de la semaine, médailles, défi d'alliance
+  await step('wonders', () => require('../services/wonderService').processWonders(now));   // sites et plans, niveaux de Merveille, vagues des Immortels
+  await step('invasions', () => require('../services/hordeService').processInvasions(now));   // invasions barbares du week-end
+  await step('rallies', () => require('../services/rallyService').processRallies(now));   // rassemblements d'alliance (donjons, Bastions)
+  await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
+  await step('harvest', () => processHarvesting(now));
+
+  await step('flags', () => cleanupOrphanedFlags());
+  await step('population', () => updatePopulation(now));
+  await step('tribeRespawn', () => processTribeRespawn(now));
+  await step('regen', () => processResourceRegen(now, TICK_HOURS));
+  await step('purge', () => purgeOldRecords(now));
+}
+
 function startGameLoop() {
   console.log(`[TICK] Game loop started (interval: ${config.tick.intervalMs}ms)`);
+  // Réparation unique : resynchronise le stockage des villes existantes (fix du bug maxStorage figé à 1000)
+  syncAllCityStorage().catch(e => console.error('[STORAGE] Erreur sync:', e.message));
   return setInterval(gameTick, config.tick.intervalMs);
 }
 
-module.exports = { gameTick, startGameLoop };
+module.exports = { gameTick, startGameLoop, releaseTickLease, runTickSteps };

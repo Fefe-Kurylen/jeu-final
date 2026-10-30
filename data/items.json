@@ -1,0 +1,18 @@
+{
+  "items": [
+    { "key": "iron_sword",     "name": "Épée de fer",        "slot": "weapon", "tier": "COMMON", "stats": { "attack": 2 } },
+    { "key": "steel_sword",    "name": "Épée d'acier",       "slot": "weapon", "tier": "RARE",   "stats": { "attack": 4 } },
+    { "key": "wooden_shield",  "name": "Bouclier de bois",   "slot": "shield", "tier": "COMMON", "stats": { "defense": 1 } },
+    { "key": "iron_shield",    "name": "Bouclier de fer",    "slot": "shield", "tier": "RARE",   "stats": { "defense": 3 } },
+    { "key": "bronze_helm",    "name": "Casque de bronze",   "slot": "head",   "tier": "COMMON", "stats": { "defense": 1 } },
+    { "key": "iron_helm",      "name": "Casque de fer",      "slot": "head",   "tier": "RARE",   "stats": { "defense": 2, "attack": 1 } },
+    { "key": "leather_armor",  "name": "Armure de cuir",     "slot": "chest",  "tier": "COMMON", "stats": { "defense": 2 } },
+    { "key": "chain_mail",     "name": "Cotte de mailles",   "slot": "chest",  "tier": "RARE",   "stats": { "defense": 4 } },
+    { "key": "leather_pants",  "name": "Braies de cuir",     "slot": "legs",   "tier": "COMMON", "stats": { "defense": 1, "speed": 1 } },
+    { "key": "chain_legs",     "name": "Jambières de mailles", "slot": "legs", "tier": "RARE",   "stats": { "defense": 2 } },
+    { "key": "iron_boots",     "name": "Bottes ferrées",     "slot": "boots",  "tier": "COMMON", "stats": { "speed": 2 } },
+    { "key": "war_boots",      "name": "Bottes de guerre",   "slot": "boots",  "tier": "RARE",   "stats": { "speed": 3, "logistics": 1 } },
+    { "key": "gold_ring",      "name": "Anneau d'or",        "slot": "ring",   "tier": "EPIC",   "stats": { "logistics": 3, "attack": 1 } },
+    { "key": "war_amulet",     "name": "Amulette de guerre", "slot": "amulet", "tier": "EPIC",   "stats": { "attack": 3, "defense": 2 } }
+  ]
+}

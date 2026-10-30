@@ -1,5 +1,6 @@
 // ========== MAP - Rise of Kingdoms Style Canvas ==========
 let mapCanvas, mapCtx, minimapCanvas, minimapCtx;
+let mapViewW = 0, mapViewH = 0;   // CSS size of the map canvas (the backing store is scaled by the device pixel ratio)
 let mapData = [];
 let mapZoomLevel = 1;
 let mapOffsetX = 0, mapOffsetY = 0;
@@ -34,139 +35,101 @@ function updateWorldSize(playerCount, serverWorldSize) {
 const ISO_TILE_WIDTH = 64;
 const ISO_TILE_HEIGHT = 32;
 
-// ========== TILESET IMAGE SYSTEM ==========
-let tilesetImage = null;
-let tilesetConfig = null;
-let tilesetLoaded = false;
-let tilesetLoadFailed = false;
+// ========== MAP SPRITES (WebP rendus en 3D par tools/build-3d.cjs) ==========
+// assets/images/3d/map/manifest.json liste les sprites disponibles ; sans manifest ou sans image,
+// le rendu procédural (formes géométriques) prend le relais sprite par sprite.
+let tilesetLoaded = false;       // manifest lu et images chargées
+let tilesetLoadFailed = false;   // manifest absent : ne jamais retenter
+let mapSpriteAnchor = { x: 0.5, y: 0.8 };   // point de l'image posé sur le centre de la tuile
 
-// Individual tile images for cities, units, resources
 const tileImages = {
-  cities: {},      // city type -> Image
-  units: {},       // unit type -> Image
-  resources: {},   // resource type -> Image
-  terrain: {},     // terrain type -> Image
-  buildings: {}    // building type -> Image
+  cities: {},      // rome gaul greek egypt hun sultan capital default
+  units: {},       // hoplite archer cavalry catapult merchant
+  resources: {},   // wood stone iron food gold (+ variantes <nom>_<biome>)
+  terrain: {},     // <biome>_<élément> : forest_tree, desert_dunes, snow_icemountain…
+  camps: {},       // camps barbares peints : camp1..3[_desert|_snow], ruins[_desert|_snow], foundation[_desert|_snow] (pas de rendu 3D)
+  fx: {}           // effets peints de la carte (guide § A7) : fire_0..3 (ville en feu), battle_0..3, campfire_0..3
 };
+// Sprites de camps attendus (registre tools/repaint/targets.cjs) : chargés seulement quand ils sont peints
+const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow']);
+// Icône « tribu locale » peinte (guide § S14) quand elle existe, sinon l'icône de défense
+function tribeIconHtml() { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/tribe.webp') ? '<img class="ico" src="assets/images/painted/ui/tribe.webp" alt="">' : resIconHtml('defense'); }
+const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
+function tribeFactionOfUnits(units) { const k = Object.keys(units || {}).find(x => TRIBE_PREFIX[x.slice(0, 3)]); return k ? TRIBE_PREFIX[k.slice(0, 3)] : null; }
 
-// Load tileset configuration and images
-async function loadTilesetAssets() {
-  console.log('🎨 Loading tileset assets...');
+// Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
+let _tilesetAssetsPromise = null;
+function loadTilesetAssets() {
+  if (!_tilesetAssetsPromise) _tilesetAssetsPromise = _loadTilesetAssetsOnce();
+  return _tilesetAssetsPromise;
+}
 
+async function _loadTilesetAssetsOnce() {
+  if (typeof loadPaintedManifest === 'function') await loadPaintedManifest();   // sprites peints par IA quand ils existent
+  let manifest;
   try {
-    // Try to load tileset config
-    const configResponse = await fetch('/assets/tileset-config.json');
-    if (configResponse.ok) {
-      tilesetConfig = await configResponse.json();
-      console.log('📋 Tileset config loaded:', tilesetConfig);
-
-      // Try to load the main tileset image
-      const tilesetPath = `/assets/images/map/${tilesetConfig.image}`;
-      tilesetImage = new Image();
-      tilesetImage.src = tilesetPath;
-
-      await new Promise((resolve, reject) => {
-        tilesetImage.onload = () => {
-          tilesetLoaded = true;
-          console.log('✅ Tileset image loaded:', tilesetPath);
-          resolve();
-        };
-        tilesetImage.onerror = () => {
-          console.warn('⚠️ Tileset image not found:', tilesetPath);
-          tilesetLoadFailed = true;
-          resolve(); // Don't reject, just use fallback
-        };
-      });
-    }
+    const res = await fetch('assets/images/3d/map/manifest.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    manifest = await res.json();
   } catch (e) {
-    console.warn('⚠️ Could not load tileset config, using procedural rendering');
     tilesetLoadFailed = true;
+    console.log('🎨 Pas de sprites de carte (manifest absent), rendu procédural');
+    return;
   }
-
-  // Load individual tile images (cities, units, etc.)
-  await loadIndividualTileImages();
-}
-
-// Load individual images for specific game objects
-async function loadIndividualTileImages() {
-  const imagesToLoad = [
-    // Cities
-    { category: 'cities', name: 'rome', path: '/assets/images/map/cities/rome.png' },
-    { category: 'cities', name: 'gaul', path: '/assets/images/map/cities/gaul.png' },
-    { category: 'cities', name: 'default', path: '/assets/images/map/cities/default.png' },
-    { category: 'cities', name: 'capital', path: '/assets/images/map/cities/capital.png' },
-
-    // Units
-    { category: 'units', name: 'hoplite', path: '/assets/images/map/units/hoplite.png' },
-    { category: 'units', name: 'archer', path: '/assets/images/map/units/archer.png' },
-    { category: 'units', name: 'cavalry', path: '/assets/images/map/units/cavalry.png' },
-    { category: 'units', name: 'catapult', path: '/assets/images/map/units/catapult.png' },
-    { category: 'units', name: 'trireme', path: '/assets/images/map/units/trireme.png' },
-    { category: 'units', name: 'merchant', path: '/assets/images/map/units/merchant.png' },
-    { category: 'units', name: 'settler', path: '/assets/images/map/units/settler.png' },
-
-    // Resources
-    { category: 'resources', name: 'wood', path: '/assets/images/map/resources/wood.png' },
-    { category: 'resources', name: 'stone', path: '/assets/images/map/resources/stone.png' },
-    { category: 'resources', name: 'iron', path: '/assets/images/map/resources/iron.png' },
-    { category: 'resources', name: 'food', path: '/assets/images/map/resources/food.png' },
-
-    // Terrain tiles
-    { category: 'terrain', name: 'grass', path: '/assets/images/map/terrain/grass.png' },
-    { category: 'terrain', name: 'desert', path: '/assets/images/map/terrain/desert.png' },
-    { category: 'terrain', name: 'snow', path: '/assets/images/map/terrain/snow.png' },
-    { category: 'terrain', name: 'water', path: '/assets/images/map/terrain/water.png' },
-    { category: 'terrain', name: 'forest', path: '/assets/images/map/terrain/forest.png' },
-    { category: 'terrain', name: 'mountain', path: '/assets/images/map/terrain/mountain.png' }
-  ];
-
-  const loadPromises = imagesToLoad.map(({ category, name, path }) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        tileImages[category][name] = img;
-        console.log(`✅ Loaded: ${category}/${name}`);
-        resolve();
-      };
-      img.onerror = () => {
-        // Image not found, will use procedural fallback
-        resolve();
-      };
-      img.src = path;
-    });
-  });
-
-  await Promise.all(loadPromises);
-
+  if (manifest.anchor && typeof manifest.anchor.y === 'number') mapSpriteAnchor = manifest.anchor;
+  const ext = manifest.format || 'png';
+  const jobs = [];
+  // Camps barbares : uniquement les sprites peints présents dans le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const name of CAMP_SPRITES) {
+      if (!paintedSet.has(`map/camps/${name}.webp`)) continue;
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages.camps[name] = img; tileImagePainted.add('camps/' + name); resolve(); };
+        img.onerror = () => resolve();
+        img.src = art(`map/camps/${name}.webp`);
+      }));
+    }
+  }
+  for (const category of Object.keys(tileImages)) {
+    if (category === 'camps') continue;
+    for (const name of manifest[category] || []) {
+      jobs.push(new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { tileImages[category][name] = img; if (typeof paintedSet !== 'undefined' && paintedSet.has(`map/${category}/${name}.webp`)) tileImagePainted.add(category + '/' + name); resolve(); };
+        img.onerror = () => resolve();   // image absente : fallback procédural pour ce sprite
+        img.src = typeof art === 'function' ? art(`map/${category}/${name}.${ext}`) : `assets/images/3d/map/${category}/${name}.${ext}`;
+      }));
+    }
+  }
+  // Sprites de carte peints sans rendu 3D (colonies, cortège de colons, guide § S12) : chargés depuis le manifeste des images peintes
+  if (typeof paintedSet !== 'undefined' && typeof art === 'function') {
+    for (const p of paintedSet) {
+      const m = p.match(/^map\/(cities|units|resources|terrain|fx)\/([\w-]+)\.webp$/);
+      if (!m || (manifest[m[1]] || []).includes(m[2])) continue;
+      if (m[1] === 'units' && /_(walk|attack|hit)_\d+$/.test(m[2])) continue;   // cycles de marche chargés à la demande (armyWalkBase) ; poses du replay pas encore jouées
+      jobs.push(new Promise((resolve) => { const img = new Image(); img.onload = () => { tileImages[m[1]][m[2]] = img; tileImagePainted.add(m[1] + '/' + m[2]); resolve(); }; img.onerror = () => resolve(); img.src = art(p); }));
+    }
+  }
+  await Promise.all(jobs);
+  tilesetLoaded = true;
   const loadedCount = Object.values(tileImages).reduce((sum, cat) => sum + Object.keys(cat).length, 0);
-  console.log(`🎨 Loaded ${loadedCount}/${imagesToLoad.length} tile images`);
+  console.log(`🎨 ${loadedCount}/${jobs.length} sprites de carte chargés`);
 }
 
-// Helper function to draw a tile from the tileset
-function drawTileFromTileset(ctx, tileKey, destX, destY, destW, destH) {
-  if (!tilesetLoaded || !tilesetConfig || !tilesetConfig.tiles[tileKey]) {
-    return false; // Fallback to procedural
-  }
-
-  const tile = tilesetConfig.tiles[tileKey];
-  const srcX = tile.col * tilesetConfig.tileWidth;
-  const srcY = tile.row * tilesetConfig.tileHeight;
-
-  ctx.drawImage(
-    tilesetImage,
-    srcX, srcY, tilesetConfig.tileWidth, tilesetConfig.tileHeight,
-    destX, destY, destW, destH
-  );
-
-  return true;
-}
-
-// Helper function to draw an individual tile image
+// Dessine un sprite de carte : son ancre (centre du losange au sol) est posée en (destX, destY)
+// (image peinte au cadrage de la carte de référence : son losange d'une case est plus petit dans l'image, map-world.js)
+const tileImagePainted = new Set();   // "catégorie/nom" chargés depuis painted/
 function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   const img = tileImages[category]?.[name];
   if (!img) return false;
+  if (category !== 'fx' && tileImagePainted.has(category + '/' + name)) {
+    const k = category === 'units' ? WORLD_ARMY_SCALE : WORLD_SPRITE_SCALE;   // le losange de l'image = une case
+    ctx.drawImage(img, destX - destW * k * 0.5, destY - destH * k * WORLD_OBJECT_CENTER_Y, destW * k, destH * k);
+    return true;
+  }
 
-  ctx.drawImage(img, destX - destW/2, destY - destH, destW, destH);
+  ctx.drawImage(img, destX - destW * mapSpriteAnchor.x, destY - destH * mapSpriteAnchor.y, destW, destH);
   return true;
 }
 
@@ -188,7 +151,7 @@ const BIOMES = {
     ground: ['#d4c4a0', '#c9b896', '#ddd0aa', '#c4b48a', '#d9c99e'],
     groundDark: ['#c4b490', '#b9a886', '#cdc09a', '#b4a47a', '#c9b98e'],
     groundNight: ['#3a3530', '#352f2a', '#3f3935', '#332d28', '#3d3732'],
-    features: ['ruins', 'oasis', 'dunes', 'rocks'],
+    features: ['ruins', 'oasis', 'dunes', 'rocks', 'mesa'],
     skyTop: '#f4e8d0',
     skyBottom: '#d4c4a0',
     skyTopNight: '#151020',
@@ -219,193 +182,24 @@ const TILE_COLORS = {
   gold: { fill: '#ffd700', stroke: '#b8860b' }
 };
 
-// ========== TERRAIN MOVEMENT SYSTEM ==========
-// Multiplicateurs de temps de trajet pour les armées/héros
-// terrain infranchissable = Infinity
-const TERRAIN_MOVEMENT = {
-  // Terrains de base
-  grass: 1.0,        // Normal
-  tree: 1.3,         // Forêt ralentit légèrement
-  mountain: Infinity, // Infranchissable
-  water: Infinity,    // Infranchissable (lac/rivière)
-  // Désert
-  sand: 1.2,         // Sable ralentit un peu
-  dunes: 1.5,        // Dunes difficiles
-  oasis: 1.0,        // Oasis = terrain facile
-  ruins: 1.1,        // Ruines légèrement difficiles
-  rocks: 1.4,        // Rochers
-  // Neige
-  snow: 1.4,         // Neige ralentit
-  ice: 1.6,          // Glace très lente
-  frozen: Infinity,   // Lac gelé infranchissable
-  icemountain: Infinity, // Montagne de glace infranchissable
-  snowtree: 1.3      // Sapin enneigé
-};
+// Vitesse de marche selon le terrain (gué, forêt) : Terrain.moveCost, la même règle que le serveur
 
-// Pseudo-random based on coordinates for consistent terrain
-function seededRandom(x, y, seed = 12345) {
-  const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-  return n - Math.floor(n);
-}
+// ========== TERRAIN ==========
+// The procedural terrain (biomes, rivers, lakes, ranges, scattered features) lives in js/shared/terrain.js,
+// shared with the server so that armies walk the same world the player sees.
+const seededRandom = Terrain.seededRandom;
+const smoothNoise = Terrain.smoothNoise;
+const hillNoise = Terrain.hillNoise;
+const getBiome = Terrain.getBiome;
+const isOnRiver = Terrain.isOnRiver;
+const isOnLake = Terrain.isOnLake;
+const isOnMountainRange = Terrain.isOnMountainRange;
+const computeTerrainType = Terrain.computeTerrainType;
+const getTerrainType = Terrain.getTerrainType;
+const multiTileTerrainCache = Terrain._cache;
+const terrainSpriteCache = new Map();
 
-// Get biome based on DISTANCE from center (concentric rings)
-// Center = Forest (rich), Middle ring = Desert, Outer ring = Snow (harsh)
-function getBiome(x, y) {
-  const dx = x - WORLD_CENTER;
-  const dy = y - WORLD_CENTER;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  // Max distance is ~265 (corner of 374x374 map from center)
-  const maxDist = WORLD_SIZE / 2 * 1.4; // ~262
-  const normalizedDist = distance / maxDist;
-
-  // Concentric rings: Forest (0-35%), Desert (35-70%), Snow (70-100%)
-  if (normalizedDist < 0.35) return 'forest';
-  if (normalizedDist < 0.70) return 'desert';
-  return 'snow';
-}
-
-// ========== MULTI-TILE TERRAIN GENERATION ==========
-// Rivers, lakes, and mountain ranges that span multiple tiles (max 30 length)
-
-// Cache for multi-tile terrain to avoid recalculating
-const multiTileTerrainCache = new Map();
-
-// Generate river paths (sinuous lines across the map)
-function isOnRiver(x, y) {
-  // Multiple river sources spread across the map
-  const riverSeeds = [
-    { sx: -100, sy: -50, dir: 0.3, length: 30 },
-    { sx: 50, sy: -120, dir: -0.2, length: 25 },
-    { sx: -80, sy: 80, dir: 0.4, length: 28 },
-    { sx: 120, sy: 30, dir: -0.35, length: 22 },
-    { sx: -30, sy: 100, dir: 0.25, length: 20 }
-  ];
-
-  for (const river of riverSeeds) {
-    let rx = river.sx;
-    let ry = river.sy;
-    let dir = river.dir;
-
-    for (let i = 0; i < river.length; i++) {
-      // River width of 1-2 tiles
-      if (Math.abs(x - Math.round(rx)) <= 1 && Math.abs(y - Math.round(ry)) <= 1) {
-        const dist = Math.sqrt((x - rx) ** 2 + (y - ry) ** 2);
-        if (dist < 1.2) return true;
-      }
-
-      // Move river forward with some meandering
-      rx += Math.cos(dir * Math.PI) * 2;
-      ry += Math.sin(dir * Math.PI) * 2;
-      dir += (seededRandom(Math.floor(rx), Math.floor(ry), 11111) - 0.5) * 0.3;
-    }
-  }
-  return false;
-}
-
-// Generate lake clusters (circular formations)
-function isOnLake(x, y) {
-  // Lake centers
-  const lakeSeeds = [
-    { cx: -60, cy: -30, radius: 8 },
-    { cx: 80, cy: -70, radius: 6 },
-    { cx: -90, cy: 60, radius: 10 },
-    { cx: 40, cy: 90, radius: 7 },
-    { cx: 100, cy: -20, radius: 5 },
-    { cx: -20, cy: -100, radius: 9 }
-  ];
-
-  for (const lake of lakeSeeds) {
-    const dist = Math.sqrt((x - lake.cx) ** 2 + (y - lake.cy) ** 2);
-    // Irregular lake shape using noise
-    const irregularity = seededRandom(x, y, 22222) * 3;
-    if (dist < lake.radius + irregularity - 2) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Generate mountain ranges (linear chains with branches)
-function isOnMountainRange(x, y) {
-  // Mountain range spines
-  const mountainRanges = [
-    { sx: -150, sy: 0, ex: -50, ey: -80, width: 4 },
-    { sx: 50, sy: -150, ex: 100, ey: -50, width: 3 },
-    { sx: -100, sy: 100, ex: 0, ey: 150, width: 5 },
-    { sx: 80, sy: 50, ex: 150, ey: 100, width: 4 }
-  ];
-
-  for (const range of mountainRanges) {
-    // Calculate distance to line segment
-    const dx = range.ex - range.sx;
-    const dy = range.ey - range.sy;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    const t = Math.max(0, Math.min(1,
-      ((x - range.sx) * dx + (y - range.sy) * dy) / (len * len)
-    ));
-
-    const nearX = range.sx + t * dx;
-    const nearY = range.sy + t * dy;
-    const dist = Math.sqrt((x - nearX) ** 2 + (y - nearY) ** 2);
-
-    // Add some width variation using noise
-    const widthVar = seededRandom(x, y, 33333) * 2;
-    if (dist < range.width + widthVar) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Check if tile has features based on noise, biome, and multi-tile formations
-function getTerrainType(x, y) {
-  const biome = getBiome(x, y);
-  const noise = seededRandom(x, y);
-  const noise2 = seededRandom(x * 2, y * 2, 54321);
-
-  // Check multi-tile terrain first (rivers, lakes, mountains)
-  // These override normal terrain generation
-
-  // Rivers in forest and desert biomes
-  if ((biome === 'forest' || biome === 'desert') && isOnRiver(x, y)) {
-    return { biome, feature: biome === 'desert' ? 'oasis' : 'water', isMultiTile: true };
-  }
-
-  // Lakes - different types per biome
-  if (isOnLake(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'frozen', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'oasis', isMultiTile: true };
-    return { biome, feature: 'water', isMultiTile: true };
-  }
-
-  // Mountain ranges
-  if (isOnMountainRange(x, y)) {
-    if (biome === 'snow') return { biome, feature: 'icemountain', isMultiTile: true };
-    if (biome === 'desert') return { biome, feature: 'rocks', isMultiTile: true };
-    return { biome, feature: 'mountain', isMultiTile: true };
-  }
-
-  // Normal terrain generation (scattered features)
-  if (biome === 'forest') {
-    if (noise > 0.94 && noise2 > 0.6) return { biome, feature: 'mountain' };
-    if (noise > 0.55 && noise2 > 0.4) return { biome, feature: 'tree' };
-    if (noise < 0.02) return { biome, feature: 'water' };
-  } else if (biome === 'desert') {
-    if (noise > 0.95) return { biome, feature: 'ruins' };
-    if (noise > 0.88 && noise2 > 0.5) return { biome, feature: 'rocks' };
-    if (noise > 0.72 && noise2 > 0.6) return { biome, feature: 'dunes' };
-    if (noise < 0.03) return { biome, feature: 'oasis' };
-  } else if (biome === 'snow') {
-    if (noise > 0.92 && noise2 > 0.5) return { biome, feature: 'icemountain' };
-    if (noise > 0.50 && noise2 > 0.35) return { biome, feature: 'snowtree' };
-    if (noise < 0.03) return { biome, feature: 'frozen' };
-  }
-
-  return { biome, feature: null };
-}
-
+let _mapCanvasInitialized = false;
 function initMapCanvas() {
   mapCanvas = document.getElementById('world-canvas');
   mapCtx = mapCanvas?.getContext('2d');
@@ -418,8 +212,9 @@ function initMapCanvas() {
   const container = mapCanvas.parentElement;
   const width = container.clientWidth || 800;
   const height = container.clientHeight || 600;
-  mapCanvas.width = Math.max(width, 300);
-  mapCanvas.height = Math.max(height, 200);
+  mapViewW = Math.max(width, 300);
+  mapViewH = Math.max(height, 200);
+  sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);   // net sur écrans haute densité
 
   // Only add events once
   if (!mapCanvas.hasAttribute('data-events-attached')) {
@@ -450,8 +245,13 @@ function initMapCanvas() {
     minimapCanvas.addEventListener('mouseleave', onMinimapMouseUp);
   }
 
-  // Center on capital initially
-  centerOnCapital();
+  // Centrage initial UNE SEULE FOIS, sans loadMap (l'appelant loadMap continue son fetch juste après)
+  // Bug fix : centerOnCapital() appelait loadMap() -> initMapCanvas() -> centerOnCapital() en boucle infinie
+  if (!_mapCanvasInitialized) {
+    _mapCanvasInitialized = true;
+    const capital = cities.find(c => c.isCapital) || currentCity;
+    if (capital) { mapOffsetX = capital.x; mapOffsetY = capital.y; }
+  }
 }
 
 // ========== TRAVIAN-STYLE KEYBOARD SHORTCUTS ==========
@@ -460,58 +260,62 @@ document.addEventListener('keydown', onGlobalKeyDown);
 
 function onGlobalKeyDown(e) {
   // Don't capture if typing in input/textarea
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
+  if (e.key === 'Escape') { closeAllPanels(); return; }
+
   // Don't capture if modal is open
   const modal = document.getElementById('modal');
   if (modal && modal.style.display !== 'none') return;
+  // pas d'onglet de jeu avant d'être connecté (ni de carte avant de connaître celle du serveur)
+  if (!token || !player || typeof worldSeedKnown === 'undefined' || !worldSeedKnown) return;
   
   // ===== TRAVIAN ACCESS KEYS (1-9) =====
   switch(e.key) {
     case '1': // Champs (Resources)
       e.preventDefault();
       showTab('fields');
-      showToast('🌾 Vue Champs', 'info');
+      showToast('Vue Champs', 'info');
       break;
     case '2': // Ville (Buildings)
       e.preventDefault();
       showTab('city');
-      showToast('🏛️ Vue Ville', 'info');
+      showToast('Vue Ville', 'info');
       break;
     case '3': // Carte
       e.preventDefault();
       showTab('map');
-      showToast('🗺️ Carte', 'info');
+      showToast('Carte', 'info');
       break;
     case '4': // Statistiques (Classement)
       e.preventDefault();
       showTab('ranking');
-      showToast('📊 Classement', 'info');
+      showToast('Classement', 'info');
       break;
     case '5': // Rapports
       e.preventDefault();
       showTab('reports');
-      showToast('📜 Rapports', 'info');
+      showToast('Rapports', 'info');
       break;
     case '6': // Messages (Alliance)
       e.preventDefault();
       showTab('alliance');
-      showToast('⚔️ Alliance', 'info');
+      showToast('Alliance', 'info');
       break;
     case '7': // Inventaire
       e.preventDefault();
       showTab('inventory');
-      showToast('🎒 Inventaire', 'info');
+      showToast('Inventaire', 'info');
       break;
     case '8': // Héros
       e.preventDefault();
       showTab('hero');
-      showToast('🦸 Héros', 'info');
+      showToast('Héros', 'info');
       break;
     case '9': // Marché
       e.preventDefault();
       showTab('market');
-      showToast('🏪 Marché', 'info');
+      showToast('Marché', 'info');
       break;
     
     // ===== VILLAGE NAVIGATION (B/N like Travian) =====
@@ -553,10 +357,10 @@ function onGlobalKeyDown(e) {
 function onMapKeyDown(e) {
   // Only when map tab is visible
   const mapTab = document.getElementById('tab-map');
-  if (!mapTab || mapTab.style.display === 'none') return;
+  if (!mapTab || !mapTab.classList.contains('active')) return;
   
   // Don't capture if typing in input
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.isComposing || (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]'))) return;
   
   const moveSpeed = e.shiftKey ? 15 : 5; // Shift = faster
   
@@ -589,7 +393,7 @@ function onMapKeyDown(e) {
       renderMap();
       renderMinimap();
       updateMapUI();
-      showToast('🏠 Capitale', 'info');
+      showToast('Capitale', 'info');
       break;
     
     // ===== WASD MOVEMENT (Travian style) =====
@@ -649,7 +453,7 @@ function switchToPreviousCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const prevIndex = (currentIndex - 1 + cities.length) % cities.length;
   selectCity(cities[prevIndex].id);
-  showToast(`⬅️ ${cities[prevIndex].name}`, 'info');
+  showToast(`${cities[prevIndex].name}`, 'info');
 }
 
 function switchToNextCity() {
@@ -660,7 +464,7 @@ function switchToNextCity() {
   const currentIndex = cities.findIndex(c => c.id === currentCity?.id);
   const nextIndex = (currentIndex + 1) % cities.length;
   selectCity(cities[nextIndex].id);
-  showToast(`➡️ ${cities[nextIndex].name}`, 'info');
+  showToast(`${cities[nextIndex].name}`, 'info');
 }
 
 // ===== MAP GRID TOGGLE =====
@@ -668,23 +472,27 @@ let showMapGrid = true;
 function toggleMapGrid() {
   showMapGrid = !showMapGrid;
   renderMap();
-  showToast(showMapGrid ? '📐 Grille activée' : '📐 Grille désactivée', 'info');
+  showToast(showMapGrid ? 'Grille activée' : 'Grille désactivée', 'info');
 }
 
 // ===== MINIMAP TOGGLE =====
 let showMinimapPanel = true;
 function toggleMinimap() {
   showMinimapPanel = !showMinimapPanel;
-  const minimapContainer = document.querySelector('.minimap-container');
+  const minimapContainer = document.querySelector('.minimap');
   if (minimapContainer) {
     minimapContainer.style.display = showMinimapPanel ? 'block' : 'none';
   }
-  showToast(showMinimapPanel ? '🗺️ Minimap visible' : '🗺️ Minimap masquée', 'info');
+  showToast(showMinimapPanel ? 'Minimap visible' : 'Minimap masquée', 'info');
 }
 
 // ===== CLOSE ALL PANELS =====
 function closeAllPanels() {
   closeModal();
+  if (typeof closeBuildPanel === 'function') closeBuildPanel();
+  if (typeof closeMapPanel === 'function') closeMapPanel();
+  const help = document.getElementById('help-overlay');
+  if (help) help.style.display = 'none';
   const actionPanel = document.getElementById('action-panel');
   if (actionPanel) actionPanel.style.display = 'none';
 }
@@ -772,8 +580,10 @@ async function loadMap() {
 
   // Load all visible tiles from server
   const viewSize = Math.ceil(60 / mapZoomLevel);
-  const radius = Math.ceil(viewSize / 2);
+  const radius = Math.min(60, Math.ceil(viewSize / 2));   // the server answers in full detail up to 60; beyond, cities only
 
+  if (typeof loadAllianceRelations === 'function') loadAllianceRelations();   // couleurs de la diplomatie (au plus une fois par minute)
+  if (typeof loadBastion === 'function') loadBastion();   // bouton « Placer le Bastion ici » (09g-bastion.js)
   try {
     const res = await fetch(
       `${API}/api/map/viewport?x=${Math.floor(mapOffsetX)}&y=${Math.floor(mapOffsetY)}&radius=${radius}`,
@@ -799,14 +609,28 @@ async function loadMap() {
             isCapital: c.isCapital || false,
             allianceId: c.player?.allianceId || null,
             allianceTag: c.player?.allianceTag || null,
+            nameplate: c.player?.nameplate || null,   // cosmétiques de la boutique d'alliance
+            banner: c.player?.banner || null,
             faction: c.player?.faction || 'ROME',
             wallLevel: c.wallLevel || 0,
+            mainHallLevel: c.mainHallLevel || 1,
             cityTier: c.cityTier || 0,
             cityTierName: c.cityTierName || 'Village',
-            population: c.player?.population || 0
+            isSieged: !!c.isSieged,
+            siegedBy: c.siegedBy || null,
+            wallDamage: c.wallDamage || 0,
+            population: c.player?.population || 0,
+            isWonder: !!c.isWonder, wonderLevel: c.wonderLevel || 0   // Ville Merveille (décision du 28 octobre 2026)
           });
         });
       }
+
+      // Bastions d'alliance (bloc 2 × 2 comme une ville, services/bastionService.js)
+      (data.bastions || []).forEach(b => mapData.push({
+        x: b.x, y: b.y, type: 'BASTION', id: b.id, name: `Bastion [${b.allianceTag}]`, allianceId: b.allianceId, allianceTag: b.allianceTag,
+        allianceName: b.allianceName, faction: b.faction || 'ROME', status: b.status, structurePct: b.structurePct ?? 100, lives: b.lives ?? null,
+        isSieged: !!b.isSieged, buildEndsAt: b.buildEndsAt || null, cityTier: 3, isCapital: true
+      }));
 
       // Add resource nodes with tribe defenders info
       if (data.resourceNodes) {
@@ -820,13 +644,17 @@ async function loadMap() {
             level: r.level || 1,
             amount: r.amount || 0,
             maxAmount: r.maxAmount || 1000,
+            holders: r.holders || [],   // armées qui tiennent le point (joueur, nom, alliance) : les siennes, celles de son alliance, ou toutes si le point est espionné
+            hiddenHolders: r.hiddenHolders || 0,   // armées d'autres joueurs qu'on ne voit pas (vision façon Travian)
+            spied: r.spied || null, spiedAt: r.spiedAt || null,   // rapport d'espion de moins d'1 h : stock exact, tribu, récolteurs
             biome: r.biome || 'forest',
             // Tribe defenders info
             hasDefenders: r.hasDefenders !== false,
             defenderPower: r.defenderPower || 0,
             defenderUnits: r.defenderUnits || {},
             lastDefeat: r.lastDefeat,
-            respawnMinutes: r.respawnMinutes || 60
+            respawnMinutes: r.respawnMinutes || 60,
+            horde: r.horde || null   // donjon d'invasion barbare : niveau, étage, force de départ de l'étage
           });
         });
       }
@@ -834,8 +662,8 @@ async function loadMap() {
       // Add moving armies from server
       if (data.armies) {
         data.armies.forEach(a => {
-          // Avoid duplicating player's own armies already shown
-          if (!mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
+          // Nos propres armées sont dessinées depuis la liste `armies` (plus fraîche) : éviter le doublon
+          if (a.ownerId !== player?.id && !mapData.find(d => d.type === 'ARMY' && d.id === a.id)) {
             mapData.push({
               x: a.x,
               y: a.y,
@@ -844,12 +672,15 @@ async function loadMap() {
               name: a.name,
               status: a.status,
               missionType: a.missionType,
+              mainUnit: a.mainUnit,
               targetX: a.targetX,
               targetY: a.targetY,
               arrivalAt: a.arrivalAt,
+              departedAt: a.departedAt,
               ownerId: a.ownerId,
               ownerName: a.owner?.name || 'Inconnu',
-              faction: a.owner?.faction || 'ROME'
+              faction: a.owner?.faction || 'ROME',
+              squads: a.squads || 1
             });
           }
         });
@@ -873,7 +704,10 @@ async function loadMap() {
             allianceId: player?.allianceId || null,
             faction: player?.faction || 'ROME',
             wallLevel: wallLevel,
-            cityTier: c.cityTier || (wallLevel >= 15 ? 3 : wallLevel >= 10 ? 2 : wallLevel >= 1 ? 1 : 0),
+            mainHallLevel: c.mainHallLevel || 1,
+            cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
+            isSieged: !!c.isSieged,
+            wallDamage: wallLevel > 0 && c.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - (c.wallHp ?? c.wallMaxHp) / c.wallMaxHp) * 10) * 10)) : 0,
             population: player?.population || 0
           });
         }
@@ -881,8 +715,8 @@ async function loadMap() {
     }
   } catch (e) {
     console.warn('Could not load map data:', e);
-    // Generate fake data for demo including player cities
-    mapData = generateFakeMapData(Math.floor(mapOffsetX), Math.floor(mapOffsetY), viewSize);
+    // Keep the last known tiles rather than inventing cities
+    showToast('Carte indisponible, nouvel essai au prochain déplacement', 'warning');
   }
 
   renderMap();
@@ -890,99 +724,36 @@ async function loadMap() {
   updateMapUI();
 }
 
-function generateFakeMapData(startX, startY, size) {
-  const data = [];
-  const fakePlayerNames = ['Marcus', 'Julia', 'Gaius', 'Livia', 'Brutus', 'Helena', 'Nero', 'Octavia', 'Titus', 'Cornelia'];
-  const fakeFactions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
-
-  // Add player cities with full data
-  cities.forEach(c => {
-    const wallBuilding = c.buildings?.find(b => b.key === 'WALL');
-    data.push({
-      x: c.x,
-      y: c.y,
-      type: 'CITY',
-      id: c.id,
-      playerId: player?.id,
-      playerName: player?.name || 'Vous',
-      name: c.name,
-      isCapital: c.isCapital,
-      faction: player?.faction || 'ROME',
-      wallLevel: wallBuilding?.level || 0,
-      population: player?.population || 100
-    });
-  });
-
-  // Add some random resources and enemy cities
-  for (let i = 0; i < 50; i++) {
-    const x = startX + Math.floor(Math.random() * size);
-    const y = startY + Math.floor(Math.random() * size);
-    const types = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-
-    // Avoid collision with player cities
-    if (data.find(d => d.x === x && d.y === y)) continue;
-
-    if (Math.random() < 0.15) {
-      // Enemy city with proper data
-      const fakePlayerId = `fake-player-${i}`;
-      const fakePlayerName = fakePlayerNames[i % fakePlayerNames.length];
-      const fakeFaction = fakeFactions[Math.floor(Math.random() * fakeFactions.length)];
-      data.push({
-        x,
-        y,
-        type: 'CITY',
-        id: `fake-city-${i}`,
-        playerId: fakePlayerId,
-        playerName: fakePlayerName,
-        name: `${fakePlayerName}'s Village`,
-        isCapital: Math.random() < 0.3,
-        faction: fakeFaction,
-        wallLevel: Math.floor(Math.random() * 10),
-        population: Math.floor(Math.random() * 1000) + 50
-      });
-    } else {
-      data.push({ x, y, type: 'RESOURCE', resourceType: types[Math.floor(Math.random() * 4)] });
-    }
-  }
-
-  return data;
+// Armées en marche : animation (pas cadencé, nuage de poussière) tant qu'une armée en mouvement est à l'écran
+// Ambiance (bateaux qui glissent, nuages qui passent, map-world.js) : même boucle, plus lente (environ 5 images par seconde)
+let mapMovingOnScreen = false, mapAmbientOnScreen = false, mapAnimTimer = null;
+function scheduleArmyAnim(delay = 110) {
+  if (mapAnimTimer) return;
+  mapAnimTimer = setTimeout(() => { mapAnimTimer = null; if (token && document.visibilityState === 'visible' && document.getElementById('tab-map')?.classList.contains('active')) scheduleMapRender(); }, delay);
 }
-
 function renderMap() {
+  mapMovingOnScreen = false; mapAmbientOnScreen = false;
+  renderMapCore();
+  if (mapMovingOnScreen) scheduleArmyAnim();
+  else if (mapAmbientOnScreen) scheduleArmyAnim(220);
+}
+function renderMapCore() {
   if (!mapCtx) return;
+  armyRouteBudget = 3; armyRouteUntil = performance.now() + 25;
+  mapLabelQueue = null;
 
-  const w = mapCanvas.width;
-  const h = mapCanvas.height;
+  const w = mapViewW;
+  const h = mapViewH;
   const nightMode = isNightMode();
 
   // Tile size based on zoom
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
-  // Get current biome for sky gradient (based on center of view)
-  const centerBiome = getBiome(Math.floor(mapOffsetX), Math.floor(mapOffsetY));
-  const biomeColors = BIOMES[centerBiome];
-
-  // Clear canvas with sky gradient based on biome and day/night
-  const gradient = mapCtx.createLinearGradient(0, 0, 0, h);
-  if (nightMode) {
-    gradient.addColorStop(0, biomeColors.skyTopNight || '#0a1020');
-    gradient.addColorStop(1, biomeColors.skyBottomNight || '#152030');
-  } else {
-    gradient.addColorStop(0, biomeColors.skyTop);
-    gradient.addColorStop(1, biomeColors.skyBottom);
-  }
-  mapCtx.fillStyle = gradient;
+  // Le sol couvre tout l'écran (map-world.js) ; un fond uni dessous, pour qu'aucun reste de l'image précédente ne transparaisse
+  mapCtx.fillStyle = nightMode ? '#10161c' : '#5f7a3c';
   mapCtx.fillRect(0, 0, w, h);
 
-  // Draw stars at night
-  if (nightMode) {
-    drawMapStars(w, h);
-  }
-
-  // Calculate visible tiles
-  const tilesX = Math.ceil(w / tileW) + 4;
-  const tilesY = Math.ceil(h / tileH) + 4;
 
   // Convert world to isometric screen coordinates
   function worldToScreen(wx, wy) {
@@ -994,32 +765,30 @@ function renderMap() {
     };
   }
 
-  // Convert screen to world coordinates
+  // Convert screen to world coordinates (tiles are drawn centred on integer coordinates)
   function screenToWorld(sx, sy) {
     const dx = sx - w / 2;
     const dy = sy - h / 2;
     return {
-      x: Math.floor(mapOffsetX + (dx / tileW + dy / tileH)),
-      y: Math.floor(mapOffsetY + (dy / tileH - dx / tileW))
+      x: Math.round(mapOffsetX + (dx / tileW + dy / tileH)),
+      y: Math.round(mapOffsetY + (dy / tileH - dx / tileW))
     };
   }
 
   // Store for click detection and army movement lines
   window.mapScreenToWorld = screenToWorld;
   window.mapWorldToScreen = worldToScreen;
+  if (mapPopupAnchor) positionMapPopup();   // la fenêtre de la cible suit la carte
 
-  // Draw isometric terrain grid
+  // Cases visibles : tout le rectangle du monde qui couvre l'écran (un écran vertical en voit plus en hauteur), marge pour
+  // les reliefs et les arbres qui dépassent de leur case
+  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
+  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
   const drawOrder = [];
-
-  for (let i = -tilesY; i < tilesY; i++) {
-    for (let j = -tilesX; j < tilesX; j++) {
-      const wx = Math.floor(mapOffsetX) + j;
-      const wy = Math.floor(mapOffsetY) + i;
+  for (let wy = bounds.y0; wy <= bounds.y1; wy++) {
+    for (let wx = bounds.x0; wx <= bounds.x1; wx++) {
       const pos = worldToScreen(wx, wy);
-
-      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 ||
-          pos.y < -tileH * 2 || pos.y > h + tileH * 2) continue;
-
+      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 || pos.y < -tileH * 2 || pos.y > h + tileH * 4) continue;
       drawOrder.push({ wx, wy, x: pos.x, y: pos.y, type: 'terrain' });
     }
   }
@@ -1027,28 +796,46 @@ function renderMap() {
   // Sort by Y for proper layering (painter's algorithm)
   drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  // Draw terrain tiles
+  // Le sol (textures et fondus), la grille, puis les éléments posés de haut en bas (map-world.js)
+  rebuildMapObjectCells();
+  drawMapGround(worldToScreen, bounds, w, h, tileW, tileH, nightMode);
+  drawMapGrid(worldToScreen, bounds, nightMode);
+  drawMapRoads(worldToScreen, tileW, nightMode);
   drawOrder.forEach(tile => {
-    drawIsoTile(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
+    drawMapCellFeature(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
   });
 
   // Draw objects (cities, resources) with proper layering
   const objectsOrder = [];
 
   mapData.forEach(obj => {
-    const pos = worldToScreen(obj.x, obj.y);
-    if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
-        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y });
+    // the armies of other players walk along their route too (same route as the server's, from the shared terrain)
+    const marching = obj.type === 'ARMY' && MOVING_STATUSES[obj.status] && obj.departedAt && obj.arrivalAt && obj.targetX !== null && obj.targetX !== undefined;
+    const cur = marching ? armyCurrentPosition(obj) : null;
+    if (obj.type === 'ARMY') { obj.drawX = cur ? cur.x : obj.x; obj.drawY = cur ? cur.y : obj.y; }   // le clic la trouve là où elle est dessinée
+    const pos = isMapBlock(obj) ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
+    const m = isMapBlock(obj) ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
+    if (pos.x >= -m && pos.x <= w + m && pos.y >= -m && pos.y <= h + m) {
+      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y, ...(cur ? { walkDir: cur.dir, walkVec: cur.vec } : {}) });
     }
   });
 
-  // Add armies to draw order
+  // Routes of the player's own moving armies (seen by nobody else), drawn on the ground before every object
+  for (const army of armies) {
+    if (army.isGarrison || !MOVING_STATUSES[army.status]) continue;
+    if (army.ownerId && player && army.ownerId !== player.id) continue;
+    drawArmyRoute(army, worldToScreen, tileW);
+    mapMovingOnScreen = true;
+  }
+  // Add armies to draw order, each at its current point on its route
   armies.forEach(army => {
-    const pos = worldToScreen(army.x, army.y);
+    if (army.isGarrison) return;   // la garnison ne quitte jamais la ville : le sprite de ville la représente
+    const cur = armyCurrentPosition(army);
+    army.drawX = cur.x; army.drawY = cur.y;
+    const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
-        pos.y >= -tileH * 2 && pos.y <= h + tileH * 2) {
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y });
+        pos.y >= -tileH * 2 && pos.y <= h + tileW * 1.6) {   // a painted army rises about 1.4 tiles above its feet
+      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir, walkVec: cur.vec });
     }
   });
 
@@ -1056,9 +843,12 @@ function renderMap() {
   objectsOrder.sort((a, b) => a.screenY - b.screenY);
 
   // Draw all objects
+  mapLabelQueue = [];
   objectsOrder.forEach(obj => {
     if (obj.type === 'CITY') {
-      drawIsoCity(obj.screenX, obj.screenY, tileW, tileH, obj);
+      drawIsoCity(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);   // 2 × 2 cases
+    } else if (obj.type === 'BASTION') {
+      drawIsoBastion(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);
     } else if (obj.type === 'RESOURCE') {
       drawIsoResource(obj.screenX, obj.screenY, tileW, tileH, obj);
     } else if (obj.type === 'ARMY') {
@@ -1066,94 +856,131 @@ function renderMap() {
     }
   });
 
-  // Draw hover highlight
-  if (mapHoveredTile) {
-    const pos = worldToScreen(mapHoveredTile.x, mapHoveredTile.y);
-    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#ffd700', 2);
-  }
+  drawMapClouds(worldToScreen, w, h, tileW, nightMode);   // quelques nuages qui passent, au-dessus de tout (map-world.js)
+  const labels = mapLabelQueue || []; mapLabelQueue = null;
+  labels.forEach(f => f());   // noms des villes par-dessus tout
 
-  // Draw selected tile
-  if (mapSelectedTile) {
-    const pos = worldToScreen(mapSelectedTile.x, mapSelectedTile.y);
-    drawIsoHighlight(pos.x, pos.y, tileW, tileH, '#00ff00', 3);
-  }
+  // Draw hover highlight
+  const highlight = (t, color, lw) => {
+    const city = mapData.find(o => isMapBlock(o) && t.x >= o.x && t.x <= o.x + 1 && t.y >= o.y && t.y <= o.y + 1);
+    const pos = city ? worldToScreen(city.x + 0.5, city.y + 0.5) : worldToScreen(t.x, t.y);
+    drawIsoHighlight(pos.x, pos.y, city ? tileW * 2 : tileW, city ? tileH * 2 : tileH, color, lw);
+  };
+  if (mapHoveredTile) highlight(mapHoveredTile, '#ffd700', 2);
+  if (mapSelectedTile) highlight(mapSelectedTile, '#00ff00', 3);
 }
 
 // Draw a single isometric tile with biome support
-function drawIsoTile(x, y, tw, th, wx, wy) {
-  const terrain = getTerrainType(wx, wy);
+// Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
+// sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
+const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
+// Rivières (décision du 25 octobre 2026) : l'eau fait partie du sol ; ponts et gués sont des éléments posés (map-world.js)
+const RIVER_FEATURES = { river: 1, bridge: 1, ford: 1 };
+const isMapBlock = (o) => o && (o.type === 'CITY' || o.type === 'BASTION');   // objets de 2 × 2 cases (ville, Bastion)
+let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
+function rebuildMapObjectCells() {
+  terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
+  mapObjectCells = new Map();
+  // a city covers 2 × 2 cells (Terrain.cityCells)
+  const markCity = (c) => { for (const [x, y] of Terrain.cityCells(c.x, c.y)) mapObjectCells.set(x + ',' + y, 'CITY'); };
+  for (const o of mapData) if (o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type); else if (isMapBlock(o)) markCity(o);
+  for (const c of cities) markCity(c);
+  rebuildMapCityRings();   // map-world.js : champs et chemins autour des villes
+}
+function terrainBlockedAt(wx, wy) {
+  if (mapObjectCells.has(wx + ',' + wy)) return true;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (mapObjectCells.get((wx + dx) + ',' + (wy + dy)) === 'CITY') return true;
+  return false;
+}
+function terrainSpriteName(wx, wy, biome, feature) {
+  const k = wx + ',' + wy;
+  if (terrainSpriteCache.has(k)) return terrainSpriteCache.get(k);
+  const name = computeTerrainSpriteName(wx, wy, biome, feature);
+  if (terrainSpriteCache.size > 250000) terrainSpriteCache.clear();
+  terrainSpriteCache.set(k, name);
+  return name;
+}
+function computeTerrainSpriteName(wx, wy, biome, feature) {
+  if (terrainBlockedAt(wx, wy) || WATER_FEATURES[feature] || RIVER_FEATURES[feature]) return null;   // l'eau fait partie du sol
+  const base = `${biome}_${feature}`;
+  if (!tileImages.terrain[base]) return null;
+  const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; return getTerrainType(wx + dx, wy + dy).feature === feature; };
+  const ex = same(1, 0) || same(-1, 0), ey = same(0, 1) || same(0, -1);
+  const suffix = ex && ey ? '_xy' : ex ? '_x' : ey ? '_y' : '';
+  return suffix && tileImages.terrain[base + suffix] ? base + suffix : base;
+}
+// Rendu d'avant d'un élément posé (sprite 3D d'une case ou dessin), tant que l'image peinte de la carte de référence
+// n'est pas livrée (map-world.js choisit l'image peinte d'abord)
+function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
   const biome = terrain.biome;
   const feature = terrain.feature;
-  const colorVariant = Math.floor(seededRandom(wx, wy, 99999) * 5);
-  const biomeColors = BIOMES[biome];
-  const nightMode = isNightMode();
-
-  // Draw diamond shape (base tile)
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - th / 2);        // Top
-  mapCtx.lineTo(x + tw / 2, y);        // Right
-  mapCtx.lineTo(x, y + th / 2);        // Bottom
-  mapCtx.lineTo(x - tw / 2, y);        // Left
-  mapCtx.closePath();
-
-  // Fill based on biome, feature and day/night
-  if (feature === 'water' || feature === 'frozen') {
-    if (nightMode) {
-      mapCtx.fillStyle = feature === 'frozen' ? '#404858' : '#1a2a3a';
-    } else {
-      mapCtx.fillStyle = feature === 'frozen' ? '#a8c8d8' : '#3a6a8a';
-    }
-  } else if (feature === 'oasis') {
-    mapCtx.fillStyle = nightMode ? '#1a3a2a' : '#4a9a6a';
-  } else {
-    // Use night ground colors if available
-    const groundColors = nightMode && biomeColors.groundNight
-      ? biomeColors.groundNight
-      : biomeColors.ground;
-    mapCtx.fillStyle = groundColors[colorVariant];
+  if (feature === 'bridge' || feature === 'ford') { drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, isNightMode()); return; }
+  if (feature === 'mesa') {   // chaîne de mesas du désert (infranchissable) : rochers du désert serrés, en attendant ses images
+    const s = Math.max(tw, th * 2), j = (seed) => Terrain.seededRandom(wx, wy, seed) - 0.5;
+    if (tileImages.terrain.desert_rocks) { drawTileImage(mapCtx, 'terrain', 'desert_rocks', x + j(5171) * tw * 0.3, y + j(5172) * th * 0.3, s * 1.7, s * 1.7); return; }
+    drawDesertRocks(x, y - th * 0.3, tw * 0.75, th * 1.1);
+    return;
   }
-  mapCtx.fill();
-
-  // Subtle grid lines
-  if (mapZoomLevel > 0.5 && showMapGrid) {
-    mapCtx.strokeStyle = 'rgba(0,0,0,0.1)';
-    mapCtx.lineWidth = 0.5;
-    mapCtx.stroke();
+  const featureSprite = terrainSpriteName(wx, wy, biome, feature);
+  if (featureSprite) {
+    const big = feature === 'mountain' || feature === 'icemountain';
+    const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
+    const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : (joined ? 1.6 : 1.15);
+    const fsize = Math.max(tw, th * 2) * k;
+    drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
+    return;
   }
-
-  // Draw terrain features based on biome
+  if (feature === 'boulders') {   // amas de rochers (tempéré)
+    drawIsoRock(x - tw * 0.12, y + th * 0.05, th * 0.75); drawIsoRock(x + tw * 0.14, y + th * 0.12, th * 0.55); drawIsoRock(x + tw * 0.02, y - th * 0.12, th * 0.45);
+    return;
+  }
   if (biome === 'forest') {
     if (feature === 'tree') {
-      drawIsoTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+      const sd = (k) => Terrain.seededRandom(wx, wy, 6170 + k);
+      drawIsoTree(x - tw * 0.16, y - th * 0.3, tw * 0.34, th * 0.75, sd(0)); drawIsoTree(x + tw * 0.14, y - th * 0.2, tw * 0.3, th * 0.7, sd(1)); drawIsoTree(x, y - th * 0.05, tw * 0.36, th * 0.8, sd(2));
     } else if (feature === 'mountain') {
       drawIsoMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
-    } else if (feature === 'water') {
-      drawIsoWater(x, y, tw, th);
     }
   } else if (biome === 'desert') {
     if (feature === 'dunes') {
       drawDesertDunes(x, y, tw, th);
     } else if (feature === 'ruins') {
       drawDesertRuins(x, y - th * 0.3, tw * 0.5, th * 0.8);
-    } else if (feature === 'oasis') {
-      drawDesertOasis(x, y, tw, th);
     } else if (feature === 'rocks') {
       drawDesertRocks(x, y - th * 0.2, tw * 0.4, th * 0.6);
     }
   } else if (biome === 'snow') {
     if (feature === 'snowtree') {
-      drawSnowTree(x, y - th * 0.3, tw * 0.4, th * 0.8);
+      drawSnowTree(x - tw * 0.15, y - th * 0.3, tw * 0.32, th * 0.75); drawSnowTree(x + tw * 0.13, y - th * 0.18, tw * 0.3, th * 0.7); drawSnowTree(x, y - th * 0.05, tw * 0.34, th * 0.8);
     } else if (feature === 'icemountain') {
       drawIceMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
-    } else if (feature === 'frozen') {
-      drawFrozenLake(x, y, tw, th);
     }
   }
 }
 
+// Pont ou gué dessinés (l'eau est dans le sol) : planches en travers de la rivière, pierres de gué
+function drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, night) {
+  const frozen = biome === 'snow';
+  if (feature === 'bridge') {
+    const alongX = mapCrossingAlongX(wx, wy);
+    const ux = alongX ? tw / 2 : -tw / 2, uy = th / 2, w = 0.5;
+    mapCtx.fillStyle = night ? '#4a3420' : '#8a5a30';
+    mapCtx.beginPath();
+    mapCtx.moveTo(x - ux * 0.95 - (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y - uy * 0.95 - th * w * 0.25);
+    mapCtx.lineTo(x + ux * 0.95 - (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y + uy * 0.95 - th * w * 0.25);
+    mapCtx.lineTo(x + ux * 0.95 + (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y + uy * 0.95 + th * w * 0.25);
+    mapCtx.lineTo(x - ux * 0.95 + (alongX ? -1 : 1) * tw * w * 0.5 * 0.5, y - uy * 0.95 + th * w * 0.25);
+    mapCtx.closePath(); mapCtx.fill();
+    mapCtx.strokeStyle = 'rgba(40,24,10,0.6)'; mapCtx.lineWidth = 1; mapCtx.stroke();
+  } else {
+    mapCtx.fillStyle = frozen ? '#e8eef2' : '#b8b0a0';
+    for (let i = -2; i <= 2; i++) { mapCtx.beginPath(); mapCtx.ellipse(x + i * tw * 0.12, y + i * th * 0.06 * ((wx + wy) % 2 ? 1 : -1), tw * 0.045, th * 0.06, 0, 0, Math.PI * 2); mapCtx.fill(); }
+  }
+}
+
 // Draw isometric tree (pine/fir)
-function drawIsoTree(x, y, w, h) {
-  const treeH = h * (0.8 + seededRandom(x, y) * 0.4);
+function drawIsoTree(x, y, w, h, seed) {   // seed : tiré de la case du monde (sinon la hauteur changerait en déplaçant la carte)
+  const treeH = h * (0.8 + (seed ?? seededRandom(x, y)) * 0.4);
 
   // Trunk
   mapCtx.fillStyle = '#4a3020';
@@ -1216,21 +1043,6 @@ function drawIsoMountain(x, y, w, h) {
   mapCtx.fill();
 }
 
-// ========== WATER/LAKE ==========
-function drawIsoWater(x, y, tw, th) {
-  // Water ripples effect
-  mapCtx.strokeStyle = 'rgba(255,255,255,0.3)';
-  mapCtx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    const offset = (Date.now() / 1000 + i * 0.3) % 1;
-    mapCtx.beginPath();
-    mapCtx.ellipse(x, y, tw * 0.2 * (1 + offset * 0.3), th * 0.1 * (1 + offset * 0.3), 0, 0, Math.PI * 2);
-    mapCtx.stroke();
-  }
-}
-
-// ========== DESERT BIOME FEATURES ==========
-// Desert sand dunes
 function drawDesertDunes(x, y, tw, th) {
   const duneH = th * 0.4;
 
@@ -1290,24 +1102,6 @@ function drawDesertRuins(x, y, w, h) {
 }
 
 // Desert oasis with palm trees
-function drawDesertOasis(x, y, tw, th) {
-  // Water pool
-  mapCtx.fillStyle = '#4a8a9a';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, tw * 0.3, th * 0.15, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Water shine
-  mapCtx.fillStyle = 'rgba(255,255,255,0.3)';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x - tw * 0.1, y - th * 0.02, tw * 0.08, th * 0.03, -0.3, 0, Math.PI * 2);
-  mapCtx.fill();
-
-  // Palm trees around oasis
-  drawPalmTree(x - tw * 0.25, y - th * 0.15, tw * 0.15, th * 0.5);
-  drawPalmTree(x + tw * 0.2, y - th * 0.1, tw * 0.12, th * 0.4);
-}
-
 // Palm tree for oasis
 function drawPalmTree(x, y, w, h) {
   const trunkH = h * 0.6;
@@ -1446,62 +1240,6 @@ function drawIceMountain(x, y, w, h) {
 }
 
 // Frozen lake
-function drawFrozenLake(x, y, tw, th) {
-  // Ice cracks
-  mapCtx.strokeStyle = 'rgba(100,140,160,0.5)';
-  mapCtx.lineWidth = 1;
-
-  // Random crack pattern
-  const cracks = [
-    [[0, 0], [0.2, -0.1], [0.3, 0.05]],
-    [[0, 0], [-0.15, 0.1], [-0.25, -0.05]],
-    [[0.1, 0.05], [0.2, 0.15], [0.1, 0.2]]
-  ];
-
-  cracks.forEach(crack => {
-    mapCtx.beginPath();
-    crack.forEach((point, i) => {
-      const px = x + point[0] * tw;
-      const py = y + point[1] * th;
-      if (i === 0) mapCtx.moveTo(px, py);
-      else mapCtx.lineTo(px, py);
-    });
-    mapCtx.stroke();
-  });
-
-  // Shine spots
-  mapCtx.fillStyle = 'rgba(255,255,255,0.4)';
-  mapCtx.beginPath();
-  mapCtx.ellipse(x - tw * 0.1, y - th * 0.05, tw * 0.1, th * 0.04, 0, 0, Math.PI * 2);
-  mapCtx.fill();
-}
-
-// Draw stars on map at night
-function drawMapStars(w, h) {
-  // Use seeded random for consistent star positions
-  const seed = 54321;
-  const random = (i) => {
-    const x = Math.sin(seed + i) * 10000;
-    return x - Math.floor(x);
-  };
-
-  for (let i = 0; i < 60; i++) {
-    const x = random(i) * w;
-    const y = random(i + 100) * h * 0.5; // Only upper half
-    const size = random(i + 200) * 1.5 + 0.5;
-    const brightness = random(i + 300) * 0.5 + 0.5;
-
-    // Twinkling effect
-    const twinkle = Math.sin(Date.now() / 600 + i) * 0.3 + 0.7;
-
-    mapCtx.fillStyle = `rgba(255, 255, 255, ${brightness * twinkle})`;
-    mapCtx.beginPath();
-    mapCtx.arc(x, y, size, 0, Math.PI * 2);
-    mapCtx.fill();
-  }
-}
-
-// Draw isometric highlight (diamond outline)
 function drawIsoHighlight(x, y, tw, th, color, lineWidth) {
   mapCtx.beginPath();
   mapCtx.moveTo(x, y - th / 2);
@@ -1561,47 +1299,121 @@ const CULTURE_STYLES = {
 };
 
 // Draw city labels (name, flag, population badge) - used for both image and procedural rendering
-function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly) {
+// Plaque de nom façon Travian : parchemin arrondi, liseré, texte brun en Crimson Text
+// Plaques de nom de la boutique d'alliance (cosmétiques dessinés par le code) : fond, encre et liseré intérieur
+const NAMEPLATE_STYLES = {
+  bronze: { fill: 'rgba(214,160,104,0.95)', ink: '#2e1a08', inner: '#8a5a2a' },
+  silver: { fill: 'rgba(222,226,232,0.95)', ink: '#20242a', inner: '#7c8590' },
+  gold: { fill: 'rgba(246,214,120,0.96)', ink: '#3a2600', inner: '#b8860b' },
+  laurel: { fill: 'rgba(206,226,176,0.95)', ink: '#1e3010', inner: '#4f7a2a' },
+  purple: { fill: 'rgba(196,170,222,0.95)', ink: '#241232', inner: '#6a3d8f' }
+};
+function drawMapNamePlate(x, top, text, px, border, strong = false, style = null) {
+  mapCtx.font = `700 ${px}px 'Crimson Text', Georgia, serif`;
+  mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+  const w = mapCtx.measureText(text).width + px * 1.2, h = px * 1.5;
+  const st = NAMEPLATE_STYLES[style] || null;
+  mapCtx.fillStyle = st ? st.fill : 'rgba(240,224,186,0.92)';
+  mapCtx.strokeStyle = border; mapCtx.lineWidth = strong ? 2.2 : 1.2;
+  mapCtx.beginPath(); mapCtx.roundRect(x - w / 2, top, w, h, h / 2); mapCtx.fill(); mapCtx.stroke();
+  if (st) { mapCtx.strokeStyle = st.inner; mapCtx.lineWidth = 0.8; mapCtx.beginPath(); mapCtx.roundRect(x - w / 2 + 2.5, top + 2.5, w - 5, h - 5, (h - 5) / 2); mapCtx.stroke(); }
+  mapCtx.fillStyle = st ? st.ink : '#2e2010';
+  mapCtx.fillText(text, x, top + h / 2 + 0.5);
+}
+// Phase courante de l'animation de siège, null tant qu'elle n'est pas livrée : villes de départ map/cities/siege_<CIV>_t<1|2|3>_<0..3>,
+// villes secondaires map/cities/siege_colony_<CIV>_<normal|fortified>_<0..3>
+const SIEGE_FRAMES = 4, SIEGE_FRAME_MS = 220;
+function siegeFrameName(faction, tier, colony = false) {
+  const t = Math.max(1, Math.min(3, tier || 1)), F = String(faction || 'ROME').toUpperCase();
+  const base = colony ? `siege_colony_${F}_${t >= 3 ? 'fortified' : 'normal'}` : `siege_${F}_t${t}`;
+  if (!tileImages.cities[`${base}_0`]) return null;
+  const name = `${base}_${Math.floor(Date.now() / SIEGE_FRAME_MS) % SIEGE_FRAMES}`;
+  return tileImages.cities[name] ? name : `${base}_0`;
+}
+
+function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = false) {
   const citySize = Math.min(tw, th * 2) * 0.8;
 
-  // Banner/flag
+  // Drapeau planté devant la ville : or pour les nôtres, bleu pour les alliés, couleurs de la faction sinon (sprite 3D, phase fixe)
   const flagY = y - citySize * 0.55;
-  const bannerColor = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444';
-  mapCtx.fillStyle = bannerColor;
-  mapCtx.fillRect(x - 1, flagY - 12, 2, 15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + 1, flagY - 12);
-  mapCtx.lineTo(x + 10, flagY - 8);
-  mapCtx.lineTo(x + 1, flagY - 4);
-  mapCtx.closePath();
-  mapCtx.fill();
+  const kind = isMyCity ? 'gold' : isAlly ? 'ally' : String(tile.faction || 'ROME').toUpperCase();
+  // bannière de la boutique d'alliance (image livrée) à la place du drapeau, sinon le drapeau habituel
+  const flag = typeof getSprite === 'function' ? ((tile.banner && getSprite(tile.banner)) || getSprite(`assets/images/3d/props/flag_${kind}_0.webp`)) : null;
+  if (flag) { const fh = citySize * 0.55, fw = fh * 64 / 96; mapCtx.drawImage(flag, x - fw / 2, flagY - fh * 0.92, fw, fh); }
+  else { mapCtx.fillStyle = isMyCity ? '#ffd700' : isAlly ? '#44ff88' : '#ff4444'; mapCtx.fillRect(x - 1, flagY - 12, 2, 15); }
 
-  // City name label
-  if (mapZoomLevel > 0.5 && tile.name) {
-    mapCtx.font = `bold ${10 * mapZoomLevel}px Arial, sans-serif`;
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'top';
-    mapCtx.fillStyle = '#fff';
-    mapCtx.shadowColor = '#000';
-    mapCtx.shadowBlur = 3;
-    mapCtx.fillText(tile.name, x, y + citySize * 0.35);
-    mapCtx.shadowBlur = 0;
-  }
+  // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
+  if (tile.isSieged && !siegeAnimated) drawSiegeMarker(x, y, citySize);
+  // Mur abîmé par un siège : fumée (et feu au-delà de 50 %) jusqu'à ce que le mur soit réparé ; l'animation de siège a la sienne
+  if ((tile.wallDamage || 0) >= 10 && !siegeAnimated) drawDamagedCitySmoke(x, y, citySize, tile.wallDamage, tile.id);
+  if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
 
-  // Power level badge
-  if (mapZoomLevel > 0.7 && tile.population) {
-    const badgeX = x + citySize * 0.4;
-    const badgeY = y - citySize * 0.5;
-    mapCtx.fillStyle = 'rgba(0,0,0,0.7)';
-    mapCtx.beginPath();
-    mapCtx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
+  // Étiquette du nom (plaque de parchemin au liseré brun, doré pour nos villes) et pastille de population : dessinées après
+  // tous les éléments de la carte (mapLabelQueue), pour qu'un point de ressource ou une armée devant la ville ne les cache pas
+  const plates = () => {
+    // liseré de la plaque aux couleurs de la diplomatie (09d-alliance.js) : or chez soi, vert son alliance, bleu clair
+    // les alliés, rouge les ennemis, brun les neutres
+    const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : (isMyCity ? 'SELF' : isAlly ? 'SAME_ALLIANCE' : 'NEUTRAL');
+    const plateBorder = rel === 'NEUTRAL' || typeof DIPLO_STYLE === 'undefined' ? '#6a4a2a' : DIPLO_STYLE[rel].color;
+    if (mapZoomLevel > 0.5 && tile.name) drawMapNamePlate(x, y + citySize * 0.35, tile.name, Math.max(9, 10 * mapZoomLevel), plateBorder, rel !== 'NEUTRAL' && rel !== 'SELF', tile.nameplate);
+    if (tile.isWonder && mapZoomLevel > 0.4) drawMapNamePlate(x, y + citySize * 0.35 + Math.max(9, 10 * mapZoomLevel) * 1.7, `Merveille · niv. ${tile.wonderLevel || 0}`, Math.max(9, 9.5 * mapZoomLevel), '#c9a227', true, 'gold');
+    if (mapZoomLevel > 0.7 && tile.population) {
+      const badgeX = x + citySize * 0.4;
+      const badgeY = y - citySize * 0.5;
+      mapCtx.fillStyle = '#e8c547'; mapCtx.strokeStyle = '#5a4010'; mapCtx.lineWidth = 1.2;
+      mapCtx.beginPath(); mapCtx.arc(badgeX, badgeY, 11, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+      mapCtx.fillStyle = '#2e2010';
+      mapCtx.font = "700 9px 'Crimson Text', Georgia, serif";
+      mapCtx.textAlign = 'center'; mapCtx.textBaseline = 'middle';
+      mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY + 0.5);
+    }
+  };
+  if (mapLabelQueue) mapLabelQueue.push(plates); else plates();
+}
+let mapLabelQueue = null;   // étiquettes des villes en attente, pendant le dessin de la carte
+
+// Colonne de fumée au-dessus d'une ville au mur abîmé : plus dense avec les dégâts ; feu peint (map/fx/fire_0..3) quand
+// il est livré et que le mur a perdu plus de la moitié de ses PV, sinon des bouffées de fumée 3D qui montent
+function drawDamagedCitySmoke(x, y, size, damage, seed) {
+  mapMovingOnScreen = true;   // garde la carte animée tant que la fumée est à l'écran
+  const t = performance.now() / 1000, ph = (String(seed || '').charCodeAt(0) || 0) * 0.29;
+  if (damage > 50 && tileImages.fx.fire_0) {
+    const f = tileImages.fx[`fire_${Math.floor(t * 6) % 4}`] || tileImages.fx.fire_0, s = size * 0.5;
+    mapCtx.drawImage(f, x - s / 2 + size * 0.12, y - size * 0.55, s, s);
   }
+  const n = 3 + Math.round(damage / 20);   // 3 à 8 bouffées
+  mapCtx.save();
+  if ('filter' in mapCtx) mapCtx.filter = `brightness(${Math.round(55 - damage * 0.3)}%)`;   // fumée sombre, plus noire avec les dégâts
+  for (let k = 0; k < n; k++) {
+    const life = (t * 0.35 + k / n + ph) % 1;
+    const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+    if (!puff) break;
+    const ps = size * (0.2 + life * 0.38);
+    mapCtx.globalAlpha = Math.min(0.9, 0.5 + damage / 200) * (1 - life * 0.85);
+    mapCtx.drawImage(puff, x + size * (0.08 + Math.sin(life * 3 + k) * 0.06 + life * 0.14) - ps / 2, y - size * (0.3 + life * 0.8) - ps / 2, ps, ps);
+  }
+  mapCtx.restore();
+}
+
+// Bannière de la civilisation qui assiège, plantée devant la ville (drapeau 3D existant, phase fixe)
+function drawSiegeBanner(x, y, size, faction) {
+  const flag = typeof getSprite === 'function' ? getSprite(`assets/images/3d/props/flag_${String(faction).toUpperCase()}_0.webp`) : null;
+  if (!flag) return;
+  const fh = size * 0.42, fw = fh * 64 / 96;
+  mapCtx.drawImage(flag, x + size * 0.42 - fw / 2, y + size * 0.05 - fh * 0.92, fw, fh);
+}
+
+function drawSiegeMarker(x, y, size) {
+  mapCtx.save();
+  mapCtx.strokeStyle = 'rgba(190,30,20,0.9)'; mapCtx.lineWidth = 2.5; mapCtx.setLineDash([6, 4]);
+  mapCtx.beginPath(); mapCtx.ellipse(x, y + size * 0.05, size * 0.66, size * 0.34, 0, 0, Math.PI * 2); mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  const r = Math.max(8, size * 0.16), ix = x - size * 0.5, iy = y - size * 0.45;
+  mapCtx.fillStyle = '#7a1410'; mapCtx.strokeStyle = '#f0d9a0'; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.arc(ix, iy, r, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+  const icon = typeof getSprite === 'function' ? getSprite('assets/images/3d/ui/attack.webp') : null;
+  if (icon) mapCtx.drawImage(icon, ix - r * 0.8, iy - r * 0.8, r * 1.6, r * 1.6);
+  mapCtx.restore();
 }
 
 // Draw isometric city with culture-specific style and walls
@@ -1613,38 +1425,41 @@ function drawIsoCity(x, y, tw, th, tile) {
   const cultureStyle = CULTURE_STYLES[faction] || CULTURE_STYLES.ROME;
 
   // Try to draw from tileset image first
-  const cityImageSize = Math.max(tw * 1.5, th * 3);
-  const cityType = tile.isCapital ? 'capital' : faction.toLowerCase();
+  // Sprite de la faction ; une ville fortifiée (palier 3 : Bâtiment principal ≥ 20) prend le sprite « capital » (enceinte à tours).
+  // Toute première ville est une capitale : la capitale est signalée par le drapeau des étiquettes, pas par le sprite.
+  const fortified = (tile.cityTier || 0) >= 3;
+  const cityImageSize = Math.max(tw * 1.5, th * 3) * (fortified ? 1.2 : 1);
+  // Ville secondaire : deux apparences peintes, normale puis fortifiée (Bâtiment principal ≥ 20) ; sinon les sprites de ville
+  const isColony = tile.isCapital === false, fl = faction.toLowerCase();
+  const colonyType = !isColony ? null : fortified ? (tileImages.cities[`colony_${fl}_fortified`] ? `colony_${fl}_fortified` : null) : (tileImages.cities['colony_' + fl] ? 'colony_' + fl : null);   // guide § S12
+  // palier 2 « Ville » : sprite <civ>_t2 quand il est livré, sinon celui du village
+  const townType = (tile.cityTier || 0) === 2 && tileImages.cities[faction.toLowerCase() + '_t2'] ? faction.toLowerCase() + '_t2' : faction.toLowerCase();
+  let cityType = colonyType || (fortified ? (tileImages.cities['capital_' + faction.toLowerCase()] ? 'capital_' + faction.toLowerCase() : 'capital') : townType);   // forteresse aux couleurs de la faction
+  // Ville Merveille (décision du 28 octobre 2026) : image peinte par étape de la Merveille (0, 25, 50, 75, 100) quand elle est livrée
+  if (tile.isWonder) { const stage = [100, 75, 50, 25, 0].find(s => (tile.wonderLevel || 0) >= s); if (tileImages.cities[`wonder_${stage}`]) cityType = `wonder_${stage}`; }
 
-  // Try individual city image
-  if (drawTileImage(mapCtx, 'cities', cityType, x, y, cityImageSize, cityImageSize)) {
-    // Image drawn successfully, add labels on top
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
-    return;
-  }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'ROME': ['TEMPLE_ROAD', 'TEMPLE_SMALL', 'ARENA'],
-    'GAUL': ['VILLAGE_CENTER', 'VILLAGE_ROAD_CURVE'],
-    'GREEK': ['ARENA', 'TEMPLE_SMALL'],
-    'EGYPT': ['DESERT_RUINS', 'TEMPLE_ROAD'],
-    'HUN': ['ROAD_L_DIRT', 'VILLAGE_CENTER'],
-    'SULTAN': ['WALL_RIVER', 'CASTLE']
-  };
-
-  const tileKeys = tilesetMapping[faction] || ['VILLAGE_CENTER'];
-  const tileKey = tileKeys[Math.abs(tile.x + tile.y) % tileKeys.length];
-
-  if (drawTileFromTileset(mapCtx, tileKey, x - cityImageSize/2, y - cityImageSize, cityImageSize, cityImageSize)) {
-    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly);
+  // Sprite de ville (manifest) : halo d'appartenance sous le sprite, puis étiquettes par-dessus
+  if (tileImages.cities[cityType] || tileImages.cities.default) {
+    const relHalo = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : null;
+    if (isMyCity || isAlly || relHalo === 'ALLY' || relHalo === 'ENEMY') {
+      mapCtx.fillStyle = isMyCity ? 'rgba(255,215,0,0.35)' : isAlly ? 'rgba(90,200,130,0.35)' : relHalo === 'ALLY' ? 'rgba(79,179,232,0.32)' : 'rgba(217,68,58,0.28)';
+      mapCtx.beginPath();
+      mapCtx.ellipse(x, y, tw * 0.52, th * 0.52, 0, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+    // Ville assiégée : animation peinte de la ville sous le siège (civilisation × palier, 4 phases en boucle) à la place du sprite
+    const siegeFrame = tile.isSieged ? ((isColony && siegeFrameName(faction, tile.cityTier, true)) || siegeFrameName(faction, tile.cityTier)) : null;
+    if (siegeFrame) mapMovingOnScreen = true;   // garde la carte animée tant que le siège est à l'écran
+    const cityName = siegeFrame || (tileImages.cities[cityType] ? cityType : 'default');
+    if (tileImagePainted.has('cities/' + cityName)) drawWorldCityImage(tileImages.cities[cityName], x, y, tw);   // cadrage 2 × 2 de la carte de référence
+    else drawTileImage(mapCtx, 'cities', cityName, x, y, cityImageSize, cityImageSize);
+    drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, !!siegeFrame);
     return;
   }
 
   // Fallback to procedural rendering
-  // Use cityTier from API (Village=1, Ville=2, Ville Fortifiée=3) or calculate from wallLevel
-  // Village: wall 1-9, Ville: wall 10-14, Ville Fortifiée: wall 15+
-  const cityTier = tile.cityTier || (wallLevel === 0 ? 0 : wallLevel < 10 ? 1 : wallLevel < 15 ? 2 : 3);
+  // Palier de l'API (Village=1, Ville=2, Ville Fortifiée=3), fixé par le Bâtiment principal ; sans mur, pas d'enceinte dessinée
+  const cityTier = wallLevel === 0 ? 0 : (tile.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(tile.mainHallLevel || 1) : 1));
 
   const citySize = Math.min(tw, th * 2) * 0.8;
 
@@ -1716,6 +1531,42 @@ function drawIsoCity(x, y, tw, th, tile) {
     mapCtx.textBaseline = 'middle';
     mapCtx.fillText(formatNum(tile.population || 0), badgeX, badgeY);
   }
+}
+
+// Bastion d'alliance : image peinte map/cities/bastion (chantier : bastion_site) quand elle est livrée, sinon la forteresse
+// de la civilisation du chef d'alliance ; chantier en transparence ; plaque « Bastion [TAG] » aux couleurs de la diplomatie
+function drawIsoBastion(x, y, tw, th, tile) {
+  const site = tile.status !== 'ACTIVE';
+  const img = site ? (tileImages.cities.bastion_site ? 'bastion_site' : null) : (tileImages.cities.bastion ? 'bastion' : null);
+  const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : 'NEUTRAL';
+  const halo = { SAME_ALLIANCE: 'rgba(90,200,130,0.38)', ALLY: 'rgba(79,179,232,0.34)', ENEMY: 'rgba(217,68,58,0.32)' }[rel] || 'rgba(201,162,39,0.25)';
+  mapCtx.fillStyle = halo;
+  mapCtx.beginPath(); mapCtx.ellipse(x, y, tw * 0.58, th * 0.58, 0, 0, Math.PI * 2); mapCtx.fill();
+  if (img) {
+    if (tileImagePainted.has('cities/' + img)) drawWorldCityImage(tileImages.cities[img], x, y, tw);
+    else { const s = Math.max(tw * 1.5, th * 3) * 1.2; drawTileImage(mapCtx, 'cities', img, x, y, s, s); }
+  } else {
+    mapCtx.save();
+    if (site) mapCtx.globalAlpha = 0.5;   // chantier : la forteresse à moitié visible en attendant l'image peinte
+    drawIsoCity(x, y, tw, th, { ...tile, playerId: null, name: null, population: 0, isSieged: false });
+    mapCtx.restore();
+  }
+  const size = Math.min(tw, th * 2) * 0.8;
+  if (tile.isSieged) drawSiegeMarker(x, y, size);
+  if (tile.structurePct < 100) drawDamagedCitySmoke(x, y, size, 100 - tile.structurePct, tile.id);
+  const plates = () => {
+    if (mapZoomLevel <= 0.4) return;
+    const border = typeof DIPLO_STYLE !== 'undefined' && DIPLO_STYLE[rel] ? DIPLO_STYLE[rel].color : '#6a4a2a';
+    const px = Math.max(9, 10.5 * mapZoomLevel);
+    drawMapNamePlate(x, y + size * 0.35, tile.name + (site ? ' · chantier' : ''), px, border, true, 'gold');
+    if (!site && mapZoomLevel > 0.7) {   // vies restantes du Bastion
+      const w = size * 0.8, bx = x - w / 2, by = y + size * 0.35 + px * 1.7;
+      mapCtx.fillStyle = 'rgba(30,20,10,0.75)'; mapCtx.fillRect(bx, by, w, 4);
+      mapCtx.fillStyle = tile.structurePct > 50 ? '#4caf50' : tile.structurePct > 20 ? '#e0a030' : '#d9443a';
+      mapCtx.fillRect(bx, by, w * tile.structurePct / 100, 4);
+    }
+  };
+  if (mapLabelQueue) mapLabelQueue.push(plates); else plates();
 }
 
 // Draw city walls with 3 visual tiers
@@ -2059,37 +1910,52 @@ function drawSmallBuilding(x, y, size, style) {
   mapCtx.fill();
 }
 
+// Stock d'un point : affiché par quarts seulement (le serveur arrondit déjà), comme le veut le GDD
+function stockRatio(amount, max) { return max > 0 ? Math.max(0, Math.min(1, (Number(amount) || 0) / max)) : 0; }
+function stockLabel(amount, max) {
+  const r = stockRatio(amount, max);
+  return r >= 0.95 ? 'plein' : r >= 0.6 ? 'bien garni' : r >= 0.35 ? 'à moitié' : r > 0.1 ? 'entamé' : r > 0 ? 'presque vide' : 'vide';
+}
+// Petite jauge de remplissage sous le point (remplace l'ancien « 2k »)
+function drawStockGauge(x, y, size, tile) {
+  const w = Math.max(14, size * 0.9), h = 3, r = stockRatio(tile.amount, tile.maxAmount);
+  mapCtx.fillStyle = 'rgba(0,0,0,0.55)';
+  mapCtx.fillRect(x - w / 2, y, w, h);
+  mapCtx.fillStyle = r >= 0.6 ? '#8bc34a' : r >= 0.35 ? '#ffc107' : '#e57373';
+  mapCtx.fillRect(x - w / 2, y, Math.round(w * r), h);
+}
+
 // Draw isometric resource node
 function drawIsoResource(x, y, tw, th, tile) {
   const resType = tile.resourceType?.toLowerCase() || 'wood';
+  if ((resType === 'wonder' || resType === 'plan') && typeof drawWonderNode === 'function') return drawWonderNode(x, y, tw, th, tile);   // 09i-world.js
+  if (resType === 'horde' && typeof drawHordeNode === 'function') return drawHordeNode(x, y, tw, th, tile);   // donjon d'invasion barbare (09k-invasion.js)
   const size = Math.min(tw, th * 2) * 0.5;
-  const imgSize = Math.max(tw, th * 2);
+  const imgSize = Math.max(tw, th * 2) * 1.3;
 
-  // Try to draw from individual image first
-  if (drawTileImage(mapCtx, 'resources', resType, x, y, imgSize, imgSize)) {
-    // Draw resource level indicator
-    if (tile.amount && mapZoomLevel > 0.6) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(`${Math.round(tile.amount / 1000)}k`, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
-    }
+  // Camp barbare peint (niveau, biome) tant que la tribu tient le point, ruines après sa défaite ; l'icône de ressource,
+  // en petit, garde le type lisible. Sans sprite peint, l'icône de ressource seule (rendu d'origine).
+  const biome = getBiome(tile.x, tile.y);
+  // comme sur la carte de référence : un visuel par ressource, terrain et richesse (map/resources/<type>_<biome>_<niveau>),
+  // sans couleur de civilisation ; repli sur l'image du biome puis sur celle de la ressource
+  const level = Math.max(1, Math.min(3, Number(tile.level) || 1));
+  const biomeVariant = `${resType}_${biome}`;
+  const resName = [`${resType}_${biome}_${level}`, biomeVariant, resType].find(n => tileImages.resources[n]) || resType;
+  // Campement de fondation peint (guide § S12) tant qu'une ville est en fondation sur le point, bannière du fondateur
+  const founder = (tile.holders || []).find(h => h.founding);
+  const foundName = founder ? (tileImages.camps[`foundation_${biome}`] ? `foundation_${biome}` : (tileImages.camps.foundation ? 'foundation' : null)) : null;
+  if (foundName && drawTileImage(mapCtx, 'camps', foundName, x, y, imgSize, imgSize)) return;
+  const campBase = tile.hasDefenders ? `camp${Math.max(1, Math.min(3, Number(tile.level) || 1))}` : (tile.lastDefeat ? 'ruins' : null);
+  const campName = campBase ? (tileImages.camps[`${campBase}_${biome}`] ? `${campBase}_${biome}` : (tileImages.camps[campBase] ? campBase : null)) : null;
+  if (campName && drawTileImage(mapCtx, 'camps', campName, x, y, imgSize, imgSize)) {
+    drawTileImage(mapCtx, 'resources', resName, x - imgSize * 0.32, y + imgSize * 0.02, imgSize * 0.38, imgSize * 0.38);
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;
   }
-
-  // Try tileset mapping
-  const tilesetMapping = {
-    'wood': 'FOREST_ROCKS',
-    'stone': 'DIRT_ROCKS',
-    'iron': 'DESERT_MINE',
-    'food': 'GRASS_TREES',
-    'gold': 'DESERT_ROCKS'
-  };
-
-  if (drawTileFromTileset(mapCtx, tilesetMapping[resType], x - imgSize/2, y - imgSize, imgSize, imgSize)) {
+  // Try to draw from individual image first (biome variant when it exists: wood_desert, stone_snow…)
+  if (drawTileImage(mapCtx, 'resources', resName, x, y, imgSize, imgSize)) {
+    // Draw resource level indicator
+    if (mapZoomLevel > 0.6) drawStockGauge(x, y + size * 0.5, size, tile);
     return;
   }
 
@@ -2102,9 +1968,10 @@ function drawIsoResource(x, y, tw, th, tile) {
     mapCtx.fill();
 
     // Multiple trees
-    drawIsoTree(x - size * 0.3, y - size * 0.1, size * 0.3, size * 0.5);
-    drawIsoTree(x + size * 0.2, y - size * 0.05, size * 0.25, size * 0.4);
-    drawIsoTree(x, y - size * 0.2, size * 0.35, size * 0.6);
+    const sd = (k) => Terrain.seededRandom(tile.x, tile.y, 6180 + k);
+    drawIsoTree(x - size * 0.3, y - size * 0.1, size * 0.3, size * 0.5, sd(0));
+    drawIsoTree(x + size * 0.2, y - size * 0.05, size * 0.25, size * 0.4, sd(1));
+    drawIsoTree(x, y - size * 0.2, size * 0.35, size * 0.6, sd(2));
 
   } else if (resType === 'stone') {
     // Quarry
@@ -2212,17 +2079,7 @@ function drawIsoResource(x, y, tw, th, tile) {
   }
 
   // Resource amount badge
-  if (mapZoomLevel > 0.7 && tile.amount) {
-    mapCtx.fillStyle = 'rgba(0,0,0,0.6)';
-    mapCtx.beginPath();
-    mapCtx.roundRect(x - 15, y + size * 0.35, 30, 14, 3);
-    mapCtx.fill();
-    mapCtx.fillStyle = '#fff';
-    mapCtx.font = 'bold 9px Arial';
-    mapCtx.textAlign = 'center';
-    mapCtx.textBaseline = 'middle';
-    mapCtx.fillText(formatNum(tile.amount), x, y + size * 0.35 + 7);
-  }
+  if (mapZoomLevel > 0.7) drawStockGauge(x, y + size * 0.35 + 4, size, tile);
 }
 
 // Draw small rock for quarry
@@ -2246,25 +2103,226 @@ function drawIsoRock(x, y, size) {
   mapCtx.fill();
 }
 
+// ========== ARMY ROUTES ==========
+// A moving army follows the same route the server computed (shared terrain): the sprite walks along it
+// between departedAt and arrivalAt, and the owner sees the route as a discreet light-green dotted line.
+const MOVING_STATUSES = { MOVING: 1, ATTACKING: 1, RAIDING: 1, RETURNING: 1, SPYING: 1, TRANSPORTING: 1, SUPPORTING: 1, RALLY_JOIN: 1, RALLY_MARCH: 1 };   // RALLY_* : rassemblement d'alliance
+const armyRouteCache = new Map();   // "id|x,y>tx,ty" -> [[x, y], ...] (null when no route)
+// Chemins des armées : un trajet court se calcule tout de suite (au plus 3 par image et pendant 25 ms au plus) ; un long
+// trajet part dans route-worker.js, hors du fil principal, pour que la carte ne se fige pas. En attendant, l'armée marche
+// en ligne droite. Le départ et l'arrivée comptent comme des cases d'objets (ville de 2 × 2 cases, point de ressource),
+// même hors de la zone chargée.
+let armyRouteBudget = 3, armyRouteUntil = 0;
+const ARMY_ROUTE_FAR = 40;   // cases (plus grand écart en x ou en y) au-delà desquelles le trajet est calculé à part
+let _armyRouteWorker, _armyRouteSeq = 0;
+const _armyRoutePending = new Map();   // numéro de demande -> clé du cache
+function armyRouteWorker() {
+  if (_armyRouteWorker !== undefined) return _armyRouteWorker;
+  _armyRouteWorker = null;
+  try {
+    if (typeof Worker === 'function') {
+      const w = new Worker('js/route-worker.js');
+      w.onmessage = (e) => {
+        const key = _armyRoutePending.get(e.data?.id);
+        if (!key) return;
+        _armyRoutePending.delete(e.data.id);
+        armyRouteCache.set(key.key, e.data.path || key.straight);
+        if (typeof scheduleMapRender === 'function') scheduleMapRender();
+      };
+      w.onerror = () => { _armyRouteWorker = null; _armyRoutePending.clear(); };   // pas de fil à part : calcul sur place
+      _armyRouteWorker = w;
+    }
+  } catch (e) { _armyRouteWorker = null; }
+  return _armyRouteWorker;
+}
+function armyRoute(army) {
+  if (army.targetX === null || army.targetX === undefined || army.targetY === null || army.targetY === undefined) return null;
+  const key = `${Terrain.epoch}|${army.id}|${army.x},${army.y}>${army.targetX},${army.targetY}`;   // epoch : la carte du serveur
+  if (armyRouteCache.has(key)) return armyRouteCache.get(key);
+  const straight = [[army.x, army.y], [army.targetX, army.targetY]];
+  const base = typeof mapObjectCells !== 'undefined' ? mapObjectCells : new Map();
+  const extra = new Map([[army.x + ',' + army.y, 'RESOURCE']]);
+  const toCity = army.targetCityId || ['ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RETURNING'].includes(army.status);
+  if (toCity) for (const [cx, cy] of Terrain.cityCells(army.targetX, army.targetY)) extra.set(cx + ',' + cy, 'CITY');
+  else extra.set(army.targetX + ',' + army.targetY, 'RESOURCE');
+  const faction = army.owner?.faction || army.faction || (army.ownerId === player?.id ? player?.faction : null);
+  if (armyRouteCache.size > 300) armyRouteCache.clear();
+  const far = Math.max(Math.abs(army.targetX - army.x), Math.abs(army.targetY - army.y)) > ARMY_ROUTE_FAR;
+  const worker = far ? armyRouteWorker() : null;
+  if (worker) {
+    for (const v of _armyRoutePending.values()) if (v.key === key) { mapMovingOnScreen = true; return straight; }   // déjà demandé
+    const id = ++_armyRouteSeq;
+    _armyRoutePending.set(id, { key, straight });
+    worker.postMessage({ id, seed: Terrain.worldSeed, from: [army.x, army.y], to: [army.targetX, army.targetY], objects: [...base.entries(), ...extra.entries()], faction });
+    mapMovingOnScreen = true;
+    return straight;
+  }
+  if (armyRouteBudget <= 0 || (armyRouteBudget < 3 && performance.now() > armyRouteUntil)) { mapMovingOnScreen = true; return straight; }   // calculé à une prochaine image
+  armyRouteBudget--;
+  const objects = { has: (k) => extra.has(k) || base.has(k), get: (k) => extra.get(k) || base.get(k) };
+  const r = Terrain.findPath(army.x, army.y, army.targetX, army.targetY, objects, undefined, { faction });
+  const path = r ? r.path : straight;
+  armyRouteCache.set(key, path);
+  return path;
+}
+function armyProgress(army) {
+  if (!army.arrivalAt) return 0;
+  const now = typeof serverNow === 'function' ? serverNow() : Date.now();
+  const end = new Date(army.arrivalAt).getTime();
+  const start = army.departedAt ? new Date(army.departedAt).getTime() : null;
+  if (!start || end <= start) return now >= end ? 1 : 0;
+  return Math.max(0, Math.min(1, (now - start) / (end - start)));
+}
+function pointAlongRoute(path, fraction) {
+  if (!path || !path.length) return null;
+  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+  let total = 0; const seg = [];
+  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+  let target = fraction * total;
+  for (let i = 1; i < path.length; i++) {
+    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+    target -= seg[i - 1];
+  }
+  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+}
+// Where the army is right now (world coordinates, fractional) and which way it walks
+function armyCurrentPosition(army) {
+  if (!MOVING_STATUSES[army.status]) return { x: army.x, y: army.y, dir: 1 };
+  const path = armyRoute(army);
+  const p = armyProgress(army);
+  const at = pointAlongRoute(path, p) || { x: army.x, y: army.y };
+  const ahead = pointAlongRoute(path, Math.min(1, p + 0.02)) || at;
+  // screen direction: +x on screen when (dx - dy) grows, +y when (dx + dy) grows (iso 2:1)
+  const sx = (ahead.x - ahead.y) - (at.x - at.y), sy = ((ahead.x + ahead.y) - (at.x + at.y)) / 2, n = Math.hypot(sx, sy);
+  const dir = sx < -1e-6 ? -1 : 1;
+  return { x: at.x, y: at.y, dir, vec: n > 1e-9 ? { x: sx / n, y: sy / n } : { x: dir, y: 0.5 } };
+}
+// Dotted light-green route with an arrow head, for the player's own armies only
+function drawArmyRoute(army, worldToScreen, tileW) {
+  const path = armyRoute(army);
+  if (!path || path.length < 2) return;
+  const pts = path.map(([x, y]) => worldToScreen(x, y));
+  mapCtx.save();
+  mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
+  mapCtx.strokeStyle = 'rgba(150, 235, 140, 0.75)';
+  mapCtx.lineWidth = Math.max(1.5, tileW * 0.045);
+  mapCtx.setLineDash([tileW * 0.18, tileW * 0.16]);
+  mapCtx.lineDashOffset = -((performance.now() / 60) % (tileW * 0.34));   // marching ants, slow
+  mapCtx.shadowColor = 'rgba(0, 40, 0, 0.5)'; mapCtx.shadowBlur = 2;
+  mapCtx.beginPath();
+  pts.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y)));
+  mapCtx.stroke();
+  mapCtx.setLineDash([]);
+  // arrow head at the destination, pointing along the last segment
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const ang = Math.atan2(b.y - a.y, b.x - a.x), L = Math.max(6, tileW * 0.22);
+  mapCtx.fillStyle = 'rgba(150, 235, 140, 0.85)';
+  mapCtx.beginPath();
+  mapCtx.moveTo(b.x, b.y);
+  mapCtx.lineTo(b.x - L * Math.cos(ang - 0.45), b.y - L * Math.sin(ang - 0.45));
+  mapCtx.lineTo(b.x - L * Math.cos(ang + 0.45), b.y - L * Math.sin(ang + 0.45));
+  mapCtx.closePath(); mapCtx.fill();
+  mapCtx.restore();
+}
+
+// Nom du sprite de carte d'une armée : marchand pour les transports, sinon la classe de
+// l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
+const ARMY_CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
+function armySpriteName(army) {
+  if (army.missionType === 'FOUND' || army.status === 'FOUNDING' || (army.settlers || 0) > 0) return 'settler';   // cortège de colons
+  if (army.mainUnit) return String(army.mainUnit).toLowerCase();
+  if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
+  let best = null;
+  for (const u of army.units || []) if (!best || (u.count || 0) > (best.count || 0)) best = u;
+  const def = best && typeof unitsData !== 'undefined' ? unitsData.find(d => d.key === best.unitKey) : null;
+  return (def && ARMY_CLASS_SPRITE[def.class]) || 'hoplite';
+}
+
 // Draw isometric army marker
+// Taille de la colonne de ses propres armées (1 à 3 groupes), d'après leur effectif ; même règle que le serveur pour les
+// armées des autres (/api/map/viewport : squads)
+function armySquads(army) {
+  const n = (army.units || []).reduce((t, u) => t + (u.count || 0), 0);
+  return n < 100 ? 1 : n < 500 ? 2 : 3;
+}
+// Cycle de marche peint d'un sprite d'armée (6 poses <nom>_walk_0..5) : celui de la civilisation, sinon le cycle commun.
+// Chargé à la première demande (pas avec le reste de la carte), joué seulement quand ses 6 poses sont là.
+const armyWalkLoading = new Set();
+function armyWalkBase(name) {
+  for (const n of [name, name.replace(/_[A-Z]+$/, '')]) {
+    const files = [0, 1, 2, 3, 4, 5].map(i => `map/units/${n}_walk_${i}.webp`);
+    if (typeof paintedSet === 'undefined' || !files.every(f => paintedSet.has(f))) continue;   // cycle non livré (ou incomplet)
+    if ([0, 1, 2, 3, 4, 5].every(i => tileImages.units[`${n}_walk_${i}`])) return `${n}_walk_`;
+    if (!armyWalkLoading.has(n)) {
+      armyWalkLoading.add(n);
+      files.forEach((f, i) => { const img = new Image(); img.onload = () => { tileImages.units[`${n}_walk_${i}`] = img; tileImagePainted.add(`units/${n}_walk_${i}`); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }; img.src = art(f); });
+    }
+    return null;   // il trottine le temps du chargement
+  }
+  return null;
+}
 function drawIsoArmy(x, y, tw, th, army) {
   const size = Math.min(tw, th * 2) * 0.4;
-  const isMoving = army.status !== 'IDLE';
-  const imgSize = Math.max(tw, th * 2) * 0.8;
+  const isMoving = !!MOVING_STATUSES[army.status] && armyProgress(army) < 1;   // en marche ; récolte, fondation, siège : à l'arrêt
+  const imgSize = Math.max(tw, th * 2) * 1.2;
 
-  // Try to draw unit image based on army composition
-  const mainUnitType = army.mainUnit?.toLowerCase() || 'hoplite';
-  if (drawTileImage(mapCtx, 'units', mainUnitType, x, y, imgSize, imgSize)) {
-    // Draw army name label
-    if (mapZoomLevel > 0.8 && army.name) {
-      mapCtx.font = 'bold 9px Arial';
-      mapCtx.textAlign = 'center';
-      mapCtx.fillStyle = '#fff';
-      mapCtx.shadowColor = '#000';
-      mapCtx.shadowBlur = 2;
-      mapCtx.fillText(army.name, x, y + size * 0.5);
-      mapCtx.shadowBlur = 0;
+  // Sprite d'unité : fourni par la carte (mainUnit) ou déduit de la composition de nos propres armées,
+  // aux couleurs de la faction quand la variante existe (hoplite_ROME, cavalry_HUN…)
+  let mainUnitType = armySpriteName(army);
+  const faction = String(army.faction || player?.faction || '').toUpperCase();
+  if (faction && tileImages.units[mainUnitType + '_' + faction]) mainUnitType += '_' + faction;
+  if (mainUnitType.startsWith('settler') && !tileImages.units[mainUnitType] && !(isMoving && armyWalkBase(mainUnitType))) mainUnitType = tileImages.units['merchant_' + faction] ? 'merchant_' + faction : 'merchant';   // cortège de colons : charrette tant que le sprite n'est pas livré
+  const troopType = mainUnitType;   // les groupes qui suivent le héros gardent l'image de leur troupe
+  if ((army.hasHero || army.heroId) && faction && (tileImages.units['hero_' + faction] || (isMoving && armyWalkBase('hero_' + faction)))) mainUnitType = 'hero_' + faction;   // héros en tête d'armée (guide § S18)
+  if ((army.status === 'SPYING' || army.missionType === 'SPY') && (tileImages.units.spy || (isMoving && armyWalkBase('spy')))) mainUnitType = 'spy';   // espion en mission
+  const walkLead = isMoving ? armyWalkBase(mainUnitType) : null;
+  const hasSprite = !!tileImages.units[mainUnitType] || !!walkLead;
+  // comme sur la carte de référence, une grosse armée est une colonne de plusieurs groupes de soldats (1 à 3)
+  const squads = Math.max(1, Math.min(3, army.squads || armySquads(army)));
+  const groupType = (q) => (q === 0 ? mainUnitType : tileImages.units[troopType] || armyWalkBase(troopType) ? troopType : mainUnitType);   // le héros ou l'espion devant, la troupe derrière
+  if (hasSprite && isMoving) {
+    // marche : l'armée regarde vers sa destination ; avec son cycle de marche peint (6 poses), chaque groupe marche au
+    // pas ; sinon il trottine (petits bonds cadencés, léger balancement) ; la poussière se lève derrière la colonne
+    mapMovingOnScreen = true;
+    const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
+    const dir = army.walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
+    const vec = army.walkVec || { x: dir, y: 0.5 };
+    // les groupes suivants se placent en arrière, à l'opposé du sens de la marche sur l'écran
+    const back = (q) => ({ x: x - vec.x * q * imgSize * 0.22, y: y - vec.y * q * imgSize * 0.22 });
+    const tail = back(squads - 1);
+    for (let k = 0; k < 3 + squads; k++) {   // poussière derrière la colonne
+      const life = (t * 0.9 + k / (3 + squads) + ph) % 1;
+      const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+      if (!puff) break;
+      const ps = imgSize * (0.1 + life * 0.14) * (1 + squads * 0.15);
+      mapCtx.globalAlpha = 0.45 * (1 - life);
+      mapCtx.drawImage(puff, tail.x - vec.x * imgSize * (0.12 + life * 0.22) - ps / 2, tail.y - vec.y * imgSize * (0.12 + life * 0.22) - imgSize * 0.02 - ps / 2, ps, ps);
     }
+    mapCtx.globalAlpha = 1;
+    const order = Array.from({ length: squads }, (_, q) => ({ q, at: back(q) })).sort((a, b) => a.at.y - b.at.y);   // de haut en bas de l'écran
+    for (const { q, at } of order) {
+      const type = groupType(q), walk = armyWalkBase(type), phq = ph + q * 1.7;
+      mapCtx.save();
+      if (walk) {
+        const frame = walk + (Math.floor(t * 6 + phq * 3) % 6);   // 6 poses par seconde : sous le rythme de dessin, pas de pose sautée
+        mapCtx.translate(at.x, at.y); if (dir < 0) mapCtx.scale(-1, 1);
+        drawTileImage(mapCtx, 'units', frame, 0, 0, imgSize, imgSize);
+      } else if (tileImages.units[type]) {
+        const hop = Math.abs(Math.sin(t * 7 + phq)) * imgSize * 0.035, lean = Math.sin(t * 7 + phq) * 0.045;
+        mapCtx.translate(at.x, at.y - hop); mapCtx.rotate(lean); if (dir < 0) mapCtx.scale(-1, 1);
+        drawTileImage(mapCtx, 'units', type, 0, 0, imgSize, imgSize);
+      }
+      mapCtx.restore();
+    }
+  }
+  if (hasSprite && !isMoving) {   // à l'arrêt : les groupes en carré, le premier devant
+    const spots = [[0, 0], [-0.2, -0.08], [0.2, -0.08]].slice(0, squads).map((p, q) => ({ p, q })).reverse();
+    for (const { p: [ox, oy], q } of spots) { const type = tileImages.units[groupType(q)] ? groupType(q) : mainUnitType; if (tileImages.units[type]) drawTileImage(mapCtx, 'units', type, x + ox * imgSize, y + oy * imgSize, imgSize, imgSize); }
+  }
+  if (hasSprite) {
+    // Draw army name label
+    if (mapZoomLevel > 0.8 && army.name) drawMapNamePlate(x, y + size * 0.45, army.name, 9, army.ownerId && player && army.ownerId !== player.id ? '#8a2a1a' : '#c9a227');
     // Movement indicator
     if (isMoving) {
       mapCtx.fillStyle = '#ffaa00';
@@ -2318,49 +2376,52 @@ function drawIsoArmy(x, y, tw, th, army) {
   }
 }
 
-function drawMapBuilding(x, y, size, fillColor, strokeColor) {
+function drawMapBuilding(x, y, size, fillColor, strokeColor, ctx) {
+  // Bug fix : appelée depuis la vue ville (cityCtx) alors qu'elle utilisait mapCtx (indéfini hors carte)
+  const _c = ctx || (typeof cityCtx !== 'undefined' && cityCtx) || (typeof mapCtx !== 'undefined' && mapCtx);
+  if (!_c) return;
   const height = size * 1.2;
   
   // Building base
-  mapCtx.fillStyle = fillColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = fillColor;
+  _c.beginPath();
+  _c.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Left wall
-  mapCtx.fillStyle = shadeColor(fillColor, -15);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x - size * 0.5, y);
-  mapCtx.lineTo(x - size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -15);
+  _c.beginPath();
+  _c.moveTo(x - size * 0.5, y);
+  _c.lineTo(x - size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Right wall
-  mapCtx.fillStyle = shadeColor(fillColor, -30);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x + size * 0.5, y);
-  mapCtx.lineTo(x + size * 0.5, y - height);
-  mapCtx.lineTo(x, y - height - size * 0.15);
-  mapCtx.lineTo(x, y - size * 0.25);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(fillColor, -30);
+  _c.beginPath();
+  _c.moveTo(x + size * 0.5, y);
+  _c.lineTo(x + size * 0.5, y - height);
+  _c.lineTo(x, y - height - size * 0.15);
+  _c.lineTo(x, y - size * 0.25);
+  _c.closePath();
+  _c.fill();
   
   // Roof
-  mapCtx.fillStyle = strokeColor;
-  mapCtx.beginPath();
-  mapCtx.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  mapCtx.fill();
+  _c.fillStyle = strokeColor;
+  _c.beginPath();
+  _c.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
+  _c.fill();
   
   // Roof point
-  mapCtx.fillStyle = shadeColor(strokeColor, -20);
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - height - size * 0.5);
-  mapCtx.lineTo(x - size * 0.35, y - height + size * 0.1);
-  mapCtx.lineTo(x + size * 0.35, y - height + size * 0.1);
-  mapCtx.closePath();
-  mapCtx.fill();
+  _c.fillStyle = shadeColor(strokeColor, -20);
+  _c.beginPath();
+  _c.moveTo(x, y - height - size * 0.5);
+  _c.lineTo(x - size * 0.35, y - height + size * 0.1);
+  _c.lineTo(x + size * 0.35, y - height + size * 0.1);
+  _c.closePath();
+  _c.fill();
 }
 
 function drawMapTower(x, y, size) {
@@ -2409,6 +2470,9 @@ function renderMinimap() {
     if (tile.type === 'CITY') {
       minimapCtx.fillStyle = tile.playerId === player?.id ? '#ffd700' : '#c44';
       minimapCtx.fillRect(x - 2, y - 2, 4, 4);
+    } else if (tile.type === 'BASTION') {
+      minimapCtx.fillStyle = '#c9a227'; minimapCtx.strokeStyle = '#2e2010'; minimapCtx.lineWidth = 1;
+      minimapCtx.fillRect(x - 3, y - 3, 6, 6); minimapCtx.strokeRect(x - 3, y - 3, 6, 6);
     } else if (tile.type === 'RESOURCE') {
       minimapCtx.fillStyle = '#4a8';
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
@@ -2420,8 +2484,8 @@ function renderMinimap() {
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
     const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
     // Estimate visible tiles in each direction
-    const visTilesX = mapCanvas.width / tileW;
-    const visTilesY = mapCanvas.height / tileH;
+    const visTilesX = mapViewW / tileW;
+    const visTilesY = mapViewH / tileH;
     // Convert to minimap pixels
     const vpW = visTilesX * scale;
     const vpH = visTilesY * scale;
@@ -2451,14 +2515,17 @@ function onMinimapMouseDown(e) {
 function onMinimapMouseMove(e) {
   if (!minimapDragging) return;
   e.stopPropagation();
-  navigateMinimapToPosition(e);
+  navigateMinimapToPosition(e, false);
 }
 
 function onMinimapMouseUp(e) {
+  if (!minimapDragging) return;
   minimapDragging = false;
+  clearTimeout(mapReloadTimeout);
+  mapReloadTimeout = setTimeout(() => loadMap(), 150);
 }
 
-function navigateMinimapToPosition(e) {
+function navigateMinimapToPosition(e, reload = true) {
   if (!minimapCanvas) return;
 
   const rect = minimapCanvas.getBoundingClientRect();
@@ -2479,8 +2546,8 @@ function navigateMinimapToPosition(e) {
   mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, worldX));
   mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, worldY));
 
-  // Re-render
-  loadMap(); // Reload map data for new viewport
+  // Draw at once with what is loaded; the viewport is fetched when the gesture ends
+  if (reload) loadMap(); else scheduleMapRender(true);
 }
 
 function updateMapUI() {
@@ -2514,12 +2581,15 @@ function scheduleMapRender(includeMinimapAndUI = false) {
   if (!mapRenderScheduled) {
     mapRenderScheduled = true;
     requestAnimationFrame(() => {
-      renderMap();
-      if (includeMinimapAndUI) {
-        renderMinimap();
-        updateMapUI();
+      try {
+        renderMap();
+        if (includeMinimapAndUI) {
+          renderMinimap();
+          updateMapUI();
+        }
+      } finally {
+        mapRenderScheduled = false;   // une erreur de dessin ne bloque jamais les images suivantes
       }
-      mapRenderScheduled = false;
     });
   }
 }
@@ -2551,14 +2621,8 @@ function onMapMouseMove(e) {
     scheduleMapRender(true);
   } else {
     // Update hovered tile using isometric conversion
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-    mapHoveredTile = { x: tileX, y: tileY };
+    const pick = pickMapTile(mouseX, mouseY);   // the same cell (or city) a click would pick
+    mapHoveredTile = { x: pick.x, y: pick.y };
     scheduleMapRender(false);
   }
 }
@@ -2575,6 +2639,50 @@ function onMapMouseUp() {
   }
 }
 
+// Tile under a canvas point. Cities, resources and armies are drawn above their ground diamond,
+// so a click on a sprite lands on the tile behind it: the neighbours whose sprite covers the
+// point are checked before reporting empty terrain.
+// Where the drawing of a 2 × 2 city reaches above its block centre (as drawIsoCity draws it): painted city 2 × 2 framing,
+// or the old sprite (taller for a fortified city)
+function cityHitBox(t, tileW) {
+  const fl = String(t.faction || 'ROME').toLowerCase(), fortified = (t.cityTier || 0) >= 3;
+  const painted = typeof tileImagePainted !== 'undefined' && [...tileImagePainted].some(k => k.startsWith('cities/') && k.includes(fl));
+  if (painted) return { half: tileW * 1.0, top: (2 * tileW / WORLD_CITY_FOOTPRINT) * WORLD_CITY_CENTER_Y };
+  const size = 3 * tileW * (fortified ? 1.2 : 1);   // cityImageSize for a 2 × 2 block
+  return { half: size * 0.32, top: size * mapSpriteAnchor.y };
+}
+function pickMapTile(mouseX, mouseY) {
+  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  const dx = mouseX - mapViewW / 2;
+  const dy = mouseY - mapViewH / 2;
+  const tileX = Math.round(mapOffsetX + (dx / tileW + dy / tileH));
+  const tileY = Math.round(mapOffsetY + (dy / tileH - dx / tileW));
+  const entityAt = (x, y) => mapData.find(t => isMapBlock(t) ? (x >= t.x && x <= t.x + 1 && y >= t.y && y <= t.y + 1)
+    : t.type === 'ARMY' ? (Math.round(t.drawX ?? t.x) === x && Math.round(t.drawY ?? t.y) === y)   // une armée : là où elle est dessinée
+    : (t.x === x && t.y === y && t.type === 'RESOURCE'))   // a city: any of its 2 × 2 cells
+    || ((typeof armies !== 'undefined' ? armies : []).filter(a => !a.isGarrison && MOVING_STATUSES[a.status] && Math.round(a.drawX ?? a.x) === x && Math.round(a.drawY ?? a.y) === y)
+      .map(a => ({ ...a, type: 'ARMY', ownerId: player?.id }))[0]);   // nos armées en marche (celles à l'arrêt laissent le clic à la ville)
+  let tile = entityAt(tileX, tileY);   // what stands on the touched cell itself
+  if (!tile && typeof window.mapWorldToScreen === 'function') {
+    // otherwise the drawing that covers the touch, the front-most one (drawn last, lowest on the screen) first: a tall
+    // sprite whose cell is just below (resource, army), or the walls and roofs of a 2 × 2 city that rise above its block
+    const cands = [];
+    for (const [ox, oy] of [[1, 1], [1, 0], [0, 1], [2, 2]]) {
+      const t = entityAt(tileX + ox, tileY + oy);
+      if (t && !isMapBlock(t)) cands.push({ t, y: window.mapWorldToScreen(t.drawX ?? t.x, t.drawY ?? t.y).y });
+    }
+    for (const t of mapData) {
+      if (!isMapBlock(t)) continue;
+      const p = window.mapWorldToScreen(t.x + 0.5, t.y + 0.5), box = cityHitBox(t, tileW);
+      if (Math.abs(mouseX - p.x) <= box.half && mouseY <= p.y + tileH && mouseY >= p.y - box.top) cands.push({ t, y: p.y });
+    }
+    cands.sort((a, b) => b.y - a.y);
+    if (cands.length) tile = cands[0].t;
+  }
+  return tile ? { x: tile.x, y: tile.y, tile } : { x: tileX, y: tileY, tile: null };
+}
+
 function onMapClick(e) {
   // Prevent click if user dragged the map (threshold: 5 pixels)
   const wasDrag = mapDragDistance > 5;
@@ -2582,32 +2690,17 @@ function onMapClick(e) {
   if (wasDrag) return;
 
   const rect = mapCanvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-
-  // Use isometric coordinate conversion
-  const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = mapCanvas.width / 2;
-  const centerY = mapCanvas.height / 2;
-
-  // Screen to isometric world coordinates
-  const dx = mouseX - centerX;
-  const dy = mouseY - centerY;
-  const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-  const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-  // Find what's at this tile
-  const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-
-  mapSelectedTile = { x: tileX, y: tileY };
-  showMapInfoPanel(tileX, tileY, tile);
+  const picked = pickMapTile(e.clientX - rect.left, e.clientY - rect.top);
+  mapSelectedTile = { x: picked.x, y: picked.y };
+  showMapInfoPanel(picked.x, picked.y, picked.tile);
+  openMapPopupAt(picked);   // petite fenêtre au-dessus de la cible, façon Rise of Kingdoms
   renderMap();
 }
 
 // Touch handlers for mobile
 let touchStartDist = 0;
 let touchStartZoom = 1;
+let touchPinched = false;
 let touchDragDistance = 0;
 let touchStartPos = null;
 
@@ -2640,10 +2733,9 @@ function onMapTouchMove(e) {
       e.touches[0].clientY - e.touches[1].clientY
     );
 
-    mapZoomLevel = Math.max(0.15, Math.min(3, touchStartZoom * (dist / touchStartDist)));
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    mapZoomLevel = Math.max(0.3, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+    touchPinched = true;
+    scheduleMapRender(true);
   } else if (e.touches.length === 1 && mapDragging) {
     // Use isometric tile dimensions
     const tileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2662,43 +2754,30 @@ function onMapTouchMove(e) {
     mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
 
     mapDragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    renderMap();
-    renderMinimap();
-    updateMapUI();
+    scheduleMapRender(true);
   }
 }
 
 function onMapTouchEnd(e) {
   mapDragging = false;
 
-  // Simulate click/tap if no significant drag
-  if (touchDragDistance < 10 && touchStartPos) {
+  // Simulate click/tap if no significant drag (never at the end of a pinch, nor while another finger still touches)
+  if (touchDragDistance < 10 && touchStartPos && !touchPinched && !(e.touches && e.touches.length)) {
     const rect = mapCanvas.getBoundingClientRect();
-    const mouseX = touchStartPos.x - rect.left;
-    const mouseY = touchStartPos.y - rect.top;
-
-    const tileW = ISO_TILE_WIDTH * mapZoomLevel;
-    const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-    const centerX = mapCanvas.width / 2;
-    const centerY = mapCanvas.height / 2;
-
-    const dx = mouseX - centerX;
-    const dy = mouseY - centerY;
-    const tileX = Math.floor(mapOffsetX + (dx / tileW + dy / tileH));
-    const tileY = Math.floor(mapOffsetY + (dy / tileH - dx / tileW));
-
-    const tile = mapData.find(t => t.x === tileX && t.y === tileY);
-    mapSelectedTile = { x: tileX, y: tileY };
-    showMapInfoPanel(tileX, tileY, tile);
+    const picked = pickMapTile(touchStartPos.x - rect.left, touchStartPos.y - rect.top);
+    mapSelectedTile = { x: picked.x, y: picked.y };
+    showMapInfoPanel(picked.x, picked.y, picked.tile);
+    openMapPopupAt(picked);   // petite fenêtre au-dessus de la cible, façon Rise of Kingdoms
     renderMap();
   }
 
-  // Reload map data after significant touch drag (debounced)
-  if (touchDragDistance >= 10) {
+  // Reload map data after a significant drag or a pinch (debounced)
+  if (touchDragDistance >= 10 || touchPinched) {
     clearTimeout(mapReloadTimeout);
     mapReloadTimeout = setTimeout(() => loadMap(), 300);
   }
 
+  touchPinched = false;
   touchDragDistance = 0;
   touchStartPos = null;
 }
@@ -2717,8 +2796,8 @@ function onMapWheel(e) {
   // Dimensions de tuile isométrique avant zoom
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
+  const centerX = mapViewW / 2;
+  const centerY = mapViewH / 2;
   const dx = mouseX - centerX;
   const dy = mouseY - centerY;
 
@@ -2728,7 +2807,7 @@ function onMapWheel(e) {
 
   // Appliquer le zoom (plus fluide)
   const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
 
   // Dimensions de tuile isométrique après zoom
   const newTileW = ISO_TILE_WIDTH * mapZoomLevel;
@@ -2754,7 +2833,7 @@ function onMapWheel(e) {
 // Zoom buttons
 function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
-  mapZoomLevel = Math.max(0.15, Math.min(3, mapZoomLevel * zoomFactor));
+  mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
   // Debounced reload to get data for new zoom level
   clearTimeout(mapReloadTimeout);
   mapReloadTimeout = setTimeout(() => loadMap(), 400);
@@ -2796,6 +2875,7 @@ function gotoCoords() {
 }
 
 function showMapInfoPanel(x, y, tile) {
+  mapPanelSeq++;   // nouvelle cible : les réponses encore en route pour l'ancienne seront jetées
   const panel = document.getElementById('map-info-panel');
   const content = document.getElementById('map-panel-content');
   if (!panel || !content) return;
@@ -2805,19 +2885,24 @@ function showMapInfoPanel(x, y, tile) {
       <h3>Terrain vide</h3>
       <p>Position: (${x}, ${y})</p>
       <p style="color:#888">Aucun objet à cet emplacement</p>
+      ${typeof bastionPlaceButton === 'function' && bastionPlaceButton(x, y) ? `<div class="panel-actions">${bastionPlaceButton(x, y)}</div>` : ''}
     `;
     panel.style.display = 'flex';
   } else if (tile.type === 'CITY') {
     const isMyCity = tile.playerId === player?.id;
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
     
     if (isMyCity) {
       content.innerHTML = `
-        <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+        <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
+        ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
         <div class="panel-actions">
-          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">🏠 Visiter</button>
+          <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
+          ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
+          ${tile.isWonder && typeof openWonderPanel === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openWonderPanel('${tile.id}')">${resIconHtml('crown')} Merveille (niv. ${tile.wonderLevel || 0})</button>` : ''}
+          ${mapShareButton(tile.x, tile.y)}
         </div>
       `;
       panel.style.display = 'flex';
@@ -2826,16 +2911,34 @@ function showMapInfoPanel(x, y, tile) {
       showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content);
       return; // async
     }
+  } else if (tile.type === 'BASTION') {
+    if (typeof renderBastionMapPanel === 'function') renderBastionMapPanel(tile, content);   // 09g-bastion.js
+    panel.style.display = 'flex';
+  } else if (tile.type === 'ARMY') {
+    const mine = tile.ownerId === player?.id;
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    content.innerHTML = `
+      <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
+      <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
+      ${mine ? `<div class="panel-actions"><button class="btn btn-primary" onclick="closeMapPanel(); openNotificationLink({ to: 'army', armyId: '${String(tile.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('army')} Voir l'armée</button></div>` : ''}
+    `;
+    panel.style.display = 'flex';
+  } else if (tile.type === 'RESOURCE' && tile.resourceType === 'HORDE' && typeof renderHordeNodePanel === 'function') {
+    renderHordeNodePanel(tile, content);   // donjon d'invasion barbare (09k-invasion.js)
+    panel.style.display = 'flex';
+  } else if (tile.type === 'RESOURCE' && (tile.resourceType === 'WONDER' || tile.resourceType === 'PLAN') && typeof renderWonderNodePanel === 'function') {
+    renderWonderNodePanel(tile, content);   // site de Merveille, plan (09i-world.js)
+    panel.style.display = 'flex';
   } else if (tile.type === 'RESOURCE') {
     const resourceIcons = {
-      'WOOD': '🌲 Forêt',
-      'STONE': '⛰️ Carrière',
-      'IRON': '⚒️ Mine de fer',
-      'FOOD': '🌾 Oasis',
-      'GOLD': '💰 Mine d\'or'
+      'WOOD': `${resIconHtml('wood')} Forêt`,
+      'STONE': `${resIconHtml('stone')} Carrière`,
+      'IRON': `${resIconHtml('iron')} Mine de fer`,
+      'FOOD': `${resIconHtml('food')} Oasis`,
+      'GOLD': `${resIconHtml('gold')} Mine d'or`
     };
-    const resourceName = resourceIcons[tile.resourceType] || '📦 Ressource';
-    const hasArmy = armies.some(a => a.status === 'IDLE' && a.units?.length > 0);
+    const resourceName = resourceIcons[tile.resourceType] || `${resIconHtml('item_crate')} Ressource`;
+    const hasArmy = armies.some(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
 
     // Check if tribe is defeated (respawning)
     const isDefeated = tile.lastDefeat && !tile.hasDefenders;
@@ -2846,17 +2949,17 @@ function showMapInfoPanel(x, y, tile) {
     let defendersHtml = '';
     if (tile.hasDefenders && tile.defenderUnits && Object.keys(tile.defenderUnits).length > 0) {
       const unitNames = {
-        warrior: '⚔️ Guerriers',
-        archer: '🏹 Archers',
-        cavalry: '🐎 Cavalerie',
-        elite: '👑 Élite'
+        warrior: 'Guerriers',
+        archer: 'Archers',
+        cavalry: 'Cavalerie',
+        elite: 'Élite'
       };
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(139,69,19,0.3); border-radius: 4px; border-left: 3px solid #c44;">
-          <p style="margin: 0 0 5px 0; color: #f44;"><strong>🛡️ Tribu locale</strong></p>
+          <p style="margin: 0 0 5px 0; color: #f44;"><strong>${tribeIconHtml()} Tribu locale</strong></p>
           <p style="margin: 2px 0; font-size: 12px;">Puissance: <strong style="color:#ff6b6b">${tile.defenderPower}</strong></p>
           ${Object.entries(tile.defenderUnits).map(([unit, count]) =>
-            `<p style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || unit}: ${count}</p>`
+            `<p class="tribe-unit" style="margin: 2px 0; font-size: 11px; color: #ccc;">${unitNames[unit] || escapeHtml(getUnitName(unit))}: ${count}</p>`
           ).join('')}
         </div>
       `;
@@ -2864,39 +2967,67 @@ function showMapInfoPanel(x, y, tile) {
       const timeLeft = Math.max(0, Math.ceil((respawnTime - new Date()) / 60000));
       defendersHtml = `
         <div style="margin: 8px 0; padding: 8px; background: rgba(76,175,80,0.2); border-radius: 4px; border-left: 3px solid #4caf50;">
-          <p style="margin: 0; color: #4caf50;">✅ Tribu vaincue</p>
+          <p style="margin: 0; color: #4caf50;">${resIconHtml('skull')} Tribu vaincue</p>
           <p style="margin: 2px 0; font-size: 11px; color: #888;">Respawn dans ${timeLeft} min</p>
         </div>
       `;
     }
 
+    // Armées qui tiennent le point : les siennes et celles de son alliance partagent la récolte, les autres se combattent
+    const holders = tile.holders || [];
+    const heldByOthers = (tile.hiddenHolders || 0) > 0 || (holders.length > 0 && !holders.every(h => h.playerId === player?.id || (player?.allianceId && h.allianceId === player.allianceId)));
+    const holdersHtml = holders.length ? `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(33,150,243,0.15); border-radius: 4px; border-left: 3px solid ${heldByOthers ? '#f44' : '#4caf50'};">
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} ${holders.some(h => h.founding) ? 'Ville en fondation par' : 'Tenu par'}</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
+        </div>` : (tile.hiddenHolders || 0) > 0 ? `
+        <div style="margin: 8px 0; padding: 8px; background: rgba(244,67,54,0.12); border-radius: 4px; border-left: 3px solid #f44;">
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Occupé</strong> par une armée d'un autre joueur : envoyez un espion pour savoir qui et avec quelles troupes.</p>
+        </div>` : '';
+    const spiedHtml = tile.spied ? `<p class="spied-note">${resIconHtml('spy')} Espionné il y a ${Math.max(1, Math.round((Date.now() - new Date(tile.spiedAt)) / 60000))} min : stock exact ${formatNum(tile.amount)}${(tile.spied.holders || []).length ? ` · tenu par ${tile.spied.holders.map(h => `${escapeHtml(h.owner)} (${h.units.reduce((t, u) => t + u.count, 0)} soldats)`).join(', ')}` : ''}</p>` : '';
     content.innerHTML = `
       <h3>${resourceName}</h3>
       <p>Position: (${x}, ${y})</p>
-      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(tile.level - 1)}${'☆'.repeat(3 - tile.level)}</strong> (${tile.level}/3)</p>
-      <p>Ressources: <strong>${formatNum(tile.amount)}</strong> / ${formatNum(tile.maxAmount)}</p>
-      <p>Biome: ${tile.biome === 'forest' ? '🌳 Forêt' : tile.biome === 'desert' ? '🏜️ Désert' : '❄️ Neige'}</p>
+      <p>Niveau: <strong style="color:#ffd700">★${'★'.repeat(Math.max(0, Math.min(2, tile.level - 1)))}<span class="star-empty">${'☆'.repeat(Math.max(0, 3 - tile.level))}</span></strong> (${tile.level}/3)</p>
+      <p>Stock : <strong>${tile.spied ? formatNum(tile.amount) + ' / ' + formatNum(tile.maxAmount) : stockLabel(tile.amount, tile.maxAmount)}</strong> <span class="stock-bar"><span style="width:${Math.round(stockRatio(tile.amount, tile.maxAmount) * 100)}%"></span></span></p>
+      ${spiedHtml}
+      <p>Biome: ${tile.biome === 'forest' ? `${resIconHtml('tree')} Forêt` : tile.biome === 'desert' ? 'Désert' : 'Neige'}</p>
       ${defendersHtml}
+      ${holdersHtml}
       <div class="panel-actions player-actions">
         ${tile.hasDefenders ? `
-          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>⚔️ Attaquer tribu</button>
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer la tribu</button>
+        ` : heldByOthers ? `
+          <button class="btn btn-danger" onclick="raidResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('attack')} Attaquer l'armée qui tient le point</button>
+        ` : holders.some(h => h.founding) ? `
+          <p style="margin: 0; font-size: 12px; opacity: .85;">Fondation en cours : le point ne peut plus être récolté.</p>
         ` : `
-          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>📦 Collecter</button>
+          <button class="btn btn-success" onclick="collectResource('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled title="Aucune armée disponible"' : ''}>${resIconHtml('item_crate')} ${holders.length ? 'Collecter (point partagé)' : 'Collecter'}</button>
+          ${!holders.length && tile.resourceType !== 'GOLD' && typeof foundCityAt === 'function' ? `<button class="btn btn-primary" onclick="foundCityAt('${tile.id}', ${x}, ${y})" title="Un colon et 3 000 de chaque ressource ; 24 h sur place">${settlerIcon()} Fonder une ville</button>` : ''}
         `}
-        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>🚶 Envoyer armée</button>
+        <button class="btn btn-secondary" onclick="sendArmyTo(${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer une armée</button>
+        ${typeof openSpyMission === 'function' ? `<button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ nodeId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: 'le point (${x}, ${y})' })">${resIconHtml('spy')} Espionner</button>` : ''}
+        ${mapShareButton(x, y)}
       </div>
     `;
     panel.style.display = 'flex';
   }
 }
+// Partager une position dans la messagerie (alliance, global, amis, message privé)
+function mapShareButton(x, y) {
+  return typeof openSharePicker === 'function' ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openSharePicker({ type: 'position', x: ${Number(x)}, y: ${Number(y)} })">${resIconHtml('pin')} Partager la position</button>` : '';
+}
 
 // Async version to check diplomacy
 async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content) {
+  const seq = mapPanelSeq;
+  // la fenêtre s'ouvre tout de suite sur cette ville, sans les boutons de la cible précédente
+  content.innerHTML = `<h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3><p class="empty-state">Chargement…</p>`;
+  panel.style.display = 'flex';
   // Check diplomatic status
   let diplomacyStatus = 'NEUTRAL';
   let canTransport = true;
   let canAttack = true;
-  
+
   try {
     const res = await fetch(`${API}/api/diplomacy/player/${tile.playerId}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -2910,46 +3041,53 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
   } catch (e) {
     console.error('Error checking diplomacy:', e);
   }
-  
+  if (seq !== mapPanelSeq) return;   // autre cible touchée ou fenêtre fermée entre-temps : réponse jetée
+
   // Status display
-  const statusColors = {
-    'ALLY': '#4caf50',
-    'NEUTRAL': '#9e9e9e', 
-    'ENEMY': '#f44336',
-    'SAME_ALLIANCE': '#2196f3'
+  const statusColors = {   // couleurs de la diplomatie (DIPLO_STYLE, 09d-alliance.js)
+    'ALLY': '#4fb3e8',
+    'NEUTRAL': '#8a8a8a',
+    'ENEMY': '#d9443a',
+    'SAME_ALLIANCE': '#3f9b4f'
   };
   const statusLabels = {
-    'ALLY': '🤝 Allié',
-    'NEUTRAL': '⚪ Neutre',
-    'ENEMY': '⚔️ Ennemi',
-    'SAME_ALLIANCE': '🛡️ Même alliance'
+    'ALLY': `${resIconHtml('alliance')} Allié`,
+    'NEUTRAL': 'Neutre',
+    'ENEMY': `${resIconHtml('attack')} Ennemi`,
+    'SAME_ALLIANCE': `${resIconHtml('defense')} Même alliance`
   };
   
   const statusColor = statusColors[diplomacyStatus] || '#9e9e9e';
   const statusLabel = statusLabels[diplomacyStatus] || 'Inconnu';
   
   content.innerHTML = `
-    <h3>${tile.isCapital ? '👑 ' : '🏰 '}${tile.name || 'Ville'}</h3>
+    <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
     <p>Position: (${x}, ${y})</p>
-    <p>Propriétaire: <strong>${tile.playerName || 'Inconnu'}</strong></p>
+    <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
+    ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
+    ${tile.isWonder ? `<p class="wonder-line">${resIconHtml('crown')} <strong>Ville Merveille</strong> : niveau ${tile.wonderLevel || 0} / 100 ${typeof openWonderPanel === 'function' ? `<button class="btn btn-secondary btn-sm" onclick="closeMapPanel(); openWonderPanel('${String(tile.id).replace(/[^\w-]/g, '')}')">Voir</button>` : ''}</p>` : ''}
     <div class="panel-actions player-actions">
-      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">👤 Profil</button>
-      <button class="btn btn-warning" onclick="spyFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>🔍 Espionner</button>
+      ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
+      <button class="btn btn-info" onclick="viewPlayerProfile('${tile.playerId}')">${resIconHtml('player')} Profil</button>
+      ${typeof openChatWith === 'function' && tile.playerId ? `<button class="btn btn-secondary" onclick="closeMapPanel(); openChatWith('${String(tile.playerId).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.playerName || '')})">${resIconHtml('send')} Écrire</button>` : ''}
+      ${mapShareButton(tile.x, tile.y)}
+      ${(diplomacyStatus === 'ALLY' || diplomacyStatus === 'SAME_ALLIANCE') && typeof openSupportPicker === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openSupportPicker('${String(tile.id).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.name || 'Ville')}, ${!!tile.isSieged})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('defense')} Renforcer</button>` : ''}
+      <button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ cityId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: ${chatJsArg(tile.name || 'cette ville')} })">${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
-        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>⚔️ Attaquer</button>
-        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>💰 Piller</button>
+        <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('gold')} Piller</button>
       ` : `
-        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">⚔️ Attaquer</button>
-        <button class="btn btn-raid" disabled title="Impossible de piller un allié">💰 Piller</button>
+        <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" disabled title="Impossible de piller un allié">${resIconHtml('gold')} Piller</button>
       `}
       ${canTransport ? `
-        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', '${tile.name}')" ${!hasArmy ? 'disabled' : ''}>📦 Envoyer ressources</button>
+        <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer ressources</button>
       ` : `
-        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">📦 Envoyer</button>
+        <button class="btn btn-success" disabled title="Impossible d'envoyer des ressources à un ennemi">${resIconHtml('send')} Envoyer</button>
       `}
     </div>
-    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">⚠️ Aucune armée disponible</p>' : ''}
+    ${!hasArmy ? '<p style="font-size:11px;color:#888;margin-top:8px">Aucune armée disponible</p>' : ''}
   `;
   panel.style.display = 'flex';
 }
@@ -2976,122 +3114,97 @@ async function viewPlayerProfile(playerId) {
   
   document.getElementById('modal-body').innerHTML = `
     <div class="player-profile">
-      <h2>👤 ${p.name}</h2>
+      <h2>${resIconHtml('player')} ${escapeHtml(p.name)}</h2>
       <div class="profile-info">
         <div class="profile-stat"><span>Faction:</span> <strong>${p.faction}</strong></div>
         <div class="profile-stat"><span>Population:</span> <strong>${formatNum(p.population)}</strong></div>
         <div class="profile-stat"><span>Villes:</span> <strong>${p.citiesCount}</strong></div>
-        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong>[${p.alliance.tag}] ${p.alliance.name}</strong></div>` : ''}
-        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${p.hero.name} (Niv.${p.hero.level})</strong></div>` : ''}
+        ${p.alliance ? `<div class="profile-stat"><span>Alliance:</span> <strong><a href="#" onclick="event.preventDefault(); openAllianceSheet('${String(p.alliance.id || '').replace(/[^\w-]/g, '')}')">[${escapeHtml(p.alliance.tag)}] ${escapeHtml(p.alliance.name)}</a></strong></div>` : ''}
+        ${p.relation && !p.relation.self && typeof diploBadge === 'function' ? `<div class="profile-stat"><span>Diplomatie:</span> ${diploBadge(p.relation.diplomacy || 'NEUTRAL')}</div>` : ''}
+        ${p.hero ? `<div class="profile-stat"><span>Héros:</span> <strong>${escapeHtml(p.hero.name)} (Niv.${p.hero.level})</strong></div>` : ''}
         ${p.stats ? `
-          <div class="profile-stat"><span>Attaques gagnées:</span> <strong>${p.stats.attacksWon}</strong></div>
-          <div class="profile-stat"><span>Défenses gagnées:</span> <strong>${p.stats.defensesWon}</strong></div>
+          <div class="profile-stat"><span>Points d'attaque:</span> <strong>${formatNum(p.stats.attackPoints || 0)}</strong></div>
+          <div class="profile-stat"><span>Points de défense:</span> <strong>${formatNum(p.stats.defensePoints || 0)}</strong></div>
+          <div class="profile-stat"><span>Pillage:</span> <strong>${formatNum(p.stats.loot || 0)}</strong></div>
+          <div class="profile-stat"><span>Attaques / défenses gagnées:</span> <strong>${p.stats.attacksWon} / ${p.stats.defensesWon}</strong></div>
         ` : ''}
       </div>
-      <h4>🏰 Villes</h4>
+      ${p.medals?.length && typeof medalsHtml === 'function' ? `<h4>${resIconHtml('medal')} Médailles (${p.medals.length})</h4>${medalsHtml(p.medals.slice(0, 12))}` : ''}
+      <h4>${resIconHtml('city')} Villes</h4>
       <div class="profile-cities">
-        ${p.cities.map(c => `
+        ${(p.cities || []).map(c => `
           <div class="profile-city">
-            ${c.isCapital ? '👑' : '🏰'} ${c.name} (${c.x}, ${c.y})
+            ${c.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(c.name)} (${c.x}, ${c.y})
           </div>
         `).join('')}
       </div>
       <div class="profile-actions">
+        ${profileSocialButtons(p)}
         <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
       </div>
     </div>
   `;
   document.getElementById('modal').style.display = 'flex';
 }
-
-// Spy from map
-function spyFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
-  if (!army) {
-    showToast('Aucune armée disponible', 'error');
-    return;
-  }
-  
-  document.getElementById('modal-body').innerHTML = `
-    <h3>🔍 Espionner</h3>
-    <p>Envoyer <strong>${army.name}</strong> espionner cette ville ?</p>
-    <p style="font-size:12px;color:#888">L'espionnage révèle les bâtiments, armées et ressources de l'ennemi.</p>
-    <div style="margin-top:15px">
-      <button onclick="confirmSpyFromMap('${army.id}', '${cityId}')" class="btn btn-warning">🔍 Espionner</button>
-      <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
-    </div>
-  `;
-  document.getElementById('modal').style.display = 'flex';
+// Écrire, amitié, blocage depuis le profil d'un joueur (messagerie, 09c-chat.js)
+function profileSocialButtons(p) {
+  const r = p.relation;
+  if (!r || r.self || typeof openChatWith !== 'function') return '';
+  const id = String(p.id).replace(/[^\w-]/g, ''), name = chatJsArg(p.name);
+  const after = `closeModal(); setTimeout(() => viewPlayerProfile('${id}'), 300)`;
+  const friend = r.friend === 'friends' ? `<button class="btn btn-secondary" onclick="removeFriend('${id}', ${name}, false); ${after}">Retirer des amis</button>`
+    : r.friend === 'sent' ? `<button class="btn btn-secondary" onclick="declineFriend('${String(r.requestId).replace(/[^\w-]/g, '')}', false); ${after}">Annuler la demande d'ami</button>`
+    : r.friend === 'received' ? `<button class="btn btn-primary" onclick="acceptFriend('${String(r.requestId).replace(/[^\w-]/g, '')}', false); ${after}">Accepter son amitié</button>`
+    : r.blocked ? '' : `<button class="btn btn-secondary" onclick="sendFriendRequest({ playerId: '${id}' }, false); ${after}">${resIconHtml('population')} Ajouter en ami</button>`;
+  return `
+    ${r.blocked ? '' : `<button class="btn btn-primary" onclick="closeModal(); openChatWith('${id}', ${name})">${resIconHtml('send')} Écrire</button>`}
+    ${friend}
+    ${r.blocked ? `<button class="btn btn-secondary" onclick="unblockPlayer('${id}'); ${after}">Débloquer</button>` : `<button class="btn btn-danger" onclick="closeModal(); blockPlayer('${id}', ${name})">${resIconHtml('lock')} Bloquer</button>`}`;
 }
 
-async function confirmSpyFromMap(armyId, cityId) {
-  try {
-    const res = await fetch(`${API}/api/army/${armyId}/spy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ targetCityId: cityId })
-    });
-
-    closeModal();
-    closeMapPanel();
-
-    if (res.ok) {
-      const data = await res.json();
-      showToast(`Espions envoyés vers ${data.target}!`, 'success');
-      await loadArmies();
-      loadMap();
-    } else {
-      const data = await res.json();
-      showToast(data.error || 'Erreur', 'error');
-    }
-  } catch (e) {
-    console.error('confirmSpyFromMap error:', e);
-    closeModal();
-    showToast('Erreur réseau', 'error');
-  }
-}
 
 // Send resources from map
 function sendResourcesFromMap(cityId, cityName) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
   
-  // Calculate carry capacity
-  const capacity = army.units.reduce((sum, u) => {
-    const unitDef = window.unitsData?.find(ud => ud.key === u.unitKey);
+  // Carry capacity: unit transport stats × faction bonus (EGYPT +10%), like the server
+  const transportBonus = player?.faction === 'EGYPT' ? 1.10 : 1;
+  const capacity = Math.floor(army.units.reduce((sum, u) => {
+    const unitDef = unitsData.find(ud => ud.key === u.unitKey);
     return sum + (unitDef?.stats?.transport || 50) * u.count;
-  }, 0);
+  }, 0) * transportBonus);
   
   document.getElementById('modal-body').innerHTML = `
-    <h3>📦 Envoyer des ressources</h3>
-    <p>Vers: <strong>${cityName}</strong></p>
-    <p>Armée: <strong>${army.name}</strong></p>
+    <h3>${resIconHtml('send')} Envoyer des ressources</h3>
+    <p>Vers: <strong>${escapeHtml(cityName)}</strong></p>
+    <p>Armée: <strong>${escapeHtml(army.name)}</strong></p>
     <p>Capacité: <strong>${formatNum(capacity)}</strong></p>
     
     <div class="resource-inputs">
       <div class="resource-input">
-        <label>🪵 Bois</label>
-        <input type="number" id="send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}">
+        <label>${resIconHtml('wood')} Bois</label>
+        <input type="number" id="map-send-wood" value="0" min="0" max="${Math.floor(currentCity?.wood || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🪨 Pierre</label>
-        <input type="number" id="send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}">
+        <label>${resIconHtml('stone')} Pierre</label>
+        <input type="number" id="map-send-stone" value="0" min="0" max="${Math.floor(currentCity?.stone || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>⛏️ Fer</label>
-        <input type="number" id="send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}">
+        <label>${resIconHtml('iron')} Fer</label>
+        <input type="number" id="map-send-iron" value="0" min="0" max="${Math.floor(currentCity?.iron || 0)}" inputmode="numeric">
       </div>
       <div class="resource-input">
-        <label>🌾 Nourriture</label>
-        <input type="number" id="send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}">
+        <label>${resIconHtml('food')} Nourriture</label>
+        <input type="number" id="map-send-food" value="0" min="0" max="${Math.floor(currentCity?.food || 0)}" inputmode="numeric">
       </div>
     </div>
     
     <div style="margin-top:15px">
-      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">📦 Envoyer</button>
+      <button onclick="confirmSendResources('${army.id}', '${cityId}')" class="btn btn-success">${resIconHtml('send')} Envoyer</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     </div>
   `;
@@ -3099,10 +3212,10 @@ function sendResourcesFromMap(cityId, cityName) {
 }
 
 async function confirmSendResources(armyId, cityId) {
-  const wood = parseInt(document.getElementById('send-wood')?.value) || 0;
-  const stone = parseInt(document.getElementById('send-stone')?.value) || 0;
-  const iron = parseInt(document.getElementById('send-iron')?.value) || 0;
-  const food = parseInt(document.getElementById('send-food')?.value) || 0;
+  const wood = parseInt(document.getElementById('map-send-wood')?.value) || 0;
+  const stone = parseInt(document.getElementById('map-send-stone')?.value) || 0;
+  const iron = parseInt(document.getElementById('map-send-iron')?.value) || 0;
+  const food = parseInt(document.getElementById('map-send-food')?.value) || 0;
 
   if (wood + stone + iron + food === 0) {
     showToast('Sélectionnez des ressources à envoyer', 'error');
@@ -3136,9 +3249,69 @@ async function confirmSendResources(armyId, cityId) {
   }
 }
 
+// ---- Petite fenêtre de la cible, façon Rise of Kingdoms (décision du 29 octobre 2026) ----
+// Toucher une cible sur la carte ouvre une fenêtre compacte juste au-dessus d'elle (en dessous s'il n'y a pas la place),
+// qui suit la carte quand on la déplace ; les actions sont des boutons ronds à icône ; « Détails » déplie les explications.
+let mapPopupAnchor = null;
+// numéro de la cible affichée (showMapInfoPanel, closeMapPanel) : un panneau rempli après coup (diplomatie, donjon)
+// ne s'écrit que si la cible n'a pas changé entre-temps
+let mapPanelSeq = 0;
+function openMapPopupAt(picked) {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel) return;
+  const t = picked.tile;
+  const block = t && typeof isMapBlock === 'function' && isMapBlock(t);
+  mapPopupAnchor = { wx: (t?.drawX ?? picked.x) + (block ? 0.5 : 0), wy: (t?.drawY ?? picked.y) + (block ? 0.5 : 0), lift: block ? 1.6 : t ? 1.1 : 0.4 };
+  panel.classList.add('map-popup');
+  setMapPopupExpanded(panel, false);
+  positionMapPopup();
+}
+// replie ou déplie la fenêtre, avec le libellé du bouton qui va avec
+function setMapPopupExpanded(panel, on) {
+  panel.classList.toggle('expanded', on);
+  const b = panel.querySelector('.popup-more');
+  if (b) b.textContent = on ? 'Moins ▴' : 'Détails ▾';
+}
+function positionMapPopup() {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel || !mapPopupAnchor || panel.style.display === 'none' || typeof window.mapWorldToScreen !== 'function' || !mapCanvas) return;
+  const host = panel.offsetParent || panel.parentElement;
+  if (!host) return;
+  const hr = host.getBoundingClientRect(), cr = mapCanvas.getBoundingClientRect();
+  const p = window.mapWorldToScreen(mapPopupAnchor.wx, mapPopupAnchor.wy);
+  const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
+  // la place au-dessus de la cible se mesure sous la barre de commandes (zoom, accueil, aller à) : la fenêtre ne s'y pose pas.
+  // En dessous, elle reste entière dans l'onglet, qui coupe ce qui dépasse : sur un écran trop bas pour elle, mieux vaut
+  // mordre sur la barre que perdre ses boutons
+  const canvasTop = cr.top - hr.top, minTop = canvasTop + 4;
+  const ax = cr.left - hr.left + p.x, top = canvasTop + p.y - tileH * mapPopupAnchor.lift, below = canvasTop + p.y + tileH * 0.6;
+  const w = panel.offsetWidth || 280, h = panel.offsetHeight || 200;
+  const left = Math.max(8, Math.min(hr.width - w - 8, ax - w / 2));
+  const offscreen = ax < 0 || ax > hr.width || below < canvasTop || top > hr.height;
+  panel.style.visibility = offscreen ? 'hidden' : '';
+  panel.style.left = left + 'px';
+  panel.style.right = 'auto';
+  if (top - h - 10 >= minTop) { panel.style.top = Math.round(top - h - 10) + 'px'; panel.classList.remove('popup-below'); }
+  else { panel.style.top = Math.round(Math.min(hr.height - h - 8, below + 6)) + 'px'; panel.classList.add('popup-below'); }
+  panel.style.bottom = 'auto';
+  panel.style.setProperty('--popup-arrow', Math.round(Math.max(18, Math.min(w - 18, ax - left))) + 'px');
+}
+function toggleMapPopupDetails() {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel) return;
+  setMapPopupExpanded(panel, !panel.classList.contains('expanded'));
+  positionMapPopup();
+}
+// le contenu se remplit parfois après coup (diplomatie, rassemblements) : la fenêtre se recale
+if (typeof ResizeObserver === 'function') {
+  document.addEventListener('DOMContentLoaded', () => { const p = document.getElementById('map-info-panel'); if (p) new ResizeObserver(() => positionMapPopup()).observe(p); });
+}
+
 function closeMapPanel() {
   const panel = document.getElementById('map-info-panel');
-  if (panel) panel.style.display = 'none';
+  if (panel) { panel.style.display = 'none'; setMapPopupExpanded(panel, false); }
+  mapPanelSeq++;   // une réponse encore en route ne rouvre pas la fenêtre
+  mapPopupAnchor = null;
   mapSelectedTile = null;
   renderMap();
 }
@@ -3152,7 +3325,7 @@ function goToCity(cityId) {
 }
 
 function attackFromMap(cityId, x, y) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3160,7 +3333,7 @@ function attackFromMap(cityId, x, y) {
   
   document.getElementById('modal-body').innerHTML = `
     <h3>Confirmer l'attaque</h3>
-    <p>Envoyer <strong>${army.name}</strong> attaquer la ville à (${x}, ${y}) ?</p>
+    <p>Envoyer <strong>${escapeHtml(army.name)}</strong> attaquer la ville à (${x}, ${y}) ?</p>
     <button onclick="confirmAttackFromMap('${army.id}', '${cityId}')" class="btn btn-danger">Attaquer!</button>
     <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
   `;
@@ -3194,11 +3367,11 @@ async function confirmAttackFromMap(armyId, cityId) {
 }
 
 function raidFromMap(cityId) {
-  const army = armies.find(a => a.status === 'IDLE' && a.units?.length > 0);
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (army) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
-      <p>Envoyer <strong>${army.name}</strong> piller cette ville ?</p>
+      <p>Envoyer <strong>${escapeHtml(army.name)}</strong> piller cette ville ?</p>
       <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller!</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     `;
@@ -3234,7 +3407,7 @@ async function confirmRaidFromMap(armyId, cityId) {
 
 // ========== RESOURCE NODE RAID (TRIBE COMBAT) ==========
 function raidResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3242,19 +3415,19 @@ function raidResource(nodeId, x, y) {
 
   // Find the resource tile to show defender info
   const tile = mapData.find(t => t.id === nodeId);
-  const defenderInfo = tile && tile.defenderUnits ? Object.entries(tile.defenderUnits)
-    .map(([unit, count]) => `${unit}: ${count}`).join(', ') : 'Inconnu';
+  const defenderInfo = tile && tile.defenderUnits && Object.keys(tile.defenderUnits).length ? Object.entries(tile.defenderUnits)
+    .map(([unit, count]) => `<span class="unit-chip">${unitIconHtml(unit, 'unit-ico-sm')} ${escapeHtml(getUnitName(unit))} ×${formatNum(count)} ${infoBtnHtml('unit', unit, 'info-btn-sm')}</span>`).join(' ') : 'Inconnu';
 
   // Build army selection
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    return `<option value="${a.id}">${a.name} (${totalUnits} unités)</option>`;
+    const totalUnits = a.units?.reduce((sum, u) => sum + u.count, 0) || 0;
+    return `<option value="${a.id}">${escapeHtml(a.name)} (${totalUnits} unités)</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⚔️ Attaquer la tribu locale</h3>
+    <h3>${resIconHtml('attack')} Attaquer la tribu locale</h3>
     <div style="background:rgba(244,67,54,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #f44;">
-      <p style="margin:0;"><strong>🛡️ Défenseurs:</strong> ${defenderInfo}</p>
+      <p style="margin:0;"><strong>${resIconHtml('defense')} Défenseurs :</strong> ${defenderInfo}</p>
       <p style="margin:5px 0 0 0; color:#f44;"><strong>Puissance:</strong> ${tile?.defenderPower || '?'}</p>
     </div>
     <p>Position: (${x}, ${y})</p>
@@ -3263,7 +3436,7 @@ function raidResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">⚔️ Attaquer!</button>
+      <button onclick="confirmRaidResource('${nodeId}')" class="btn btn-danger" style="flex:1;">${resIconHtml('attack')} Attaquer</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3277,27 +3450,22 @@ async function confirmRaidResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
-
-  if (res.ok) {
-    const data = await res.json();
-    if (data.combatResult) {
-      showRaidResourceResult(data);
-    } else {
-      showToast('Armée en route vers la ressource', 'success');
-    }
+  try {
+    const res = await fetch(`${API}/api/army/${armyId}/raid-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Erreur lors du raid', 'error'); return; }
+    if (data.combatResult) showRaidResourceResult(data);
+    else showToast('Armée en route vers la ressource', 'success');
     await loadArmies();
     loadMap();
-  } else {
-    const data = await res.json();
-    showToast(data.error || 'Erreur lors du raid', 'error');
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -3306,14 +3474,14 @@ function showRaidResourceResult(data) {
   const won = result.winner === 'attacker';
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>${won ? '🎉 Victoire!' : '💀 Défaite!'}</h3>
+    <h3>${won ? resIconHtml('medal') + ' Victoire' : resIconHtml('skull') + ' Défaite'}</h3>
     <div style="background:${won ? 'rgba(76,175,80,0.2)' : 'rgba(244,67,54,0.2)'}; padding:15px; border-radius:8px; margin:10px 0;">
       <p><strong>Résultat:</strong> ${won ? 'Tribu vaincue!' : 'Votre armée a été repoussée'}</p>
       <p><strong>Vos pertes:</strong> ${result.attackerLosses || 0} unités</p>
       <p><strong>Pertes ennemies:</strong> ${result.defenderLosses || 0} unités</p>
       ${won && data.loot ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
-          <p><strong>💰 Butin récupéré:</strong></p>
+          <p><strong>${resIconHtml('gold')} Butin récupéré :</strong></p>
           ${Object.entries(data.loot).map(([res, amount]) =>
             `<p style="margin:2px 0; font-size:12px;">${res}: +${formatNum(amount)}</p>`
           ).join('')}
@@ -3326,7 +3494,7 @@ function showRaidResourceResult(data) {
 }
 
 function collectResource(nodeId, x, y) {
-  const availableArmies = armies.filter(a => a.status === 'IDLE' && a.units?.length > 0);
+  const availableArmies = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (availableArmies.length === 0) {
     showToast('Aucune armée disponible', 'error');
     return;
@@ -3334,15 +3502,14 @@ function collectResource(nodeId, x, y) {
 
   const tile = mapData.find(t => t.id === nodeId);
   const armyOptions = availableArmies.map(a => {
-    const totalUnits = a.units?.reduce((sum, u) => sum + u.quantity, 0) || 0;
-    const carryCapacity = totalUnits * 50; // Assume 50 carry per unit
-    return `<option value="${a.id}">${a.name} (capacité: ${formatNum(carryCapacity)})</option>`;
+    const carryCapacity = (a.units || []).reduce((sum, u) => sum + u.count * (unitsData.find(d => d.key === u.unitKey)?.stats?.transport || 50), 0);
+    return `<option value="${a.id}">${escapeHtml(a.name)} (capacité: ${formatNum(carryCapacity)})</option>`;
   }).join('');
 
   document.getElementById('modal-body').innerHTML = `
-    <h3>⛏️ Récolter des ressources</h3>
+    <h3>${resIconHtml('tools')} Récolter des ressources</h3>
     <div style="background:rgba(76,175,80,0.2); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #4caf50;">
-      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'}:</strong> ${formatNum(tile?.amount || 0)} disponibles</p>
+      <p style="margin:0;"><strong>${tile?.resourceType || 'Ressource'} :</strong> stock ${tile ? stockLabel(tile.amount, tile.maxAmount) : 'inconnu'}</p>
     </div>
     <div style="background:rgba(255,215,0,0.1); padding:10px; border-radius:8px; margin:10px 0; border-left:3px solid #ffd700;">
       <p style="margin:0; font-size:12px; color:#c9a227;">
@@ -3355,7 +3522,7 @@ function collectResource(nodeId, x, y) {
       ${armyOptions}
     </select>
     <div style="display:flex; gap:10px;">
-      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">⛏️ Démarrer la récolte</button>
+      <button onclick="confirmCollectResource('${nodeId}')" class="btn btn-success" style="flex:1;">${resIconHtml('tools')} Démarrer la récolte</button>
       <button onclick="closeModal()" class="btn btn-secondary" style="flex:1;">Annuler</button>
     </div>
   `;
@@ -3369,20 +3536,25 @@ async function confirmCollectResource(nodeId) {
     return;
   }
 
-  const res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ resourceNodeId: nodeId })
-  });
-
   closeModal();
   closeMapPanel();
+  let res, data;
+  try {
+    res = await fetch(`${API}/api/army/${armyId}/collect-resource`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ resourceNodeId: nodeId })
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+    return;
+  }
 
   if (res.ok) {
-    const data = await res.json();
     if (data.status === 'HARVESTING') {
       // Récolte progressive
-      showToast(`⛏️ Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
+      showToast(`Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
     } else if (data.travelTime) {
       // Armée en route
       showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');
@@ -3393,30 +3565,30 @@ async function confirmCollectResource(nodeId) {
     await loadArmies();
     loadMap();
   } else {
-    const data = await res.json();
     showToast(data.error || 'Erreur lors de la collecte', 'error');
   }
 }
 
 async function sendArmyTo(x, y) {
-  const army = armies.find(a => a.status === 'IDLE');
+  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;
   }
-  
-  const res = await fetch(`${API}/api/army/${army.id}/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ x, y })
-  });
-  
   closeMapPanel();
-  
-  if (res.ok) {
+  try {
+    const res = await fetch(`${API}/api/army/${army.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ x, y })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Déplacement impossible', 'error'); return; }
     showToast('Armée en route!', 'success');
     await loadArmies();
     loadMap();
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
   }
 }
 
@@ -3430,8 +3602,9 @@ window.addEventListener('resize', () => {
     if (mapCanvas && mapTab && mapTab.classList.contains('active')) {
       const container = mapCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        mapCanvas.width = Math.max(container.clientWidth, 300);
-        mapCanvas.height = Math.max(container.clientHeight, 200);
+        mapViewW = Math.max(container.clientWidth, 300);
+        mapViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);
       }
       renderMap();
       renderMinimap();
@@ -3440,8 +3613,9 @@ window.addEventListener('resize', () => {
     if (cityCanvas) {
       const container = cityCanvas.parentElement;
       if (container && container.clientWidth > 0) {
-        cityCanvas.width = Math.max(container.clientWidth, 300);
-        cityCanvas.height = Math.max(container.clientHeight, 200);
+        cityViewW = Math.max(container.clientWidth, 300);
+        cityViewH = Math.max(container.clientHeight, 200);
+        sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
       calculateCitySlots();
       if (currentCityView === 'fields') calculateFieldSlots();
