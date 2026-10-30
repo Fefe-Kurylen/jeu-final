@@ -401,7 +401,7 @@ async function socialTurn(bot, ctx, S, w, m, al) {
   // quelques messages par jour, tous joueurs confondus
   const day = ctx.clock.day();
   if (chatDay.day !== day) chatDay = { day, n: 0 };
-  if (chatDay.n >= CHAT_PER_DAY || ctx.rand() > 0.06 || S.left() < 1) return;
+  if (chatDay.n >= CHAT_PER_DAY || ctx.rand() > 0.045 || S.left() < 1) return;
   let channel = 'global', texts = CHAT.global;
   const roll = ctx.rand();
   if (al && roll < 0.55) { channel = 'alliance'; texts = CHAT.alliance; }
@@ -478,15 +478,20 @@ async function recruit(bot, S, city, unit, want) {
   return true;
 }
 
+// emplacement libre de la Place de rassemblement (le plus haut : les premiers restent aux armées de campagne)
+function freeSlot(bot, city) {
+  const max = fx.maxArmies(city.buildings || []);
+  const used = new Set(bot.armies.filter(a => !a.isGarrison && a.cityId === city.id).map(a => a.slot));
+  for (let s = max; s >= 1; s--) if (!used.has(s)) return s;
+  return null;
+}
+
 // l'armée du module dans la capitale (créée au besoin sur un emplacement libre)
 async function moduleArmy(bot, S, m, city) {
   let army = bot.armies.find(a => a.id === m.cv) || bot.armies.find(a => !a.isGarrison && a.name === CONVOY_NAME && a.cityId === city.id);
   if (army) { m.cv = army.id; return army; }
   if (S.left() < 2) return null;
-  const max = fx.maxArmies(city.buildings || []);
-  const used = new Set(bot.armies.filter(a => !a.isGarrison && a.cityId === city.id).map(a => a.slot));
-  let slot = null;
-  for (let s = max; s >= 1; s--) if (!used.has(s)) { slot = s; break; }
+  const slot = freeSlot(bot, city);
   if (!slot) return null;
   const r = await S.post('/api/army/create', { cityId: city.id, slot, name: CONVOY_NAME });
   if (!r.ok || !r.data?.army) return null;
@@ -531,12 +536,20 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   if (city.isSieged) return;
   const faction = bot.me.faction || bot.faction;
   const TARGET = 12000;   // charge visée par convoi
-  const army = await moduleArmy(bot, S, m, city);
+  let army = await moduleArmy(bot, S, m, city);
+  let borrowed = false;
+  if (!army && !freeSlot(bot, city)) {
+    // toutes les places sont prises par les armées de campagne : l'une d'elles, au repos en ville, porte le convoi
+    army = bot.armies.filter(a => !a.isGarrison && a.cityId === city.id && atHome(a, city) && unitsTotal(a) > 0)
+      .sort((a, b) => carryCapacity(b, city, faction, false) - carryCapacity(a, city, faction, false))[0] || null;
+    borrowed = !!army;
+  }
   if (!army) return;
   if (!atHome(army, city)) return;   // en route : on attend son retour
   // des porteurs : d'abord la garnison, sinon un lot de recrues
   let cap = carryCapacity(army, city, faction, false);
-  if (cap < TARGET) {
+  if (borrowed && cap < 3000) return;
+  if (cap < TARGET && !borrowed) {
     let missing = TARGET - cap;
     await fillArmy(bot, S, army, city, { order: (u) => carryOfUnit(u.unitKey) * 1000 + u.count, want: (u) => missing / carryOfUnit(u.unitKey), moved: (n, u) => { missing -= n * carryOfUnit(u.unitKey); }, keepPct: 0.25 });
     cap = carryCapacity(army, city, faction, false);
@@ -552,7 +565,7 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const g = await S.get('/api/bastion');
   const b = g.ok ? g.data?.bastion : null;
   if (!b || b.id !== bastion.id || b.status !== 'FUNDING') return;
-  // ce qui manque encore (moins ce qui est en route, au mieux), et ce que la ville peut donner sans s'arrêter de bâtir
+  // ce qui manque encore (un convoi en trop rapporte son surplus), et ce que la ville peut donner sans s'arrêter de bâtir
   const need = Object.fromEntries(RES.map(r => [r, Math.max(0, (b.cost?.[r] || 0) - (b.delivered?.[r] || 0))]));
   const totalNeed = RES.reduce((t, r) => t + need[r], 0);
   if (totalNeed <= 0) return;
@@ -578,7 +591,7 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const total = RES.reduce((t, r) => t + load[r], 0);
   if (total < (last ? 500 : 1000)) return;
   const s = await S.post(`/api/bastion/${b.id}/send`, { armyId: army.id, mission: 'SUPPLY', resources: load });
-  if (s.ok) { RES.forEach(r => { city[r] -= load[r]; }); army.status = 'TRANSPORTING'; m.supplied = (m.supplied || 0) + total; }
+  if (s.ok) { RES.forEach(r => { city[r] -= load[r]; }); army.status = 'TRANSPORTING'; if (borrowed) m.borrowed = (m.borrowed || 0) + 1; }
 }
 
 // garnison au Bastion : son armée (le convoi devenu inutile), complétée par des unités de la ville

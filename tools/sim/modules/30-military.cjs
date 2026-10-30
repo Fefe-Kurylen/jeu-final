@@ -482,7 +482,11 @@ async function colony(bot, ctx, B, m, cap) {
       return;
     }
     const b = bot.armies.find(a => a.id === col.b);
-    if (!b || (ctx.step - col.s > 2 && b.status === 'IDLE' && isHome(b, cap)) || ctx.step - col.s > 24) drop('foundFailed');
+    if (!b || (ctx.step - col.s > 2 && b.status === 'IDLE' && isHome(b, cap)) || ctx.step - col.s > 24) {
+      // le point n'était plus libre à l'arrivée (une ville, une fondation ou une tribu à côté) : le colon est revenu
+      ctx.event('colony_failed', { bot: bot.name, x: col.x, y: col.y, army: b ? b.status : 'disparue', settlersBack: cap.settlers || 0 });
+      drop('foundFailed');
+    }
     return;
   }
   if (col.ph === 'approach' && armyA && armyA.status === 'MOVING') { if (ctx.step - col.s > 6) drop('approachStuck'); return; }
@@ -581,7 +585,7 @@ async function colony(bot, ctx, B, m, cap) {
 // armée réduite à presque rien, dans sa ville : dissoute (ses soldats retournent à la garnison)
 async function tidy(bot, ctx, B, m) {
   for (const a of bot.armies) {
-    if (B.left <= 2 || !m.own.includes(a.id) || a.status !== 'IDLE') continue;
+    if (B.left <= 3 || !m.own.includes(a.id) || a.status !== 'IDLE') continue;
     const city = cityOf(bot, a.cityId);
     if (!isHome(a, city) || m.col?.a === a.id || m.col?.b === a.id) continue;
     const n = countOf(a.units);
@@ -630,9 +634,11 @@ module.exports = {
     // armées : une armée de campagne, une seconde quand une colonie se prépare (ou une grosse garnison)
     for (const city of bot.cities) {
       if (B.left <= 0) break;
-      const pending = city.isCapital && ((city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER') || lvl(city, 'RESIDENCE') >= 9);
+      const coloniesLeft = bot.cities.filter(c => !c.isCapital && !c.isWonder).length < config.city.maxSecondaryCities;
+      const pending = city.isCapital && coloniesLeft && ((city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER') || lvl(city, 'RESIDENCE') >= 9);
       await organise(bot, ctx, B, m, city, pending || countOf(garrisonOf(bot, city)?.units) >= 300 ? 2 : 1);
     }
+    await tidy(bot, ctx, B, m);
     // missions : les armées de ce module qui attendent dans leur ville
     const exclude = new Set();
     const reserved = new Set([m.col?.a, m.col?.b].filter(Boolean));
@@ -652,9 +658,8 @@ module.exports = {
       if (view && !(await mission(bot, ctx, B, m, a, city, view, exclude))) (m.idle ||= {})[a.id] = ctx.step + 4;   // rien à sa portée : on regardera plus tard
     }
     for (const id of Object.keys(m.idle || {})) if (m.idle[id] <= ctx.step || !m.own.includes(id)) delete m.idle[id];
-    // soins, rangement
+    // soins
     if (cap) await heal(bot, ctx, B, m, cap);
-    await tidy(bot, ctx, B, m);
   },
   async afterStep(ctx) {
     const total = Math.round(ctx.OPT.days * 24 / ctx.OPT.stepHours);
