@@ -41,7 +41,7 @@ function openBuildPanel(slotNum) {
     const canUpgrade = level < effectiveMax;
 
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
-    const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key);
+    const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP', 'GREAT_BARRACKS', 'GREAT_STABLE'].includes(key);
 
     if (isMilitaryBuilding) {
       openRecruitmentPanel(key, level, slotNum);
@@ -620,19 +620,23 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
 
-  // Building configurations
-  const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier' };
+  // Building configurations. Une Grande caserne / Grande écurie de colonie forme comme la Caserne / l'Écurie : mêmes
+  // classes, mêmes seuils de palier, même file côté serveur (routes/cities.js RECRUIT_BUILDING) ; les unités rejoignent la capitale
+  const QUEUE_KEY = { GREAT_BARRACKS: 'BARRACKS', GREAT_STABLE: 'STABLE' };
+  const baseKey = QUEUE_KEY[buildingKey] || buildingKey;
+  const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier', GREAT_BARRACKS: 'Grande caserne', GREAT_STABLE: 'Grande écurie' };
   const buildingIcons = { BARRACKS: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', STABLE: '<img class="ico" src="assets/images/3d/ui/horse.webp" alt="">', WORKSHOP: '<img class="ico" src="assets/images/3d/ui/settings.webp" alt="">' };
+  buildingIcons.GREAT_BARRACKS = buildingIcons.BARRACKS; buildingIcons.GREAT_STABLE = buildingIcons.STABLE;
   const allowedClasses = {
     BARRACKS: ['INFANTRY', 'ARCHER'],
     STABLE: ['CAVALRY'],
     WORKSHOP: ['SIEGE']
   };
 
-  const classes = allowedClasses[buildingKey] || [];
+  const classes = allowedClasses[baseKey] || [];
 
   // Unlock thresholds come from building data, like on the server (intermediate L7, elite L15, siege: workshop L5)
-  const bDef = buildingsData.find(b => b.key === buildingKey);
+  const bDef = buildingsData.find(b => b.key === baseKey);
   const unlockInter = bDef?.effects?.unlockIntermediateTier || 7;
   const unlockElite = bDef?.effects?.unlockEliteTier || 15;
   const siegeMin = 5;
@@ -653,7 +657,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   });
 
   // Batches queue up one after another on the server: a running batch never blocks a new order
-  const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
+  const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === baseKey) || [];
 
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel}) ${infoBtnHtml('building', buildingKey)}`;
 
@@ -706,11 +710,11 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   // Build sections based on building type
   let unitsHtml = '';
-  if (buildingKey === 'BARRACKS') {
+  if (baseKey === 'BARRACKS') {
     // Separate Infantry and Archers
     unitsHtml += renderClassSection('Infanterie', resIconHtml('army'), unitsByClass['INFANTRY']);
     unitsHtml += renderClassSection('Archers', resIconHtml('bow'), unitsByClass['ARCHER']);
-  } else if (buildingKey === 'STABLE') {
+  } else if (baseKey === 'STABLE') {
     unitsHtml += renderClassSection('Cavalerie', resIconHtml('horse'), unitsByClass['CAVALRY']);
   } else if (buildingKey === 'WORKSHOP') {
     unitsHtml += renderClassSection('Machines de siège', resIconHtml('tools'), unitsByClass['SIEGE']);
@@ -730,6 +734,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
               buildingLevel < unlockElite ? `Base + Intermédiaires (élite au niveau ${unlockElite})` :
               'Toutes les unités'}
           </p>
+          ${currentCity && !currentCity.isCapital ? '<p class="tier-info">Les unités formées ici rejoignent la garnison de la capitale.</p>' : ''}
         </div>
         <button class="upgrade-building-btn" onclick="closeBuildPanel(); openBuildPanelUpgrade('${buildingKey}', ${slotNum})">
           ${resIconHtml('build')} Améliorer

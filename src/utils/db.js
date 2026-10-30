@@ -157,6 +157,7 @@ function stockTotals(cities) {
 // Bâtiments « capitale seulement » (décision du 30 octobre 2026) : les effets d'une ville se calculent avec ses
 // bâtiments et ceux de la capitale du joueur réservés à la capitale (fx.withCapital)
 async function capitalBuildingsOf(db, playerId) {
+  if (!playerId) return [];   // sans joueur, Prisma ignorerait le filtre et rendrait la capitale de n'importe qui
   const capital = await db.city.findFirst({ where: { playerId, isCapital: true }, select: { buildings: { select: { key: true, level: true } } } });
   return capital?.buildings || [];
 }

@@ -13,13 +13,14 @@ const { classify } = require('./repaint/families.cjs');
 
 let buildingsData = [];
 try { buildingsData = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'buildings.json'), 'utf8')).buildings; } catch (e) { buildingsData = []; }
-const foreignFaction = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3|_site)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !!(d && d.faction && d.faction !== m[1]); };
+// image d'un bâtiment à ne pas lister : bâtiment d'une autre civilisation, ou retiré du jeu (Douves, 30 octobre 2026)
+const notShown = (file) => { const m = file.match(/^buildings\/([A-Z]+)\/([A-Z_]+?)(?:_t1|_t3|_site)?\.webp$/); if (!m) return false; const d = buildingsData.find(b => b.key === m[2]); return !d || !!(d.faction && d.faction !== m[1]); };
 let painted = new Set();
 try { painted = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'frontend', 'assets', 'images', 'painted', 'manifest.json'), 'utf8')).files); } catch (e) { painted = new Set(); }
 
 const all = T.buildAllTargets();
 const byFile = new Map(all.map(t => [t.file, t]));
-const files = all.map(t => t.file).filter(f => !foreignFaction(f));
+const files = all.map(t => t.file).filter(f => !notShown(f));
 const { screens, rest } = classify(files, painted);
 
 // ---- prompt d'une image : préfixe (style, fond, guide éventuel, composition) + sujet ----
@@ -97,7 +98,7 @@ ${Object.entries(comp).map(([k, v]) => `| ${k} | ${v} |`).join('\n')}
    \`node tools/preview-art.cjs <CIV> <biome>\`. Ce qui manque garde son rendu 3D ou son dessin provisoire.
 11. **Ordre conseillé** : ce qui se voit tout le temps (bâtiments courants, champs, enceinte et portes, sols, interface, carte),
     puis la vie de la ville (échafaudages, ouvriers, villageois, flammes, bâtiments vivants), les systèmes récents (camps,
-    colons, technologies, chantiers), les fiches (unités, héros), le reste (paliers 1 et 3, ambiance, météo, douves).
+    colons, technologies, chantiers), les fiches (unités, héros), le reste (paliers 1 et 3, ambiance, météo).
 
 ## 2. Ce qu'il faut générer
 

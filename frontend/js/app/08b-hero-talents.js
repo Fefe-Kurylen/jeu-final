@@ -24,18 +24,19 @@ function heroStateHtml(hero) {
   if (hero.state === 'REVIVING') {
     return `<div class="hero-state reviving">${resIconHtml('clock')} <strong>Résurrection en cours</strong> au Domus du Héros : de retour dans <span class="qd-timer" data-ends-at="${r.endsAt}">${formatTime(r.endsAt)}</span>.</div>`;
   }
-  const cost = TECH_RESOURCES.map(k => `${resIconHtml(k)} ${formatNum(r.cost[k])}`).join(' ');
+  // le prix se paie sur le stock de toutes les villes (décision du 30 octobre 2026) : en rouge ce qui manque au total
+  const cost = TECH_RESOURCES.map(k => `<span class="${stockOf(k) >= (r.cost[k] || 0) ? '' : 'missing'}">${resIconHtml(k)} ${formatNum(r.cost[k])}</span>`).join(' ');
   return `<div class="hero-state fallen">
     <div>${resIconHtml('skull')} <strong>${escapeHtml(hero.name)} est tombé au combat.</strong> Il garde son niveau, ses talents et ses objets, mais n'apporte plus rien tant qu'il n'est pas ressuscité.</div>
     ${r.domusLevel > 0
-      ? `<div class="hero-revive-row">Résurrection au Domus de la capitale : ${cost} · ${resIconHtml('clock')} ${formatDuration(r.seconds)}
+      ? `<div class="hero-revive-row">Résurrection au Domus de la capitale : ${cost} (pris dans toutes vos villes, la capitale d'abord) · ${resIconHtml('clock')} ${formatDuration(r.seconds)}
           <button class="btn btn-primary btn-sm" onclick="reviveHero()">Ressusciter</button></div>`
       : '<div class="hero-revive-row">Construisez le Domus du Héros dans votre capitale pour le ressusciter.</div>'}
   </div>`;
 }
 async function reviveHero() {
   const ok = await allianceRequestNoReload('/api/hero/revive', 'POST');
-  if (ok) { if (typeof loadPlayer === 'function') loadPlayer(); loadHero(); }
+  if (ok) { if (typeof loadPlayer === 'function') loadPlayer(); loadCities(); loadHero(); }   // le prix a quitté les villes
 }
 
 // Section des talents : trois branches, rang par talent, points libres, réinitialisation
@@ -82,5 +83,5 @@ function resetTalents() {
 }
 async function confirmResetTalents() {
   const ok = await allianceRequestNoReload('/api/hero/talents/reset', 'POST');
-  if (ok) { if (typeof loadPlayer === 'function') loadPlayer(); loadHero(); }
+  if (ok) { if (typeof loadPlayer === 'function') loadPlayer(); loadCities(); loadHero(); }   // le prix a quitté les villes
 }

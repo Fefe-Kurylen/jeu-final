@@ -23,10 +23,13 @@
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
-const { unitsData, factionsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
+const { unitsData, factionsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const { getFactionBonus } = require(path.join(ROOT, 'src/utils/calculations'));
 const { getRelation } = require(path.join(ROOT, 'src/services/diplomacyService'));   // lecture seule : la diplomatie que le joueur connaît
+// stock partagé (décision du 30 octobre 2026) : les constructions puisent dans toutes les villes, l'entretien dans tous les
+// greniers ; le marché, lui, reste propre à chaque ville (offres, marchand, envois et routes lisent la ville seule)
+const Stock = require('../stock.cjs');
 
 const M = config.market;
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -37,7 +40,6 @@ const CALLS = 6;                 // appels par tour au plus
 const STALE_H = 24;              // une offre sans preneur depuis 24 h est retirée (sauf par les joueurs qui la laissent expirer)
 const MIN_TRADE = 200;
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
-const buildCost = (key, level) => { const b = buildingsData.find(x => x.key === key)?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 }; const k = Math.pow(config.build.costMultiplierBase, level - 1); return Object.fromEntries(RES.map(r => [r, Math.floor((b[r] || 0) * k)])); };
 
 // ---------- petits outils ----------
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
@@ -185,13 +187,15 @@ const PF_MAX = 1.25;                          // au-delà, le marchand du serveu
 
 // ce que la ville publierait : une ressource en trop contre une qui manque, en tenant compte du marché (une paire déjà
 // proposée par d'autres a peu de chances ; une ressource que d'autres demandent trouvera preneur)
+// (de la nourriture ne part que si le bilan de tout le joueur est positif : l'entretien puise dans tous ses greniers)
+const foodOk = (bot) => (Stock.foodBalance(bot)?.net ?? -1) > 0;
 function postPlan(S, city, cap, offers) {
-  const foodOk = (city.foodBalance?.net ?? -1) > 0;
+  const spareFood = foodOk(S.bot);
   const others = (offers || []).filter(o => o.sellerId !== S.bot.playerId);
   let best = null;
   for (const ex of RES) {
     const rx = ratio(city, ex);
-    if (rx < 0.5 || (ex === 'food' && (!foodOk || rx < 0.65))) continue;
+    if (rx < 0.5 || (ex === 'food' && (!spareFood || rx < 0.65))) continue;
     for (const lack of RES) {
       if (lack === ex || rx - ratio(city, lack) < 0.25) continue;
       const gain = keepTax * worth(city, lack) - worth(city, ex);   // par unité, au prix de 1 pour 1
@@ -215,10 +219,10 @@ function postPlan(S, city, cap, offers) {
 }
 
 // intérêt d'une offre pour la ville (null : elle ne convient pas). Un membre de son alliance est aidé même à petit gain.
-function offerValue(city, o, ally) {
+function offerValue(city, o, ally, spareFood) {
   const give = o.buyResource, get = o.sellResource;
   if ((city[give] || 0) - o.buyAmount < capOf(city, give) * 0.2 + 50) return null;  // garder une réserve
-  if (give === 'food' && !((city.foodBalance?.net ?? -1) > 0)) return null;
+  if (give === 'food' && !spareFood) return null;
   if (o.sellAmount / o.buyAmount < 0.75) return null;
   const recv = Math.floor(o.sellAmount * keepTax);
   if ((city[get] || 0) + recv > capOf(city, get) * 0.97) return null;               // rien ne doit déborder à l'arrivée
@@ -317,7 +321,7 @@ async function trade(S, markets) {
       if (!most) continue;
       for (const o of others) {
         if (o.buyAmount > most.cap) continue;
-        const v = offerValue(city, o, allies.has(o.sellerId));
+        const v = offerValue(city, o, allies.has(o.sellerId), foodOk(bot));
         if (v === null) continue;
         cands.push({ o, city, score: v - (o.city ? dist(o.city, city) / 2000 : 0) });
       }
@@ -466,9 +470,8 @@ async function npc(S, markets) {
   for (const city of markets) {
     if (B.left <= 0) break;
     if ((m.nx.n?.[city.id] || 0) > ctx.step) continue;
-    const foodOk = (city.foodBalance?.net ?? -1) > 0;
     // l'entrepôt est plein : ce qui est produit en plus est perdu, autant le changer contre ce qui a de la place
-    const over = RES.filter(r => ratio(city, r) >= 0.97 && (r !== 'food' || foodOk)).sort((a, b) => ratio(city, b) - ratio(city, a))[0];
+    const over = RES.filter(r => ratio(city, r) >= 0.97 && (r !== 'food' || foodOk(bot))).sort((a, b) => ratio(city, b) - ratio(city, a))[0];
     if (!over) continue;
     const lack = RES.filter(r => r !== over && ratio(city, r) <= 0.6 && ratio(city, over) - ratio(city, r) >= 0.35).sort((a, b) => ratio(city, a) - ratio(city, b))[0];
     if (!lack) continue;
@@ -504,7 +507,7 @@ async function aid(S) {
   const allianceId = bot.me?.alliance?.allianceId;
   if (!cap || !allianceId || B.left < 1 || (m.nx.a || 0) > ctx.step || cap.isSieged || !lvl(cap, 'MARKET')) return;
   m.nx.a = ctx.step + 8;   // tous les deux jours au plus
-  const foodOk = (cap.foodBalance?.net ?? -1) > 0;
+  const spareFood = foodOk(bot);
   // le serveur prend la première armée libre en ville : la charge doit tenir dans la plus petite
   const ready = fieldArmies(bot, cap).filter(a => a.status === 'IDLE' && home(a, cap) && unitsOf(a) > 0);
   if (!ready.length || bot.mem.mil?.col) { bump(m, 'aidNoArmy'); return; }
@@ -518,7 +521,7 @@ async function aid(S) {
     const mine = w.ok && Array.isArray(w.data?.wonders) ? w.data.wonders.filter(x => x.alliance?.id === allianceId && x.owner?.id !== bot.playerId) : [];
     const target = mine.sort((x, y) => dist(x, cap) - dist(y, cap))[0];
     if (target) {
-      const extra = Object.fromEntries(RES.map(r => [r, ratio(cap, r) >= 0.6 && (r !== 'food' || foodOk) ? Math.max(0, (cap[r] || 0) - 0.5 * capOf(cap, r)) : 0]));
+      const extra = Object.fromEntries(RES.map(r => [r, ratio(cap, r) >= 0.6 && (r !== 'food' || spareFood) ? Math.max(0, (cap[r] || 0) - 0.5 * capOf(cap, r)) : 0]));
       const total = RES.reduce((t, r) => t + extra[r], 0);
       if (total >= 500) {
         const k = Math.min(1, carry / total);
@@ -529,7 +532,7 @@ async function aid(S) {
   }
   // 2. un allié qui manque de ce qu'on a en trop
   if (!send) {
-    const rich = RES.filter(r => ratio(cap, r) >= 0.8 && (r !== 'food' || foodOk));
+    const rich = RES.filter(r => ratio(cap, r) >= 0.8 && (r !== 'food' || spareFood));
     let best = null;
     for (const b of ctx.bots) {
       const fc = b.capital;
@@ -585,11 +588,11 @@ async function early(bot, ctx) {
   const rp = lvl(cap, 'RALLY_POINT');
   const queue = cap.buildQueue || [];
   if (rp >= 15 || rp + 1 > lvl(cap, 'MAIN_HALL') || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'RALLY_POINT')) return;
-  const cost = buildCost('RALLY_POINT', rp + 1);
-  if (!RES.every(r => (cap[r] || 0) >= cost[r] * 1.5)) return;
+  const cost = Stock.buildCost('RALLY_POINT', rp + 1);
+  if (!Stock.canPay(bot, cost, { margin: 1.5 })) return;
   const r = await bot.post(`/api/cities/${cap.id}/build`, { buildingKey: 'RALLY_POINT' });
   if (r.ok) {
-    RES.forEach(k => { cap[k] -= r.data?.cost?.[k] || 0; });
+    Stock.spend(bot, cap, r.data?.cost || cost);
     queue.push({ buildingKey: 'RALLY_POINT', targetLevel: rp + 1, slot: r.data?.queueItem?.slot ?? null });
     cap.buildQueue = queue;
     bump(m, 'rallyLevels');

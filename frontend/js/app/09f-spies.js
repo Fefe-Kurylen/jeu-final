@@ -59,7 +59,7 @@ async function openSpyMission({ cityId, nodeId, label }) {
   openSheetModal(`Espionner ${label || ''}`, `
     ${cityId ? `<div class="support-pick">
       <label class="support-option"><input type="radio" name="spy-mission" value="RESOURCES" checked> <strong>Ressources et troupes</strong><br><small>Les troupes présentes dans la ville et les ressources qu'un pillage pourrait prendre (hors cachette).</small></label>
-      <label class="support-option"><input type="radio" name="spy-mission" value="DEFENSES"> <strong>Défenses et troupes</strong><br><small>Les troupes, le mur (niveau et santé), les douves, la Tour de guet, la cachette et le bonus de défense.</small></label>
+      <label class="support-option"><input type="radio" name="spy-mission" value="DEFENSES"> <strong>Défenses et troupes</strong><br><small>Les troupes, le mur (niveau et santé), la Tour de guet de la capitale, la cachette et le bonus de défense.</small></label>
     </div>` : '<p class="diplo-help">L\'espion rapporte le stock exact du point, sa tribu ou l\'armée qui le récolte ; le point garde son stock exact affiché pendant 1 h.</p>'}
     ${myCities.length > 1 ? `<label class="form-row">Départ <select id="spy-from">${myCities.map(c => `<option value="${chatSafeId(c.id)}" ${c.id === currentCity?.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></label>` : ''}
     <p class="diplo-help">${free.length} espion${free.length > 1 ? 's' : ''} prêt${free.length > 1 ? 's' : ''}. Il réussit toujours, mais la cible peut être prévenue (Tour de guet).</p>

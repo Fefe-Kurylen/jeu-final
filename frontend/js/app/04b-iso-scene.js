@@ -792,7 +792,7 @@ function cityActionSpec(s) {
   const level = building?.level || (s.fixed ? 1 : 0);
   if (!key) return { title: 'Emplacement libre', level: 0, buttons: [{ label: 'Construire', icon: ico('build'), primary: true, run: () => openBuildPanel(s.slot) }] };
   const buttons = [];
-  if (['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key)) buttons.push({ label: 'Recruter', icon: ico('recruit'), primary: true, run: () => openRecruitmentPanel(key, level, s.slot) });
+  if (['BARRACKS', 'STABLE', 'WORKSHOP', 'GREAT_BARRACKS', 'GREAT_STABLE'].includes(key)) buttons.push({ label: 'Recruter', icon: ico('recruit'), primary: true, run: () => openRecruitmentPanel(key, level, s.slot) });
   else buttons.push({ label: 'Améliorer', icon: ico('build'), primary: true, run: () => openBuildPanel(s.slot) });
   const extra = { MARKET: ['Marché', 'market', 'market'], RALLY_POINT: ['Armées', 'army', 'army'], HERO_MANSION: ['Héros', 'hero', 'hero'], EMBASSY: ['Alliance', 'alliance', 'alliance'], WATCHTOWER: ['Espions', 'spy', 'army'], TREASURE_CHAMBER: ['Sac', 'inventory', 'inventory'], HEALING_TENT: ['Blessés', 'endurance', null] }[key];
   if (extra) buttons.push({ label: extra[0], icon: ico(extra[1]), run: () => (extra[2] ? showTab(extra[2]) : openBuildPanel(s.slot)) });

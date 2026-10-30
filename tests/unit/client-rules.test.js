@@ -76,12 +76,16 @@ test('marche : Irrigation (0,5 %/niveau), technologies et Bastion, comme calcula
   const { calculateTravelTime } = require('../../src/utils/calculations');
   const { factionsData } = require('../../src/config/gamedata');
   const ctx = makeContext({ techPctClient: (e) => (e === 'armySpeedBonusPct' ? 4 : 0), bastionState: null });
-  vm.runInContext(pick(src('01-core.js'), ['irrigationSpeedPct', 'armySpeedExtraPct']), ctx);
+  vm.runInContext(pick(src('01-core.js'), ['effectBuildings', 'irrigationSpeedPct', 'armySpeedExtraPct']), ctx);
   vm.runInContext(pick(src('10b-sheets.js'), ['SHEET_RULES', 'armyTilesPerHour']), ctx);
-  const egypt = { buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }, { key: 'MAIN_HALL', level: 20 }] };
+  const egypt = { isCapital: true, buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }, { key: 'MAIN_HALL', level: 20 }] };
   assert.equal(ctx.irrigationSpeedPct(egypt), 10);
-  assert.equal(ctx.irrigationSpeedPct({ buildings: [] }), 0);
-  assert.equal(ctx.irrigationSpeedPct({ buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 6 }, { key: 'EGYPTIAN_IRRIGATION', level: 4 }] }), 3);   // le plus haut niveau, comme le serveur
+  assert.equal(ctx.irrigationSpeedPct({ isCapital: true, buildings: [] }), 0);
+  assert.equal(ctx.irrigationSpeedPct({ isCapital: true, buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 6 }, { key: 'EGYPTIAN_IRRIGATION', level: 4 }] }), 3);   // le plus haut niveau, comme le serveur
+  // Irrigation « capitale seulement » : une colonie marche avec celle de la capitale (serveur : armyService.playerMarchPct)
+  ctx.cities = [egypt, { isCapital: false, buildings: [{ key: 'MAIN_HALL', level: 5 }] }];
+  assert.equal(ctx.irrigationSpeedPct(ctx.cities[1]), 10);
+  ctx.cities = [];
   assert.equal(ctx.armySpeedExtraPct(egypt), 14);   // 4 % de recherches + 10 % d'Irrigation
   ctx.bastionState = { bastion: { status: 'ACTIVE' }, rules: { bonuses: { armySpeedPct: 5 } } };
   assert.equal(ctx.armySpeedExtraPct(egypt), 19);

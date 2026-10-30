@@ -5,9 +5,12 @@
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const { calculateArmyPower } = require(path.join(ROOT, 'src/utils/calculations'));
-const { unitsData } = require(path.join(ROOT, 'src/config/gamedata'));
+const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const config = require(path.join(ROOT, 'src/config'));
 
+// placement (décision du 30 octobre 2026), lu dans les données : bâtiments de la capitale seulement, des colonies seulement
+const CAPITAL_ONLY = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
+const COLONY_ONLY = buildingsData.filter(b => b.effects?.notInCapital).map(b => b.key);
 const MOVING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH', 'BESIEGING'];
 
 async function invariants(prisma, clock) {
@@ -40,6 +43,7 @@ async function invariants(prisma, clock) {
   await add('file de construction en retard', `SELECT id, "cityId", "buildingKey", "endsAt" FROM "BuildQueueItem" WHERE "endsAt" < $1`, late);
   await add('recrutement en retard', `SELECT id, "cityId", "endsAt" FROM "RecruitQueueItem" WHERE "endsAt" < $1`, late).catch(() => {});
   await add('recherche en retard', `SELECT id, "playerId", "endsAt" FROM "ResearchQueueItem" WHERE "endsAt" < $1`, late);
+  await add('bâtiment mal placé (capitale / colonie) ou disparu des données', `SELECT b."cityId", b.key, c."isCapital" FROM "CityBuilding" b JOIN "City" c ON c.id = b."cityId" WHERE (c."isCapital" AND b.key = ANY($1)) OR (NOT c."isCapital" AND b.key = ANY($2)) OR NOT (b.key = ANY($3))`, COLONY_ONLY, CAPITAL_ONLY, buildingsData.map(b => b.key));
   await add('bâtiment au-dessus du Bâtiment principal', `SELECT b."cityId", b.key, b.level, m.level AS hall FROM "CityBuilding" b JOIN "CityBuilding" m ON m."cityId" = b."cityId" AND m.key = 'MAIN_HALL' WHERE b.key <> 'MAIN_HALL' AND b.level > m.level`);
   await add('espion bloqué', `SELECT id, status, "arrivalAt", "returnAt" FROM "Spy" WHERE status <> 'IDLE' AND COALESCE("returnAt", "arrivalAt") < $1`, late).catch(() => {});
   return out.map(o => ({ ...o, sample: JSON.parse(JSON.stringify(o.sample, (k, v) => (typeof v === 'bigint' ? Number(v) : v))) }));

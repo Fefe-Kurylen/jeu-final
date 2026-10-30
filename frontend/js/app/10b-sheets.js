@@ -84,8 +84,9 @@ function locateBuildingInCity(key) {
   showTab('city');
   setTimeout(() => { if (typeof focusCitySlot === 'function') focusCitySlot(b.slot); }, 60);
 }
-function sheetCostHtml(cost, city) {
-  return TECH_RESOURCES.map(r => `<span class="sheet-cost${city && (city[r] || 0) < (cost[r] || 0) ? ' missing' : ''}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('');
+// `stock` : le total de toutes les villes du joueur (playerStock), dans lequel puise le recrutement
+function sheetCostHtml(cost, stock) {
+  return TECH_RESOURCES.map(r => `<span class="sheet-cost${stock && (stock[r] || 0) < (cost[r] || 0) ? ' missing' : ''}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('');
 }
 const sheetKv = (k, v) => `<div class="sheet-kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 
@@ -223,7 +224,7 @@ function showUnitInfoModal(unitKey) {
       <div class="sheet-section">
         <h4>${resIconHtml('recruit')} Recrutement</h4>
         <div class="sheet-grid">
-          ${sheetKv('Coût par unité', `<span class="sheet-costs">${sheetCostHtml(cost, currentCity)}</span>`)}
+          ${sheetKv('Coût par unité', `<span class="sheet-costs">${sheetCostHtml(cost, playerStock())}</span>`)}
           ${sheetKv('Formation', train.pct > 0 ? `${formatDuration(train.seconds)} <small>${formatDuration(train.base)} − ${train.pct.toFixed(1).replace(/\.0$/, '')} % (bâtiments de cette ville)</small>` : `${formatDuration(train.base)} <small>par unité</small>`)}
           ${sheetKv('Entraînée dans', `${reqName} <small>niveau ${req.level} minimum</small>`)}
           ${sheetKv('Palier', `${SHEET_TIER_NAMES[unit.tier] || unit.tier} <small>bataille × ${bCoeff} · puissance × ${coeff}</small>`)}

@@ -3,12 +3,16 @@
 // points de ressource et attaque de leurs tribus, colons de la Résidence et fondation de villes secondaires, rappels.
 // Pas de combat entre joueurs ici (attaques, sièges, renforts, espions : module de guerre).
 // Chaque joueur fait au plus CALLS_PER_TURN appels par tour et vérifie les conditions avant d'appeler (peu de refus).
+// Décision du 30 octobre 2026 (§ 1 bis) : recrutement, soins, Résidence et fondation se paient sur le stock de toutes les
+// villes (../stock.cjs), l'entretien sur tous les greniers ; toute unité formée ou soignée rejoint la garnison de la capitale.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const { baseTrainSecondsFor } = require(path.join(ROOT, 'src/utils/calculations'));
+const Stock = require('../stock.cjs');
 const Terrain = require(path.join(ROOT, 'frontend/js/shared/terrain.js'));   // le terrain que le client dessine (même graine)
 
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -47,14 +51,7 @@ const countOf = (units) => (units || []).reduce((t, u) => t + (u.count || 0), 0)
 const carryOf = (units) => (units || []).reduce((t, u) => t + (UNIT[u.unitKey]?.stats?.transport || 50) * u.count, 0);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const isHome = (a, city) => !!city && a.x === city.x && a.y === city.y;
-function recruitCost(unit, n) {
-  const c = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
-  const m = config.recruit.tierCostMultipliers[unit.tier] || 1;
-  return Object.fromEntries(RES.map(r => [r, Math.ceil(c[r] * m * n)]));
-}
-const buildCost = (key, level) => { const base = def(key)?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 }; const m = Math.pow(config.build.costMultiplierBase, level - 1); return Object.fromEntries(RES.map(r => [r, Math.floor(base[r] * m)])); };
 const stepHours = (ctx) => Math.max(1, Number(ctx.OPT?.stepHours) || 1);   // l'entretien retiré d'un coup à chaque tick
-const affordable = (city, cost, reserve = {}) => RES.every(r => (city[r] || 0) - (reserve[r] || 0) >= (cost[r] || 0));
 
 // ---------- ce que le joueur voit de la carte autour d'une ville (GET /api/map/viewport), gardé quelques pas ----------
 const VIEW = new Map();   // cityId -> { step, nodes, cities, bastions }
@@ -122,31 +119,33 @@ function classCounts(bot) {
   return by;
 }
 
-// réserve de la capitale pour une fondation (colon prêt ou en formation)
-function colonyReserve(bot, city) {
-  if (!city.isCapital) return {};
-  const training = (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER');
-  if (!(city.settlers > 0 || training)) return {};
+// réserve du joueur pour une fondation (colon prêt ou en formation dans la capitale) : elle se paie sur toutes ses villes
+function colonyReserve(bot) {
+  const cap = bot.capital;
+  const training = (cap?.recruitQueue || []).some(q => q.unitKey === 'SETTLER');
+  if (!cap || !(cap.settlers > 0 || training)) return {};
   return Object.fromEntries(RES.map(r => [r, FOUND_COST[r] + 300]));
 }
 
 async function recruit(bot, ctx, B, m, city) {
   if (B.left <= 0 || city.isSieged) return;
-  const fb = city.foodBalance;
+  // l'entretien puise dans tous les greniers du joueur : c'est son bilan qui compte, pas celui de la ville
+  const fb = Stock.foodBalance(bot);
   if (!fb || !(fb.net > 0)) { if (fb && fb.net < 0) bump(m, 'foodStop'); return; }
   const units = unlockedUnits(city, bot.faction);
   if (!units.length) return;
-  const hall = lvl(city, 'MAIN_HALL');
+  const halls = bot.cities.reduce((t, c) => t + lvl(c, 'MAIN_HALL'), 0);
   const counts = classCounts(bot);
   const total = Object.values(counts).reduce((t, x) => t + x, 0);
-  if (total >= 40 + 45 * hall) return;   // une armée à la mesure de la ville
-  const red = Math.min(50, fb.reductionPct || 0) / 100;
-  // l'entretien des lots en file n'est pas encore dans le bilan : il compte déjà
-  const queuedUpkeep = (city.recruitQueue || []).reduce((t, q) => t + (UNIT[q.unitKey] ? q.count * (UPKEEP[UNIT[q.unitKey].tier] || 5) * (1 - red) : 0), 0);
-  // garder 30 % de la production pour grandir, et un grenier au moins à moitié plein d'un tick à l'autre : le tick ajoute la
-  // production plafonnée au grenier puis retire tout l'entretien du pas (avec des pas de 6 h, un entretien de 6 h proche du
-  // grenier le vide à chaque tick, même avec un bilan positif)
-  const granary = Math.max(0, 0.5 * city.maxFoodStorage / stepHours(ctx) - (fb.consumption || 0) - queuedUpkeep);
+  if (total >= 40 + 45 * halls) return;   // une armée à la mesure des villes du joueur
+  const red = Math.min(50, city.foodBalance?.reductionPct || 0) / 100;   // bâtiments de la capitale et recherche : le même partout
+  // l'entretien des lots en file (toutes les villes) n'est pas encore dans le bilan : il compte déjà
+  const queuedUpkeep = bot.cities.reduce((t, c) => t + (c.recruitQueue || []).reduce((u, q) => u + (UNIT[q.unitKey] ? q.count * (UPKEEP[UNIT[q.unitKey].tier] || 5) * (1 - red) : 0), 0), 0);
+  // garder 30 % de la production pour grandir, et des greniers au moins à moitié pleins d'un tick à l'autre : le tick ajoute
+  // la production plafonnée aux greniers puis retire tout l'entretien du pas (avec des pas de 6 h, un entretien de 6 h proche
+  // des greniers les vide à chaque tick, même avec un bilan positif)
+  const stock = Stock.totals(bot);
+  const granary = Math.max(0, 0.5 * stock.maxFoodStorage / stepHours(ctx) - (fb.consumption || 0) - queuedUpkeep);
   const headroom = Math.min(fb.net - queuedUpkeep - Math.max(20, 0.3 * (fb.production || 0)), granary);
   if (headroom <= 0) { bump(m, 'foodCap'); return; }
 
@@ -169,48 +168,64 @@ async function recruit(bot, ctx, B, m, city) {
   const bKey = RECRUIT_BUILDING[unit.class];
   const queue = (city.recruitQueue || []).filter(q => q.buildingKey === bKey);
   if (queue.length >= Math.min(MAX_BATCHES, 2)) return;   // deux lots d'avance au plus
-  // ressources : une part de ce qui reste après les constructions (plus quand le dépôt déborde), réserve de fondation à part
-  const reserve = colonyReserve(bot, city);
-  const share = (r) => ((city[r] || 0) > 0.85 * (r === 'food' ? city.maxFoodStorage : city.maxStorage) ? 0.6 : 0.35);
-  const one = recruitCost(unit, 1);
-  const byRes = Math.min(...RES.map(r => (one[r] > 0 ? Math.floor(Math.max(0, (city[r] || 0) - (reserve[r] || 0)) * share(r) / one[r]) : Infinity)));
+  // ressources (toutes les villes) : une part de ce qui reste après les constructions (plus quand les dépôts débordent),
+  // réserve de fondation à part
+  const reserve = colonyReserve(bot);
+  const share = (r) => (stock[r] > 0.85 * (r === 'food' ? stock.maxFoodStorage : stock.maxStorage) ? 0.6 : 0.35);
+  const one = Stock.recruitCost(unit, 1);
+  const byRes = Math.min(...RES.map(r => (one[r] > 0 ? Math.floor(Math.max(0, stock[r] - (reserve[r] || 0)) * share(r) / one[r]) : Infinity)));
   const byFood = Math.floor(headroom / ((UPKEEP[unit.tier] || 5) * (1 - red)));
-  // temps : le lot finit dans les 18 h (les lots d'un bâtiment passent l'un après l'autre)
-  const perUnit = Math.max(1, (config.recruit.baseTimeSec[unit.class] || 360) * (config.recruit.tierTimeMultipliers[unit.tier] || 1) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100));
+  // temps : le lot finit dans les 18 h (les lots d'un bâtiment passent l'un après l'autre) ; celui du bâtiment de la ville
+  // qui forme (Grande caserne d'une colonie comprise), même si les unités rejoignent la capitale
+  const perUnit = Math.max(1, baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100));
   const queueEnd = queue.reduce((t, q) => Math.max(t, new Date(q.endsAt).getTime()), ctx.clock.now());
   const byTime = Math.floor((18 * 3600000 - (queueEnd - ctx.clock.now())) / 1000 / perUnit);
-  const n = Math.min(byRes, byFood, byTime, unit.class === 'SIEGE' ? 2 : 300, 40 + 45 * hall - total);
+  const n = Math.min(byRes, byFood, byTime, unit.class === 'SIEGE' ? 2 : 300, 40 + 45 * halls - total);
   if (!(n >= (unit.class === 'SIEGE' ? 1 : 5))) { bump(m, n === byFood ? 'foodCap' : 'recruitWait'); return; }
   B.left--;
   const r = await bot.post(`/api/cities/${city.id}/recruit`, { unitKey: unit.key, count: n });
   if (!r.ok) { bump(m, 'recruitRefused'); return; }
-  const cost = r.data?.cost || recruitCost(unit, n);
-  RES.forEach(k => { city[k] -= cost[k] || 0; });
+  Stock.spend(bot, city, r.data?.cost || Stock.recruitCost(unit, n));
   (city.recruitQueue ||= []).push(r.data?.queueItem || { unitKey: unit.key, count: n, buildingKey: bKey, endsAt: new Date(queueEnd + n * perUnit * 1000).toISOString() });
   bump(m, 'recruited', n); bump(m, 'batches'); bump(m, `t_${unit.tier}`, n); bump(m, `c_${unit.class}`, n);
 }
 
-// ---------- blessés : soin à l'or quand il y en a assez ----------
-async function heal(bot, ctx, B, m, city) {
-  if (B.left < 2 || !lvl(city, 'HEALING_TENT') || city.isSieged) return;
+// ---------- blessés : soin payant à la Tente de soins de la capitale (stock de toutes les villes), soin à l'or ----------
+// GET /wounded rend les blessés de toutes les villes du joueur (chaque ligne dit sa ville) ; `healable` : ce que les lits
+// libres et le stock paient. Les soignés rejoignent la garnison de la capitale.
+async function heal(bot, ctx, B, m, cap) {
+  if (B.left < 2 || !lvl(cap, 'HEALING_TENT') || cap.isSieged) return;
   const due = m.wc === undefined || ctx.step >= m.wc || m.hurt;
   if (!due) return;
   m.wc = ctx.step + 12; m.hurt = 0;
   B.left--;
-  const r = await bot.get(`/api/cities/${city.id}/wounded`);
+  const r = await bot.get(`/api/cities/${cap.id}/wounded`);
   if (!r.ok || !Array.isArray(r.data)) return;
   const inBed = r.data.filter(w => w.count > 0).reduce((t, w) => t + w.count, 0);
   const waiting = r.data.reduce((t, w) => t + (w.waiting || 0), 0);
   if (inBed + waiting > 0) bump(m, 'woundedSeen', inBed + waiting);
-  let gold = bot.me?.gold || 0;
-  for (const w of r.data.filter(x => x.count >= 1).sort((a, b) => b.count - a.count).slice(0, 2)) {
-    if (B.left <= 0 || gold - 30 < w.count) break;   // garder un peu d'or
+  if (waiting > 0) m.wc = ctx.step + 2;   // des lits se libèrent : revenir bientôt
+  // 1. lancer le soin de ceux qui attendent, les plus nombreux d'abord, sans toucher la réserve d'une fondation
+  const reserve = colonyReserve(bot);
+  for (const w of r.data.filter(x => x.waiting > 0 && x.healable > 0 && x.healCost).sort((a, b) => b.waiting - a.waiting).slice(0, 2)) {
+    if (B.left <= 1) break;
+    if (!Stock.canPay(bot, w.healCost, { reserve })) { bump(m, 'healWaitRes'); continue; }
     B.left--;
-    const h = await bot.post(`/api/cities/${city.id}/wounded/heal`, { unitKey: w.unitKey });
+    const h = await bot.post(`/api/cities/${w.cityId}/wounded/start`, { unitKey: w.unitKey, count: w.healable });
+    if (!h.ok) { bump(m, 'healStartRefused'); break; }
+    Stock.spend(bot, cap, h.data?.cost || w.healCost);   // payé dans la capitale d'abord (la tente y est)
+    bump(m, 'healStarted', h.data?.started || w.healable);
+  }
+  // 2. soin à l'or des blessés déjà au lit, quand il reste de l'or
+  let gold = bot.me?.gold || 0;
+  for (const w of r.data.filter(x => x.count >= 1 && x.instantGold > 0).sort((a, b) => b.count - a.count).slice(0, 2)) {
+    if (B.left <= 0 || gold - 30 < w.instantGold) break;   // garder un peu d'or
+    B.left--;
+    const h = await bot.post(`/api/cities/${w.cityId}/wounded/heal`, { unitKey: w.unitKey });
     if (!h.ok) { bump(m, 'healRefused'); break; }
-    gold -= h.data?.goldSpent || w.count;
+    gold -= h.data?.goldSpent || w.instantGold;
     if (bot.me) bot.me.gold = gold;
-    bump(m, 'healed', h.data?.healed || w.count); bump(m, 'healGold', h.data?.goldSpent || w.count);
+    bump(m, 'healed', h.data?.healed || w.count); bump(m, 'healGold', h.data?.goldSpent || w.instantGold);
   }
 }
 
@@ -351,55 +366,60 @@ async function recalls(bot, ctx, B, m) {
 // ---------- Résidence, colons, fondation ----------
 function settlerUse(bot, cap) {
   const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(lvl(cap, 'RESIDENCE')));
-  const colonies = bot.cities.filter(c => !c.isCapital).length;   // comme la route des colons
+  const colonies = bot.cities.filter(c => !c.isCapital && !c.isWonder).length;   // comme la route des colons (Ville Merveille à part)
   const travelling = bot.armies.reduce((t, a) => t + (a.settlers || 0), 0);
   const training = (cap.recruitQueue || []).filter(q => q.unitKey === 'SETTLER').reduce((t, q) => t + q.count, 0);
   return { slots, used: colonies + (cap.settlers || 0) + travelling + training, colonies, training };
 }
 
 // la Résidence jusqu'au niveau du colon suivant ; avant elle, le stockage qu'il faut pour la payer (et pour les 3 000 de
-// chaque ressource d'une fondation), et le Bâtiment principal qui plafonne ce stockage
+// chaque ressource d'une fondation), et le Bâtiment principal qui plafonne ce stockage. Le prix se paie sur toutes les
+// villes : c'est leur stockage réuni qui compte, moins l'entretien d'un pas pour la nourriture (Stock.room). Avant ce calcul,
+// le grenier de la seule capitale moins 6 h d'entretien ne tenait jamais la Résidence 20 : pas de troisième colonie.
 async function residence(bot, ctx, B, m, cap) {
   if (B.left <= 0) return;
-  const hall = lvl(cap, 'MAIN_HALL');
-  if (hall < 10) return;
+  if (lvl(cap, 'MAIN_HALL') < 10) return;
   const colonies = bot.cities.filter(c => !c.isCapital && !c.isWonder).length;
   if (colonies >= config.city.maxSecondaryCities) return;
-  const queue = cap.buildQueue || [];
-  if (queue.length >= MAX_QUEUE) { bump(m, 'residenceQueueFull'); return; }
   const target = [10, 15, 20].find(l => fx.settlerSlots(l) > colonies);   // le niveau qui donne le colon suivant
   const cur = Math.max(lvl(cap, 'RESIDENCE'), queuedLvl(cap, 'RESIDENCE'));
-  const wantRes = !!target && cur < target && !queue.some(q => q.buildingKey === 'RESIDENCE');
+  const wantRes = !!target && cur < target && !(cap.buildQueue || []).some(q => q.buildingKey === 'RESIDENCE');
   const pending = (cap.settlers || 0) > 0 || (cap.recruitQueue || []).some(q => q.unitKey === 'SETTLER');
   if (!wantRes && !pending) return;
-  const resCost = wantRes ? buildCost('RESIDENCE', cur + 1) : null;
-  // nourriture qu'il faut avoir en main au début d'un tour : le grenier moins l'entretien d'un pas
-  const effFood = cap.maxFoodStorage - (cap.foodBalance?.consumption || 0) * stepHours(ctx);
+  const resCost = wantRes ? Stock.buildCost('RESIDENCE', cur + 1) : null;
+  const step = stepHours(ctx);
   const foodNeed = Math.max(resCost ? resCost.food : 0, pending ? FOUND_COST.food + 500 : 0);
   const otherNeed = Math.max(resCost ? Math.max(resCost.wood, resCost.stone, resCost.iron) : 0, pending ? FOUND_COST.wood + 500 : 0);
   let key = null;
-  if (foodNeed > 0.95 * effFood) key = 'SILO';
-  else if (otherNeed > 0.95 * cap.maxStorage) key = 'WAREHOUSE';
-  else if (wantRes && cur + 1 <= hall) key = 'RESIDENCE';
-  else if (wantRes) key = 'MAIN_HALL';
+  if (foodNeed > Stock.room(bot, 'food', step)) key = 'SILO';
+  else if (otherNeed > Stock.room(bot, 'wood', step)) key = 'WAREHOUSE';
+  else if (wantRes) key = 'RESIDENCE';
   if (!key) return;
-  let next = Math.max(lvl(cap, key), queuedLvl(cap, key)) + 1;
-  if (key !== 'MAIN_HALL' && queue.some(q => q.buildingKey === key)) return;   // déjà en chantier
-  if (key !== 'MAIN_HALL' && next > hall) {
-    // le stockage bute sur le Bâtiment principal
-    if (next > 20) return;
+  // la ville qui bâtit : la capitale ; un Silo ou un Dépôt déjà au niveau 20 dans la capitale monte dans une colonie
+  const levelIn = (c) => Math.max(lvl(c, key), queuedLvl(c, key));
+  const city = key === 'RESIDENCE' || levelIn(cap) < 20 ? cap
+    : bot.cities.filter(c => !c.isCapital && !c.isWonder && levelIn(c) < Math.min(20, lvl(c, 'MAIN_HALL'))).sort((a, b) => levelIn(a) - levelIn(b))[0];
+  if (!city) return;
+  const queue = city.buildQueue || [];
+  if (queue.length >= MAX_QUEUE) { bump(m, 'residenceQueueFull'); return; }
+  if (queue.some(q => q.buildingKey === key)) return;   // déjà en chantier
+  const hall = lvl(city, 'MAIN_HALL');
+  let next = levelIn(city) + 1;
+  if (next > hall) {
+    // le bâtiment bute sur le Bâtiment principal de la capitale
+    if (!city.isCapital) return;
     key = 'MAIN_HALL'; next = Math.max(hall, queuedLvl(cap, 'MAIN_HALL')) + 1;
+    if (next > 30 || queue.some(q => q.buildingKey === 'MAIN_HALL')) return;
   }
-  if (key === 'MAIN_HALL' && (next > 30 || queue.some(q => q.buildingKey === 'MAIN_HALL'))) return;
-  const cost = buildCost(key, next);
-  if (RES.some(r => cost[r] > (r === 'food' ? cap.maxFoodStorage : cap.maxStorage))) return;
-  if (!affordable(cap, cost)) { bump(m, key === 'RESIDENCE' ? 'residenceWaitRes' : 'storageWaitRes'); return; }
+  const cost = Stock.buildCost(key, next);
+  if (!Stock.fits(bot, cost, step)) return;
+  if (!Stock.canPay(bot, cost)) { bump(m, key === 'RESIDENCE' ? 'residenceWaitRes' : 'storageWaitRes'); return; }
   B.left--;
-  const r = await bot.post(`/api/cities/${cap.id}/build`, { buildingKey: key });
+  const r = await bot.post(`/api/cities/${city.id}/build`, { buildingKey: key });
   if (!r.ok) { bump(m, 'residenceRefused'); return; }
-  RES.forEach(k => { cap[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, city, r.data?.cost || cost);
   queue.push({ buildingKey: key, targetLevel: next, slot: r.data?.queueItem?.slot ?? null });
-  cap.buildQueue = queue;
+  city.buildQueue = queue;
   bump(m, key === 'RESIDENCE' ? 'residenceLevels' : key === 'MAIN_HALL' ? 'hallForResidence' : 'storageForResidence');
 }
 
@@ -517,7 +537,7 @@ async function colony(bot, ctx, B, m, cap) {
     B.left--;
     const f = await bot.post(`/api/army/${b.id}/found-city`, { resourceNodeId: col.n });
     if (!f.ok) { bump(m, 'foundRefused'); col.f = (col.f || 0) + 1; col.ph = tribeOn(node) ? 'clear' : 'ready'; if (col.f >= 3) drop('colonySiteLost'); return; }
-    RES.forEach(k => { cap[k] -= FOUND_COST[k] || 0; });
+    Stock.spend(bot, cap, FOUND_COST);   // les ressources de la fondation : toutes les villes, la capitale d'abord
     cap.settlers = Math.max(0, (cap.settlers || 0) - 1);
     b.status = 'MOVING'; b.settlers = 1;
     col.ph = 'going'; col.b = b.id; col.s = ctx.step;
@@ -528,7 +548,7 @@ async function colony(bot, ctx, B, m, cap) {
     if (tribeOn(node)) { col.ph = 'clear'; return; }
     if (someoneOn(node)) return;   // une de ses armées récolte encore : elle partira
     if (!settlerReady) return;
-    if (!affordable(cap, FOUND_COST)) { bump(m, 'foundWaitRes'); return; }
+    if (!Stock.canPay(bot, FOUND_COST)) { bump(m, 'foundWaitRes'); return; }
     const b = await founder();
     if (!b) { bump(m, 'foundWaitArmy'); return; }
     if (B.left > 0) await found(b);
@@ -559,7 +579,7 @@ async function colony(bot, ctx, B, m, cap) {
     // posté à côté du camp : il ne frappe que quand tout est prêt pour la fondation
     const wait = (why) => { bump(m, why); return ctx.step - col.s > 16 ? recallA() : null; };
     if (!settlerReady) return wait('approachWaitSettler');
-    if (!affordable(cap, FOUND_COST)) return wait('foundWaitRes');
+    if (!Stock.canPay(bot, FOUND_COST)) return wait('foundWaitRes');
     const b = await founder();
     if (!b) return wait('foundWaitArmy');
     if (B.left < (tribeOn(node) ? 3 : 1)) return;
@@ -610,6 +630,7 @@ function prepare(bot) {
 
 module.exports = {
   name: 'military',
+  residence, heal,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   // début du tour, avant l'économie (fichier 09-military-early.cjs) : un joueur qui prépare une colonie envoie son colon et
   // monte sa Résidence avant de dépenser le reste en constructions
   async early(bot, ctx) {
@@ -676,7 +697,8 @@ module.exports = {
         fieldArmies: Number((await q(`SELECT count(*)::int AS n FROM "Army" WHERE NOT "isGarrison"`))[0]?.n || 0),
         harvesting: Number((await q(`SELECT count(*)::int AS n FROM "Army" WHERE status = 'HARVESTING'`))[0]?.n || 0),
         wounded: Number((await q(`SELECT coalesce(sum(count + waiting), 0)::int AS n FROM "WoundedUnit"`))[0]?.n || 0),
-        starving: Number((await q(`SELECT count(*)::int AS n FROM "City" WHERE food < 1`))[0]?.n || 0)
+        // l'entretien puise dans tous les greniers d'un joueur : la famine ne vient que quand leur total est vide
+        starving: Number((await q(`SELECT count(*)::int AS n FROM (SELECT "playerId" FROM "City" GROUP BY 1 HAVING sum(food) < 1) s`))[0]?.n || 0)
       };
     } catch (e) { db = { error: e.message }; }
     ctx.event('military_summary', { step: ctx.step, ...db, counters: k });

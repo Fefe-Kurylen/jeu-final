@@ -32,6 +32,7 @@ const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedat
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 let CS = null;
 const combat = () => (CS ||= require(path.join(ROOT, 'src/services/combatService')));   // formules pures : estimation d'une bataille
+const Stock = require('../stock.cjs');   // stock partagé : engins et bâtiments se paient sur toutes les villes du joueur
 
 const RES = ['wood', 'stone', 'iron', 'food'];
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
@@ -64,17 +65,10 @@ const minSpeed = (units) => Math.min(100, ...rows(units).map(u => UNIT[u.unitKey
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 // durée de marche estimée (s) : la route contourne le relief (× 1,25), sans les bonus de vitesse (prudent)
 const travelSec = (units, a, b) => dist(a, b) * 1.25 * 30 * 50 / Math.max(1, minSpeed(units));
-const storageOf = (city, r) => (r === 'food' ? city.maxFoodStorage : city.maxStorage) || 0;
 const atHomeIn = (a, city) => !!a && !!city && a.status === 'IDLE' && !a.claimedAt && a.x === city.x && a.y === city.y && a.cityId === city.id;
 const merge = (...lists) => { const m = {}; for (const l of lists) for (const u of rows(l)) (m[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count; return Object.values(m); };
 const scale = (units, f) => rows(units).map(u => ({ ...u, count: Math.ceil(u.count * f) })).filter(u => u.count > 0);
 const factionUnit = (faction, cls) => unitsData.find(u => u.faction === faction && u.class === cls) || null;
-function recruitCost(unit, n) {
-  const c = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
-  const m = config.recruit.tierCostMultipliers[unit.tier] || 1;
-  return Object.fromEntries(RES.map(r => [r, Math.ceil(c[r] * m * n)]));
-}
-const buildCost = (key, level) => { const base = buildingsData.find(b => b.key === key)?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 }; const m = Math.pow(config.build.costMultiplierBase, level - 1); return Object.fromEntries(RES.map(r => [r, Math.floor((base[r] || 0) * m)])); };
 const rallyCapacity = (rp) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rp) - 1) * 12 / 19)));
 
 // connecté à ce pas : le joueur joue un pas sur deux (bot.turn), comme le harnais
@@ -126,7 +120,7 @@ async function snapshot(ctx, fresh = false) {
     P.allianceMember.findMany({ select: { playerId: true, allianceId: true, role: true, alliance: { select: { tag: true } } } }),
     P.allianceDiplomacy.findMany({ select: { allianceId: true, targetAllianceId: true, status: true } }),
     // la carte : villes, mur (niveau et fumée des vies perdues), propriétaire et sa civilisation
-    P.city.findMany({ select: { id: true, name: true, x: true, y: true, playerId: true, isCapital: true, isSieged: true, isWonder: true, wallStructure: true, wallMaxHp: true, player: { select: { name: true, faction: true, population: true } }, buildings: { where: { key: { in: ['WALL', 'MOAT', 'RALLY_POINT', 'WORKSHOP', 'WATCHTOWER'] } }, select: { key: true, level: true } } } }),
+    P.city.findMany({ select: { id: true, name: true, x: true, y: true, playerId: true, isCapital: true, isSieged: true, isWonder: true, wallStructure: true, wallMaxHp: true, player: { select: { name: true, faction: true, population: true } }, buildings: { where: { key: { in: ['WALL', 'RALLY_POINT', 'WORKSHOP', 'WATCHTOWER'] } }, select: { key: true, level: true } } } }),
     // les camps devant les villes et les Bastions (un siège se voit : fenêtre de siège, soldats et engins)
     P.army.findMany({ where: { status: 'BESIEGING' }, select: { id: true, ownerId: true, targetCityId: true, targetBastionId: true, arrivalAt: true, claimedAt: true, units: { select: { unitKey: true, count: true } } } }),
     // les attaques en marche (vues par l'alliance visée sur la carte)
@@ -196,7 +190,7 @@ async function readSpyReports(bot, ctx, v, m) {
     e.troopsAt = t;
     if (rep.data?.mission === 'DEFENSES' && rep.data.defenses) {
       const d = rep.data.defenses;
-      e.wall = { level: d.wallLevel || 0, hp: d.wallHp || 0, maxHp: d.wallMaxHp || 0, structure: (d.structurePct ?? 100) / 100, moat: d.moatLevel || 0, defBonus: d.defenseBonusPct || 0 };
+      e.wall = { level: d.wallLevel || 0, hp: d.wallHp || 0, maxHp: d.wallMaxHp || 0, structure: (d.structurePct ?? 100) / 100, defBonus: d.defenseBonusPct || 0 };
       e.defAt = t;
     } else { e.res = rep.resources || {}; e.resAt = t; }
     top = Math.max(top, t); n++;
@@ -217,19 +211,19 @@ async function engineTurn(bot, ctx, v, m, B, cap) {
   const queue = (cap.recruitQueue || []).filter(q => q.buildingKey === 'WORKSHOP');
   const have = bot.armies.reduce((t, a) => t + enginesOf(a.units), 0) + queue.reduce((t, q) => t + (isSiege(q.unitKey) ? q.count : 0), 0);
   if (have >= target || queue.length >= 2) return;
-  const fb = cap.foodBalance;
+  const fb = Stock.foodBalance(bot);   // l'entretien puise dans tous les greniers du joueur
   if (!fb || !(fb.net > 0)) return;
   const upkeep = config.army.upkeepPerTier?.siege || 15;
-  const room = Math.floor((fb.net - Math.max(60, 0.3 * (fb.production || 0))) / upkeep);   // la ville garde de quoi grandir
-  const one = recruitCost(unit, 1);
-  const byRes = Math.min(...RES.map(r => Math.floor(Math.max(0, (cap[r] || 0) - storageOf(cap, r) * 0.25) / Math.max(1, one[r]))));
+  const room = Math.floor((fb.net - Math.max(60, 0.3 * (fb.production || 0))) / upkeep);   // le joueur garde de quoi grandir
+  const one = Stock.recruitCost(unit, 1);
+  const t = Stock.totals(bot);
+  const byRes = Math.min(...RES.map(r => Math.floor(Math.max(0, t[r] - (r === 'food' ? t.maxFoodStorage : t.maxStorage) * 0.25) / Math.max(1, one[r]))));
   const n = Math.min(4, target - have, room, byRes);
   if (!(n >= 1)) { bump(m, room < 1 ? 'engineWaitFood' : 'engineWaitRes'); return; }
   B.left--;
   const r = await call(bot, m, 'POST', `/api/cities/${cap.id}/recruit`, { unitKey: unit.key, count: n });
   if (!r.ok) return;
-  const cost = r.data?.cost || recruitCost(unit, n);
-  RES.forEach(k => { cap[k] -= cost[k] || 0; });
+  Stock.spend(bot, cap, r.data?.cost || Stock.recruitCost(unit, n));
   (cap.recruitQueue ||= []).push({ unitKey: unit.key, count: n, buildingKey: 'WORKSHOP' });
   bump(m, 'engines', n);
 }
@@ -382,7 +376,7 @@ function raidEstimate(v, side, att, target) {
   const e = intelOf(side, target.id);
   if (!e || ageH(v, e.troopsAt) > SPY_FRESH_H || ageH(v, e.resAt) > SPY_FRESH_H) return null;
   const defenders = scale(merge(e.troops || []), 1.2);   // la garnison a pu grandir depuis le rapport
-  const r = combat().resolveCombat(att, defenders, wallLevelOf(target), null, null, { moatLevel: e.wall?.moat || lvl(target, 'MOAT'), defenderFaction: target.player?.faction, defenseBonusPct: e.wall?.defBonus || 0 });
+  const r = combat().resolveCombat(att, defenders, wallLevelOf(target), null, null, { defenderFaction: target.player?.faction, defenseBonusPct: e.wall?.defBonus || 0 });
   if (!r.attackerWon || r.attackerPower < 1.4 * r.defenderPower) return null;
   const carry = rows(att).reduce((t, u) => t + (UNIT[u.unitKey].stats?.transport || 50) * u.count, 0) * config.combat.raidLootPctOfCarry;
   const pill = RES.reduce((t, k) => t + (e.res?.[k] || 0), 0) * config.hideout.raidStealRate;
@@ -591,7 +585,7 @@ function simulateSiege(v, target, intel, attackers, attackerFaction, state = nul
   const seen = Math.round((target.wallStructure ?? 1) * 10) / 10;   // la fumée sur la carte, par dixièmes
   const structure = state ? Math.min(1, state.structure) : Math.min(1, seen + (seen < 1 ? REGEN_STEP(2 * STEP_H) : 0));
   const defenders = scale(merge(state ? state.troops : (intel?.troops || [])), 1.3);
-  const res = combat().resolveCombatDetailed(merge(attackers), defenders, wallLevel, intel?.wall?.moat || 0, 'a', 'd', null, null, attackerFaction, target.player?.faction || null, intel?.wall?.defBonus || 0, null, wallLevel > 0 ? { hp: maxHp * structure, maxHp } : null);
+  const res = combat().resolveCombatDetailed(merge(attackers), defenders, wallLevel, 'a', 'd', null, null, attackerFaction, target.player?.faction || null, intel?.wall?.defBonus || 0, null, wallLevel > 0 ? { hp: maxHp * structure, maxHp } : null);
   // l'état de la ville après cette bataille, si elle est gagnée : une vie de moins, la garnison qui reste
   const n = livesOfCity(target);
   const after = Math.max(0, structure - 1 / n);
@@ -785,7 +779,7 @@ async function bastionOps(ctx, v, S, g) {
   };
   // la même formule que l'assaut (mur bouclier du Bastion) : ce que la troupe ferait au mur
   const wallMax = config.combat.wallHpPerLevel * config.bastion.wallReferenceLevel * config.bastion.wallMultiplier;
-  const estimate = (units, faction) => { const r = combat().resolveCombatDetailed(merge(units), [], config.bastion.wallReferenceLevel, 0, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct, null, { hp: wallMax, maxHp: wallMax }); return Math.round(wallMax - r.wallHpEnd); };
+  const estimate = (units, faction) => { const r = combat().resolveCombatDetailed(merge(units), [], config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct, null, { hp: wallMax, maxHp: wallMax }); return Math.round(wallMax - r.wallHpEnd); };
   const op = (wm.bn || 0) % 2 === 0 ? 'rally' : 'solo';
   wm.bn = (wm.bn || 0) + 1;
   wm.bo = ctx.step + BASTION_GAP;
@@ -946,11 +940,11 @@ async function rallyPoint(bot, ctx) {
   const cur = Math.max(lvl(cap, 'RALLY_POINT'), queuedLvl(cap, 'RALLY_POINT'));
   const queue = cap.buildQueue || [];
   if (!cur || cur >= 15 || cur + 1 > hall || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'RALLY_POINT')) return false;
-  const c = buildCost('RALLY_POINT', cur + 1);
-  if (!RES.every(r => (cap[r] || 0) >= c[r] * 1.1)) return false;
+  const c = Stock.buildCost('RALLY_POINT', cur + 1);
+  if (!Stock.canPay(bot, c, { margin: 1.1 })) return false;
   const r = await call(bot, m, 'POST', `/api/cities/${cap.id}/build`, { buildingKey: 'RALLY_POINT' });
   if (!r.ok) return false;
-  RES.forEach(k => { cap[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, cap, r.data?.cost || c);
   queue.push({ buildingKey: 'RALLY_POINT', targetLevel: cur + 1, slot: r.data?.queueItem?.slot ?? null });
   cap.buildQueue = queue;
   bump(m, 'rallyPointLevels');
@@ -972,15 +966,15 @@ async function workshop(bot, ctx) {
     for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) free++;
     if (!free) return;
   }
-  const c = buildCost('WORKSHOP', cur + 1);
-  if (!RES.every(r => (cap[r] || 0) >= c[r] * 1.15)) return;
+  const c = Stock.buildCost('WORKSHOP', cur + 1);
+  if (!Stock.canPay(bot, c, { margin: 1.15 })) return;
   let v;
   try { v = await snapshot(ctx); } catch (e) { fail(ctx, 'snapshot', e); return; }
   if (v.ended) return;
   const m = memOf(bot, v);
   const r = await call(bot, m, 'POST', `/api/cities/${cap.id}/build`, { buildingKey: 'WORKSHOP' });
   if (!r.ok) return;
-  RES.forEach(k => { cap[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, cap, r.data?.cost || c);
   queue.push({ buildingKey: 'WORKSHOP', targetLevel: cur + 1, slot: r.data?.queueItem?.slot ?? null });
   cap.buildQueue = queue;
   bump(m, 'workshopLevels');

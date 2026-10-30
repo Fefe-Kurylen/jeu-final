@@ -220,12 +220,12 @@ function getStorageAtLevel(level, key = 'WAREHOUSE') {
 }
 
 // Vitesse de marche des armées parties d'une ville, en % (comme l'extraSpeedPct du serveur) : technologies (Cartographie),
-// Bastion d'alliance debout, Irrigation égyptienne de la ville (0,5 % par niveau, 50 % au plus). Le bonus de
-// civilisation se compte à part (factionBonusPct 'armySpeed')
+// Bastion d'alliance debout, Irrigation égyptienne de la capitale (0,5 % par niveau, 50 % au plus ; bâtiment « capitale
+// seulement », il accélère les armées de toutes les villes). Le bonus de civilisation se compte à part (factionBonusPct 'armySpeed')
 function irrigationSpeedPct(city) {
   const per = Number(window.buildingsData?.find?.(b => b.key === 'EGYPTIAN_IRRIGATION')?.effects?.marchSpeedBonusPctPerLevel) || 0.5;
   // niveau le plus haut, comme levelOf du serveur (utils/buildingEffects.js marchSpeedBonusPct)
-  return Math.min(50, (city?.buildings || []).reduce((m, b) => (b.key === 'EGYPTIAN_IRRIGATION' && b.level > m ? b.level : m), 0) * per);
+  return Math.min(50, effectBuildings(city).reduce((m, b) => (b.key === 'EGYPTIAN_IRRIGATION' && b.level > m ? b.level : m), 0) * per);
 }
 function armySpeedExtraPct(city) {
   const tech = typeof techPctClient === 'function' ? techPctClient('armySpeedBonusPct') : 0;

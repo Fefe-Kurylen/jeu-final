@@ -9,9 +9,10 @@
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
-const { buildingsData, unitsData, factionsData } = require(path.join(ROOT, 'src/config/gamedata'));
+const { unitsData, factionsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const { getFactionBonus } = require(path.join(ROOT, 'src/utils/calculations'));
+const Stock = require('../stock.cjs');   // stock partagé entre les villes du joueur (constructions et recrutements)
 let spawnUtil = null;
 const spawn = () => (spawnUtil ||= require(path.join(ROOT, 'src/utils/spawn')));   // lecture seule : la case est-elle libre (ce que montre la carte)
 
@@ -53,8 +54,6 @@ const CHAT_PER_DAY = 6;   // messages libres par jour, tous joueurs confondus (l
 const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const levelIn = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const queuedLevel = (city, key) => (city?.buildQueue || []).reduce((m, q) => (q.buildingKey === key && (q.targetLevel || 0) > m ? q.targetLevel : m), 0);
-const buildCost = (key, level) => { const base = buildingsData.find(b => b.key === key)?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 }; const m = Math.pow(config.build.costMultiplierBase, level - 1); return Object.fromEntries(RES.map(r => [r, Math.floor((base[r] || 0) * m)])); };
-const affordable = (city, c, margin = 1) => RES.every(r => (city[r] || 0) >= (c[r] || 0) * margin);
 const storageOf = (city, r) => (r === 'food' ? city.maxFoodStorage : city.maxStorage) || 0;
 const isManager = (role) => role === 'LEADER' || role === 'OFFICER';
 const unitsTotal = (army) => (army?.units || []).reduce((t, u) => t + (u.count || 0), 0);
@@ -129,11 +128,11 @@ async function pushEmbassy(bot, S, target) {
   if (planned >= target) return false;
   if (planned + 1 > levelIn(city, 'MAIN_HALL')) return false;
   if ((city.buildQueue || []).length >= MAX_QUEUE) return false;
-  const c = buildCost('EMBASSY', planned + 1);
-  if (!affordable(city, c, 1.1)) return false;
+  const c = Stock.buildCost('EMBASSY', planned + 1);
+  if (!Stock.canPay(bot, c, { margin: 1.1 })) return false;
   const r = await S.post(`/api/cities/${city.id}/build`, { buildingKey: 'EMBASSY' });
   if (!r.ok) return false;
-  RES.forEach(k => { city[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, city, r.data?.cost || c);
   (city.buildQueue ||= []).push({ buildingKey: 'EMBASSY', targetLevel: r.data?.queueItem?.targetLevel || planned + 1, status: r.data?.queueItem?.status, id: r.data?.queueItem?.id, endsAt: r.data?.queueItem?.endsAt });
   return true;
 }
@@ -465,15 +464,15 @@ async function recruit(bot, S, city, unit, want) {
   if (!unit || want < 10 || city.isSieged) return false;
   const building = RECRUIT_BUILDING[unit.class];
   if ((city.recruitQueue || []).filter(q => q.buildingKey === building).length >= 3) return false;
-  const per = config.recruit.baseCosts[unit.class] || config.recruit.baseCosts.INFANTRY;
-  const mult = config.recruit.tierCostMultipliers?.base || 1;
-  // jamais plus que ce qui dépasse un tiers du stockage : la construction continue
-  const can = Math.min(...RES.map(r => Math.floor(Math.max(0, (city[r] || 0) - storageOf(city, r) / 3) / Math.max(1, Math.ceil(per[r] * mult)))));
+  const one = Stock.recruitCost(unit, 1);
+  // jamais plus que ce qui dépasse un tiers du stockage (toutes les villes, le prix y puise) : la construction continue
+  const t = Stock.totals(bot);
+  const can = Math.min(...RES.map(r => Math.floor(Math.max(0, t[r] - (r === 'food' ? t.maxFoodStorage : t.maxStorage) / 3) / Math.max(1, one[r]))));
   const count = Math.min(want, 80, can);
   if (count < 10) return false;
   const r = await S.post(`/api/cities/${city.id}/recruit`, { unitKey: unit.key, count });
   if (!r.ok) return false;
-  RES.forEach(k => { city[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, city, r.data?.cost || Stock.recruitCost(unit, count));
   (city.recruitQueue ||= []).push({ buildingKey: building, unitKey: unit.key, count });
   return true;
 }
@@ -554,7 +553,7 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
     await fillArmy(bot, S, army, city, { order: (u) => carryOfUnit(u.unitKey) * 1000 + u.count, want: (u) => missing / carryOfUnit(u.unitKey), moved: (n, u) => { missing -= n * carryOfUnit(u.unitKey); }, keepPct: 0.25 });
     cap = carryCapacity(army, city, faction, false);
     if (cap < TARGET * 0.6) {
-      const unit = bestRecruit(city, faction, (u) => (u.stats?.transport || 0) * 10 - (config.recruit.baseCosts[u.class]?.iron || 0) / 10);
+      const unit = bestRecruit(city, faction, (u) => (u.stats?.transport || 0) * 10 - Stock.recruitCost(u, 1).iron / 10);
       const queued = (city.recruitQueue || []).filter(q => q.unitKey === unit?.key).reduce((t, q) => t + (q.count || 0), 0);
       const garCount = (garrisonOf(bot, city)?.units || []).filter(u => u.unitKey === unit?.key).reduce((t, u) => t + u.count, 0);
       if (unit && S.left() > 1) await recruit(bot, S, city, unit, Math.ceil((TARGET - cap) / carryOfUnit(unit.key)) - queued - garCount);
@@ -570,7 +569,7 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const totalNeed = RES.reduce((t, r) => t + need[r], 0);
   if (totalNeed <= 0) return;
   // la réserve gardée pour bâtir ; quand il ne manque presque plus rien, chacun se serre la ceinture pour finir
-  const hungry = (city.foodBalance?.net ?? city.foodBalance?.balance ?? 1) < 0;
+  const hungry = (Stock.foodBalance(bot)?.net ?? 1) < 0;   // l'entretien puise dans tous les greniers du joueur
   const last = totalNeed < 0.1 * RES.reduce((t, r) => t + (b.cost?.[r] || 0), 0);
   const keep = (r) => (r === 'food' ? (hungry ? 0.5 : last ? 0.2 : 0.4) : last ? 0.15 : 0.3);
   const spare = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor((city[r] || 0) - storageOf(city, r) * keep(r)))]));

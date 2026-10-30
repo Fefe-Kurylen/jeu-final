@@ -24,6 +24,7 @@ const config = require(path.join(ROOT, 'src/config'));
 const { itemsData, unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const HE = require(path.join(ROOT, 'src/utils/heroEffects'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const Stock = require('../stock.cjs');   // résurrection et Domus : payés sur toutes les villes du joueur, la capitale d'abord
 let nameProblem = () => null;
 try { nameProblem = require(path.join(ROOT, 'src/utils/nameFilter')).nameProblem; } catch (e) { /* filtre absent : le serveur jugera */ }
 
@@ -78,7 +79,6 @@ const cityOf = (bot, id) => bot.cities.find(c => c.id === id) || null;
 const atHome = (bot, a) => !!a && a.status === 'IDLE' && !a.claimedAt && isHome(a, cityOf(bot, a.cityId));
 const garrisonOf = (bot, city) => bot.armies.find(a => a.isGarrison && a.cityId === city.id) || null;
 const soldiers = (a) => countOf((a?.units || []).filter(u => UNIT[u.unitKey]?.class !== 'SIEGE'));
-const affordable = (city, cost, margin = 1) => RES.every(r => (city[r] || 0) >= (cost[r] || 0) * margin);
 const statsOf = (item) => item.stats || ITEM.get(item.itemKey)?.stats || {};
 const valueOf = (item, w) => Object.entries(statsOf(item)).reduce((t, [k, v]) => t + (Number(v) || 0) * (w[k] ?? 0.5), 0);
 const reviveCost = (hero) => Object.fromEntries(RES.map(r => [r, (REVIVE_COST[r] || 0) * Math.max(1, hero.level || 1)]));
@@ -160,7 +160,7 @@ async function revive(bot, ctx, B, m, hero, cap) {
   const domus = lvl(cap, 'HERO_MANSION');
   if (!domus) { await buildDomus(bot, ctx, B, m, cap); return; }
   const cost = reviveCost(hero);
-  if (!affordable(cap, cost)) { bump(m, 'reviveWaitRes'); return; }
+  if (!Stock.canPay(bot, cost)) { bump(m, 'reviveWaitRes'); return; }
   if (B.left < 2) return;
   // le panneau du Domus : état, coût et durée
   B.left--;
@@ -168,11 +168,11 @@ async function revive(bot, ctx, B, m, hero, cap) {
   if (!v.ok || !v.data) { fail(m, v, 'heroReadFailed'); return; }
   if (v.data.state !== 'FALLEN') { if (v.data.state === 'REVIVING') m.rv = 1; return; }
   const c = v.data.revive?.cost || cost;
-  if (!affordable(cap, c)) { bump(m, 'reviveWaitRes'); return; }
+  if (!Stock.canPay(bot, c)) { bump(m, 'reviveWaitRes'); return; }
   B.left--;
   const r = await bot.post('/api/hero/revive');
   if (!r.ok) { fail(m, r, 'reviveRefused'); return; }
-  RES.forEach(k => { cap[k] -= c[k] || 0; });
+  Stock.spend(bot, cap, c);
   m.rv = 1; bump(m, 'revives');
   ctx.event('hero_revive_started', { bot: bot.name, level: hero.level, hours: Math.round((v.data.revive?.seconds || 0) / 360) / 10, domus });
 }
@@ -181,11 +181,11 @@ async function buildDomus(bot, ctx, B, m, cap) {
   if (B.left <= 0 || !DOMUS) return;
   if ((cap.buildQueue || []).some(q => q.buildingKey === 'HERO_MANSION')) return;
   if ((cap.buildQueue || []).length >= config.build.maxRunning + config.build.maxQueued) return;
-  if (!affordable(cap, DOMUS.costL1)) { bump(m, 'domusWaitRes'); return; }
+  if (!Stock.canPay(bot, DOMUS.costL1)) { bump(m, 'domusWaitRes'); return; }
   B.left--;
   const r = await bot.post(`/api/cities/${cap.id}/build`, { buildingKey: 'HERO_MANSION' });
   if (!r.ok) { fail(m, r, 'domusRefused'); return; }
-  RES.forEach(k => { cap[k] -= r.data?.cost?.[k] || 0; });
+  Stock.spend(bot, cap, r.data?.cost || DOMUS.costL1);
   (cap.buildQueue ||= []).push({ buildingKey: 'HERO_MANSION', targetLevel: 1 });
   bump(m, 'domusBuilt');
 }

@@ -8,7 +8,7 @@ const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('../utils/calculations');
-const { plunderCity, creditCity } = require('../utils/db');
+const { plunderCity, lockPlayerCities, creditPlayer } = require('../utils/db');
 const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
 const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
 
@@ -88,7 +88,8 @@ async function razeCity(cityId, byArmyId) {
     // — no City lock is ever awaited while a queue row is held
     const owner = await tx.city.findUnique({ where: { id: cityId }, select: { playerId: true } });
     if (!owner) return null;
-    await tx.$queryRaw`SELECT id FROM "City" WHERE "playerId" = ${owner.playerId} ORDER BY id FOR UPDATE`;
+    // (stocks lus sous le verrou : un remboursement va aux villes qui restent, jamais à celle qui tombe)
+    const remaining = (await lockPlayerCities(tx, owner.playerId)).filter(c => c.id !== cityId);
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || city.isCapital || city.wallStructure > 0) return null;
     const capital = await tx.city.findFirst({ where: { playerId: city.playerId, isCapital: true } });
@@ -134,7 +135,8 @@ async function razeCity(cityId, byArmyId) {
         const removed = await tx.researchQueueItem.deleteMany({ where: { id: l.id, status: l.status } });
         if (removed.count !== 1) continue;
         const paid = l.cost && typeof l.cost === 'object' ? l.cost : T.researchCost(T.techOf(l.techKey), l.targetLevel);
-        await creditCity(tx, l.cityId, T.scaleCost(paid, l.status === 'QUEUED' ? 1 : T.RULES.refundRateStarted));
+        // à la ville qui l'a payée, le surplus aux autres villes du joueur (stock partagé, décision du 30 octobre 2026)
+        await creditPlayer(tx, city.playerId, l.cityId, T.scaleCost(paid, l.status === 'QUEUED' ? 1 : T.RULES.refundRateStarted), remaining);
       }
     }
     // market offers of the city are cancelled; the goods held for them go to the capital

@@ -4614,6 +4614,7 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .hero-state.fallen { background: rgba(120, 20, 15, .35); border: 1px solid rgba(229, 115, 115, .6); }
 .hero-state.reviving { background: rgba(30, 60, 90, .35); border: 1px solid rgba(79, 179, 232, .5); }
 .hero-revive-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.hero-revive-row .missing { color: #b3321b; font-weight: 600; }   /* prix que le stock de toutes les villes ne paie pas */
 .hero-stat-help { margin: 6px 0; }
 .stat-pct { color: #8fd17f; font-weight: 400; margin-left: 4px; }
 .hero-talents { grid-column: 1 / -1; margin-top: 8px; }

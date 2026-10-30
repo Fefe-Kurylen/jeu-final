@@ -9,7 +9,7 @@ const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('..
 const T = require('../utils/techEffects');
 const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
-const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
+const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId, buildingsWithCapital } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength } = require('../utils/pathfinding');
 
@@ -75,13 +75,14 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: { include: { items: true } } } });
       const army = candidates.find(a => a.units.length > 0 && a.x === sourceCity.x && a.y === sourceCity.y);
       if (!army) return { error: 'Aucune armée disponible pour transporter (créez une armée au point de ralliement)', status: 400 };
-      const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } });
+      // Marché et Comptoir de la ville, Avant-poste du désert de la capitale (bâtiment « capitale seulement »)
+      const cityBuildings = await buildingsWithCapital(tx, { ...sourceCity, buildings: await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } }) });
       const transportMultiplier = (1 + getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('../services/bastionService').carryMult(req.user.playerId));   // + Bastion d'alliance
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      // vitesse : Cartographie, Bastion d'alliance et Irrigation de la ville de départ, comme /army/:id/transport
-      const speedPct = T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct') + (await require('../services/bastionService').speedPct(req.user.playerId)) + fx.marchSpeedBonusPct(cityBuildings);
+      // vitesse : Cartographie, Bastion d'alliance et Irrigation de la capitale (elle accélère tous les convois du joueur)
+      const speedPct = T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct') + (await require('../services/bastionService').speedPct(req.user.playerId)) + (await require('../services/armyService').playerMarchPct(tx, req.user.playerId));
       const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction), speedPct);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
@@ -227,10 +228,11 @@ router.get('/routes', auth, async (req, res) => {
     const [routes, convoys, cities] = await Promise.all([
       prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId }, orderBy: { createdAt: 'asc' } }),
       prisma.tradeConvoy.findMany({ where: { playerId: req.user.playerId }, orderBy: { arrivalAt: 'asc' } }),
-      prisma.city.findMany({ where: { playerId: req.user.playerId }, select: { id: true, name: true, maxStorage: true, maxFoodStorage: true } })
+      prisma.city.findMany({ where: { playerId: req.user.playerId }, select: { id: true, name: true, buildings: { select: { key: true, level: true } } } })
     ]);
     const pct = MS.routePct();
-    res.json({ routes, convoys, perSend: Object.fromEntries(cities.map(c => [c.id, { other: Math.floor(c.maxStorage * pct), food: Math.floor(c.maxFoodStorage * pct) }])), rules: { ...config.market.routes, pctPerSend: Math.round(pct * 10000) / 100 } });
+    // charge d'un envoi : celle des convois (Dépôt et Silo de la ville seuls, sans les Grands : recommandation 12)
+    res.json({ routes, convoys, perSend: Object.fromEntries(cities.map(c => [c.id, MS.routeSendCap(c.buildings)])), rules: { ...config.market.routes, pctPerSend: Math.round(pct * 10000) / 100 } });
   } catch (e) { sendError(res, e); }
 });
 // Une seule route active par ville de départ et par ressource : 1/12 du stockage toutes les 2 h vaut pour la ville

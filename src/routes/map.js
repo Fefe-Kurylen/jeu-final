@@ -36,7 +36,7 @@ async function getWorldSize() {
 
 router.get('/world/info', async (req, res) => {
   // Rules the client displays (never computed client-side): city tiers by Main Hall level, Main Hall cap of a secondary city
-  const rules = { healingBedsPerLevel: config.wounded.bedsPerLevel, cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport,
+  const rules = { cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport,
     // siège et chute des villes (octobre 2026)
     siege: { campMinutes: config.combat.siege.campMinutes, minEngines: config.combat.siege.minEngines, engineWallMult: config.combat.siege.wallShield.engineMult, soldierWallMult: config.combat.siege.wallShield.soldierMult, fallAssaults: config.combat.fall.assaults, fallExtraAssaults: config.combat.fall.extraAssaults, wallHealthRegenHours: config.combat.fall.regenHours, pillagePct: config.combat.fall.pillagePct } };
   try {

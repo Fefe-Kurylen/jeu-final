@@ -2899,7 +2899,7 @@ function showMapInfoPanel(x, y, tile) {
     panel.style.display = 'flex';
   } else if (tile.type === 'ARMY') {
     const mine = tile.ownerId === player?.id;
-    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour piller', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
+    const what = { MOVING: 'en marche', ATTACKING: 'en route pour attaquer', RAIDING: 'en route pour un raid', RETURNING: 'sur le chemin du retour', SPYING: 'en mission d\'espionnage', TRANSPORTING: 'convoi en route', SUPPORTING: 'renfort en route', RALLY_JOIN: 'rejoint un rassemblement', RALLY_WAIT: 'attend le départ du rassemblement', RALLY_MARCH: 'rassemblement en route', STATIONED: 'en renfort dans une ville alliée', HARVESTING: 'récolte un point', FOUNDING: 'fonde une ville', BESIEGING: 'assiège une ville', IDLE: 'à l\'arrêt' }[tile.status] || '';
     content.innerHTML = `
       <h3>${resIconHtml('army')} ${escapeHtml(tile.name || 'Armée')}</h3>
       <p>${mine ? 'Votre armée' : `Armée de ${escapeHtml(tile.ownerName || 'un autre joueur')}`}${what ? ' — ' + what : ''}</p>
@@ -3059,10 +3059,10 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
       <button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ cityId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: ${chatJsArg(tile.name || 'cette ville')} })">${resIconHtml('spy')} Espionner</button>
       ${canAttack ? `
         <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
-        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('gold')} Piller</button>
+        <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('bolt')} Raid</button>
       ` : `
         <button class="btn btn-danger" disabled title="Impossible d'attaquer un allié">${resIconHtml('attack')} Attaquer</button>
-        <button class="btn btn-raid" disabled title="Impossible de piller un allié">${resIconHtml('gold')} Piller</button>
+        <button class="btn btn-raid" disabled title="Impossible de lancer un raid sur un allié">${resIconHtml('bolt')} Raid</button>
       `}
       ${canTransport ? `
         <button class="btn btn-success" onclick="sendResourcesFromMap('${tile.id}', ${escapeHtml(JSON.stringify(tile.name || ''))})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('send')} Envoyer ressources</button>
@@ -3355,8 +3355,9 @@ function raidFromMap(cityId) {
   if (army) {
     document.getElementById('modal-body').innerHTML = `
       <h3>Confirmer le raid</h3>
-      <p>Envoyer <strong>${escapeHtml(army.name)}</strong> piller cette ville ?</p>
-      <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller!</button>
+      <p>Envoyer <strong>${escapeHtml(army.name)}</strong> en raid sur cette ville ?</p>
+      <p class="diplo-help">Un raid harcèle l'ennemi : petit butin (une part de ce que vos soldats portent, hors cachette), et un seul raid par jour de votre part sur une même ville.</p>
+      <button onclick="confirmRaidFromMap('${army.id}', '${cityId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">${resIconHtml('bolt')} Lancer le raid</button>
       <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
     `;
     document.getElementById('modal').style.display = 'flex';
