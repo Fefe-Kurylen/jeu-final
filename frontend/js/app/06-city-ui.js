@@ -4,6 +4,25 @@
 // l'ordre de chargement dans index.html doit être respecté.
 // ============================================================
 // ========== WOUNDED UNITS ==========
+// Décision du 30 octobre 2026 (services/woundedService.js) : une seule Tente de soins, dans la capitale, pour les blessés de
+// toutes les villes. Un blessé attend (il mange comme un soldat) jusqu'à ce que le joueur paie son soin ; au lit, il guérit
+// après les soins déjà lancés, puis rejoint la garnison de sa ville. Les prix et les durées viennent du serveur.
+function healingTabHtml(level) {
+  const W = player?.economy?.wounded || {};
+  const civ = factionBonusPct(player?.faction, 'woundedConversion', player?.faction === 'GREEK' ? 15 : 0);
+  const rate = Math.round(Math.min(W.maxRate, W.baseRate + level * W.bonusPerHealingLevel + civ / 100) * 100);
+  const gold = W.instantHealGoldPerTier || {};
+  return `
+          <div class="special-tab-content">
+            <h4>${resIconHtml('endurance')} Tente de soins</h4>
+            <p>${rate} % des pertes de toutes vos villes reviennent blessées${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}. Un blessé attend qu'on paie son soin, et mange en attendant comme un soldat.</p>
+            <p>Un soin coûte ${W.healCostPct} % du recrutement de l'unité (pris dans toutes vos villes) et dure ${W.healTimePctOfTraining} % de sa formation, ${Math.round((1 - W.healLevelReduction) * 100)} % de moins par niveau de tente ; les soins se suivent. Soin immédiat des blessés au lit : ${gold.base} / ${gold.intermediate} / ${gold.elite} or par unité (base / intermédiaire / élite et engins).</p>
+            <p style="font-size:11px">Capacité : <strong>${formatNum(level * (W.bedsPerLevel || 0))}</strong> lits pour toutes vos villes.</p>
+            <div id="wounded-list"><p style="color:var(--text-muted);font-size:11px;text-align:center;">Chargement…</p></div>
+          </div>
+        `;
+}
+
 async function loadWounded() {
   if (!currentCity) return;
 
@@ -20,6 +39,9 @@ async function loadWounded() {
   }
 }
 
+// Prix d'un soin, en rouge ce qui manque dans toutes les villes réunies
+const healCostHtml = (cost) => RES_KEYS.filter(r => cost[r] > 0).map(r => `<span class="${stockOf(r) >= cost[r] ? '' : 'missing'}">${resIconHtml(r)}${formatNum(cost[r])}</span>`).join(' ');
+
 function renderWounded(wounded) {
   const el = document.getElementById('wounded-list');
   if (!el) return;
@@ -29,54 +51,72 @@ function renderWounded(wounded) {
     return;
   }
 
-  // Lits de la Tente (règle du serveur, /api/world/info) ; les blessés au-delà attendent en file
-  const tentLevel = (currentCity?.buildings || []).find(b => b.key === 'HEALING_TENT')?.level || 0;
-  const beds = tentLevel * (Number(window.worldRules?.healingBedsPerLevel) || 200);
+  // Lits de la tente de la capitale, pour toutes les villes
+  const capital = (cities || []).find(c => c.isCapital) || currentCity;
+  const tentLevel = (capital?.buildings || []).find(b => b.key === 'HEALING_TENT')?.level || 0;
+  const beds = tentLevel * (player?.economy?.wounded?.bedsPerLevel || 0);
   const inBeds = wounded.reduce((s, w) => s + (w.count || 0), 0), waiting = wounded.reduce((s, w) => s + (w.waiting || 0), 0);
-  const askHelp = inBeds > 0 && currentCity && typeof helpAskButton === 'function' ? helpAskButton('HEAL', currentCity.id) : '';
-  el.innerHTML = `<p style="font-size:11px;margin:0 0 6px">Lits : <strong>${formatNum(inBeds)} / ${formatNum(beds)}</strong>${waiting ? ` · <strong>${formatNum(waiting)}</strong> en attente d'un lit` : ''} ${askHelp}</p>` + wounded.map(w => {
-    const timeLeft = Math.max(0, w.timeToHeal || 0);
-    const minutes = Math.floor(timeLeft / 60000);
-    const seconds = Math.floor((timeLeft % 60000) / 1000);
-
-    return `
-      <div class="wounded-item">
-        <span class="wounded-icon">${resIconHtml('endurance')}</span>
-        <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}${w.waiting ? ` <small>+ ${w.waiting} en attente</small>` : ''}</span>
-        <span class="wounded-time">${w.count > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : 'en attente'}</span>
-        ${w.count > 0 ? `<button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner les blessés au lit (${w.count} or)">${resIconHtml('gold')}</button>` : ''}
-      </div>
-    `;
+  const several = (cities || []).length > 1;
+  // aide d'alliance : une demande par ville dont des blessés sont au lit
+  const askHelp = typeof helpAskButton === 'function' ? [...new Set(wounded.filter(w => w.count > 0).map(w => w.cityId))].map(id => helpAskButton('HEAL', id)).join('') : '';
+  el.innerHTML = `<p style="font-size:11px;margin:0 0 6px">Lits : <strong>${formatNum(inBeds)} / ${formatNum(beds)}</strong>${waiting ? ` · <strong>${formatNum(waiting)}</strong> en attente d'un soin` : ''} ${askHelp}</p>` + wounded.map(w => {
+    const where = several ? ` <small>(${escapeHtml(w.cityName || '')})</small>` : '';
+    const inBed = w.count > 0 ? `
+        <div class="wounded-item">
+          <span class="wounded-icon">${resIconHtml('endurance')}</span>
+          <span class="wounded-count">${w.count}x ${escapeHtml(w.unitName || w.unitKey)}${where} au lit</span>
+          <span class="wounded-time">${formatDuration(Math.ceil((w.timeToHeal || 0) / 1000))}</span>
+          <button class="btn-small" onclick="healWounded('${w.cityId}', '${w.unitKey}')" title="Soigner tout de suite (${w.instantGold} or)">${resIconHtml('gold')} ${formatNum(w.instantGold)}</button>
+        </div>` : '';
+    const queue = w.waiting > 0 ? `
+        <div class="wounded-item waiting">
+          <span class="wounded-icon">${resIconHtml('endurance')}</span>
+          <span class="wounded-count">${w.waiting}x ${escapeHtml(w.unitName || w.unitKey)}${where} en attente</span>
+          ${w.healable > 0
+            ? `<span class="wounded-time">${healCostHtml(w.healCost)} · ${formatDuration(w.healSeconds)}</span>
+          <button class="btn-small ${canPayCost(w.healCost) ? '' : 'disabled'}" onclick="startHeal('${w.cityId}', '${w.unitKey}')" title="Soigner ${w.healable} blessé${w.healable > 1 ? 's' : ''}">Soigner ${w.healable}</button>`
+            : '<span class="wounded-time">tous les lits sont pris</span>'}
+        </div>` : '';
+    return inBed + queue;
   }).join('');
 }
 
-async function healWounded(unitKey) {
-  if (!currentCity) return;
-  if (_actionInProgress) return;
+async function woundedAction(cityId, path, unitKey) {
+  if (_actionInProgress) return null;
   _actionInProgress = true;
   try {
-    const res = await fetch(`${API}/api/city/${currentCity.id}/wounded/heal`, {
+    const res = await fetch(`${API}/api/city/${cityId}/wounded/${path}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ unitKey })
     });
-
-    const data = await res.json();
-    if (res.ok) {
-      showToast(`${data.healed} unités soignées! (-${data.goldSpent} or)`, 'success');
-      loadWounded();
-      loadPlayer(); // Refresh gold
-    } else {
-      showToast(data.error || 'Erreur', 'error');
-    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'Erreur', 'error'); return null; }
+    return data;
   } catch (e) {
     showToast('Erreur réseau', 'error');
+    return null;
   } finally {
     _actionInProgress = false;
   }
+}
+
+// Soin payé en ressources (stock de toutes les villes) : les blessés prennent un lit
+async function startHeal(cityId, unitKey) {
+  const data = await woundedAction(cityId, 'start', unitKey);
+  if (!data) return;
+  showToast(data.message || 'Soin lancé', 'success');
+  await loadCities();   // le prix est parti des villes
+  loadWounded();
+}
+
+// Soin immédiat des blessés au lit, en or
+async function healWounded(cityId, unitKey) {
+  const data = await woundedAction(cityId, 'heal', unitKey);
+  if (!data) return;
+  showToast(`${data.healed} unités soignées ! (-${data.goldSpent} or)`, 'success');
+  loadWounded();
+  loadPlayer(); // Refresh gold
 }
 
 // ========== TABS ==========
