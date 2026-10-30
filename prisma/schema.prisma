@@ -355,6 +355,8 @@ model HeroItem {
   stats   Json?
 
   hero Hero @relation(fields: [heroId], references: [id], onDelete: Cascade)
+
+  @@index([heroId])
 }
 
 model WoundedUnit {
@@ -394,6 +396,7 @@ model BattleReport {
 
   @@index([playerId, createdAt])
   @@index([attackerId, defenderId, createdAt])
+  @@index([createdAt], type: Brin) // purge horaire par date (table en ajout seul)
 }
 
 model SpyReport {
@@ -417,6 +420,7 @@ model SpyReport {
 
   @@index([playerId, createdAt])
   @@index([targetPlayerId])
+  @@index([createdAt], type: Brin)
 }
 
 model ResourceNode {
@@ -500,6 +504,8 @@ model AllianceMember {
 
   alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
   player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([allianceId])
 }
 
 model AllianceDiplomacy {
@@ -669,6 +675,7 @@ model Notification {
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@index([playerId, createdAt])
+  @@index([createdAt], type: Brin)
 }
 
 model PushToken {
@@ -713,6 +720,7 @@ model AnalyticsEvent {
 
   @@index([event, createdAt])
   @@index([playerId, createdAt])
+  @@index([createdAt], type: Brin)
 }
 
 // ============== TECHNOLOGIES (recherche à l'Académie, data/technologies.json) ==============

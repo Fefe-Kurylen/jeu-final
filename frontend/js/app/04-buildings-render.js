@@ -16,9 +16,9 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   }
   // Chantier peint (guide § S10-S11) : nouveau bâtiment → sprite du chantier de la civilisation ; amélioration → bâtiment
   // + échafaudage de la civilisation ; sans image livrée, le bâtiment clignote comme avant
-  const siteUrl = isBuilding && level === 0 && typeof buildingSiteUrl === 'function' ? buildingSiteUrl(key) : null;
+  const siteUrl = isBuilding && level === 0 ? buildingSiteUrl(key) : null;
   const site = siteUrl ? getSprite(siteUrl) : null;
-  const scaffoldSrc = isBuilding && !site && typeof scaffoldUrl === 'function' ? scaffoldUrl(level || 1) : null;
+  const scaffoldSrc = isBuilding && !site ? scaffoldUrl(level || 1) : null;
   const scaffold = scaffoldSrc ? getSprite(scaffoldSrc) : null;
   if (isBuilding && !site && !scaffold) cityCtx.globalAlpha = 0.6 + Math.sin(Date.now() / 150) * 0.2;   // chantier : le bâtiment pulse
   const sprite = site || getSprite(buildingSpriteUrl(key, level));
@@ -26,7 +26,7 @@ function draw25DBuilding(x, y, size, key, level, isHovered, isBuilding) {
   cityCtx.globalAlpha = 1;
   if (scaffold) drawSprite(cityCtx, scaffold, x, y, size * 1.7, spriteVariant(false));
   // Badge de niveau au coin droit de la parcelle, dans la couche d'overlay (jamais masqué par un voisin)
-  if (level > 0 && (typeof isoShowBadges !== 'function' || isoShowBadges(isHovered))) isoOverlay(() => drawTravianLevelBadge(x, y, bw, 0, level, isHovered, true, typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.78, size * 0.39) : { x: x + size * 0.62, y: y + size * 0.1, radius: Math.max(8, Math.min(13, size * 0.3)) }));
+  if (level > 0 && isoShowBadges(isHovered)) { const badge = isoBadgeSpec(x, y, size * 0.78, size * 0.39); isoOverlay(() => drawTravianLevelBadge(level, isHovered, badge)); }
   if (isBuilding) isoOverlay(() => drawBuildIndicator(cityCtx, x, y - size * 1.05 + Math.sin(Date.now() / 200) * 3, Math.max(16, size * 0.36)));
 }
 
@@ -40,10 +40,9 @@ function drawBuildIndicator(ctx, x, y, s) {
 let isoOverlayQueue = null;
 function isoOverlay(fn) { if (isoOverlayQueue) isoOverlayQueue.push(fn); else fn(); }
 
-function drawTravianLevelBadge(x, y, bw, bh, level, isHovered, canUpgrade = true, place = null) {
-  const badgeX = place ? place.x : x + bw * 0.6;
-  const badgeY = place ? place.y : y - bh * 0.3;
-  const badgeRadius = place ? place.radius : 12;
+// Badge de niveau ; place = { x, y, radius } (isoBadgeSpec)
+function drawTravianLevelBadge(level, isHovered, place) {
+  const badgeX = place.x, badgeY = place.y, badgeRadius = place.radius;
   const fontPx = Math.round(badgeRadius * (level >= 10 ? 0.92 : 1.08));
 
   // Travian Legends style: blue circle with white text (like screenshot)
@@ -113,112 +112,108 @@ function showClickRipple(x, y) {
 
 function onCityClick(e) {
   if (!currentCity) return; // Guard: city data not loaded yet
-  if (e && e.type === 'click' && typeof isoIgnoreClick === 'function' && isoIgnoreClick()) return;   // tap déjà traité ou déplacement
-  if (cityHoveredSlot === null) { if (typeof hideCityActions === 'function') hideCityActions(); return; }   // toucher sur le terrain : referme la bulle
+  if (e && e.type === 'click' && isoIgnoreClick()) return;   // tap déjà traité ou déplacement
+  if (cityHoveredSlot === null) { hideCityActions(); return; }   // toucher sur le terrain : referme la bulle
   // Feedback visuel de clic
   const canvasRect = cityCanvas.getBoundingClientRect();
   showClickRipple(e.clientX - canvasRect.left, e.clientY - canvasRect.top);
   // Bulles d'action au-dessus de l'emplacement (Améliorer / Construire, Recruter, Infos…), façon Rise of Kingdoms
-  if (typeof showCityActions === 'function') showCityActions(cityHoveredSlot);
-  else if (cityHoveredSlot >= 100) openFieldBuildPanel(cityHoveredSlot);
-  else openBuildPanel(cityHoveredSlot);
+  showCityActions(cityHoveredSlot);
 }
 
+// Infobulle de survol (souris) : contenu et taille recalculés seulement quand l'emplacement ou les données de la ville
+// changent ; sur le même emplacement, les mouvements suivants ne font que la déplacer (une écriture par image, sans
+// relire la mise en page)
+const cityTip = { slot: null, city: null, w: 0, h: 0, box: null, x: 0, y: 0, raf: 0 };
 function showCityTooltip(mouseX, mouseY, slotNum) {
   const tooltip = document.getElementById('city-tooltip');
   if (!tooltip) return;
-
-  const slot = citySlots.find(s => s.slot === slotNum);
-
-  let html = '';
-
-  if (slot?.isField || slot?.isVillageCenter) {
-    // Champ (même scène que la ville)
-    if (slot?.isVillageCenter) {
-      html = `
-        <h4><span class="tt-icon">${resIconHtml('city')}</span> Centre du Village</h4>
-        <p class="tt-hint">Cliquez pour voir les bâtiments</p>
-      `;
-    } else if (slot?.isField) {
-      const fieldIcons = { FARM: resIconHtml('food'), LUMBER: resIconHtml('wood'), QUARRY: resIconHtml('stone'), IRON_MINE: resIconHtml('iron') };
-      const fieldNames = {
-        FARM: 'Champ de blé',
-        LUMBER: 'Scierie',
-        QUARRY: 'Carrière de pierre',
-        IRON_MINE: 'Mine de fer'
-      };
-      const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
-      const level = building?.level || 0;
-      const production = level > 0 ? getProductionAtLevel(slot.fieldType, level) : 0;
-      const cvMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-      const cvMainHallLevel = cvMainHall?.level || 1;
-      const cvFieldDef = buildingsData?.find(b => b.key === slot.fieldType);
-      const cvFieldMax = cvFieldDef?.maxLevel || 20;
-      const cvEffectiveMax = Math.min(cvFieldMax, cvMainHallLevel);
-
-      html = `
-        <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || resIconHtml('fields')}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
-        <p class="tt-level">Niveau ${level}/${cvEffectiveMax}</p>
-        ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
-        <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= cvEffectiveMax ? (level >= cvFieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${cvMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
-      `;
-    }
-  } else {
-    // Vue ville - style Travian
-    const building = getBuildingAtSlot(slotNum);
-
-    if (building) {
-      const def = buildingsData?.find(b => b.key === building.key);
-      const maxLevel = def?.maxLevel || 20;
-      const ttMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-      const ttMainHallLevel = ttMainHall?.level || 1;
-      const ttEffectiveMax = building.key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, ttMainHallLevel);
-      const production = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(building.key) ? getProductionAtLevel(building.key, building.level) : 0;
-      const effect = getBuildingEffect(building.key, building.level);
-
-      html = `
-        <h4><span class="tt-icon">${buildingIconHtml(building.key)}</span> ${getBuildingName(building.key)}</h4>
-        <p class="tt-level">Niveau ${building.level}/${ttEffectiveMax}</p>
-        ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
-        ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
-        <p class="tt-hint">${building.level < ttEffectiveMax ? 'Cliquez pour améliorer' : building.level >= maxLevel ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${ttMainHallLevel})`}</p>
-      `;
-    } else if (slot?.fixed) {
-      const mainHall = getBuildingAtSlot(0);
-      const level = mainHall?.level || 1;
-      html = `
-        <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Bâtiment principal</h4>
-        <p class="tt-level">Niveau ${level}/20</p>
-        <p class="tt-hint">Cliquez pour améliorer</p>
-      `;
-    } else {
-      html = `
-        <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""></span> Emplacement libre</h4>
-        <p class="tt-hint">Cliquez pour construire un bâtiment</p>
-      `;
-    }
+  cityTip.x = mouseX; cityTip.y = mouseY;
+  if (cityTip.slot !== slotNum || cityTip.city !== currentCity || tooltip.style.display === 'none') {
+    tooltip.innerHTML = cityTooltipHtml(slotNum);
+    tooltip.style.display = 'block';
+    const r = tooltip.getBoundingClientRect();
+    cityTip.slot = slotNum; cityTip.city = currentCity; cityTip.w = r.width; cityTip.h = r.height;
+    cityTip.box = cityCanvas.parentElement.getBoundingClientRect();
+    placeCityTooltip(tooltip);
+    return;
   }
+  if (!cityTip.raf) cityTip.raf = requestAnimationFrame(() => { cityTip.raf = 0; if (cityTip.slot !== null) placeCityTooltip(tooltip); });
+}
 
-  tooltip.innerHTML = html;
-  tooltip.style.display = 'block';
-
-  // Positionner le tooltip sous le curseur avec animation
-  const canvasRect = cityCanvas.parentElement.getBoundingClientRect();
-  const tooltipRect = tooltip.getBoundingClientRect();
-
-  let left = mouseX - canvasRect.left + 10;
-  let top = mouseY - canvasRect.top + 20;
-
-  // Éviter que le tooltip sorte de l'écran
-  if (left + tooltipRect.width > canvasRect.width - 10) {
-    left = mouseX - canvasRect.left - tooltipRect.width - 10;
-  }
-  if (top + tooltipRect.height > canvasRect.height - 10) {
-    top = mouseY - canvasRect.top - tooltipRect.height - 20;
-  }
-
+// Positionner le tooltip sous le curseur, sans sortir du cadre de la vue
+function placeCityTooltip(tooltip) {
+  const box = cityTip.box;
+  let left = cityTip.x - box.left + 10;
+  let top = cityTip.y - box.top + 20;
+  if (left + cityTip.w > box.width - 10) left = cityTip.x - box.left - cityTip.w - 10;
+  if (top + cityTip.h > box.height - 10) top = cityTip.y - box.top - cityTip.h - 20;
   tooltip.style.left = `${left}px`;
   tooltip.style.top = `${top}px`;
+}
+
+function cityTooltipHtml(slotNum) {
+  const slot = citySlots.find(s => s.slot === slotNum);
+
+  if (slot?.isField) {
+    // Champ (même scène que la ville)
+    const fieldIcons = { FARM: resIconHtml('food'), LUMBER: resIconHtml('wood'), QUARRY: resIconHtml('stone'), IRON_MINE: resIconHtml('iron') };
+    const fieldNames = {
+      FARM: 'Champ de blé',
+      LUMBER: 'Scierie',
+      QUARRY: 'Carrière de pierre',
+      IRON_MINE: 'Mine de fer'
+    };
+    const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
+    const level = building?.level || 0;
+    const production = level > 0 ? getProductionAtLevel(slot.fieldType, level) : 0;
+    const cvMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+    const cvMainHallLevel = cvMainHall?.level || 1;
+    const cvFieldDef = buildingsData?.find(b => b.key === slot.fieldType);
+    const cvFieldMax = cvFieldDef?.maxLevel || 20;
+    const cvEffectiveMax = Math.min(cvFieldMax, cvMainHallLevel);
+
+    return `
+      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || resIconHtml('fields')}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
+      <p class="tt-level">Niveau ${level}/${cvEffectiveMax}</p>
+      ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
+      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= cvEffectiveMax ? (level >= cvFieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${cvMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
+    `;
+  }
+
+  // Vue ville - style Travian
+  const building = getBuildingAtSlot(slotNum);
+
+  if (building) {
+    const def = buildingsData?.find(b => b.key === building.key);
+    const maxLevel = def?.maxLevel || 20;
+    const ttMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
+    const ttMainHallLevel = ttMainHall?.level || 1;
+    const ttEffectiveMax = building.key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, ttMainHallLevel);
+    const production = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(building.key) ? getProductionAtLevel(building.key, building.level) : 0;
+    const effect = getBuildingEffect(building.key, building.level);
+
+    return `
+      <h4><span class="tt-icon">${buildingIconHtml(building.key)}</span> ${getBuildingName(building.key)}</h4>
+      <p class="tt-level">Niveau ${building.level}/${ttEffectiveMax}</p>
+      ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
+      ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
+      <p class="tt-hint">${building.level < ttEffectiveMax ? 'Cliquez pour améliorer' : building.level >= maxLevel ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${ttMainHallLevel})`}</p>
+    `;
+  }
+  if (slot?.fixed) {
+    const mainHall = getBuildingAtSlot(0);
+    const level = mainHall?.level || 1;
+    return `
+      <h4><span class="tt-icon">${resIconHtml('city')}</span> Bâtiment principal</h4>
+      <p class="tt-level">Niveau ${level}/20</p>
+      <p class="tt-hint">Cliquez pour améliorer</p>
+    `;
+  }
+  return `
+    <h4><span class="tt-icon">${resIconHtml('build')}</span> Emplacement libre</h4>
+    <p class="tt-hint">Cliquez pour construire un bâtiment</p>
+  `;
 }
 
 // Helper pour obtenir l'effet d'un bâtiment (39 bâtiments)
@@ -277,5 +272,6 @@ function getBuildingEffect(key, level) {
 function hideCityTooltip() {
   const tooltip = document.getElementById('city-tooltip');
   if (tooltip) tooltip.style.display = 'none';
+  cityTip.slot = null;
 }
 

@@ -11,7 +11,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
   // Sprite 2.5D (assets/images/3d/fields/<biome>/<TYPE>_<palier>.webp) : largeur 1,5·size, losange au sol de
   // ±0.577·size en x et ±0.288·size en y qui recouvre la cellule ; l'ombre portée fait partie du rendu
   // Champ en chantier peint (guide § S10) : à la place de la parcelle vide pendant la première construction
-  const siteUrl = isBuilding && level === 0 && typeof fieldSiteUrl === 'function' ? fieldSiteUrl(fieldType) : null;
+  const siteUrl = isBuilding && level === 0 ? fieldSiteUrl(fieldType) : null;
   const sprite = level > 0 ? getSprite(fieldSpriteUrl(fieldType, level)) : (siteUrl ? getSprite(siteUrl) : null);
   if (isHovered) {   // halo doré au sol
     cityCtx.fillStyle = 'rgba(255,215,0,0.2)';
@@ -30,7 +30,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     const plot = getSprite(plotSpriteUrl((Math.round(slot.gx || 0) * 3 + Math.round(slot.gy || 0) * 5 + 10) & 1));
     if (plot) drawSprite(cityCtx, plot, x, y, size * 1.5, spriteVariant(false));
     cityCtx.beginPath(); cityCtx.moveTo(x - size * 0.577, y); cityCtx.lineTo(x, y - size * 0.288); cityCtx.lineTo(x + size * 0.577, y); cityCtx.lineTo(x, y + size * 0.288); cityCtx.closePath();
-    const soil = typeof hasPaintedTexture === 'function' && hasPaintedTexture('soil_tilled');   // terre labourée peinte quand elle existe
+    const soil = hasPaintedTexture('soil_tilled');   // terre labourée peinte quand elle existe
     if (soil) fillTextured(cityCtx, 'soil_tilled', night ? 'rgba(20,16,10,0.5)' : 'rgba(110,88,60,0.1)', 1);
     else { cityCtx.fillStyle = plot ? (night ? 'rgba(40,36,30,0.45)' : 'rgba(110,88,60,0.22)') : (night ? 'rgba(40,36,30,0.75)' : 'rgba(110,88,60,0.55)'); cityCtx.fill(); }
     if (isHovered) { cityCtx.shadowColor = '#ffd700'; cityCtx.shadowBlur = 15; }
@@ -44,7 +44,8 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
     cityCtx.fillText('+', x, y);
   }
   // Couche d'overlay (dessinée après tous les sprites) : production, « + », badge de niveau, chantier
-  const showBadges = typeof isoShowBadges !== 'function' || isoShowBadges(isHovered);
+  const showBadges = isoShowBadges(isHovered);
+  const badge = level > 0 && showBadges ? isoBadgeSpec(x, y, size * 0.73, size * 0.37) : null;
   isoOverlay(() => {
     const time = Date.now() / 1000;   // lu à chaque image : les animations ne sont pas figées dans la couche statique
     if (level > 0 && !isBuilding && showBadges) {   // indicateur de production : icône 3D de la ressource, flottante
@@ -56,10 +57,7 @@ function drawFieldSlot(slot, building, isHovered, isBuilding) {
         cityCtx.globalAlpha = 1;
       }
     }
-    if (level > 0 && showBadges) {   // badge de niveau (même style que les bâtiments)
-      const spec = typeof isoBadgeSpec === 'function' ? isoBadgeSpec(x, y, size * 0.73, size * 0.37) : { x: x + size * 0.6, y: y + size * 0.08, radius: Math.max(8, Math.min(13, size * 0.26)) };
-      drawTravianLevelBadge(x, y, 0, 0, level, isHovered, true, spec);
-    }
+    if (badge) drawTravianLevelBadge(level, isHovered, badge);   // badge de niveau (même style que les bâtiments)
     if (isBuilding) {   // chantier : marteau 3D flottant et anneau de progression
       cityCtx.globalAlpha = 0.6 + Math.sin(time * 5) * 0.2;
       drawBuildIndicator(cityCtx, x, y - size * 0.55 + Math.sin(time * 8) * 3, Math.max(16, size * 0.36));

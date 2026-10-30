@@ -21,6 +21,7 @@ const { relationsOf, getRelation } = require('./diplomacyService');
 const { notify } = require('./pushService');
 const T = require('../utils/techEffects');
 const fx = require('../utils/buildingEffects');
+const { mergeUnits, applyLosses } = require('../utils/armyUnits');
 
 const B = config.bastion;
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -340,14 +341,23 @@ async function handleAttackArrival(army, sendArmyHome) {
   notify(army.ownerId, 'battle', '⛺ Camp installé', `${army.name} campe devant le Bastion : assaut dans ${config.combat.siege.campMinutes} min.`, { to: 'army', armyId: army.id });
 }
 
-const mergeUnits = (rows) => { const m = {}; for (const u of rows) if (u.count > 0) (m[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count; return Object.values(m); };
-const survival = (finalUnits, key) => { const r = finalUnits.find(u => u.key === key); return r && r.initial > 0 ? r.remaining / r.initial : 0; };
-async function applyLosses(tx, units, finalUnits) {
-  for (const u of units) {
-    const n = Math.round(u.count * survival(finalUnits, u.unitKey));
-    if (n <= 0) await tx.armyUnit.deleteMany({ where: { id: u.id } });
-    else if (n !== u.count) await tx.armyUnit.update({ where: { id: u.id }, data: { count: n } });
+// Bonus de civilisation de la garnison. Le Bastion n'est la ville de personne : jamais de bonus « chez soi » (défense
+// gauloise, attaque du Sultanat). Garnison d'une seule civilisation : ses bonus d'unités tels quels ; garnison mêlée : la
+// défense des unités en moyenne selon les soldats de chacune, sans les points de vie romains en siège (le moteur de combat
+// n'a qu'un jeu de bonus par camp). Rien ne dépend plus de l'ordre des armées en base.
+const HOME_ONLY = ['cityDefense', 'defendingCityAttack'];
+function garrisonFaction(defenders) {
+  const men = new Map();   // civilisation -> soldats
+  for (const d of defenders) {
+    const n = d.units.reduce((s, u) => s + Math.max(0, u.count), 0);
+    const f = d.owner?.faction || null;
+    if (n > 0) men.set(f, (men.get(f) || 0) + n);
   }
+  const [only] = men.keys();
+  if (men.size === 1 && only && !HOME_ONLY.some(t => getFactionBonus(only, t, factionsData))) return { faction: only, def: 1 };
+  const total = [...men.values()].reduce((s, n) => s + n, 0);
+  const def = total ? [...men].reduce((s, [f, n]) => s + n * (1 + (f ? getFactionBonus(f, 'unitDefense', factionsData) : 0) / 100), 0) / total : 1;
+  return { faction: null, def };
 }
 
 // Un rassemblement dont le groupe campe devant ce Bastion : parti (DONE) et dirigé vers lui
@@ -390,9 +400,10 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     }
     const atkTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
+    const garrison = garrisonFaction(defenders);
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, 0, attackerName, `Bastion [${b.alliance.tag}]`,
-      heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, defenders[0]?.owner?.faction || null, B.bonuses.garrisonDefensePct,
-      { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: 1 } }, { hp: maxHp * structure, maxHp });
+      heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
+      { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: garrison.def } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
     const HS = require('./heroService');
@@ -419,10 +430,10 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const reportIds = {};
     for (const id of new Set(group.map(g => g.ownerId))) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'WIN' : 'LOSE', playerId: id, attackerId: id } })).id;
     for (const id of new Set(defenders.map(d => d.ownerId))) if (!reportIds[id]) reportIds[id] = (await tx.battleReport.create({ data: { ...base, result: result.attackerWon ? 'LOSE' : 'WIN', playerId: id, attackerId: army.ownerId, defenderId: id } })).id;
-    return { b, group, defenders, result, destroyed, lives, reportIds };
+    return { b, group, result, destroyed, lives, reportIds };
   }, { timeout: 15000 });
   if (outcome.gone) { await sendHome(army, sendArmyHome, { rallyId: null }); return; }
-  const { b, group, defenders, result, destroyed, lives, reportIds } = outcome;
+  const { b, group, result, destroyed, lives, reportIds } = outcome;
   const tag = `[${b.alliance.tag}]`;
   for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });
   const members = await prisma.allianceMember.findMany({ where: { allianceId: b.allianceId }, select: { playerId: true } });
@@ -458,22 +469,31 @@ async function processBastions(now = new Date()) {
   }
 }
 
-// Garnisons qui n'ont plus lieu d'être (Bastion disparu ou rasé, joueur qui n'est plus membre ni allié) : elles rentrent
+// Garnisons qui n'ont plus lieu d'être (Bastion disparu ou rasé, joueur qui n'est plus membre ni allié) : elles rentrent.
+// Tri sur une lecture légère (relation lue une fois par paire d'alliances), armée complète chargée pour celles qui partent.
 async function releaseOrphanGarrisons() {
-  const armies = await prisma.army.findMany({ where: { status: 'STATIONED', targetBastionId: { not: null } }, include: { units: true, city: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } } }, take: 500 });
+  const armies = await prisma.army.findMany({ where: { status: 'STATIONED', targetBastionId: { not: null } }, select: { id: true, targetBastionId: true, owner: { select: { alliance: { select: { allianceId: true } } } } } });
   if (!armies.length) return 0;
-  const bastions = new Map((await prisma.bastion.findMany({ where: { id: { in: [...new Set(armies.map(a => a.targetBastionId))] } } })).map(b => [b.id, b]));
-  const { sendArmyHomeTx } = require('./armyService');
-  let n = 0;
+  const bastions = new Map((await prisma.bastion.findMany({ where: { id: { in: [...new Set(armies.map(a => a.targetBastionId))] } }, select: { id: true, status: true, allianceId: true } })).map(b => [b.id, b]));
+  const rels = new Map();
+  const leaving = new Map();   // id de l'armée -> Bastion encore là ?
   for (const a of armies) {
     const b = bastions.get(a.targetBastionId);
-    const rel = b ? await relationTo(a.owner?.alliance?.allianceId || null, b.allianceId) : null;
-    if (b && b.status !== 'DESTROYED' && (rel === 'SAME' || rel === 'ALLY')) continue;
-    await prisma.$transaction((tx) => sendArmyHomeTx(tx, a));
-    notify(a.ownerId, 'alliance', '↩️ Garnison libérée', `${a.name} quitte le Bastion (${b ? 'vous n\'êtes plus membre ni allié de son alliance' : 'il n\'existe plus'}) et rentre.`, { to: 'army', armyId: a.id });
-    n++;
+    if (b && b.status !== 'DESTROYED') {
+      const mine = a.owner?.alliance?.allianceId || null, k = `${mine}|${b.allianceId}`;
+      if (!rels.has(k)) rels.set(k, await relationTo(mine, b.allianceId));
+      if (['SAME', 'ALLY'].includes(rels.get(k))) continue;
+    }
+    leaving.set(a.id, !!b);
   }
-  return n;
+  if (!leaving.size) return 0;
+  const full = await prisma.army.findMany({ where: { id: { in: [...leaving.keys()] }, status: 'STATIONED', targetBastionId: { not: null } }, include: { units: true, city: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
+  const { sendArmyHomeTx } = require('./armyService');
+  for (const a of full) {
+    await prisma.$transaction((tx) => sendArmyHomeTx(tx, a));
+    notify(a.ownerId, 'alliance', '↩️ Garnison libérée', `${a.name} quitte le Bastion (${leaving.get(a.id) ? 'vous n\'êtes plus membre ni allié de son alliance' : 'il n\'existe plus'}) et rentre.`, { to: 'army', armyId: a.id });
+  }
+  return full.length;
 }
 
 // Bastions visibles sur la carte dans un rectangle

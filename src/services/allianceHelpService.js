@@ -13,6 +13,7 @@ const { buildingsData, technologiesData } = require('../config/gamedata');
 const KINDS = ['BUILD', 'RESEARCH', 'HEAL'];
 const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
 
+// Plus haut niveau d'Ambassade parmi les villes du joueur (l'Ambassade est un bâtiment de capitale)
 async function embassyLevelOf(playerId, db = prisma) {
   const rows = await db.cityBuilding.findMany({ where: { key: 'EMBASSY', city: { playerId } }, select: { level: true } });
   return rows.reduce((m, r) => Math.max(m, r.level), 0);
@@ -80,6 +81,10 @@ async function shortenTarget(db, req, ms) {
   return true;
 }
 
+// Une demande compte encore pour sa cible (pas de nouvelle demande) : ouverte, close hors soins, ou soins demandés il y a
+// moins de healRequestEveryHours
+const stillAsked = (r, now = Date.now()) => !r.closedAt || r.kind !== 'HEAL' || r.createdAt.getTime() > now - config.alliance.healRequestEveryHours * 3600000;
+
 // Demande de l'aide sur une cible (ou sur tout ce qui est en cours si kind est absent)
 async function requestHelp(playerId, { kind, targetId } = {}) {
   const allianceId = await allianceIdOf(playerId);
@@ -90,14 +95,17 @@ async function requestHelp(playerId, { kind, targetId } = {}) {
   let targets = await helpableTargets(playerId);
   if (kind) targets = targets.filter(t => t.kind === kind && t.targetId === targetId);
   if (kind && !targets.length) throw httpError(400, 'Rien en cours à faire accélérer ici');
-  const existing = await prisma.allianceHelpRequest.findMany({ where: { playerId, targetId: { in: targets.map(t => t.targetId) } }, select: { kind: true, targetId: true, closedAt: true, allianceId: true, createdAt: true } });
-  // une seule demande par cible et par alliance : une demande close (plafond atteint) n'est pas renouvelée. Les soins d'une
-  // ville n'ont pas d'identifiant propre (la cible est la ville) : une nouvelle demande y est possible 6 h après la précédente.
-  const healAgain = Date.now() - config.alliance.healRequestEveryHours * 3600000;
-  const asked = new Set(existing.filter(e => e.allianceId === allianceId && (!e.closedAt || e.kind !== 'HEAL' || e.createdAt.getTime() > healAgain)).map(e => `${e.kind}:${e.targetId}`));
-  const fresh = targets.filter(t => !asked.has(`${t.kind}:${t.targetId}`));
-  if (fresh.length) await prisma.allianceHelpRequest.createMany({ data: fresh.map(t => ({ allianceId, playerId, cityId: t.cityId, kind: t.kind, targetId: t.targetId, label: t.label.slice(0, 120), maxHelps })) });
-  return { created: fresh.length, already: targets.length - fresh.length, maxHelps };
+  // demandes du joueur l'une après l'autre (verrou par joueur) : un double appui ne crée pas deux demandes sur la même cible
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'help:' + playerId}))`;
+    const existing = await tx.allianceHelpRequest.findMany({ where: { playerId, targetId: { in: targets.map(t => t.targetId) } }, select: { kind: true, targetId: true, closedAt: true, allianceId: true, createdAt: true } });
+    // une seule demande par cible et par alliance : une demande close (plafond atteint) n'est pas renouvelée. Les soins
+    // d'une ville n'ont pas d'identifiant propre (la cible est la ville) : nouvelle demande possible 6 h après la précédente.
+    const asked = new Set(existing.filter(e => e.allianceId === allianceId && stillAsked(e)).map(e => `${e.kind}:${e.targetId}`));
+    const fresh = targets.filter(t => !asked.has(`${t.kind}:${t.targetId}`));
+    if (fresh.length) await tx.allianceHelpRequest.createMany({ data: fresh.map(t => ({ allianceId, playerId, cityId: t.cityId, kind: t.kind, targetId: t.targetId, label: t.label.slice(0, 120), maxHelps })) });
+    return { created: fresh.length, already: targets.length - fresh.length, maxHelps };
+  });
 }
 
 // Ferme les demandes dont la cible est finie ; renvoie les demandes ouvertes de l'alliance, vues par `viewerId`
@@ -106,9 +114,19 @@ async function openRequests(allianceId, viewerId) {
     where: { allianceId, closedAt: null }, orderBy: { createdAt: 'asc' }, take: 300,
     include: { player: { select: { id: true, name: true } }, given: { where: { helperId: viewerId }, select: { id: true } } }
   });
+  // fins des cibles lues en 3 requêtes (une par type), mêmes règles que targetEndsAt
+  const now = new Date();
+  const ids = (kind) => rows.filter(r => r.kind === kind).map(r => r.targetId);
+  const [b, s, h] = [ids('BUILD'), ids('RESEARCH'), ids('HEAL')];
+  const [builds, research, heals] = await Promise.all([
+    b.length ? prisma.buildQueueItem.findMany({ where: { id: { in: b }, status: 'RUNNING', endsAt: { gt: now } }, select: { id: true, endsAt: true } }) : [],
+    s.length ? prisma.researchQueueItem.findMany({ where: { id: { in: s }, status: 'RUNNING', endsAt: { gt: now } }, select: { id: true, endsAt: true } }) : [],
+    h.length ? prisma.woundedUnit.groupBy({ by: ['cityId'], where: { cityId: { in: h }, count: { gt: 0 }, healsAt: { gt: now } }, _max: { healsAt: true } }) : []
+  ]);
+  const ends = new Map([...builds.map(b => [`BUILD:${b.id}`, b.endsAt]), ...research.map(r => [`RESEARCH:${r.id}`, r.endsAt]), ...heals.map(w => [`HEAL:${w.cityId}`, w._max.healsAt])]);
   const out = [], stale = [];
   for (const r of rows) {
-    const endsAt = await targetEndsAt(prisma, r);
+    const endsAt = ends.get(`${r.kind}:${r.targetId}`) || null;
     if (!endsAt) { stale.push(r.id); continue; }
     out.push({ id: r.id, kind: r.kind, label: r.label, player: r.player, mine: r.playerId === viewerId, helps: r.helps, maxHelps: r.maxHelps, helped: r.given.length > 0, endsAt, createdAt: r.createdAt });
   }
@@ -141,6 +159,8 @@ async function helpOne(helperId, allianceId, requestId) {
     if (!endsAt) { await tx.allianceHelpRequest.update({ where: { id: req.id }, data: { closedAt: new Date() } }); return { skip: 'terminée' }; }
     const savedMs = Math.min(helpAmountMs(endsAt.getTime() - Date.now()), endsAt.getTime() - Date.now());
     if (!(await shortenTarget(tx, req, savedMs))) return { skip: 'terminée' };
+    // points du jour lus sous le verrou du joueur : des aides en parallèle ne dépassent pas le plafond
+    await tx.$queryRaw`SELECT id FROM "Player" WHERE id = ${helperId} FOR NO KEY UPDATE`;
     const points = (await pointsToday(tx, helperId)) + config.alliance.helpPoints <= config.alliance.helpPointsDailyCap ? config.alliance.helpPoints : 0;
     await tx.allianceHelp.create({ data: { requestId, helperId, points } });
     const helps = req.helps + 1;
@@ -179,4 +199,4 @@ async function purgeOld() {
   return (await prisma.allianceHelpRequest.deleteMany({ where: { createdAt: { lt: before } } })).count;
 }
 
-module.exports = { KINDS, helpAmountMs, helpableTargets, requestHelp, openRequests, pendingCount, help, closeForPlayer, purgeOld, embassyLevelOf, pointsToday, httpError };
+module.exports = { KINDS, helpAmountMs, helpableTargets, requestHelp, openRequests, pendingCount, help, closeForPlayer, purgeOld, embassyLevelOf, pointsToday, stillAsked, httpError };

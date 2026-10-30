@@ -41,7 +41,8 @@ async function applySubscriber(playerId, subscriber) {
   }
   await prisma.$transaction(async (tx) => {
     for (const r of rows) {
-      await tx.purchase.upsert({ where: { transactionId: r.transactionId }, update: { status: r.status, expiresAt: r.expiresAt, raw: r.raw }, create: { playerId, ...r } });
+      // un achat transféré (RevenueCat TRANSFER) passe au compte qui le détient désormais
+      await tx.purchase.upsert({ where: { transactionId: r.transactionId }, update: { playerId, status: r.status, expiresAt: r.expiresAt, raw: r.raw }, create: { playerId, ...r } });
     }
     await tx.player.update({ where: { id: playerId }, data: { premiumUntil, cosmetics: [...cosmetics] } });
   });

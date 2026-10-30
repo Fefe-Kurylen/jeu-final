@@ -44,8 +44,8 @@ function bearerToken(req) {
 async function verifyBearer(req) {
   const token = bearerToken(req);
   if (!token) return null;
-  let payload;
-  try { payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }); } catch (e) { return null; }
+  let payload = req._jwt;   // déjà vérifié par le limiteur de débit (même jeton), null s'il était invalide
+  if (payload === undefined) { try { payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }); } catch (e) { return null; } }
   if (typeof payload?.playerId !== 'string' || typeof payload?.id !== 'string') return null;
   const state = await playerState(payload.playerId);
   if (!state) return null;

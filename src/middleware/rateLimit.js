@@ -21,10 +21,11 @@ setInterval(() => {
 function clientKey(req) {
   const header = req.headers.authorization;
   if (header && header.startsWith('Bearer ')) {
-    try {
-      const payload = jwt.verify(header.slice(7), config.jwtSecret, { algorithms: ['HS256'] });
-      if (payload?.playerId) return `p:${payload.playerId}`;
-    } catch (e) { /* invalid token: fall back to the IP */ }
+    // jeton vérifié une seule fois par requête : auth et optionalAuth relisent req._jwt (null si invalide)
+    if (req._jwt === undefined) {
+      try { req._jwt = jwt.verify(header.slice(7), config.jwtSecret, { algorithms: ['HS256'] }); } catch (e) { req._jwt = null; /* invalid token: fall back to the IP */ }
+    }
+    if (req._jwt?.playerId) return `p:${req._jwt.playerId}`;
   }
   return `ip:${req.ip || req.connection?.remoteAddress || 'unknown'}`;
 }
@@ -56,22 +57,23 @@ async function clearShared(key) {
 }
 
 // One bucket per (prefix, client): a prefix must not be shared by routes with different ceilings
-const SHARED_PREFIXES = new Set(['auth', 'register', 'forgot', 'reset', 'resend', 'verify', 'admin', 'webhook', 'purchases']);
+const SHARED_PREFIXES = new Set(['auth', 'register', 'forgot', 'reset', 'resend', 'verify', 'admin', 'chatadmin', 'funnel', 'webhook', 'purchases']);
 
 const rateLimit = (maxRequests, keyPrefix = 'api', { shared = SHARED_PREFIXES.has(keyPrefix) } = {}) => async (req, res, next) => {
   const key = `${keyPrefix}:${clientKey(req)}`;
   const now = Date.now();
   const windowMs = config.rateLimit.windowMs;
   let count, resetAt;
-  if (shared) {
+  let useShared = shared;   // pour cette requête seulement : une panne passagère de la base ne coupe pas le compteur partagé
+  if (useShared) {
     try {
       ({ count, resetAt } = await hitShared(key, windowMs));
     } catch (e) {
       // The database is the limiter's store: without it, fall back to this process's own counter
-      shared = false;
+      useShared = false;
     }
   }
-  if (!shared) {
+  if (!useShared) {
     const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs };
     if (now > record.resetAt) { record.count = 0; record.resetAt = now + windowMs; }
     record.count++;

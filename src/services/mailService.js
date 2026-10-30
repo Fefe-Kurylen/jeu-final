@@ -35,6 +35,4 @@ async function sendMail({ to, subject, text, html }) {
   return { ok: false, skipped: true };
 }
 
-function configured() { return ['smtp', 'resend'].includes(config.email.provider); }
-
-module.exports = { sendMail, configured };
+module.exports = { sendMail };

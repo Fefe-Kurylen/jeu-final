@@ -130,4 +130,4 @@ async function openWorld({ setup = true } = {}) {
   ready = true;
 }
 
-module.exports = { loadWorldSeed, openWorld, isWorldReady: () => ready, worldSeed: () => Terrain.worldSeed };
+module.exports = { loadWorldSeed, openWorld, isWorldReady: () => ready };

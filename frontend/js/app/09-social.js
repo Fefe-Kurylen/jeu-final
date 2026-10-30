@@ -219,17 +219,15 @@ async function loadReports() {
     return;
   }
   if (typeof currentReportTab !== 'undefined' && currentReportTab !== 'battles') return;   // l'onglet a changé pendant le chargement
-  {
-    if (reports.length === 0) {
-      list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun rapport de bataille</p>';
-      return;
-    }
-
-    list.innerHTML = reports.map((r, idx) => renderBattleReportCard(r, idx)).join('');
-    
-    // Store reports for replay
-    window.battleReports = reports;
+  if (reports.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Aucun rapport de bataille</p>';
+    return;
   }
+
+  list.innerHTML = reports.map((r, idx) => renderBattleReportCard(r, idx)).join('');
+
+  // Store reports for replay
+  window.battleReports = reports;
 }
 
 // One battle report, readable at a glance: who, where, when, the outcome, both sides unit by unit
@@ -356,7 +354,6 @@ function showBattleReplay(reportIndex) {
       <div class="replay-arena">
         <div class="replay-side attacker-side">
           <h4><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Attaquant</h4>
-          <div class="replay-units" id="replay-attacker-units"></div>
           <div class="replay-hp-bar">
             <div class="hp-fill attacker-hp" id="attacker-hp-bar" style="width:100%"></div>
           </div>
@@ -377,7 +374,6 @@ function showBattleReplay(reportIndex) {
         
         <div class="replay-side defender-side">
           <h4><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""> Défenseur</h4>
-          <div class="replay-units" id="replay-defender-units"></div>
           <div class="replay-hp-bar">
             <div class="hp-fill defender-hp" id="defender-hp-bar" style="width:100%"></div>
           </div>

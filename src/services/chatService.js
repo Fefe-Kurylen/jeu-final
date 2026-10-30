@@ -210,7 +210,8 @@ async function overview(playerId) {
   ]);
   const readAt = (k) => reads.find(r => r.channelKey === k)?.lastReadAt || new Date(Date.now() - RETENTION_DAYS.GLOBAL * 86400000);
   const notMine = { senderId: { notIn: [playerId, ...blocked] } };
-  const count = (where) => prisma.chatMessage.count({ where: { ...where, AND: [notMine] } });
+  // compte arrêté à 100 lignes : les badges plafonnent à 99 (sans cela, tout le chat global de 7 jours à chaque relevé)
+  const count = (where) => prisma.chatMessage.count({ where: { ...where, AND: [notMine] }, take: 100 });
   const [globalUnread, allianceUnread, friendsUnread] = await Promise.all([
     count({ channel: 'GLOBAL', createdAt: { gt: readAt('global') } }),
     alliance ? count({ channel: 'ALLIANCE', allianceId: alliance.id, createdAt: { gt: readAt('alliance') } }) : 0,

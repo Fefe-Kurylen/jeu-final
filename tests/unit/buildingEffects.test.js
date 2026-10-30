@@ -26,6 +26,10 @@ test('defence, protected storage, gold, upkeep, production, transport', () => {
   assert.equal(fx.upkeepReductionPct([b('HUN_WAR_TENT', 10)]), 5);
   assert.equal(fx.productionBonusPct([b('EGYPTIAN_IRRIGATION', 7)]), 7);
   assert.equal(fx.transportBonusPct([b('MARKET', 4), b('TRADE_OFFICE', 10)]), 30);
+  assert.equal(fx.transportBonusPct([b('SULTAN_DESERT_OUTPOST', 20)]), 20);
+  assert.ok(fx.transportBonusKeys().some(([k, pct]) => k === 'SULTAN_DESERT_OUTPOST' && pct === 1));
+  assert.equal(fx.marchSpeedBonusPct([b('EGYPTIAN_IRRIGATION', 20)]), 10);
+  assert.equal(fx.marchSpeedBonusPct(undefined), 0);
 });
 
 test('rally point army slots: 1 at level 1, 3 at level 10, 5 at level 20', () => {

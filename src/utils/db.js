@@ -74,12 +74,15 @@ async function claimNode(tx, nodeId, claimant = null) {
 }
 
 // Takes up to `want` units from a node, never below zero; returns what was actually taken
+// (RETURNING voit la ligne après l'UPDATE : la prise se calcule sur le stock d'avant, lu par le CTE, comme plunderCity)
 async function takeFromNode(tx, nodeId, want) {
   const w = Math.max(0, Math.floor(Number(want) || 0));
   if (w === 0) return 0;
   const rows = await tx.$queryRaw`
-    UPDATE "ResourceNode" SET amount = amount - LEAST(amount, ${w}) WHERE id = ${nodeId} AND amount > 0
-    RETURNING LEAST(amount + LEAST(amount, ${w}), ${w}) AS taken`;
+    WITH old AS (SELECT id, amount FROM "ResourceNode" WHERE id = ${nodeId} FOR UPDATE)
+    UPDATE "ResourceNode" n SET amount = n.amount - LEAST(old.amount, ${w})
+    FROM old WHERE n.id = old.id AND old.amount > 0
+    RETURNING LEAST(old.amount, ${w}) AS taken`;
   return rows.length ? Math.floor(Number(rows[0].taken) || 0) : 0;
 }
 

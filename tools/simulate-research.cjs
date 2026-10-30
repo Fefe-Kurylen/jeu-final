@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // La recherche est-elle en adéquation avec les constructions ? Deux vérifications avec les données du jeu :
 //  1. niveau par niveau : coût et temps d'un niveau de technologie contre ceux du niveau d'Académie qui le débloque ;
-//  2. une partie simulée : un joueur qui développe sa ville uniformément (champs et Bâtiment principal au niveau de
-//     l'Académie), monte l'Académie dès qu'il le peut et recherche en parallèle avec une seule file — quand les
-//     technologies suivent-elles l'Académie, quelle part de son revenu la recherche consomme-t-elle ?
+//  2. une partie simulée aux règles du serveur : un joueur part de rien, paie ses champs, son Bâtiment principal, ses
+//     entrepôts et son Académie (deux files, stocks plafonnés, rien au-dessus du Bâtiment principal), monte l'Académie dès
+//     qu'il le peut et recherche en parallèle avec une seule file — quand les technologies suivent-elles l'Académie,
+//     quelle part de son revenu la recherche consomme-t-elle ?
 //   node tools/simulate-research.cjs                      # données actuelles
 //   node tools/simulate-research.cjs --costGrowth=1.45 --timeGrowth=1.5 --maxLevel=10 --effectScale=2   # comparaison
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -14,7 +15,8 @@ const R = path.join(__dirname, '..');
 const config = require(R + '/src/config');
 const { buildingsData } = require(R + '/src/config/gamedata');
 const T = require(R + '/src/utils/techEffects');
-const { getProductionAtLevel } = require(R + '/src/utils/calculations');
+const { getProductionAtLevel, getStorageAtLevel } = require(R + '/src/utils/calculations');
+const fx = require(R + '/src/utils/buildingEffects');
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.+)$/); return m ? [m[1], Number(m[2])] : [a, true]; }));
 const RULES = { ...T.RULES, ...(args.costGrowth ? { costGrowth: args.costGrowth } : {}), ...(args.timeGrowth ? { timeGrowth: args.timeGrowth } : {}) };
@@ -55,37 +57,93 @@ const cityCost = cityBuildings.reduce((s, b) => s + total20(b), 0) + fieldSlots.
 const cityTime = (cityBuildings.reduce((s, b) => s + time20(b), 0) + fieldSlots.reduce((s, [k, v]) => s + v.length * time20(buildingsData.find(b => b.key === k)), 0)) / config.build.maxRunning;
 console.log(`Ville entière (${cityBuildings.length} bâtiments et ${fieldSlots.reduce((s, [, v]) => s + v.length, 0)} champs au niveau 20) : ${n(cityCost)} ressources, ${hm(cityTime)} de chantier avec ${config.build.maxRunning} files. La recherche complète en représente ${(totalResearch / cityCost * 100).toFixed(0)} % des ressources et ${(totalResearchTime / cityTime * 100).toFixed(0)} % du temps.`);
 
-console.log('\n=== 2. Partie simulée : Académie montée dès que possible, une recherche à la fois, champs au niveau de l\'Académie ===');
-const FIELDS = Object.entries(config.city.fieldSlots).map(([k, v]) => [k, v.length]);
-const incomePerHour = (L) => 25 + FIELDS.reduce((s, [k, cnt]) => s + cnt * getProductionAtLevel(k, Math.max(1, Math.min(20, L)), buildingsData), 0);
+console.log('\n=== 2. Partie simulée : champs, Bâtiment principal, entrepôts et Académie payés, stocks plafonnés, deux files de construction, une de recherche ===');
+// Règles du serveur (routes/cities.js, resourceProcessor.js) : départ à 500 de chaque, Bâtiment principal 1, aucun champ ; rien
+// au-dessus du Bâtiment principal (Académie : Bât. principal 3) ; coût × 1,28 par niveau ressource par ressource (− Ingénierie) ;
+// production de base 5/5/5/10 + champs (+ Agronomie) ; stocks plafonnés par l'Entrepôt et le Silo (1 000 au moins) ; temps réduits
+// par le Bâtiment principal et l'Académie (buildingEffects). Stratégie : un entrepôt quand un coût visé ou un stock touche le
+// plafond, l'Académie dès qu'elle est permise et payable, sinon le moins cher entre le Bâtiment principal (jusqu'à 20) et le champ
+// le plus bas ; une recherche est lancée si elle laisse la moitié du prochain niveau d'Académie. Ni armée ni autre bâtiment.
+const RES = T.RESOURCES;
+const FIELD_RES = { LUMBER: 'wood', QUARRY: 'stone', IRON_MINE: 'iron', FARM: 'food' };
+const BASE_PROD = { wood: 5, stone: 5, iron: 5, food: 10 };
+const STORE_OF = { wood: 'WAREHOUSE', stone: 'WAREHOUSE', iron: 'WAREHOUSE', food: 'SILO' };
+const defOf = k => buildingsData.find(b => b.key === k);
 const effectScale = args.effectScale || 1;
-let hour = 0, res = 0, academyLevel = 1, build = null, research = null, spentBuild = 0, spentResearch = 0;
 const levels = Object.fromEntries(T.TECHS.map(t => [t.key, 0]));
-const reached = [];   // par niveau d'Académie : heure, niveaux de technologie, dépenses
-const startable = (t) => levels[t.key] < MAXL(t) && levels[t.key] + 1 <= academyLevel && (t.prereq || []).every(p => levels[p.key] >= p.level);
+const techPct = eff => T.techPct(levels, eff) * effectScale;
+const city = { MAIN_HALL: 1, ACADEMY: 0, WAREHOUSE: 0, SILO: 0 };
+const fields = Object.entries(config.city.fieldSlots).flatMap(([k, v]) => v.map(() => ({ key: k, level: 0 })));
+const stock = { wood: 500, stone: 500, iron: 500, food: 500 };
+const capOf = r => Math.max(1000, getStorageAtLevel(STORE_OF[r], city[STORE_OF[r]], buildingsData));
+const prod = {};
+const refreshProd = () => { for (const r of RES) prod[r] = (BASE_PROD[r] + fields.reduce((s, f) => s + (FIELD_RES[f.key] === r ? getProductionAtLevel(f.key, f.level, buildingsData) : 0), 0)) * (1 + techPct('productionBonusPct') / 100); };
+refreshProd();
+const buildCostOf = (k, L) => T.scaleCost(Object.fromEntries(RES.map(r => [r, Math.floor((defOf(k).costL1[r] || 0) * Math.pow(config.build.costMultiplierBase, L - 1))])), Math.max(0, 1 - techPct('buildCostReductionPct') / 100));
+const researchCostOf = (t, L) => Object.fromEntries(RES.map(r => [r, Math.floor((t.costL1[r] || 0) * Math.pow(RULES.costGrowth, L - 1))]));
+const buildSec = (k, L) => Math.max(1, Math.floor(Math.floor((defOf(k).timeL1Sec || 60) * Math.pow(config.build.timeMultiplierBase, L - 1)) * (1 - fx.buildTimeReductionPct([{ key: 'MAIN_HALL', level: city.MAIN_HALL }, { key: 'ACADEMY', level: city.ACADEMY }]) / 100)));
+const canPay = (c, keep = null) => RES.every(r => stock[r] - c[r] >= (keep ? keep[r] * 0.5 : 0));
+const running = [];   // chantiers en cours : { key, field, level, endsAt (minutes), cost }
+const busy = (key, field = null) => running.some(q => q.key === key && q.field === field);
+const startable = (t) => levels[t.key] < MAXL(t) && levels[t.key] + 1 <= city.ACADEMY && (t.prereq || []).every(p => levels[p.key] >= p.level);
 const maxed = () => T.TECHS.every(t => levels[t.key] >= MAXL(t));
-let allMaxedAt = null, academy20At = null;
-while (hour < 24 * 400 && !(academyLevel >= 20 && maxed())) {
-  res += incomePerHour(academyLevel);
-  if (build && hour >= build.endsAt) { academyLevel = build.level; build = null; reached.push({ level: academyLevel, hour, tech: { ...levels }, spentBuild, spentResearch }); if (academyLevel === 20) academy20At = hour; }
-  if (research && hour >= research.endsAt) { levels[research.key] = research.level; research = null; if (maxed() && allMaxedAt === null) allMaxedAt = hour; }
-  if (!build && academyLevel < 20) {
-    const c = bCost(academy, academyLevel + 1);
-    if (res >= c) { res -= c; spentBuild += c; build = { level: academyLevel + 1, endsAt: hour + bTime(academy, academyLevel + 1, academyLevel) / 3600 }; }
+const minField = () => Math.min(...fields.map(f => f.level));
+const nextAcademy = () => (city.ACADEMY < 20 && !busy('ACADEMY') && (city.ACADEMY === 0 ? city.MAIN_HALL >= 3 : city.ACADEMY + 1 <= city.MAIN_HALL) ? { key: 'ACADEMY', field: null, level: city.ACADEMY + 1 } : null);
+function buildChoices() {
+  const out = [], ac = nextAcademy();
+  const grow = [];
+  if (city.MAIN_HALL < 20 && !busy('MAIN_HALL')) grow.push({ key: 'MAIN_HALL', field: null, level: city.MAIN_HALL + 1 });
+  const f = fields.filter(x => x.level < Math.min(20, city.MAIN_HALL) && !busy(x.key, x)).sort((a, b) => a.level - b.level)[0];
+  if (f) grow.push({ key: f.key, field: f, level: f.level + 1 });
+  for (const g of grow) g.cost = buildCostOf(g.key, g.level);
+  grow.sort((a, b) => sum(a.cost) - sum(b.cost));
+  if (ac) ac.cost = buildCostOf('ACADEMY', ac.level);
+  // entrepôt ou silo quand un coût visé dépasse 90 % du plafond, ou qu'un stock est plein à 95 %
+  const tech = T.TECHS.filter(startable).sort((a, b) => levels[a.key] - levels[b.key])[0];
+  const wanted = [ac?.cost, ...grow.map(g => g.cost), tech ? researchCostOf(tech, levels[tech.key] + 1) : null].filter(Boolean);
+  for (const store of ['SILO', 'WAREHOUSE']) {
+    const rs = RES.filter(r => STORE_OF[r] === store);
+    const need = rs.some(r => stock[r] >= 0.95 * capOf(r) || wanted.some(c => c[r] > 0.9 * capOf(r)));
+    if (need && city[store] < Math.min(20, city.MAIN_HALL) && !busy(store)) out.push({ key: store, field: null, level: city[store] + 1, cost: buildCostOf(store, city[store] + 1) });
+  }
+  return [...out, ...(ac ? [ac] : []), ...grow];
+}
+const MIN_PER_DAY = 1440;
+let minute = 0, spentBuild = 0, spentAcademy = 0, spentResearch = 0, research = null;
+let allMaxedAt = null, academy20At = null, mainHall20At = null, fields20At = null;
+const reached = [];   // par niveau d'Académie : minute, Bâtiment principal, champs, niveaux de technologie, dépenses
+while (minute < MIN_PER_DAY * 400 && !(city.ACADEMY >= 20 && maxed())) {
+  for (const r of RES) stock[r] = Math.max(stock[r], Math.min(capOf(r), stock[r] + prod[r] / 60));
+  for (const q of running.filter(x => x.endsAt <= minute)) {
+    running.splice(running.indexOf(q), 1);
+    if (q.field) { q.field.level = q.level; refreshProd(); if (fields20At === null && minField() >= 20) fields20At = minute; } else city[q.key] = q.level;
+    if (q.key === 'MAIN_HALL' && q.level === 20) mainHall20At = minute;
+    if (q.key === 'ACADEMY') { reached.push({ level: q.level, minute, mainHall: city.MAIN_HALL, fieldMin: minField(), fieldAvg: fields.reduce((s, f) => s + f.level, 0) / fields.length, tech: { ...levels }, spentBuild, spentAcademy, spentResearch }); if (q.level === 20) academy20At = minute; }
+  }
+  if (research && research.endsAt <= minute) { levels[research.key] = research.level; research = null; refreshProd(); if (maxed() && allMaxedAt === null) allMaxedAt = minute; }
+  while (running.length < config.build.maxRunning) {
+    const c = buildChoices().find(x => canPay(x.cost));
+    if (!c) break;
+    for (const r of RES) stock[r] -= c.cost[r];
+    spentBuild += sum(c.cost); if (c.key === 'ACADEMY') spentAcademy += sum(c.cost);
+    running.push({ ...c, endsAt: minute + buildSec(c.key, c.level) / 60 });
   }
   if (!research) {
-    // la technologie la moins avancée qui peut démarrer, si elle est payable sans priver le chantier suivant
-    const nextBuild = academyLevel < 20 && !build ? bCost(academy, academyLevel + 1) : 0;
-    const cands = T.TECHS.filter(startable).sort((a, b) => levels[a.key] - levels[b.key]);
-    for (const t of cands) { const c = rCost(t, levels[t.key] + 1); if (res - c >= nextBuild * 0.5) { res -= c; spentResearch += c; research = { key: t.key, level: levels[t.key] + 1, endsAt: hour + rTime(t, levels[t.key] + 1, academyLevel) / 3600 }; break; } }
+    // la technologie la moins avancée qui peut démarrer, si elle laisse la moitié du prochain niveau d'Académie
+    const ac = nextAcademy(), keep = ac ? buildCostOf('ACADEMY', ac.level) : null;
+    for (const t of T.TECHS.filter(startable).sort((a, b) => levels[a.key] - levels[b.key])) {
+      const c = researchCostOf(t, levels[t.key] + 1);
+      if (canPay(c, keep)) { for (const r of RES) stock[r] -= c[r]; spentResearch += sum(c); research = { key: t.key, level: levels[t.key] + 1, endsAt: minute + rTime(t, levels[t.key] + 1, city.ACADEMY) / 60 }; break; }
+    }
   }
-  hour++;
+  minute++;
 }
-console.log('Académie | jour | technologies (min / moy. / max) | ressources chantier Académie | ressources recherche | part recherche');
+const day = m => (m === null ? '—' : (m / MIN_PER_DAY).toFixed(1));
+console.log('Académie | jour | Bât. principal | champs (min / moy.) | technologies (min / moy. / max) | constructions (dont Académie) | recherche | part recherche');
 for (const r of reached) {
   const vals = Object.values(r.tech); const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-  if ([2, 3, 5, 8, 10, 12, 15, 18, 20].includes(r.level)) console.log(`${String(r.level).padStart(8)} | ${(r.hour / 24).toFixed(1).padStart(5)} | ${Math.min(...vals)} / ${avg.toFixed(1)} / ${Math.max(...vals)} | ${n(r.spentBuild)} | ${n(r.spentResearch)} | ${(r.spentResearch / Math.max(1, r.spentBuild + r.spentResearch) * 100).toFixed(0)} %`);
+  if ([2, 3, 5, 8, 10, 12, 15, 18, 20].includes(r.level)) console.log(`${String(r.level).padStart(8)} | ${day(r.minute).padStart(5)} | ${String(r.mainHall).padStart(14)} | ${r.fieldMin} / ${r.fieldAvg.toFixed(1)} | ${Math.min(...vals)} / ${avg.toFixed(1)} / ${Math.max(...vals)} | ${n(r.spentBuild)} (${n(r.spentAcademy)}) | ${n(r.spentResearch)} | ${(r.spentResearch / Math.max(1, r.spentBuild + r.spentResearch) * 100).toFixed(0)} %`);
 }
-console.log(`Académie 20 atteinte au jour ${academy20At === null ? '—' : (academy20At / 24).toFixed(1)} ; toutes les technologies au maximum au jour ${allMaxedAt === null ? '— (pas dans les 400 jours)' : (allMaxedAt / 24).toFixed(1)} ; dépenses totales : chantier ${n(spentBuild)}, recherche ${n(spentResearch)} (${(spentResearch / (spentBuild + spentResearch) * 100).toFixed(0)} % du total).`);
+console.log(`Bâtiment principal 20 au jour ${day(mainHall20At)}, tous les champs au niveau 20 au jour ${day(fields20At)}, Académie 20 au jour ${day(academy20At)} ; toutes les technologies au maximum au jour ${allMaxedAt === null ? '— (pas dans les 400 jours)' : day(allMaxedAt)} ; dépenses totales : constructions ${n(spentBuild)} (dont Académie ${n(spentAcademy)}), recherche ${n(spentResearch)} (${(spentResearch / Math.max(1, spentBuild + spentResearch) * 100).toFixed(0)} % du total).`);
 const bonusAt = (key, eff) => (levels[key] * (T.techOf(key).effects[eff] || 0) * effectScale).toFixed(2);
 console.log(`Bonus en fin de simulation : production +${bonusAt('AGRONOMY', 'productionBonusPct')} %, attaque +${bonusAt('TACTICS', 'attackBonusPct')} %, défense +${bonusAt('DISCIPLINE', 'defenseBonusPct')} %, vitesse +${bonusAt('CARTOGRAPHY', 'armySpeedBonusPct')} %.`);

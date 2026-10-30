@@ -9,8 +9,6 @@ let mapDragging = false;
 let mapDragStart = { x: 0, y: 0 };
 let mapHoveredTile = null;
 let mapSelectedTile = null;
-const TILE_SIZE = 40;
-const BASE_TILE_SIZE = 48; // Base tile size for zoom calculations (average of ISO_TILE_WIDTH/HEIGHT)
 
 // ========== WORLD COORDINATE SYSTEM ==========
 // Map uses centered coordinates: -187 to +186 (374x374)
@@ -20,7 +18,6 @@ const BASE_WORLD_SIZE = 374;
 const MIN_COORD = -Math.floor(BASE_WORLD_SIZE / 2);  // -187
 const MAX_COORD = MIN_COORD + BASE_WORLD_SIZE - 1;   // +186
 let WORLD_SIZE = BASE_WORLD_SIZE;
-const WORLD_CENTER = 0; // Center is always 0,0
 
 // Update world size based on player count
 function updateWorldSize(playerCount, serverWorldSize) {
@@ -54,8 +51,6 @@ const tileImages = {
 const CAMP_SPRITES = [1, 2, 3].flatMap(l => ['', '_desert', '_snow'].map(b => `camp${l}${b}`)).concat(['ruins', 'ruins_desert', 'ruins_snow'], ['foundation', 'foundation_desert', 'foundation_snow']);
 // Icône « tribu locale » peinte (guide § S14) quand elle existe, sinon l'icône de défense
 function tribeIconHtml() { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/tribe.webp') ? '<img class="ico" src="assets/images/painted/ui/tribe.webp" alt="">' : resIconHtml('defense'); }
-const TRIBE_PREFIX = { ROM: 'ROME', GAU: 'GAUL', GRE: 'GREEK', EGY: 'EGYPT', HUN: 'HUN', SUL: 'SULTAN' };
-function tribeFactionOfUnits(units) { const k = Object.keys(units || {}).find(x => TRIBE_PREFIX[x.slice(0, 3)]); return k ? TRIBE_PREFIX[k.slice(0, 3)] : null; }
 
 // Single-flight : quel que soit le nombre d'appels concurrents (pan/zoom), un seul chargement réel
 let _tilesetAssetsPromise = null;
@@ -94,6 +89,7 @@ async function _loadTilesetAssetsOnce() {
   for (const category of Object.keys(tileImages)) {
     if (category === 'camps') continue;
     for (const name of manifest[category] || []) {
+      if (category === 'terrain' && /^(water|frozen|oasis)(_|$)/.test(name)) continue;   // l'eau fait partie du sol : jamais dessinée en sprite
       jobs.push(new Promise((resolve) => {
         const img = new Image();
         img.onload = () => { tileImages[category][name] = img; if (typeof paintedSet !== 'undefined' && paintedSet.has(`map/${category}/${name}.webp`)) tileImagePainted.add(category + '/' + name); resolve(); };
@@ -133,71 +129,37 @@ function drawTileImage(ctx, category, name, destX, destY, destW, destH) {
   return true;
 }
 
-// BIOME CONFIGURATION
-const BIOMES = {
-  // TIER 1: Forest/Grassland (center, radius 0-120)
-  forest: {
-    ground: ['#5a8c3a', '#4e7a32', '#62943e', '#568838', '#4a7230'],
-    groundDark: ['#4a7830', '#3e6a28', '#527e34', '#466c2c', '#3a6224'],
-    groundNight: ['#1a3018', '#152810', '#1c3520', '#182c18', '#122510'],
-    features: ['tree', 'mountain', 'water'],
-    skyTop: '#87CEEB',
-    skyBottom: '#5a8c3a',
-    skyTopNight: '#0a1525',
-    skyBottomNight: '#152535'
-  },
-  // TIER 2: Desert (middle ring, radius 120-200)
-  desert: {
-    ground: ['#d4c4a0', '#c9b896', '#ddd0aa', '#c4b48a', '#d9c99e'],
-    groundDark: ['#c4b490', '#b9a886', '#cdc09a', '#b4a47a', '#c9b98e'],
-    groundNight: ['#3a3530', '#352f2a', '#3f3935', '#332d28', '#3d3732'],
-    features: ['ruins', 'oasis', 'dunes', 'rocks', 'mesa'],
-    skyTop: '#f4e8d0',
-    skyBottom: '#d4c4a0',
-    skyTopNight: '#151020',
-    skyBottomNight: '#201a2a'
-  },
-  // TIER 3: Snow/Tundra (outer ring, radius 200+)
-  snow: {
-    ground: ['#e8e8e8', '#dcdcdc', '#f0f0f0', '#d8d8d8', '#eaeaea'],
-    groundDark: ['#c8c8c8', '#bcbcbc', '#d0d0d0', '#b8b8b8', '#cacaca'],
-    groundNight: ['#404858', '#3a424f', '#454d5e', '#383f4c', '#424a5a'],
-    features: ['snowtree', 'icemountain', 'frozen'],
-    skyTop: '#b8c8d8',
-    skyBottom: '#8898a8',
-    skyTopNight: '#0a1020',
-    skyBottomNight: '#1a2535'
-  }
-};
-
-const TILE_COLORS = {
-  myCity: { fill: '#d4a84b', stroke: '#8b6914', glow: '#ffd700', banner: '#ffd700' },
-  enemyCity: { fill: '#c44444', stroke: '#822222', glow: '#ff6060', banner: '#ff4444' },
-  allyCity: { fill: '#44aa88', stroke: '#228866', glow: '#66ffcc', banner: '#44ff88' },
-  neutralCity: { fill: '#888888', stroke: '#666666', glow: '#aaaaaa', banner: '#cccccc' },
-  wood: { fill: '#2d5a1e', stroke: '#1e4a12' },
-  stone: { fill: '#7a7a7a', stroke: '#5a5a5a' },
-  iron: { fill: '#5a6a7a', stroke: '#4a5a6a' },
-  food: { fill: '#8aaa40', stroke: '#6a8a20' },
-  gold: { fill: '#ffd700', stroke: '#b8860b' }
-};
-
 // Vitesse de marche selon le terrain (gué, forêt) : Terrain.moveCost, la même règle que le serveur
 
 // ========== TERRAIN ==========
 // The procedural terrain (biomes, rivers, lakes, ranges, scattered features) lives in js/shared/terrain.js,
 // shared with the server so that armies walk the same world the player sees.
-const seededRandom = Terrain.seededRandom;
-const smoothNoise = Terrain.smoothNoise;
-const hillNoise = Terrain.hillNoise;
 const getBiome = Terrain.getBiome;
-const isOnRiver = Terrain.isOnRiver;
-const isOnLake = Terrain.isOnLake;
-const isOnMountainRange = Terrain.isOnMountainRange;
-const computeTerrainType = Terrain.computeTerrainType;
-const getTerrainType = Terrain.getTerrainType;
-const multiTileTerrainCache = Terrain._cache;
-const terrainSpriteCache = new Map();
+// Terrain d'une case pour le dessin : clé numérique (mapCellKey, plus rapide que la clé texte du cache de Terrain), vidée
+// avec la carte du serveur ; une coordonnée non entière passe directement par Terrain
+const _mapTerrainCells = new Map();
+let _mapTerrainEpoch = -1;
+function getTerrainType(x, y) {
+  if ((x | 0) !== x || (y | 0) !== y) return Terrain.getTerrainType(x, y);
+  if (Terrain.epoch !== _mapTerrainEpoch) { _mapTerrainCells.clear(); _mapTerrainEpoch = Terrain.epoch; }
+  const k = mapCellKey(x, y);
+  let t = _mapTerrainCells.get(k);
+  if (t === undefined) {
+    t = Terrain.getTerrainType(x, y);
+    if (_mapTerrainCells.size >= 60000) _mapTerrainCells.clear();
+    _mapTerrainCells.set(k, t);
+  }
+  return t;
+}
+
+// Taille du canvas de la carte (net sur écrans haute densité). Réaffecter width/height vide le canvas et réalloue sa
+// mémoire : seulement quand la taille ou la densité de l'écran change vraiment (sinon la carte clignote à chaque chargement)
+function fitMapCanvas(cssW, cssH) {
+  const w = Math.max(cssW, 300), h = Math.max(cssH, 200), scale = canvasScale();
+  if (w === mapViewW && h === mapViewH && mapCanvas.width === Math.round(w * scale) && mapCanvas.height === Math.round(h * scale)) return;
+  mapViewW = w; mapViewH = h;
+  sizeCanvasForDpr(mapCanvas, mapCtx, w, h);
+}
 
 let _mapCanvasInitialized = false;
 function initMapCanvas() {
@@ -208,13 +170,9 @@ function initMapCanvas() {
 
   if (!mapCanvas || !mapCtx) return;
 
-  // Resize canvas to container with fallback dimensions
+  // Taille du conteneur (repli 800 × 600) ; onglet caché (largeur nulle) : la taille en cours est gardée, sauf la première fois
   const container = mapCanvas.parentElement;
-  const width = container.clientWidth || 800;
-  const height = container.clientHeight || 600;
-  mapViewW = Math.max(width, 300);
-  mapViewH = Math.max(height, 200);
-  sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);   // net sur écrans haute densité
+  if (container.clientWidth > 0 || !mapViewW) fitMapCanvas(container.clientWidth || 800, container.clientHeight || 600);
 
   // Only add events once
   if (!mapCanvas.hasAttribute('data-events-attached')) {
@@ -336,12 +294,7 @@ function onGlobalKeyDown(e) {
       e.preventDefault();
       toggleHelpOverlay();
       break;
-    
-    // ===== ESCAPE closes panels =====
-    case 'Escape':
-      closeAllPanels();
-      break;
-      
+
     // ===== PROFILE =====
     case 'p':
     case 'P':
@@ -379,9 +332,8 @@ function onMapKeyDown(e) {
     case '0':
       e.preventDefault();
       mapZoomLevel = 1;
-      renderMap();
-      renderMinimap();
-      updateMapUI();
+      scheduleMapRender(true);
+      scheduleMapReload(400);   // le rayon chargé dépend du zoom
       showToast('Zoom réinitialisé', 'info');
       break;
     
@@ -396,38 +348,30 @@ function onMapKeyDown(e) {
       showToast('Capitale', 'info');
       break;
     
-    // ===== WASD MOVEMENT (Travian style) =====
+    // ===== WASD MOVEMENT (Travian style) : la vue suit tout de suite, les données de la carte une fois les touches lâchées =====
     case 'w':
     case 'arrowup':
       e.preventDefault();
       mapOffsetY = Math.max(MIN_COORD, mapOffsetY - moveSpeed);
-      renderMap();
-      renderMinimap();
-      updateMapUI();
+      scheduleMapRender(true); scheduleMapReload(300);
       break;
     case 's':
     case 'arrowdown':
       e.preventDefault();
       mapOffsetY = Math.min(MAX_COORD, mapOffsetY + moveSpeed);
-      renderMap();
-      renderMinimap();
-      updateMapUI();
+      scheduleMapRender(true); scheduleMapReload(300);
       break;
     case 'a':
     case 'arrowleft':
       e.preventDefault();
       mapOffsetX = Math.max(MIN_COORD, mapOffsetX - moveSpeed);
-      renderMap();
-      renderMinimap();
-      updateMapUI();
+      scheduleMapRender(true); scheduleMapReload(300);
       break;
     case 'd':
     case 'arrowright':
       e.preventDefault();
       mapOffsetX = Math.min(MAX_COORD, mapOffsetX + moveSpeed);
-      renderMap();
-      renderMinimap();
-      updateMapUI();
+      scheduleMapRender(true); scheduleMapReload(300);
       break;
     
     // ===== GRID TOGGLE (G like Travian) =====
@@ -493,8 +437,6 @@ function closeAllPanels() {
   if (typeof closeMapPanel === 'function') closeMapPanel();
   const help = document.getElementById('help-overlay');
   if (help) help.style.display = 'none';
-  const actionPanel = document.getElementById('action-panel');
-  if (actionPanel) actionPanel.style.display = 'none';
 }
 
 // ===== HELP OVERLAY =====
@@ -750,11 +692,6 @@ function renderMapCore() {
   const tileW = ISO_TILE_WIDTH * mapZoomLevel;
   const tileH = ISO_TILE_HEIGHT * mapZoomLevel;
 
-  // Le sol couvre tout l'écran (map-world.js) ; un fond uni dessous, pour qu'aucun reste de l'image précédente ne transparaisse
-  mapCtx.fillStyle = nightMode ? '#10161c' : '#5f7a3c';
-  mapCtx.fillRect(0, 0, w, h);
-
-
   // Convert world to isometric screen coordinates
   function worldToScreen(wx, wy) {
     const dx = wx - mapOffsetX;
@@ -765,67 +702,39 @@ function renderMapCore() {
     };
   }
 
-  // Convert screen to world coordinates (tiles are drawn centred on integer coordinates)
-  function screenToWorld(sx, sy) {
-    const dx = sx - w / 2;
-    const dy = sy - h / 2;
-    return {
-      x: Math.round(mapOffsetX + (dx / tileW + dy / tileH)),
-      y: Math.round(mapOffsetY + (dy / tileH - dx / tileW))
-    };
-  }
-
   // Store for click detection and army movement lines
-  window.mapScreenToWorld = screenToWorld;
   window.mapWorldToScreen = worldToScreen;
   if (mapPopupAnchor) positionMapPopup();   // la fenêtre de la cible suit la carte
 
-  // Cases visibles : tout le rectangle du monde qui couvre l'écran (un écran vertical en voit plus en hauteur), marge pour
-  // les reliefs et les arbres qui dépassent de leur case
-  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
-  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
-  const drawOrder = [];
-  for (let wy = bounds.y0; wy <= bounds.y1; wy++) {
-    for (let wx = bounds.x0; wx <= bounds.x1; wx++) {
-      const pos = worldToScreen(wx, wy);
-      if (pos.x < -tileW * 2 || pos.x > w + tileW * 2 || pos.y < -tileH * 2 || pos.y > h + tileH * 4) continue;
-      drawOrder.push({ wx, wy, x: pos.x, y: pos.y, type: 'terrain' });
-    }
-  }
-
-  // Sort by Y for proper layering (painter's algorithm)
-  drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
-
-  // Le sol (textures et fondus), la grille, puis les éléments posés de haut en bas (map-world.js)
+  // Le sol (textures et fondus), la grille, les chemins et les éléments posés : la couche fixe, gardée tant que la vue ne
+  // bouge pas ; puis les bateaux qui glissent, par-dessus (map-world.js)
   rebuildMapObjectCells();
-  drawMapGround(worldToScreen, bounds, w, h, tileW, tileH, nightMode);
-  drawMapGrid(worldToScreen, bounds, nightMode);
-  drawMapRoads(worldToScreen, tileW, nightMode);
-  drawOrder.forEach(tile => {
-    drawMapCellFeature(tile.x, tile.y, tileW, tileH, tile.wx, tile.wy);
-  });
+  drawMapStaticLayer(worldToScreen, w, h, tileW, tileH, nightMode);
+  drawMapBoats(tileW, tileH);
 
-  // Draw objects (cities, resources) with proper layering
-  const objectsOrder = [];
+  // Draw objects (cities, resources) with proper layering : une fiche légère par objet visible, sans copier l'objet
+  const objectsOrder = _mapObjectsOrder;
+  objectsOrder.length = 0;
 
   mapData.forEach(obj => {
     // the armies of other players walk along their route too (same route as the server's, from the shared terrain)
     const marching = obj.type === 'ARMY' && MOVING_STATUSES[obj.status] && obj.departedAt && obj.arrivalAt && obj.targetX !== null && obj.targetX !== undefined;
     const cur = marching ? armyCurrentPosition(obj) : null;
     if (obj.type === 'ARMY') { obj.drawX = cur ? cur.x : obj.x; obj.drawY = cur ? cur.y : obj.y; }   // le clic la trouve là où elle est dessinée
-    const pos = isMapBlock(obj) ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
-    const m = isMapBlock(obj) ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
+    const block = isMapBlock(obj);
+    const pos = block ? worldToScreen(obj.x + 0.5, obj.y + 0.5) : cur ? worldToScreen(cur.x, cur.y) : worldToScreen(obj.x, obj.y);   // a city: centre of its 2 × 2 block
+    const m = block ? tileW * 3 : tileW * 2;   // a 2 × 2 city rises about 2.4 tiles above its centre
     if (pos.x >= -m && pos.x <= w + m && pos.y >= -m && pos.y <= h + m) {
-      objectsOrder.push({ ...obj, screenX: pos.x, screenY: pos.y, ...(cur ? { walkDir: cur.dir, walkVec: cur.vec } : {}) });
+      objectsOrder.push({ o: obj, type: obj.type, x: pos.x, y: pos.y, dir: cur ? cur.dir : undefined, vec: cur ? cur.vec : undefined });
     }
   });
 
-  // Routes of the player's own moving armies (seen by nobody else), drawn on the ground before every object
+  // Routes of the player's own moving armies (seen by nobody else), drawn on the ground before every object ; une route
+  // hors de l'écran n'est pas tracée et ne relance pas l'animation, une armée arrivée (en attente du serveur) non plus
   for (const army of armies) {
     if (army.isGarrison || !MOVING_STATUSES[army.status]) continue;
     if (army.ownerId && player && army.ownerId !== player.id) continue;
-    drawArmyRoute(army, worldToScreen, tileW);
-    mapMovingOnScreen = true;
+    if (drawArmyRoute(army, worldToScreen, tileW, tileH, w, h) && armyProgress(army) < 1) mapMovingOnScreen = true;
   }
   // Add armies to draw order, each at its current point on its route
   armies.forEach(army => {
@@ -835,26 +744,27 @@ function renderMapCore() {
     const pos = worldToScreen(cur.x, cur.y);
     if (pos.x >= -tileW * 2 && pos.x <= w + tileW * 2 &&
         pos.y >= -tileH * 2 && pos.y <= h + tileW * 1.6) {   // a painted army rises about 1.4 tiles above its feet
-      objectsOrder.push({ ...army, type: 'ARMY', screenX: pos.x, screenY: pos.y, walkDir: cur.dir, walkVec: cur.vec });
+      objectsOrder.push({ o: army, type: 'ARMY', x: pos.x, y: pos.y, dir: cur.dir, vec: cur.vec });
     }
   });
 
   // Sort objects by Y position
-  objectsOrder.sort((a, b) => a.screenY - b.screenY);
+  objectsOrder.sort((a, b) => a.y - b.y);
 
   // Draw all objects
   mapLabelQueue = [];
-  objectsOrder.forEach(obj => {
-    if (obj.type === 'CITY') {
-      drawIsoCity(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);   // 2 × 2 cases
-    } else if (obj.type === 'BASTION') {
-      drawIsoBastion(obj.screenX, obj.screenY, tileW * 2, tileH * 2, obj);
-    } else if (obj.type === 'RESOURCE') {
-      drawIsoResource(obj.screenX, obj.screenY, tileW, tileH, obj);
-    } else if (obj.type === 'ARMY') {
-      drawIsoArmy(obj.screenX, obj.screenY, tileW, tileH, obj);
+  for (const r of objectsOrder) {
+    if (r.type === 'CITY') {
+      drawIsoCity(r.x, r.y, tileW * 2, tileH * 2, r.o);   // 2 × 2 cases
+    } else if (r.type === 'BASTION') {
+      drawIsoBastion(r.x, r.y, tileW * 2, tileH * 2, r.o);
+    } else if (r.type === 'RESOURCE') {
+      drawIsoResource(r.x, r.y, tileW, tileH, r.o);
+    } else if (r.type === 'ARMY') {
+      drawIsoArmy(r.x, r.y, tileW, tileH, r.o, r.dir, r.vec);
     }
-  });
+  }
+  objectsOrder.length = 0;   // aucun objet gardé d'une image à l'autre
 
   drawMapClouds(worldToScreen, w, h, tileW, nightMode);   // quelques nuages qui passent, au-dessus de tout (map-world.js)
   const labels = mapLabelQueue || []; mapLabelQueue = null;
@@ -869,39 +779,129 @@ function renderMapCore() {
   if (mapHoveredTile) highlight(mapHoveredTile, '#ffd700', 2);
   if (mapSelectedTile) highlight(mapSelectedTile, '#00ff00', 3);
 }
+const _mapObjectsOrder = [];   // fiches des objets à dessiner, tableau réutilisé à chaque image
 
-// Draw a single isometric tile with biome support
-// Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
-// sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
-const WATER_FEATURES = { water: 1, frozen: 1, oasis: 1 };
-// Rivières (décision du 25 octobre 2026) : l'eau fait partie du sol ; ponts et gués sont des éléments posés (map-world.js)
-const RIVER_FEATURES = { river: 1, bridge: 1, ford: 1 };
+// ---- couche fixe de la carte ----
+// Le sol, la grille, les chemins et les éléments posés (forêts, reliefs, décor) ne bougent pas avec l'animation (armées,
+// bateaux, nuages : 5 à 9 images par seconde) : une fois la vue immobile, ils sont dessinés une fois dans un canvas à part,
+// recopié ensuite à chaque image. Pendant un geste (la vue change à chaque image), dessin direct, sans copie de plus.
+// Les objets (villes, points, armées) et leurs étiquettes restent dessinés à chaque image, dans leur ordre.
+let mapStaticCanvas = null, mapStaticKey = '', mapStaticPrevKey = '', mapStaticVersion = 0;
+// Autre chose que l'animation a changé (image chargée, vue, données) : la couche fixe et l'empreinte du sol sont refaites
+function invalidateMapStatic() { mapStaticVersion++; forgetMapGroundSignature(); }
+// En quittant la carte (releaseMapGround) : la mémoire de la couche est rendue
+function releaseMapStatic() {
+  if (mapStaticCanvas) { mapStaticCanvas.width = 0; mapStaticCanvas.height = 0; }
+  mapStaticCanvas = null; mapStaticKey = ''; mapStaticPrevKey = '';
+}
+// Contexte de la couche, à la taille du canvas de la carte ; null quand la mémoire de canvas manque (dessin direct)
+function mapStaticLayerCtx(w, h, scale) {
+  const pw = Math.round(w * scale), ph = Math.round(h * scale);
+  if (!mapStaticCanvas) mapStaticCanvas = document.createElement('canvas');
+  if (mapStaticCanvas.width !== pw || mapStaticCanvas.height !== ph) { mapStaticCanvas.width = pw; mapStaticCanvas.height = ph; }
+  const g = mapStaticCanvas.getContext('2d');
+  if (!g) { releaseMapStatic(); return null; }
+  g.setTransform(scale, 0, 0, scale, 0, 0);
+  return g;
+}
+function drawMapStaticLayer(worldToScreen, w, h, tileW, tileH, night) {
+  const scale = canvasScale();
+  // tout ce dont dépend la couche ; _mapObjectsSig porte aussi la carte du serveur (Terrain.epoch) et les sprites chargés
+  const key = [mapOffsetX, mapOffsetY, mapZoomLevel, w, h, scale, night ? 1 : 0, showMapGrid ? 1 : 0, _mapObjectsSig, mapStaticVersion].join('|');
+  if (mapStaticCanvas && key === mapStaticKey) { mapCtx.drawImage(mapStaticCanvas, 0, 0, w, h); return; }
+  const still = key === mapStaticPrevKey;   // même vue qu'à l'image précédente : la couche vaut d'être gardée
+  mapStaticPrevKey = key;
+  mapStaticKey = '';
+  const layer = still ? mapStaticLayerCtx(w, h, scale) : null;
+  const main = mapCtx;
+  let complete = false;
+  if (layer) mapCtx = layer;
+  try {
+    complete = drawMapStaticContent(worldToScreen, w, h, tileW, tileH, night);
+  } finally {
+    mapCtx = main;
+  }
+  if (!layer) return;
+  mapCtx.drawImage(mapStaticCanvas, 0, 0, w, h);
+  if (complete) mapStaticKey = key;   // sol encore incomplet (morceaux en cours, zoom étiré) : refaite à l'image suivante
+}
+// Contenu de la couche fixe : fond, sol, grille, chemins, puis les éléments posés des cases visibles de haut en bas (les
+// bateaux sont relevés pour être dessinés à chaque image) ; true quand tout le sol est à sa place
+function drawMapStaticContent(worldToScreen, w, h, tileW, tileH, night) {
+  // Le sol couvre tout l'écran (map-world.js) ; un fond uni dessous, pour qu'aucun reste de l'image précédente ne transparaisse
+  mapCtx.fillStyle = night ? '#10161c' : '#5f7a3c';
+  mapCtx.fillRect(0, 0, w, h);
+
+  // Cases visibles : tout le rectangle du monde qui couvre l'écran (un écran vertical en voit plus en hauteur), marge pour
+  // les reliefs et les arbres qui dépassent de leur case
+  const screenToWorldRaw = (sx, sy) => { const dx = sx - w / 2, dy = sy - h / 2; return { x: Math.floor(mapOffsetX + dx / tileW + dy / tileH), y: Math.floor(mapOffsetY + dy / tileH - dx / tileW) }; };
+  const bounds = mapVisibleBounds(screenToWorldRaw, w, h);
+  const drawOrder = [];
+  for (let wy = bounds.y0; wy <= bounds.y1; wy++) {
+    for (let wx = bounds.x0; wx <= bounds.x1; wx++) {
+      const dx = wx - mapOffsetX, dy = wy - mapOffsetY, x = w / 2 + (dx - dy) * tileW / 2, y = h / 2 + (dx + dy) * tileH / 2;   // worldToScreen, sans objet
+      if (x < -tileW * 2 || x > w + tileW * 2 || y < -tileH * 2 || y > h + tileH * 4) continue;
+      drawOrder.push({ wx, wy, x, y });
+    }
+  }
+
+  // Sort by Y for proper layering (painter's algorithm)
+  drawOrder.sort((a, b) => a.y - b.y || a.x - b.x);
+
+  const complete = drawMapGround(worldToScreen, bounds, w, h, tileW, tileH, night);
+  drawMapGrid(worldToScreen, bounds, night);
+  drawMapRoads(worldToScreen, tileW, night, bounds);
+  mapBoats = [];
+  for (const t of drawOrder) drawMapCellFeature(t.x, t.y, tileW, tileH, t.wx, t.wy);
+  return complete;
+}
+
 const isMapBlock = (o) => o && (o.type === 'CITY' || o.type === 'BASTION');   // objets de 2 × 2 cases (ville, Bastion)
-let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE'), reconstruit à chaque rendu
+let mapObjectCells = new Map();   // "x,y" -> type ('CITY' | 'RESOURCE')
+let mapBlockedCells = new Set();  // cases sans relief ni décor (clé mapCellKey) : points de ressource, villes et leur couronne
+const terrainSpriteCache = new Map();   // case (clé mapCellKey) -> nom du sprite de relief, ou null
+let _mapObjectsSig = '';
+// Cases des objets posés, refaites seulement quand les villes, les Bastions ou les points de ressource changent (empreinte
+// numérique de leurs cases, calculée sans rien construire), avec la carte du serveur ou une fois les sprites chargés
 function rebuildMapObjectCells() {
+  let hsh = 0, n = 0;
+  const mix = (kind, x, y) => { hsh = Math.imul(hsh ^ kind, 0x9e3779b1); hsh = Math.imul(hsh ^ (x | 0), 0x85ebca6b); hsh = Math.imul(hsh ^ (y | 0), 0xc2b2ae35); n++; };
+  for (const o of mapData) if (o.type === 'RESOURCE') mix(1, o.x, o.y); else if (isMapBlock(o)) mix(2, o.x, o.y);
+  for (const c of cities) mix(2, c.x, c.y);
+  const sig = Terrain.epoch + ':' + (tilesetLoaded ? 1 : 0) + ':' + n + ':' + hsh;
+  if (sig === _mapObjectsSig) return;
+  _mapObjectsSig = sig;
   terrainSpriteCache.clear();   // sprite variants depend on which cells carry a city or a resource
   mapObjectCells = new Map();
-  // a city covers 2 × 2 cells (Terrain.cityCells)
-  const markCity = (c) => { for (const [x, y] of Terrain.cityCells(c.x, c.y)) mapObjectCells.set(x + ',' + y, 'CITY'); };
-  for (const o of mapData) if (o.type === 'RESOURCE') mapObjectCells.set(o.x + ',' + o.y, o.type); else if (isMapBlock(o)) markCity(o);
+  mapBlockedCells = new Set();
+  // a city covers 2 × 2 cells (Terrain.cityCells) ; le relief s'efface aussi sur sa couronne
+  const markCity = (c) => {
+    for (const [x, y] of Terrain.cityCells(c.x, c.y)) {
+      mapObjectCells.set(x + ',' + y, 'CITY');
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) mapBlockedCells.add(mapCellKey(x + dx, y + dy));
+    }
+  };
+  for (const o of mapData) {
+    if (o.type === 'RESOURCE') { mapObjectCells.set(o.x + ',' + o.y, o.type); mapBlockedCells.add(mapCellKey(o.x, o.y)); }
+    else if (isMapBlock(o)) markCity(o);
+  }
   for (const c of cities) markCity(c);
   rebuildMapCityRings();   // map-world.js : champs et chemins autour des villes
 }
-function terrainBlockedAt(wx, wy) {
-  if (mapObjectCells.has(wx + ',' + wy)) return true;
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (mapObjectCells.get((wx + dx) + ',' + (wy + dy)) === 'CITY') return true;
-  return false;
-}
+function terrainBlockedAt(wx, wy) { return mapBlockedCells.has(mapCellKey(wx, wy)); }
 function terrainSpriteName(wx, wy, biome, feature) {
-  const k = wx + ',' + wy;
-  if (terrainSpriteCache.has(k)) return terrainSpriteCache.get(k);
-  const name = computeTerrainSpriteName(wx, wy, biome, feature);
+  const k = mapCellKey(wx, wy);
+  let name = terrainSpriteCache.get(k);
+  if (name !== undefined) return name;
+  name = computeTerrainSpriteName(wx, wy, biome, feature);
   if (terrainSpriteCache.size > 250000) terrainSpriteCache.clear();
   terrainSpriteCache.set(k, name);
   return name;
 }
+// Variante de raccordement d'un élément de relief : les tuiles voisines portant le même élément allongent le
+// sprite le long de x, de y, ou en massif ; sans voisin, version isolée. Repli sur la version isolée si absente.
+// (seulement pour un relief hors de l'eau et loin des objets : drawMapCellFeature et drawLegacyFeature écartent le reste)
 function computeTerrainSpriteName(wx, wy, biome, feature) {
-  if (terrainBlockedAt(wx, wy) || WATER_FEATURES[feature] || RIVER_FEATURES[feature]) return null;   // l'eau fait partie du sol
   const base = `${biome}_${feature}`;
   if (!tileImages.terrain[base]) return null;
   const same = (dx, dy) => { if (terrainBlockedAt(wx + dx, wy + dy)) return false; return getTerrainType(wx + dx, wy + dy).feature === feature; };
@@ -924,7 +924,7 @@ function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
   const featureSprite = terrainSpriteName(wx, wy, biome, feature);
   if (featureSprite) {
     const big = feature === 'mountain' || feature === 'icemountain';
-    const joined = /_(x|y|xy)$/.test(featureSprite), massif = /_xy$/.test(featureSprite);
+    const massif = featureSprite.endsWith('_xy'), joined = massif || featureSprite.endsWith('_x') || featureSprite.endsWith('_y');
     const k = big ? (massif ? 2.0 : joined ? 1.85 : 1.4) : (joined ? 1.6 : 1.15);
     const fsize = Math.max(tw, th * 2) * k;
     drawTileImage(mapCtx, 'terrain', featureSprite, x, y, fsize, fsize);
@@ -951,7 +951,8 @@ function drawLegacyFeature(x, y, tw, th, wx, wy, terrain) {
     }
   } else if (biome === 'snow') {
     if (feature === 'snowtree') {
-      drawSnowTree(x - tw * 0.15, y - th * 0.3, tw * 0.32, th * 0.75); drawSnowTree(x + tw * 0.13, y - th * 0.18, tw * 0.3, th * 0.7); drawSnowTree(x, y - th * 0.05, tw * 0.34, th * 0.8);
+      const sd = (k) => Terrain.seededRandom(wx, wy, 6175 + k);
+      drawSnowTree(x - tw * 0.15, y - th * 0.3, tw * 0.32, th * 0.75, sd(0)); drawSnowTree(x + tw * 0.13, y - th * 0.18, tw * 0.3, th * 0.7, sd(1)); drawSnowTree(x, y - th * 0.05, tw * 0.34, th * 0.8, sd(2));
     } else if (feature === 'icemountain') {
       drawIceMountain(x, y - th * 0.5, tw * 0.6, th * 1.2);
     }
@@ -980,7 +981,7 @@ function drawLegacyCrossing(x, y, tw, th, wx, wy, feature, biome, night) {
 
 // Draw isometric tree (pine/fir)
 function drawIsoTree(x, y, w, h, seed) {   // seed : tiré de la case du monde (sinon la hauteur changerait en déplaçant la carte)
-  const treeH = h * (0.8 + (seed ?? seededRandom(x, y)) * 0.4);
+  const treeH = h * (0.8 + seed * 0.4);
 
   // Trunk
   mapCtx.fillStyle = '#4a3020';
@@ -1168,8 +1169,8 @@ function drawDesertRocks(x, y, w, h) {
 
 // ========== SNOW BIOME FEATURES ==========
 // Snow-covered pine tree
-function drawSnowTree(x, y, w, h) {
-  const treeH = h * (0.8 + seededRandom(x, y) * 0.4);
+function drawSnowTree(x, y, w, h, seed) {   // seed : tiré de la case du monde, comme drawIsoTree
+  const treeH = h * (0.8 + seed * 0.4);
 
   // Trunk
   mapCtx.fillStyle = '#4a3a30';
@@ -1382,17 +1383,37 @@ function drawDamagedCitySmoke(x, y, size, damage, seed) {
     mapCtx.drawImage(f, x - s / 2 + size * 0.12, y - size * 0.55, s, s);
   }
   const n = 3 + Math.round(damage / 20);   // 3 à 8 bouffées
+  const light = 55 - 3 * Math.round(damage / 10);   // fumée sombre, plus noire avec les dégâts (luminosité en %, par paliers de 10 % de dégâts)
   mapCtx.save();
-  if ('filter' in mapCtx) mapCtx.filter = `brightness(${Math.round(55 - damage * 0.3)}%)`;   // fumée sombre, plus noire avec les dégâts
   for (let k = 0; k < n; k++) {
     const life = (t * 0.35 + k / n + ph) % 1;
-    const puff = typeof getSprite === 'function' ? getSprite(art(`props/puff_${k % 4}.webp`)) : null;
+    const puff = typeof getSprite === 'function' ? getSprite(art(SMOKE_PUFFS[k % 4])) : null;
     if (!puff) break;
     const ps = size * (0.2 + life * 0.38);
     mapCtx.globalAlpha = Math.min(0.9, 0.5 + damage / 200) * (1 - life * 0.85);
-    mapCtx.drawImage(puff, x + size * (0.08 + Math.sin(life * 3 + k) * 0.06 + life * 0.14) - ps / 2, y - size * (0.3 + life * 0.8) - ps / 2, ps, ps);
+    mapCtx.drawImage(darkSmokePuff(puff, light), x + size * (0.08 + Math.sin(life * 3 + k) * 0.06 + life * 0.14) - ps / 2, y - size * (0.3 + life * 0.8) - ps / 2, ps, ps);
   }
   mapCtx.restore();
+}
+const SMOKE_PUFFS = [0, 1, 2, 3].map(k => `props/puff_${k}.webp`);
+// Bouffée assombrie une fois (comme le filtre brightness, sur tous les navigateurs) puis gardée : pas de filtre de canvas
+// à chaque image
+const _darkPuffs = new Map();   // "url@luminosité" -> canvas
+function darkSmokePuff(img, light) {
+  const key = img.src + '@' + light;
+  let c = _darkPuffs.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = img.naturalWidth || 128; c.height = img.naturalHeight || 128;
+  const g = c.getContext('2d');
+  if (!g) return img;   // plus de mémoire de canvas : la bouffée telle quelle
+  g.drawImage(img, 0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'source-atop';   // noir sur la bouffée seulement : couleur × luminosité, transparence gardée
+  g.fillStyle = `rgba(0,0,0,${1 - light / 100})`;
+  g.fillRect(0, 0, c.width, c.height);
+  if (_darkPuffs.size >= 48) _darkPuffs.clear();
+  _darkPuffs.set(key, c);
+  return c;
 }
 
 // Bannière de la civilisation qui assiège, plantée devant la ville (drapeau 3D existant, phase fixe)
@@ -2165,65 +2186,73 @@ function armyRoute(army) {
   armyRouteCache.set(key, path);
   return path;
 }
+// Heures de départ et d'arrivée d'une armée, lues une fois par valeur (pas de new Date à chaque image)
+const _armyTimes = new WeakMap();   // armée -> { a, d, start, end }
 function armyProgress(army) {
   if (!army.arrivalAt) return 0;
   const now = typeof serverNow === 'function' ? serverNow() : Date.now();
-  const end = new Date(army.arrivalAt).getTime();
-  const start = army.departedAt ? new Date(army.departedAt).getTime() : null;
+  let t = _armyTimes.get(army);
+  if (!t || t.a !== army.arrivalAt || t.d !== army.departedAt) {
+    t = { a: army.arrivalAt, d: army.departedAt, end: new Date(army.arrivalAt).getTime(), start: army.departedAt ? new Date(army.departedAt).getTime() : null };
+    _armyTimes.set(army, t);
+  }
+  const { start, end } = t;
   if (!start || end <= start) return now >= end ? 1 : 0;
   return Math.max(0, Math.min(1, (now - start) / (end - start)));
 }
-function pointAlongRoute(path, fraction) {
-  if (!path || !path.length) return null;
-  if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
-  if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
-  let total = 0; const seg = [];
-  for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
-  let target = fraction * total;
-  for (let i = 1; i < path.length; i++) {
-    if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
-    target -= seg[i - 1];
-  }
-  const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+// Longueurs des pas d'un chemin du cache, mesurées une fois (Terrain.pathLengths) pour Terrain.pointAlongPath, le même
+// calcul que le serveur
+const _routeLengths = new WeakMap();   // chemin -> { seg, total }
+function routeLengths(path) {
+  if (!path || path.length < 2) return null;
+  let L = _routeLengths.get(path);
+  if (!L) { L = Terrain.pathLengths(path); _routeLengths.set(path, L); }
+  return L;
 }
 // Where the army is right now (world coordinates, fractional) and which way it walks
 function armyCurrentPosition(army) {
   if (!MOVING_STATUSES[army.status]) return { x: army.x, y: army.y, dir: 1 };
   const path = armyRoute(army);
-  const p = armyProgress(army);
-  const at = pointAlongRoute(path, p) || { x: army.x, y: army.y };
-  const ahead = pointAlongRoute(path, Math.min(1, p + 0.02)) || at;
+  const p = armyProgress(army), L = routeLengths(path);
+  const at = Terrain.pointAlongPath(path, p, L) || { x: army.x, y: army.y };
+  const ahead = Terrain.pointAlongPath(path, Math.min(1, p + 0.02), L) || at;
   // screen direction: +x on screen when (dx - dy) grows, +y when (dx + dy) grows (iso 2:1)
   const sx = (ahead.x - ahead.y) - (at.x - at.y), sy = ((ahead.x + ahead.y) - (at.x + at.y)) / 2, n = Math.hypot(sx, sy);
   const dir = sx < -1e-6 ? -1 : 1;
   return { x: at.x, y: at.y, dir, vec: n > 1e-9 ? { x: sx / n, y: sy / n } : { x: dir, y: 0.5 } };
 }
-// Dotted light-green route with an arrow head, for the player's own armies only
-function drawArmyRoute(army, worldToScreen, tileW) {
+// Dotted light-green route with an arrow head, for the player's own armies only ; false quand la route est hors de
+// l'écran (rien n'est tracé)
+function drawArmyRoute(army, worldToScreen, tileW, tileH, w, h) {
   const path = armyRoute(army);
-  if (!path || path.length < 2) return;
+  if (!path || path.length < 2) return false;
   const pts = path.map(([x, y]) => worldToScreen(x, y));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; }
+  if (x1 < -tileW || x0 > w + tileW || y1 < -tileH || y0 > h + tileH) return false;
   mapCtx.save();
   mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
-  mapCtx.strokeStyle = 'rgba(150, 235, 140, 0.75)';
-  mapCtx.lineWidth = Math.max(1.5, tileW * 0.045);
+  const lw = Math.max(1.5, tileW * 0.045);
   mapCtx.setLineDash([tileW * 0.18, tileW * 0.16]);
   mapCtx.lineDashOffset = -((performance.now() / 60) % (tileW * 0.34));   // marching ants, slow
-  mapCtx.shadowColor = 'rgba(0, 40, 0, 0.5)'; mapCtx.shadowBlur = 2;
   mapCtx.beginPath();
   pts.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y)));
-  mapCtx.stroke();
+  // liseré sombre un peu plus large sous le trait, à la place d'une ombre floutée (un flou par image coûte cher)
+  mapCtx.strokeStyle = 'rgba(0, 40, 0, 0.35)'; mapCtx.lineWidth = lw + 1.5; mapCtx.stroke();
+  mapCtx.strokeStyle = 'rgba(150, 235, 140, 0.75)'; mapCtx.lineWidth = lw; mapCtx.stroke();
   mapCtx.setLineDash([]);
   // arrow head at the destination, pointing along the last segment
   const a = pts[pts.length - 2], b = pts[pts.length - 1];
   const ang = Math.atan2(b.y - a.y, b.x - a.x), L = Math.max(6, tileW * 0.22);
-  mapCtx.fillStyle = 'rgba(150, 235, 140, 0.85)';
   mapCtx.beginPath();
   mapCtx.moveTo(b.x, b.y);
   mapCtx.lineTo(b.x - L * Math.cos(ang - 0.45), b.y - L * Math.sin(ang - 0.45));
   mapCtx.lineTo(b.x - L * Math.cos(ang + 0.45), b.y - L * Math.sin(ang + 0.45));
-  mapCtx.closePath(); mapCtx.fill();
+  mapCtx.closePath();
+  mapCtx.strokeStyle = 'rgba(0, 40, 0, 0.35)'; mapCtx.lineWidth = 1.5; mapCtx.stroke();
+  mapCtx.fillStyle = 'rgba(150, 235, 140, 0.85)'; mapCtx.fill();
   mapCtx.restore();
+  return true;
 }
 
 // Nom du sprite de carte d'une armée : marchand pour les transports, sinon la classe de
@@ -2249,20 +2278,32 @@ function armySquads(army) {
 // Cycle de marche peint d'un sprite d'armée (6 poses <nom>_walk_0..5) : celui de la civilisation, sinon le cycle commun.
 // Chargé à la première demande (pas avec le reste de la carte), joué seulement quand ses 6 poses sont là.
 const armyWalkLoading = new Set();
+// Réponse gardée par nom de sprite (appelée plusieurs fois par armée et par image) ; refaite quand une pose arrive ou que la
+// liste des images peintes change
+const _armyWalkBases = new Map();   // nom -> préfixe du cycle prêt, ou null
+let _armyWalkBasesFor = -1;
 function armyWalkBase(name) {
+  const v = typeof paintedSet === 'undefined' ? 0 : paintedSet.size;
+  if (v !== _armyWalkBasesFor) { _armyWalkBases.clear(); _armyWalkBasesFor = v; }
+  let r = _armyWalkBases.get(name);
+  if (r === undefined) { r = armyWalkBaseOf(name); _armyWalkBases.set(name, r); }
+  return r;
+}
+function armyWalkBaseOf(name) {
   for (const n of [name, name.replace(/_[A-Z]+$/, '')]) {
     const files = [0, 1, 2, 3, 4, 5].map(i => `map/units/${n}_walk_${i}.webp`);
     if (typeof paintedSet === 'undefined' || !files.every(f => paintedSet.has(f))) continue;   // cycle non livré (ou incomplet)
     if ([0, 1, 2, 3, 4, 5].every(i => tileImages.units[`${n}_walk_${i}`])) return `${n}_walk_`;
     if (!armyWalkLoading.has(n)) {
       armyWalkLoading.add(n);
-      files.forEach((f, i) => { const img = new Image(); img.onload = () => { tileImages.units[`${n}_walk_${i}`] = img; tileImagePainted.add(`units/${n}_walk_${i}`); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }; img.src = art(f); });
+      files.forEach((f, i) => { const img = new Image(); img.onload = () => { tileImages.units[`${n}_walk_${i}`] = img; tileImagePainted.add(`units/${n}_walk_${i}`); _armyWalkBases.clear(); if (typeof queueSpriteRedraw === 'function') queueSpriteRedraw(); }; img.src = art(f); });
     }
     return null;   // il trottine le temps du chargement
   }
   return null;
 }
-function drawIsoArmy(x, y, tw, th, army) {
+// walkDir, walkVec : sens de la marche sur l'écran (armyCurrentPosition) ; sans eux, déduits de la destination
+function drawIsoArmy(x, y, tw, th, army, walkDir, walkVec) {
   const size = Math.min(tw, th * 2) * 0.4;
   const isMoving = !!MOVING_STATUSES[army.status] && armyProgress(army) < 1;   // en marche ; récolte, fondation, siège : à l'arrêt
   const imgSize = Math.max(tw, th * 2) * 1.2;
@@ -2286,8 +2327,8 @@ function drawIsoArmy(x, y, tw, th, army) {
     // pas ; sinon il trottine (petits bonds cadencés, léger balancement) ; la poussière se lève derrière la colonne
     mapMovingOnScreen = true;
     const t = performance.now() / 1000, ph = (String(army.id || '').charCodeAt(0) || 0) * 0.37;
-    const dir = army.walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
-    const vec = army.walkVec || { x: dir, y: 0.5 };
+    const dir = walkDir || (army.targetX !== undefined && army.targetX !== null ? Math.sign((army.targetX - army.targetY) - (army.x - army.y)) || 1 : 1);
+    const vec = walkVec || { x: dir, y: 0.5 };
     // les groupes suivants se placent en arrière, à l'opposé du sens de la marche sur l'écran
     const back = (q) => ({ x: x - vec.x * q * imgSize * 0.22, y: y - vec.y * q * imgSize * 0.22 });
     const tail = back(squads - 1);
@@ -2376,79 +2417,6 @@ function drawIsoArmy(x, y, tw, th, army) {
   }
 }
 
-function drawMapBuilding(x, y, size, fillColor, strokeColor, ctx) {
-  // Bug fix : appelée depuis la vue ville (cityCtx) alors qu'elle utilisait mapCtx (indéfini hors carte)
-  const _c = ctx || (typeof cityCtx !== 'undefined' && cityCtx) || (typeof mapCtx !== 'undefined' && mapCtx);
-  if (!_c) return;
-  const height = size * 1.2;
-  
-  // Building base
-  _c.fillStyle = fillColor;
-  _c.beginPath();
-  _c.ellipse(x, y, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  _c.fill();
-  
-  // Left wall
-  _c.fillStyle = shadeColor(fillColor, -15);
-  _c.beginPath();
-  _c.moveTo(x - size * 0.5, y);
-  _c.lineTo(x - size * 0.5, y - height);
-  _c.lineTo(x, y - height - size * 0.15);
-  _c.lineTo(x, y - size * 0.25);
-  _c.closePath();
-  _c.fill();
-  
-  // Right wall
-  _c.fillStyle = shadeColor(fillColor, -30);
-  _c.beginPath();
-  _c.moveTo(x + size * 0.5, y);
-  _c.lineTo(x + size * 0.5, y - height);
-  _c.lineTo(x, y - height - size * 0.15);
-  _c.lineTo(x, y - size * 0.25);
-  _c.closePath();
-  _c.fill();
-  
-  // Roof
-  _c.fillStyle = strokeColor;
-  _c.beginPath();
-  _c.ellipse(x, y - height, size * 0.5, size * 0.25, 0, 0, Math.PI * 2);
-  _c.fill();
-  
-  // Roof point
-  _c.fillStyle = shadeColor(strokeColor, -20);
-  _c.beginPath();
-  _c.moveTo(x, y - height - size * 0.5);
-  _c.lineTo(x - size * 0.35, y - height + size * 0.1);
-  _c.lineTo(x + size * 0.35, y - height + size * 0.1);
-  _c.closePath();
-  _c.fill();
-}
-
-function drawMapTower(x, y, size) {
-  // Tower base
-  mapCtx.fillStyle = '#5a5a5a';
-  mapCtx.beginPath();
-  mapCtx.arc(x, y, size, 0, Math.PI * 2);
-  mapCtx.fill();
-  
-  // Tower body
-  mapCtx.fillRect(x - size * 0.7, y - size * 2, size * 1.4, size * 2);
-  
-  // Tower top
-  mapCtx.fillStyle = '#7a7a7a';
-  mapCtx.beginPath();
-  mapCtx.arc(x, y - size * 2, size * 0.8, 0, Math.PI * 2);
-  mapCtx.fill();
-  
-  // Flag
-  mapCtx.fillStyle = '#c44';
-  mapCtx.beginPath();
-  mapCtx.moveTo(x, y - size * 3);
-  mapCtx.lineTo(x + size, y - size * 2.7);
-  mapCtx.lineTo(x, y - size * 2.4);
-  mapCtx.fill();
-}
-
 function renderMinimap() {
   if (!minimapCtx) return;
   
@@ -2501,9 +2469,9 @@ function renderMinimap() {
 // ========== MINIMAP CLICK/DRAG HANDLERS ==========
 let minimapDragging = false;
 
+// Un clic = mousedown (la vue suit tout de suite), mouseup (données rechargées une fois) puis click : un seul chargement
 function onMinimapClick(e) {
   e.stopPropagation(); // Prevent click from reaching the main canvas
-  navigateMinimapToPosition(e);
 }
 
 function onMinimapMouseDown(e) {
@@ -2515,17 +2483,16 @@ function onMinimapMouseDown(e) {
 function onMinimapMouseMove(e) {
   if (!minimapDragging) return;
   e.stopPropagation();
-  navigateMinimapToPosition(e, false);
+  navigateMinimapToPosition(e);
 }
 
 function onMinimapMouseUp(e) {
   if (!minimapDragging) return;
   minimapDragging = false;
-  clearTimeout(mapReloadTimeout);
-  mapReloadTimeout = setTimeout(() => loadMap(), 150);
+  scheduleMapReload(150);
 }
 
-function navigateMinimapToPosition(e, reload = true) {
+function navigateMinimapToPosition(e) {
   if (!minimapCanvas) return;
 
   const rect = minimapCanvas.getBoundingClientRect();
@@ -2547,22 +2514,13 @@ function navigateMinimapToPosition(e, reload = true) {
   mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, worldY));
 
   // Draw at once with what is loaded; the viewport is fetched when the gesture ends
-  if (reload) loadMap(); else scheduleMapRender(true);
+  scheduleMapRender(true);
 }
 
 function updateMapUI() {
-  const mapXEl = document.getElementById('map-x');
-  const mapYEl = document.getElementById('map-y');
-  if (mapXEl) mapXEl.textContent = Math.round(mapOffsetX);
-  if (mapYEl) mapYEl.textContent = Math.round(mapOffsetY);
-
   const zoomEl = document.getElementById('zoom-level');
-  if (zoomEl) {
-    zoomEl.textContent = `${Math.round(mapZoomLevel * 100)}%`;
-    // Animation pulse
-    zoomEl.classList.add('zooming');
-    setTimeout(() => zoomEl.classList.remove('zooming'), 200);
-  }
+  const zoomText = `${Math.round(mapZoomLevel * 100)}%`;
+  if (zoomEl && zoomEl.textContent !== zoomText) zoomEl.textContent = zoomText;   // écrit seulement quand il change (appelée à chaque image d'un geste)
 }
 
 // Mouse handlers
@@ -2575,9 +2533,11 @@ function onMapMouseDown(e) {
   mapCanvas.style.cursor = 'grabbing';
 }
 
-// Use requestAnimationFrame to batch map renders
+// Use requestAnimationFrame to batch map renders. includeMinimapAndUI : la vue, les données ou les images ont changé (pas
+// seulement l'animation) : la couche fixe de la carte est refaite
 let mapRenderScheduled = false;
 function scheduleMapRender(includeMinimapAndUI = false) {
+  if (includeMinimapAndUI) invalidateMapStatic();
   if (!mapRenderScheduled) {
     mapRenderScheduled = true;
     requestAnimationFrame(() => {
@@ -2620,23 +2580,27 @@ function onMapMouseMove(e) {
     mapDragStart = { x: e.clientX, y: e.clientY };
     scheduleMapRender(true);
   } else {
-    // Update hovered tile using isometric conversion
+    // Update hovered tile using isometric conversion ; redessin seulement quand la case survolée change
     const pick = pickMapTile(mouseX, mouseY);   // the same cell (or city) a click would pick
-    mapHoveredTile = { x: pick.x, y: pick.y };
-    scheduleMapRender(false);
+    if (!mapHoveredTile || mapHoveredTile.x !== pick.x || mapHoveredTile.y !== pick.y) {
+      mapHoveredTile = { x: pick.x, y: pick.y };
+      scheduleMapRender(false);
+    }
   }
 }
 
 let mapReloadTimeout = null;
+// Données de la carte rechargées une fois le geste fini (le rayon chargé dépend du centre de la vue et du zoom)
+function scheduleMapReload(delay = 300) {
+  clearTimeout(mapReloadTimeout);
+  mapReloadTimeout = setTimeout(() => loadMap(), delay);
+}
 function onMapMouseUp() {
   const wasDragging = mapDragging;
   mapDragging = false;
   if (mapCanvas) mapCanvas.style.cursor = 'grab';
   // Reload map data after drag ends (debounced)
-  if (wasDragging && mapDragDistance > 5) {
-    clearTimeout(mapReloadTimeout);
-    mapReloadTimeout = setTimeout(() => loadMap(), 300);
-  }
+  if (wasDragging && mapDragDistance > 5) scheduleMapReload(300);
 }
 
 // Tile under a canvas point. Cities, resources and armies are drawn above their ground diamond,
@@ -2644,9 +2608,19 @@ function onMapMouseUp() {
 // point are checked before reporting empty terrain.
 // Where the drawing of a 2 × 2 city reaches above its block centre (as drawIsoCity draws it): painted city 2 × 2 framing,
 // or the old sprite (taller for a fortified city)
+// Ville peinte livrée pour une civilisation : réponse gardée tant qu'aucun sprite peint ne s'ajoute (tileImagePainted ne
+// fait que grandir)
+const _paintedCityFactions = new Map();   // civilisation -> bool
+let _paintedCityFactionsFor = -1;
+function factionCityPainted(fl) {
+  if (tileImagePainted.size !== _paintedCityFactionsFor) { _paintedCityFactions.clear(); _paintedCityFactionsFor = tileImagePainted.size; }
+  let r = _paintedCityFactions.get(fl);
+  if (r === undefined) { r = false; for (const k of tileImagePainted) if (k.startsWith('cities/') && k.includes(fl)) { r = true; break; } _paintedCityFactions.set(fl, r); }
+  return r;
+}
 function cityHitBox(t, tileW) {
   const fl = String(t.faction || 'ROME').toLowerCase(), fortified = (t.cityTier || 0) >= 3;
-  const painted = typeof tileImagePainted !== 'undefined' && [...tileImagePainted].some(k => k.startsWith('cities/') && k.includes(fl));
+  const painted = factionCityPainted(fl);
   if (painted) return { half: tileW * 1.0, top: (2 * tileW / WORLD_CITY_FOOTPRINT) * WORLD_CITY_CENTER_Y };
   const size = 3 * tileW * (fortified ? 1.2 : 1);   // cityImageSize for a 2 × 2 block
   return { half: size * 0.32, top: size * mapSpriteAnchor.y };
@@ -2772,10 +2746,7 @@ function onMapTouchEnd(e) {
   }
 
   // Reload map data after a significant drag or a pinch (debounced)
-  if (touchDragDistance >= 10 || touchPinched) {
-    clearTimeout(mapReloadTimeout);
-    mapReloadTimeout = setTimeout(() => loadMap(), 300);
-  }
+  if (touchDragDistance >= 10 || touchPinched) scheduleMapReload(300);
 
   touchPinched = false;
   touchDragDistance = 0;
@@ -2825,9 +2796,10 @@ function onMapWheel(e) {
   mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
   mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
   
-  renderMap();
-  renderMinimap();
-  updateMapUI();
+  // une image par trame d'affichage (une molette fine envoie plusieurs événements par trame) ; les données du nouveau zoom
+  // sont chargées une fois la molette arrêtée, comme pour les boutons de zoom
+  scheduleMapRender(true);
+  scheduleMapReload(400);
 }
 
 // Zoom buttons
@@ -2835,8 +2807,7 @@ function mapZoom(delta) {
   const zoomFactor = delta > 0 ? 1.2 : 0.8;
   mapZoomLevel = Math.max(0.3, Math.min(3, mapZoomLevel * zoomFactor));
   // Debounced reload to get data for new zoom level
-  clearTimeout(mapReloadTimeout);
-  mapReloadTimeout = setTimeout(() => loadMap(), 400);
+  scheduleMapReload(400);
   renderMap();
   renderMinimap();
   updateMapUI();
@@ -3171,8 +3142,9 @@ function sendResourcesFromMap(cityId, cityName) {
     return;
   }
   
-  // Carry capacity: unit transport stats × faction bonus (EGYPT +10%), like the server
-  const transportBonus = player?.faction === 'EGYPT' ? 1.10 : 1;
+  // Carry capacity: unit transport stats × faction bonus (data/factions.json : Égypte +20 %), like the server ; sans les
+  // bonus de bâtiment, de Bastion et de héros que le serveur ajoute : une capacité minimale
+  const transportBonus = 1 + factionBonusPct(player?.faction, 'transportCapacity', player?.faction === 'EGYPT' ? 20 : 0) / 100;
   const capacity = Math.floor(army.units.reduce((sum, u) => {
     const unitDef = unitsData.find(ud => ud.key === u.unitKey);
     return sum + (unitDef?.stats?.transport || 50) * u.count;
@@ -3555,12 +3527,9 @@ async function confirmCollectResource(nodeId) {
     if (data.status === 'HARVESTING') {
       // Récolte progressive
       showToast(`Récolte démarrée! ${data.harvestRate}/min - Capacité: ${formatNum(data.carryCapacity)}`, 'success');
-    } else if (data.travelTime) {
-      // Armée en route
-      showToast(`Armée en route pour récolter (${Math.round(data.travelTime)}s)`, 'success');
     } else {
-      // Ancien système (fallback)
-      showToast(`Collecté ${formatNum(data.collected || 0)} ${data.resourceType}!`, 'success');
+      // Armée en route (seule autre réponse du serveur : { message, travelTime, arrivalAt })
+      showToast(`Armée en route pour récolter (${Math.round(data.travelTime || 0)}s)`, 'success');
     }
     await loadArmies();
     loadMap();
@@ -3601,11 +3570,7 @@ window.addEventListener('resize', () => {
     const mapTab = document.getElementById('tab-map');
     if (mapCanvas && mapTab && mapTab.classList.contains('active')) {
       const container = mapCanvas.parentElement;
-      if (container && container.clientWidth > 0) {
-        mapViewW = Math.max(container.clientWidth, 300);
-        mapViewH = Math.max(container.clientHeight, 200);
-        sizeCanvasForDpr(mapCanvas, mapCtx, mapViewW, mapViewH);
-      }
+      if (container && container.clientWidth > 0) fitMapCanvas(container.clientWidth, container.clientHeight);
       renderMap();
       renderMinimap();
     }

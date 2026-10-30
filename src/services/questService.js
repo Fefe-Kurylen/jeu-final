@@ -24,21 +24,23 @@ const RES = ['wood', 'stone', 'iron', 'food'];
 const RES_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 const FIELD_PROD = { LUMBER: 'wood', QUARRY: 'stone', IRON_MINE: 'iron', FARM: 'food' };
 const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
-const buildingName = (key) => buildingsData.find(b => b.key === key)?.name || key;
 
 // ---- temps : jour et semaine à l'heure de Paris ----
 const TZ = 'Europe/Paris';
+// formateurs créés une fois (en créer un à chaque appel coûte cher : plusieurs dizaines par vue des quêtes)
+const PARIS_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+const PARIS_OFF = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' });
 function parisParts(date = new Date()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' }).formatToParts(date).map(x => [x.type, x.value]));
+  const p = Object.fromEntries(PARIS_DAY.formatToParts(date).map(x => [x.type, x.value]));
   return { y: Number(p.year), m: Number(p.month), d: Number(p.day), wd: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday) };
 }
 const pad = (n) => String(n).padStart(2, '0');
 function dayKey(date = new Date()) { const p = parisParts(date); return `${p.y}-${pad(p.m)}-${pad(p.d)}`; }
-// décalage de Paris sur UTC à cet instant (minutes)
+// décalage de Paris sur UTC à cet instant (minutes), lu dans « GMT+1 » / « GMT+2 »
 function parisOffsetMin(date = new Date()) {
-  const asParis = new Date(date.toLocaleString('en-US', { timeZone: TZ }));
-  const asUtc = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-  return Math.round((asParis - asUtc) / 60000);
+  const name = PARIS_OFF.formatToParts(date).find(x => x.type === 'timeZoneName')?.value || 'GMT';
+  const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
+  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0)) : 0;
 }
 // début du jour de Paris (instant UTC)
 function dayStart(date = new Date()) { const p = parisParts(date); return new Date(Date.UTC(p.y, p.m - 1, p.d) - parisOffsetMin(date) * 60000); }
@@ -72,7 +74,18 @@ async function purgeOld() {
 
 // ---- récompenses ----
 const round10 = (v) => Math.max(0, Math.round(v / 10) * 10);
-const scaled = (prod, hours, min) => Object.fromEntries(RES.map(r => [r, round10(Math.max(min, (prod[r] || 0) * hours))]));
+// Récompense en heures de production, plafonnée par `cap` (par ressource) pour rester livrable ; le plancher `min` reste
+const scaled = (prod, hours, min, cap = null) => Object.fromEntries(RES.map(r => {
+  const v = (prod[r] || 0) * hours;
+  return [r, round10(Math.max(min, cap ? Math.min(v, Math.floor(cap[r] / 10) * 10) : v))];
+}));
+// Plafond : la moitié du plus grand entrepôt (grenier pour la nourriture) du joueur, sinon une récompense à l'échelle de
+// toutes ses villes dépasserait le stockage d'une seule et ne se prendrait jamais
+const REWARD_CAP_SHARE = 0.5;
+function rewardCap(cities) {
+  const store = Math.max(0, ...cities.map(c => c.maxStorage || 0)), food = Math.max(0, ...cities.map(c => c.maxFoodStorage || 0));
+  return { wood: store * REWARD_CAP_SHARE, stone: store * REWARD_CAP_SHARE, iron: store * REWARD_CAP_SHARE, food: food * REWARD_CAP_SHARE };
+}
 function buildCost(key, level) {
   const def = buildingsData.find(b => b.key === key);
   const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
@@ -102,30 +115,40 @@ function pickFor(pool, n, seed) {
   const scored = pool.map(q => ({ q, h: crypto.createHash('sha1').update(`${seed}:${q.key}`).digest().readUInt32BE(0) }));
   return scored.sort((a, b) => a.h - b.h).slice(0, n).map(x => x.q);
 }
+// Quêtes d'une période : celles déjà récompensées restent, les places libres vont aux quêtes faisables dans l'ordre du
+// tirage ; une condition remplie en cours de période ne remplace donc jamais une quête prise (n récompenses au plus)
+function periodPicks(pool, n, seed, taken, doable) {
+  let free = Math.max(0, n - pool.filter(taken).length);
+  return pickFor(pool.filter(q => taken(q) || doable(q)), pool.length, seed).filter(q => taken(q) || free-- > 0);
+}
 
 // ---- état du joueur ----
 async function loadState(playerId) {
-  const now = new Date(), today = dayKey(now), week = weekInfo(now), ds = dayStart(now);
+  const now = new Date(), today = dayKey(now), week = weekInfo(now), ds = dayStart(now), d30 = new Date(now.getTime() - 30 * 86400000);
   const [player, cities, counters, claims, techs, nonGarrison, reports] = await Promise.all([
     prisma.player.findUnique({ where: { id: playerId }, select: { id: true, population: true, tutorialDone: true, alliance: { select: { allianceId: true } }, hero: { select: { level: true } }, stats: true } }),
-    prisma.city.findMany({ where: { playerId }, select: { id: true, name: true, isCapital: true, buildings: { select: { key: true, level: true, slot: true } } } }),
+    prisma.city.findMany({ where: { playerId }, select: { id: true, name: true, isCapital: true, maxStorage: true, maxFoodStorage: true, buildings: { select: { key: true, level: true, slot: true } } } }),
     prisma.questCounter.findMany({ where: { playerId, period: { in: ['ALL', ...week.days] } }, select: { period: true, key: true, value: true } }),
     prisma.questClaim.findMany({ where: { playerId, period: { in: ['', today, week.key] } }, select: { questKey: true, period: true } }),
     prisma.playerTechnology.aggregate({ where: { playerId }, _sum: { level: true } }),
     prisma.army.findFirst({ where: { ownerId: playerId, isGarrison: false, units: { some: { count: { gt: 0 } } } }, select: { id: true } }),
-    // victoires des 7 derniers jours (jour, semaine) et victoires sur les tribus (tutoriel), rapports gardés 30 jours
-    prisma.$queryRaw`SELECT "createdAt" >= ${ds} AS today, "createdAt" >= ${week.start} AS week, (loot->>'type') = 'TRIBE' AS tribe FROM "BattleReport" WHERE "playerId" = ${playerId} AND result = 'WIN' AND "createdAt" >= ${new Date(Math.min(week.start.getTime(), Date.now() - 30 * 86400000))}`
+    // victoires du jour et de la semaine, et victoires sur les tribus (tutoriel : rapports gardés 30 jours), comptées
+    // par la base en une ligne ; tutoriel fini, la semaine suffit
+    prisma.$queryRaw`SELECT
+        (count(*) FILTER (WHERE "createdAt" >= ${ds}))::int AS "TODAY_WIN",
+        (count(*) FILTER (WHERE "createdAt" >= ${ds} AND (loot->>'type') = 'TRIBE'))::int AS "TODAY_TRIBE",
+        (count(*) FILTER (WHERE "createdAt" >= ${week.start}))::int AS "WEEK_WIN",
+        (count(*) FILTER (WHERE "createdAt" >= ${week.start} AND (loot->>'type') = 'TRIBE'))::int AS "WEEK_TRIBE",
+        (count(*) FILTER (WHERE (loot->>'type') = 'TRIBE'))::int AS "EVER_TRIBE"
+      FROM "BattleReport" WHERE "playerId" = ${playerId} AND result = 'WIN'
+        AND "createdAt" >= CASE WHEN (SELECT "tutorialDone" FROM "Player" WHERE id = ${playerId}) THEN ${week.start}::timestamptz ELSE ${d30}::timestamptz END`
   ]);
   if (!player) throw httpError(404, 'Joueur introuvable');
   const cnt = (period, key) => counters.filter(c => c.key === key && (period === 'WEEK' ? week.days.includes(c.period) : c.period === period)).reduce((t, c) => t + c.value, 0);
-  const wins = {
-    TODAY_WIN: reports.filter(r => r.today).length, TODAY_TRIBE: reports.filter(r => r.today && r.tribe).length,
-    WEEK_WIN: reports.filter(r => r.week).length, WEEK_TRIBE: reports.filter(r => r.week && r.tribe).length,
-    EVER_TRIBE: reports.filter(r => r.tribe).length
-  };
+  const wins = reports[0] || { TODAY_WIN: 0, TODAY_TRIBE: 0, WEEK_WIN: 0, WEEK_TRIBE: 0, EVER_TRIBE: 0 };
   const claimed = new Set(claims.map(c => `${c.questKey}|${c.period}`));
   const capital = cities.find(c => c.isCapital) || cities[0] || { buildings: [] };
-  return { player, cities, capital, cnt, wins, claimed, techLevels: techs._sum.level || 0, hasArmy: !!nonGarrison, today, week, prod: productionOf(cities) };
+  return { player, cities, capital, cnt, wins, claimed, techLevels: techs._sum.level || 0, hasArmy: !!nonGarrison, today, week, prod: productionOf(cities), cap: rewardCap(cities) };
 }
 
 const levelOf = (city, key) => (city.buildings || []).filter(b => b.key === key).reduce((m, b) => Math.max(m, b.level), 0);
@@ -199,11 +222,10 @@ async function questsFor(playerId) {
   tasks.sort((a, b) => (b.claimable - a.claimable));
 
   const periodic = (def, scope, periodKey) => {
-    const pool = def.pool.filter(q => needsMet(q, st));
-    const picks = pickFor(pool, def.pick, `${playerId}:${periodKey}`);
-    const list = picks.map(q => entry({ key: q.key, kind: scope === 'TODAY' ? 'daily' : 'weekly', title: q.title, text: q.text.replace('{value}', q.value.toLocaleString('fr-FR')), progress: periodicProgress(q, st, scope), target: q.value, reward: scaled(st.prod, def.hours, def.min), claimed: isClaimed(q.key, periodKey) }));
+    const picks = periodPicks(def.pool, def.pick, `${playerId}:${periodKey}`, q => isClaimed(q.key, periodKey), q => needsMet(q, st));
+    const list = picks.map(q => entry({ key: q.key, kind: scope === 'TODAY' ? 'daily' : 'weekly', title: q.title, text: q.text.replace('{value}', q.value.toLocaleString('fr-FR')), progress: periodicProgress(q, st, scope), target: q.value, reward: scaled(st.prod, def.hours, def.min, st.cap), claimed: isClaimed(q.key, periodKey) }));
     const bonusKey = scope === 'TODAY' ? 'd_bonus' : 'w_bonus';
-    const bonus = entry({ key: bonusKey, kind: scope === 'TODAY' ? 'daily' : 'weekly', bonus: true, title: scope === 'TODAY' ? 'Journée accomplie' : 'Semaine accomplie', text: `Prendre toutes les récompenses ${scope === 'TODAY' ? 'du jour' : 'de la semaine'}`, progress: list.filter(q => q.claimed).length, target: list.length || 1, reward: scaled(st.prod, def.bonus.hours, def.bonus.min), claimed: isClaimed(bonusKey, periodKey) });
+    const bonus = entry({ key: bonusKey, kind: scope === 'TODAY' ? 'daily' : 'weekly', bonus: true, title: scope === 'TODAY' ? 'Journée accomplie' : 'Semaine accomplie', text: `Prendre toutes les récompenses ${scope === 'TODAY' ? 'du jour' : 'de la semaine'}`, progress: list.filter(q => q.claimed).length, target: list.length || 1, reward: scaled(st.prod, def.bonus.hours, def.bonus.min, st.cap), claimed: isClaimed(bonusKey, periodKey) });
     return { period: periodKey, quests: list, bonus };
   };
   const daily = periodic(catalog.daily, 'TODAY', st.today);
@@ -220,7 +242,7 @@ async function questsFor(playerId) {
     if (tier < 0) continue;
     const level = a.levels[tier];
     const value = a.stat ? (st.player.stats?.[a.stat] || 0) : st.cnt('ALL', a.counter);
-    achievements.push(entry({ key: `${a.key}:${level}`, kind: 'achievement', title: a.title, text: a.text.replace('{level}', level.toLocaleString('fr-FR')), step: tier + 1, steps: a.levels.length, progress: Math.min(level, value), target: level, reward: scaled(st.prod, A.hours[Math.min(tier, A.hours.length - 1)], A.min * (tier + 1)), claimed: false }));
+    achievements.push(entry({ key: `${a.key}:${level}`, kind: 'achievement', title: a.title, text: a.text.replace('{level}', level.toLocaleString('fr-FR')), step: tier + 1, steps: a.levels.length, progress: Math.min(level, value), target: level, reward: scaled(st.prod, A.hours[Math.min(tier, A.hours.length - 1)], A.min * (tier + 1), st.cap), claimed: false }));
   }
 
   const all = [tutorial.current, ...tasks, ...daily.quests, daily.bonus, ...weekly.quests, weekly.bonus, ...achievements].filter(Boolean);
@@ -271,4 +293,4 @@ async function skipTutorial(playerId) {
   return { message: 'Tutoriel passé : les tâches, quêtes du jour et succès restent dans le panneau Quêtes' };
 }
 
-module.exports = { catalog, dayKey, dayStart, weekInfo, bump, bumpLater, purgeOld, questsFor, claimableCount, claim, skipTutorial, pickFor, taskReward, scaled, buildCost, productionOf, httpError };
+module.exports = { catalog, dayKey, dayStart, weekInfo, bump, bumpLater, purgeOld, questsFor, claimableCount, claim, skipTutorial, pickFor, periodPicks, taskReward, scaled, rewardCap, buildCost, productionOf, httpError };

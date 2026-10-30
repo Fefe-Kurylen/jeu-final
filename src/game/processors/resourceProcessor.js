@@ -37,6 +37,8 @@ const BONUS = {
 const PREMIUM_BONUS = config.purchases.perks.productionBonus;
 // Bastion d'alliance actif : +10 % de production pour tous les membres (décision du 26 octobre 2026)
 const BASTION_PROD = config.bastion.bonuses.productionPct / 100;
+// Ville dont un stock peut encore monter : une ville pleine garderait ses valeurs (GREATEST), on évite de la réécrire
+const NOT_FULL = Prisma.sql`(c.wood < c."maxStorage" OR c.stone < c."maxStorage" OR c.iron < c."maxStorage" OR c.food < c."maxFoodStorage")`;
 
 async function processResourceProduction(TICK_HOURS) {
   // 100% SQL : une seule requête pour toutes les villes (base 5/5/5/10 + champs × bonus), aucune lecture côté Node.
@@ -78,7 +80,7 @@ async function processResourceProduction(TICK_HOURS) {
       JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey"
       GROUP BY ci.id
     ) AS tp ON tp."cityId" = p."cityId"
-    WHERE c.id = p."cityId"
+    WHERE c.id = p."cityId" AND ${NOT_FULL}
   `;
   // Villes sans aucun bâtiment : production de base uniquement
   await prisma.$executeRaw`
@@ -87,7 +89,7 @@ async function processResourceProduction(TICK_HOURS) {
       stone = GREATEST(c.stone, LEAST(c.stone + 5  * ${TICK_HOURS}, c."maxStorage")),
       iron  = GREATEST(c.iron, LEAST(c.iron  + 5  * ${TICK_HOURS}, c."maxStorage")),
       food  = GREATEST(c.food, LEAST(c.food  + 10 * ${TICK_HOURS}, c."maxFoodStorage"))
-    WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id)
+    WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" cb WHERE cb."cityId" = c.id) AND ${NOT_FULL}
   `;
 }
 
@@ -110,13 +112,20 @@ function getUpkeepTableSql() {
 // −10 % pour les armées à l'arrêt dans leur ville assiégée
 const SIEGE_UP = config.army.siegeUpkeepPct;
 // Logistique du héros (GDD) : l'armée qui porte le héros consomme moins ; une ligne (armée, part réduite) par héros joint
-async function heroUpkeepTable() {
-  const armies = await prisma.army.findMany({ where: { heroId: { not: null } }, select: { id: true, hero: { include: { items: true } } } });
+// cityIds : armées de ces villes seulement (null = tout le monde) ; seuls les champs lus par statPct sont chargés
+async function heroUpkeepTable(cityIds = null) {
+  const armies = await prisma.army.findMany({
+    where: { heroId: { not: null }, ...(cityIds ? { cityId: { in: cityIds } } : {}) },
+    select: { id: true, hero: { select: { diedAt: true, logistics: true, logPoints: true, talents: true,
+      items: { where: { slot: { not: 'inventory' } }, select: { slot: true, stats: true } } } } }
+  });
   const HE = require('../../utils/heroEffects');
   const rows = armies.filter(a => a.hero && !a.hero.diedAt).map(a => [a.id, Math.max(0, Math.min(0.5, HE.statPct(a.hero, 'logistics')))]).filter(([, p]) => p > 0);
   return rows.length ? Prisma.join(rows.map(([id, p]) => Prisma.sql`(${id}, ${p}::float)`)) : Prisma.sql`('-', 0::float)`;
 }
-function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('-', 0::float)`) {
+// ids : villes demandées, répétées dans chaque sous-requête (PostgreSQL n'y pousse pas un IN de plusieurs valeurs)
+function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('-', 0::float)`, ids = null) {
+  const only = (col) => ids ? Prisma.sql`WHERE ${Prisma.raw(col)} IN (${Prisma.join(ids)})` : Prisma.empty;
   const [globalKey, globalPct] = fx.productionBonusKeys()[0];
   const prodTechTable = techTableSql('productionBonusPct');
   const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
@@ -140,11 +149,12 @@ function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('
       FROM "CityBuilding" cb JOIN "City" ci ON ci.id = cb."cityId" LEFT JOIN "Player" pl ON pl.id = ci."playerId"
       LEFT JOIN "AllianceMember" am ON am."playerId" = ci."playerId" LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'
       LEFT JOIN (VALUES ${getProdTableSql()}) AS pt(key, level, prod) ON pt.key = cb.key AND pt.level = cb.level
+      ${only('cb."cityId"')}
       GROUP BY cb."cityId"
     ) AS p ON p."cityId" = c.id
     LEFT JOIN (
       SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
-      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" GROUP BY ci.id
+      JOIN (VALUES ${prodTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" ${only('ci.id')} GROUP BY ci.id
     ) AS tp ON tp."cityId" = c.id
     LEFT JOIN (
       SELECT a."cityId", SUM(au.count * ut.upkeep * (CASE WHEN a.status = 'BESIEGING' THEN ${1 + SIEGE_UP.attacker / 100}::float
@@ -153,19 +163,21 @@ function foodBalanceSql(cityFilter = Prisma.sql`TRUE`, heroTable = Prisma.sql`('
       FROM "Army" a JOIN "City" hc ON hc.id = a."cityId" JOIN "ArmyUnit" au ON au."armyId" = a.id
       JOIN (VALUES ${getUpkeepTableSql()}) AS ut(key, upkeep) ON ut.key = au."unitKey"
       LEFT JOIN (VALUES ${heroTable}) AS hl(army, pct) ON hl.army = a.id
+      ${only('a."cityId"')}
       GROUP BY a."cityId"
     ) AS cons ON cons."cityId" = c.id
     LEFT JOIN (
-      SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId"
+      SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${reductionTable}) AS r(key, pct) ON r.key = cb.key ${only('cb."cityId"')} GROUP BY cb."cityId"
     ) AS red ON red."cityId" = c.id
     LEFT JOIN (
       SELECT ci.id AS "cityId", SUM(pt.level * tk.pct) AS pct FROM "City" ci JOIN "PlayerTechnology" pt ON pt."playerId" = ci."playerId"
-      JOIN (VALUES ${upkeepTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" GROUP BY ci.id
+      JOIN (VALUES ${upkeepTechTable}) AS tk(key, pct) ON tk.key = pt."techKey" ${only('ci.id')} GROUP BY ci.id
     ) AS tech ON tech."cityId" = c.id
     WHERE ${cityFilter}`;
 }
 async function foodBalance(cityIds) {
-  const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(cityIds.length ? cityIds : ['-'])})`, await heroUpkeepTable())}) b`;
+  const ids = cityIds.length ? cityIds : ['-'];
+  const rows = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`c.id IN (${Prisma.join(ids)})`, await heroUpkeepTable(ids), ids)}) b`;
   return new Map(rows.map(r => [r.cityId, { production: Math.round(r.prod), consumption: Math.round(r.cons), net: Math.round(r.prod - r.cons), reductionPct: r.reductionPct, hoursLeft: r.cons > r.prod ? Math.max(0, r.food / (r.cons - r.prod)) : null }]));
 }
 
@@ -173,16 +185,17 @@ let lastStarvationAt = 0;
 const RES_UP = config.army.upkeepPerTier;
 
 async function processUpkeep(TICK_HOURS, now = new Date()) {
-  // 1) Décrément de nourriture : une seule requête pour toutes les villes (bilan ci-dessus)
+  const heroTable = await heroUpkeepTable();   // une seule fois par tick, pour les deux requêtes
+  // 1) Décrément de nourriture : une seule requête pour toutes les villes (bilan ci-dessus) ; grenier déjà vide : rien à écrire
   await prisma.$executeRaw`
     UPDATE "City" AS c SET food = GREATEST(0, c.food - b.cons * ${TICK_HOURS})
-    FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, await heroUpkeepTable())}) AS b
-    WHERE c.id = b."cityId" AND b.cons > 0
+    FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, heroTable)}) AS b
+    WHERE c.id = b."cityId" AND b.cons > 0 AND c.food <> 0
   `;
   // 2) Une fois par heure : alertes (grenier vide dans moins de 6 h) et famine façon Travian
   if (now.getTime() - lastStarvationAt < config.army.starvationIntervalHours * 3600000) return;
   lastStarvationAt = now.getTime();
-  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, await heroUpkeepTable())}) b WHERE b.cons > b.prod`;
+  const short = await prisma.$queryRaw`SELECT * FROM (${foodBalanceSql(Prisma.sql`EXISTS (SELECT 1 FROM "Army" a2 WHERE a2."cityId" = c.id)`, heroTable)}) b WHERE b.cons > b.prod`;
   for (const r of short) {
     try {
       if (r.food > 1) await foodAlert(r, now);
@@ -237,7 +250,7 @@ async function starve(r, now) {
 
 // Points de ressource : régénération linéaire depuis la dernière mise à jour (regenRate par heure),
 // écrite seulement quand au moins 1 unité est gagnée (sinon FLOOR(…) = 0 à chaque tick de 30 s)
-async function processResourceRegen(now, TICK_HOURS) {
+async function processResourceRegen(now) {
   const regenCutoff = new Date(now.getTime() - config.tick.regenDelayMinutes * 60000);
   const regenResult = await prisma.$executeRaw`
     UPDATE "ResourceNode" SET

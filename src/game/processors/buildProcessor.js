@@ -63,6 +63,24 @@ async function syncWallHp(cityId, wallLevel, db = prisma) {
   await db.city.update({ where: { id: cityId }, data: { wallMaxHp: max, wallHp: max } });
 }
 
+// Démarre les constructions en attente tant que des places sont libres (tick, lecture des villes, annulation), avec la
+// durée fixée à la mise en file. Un niveau attend que le niveau inférieur du même bâtiment (même emplacement) ait quitté
+// la file : deux niveaux d'un bâtiment ne se construisent jamais en même temps. `tx` tient le verrou de la ville.
+async function promoteQueued(tx, cityId, now) {
+  const queue = await tx.buildQueueItem.findMany({ where: { cityId }, orderBy: { startedAt: 'asc' } });
+  let free = config.build.maxRunning - queue.filter(q => q.status === 'RUNNING').length;
+  const started = [];
+  for (const item of queue) {
+    if (free <= 0) break;
+    if (item.status !== 'QUEUED') continue;
+    if (queue.some(q => q.buildingKey === item.buildingKey && q.slot === item.slot && q.targetLevel < item.targetLevel)) continue;
+    const durationMs = Math.max(1000, new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime());
+    const ok = await tx.buildQueueItem.updateMany({ where: { id: item.id, status: 'QUEUED' }, data: { status: 'RUNNING', startedAt: now, endsAt: new Date(now.getTime() + durationMs) } });
+    if (ok.count === 1) { free--; started.push(item); }
+  }
+  return started;
+}
+
 async function processBuilds(now, { playerId = null } = {}) {
   const builds = await prisma.buildQueueItem.findMany({
     where: { status: 'RUNNING', endsAt: { lte: now }, ...(playerId ? { city: { playerId } } : {}) },
@@ -111,19 +129,14 @@ async function processBuilds(now, { playerId = null } = {}) {
         console.error(`[BUILD ERROR] ${b.buildingKey}:`, buildErr.message);
       }
     }
-    const remainingRunning = await prisma.buildQueueItem.count({ where: { cityId, status: 'RUNNING' } });
-    const slotsToStart = config.build.maxRunning - remainingRunning;
-    if (slotsToStart > 0) {
-      const nextQueued = await prisma.buildQueueItem.findMany({ where: { cityId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' }, take: slotsToStart });
-      for (const next of nextQueued) {
-        // Duration was fixed at enqueue time (faction bonus included): keep it, only shift the start
-        const durationMs = Math.max(1000, new Date(next.endsAt).getTime() - new Date(next.startedAt).getTime());
-        const endsAt = new Date(now.getTime() + durationMs);
-        await prisma.buildQueueItem.update({ where: { id: next.id }, data: { status: 'RUNNING', startedAt: now, endsAt } });
-        console.log(`[BUILD] Demarrage ${next.buildingKey} niveau ${next.targetLevel}`);
-      }
+    // Démarrage sous le verrou de la ville : le tick et une lecture des villes ne dépassent jamais maxRunning à eux deux
+    try {
+      const started = await prisma.$transaction(async (tx) => { await lockCity(tx, cityId); return promoteQueued(tx, cityId, now); });
+      for (const next of started) console.log(`[BUILD] Demarrage ${next.buildingKey} niveau ${next.targetLevel}`);
+    } catch (e) {
+      console.error('[BUILD ERROR] promotion:', e.message);   // repris à la prochaine fin ou annulation dans la ville
     }
   }
 }
 
-module.exports = { processBuilds, syncCityStorage, syncAllCityStorage, syncWallHp };
+module.exports = { processBuilds, syncAllCityStorage, promoteQueued };

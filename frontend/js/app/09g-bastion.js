@@ -52,7 +52,7 @@ async function renderBastionSection(box) {
     const pct = Math.min(100, Math.round(100 * (b.delivered[k] || 0) / Math.max(1, b.cost[k])));
     return `<div class="bastion-res"><span>${resIconHtml(k)} ${label}</span><div class="bastion-bar"><i style="width:${pct}%"></i></div><small>${formatNum(b.delivered[k] || 0)} / ${formatNum(b.cost[k])}</small></div>`;
   }).join('');
-  const lives = b.lives ?? Math.floor(b.structurePct * b.assaults / 100);
+  const lives = b.lives;
   box.innerHTML = `${header}
     <div class="bastion-card status-${b.status.toLowerCase()}">
       <div class="bastion-head"><strong>${bastionStatusLabel(b.status)}</strong> · (${b.x}, ${b.y})
@@ -101,7 +101,7 @@ async function renderBastionMapPanel(tile, content) {
   const rel = typeof mapRelationOf === 'function' ? mapRelationOf(tile) : 'NEUTRAL';
   const mine = rel === 'SAME_ALLIANCE', friendly = mine || rel === 'ALLY';
   const id = chatSafeId(tile.id);
-  const lives = tile.status === 'FUNDING' ? null : (tile.lives ?? Math.floor((tile.structurePct ?? 100) / 10));
+  const lives = tile.status === 'FUNDING' ? null : tile.lives;
   const actions = [];
   if (mine && tile.status === 'FUNDING') actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'SUPPLY')">${resIconHtml('item_crate')} Ravitailler</button>`);
   if (friendly && tile.status !== 'FUNDING' && !tile.isSieged) actions.push(`<button class="btn btn-primary" onclick="closeMapPanel(); openBastionSend('${id}', 'GARRISON')">${resIconHtml('defense')} Garnison</button>`);

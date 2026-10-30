@@ -14,11 +14,6 @@
 <body>
     <!-- AUTH SCREEN -->
     <div id="auth-screen" class="screen">
-        <div class="auth-bg"></div>
-        <div class="auth-decorations">
-            <div class="auth-deco auth-deco-left"></div>
-            <div class="auth-deco auth-deco-right"></div>
-        </div>
         <div class="auth-container">
             <div class="auth-box">
                 <div class="auth-header">
@@ -112,7 +107,6 @@
                         <span class="res-timer" id="timer-wood">00:00:00</span>
                         <div class="res-sub">
                             <span class="res-prod" id="prod-wood">/h: 0</span>
-                            <span class="res-max">Max: <span id="max-wood">800</span></span>
                         </div>
                     </div>
                     <div class="res-bar"><div class="res-bar-fill wood-fill" id="wood-bar"></div></div>
@@ -124,7 +118,6 @@
                         <span class="res-timer" id="timer-stone">00:00:00</span>
                         <div class="res-sub">
                             <span class="res-prod" id="prod-stone">/h: 0</span>
-                            <span class="res-max">Max: <span id="max-stone">800</span></span>
                         </div>
                     </div>
                     <div class="res-bar"><div class="res-bar-fill clay-fill" id="clay-bar"></div></div>
@@ -136,7 +129,6 @@
                         <span class="res-timer" id="timer-iron">00:00:00</span>
                         <div class="res-sub">
                             <span class="res-prod" id="prod-iron">/h: 0</span>
-                            <span class="res-max">Max: <span id="max-iron">800</span></span>
                         </div>
                     </div>
                     <div class="res-bar"><div class="res-bar-fill iron-fill" id="iron-bar"></div></div>
@@ -148,7 +140,6 @@
                         <span class="res-timer" id="timer-food">00:00:00</span>
                         <div class="res-sub">
                             <span class="res-prod" id="prod-food">/h: 0</span>
-                            <span class="res-max">Max: <span id="max-food">800</span></span>
                         </div>
                     </div>
                     <div class="res-bar"><div class="res-bar-fill food-fill" id="food-bar"></div></div>
@@ -393,7 +384,7 @@
                 <button class="bnav-tab active" data-tab="city" onclick="showTab('city')"><img class="bnav-icon" src="assets/images/3d/ui/city.webp" alt=""><span class="bnav-label">Village</span></button>
                 <button class="bnav-tab" data-tab="map" onclick="showTab('map')"><img class="bnav-icon" src="assets/images/3d/ui/map.webp" alt=""><span class="bnav-label">Carte</span></button>
                 <button class="bnav-tab" data-tab="army" onclick="showTab('army')"><img class="bnav-icon" src="assets/images/3d/ui/army.webp" alt=""><span class="bnav-label">Armée</span></button>
-                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><img class="bnav-icon" src="assets/images/3d/ui/reports.webp" alt=""><span class="bnav-label">Rapports</span><span class="tab-badge" id="reports-badge" style="display:none">0</span></button>
+                <button class="bnav-tab" data-tab="reports" onclick="showTab('reports')"><img class="bnav-icon" src="assets/images/3d/ui/reports.webp" alt=""><span class="bnav-label">Rapports</span></button>
                 <button class="bnav-tab" data-tab="ranking" onclick="showTab('ranking')"><img class="bnav-icon" src="assets/images/3d/ui/ranking.webp" alt=""><span class="bnav-label">Stats</span></button>
                 <div class="bnav-separator"></div>
                 <div class="bnav-village-selector">

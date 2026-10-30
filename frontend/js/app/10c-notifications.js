@@ -6,13 +6,6 @@
 let notifItems = [];
 let notifLatestSeen = null;   // id of the newest notification already known (a newer one shows a toast)
 
-function setNotifBadge(n) {
-  const el = document.getElementById('notif-badge');
-  if (!el) return;
-  el.textContent = n > 99 ? '99+' : String(n);
-  el.style.display = n > 0 ? '' : 'none';
-}
-
 // Polled with the game refresh: the badge, and a toast for a notification that just arrived
 async function refreshNotificationBadge() {
   if (typeof token === 'undefined' || !token) return;
@@ -20,7 +13,7 @@ async function refreshNotificationBadge() {
     const res = await fetch(`${API}/api/notifications/unread`, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return;
     const { unread, latest } = await res.json();
-    setNotifBadge(unread || 0);
+    setBadge('notif-badge', unread || 0);
     if (latest && notifLatestSeen !== null && latest.id !== notifLatestSeen && !latest.readAt) showToast(`🔔 ${latest.title}`, 'info');
     notifLatestSeen = latest?.id || '';
   } catch (e) { /* offline: the next refresh tries again */ }
@@ -42,7 +35,7 @@ async function openNotifications() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erreur');
     notifItems = data.items || [];
-    setNotifBadge(data.unread || 0);
+    setBadge('notif-badge', data.unread || 0);
     if (notifItems[0]) notifLatestSeen = notifItems[0].id;
   } catch (e) { showToast(e.message || 'Erreur réseau', 'error'); return; }
   const rows = notifItems.map(n => `
@@ -67,7 +60,7 @@ async function markNotificationsRead(body) {
   try {
     const res = await fetch(`${API}/api/notifications/read`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) setNotifBadge(data.unread || 0);
+    if (res.ok) setBadge('notif-badge', data.unread || 0);
   } catch (e) { /* the badge is fixed by the next refresh */ }
 }
 

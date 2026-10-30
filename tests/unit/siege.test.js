@@ -53,3 +53,13 @@ test('an empty city still has to be breached; a strong army takes it', () => {
   assert.equal(strong.attackerWon, true);
   assert.equal(strong.wallHpEnd, 0);
 });
+
+test('Sultan siege engines strike the wall 25 % harder; a Gallic wall takes 1/1.2 of the blows', () => {
+  const sulEng = unit('SULTAN', 'SIEGE', 'siege'), egyEng = unit('EGYPT', 'SIEGE', 'siege');
+  assert.equal(sulEng.stats.attack, egyEng.stats.attack);
+  const firstHit = (engine, defFaction) => resolveCombatDetailed([g(engine, 20)], def, 20, 0, 'A', 'D', null, null, null, defFaction, 0, null, wall(20)).rounds[0].wallDamage;
+  const plain = firstHit(egyEng, 'GREEK');
+  assert.ok(plain > 0);
+  assert.ok(Math.abs(firstHit(sulEng, 'GREEK') / plain - 1.25) < 0.01);
+  assert.ok(Math.abs(plain / firstHit(egyEng, 'GAUL') - 1.2) < 0.01);
+});

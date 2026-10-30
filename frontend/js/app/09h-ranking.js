@@ -48,7 +48,6 @@ function showRanking(view) {
   loadRanking(view);
 }
 async function loadRanking(view = rankingState.view) {
-  if (['attackers', 'defenders'].includes(view)) { rankingState.sort = view === 'attackers' ? 'attack' : 'defense'; view = 'players'; }
   rankingState.view = view;
   const content = document.getElementById('ranking-content');
   if (!content) return;

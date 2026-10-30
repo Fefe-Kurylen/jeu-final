@@ -169,7 +169,6 @@
   }
   const riverAt = (x, y) => riverTiles.get(x + ',' + y) || null;
   const crossingAxisAt = (x, y) => crossingAxis.get(x + ',' + y) || null;
-  function isOnRiver(x, y) { return riverTiles.has(x + ',' + y); }
 
   // Lacs (disques irréguliers)
   const LEGACY_LAKES = [
@@ -658,11 +657,33 @@
     return null;
   }
 
+  // Longueur de chaque pas d'un chemin [[x, y], …] et longueur totale (à garder avec un chemin qui sert plusieurs fois)
+  function pathLengths(path) {
+    let total = 0;
+    const seg = [];
+    for (let i = 1; i < path.length; i++) { const d = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(d); total += d; }
+    return { seg, total };
+  }
+  // Point d'un chemin à la fraction donnée de sa longueur : là où se trouve une armée en marche, le même calcul au serveur
+  // (rencontres) et sur la carte. lengths : pathLengths(path), facultatif (sinon mesuré ici)
+  function pointAlongPath(path, fraction, lengths) {
+    if (!path || !path.length) return null;
+    if (path.length === 1 || fraction <= 0) return { x: path[0][0], y: path[0][1] };
+    if (fraction >= 1) { const l = path[path.length - 1]; return { x: l[0], y: l[1] }; }
+    const { seg, total } = lengths || pathLengths(path);
+    let target = fraction * total;
+    for (let i = 1; i < path.length; i++) {
+      if (target <= seg[i - 1]) { const t = seg[i - 1] ? target / seg[i - 1] : 0; return { x: path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, y: path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t }; }
+      target -= seg[i - 1];
+    }
+    const l = path[path.length - 1]; return { x: l[0], y: l[1] };
+  }
+
   setWorldSeed(0);   // la carte de référence, tant que la graine du serveur n'est pas connue
 
   return {
     get worldSeed() { return WORLD_SEED; }, get epoch() { return epoch; }, MAX_SEED, setWorldSeed, worldStats, worldStatsOk, layout,
     get generator() { return generatorFor(WORLD_SEED); }, get minClientVersion() { return generatorFor(WORLD_SEED); },
-    get signature() { return signature(); }, generatorFor, canDraw,
-    TERRAIN_VERSION, CITY_FOOTPRINT, cityCells, GROUND_LAYERS, GROUND_VARIANTS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, BIOME_SCALE, seededRandom, smoothNoise, hillNoise, getBiome, isOnRiver, riverAt, crossingAxisAt, isOnLake, isOnMountainRange, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, FORD_COST, FOREST_COST, inWorld, isBlocked, isMainland, findPath, _cache: cache };
+    get signature() { return signature(); }, generatorFor,
+    TERRAIN_VERSION, cityCells, GROUND_LAYERS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, seededRandom, getBiome, riverAt, crossingAxisAt, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, inWorld, isBlocked, isMainland, findPath, pathLengths, pointAlongPath };
 });

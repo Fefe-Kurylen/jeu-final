@@ -14,7 +14,7 @@ const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
-const { processBuilds } = require('../game/processors/buildProcessor');
+const { processBuilds, promoteQueued } = require('../game/processors/buildProcessor');
 const { processRecruits } = require('../game/processors/recruitProcessor');
 
 // Queue items that are due are applied when the player looks at their cities, so a level never shows
@@ -70,18 +70,6 @@ function recruitCost(unit, count) {
   };
 }
 const scaleCost = (cost, rate) => Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.floor(v * rate)]));
-
-// Starts queued items while running slots are free (same rule as the tick): the duration fixed at enqueue time is kept
-async function promoteQueued(tx, cityId, now) {
-  const running = await tx.buildQueueItem.count({ where: { cityId, status: 'RUNNING' } });
-  const free = config.build.maxRunning - running;
-  if (free <= 0) return;
-  const next = await tx.buildQueueItem.findMany({ where: { cityId, status: 'QUEUED' }, orderBy: { startedAt: 'asc' }, take: free });
-  for (const item of next) {
-    const durationMs = Math.max(1000, new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime());
-    await tx.buildQueueItem.update({ where: { id: item.id }, data: { status: 'RUNNING', startedAt: now, endsAt: new Date(now.getTime() + durationMs) } });
-  }
-}
 
 // GET /api/cities
 router.get('/', auth, async (req, res) => {
@@ -182,10 +170,12 @@ router.post('/:id/build', auth, async (req, res) => {
 
       const now = new Date();
       const running = city.buildQueue.filter(b => b.status === 'RUNNING');
+      // un niveau dont le précédent est encore dans la file attend sa fin : jamais deux niveaux d'un bâtiment à la fois
+      const sameEnd = city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === buildSlot).reduce((m, b) => Math.max(m, new Date(b.endsAt).getTime()), 0);
       let startAt = now, status = 'RUNNING';
-      if (running.length >= MAX_RUNNING) {
+      if (running.length >= MAX_RUNNING || sameEnd > 0) {
         // Starts when the latest item of the queue ends (queued items run after the running ones)
-        const lastEnd = city.buildQueue.reduce((m, b) => Math.max(m, new Date(b.endsAt).getTime()), now.getTime());
+        const lastEnd = running.length >= MAX_RUNNING ? city.buildQueue.reduce((m, b) => Math.max(m, new Date(b.endsAt).getTime()), now.getTime()) : Math.max(now.getTime(), sameEnd);
         startAt = new Date(lastEnd);
         status = 'QUEUED';
       }
@@ -201,8 +191,7 @@ router.post('/:id/build', auth, async (req, res) => {
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
-    console.error('Build error:', e);
-    sendError(res, e);
+    sendError(res, e, 'build');
   }
 });
 
@@ -304,11 +293,16 @@ router.post('/:id/settlers', auth, async (req, res) => {
       if (!residence) return { error: 'Résidence requise', status: 400 };
       const slots = Math.min(config.city.maxSecondaryCities, fx.settlerSlots(residence.level));
       if (slots <= 0) return { error: 'Résidence niveau 10 requise pour former un colon', status: 400 };
-      const colonies = await tx.city.count({ where: { playerId: city.playerId, isCapital: false } });
+      // la Ville Merveille est hors quota de colonies (décision du 28 octobre 2026), comme à la fondation
+      const colonies = await tx.city.count({ where: { playerId: city.playerId, isCapital: false, isWonder: false } });
       const travelling = await tx.army.aggregate({ where: { ownerId: city.playerId }, _sum: { settlers: true } });
       const training = city.recruitQueue.filter(q => q.unitKey === 'SETTLER').reduce((s, q) => s + q.count, 0);
-      const used = colonies + city.settlers + (travelling._sum.settlers || 0) + training;
-      if (used >= slots) {
+      const pending = city.settlers + (travelling._sum.settlers || 0) + training;
+      const used = colonies + pending;
+      // un colon de plus pour la Ville Merveille quand toutes les places sont prises par des colonies fondées (la
+      // fondation d'une colonie le refuse alors) et qu'aucun colon n'attend
+      const forWonder = used >= slots && colonies >= slots && pending === 0 && !(await tx.city.count({ where: { playerId: city.playerId, isWonder: true } }));
+      if (used >= slots && !forWonder) {
         const next = slots >= 3 ? null : slots === 2 ? 20 : 15;
         return { error: next ? `Tous vos colons sont engagés (${slots}) : Résidence niveau ${next} pour le suivant` : `Limite atteinte : ${slots} villes secondaires au plus`, status: 400 };
       }
@@ -468,24 +462,20 @@ router.get('/:id/siege', auth, async (req, res) => {
     const voluntary = new Set(), forced = new Set();
     const campOwners = [...new Set(camp.map(a => a.ownerId))].filter(id => id !== req.user.playerId);
     for (const id of campOwners) if ((await getRelation(req.user.playerId, id)).canAttack) voluntary.add(id);
-    if (city.playerId === req.user.playerId) {
-      const rows = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, ...campOwners] } }, select: { playerId: true, allianceId: true } });
-      const mine = rows.find(r => r.playerId === req.user.playerId)?.allianceId || null;
-      for (const id of campOwners) if (!(mine && rows.find(r => r.playerId === id)?.allianceId === mine)) forced.add(id);
-    }
+    // alliances du joueur, de la ville et du camp lues une fois : combat forcé et délai avant la bataille
+    const members = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, city.playerId, ...camp.map(a => a.ownerId)] } }, select: { playerId: true, allianceId: true } });
+    const myAlliance = members.find(m => m.playerId === req.user.playerId)?.allianceId || null;
+    const sameAlliance = (id) => !!myAlliance && members.find(m => m.playerId === id)?.allianceId === myAlliance;
+    if (city.playerId === req.user.playerId) for (const id of campOwners) if (!sameAlliance(id)) forced.add(id);
     const wallLevel = city.buildings[0]?.level || 0;
     // the time left before the battle is for the players concerned and their alliances only (décision du 25 octobre 2026)
-    const concerned = [city.playerId, ...camp.map(a => a.ownerId)];
-    const members = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, ...concerned] } }, select: { playerId: true, allianceId: true } });
-    const myAlliance = members.find(m => m.playerId === req.user.playerId)?.allianceId || null;
-    const isConcerned = (ids) => ids.some(id => id === req.user.playerId || (myAlliance && members.find(m => m.playerId === id)?.allianceId === myAlliance));
+    const isConcerned = (ids) => ids.some(id => id === req.user.playerId || sameAlliance(id));
     const seesDefense = isConcerned([city.playerId]);
     res.json({
       cityId: city.id, cityName: city.name, besieged: camp.length > 0, wallLevel,
       // PV du mur au prochain combat (sa part des vies restantes) ; vies restantes avant la chute
       wallHp: wallLevel > 0 ? Math.round((city.wallMaxHp || 0) * (city.wallStructure ?? 1)) : 0, wallMaxHp: wallLevel > 0 ? city.wallMaxHp : 0,
       wallStructurePct: Math.round((city.wallStructure ?? 1) * 100), livesLeft: assaultsLeft(city, city.player?.faction), livesTotal: assaultsToFall(city, city.player?.faction),
-      assaultsLeft: assaultsLeft(city, city.player?.faction), assaultsToFall: assaultsToFall(city, city.player?.faction),
       fate: city.isCapital ? 'RELOCATED' : 'RAZED',
       x: city.x, y: city.y,
       canSortie: voluntary.size > 0, canForce: forced.size > 0, canBreak: voluntary.size > 0 || forced.size > 0,

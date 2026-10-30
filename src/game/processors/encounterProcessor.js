@@ -51,7 +51,6 @@ async function positionAt(a, t, budget = { left: Infinity }) {
   const p = pointAlongPath(await routeOf(a, budget), progress);
   return p || { x: a.x, y: a.y };
 }
-async function tileAt(a, t) { const p = await positionAt(a, t); return { x: Math.round(p.x), y: Math.round(p.y) }; }
 
 // Closest approach of two points moving in straight lines between two instants (relative motion), squared
 function closestApproach2(a0, a1, b0, b1) {
@@ -109,13 +108,24 @@ async function processEncounters(now) {
   if (candidates.length < 2) { lastRunAt = nowMs; return 0; }
 
   // enemy pairs whose areas can overlap during the window: only those get their routes computed
-  const box = new Map(candidates.map(a => [a.id, boxOf(a)]));
-  const enemyPairs = [];
-  for (let i = 0; i < candidates.length; i++) for (let j = i + 1; j < candidates.length; j++) {
-    const p = candidates[i], q = candidates[j];
-    if (p.ownerId === q.ownerId || !pairs.has(`${allianceOf.get(p.ownerId)}|${allianceOf.get(q.ownerId)}`)) continue;
-    if (boxesMeet(box.get(p.id), box.get(q.id))) enemyPairs.push([p, q]);
+  // grille de cases de CELL × CELL : deux zones qui se touchent partagent au moins une case (évite le O(n²))
+  const box = candidates.map(boxOf);
+  const CELL = 16, grid = new Map();
+  candidates.forEach((a, i) => {
+    const b = box[i];
+    for (let cx = Math.floor(b.x0 / CELL); cx <= Math.floor(b.x1 / CELL); cx++) for (let cy = Math.floor(b.y0 / CELL); cy <= Math.floor(b.y1 / CELL); cy++) {
+      const k = cx + ',' + cy; let l = grid.get(k); if (!l) grid.set(k, l = []); l.push(i);
+    }
+  });
+  const n = candidates.length, seen = new Set(), idx = [];
+  for (const l of grid.values()) for (let u = 0; u < l.length; u++) for (let v = u + 1; v < l.length; v++) {
+    const i = l[u], j = l[v], p = candidates[i], q = candidates[j];   // l est croissant : i < j
+    if (p.ownerId === q.ownerId || !boxesMeet(box[i], box[j])) continue;
+    const key = i * n + j; if (seen.has(key)) continue; seen.add(key);
+    if (pairs.has(`${allianceOf.get(p.ownerId)}|${allianceOf.get(q.ownerId)}`)) idx.push([i, j]);
   }
+  idx.sort((a, b) => a[0] - b[0] || a[1] - b[1]);   // même ordre que la double boucle
+  const enemyPairs = idx.map(([i, j]) => [candidates[i], candidates[j]]);
   if (!enemyPairs.length) { lastRunAt = nowMs; return 0; }
   const involved = new Map();
   for (const [p, q] of enemyPairs) { involved.set(p.id, p); involved.set(q.id, q); }
@@ -173,10 +183,13 @@ async function processEncounters(now) {
 
   let fought = 0;
   const engaged = new Set();
+  // armées à l'arrêt indexées par case (dans l'ordre des candidats)
+  const standingAt = new Map();
+  for (const o of candidates) if (!isMarching(o)) { const k = `${o.x},${o.y}`; let l = standingAt.get(k); if (!l) standingAt.set(k, l = []); l.push(o); }
   for (const m of found) {
     if (engaged.has(m.p.id) || engaged.has(m.q.id)) continue;
     // the armies of the same alliance standing on the tile defend it together
-    const sideOf = (lead) => [lead, ...candidates.filter(o => o.id !== lead.id && !engaged.has(o.id) && !isMarching(o) && o.x === m.x && o.y === m.y && allianceOf.get(o.ownerId) === allianceOf.get(lead.ownerId))];
+    const sideOf = (lead) => [lead, ...(standingAt.get(`${m.x},${m.y}`) || []).filter(o => o.id !== lead.id && !engaged.has(o.id) && allianceOf.get(o.ownerId) === allianceOf.get(lead.ownerId))];
     try {
       const r = await resolveMeeting(m, sideOf, now);
       if (r) { fought++; for (const id of r.ids) engaged.add(id); }
@@ -199,7 +212,8 @@ async function resolveMeeting({ p, q, x, y, cityAt }, sideOf, now) {
   const ids = [atk0.id, ...defSide.map(d => d.id)];
   // two armies that have just fought do not fight again while the loser leaves the tile
   const since = new Date(now.getTime() - E().rematchMinutes * 60000);
-  const recent = await prisma.$queryRaw`SELECT 1 FROM "BattleReport" WHERE "createdAt" > ${since} AND loot->>'type' = 'ENCOUNTER' AND rounds->'armyIds' ? ${atk0.id} AND rounds->'armyIds' ?| ${defSide.map(d => d.id)} LIMIT 1`;
+  // chaque camp a sa copie du rapport : celle du propriétaire de atk0 suffit, et l'index (playerId, createdAt) sert
+  const recent = await prisma.$queryRaw`SELECT 1 FROM "BattleReport" WHERE "playerId" = ${atk0.ownerId} AND "createdAt" > ${since} AND loot->>'type' = 'ENCOUNTER' AND rounds->'armyIds' ? ${atk0.id} AND rounds->'armyIds' ?| ${defSide.map(d => d.id)} LIMIT 1`;
   if (recent.length) return null;
   const outcome = await prisma.$transaction(async (tx) => {
     const camps = (await tx.army.findMany({ where: { id: { in: ids }, status: 'BESIEGING' }, select: { targetCityId: true } })).map(v => v.targetCityId).filter(Boolean);
@@ -245,4 +259,4 @@ async function resolveMeeting({ p, q, x, y, cityAt }, sideOf, now) {
   return outcome;
 }
 
-module.exports = { processEncounters, tileAt, closestApproach2, isCandidate, isMarching, allowedOnCity, allowedOnBastion };
+module.exports = { processEncounters, isCandidate, isMarching, allowedOnCity, allowedOnBastion };

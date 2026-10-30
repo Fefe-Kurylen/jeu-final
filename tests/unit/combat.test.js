@@ -58,6 +58,17 @@ test('raid resolution: the loser never loses more than the GDD rate, the winner 
   assert.ok(r.attackerLossRate >= 0);
 });
 
+test('raid resolution: Rome\'s +10 % unit defence counts on the defence share only, when attacking as when defending', () => {
+  const atk = [group(romeInf, 100)], dfd = [group(hunInf, 100)];
+  const share = (1 + 0.1 * romeInf.stats.defense / (romeInf.stats.attack + romeInf.stats.defense));
+  const plain = resolveCombat(atk, dfd, 0, null, null, {});
+  const rome = resolveCombat(atk, dfd, 0, null, null, { attackerFaction: 'ROME' });
+  assert.ok(Math.abs(rome.attackerPower / plain.attackerPower - share) < 1e-9);
+  const romeDef = resolveCombat(dfd, atk, 0, null, null, { defenderFaction: 'ROME', fieldBattle: true });
+  const plainDef = resolveCombat(dfd, atk, 0, null, null, { fieldBattle: true });
+  assert.ok(Math.abs(romeDef.defenderPower / plainDef.defenderPower - share) < 1e-9);
+});
+
 test('hero combat bonus is capped at +5%', () => {
   assert.equal(heroBonus(null, 'attack'), 1);
   assert.equal(heroBonus({ attack: 4 }, 'attack'), 1 + 4 * config.combat.heroBonusPerPoint);

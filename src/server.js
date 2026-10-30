@@ -23,13 +23,13 @@ const nWorkers = workersEnv === 'auto' ? os.cpus().length : parseInt(workersEnv,
 if (cluster.isPrimary && nWorkers > 1) {
   console.log(`[CLUSTER] Demarrage de ${nWorkers} workers...`);
   let tickWorkerId = null;
-  const fork = (isTick, skipSetup) => {
-    const w = cluster.fork({ ...process.env, IS_TICK_WORKER: String(isTick), SKIP_DB_SETUP: String(skipSetup) });
+  const fork = (isTick) => {
+    const w = cluster.fork({ ...process.env, IS_TICK_WORKER: String(isTick) });
     if (isTick) tickWorkerId = w.id;
     return w;
   };
   // Seul le worker de tick execute le game loop et le seed (évite les doubles ticks)
-  for (let i = 0; i < nWorkers; i++) fork(i === 0, i !== 0);
+  for (let i = 0; i < nWorkers; i++) fork(i === 0);
   let stopping = false, fatalStop = false;
   cluster.on('exit', (worker, code) => {
     if (stopping) { if (Object.keys(cluster.workers).length === 0) process.exit(fatalStop ? 1 : 0); return; }
@@ -46,7 +46,7 @@ if (cluster.isPrimary && nWorkers > 1) {
     console.error(`[CLUSTER] Worker ${worker.process.pid} mort (code ${code}), redemarrage${wasTick ? ' (worker de tick)' : ''}...`);
     // le worker de tick reprend la préparation de la base (elle peut être restée à mi-chemin : migrations, graine,
     // points de ressource) ; chaque étape se rejoue sans dommage
-    fork(wasTick, !wasTick);
+    fork(wasTick);
   });
   // Graceful stop: every worker gets the signal, finishes its requests and releases the tick lease
   const stopAll = (signal) => {
@@ -59,7 +59,7 @@ if (cluster.isPrimary && nWorkers > 1) {
   return; // le primaire ne sert pas de HTTP
 }
 const IS_TICK_WORKER = nWorkers <= 1 || process.env.IS_TICK_WORKER === 'true';
-const SKIP_DB_SETUP = nWorkers > 1 && process.env.SKIP_DB_SETUP === 'true';
+const SKIP_DB_SETUP = !IS_TICK_WORKER;   // seul le worker de tick prépare la base
 
 const config = require('./config');
 const prisma = require('./config/database');
@@ -68,7 +68,7 @@ const { Prisma } = require('@prisma/client');   // Prisma.sql / Prisma.join for 
 const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
 const { startGameLoop, releaseTickLease } = require('./game/tick');
-const { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities } = require('./game/seed');
+const { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities, RESEED_VERSION } = require('./game/seed');
 const { loadWorldSeed, openWorld, isWorldReady } = require('./game/world');
 
 const app = express();
@@ -116,13 +116,12 @@ app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
 
 // ========== STATIC DATA (cached) ==========
 app.get('/api/buildings', cacheControl(3600), (req, res) => res.json(buildingsData));
-app.get('/api/data/units', cacheControl(3600), (req, res) => res.json(unitsData));
 app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
 
 // ========== MONDE TERMINÉ ==========
 // Une Merveille a atteint le niveau 100 (décision du 28 octobre 2026) : le monde se lit encore (GET), mais ne se joue plus
 // jusqu'au nouveau monde ; comptes, achats, messagerie, notifications et paramètres restent ouverts
-const OPEN_WHEN_ENDED = ['/api/admin', '/api/auth', '/api/purchases', '/api/chat', '/api/notifications', '/api/push', '/api/analytics', '/api/player/settings', '/api/player/account', '/api/world/join'];
+const OPEN_WHEN_ENDED = ['/api/admin', '/api/auth', '/api/purchases', '/api/chat', '/api/notifications', '/api/push', '/api/analytics', '/api/world/join'];
 app.use('/api/', async (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   if (OPEN_WHEN_ENDED.some(p => req.originalUrl.startsWith(p))) return next();
@@ -153,10 +152,10 @@ app.use('/api/hero', heroRoutes);
 app.use('/api/quests', require('./routes/quests'));
 app.use('/api/spies', require('./routes/spies'));
 app.use('/api/bastion', require('./routes/bastion'));
-app.use('/api', require('./routes/wonder'));
-app.use('/api', require('./routes/admin'));
-app.use('/api', require('./routes/invasion'));
-app.use('/api', require('./routes/rally'));   // /api/rallies : rassemblements d'alliance contre les donjons   // /api/invasion : invasions barbares du week-end   // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)   // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
+app.use('/api', require('./routes/wonder'));     // /api/world/state, /api/world/hall-of-fame, /api/world/join, /api/wonder…
+app.use('/api', require('./routes/admin'));      // /api/admin/* : écran d'administration (équipe du jeu, décision du 29 octobre 2026)
+app.use('/api', require('./routes/invasion'));   // /api/invasion : invasions barbares du week-end
+app.use('/api', require('./routes/rally'));      // /api/rallies : rassemblements d'alliance contre les donjons
 app.use('/api/alliance', require('./routes/allianceHelp'));   // /help…, /shop… (avant /api/alliance/:id)
 app.use('/api/alliances', allianceRoutes);
 app.use('/api/alliance', allianceRoutes);
@@ -203,7 +202,7 @@ async function repairData() {
     SELECT gen_random_uuid()::text, c.id, 'MAIN_HALL', 0, 1 FROM "City" c
     WHERE NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.key = 'MAIN_HALL')
       AND NOT EXISTS (SELECT 1 FROM "CityBuilding" b WHERE b."cityId" = c.id AND b.slot = 0)`;
-  // GDD regeneration speed: full refill in 4h (gold: 24h)
+  // GDD regeneration speed: full refill in 4h (gold: 12 h)
   // Resource nodes: a stock never below the floor of their level (config.map.resourceNode), older seeds were smaller at levels 2-3
   const RN = config.map.resourceNode;
   const floorCase = Prisma.sql`CASE ${Prisma.join(Object.entries(RN.baseAmountByLevel).map(([l, v]) => Prisma.sql`WHEN level = ${Number(l)} THEN ${Math.floor(v * 0.8 * RN.maxFactor)}`), ' ')} ELSE 0 END`;
@@ -292,30 +291,30 @@ async function startServer() {
       }
 
       // Auto-seed resource nodes (tick worker uniquement)
-      try {
-        if (SKIP_DB_SETUP) throw Object.assign(new Error('skip'), { _skip: true });
-        const nodeCount = await prisma.resourceNode.count();
-        const { RESEED_VERSION } = require('./game/seed');
-        const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
-        const lastSeedVersion = await prisma.$queryRawUnsafe(
-          `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
-        ).then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
-        const needsReseed = forceReseed || lastSeedVersion < RESEED_VERSION;
-        if (needsReseed) {
-          if (nodeCount > 0) {
-            console.log(`Suppression de ${nodeCount} anciens noeuds (v${lastSeedVersion} -> v${RESEED_VERSION})...`);
-            await prisma.resourceNode.deleteMany({});
+      if (!SKIP_DB_SETUP) {
+        try {
+          const nodeCount = await prisma.resourceNode.count();
+          const forceReseed = process.env.FORCE_RESEED === 'true' || nodeCount === 0;
+          const lastSeedVersion = await prisma.$queryRawUnsafe(
+            `SELECT obj_description('public."ResourceNode"'::regclass) as ver`
+          ).then(r => parseInt(r?.[0]?.ver) || 0).catch(() => 0);
+          const needsReseed = forceReseed || lastSeedVersion < RESEED_VERSION;
+          if (needsReseed) {
+            if (nodeCount > 0) {
+              console.log(`Suppression de ${nodeCount} anciens noeuds (v${lastSeedVersion} -> v${RESEED_VERSION})...`);
+              await prisma.resourceNode.deleteMany({});
+            }
+            console.log('Generation des points de ressource v' + RESEED_VERSION + '...');
+            await seedResourceNodes();
+            await prisma.$executeRawUnsafe(`COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`);
+          } else {
+            console.log(`${nodeCount} points de ressource existants (v${lastSeedVersion})`);
+            await rescueTrappedCities();
+            await syncResourceNodesWithTerrain();
           }
-          console.log('Generation des points de ressource v' + RESEED_VERSION + '...');
-          await seedResourceNodes();
-          await prisma.$executeRawUnsafe(`COMMENT ON TABLE "ResourceNode" IS '${RESEED_VERSION}'`);
-        } else {
-          console.log(`${nodeCount} points de ressource existants (v${lastSeedVersion})`);
-          await rescueTrappedCities();
-          await syncResourceNodesWithTerrain();
+        } catch (seedErr) {
+          console.warn('Erreur seed:', seedErr.message);
         }
-      } catch (seedErr) {
-        if (!seedErr._skip) console.warn('Erreur seed:', seedErr.message);
       }
 
       // Le monde est prêt (points posés, villes vérifiées) : /api/* répond

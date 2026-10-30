@@ -45,8 +45,10 @@ const effects = {
   upkeepReductionPct: (buildings) => sumPct(buildings, ['HUN_WAR_TENT', 'SULTAN_DESERT_OUTPOST'], 'upkeepReductionPctPerLevel', 50),
   // Global production: Egyptian Irrigation 1 %/level (max 50 %)
   productionBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'globalProductionBonusPctPerLevel', 50),
-  // Carrying capacity of convoys: Market 5 %/level, Trade Office 1 %/level
-  transportBonusPct: (buildings) => cap(levelOf(buildings, 'MARKET') * effectOf('MARKET', 'playerTransportBonusPctPerLevel') + levelOf(buildings, 'TRADE_OFFICE') * effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel'), 200),
+  // Carrying capacity of convoys: Market 5 %/level, Trade Office 1 %/level, Sultan Desert Outpost 1 %/level
+  transportBonusPct: (buildings) => cap(levelOf(buildings, 'MARKET') * effectOf('MARKET', 'playerTransportBonusPctPerLevel') + levelOf(buildings, 'TRADE_OFFICE') * effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel') + levelOf(buildings, 'SULTAN_DESERT_OUTPOST') * effectOf('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel'), 200),
+  // Marche des armées et des espions partis de la ville : Irrigation égyptienne 0,5 %/niveau
+  marchSpeedBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'marchSpeedBonusPctPerLevel', 50),
   // Field armies allowed by the Rally Point: 1 at L1, 3 at L10, 5 at L20 (one more every 5 levels)
   maxArmies: (buildings) => {
     const level = levelOf(buildings, 'RALLY_POINT');
@@ -71,18 +73,15 @@ const effects = {
   // Watchtower: who/when details of an incoming attack unlock by level (spies: services/spyService.js, config.spies)
   watchtowerShowsAttackerAt: () => effectOf('WATCHTOWER', 'alertArmyWhoWhenLevel', 10),
   watchtowerShowsDetailsAt: () => effectOf('WATCHTOWER', 'alertArmyDetailsLevel', 15),
-  watchtowerNamesSpyAt: () => effectOf('WATCHTOWER', 'alertSpyWhoWhenLevel', 15),
   // Wounded: Roman Thermae heal faster and save more, Greek Temple / Hun War Tent turn deaths into wounded
   healTimeReductionPct: (buildings) => sumPct(buildings, ['ROMAN_THERMAE'], 'healTimeReductionPctPerLevel', 60),
   woundedBonusPct: (buildings) => cap(levelOf(buildings, 'ROMAN_THERMAE') * effectOf('ROMAN_THERMAE', 'woundedInsteadOfDeadBonusPctPerLevel') + levelOf(buildings, 'GREEK_TEMPLE') * effectOf('GREEK_TEMPLE', 'deathReductionPctPerLevel') + levelOf(buildings, 'HUN_WAR_TENT') * effectOf('HUN_WAR_TENT', 'deathReductionPctPerLevel'), 30),
   // NPC merchant: 30 % tax at level 1, −1 %/level, never below 5 %
   npcMarketTaxPct: (marketLevel) => Math.max(5, effectOf('MARKET', 'serverMarketTaxPctBase', 30) - Math.max(0, marketLevel - 1) * effectOf('MARKET', 'serverMarketTaxReductionPctPerLevel', 1)),
-  // Wall: regenerates 1 % faster per level
-  wallRegenBonusPctPerLevel: () => effectOf('WALL', 'wallRegenBonusPctPerLevel', 1),
   // SQL helpers: (key, pctPerLevel) pairs used by the set-based processors
   productionBonusKeys: () => [['EGYPTIAN_IRRIGATION', effectOf('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel')]],
   upkeepReductionKeys: () => [['HUN_WAR_TENT', effectOf('HUN_WAR_TENT', 'upkeepReductionPctPerLevel')], ['SULTAN_DESERT_OUTPOST', effectOf('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')]],
-  transportBonusKeys: () => [['MARKET', effectOf('MARKET', 'playerTransportBonusPctPerLevel')], ['TRADE_OFFICE', effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')]],
+  transportBonusKeys: () => [['MARKET', effectOf('MARKET', 'playerTransportBonusPctPerLevel')], ['TRADE_OFFICE', effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')], ['SULTAN_DESERT_OUTPOST', effectOf('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel')]],
   // Secondary cities (GDD): settlers unlocked by the Residence (1 at L10, 2 at L15, 3 at L20), training time, foundation
   // time, production bonus of a secondary city
   settlerSlots: (residenceLevel) => {

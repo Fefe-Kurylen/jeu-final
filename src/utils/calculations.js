@@ -82,11 +82,6 @@ function getCityTierName(tier) {
   return found ? found.name : 'Village';
 }
 
-function getMinSiegeEngines(cityTier) {
-  const found = config.cityTiers.find(t => t.tier === cityTier);
-  return found ? found.minSiege : 1;
-}
-
 // Calculate travel time; `distance` is the length of the route actually walked (A* around mountains and
 // water, see utils/pathfinding.js) — the straight line is only a fallback
 // extraSpeedPct: the player's technologies (Cartographie), in percent
@@ -106,14 +101,14 @@ function calculateTravelTime(fromX, fromY, toX, toY, armySpeed = 50, faction = n
   return Math.max(1, Math.ceil(distance * timePerTile));
 }
 
-// Calculate army power
-function calculateArmyPower(units, unitsData) {
+// Calculate army power ; defMult : multiplicateur de la part défense (bonus de faction « unitDefense »)
+function calculateArmyPower(units, unitsData, defMult = 1) {
   const TIER_MULT = config.combat.tierCoefficients;
   return units.reduce((total, u) => {
     const unit = unitsData.find(x => x.key === u.unitKey);
     if (!unit || !unit.stats) return total;
     const mult = TIER_MULT[u.tier] || 1.0;
-    const power = ((unit.stats.attack || 0) + (unit.stats.defense || 0)) * mult * u.count;
+    const power = ((unit.stats.attack || 0) + (unit.stats.defense || 0) * defMult) * mult * u.count;
     return total + power;
   }, 0);
 }
@@ -188,13 +183,10 @@ module.exports = {
   getFactionBonus,
   getCityTier,
   getCityTierName,
-  getMinSiegeEngines,
   calculateTravelTime,
   calculateArmyPower,
   countSiegeEngines,
-  getArmyMinSpeed,
   getArmyTravelTime,
   getArmyCarryCapacity,
-  heroStatMultiplier,
   pointAlongPath
 };

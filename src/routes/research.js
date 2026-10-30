@@ -86,10 +86,17 @@ router.delete('/:itemId', auth, async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const item = await tx.researchQueueItem.findFirst({ where: { id: req.params.itemId, playerId: req.user.playerId } });
       if (!item) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
-      await lockCity(tx, item.cityId);
+      const laterWhere = { playerId: item.playerId, techKey: item.techKey, targetLevel: { gt: item.targetLevel } };
+      // chaque niveau annulé est rendu à la ville qui l'a payé : ces villes sont verrouillées dans l'ordre, avant la file
+      const payers = (await tx.researchQueueItem.findMany({ where: laterWhere, select: { cityId: true } })).map(q => q.cityId);
+      const locked = [...new Set([item.cityId, ...payers])].sort();
+      for (const id of locked) await lockCity(tx, id);
       await lockResearch(tx, item.playerId);
-      const later = await tx.researchQueueItem.findMany({ where: { playerId: item.playerId, techKey: item.techKey, targetLevel: { gt: item.targetLevel } } });
+      const later = await tx.researchQueueItem.findMany({ where: laterWhere });
+      // niveau ajouté entre-temps depuis une autre ville : jamais de verrou de ville après celui de la file
+      if (later.some(q => !locked.includes(q.cityId))) return { error: 'La file de recherche vient de changer : réessayez', status: 409 };
       const refund = { wood: 0, stone: 0, iron: 0, food: 0 };
+      const byCity = new Map();
       let cancelled = 0;
       for (const q of [item, ...later]) {
         const removed = await tx.researchQueueItem.deleteMany({ where: { id: q.id, status: q.status } });
@@ -97,10 +104,12 @@ router.delete('/:itemId', auth, async (req, res) => {
         cancelled++;
         const paid = q.cost && typeof q.cost === 'object' ? q.cost : T.researchCost(T.techOf(q.techKey), q.targetLevel);
         const part = T.scaleCost(paid, q.status === 'QUEUED' ? 1 : T.RULES.refundRateStarted);
-        for (const k of Object.keys(refund)) refund[k] += part[k] || 0;
+        const own = byCity.get(q.cityId) || { wood: 0, stone: 0, iron: 0, food: 0 };
+        for (const k of Object.keys(refund)) { refund[k] += part[k] || 0; own[k] += part[k] || 0; }
+        byCity.set(q.cityId, own);
       }
       if (!cancelled) return { error: 'Recherche introuvable (déjà terminée ?)', status: 404 };
-      await creditCity(tx, item.cityId, refund);
+      for (const [cityId, own] of byCity) await creditCity(tx, cityId, own);
       await startNextQueued(tx, item.playerId, new Date());
       return { message: 'Recherche annulée', cancelled, refund };
     });

@@ -36,8 +36,6 @@ const cleanText = (str, minLen = 1, maxLen = 30) => {
   return cleaned.length >= minLen && cleaned.length <= maxLen ? cleaned : null;
 };
 
-const isNonNegInt = (v) => Number.isInteger(v) && v >= 0;
-
 // Resource amount accepted from a client: integer within [0, maxAmount]
 const isAmount = (v) => Number.isInteger(v) && v >= 0 && v <= config.limits.maxAmount;
 
@@ -57,14 +55,12 @@ const validateAllianceTag = (tag) => {
 };
 
 module.exports = {
-  MAX_TEXT_INPUT,
   validateEmail,
   validatePassword,
   validateName,
   validateFaction,
   validateCoordinates,
   cleanText,
-  isNonNegInt,
   isAmount,
   safeEqual,
   validateAllianceTag

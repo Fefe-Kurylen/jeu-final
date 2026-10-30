@@ -355,7 +355,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
         <!-- Actions Section -->
         <div class="hero-actions-section">
           <button class="btn btn-secondary" onclick="renameHero()">Renommer</button>
-          <button class="btn btn-info" onclick="showHeroEquipment()">${resIconHtml('inventory')} Équipement</button>
+          <button class="btn btn-info" onclick="showTab('hero'); closeBuildPanel();">${resIconHtml('inventory')} Équipement</button>
           <button class="btn btn-warning" onclick="showTab('hero'); closeBuildPanel();"><img class="ico" src="assets/images/3d/ui/reports.webp" alt=""> Expéditions</button>
         </div>
       </div>
@@ -381,7 +381,7 @@ async function openHeroManagementPanel(buildingLevel, slotNum) {
 async function assignPointFromPanel(stat) {
   await assignPoint(stat);
   // Refresh the panel
-  const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
+  const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_MANSION');
   if (heroHomeBuilding) {
     openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
   }
@@ -401,7 +401,7 @@ async function createHero() {
 
     if (res.ok) {
       showToast('Héros créé!', 'success');
-      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
@@ -428,7 +428,7 @@ async function renameHero() {
 
     if (res.ok) {
       showToast('Héros renommé !', 'success');
-      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_HOME' || b.key === 'HERO_MANSION');
+      const heroHomeBuilding = currentCity?.buildings?.find(b => b.key === 'HERO_MANSION');
       if (heroHomeBuilding) {
         openHeroManagementPanel(heroHomeBuilding.level, selectedBuildSlot);
       }
@@ -439,11 +439,6 @@ async function renameHero() {
   } catch (e) {
     showToast('Erreur réseau', 'error');
   }
-}
-
-// Show hero equipment (placeholder)
-function showHeroEquipment() {
-  showToast('Équipement bientôt disponible!', 'info');
 }
 
 // ========== EXPEDITIONS ==========

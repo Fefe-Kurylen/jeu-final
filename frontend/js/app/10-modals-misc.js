@@ -36,30 +36,13 @@ function closeModal() {
 function showModal(title, content) {
   const modal = document.getElementById('modal');
   if (!modal) return;
-  const modalBox = modal.querySelector('.modal-box');
-
-  if (modalBox) {
-    // Use existing modal structure
-    const titleEl = modal.querySelector('#modal-title') || modal.querySelector('.modal-header h3');
-    const bodyEl = modal.querySelector('#modal-body') || modal.querySelector('.modal-body');
-    const footerEl = modal.querySelector('#modal-footer');
-    if (titleEl) titleEl.textContent = title;
-    if (bodyEl) bodyEl.innerHTML = content;
-    if (footerEl) footerEl.innerHTML = '';
-  } else {
-    // Fallback: recreate structure
-    modal.innerHTML = `
-      <div class="modal-backdrop" onclick="closeModal()"></div>
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>${title}</h3>
-          <button class="modal-close" onclick="closeModal()">×</button>
-        </div>
-        <div class="modal-body">${content}</div>
-        <div class="modal-footer"></div>
-      </div>
-    `;
-  }
+  // structure fixe d'index.html : #modal-title, #modal-body, #modal-footer
+  const titleEl = modal.querySelector('#modal-title');
+  const bodyEl = modal.querySelector('#modal-body');
+  const footerEl = modal.querySelector('#modal-footer');
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl) bodyEl.innerHTML = content;
+  if (footerEl) footerEl.innerHTML = '';
 
   modal.style.display = 'flex';
 }
@@ -205,10 +188,6 @@ function updateServerTime() {
     indicator.classList.toggle('day', !isNight);
   }
 
-  if (iconEl && iconEl.tagName !== 'IMG') {
-    iconEl.textContent = isNight ? '🌙' : '☀️';
-  }
-
   // Re-render canvases when day/night changes
   if (currentIsNight !== isNight) {
     currentIsNight = isNight;
@@ -240,7 +219,7 @@ let countdownInterval;
 
 function updateAllCountdowns() {
   // Update all countdown timers on the page
-  const timers = document.querySelectorAll('.activity-timer, .queue-time, .qd-timer, .qs-timer, [data-countdown]');
+  const timers = document.querySelectorAll('.queue-time, .qd-timer, .qs-timer');
 
   timers.forEach(timer => {
     const endsAt = timer.dataset.endsAt;

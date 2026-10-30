@@ -7,12 +7,11 @@ const prisma = require('../config/database');
 const config = require('../config');
 const rateLimit = require('../middleware/rateLimit');
 const { validateEmail, validatePassword, validateName, validateFaction } = require('../utils/validation');
-const { createExpedition } = require('../services/expeditionService');
 const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
 const { noteCityCells } = require('../utils/pathfinding');
-const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
+const { lockPlacement } = require('../utils/spawn');
 const path = require('path');
 const fs = require('fs');
 

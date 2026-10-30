@@ -37,13 +37,7 @@ function chatChannelTitle(key) {
   return c ? `${c.player.tag ? `[${escapeHtml(c.player.tag)}] ` : ''}${escapeHtml(c.player.name)}` : escapeHtml(chatState.pendingName || 'Message privé');
 }
 
-// ---- vue d'ensemble et badge ----
-function setChatBadge(n) {
-  const el = document.getElementById('chat-badge');
-  if (!el) return;
-  el.textContent = n > 99 ? '99+' : String(n);
-  el.style.display = n > 0 ? '' : 'none';
-}
+// ---- vue d'ensemble et badge (setBadge : 09d-alliance.js) ----
 async function refreshChatOverview() {
   try {
     const o = await chatFetch('/api/chat/overview');
@@ -51,7 +45,7 @@ async function refreshChatOverview() {
     chatState.settings = o.settings || chatState.settings;
     chatState.languages = o.languages || {};
     chatState.maxLength = o.maxLength || 500;
-    setChatBadge((o.unread || 0) + (o.friendRequests || 0));
+    setBadge('chat-badge', (o.unread || 0) + (o.friendRequests || 0));
     // première visite : la langue des messages du joueur est celle de son appareil
     if (!chatState.langSent && !o.settings?.lang) {
       chatState.langSent = true;
@@ -76,7 +70,7 @@ async function loadChat() {
   await refreshChatOverview();
   renderChatList();
   const wide = window.matchMedia && window.matchMedia('(min-width: 761px)').matches;
-  if (chatState.active) openChatChannel(chatState.active, { keepScroll: true });
+  if (chatState.active) openChatChannel(chatState.active);
   else if (wide) openChatChannel(chatState.overview?.channels.some(c => c.key === 'alliance') ? 'alliance' : 'global');
   else showChatList();
   startChatPolling();
@@ -121,7 +115,7 @@ function renderChatList() {
 }
 
 // ---- fil d'un canal ----
-async function openChatChannel(key, opts = {}) {
+async function openChatChannel(key) {
   key = chatSafeId(key);
   const changed = chatState.active !== key;
   chatState.active = key;
@@ -214,6 +208,32 @@ function renderChatMessages({ scroll } = {}) {
   else if (scroll === 'older') box.scrollTop = box.scrollHeight - prevHeight + prevTop;
   else box.scrollTop = prevTop;
 }
+// Relevé : ajoute les nouveaux messages en bas et retire du haut ceux qui dépassent 300, sans reconstruire le fil
+function appendChatMessages(fresh, trimmed) {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  const nodes = box.getElementsByClassName('chat-msg');
+  // fil vide (texte d'accueil) ou différent de l'état : rendu complet
+  if (!nodes.length || nodes.length !== chatState.messages.length - fresh.length + trimmed) { renderChatMessages({ scroll: 'keep-bottom' }); return; }
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.insertAdjacentHTML('beforeend', fresh.map(chatMessageHtml).join(''));
+  for (let i = 0; i < trimmed && nodes.length; i++) nodes[0].remove();
+  if (trimmed && !box.querySelector('.chat-older')) box.insertAdjacentHTML('afterbegin', '<p class="chat-hint chat-older">Remontez pour voir les messages plus anciens</p>');
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+// Remplace seulement les messages donnés (traduction reçue, original affiché) ; keepBottom : reste en bas s'il y était
+function refreshChatMessageNodes(ids, keepBottom = false) {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  const atBottom = keepBottom && box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  const byId = new Map(chatState.messages.map(m => [m.id, m]));
+  for (const id of ids) {
+    const m = byId.get(id);
+    const el = m && box.querySelector(`[data-msg-id="${chatSafeId(id)}"]`);
+    if (el) el.outerHTML = chatMessageHtml(m);
+  }
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
 async function pollChat() {
   const key = chatState.active;
   if (!key || chatState.polling) return;
@@ -225,9 +245,10 @@ async function pollChat() {
     const fresh = messages.filter(m => !known.has(m.id));
     if (!fresh.length) return;
     chatState.messages.push(...fresh);
-    if (chatState.messages.length > 300) { chatState.messages = chatState.messages.slice(-300); chatState.noOlder = false; chatState.oldestAt = chatState.messages[0].createdAt; }
+    let trimmed = 0;
+    if (chatState.messages.length > 300) { trimmed = chatState.messages.length - 300; chatState.messages = chatState.messages.slice(-300); chatState.noOlder = false; chatState.oldestAt = chatState.messages[0].createdAt; }
     chatState.lastAt = messages[messages.length - 1].createdAt;
-    renderChatMessages({ scroll: 'keep-bottom' });
+    appendChatMessages(fresh, trimmed);
     markChatRead(key);
     chatTranslateVisible();
   } catch (e) { /* le prochain relevé réessaiera */ } finally { chatState.polling = false; }
@@ -253,7 +274,7 @@ function markChatRead(key) {
     const o = chatState.overview;
     if (!o) return;
     const c = o.channels.find(x => x.key === key) || o.conversations.find(x => x.key === key);
-    if (c && c.unread) { o.unread = Math.max(0, (o.unread || 0) - (key === 'global' ? 0 : c.unread)); c.unread = 0; setChatBadge(o.unread + (o.friendRequests || 0)); renderChatList(); }
+    if (c && c.unread) { o.unread = Math.max(0, (o.unread || 0) - (key === 'global' ? 0 : c.unread)); c.unread = 0; setBadge('chat-badge', o.unread + (o.friendRequests || 0)); renderChatList(); }
   }, 600);
 }
 
@@ -290,16 +311,16 @@ async function chatTranslateVisible() {
   try {
     const { translations } = await chatFetch('/api/chat/translate', { method: 'POST', body: JSON.stringify({ ids, lang }) });
     Object.assign(chatState.translations, translations || {});
-    renderChatMessages({ scroll: 'keep-bottom' });
+    refreshChatMessageNodes(ids, true);
   } catch (e) { ids.forEach(id => { delete chatState.translations[id]; }); }
 }
-function toggleChatOriginal(id) { chatState.showOriginal[id] = !chatState.showOriginal[id]; renderChatMessages(); }
+function toggleChatOriginal(id) { chatState.showOriginal[id] = !chatState.showOriginal[id]; refreshChatMessageNodes([id]); }
 async function translateChatMessage(id) {
   closeModal();
   try {
     const { translations, enabled } = await chatFetch('/api/chat/translate', { method: 'POST', body: JSON.stringify({ ids: [id], lang: chatMyLang() }) });
     if (!enabled) { showToast('La traduction n\'est pas en service sur ce serveur', 'info'); return; }
-    if (translations?.[id]) { chatState.translations[id] = translations[id]; chatState.showOriginal[id] = false; renderChatMessages(); }
+    if (translations?.[id]) { chatState.translations[id] = translations[id]; chatState.showOriginal[id] = false; refreshChatMessageNodes([id]); }
     else showToast('Ce message est déjà dans votre langue', 'info');
   } catch (e) { showToast(e.message, 'error'); }
 }

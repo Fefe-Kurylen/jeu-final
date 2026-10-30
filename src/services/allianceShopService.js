@@ -16,7 +16,7 @@ const FRONT = path.join(__dirname, '../../frontend');
 const RES = ['wood', 'stone', 'iron', 'food'];
 const RES_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 
-const itemDef = (key) => (itemsData.items || itemsData || []).find?.(i => i.key === key) || null;
+const itemDef = (key) => itemsData.find(i => i.key === key) || null;
 
 // Une bannière n'est en vente qu'une fois son image livrée (vérifié au plus une fois par minute)
 let imageCache = { at: 0, ok: new Map() };
@@ -57,6 +57,8 @@ async function buy(playerId, key, { cityId } = {}) {
   if (!entry) throw httpError(404, 'Article inconnu');
   if (!imageReady(entry.image)) throw httpError(400, 'Bientôt disponible');
   return prisma.$transaction(async (tx) => {
+    // achats du joueur l'un après l'autre : « Déjà acheté » et la liste des cosmétiques lus à jour (pas d'achat perdu)
+    await tx.$queryRaw`SELECT id FROM "Player" WHERE id = ${playerId} FOR NO KEY UPDATE`;
     const me = await tx.player.findUnique({ where: { id: playerId }, select: { alliancePoints: true, shopCosmetics: true } });
     const owned = Array.isArray(me?.shopCosmetics) ? me.shopCosmetics : [];
     if ((entry.type === 'nameplate' || entry.type === 'banner') && owned.includes(entry.key)) throw httpError(400, 'Déjà acheté');

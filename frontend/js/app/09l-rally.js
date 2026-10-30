@@ -82,7 +82,7 @@ function refreshRallyViews() {
   const box = document.getElementById('alliance-rallies-box');
   if (box && box.offsetParent !== null) renderAllianceRallies(box);
   const panel = document.querySelector('[data-horde-node]');
-  if (panel && typeof renderHordeNodePanel === 'function') renderHordeNodePanel({ id: panel.dataset.hordeNode }, panel.closest('.map-panel-content') || panel.parentElement);
+  if (panel && typeof renderHordeNodePanel === 'function') renderHordeNodePanel({ id: panel.dataset.hordeNode }, panel.parentElement);
 }
 
 // ---- Alliance › Rassemblements ----
@@ -94,13 +94,10 @@ async function renderAllianceRallies(box) {
     <p class="diplo-help">Pendant les invasions barbares (chaque week-end), un donjon ne s'attaque qu'en rassemblement. Un Bastion ennemi peut aussi être assiégé en rassemblement (au moins un engin de siège dans le groupe). Lancez-en un depuis le panneau de la cible sur la carte, ou rejoignez celui d'un membre.</p>
     ${ralliesHtml(d.rallies)}`;
 }
-// le bloc des rassemblements d'un donjon (panneau de la carte)
-async function hordeRalliesHtml(nodeId) {
-  try { const d = await fetchJson(`/api/rallies?nodeId=${encodeURIComponent(nodeId)}`); return d.rallies.length ? `<h4>${resIconHtml('rally')} Rassemblements de votre alliance</h4>${ralliesHtml(d.rallies, { compact: true })}` : ''; }
+// le bloc des rassemblements de son alliance contre une cible (panneau de la carte) : param = nodeId ou bastionId
+async function targetRalliesHtml(param, id) {
+  try { const d = await fetchJson(`/api/rallies?${param}=${encodeURIComponent(id)}`); return d.rallies.length ? `<h4>${resIconHtml('rally')} Rassemblements de votre alliance</h4>${ralliesHtml(d.rallies, { compact: true })}` : ''; }
   catch (e) { return ''; }
 }
-// le bloc des rassemblements de son alliance contre un Bastion (panneau de la carte)
-async function bastionRalliesHtml(bastionId) {
-  try { const d = await fetchJson(`/api/rallies?bastionId=${encodeURIComponent(bastionId)}`); return d.rallies.length ? `<h4>${resIconHtml('rally')} Rassemblements de votre alliance</h4>${ralliesHtml(d.rallies, { compact: true })}` : ''; }
-  catch (e) { return ''; }
-}
+function hordeRalliesHtml(nodeId) { return targetRalliesHtml('nodeId', nodeId); }   // un donjon
+function bastionRalliesHtml(bastionId) { return targetRalliesHtml('bastionId', bastionId); }   // un Bastion

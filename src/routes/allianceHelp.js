@@ -26,8 +26,9 @@ router.get('/help', auth, async (req, res) => {
       prisma.player.findUnique({ where: { id: me }, select: { alliancePoints: true } }),
       helpService.pointsToday(prisma, me)
     ]);
-    const mineRows = targets.length ? await prisma.allianceHelpRequest.findMany({ where: { playerId: me, allianceId: member.allianceId, targetId: { in: targets.map(t => t.targetId) } }, select: { kind: true, targetId: true, helps: true, maxHelps: true } }) : [];
-    const asked = new Map(mineRows.map(r => [`${r.kind}:${r.targetId}`, r]));
+    const mineRows = targets.length ? await prisma.allianceHelpRequest.findMany({ where: { playerId: me, allianceId: member.allianceId, targetId: { in: targets.map(t => t.targetId) } }, select: { kind: true, targetId: true, helps: true, maxHelps: true, closedAt: true, createdAt: true }, orderBy: { createdAt: 'asc' } }) : [];
+    // la dernière demande qui compte encore pour la cible, même règle que requestHelp (les soins se redemandent après 6 h)
+    const asked = new Map(mineRows.filter(r => helpService.stillAsked(r)).map(r => [`${r.kind}:${r.targetId}`, r]));
     res.json({
       inAlliance: true, requests,
       targets: targets.map(t => { const a = asked.get(`${t.kind}:${t.targetId}`); return { ...t, asked: !!a, helps: a?.helps || 0, maxHelps: a?.maxHelps ?? null }; }),

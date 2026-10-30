@@ -31,6 +31,7 @@ async function hasMarket(tx, cityId) {
   return !!market;
 }
 const NO_MARKET = { error: 'Construisez un Marché (niveau 1 minimum) pour commercer', status: 400 };
+const besieged = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 
 // Locks several cities in a fixed order so two crossed trades can never deadlock
 async function lockCities(tx, ids) {
@@ -67,6 +68,8 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } } } });
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
       await lockCity(tx, sourceCity.id);
+      // blocus : aucun convoi ne sort non plus d'une ville assiégée (même règle que les échanges et les routes)
+      if (await besieged(tx, sourceCity.id)) return { error: 'Ville assiégée : aucun convoi ne sort tant que l\'armée ennemie est devant elle', status: 400 };
       if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: { include: { items: true } } } });
@@ -96,7 +99,6 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
 
 // ---- échanges entre joueurs, livrés par armées de transport (décision du 27 octobre 2026, services/marketService.js) ----
 const MS = require('../services/marketService');
-const besieged = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 
 // POST /api/market/offer { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId? }
 // L'armée de transport du vendeur est réservée (elle attend en ville avec les marchandises) jusqu'à l'échange ou 48 h
@@ -226,6 +228,15 @@ router.get('/routes', auth, async (req, res) => {
     res.json({ routes, convoys, perSend: Object.fromEntries(cities.map(c => [c.id, { other: Math.floor(c.maxStorage * pct), food: Math.floor(c.maxFoodStorage * pct) }])), rules: { ...config.market.routes, pctPerSend: Math.round(pct * 10000) / 100 } });
   } catch (e) { sendError(res, e); }
 });
+// Une seule route active par ville de départ et par ressource : 1/12 du stockage toutes les 2 h vaut pour la ville
+// (« 100 % au plus en 24 h »), pas pour chaque route
+function routeClash(routes, fromCityId, res, exceptId = null) {
+  const taken = RESOURCES.filter(r => res[r] && routes.some(x => x.id !== exceptId && x.active && x.fromCityId === fromCityId && x[r]));
+  return taken.length ? { error: `Une route active part déjà de cette ville avec : ${taken.map(r => MS.RES_FR[r]).join(', ')}. Mettez-la d'abord en pause.`, status: 400 } : null;
+}
+// Prochain envoi : jamais avant la fin de la cadence de la ville de départ pour ces ressources
+const nextRouteSend = async (fromCityId, res, after = 0) => new Date(Math.max(Date.now(), after, (await MS.routeCadenceUntil(prisma, fromCityId, RESOURCES.filter(r => res[r]))).getTime()));
+
 router.post('/routes', auth, async (req, res) => {
   try {
     const { fromCityId, toCityId } = req.body || {};
@@ -235,17 +246,30 @@ router.post('/routes', auth, async (req, res) => {
     const mine = await prisma.city.count({ where: { id: { in: [fromCityId, toCityId] }, playerId: req.user.playerId } });
     if (mine !== 2) return res.status(403).json({ error: 'Une route relie deux de vos villes' });
     if (!(await hasMarket(prisma, fromCityId))) return res.status(400).json(NO_MARKET);
-    if ((await prisma.tradeRoute.count({ where: { playerId: req.user.playerId } })) >= config.market.routes.maxPerPlayer) return res.status(400).json({ error: `Maximum ${config.market.routes.maxPerPlayer} routes` });
-    const route = await prisma.tradeRoute.create({ data: { playerId: req.user.playerId, fromCityId, toCityId, ...pick, nextSendAt: new Date() } });
-    res.json({ message: `Route créée : un convoi part toutes les ${config.market.routes.intervalHours} h`, route });
+    const routes = await prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId } });
+    if (routes.length >= config.market.routes.maxPerPlayer) return res.status(400).json({ error: `Maximum ${config.market.routes.maxPerPlayer} routes` });
+    const clash = routeClash(routes, fromCityId, pick);
+    if (clash) return res.status(clash.status).json(clash);
+    const nextSendAt = await nextRouteSend(fromCityId, pick);
+    const route = await prisma.tradeRoute.create({ data: { playerId: req.user.playerId, fromCityId, toCityId, ...pick, nextSendAt } });
+    const waitMin = Math.ceil((nextSendAt.getTime() - Date.now()) / 60000);
+    res.json({ message: `Route créée : un convoi part toutes les ${config.market.routes.intervalHours} h${waitMin > 1 ? `, le premier dans ${waitMin} min (cadence de la ville de départ)` : ''}`, route });
   } catch (e) { sendError(res, e); }
 });
 router.post('/routes/:id/toggle', auth, async (req, res) => {
   try {
     const route = await prisma.tradeRoute.findFirst({ where: { id: req.params.id, playerId: req.user.playerId } });
     if (!route) return res.status(404).json({ error: 'Route introuvable' });
-    await prisma.tradeRoute.update({ where: { id: route.id }, data: { active: !route.active, ...(route.active ? {} : { nextSendAt: new Date() }) } });
-    res.json({ message: route.active ? 'Route en pause' : 'Route reprise', active: !route.active });
+    if (route.active) {
+      await prisma.tradeRoute.update({ where: { id: route.id }, data: { active: false } });
+      return res.json({ message: 'Route en pause', active: false });
+    }
+    const clash = routeClash(await prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId, fromCityId: route.fromCityId, active: true } }), route.fromCityId, route, route.id);
+    if (clash) return res.status(clash.status).json(clash);
+    // la reprise garde l'heure prévue du convoi suivant (une pause ne remet pas la cadence à zéro)
+    const nextSendAt = await nextRouteSend(route.fromCityId, route, new Date(route.nextSendAt).getTime());
+    await prisma.tradeRoute.update({ where: { id: route.id }, data: { active: true, nextSendAt } });
+    res.json({ message: 'Route reprise', active: true });
   } catch (e) { sendError(res, e); }
 });
 router.delete('/routes/:id', auth, async (req, res) => {

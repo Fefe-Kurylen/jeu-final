@@ -27,16 +27,26 @@ async function syncSiegeFlags() {
 
 // À chaque tick : un camp sans engin (perdus contre une armée qui l'a attaqué) ou devenu allié de la ville rentre chez lui
 async function processSieges() {
-  const camps = await prisma.army.findMany({ where: { status: 'BESIEGING', claimedAt: null }, include: { units: true, owner: { select: { name: true } } } });
+  const camps = await prisma.army.findMany({ where: { status: 'BESIEGING', claimedAt: null, targetCityId: { not: null } }, select: { id: true, name: true, ownerId: true, targetCityId: true, units: { select: { unitKey: true, count: true } }, owner: { select: { name: true } } } });
   if (camps.length) {
     const { sendArmyHomeTx } = require('../../services/armyService');
     const { getRelation } = require('../../services/diplomacyService');
     const { notify } = require('../../services/pushService');
     const { lockCity } = require('../../utils/db');
-    for (const a of camps) {
+    // tri en mémoire (4 requêtes) : seuls les camps sans engin ou devenus amis (même joueur, même alliance, ALLY des deux
+    // côtés, comme getRelation) ouvrent la transaction, qui revérifie sous le verrou
+    const owners = new Map((await prisma.city.findMany({ where: { id: { in: [...new Set(camps.map(a => a.targetCityId))] } }, select: { id: true, playerId: true } })).map(c => [c.id, c.playerId]));
+    const ally = new Map((await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set([...camps.map(a => a.ownerId), ...owners.values()])] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]));
+    const alliances = [...new Set(ally.values())];
+    const allyRows = new Set(alliances.length ? (await prisma.allianceDiplomacy.findMany({ where: { status: 'ALLY', allianceId: { in: alliances }, targetAllianceId: { in: alliances } }, select: { allianceId: true, targetAllianceId: true } })).map(r => r.allianceId + '|' + r.targetAllianceId) : []);
+    const suspect = camps.filter(a => {
+      const t = owners.get(a.targetCityId), x = ally.get(a.ownerId), y = ally.get(t);
+      const friend = a.ownerId === t || (!!x && !!y && (x === y || (allyRows.has(x + '|' + y) && allyRows.has(y + '|' + x))));
+      return friend || engineCount(a.units) < S().minEngines;
+    });
+    for (const a of suspect) {
       try {
         const gone = await prisma.$transaction(async (tx) => {
-          if (!a.targetCityId) return null;
           await lockCity(tx, a.targetCityId);
           const fresh = await tx.army.findFirst({ where: { id: a.id, status: 'BESIEGING', claimedAt: null }, include: { units: true, owner: { include: { technologies: true } }, city: true, hero: { include: { items: true } } } });
           const city = await tx.city.findUnique({ where: { id: a.targetCityId }, select: { id: true, name: true, playerId: true, x: true, y: true } });

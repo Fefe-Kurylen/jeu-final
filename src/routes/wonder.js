@@ -34,7 +34,7 @@ router.post('/world/join', auth, async (req, res) => {
 router.get('/wonder', auth, async (req, res) => {
   try {
     const cities = await prisma.city.findMany({ where: { isWonder: true }, orderBy: [{ wonderLevel: 'desc' }, { name: 'asc' }], include: { player: { select: { id: true, name: true, alliance: { select: { alliance: { select: { id: true, tag: true, name: true } } } } } } } });
-    const plans = await prisma.wonderPlan.findMany({ where: { holderId: { not: null } }, include: {} });
+    const plans = await prisma.wonderPlan.findMany({ where: { holderId: { not: null } } });
     const holders = new Map((await prisma.player.findMany({ where: { id: { in: plans.map(p => p.holderId) } }, select: { id: true, name: true, alliance: { select: { alliance: { select: { tag: true } } } } } })).map(p => [p.id, p]));
     res.json({
       state: await WS.worldState(),

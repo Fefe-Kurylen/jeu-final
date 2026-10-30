@@ -13,7 +13,7 @@ const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus, calculateTravelTime } = require('../utils/calculations');
-const { debitCity, creditCity, transition, lockCity, RESOURCES } = require('../utils/db');
+const { debitCity, creditCity, lockCity, RESOURCES } = require('../utils/db');
 const { routeLength } = require('../utils/pathfinding');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');
@@ -95,6 +95,14 @@ async function expireOffers(now = new Date()) {
 // ---- routes commerciales entre ses villes ----
 const routePct = () => M.routes.pctOfStoragePer24h / (24 / M.routes.intervalHours) / 100;   // part du stockage par envoi
 const isBlocked = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
+// La cadence vaut pour la ville de départ et la ressource, pas pour la route : le dernier envoi est gardé dans la table des
+// limites partagées (purgée au bout d'un jour), pour qu'une route reprise, recréée ou remplacée ne reparte pas plus tôt
+const lastSendKey = (cityId, r) => `route:${cityId}:${r}`;
+async function routeCadenceUntil(db, cityId, resources) {
+  if (!resources.length) return new Date(0);
+  const rows = await db.rateLimitBucket.findMany({ where: { key: { in: resources.map(r => lastSendKey(cityId, r)) } }, select: { windowStart: true } });
+  return new Date(Math.max(0, ...rows.map(x => new Date(x.windowStart).getTime() + M.routes.intervalHours * 3600000)));
+}
 
 async function sendRouteConvoy(route, now) {
   return prisma.$transaction(async (tx) => {
@@ -104,6 +112,9 @@ async function sendRouteConvoy(route, now) {
     if (!from || !to || from.playerId !== route.playerId || to.playerId !== route.playerId) { await tx.tradeRoute.update({ where: { id: route.id }, data: { active: false } }); return { stopped: true }; }
     if ((await isBlocked(tx, from.id)) || (await isBlocked(tx, to.id))) return { skipped: 'siège' };
     await lockCity(tx, from.id);
+    // cadence de la ville de départ pas encore écoulée (garde-fou) : la route attend la fin
+    const until = await routeCadenceUntil(tx, from.id, RESOURCES.filter(r => route[r]));
+    if (until > now) { await tx.tradeRoute.update({ where: { id: route.id }, data: { nextSendAt: until } }); return { skipped: 'cadence' }; }
     const fresh = await tx.city.findUnique({ where: { id: from.id } });
     const load = {};
     for (const r of RESOURCES) {
@@ -113,6 +124,9 @@ async function sendRouteConvoy(route, now) {
     }
     if (!Object.values(load).some(v => v > 0)) return { skipped: 'vide' };
     if (!(await debitCity(tx, from.id, load))) return { skipped: 'stock' };
+    for (const r of RESOURCES) {
+      if (load[r] > 0) await tx.rateLimitBucket.upsert({ where: { key: lastSendKey(from.id, r) }, update: { windowStart: now }, create: { key: lastSendKey(from.id, r), windowStart: now, count: 1 } });
+    }
     const player = await tx.player.findUnique({ where: { id: route.playerId }, select: { faction: true } });
     const len = await routeLength(from.x, from.y, to.x, to.y, player?.faction).catch(() => null);
     const seconds = calculateTravelTime(from.x, from.y, to.x, to.y, M.routes.convoySpeed, player?.faction, factionsData, len);
@@ -149,4 +163,4 @@ async function processTradeRoutes(now = new Date()) {
   return { routes: routes.length, convoys: convoys.length };
 }
 
-module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, RES_FR };
+module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, routeCadenceUntil, RES_FR };

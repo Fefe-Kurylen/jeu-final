@@ -4,7 +4,6 @@
 // garnison, trésor, contributeurs, attaquer), carte « Invasion » de l'onglet Classement › Monde.
 // Serveur : src/services/hordeService.js, src/routes/invasion.js.
 // ============================================================
-const HORDE_FLOORS = ['Avant-poste', 'Remparts', 'Chef de la horde'];
 
 // ---- carte ----
 function drawHordeNode(x, y, tw, th, tile) {

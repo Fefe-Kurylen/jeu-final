@@ -20,20 +20,21 @@ const { getArmyTravelTime, calculateArmyPower, countSiegeEngines } = require('..
 const config = require('../config');
 const { routeLength } = require('../utils/pathfinding');
 const { techPct } = require('../utils/techEffects');
+const fx = require('../utils/buildingEffects');
 const { notify } = require('./pushService');
+const { unitCount } = require('./rankingService');
 
 const WAITS = [5, 10, 30, 60];
 const TX = { timeout: 20000 };
 const err = (status, message) => Object.assign(new Error(message), { status, expose: true });
 const capacityFor = (rallyPointLevel) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rallyPointLevel) - 1) * 12 / 19)));
-const unitCount = (units) => (units || []).reduce((t, u) => t + (u.count || 0), 0);
 
 async function travelSeconds(army, fromX, fromY, toX, toY) {
   const units = army.units.filter(u => u.count > 0);
-  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId));
+  const speed = techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city?.buildings);   // + Irrigation de sa ville
   return getArmyTravelTime(units, fromX, fromY, toX, toY, army.owner?.faction, army.hero, await routeLength(fromX, fromY, toX, toY, army.owner?.faction), speed);
 }
-const ARMY_INCLUDE = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: true } }, city: true };
+const ARMY_INCLUDE = { units: true, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: true } }, city: { include: { buildings: { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } } } } };
 
 // une armée libre, dans sa ville, prête à partir
 async function freeArmy(armyId, playerId) {

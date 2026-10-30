@@ -7,12 +7,7 @@ const { validateAllianceTag, cleanText } = require('../utils/validation');
 const { getRelation, relationsOf, allyIdsOf, setRow, MAX_ALLIES } = require('../services/diplomacyService');
 const { notify } = require('../services/pushService');
 const fx = require('../utils/buildingEffects');
-
-// Highest Embassy level among the player's cities (the Embassy is a capital building)
-async function embassyLevelOf(playerId, db = prisma) {
-  const rows = await db.cityBuilding.findMany({ where: { key: 'EMBASSY', city: { playerId } }, select: { level: true } });
-  return rows.reduce((m, r) => Math.max(m, r.level), 0);
-}
+const { embassyLevelOf } = require('../services/allianceHelpService');
 
 // Un joueur n'est plus dans son alliance (départ, exclusion, dissolution) : ses demandes d'aide se ferment, ses renforts
 // chez les membres et les alliés rentrent, et ceux des autres qui le protégeaient aussi

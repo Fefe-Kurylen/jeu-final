@@ -14,7 +14,6 @@ const { awardHeroXp } = require('../../services/heroXpService');
 const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
-const { calculateArmyPower } = require('../../utils/calculations');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { raidCooldownWhere } = require('../../services/armyService');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
@@ -396,13 +395,12 @@ async function handleAttack(army, now) {
     const campMinutes = army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
     // Won: a quarter of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
     let pillaged = null, structure = null;
-    let wonderLoss = null;
     if (result.attackerWon) {
       const survivors = new Map(group.map(g => [g.id, rowsOf.get(g.id).map(u => ({ unitKey: u.unitKey, count: Math.round(u.count * survivalRatio(result.attackerFinalUnits, u.unitKey)) }))]));
       pillaged = await pillage(tx, targetCity, group, survivors);
       const WS = require('../../services/wonderService');
       // une Ville Merveille ne tombe pas : elle perd des niveaux (décision du 28 octobre 2026)
-      if (targetCity.isWonder) wonderLoss = await WS.loseLevels(tx, targetCity, config.world.wonderLevelsLostPerAssault, army.owner?.name || 'L\'ennemi');
+      if (targetCity.isWonder) await WS.loseLevels(tx, targetCity, config.world.wonderLevelsLostPerAssault, army.owner?.name || 'L\'ennemi');
       else structure = await wearWallStructure(tx, targetCity);
       // une capitale prise d'assaut perd ses plans de Merveille
       if (targetCity.isCapital) await WS.stealPlans(tx, targetCity.playerId, army.ownerId);
@@ -601,11 +599,15 @@ async function raidedRecently(tx, attackerId, targetCity, now) {
   return !!recent;
 }
 
+// Pertes d'un raid par ligne d'unités, arrondies vers le bas comme applyLossRate : une ligne ne perd jamais plus que le taux
+const raidLosses = (units, rate) => units.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * rate) }));
+
 async function handleRaid(army, now) {
   let loot = { wood: 0, stone: 0, iron: 0, food: 0 };
   const raid = await prisma.$transaction(async (tx) => {
     const targetCity = await lockTargetCity(tx, army.targetCityId);
     if (!targetCity) return null;
+    if (!(await getRelation(army.ownerId, targetCity.playerId, tx)).canAttack) return { turned: true, targetCity };   // alliance signée pendant la marche
     if (await raidedRecently(tx, army.ownerId, targetCity, now)) return { skipped: true, targetCity };
     const attackerUnits = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     const defenders = defendingArmies(targetCity);
@@ -617,7 +619,10 @@ async function handleRaid(army, now) {
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
     const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
 
-    const survivors = attackerUnits.map(u => ({ ...u, newCount: Math.floor(u.count * (1 - result.attackerLossRate)) }));
+    // appliquées, rapport et classements comptent les mêmes pertes
+    const atkLosses = raidLosses(attackerUnits, result.attackerLossRate), defLosses = raidLosses(defenderUnits, result.defenderLossRate);
+    const atkKilled = atkLosses.reduce((t, l) => t + l.killed, 0), defKilled = defLosses.reduce((t, l) => t + l.killed, 0);
+    const survivors = attackerUnits.map((u, i) => ({ ...u, newCount: u.count - atkLosses[i].killed }));
 
     // GDD: the loot is at most 30% of what the SURVIVING raiders can carry, split by what the city
     // still has after the hideout; the stock is taken atomically at resolution time
@@ -645,7 +650,7 @@ async function handleRaid(army, now) {
     }
     for (const defArmy of defenders) {
       for (const unit of defArmy.units) {
-        const newCount = Math.floor(unit.count * (1 - result.defenderLossRate));
+        const newCount = unit.count - Math.floor(unit.count * result.defenderLossRate);   // comme raidLosses
         if (newCount <= 0) await tx.armyUnit.deleteMany({ where: { id: unit.id } });
         else if (newCount < unit.count) await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } });
       }
@@ -655,23 +660,29 @@ async function handleRaid(army, now) {
       x: targetCity.x, y: targetCity.y,
       attackerUnits: attackerUnits.map(u => ({ key: u.unitKey, count: u.count })),
       defenderUnits: defenderUnits.map(u => ({ key: u.unitKey, count: u.count })),
-      attackerLosses: { rate: result.attackerLossRate, totalKilled: attackerUnits.reduce((s, u) => s + Math.floor(u.count * result.attackerLossRate), 0) },
-      defenderLosses: { rate: result.defenderLossRate, totalKilled: defenderUnits.reduce((s, u) => s + Math.floor(u.count * result.defenderLossRate), 0) },
+      attackerLosses: { rate: result.attackerLossRate, totalKilled: atkKilled },
+      defenderLosses: { rate: result.defenderLossRate, totalKilled: defKilled },
       winner: result.attackerWon ? 'ATTACKER' : 'DEFENDER',
       loot: { ...loot, attackerName: army.owner.name, defenderName: targetCity.player.name, cityName: targetCity.name, cityId: targetCity.id, type: 'RAID' }
     };
     // classements : points de combat et pillage (services/rankingService.js)
     const RK = require('../../services/rankingService');
-    await RK.recordCombat(tx, { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders), attackerLosses: attackerUnits.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * result.attackerLossRate) })), defenderLosses: defenderUnits.map(u => ({ key: u.unitKey, killed: Math.floor(u.count * result.defenderLossRate) })) });
+    await RK.recordCombat(tx, { attackers: [{ playerId: army.ownerId, units: RK.unitCount(attackerUnits) }], defenders: RK.sideOf(defenders), attackerLosses: atkLosses, defenderLosses: defLosses });
     if (result.attackerWon) await RK.recordLoot(tx, army.ownerId, ['wood', 'stone', 'iron', 'food'].reduce((t, k) => t + (Number(loot?.[k]) || 0), 0));
     const atkReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(true, result.attackerWon), playerId: army.ownerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
     const defReport = await tx.battleReport.create({ data: { ...raidReportData, result: reportResult(false, result.attackerWon), playerId: targetCity.playerId, attackerId: army.ownerId, defenderId: targetCity.playerId } });
-    if (result.attackerWon) {
-      await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { raidsWon: { increment: 1 } }, create: { playerId: army.ownerId, raidsWon: 1 } });
-    }
-    return { targetCity, result, atkReportId: atkReport.id, defReportId: defReport.id, helperIds: [...new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))] };
+    // statistiques des deux joueurs, comme une attaque (unités tuées et perdues)
+    await tx.playerStats.upsert({ where: { playerId: army.ownerId }, update: { unitsKilled: { increment: defKilled }, unitsLost: { increment: atkKilled }, ...(result.attackerWon ? { raidsWon: { increment: 1 } } : {}) }, create: { playerId: army.ownerId, unitsKilled: defKilled, unitsLost: atkKilled, raidsWon: result.attackerWon ? 1 : 0 } });
+    await tx.playerStats.upsert({ where: { playerId: targetCity.playerId }, update: { unitsKilled: { increment: atkKilled }, unitsLost: { increment: defKilled } }, create: { playerId: targetCity.playerId, unitsKilled: atkKilled, unitsLost: defKilled } });
+    return { targetCity, result, defenderHero, atkKilled, defKilled, atkReportId: atkReport.id, defReportId: defReport.id, helperIds: [...new Set(defenders.filter(d => d.ownerId !== targetCity.playerId).map(d => d.ownerId))] };
   }, TX);
   if (!raid) {
+    await sendArmyHome(army, army.targetX, army.targetY);
+    return;
+  }
+  if (raid.turned) {
+    notify(army.ownerId, 'battle', '↩️ Raid annulé', `${army.name} ne peut plus attaquer ${raid.targetCity.name} (alliance) : elle rentre.`, { to: 'army', armyId: army.id });
+    notify(raid.targetCity.playerId, 'battle', '↩️ Raid annulé', `L'armée de ${army.owner?.name || 'l\'ennemi'} renonce au raid sur ${raid.targetCity.name} (alliance) et repart.`, { to: 'map', x: raid.targetCity.x, y: raid.targetCity.y, cityId: raid.targetCity.id });
     await sendArmyHome(army, army.targetX, army.targetY);
     return;
   }
@@ -682,6 +693,11 @@ async function handleRaid(army, now) {
     return;
   }
   const { targetCity, result } = raid;
+  // XP du héros comme une attaque : heroXpPerKill par ennemi tué (vainqueur × 1, vaincu × 0,3)
+  try {
+    if (army.heroId) await awardHeroXp(army.heroId, Math.floor(raid.defKilled * config.combat.heroXpPerKill * (result.attackerWon ? 1 : 0.3)));
+    if (raid.defenderHero) await awardHeroXp(raid.defenderHero.id, Math.floor(raid.atkKilled * config.combat.heroXpPerKill * (result.attackerWon ? 0.3 : 1)));
+  } catch (xpErr) { console.error('[HERO XP]', xpErr.message); }
   const lootTxt = ['wood', 'stone', 'iron', 'food'].filter(k => loot[k] > 0).map(k => `${loot[k]} ${{ wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' }[k]}`).join(', ');
   notify(army.ownerId, 'battle', result.attackerWon ? '💰 Raid réussi' : '⚔️ Raid repoussé', result.attackerWon ? `${army.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${army.name} a été repoussée par ${targetCity.name}.`, { to: 'report', reportId: raid.atkReportId, x: targetCity.x, y: targetCity.y });
   notify(targetCity.playerId, 'battle', result.attackerWon ? '💰 Ville pillée' : '🛡️ Raid repoussé', result.attackerWon ? `${army.owner.name} a pillé ${targetCity.name}${lootTxt ? ' : ' + lootTxt : ''}.` : `${targetCity.name} a repoussé le raid de ${army.owner.name}.`, { to: 'report', reportId: raid.defReportId, x: targetCity.x, y: targetCity.y });
@@ -696,39 +712,57 @@ async function handleSpy(army, now) {
   if (targetCity) {
     const present = defendingArmies(targetCity);
     // armies already on their way when spying moved to the Watchtower spies (26 octobre 2026): no interception any more
-    const success = true;
     const base = { playerId: army.ownerId, targetPlayerId: targetCity.playerId, targetCityId: targetCity.id, targetX: targetCity.x, targetY: targetCity.y, targetType: 'CITY', targetName: targetCity.name, cityName: targetCity.name };
-    let spyReport;
-    if (success) {
-      spyReport = await prisma.spyReport.create({ data: { ...base, success: true,
-        buildings: targetCity.buildings.map(b => ({ key: b.key, level: b.level })),
-        armies: present.map(a => ({ name: a.name, units: a.units.map(u => ({ key: u.unitKey, count: u.count })) })),
-        resources: { wood: Math.floor(targetCity.wood), stone: Math.floor(targetCity.stone), iron: Math.floor(targetCity.iron), food: Math.floor(targetCity.food) } } });
-    } else {
-      spyReport = await prisma.spyReport.create({ data: { ...base, success: false, buildings: [], armies: [], resources: {} } });
-    }
-    notify(army.ownerId, 'battle', success ? '🔭 Espionnage réussi' : '🔭 Espionnage manqué', success ? `Vos espions ont observé ${targetCity.name}.` : `Vos espions n'ont rien appris sur ${targetCity.name}.`, { to: 'spy', reportId: spyReport.id, x: targetCity.x, y: targetCity.y });
+    const spyReport = await prisma.spyReport.create({ data: { ...base, success: true,
+      buildings: targetCity.buildings.map(b => ({ key: b.key, level: b.level })),
+      armies: present.map(a => ({ name: a.name, units: a.units.map(u => ({ key: u.unitKey, count: u.count })) })),
+      resources: { wood: Math.floor(targetCity.wood), stone: Math.floor(targetCity.stone), iron: Math.floor(targetCity.iron), food: Math.floor(targetCity.food) } } });
+    notify(army.ownerId, 'battle', '🔭 Espionnage réussi', `Vos espions ont observé ${targetCity.name}.`, { to: 'spy', reportId: spyReport.id, x: targetCity.x, y: targetCity.y });
   }
   await sendArmyHome(army, army.targetX, army.targetY, {}, 80);
 }
 
+const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
+const resText = (r) => Object.keys(RES_FR).filter(k => r[k] > 0).map(k => `${r[k]} ${RES_FR[k]}`).join(', ');
+
 async function handleTransport(army, now) {
   const targetCity = await prisma.city.findUnique({ where: { id: army.targetCityId || '' } });
-  // a camp before the city blocks nothing (décision du 25 octobre 2026): the convoy delivers
-  if (targetCity) {
-    const load = { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood };
-    // Ville Merveille : tout va au stock du chantier, sans plafond (décision du 28 octobre 2026)
-    if (targetCity.isWonder) await require('../../services/wonderService').depositToWonder(prisma, targetCity.id, load);
-    else await creditCity(prisma, targetCity.id, load);
-    if (army.missionType === 'MARKET_DELIVERY' && targetCity.playerId !== army.ownerId) {   // échange du marché livré
-      const got = [['wood', 'bois', army.carryWood], ['stone', 'pierre', army.carryStone], ['iron', 'fer', army.carryIron], ['food', 'nourriture', army.carryFood]].filter(x => x[2] > 0).map(x => `${x[2]} ${x[1]}`).join(', ');
-      notify(targetCity.playerId, 'market', '📦 Marchandises livrées', `Le convoi de ${army.owner?.name || 'votre partenaire'} a livré ${got || 'sa cargaison'} à ${targetCity.name}.`, { to: 'city', cityId: targetCity.id });
-    }
-    await sendArmyHome(army, army.targetX, army.targetY, { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0 });
-  } else {
+  if (!targetCity) {
     // Destination vanished: the convoy brings its cargo back
     await sendArmyHome(army, army.targetX, army.targetY);
+    return;
   }
+  // devenus ennemis pendant la marche : pas de livraison (comme au départ), la cargaison revient
+  if (!(await getRelation(army.ownerId, targetCity.playerId)).canTransport) {
+    notify(army.ownerId, 'market', '↩️ Livraison annulée', `${targetCity.name} appartient désormais à un ennemi : ${army.name} rentre avec sa cargaison.`, { to: 'army', armyId: army.id });
+    await sendArmyHome(army, army.targetX, army.targetY);
+    return;
+  }
+  // a camp before the city blocks nothing (décision du 25 octobre 2026): the convoy delivers
+  const load = { wood: army.carryWood, stone: army.carryStone, iron: army.carryIron, food: army.carryFood };
+  let kept = load;
+  // Ville Merveille : tout va au stock du chantier, sans plafond (décision du 28 octobre 2026)
+  if (targetCity.isWonder) await require('../../services/wonderService').depositToWonder(prisma, targetCity.id, load);
+  else {
+    // ce qui ne tient pas dans l'entrepôt d'arrivée revient à la ville de départ (comme les convois des routes commerciales)
+    kept = await prisma.$transaction(async (tx) => {
+      await lockCity(tx, targetCity.id);
+      const fresh = await tx.city.findUnique({ where: { id: targetCity.id }, select: { wood: true, stone: true, iron: true, food: true, maxStorage: true, maxFoodStorage: true } });
+      const k = {};
+      for (const r of Object.keys(load)) k[r] = fresh ? Math.max(0, Math.min(load[r] || 0, Math.floor((r === 'food' ? fresh.maxFoodStorage : fresh.maxStorage) - fresh[r]))) : 0;
+      await creditCity(tx, targetCity.id, k);
+      await tx.army.update({ where: { id: army.id }, data: { carryWood: load.wood - k.wood, carryStone: load.stone - k.stone, carryIron: load.iron - k.iron, carryFood: load.food - k.food } });
+      return k;
+    }, TX);
+  }
+  const back = Object.fromEntries(Object.keys(load).map(r => [r, (load[r] || 0) - kept[r]]));
+  const got = resText(kept), over = resText(back);
+  if (army.missionType === 'MARKET_DELIVERY' && targetCity.playerId !== army.ownerId) {   // échange du marché livré
+    const who = `Le convoi de ${army.owner?.name || 'votre partenaire'}`;
+    notify(targetCity.playerId, 'market', '📦 Marchandises livrées', got ? `${who} a livré ${got} à ${targetCity.name}${over ? ` (entrepôt plein : ${over} repartent)` : ''}.` : `${who} n'a rien pu livrer à ${targetCity.name} : l'entrepôt est plein.`, { to: 'city', cityId: targetCity.id });
+  }
+  if (over) notify(army.ownerId, 'market', '📦 Entrepôt plein', `${targetCity.name} n'avait pas la place pour ${over} : ${army.name} les ramène.`, { to: 'army', armyId: army.id });
+  await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 
-module.exports = { processArmyMovements, sendArmyHome };   // sendArmyHome : rassemblements d'alliance (rallyService)
+module.exports = { processArmyMovements, sendArmyHome, raidLosses };   // sendArmyHome : rassemblements d'alliance (rallyService) ; raidLosses : tests

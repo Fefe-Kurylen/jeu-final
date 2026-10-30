@@ -13,6 +13,7 @@ const { awardHeroXp } = require('./heroXpService');
 const config = require('../config');
 const { takeFromNode, creditCity } = require('../utils/db');
 const { techPct } = require('../utils/techEffects');
+const { getRelation } = require('./diplomacyService');
 
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
 // raids on the same node from the same army cannot both be resolved.
@@ -197,13 +198,20 @@ async function resolveNodeHolderCombat(army, node, playerId, tx = prisma) {
   const myAlliance = army.owner?.alliance?.allianceId || null;
   if (!holders.length) return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
   if (holders.every(h => myAlliance && h.owner?.alliance?.allianceId === myAlliance)) return { success: true, shared: true, combatResult: null, loot: null, message: 'Point partagé avec votre alliance' };
+  const where = `${node.resourceType} (${node.x}, ${node.y})`;
+  // jamais de combat contre une alliance alliée, même devenue alliée pendant la marche : l'armée rentre (blocked),
+  // son propriétaire est prévenu par `notices`, envoyées par l'appelant après le commit
+  for (const ownerId of new Set(holders.map(h => h.ownerId))) {
+    if ((await getRelation(playerId, ownerId, tx)).canAttack) continue;
+    const notices = [[playerId, 'battle', '🤝 Point tenu par un allié', `${army.name || 'Votre armée'} rentre : le point ${where} est tenu par une armée alliée.`, { to: 'map', x: node.x, y: node.y }]];
+    return { success: false, blocked: true, combatResult: null, loot: null, notices, message: 'Point tenu par une armée alliée' };
+  }
   const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
   if (!defenderUnits.length) {
     await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false } });
     for (const h of holders) await sendArmyHomeTx(tx, h);
     return { success: true, free: true, combatResult: null, loot: null, message: 'Point libre' };
   }
-  const where = `${node.resourceType} (${node.x}, ${node.y})`;
   const { combat, report, reportIds, defenderName, attackerLosses, defenderLosses } = await fieldBattle(tx, army, holders, playerId, { x: node.x, y: node.y, where, type: 'NODE_FIGHT', rounds: { type: 'NODE_FIGHT', resourceType: node.resourceType } });
   if (combat.attackerWon) {
     await tx.resourceNode.updateMany({ where: { id: node.id }, data: { hasPlayerArmy: false, lastArmyDeparture: new Date() } });

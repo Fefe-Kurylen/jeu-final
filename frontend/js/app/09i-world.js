@@ -11,7 +11,6 @@ async function loadWorldState(force = false) {
   return worldStateCache;
 }
 const frDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
-const WONDER_RES = [['wood', 'bois'], ['stone', 'pierre'], ['iron', 'fer'], ['food', 'nourriture']];
 
 // ---- carte : site de Merveille, plan ----
 function drawWonderNode(x, y, tw, th, tile) {
@@ -61,14 +60,14 @@ async function openWonderPanel(cityId) {
   try { w = await fetchJson(`/api/wonder/${encodeURIComponent(cityId)}`); } catch (e) { showToast('Merveille indisponible', 'error'); return; }
   const pct = Math.round(100 * w.level / w.maxLevel);
   const next = w.next;
-  const enough = next ? WONDER_RES.every(([k]) => (w.stock[k] || 0) >= next.cost[k]) : false;
+  const enough = next ? BASTION_RES.every(([k]) => (w.stock[k] || 0) >= next.cost[k]) : false;
   const planOk = !next?.needsPlan || w.hasPlan;
   openSheetModal(`Merveille de ${escapeHtml(w.name)}`, `
     <div class="wonder-head">${resIconHtml('crown')} <strong>Niveau ${w.level} / ${w.maxLevel}</strong> · ${escapeHtml(w.alliance ? `[${w.alliance.tag}] ${w.alliance.name}` : w.owner.name)}</div>
     <div class="bastion-bar wonder-bar-fill"><i style="width:${pct}%"></i></div>
     ${w.buildEndsAt ? `<p>${resIconHtml('build')} Niveau ${w.level + 1} en construction : <span class="qd-timer" data-ends-at="${w.buildEndsAt}">${formatTime(w.buildEndsAt)}</span></p>` : ''}
     <h4>Stock du chantier</h4>
-    <div class="wonder-stock">${WONDER_RES.map(([k, l]) => `<span>${resIconHtml(k)} ${formatNum(w.stock[k] || 0)}${next ? ` <small>/ ${formatNum(next.cost[k])}</small>` : ''}</span>`).join('')}</div>
+    <div class="wonder-stock">${BASTION_RES.map(([k, l]) => `<span>${resIconHtml(k)} ${formatNum(w.stock[k] || 0)}${next ? ` <small>/ ${formatNum(next.cost[k])}</small>` : ''}</span>`).join('')}</div>
     <p class="diplo-help">Les membres de l'alliance remplissent ce stock en envoyant leurs convois à la Ville Merveille (sans plafond).</p>
     ${next ? `<p>Niveau ${next.level} : ${formatDuration(next.seconds)}${next.needsPlan ? ` · ${w.hasPlan ? `${resIconHtml('star')} plan détenu par l'alliance` : `${resIconHtml('lock')} il faut un plan de construction dans l'alliance`}` : ''}</p>` : '<p><strong>Merveille achevée.</strong></p>'}
     ${w.nextWaveAt ? `<p class="diplo-help">${resIconHtml('attack')} Prochaine vague d'Immortels : <span class="qd-timer" data-ends-at="${w.nextWaveAt}">${formatTime(w.nextWaveAt)}</span>. Un assaut perdu fait perdre des niveaux ; la ville ne peut pas être rasée.</p>` : ''}

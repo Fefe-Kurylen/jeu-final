@@ -5,7 +5,7 @@
 // Branché sur window.replayState (09-social.js) : battleScene.render(state) à chaque changement de round.
 // ============================================================
 const battleScene = {
-  canvas: null, ctx: null, w: 0, h: 0, raf: null, shown: 0, anim: null, state: null, lastDraw: 0,
+  canvas: null, ctx: null, w: 0, h: 0, raf: null, shown: 0, anim: null, state: null,
 
   attach(state) {
     this.canvas = document.getElementById('replay-canvas');

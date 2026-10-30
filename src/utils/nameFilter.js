@@ -67,4 +67,4 @@ function nameProblem(name) {
   return null;
 }
 
-module.exports = { nameProblem, wordsOf, _reset: () => { lists = null; } };
+module.exports = { nameProblem, wordsOf };

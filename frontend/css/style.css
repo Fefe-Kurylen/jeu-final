@@ -7,11 +7,9 @@
   --bg-dark: #252525;
   --bg-medium: #333333;
   --bg-light: #444444;
-  --bg-lighter: #555555;
 
   --brown-dark: #3d2b1f;
   --brown-medium: #5c4033;
-  --brown-light: #8b7355;
 
   --gold: #c9a227;
   --gold-dark: #9a7b1a;
@@ -26,19 +24,8 @@
   --text-white: #f0f0f0;
   --text-light: #cccccc;
   --text-muted: #888888;
-  --text-dark: #666666;
 
   --border-dark: #333333;
-  --border-light: #555555;
-
-  /* Resource colors */
-  --wood: #4a8c3a;
-  --clay: #b86b3a;
-  --iron: #6a7a8a;
-  --crop: #c4a030;
-
-  /* Day/Night transition */
-  --transition-theme: 1s ease;
 }
 
 /* ========== NIGHT MODE THEME ========== */
@@ -47,11 +34,9 @@ body.night-mode {
   --bg-dark: #141420;
   --bg-medium: #1e1e2a;
   --bg-light: #2a2a3a;
-  --bg-lighter: #3a3a4a;
 
   --brown-dark: #2a2030;
   --brown-medium: #3a3040;
-  --brown-light: #5a5070;
 
   --gold: #8090c0;
   --gold-dark: #5a6a90;
@@ -66,10 +51,8 @@ body.night-mode {
   --text-white: #d0d0e0;
   --text-light: #a0a0b0;
   --text-muted: #707080;
-  --text-dark: #505060;
 
   --border-dark: #2a2a3a;
-  --border-light: #4a4a5a;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -114,72 +97,14 @@ html, body {
 
 /* ========== AUTH SCREEN - TRAVIAN STYLE ========== */
 #auth-screen {
-  justify-content: center;
-  align-items: center;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.8) 100%),
-    radial-gradient(ellipse at 50% 0%, rgba(139,105,20,0.3) 0%, transparent 50%),
-    linear-gradient(180deg, #1a1510 0%, #0d0a08 100%);
-  background-size: cover;
   position: relative;
 }
 
-/* Animated background pattern */
+/* Calque du panorama (image définie plus bas) */
 #auth-screen::before {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5L35 25L55 30L35 35L30 55L25 35L5 30L25 25Z' fill='rgba(201,162,39,0.03)'/%3E%3C/svg%3E");
-  opacity: 0.5;
-  animation: authBgPulse 10s ease-in-out infinite;
-}
-
-@keyframes authBgPulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.6; }
-}
-
-/* Decorative elements */
-.auth-decorations {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.auth-deco {
-  position: absolute;
-  width: 300px;
-  height: 400px;
-  opacity: 0.15;
-}
-
-.auth-deco-left {
-  left: -50px;
-  top: 50%;
-  transform: translateY(-50%);
-  background:
-    linear-gradient(135deg, transparent 40%, rgba(201,162,39,0.3) 50%, transparent 60%),
-    url("data:image/svg+xml,%3Csvg width='100' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0 L100 50 L100 150 L50 200 L0 150 L0 50 Z' fill='none' stroke='rgba(201,162,39,0.5)' stroke-width='2'/%3E%3C/svg%3E");
-}
-
-.auth-deco-right {
-  right: -50px;
-  top: 50%;
-  transform: translateY(-50%) scaleX(-1);
-  background:
-    linear-gradient(135deg, transparent 40%, rgba(201,162,39,0.3) 50%, transparent 60%),
-    url("data:image/svg+xml,%3Csvg width='100' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M50 0 L100 50 L100 150 L50 200 L0 150 L0 50 Z' fill='none' stroke='rgba(201,162,39,0.5)' stroke-width='2'/%3E%3C/svg%3E");
-}
-
-.auth-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(201, 162, 39, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 70% 80%, rgba(139, 69, 19, 0.1) 0%, transparent 40%);
-  pointer-events: none;
 }
 
 .auth-container {
@@ -485,62 +410,6 @@ html, body {
       #5a4a2a 8px, #5a4a2a 16px);
 }
 
-.resources-container {
-  display: flex;
-  gap: 2px;
-  align-items: stretch;
-}
-
-/* ========== TRAVIAN-STYLE RESOURCE BOX ========== */
-.resource-box {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 80px;
-  padding: 4px 8px 3px;
-  background: linear-gradient(180deg,
-    #e8dcc4 0%,
-    #d8ccb4 50%,
-    #c8bca0 100%);
-  border: 1px solid #a09070;
-  border-bottom: 2px solid #8a7a60;
-  border-radius: 3px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.4),
-    0 1px 3px rgba(0,0,0,0.3);
-  position: relative;
-}
-
-/* Separator line between boxes */
-.resource-box::after {
-  content: '';
-  position: absolute;
-  right: -1px;
-  top: 4px;
-  bottom: 4px;
-  width: 1px;
-  background: linear-gradient(180deg, transparent, #a09070, transparent);
-}
-
-.resource-box:last-child::after {
-  display: none;
-}
-
-.res-icon {
-  font-size: 22px;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
-  flex-shrink: 0;
-  align-self: center;
-  line-height: 1;
-}
-
-.res-detail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-}
-
 .res-bar {
   width: 100%;
   height: 3px;
@@ -568,48 +437,6 @@ html, body {
 }
 .food-fill {
   background: linear-gradient(180deg, #e8c040 0%, #c4a030 100%);
-}
-.food-fill.low {
-  background: linear-gradient(180deg, #e05040 0%, #c03030 100%);
-}
-
-.res-current {
-  color: #3a2a10;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: Arial, sans-serif;
-  text-align: center;
-}
-
-.res-timer {
-  display: block;
-  color: #ffffff;
-  background: #4a8a28;
-  font-size: 10px;
-  font-weight: bold;
-  font-family: monospace;
-  padding: 1px 6px;
-  border-radius: 2px;
-  text-align: center;
-  letter-spacing: 0.5px;
-}
-
-.res-sub {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-}
-
-.res-max {
-  color: #6a5a40;
-  font-size: 10px;
-}
-
-.res-prod {
-  color: #3a2a10;
-  font-size: 10px;
-  font-weight: bold;
 }
 
 /* Attack notification */
@@ -647,39 +474,7 @@ html, body {
 
 
 /* ========== GOLD BOX - MEDALLION STYLE ========== */
-.gold-box {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  background: linear-gradient(180deg,
-    #8b6914 0%,
-    #6a5010 50%,
-    #4a3808 100%);
-  border: 2px solid #c9a227;
-  border-radius: 8px;
-  min-width: 60px;
-  padding: 4px 8px;
-  box-shadow:
-    inset 0 2px 4px rgba(255,255,255,0.2),
-    inset 0 -2px 4px rgba(0,0,0,0.4),
-    0 2px 4px rgba(0,0,0,0.5);
-}
-
-.gold-box::after {
-  display: none;
-}
-
-.gold-box .res-icon {
-  position: static;
-  font-size: 18px;
-}
-
 .gold-value {
-  font-size: 16px;
-  color: #ffd700;
-  font-weight: 900;
-  font-family: Arial, sans-serif;
   text-shadow:
     0 1px 0 #4a3808,
     0 2px 3px rgba(0,0,0,0.5);
@@ -990,32 +785,6 @@ html, body {
   gap: 4px;
 }
 
-.canvas-tooltip .tt-stat-value {
-  color: #f5e6c8;
-  font-weight: 500;
-}
-
-/* Tooltip Resources */
-.canvas-tooltip .tt-resources {
-  padding: 8px 14px;
-  display: flex;
-  justify-content: space-around;
-  background: rgba(0, 0, 0, 0.1);
-  border-top: 1px solid rgba(139, 115, 85, 0.3);
-}
-
-.canvas-tooltip .tt-res {
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.canvas-tooltip .tt-res.wood { color: #8b5a2b; }
-.canvas-tooltip .tt-res.stone { color: #808080; }
-.canvas-tooltip .tt-res.iron { color: #4a7c9b; }
-.canvas-tooltip .tt-res.food { color: #c5a34f; }
-
 /* ========== CLICK RIPPLE EFFECT ========== */
 .click-ripple {
   position: absolute;
@@ -1112,22 +881,12 @@ html, body {
 }
 
 /* ========== TABLE ROW HIGHLIGHTING (Travian hlight) ========== */
-tr:hover, .list-item:hover, .queue-item:hover, .card:hover {
+tr:hover, .queue-item:hover, .card:hover {
   background: rgba(201, 162, 39, 0.1) !important;
 }
 
-tr.hlight, .list-item.hlight, .queue-item.hlight {
-  background: rgba(201, 162, 39, 0.2) !important;
-  border-left: 3px solid var(--gold);
-}
-
-tr.marked, .list-item.marked {
-  background: rgba(201, 162, 39, 0.3) !important;
-  border-left: 3px solid var(--gold);
-}
-
 /* Highlight current selection */
-.hl, .current, .active-row {
+.current {
   background: rgba(201, 162, 39, 0.15);
   border-left: 3px solid var(--gold);
 }
@@ -1148,17 +907,6 @@ tr.marked, .list-item.marked {
 @keyframes doneFlash {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}
-
-/* Timer warning colors */
-.activity-timer[data-urgent="true"], .queue-time[data-urgent="true"] {
-  color: #ff6b6b;
-  animation: urgentPulse 1s ease-in-out infinite;
-}
-
-@keyframes urgentPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
 }
 
 /* Tab Inner - Travian Style */
@@ -1484,25 +1232,14 @@ tr.marked, .list-item.marked {
 .market-section {
   padding: 4px;
 }
-.market-send, .offers-section {
+.offers-section {
   background: var(--bg-medium);
   border: 1px solid var(--border-dark);
   border-radius: 6px;
   padding: 15px;
 }
-.market-send h3 {
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
-  color: var(--gold);
-  margin-bottom: 15px;
-}
 
 .send-form { display: flex; flex-direction: column; gap: 12px; }
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .form-row label { width: 80px; font-size: 12px; color: var(--text-muted); }
 .form-row input {
   flex: 1;
@@ -1565,19 +1302,6 @@ tr.marked, .list-item.marked {
     0 0 0 1px #5a4010,
     0 8px 32px rgba(0, 0, 0, 0.6),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-/* Greek pattern border at top */
-.modal-box::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background:
-    repeating-linear-gradient(90deg,
-      #3a2a1a 0px, #3a2a1a 8px,
-      #5a4a3a 8px, #5a4a3a 16px);
 }
 .modal-header {
   display: flex;
@@ -1662,20 +1386,6 @@ tr.marked, .list-item.marked {
     0 0 0 1px #5a4010,
     0 8px 32px rgba(0, 0, 0, 0.5);
   overflow: hidden;
-}
-/* Greek pattern border at top */
-.build-panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 6px;
-  background:
-    repeating-linear-gradient(90deg,
-      #3a2a1a 0px, #3a2a1a 6px,
-      #5a4a3a 6px, #5a4a3a 12px);
-  border-radius: 9px 9px 0 0;
 }
 .panel-header {
   display: flex;
@@ -2281,37 +1991,10 @@ tr.marked, .list-item.marked {
 }
 
 /* ========== TROOPS SELECTION ========== */
-.send-troops-form, .troops-selection {
+.send-troops-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.troop-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px;
-  background: var(--bg-medium);
-  border: 1px solid var(--border-dark);
-  border-radius: 4px;
-}
-.troop-row .troop-name {
-  flex: 1;
-  font-size: 13px;
-  color: var(--text-light);
-}
-.troop-row .troop-available {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.troop-row input {
-  width: 70px;
-  padding: 6px;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-dark);
-  border-radius: 4px;
-  color: var(--text-light);
-  text-align: center;
 }
 
 /* ========== NPC MERCHANT ========== */
@@ -2468,14 +2151,6 @@ tr.marked, .list-item.marked {
   border-left: 3px solid var(--border-dark);
   margin-bottom: 4px;
 }
-.queue-item.queue-running {
-  border-left-color: var(--green);
-  background: rgba(74, 124, 35, 0.1);
-}
-.queue-item.queue-waiting {
-  border-left-color: var(--gold-dark);
-}
-.queue-status-icon { font-size: 14px; }
 .queue-name { flex: 1; font-size: 12px; }
 .queue-time { font-family: monospace; font-size: 11px; color: var(--gold-light); }
 .queue-info {
@@ -2484,15 +2159,6 @@ tr.marked, .list-item.marked {
   flex-direction: column;
 }
 .queue-icon { font-size: 14px; }
-.build-slots-header {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: var(--bg-dark);
-  border-bottom: 1px solid var(--border-dark);
-  font-size: 11px;
-  color: var(--text-muted);
-}
 
 /* ========== HERO TAB ========== */
 .hero-content {
@@ -2525,21 +2191,8 @@ tr.marked, .list-item.marked {
 }
 
 /* ========== RESPONSIVE ========== */
-@media (max-width: 900px) {
-  .resources-container { gap: 8px; }
-  .resource-box { min-width: 70px; padding: 4px 6px; }
-}
-
 @media (max-width: 600px) {
-  .resource-box { min-width: 60px; padding: 3px 5px 2px; }
-  .res-icon { font-size: 16px; }
-  .res-current { font-size: 12px; }
-  .res-timer { font-size: 9px; padding: 1px 3px; }
-  .res-sub { display: none; }
-  .res-bar { display: none; }
   .player-info-box { display: none; }
-  .gold-box { min-width: 50px; padding: 3px 6px; }
-  .gold-value { font-size: 13px; }
   .attack-notif { padding: 3px 6px; }
   .attack-timer { font-size: 11px; }
   .server-time-section { display: none; }
@@ -2848,13 +2501,6 @@ tr.marked, .list-item.marked {
   max-width: 230px;
   margin: 0 auto;
 }
-.body-svg {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
 
 /* Equipment Slots */
 .equip-slot {
@@ -3020,51 +2666,6 @@ tr.marked, .list-item.marked {
   margin-bottom: 16px;
 }
 
-/* ========== UNIT INFO MODAL ========== */
-.unit-info-modal,
-.building-info-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.unit-info-header,
-.building-info-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: var(--bg-medium);
-  border-radius: 8px;
-}
-
-.unit-info-icon {
-  width: 56px;
-  height: 56px;
-  border: 3px solid;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  background: var(--bg-dark);
-}
-
-.building-info-icon {
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-}
-
-.unit-info-title h3,
-.building-info-title h3 {
-  color: var(--text-white);
-  margin-bottom: 8px;
-}
-
 .unit-tier-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -3074,142 +2675,10 @@ tr.marked, .list-item.marked {
   margin-right: 8px;
 }
 
-.unit-class-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: var(--bg-light);
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.building-category-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: var(--blue);
-  border-radius: 4px;
-  font-size: 11px;
-  color: white;
-}
-
-.unit-stats-section h4,
-.unit-capacity-section h4,
-.unit-cost-section h4,
-.unit-building-section h4,
-.building-stats-section h4,
-.building-cost-section h4,
-.building-prereq-section h4,
-.building-effects-section h4,
-.building-desc-section h4 {
-  color: var(--gold);
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
-.unit-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.unit-stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px;
-  background: var(--bg-medium);
-  border-radius: 6px;
-}
-
-.unit-stat-item .stat-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
-}
-
-.unit-stat-item .stat-value {
-  font-size: 20px;
-  font-weight: bold;
-  color: var(--text-white);
-}
-
-.unit-capacity-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.capacity-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px;
-  background: var(--bg-medium);
-  border-radius: 6px;
-}
-
-.capacity-item .capacity-icon {
-  font-size: 20px;
-  margin-bottom: 4px;
-}
-
-.capacity-item .capacity-label {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.capacity-item .capacity-value {
-  font-weight: bold;
-  color: var(--text-white);
-}
-
-.unit-cost-grid,
-.building-cost-grid {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-
-.unit-cost-grid .cost-item,
-.building-cost-grid .cost-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  background: var(--bg-medium);
-  border-radius: 4px;
-}
-
-.train-time,
 .build-time {
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
-}
-
-.building-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--bg-medium);
-  border-radius: 4px;
-}
-
-.info-item .info-label {
-  color: var(--text-muted);
-}
-
-.info-item .info-value {
-  color: var(--text-white);
-  font-weight: bold;
 }
 
 .prereq-list {
@@ -3225,30 +2694,6 @@ tr.marked, .list-item.marked {
   padding: 8px 12px;
   background: var(--bg-medium);
   border-radius: 4px;
-}
-
-.effects-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.effect-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--bg-medium);
-  border-radius: 4px;
-}
-
-.effect-item .effect-name {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.effect-item .effect-value {
-  color: var(--green-light);
-  font-weight: bold;
 }
 
 /* Clickable garrison units */
@@ -3284,7 +2729,7 @@ tr.marked, .list-item.marked {
   padding: 10px;
   background: var(--bg-dark);
   border-radius: 8px;
-  border: 2px solid var(--gold-primary);
+  border: 2px solid var(--gold);
 }
 
 .building-info {
@@ -3293,7 +2738,7 @@ tr.marked, .list-item.marked {
 
 .building-info h3 {
   margin: 0 0 5px 0;
-  color: var(--gold-primary);
+  color: var(--gold);
 }
 
 .building-level {
@@ -3308,7 +2753,6 @@ tr.marked, .list-item.marked {
 
 .upgrade-building-btn {
   padding: 8px 16px;
-  background: linear-gradient(180deg, var(--gold-primary), var(--gold-dark));
   border: none;
   border-radius: 4px;
   color: var(--bg-darkest);
@@ -3318,7 +2762,6 @@ tr.marked, .list-item.marked {
 }
 
 .upgrade-building-btn:hover {
-  background: linear-gradient(180deg, var(--gold-light), var(--gold-primary));
   transform: translateY(-2px);
 }
 
@@ -3328,12 +2771,12 @@ tr.marked, .list-item.marked {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 15px;
-  border-left: 3px solid var(--gold-primary);
+  border-left: 3px solid var(--gold);
 }
 
 .current-recruitment h4 {
   margin: 0 0 10px 0;
-  color: var(--gold-primary);
+  color: var(--gold);
   font-size: 14px;
 }
 
@@ -3362,7 +2805,7 @@ tr.marked, .list-item.marked {
 /* Available units section */
 .available-units h4 {
   margin: 0 0 10px 0;
-  color: var(--gold-primary);
+  color: var(--gold);
 }
 
 .recruit-hint {
@@ -3396,7 +2839,7 @@ tr.marked, .list-item.marked {
 .class-label {
   font-size: 16px;
   font-weight: bold;
-  color: var(--gold-primary);
+  color: var(--gold);
 }
 
 .class-count {
@@ -3421,7 +2864,7 @@ tr.marked, .list-item.marked {
 }
 
 .unit-recruit-card:hover:not(.disabled) {
-  border-color: var(--gold-primary);
+  border-color: var(--gold);
   transform: translateY(-3px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -3452,7 +2895,7 @@ tr.marked, .list-item.marked {
 
 .unit-recruit-header .unit-icon.clickable:hover {
   transform: scale(1.2);
-  text-shadow: 0 0 10px var(--gold-primary);
+  text-shadow: 0 0 10px var(--gold);
 }
 
 .unit-recruit-header .tier-badge {
@@ -3503,23 +2946,10 @@ tr.marked, .list-item.marked {
 
 .unit-blocked {
   background: rgba(0, 0, 0, 0.7);
-  color: var(--gold-primary);
+  color: var(--gold);
   text-align: center;
   padding: 4px;
   font-size: 10px;
-}
-
-/* Recruitment warning */
-.recruitment-warning {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: rgba(255, 152, 0, 0.15);
-  border-left: 3px solid #ff9800;
-  border-radius: 4px;
-  color: #ffc107;
-  font-size: 13px;
 }
 
 /* No units available */
@@ -3655,11 +3085,6 @@ tr.marked, .list-item.marked {
   animation: harvest-pulse 2s ease-in-out infinite;
 }
 
-.status-pill.collecting {
-  background: linear-gradient(135deg, var(--blue), #3a7ab0);
-  color: white;
-}
-
 @keyframes harvest-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
@@ -3669,11 +3094,6 @@ tr.marked, .list-item.marked {
 .army-card-new.harvesting {
   border-color: var(--green);
   box-shadow: 0 0 10px rgba(74, 140, 58, 0.3);
-}
-
-.army-card-new.collecting {
-  border-color: var(--blue);
-  box-shadow: 0 0 10px rgba(42, 90, 138, 0.3);
 }
 
 /* ========== FLOATING BOTTOM NAV BAR ========== */
@@ -3750,12 +3170,6 @@ tr.marked, .list-item.marked {
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
   border-top: 6px solid #c9a227;
-}
-
-.bnav-icon {
-  font-size: 18px;
-  line-height: 1;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
 }
 
 .bnav-label {
@@ -4044,7 +3458,6 @@ tr.marked, .list-item.marked {
 @media (max-width: 600px) {
   .bnav-label { display: none; }
   .bnav-tab { padding: 8px 10px; min-width: 40px; }
-  .bnav-icon { font-size: 20px; }
   .bnav-village-info .village-coords { display: none; }
   .bnav-village-info .village-tier { display: none; }
 
@@ -4103,8 +3516,6 @@ button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
     padding: 6px 8px;
     min-width: 44px;
   }
-
-  .bnav-icon { font-size: 22px; }
 
   /* Larger close buttons on mobile */
   .panel-close, .modal-close {
@@ -4226,14 +3637,8 @@ button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
 @media (max-width: 380px) {
   .bnav-label { display: none; }
   .bnav-tab { padding: 8px 6px; min-width: 36px; }
-  .bnav-icon { font-size: 20px; }
   .bnav-separator { display: none; }
   .bnav-village-selector { display: none; }
-
-  .resource-box { min-width: 55px; padding: 2px 4px; }
-  .res-icon { font-size: 14px; }
-  .res-current { font-size: 11px; }
-  .res-sub, .res-bar, .res-timer { display: none; }
 
   .auth-header h1 { font-size: 20px; }
 
@@ -4243,12 +3648,10 @@ button, .bnav-tab, .toolbar-btn, .faction-option, .bnav-village-arrow,
 /* Landscape mobile: a compact tab bar stays available instead of disappearing */
 @media (max-height: 500px) and (orientation: landscape) {
   .top-bar { padding: 2px 12px; }
-  .resource-box { padding: 2px 6px; }
-  .res-sub, .res-bar { display: none; }
+  .res-bar { display: none; }
 
   .bottom-nav { height: 44px; padding-bottom: 0; }
   .bottom-nav .bnav-label { display: none; }
-  .bottom-nav .bnav-icon { font-size: 18px; }
 
   .game-content {
     padding-bottom: 44px;
@@ -4303,7 +3706,6 @@ body.offline .top-bar::after {
 .bottom-nav-inner { justify-content: flex-start; }
 .bottom-nav-inner::before, .bottom-nav-inner::after { content: ''; margin: auto; flex: 0 0 auto; }
 @media (max-width: 480px) {
-  .bnav-tab { padding: 6px 5px; min-width: 42px; }
   .bnav-label { font-size: 9px; }
   .bnav-village-info .village-name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
   .bnav-village-info .village-coords { display: none; }
@@ -4326,7 +3728,7 @@ body.offline .top-bar::after {
 /* ===== Misc ===== */
 .ranking-row.me { outline: 1px solid #c9a227; }
 .ranking-row[onclick] { cursor: pointer; }
-.upgrade-cost .missing, .build-option-cost .missing { color: #ff6b6b; }
+.upgrade-cost .missing { color: #ff6b6b; }
 .build-option-btn.disabled, .build-option-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .hero-full-panel { flex-wrap: wrap; }
 .hero-expeditions { flex: 1 1 100%; width: 100%; margin-top: 16px; }
@@ -4335,15 +3737,12 @@ body.offline .top-bar::after {
 
 /* ========== PARAMÈTRES, BOUTIQUE, PAGES LÉGALES ========== */
 .settings-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid rgba(201,162,39,0.25); color: #d8c8a0; }
-.settings-row strong { color: #ffd700; }
 .settings-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .settings-actions button { width: 100%; padding: 12px; font-size: 15px; }
 .btn-danger { background: linear-gradient(180deg, #a03030, #6a1818); color: #fff; border: 1px solid #c04040; border-radius: 8px; cursor: pointer; font-family: 'Cinzel', serif; font-weight: 600; }
 .btn-danger:active { transform: scale(0.98); }
 .btn-settings { font-size: 18px; }
-.gold-box { cursor: pointer; }
 .shop-item { background: rgba(0,0,0,0.25); border: 1px solid rgba(201,162,39,0.35); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-.shop-item.shop-sub { border-color: #ffd700; background: linear-gradient(180deg, rgba(201,162,39,0.18), rgba(0,0,0,0.3)); }
 .shop-item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .shop-item-head strong { color: #ffd700; font-family: 'Cinzel', serif; }
 .shop-item p { margin: 8px 0 4px; color: #e0d0b0; font-size: 14px; }
@@ -4386,21 +3785,15 @@ img.qs-icon { width: 20px; height: 20px; object-fit: contain; }
 .map-btn img { width: 20px; height: 20px; }
 .bnav-village-arrow img { width: 16px; height: 16px; }
 img.dn-icon { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; }
-.gold-box img.res-icon { width: 32px; height: 32px; }
 @media (max-width: 480px) {
-  img.res-icon { width: 26px; height: 26px; }
   img.bnav-icon { width: 28px; height: 28px; }
 }
 /* Pas de sélection de texte ni de menu contextuel long-press sur l'interface de jeu */
-#game-screen, .bottom-nav, .game-header, canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#game-screen, .bottom-nav, canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 #game-screen input, #game-screen textarea { -webkit-user-select: text; user-select: text; }
 /* Barre de ressources sur petit écran : tout tient sur la largeur, l'or reste visible */
 @media (max-width: 480px) {
   .resources-container { width: 100%; }
-  .resource-box { min-width: 0; flex: 1 1 0; padding: 3px 4px 2px; }
-  .gold-box { flex: 0 0 auto; min-width: 48px; padding: 3px 5px; }
-  .gold-box img.res-icon { width: 22px; height: 22px; }
-  img.res-icon { width: 22px; height: 22px; }
 }
 /* Icônes peintes dans les panneaux (coûts, stats, marché) */
 img.ico { width: 1.35em; height: 1.35em; object-fit: contain; vertical-align: -0.3em; }
@@ -4438,7 +3831,6 @@ body.keyboard-open #auth-screen .auth-container { margin: 8px auto; }
   .attack-notif { padding: 2px 5px; font-size: 11px; gap: 2px; }
   .attack-notif .attack-timer { font-size: 11px; }
   .player-section { flex: 0 0 auto; }
-  .res-timer { font-size: 10px; }
 }
 /* Cibles tactiles */
 .bnav-village-info { min-height: 44px; }
@@ -4611,7 +4003,6 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
   border-radius: 0;
   box-shadow: 0 14px 40px rgba(0,0,0,0.6);
 }
-.modal-box::before, .build-panel::before { display: none; }
 .modal-header, .panel-header { margin-top: 0; border-radius: 3px 3px 0 0; }
 .map-info-panel {
   background: linear-gradient(180deg, rgba(74,60,42,0.98) 0%, rgba(42,36,24,0.98) 100%);
@@ -4651,13 +4042,9 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 #auth-screen { background: linear-gradient(180deg, #8fb8e0 0%, #cfe0ee 48%, #d8c89a 100%); }
 #auth-screen::before {
   background: url(../assets/images/3d/scenes/auth-portrait.webp) center 55% / cover no-repeat;
-  opacity: 1;
-  animation: none;
 }
 @media (orientation: landscape) { #auth-screen::before { background-image: url(../assets/images/3d/scenes/auth-landscape.webp); background-position: center 60%; } }
 #auth-screen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,8,4,0.22) 0%, rgba(10,8,4,0.12) 45%, rgba(10,8,4,0.5) 100%); pointer-events: none; }
-.auth-decorations, .auth-bg { display: none; }
-.auth-container { z-index: 1; }
 
 /* Carte de connexion translucide : le panorama reste visible au travers */
 .auth-box { background: linear-gradient(180deg, rgba(74,60,42,0.88) 0%, rgba(58,46,32,0.9) 50%, rgba(42,34,24,0.92) 100%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -4684,7 +4071,6 @@ img.hero-ico-xs { width: 26px; height: 26px; object-fit: contain; vertical-align
 img.unit-figure { height: 96px; width: auto; object-fit: contain; vertical-align: bottom; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.35)); }
 img.unit-figure.unit-figure-lg { height: 120px; }
 .unit-card-header { padding: 6px 8px 0; }
-.unit-info-icon { width: auto; height: auto; min-width: 72px; padding: 4px 8px; }
 
 /* Vignettes 3D des bâtiments dans les panneaux (titres, options de construction, files, infobulles) */
 img.b-ico { height: 1.8em; width: auto; max-width: 2.2em; object-fit: contain; vertical-align: -0.5em; }
@@ -4700,7 +4086,7 @@ img.item-ico { width: 1em; height: 1em; object-fit: contain; vertical-align: mid
 
 /* Emblèmes de faction (bustes des héros) dans le choix de civilisation */
 .faction-icon img.faction-ico { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #c9a227; box-shadow: 0 2px 4px rgba(0,0,0,0.4); background: #2a2418; }
-.toolbar-btn img.ico, .qd-header img.ico, .category-header img.ico { width: 1.7em; height: 1.7em; vertical-align: -0.45em; margin-right: 2px; }
+.toolbar-btn img.ico, .qd-header img.ico { width: 1.7em; height: 1.7em; vertical-align: -0.45em; margin-right: 2px; }
 
 /* Scènes peintes par IA (tools/repaint.cjs) : activées par classes sur <html> quand painted/manifest.json les liste */
 html.painted-auth #auth-screen::before { background-image: url(../assets/images/painted/scenes/auth-portrait.webp); }
@@ -4743,14 +4129,12 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner { bor
 }
 .top-bar .resource-box.gold-box { grid-template-areas: "icon detail"; cursor: pointer; flex: 0 0 auto; padding-right: 10px; }
 .top-bar .resource-box + .resource-box::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 1px; background: linear-gradient(180deg, transparent, rgba(90,60,30,0.45), transparent); }
-.top-bar .resource-box::after { display: none; }
 .top-bar img.res-icon { grid-area: icon; width: 30px; height: 30px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
 .top-bar .res-detail { grid-area: detail; display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; }
 .top-bar .res-current { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; color: #2e2010; line-height: 1.1; text-align: left; }
-.top-bar .res-timer { display: block; background: none; color: #6a5a3a; font-family: 'Crimson Text', serif; font-size: 10px; font-weight: 400; padding: 0; letter-spacing: 0; text-align: left; line-height: 1.1; }
+.top-bar .res-timer { display: block; background: none; color: #6a5a3a; font-family: 'Crimson Text', serif; font-size: 10px; font-weight: 400; padding: 0; border-radius: 2px; letter-spacing: 0; text-align: left; line-height: 1.1; }
 .top-bar .res-sub { display: flex; flex-direction: row; gap: 6px; align-items: baseline; }
 .top-bar .res-prod { color: #3a6a1e; font-size: 10px; font-weight: 700; font-family: 'Crimson Text', serif; }
-.top-bar .res-max { display: none; }
 .top-bar .res-bar { grid-area: bar; height: 4px; background: rgba(60,40,20,0.35); border-radius: 2px; box-shadow: inset 0 1px 1px rgba(0,0,0,0.35); }
 .top-bar .gold-value { color: #7a5a10; }
 @media (max-width: 768px) {
@@ -4767,12 +4151,12 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner { bor
   .top-bar .res-current { font-size: 12px; }
 }
 /* Cartes et options : plaques de parchemin peintes, liseré brun fin (façon Travian) */
-.build-option-card, .army-card-new, .unit-card, .hero-stat-card, .card, .list-item, .queue-item {
+.build-option-card, .army-card-new, .unit-card, .hero-stat-card, .card, .queue-item {
   border: 8px solid transparent;
   border-image: url(../assets/images/3d/ui/plate-parchment.webp) 24 fill / 8px stretch;
   border-radius: 0; background: none; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
-html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .list-item, html.painted-ui .queue-item { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }
+html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .queue-item { border-image-source: url(../assets/images/painted/ui/plate-parchment.webp); }
 .army-card-top, .unit-card-header { border-radius: 0; }
 /* En-têtes de panneaux et de modales : bandeau de bois peint, titre doré centré */
 .modal-header, .panel-header { background: url(../assets/images/3d/ui/bar-wood.webp) left center / auto 100% repeat-x, #3a2e22; border-bottom: 2px solid #c9a227; }
@@ -4785,7 +4169,7 @@ html.painted-ui .modal-header, html.painted-ui .panel-header { background-image:
 /* Cadres peints : bordure plus fine que les cadres 3D, tranches adaptées */
 html.painted-ui .modal-box, html.painted-ui .build-panel { border-width: 16px; border-image-slice: 40 fill; border-image-width: 16px; }
 html.painted-ui .map-info-panel { border-width: 16px; border-image-slice: 44; border-image-width: 16px; }
-html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .list-item, html.painted-ui .queue-item { border-image-slice: 20 fill; }
+html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html.painted-ui .build-option-card, html.painted-ui .army-card-new, html.painted-ui .unit-card, html.painted-ui .hero-stat-card, html.painted-ui .card, html.painted-ui .queue-item { border-image-slice: 20 fill; }
 
 
 /* ========== CONNECTION OVERLAY (first load, cold server) ========== */
@@ -4850,8 +4234,6 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 
 .sheet { display: flex; flex-direction: column; gap: 14px; color: #3a2a1a; }
 .sheet-head { display: flex; gap: 14px; align-items: flex-start; padding: 12px; border-left: 4px solid var(--tier, #c9a227); background: linear-gradient(135deg, rgba(90,60,20,0.12), rgba(90,60,20,0)); border-radius: 4px; }
-.sheet-figure { flex: 0 0 auto; width: 88px; height: 88px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(255,255,255,0.35), rgba(90,60,20,0.08)); border-radius: 8px; border: 1px solid rgba(90,60,20,0.35); overflow: hidden; }
-.sheet-figure img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
 .sheet-title { min-width: 0; flex: 1; }
 .sheet-title h3 { margin: 0 0 6px; font-family: 'Cinzel', serif; font-size: 17px; color: #2e2010; }
 .sheet-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
@@ -4909,7 +4291,6 @@ html.painted-ui .top-bar .resources-container, html.painted-ui .tab-banner, html
 .sheet-lvl { flex: 0 0 auto; font-family: 'Cinzel', serif; font-size: 11px; padding: 4px 6px; border-radius: 4px; background: #3a2e22; color: #e8c547; white-space: nowrap; }
 @media (max-width: 600px) {
   .sheet-head { gap: 10px; padding: 10px; }
-  .sheet-figure { width: 70px; height: 70px; }
   .sheet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sheet-table { font-size: 11px; }
   .sheet-table th, .sheet-table td { padding: 3px 4px; }
@@ -5123,13 +4504,13 @@ span.chat-author { cursor: default; }
 
 /* boutique d'alliance */
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 6px 0 14px; }
-.shop-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid var(--border, rgba(255,255,255,.12)); color: var(--text); text-align: center; }
+.shop-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid var(--border, rgba(255,255,255,.12)); color: var(--text-light); text-align: center; }
 .shop-card.equipped { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,39,.25); }
 .shop-preview { min-height: 52px; display: flex; align-items: center; justify-content: center; }
 .shop-preview .ico, .shop-preview .item-ico { width: 40px; height: 40px; }
 .shop-banner { max-height: 56px; }
 .shop-soon { font-size: 11px; color: var(--text-muted); font-style: italic; }
-.shop-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.shop-name { font-weight: 700; font-size: 13px; color: var(--text-light); }
 .shop-desc { font-size: 11px; color: var(--text-muted); flex: 1; }
 .plate-preview { display: inline-block; padding: 2px 12px; border-radius: 999px; font: 700 13px 'Crimson Text', Georgia, serif; border: 1.5px solid #6a4a2a; background: rgba(240,224,186,.95); color: #2e2010; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
 .plate-bronze { background: rgba(214,160,104,.95); color: #2e1a08; box-shadow: inset 0 0 0 2px #8a5a2a; }

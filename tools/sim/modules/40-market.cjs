@@ -1,17 +1,23 @@
 // Simulation longue — marché : échanges entre joueurs livrés par armées de transport (offres, acceptations, annulations),
-// routes commerciales automatiques entre ses villes, marchand du serveur (PNJ) quand un entrepôt déborde, envoi de
-// ressources à un allié. Règles : src/routes/market.js, src/services/marketService.js, config.market,
-// docs/ETAT-DES-SYSTEMES.md « Marché et commerce ».
+// routes commerciales automatiques entre ses villes, marchand du serveur (PNJ) quand un entrepôt déborde, envois de
+// ressources à un allié ou à la Ville Merveille de l'alliance. Règles : src/routes/market.js, src/services/marketService.js,
+// config.market, docs/ETAT-DES-SYSTEMES.md « Marché et commerce » et « Cycle du serveur et Merveille ».
 //
 // Chaque joueur qui a un Marché forme une « Caravane » (une armée de la Place de rassemblement, sur un emplacement que
-// les armées de campagne ne prennent pas, remplie de porteurs de la garnison). Avec elle :
-//  - il publie une offre de la ressource dont il a trop contre celle qui lui manque (la caravane attend en ville) ;
-//  - il accepte l'offre d'un autre quand elle lui convient (pas d'ennemi, prix correct, de la place à l'arrivée) ;
-//    sans caravane libre, une armée de campagne au repos en ville porte la contrepartie (aller-retour court) ;
-//  - il annule une offre restée sans preneur (ou devenue absurde) ; un joueur sur trois la laisse expirer (48 h).
-// Avec des colonies : route capitale → colonie (bois, pierre, fer) et colonie → capitale (tout), mises en pause ou
-// reprises selon les stocks des deux villes. Le marchand PNJ (taxe 30 % − 1 %/niveau) sert quand une ressource déborde
-// et qu'une autre manque. Rarement, un joueur riche envoie des ressources à l'allié le plus petit (/api/trade/send).
+// les armées de campagne ne prennent pas, remplie de porteurs de la garnison). Une ressource vaut pour la ville d'autant
+// plus que son entrepôt est vide (1 − remplissage) ; avec la caravane :
+//  - il publie une offre d'une ressource en trop contre une qui manque, en regardant le marché (paire déjà proposée par
+//    d'autres évitée, ressource demandée préférée), à 1 pour 1, un peu plus quand ses offres ne partent pas (1,25 au plus :
+//    au-delà le marchand du serveur rend autant) ;
+//  - il accepte l'offre d'un autre quand il y gagne après la taxe (un membre de son alliance est aidé même à gain nul),
+//    jamais d'un ennemi, jamais au point de déborder à l'arrivée ; sans caravane libre, une armée de campagne au repos en
+//    ville porte la contrepartie (aller-retour court) ;
+//  - il annule une offre restée sans preneur (ou devenue absurde) quand l'entrepôt peut reprendre les marchandises ; un
+//    joueur sur trois la laisse expirer (48 h).
+// Avec des colonies : route capitale → colonie (bois, pierre, fer) quand la colonie manque, colonie → capitale (tout) quand
+// elle se remplit, jamais les deux à la fois ; avec une Ville Merveille, les colonies la remplissent par route. Le marchand
+// PNJ (taxe 30 % − 1 %/niveau) sert quand une ressource déborde et qu'une autre manque. Tous les deux jours au plus, un
+// joueur riche envoie son surplus à la Ville Merveille de son alliance, sinon à un allié qui manque (/api/trade/send).
 // Au plus CALLS appels par tour (lectures comprises) ; les conditions sont vérifiées avant chaque appel.
 'use strict';
 const path = require('path');
@@ -171,39 +177,59 @@ async function caravans(S, markets) {
 }
 
 // ---------- échanges entre joueurs ----------
-// ce que la ville publierait : la ressource la plus pleine contre la plus vide
-function postPlan(S, city, cap) {
-  const rs = RES.map(r => ({ r, x: ratio(city, r) }));
+// ce que vaut une unité de plus d'une ressource pour la ville : beaucoup quand l'entrepôt est vide, presque rien plein
+const WORTH_FLOOR = 0.1;
+const worth = (city, r) => 1 - Math.min(1, ratio(city, r)) + WORTH_FLOOR;
+const keepTax = 1 - M.p2pTaxPctBase / 100;   // ce qui arrive d'un convoi (la taxe de la ville qui envoie, 10 % au plus)
+const PF_MAX = 1.25;                          // au-delà, le marchand du serveur (taxe 30 % − 1 %/niv.) rend autant
+
+// ce que la ville publierait : une ressource en trop contre une qui manque, en tenant compte du marché (une paire déjà
+// proposée par d'autres a peu de chances ; une ressource que d'autres demandent trouvera preneur)
+function postPlan(S, city, cap, offers) {
   const foodOk = (city.foodBalance?.net ?? -1) > 0;
-  const ex = rs.filter(o => o.x >= 0.5 && (o.r !== 'food' || (foodOk && o.x >= 0.65))).sort((a, b) => b.x - a.x)[0];
-  if (!ex) return null;
-  const lack = rs.filter(o => o.r !== ex.r).sort((a, b) => a.x - b.x)[0];
-  if (!lack || ex.x - lack.x < 0.3) return null;
-  const pf = Math.min(1.5, Math.max(1, S.m.pf));
-  const spare = (city[ex.r] || 0) - capOf(city, ex.r) * 0.35;
-  const room = capOf(city, lack.r) * 0.9 - (city[lack.r] || 0);
-  const buy = round10(Math.min(room, cap / pf, spare / pf, capOf(city, ex.r) * 0.3 / pf));
+  const others = (offers || []).filter(o => o.sellerId !== S.bot.playerId);
+  let best = null;
+  for (const ex of RES) {
+    const rx = ratio(city, ex);
+    if (rx < 0.5 || (ex === 'food' && (!foodOk || rx < 0.65))) continue;
+    for (const lack of RES) {
+      if (lack === ex || rx - ratio(city, lack) < 0.25) continue;
+      const gain = keepTax * worth(city, lack) - worth(city, ex);   // par unité, au prix de 1 pour 1
+      if (gain <= 0.1) continue;
+      const rivals = others.filter(o => o.sellResource === ex && o.buyResource === lack).length;
+      const demand = others.filter(o => o.buyResource === ex).length;
+      const score = gain - 0.12 * rivals + 0.05 * Math.min(3, demand);
+      if (!best || score > best.score) best = { ex, lack, score };
+    }
+  }
+  if (!best) return null;
+  const { ex, lack } = best;
+  // prix : 1 pour 1, plus quand personne n'a pris les dernières offres, jamais au point de perdre au change
+  const pf = Math.min(PF_MAX, Math.max(1, S.m.pf), keepTax * worth(city, lack) / worth(city, ex));
+  const spare = (city[ex] || 0) - capOf(city, ex) * 0.35;
+  const room = capOf(city, lack) * 0.9 - (city[lack] || 0);
+  const buy = round10(Math.min(room / keepTax, cap / pf, spare / pf, capOf(city, ex) * 0.3 / pf));
   const sell = round10(buy * pf);
-  if (buy < MIN_TRADE * 0.75 || sell < MIN_TRADE || sell > cap || sell > (city[ex.r] || 0) - 50) return null;
-  return { sellResource: ex.r, sellAmount: sell, buyResource: lack.r, buyAmount: buy };
+  if (buy < MIN_TRADE * 0.75 || sell < MIN_TRADE || sell > cap || sell > (city[ex] || 0) - 50) return null;
+  return { sellResource: ex, sellAmount: sell, buyResource: lack, buyAmount: buy };
 }
 
-// intérêt d'une offre pour la ville (null : elle ne convient pas)
-function offerValue(city, o) {
+// intérêt d'une offre pour la ville (null : elle ne convient pas). Un membre de son alliance est aidé même à petit gain.
+function offerValue(city, o, ally) {
   const give = o.buyResource, get = o.sellResource;
-  const rGive = ratio(city, give), rGet = ratio(city, get);
-  if (rGive - rGet < 0.15) return null;                                             // on ne manque pas plus de ce qu'on reçoit
   if ((city[give] || 0) - o.buyAmount < capOf(city, give) * 0.2 + 50) return null;  // garder une réserve
   if (give === 'food' && !((city.foodBalance?.net ?? -1) > 0)) return null;
-  const recv = Math.floor(o.sellAmount * (1 - M.p2pTaxPctBase / 100));
+  if (o.sellAmount / o.buyAmount < 0.75) return null;
+  const recv = Math.floor(o.sellAmount * keepTax);
   if ((city[get] || 0) + recv > capOf(city, get) * 0.97) return null;               // rien ne doit déborder à l'arrivée
-  const price = o.sellAmount / o.buyAmount;
-  if (price < 0.75) return null;
-  return (rGive - rGet) * Math.min(1.4, price);
+  // valeur de ce qu'on reçoit moins valeur de ce qu'on donne, par unité donnée
+  const gain = (recv * worth(city, get) - o.buyAmount * worth(city, give)) / o.buyAmount;
+  if (gain < (ally && ratio(city, give) >= 0.5 ? -0.05 : 0.08)) return null;
+  return gain;
 }
 
 // une armée en ville qui peut porter `amount` : la caravane d'abord, sinon une armée de campagne au repos (aller-retour)
-function carrierFor(S, city, amount) {
+function carrierFor(S, city, amount, largest = false) {
   const { bot } = S;
   const car = caravanOf(S, city);
   const mil = bot.mem.mil;
@@ -211,7 +237,9 @@ function carrierFor(S, city, amount) {
   const list = [];
   if (car && car.status === 'IDLE' && home(car, city) && unitsOf(car) > 0 && !S.release.has(city.id)) list.push({ a: car, own: 1 });
   if (!mil?.col) for (const a of fieldArmies(bot, city)) if (a !== car && a.status === 'IDLE' && home(a, city) && unitsOf(a) > 0 && !reserved.has(a.id)) list.push({ a, own: 0 });
-  return list.map(x => ({ ...x, cap: capacity(x.a, city, S.faction) })).filter(x => x.cap >= amount).sort((x, y) => y.own - x.own || x.cap - y.cap)[0] || null;
+  const fit = list.map(x => ({ ...x, cap: capacity(x.a, city, S.faction) })).filter(x => x.cap >= amount);
+  if (largest) return fit.sort((x, y) => y.cap - x.cap)[0] || null;
+  return fit.sort((x, y) => y.own - x.own || x.cap - y.cap)[0] || null;
 }
 
 async function trade(S, markets) {
@@ -239,12 +267,17 @@ async function trade(S, markets) {
       for (const t of gone) {
         const done = h.data.find(x => x.id === t.i && x.status === 'COMPLETED');
         if (done) { bump(m, 'sold'); bump(m, 'soldVolume', done.sellAmount); m.pf = Math.max(1, m.pf - 0.05); m.miss = 0; }
-        else { bump(m, 'expired'); m.pf = Math.min(1.5, m.pf + 0.1); miss(S); }
+        else {
+          bump(m, 'expired'); m.pf = Math.min(PF_MAX, m.pf + 0.05); miss(S);
+          // rendue par le jeu dans un entrepôt déjà plein : le surplus est perdu (creditCity plafonne au stockage)
+          const c = bot.cities.find(x => x.id === t.c);
+          if (c && t.r && t.n && (c[t.r] || 0) >= capOf(c, t.r) * 0.98) bump(m, 'expiredIntoFullStore');
+        }
       }
     }
   }
   // les offres d'avant une reprise : suivies aussi
-  for (const o of mine) if (!m.off.some(t => t.i === o.id) && m.off.length < 6) m.off.push({ i: o.id, c: o.cityId, s: ctx.step });
+  for (const o of mine) if (!m.off.some(t => t.i === o.id) && m.off.length < 6) m.off.push({ i: o.id, c: o.cityId, s: ctx.step, r: o.sellResource, n: o.sellAmount });
 
   // 1. retirer une offre : sans preneur depuis longtemps, devenue absurde, ou l'emplacement de la caravane est demandé
   const patient = hash(bot.name) % 3 === 0;   // ce joueur-là laisse ses offres expirer
@@ -255,11 +288,14 @@ async function trade(S, markets) {
     const absurd = city && (ratio(city, o.sellResource) < 0.2 || ratio(city, o.buyResource) > 0.8);
     const release = S.release.has(o.cityId);
     if (!release && !absurd && (patient || age < STALE_H)) continue;
+    // les marchandises rendues ne tiendraient pas dans l'entrepôt : on attend d'avoir dépensé (sauf si la place presse)
+    if (!release && city && (city[o.sellResource] || 0) + o.sellAmount > capOf(city, o.sellResource)) { bump(m, 'cancelWaitRoom'); continue; }
     B.left--;
     const d = await bot.del(`/api/market/offer/${o.id}`);
     if (d.ok) {
       bump(m, release ? 'cancelRelease' : absurd ? 'cancelChanged' : 'cancelStale');
-      if (!release && !absurd) { m.pf = Math.min(1.5, m.pf + 0.1); miss(S); }
+      if (!release && !absurd) { m.pf = Math.min(PF_MAX, m.pf + 0.05); miss(S); }
+      if (city && (city[o.sellResource] || 0) + o.sellAmount > capOf(city, o.sellResource)) bump(m, 'cancelOverflow', Math.round((city[o.sellResource] || 0) + o.sellAmount - capOf(city, o.sellResource)));
       m.off = m.off.filter(t => t.i !== o.id);
       if (city) city[o.sellResource] = (city[o.sellResource] || 0) + o.sellAmount;
       const car = caravanOf(S, city || { id: o.cityId });
@@ -270,34 +306,44 @@ async function trade(S, markets) {
 
   // 2. accepter une offre qui convient
   const others = offers.filter(o => o.sellerId !== bot.playerId);
+  const allianceId = bot.me?.alliance?.allianceId;
+  const allies = new Set(allianceId ? ctx.bots.filter(b => b !== bot && b.me?.alliance?.allianceId === allianceId).map(b => b.playerId) : []);
   let accepted = false;
   if (others.length && B.left > 1) {
-    let best = null;
+    const cands = [];
     for (const city of markets) {
       if (city.isSieged) continue;
+      const most = carrierFor(S, city, 0, true);   // la plus grande charge qu'une armée libre de la ville peut porter
+      if (!most) continue;
       for (const o of others) {
-        const v = offerValue(city, o);
+        if (o.buyAmount > most.cap) continue;
+        const v = offerValue(city, o, allies.has(o.sellerId));
         if (v === null) continue;
-        const score = v - (o.city ? dist(o.city, city) / 2000 : 0);
-        if (!best || score > best.score) best = { o, city, score };
+        cands.push({ o, city, score: v - (o.city ? dist(o.city, city) / 2000 : 0) });
       }
     }
-    if (best) {
+    cands.sort((x, y) => y.score - x.score);
+    const used = new Set();
+    for (const best of cands.slice(0, 4)) {
+      if (B.left <= 1 || used.has(best.o.id)) continue;
       const carrier = carrierFor(S, best.city, best.o.buyAmount);
-      if (!carrier) bump(m, 'acceptNoCarrier');
-      else if (!(await canTrade(ctx, bot.playerId, best.o.sellerId))) bump(m, 'acceptEnemySkipped');
-      else {
-        B.left--;
-        const a = await bot.post(`/api/market/offer/${best.o.id}/accept`, { cityId: best.city.id, armyId: carrier.a.id });
-        if (a.ok) {
-          accepted = true;
-          bump(m, 'accepted'); bump(m, carrier.own ? 'acceptByCaravan' : 'acceptByFieldArmy');
-          bump(m, 'boughtVolume', best.o.sellAmount);
-          best.city[best.o.buyResource] = (best.city[best.o.buyResource] || 0) - best.o.buyAmount;
-          carrier.a.status = 'TRANSPORTING';
-          if ((m.k.accepted || 0) === 1) ctx.event('market_first_trade', { bot: bot.name, give: `${best.o.buyAmount} ${best.o.buyResource}`, get: `${best.o.sellAmount} ${best.o.sellResource}`, seller: best.o.player?.name, toBuyer: a.data?.toBuyer, toSeller: a.data?.toSeller, taxes: [a.data?.sellerTax, a.data?.buyerTax] });
-        } else bump(m, 'acceptRefused');
+      if (!carrier) { bump(m, 'acceptNoCarrier'); continue; }
+      if (!(await canTrade(ctx, bot.playerId, best.o.sellerId))) { bump(m, 'acceptEnemySkipped'); used.add(best.o.id); continue; }
+      B.left--;
+      used.add(best.o.id);
+      const a = await bot.post(`/api/market/offer/${best.o.id}/accept`, { cityId: best.city.id, armyId: carrier.a.id });
+      if (a.ok) {
+        accepted = true;
+        bump(m, 'accepted'); bump(m, carrier.own ? 'acceptByCaravan' : 'acceptByFieldArmy');
+        if (allies.has(best.o.sellerId)) bump(m, 'acceptAlly');
+        bump(m, 'boughtVolume', best.o.sellAmount); bump(m, `bought_${best.o.sellResource}`);
+        best.city[best.o.buyResource] = (best.city[best.o.buyResource] || 0) - best.o.buyAmount;
+        carrier.a.status = 'TRANSPORTING';
+        if ((m.k.accepted || 0) === 1) ctx.event('market_first_trade', { bot: bot.name, give: `${best.o.buyAmount} ${best.o.buyResource}`, get: `${best.o.sellAmount} ${best.o.sellResource}`, seller: best.o.player?.name, ally: allies.has(best.o.sellerId), toBuyer: a.data?.toBuyer, toSeller: a.data?.toSeller, taxes: [a.data?.sellerTax, a.data?.buyerTax] });
+        break;   // un échange par tour
       }
+      bump(m, 'acceptRefused');
+      break;
     }
   }
 
@@ -308,7 +354,7 @@ async function trade(S, markets) {
     if (city.isSieged || m.off.some(t => t.c === city.id) || S.release.has(city.id)) continue;
     const car = caravanOf(S, city);
     if (!car || car.status !== 'IDLE' || !home(car, city) || unitsOf(car) === 0) continue;
-    const plan = postPlan(S, city, capacity(car, city, S.faction));
+    const plan = postPlan(S, city, capacity(car, city, S.faction), offers);
     if (!plan) { bump(m, 'nothingToOffer'); continue; }
     // la taxe de la ville, comme l'écran du marché la montre en remplissant l'offre (de temps en temps)
     if ((m.nx.t || 0) <= ctx.step && B.left > 2) {
@@ -320,7 +366,7 @@ async function trade(S, markets) {
     B.left--;
     const p = await bot.post('/api/market/offer', { ...plan, cityId: city.id, armyId: car.id });
     if (p.ok && p.data?.offer) {
-      m.off.push({ i: p.data.offer.id, c: city.id, s: ctx.step });
+      m.off.push({ i: p.data.offer.id, c: city.id, s: ctx.step, r: plan.sellResource, n: plan.sellAmount });
       city[plan.sellResource] -= plan.sellAmount;
       car.status = 'MARKET';
       bump(m, 'posted'); bump(m, `posted_${plan.sellResource}`);
@@ -330,12 +376,18 @@ async function trade(S, markets) {
 }
 
 // ---------- routes commerciales entre ses villes ----------
+// Une seule route active par ville de départ et par ressource (la cadence de 1/12 du stockage toutes les 2 h vaut pour la
+// ville) : une seule route capitale → colonie à la fois (la colonie qui manque le plus), et d'une colonie soit vers la
+// capitale soit vers la Ville Merveille. Les pauses passent avant les reprises et créations, qui ne heurtent jamais une
+// route active (vérifié avant l'appel).
+const carries = (route, r) => !!route[r];
 async function routes(S) {
   const { bot, ctx, B, m } = S;
   const cap = bot.capital;
   const colonies = bot.cities.filter(c => !c.isCapital && !c.isWonder);
+  const wonder = bot.cities.find(c => c.isWonder) || null;
   if (!cap || !colonies.length || B.left < 2 || (m.nx.r || 0) > ctx.step) return;
-  m.nx.r = ctx.step + 4;   // tous les deux jours (un tour sur deux)
+  m.nx.r = ctx.step + (wonder ? 2 : 4);   // une fois par jour (à chaque tour quand une Ville Merveille se remplit)
   B.left--;
   const r = await bot.get('/api/market/routes');
   if (!r.ok || !Array.isArray(r.data?.routes)) return;
@@ -351,40 +403,58 @@ async function routes(S) {
     if (d.ok) bump(m, 'routesDeleted'); else bump(m, 'routeDeleteRefused');
     return;
   }
+  const find = (from, to) => list.find(x => x.fromCityId === from.id && x.toCityId === to.id) || null;
   // ce que chaque route devrait faire maintenant
   const wants = [];
+  const fc = avgRatio(cap, OTHER), room = Math.min(...RES.map(x => ratio(cap, x)));
   for (const col of colonies) {
-    const down = { from: cap, to: col, res: OTHER };
-    const up = { from: col, to: cap, res: RES };
-    const fc = avgRatio(cap, OTHER), tc = avgRatio(col, OTHER);
+    const tc = avgRatio(col, OTHER), fu = avgRatio(col, RES);
     // capitale → colonie : la jeune colonie manque, la capitale a de quoi
-    down.on = fc >= 0.45 && tc <= 0.55 && fc - tc >= 0.15;
-    down.keep = fc >= 0.35 && tc <= 0.75;
-    // colonie → capitale : la colonie (production +20 %) déborde
-    const fu = avgRatio(col, RES), tu = avgRatio(cap, RES);
-    up.on = lvl(col, 'MARKET') >= 1 && fu >= 0.6 && tu <= fu - 0.2;
-    up.keep = fu >= 0.45 && tu <= 0.85;
-    wants.push(down, up);
-  }
-  for (const w of wants) {
-    if (B.left <= 0) break;
-    const route = list.find(x => x.fromCityId === w.from.id && x.toCityId === w.to.id);
-    if (!route) {
-      if (!w.on || lvl(w.from, 'MARKET') < 1 || list.length >= M.routes.maxPerPlayer || w.from.isSieged || w.to.isSieged) continue;
-      B.left--;
-      const c = await bot.post('/api/market/routes', { fromCityId: w.from.id, toCityId: w.to.id, ...Object.fromEntries(RES.map(x => [x, w.res.includes(x)])) });
-      if (c.ok) {
-        bump(m, 'routesCreated'); list.push(c.data.route);
-        if ((m.k.routesCreated || 0) === 1) ctx.event('trade_route', { bot: bot.name, from: w.from.name, to: w.to.name, res: w.res.join('+') });
-      } else bump(m, 'routeCreateRefused');
-      break;   // une création par tour
+    const down = { kind: 'down', from: cap, to: col, res: OTHER, need: tc, on: fc >= 0.45 && tc <= 0.5 && fc - tc >= 0.15, keep: fc >= 0.35 && tc <= 0.75 };
+    // colonie → capitale (production +20 %) : la colonie se remplit et la capitale a de la place ; ce qui ne tient pas
+    // à l'arrivée revient, la route peut donc rester ouverte tant que la colonie n'a pas besoin de son stock
+    const up = { kind: 'up', from: col, to: cap, res: RES, on: fu >= 0.6 && room <= 0.8, keep: fu >= 0.4 && room <= 0.92 };
+    // Ville Merveille (stock sans plafond, docs « Cycle du serveur et Merveille ») : les colonies y envoient leur production ;
+    // une route vide la ville de départ : la capitale garde la sienne (elle envoie son surplus par convoi, voir aid)
+    const won = wonder ? { kind: 'wonder', from: col, to: wonder, res: RES, on: fu >= 0.5, keep: fu >= 0.3 } : null;
+    for (const w of [won, down, up].filter(Boolean)) {
+      w.route = find(w.from, w.to);
+      w.should = w.route ? (w.route.active ? (w.on || w.keep) : w.on) : w.on;
+      wants.push(w);
     }
-    const should = route.active ? (w.on || w.keep) : w.on;
-    if (should === route.active) { if (route.active) bump(m, 'routeActiveTurns'); continue; }
+    if (won?.should) up.should = false;                                   // la Merveille d'abord
+    if (down.should) up.should = false;                                   // jamais dans les deux sens à la fois
+  }
+  // une seule route capitale → colonie : celle qui roule déjà, sinon la colonie qui manque le plus
+  const downs = wants.filter(w => w.kind === 'down' && w.should).sort((x, y) => (y.route?.active ? 1 : 0) - (x.route?.active ? 1 : 0) || x.need - y.need);
+  for (const w of downs.slice(1)) w.should = false;
+  // 1. les pauses
+  for (const w of wants) {
+    if (B.left <= 0) return;
+    if (!w.route || !w.route.active || w.should) { if (w.route?.active) bump(m, 'routeActiveTurns'); continue; }
     B.left--;
-    const t = await bot.post(`/api/market/routes/${route.id}/toggle`);
-    if (t.ok) { route.active = !!t.data?.active; bump(m, route.active ? 'routesResumed' : 'routesPaused'); }
-    else bump(m, 'routeToggleRefused');
+    const t = await bot.post(`/api/market/routes/${w.route.id}/toggle`);
+    if (t.ok) { w.route.active = !!t.data?.active; bump(m, 'routesPaused'); } else bump(m, 'routeToggleRefused');
+  }
+  // 2. reprises et créations (une création par tour)
+  for (const w of wants) {
+    if (B.left <= 0) return;
+    if (!w.should || w.route?.active || w.from.isSieged || w.to.isSieged) continue;
+    if (list.some(x => x !== w.route && x.active && x.fromCityId === w.from.id && w.res.some(res => carries(x, res)))) { bump(m, 'routeClashAvoided'); continue; }
+    if (w.route) {
+      B.left--;
+      const t = await bot.post(`/api/market/routes/${w.route.id}/toggle`);
+      if (t.ok) { w.route.active = !!t.data?.active; bump(m, 'routesResumed'); } else bump(m, 'routeToggleRefused');
+      continue;
+    }
+    if (lvl(w.from, 'MARKET') < 1 || list.length >= M.routes.maxPerPlayer) continue;
+    B.left--;
+    const c = await bot.post('/api/market/routes', { fromCityId: w.from.id, toCityId: w.to.id, ...Object.fromEntries(RES.map(x => [x, w.res.includes(x)])) });
+    if (c.ok && c.data?.route) {
+      bump(m, 'routesCreated'); bump(m, `routes_${w.kind}`); list.push(c.data.route);
+      if ((m.k.routesCreated || 0) === 1 || w.kind === 'wonder') ctx.event(w.kind === 'wonder' ? 'wonder_route' : 'trade_route', { bot: bot.name, from: w.from.name, to: w.to.name, res: w.res.join('+') });
+    } else bump(m, 'routeCreateRefused');
+    break;
   }
 }
 
@@ -420,38 +490,68 @@ async function npc(S, markets) {
   if (m.nx.n) for (const id of Object.keys(m.nx.n)) if (!bot.cities.some(c => c.id === id)) delete m.nx.n[id];
 }
 
-// ---------- envoi de ressources à un allié (POST /api/trade/send, l'écran « Envoyer ») ----------
-// un allié a dit ce qui lui manque (messagerie d'alliance) : on envoie ce qu'on a en trop et qu'il n'a pas
+// ---------- envoi de ressources (POST /api/trade/send, l'écran « Envoyer ») ----------
+// 1. une Ville Merveille de son alliance se construit avec le stock que lui apportent les membres : on y envoie le surplus
+// 2. sinon, un allié a dit ce qui lui manque (messagerie d'alliance) : on envoie ce qu'on a en trop et qu'il n'a pas
+const WONDERS = { step: -1, n: 0 };
+async function wondersOnMap(ctx) {   // les Villes Merveille sont sur la carte : on regarde s'il y en a (lecture seule)
+  if (WONDERS.step !== ctx.step) { WONDERS.step = ctx.step; try { WONDERS.n = await ctx.prisma.city.count({ where: { isWonder: true } }); } catch (e) { WONDERS.n = 0; } }
+  return WONDERS.n;
+}
 async function aid(S) {
   const { bot, ctx, B, m } = S;
   const cap = bot.capital;
   const allianceId = bot.me?.alliance?.allianceId;
   if (!cap || !allianceId || B.left < 1 || (m.nx.a || 0) > ctx.step || cap.isSieged || !lvl(cap, 'MARKET')) return;
   m.nx.a = ctx.step + 8;   // tous les deux jours au plus
-  const rich = RES.filter(r => ratio(cap, r) >= 0.85 && (r !== 'food' || (cap.foodBalance?.net ?? -1) > 0));
-  if (!rich.length) return;
+  const foodOk = (cap.foodBalance?.net ?? -1) > 0;
   // le serveur prend la première armée libre en ville : la charge doit tenir dans la plus petite
   const ready = fieldArmies(bot, cap).filter(a => a.status === 'IDLE' && home(a, cap) && unitsOf(a) > 0);
-  if (!ready.length || bot.mem.mil?.col) return;
+  if (!ready.length || bot.mem.mil?.col) { bump(m, 'aidNoArmy'); return; }
   const carry = Math.min(...ready.map(a => capacity(a, cap, S.faction)));
-  let best = null;
-  for (const b of ctx.bots) {
-    const fc = b.capital;
-    if (b === bot || b.me?.alliance?.allianceId !== allianceId || !fc || fc.isSieged || dist(fc, cap) > 80) continue;
-    for (const r of rich) {
-      const need = ratio(fc, r);
-      if (need > 0.4) continue;
-      const amount = round10(Math.min(carry, (cap[r] || 0) - 0.6 * capOf(cap, r), 0.6 * capOf(fc, r) - (fc[r] || 0)));
-      if (amount >= 300 && (!best || need < best.need)) best = { b, r, amount, need };
+  let send = null;
+
+  // 1. la Merveille de l'alliance (GET /api/wonder : l'écran « Monde »)
+  if (B.left >= 2 && (await wondersOnMap(ctx)) > 0) {
+    B.left--;
+    const w = await bot.get('/api/wonder');
+    const mine = w.ok && Array.isArray(w.data?.wonders) ? w.data.wonders.filter(x => x.alliance?.id === allianceId && x.owner?.id !== bot.playerId) : [];
+    const target = mine.sort((x, y) => dist(x, cap) - dist(y, cap))[0];
+    if (target) {
+      const extra = Object.fromEntries(RES.map(r => [r, ratio(cap, r) >= 0.6 && (r !== 'food' || foodOk) ? Math.max(0, (cap[r] || 0) - 0.5 * capOf(cap, r)) : 0]));
+      const total = RES.reduce((t, r) => t + extra[r], 0);
+      if (total >= 500) {
+        const k = Math.min(1, carry / total);
+        const resources = Object.fromEntries(RES.map(r => [r, round10(extra[r] * k)]).filter(([, v]) => v > 0));
+        if (Object.values(resources).reduce((t, v) => t + v, 0) >= 300) send = { x: target.x, y: target.y, name: target.name, resources, wonder: true };
+      }
     }
   }
-  if (!best) return;
+  // 2. un allié qui manque de ce qu'on a en trop
+  if (!send) {
+    const rich = RES.filter(r => ratio(cap, r) >= 0.8 && (r !== 'food' || foodOk));
+    let best = null;
+    for (const b of ctx.bots) {
+      const fc = b.capital;
+      if (!rich.length || b === bot || b.me?.alliance?.allianceId !== allianceId || !fc || fc.isSieged || dist(fc, cap) > 100) continue;
+      for (const r of rich) {
+        const need = ratio(fc, r);
+        if (need > 0.35 || ratio(cap, r) - need < 0.45) continue;
+        const amount = round10(Math.min(carry, (cap[r] || 0) - 0.6 * capOf(cap, r), 0.6 * capOf(fc, r) - (fc[r] || 0)));
+        if (amount >= 300 && (!best || need < best.need)) best = { b, r, amount, need };
+      }
+    }
+    if (best) send = { x: best.b.capital.x, y: best.b.capital.y, name: best.b.name, resources: { [best.r]: best.amount } };
+  }
+  if (!send || B.left < 1) { bump(m, 'aidNothing'); return; }
   B.left--;
-  const r = await bot.post('/api/trade/send', { fromCityId: cap.id, targetX: best.b.capital.x, targetY: best.b.capital.y, resources: { [best.r]: best.amount } });
+  const r = await bot.post('/api/trade/send', { fromCityId: cap.id, targetX: send.x, targetY: send.y, resources: send.resources });
   if (r.ok) {
-    bump(m, 'aidSent'); bump(m, 'aidVolume', best.amount); cap[best.r] -= best.amount;
+    const vol = Object.values(send.resources).reduce((t, v) => t + v, 0);
+    bump(m, send.wonder ? 'wonderSent' : 'aidSent'); bump(m, send.wonder ? 'wonderVolume' : 'aidVolume', vol);
+    for (const [k, v] of Object.entries(send.resources)) cap[k] -= v;
     for (const a of ready) a.status = 'TRANSPORTING';   // l'une d'elles est partie : on ne la reprend pas ce tour-ci
-    if ((m.k.aidSent || 0) === 1) ctx.event('market_aid', { from: bot.name, to: best.b.name, res: best.r, amount: best.amount });
+    if ((m.k[send.wonder ? 'wonderSent' : 'aidSent'] || 0) === 1) ctx.event(send.wonder ? 'wonder_supply' : 'market_aid', { from: bot.name, to: send.name, resources: send.resources });
   } else bump(m, 'aidRefused');
 }
 
@@ -542,8 +642,21 @@ module.exports = {
         markets: await num(`SELECT count(DISTINCT "cityId")::int AS n FROM "CityBuilding" WHERE key = 'MARKET' AND level >= 1`)
       };
     } catch (e) { db = { error: e.message }; }
+    // remplissage moyen des entrepôts (capitales, colonies avec Marché) : ce qui manque à tous ne se trouve pas entre joueurs
+    const fill = {};
+    for (const kind of ['cap', 'col']) {
+      const cs = ctx.bots.flatMap(b => (b.cities || []).filter(c => !c.isWonder && (kind === 'cap' ? c.isCapital : !c.isCapital)));
+      if (!cs.length) continue;
+      const f = { n: cs.length };
+      for (const r of RES) f[r] = Math.round(100 * cs.reduce((t, c) => t + Math.min(1, ratio(c, r)), 0) / cs.length);
+      f.lack = RES.map(r => `${r} ${cs.filter(c => RES.every(x => ratio(c, r) <= ratio(c, x))).length}`).join(', ');
+      fill[kind] = f;
+    }
+    db.fill = fill;
     const days = ctx.bots.map(b => b.mem.mkt?.k?.firstCaravanDay).filter(Boolean);
     ctx.event('market_summary', { step: ctx.step, ...db, firstCaravanDay: days.length ? Math.min(...days) : null, counters: k });
-    ctx.say(`marché : ${JSON.stringify({ ...db, posted: k.posted || 0, accepted: k.accepted || 0, sold: k.sold || 0, expired: k.expired || 0, cancelled: (k.cancelStale || 0) + (k.cancelChanged || 0) + (k.cancelRelease || 0), npc: k.npcTrades || 0, routes: k.routesCreated || 0, aid: k.aidSent || 0 })}`);
+    const { fill: fl, ...dbShort } = db;
+    ctx.say(`marché : remplissage ${JSON.stringify(fl)}`);
+    ctx.say(`marché : ${JSON.stringify({ ...dbShort, posted: k.posted || 0, accepted: k.accepted || 0, ally: k.acceptAlly || 0, sold: k.sold || 0, expired: k.expired || 0, cancelled: (k.cancelStale || 0) + (k.cancelChanged || 0) + (k.cancelRelease || 0), npc: k.npcTrades || 0, routes: k.routesCreated || 0, aid: k.aidSent || 0 })}`);
   }
 };

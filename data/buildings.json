@@ -132,8 +132,6 @@
       "effects": {
         "capitalOnly": true,
         "trainTimeReductionPctPerLevel": 0.5,
-        "recruitInfantry": true,
-        "recruitArcher": true,
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15
@@ -172,7 +170,6 @@
       "effects": {
         "capitalOnly": true,
         "trainTimeReductionPctPerLevel": 0.5,
-        "recruitCavalry": true,
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15
@@ -491,9 +488,7 @@
       },
       "timeL1Sec": 180,
       "timeL20Sec": 86400,
-      "effects": {
-        "hiddenPctMax": 20.0
-      }
+      "effects": {}
     },
     {
       "key": "HEALING_TENT",
@@ -521,9 +516,7 @@
       },
       "timeL1Sec": 1200,
       "timeL20Sec": 86400,
-      "effects": {
-        "healCapacityPerLevel": 3
-      }
+      "effects": {}
     },
     {
       "key": "WALL",
@@ -551,10 +544,7 @@
       },
       "timeL1Sec": 1800,
       "timeL20Sec": 172800,
-      "effects": {
-        "wallRegenBonusPctPerLevel": 1.0,
-        "defenderDefenseBonusPctPerLevel": 1.0
-      }
+      "effects": {}
     },
     {
       "key": "MOAT",
@@ -586,10 +576,7 @@
       },
       "timeL1Sec": 14400,
       "timeL20Sec": 432000,
-      "effects": {
-        "defenderAtkBonusPctPerLevel": 0.5,
-        "defenderDefBonusPctPerLevel": 0.5
-      }
+      "effects": {}
     },
     {
       "key": "MILL",
@@ -686,8 +673,6 @@
       "timeL20Sec": 63000,
       "effects": {
         "notInCapital": true,
-        "recruitInfantry": true,
-        "recruitArcher": true,
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
@@ -710,7 +695,6 @@
       "timeL20Sec": 63000,
       "effects": {
         "notInCapital": true,
-        "recruitCavalry": true,
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
@@ -733,7 +717,6 @@
       "timeL20Sec": 63120,
       "effects": {
         "capitalOnly": true,
-        "uniqueBuilding": true,
         "joinAllianceLevel": 5,
         "createAllianceLevel": 7,
         "maxAllianceHelpReceivedL1": 0,
@@ -758,7 +741,6 @@
       "timeL20Sec": 162000,
       "effects": {
         "capitalOnly": true,
-        "uniqueBuilding": true,
         "goldProdPerDayL1": 10,
         "goldProdPerDayL20": 200
       },
@@ -779,8 +761,6 @@
       "timeL20Sec": 39600,
       "effects": {
         "capitalOnly": true,
-        "uniqueBuilding": true,
-        "heroManagement": true,
         "heroResurrectionBaseHours": 24,
         "heroResurrectionReductionPctPerLevel": 2
       },
@@ -801,19 +781,12 @@
       "timeL1Sec": 1980,
       "timeL20Sec": 108000,
       "effects": {
-        "uniquePerCity": true,
-        "maxSpiesFaction": 2,
         "visionRangeL1": 5,
         "visionRangePerLevel": 6,
-        "spyUnlockL5": 1,
-        "spyUnlockL10": 2,
         "alertArmyIncomingLevel": 5,
         "alertArmyWhenLevel": 5,
         "alertArmyWhoWhenLevel": 10,
-        "alertArmyDetailsLevel": 15,
-        "alertSpyUnknownLevel": 5,
-        "alertSpyWhenLevel": 10,
-        "alertSpyWhoWhenLevel": 15
+        "alertArmyDetailsLevel": 15
       },
       "description": "Débloque les espions (le 1er au niveau 5, le 2e au niveau 10) et prévient des espions ennemis : au niveau 5 leur passage, au niveau 10 l'heure, au niveau 15 qui. Annonce les attaques en approche."
     },
@@ -832,7 +805,6 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
-        "uniquePerCity": true,
         "ironProdBonusPctL1": 5,
         "ironProdBonusPctL5": 25
       },
@@ -853,7 +825,6 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
-        "uniquePerCity": true,
         "stoneProdBonusPctL1": 5,
         "stoneProdBonusPctL5": 25
       },
@@ -874,7 +845,6 @@
       "timeL1Sec": 4080,
       "timeL5Sec": 32400,
       "effects": {
-        "uniquePerCity": true,
         "woodProdBonusPctL1": 5,
         "woodProdBonusPctL5": 25
       },
@@ -895,7 +865,6 @@
       "timeL20Sec": 86400,
       "effects": {
         "capitalOnly": true,
-        "uniqueBuilding": true,
         "buildTimeReductionPctPerLevel": 0.25,
         "unlockSettlerL10": 1,
         "unlockSettlerL15": 2,
@@ -944,8 +913,6 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "ROME",
-        "uniqueBuilding": true,
         "healTimeReductionPctPerLevel": 1.5,
         "woundedInsteadOfDeadBonusPctPerLevel": 0.5
       },
@@ -967,8 +934,6 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "GAUL",
-        "uniqueBuilding": true,
         "siegeDefenseBonusPctPerLevel": 1.0
       },
       "description": "Bâtiment exclusif Gaule. Augmente la défense des unités de 1% par niveau lors d'un siège subi."
@@ -989,8 +954,6 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "GREEK",
-        "uniqueBuilding": true,
         "researchTimeReductionPctPerLevel": 1.0,
         "deathReductionPctPerLevel": 0.5
       },
@@ -1012,8 +975,6 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "EGYPT",
-        "uniqueBuilding": true,
         "globalProductionBonusPctPerLevel": 1.0,
         "marchSpeedBonusPctPerLevel": 0.5
       },
@@ -1035,8 +996,6 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "HUN",
-        "uniqueBuilding": true,
         "upkeepReductionPctPerLevel": 0.5,
         "deathReductionPctPerLevel": 0.5
       },
@@ -1058,12 +1017,10 @@
       "timeL1Sec": 4200,
       "timeL20Sec": 302400,
       "effects": {
-        "factionOnly": "SULTAN",
-        "uniqueBuilding": true,
-        "interCityTaxReductionPctPerLevel": 0.5,
+        "armyTransportCapacityBonusPctPerLevel": 1.0,
         "upkeepReductionPctPerLevel": 0.5
       },
-      "description": "Bâtiment exclusif Sultanat. Réduit la taxe inter-villes de 0.5% par niveau et la consommation de nourriture des unités de 0.5% par niveau."
+      "description": "Bâtiment exclusif Sultanat. Augmente la capacité de transport des convois, des armées de transport et des récoltes de 1% par niveau et réduit la consommation de nourriture des unités de 0.5% par niveau."
     }
   ]
 }

@@ -136,7 +136,11 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Hourly production of a city per resource (same formula as the server's resourceProcessor)
+// Production horaire d'une ville par ressource, comme resourceProcessor : base 5/5/5/10 + champs × bâtiments bonus, puis
+// un multiplicateur commun aux quatre ressources (colonie, Plus, Irrigation égyptienne, Agronomie, Bastion d'alliance).
+// Le bilan de nourriture du serveur (foodBalance.production, arrondi à l'unité) porte ce multiplicateur complet : le
+// multiplicateur connu du client est gardé s'il redonne ce chiffre, sinon (Bastion…) on prend le rapport au chiffre du
+// serveur ; sans bilan, les bonus connus du client (le Bastion n'y est pas)
 function getCityProduction(city) {
   const fields = { wood: 0, stone: 0, iron: 0, food: 0 };
   const bonus = { wood: 0, stone: 0, iron: 0, food: 0 };
@@ -146,14 +150,26 @@ function getCityProduction(city) {
     if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
     if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
   });
-  // Ville secondaire : +20 % (données de la Résidence, comme le serveur)
-  const colony = city && city.isCapital === false ? 1 + ((window.buildingsData?.find(b => b.key === 'RESIDENCE')?.effects?.secondaryCityBonusPct) || 20) / 100 : 1;
-  return {
-    wood: (5 + fields.wood * (1 + bonus.wood / 100)) * colony,
-    stone: (5 + fields.stone * (1 + bonus.stone / 100)) * colony,
-    iron: (5 + fields.iron * (1 + bonus.iron / 100)) * colony,
-    food: (10 + fields.food * (1 + bonus.food / 100)) * colony
+  const base = {
+    wood: 5 + fields.wood * (1 + bonus.wood / 100),
+    stone: 5 + fields.stone * (1 + bonus.stone / 100),
+    iron: 5 + fields.iron * (1 + bonus.iron / 100),
+    food: 10 + fields.food * (1 + bonus.food / 100)
   };
+  const serverFood = Number(city?.foodBalance?.production);
+  let mult = cityProductionMultiplier(city);
+  if (serverFood > 0 && Math.round(base.food * mult) !== serverFood) mult = serverFood / base.food;
+  return { wood: base.wood * mult, stone: base.stone * mult, iron: base.iron * mult, food: serverFood > 0 ? serverFood : base.food * mult };
+}
+// Multiplicateur de production connu du client : ville secondaire (+20 %, Résidence), Plus (+5 %), Irrigation égyptienne
+// (+1 %/niveau, 50 % au plus), Agronomie (technologies du joueur)
+function cityProductionMultiplier(city) {
+  const effect = (key, name, fallback) => Number(window.buildingsData?.find(b => b.key === key)?.effects?.[name]) || fallback;
+  const colony = city && city.isCapital === false ? 1 + effect('RESIDENCE', 'secondaryCityBonusPct', 20) / 100 : 1;
+  const plus = player?.premiumUntil && new Date(player.premiumUntil).getTime() > serverNow() ? 1.05 : 1;
+  const irrigation = (city?.buildings || []).reduce((s, b) => s + (b.key === 'EGYPTIAN_IRRIGATION' ? b.level : 0), 0) * effect('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel', 1);
+  const tech = typeof techPctClient === 'function' ? techPctClient('productionBonusPct') : 0;
+  return colony * plus * (1 + Math.min(50, irrigation) / 100) * (1 + tech / 100);
 }
 
 // Storage given by a warehouse (or silo) level: exponential 1 200 -> 160 000, like the server
@@ -182,13 +198,6 @@ const cache = {
   
   get(key) {
     return this.isValid(key) ? this[key] : null;
-  },
-  
-  clear() {
-    this.units = null;
-    this.buildings = null;
-    this.unitsTimestamp = 0;
-    this.buildingsTimestamp = 0;
   }
 };
 
@@ -269,10 +278,6 @@ function getProductionAtLevel(buildingKey, level) {
     return Math.round(lerpExp(L1, L20, t));
   }
 }
-
-const UNIT_ICONS = {
-  INFANTRY: '🗡️', ARCHER: '🏹', CAVALRY: '🐴', SIEGE: '💣'
-};
 
 const TIER_COLORS = {
   base: '#aaa', intermediate: '#4682B4', elite: '#da70d6', siege: '#ffa500'
@@ -402,6 +407,7 @@ function logout() {
   // Stop every background activity started by showGame()
   if (typeof refreshInterval !== 'undefined' && refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
   if (attackCheckInterval) { clearInterval(attackCheckInterval); attackCheckInterval = null; }
+  if (typeof announcementsTimer !== 'undefined' && announcementsTimer) { clearInterval(announcementsTimer); announcementsTimer = null; }   // annonces (09j-admin.js)
   if (typeof stopCityAnimation === 'function') stopCityAnimation();
   if (typeof stopBattleReplay === 'function') stopBattleReplay();
   if (typeof stopGameTimers === 'function') stopGameTimers();
@@ -484,7 +490,6 @@ async function showGame() {
   if (typeof loadAnnouncements === 'function') loadAnnouncements();   // bandeau des annonces de l'équipe (09j-admin.js)
   // Init canvases now that game screen is visible and data is loaded
   initCityCanvas();
-  initFieldsCanvas();
   renderCityCanvas();
   if (typeof startCityAnimation === 'function') startCityAnimation();
   if (typeof startServerTime === 'function') startServerTime();
@@ -610,7 +615,8 @@ async function loadPlayer() {
   }
 }
 
-async function loadCities() {
+// render: false : la ville n'est pas redessinée ici (l'appelant s'en charge) ; renvoie true si les villes ont changé
+async function loadCities({ render = true } = {}) {
   try {
     const res = await requestManager.fetchWithRetry(`${API}/api/cities`, { 
       headers: { Authorization: `Bearer ${token}` } 
@@ -635,15 +641,17 @@ async function loadCities() {
         }
         
         if (hasChanged) {
-          updateCitySelector();
-          renderCity();
+          updateQuicklinksCity();
+          if (render) renderCity();
         }
       } else if (typeof openJoinWorld === 'function') openJoinWorld();   // compte gardé d'un monde précédent (09i-world.js)
       if (typeof checkWorldStatus === 'function') checkWorldStatus();
+      return hasChanged;
     }
   } catch (e) {
     console.warn('loadCities error:', e);
   }
+  return false;
 }
 
 async function loadArmies() {
@@ -657,18 +665,6 @@ async function loadArmies() {
   } catch (e) {
     console.warn('loadArmies error:', e);
   }
-}
-
-function updateCitySelector() {
-  // Update old select if it exists
-  const select = document.getElementById('city-select');
-  if (select) {
-    select.innerHTML = cities.map(c =>
-      `<option value="${c.id}" ${c.id === currentCity?.id ? 'selected' : ''}>${escapeHtml(c.name)} ${c.isCapital ? '👑' : ''}</option>`
-    ).join('');
-  }
-  // Update bottom-nav village selector
-  updateQuicklinksCity();
 }
 
 function selectCity(id) {
@@ -750,21 +746,30 @@ function updateAttackNotification() {
   notifEl.onclick = siege && typeof openBreakSiege === 'function' ? () => openBreakSiege(siege.targetCityId) : null;
   notifEl.style.cursor = siege ? 'pointer' : '';
 
-  // Show count if multiple attacks
+  // Plusieurs attaques : compteur à côté de l'icône 3D (l'image n'est jamais remplacée)
   const iconEl = notifEl.querySelector('.attack-icon');
-  if (iconEl && iconEl.tagName !== 'IMG') {
-    iconEl.textContent = active.length > 1 ? `⚔️ ${active.length}x` : '⚔️';
-  } else if (iconEl) {
-    iconEl.title = active.length > 1 ? `${active.length} attaques en approche` : 'Attaque en approche';
+  if (iconEl) iconEl.title = active.length > 1 ? `${active.length} attaques en approche` : 'Attaque en approche';
+  let countEl = notifEl.querySelector('.attack-count');
+  if (!countEl && active.length > 1 && iconEl) {
+    countEl = document.createElement('span');
+    countEl.className = 'attack-count';
+    countEl.style.cssText = 'color:#fff;font-size:12px;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.5)';
+    iconEl.after(countEl);
+  }
+  if (countEl) {
+    countEl.textContent = active.length > 1 ? `${active.length}x` : '';
+    countEl.style.display = active.length > 1 ? '' : 'none';
   }
 }
 
-// Start checking for attacks every 30 seconds
+// Start checking for attacks every 30 seconds (page visible seulement : pas de réveil réseau en arrière-plan)
 function startAttackCheck() {
   if (attackCheckInterval) clearInterval(attackCheckInterval);
   checkIncomingAttacks();
-  attackCheckInterval = setInterval(checkIncomingAttacks, 30000);
+  attackCheckInterval = setInterval(() => { if (document.visibilityState === 'visible') checkIncomingAttacks(); }, 30000);
 }
+// Retour sur la page : alerte d'attaque à jour tout de suite
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && attackCheckInterval && token) checkIncomingAttacks(); });
 
 function renderCity() {
   if (!currentCity) return;
@@ -807,14 +812,7 @@ function renderCity() {
   if (ironBar) ironBar.style.width = `${ironPct}%`;
   if (foodBar) foodBar.style.width = `${foodPct}%`;
 
-  // Wall HP (if element exists)
-  const wallPct = (currentCity.wallHp / currentCity.wallMaxHp) * 100;
-  const wallFill = document.getElementById('wall-fill');
-  if (wallFill) wallFill.style.width = `${wallPct}%`;
-  const wallHpEl = document.getElementById('wall-hp');
-  if (wallHpEl) wallHpEl.textContent = `${Math.floor(currentCity.wallHp)}/${currentCity.wallMaxHp}`;
-  
-  // Production: base 5/5/5/10 + fields, boosted by the bonus buildings (+5%/level), like the server
+  // Production: base 5/5/5/10 + fields, boosted by the bonus buildings (+5%/level) and the shared multipliers, like the server
   const prod = getCityProduction(currentCity);
   let woodProd = prod.wood, stoneProd = prod.stone, ironProd = prod.iron, foodProd = prod.food;
   
@@ -837,8 +835,8 @@ function renderCity() {
     }
   }
   
-  // Net food production
-  const netFood = foodProd - foodConsumption;
+  // Net food production (bilan du serveur quand il est là)
+  const netFood = fb && Number.isFinite(Number(fb.net)) ? Number(fb.net) : foodProd - foodConsumption;
   
   // Update production display (Travian style: "/h: X")
   const prodWoodEl = document.getElementById('prod-wood');
@@ -895,16 +893,14 @@ function renderCity() {
   // Update attack notification
   updateAttackNotification();
   
-  // Render 2.5D city canvas
-  renderCityCanvas();
+  // Render 2.5D city canvas (onglet Ville ou Champs affiché seulement : showTab le redessine en y entrant)
+  if (document.getElementById('tab-city')?.classList.contains('active')) renderCityCanvas();
 
   // Render queues (sidebar)
   renderBuildQueue();
   renderRecruitQueue();
   renderMovingArmies();
 
-  // Update sidebar stats
-  updateCityStats();
   if (document.getElementById('wounded-list')) loadWounded();   // seulement quand le panneau de la tente de soins est ouvert
 }
 
@@ -973,6 +969,7 @@ if (typeof MutationObserver === 'function') document.addEventListener('DOMConten
 const SPRITE_FRAME = { w: 130, h: 180, ax: 0.5, ay: 0.75 };
 const SPRITE_PLOT_W = 100 / 130;   // largeur du losange de parcelle, en fraction de la largeur du sprite
 const _sprites = new Map();   // url -> { img, ready, failed }
+let _spritesReady = 0;   // nombre de sprites chargés (signature du fond statique de la ville, sans parcourir _sprites)
 const _spriteRasters = new Map(); // url@largeur -> canvas (un SVG rasterisé une fois par taille, puis simple blit)
 let _spriteRedrawQueued = false;
 
@@ -984,7 +981,7 @@ function getSprite(url) {
     const img = new Image();
     s = { img, ready: false, failed: false };
     _sprites.set(url, s);
-    img.onload = () => { s.ready = img.naturalWidth > 0; queueSpriteRedraw(); };
+    img.onload = () => { const was = s.ready; s.ready = img.naturalWidth > 0; if (s.ready && !was) _spritesReady++; queueSpriteRedraw(); };
     img.onerror = () => { s.failed = true; queueSpriteRedraw(); };   // image absente : rendu de repli (redessiné tout de suite), pas de nouvel essai
     img.src = url;
   }
@@ -1139,26 +1136,20 @@ function strokeTextured(ctx, name, style, overlayAlpha) {
 // ========== BIOMES (prairie / désert / neige) ==========
 // Le biome d'une ville découle de sa position (même règle que la carte : getBiome dans map.js)
 const BIOME_SCENE = {
-  forest: { texture: 'grass', day: ['#6a9a4a', '#5a8a3a', '#4a7a2a', '#3a6a1a'], night: ['#2a4030', '#1a3020', '#152818', '#102010'],
+  forest: { day: ['#6a9a4a', '#5a8a3a', '#4a7a2a', '#3a6a1a'], night: ['#2a4030', '#1a3020', '#152818', '#102010'],
     inner: ['#82bc48', '#74b03a', '#68a430', '#5c9828', '#508c20'], innerNight: ['#3a5030', '#2a4020', '#1a3015'],
-    sky: ['#4a90c2', '#7bb8e0', '#a8d8f0'], hills: '#5a8a4a', hillsNight: '#1a2a18', props: { trees: ['pine', 'oak'], rock: 'rock' } },
-  desert: { texture: 'sand', day: ['#e2c88e', '#d4b876', '#c4a660', '#b0924e'], night: ['#4a3e2a', '#3a3020', '#2e2618', '#241e12'],
+    props: { trees: ['pine', 'oak'], rock: 'rock' } },
+  desert: { day: ['#e2c88e', '#d4b876', '#c4a660', '#b0924e'], night: ['#4a3e2a', '#3a3020', '#2e2618', '#241e12'],
     inner: ['#f0dca4', '#e6cf92', '#dcc484', '#d2b874', '#c8ae68'], innerNight: ['#4a4030', '#3a3222', '#2a2418'],
-    sky: ['#5f9ed8', '#9ec6e8', '#f0d9a8'], hills: '#c9ad6e', hillsNight: '#3a3020', props: { trees: ['palm', 'cactus'], rock: 'dune' } },
-  snow: { texture: 'snow', day: ['#eef3f8', '#dfe8f0', '#cfdbe6', '#bccbd8'], night: ['#2e3a4a', '#243040', '#1c2634', '#161e2a'],
+    props: { trees: ['palm', 'cactus'], rock: 'dune' } },
+  snow: { day: ['#eef3f8', '#dfe8f0', '#cfdbe6', '#bccbd8'], night: ['#2e3a4a', '#243040', '#1c2634', '#161e2a'],
     inner: ['#ffffff', '#f3f7fb', '#e8eef4', '#dde6ee', '#d0dbe6'], innerNight: ['#3a4656', '#2c3848', '#202a38'],
-    sky: ['#8fb3d1', '#b8d0e4', '#dbe6ef'], hills: '#c8d4e0', hillsNight: '#242e3c', props: { trees: ['snowpine', 'snowpine'], rock: 'snowrock' } }
+    props: { trees: ['snowpine', 'snowpine'], rock: 'snowrock' } }
 };
 function cityBiome() {
   return (typeof getBiome === 'function' && currentCity) ? getBiome(currentCity.x, currentCity.y) : 'forest';
 }
 function biomeScene(biome) { return BIOME_SCENE[biome] || BIOME_SCENE.forest; }
-function biomeGroundGradient(ctx, x0, y0, x1, y1, biome, night) {
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  const stops = night ? biomeScene(biome).night : biomeScene(biome).day;
-  [0, 0.3, 0.7, 1].forEach((p, i) => g.addColorStop(p, stops[i]));
-  return g;
-}
 function biomeInnerGradient(ctx, cx, cy, r, biome, night) {
   const g = ctx.createRadialGradient(cx, cy - 20, 0, cx, cy, r);
   const sc = biomeScene(biome);

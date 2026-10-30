@@ -5,14 +5,15 @@
 // ============================================================
 // ========== ARMIES ==========
 // ========== ARMY MANAGEMENT SYSTEM ==========
-// Max armées selon niveau Rally Point (1 à niv.1, 2 à niv.5, 3 à niv.10)
+// Max armées selon la Place de rassemblement, comme le serveur : 1 au niv. 1, +1 tous les 5 niveaux, 5 au niv. 20
+const ARMY_SLOTS = [1, 2, 3, 4, 5];
+function maxArmiesAtRallyLevel(level) {
+  if (level <= 0) return 0;   // pas de Place de rassemblement = pas d'armée
+  const pts = window.buildingsData?.find(b => b.key === 'RALLY_POINT')?.effects?.maxArmies || { l1: 1, l20: 5 };
+  return Math.min(pts.l20 || 5, (pts.l1 || 1) + Math.floor(level / 5));
+}
 function getMaxArmies() {
-  const rallyPoint = currentCity?.buildings?.find(b => b.key === 'RALLY_POINT');
-  const level = rallyPoint?.level || 0;
-  if (level >= 10) return 3;
-  if (level >= 5) return 2;
-  if (level >= 1) return 1;
-  return 0; // Pas de Rally Point = pas d'armée
+  return maxArmiesAtRallyLevel(currentCity?.buildings?.find(b => b.key === 'RALLY_POINT')?.level || 0);
 }
 
 function renderArmies() {
@@ -69,13 +70,13 @@ function renderArmies() {
           <h3><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> Mes Armées</h3>
         </div>
         <div class="armies-list">
-          ${[1, 2, 3].map(slotNum => {
+          ${ARMY_SLOTS.map(slotNum => {
             const army = cityArmies.find(a => a.slot === slotNum);
             const isLocked = slotNum > maxArmies && !army;   // an army above the Rally Point limit stays reachable
             return renderArmyCardNew(slotNum, army, isLocked, heroData);
           }).join('')}
           ${(() => {   // armies not shown in a slot above (army taken over from a razed colony, slot beyond the Rally Point): still reachable
-            const shown = new Set([1, 2, 3].map(n => cityArmies.find(a => a.slot === n)?.id).filter(Boolean));
+            const shown = new Set(ARMY_SLOTS.map(n => cityArmies.find(a => a.slot === n)?.id).filter(Boolean));
             return cityArmies.filter(a => !shown.has(a.id) && !a.isGarrison).map(a => renderArmyCardNew(a.slot, a, false, heroData)).join('');
           })()}
         </div>
@@ -146,7 +147,7 @@ function renderArmies() {
 function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   // Locked slot
   if (isLocked) {
-    const requiredLevel = slotNum === 1 ? 1 : slotNum === 2 ? 5 : 10;
+    const requiredLevel = slotNum <= 1 ? 1 : (slotNum - 1) * 5;   // rallyLevelForArmies du serveur
     return `
       <div class="army-card-new locked">
         <div class="army-card-top locked">
@@ -294,10 +295,9 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
   `;
 }
 
-// Army power like the server: (attack + defense) × tier coefficient × count
-const TIER_POWER = { base: 1.0, intermediate: 1.25, elite: 1.55, siege: 0.75 };   // = config.combat.tierCoefficients
+// Army power like the server: (attack + defense) × tier coefficient (SHEET_RULES.tierCoeff, 10b-sheets.js) × count
 function unitPower(unit, count) {
-  return count * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0)) * (TIER_POWER[unit?.tier] || 1);
+  return count * ((unit?.stats?.attack || 0) + (unit?.stats?.defense || 0)) * (SHEET_RULES.tierCoeff[unit?.tier] || 1);
 }
 function calculateArmyPower(army) {
   if (!army?.units) return 0;
@@ -325,11 +325,11 @@ function showArmyActionsMenu(armyId) {
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
           <span class="action-label">Déplacer</span>
         </button>
-        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showAttackModal('${armyId}')"` : 'disabled'}>
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showArmyMissionModal('${armyId}', 'ATTACK')"` : 'disabled'}>
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
           <span class="action-label">Attaquer</span>
         </button>
-        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showRaidModal('${armyId}')"` : 'disabled'}>
+        <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showArmyMissionModal('${armyId}', 'RAID')"` : 'disabled'}>
           <span class="action-icon"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></span>
           <span class="action-label">Piller</span>
         </button>
@@ -835,52 +835,8 @@ async function unassignHero(armyId) {
   }
 }
 
-// Adjust unit count in army
-async function adjustArmyUnit(armyId, unitKey, delta) {
-  const army = armies.find(a => a.id === armyId);
-  if (!army || army.status !== 'IDLE') {
-    showToast('Armée non disponible', 'error');
-    return;
-  }
-  
-  const currentUnit = army.units?.find(u => u.unitKey === unitKey);
-  const currentCount = currentUnit?.count || 0;
-  const newCount = Math.max(0, currentCount + delta);
-  
-  // Check garrison has enough units if adding
-  if (delta > 0) {
-    const garrison = getGarrisonUnits();
-    const garrisonUnit = garrison.find(u => u.unitKey === unitKey);
-    const available = garrisonUnit?.count || 0;
-    if (delta > available) {
-      showToast('Pas assez d\'unités en garnison', 'error');
-      return;
-    }
-  }
-  
-  try {
-    const res = await fetch(`${API}/api/army/${armyId}/adjust-unit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ unitKey, delta })
-    });
-    
-    if (res.ok) {
-      await loadArmies();
-      renderArmies();
-    } else {
-      const data = await res.json();
-      showToast(data.error || 'Erreur', 'error');
-    }
-  } catch (e) {
-    showToast('Erreur', 'error');
-  }
-}
-
 // Confirm disband army
 function confirmDisbandArmy(armyId) {
-  const army = armies.find(a => a.id === armyId);
-  
   document.getElementById('modal-body').innerHTML = `
     <div class="disband-confirm">
       <h3>Dissoudre l'armée ?</h3>
@@ -957,75 +913,43 @@ async function moveArmy(armyId) {
   }
 }
 
-function showAttackModal(armyId) {
+// Attaque ou pillage d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer)
+function showArmyMissionModal(armyId, mission) {
+  const raid = mission === 'RAID';
   document.getElementById('modal-body').innerHTML = `
-    <h3>Attaquer une ville</h3>
-    <p style="margin-bottom:10px;color:var(--wood-medium)">Entrez l'ID de la ville cible</p>
-    <input type="text" id="attack-city" placeholder="ID de la ville cible">
-    <button onclick="attackCity('${armyId}')" class="btn btn-danger">Attaquer!</button>
+    <h3>${raid ? 'Piller une ville' : 'Attaquer une ville'}</h3>
+    <p style="margin-bottom:10px;color:var(--wood-medium)">${raid ? 'Volez des ressources à l\'ennemi ! ' : ''}Coordonnées de la ville cible</p>
+    <input type="number" id="mission-x" placeholder="X" style="width:48%;display:inline-block">
+    <input type="number" id="mission-y" placeholder="Y" style="width:48%;display:inline-block">
+    ${raid
+      ? `<button onclick="sendArmyMission('${armyId}', 'RAID')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller !</button>`
+      : `<button onclick="sendArmyMission('${armyId}', 'ATTACK')" class="btn btn-danger">Attaquer !</button>`}
   `;
   document.getElementById('modal').style.display = 'flex';
 }
 
-async function attackCity(armyId) {
+async function sendArmyMission(armyId, mission) {
+  const x = document.getElementById('mission-x')?.value.trim(), y = document.getElementById('mission-y')?.value.trim();
+  if (!x || !y) { showToast('Veuillez entrer les coordonnées de la cible', 'error'); return; }
   try {
-    const targetCityId = document.getElementById('attack-city').value;
-
-    const res = await fetch(`${API}/api/army/${armyId}/attack`, {
+    const res = await fetch(`${API}/api/armies/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ targetCityId })
+      body: JSON.stringify({ armyId, targetX: parseInt(x), targetY: parseInt(y), mission })
     });
 
     const data = await res.json();
     closeModal();
 
     if (res.ok) {
-      showToast(`Attaque lancée contre ${data.target}!`, 'success');
+      showToast(data.message || 'Armée envoyée !', 'success');
       await loadArmies();
       renderArmies();
     } else {
       showToast(data.error || 'Erreur', 'error');
     }
   } catch (e) {
-    console.error('attackCity error:', e);
-    closeModal();
-    showToast('Erreur réseau', 'error');
-  }
-}
-
-function showRaidModal(armyId) {
-  document.getElementById('modal-body').innerHTML = `
-    <h3>Piller une ville</h3>
-    <p style="margin-bottom:10px;color:var(--wood-medium)">Volez des ressources à l'ennemi!</p>
-    <input type="text" id="raid-city" placeholder="ID de la ville cible">
-    <button onclick="raidCity('${armyId}')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller!</button>
-  `;
-  document.getElementById('modal').style.display = 'flex';
-}
-
-async function raidCity(armyId) {
-  try {
-    const targetCityId = document.getElementById('raid-city').value;
-
-    const res = await fetch(`${API}/api/army/${armyId}/raid`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ targetCityId })
-    });
-
-    const data = await res.json();
-    closeModal();
-
-    if (res.ok) {
-      showToast(`Raid lancé contre ${data.target}!`, 'success');
-      await loadArmies();
-      renderArmies();
-    } else {
-      showToast(data.error || 'Erreur', 'error');
-    }
-  } catch (e) {
-    console.error('raidCity error:', e);
+    console.error('sendArmyMission error:', e);
     closeModal();
     showToast('Erreur réseau', 'error');
   }
@@ -1077,7 +1001,7 @@ async function openBreakSiege(cityId) {
   const wall = siege.wallLevel > 0
     ? `<p>Mur niveau ${siege.wallLevel} : <strong>${formatNum(siege.wallHp)} / ${formatNum(siege.wallMaxHp)} PV</strong> au prochain combat. Tant qu'il tient, les coups de l'attaquant tombent sur lui ; les engins le frappent 10 fois plus fort que les soldats.</p>`
     : '<p>Pas de mur : rien ne protège les défenseurs au combat.</p>';
-  const lives = siege.livesLeft ?? siege.assaultsLeft, livesTotal = siege.livesTotal ?? siege.assaultsToFall;
+  const lives = siege.livesLeft, livesTotal = siege.livesTotal;
   document.getElementById('modal-body').innerHTML = `
     <div class="siege-modal">
       <h3>${resIconHtml('attack')} Siège de ${escapeHtml(siege.cityName)}</h3>

@@ -47,10 +47,14 @@ function mapGroundSource(layer, variant) {
   const url = typeof terrainTextureUrl === 'function' ? terrainTextureUrl(fb.tex) : null;
   return { url, cells: 2, veil: url && !url.includes('/' + fb.tex + '.') ? fb.veil || 0 : 0, tint: MAP_VARIANT_TINT[variant - 1] || null, color: fb.color };
 }
-// Ce dont dépend le dessin du sol en dehors du zoom (sans fabriquer de motif) : texture prête ou couleur, par variante
+// Ce dont dépend le dessin du sol en dehors du zoom (sans fabriquer de motif) : texture prête ou couleur, par variante.
+// Gardée jusqu'au prochain chargement d'image (invalidateMapStatic) ou jusqu'à ce qu'on quitte la carte (releaseMapGround)
+let _mapGroundSig = null;
 function mapGroundSignature() {
-  return MAP_GROUND_COMBINED.map(({ g, v }) => { const src = mapGroundSource(g, v); return (src.url && typeof getSprite === 'function' && getSprite(src.url) ? src.url : src.color) + (src.tint ? '+' : ''); }).join('|');
+  if (_mapGroundSig === null) _mapGroundSig = MAP_GROUND_COMBINED.map(({ g, v }) => { const src = mapGroundSource(g, v); return (src.url && typeof getSprite === 'function' && getSprite(src.url) ? src.url : src.color) + (src.tint ? '+' : ''); }).join('|');
+  return _mapGroundSig;
 }
+function forgetMapGroundSignature() { _mapGroundSig = null; }
 const MAP_PATTERN_MAX = 640;   // côté maximal d'un motif (mémoire) ; au-delà, la texture est légèrement agrandie
 function mapGroundFill(layer, variant, tw, th, origin) {
   const fb = MAP_GROUND_FALLBACK[layer];
@@ -228,7 +232,8 @@ function releaseMapGround() {
   for (const c of _mapChunks.values()) { c.width = 0; c.height = 0; }
   for (const c of _mapChunkPool) { c.width = 0; c.height = 0; }
   _mapChunks.clear(); _mapChunkPool.length = 0; _mapChunkState = null;
-  _mapBlendCache.clear(); _mapGroundPatterns.clear();
+  _mapBlendCache.clear(); _mapGroundPatterns.clear(); _mapGroundSig = null;
+  releaseMapStatic();   // la couche fixe de la carte (map.js)
 }
 
 // La carte du serveur vient d'arriver ou a changé (applyWorldSeed, 01-core.js) : tout ce qui garde du terrain est refait,
@@ -238,7 +243,6 @@ function onWorldTerrainChanged() {
   _mapCitySig = ''; _mapDecorPlan.clear();
   if (typeof armyRouteCache !== 'undefined') armyRouteCache.clear();
   if (typeof _armyRoutePending !== 'undefined') _armyRoutePending.clear();   // réponses en route pour l'ancienne carte : ignorées
-  if (typeof terrainSpriteCache !== 'undefined') terrainSpriteCache.clear();
   if (typeof isoStatic !== 'undefined') isoStatic.key = '';
   if (mapTabActive() && typeof scheduleMapRender === 'function') scheduleMapRender();
   else if (typeof renderCityCanvas === 'function' && typeof currentCity !== 'undefined' && currentCity) renderCityCanvas();
@@ -259,6 +263,7 @@ function mapRenderChunk(i, j, st) {
   return c;
 }
 
+// Renvoie true quand tout le sol visible est dessiné à sa place (aucun morceau manquant ni étiré par un zoom en cours)
 function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
   _mapNight = !!night;
   const scale = Math.min(canvasScale(), MAP_CHUNK_MAX_DPR);
@@ -311,6 +316,7 @@ function drawMapGround(worldToScreen, bounds, w, h, tw, th, night) {
   }
   const keep = (i1 - i0 + 1) * (j1 - j0 + 1) + 8;
   while (_mapChunks.size > keep) { const k = _mapChunks.keys().next().value; const c = _mapChunks.get(k); _mapChunks.delete(k); mapDropChunk(c); }
+  return missing === 0 && s === 1;
 }
 
 // ---- la grille : bords des cases (les cases sont centrées sur les coordonnées entières) ----
@@ -341,9 +347,20 @@ function worldArt(p) {
   if (!worldHas(p) || typeof getSprite !== 'function') return null;
   return getSprite('assets/images/painted/' + p);
 }
+// Au moins une image peinte de la carte de référence (map/world/…) est livrée ; refait quand la liste des images peintes
+// grandit. Sans elles, les recherches de variantes s'arrêtent tout de suite.
+let _mapWorldArtFor = -1, _mapWorldArt = false;
+function mapHasWorldArt() {
+  if (typeof paintedSet === 'undefined') return false;
+  if (paintedSet.size !== _mapWorldArtFor) {
+    _mapWorldArtFor = paintedSet.size; _mapWorldArt = false;
+    for (const p of paintedSet) if (p.startsWith('map/world/')) { _mapWorldArt = true; break; }
+  }
+  return _mapWorldArt;
+}
 // Une variante peinte parmi n, choisie au hasard (déterministe) pour la case ; null si aucune n'est livrée
 function worldVariant(prefix, n, wx, wy, seed) {
-  if (typeof paintedSet === 'undefined') return null;
+  if (!mapHasWorldArt()) return null;
   const start = Math.floor(Terrain.seededRandom(wx, wy, seed) * n);
   for (let k = 0; k < n; k++) { const p = `${prefix}${((start + k) % n) + 1}.webp`; if (worldHas(p)) return p; }
   return null;
@@ -366,6 +383,7 @@ function mapCrossingAlongX(wx, wy) { return Terrain.crossingAxisAt(wx, wy) === '
 
 // Image peinte de l'élément posé sur une case (chemin painted/), ou null
 function worldFeatureArt(wx, wy, terrain) {
+  if (!mapHasWorldArt()) return null;
   const f = terrain.feature, biome = terrain.biome;
   if (f === 'tree' || f === 'snowtree') {
     const kind = f === 'tree' ? 'temperate' : 'snow';
@@ -394,9 +412,9 @@ function worldFeatureArt(wx, wy, terrain) {
 // Champs de blé autour des villes (2 à 4 cases de leurs murs) et sur la terre labourée, par groupes ; une meule à côté
 // d'un champ ; un chemin de terre qui part de la porte (face sud-est) de chaque ville ; buissons et arbres isolés au bord de
 // l'eau ; agaves sur l'herbe sèche, la terre et le sable, cactus au désert ; quelques cailloux ; décor givré sous la neige.
-let mapCityNear = new Map();   // "x,y" -> distance (en cases, au plus 5) au bloc 2 × 2 de la ville la plus proche
-let mapRoadCells = new Set();  // cases traversées par un chemin de terre (sans décor)
-let mapRoads = [];             // [[{x, y}, …], …] tracés en coordonnées du monde
+let mapCityNear = new Map();   // case (clé mapCellKey) -> distance (en cases, au plus 5) au bloc 2 × 2 de la ville la plus proche
+let mapRoadCells = new Set();  // cases traversées par un chemin de terre, sans décor (clé mapCellKey)
+let mapRoads = [];             // [{ pts: [{x, y}, …], x0, y0, x1, y1 }, …] tracés et leur cadre, en coordonnées du monde
 let _mapCitySig = '';
 let _mapNight = false;         // nuit : posé par drawMapGround à chaque image
 // Décor de chaque case (mapDecorAt), gardé tant que les villes et les points de ressource ne changent pas
@@ -419,7 +437,7 @@ function rebuildMapCityRings() {
   mapCityNear = new Map(); mapRoadCells = new Set(); mapRoads = [];
   for (const c of list) for (let dy = -5; dy <= 6; dy++) for (let dx = -5; dx <= 6; dx++) {
     const d = Math.max(dx < 0 ? -dx : dx > 1 ? dx - 1 : 0, dy < 0 ? -dy : dy > 1 ? dy - 1 : 0);   // 0 sur le bloc, 1 sur la couronne
-    const k = (c.x + dx) + ',' + (c.y + dy);
+    const k = mapCellKey(c.x + dx, c.y + dy);
     if (!mapCityNear.has(k) || mapCityNear.get(k) > d) mapCityNear.set(k, d);
   }
   // chemin de terre : il sort par la porte, au milieu de la face sud-est (vers +x), et serpente sur 4 à 6 cases ; on essaie
@@ -436,7 +454,11 @@ function rebuildMapCityRings() {
       if (score > bestScore) { best = r; bestScore = score; }
       if (L > len * 4 && y0 === 0.5) break search;   // tracé complet depuis le milieu de la porte
     }
-    if (best) { mapRoads.push(best.pts); for (const k of best.marks) mapRoadCells.add(k); }
+    if (best) {
+      const xs = best.pts.map(p => p.x), ys = best.pts.map(p => p.y);   // cadre du tracé (± 1 case) : chemins hors de la vue écartés
+      mapRoads.push({ pts: best.pts, x0: Math.min(...xs) - 1, x1: Math.max(...xs) + 1, y0: Math.min(...ys) - 1, y1: Math.max(...ys) + 1 });
+      for (const k of best.marks) { const [x, y] = k.split(',').map(Number); mapRoadCells.add(mapCellKey(x, y)); }
+    }
   }
 }
 // Un tracé de chemin depuis la porte, dans la direction (hx, hy) : il s'arrête à l'eau ou à un objet dès la porte, puis à
@@ -488,15 +510,17 @@ function mapRoadPattern(worldToScreen, tw) {
   }
   if (!_mapRoadPattern || typeof _mapRoadPattern.setTransform !== 'function') return null;
   const o = worldToScreen(0, 0), k = tw * MAP_ROAD_TEX_CELLS / 256;
-  _mapRoadPattern.setTransform(new DOMMatrix().translate(o.x, o.y).scale(k));
+  _mapRoadPattern.setTransform(new DOMMatrix([k, 0, 0, k, o.x, o.y]));   // translation puis échelle
   return _mapRoadPattern;
 }
-function drawMapRoads(worldToScreen, tw, night) {
-  if (!mapRoads.length) return;
+// bounds : cases visibles (mapVisibleBounds) ; seuls les chemins qui les touchent sont tracés
+function drawMapRoads(worldToScreen, tw, night, bounds) {
+  const roads = mapRoads.filter(r => r.x1 >= bounds.x0 && r.x0 <= bounds.x1 && r.y1 >= bounds.y0 && r.y0 <= bounds.y1);
+  if (!roads.length) return;
   const tex = mapRoadPattern(worldToScreen, tw);
   mapCtx.save();
   mapCtx.lineCap = 'round'; mapCtx.lineJoin = 'round';
-  for (const pts of mapRoads) {
+  for (const { pts } of roads) {
     const sp = pts.map(p => worldToScreen(p.x, p.y));
     const trace = () => { mapCtx.beginPath(); sp.forEach((p, i) => (i ? mapCtx.lineTo(p.x, p.y) : mapCtx.moveTo(p.x, p.y))); };
     trace(); mapCtx.strokeStyle = 'rgba(110,86,50,0.45)'; mapCtx.lineWidth = tw * 0.2; mapCtx.stroke();
@@ -513,10 +537,10 @@ const MAP_SHORE = (wx, wy) => { for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1],
 const mapParcel = (v) => Math.floor(v / 2);
 function mapWheatAt(wx, wy) {
   const t = getTerrainType(wx, wy);
-  if (t.feature || t.biome !== 'forest' || mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return false;
+  if (t.feature || t.biome !== 'forest' || mapRoadCells.has(mapCellKey(wx, wy)) || terrainBlockedAt(wx, wy)) return false;
   const g = Terrain.groundAt(wx, wy);
   if (g === 'water' || g === 'ice' || g === 'sand') return false;
-  const near = mapCityNear.get(wx + ',' + wy);
+  const near = mapCityNear.get(mapCellKey(wx, wy));
   const px = mapParcel(wx), py = mapParcel(wy);
   if (!(Terrain.valueNoise(px, py, 6102, 1.5) > 0.4)) return false;
   const r = Terrain.seededRandom(px, py, 6103);
@@ -537,7 +561,7 @@ function mapDecorAt(wx, wy, terrain) {
   return d;
 }
 function mapDecorPlanAt(wx, wy, terrain) {
-  if (terrain.feature || mapRoadCells.has(wx + ',' + wy)) return null;
+  if (terrain.feature || mapRoadCells.has(mapCellKey(wx, wy))) return null;
   const g = Terrain.groundAt(wx, wy);
   if (g === 'water' || g === 'ice') return null;
   const r = Terrain.seededRandom(wx, wy, 6101);
@@ -607,7 +631,7 @@ function drawLegacyDecor(kind, x, y, tw, th, wx, wy) {
 function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
   const f = terrain.feature;
   if (!f && terrain.biome === 'desert') {
-    if (mapRoadCells.has(wx + ',' + wy) || terrainBlockedAt(wx, wy)) return;   // pas de palmier sur un chemin ni contre une ville
+    if (mapRoadCells.has(mapCellKey(wx, wy)) || terrainBlockedAt(wx, wy)) return;   // pas de palmier sur un chemin ni contre une ville
     let oasis = false;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getTerrainType(wx + dx, wy + dy).feature === 'oasis') { oasis = true; break; }
     if (!oasis || Terrain.seededRandom(wx, wy, 5157) > 0.6) return;
@@ -618,7 +642,7 @@ function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
   }
   if ((f === 'water' || f === 'river') && terrain.biome !== 'snow') {
     const r = Terrain.seededRandom(wx, wy, 5159);
-    if (r < 0.012) { drawMapBoat(x, y, tw, th, wx, wy); return; }
+    if (r < 0.012) { mapBoats.push({ x, y, wx, wy }); return; }   // il glisse : dessiné à chaque image (drawMapBoats)
     if (r < 0.04) {
       const landX = !MAP_WET[getTerrainType(wx - 1, wy).feature], landY = !MAP_WET[getTerrainType(wx, wy - 1).feature];
       const p = landX ? 'map/world/water/dock_x.webp' : landY ? 'map/world/water/dock_y.webp' : null;
@@ -631,7 +655,12 @@ function drawMapDecor(x, y, tw, th, wx, wy, terrain) {
 // ---- ambiance, légère (décision du 26 octobre 2026, d'après la vidéo de référence) ----
 // Un bateau glisse doucement d'avant en arrière le long de l'eau autour de sa case, en tanguant ; quelques nuages passent
 // lentement au-dessus de la carte. Rien ne bouge si l'appareil demande de réduire les animations.
-const mapReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const _mapReducedMotionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;   // lue en direct, créée une fois
+const mapReducedMotion = () => !!(_mapReducedMotionQuery && _mapReducedMotionQuery.matches);
+// Bateaux des cases visibles, relevés par la passe des éléments posés (couche fixe, map.js) puis dessinés à chaque image
+// par-dessus elle
+let mapBoats = [];
+function drawMapBoats(tw, th) { for (const b of mapBoats) drawMapBoat(b.x, b.y, tw, th, b.wx, b.wy); }
 function drawMapBoat(x, y, tw, th, wx, wy) {
   const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
   const ph = Terrain.seededRandom(wx, wy, 5161) * 6.28, period = 26 + Terrain.seededRandom(wx, wy, 5162) * 18;
@@ -659,6 +688,20 @@ function drawMapBoat(x, y, tw, th, wx, wy) {
 // Nuages : un par case d'une grille large du monde (une sur trois environ), qui dérive avec le vent et revient dans sa
 // case ; légers (peu opaques), leur ombre à peine visible au sol
 const MAP_CLOUD_CELL = 16, MAP_CLOUD_SPEED = 0.18;   // cases ; cases par seconde
+// Boule de brume du nuage de repli (blanc au centre, transparent au bord), dessinée une fois puis recopiée à la taille voulue
+// (pas de dégradé neuf à chaque image) ; null si la mémoire de canvas manque (dégradé à la place)
+let _mapMistPuff;
+function mapMistPuff() {
+  if (_mapMistPuff !== undefined) return _mapMistPuff;
+  const c = document.createElement('canvas'), R = 64;
+  c.width = c.height = R * 2;
+  const g = c.getContext('2d');
+  if (!g) { c.width = c.height = 0; return (_mapMistPuff = null); }
+  const grad = g.createRadialGradient(R, R, 0, R, R, R);
+  grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad; g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.fill();
+  return (_mapMistPuff = c);
+}
 function drawMapClouds(worldToScreen, w, h, tw, night) {
   const still = mapReducedMotion(), t = still ? 0 : performance.now() / 1000;
   const screenToCell = (sx, sy) => { const o = worldToScreen(0, 0), dx = (sx - o.x) / (tw / 2), dy = (sy - o.y) / (tw / 4); return { x: (dx + dy) / 2, y: (dy - dx) / 2 }; };
@@ -685,8 +728,10 @@ function drawMapClouds(worldToScreen, w, h, tw, night) {
     mapCtx.globalAlpha = (night ? 0.12 : 0.3) * fade * (img ? 1 : 0.33);
     if (img) mapCtx.drawImage(img, p.x - size * 0.75, p.y - lift - size * 0.4, size * 1.5, size * 0.8);
     else {
+      const puff = mapMistPuff();
       for (let k = 0; k < 4; k++) {   // repli dessiné : quelques boules de brume
         const ox = (Terrain.seededRandom(gx * 7 + k, gy, 7306) - 0.5) * size * 0.9, oy = (Terrain.seededRandom(gx, gy * 7 + k, 7307) - 0.5) * size * 0.25, r = size * (0.22 + Terrain.seededRandom(gx + k, gy + k, 7308) * 0.18);
+        if (puff) { mapCtx.drawImage(puff, p.x + ox - r, p.y - lift + oy - r, r * 2, r * 2); continue; }
         const g = mapCtx.createRadialGradient(p.x + ox, p.y - lift + oy, 0, p.x + ox, p.y - lift + oy, r);
         g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
         mapCtx.fillStyle = g; mapCtx.beginPath(); mapCtx.arc(p.x + ox, p.y - lift + oy, r, 0, Math.PI * 2); mapCtx.fill();

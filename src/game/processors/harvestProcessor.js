@@ -10,6 +10,7 @@ const fx = require('../../utils/buildingEffects');
 const { getFactionBonus } = require('../../utils/calculations');
 const { getArmyTravelTime } = require('../../utils/calculations');
 const T = require('../../utils/techEffects');
+const { talent } = require('../../utils/heroEffects');
 const { generateTribeDefenders, targetSoldiers, campDifficultyAt, tribeFactionOf } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
 
@@ -33,7 +34,8 @@ async function leaveNode(army, node) {
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
     const route = await findRoute(army.x, army.y, army.city.x, army.city.y, army.owner?.faction).catch(() => null);
-    const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, T.techPct(army.owner?.technologies, 'armySpeedBonusPct'));
+    const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId));   // + Bastion d'alliance, comme sendArmyHome
+    const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, speedPct);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
   } else {
     await prisma.army.update({ where: { id: army.id }, data: { status: 'IDLE', missionType: null, arrivalAt: null, ...reset } });
@@ -42,11 +44,15 @@ async function leaveNode(army, node) {
 
 async function processHarvesting(now) {
   const perTick = config.tick.harvestPerTick;
+  // talents d'Intendance du héros (Quartier-maître, Grand intendant), comme getArmyCarryCapacity : un multiplicateur par armée
+  const heroed = await prisma.army.findMany({ where: { status: 'HARVESTING', missionType: 'HARVEST', heroId: { not: null } }, select: { id: true, hero: { select: { talents: true } } } });
+  const heroRows = heroed.map(a => [a.id, 1 + talent(a.hero, 'carryPct') / 100]).filter(([, m]) => m !== 1);
+  const heroSql = heroRows.length ? Prisma.join(heroRows.map(([id, m]) => Prisma.sql`(${id}::text, ${m}::float)`)) : Prisma.sql`(NULL::text, 1.0::float)`;
   // 1) Every harvesting army takes min(rate, room left in its cargo, stock of the node), in one statement.
   //    The node rows are locked for the statement so a concurrent fight or claim waits.
   const harvested = await prisma.$queryRaw`
     WITH cap AS (
-      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0) * (CASE WHEN MAX(bst.id) IS NOT NULL THEN ${1 + config.bastion.bonuses.carryPct / 100}::float ELSE 1.0 END))::int AS capacity
+      SELECT a.id AS army_id, FLOOR(COALESCE(SUM(au.count * COALESCE(ut.carry, 50)), 0) * (1 + COALESCE(fb.pct, 0) / 100.0) * (1 + LEAST(200, COALESCE(tb.pct, 0)) / 100.0) * (CASE WHEN MAX(bst.id) IS NOT NULL THEN ${1 + config.bastion.bonuses.carryPct / 100}::float ELSE 1.0 END) * COALESCE(hm.mult, 1.0))::int AS capacity
       FROM "Army" a
       LEFT JOIN "ArmyUnit" au ON au."armyId" = a.id
       LEFT JOIN (VALUES ${getCarryTableSql()}) AS ut(key, carry) ON ut.key = au."unitKey"
@@ -55,8 +61,9 @@ async function processHarvesting(now) {
       LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de transport
       LEFT JOIN (VALUES ${factionTransportSql()}) AS fb(faction, pct) ON fb.faction = pl.faction
       LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql()}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
+      LEFT JOIN (VALUES ${heroSql}) AS hm(army_id, mult) ON hm.army_id = a.id   -- talents de transport du héros
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST'
-      GROUP BY a.id, fb.pct, tb.pct
+      GROUP BY a.id, fb.pct, tb.pct, hm.mult
     ), take AS (
       SELECT a.id AS army_id, n.id AS node_id, n."resourceType" AS rt,
         GREATEST(0, LEAST(${perTick}, FLOOR(n.amount / GREATEST(1, (SELECT COUNT(*) FROM "Army" a2 WHERE a2.status = 'HARVESTING' AND a2."missionType" = 'HARVEST' AND a2."targetResourceId" = n.id))), cap.capacity - (a."carryWood" + a."carryStone" + a."carryIron" + a."carryFood" + a."carryGold")))::int AS qty

@@ -67,15 +67,20 @@ for (const d of [0, DELTA]) { setDelta(d); console.log((d === 0 ? 'actuel' : `+$
 console.log('\n=== 5. Économie et logistique : chaque bonus de chaque civilisation ===');
 const hours20 = Array.from({ length: 20 }, (_, i) => 1800 * Math.pow(config.build.timeMultiplierBase, i)).reduce((a, b) => a + b, 0) / 3600;
 const t100 = calculateTravelTime(0, 0, 100, 0, 50, null, null, 100);
+// Mur bouclier (siège du 25 octobre 2026) : un engin frappe le mur une fois par manche, de roundDamageFactor × attaque ×
+// coefficient de palier × engineMult (× bonus « siegeEngineAttack » de sa civilisation) ; un niveau de mur vaut wallHpPerLevel PV
+const engineOf = f => unitsData.find(x => x.faction === f && x.class === 'SIEGE');
+const engineHit = (f, v = 0) => { const u = engineOf(f); return config.combat.roundDamageFactor * u.stats.attack * (config.combat.tierCoefficients[u.tier] || 1) * config.combat.siege.wallShield.engineMult * (1 + v / 100); };
+const WALL_HP = config.combat.wallHpPerLevel;
 const FMT = {
   buildTimeReduction: v => `temps de construction ×${(1 - v / 100).toFixed(2)} (bâtiment L1 30 min → 20 niveaux : ${(hours20 * (1 - v / 100)).toFixed(0)} h au lieu de ${hours20.toFixed(0)})`,
   woundedConversion: v => { const w = l => Math.min(config.wounded.maxRate, config.wounded.baseRate + l * config.wounded.bonusPerHealingLevel + v / 100); return `blessés tente L1/L5/L10 : ${pct(w(1))}/${pct(w(5))}/${pct(w(10))} (plafond ${pct(config.wounded.maxRate)})`; },
   hideoutCapacity: v => { const h = l => Math.min(config.hideout.maxProtection, l * config.hideout.protectionPerLevel * (1 + v / 100)); return `cachette L5/L10/L15/L20 : ${pct(h(5))}/${pct(h(10))}/${pct(h(15))}/${pct(h(20))} (plafond ${pct(config.hideout.maxProtection)})`; },
   transportCapacity: v => `transport ×${(1 + v / 100).toFixed(2)} (butin des pillages, envois par armée, convois marchands)`,
-  wallHealth: v => `mur ${Math.round(config.combat.wallHpPerLevel * (1 + v / 100))} PV/niv. (${config.combat.wallHpPerLevel} ailleurs) → un engin abat un niveau de mur en ${Math.round(60 * (1 + v / 100) * config.combat.wallHpPerLevel / config.combat.siege.wallDamagePerEngineHour)} min au lieu de ${Math.round(60 * config.combat.wallHpPerLevel / config.combat.siege.wallDamagePerEngineHour)}`,
+  wallHealth: v => { const hp = Math.round(WALL_HP * (1 + v / 100)), hit = engineHit('ROME'); return `mur ${hp} PV/niv. (${WALL_HP} ailleurs) → un niveau tombe en ${Math.ceil(hp / hit)} coups d'engin au lieu de ${Math.ceil(WALL_HP / hit)} (${engineOf('ROME').name} : ${hit.toFixed(1)} PV par manche ; un soldat frappe ×${config.combat.siege.wallShield.soldierMult})`; },
   armySpeed: v => `100 cases à vitesse 50 en ${(t100 / (1 + v / 100) / 60).toFixed(1)} min (${(t100 / 60).toFixed(1)} min sans bonus)`,
   siegeAttack: v => `attaque en siège ×${(1 + v / 100).toFixed(2)}`,
-  siegeEngineAttack: v => `dégâts des engins ${Math.round(config.combat.siege.wallDamagePerEngineHour * (1 + v / 100))} PV/h par engin (${config.combat.siege.wallDamagePerEngineHour} ailleurs) → siège ${Math.round(100 / (1 + v / 100))} % de la durée normale`,
+  siegeEngineAttack: (v, f) => `dégâts d'un engin au mur ×${(1 + v / 100).toFixed(2)} : ${engineHit(f, v).toFixed(1)} PV par manche (${engineHit(f).toFixed(1)} sans bonus) → un niveau de mur (${WALL_HP} PV) en ${Math.ceil(WALL_HP / engineHit(f, v))} coups au lieu de ${Math.ceil(WALL_HP / engineHit(f))}`,
   defendingCityAttack: v => `attaque en défendant sa ville ×${(1 + v / 100).toFixed(2)}`,
   unitDefense: v => `défense ×${(1 + v / 100).toFixed(2)} partout`,
   siegeLossReduction: v => `PV en siège ×${(1 + v / 100).toFixed(2)} (des deux côtés)`,
@@ -83,6 +88,6 @@ const FMT = {
 };
 for (const d of [0, DELTA]) {
   setDelta(d); const tag = d === 0 ? 'actuel' : `+${DELTA}    `;
-  for (const f of F) console.log(`${tag} ${factionsData[f].name.padEnd(8)} : ` + factionsData[f].bonuses.map(b => (FMT[b.type] ? FMT[b.type](b.value) : `${b.type} ${b.value} %`)).join(' ; '));
+  for (const f of F) console.log(`${tag} ${factionsData[f].name.padEnd(8)} : ` + factionsData[f].bonuses.map(b => (FMT[b.type] ? FMT[b.type](b.value, f) : `${b.type} ${b.value} %`)).join(' ; '));
 }
 setDelta(0);

@@ -38,28 +38,38 @@ async function cleanupOrphanedFlags() {
   if (orphanedNodes > 0) console.log(`[CLEANUP] ${orphanedNodes} orphaned hasPlayerArmy flags reset`);
 }
 
+// Rapports de bataille, la plus grosse table : effacés par lots pour garder chaque transaction courte
+const PURGE_BATCH = 5000;
+async function purgeBattleReports(before) {
+  let total = 0;
+  for (;;) {
+    const n = await prisma.$executeRaw`DELETE FROM "BattleReport" WHERE id IN (SELECT id FROM "BattleReport" WHERE "createdAt" < ${before} LIMIT ${PURGE_BATCH})`;
+    total += n;
+    if (n < PURGE_BATCH) return total;
+  }
+}
+
 // Old reports, finished expeditions, closed offers and analytics would otherwise grow without bound
+// (l'une après l'autre : le tick partage le pool de connexions avec les requêtes HTTP)
 let lastPurgeAt = 0;
 async function purgeOldRecords(now) {
   if (now.getTime() - lastPurgeAt < 3600000) return;
   lastPurgeAt = now.getTime();
   const days = (n) => new Date(now.getTime() - n * 86400000);
   const r = config.tick.retentionDays;
-  const [reports, spy, expeditions, offers, analytics] = await Promise.all([
-    prisma.battleReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } }),
-    prisma.spyReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } }),
-    prisma.expedition.deleteMany({ where: { status: { in: ['COMPLETED', 'EXPIRED'] }, createdAt: { lt: days(r.expeditions) } } }),
-    prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED'] }, createdAt: { lt: days(r.offers) } } }),
-    prisma.analyticsEvent.deleteMany({ where: { createdAt: { lt: days(r.analytics) } } }),
-    prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: days(1) } } }),
-    prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } }),
-    prisma.notification.deleteMany({ where: { createdAt: { lt: days(r.notifications || 30) } } })
-  ]);
+  const reports = await purgeBattleReports(days(r.reports));
+  const spy = await prisma.spyReport.deleteMany({ where: { createdAt: { lt: days(r.reports) } } });
+  const expeditions = await prisma.expedition.deleteMany({ where: { status: { in: ['COMPLETED', 'EXPIRED'] }, createdAt: { lt: days(r.expeditions) } } });
+  const offers = await prisma.marketOffer.deleteMany({ where: { status: { in: ['COMPLETED', 'CANCELLED'] }, createdAt: { lt: days(r.offers) } } });
+  const analytics = await prisma.analyticsEvent.deleteMany({ where: { createdAt: { lt: days(r.analytics) } } });
+  await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: days(1) } } });
+  await prisma.authToken.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { usedAt: { not: null } }] } });
+  await prisma.notification.deleteMany({ where: { createdAt: { lt: days(r.notifications || 30) } } });
   const chatCount = await require('../../services/chatService').purgeOldMessages(now).catch(() => 0);   // global 7 jours, le reste 90
   const helpCount = await require('../../services/allianceHelpService').purgeOld().catch(() => 0);   // demandes d'aide de plus de 7 jours
   await require('../../services/questService').purgeOld().catch(() => 0);   // compteurs de quêtes de plus de 14 jours
-  const total = reports.count + spy.count + expeditions.count + offers.count + analytics.count + chatCount + helpCount;
-  if (total > 0) console.log(`[PURGE] ${reports.count} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements, ${chatCount} messages, ${helpCount} demandes d'aide supprimés`);
+  const total = reports + spy.count + expeditions.count + offers.count + analytics.count + chatCount + helpCount;
+  if (total > 0) console.log(`[PURGE] ${reports} rapports, ${spy.count} espionnages, ${expeditions.count} expéditions, ${offers.count} offres, ${analytics.count} événements, ${chatCount} messages, ${helpCount} demandes d'aide supprimés`);
 }
 
 module.exports = { updatePopulation, updatePlayerPopulation, cleanupOrphanedFlags, purgeOldRecords };

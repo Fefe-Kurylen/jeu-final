@@ -1,5 +1,5 @@
 // ============================================================
-// 06-city-ui.js — UI ville : blessés, stats, onglets, listes bâtiments/unités, modale unité
+// 06-city-ui.js — UI ville : blessés, onglets, listes bâtiments/unités, modale unité
 // Découpé depuis app.js (lignes 6231-6769) — portée globale partagée,
 // l'ordre de chargement dans index.html doit être respecté.
 // ============================================================
@@ -41,10 +41,10 @@ function renderWounded(wounded) {
 
     return `
       <div class="wounded-item">
-        <span class="wounded-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
+        <span class="wounded-icon">${resIconHtml('endurance')}</span>
         <span class="wounded-count">${w.count}x ${w.unitName || w.unitKey}${w.waiting ? ` <small>+ ${w.waiting} en attente</small>` : ''}</span>
         <span class="wounded-time">${w.count > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : 'en attente'}</span>
-        ${w.count > 0 ? `<button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner les blessés au lit (${w.count} or)"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></button>` : ''}
+        ${w.count > 0 ? `<button class="btn-small" onclick="healWounded('${w.unitKey}')" title="Soigner les blessés au lit (${w.count} or)">${resIconHtml('gold')}</button>` : ''}
       </div>
     `;
   }).join('');
@@ -79,35 +79,6 @@ async function healWounded(unitKey) {
   }
 }
 
-// ========== CITY STATS SIDEBAR ==========
-function updateCityStats() {
-  if (!currentCity) return;
-
-  // Get building levels
-  const warehouse = currentCity.buildings?.find(b => b.key === 'WAREHOUSE');
-  const silo = currentCity.buildings?.find(b => b.key === 'SILO');
-  const wall = currentCity.buildings?.find(b => b.key === 'WALL');
-
-  const maxStorage = currentCity.maxStorage || 1000;
-  const currentStorage = Math.floor((currentCity.wood || 0) + (currentCity.stone || 0) + (currentCity.iron || 0));
-  const maxSilo = currentCity.maxFoodStorage || 1000;
-  const currentSilo = Math.floor(currentCity.food || 0);
-
-  // Wall HP
-  const wallLevel = wall?.level || 0;
-  const maxWallHp = currentCity.wallMaxHp || wallLevel * 1000;
-  const currentWallHp = currentCity.wallHp || maxWallHp;
-
-  // Update display
-  const storageEl = document.getElementById('city-storage');
-  const siloEl = document.getElementById('city-silo');
-  const wallsEl = document.getElementById('city-walls');
-
-  if (storageEl) storageEl.textContent = `${formatNum(currentStorage)}/${formatNum(maxStorage)}`;
-  if (siloEl) siloEl.textContent = `${formatNum(currentSilo)}/${formatNum(maxSilo)}`;
-  if (wallsEl) wallsEl.textContent = wallLevel > 0 ? `${currentWallHp}/${maxWallHp}` : 'Pas de mur';
-}
-
 // ========== TABS ==========
 function showTab(tabName) {
   // a deep link to an unknown tab (old push notifications said 'armies') never leaves a blank screen
@@ -117,14 +88,10 @@ function showTab(tabName) {
   if (typeof cityHoveredSlot !== 'undefined') cityHoveredSlot = null;
   if (tabName !== 'map' && typeof releaseMapGround === 'function') releaseMapGround();   // la mémoire du sol de la carte
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.bnav-tab').forEach(b => b.classList.remove('active'));
 
   const tabEl = document.getElementById(`tab-${tabName}`);
   if (tabEl) tabEl.classList.add('active');
-  // Activate both old nav-tab and new bnav-tab
-  document.querySelector(`.nav-tab[data-tab="${tabName}"]`)?.classList.add('active');
   const bnavActive = document.querySelector(`.bnav-tab[data-tab="${tabName}"]`);
   if (bnavActive) { bnavActive.classList.add('active'); try { bnavActive.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
   
@@ -152,9 +119,7 @@ function showTab(tabName) {
         sizeCanvasForDpr(cityCanvas, cityCtx, cityViewW, cityViewH);
       }
     }
-    if (tabName === 'fields') calculateFieldSlots();
-    else calculateCitySlots();
-    renderCityCanvas();
+    renderCityCanvas();   // calcule aussi les emplacements
     return;
   }
 
@@ -162,10 +127,8 @@ function showTab(tabName) {
   switch(tabName) {
     case 'buildings': loadBuildings(); break;
     case 'army': renderArmies(); break;
-    case 'recruit': loadUnits(); break;
     case 'hero': loadHero(); break;
     case 'inventory': loadInventory(); break;
-    case 'expeditions': loadExpeditions(); break;
     case 'map': loadMap(); break;
     case 'alliance': loadAlliance(); break;
     case 'market': loadMarket(); break;
@@ -234,11 +197,11 @@ function renderBuildings(filter) {
         <h3>${buildingIconHtml(b.key)} ${b.name} ${infoBtnHtml('building', b.key)}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
-          Coût: <img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 50)} <img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 50)} <img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 50)} <img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 50)}
+          Coût: ${resIconHtml('wood')}${formatNum(b.costL1?.wood || 50)} ${resIconHtml('stone')}${formatNum(b.costL1?.stone || 50)} ${resIconHtml('iron')}${formatNum(b.costL1?.iron || 50)} ${resIconHtml('food')}${formatNum(b.costL1?.food || 50)}
         </div>
-        ${isBuildQueueFull() ? '<p style="padding:10px;color:var(--error);"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine (4/4)</p>' :
+        ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--error);">${resIconHtml('clock')} File de construction pleine (4/4)</p>` :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
-          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;"><img class="ico" src="assets/images/3d/ui/lock.webp" alt=""> Bat. principal Niv.${rbMainHallLevel} requis</p>` :
+          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">${resIconHtml('lock')} Bat. principal Niv.${rbMainHallLevel} requis</p>` :
           '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
       </div>
     `;
@@ -326,10 +289,10 @@ function renderUnits(filter) {
       <div class="unit-card-body">
         <h3 class="unit-name">${u.name}</h3>
         <div class="unit-stats-mini">
-          <span title="Attaque"><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack || 0}</span>
-          <span title="Défense"><img class="ico" src="assets/images/3d/ui/defense.webp" alt="">${u.stats?.defense || 0}</span>
-          <span title="Endurance"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt="">${u.stats?.endurance || 0}</span>
-          <span title="Vitesse"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">${u.stats?.speed || 0}</span>
+          <span title="Attaque">${resIconHtml('attack')}${u.stats?.attack || 0}</span>
+          <span title="Défense">${resIconHtml('defense')}${u.stats?.defense || 0}</span>
+          <span title="Endurance">${resIconHtml('endurance')}${u.stats?.endurance || 0}</span>
+          <span title="Vitesse">${resIconHtml('expedition')}${u.stats?.speed || 0}</span>
         </div>
       </div>
       <div class="unit-card-footer">
@@ -385,10 +348,10 @@ function showUnitDetail(unitKey) {
       
       <!-- Stats complètes -->
       <div class="unit-stats-full">
-        <h4><img class="ico" src="assets/images/3d/ui/stats.webp" alt=""> Statistiques</h4>
+        <h4>${resIconHtml('stats')} Statistiques</h4>
         <div class="stats-grid">
           <div class="stat-item attack">
-            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""></span>
+            <span class="stat-icon">${resIconHtml('attack')}</span>
             <span class="stat-label">Attaque</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.attack || 0)}%; background: #e74c3c"></div>
@@ -396,7 +359,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.attack || 0}</span>
           </div>
           <div class="stat-item defense">
-            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></span>
+            <span class="stat-icon">${resIconHtml('defense')}</span>
             <span class="stat-label">Défense</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.defense || 0)}%; background: #3498db"></div>
@@ -404,7 +367,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.defense || 0}</span>
           </div>
           <div class="stat-item endurance">
-            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/endurance.webp" alt=""></span>
+            <span class="stat-icon">${resIconHtml('endurance')}</span>
             <span class="stat-label">Endurance</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.endurance || 0)}%; background: #2ecc71"></div>
@@ -412,7 +375,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.endurance || 0}</span>
           </div>
           <div class="stat-item speed">
-            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
+            <span class="stat-icon">${resIconHtml('expedition')}</span>
             <span class="stat-label">Vitesse</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.speed || 0)}%; background: #f39c12"></div>
@@ -420,7 +383,7 @@ function showUnitDetail(unitKey) {
             <span class="stat-value">${unit.stats?.speed || 0}</span>
           </div>
           <div class="stat-item transport">
-            <span class="stat-icon"><img class="ico" src="assets/images/3d/ui/item_crate.webp" alt=""></span>
+            <span class="stat-icon">${resIconHtml('item_crate')}</span>
             <span class="stat-label">Transport</span>
             <div class="stat-bar-container">
               <div class="stat-bar" style="width: ${Math.min(100, unit.stats?.transport || 0)}%; background: #9b59b6"></div>
@@ -432,29 +395,29 @@ function showUnitDetail(unitKey) {
       
       <!-- Coûts d'entraînement (avec couleurs selon ressources) -->
       <div class="unit-costs">
-        <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût par unité</h4>
+        <h4>${resIconHtml('gold')} Coût par unité</h4>
         <div class="cost-row">
-          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${unitCost.wood}</span>
-          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${unitCost.stone}</span>
-          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${unitCost.iron}</span>
-          <span class="cost-item ${getResourceClass(unitCost.food, food)}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${unitCost.food}</span>
+          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}">${resIconHtml('wood')} ${unitCost.wood}</span>
+          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}">${resIconHtml('stone')} ${unitCost.stone}</span>
+          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}">${resIconHtml('iron')} ${unitCost.iron}</span>
+          <span class="cost-item ${getResourceClass(unitCost.food, food)}">${resIconHtml('food')} ${unitCost.food}</span>
         </div>
       </div>
       
       <!-- Temps et consommation -->
       <div class="unit-info-row">
         <div class="info-box">
-          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span>
+          <span class="info-icon">${resIconHtml('clock')}</span>
           <span class="info-label">Formation</span>
           <span class="info-value">${formatDuration(trainTime)}</span>
         </div>
         <div class="info-box upkeep">
-          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
+          <span class="info-icon">${resIconHtml('food')}</span>
           <span class="info-label">Céréales/h</span>
           <span class="info-value">${foodUpkeep}</span>
         </div>
         <div class="info-box">
-          <span class="info-icon"><img class="ico" src="assets/images/3d/ui/population.webp" alt=""></span>
+          <span class="info-icon">${resIconHtml('population')}</span>
           <span class="info-label">Pop. (score)</span>
           <span class="info-value">${unit.tier === 'siege' ? 4 : unit.tier === 'elite' ? 3 : unit.tier === 'intermediate' ? 2 : 1}</span>
         </div>
@@ -468,7 +431,7 @@ function showUnitDetail(unitKey) {
       
       <!-- Section recrutement -->
       <div class="recruit-section">
-        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter</h4>
+        <h4>${resIconHtml('medal')} Recruter</h4>
         <div class="recruit-row">
           <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input" 
                  data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 
@@ -499,10 +462,10 @@ function showUnitDetail(unitKey) {
     
     totalDiv.innerHTML = `
       <span class="cost-label">Coût total:</span>
-      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(totalWood)}</span>
-      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(totalStone)}</span>
-      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(totalIron)}</span>
-      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(totalFood)}</span>
+      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}">${resIconHtml('wood')} ${formatNum(totalWood)}</span>
+      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}">${resIconHtml('stone')} ${formatNum(totalStone)}</span>
+      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}">${resIconHtml('iron')} ${formatNum(totalIron)}</span>
+      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}">${resIconHtml('food')} ${formatNum(totalFood)}</span>
     `;
     
     btn.classList.toggle('disabled', !canAfford);

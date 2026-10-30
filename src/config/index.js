@@ -21,7 +21,7 @@ const config = {
     },
     fcm: { serviceAccount: process.env.FCM_SERVICE_ACCOUNT || '' },
     // Intervalle minimal entre deux notifications du même type pour un joueur
-    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, recruit_done: 10 * 60 * 1000, city_fall: 0, siege_halt: 0, message: 30 * 1000, friend: 60 * 1000, announcement: 0 }   // a fall or a blocked homecoming always reaches the player, even right after a battle push
+    throttleMs: { attack_incoming: 2 * 60 * 1000, battle: 60 * 1000, build_done: 10 * 60 * 1000, city_fall: 0, siege_halt: 0, message: 30 * 1000, friend: 60 * 1000, announcement: 0 }   // a fall or a blocked homecoming always reaches the player, even right after a battle push
   },
 
   // Alliance (décision du 26 octobre 2026) : aide (1 minute au moins par aide), points d'alliance gagnés en aidant
@@ -54,7 +54,7 @@ const config = {
   // (avant-poste, remparts, chef), garnisons qui s'usent au fil des attaques ; trésor partagé selon les dégâts.
   invasion: {
     startDay: 5, startHour: 18,          // vendredi 18 h (heure de Paris)
-    endDay: 0, endHour: 23,              // dimanche 23 h
+    endHour: 23,                         // dimanche 23 h (fin = vendredi + 2 jours)
     counts: { 1: 15, 2: 12, 3: 8, 4: 5, 5: 3 },                            // donjons par niveau
     rings: { 1: [150, 178], 2: [120, 150], 3: [90, 120], 4: [55, 90], 5: [22, 55] },   // distance au centre : bords → niveau 1, centre → niveau 5
     floors: ['Avant-poste', 'Remparts', 'Chef de la horde'],
@@ -135,7 +135,6 @@ const config = {
     // Carte d'un serveur neuf (base vide) : WORLD_SEED de 0 (carte de référence) à 2147483646, vide = tirée au hasard ;
     // ignorée dès que le monde a sa carte (src/game/world.js). 0 est une graine valable : pas de parseInt || défaut.
     worldSeed: process.env.WORLD_SEED === undefined || process.env.WORLD_SEED === '' ? null : process.env.WORLD_SEED,
-    maxPlayers: 5000,
     spawnEdgeDelta: 100,
     // Gold nodes (GDD resource_points.json): a small stock of gold per level that refills in 12 h, guarded like the others
     goldNode: { lootByLevel: { 1: 10, 2: 20, 3: 30 }, intervalHours: 12 },
@@ -253,7 +252,6 @@ const config = {
       pillagePct: 25                            // part du stock pillable enlevée par un combat gagné, dans la limite de ce que l'armée porte (25 %, décision du 25 octobre 2026)
     },
     wallHpPerLevel: 1000,
-    wallRegenHours: 24,          // GDD: the wall fully regenerates in 24h
     wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level
     moatBonusPerLevel: 0.005,    // GDD: +0.5% defender attack and defense per moat level
     heroBonusPerPoint: 0.001,    // +0.1 % per hero point (décision du 27 octobre 2026 : 50 points pour le plafond)...
@@ -301,8 +299,6 @@ const config = {
 
   // Army
   army: {
-    baseSpeedTilesPerSec: 1 / 30,  // 1 tile per 30 seconds at speed 50
-    baseSpeed: 50,
     upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
     starvationIntervalHours: 1,    // famine façon Travian (décision du 28 octobre 2026) : vérifiée une fois par heure
     famineAlertHours: 6,           // alerte quand le grenier sera vide dans moins de 6 h
@@ -322,9 +318,9 @@ const config = {
   // City tiers follow the Main Hall level (October 2026: the main building makes the walls evolve); the Wall building keeps
   // its defensive value (bonus, hit points, siege target) but no longer sets the city's look, tier or siege minimum
   cityTiers: [
-    { minMainHall: 0, tier: 1, name: 'Village', minSiege: 1 },
-    { minMainHall: 10, tier: 2, name: 'Ville', minSiege: 10 },
-    { minMainHall: 20, tier: 3, name: 'Ville Fortifiée', minSiege: 20 }
+    { minMainHall: 0, tier: 1, name: 'Village' },
+    { minMainHall: 10, tier: 2, name: 'Ville' },
+    { minMainHall: 20, tier: 3, name: 'Ville Fortifiée' }
   ],
 
   // Hideout (GDD: 1% of the stock hidden per level, 20% max)

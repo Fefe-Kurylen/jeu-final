@@ -6,15 +6,6 @@ const { calculateArmyPower, getFactionBonus } = require('../utils/calculations')
 // Multiplicateur depuis un bonus de faction en % (1 si absent)
 function fb(faction, type) { return faction ? 1 + (getFactionBonus(faction, type, factionsData) || 0) / 100 : 1; }
 
-// Hero as it fights: base stats, the points the player assigned and the equipment worn
-function equipmentStats(hero) {
-  const total = { attack: 0, defense: 0, speed: 0, logistics: 0 };
-  for (const item of hero?.items || []) {
-    if (!item || item.slot === 'inventory' || !item.stats) continue;
-    for (const k of Object.keys(total)) total[k] += Number(item.stats[k]) || 0;
-  }
-  return total;
-}
 // The hero as he fights: his row with items and talents (the bonus is read by heroBonus)
 function heroCombatStats(hero) {
   return hero ? { ...hero } : null;
@@ -43,7 +34,7 @@ function makeSide(units, mods) {
     const coeff = TIER[tier] || 1;
     return {
       key: u.unitKey || u.key, name: def?.name || u.unitKey || u.key, initial: u.count, count: u.count, tier,
-      unitClass: def?.class || 'INFANTRY',
+      unitClass: def?.class || 'INFANTRY', faction: def?.faction || null,
       atk: (def?.stats?.attack || 30) * coeff * mods.atk,
       def: (def?.stats?.defense || 30) * coeff * mods.def,
       hp: (def?.stats?.endurance || 50) * mods.hp,
@@ -97,9 +88,16 @@ function strike(attackers, defenders) {
 const totalDamage = (side, enemies) => side.reduce((s, a) => s + a.count * config.combat.roundDamageFactor * (enemies.find(e => e.count > 0) ? hitDamage(a, enemies.find(e => e.count > 0)) : a.atk), 0);
 const remainingPower = (side) => side.reduce((s, u) => s + Math.max(0, u.count) * u.atk, 0);
 
+// Puissance d'un côté : « +10 % défense des unités » (Rome) ne porte que sur la part défense, en attaque comme en défense ;
+// faction de chaque ligne si elle est donnée (rassemblement d'alliance à civilisations mêlées), sinon celle du côté
+function sidePower(units, faction) {
+  return units.reduce((t, u) => t + calculateArmyPower([u], unitsData, fb(u.faction || faction, 'unitDefense')), 0);
+}
+
 // Simple power-based resolution (raids, tribe fights). GDD raid rule: a fight stops once a side drops
 // below 70%, so the loser never loses more than 30%.
 // opts: { moatLevel, defenderFaction, defenseBonusPct } — the city's defensive modifiers, applied once each;
+// attackerFaction — the attacking player's civilisation (Rome's unit defence)
 // attackerBonusPct / defenderBonusPct — the players' technologies (Art de la guerre, Discipline), in percent
 // winnerLossMultiplier — overrides config.combat.winnerLossMultiplier (tribe fights)
 // fieldBattle — open-field fight on a resource node: the defender's « défense chez soi » does not apply
@@ -107,12 +105,12 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
   const attackerHeroBonus = heroBonus(attackerHero, 'attack');
   const defenderHeroBonus = heroBonus(defenderHero, 'defense');
 
-  const attackerPower = calculateArmyPower(attackerUnits, unitsData) * attackerHeroBonus * (1 + (opts.attackerBonusPct || 0) / 100);
+  const attackerPower = sidePower(attackerUnits, opts.attackerFaction) * attackerHeroBonus * (1 + (opts.attackerBonusPct || 0) / 100);
   const wallBonus = 1 + defenderWallLevel * config.combat.wallBonusPerLevel;   // « wallHealth » (Égypte) porte sur les points de vie du mur, pas sur ce bonus
   const moatBonus = 1 + (opts.moatLevel || 0) * config.combat.moatBonusPerLevel;
   // fieldBattle: an army fighting on a resource node, not in its city — no « défense chez soi »
-  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * (opts.fieldBattle ? 1 : fb(opts.defenderFaction, 'cityDefense')) * fb(opts.defenderFaction, 'unitDefense') * (1 + (opts.defenderBonusPct || 0) / 100);
-  const defenderPower = calculateArmyPower(defenderUnits, unitsData) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
+  const cityBonus = (1 + (opts.defenseBonusPct || 0) / 100) * (opts.fieldBattle ? 1 : fb(opts.defenderFaction, 'cityDefense')) * (1 + (opts.defenderBonusPct || 0) / 100);
+  const defenderPower = sidePower(defenderUnits, opts.defenderFaction) * wallBonus * moatBonus * cityBonus * defenderHeroBonus;
 
   const attackerWon = attackerPower > defenderPower;
   const ratio = attackerWon ? defenderPower / Math.max(1, attackerPower) : attackerPower / Math.max(1, defenderPower);
@@ -175,9 +173,10 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     let wallDamage = 0, strikers = snapA;
     if (wallUp) {
       // the blows fall on the wall first; what is left of the round once it is down reaches the soldiers
-      // talents : Ingénieur de siège (attaquant), Gardien des murs (héros qui défend la ville)
-      const wallTalent = Math.max(0, 1 + HE.talent(attackerHero, 'wallDamagePct') / 100 - HE.talent(defenderHero, 'wallGuardPct') / 100);
-      const dmg = wallTalent * snapA.reduce((t, a) => t + Math.max(0, a.count) * config.combat.roundDamageFactor * a.atk * (a.unitClass === 'SIEGE' ? W.engineMult : W.soldierMult), 0);
+      // talents : Ingénieur de siège (attaquant), Gardien des murs (héros qui défend la ville) ; engins du Sultanat +25 %
+      // (faction de l'engin) ; « défense chez soi » (Gaule) : le mur encaisse 1/1,2 des coups
+      const wallTalent = Math.max(0, 1 + HE.talent(attackerHero, 'wallDamagePct') / 100 - HE.talent(defenderHero, 'wallGuardPct') / 100) / fb(defenderFaction, 'cityDefense');
+      const dmg = wallTalent * snapA.reduce((t, a) => t + Math.max(0, a.count) * config.combat.roundDamageFactor * a.atk * (a.unitClass === 'SIEGE' ? W.engineMult * fb(a.faction, 'siegeEngineAttack') : W.soldierMult), 0);
       wallDamage = Math.min(dmg, shield.hp);
       const rest = dmg > shield.hp && dmg > 0 ? 1 - shield.hp / dmg : 0;
       shield.hp = Math.max(0, shield.hp - dmg);
@@ -220,4 +219,4 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   };
 }
 
-module.exports = { resolveCombat, resolveCombatDetailed, heroCombatStats, heroBonus, equipmentStats };
+module.exports = { resolveCombat, resolveCombatDetailed, heroCombatStats, heroBonus };

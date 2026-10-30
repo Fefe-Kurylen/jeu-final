@@ -23,9 +23,6 @@ const WANT_PNG = process.argv.includes('--png');
 // ---------------------------------------------------------------------------
 
 const f1 = (v) => (Math.round(v * 10) / 10).toString();
-const pts = (arr) => arr.map(p => `${f1(p[0])},${f1(p[1])}`).join(' ');
-const poly = (arr, fill, extra = '') => `<polygon points="${pts(arr)}" fill="${fill}" ${extra}/>`;
-const ell = (x, y, rx, ry, fill, extra = '') => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx)}" ry="${f1(ry)}" fill="${fill}" ${extra}/>`;
 const rect = (x, y, w, h, fill, extra = '') => `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="${fill}" ${extra}/>`;
 const circ = (x, y, r, fill, extra = '') => `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}" fill="${fill}" ${extra}/>`;
 const line = (x1, y1, x2, y2, stroke, w = 1.5, extra = '') => `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
@@ -95,9 +92,8 @@ function terrainTile(kind) {
 // ---------------------------------------------------------------------------
 // Glyphes d'interface (64×64) -> frontend/assets/images/ui/<nom>.svg ; les icônes figuratives sont en 3D (assets/images/3d/ui)
 // ---------------------------------------------------------------------------
-const GOLD = '#e8c547', GOLD_D = '#9a6a14', LEATHER = '#8a5a30';
+const GOLD = '#e8c547';
 const I = {};
-const ring = (x, y, r, c, w = 2) => circ(x, y, r, 'none', `stroke="${c}" stroke-width="${w}"`);
 I.close = () => circ(32, 32, 22, grad('#c0241e', '#7a1a14', 0, 0, 0, 1), OL(1.8)) + line(22, 22, 42, 42, '#fff6d8', 4.5) + line(42, 22, 22, 42, '#fff6d8', 4.5);
 I.left = () => `<path d="M40,12 L18,32 L40,52" fill="none" stroke="${STYLE.line}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M40,12 L18,32 L40,52" fill="none" stroke="${GOLD}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
 I.right = () => `<path d="M24,12 L46,32 L24,52" fill="none" stroke="${STYLE.line}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M24,12 L46,32 L24,52" fill="none" stroke="${GOLD}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;

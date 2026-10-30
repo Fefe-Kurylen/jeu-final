@@ -46,7 +46,6 @@ function openSheetModal(title, html) {
   modal.style.display = 'flex';
 }
 
-const SHEET_RES = ['wood', 'stone', 'iron', 'food'];
 const SHEET_MAP_UNIT = { INFANTRY: 'hoplite', ARCHER: 'archer', CAVALRY: 'cavalry', SIEGE: 'catapult' };
 // Aperçu visuel d'un bâtiment ou d'un champ : grande image du palier concerné et les trois paliers (niveaux 1-6, 7-13, 14-20)
 function sheetBuildingGallery(key, level, isField) {
@@ -85,7 +84,7 @@ function locateBuildingInCity(key) {
   setTimeout(() => { if (typeof focusCitySlot === 'function') focusCitySlot(b.slot); }, 60);
 }
 function sheetCostHtml(cost, city) {
-  return SHEET_RES.map(r => `<span class="sheet-cost${city && (city[r] || 0) < (cost[r] || 0) ? ' missing' : ''}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('');
+  return TECH_RESOURCES.map(r => `<span class="sheet-cost${city && (city[r] || 0) < (cost[r] || 0) ? ' missing' : ''}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('');
 }
 const sheetKv = (k, v) => `<div class="sheet-kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 
@@ -117,9 +116,6 @@ function unitTrainTimeInCity(unit) {
   const techPct = typeof techPctClient === 'function' ? techPctClient('trainTimeReductionPct') : 0;
   return { pct, techPct, base, seconds: Math.max(1, Math.round(base * (1 - pct / 100) * Math.max(0, 1 - techPct / 100))) };
 }
-
-// Alias historique (panneau de recrutement)
-function showUnitStatsPopup(unitKey) { showUnitInfoModal(unitKey); }
 
 function showUnitInfoModal(unitKey) {
   const unit = sheetUnits().find(u => u.key === unitKey);

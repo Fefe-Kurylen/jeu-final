@@ -5,7 +5,6 @@
 // Récompenses : ressources, livrées dans la ville affichée. Portée globale partagée (ordre de index.html).
 // ============================================================
 let questsData = null, questsLoadedAt = 0, questTab = 'tutorial';
-const QUEST_RES = ['wood', 'stone', 'iron', 'food'];
 
 async function loadQuests(force = false) {
   if (!token) return null;
@@ -32,7 +31,7 @@ function updateQuestBadge() {
 
 // ---- affichage commun ----
 function questRewardHtml(r) {
-  return `<span class="quest-reward">${QUEST_RES.filter(k => r?.[k] > 0).map(k => `<span>${resIconHtml(k)} ${formatNum(r[k])}</span>`).join('')}</span>`;
+  return `<span class="quest-reward">${TECH_RESOURCES.filter(k => r?.[k] > 0).map(k => `<span>${resIconHtml(k)} ${formatNum(r[k])}</span>`).join('')}</span>`;
 }
 function questBar(q) {
   const pct = Math.min(100, Math.round(100 * (q.progress || 0) / Math.max(1, q.target || 1)));

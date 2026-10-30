@@ -14,12 +14,7 @@ const { weekInfo } = require('../services/questService');
 const { isId } = require('../utils/db');
 
 const PAGE = 50;
-const SORTS = {
-  population: { sql: 'p.population', label: 'population' },
-  attack: { sql: 'COALESCE(s."attackPoints", 0)', label: 'attackPoints' },
-  defense: { sql: 'COALESCE(s."defensePoints", 0)', label: 'defensePoints' },
-  loot: { sql: 'COALESCE(s.loot, 0)', label: 'loot' }
-};
+const SORTS = { population: 'p.population', attack: 'COALESCE(s."attackPoints", 0)', defense: 'COALESCE(s."defensePoints", 0)', loot: 'COALESCE(s.loot, 0)' };
 const ALLIANCE_SORTS = { population: 'SUM(p.population)', attack: 'SUM(COALESCE(s."attackPoints", 0))', defense: 'SUM(COALESCE(s."defensePoints", 0))' };
 
 // lignes classées, avec un rang stable (égalité départagée par le nom)
@@ -28,14 +23,14 @@ async function playerRows(sortKey, offset, limit) {
   return prisma.$queryRawUnsafe(`
     SELECT p.id, p.name, p.faction, p.population, COALESCE(s."attackPoints", 0)::int AS "attackPoints", COALESCE(s."defensePoints", 0)::int AS "defensePoints",
            COALESCE(s.loot, 0)::int AS loot, COALESCE(s."attacksWon", 0)::int AS "attacksWon", COALESCE(s."defensesWon", 0)::int AS "defensesWon", a.tag AS "allianceTag",
-           ${S.sql}::int AS value, (ROW_NUMBER() OVER (ORDER BY ${S.sql} DESC, p.name))::int AS rank
+           ${S}::int AS value, (ROW_NUMBER() OVER (ORDER BY ${S} DESC, p.name))::int AS rank
     FROM "Player" p LEFT JOIN "PlayerStats" s ON s."playerId" = p.id LEFT JOIN "AllianceMember" m ON m."playerId" = p.id LEFT JOIN "Alliance" a ON a.id = m."allianceId"
-    ORDER BY ${S.sql} DESC, p.name OFFSET ${Number(offset)} LIMIT ${Number(limit)}`);
+    ORDER BY ${S} DESC, p.name OFFSET ${Number(offset)} LIMIT ${Number(limit)}`);
 }
 async function myPlayerRank(sortKey, playerId) {
   const S = SORTS[sortKey] || SORTS.population;
   const rows = await prisma.$queryRawUnsafe(`
-    SELECT rank, value FROM (SELECT p.id, ${S.sql}::int AS value, (ROW_NUMBER() OVER (ORDER BY ${S.sql} DESC, p.name))::int AS rank FROM "Player" p LEFT JOIN "PlayerStats" s ON s."playerId" = p.id) r WHERE r.id = $1`, playerId);
+    SELECT rank, value FROM (SELECT p.id, ${S}::int AS value, (ROW_NUMBER() OVER (ORDER BY ${S} DESC, p.name))::int AS rank FROM "Player" p LEFT JOIN "PlayerStats" s ON s."playerId" = p.id) r WHERE r.id = $1`, playerId);
   return rows[0] || null;
 }
 const shape = (r) => ({ ...r, alliance: r.allianceTag ? { alliance: { tag: r.allianceTag } } : null });

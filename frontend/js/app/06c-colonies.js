@@ -10,7 +10,6 @@ function cityTierFromMainHall(level) {
   const tiers = (window.worldRules?.cityTiers || [{ minMainHall: 0, tier: 1 }, { minMainHall: 10, tier: 2 }, { minMainHall: 20, tier: 3 }]);
   let t = 1; for (const x of tiers) if ((level || 1) >= x.minMainHall) t = x.tier; return t;
 }
-const cityMainHallLevelOf = (city) => (city?.buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1);
 
 // Icône du colon : version peinte `ui/settler.webp` dès qu'elle est livrée, sinon l'icône de ville
 function settlerIcon(cls = 'ico') { return typeof paintedSet !== 'undefined' && paintedSet.has('ui/settler.webp') ? `<img class="${cls}" src="assets/images/painted/ui/settler.webp" alt="">` : resIconHtml('city', cls); }
@@ -32,7 +31,6 @@ const settlersTravelling = () => (armies || []).reduce((s, a) => s + (a.settlers
 
 // Onglet « Colons » du panneau de la Résidence
 function colonyTabHtml(level) {
-  const capital = capitalCity();
   const slots = Math.min(COLONY_RULES.maxSecondaryCities, settlerSlotsFor(level));
   const colonies = secondaryCities();
   const training = (currentCity?.recruitQueue || []).filter(q => q.unitKey === 'SETTLER');

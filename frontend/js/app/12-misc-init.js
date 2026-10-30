@@ -153,16 +153,11 @@ function showNpcMerchant() {
     { key: 'food', icon: resIconHtml('food'), name: 'Blé', current: Math.floor(currentCity?.food || 0) }
   ];
 
-  // NPC exchange rate: give X resources, receive Y of another type
-  // Rate: 3:2 (give 3, get 2) - NPC takes a 33% cut
-  const NPC_RATE_GIVE = 3;
-  const NPC_RATE_RECEIVE = 2;
-
   container.innerHTML = `
     <div class="npc-merchant">
       <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand itinérant</h3>
       <p style="color:var(--text-muted);margin-bottom:12px;">
-        Échangez vos ressources entre elles. Taux: <strong>${NPC_RATE_GIVE} → ${NPC_RATE_RECEIVE}</strong> (le marchand prend sa part)
+        Échangez vos ressources entre elles. Taxe du marchand : <strong>${npcTaxPct()} %</strong> (un point de moins par niveau du Marché, 5 % au plus bas)
       </p>
 
       <div class="npc-exchange-form">
@@ -200,11 +195,22 @@ function showNpcMerchant() {
   `;
 }
 
+// Taxe du marchand itinérant, comme le serveur (npcMarketTaxPct) : 30 % au Marché niv. 1, −1 % par niveau, 5 % au moins
+function npcTaxPct() {
+  const level = (currentCity?.buildings || []).find(b => b.key === 'MARKET')?.level || 1;
+  const fx = window.buildingsData?.find(b => b.key === 'MARKET')?.effects || {};
+  return Math.max(5, (fx.serverMarketTaxPctBase ?? 30) - Math.max(0, level - 1) * (fx.serverMarketTaxReductionPctPerLevel ?? 1));
+}
+
 function updateNpcPreview() {
   const giveAmount = parseInt(document.getElementById('npc-give-amount')?.value) || 0;
   const preview = document.getElementById('npc-receive-preview');
   if (preview) {
-    const received = Math.floor(giveAmount * 2 / 3); // 3:2 rate
+    let received = Math.floor(giveAmount * (1 - npcTaxPct() / 100));
+    // le serveur ne livre que ce que le stockage peut encore contenir
+    const res = document.getElementById('npc-receive-resource')?.value;
+    const max = res === 'food' ? currentCity?.maxFoodStorage : currentCity?.maxStorage;
+    if (res && max) received = Math.min(received, Math.max(0, Math.floor(max - (currentCity?.[res] || 0))));
     preview.textContent = formatNum(received);
   }
 }
@@ -262,6 +268,7 @@ async function loadInventory() {
     let heroItems = [];
     if (res.ok) {
       const hero = await res.json();
+      heroData = hero;   // showItemDetails lit heroData, même si l'onglet Héros n'a pas encore été ouvert
       heroItems = hero?.items || [];
     }
 
@@ -281,7 +288,8 @@ function renderInventory(items) {
     materials: { name: 'Matériaux', filter: i => !['weapon', 'shield', 'head', 'chest', 'legs', 'boots', 'ring', 'amulet'].includes(i.slot) }
   };
 
-  const currentTab = document.querySelector('#tab-inventory .toolbar-btn.active')?.textContent?.includes('Matériaux') ? 'materials' : 'items';
+  // sous-onglet actif lu sur son onclick (le libellé du bouton n'a pas d'accent)
+  const currentTab = document.querySelector('#tab-inventory .toolbar-btn.active[onclick*="materials"]') ? 'materials' : 'items';
   const filteredItems = items.filter(categories[currentTab]?.filter || (() => true));
 
   if (filteredItems.length === 0) {
@@ -386,6 +394,7 @@ async function dropItem(itemId) {
     if (res.ok) {
       showToast('Objet jeté', 'success');
       loadInventory();
+      loadHero();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
@@ -410,11 +419,11 @@ document.getElementById('modal')?.addEventListener('click', (e) => {
 });
 
 
-// Lit une paire de champs numériques <id>-x / <id>-y (ou l'ancien champ texte "x|y") et renvoie "x|y"
+// Lit une paire de champs numériques <id>-x / <id>-y et renvoie "x|y"
 function readCoordPair(id) {
   const xEl = document.getElementById(id + '-x'), yEl = document.getElementById(id + '-y');
   if (xEl && yEl) return (xEl.value.trim() === '' || yEl.value.trim() === '') ? '' : `${parseInt(xEl.value, 10)}|${parseInt(yEl.value, 10)}`;
-  return document.getElementById(id)?.value?.trim() || '';
+  return '';
 }
 
 async function confirmDropItem(itemId) {

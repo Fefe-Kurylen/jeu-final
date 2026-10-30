@@ -65,7 +65,6 @@ test('city tiers follow the Main Hall level', () => {
   assert.equal(calc.getCityTier(10), 2);
   assert.equal(calc.getCityTier(15), 2);
   assert.equal(calc.getCityTier(20), 3);
-  assert.equal(calc.getMinSiegeEngines(3), 20);
 });
 
 test('secondary cities (GDD): settlers by Residence level, foundation time, colony production bonus, building restrictions', () => {
@@ -84,10 +83,9 @@ test('secondary cities (GDD): settlers by Residence level, foundation time, colo
 });
 
 test('city tier follows the Main Hall level (Village 1-9, Ville 10-19, Ville Fortifiée 20+), colony cap and capital-only recruitment buildings', () => {
-  const { getCityTier, getCityTierName, getMinSiegeEngines, mainHallLevelOf } = require('../../src/utils/calculations');
+  const { getCityTier, getCityTierName, mainHallLevelOf } = require('../../src/utils/calculations');
   assert.deepEqual([0, 1, 9, 10, 19, 20, 30].map(getCityTier), [1, 1, 1, 2, 2, 3, 3]);
   assert.equal(getCityTierName(getCityTier(10)), 'Ville');
-  assert.deepEqual([1, 2, 3].map(getMinSiegeEngines), [1, 10, 20]);
   assert.equal(mainHallLevelOf([{ key: 'WALL', level: 15 }, { key: 'MAIN_HALL', level: 7 }]), 7);
   assert.equal(mainHallLevelOf([]), 1);
   assert.equal(config.city.secondaryMainHallMaxLevel, 20);

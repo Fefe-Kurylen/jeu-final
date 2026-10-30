@@ -382,7 +382,7 @@ function getBuildingName(key) {
     EMBASSY: 'Ambassade', TREASURE_CHAMBER: 'Chambre au Trésor', RESIDENCE: 'Résidence',
     TRADE_OFFICE: 'Comptoir de Commerce', ROMAN_THERMAE: 'Thermes', GALLIC_BREWERY: 'Brasserie',
     GREEK_TEMPLE: 'Temple', EGYPTIAN_IRRIGATION: 'Poste d\'Irrigation', HUN_WAR_TENT: 'Tente de Guerre',
-    SULTAN_DESERT_OUTPOST: 'Poste du Désert', HERO_HOME: 'Domus du Héros'
+    SULTAN_DESERT_OUTPOST: 'Poste du Désert'
   };
   return fallbackNames[key] || key;
 }

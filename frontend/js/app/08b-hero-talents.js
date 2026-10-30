@@ -24,7 +24,7 @@ function heroStateHtml(hero) {
   if (hero.state === 'REVIVING') {
     return `<div class="hero-state reviving">${resIconHtml('clock')} <strong>Résurrection en cours</strong> au Domus du Héros : de retour dans <span class="qd-timer" data-ends-at="${r.endsAt}">${formatTime(r.endsAt)}</span>.</div>`;
   }
-  const cost = ['wood', 'stone', 'iron', 'food'].map(k => `${resIconHtml(k)} ${formatNum(r.cost[k])}`).join(' ');
+  const cost = TECH_RESOURCES.map(k => `${resIconHtml(k)} ${formatNum(r.cost[k])}`).join(' ');
   return `<div class="hero-state fallen">
     <div>${resIconHtml('skull')} <strong>${escapeHtml(hero.name)} est tombé au combat.</strong> Il garde son niveau, ses talents et ses objets, mais n'apporte plus rien tant qu'il n'est pas ressuscité.</div>
     ${r.domusLevel > 0

@@ -1,112 +1,13 @@
 // ============================================================
-// 05-panels.js — Panneaux : clic champs, construction, recrutement, barre de file
+// 05-panels.js — Panneaux : construction, recrutement, barre de file
 // Découpé depuis app.js (lignes 4649-6230) — portée globale partagée,
 // l'ordre de chargement dans index.html doit être respecté.
 // ============================================================
-// ========== FIELDS CANVAS HANDLERS ==========
-function onFieldsMouseMove(e) {
-  if (!fieldsCanvas) return;
-
-  const rect = fieldsCanvas.getBoundingClientRect();
-  const mouseX = (e.clientX - rect.left) * (fieldsCanvas.width / rect.width);
-  const mouseY = (e.clientY - rect.top) * (fieldsCanvas.height / rect.height);
-
-  // Find hovered slot
-  let foundSlot = null;
-  for (const slot of citySlots) {
-    const dx = mouseX - slot.x;
-    const dy = mouseY - slot.y;
-    const rx = slot.size * 0.6;
-    const ry = slot.size * 0.35;
-    const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
-
-    if (normalizedDist <= 1) {
-      foundSlot = slot.slot;
-      break;
-    }
-  }
-
-  if (foundSlot !== cityHoveredSlot) {
-    cityHoveredSlot = foundSlot;
-    renderFieldsCanvas();
-
-    fieldsCanvas.style.cursor = foundSlot !== null ? 'pointer' : 'default';
-
-    if (foundSlot !== null) {
-      showFieldsTooltip(e.clientX, e.clientY, foundSlot);
-    } else {
-      hideFieldsTooltip();
-    }
-  }
-}
-
-function onFieldsClick(e) {
-  if (!currentCity) return; // Guard: city data not loaded yet
-  if (cityHoveredSlot !== null) {
-    if (cityHoveredSlot === -1) {
-      // Click on village center -> switch to city tab
-      showTab('city');
-    } else {
-      // Click on a field -> open field build panel
-      openFieldBuildPanel(cityHoveredSlot);
-    }
-  }
-}
-
-function showFieldsTooltip(mouseX, mouseY, slotNum) {
-  const tooltip = document.getElementById('fields-tooltip');
-  if (!tooltip) return;
-
-  const slot = citySlots.find(s => s.slot === slotNum);
-  let html = '';
-
-  if (slot?.isVillageCenter) {
-    html = `
-      <h4><span class="tt-icon"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""></span> Centre du Village</h4>
-      <p class="tt-hint">Cliquez pour voir les bâtiments</p>
-    `;
-  } else if (slot?.isField) {
-    const fieldIcons = { FARM: buildingIconHtml('FARM', 'b-ico-md'), LUMBER: buildingIconHtml('LUMBER', 'b-ico-md'), QUARRY: buildingIconHtml('QUARRY', 'b-ico-md'), IRON_MINE: buildingIconHtml('IRON_MINE', 'b-ico-md') };
-    const fieldNames = { FARM: 'Champ de blé', LUMBER: 'Scierie', QUARRY: 'Carrière de pierre', IRON_MINE: 'Mine de fer' };
-    const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
-    const level = building?.level || 0;
-    const production = getProductionAtLevel(slot.fieldType, level);
-    const fMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-    const fMainHallLevel = fMainHall?.level || 1;
-    const fieldDef = buildingsData?.find(b => b.key === slot.fieldType);
-    const fieldMax = fieldDef?.maxLevel || 20;
-    const fEffectiveMax = Math.min(fieldMax, fMainHallLevel);
-
-    html = `
-      <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || '<img class="ico" src="assets/images/3d/ui/fields.webp" alt="">'}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
-      <p class="tt-level">Niveau ${level}/${fEffectiveMax}</p>
-      ${level > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
-      <p class="tt-hint">${level === 0 ? 'Cliquez pour construire' : level >= fEffectiveMax ? (level >= fieldMax ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${fMainHallLevel})`) : 'Cliquez pour améliorer'}</p>
-    `;
-  }
-
-  tooltip.innerHTML = html;
-  tooltip.style.display = 'block';
-
-  // Position tooltip
-  const canvasRect = fieldsCanvas.parentElement.getBoundingClientRect();
-  let left = mouseX - canvasRect.left + 10;
-  let top = mouseY - canvasRect.top + 20;
-
-  tooltip.style.left = `${left}px`;
-  tooltip.style.top = `${top}px`;
-}
-
-function hideFieldsTooltip() {
-  const tooltip = document.getElementById('fields-tooltip');
-  if (tooltip) tooltip.style.display = 'none';
-}
-
 // ========== BUILD PANEL ==========
 let selectedBuildSlot = null;
 
 function openBuildPanel(slotNum) {
-  if (slotNum >= 100 && typeof openFieldBuildPanel === 'function') { openFieldBuildPanel(slotNum); return; }   // champ : panneau dédié
+  if (slotNum >= 100) { openFieldBuildPanel(slotNum); return; }   // champ : panneau dédié
   selectedBuildSlot = slotNum;
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
@@ -138,7 +39,6 @@ function openBuildPanel(slotNum) {
     const colonyCap = key === 'MAIN_HALL' && currentCity && currentCity.isCapital === false && typeof colonyMainHallMax === 'function' ? colonyMainHallMax() : Infinity;   // ville secondaire : Bâtiment principal 20 au plus
     const effectiveMax = key === 'MAIN_HALL' ? Math.min(maxLevel, colonyCap) : Math.min(maxLevel, mainHallLevel);
     const canUpgrade = level < effectiveMax;
-    const nextLevel = level + 1;
 
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
     const isMilitaryBuilding = ['BARRACKS', 'STABLE', 'WORKSHOP'].includes(key);
@@ -148,8 +48,8 @@ function openBuildPanel(slotNum) {
       return;
     }
 
-    // ===== HERO HOME - HERO MANAGEMENT PANEL =====
-    if (key === 'HERO_HOME' || key === 'HERO_MANSION') {
+    // ===== HERO MANSION - HERO MANAGEMENT PANEL =====
+    if (key === 'HERO_MANSION') {
       openHeroManagementPanel(level, slotNum);
       return;
     }
@@ -162,7 +62,6 @@ function openBuildPanel(slotNum) {
     const timeStr = formatDuration(buildTime);
 
     const bonus = getBuildingBonus(key, level);
-    const nextBonus = getBuildingBonus(key, nextLevel);
 
     const hasResources = currentCity &&
       currentCity.wood >= nextCost.wood &&
@@ -295,54 +194,6 @@ function openBuildPanel(slotNum) {
         `).join('')}
       </div>
     `;
-  } else if (slot?.isField) {
-    // ===== RESOURCE FIELD - DETAILED CARD =====
-    const fieldKey = slot.fieldType;
-    const def = buildingsData.find(b => b.key === fieldKey);
-    const resourceType = fieldKey === 'FARM' ? 'nourriture' : fieldKey === 'LUMBER' ? 'bois' : fieldKey === 'QUARRY' ? 'pierre' : 'fer';
-    const resourceIcon = resIconHtml(fieldKey === 'FARM' ? 'food' : fieldKey === 'LUMBER' ? 'wood' : fieldKey === 'QUARRY' ? 'stone' : 'iron');
-    
-    title.innerHTML = `<span class="building-detail-icon">${buildingIconHtml(fieldKey)}</span> ${getBuildingName(fieldKey)}`;
-    
-    content.innerHTML = `
-      <div class="building-detail-card field-card">
-        <div class="field-header">
-          <div class="field-icon-large">${buildingIconHtml(fieldKey, 'b-ico-lg')}</div>
-          <div class="field-info">
-            <h3>${getBuildingName(fieldKey)} ${infoBtnHtml('building', fieldKey)}</h3>
-            <p class="field-type">Champ de ${resourceType}</p>
-          </div>
-        </div>
-        
-        <div class="field-production-preview">
-          <span class="prod-icon">${resourceIcon}</span>
-          <span class="prod-text">Production: <strong>+${def?.effects?.[fieldKey.toLowerCase() + 'ProdL1'] || 20}/h</strong> au niveau 1</span>
-        </div>
-        
-        <div class="cost-grid compact">
-          <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
-            <span class="cost-value">${formatNum(def?.costL1?.wood || 50)}</span>
-          </div>
-          <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
-            <span class="cost-value">${formatNum(def?.costL1?.stone || 50)}</span>
-          </div>
-          <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
-            <span class="cost-value">${formatNum(def?.costL1?.iron || 50)}</span>
-          </div>
-          <div class="cost-item">
-            <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
-            <span class="cost-value">${formatNum(def?.costL1?.food || 0)}</span>
-          </div>
-        </div>
-        
-        <button class="build-field-btn ${isBuildQueueFull() ? 'disabled' : ''}" onclick="buildAtSlot('${fieldKey}', ${slotNum})" ${isBuildQueueFull() ? 'disabled' : ''}>
-          ${isBuildQueueFull() ? `${resIconHtml('clock')} File de construction pleine` : `${resIconHtml('build')} Construire ${getBuildingName(fieldKey)}`}
-        </button>
-      </div>
-    `;
   } else {
     // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
     title.textContent = 'Construire un bâtiment';
@@ -433,7 +284,7 @@ function openBuildPanel(slotNum) {
 }
 
 // Helper: Format duration in seconds to readable string
-// Same formulas as the server (routes/cities.js): cost × 1.28^(L-1), time × 1.2^(L-1), GREEK -10%
+// Same formulas as the server (routes/cities.js): cost × 1.28^(L-1), time × 1.2^(L-1), faction bonus (GREEK)
 function getBuildCost(def, targetLevel) {
   const mult = Math.pow(1.28, targetLevel - 1);
   const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
@@ -453,7 +304,8 @@ function getCityBuildTimeReductionPct() {
 }
 function getBuildTime(def, targetLevel) {
   let t = Math.floor((def?.timeL1Sec || 60) * Math.pow(1.2, targetLevel - 1));
-  if (player?.faction === 'GREEK') t = Math.floor(t * 0.9);
+  const factionPct = factionBonusPct(player?.faction, 'buildTimeReduction', player?.faction === 'GREEK' ? 15 : 0);   // Grèce : 15 % (factions.json), comme le serveur
+  if (factionPct > 0) t = Math.floor(t * (1 - factionPct / 100));
   t = Math.floor(t * (1 - getCityBuildTimeReductionPct() / 100));
   return Math.max(1, t);
 }
@@ -498,8 +350,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         content: `
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Place du marché</h4>
-            <p>Capacité de transport: <strong>${100 + level * 50}</strong> unités</p>
-            <p>Marchands disponibles: <strong>${Math.floor(level / 5) + 1}</strong></p>
+            <p>${getBuildingBonus(buildingKey, level)}</p>
             <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
           </div>
         `
@@ -533,7 +384,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Ambassade</h4>
             <p>Permet de créer ou rejoindre une alliance.</p>
-            ${level >= 3 ? `<p>Niveau ${level}: Peut accueillir jusqu'à <strong>${level * 3}</strong> membres.</p>` : ''}
+            <p>${getBuildingBonus(buildingKey, level)}</p>
             <button class="btn-primary" onclick="showTab('alliance'); closeBuildPanel();">Accéder à l'alliance</button>
           </div>
         `
@@ -548,7 +399,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         content: `
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/target.webp" alt=""> Point de ralliement</h4>
-            <p>Armées simultanées: <strong>${level >= 10 ? 3 : level >= 5 ? 2 : 1}</strong> (2 au niveau 5, 3 au niveau 10)</p>
+            <p>Armées simultanées: <strong>${maxArmiesAtRallyLevel(level)}</strong> (+1 tous les 5 niveaux, 5 au niveau 20)</p>
             <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
             <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
           </div>
@@ -573,7 +424,6 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
       break;
 
     case 'WAREHOUSE':
-    case 'GREAT_WAREHOUSE':
       tabs.push({
         id: 'storage',
         icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
@@ -604,7 +454,6 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
       break;
 
     case 'SILO':
-    case 'GREAT_SILO':
       tabs.push({
         id: 'food-storage',
         icon: '<img class="ico" src="assets/images/3d/ui/food.webp" alt="">',
@@ -615,8 +464,8 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
             <div class="storage-bars">
               <div class="storage-row">
                 <span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> Nourriture:</span>
-                <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / (1200 + level * 8000)) * 100)}%"></div></div>
-                <span>${formatNum(currentCity?.food || 0)} / ${formatNum(1200 + level * 8000)}</span>
+                <div class="storage-bar food"><div style="width:${Math.min(100, (currentCity?.food / getStorageAtLevel(level)) * 100)}%"></div></div>
+                <span>${formatNum(currentCity?.food || 0)} / ${formatNum(getStorageAtLevel(level))}</span>
               </div>
             </div>
           </div>
@@ -632,8 +481,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
         content: `
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Tour de guet</h4>
-            <p>Portée de détection: <strong>${level * 2}</strong> cases</p>
-            <p>Temps d'alerte: <strong>${Math.max(1, 10 - level)}</strong> minutes avant l'arrivée</p>
+            <p>${getBuildingBonus(buildingKey, level)}</p>
             <p class="info-note">Les attaques ennemies seront détectées à l'avance.</p>
           </div>
         `
@@ -758,7 +606,7 @@ function openFieldBuildPanel(slotNum) {
             Production: +${getProductionAtLevel(fieldType, targetLevel)}/h (+${getProductionAtLevel(fieldType, targetLevel) - getProductionAtLevel(fieldType, targetLevel - 1)}/h)
           </p>
           ${costHtml}
-          <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''} onclick="buildField('${fieldType}', ${serverSlot})">
+          <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''} onclick="buildAtSlot('${fieldType}', ${serverSlot})">
             ${buttonLabel || 'Améliorer'}
           </button>
         </div>
@@ -768,7 +616,7 @@ function openFieldBuildPanel(slotNum) {
     // Empty field - show build option
     title.textContent = 'Construire';
     content.innerHTML = `
-      <div class="build-option" onclick="${buttonLabel ? '' : `buildField('${fieldType}', ${serverSlot})`}">
+      <div class="build-option" onclick="${buttonLabel ? '' : `buildAtSlot('${fieldType}', ${serverSlot})`}">
         <div class="build-option-icon">${fieldIcons[fieldType]}</div>
         <div class="build-option-info">
           <h4>${fieldNames[fieldType]}</h4>
@@ -835,12 +683,11 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   // Batches queue up one after another on the server: a running batch never blocks a new order
   const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === buildingKey) || [];
-  const isRecruiting = false;
 
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel}) ${infoBtnHtml('building', buildingKey)}`;
 
   // Helper function to render a unit card
-  const renderUnitCard = (u, isRecruiting, buildingKey) => {
+  const renderUnitCard = (u) => {
     const tierColor = TIER_COLORS[u.tier] || '#aaa';
     // Use per-unit GDD costs from units data (class-specific + tier multiplier)
     const unitCost = u.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
@@ -851,13 +698,13 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
       currentCity.food >= unitCost.food;
 
     return `
-      <div class="unit-recruit-card ${isRecruiting ? 'disabled' : ''}">
+      <div class="unit-recruit-card">
         <div class="unit-recruit-header" style="border-color: ${tierColor}">
           <span class="unit-icon clickable" onclick="event.stopPropagation(); showUnitInfoModal('${u.key}')" title="Fiche de l'unité">${unitIconHtml(u.key)}</span>
           ${infoBtnHtml('unit', u.key, 'info-btn-corner')}
           <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
         </div>
-        <div class="unit-recruit-body" onclick="${!isRecruiting ? `openUnitRecruitModal('${u.key}', '${buildingKey}')` : ''}">
+        <div class="unit-recruit-body" onclick="openUnitRecruitModal('${u.key}', '${buildingKey}')">
           <h5>${u.name}</h5>
           <div class="unit-mini-stats">
             <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack}</span>
@@ -869,13 +716,12 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
             <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${unitCost.iron}</span>
           </div>
         </div>
-        ${isRecruiting ? '<div class="unit-blocked"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En cours...</div>' : ''}
       </div>
     `;
   };
 
   // Helper function to render a class section
-  const renderClassSection = (className, classLabel, classIcon, units) => {
+  const renderClassSection = (classLabel, classIcon, units) => {
     if (!units || units.length === 0) return '';
     return `
       <div class="unit-class-section">
@@ -885,7 +731,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <span class="class-count">(${units.length})</span>
         </div>
         <div class="units-recruit-grid">
-          ${units.map(u => renderUnitCard(u, isRecruiting, buildingKey)).join('')}
+          ${units.map(u => renderUnitCard(u)).join('')}
         </div>
       </div>
     `;
@@ -895,12 +741,12 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   let unitsHtml = '';
   if (buildingKey === 'BARRACKS') {
     // Separate Infantry and Archers
-    unitsHtml += renderClassSection('INFANTRY', 'Infanterie', resIconHtml('army'), unitsByClass['INFANTRY']);
-    unitsHtml += renderClassSection('ARCHER', 'Archers', resIconHtml('bow'), unitsByClass['ARCHER']);
+    unitsHtml += renderClassSection('Infanterie', resIconHtml('army'), unitsByClass['INFANTRY']);
+    unitsHtml += renderClassSection('Archers', resIconHtml('bow'), unitsByClass['ARCHER']);
   } else if (buildingKey === 'STABLE') {
-    unitsHtml += renderClassSection('CAVALRY', 'Cavalerie', resIconHtml('horse'), unitsByClass['CAVALRY']);
+    unitsHtml += renderClassSection('Cavalerie', resIconHtml('horse'), unitsByClass['CAVALRY']);
   } else if (buildingKey === 'WORKSHOP') {
-    unitsHtml += renderClassSection('SIEGE', 'Machines de siège', resIconHtml('tools'), unitsByClass['SIEGE']);
+    unitsHtml += renderClassSection('Machines de siège', resIconHtml('tools'), unitsByClass['SIEGE']);
   }
 
   content.innerHTML = `
@@ -1268,47 +1114,25 @@ function getUnitName(unitKey) {
 
 let _buildInProgress = false;
 
+// File de construction, comme le serveur : 2 en cours + 2 en attente, +1 en attente avec l'abonnement Plus
+// (premiumUntil vient de /api/player/me, comme pour le bonus de production)
+const BUILD_MAX_RUNNING = 2, BUILD_MAX_QUEUED = 2;
+function buildQueuedMax() {
+  const ent = window.Store?.entitlements;
+  const premium = (player?.premiumUntil && new Date(player.premiumUntil).getTime() > serverNow()) || ent?.premium;
+  return BUILD_MAX_QUEUED + (premium ? (Number(ent?.perks?.extraBuildQueue) || 1) : 0);
+}
+function buildQueueMax() { return BUILD_MAX_RUNNING + buildQueuedMax(); }
+
 function isBuildQueueFull() {
   const queueSize = currentCity?.buildQueue?.length || 0;
-  return queueSize >= 4;
-}
-
-async function buildField(buildingKey, slot) {
-  if (_buildInProgress) return;
-  if (isBuildQueueFull()) {
-    showToast('File de construction pleine (4/4)', 'error');
-    return;
-  }
-  _buildInProgress = true;
-  try {
-    const res = await fetch(`${API}/api/city/${currentCity.id}/build`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ buildingKey, slot })
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      closeBuildPanel();
-      showToast(`Construction de ${getBuildingName(buildingKey)} lancée !`, 'success');
-      await loadCities();
-      renderCity();
-    } else {
-      showToast(data.error || 'Erreur de construction', 'error');
-    }
-  } catch (e) {
-    console.error('buildField error:', e);
-    showToast('Erreur réseau', 'error');
-  } finally {
-    _buildInProgress = false;
-  }
+  return queueSize >= buildQueueMax();
 }
 
 async function buildAtSlot(buildingKey, slot) {
   if (_buildInProgress) return;
   if (isBuildQueueFull()) {
-    showToast('File de construction pleine (4/4)', 'error');
+    showToast(`File de construction pleine (${buildQueueMax()}/${buildQueueMax()})`, 'error');
     return;
   }
   _buildInProgress = true;
@@ -1387,8 +1211,7 @@ function getBuildingDescription(key) {
     GREEK_TEMPLE: 'Recherche bonus (Grèce)',
     EGYPTIAN_IRRIGATION: 'Production bonus (Égypte)',
     HUN_WAR_TENT: 'Entretien réduit (Huns)',
-    SULTAN_DESERT_OUTPOST: 'Commerce bonus (Sultanat)',
-    HERO_HOME: 'Gestion du héros'
+    SULTAN_DESERT_OUTPOST: 'Commerce bonus (Sultanat)'
   };
   return descriptions[key] || 'Bâtiment';
 }
@@ -1473,7 +1296,7 @@ function renderBuildQueue() {
     if (running.length > 0 || queued.length > 0) {
       let html = '';
       if (running.length > 0) {
-        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> En cours (${running.length}/2)</div>`;
+        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/build.webp" alt=""> En cours (${running.length}/${BUILD_MAX_RUNNING})</div>`;
         running.forEach((q, i) => {
           html += `<div class="qd-item running">
             <span class="qd-num">${i + 1}</span>
@@ -1486,7 +1309,7 @@ function renderBuildQueue() {
         });
       }
       if (queued.length > 0) {
-        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En attente (${queued.length}/2)</div>`;
+        html += `<div class="qd-section-header"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> En attente (${queued.length}/${buildQueuedMax()})</div>`;
         queued.forEach((q, i) => {
           html += `<div class="qd-item queued">
             <span class="qd-num">${i + 1}</span>
@@ -1568,59 +1391,7 @@ async function cancelRecruit(itemId) {
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }
 
-function renderMovingArmies() {
-  const moving = armies.filter(a => a.status !== 'IDLE');
-
-  const missionIcons = {
-    'FOUND': '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">',
-    'FOUNDING': '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">',
-    'ATTACK': '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">',
-    'RAID': '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">',
-    'SUPPORT': '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">',
-    'SPY': '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">',
-    'TRANSPORT': '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">',
-    'RETURNING': '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">',
-    'MOVING': '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">'
-  };
-
-  // Update activity bar
-  const activityEl = document.getElementById('movement-activity');
-  if (activityEl) {
-    if (moving.length > 0) {
-      const first = moving[0];
-      const icon = missionIcons[first.missionType] || missionIcons[first.status] || resIconHtml('send');
-      activityEl.classList.add('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon">${icon}</span>
-        <span class="activity-text">${escapeHtml(first.name || 'Armée')}</span>
-        <span class="activity-timer" data-ends-at="${first.arrivalAt || ''}">${first.arrivalAt ? formatTime(first.arrivalAt) : '-'}</span>
-        ${moving.length > 1 ? `<span class="activity-more">+${moving.length - 1}</span>` : ''}
-      `;
-    } else {
-      activityEl.classList.remove('active');
-      activityEl.innerHTML = `
-        <span class="activity-icon"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""></span>
-        <span class="activity-text">Aucun mouvement</span>
-      `;
-    }
-  }
-
-  // Also update legacy moving-armies element if it exists
-  const legacyEl = document.getElementById('movement-queue') || document.getElementById('moving-armies');
-  if (legacyEl) {
-    if (moving.length === 0) {
-      legacyEl.innerHTML = '<p style="color:var(--text-muted);font-size:11px;text-align:center;">Aucun mouvement</p>';
-    } else {
-      legacyEl.innerHTML = moving.map(a => `
-        <div class="queue-item">
-          <span class="queue-icon">${missionIcons[a.missionType] || missionIcons[a.status] || '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">'}</span>
-          <div class="queue-info">
-            <span class="queue-name">${escapeHtml(a.name || 'Armée')}</span>
-            <span class="queue-time">${a.arrivalAt ? formatTime(a.arrivalAt) : '-'}</span>
-          </div>
-        </div>
-      `).join('');
-    }
-  }
-}
+// Les éléments de l'ancienne barre des mouvements n'existent plus : rien à dessiner.
+// À supprimer avec son appel dans renderCity (01-core.js).
+function renderMovingArmies() {}
 

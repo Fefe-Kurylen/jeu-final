@@ -3,7 +3,7 @@ const router = express.Router();
 const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
-const { unitsData, buildingsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
+const { unitsData, itemsData, factionsData, technologiesData } = require('../config/gamedata');
 const config = require('../config');
 const { bannerImage } = require('../services/allianceShopService');
 const { getCityTier, getCityTierName, mainHallLevelOf } = require('../utils/calculations');
@@ -11,13 +11,13 @@ const Terrain = require('../../frontend/js/shared/terrain.js');
 
 const BASE_WORLD_SIZE = config.map.baseWorldSize;
 const EXPANSION_PER_PLAYER = config.map.expansionPerPlayer;
-const MAX_PLAYERS = config.map.maxPlayers;
+const MAX_PLAYERS = config.world.maxPlayers;
 const MIN_COORD = config.map.minCoord;
 const MAX_COORD = config.map.maxCoord;
 
 // Sprite de carte d'une armée en mouvement : marchand pour les transports, sinon la classe
 // de l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
-const UNIT_CLASS = Object.fromEntries((Array.isArray(unitsData) ? unitsData : (unitsData?.units || [])).map(u => [u.key, u.class]));
+const UNIT_CLASS = Object.fromEntries(unitsData.map(u => [u.key, u.class]));
 const CLASS_SPRITE = { SIEGE: 'catapult', CAVALRY: 'cavalry', ARCHER: 'archer', INFANTRY: 'hoplite' };
 function mainUnitSprite(army, units) {
   if (army.status === 'TRANSPORTING' || army.missionType === 'TRANSPORT') return 'merchant';
@@ -56,6 +56,8 @@ router.get('/world/info', async (req, res) => {
 const viewportCache = new Map();
 const VIEWPORT_TTL_MS = 3000;
 const VIEWPORT_CACHE_MAX = 2000;
+// centre arrondi à 10 cases et rayon élargi de 5 : les joueurs qui regardent la même région partagent une entrée
+const VIEWPORT_Q = 10;
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of viewportCache) if (now > v.expires) viewportCache.delete(k);
@@ -73,11 +75,13 @@ router.get('/map/viewport', auth, async (req, res) => {
     const centerX = isNaN(x) ? 0 : Math.max(MIN_COORD, Math.min(MAX_COORD, x));
     const centerY = isNaN(y) ? 0 : Math.max(MIN_COORD, Math.min(MAX_COORD, y));
 
-    const cacheKey = `${centerX}:${centerY}:${r}`;
+    const qx = Math.round(centerX / VIEWPORT_Q) * VIEWPORT_Q, qy = Math.round(centerY / VIEWPORT_Q) * VIEWPORT_Q;
+    const qr = r + VIEWPORT_Q / 2;   // couvre toujours la zone demandée (le centre bouge d'au plus 5)
+    const cacheKey = `${qx}:${qy}:${qr}:${liteMode}`;
     const cached = viewportCache.get(cacheKey);
-    const shared = cached && Date.now() < cached.expires ? cached.data : await loadViewport(centerX, centerY, r, liteMode);
+    const shared = cached && Date.now() < cached.expires ? cached.data : await loadViewport(qx, qy, qr, liteMode);
     if (shared !== cached?.data && viewportCache.size < VIEWPORT_CACHE_MAX) viewportCache.set(cacheKey, { data: shared, expires: Date.now() + VIEWPORT_TTL_MS });
-    res.json(await viewFor(req.user.playerId, shared));
+    res.json({ ...(await viewFor(req.user.playerId, shared)), center: { x: centerX, y: centerY }, radius: r });
   } catch (e) { sendError(res, e); }
 });
 
@@ -173,14 +177,6 @@ async function loadViewport(centerX, centerY, r, liteMode) {
 }
 
 // Catalogues de jeu (statiques, très cacheables)
-router.get('/buildings', auth, (req, res) => {
-  res.set('Cache-Control', 'private, max-age=3600');
-  res.json(buildingsData);
-});
-router.get('/units', auth, (req, res) => {
-  res.set('Cache-Control', 'private, max-age=3600');
-  res.json(unitsData);
-});
 router.get('/technologies', auth, (req, res) => {
   res.set('Cache-Control', 'private, max-age=3600');
   res.json(technologiesData);

@@ -9,6 +9,7 @@ const DELETED_NAME = 'Joueur supprimé';
 
 async function deleteAccount(accountId) {
   const player = await prisma.player.findUnique({ where: { accountId }, select: { id: true } });
+  const guests = [];   // renforts renvoyés : prévenus après la suppression
   await prisma.$transaction(async (tx) => {
     if (player) {
       const pid = player.id;
@@ -37,10 +38,22 @@ async function deleteAccount(accountId) {
       await tx.$executeRaw`UPDATE "ResourceNode" n SET "hasPlayerArmy" = false, "lastArmyDeparture" = NOW() AT TIME ZONE 'UTC'
         FROM "Army" a WHERE a."ownerId" = ${pid} AND a.status IN ('HARVESTING', 'FOUNDING') AND a."targetResourceId" = n.id
           AND NOT EXISTS (SELECT 1 FROM "Army" o WHERE o."targetResourceId" = n.id AND o.status IN ('HARVESTING', 'FOUNDING') AND o."ownerId" <> ${pid})`;
+      // Renforts des autres joueurs postés dans ses villes : ils rentrent chez eux (sinon figés sur une ville disparue)
+      const cityNames = new Map((await tx.city.findMany({ where: { playerId: pid }, select: { id: true, name: true } })).map(c => [c.id, c.name]));
+      if (cityNames.size) {
+        const { sendArmyHomeTx } = require('./armyService');
+        const stationed = await tx.army.findMany({ where: { status: 'STATIONED', targetCityId: { in: [...cityNames.keys()] }, NOT: { ownerId: pid } }, include: { city: true, units: true, hero: { include: { items: true } }, owner: { include: { technologies: true } } } });
+        for (const a of stationed) {
+          await sendArmyHomeTx(tx, a);
+          guests.push({ id: a.id, name: a.name, ownerId: a.ownerId, cityName: cityNames.get(a.targetCityId) });
+        }
+      }
     }
     await tx.account.delete({ where: { id: accountId } });   // cascades to the player and everything it owns
   }, { timeout: 30000 });
   if (player) forgetPlayer(player.id);
+  const { notify } = require('./pushService');
+  for (const g of guests) notify(g.ownerId, 'alliance', '↩️ Renfort rappelé', `${g.name} quitte ${g.cityName} : la ville n'existe plus.`, { to: 'army', armyId: g.id });
 }
 
 module.exports = { deleteAccount };
