@@ -75,7 +75,7 @@ async function newWorld({ force = false } = {}) {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`TRUNCATE ${tables.map(t => `"${t}"`).join(', ')} CASCADE`);
     await tx.player.updateMany({ data: { population: 0, alliancePoints: 0, tutorialDone: false } });
-    await tx.$executeRawUnsafe(`DELETE FROM "ChatMessage" WHERE channel LIKE 'alliance:%'`).catch(() => {});
+    await tx.$executeRawUnsafe(`DELETE FROM "ChatMessage" WHERE channel = 'ALLIANCE'`);   // les alliances du monde fini n'existent plus
     // la carte du monde suivant est tirée au prochain démarrage (src/game/world.js), numérotée d'après le Panthéon
     await tx.worldConfig.deleteMany({});
   }, { timeout: 120000 });

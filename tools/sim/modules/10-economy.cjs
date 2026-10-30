@@ -6,6 +6,7 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const { buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const T = require(path.join(ROOT, 'src/utils/techEffects'));
+const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 
 const FIELDS = config.city.fieldSlots;   // { LUMBER: [101..], QUARRY: [...], IRON_MINE: [...], FARM: [...] }
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
@@ -26,10 +27,15 @@ function planFor(faction, capital) {
     ['TRADE_OFFICE', 5], [FACTION_BUILDING[faction], 12], ['MAIN_HALL', 20], ['FIELDS', 18], ['BARRACKS', 20], ['STABLE', 16], ['RALLY_POINT', 20], ['WAREHOUSE', 20], ['SILO', 20], ['ACADEMY', 20],
     ['GREAT_BARRACKS', 5], ['GREAT_STABLE', 5], ['WALL', 20], ['MOAT', 15], ['FIELDS', 20], ['MAIN_HALL', 25], ['TREASURE_CHAMBER', 15], [FACTION_BUILDING[faction], 20], ['MAIN_HALL', 30]
   ];
-  // une ville secondaire : pas de bâtiments réservés à la capitale, Bâtiment principal 20 au plus
-  return P.filter(([k]) => capital || k === 'FIELDS' || !['TREASURE_CHAMBER', 'GREAT_BARRACKS', 'GREAT_STABLE', 'HERO_MANSION'].includes(k) || k === 'MAIN_HALL')
+  // 19 emplacements autour du Bâtiment principal : chaque ville choisit ses bâtiments (la capitale garde le militaire,
+  // une colonie l'économie et les grandes casernes) ; réservés à la capitale / interdits dans la capitale (données)
+  const skip = capital ? CAPITAL_SKIP : COLONY_SKIP;
+  return P.filter(([k]) => k === 'FIELDS' || k === 'MAIN_HALL' || (!skip.has(k) && (capital ? !fx.notInCapital(k) : !fx.capitalOnly(k))))
     .map(([k, l]) => [k, !capital && k === 'MAIN_HALL' ? Math.min(l, config.city.secondaryMainHallMaxLevel || 20) : l]);
 }
+const CAPITAL_SKIP = new Set(['SAWMILL', 'STONEMASON', 'FOUNDRY', 'BAKERY', 'GREAT_WAREHOUSE', 'GREAT_SILO', 'TRADE_OFFICE', 'MOAT']);
+const COLONY_SKIP = new Set(['GREAT_WAREHOUSE', 'GREAT_SILO']);
+const freeRingSlots = (city) => { const used = new Set([...(city.buildings || []).map(b => b.slot), ...(city.buildQueue || []).map(q => q.slot)]); let n = 0; for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) n++; return n; };
 
 const levelOf = (city, key, slot = null) => { const q = (city.buildQueue || []).filter(x => x.buildingKey === key && (slot === null || x.slot === slot)); const b = (city.buildings || []).filter(x => x.key === key && (slot === null || x.slot === slot)); const top = Math.max(0, ...b.map(x => x.level)); return Math.max(top, ...q.map(x => x.targetLevel)); };
 const prereqOk = (city, key, capital) => (def(key)?.prereq || []).every(p => Math.max(levelOf(city, p.key), capital && p.key !== 'MAIN_HALL' ? levelOf(capital, p.key) : 0) >= p.level);
@@ -61,7 +67,7 @@ function nextBuild(bot, city) {
     const l = levelOf(city, key);
     if (l >= target || l >= (def(key).maxLevel || 20)) continue;
     if (key !== 'MAIN_HALL' && l + 1 > hall) continue;
-    if (l === 0 && !prereqOk(city, key, city.isCapital ? null : capital)) continue;
+    if (l === 0 && (!freeRingSlots(city) || !prereqOk(city, key, city.isCapital ? null : capital))) continue;
     const c = cost(key, l + 1);
     if (storageNeed(c)) { blockedByStorage ||= c; continue; }
     if (affordable(city, c)) return { buildingKey: key };

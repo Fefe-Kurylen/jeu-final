@@ -125,6 +125,12 @@ const prisma = require(path.join(ROOT, 'src/config/database'));
   });
 }
 require(path.join(ROOT, 'src/server.js'));
+// arrêt (Ctrl-C, fin de délai) : la simulation finit l'action en cours, enregistre son état et s'arrête ; le serveur
+// ne ferme pas ses connexions sous ses pieds (sinon des « erreurs » d'appels fausseraient le rapport)
+let STOP = false;
+process.removeAllListeners('SIGTERM'); process.removeAllListeners('SIGINT');
+const onStop = (sig) => { if (STOP) process.exit(1); STOP = true; origConsole.log(`[sim] ${sig} : arrêt après l'action en cours…`); setTimeout(() => process.exit(1), 60000).unref(); };
+process.on('SIGTERM', () => onStop('SIGTERM')); process.on('SIGINT', () => onStop('SIGINT'));
 const { runTickSteps } = require(path.join(ROOT, 'src/game/tick.js'));
 const BASE = `http://127.0.0.1:${OPT.port}`;
 const gamedata = require(path.join(ROOT, 'src/config/gamedata'));
@@ -157,6 +163,7 @@ async function http(method, p, token, body) {
   return { ok: res.ok, status: res.status, data };
 }
 function record(method, p, r, who) {
+  if (STOP) return;
   const k = routeKey(method, p);
   CALLS.total++;
   const s = (CALLS.byRoute[k] ||= {});
@@ -286,13 +293,14 @@ async function main() {
   const startMs = STATE?.startMs ?? OPT.start;
   let lastDay = -1, ran = 0;
   const t0 = RealDate.now();
-  while (step < totalSteps && ran < OPT.maxSteps) {
+  while (step < totalSteps && ran < OPT.maxSteps && !STOP) {
     step++; ran++;
     clock.set(startMs + step * stepMs);
     const tickMs = await tick(OPT.stepHours);
     ctx.step = step;
     // chaque joueur se connecte un pas sur deux (environ 2 connexions par jour avec des pas de 6 h), décalés
     for (const b of bots) {
+      if (STOP) break;
       if ((step + b.turn) % 2 !== 0 && !b.mem.alwaysOn) continue;
       try { await b.refresh(); } catch (e) { console.error(`[SIM] refresh ${b.name}:`, e); continue; }
       for (const m of MODULES) {
