@@ -5,15 +5,17 @@
 // ============================================================
 // ========== ARMIES ==========
 // ========== ARMY MANAGEMENT SYSTEM ==========
-// Max armées selon la Place de rassemblement, comme le serveur : 1 au niv. 1, +1 tous les 5 niveaux, 5 au niv. 20
+// Max armées de chaque ville selon la Place de rassemblement, comme le serveur : 1 au niv. 1, +1 tous les 5 niveaux, 5 au
+// niv. 20. Elle est réservée à la capitale (décision du 30 octobre 2026) : son niveau vaut pour toutes les villes
 const ARMY_SLOTS = [1, 2, 3, 4, 5];
 function maxArmiesAtRallyLevel(level) {
   if (level <= 0) return 0;   // pas de Place de rassemblement = pas d'armée
   const pts = window.buildingsData?.find(b => b.key === 'RALLY_POINT')?.effects?.maxArmies || { l1: 1, l20: 5 };
   return Math.min(pts.l20 || 5, (pts.l1 || 1) + Math.floor(level / 5));
 }
+const rallyPointLevel = () => effectBuildings(currentCity).reduce((m, b) => (b.key === 'RALLY_POINT' && b.level > m ? b.level : m), 0);
 function getMaxArmies() {
-  return maxArmiesAtRallyLevel(currentCity?.buildings?.find(b => b.key === 'RALLY_POINT')?.level || 0);
+  return maxArmiesAtRallyLevel(rallyPointLevel());
 }
 
 function renderArmies() {
@@ -32,9 +34,8 @@ function renderArmies() {
   const cityGarrison = armies.find(a => a.cityId === currentCity?.id && a.isGarrison);
   const heroCityName = (cities || []).find(c => c.id === heroData?.cityId)?.name;
 
-  // Rally Point info
-  const rallyPoint = currentCity?.buildings?.find(b => b.key === 'RALLY_POINT');
-  const rallyLevel = rallyPoint?.level || 0;
+  // Rally Point info (celle de la capitale)
+  const rallyLevel = rallyPointLevel();
 
   // Total garrison count
   const totalGarrison = garrisonUnits.reduce((sum, u) => sum + u.count, 0);
@@ -188,7 +189,7 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'ATTACKING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: army.missionType === 'BREAK_SIEGE' ? 'Sortie' : 'Attaque', cls: 'attacking' },
     'BESIEGING': { icon: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', label: 'Siège', cls: 'attacking' },
     'RETURNING': { icon: '<img class="ico" src="assets/images/3d/ui/home.webp" alt="">', label: 'Retour', cls: 'returning' },
-    'RAIDING': { icon: '<img class="ico" src="assets/images/3d/ui/gold.webp" alt="">', label: 'Pillage', cls: 'raiding' },
+    'RAIDING': { icon: '<img class="ico" src="assets/images/3d/ui/bolt.webp" alt="">', label: 'Raid', cls: 'raiding' },
     'SPYING': { icon: '<img class="ico" src="assets/images/3d/ui/spy.webp" alt="">', label: 'Espionnage', cls: 'moving' },
     'TRANSPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/item_crate.webp" alt="">', label: 'Transport', cls: 'moving' },
     'EXPEDITION': { icon: '<img class="ico" src="assets/images/3d/ui/expedition.webp" alt="">', label: 'Expédition', cls: 'moving' },
@@ -333,8 +334,8 @@ function showArmyActionsMenu(armyId) {
           <span class="action-label">Attaquer</span>
         </button>
         <button class="action-card ${!canMove ? 'disabled' : ''}" ${canMove ? `onclick="closeModal(); showArmyMissionModal('${armyId}', 'RAID')"` : 'disabled'}>
-          <span class="action-icon"><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""></span>
-          <span class="action-label">Piller</span>
+          <span class="action-icon"><img class="ico" src="assets/images/3d/ui/bolt.webp" alt=""></span>
+          <span class="action-label">Raid</span>
         </button>
         <button class="action-card danger" onclick="closeModal(); confirmDisbandArmy('${armyId}')">
           <span class="action-icon">${resIconHtml('skull')}</span>
@@ -916,16 +917,18 @@ async function moveArmy(armyId) {
   }
 }
 
-// Attaque ou pillage d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer)
+// Attaque ou raid d'une ville par ses coordonnées, pour n'importe quelle armée à l'arrêt (même envoi que l'onglet Envoyer).
+// Le raid est un harcèlement, pas un revenu (rapport économie, recommandation 11) : petit butin, une fois par jour par ville
 function showArmyMissionModal(armyId, mission) {
   const raid = mission === 'RAID';
   document.getElementById('modal-body').innerHTML = `
-    <h3>${raid ? 'Piller une ville' : 'Attaquer une ville'}</h3>
-    <p style="margin-bottom:10px;color:var(--text-muted)">${raid ? 'Volez des ressources à l\'ennemi ! ' : ''}Coordonnées de la ville cible</p>
+    <h3>${raid ? 'Raid sur une ville' : 'Attaquer une ville'}</h3>
+    ${raid ? '<p class="diplo-help">Un raid harcèle l\'ennemi : un combat court qui use ses troupes. Le butin reste petit (une part de ce que vos soldats portent, hors cachette) et une même ville ne subit qu\'un raid par jour : ce n\'est pas une source de revenus.</p>' : ''}
+    <p style="margin-bottom:10px;color:var(--text-muted)">Coordonnées de la ville cible</p>
     <input type="number" id="mission-x" placeholder="X" style="width:48%;display:inline-block">
     <input type="number" id="mission-y" placeholder="Y" style="width:48%;display:inline-block">
     ${raid
-      ? `<button onclick="sendArmyMission('${armyId}', 'RAID')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Piller !</button>`
+      ? `<button onclick="sendArmyMission('${armyId}', 'RAID')" class="btn" style="background:linear-gradient(180deg,orange,#c70)">Lancer le raid</button>`
       : `<button onclick="sendArmyMission('${armyId}', 'ATTACK')" class="btn btn-danger">Attaquer !</button>`}
   `;
   document.getElementById('modal').style.display = 'flex';
