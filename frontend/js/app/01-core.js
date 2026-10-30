@@ -136,6 +136,28 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ---- Stock partagé entre les villes (décision du 30 octobre 2026) ----
+// Constructions, recrutements, recherche, héros, soins et fondation puisent dans toutes les villes du joueur : boutons et
+// couleurs des prix se basent sur leur total, que le serveur renvoie avec chaque ville (playerStock, GET /api/cities).
+// Le marché, les transports, l'entretien et le pillage restent ceux de la ville.
+const RES_KEYS = ['wood', 'stone', 'iron', 'food'];
+const playerStock = () => currentCity?.playerStock || {};
+const stockOf = (res) => playerStock()[res] || 0;
+const canPayCost = (cost) => !!cost && RES_KEYS.every(r => stockOf(r) >= (cost[r] || 0));
+// Entretien d'une unité (céréales par heure) : le réglage du serveur (config.army.upkeepPerTier, /api/player/me)
+function unitUpkeep(unit) {
+  const perTier = player?.economy?.upkeepPerTier || {};
+  return perTier[unit?.tier] ?? perTier.base ?? 0;
+}
+// Bâtiments d'une ville pour le calcul de ses effets : ceux réservés à la capitale (Académie, Irrigation…) sont lus dans la
+// capitale, comme fx.withCapital du serveur (décision du 30 octobre 2026)
+function effectBuildings(city = currentCity) {
+  const capital = (cities || []).find(c => c.isCapital);
+  if (!city || city.isCapital || !capital) return city?.buildings || [];
+  const capitalOnly = (key) => !!window.buildingsData?.find(b => b.key === key)?.effects?.capitalOnly;
+  return (city.buildings || []).filter(b => !capitalOnly(b.key)).concat((capital.buildings || []).filter(b => capitalOnly(b.key)));
+}
+
 // Production horaire d'une ville par ressource, comme resourceProcessor : base 5/5/5/10 + champs × bâtiments bonus, puis
 // un multiplicateur commun aux quatre ressources (colonie, Plus, Irrigation égyptienne, Agronomie, Bastion d'alliance).
 // Le bilan de nourriture du serveur (foodBalance.production, arrondi à l'unité) porte ce multiplicateur complet : le
@@ -162,12 +184,12 @@ function getCityProduction(city) {
   return { wood: base.wood * mult, stone: base.stone * mult, iron: base.iron * mult, food: serverFood > 0 ? serverFood : base.food * mult };
 }
 // Multiplicateur de production connu du client : ville secondaire (+20 %, Résidence), Plus (+5 %), Irrigation égyptienne
-// (+1 %/niveau, 50 % au plus), Agronomie (technologies du joueur)
+// de la capitale (+1 %/niveau, 50 % au plus, pour toutes les villes), Agronomie (technologies du joueur)
 function cityProductionMultiplier(city) {
   const effect = (key, name, fallback) => Number(window.buildingsData?.find(b => b.key === key)?.effects?.[name]) || fallback;
   const colony = city && city.isCapital === false ? 1 + effect('RESIDENCE', 'secondaryCityBonusPct', 20) / 100 : 1;
   const plus = player?.premiumUntil && new Date(player.premiumUntil).getTime() > serverNow() ? 1.05 : 1;
-  const irrigation = (city?.buildings || []).reduce((s, b) => s + (b.key === 'EGYPTIAN_IRRIGATION' ? b.level : 0), 0) * effect('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel', 1);
+  const irrigation = effectBuildings(city).reduce((s, b) => s + (b.key === 'EGYPTIAN_IRRIGATION' ? b.level : 0), 0) * effect('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel', 1);
   const tech = typeof techPctClient === 'function' ? techPctClient('productionBonusPct') : 0;
   return colony * plus * (1 + Math.min(50, irrigation) / 100) * (1 + tech / 100);
 }
@@ -822,6 +844,7 @@ function renderCity() {
   if (clayBar) clayBar.style.width = `${stonePct}%`;
   if (ironBar) ironBar.style.width = `${ironPct}%`;
   if (foodBar) foodBar.style.width = `${foodPct}%`;
+  updateStockTotals(maxRes, maxFood);
 
   // Production: base 5/5/5/10 + fields, boosted by the bonus buildings (+5%/level) and the shared multipliers, like the server
   const prod = getCityProduction(currentCity);
@@ -833,17 +856,7 @@ function renderCity() {
   const cityArmies = armies.filter(a => a.cityId === currentCity.id);
   if (fb) foodConsumption = fb.consumption;
   else for (const army of cityArmies) {
-    if (army.units) {
-      for (const unit of army.units) {
-        const unitDef = unitsData.find(u => u.key === unit.unitKey);
-        // Upkeep par tier (must match backend config.army.upkeepPerTier)
-        // GDD economy_config.json upkeep values
-        const upkeep = unitDef?.tier === 'base' ? 5 :
-                       unitDef?.tier === 'intermediate' ? 10 :
-                       unitDef?.tier === 'elite' ? 15 : 15;
-        foodConsumption += unit.count * upkeep;
-      }
-    }
+    for (const unit of army.units || []) foodConsumption += unit.count * unitUpkeep(unitsData.find(u => u.key === unit.unitKey));
   }
   
   // Net food production (bilan du serveur quand il est là)
@@ -1194,6 +1207,29 @@ function fieldSiteUrl(type) { return paintedUrl(`fields/${cityBiome()}/${type}_s
 function buildingIconHtml(key, cls = 'b-ico') { return `<img class="${cls}" src="${buildingSpriteUrl(key)}" alt="">`; }
 // Icône 3D d'une ressource / d'une action (assets/images/3d/ui) pour les panneaux générés en HTML
 function resIconHtml(key, cls = 'ico') { return `<img class="${cls}" src="${art(`ui/${key}.webp`)}" alt="">`; }
+
+// Barre de ressources : le stock et le plafond de la ville restent affichés ; l'info-bulle et une petite ligne « Σ » donnent
+// le total de toutes les villes, dans lequel puisent constructions, recrutements, recherche, soins et héros
+const RES_LABELS = { wood: 'Bois', stone: 'Pierre', iron: 'Fer', food: 'Nourriture' };
+function updateStockTotals(maxRes, maxFood) {
+  const total = playerStock(), several = (cities || []).length > 1;
+  for (const r of RES_KEYS) {
+    const box = document.getElementById(`res-${r}`)?.closest('.resource-box');
+    if (!box) continue;
+    const cap = r === 'food' ? maxFood : maxRes, totalCap = r === 'food' ? total.maxFoodStorage : total.maxStorage;
+    box.title = `${RES_LABELS[r]} : ${formatNum(currentCity[r] || 0)} / ${formatNum(cap)} dans cette ville`
+      + (several ? `\nToutes vos villes : ${formatNum(total[r] || 0)} / ${formatNum(totalCap || 0)} (constructions, recrutements, recherche, soins et héros y puisent ; marché, transports et pillage restent ceux de la ville)` : '');
+    let line = box.querySelector('.res-total');
+    if (!several) { if (line) line.remove(); continue; }
+    if (!line) {
+      line = document.createElement('span');
+      line.className = 'res-total';
+      line.style.cssText = 'margin-left:4px;opacity:.75';
+      box.querySelector('.res-sub')?.appendChild(line);
+    }
+    line.textContent = `Σ ${formatNum(total[r] || 0)}`;
+  }
+}
 
 // Bandeau de famine (décision du 28 octobre 2026) : grenier vide dans moins de 6 h, ou vide (les troupes meurent de faim)
 function updateFamineBanner(hoursToEmpty, netFood) {

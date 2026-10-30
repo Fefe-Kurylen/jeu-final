@@ -198,6 +198,7 @@ function cityTooltipHtml(slotNum) {
       <p class="tt-level">Niveau ${building.level}/${ttEffectiveMax}</p>
       ${production > 0 ? `<p class="tt-production">+${formatNum(production)} par heure</p>` : ''}
       ${effect ? `<div class="tt-stats"><span class="tt-stat">${effect}</span></div>` : ''}
+      ${def?.effects?.capitalOnly ? '<p class="tt-hint">Bâtiment de la capitale : son bonus vaut pour toutes vos villes</p>' : ''}
       <p class="tt-hint">${building.level < ttEffectiveMax ? 'Cliquez pour améliorer' : building.level >= maxLevel ? 'Niveau maximum atteint' : `Limité par Bât. principal (Niv.${ttMainHallLevel})`}</p>
     `;
   }
@@ -216,23 +217,22 @@ function cityTooltipHtml(slotNum) {
   `;
 }
 
-// Helper pour obtenir l'effet d'un bâtiment (39 bâtiments)
+// Helper pour obtenir l'effet d'un bâtiment (38 bâtiments)
 function getBuildingEffect(key, level) {
   const curve = (l1, l20) => (level <= 0 ? 0 : level >= 20 ? l20 : Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19)));
   const effects = {
     // Construction and training
     'MAIN_HALL': `Construction: -${Math.min(60, level * 2.5).toFixed(1)}% de temps${level * 2.5 >= 60 ? ' (plafond 60 %)' : ''}`,
     'ACADEMY': `Construction: -${(level * 1).toFixed(0)}% de temps`,
-    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps (colons : à venir)`,
+    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps · colons aux niv. 10, 15 et 20`,
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     'GREAT_BARRACKS': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
     // Defence
-    'FORGE': `Défense de la ville: +${(level * 0.5).toFixed(1)}%`,
+    'FORGE': `Défense de toutes vos villes: +${(level * 0.5).toFixed(1)}%`,
     'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (1 + factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) / 100)))} PV${factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'wallHealth', 25)} % de bonus de civilisation)` : ''} · seuls les engins l'abîment`,
-    'MOAT': `Défenseurs: +${(level * 0.5).toFixed(1)}% attaque et défense`,
     // la cachette seule protège du pillage (Gaule : +15 %, 20 % au plus) ; Grand silo et Grand dépôt : du stockage
     'HIDEOUT': `Ressources à l'abri des pillages: ${+Math.min(20, level * (1 + factionBonusPct(player?.faction, 'hideoutCapacity', player?.faction === 'GAUL' ? 15 : 0) / 100)).toFixed(1)}%`,
     'GREAT_SILO': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_SILO'))} (3 × un silo)`,
@@ -256,14 +256,14 @@ function getBuildingEffect(key, level) {
     'FOUNDRY': `Fer: +${level * 5}%`,
     'TREASURE_CHAMBER': `Or: ${curve(10, 200)} par jour`,
     // Military and social
-    'RALLY_POINT': `Armées en campagne: ${level <= 0 ? 0 : Math.min(5, 1 + Math.floor(level / 5))}`,
+    'RALLY_POINT': `Armées en campagne par ville: ${level <= 0 ? 0 : Math.min(5, 1 + Math.floor(level / 5))}`,
     'EMBASSY': `Alliance: rejoindre dès le niv. 5, fonder dès le niv. 7`,
     'HERO_MANSION': 'Accès au héros depuis la ville (pas de bonus par niveau)',
     // Faction buildings
     'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% de temps · blessés +${(level * 0.5).toFixed(1)}%`,
-    'GALLIC_BREWERY': `Défense de la ville: +${level}%`,
+    'GALLIC_BREWERY': `Défense de toutes vos villes: +${level}%`,
     'GREEK_TEMPLE': `Blessés au lieu de morts: +${(level * 0.5).toFixed(1)}%`,
-    'EGYPTIAN_IRRIGATION': `Production: +${level}% · marche des armées: +${+(level * 0.5).toFixed(1)}%`,
+    'EGYPTIAN_IRRIGATION': `Production de toutes vos villes: +${level}% · marche des armées: +${+(level * 0.5).toFixed(1)}%`,
     'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}% · blessés +${(level * 0.5).toFixed(1)}%`,
     'SULTAN_DESERT_OUTPOST': `Entretien: -${(level * 0.5).toFixed(1)}% · transport: +${level}%`
   };

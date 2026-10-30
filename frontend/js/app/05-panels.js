@@ -63,11 +63,7 @@ function openBuildPanel(slotNum) {
 
     const bonus = getBuildingBonus(key, level);
 
-    const hasResources = currentCity &&
-      currentCity.wood >= nextCost.wood &&
-      currentCity.stone >= nextCost.stone &&
-      currentCity.iron >= nextCost.iron &&
-      currentCity.food >= nextCost.food;
+    const hasResources = canPayCost(nextCost);   // stock de toutes les villes
 
     // Determine special tabs based on building type
     const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
@@ -113,25 +109,25 @@ function openBuildPanel(slotNum) {
             <div class="upgrade-costs">
               <h4>Coût d'amélioration</h4>
               <div class="cost-grid">
-                <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
+                <div class="cost-item ${stockOf('wood') >= nextCost.wood ? 'available' : 'missing'}">
                   <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.wood)}</span>
-                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (stockOf('wood') / nextCost.wood) * 100)}%"></div></div>
                 </div>
-                <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
+                <div class="cost-item ${stockOf('stone') >= nextCost.stone ? 'available' : 'missing'}">
                   <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.stone)}</span>
-                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (stockOf('stone') / nextCost.stone) * 100)}%"></div></div>
                 </div>
-                <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
+                <div class="cost-item ${stockOf('iron') >= nextCost.iron ? 'available' : 'missing'}">
                   <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.iron)}</span>
-                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (stockOf('iron') / nextCost.iron) * 100)}%"></div></div>
                 </div>
-                <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
+                <div class="cost-item ${stockOf('food') >= nextCost.food ? 'available' : 'missing'}">
                   <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
                   <span class="cost-value">${formatNum(nextCost.food)}</span>
-                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
+                  <div class="cost-bar"><div class="cost-bar-fill" style="width:${Math.min(100, (stockOf('food') / nextCost.food) * 100)}%"></div></div>
                 </div>
               </div>
             </div>
@@ -231,11 +227,8 @@ function openBuildPanel(slotNum) {
                 if (b.effects?.capitalOnly && currentCity && !currentCity.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé à la capitale'; }
                 if (b.effects?.notInCapital && currentCity?.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé aux villes secondaires'; }
                 const hasPrereqs = prereqStatus.met;
-                const hasResources = currentCity &&
-                  currentCity.wood >= (b.costL1?.wood || 0) &&
-                  currentCity.stone >= (b.costL1?.stone || 0) &&
-                  currentCity.iron >= (b.costL1?.iron || 0) &&
-                  currentCity.food >= (b.costL1?.food || 0);
+                const cost1 = getBuildCost(b, 1);   // prix du niveau 1 (Ingénierie comprise), sur le stock de toutes les villes
+                const hasResources = canPayCost(cost1);
                 const canBuild = hasPrereqs && hasResources;
                 const alreadyBuilt = currentCity?.buildings?.some(existing => existing.key === b.key);
                 const isUnique = b.maxPerCity === 1 || !b.maxPerCity;
@@ -256,12 +249,9 @@ function openBuildPanel(slotNum) {
                         <p class="build-option-desc">${getBuildingShortDescription(b.key)}</p>
                       `}
                       <div class="build-option-costs ${!hasPrereqs ? 'dimmed' : ''}">
-                        <span class="${currentCity?.wood >= (b.costL1?.wood || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${formatNum(b.costL1?.wood || 0)}</span>
-                        <span class="${currentCity?.stone >= (b.costL1?.stone || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt="">${formatNum(b.costL1?.stone || 0)}</span>
-                        <span class="${currentCity?.iron >= (b.costL1?.iron || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${formatNum(b.costL1?.iron || 0)}</span>
-                        <span class="${currentCity?.food >= (b.costL1?.food || 0) ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt="">${formatNum(b.costL1?.food || 0)}</span>
+                        ${RES_KEYS.map(r => `<span class="${stockOf(r) >= cost1[r] ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/${r}.webp" alt="">${formatNum(cost1[r])}</span>`).join('')}
                       </div>
-                      <div class="build-option-time"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(b.timeL1Sec || 60)}</div>
+                      <div class="build-option-time"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(getBuildTime(b, 1))}</div>
                     </div>
                     <div class="build-option-action">
                       ${infoBtnHtml('building', b.key)}
@@ -283,27 +273,31 @@ function openBuildPanel(slotNum) {
   panel.classList.add('slide-in');
 }
 
-// Helper: Format duration in seconds to readable string
-// Same formulas as the server (routes/cities.js): cost × 1.28^(L-1), time × 1.2^(L-1), faction bonus (GREEK)
+// Coût et durée d'un niveau, mêmes formules que le serveur (utils/calculations.js buildCostFor / buildSecondsFor, décision
+// du 30 octobre 2026 : les champs coûtent ×1,45 par niveau, le reste ×1,28 ; champs et Bâtiment principal ×1,30 de temps,
+// le reste ×1,2), avec les réglages du serveur (player.economy.build, /api/player/me)
 function getBuildCost(def, targetLevel) {
-  const mult = Math.pow(1.28, targetLevel - 1);
+  const B = player?.economy?.build || {};
+  const mult = Math.pow((B.fieldCostKeys || []).includes(def?.key) ? B.fieldCostMultiplier : B.costMultiplierBase, Math.max(0, targetLevel - 1));
   const base = def?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
-  const raw = { wood: Math.floor(base.wood * mult), stone: Math.floor(base.stone * mult), iron: Math.floor(base.iron * mult), food: Math.floor(base.food * mult) };
+  const raw = Object.fromEntries(RES_KEYS.map(r => [r, Math.floor((base[r] || 0) * mult)]));
   // Ingénierie (technologie) : −1 % par niveau, appliqué après l'arrondi comme sur le serveur
   const techMult = typeof techPctClient === 'function' ? Math.max(0, 1 - techPctClient('buildCostReductionPct') / 100) : 1;
   return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, Math.floor(v * techMult)]));
 }
-// Construction time reduction of the current city (Main Hall 2.5 %/level, Academy 1 %, Residence 0.25 %, max 60 %), from the data
+// Construction time reduction of the current city (its Main Hall 2.5 %/level, Academy 1 % and Residence 0.25 % of the
+// capital, max 60 %), from the data
 function getCityBuildTimeReductionPct() {
   let total = 0;
-  for (const b of (currentCity?.buildings || [])) {
+  for (const b of effectBuildings(currentCity)) {
     const pct = window.buildingsData?.find(d => d.key === b.key)?.effects?.buildTimeReductionPctPerLevel;
     if (pct) total += b.level * pct;
   }
   return Math.min(60, total);
 }
 function getBuildTime(def, targetLevel) {
-  let t = Math.floor((def?.timeL1Sec || 60) * Math.pow(1.2, targetLevel - 1));
+  const B = player?.economy?.build || {};
+  let t = Math.floor((def?.timeL1Sec || 60) * Math.pow((B.slowTimeKeys || []).includes(def?.key) ? B.slowTimeMultiplier : B.timeMultiplierBase, Math.max(0, targetLevel - 1)));
   const factionPct = factionBonusPct(player?.faction, 'buildTimeReduction', player?.faction === 'GREEK' ? 15 : 0);   // Grèce : 15 % (factions.json), comme le serveur
   if (factionPct > 0) t = Math.floor(t * (1 - factionPct / 100));
   t = Math.floor(t * (1 - getCityBuildTimeReductionPct() / 100));
@@ -558,12 +552,12 @@ function openFieldBuildPanel(slotNum) {
   const time = getBuildTime(def, targetLevel);
   const mainHallLevel = Math.max(1, ...(currentCity?.buildings || []).filter(b => b.key === 'MAIN_HALL').map(b => b.level));
   const queueFull = isBuildQueueFull();
-  const canAfford = currentCity && currentCity.wood >= cost.wood && currentCity.stone >= cost.stone && currentCity.iron >= cost.iron && currentCity.food >= cost.food;
+  const canAfford = canPayCost(cost);
   const costHtml = `<div class="upgrade-cost">
-            <span class="${currentCity?.wood >= cost.wood ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(cost.wood)}</span>
-            <span class="${currentCity?.stone >= cost.stone ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(cost.stone)}</span>
-            <span class="${currentCity?.iron >= cost.iron ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(cost.iron)}</span>
-            <span class="${currentCity?.food >= cost.food ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(cost.food)}</span>
+            <span class="${stockOf('wood') >= cost.wood ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(cost.wood)}</span>
+            <span class="${stockOf('stone') >= cost.stone ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(cost.stone)}</span>
+            <span class="${stockOf('iron') >= cost.iron ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(cost.iron)}</span>
+            <span class="${stockOf('food') >= cost.food ? '' : 'missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(cost.food)}</span>
           </div>
           <p style="font-size:12px;color:#888"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
   const buttonLabel = queueFull ? `${resIconHtml('clock')} File pleine` : targetLevel > mainHallLevel ? `${resIconHtml('lock')} Bât. principal Niv.${targetLevel} requis` : !canAfford ? 'Ressources insuffisantes' : null;
@@ -675,11 +669,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     const tierColor = TIER_COLORS[u.tier] || '#aaa';
     // Use per-unit GDD costs from units data (class-specific + tier multiplier)
     const unitCost = u.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
-    const canAfford = currentCity &&
-      currentCity.wood >= unitCost.wood &&
-      currentCity.stone >= unitCost.stone &&
-      currentCity.iron >= unitCost.iron &&
-      currentCity.food >= unitCost.food;
+    const canAfford = canPayCost(unitCost);
 
     return `
       <div class="unit-recruit-card">
@@ -802,13 +792,10 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   // Training time from GDD data
   const baseTime = unit.recruitTimeSec || 360;
 
-  // Upkeep (GDD economy_config.json values)
-  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15;
-  
-  const wood = currentCity?.wood || 0;
-  const stone = currentCity?.stone || 0;
-  const iron = currentCity?.iron || 0;
-  const food = currentCity?.food || 0;
+  const foodUpkeep = unitUpkeep(unit);
+
+  // stock de toutes les villes : le recrutement y puise
+  const wood = stockOf('wood'), stone = stockOf('stone'), iron = stockOf('iron'), food = stockOf('food');
   
   const getResourceClass = (needed, available) => needed <= available ? 'res-available' : 'res-missing';
   const canAffordOne = wood >= unitCost.wood && stone >= unitCost.stone && iron >= unitCost.iron && food >= unitCost.food;
@@ -999,11 +986,7 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   const nextCost = getBuildCost(def, level + inQueue + 1);
   const buildTime = getBuildTime(def, level + inQueue + 1);
   
-  const hasResources = currentCity && 
-    currentCity.wood >= nextCost.wood &&
-    currentCity.stone >= nextCost.stone &&
-    currentCity.iron >= nextCost.iron &&
-    currentCity.food >= nextCost.food;
+  const hasResources = canPayCost(nextCost);   // stock de toutes les villes
   
   title.innerHTML = `${buildingIconHtml(buildingKey)} ${getBuildingName(buildingKey)} - Amélioration`;
   
@@ -1042,25 +1025,25 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
         <div class="upgrade-section">
           <h4>${resIconHtml('build')} Améliorer au niveau ${nextLevel}</h4>
           <div class="cost-grid">
-            <div class="cost-item ${currentCity?.wood >= nextCost.wood ? 'available' : 'missing'}">
+            <div class="cost-item ${stockOf('wood') >= nextCost.wood ? 'available' : 'missing'}">
               <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.wood)}</span>
-              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.wood / nextCost.wood) * 100)}%"></div></div>
+              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (stockOf('wood') / nextCost.wood) * 100)}%"></div></div>
             </div>
-            <div class="cost-item ${currentCity?.stone >= nextCost.stone ? 'available' : 'missing'}">
+            <div class="cost-item ${stockOf('stone') >= nextCost.stone ? 'available' : 'missing'}">
               <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.stone)}</span>
-              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.stone / nextCost.stone) * 100)}%"></div></div>
+              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (stockOf('stone') / nextCost.stone) * 100)}%"></div></div>
             </div>
-            <div class="cost-item ${currentCity?.iron >= nextCost.iron ? 'available' : 'missing'}">
+            <div class="cost-item ${stockOf('iron') >= nextCost.iron ? 'available' : 'missing'}">
               <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.iron)}</span>
-              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.iron / nextCost.iron) * 100)}%"></div></div>
+              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (stockOf('iron') / nextCost.iron) * 100)}%"></div></div>
             </div>
-            <div class="cost-item ${currentCity?.food >= nextCost.food ? 'available' : 'missing'}">
+            <div class="cost-item ${stockOf('food') >= nextCost.food ? 'available' : 'missing'}">
               <span class="cost-icon"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span>
               <span class="cost-value">${formatNum(nextCost.food)}</span>
-              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (currentCity?.food / nextCost.food) * 100)}%"></div></div>
+              <div class="cost-bar"><div class="cost-bar-fill" style="width: ${Math.min(100, (stockOf('food') / nextCost.food) * 100)}%"></div></div>
             </div>
           </div>
           <div class="upgrade-footer">
@@ -1170,7 +1153,6 @@ function getBuildingDescription(key) {
     HEALING_TENT: 'Soigne les blessés',
     RALLY_POINT: 'Rassemblement des armées',
     HIDEOUT: 'Cache des ressources',
-    MOAT: 'Douves défensives',
     FARM: 'Produit de la nourriture',
     LUMBER: 'Produit du bois',
     QUARRY: 'Produit de la pierre',

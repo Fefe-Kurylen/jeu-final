@@ -275,7 +275,7 @@ function isoBuildingAnchor(ix, iy) { return ISO_BUILDINGS_FACE_SE ? [iy, ix] : [
 // gauche, les drapeaux et la fumée animés suivent
 const ISO_WIND = ISO_BUILDINGS_FACE_SE ? -1 : 1;
 // Surélévation de l'esplanade des bâtiments au palier 3 (tools/render3d/50-buildings.js, sauf NO_KIT)
-const ISO_T3_LIFT = 0.08, ISO_NO_KIT = ['WALL', 'MOAT', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT'];
+const ISO_T3_LIFT = 0.08, ISO_NO_KIT = ['WALL', 'EGYPTIAN_IRRIGATION', 'RALLY_POINT', 'HIDEOUT'];
 function isoFlagAt(x, y, w, ix, iy, iz, h, kind) { const p = spritePointToScreen(x, y, w, ix, iy, iz); return { x: p.x, y: p.y, hpx: h * w * (30.6 / 130) / FLAG_POLE_PX, kind, seed: Math.abs(Math.round(x + y)) }; }
 function wallSpriteUrl(name, tier) { return art(`walls/${player?.faction || 'ROME'}/${tier}_${name}${cityBiome() === 'snow' ? '_snow' : ''}.webp`); }
 function isoWallItems(ctx, cx, cy, W, night) {
@@ -589,7 +589,7 @@ function spritePointToScreen(x, y, w, ix, iy, iz) {
 // Sommets des cheminées des modèles 3D (ix, iy, iz) : la fumée part de là
 // (repère des modèles, voir isoBuildingAnchor ; hauteur = haut du chapeau de cheminée, mesurée sur les rendus)
 const ISO_CHIMNEYS = { WORKSHOP: [[-0.5, -0.3, 1.81]], FORGE: [[0.2, -0.3, 1.86]], BAKERY: [[0.3, -0.4, 1.81]], FOUNDRY: [[-0.4, -0.4, 2.11], [0.2, -0.4, 1.96]], GALLIC_BREWERY: [[0.2, -0.4, 1.66]] };
-const ISO_WATER = { MOAT: [0, 0, 0.02, 0.9], ROMAN_THERMAE: [0, 0.5, 0.035, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
+const ISO_WATER = { ROMAN_THERMAE: [0, 0.5, 0.035, 0.5], EGYPTIAN_IRRIGATION: [0, 0, 0.03, 0.8] };   // ix, iy, iz, rayon (cellules)
 const isoAnim = { smoke: [], birds: null, nextBirds: 0, last: 0 };
 function isoAnimate(ctx, built, W, night, flags = [], view = null) {
   const now = performance.now() / 1000;
