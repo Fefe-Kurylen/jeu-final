@@ -37,10 +37,8 @@ async function p2pTaxPct(db, cityId) {
 const afterTax = (amount, pct) => Math.floor(amount * (1 - pct / 100));
 
 // Capacité d'une armée pour le commerce : mêmes bonus qu'un convoi (civilisation, Marché et Comptoir de la ville,
-// Avant-poste du désert de la capitale, Bastion). `city` : la ville de l'armée (id, playerId, isCapital)
-async function tradeCapacity(db, army, city, faction, playerId) {
-  const own = city.buildings || await db.cityBuilding.findMany({ where: { cityId: city.id }, select: { key: true, level: true } });
-  const buildings = await buildingsWithCapital(db, { ...city, playerId, buildings: own });
+// Avant-poste du désert de la capitale, Bastion). `buildings` : ceux de la ville, avec ceux de la capitale (buildingsWithCapital)
+async function tradeCapacity(army, buildings, faction, playerId) {
   const mult = (1 + getFactionBonus(faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(playerId));
   return Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);
 }
@@ -50,8 +48,10 @@ async function pickTransportArmy(db, city, playerId, faction, amount, armyId = n
   const where = { cityId: city.id, ownerId: playerId, status: 'IDLE', isGarrison: false, x: city.x, y: city.y, ...(armyId ? { id: armyId } : {}) };
   const armies = (await db.army.findMany({ where, include: { units: true, hero: { include: { items: true } } } })).filter(a => a.units.some(u => u.count > 0));
   if (!armies.length) return { error: armyId ? 'Cette armée n\'est pas libre en ville' : 'Aucune armée libre en ville pour transporter (formez-en une au point de ralliement)' };
+  const own = city.buildings || await db.cityBuilding.findMany({ where: { cityId: city.id }, select: { key: true, level: true } });
+  const buildings = await buildingsWithCapital(db, { ...city, playerId, buildings: own });
   const sized = [];
-  for (const a of armies) sized.push({ army: a, capacity: await tradeCapacity(db, a, city, faction, playerId) });
+  for (const a of armies) sized.push({ army: a, capacity: await tradeCapacity(a, buildings, faction, playerId) });
   const fit = sized.filter(s => s.capacity >= amount).sort((x, y) => x.capacity - y.capacity)[0];
   if (!fit) return { error: `Capacité de transport insuffisante : ${amount} à porter, ${Math.max(...sized.map(s => s.capacity))} au mieux` };
   return fit;
