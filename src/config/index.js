@@ -252,9 +252,9 @@ const config = {
     maxRounds: 15,
     roundDamageFactor: 0.18,     // fraction of the damage applied per round (otherwise mutual annihilation in 1-2 rounds)
     // Moteur de bataille du GDD (option B, décision du 30 octobre 2026) : un coup fait ATK × coef × triangle, sans
-    // soustraction ni plancher ; la solidité d'une unité vaut END + 0,55 × DEF × coef (mur et douves comptent dans DEF)
+    // soustraction ni plancher ; la solidité d'une unité vaut END + 0,55 × DEF × coef (le bonus du mur compte dans DEF) ;
+    // les coups se répartissent sur tous les paliers selon leur solidité (décision du 30 octobre 2026), engins en dernier
     defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT : poids de la défense dans la solidité
-    targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
     // Siège (décision du 25 octobre 2026) : l'armée qui attaque une ville campe 1 h devant elle, puis le combat démarre
     // tout seul. Pendant l'heure, la ville vit normalement ; n'importe quel joueur peut attaquer le camp. Au combat, le
     // mur sert de bouclier : tant qu'il tient, les coups de l'attaquant tombent sur lui et seuls les engins l'abîment ;
@@ -282,7 +282,6 @@ const config = {
     },
     wallHpPerLevel: 1000,
     wallBonusPerLevel: 0.01,     // GDD: +1% defender defense per wall level
-    moatBonusPerLevel: 0.005,    // GDD: +0.5% defender attack and defense per moat level
     heroBonusPerPoint: 0.001,    // +0.1 % per hero point (décision du 27 octobre 2026 : 50 points pour le plafond)...
     heroBonusMax: 0.05,          // ...capped at +5 % per stat (GDD)
     heroEquipmentPerPoint: 0.005, // equipment: +0.5 % per item point...
@@ -344,8 +343,7 @@ const config = {
     baseRate: 0.30,
     bonusPerHealingLevel: 0.03,
     maxRate: 0.70,
-    baseHealMinutes: 30,
-    bedsPerLevel: 200,   // lits de la Tente de soins par niveau (GDD : capacité limitée, surplus en file d'attente)
+    bedsPerLevel: 200,   // lits de la Tente de soins de la capitale par niveau, pour toutes les villes (GDD : capacité limitée)
     healLevelReduction: 0.95,
     // Soins payants et plus lents (décision du 30 octobre 2026, rapport économie, recommandation 6) :
     // prix = 30 % du recrutement de l'unité ; durée par unité = 10 % de son temps de formation de base × 0,95^(Tente − 1) ;
