@@ -27,10 +27,11 @@ function openBuildPanel(slotNum) {
   overlay.style.display = 'block';
   overlay.classList.add('fade-in');
   
-  if (building || slot?.fixed) {
+  if (building || slot?.fixedKey) {
     // ===== EXISTING BUILDING - TABBED INTERFACE (Travian Style) =====
-    const key = building?.key || slot?.fixedKey;
-    const level = building?.level || 1;
+    // Places fixes : Bâtiment principal (toujours là) et Mur sur l'enceinte (niveau 0 tant qu'il n'est pas bâti)
+    const key = building?.key || slot.fixedKey;
+    const level = building?.level || (key === 'MAIN_HALL' ? 1 : 0);
     const def = buildingsData.find(b => b.key === key);
     const maxLevel = def?.maxLevel || 20;
     // Other buildings cannot exceed MAIN_HALL level
@@ -55,15 +56,18 @@ function openBuildPanel(slotNum) {
     }
 
     // Next level to build = current level + levels already queued on this building (server rule)
-    const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === key && (key === 'MAIN_HALL' ? true : q.slot === slotNum)).length;
+    const inQueue = (currentCity?.buildQueue || []).filter(q => q.buildingKey === key && (slot?.fixedKey ? true : q.slot === slotNum)).length;
     const targetLevel = level + inQueue + 1;
     const nextCost = getBuildCost(def, targetLevel);
     const buildTime = getBuildTime(def, targetLevel);
     const timeStr = formatDuration(buildTime);
 
-    const bonus = getBuildingBonus(key, level);
+    const bonus = level > 0 ? getBuildingBonus(key, level) : 'Pas encore construit';
 
     const hasResources = canPayCost(nextCost);   // stock de toutes les villes
+    // premier niveau d'une place fixe pas encore bâtie (le Mur) : ses prérequis, comme pour un nouveau bâtiment
+    const prereq = level + inQueue === 0 ? checkBuildingPrerequisites(def) : { met: true, missing: '' };
+    const canStart = prereq.met && hasResources && !isBuildQueueFull();
 
     // Determine special tabs based on building type
     const specialTabs = getBuildingSpecialTabs(key, level, slotNum);
@@ -133,8 +137,8 @@ function openBuildPanel(slotNum) {
             </div>
             <div class="upgrade-action">
               <div class="build-time"><span class="time-icon"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""></span> ${timeStr}</div>
-              <button class="upgrade-btn ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${hasResources && !isBuildQueueFull() ? '' : 'disabled'}>
-                ${isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? '<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> Améliorer' : `❌ ${costShortfall(nextCost)}`}
+              <button class="upgrade-btn ${canStart ? '' : 'disabled'}" onclick="upgradeBuilding('${key}', ${slotNum})" ${canStart ? '' : 'disabled'}>
+                ${!prereq.met ? `<img class="ico" src="assets/images/3d/ui/lock.webp" alt=""> ${prereq.missing}` : isBuildQueueFull() ? '<img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> File de construction pleine' : hasResources ? `<img class="ico" src="assets/images/3d/ui/build.webp" alt=""> ${level + inQueue === 0 ? 'Construire' : 'Améliorer'}` : `❌ ${costShortfall(nextCost)}`}
               </button>
             </div>
           ` : `
@@ -194,12 +198,18 @@ function openBuildPanel(slotNum) {
     // ===== EMPTY SLOT - BUILDING LIST (Travian Style) =====
     title.textContent = 'Construire un bâtiment';
 
-    const availableBuildings = buildingsData.filter(b => {
-      if (['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL'].includes(b.key)) return false;
+    // Hors de l'anneau : les champs, le Bâtiment principal (centre) et le Mur (sur l'enceinte, décision du 30 octobre 2026)
+    const colony = currentCity?.isCapital === false;
+    const offRing = ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL', 'WALL'];
+    const playable = buildingsData.filter(b => {
+      if (offRing.includes(b.key)) return false;
       // Filter faction buildings: only show those matching player faction
       if (b.category === 'FACTION' && b.faction && player?.faction && b.faction !== player.faction) return false;
       return true;
     });
+    // Dans une colonie, les bâtiments réservés à la capitale tiennent sur une seule ligne repliée
+    const capitalOnlyHere = colony ? playable.filter(b => b.effects?.capitalOnly) : [];
+    const availableBuildings = playable.filter(b => !capitalOnlyHere.includes(b));
 
     // Group by category
     const categories = {
@@ -223,8 +233,7 @@ function openBuildPanel(slotNum) {
               ${cat.buildings.map(b => {
                 // Check prerequisites
                 const prereqStatus = checkBuildingPrerequisites(b);
-                // Réservé à la capitale (Ambassade, Résidence, Chambre au trésor, Forge, Domus) ou aux colonies (Grandes caserne et écurie)
-                if (b.effects?.capitalOnly && currentCity && !currentCity.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé à la capitale'; }
+                // Réservé aux colonies (Grandes caserne et écurie, Moulin…) : grisé dans la capitale
                 if (b.effects?.notInCapital && currentCity?.isCapital) { prereqStatus.met = false; prereqStatus.missing = 'Réservé aux villes secondaires'; }
                 const hasPrereqs = prereqStatus.met;
                 const cost1 = getBuildCost(b, 1);   // prix du niveau 1 (Ingénierie comprise), sur le stock de toutes les villes
@@ -265,6 +274,12 @@ function openBuildPanel(slotNum) {
             </div>
           </div>
         ` : '').join('')}
+        ${capitalOnlyHere.length ? `
+          <details class="build-folded">
+            <summary>${resIconHtml('lock')} Bâtiments de la capitale (${capitalOnlyHere.length}) : leurs effets valent aussi ici</summary>
+            <p>${capitalOnlyHere.map(b => escapeHtml(b.name)).join(', ')}</p>
+          </details>
+        ` : ''}
       </div>
     `;
   }
