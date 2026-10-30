@@ -31,17 +31,104 @@ async function debitCity(tx, cityId, cost) {
   return n === 1;
 }
 
-// Credits are capped by the warehouse / silo capacity
+// Credits are capped by the warehouse / silo capacity, and never lower a stock already above it
+// (rapport économie, recommandation 1 : une colonie garde ses 3 000 de départ)
 async function creditCity(tx, cityId, gain) {
   const w = amount(gain, 'wood'), s = amount(gain, 'stone'), i = amount(gain, 'iron'), f = amount(gain, 'food');
   if (w + s + i + f === 0) return;
   await tx.$executeRaw`
     UPDATE "City" SET
-      wood  = LEAST(wood  + ${w}, "maxStorage"),
-      stone = LEAST(stone + ${s}, "maxStorage"),
-      iron  = LEAST(iron  + ${i}, "maxStorage"),
-      food  = LEAST(food  + ${f}, "maxFoodStorage")
+      wood  = GREATEST(wood,  LEAST(wood  + ${w}, "maxStorage")),
+      stone = GREATEST(stone, LEAST(stone + ${s}, "maxStorage")),
+      iron  = GREATEST(iron,  LEAST(iron  + ${i}, "maxStorage")),
+      food  = GREATEST(food,  LEAST(food  + ${f}, "maxFoodStorage"))
     WHERE id = ${cityId}`;
+}
+
+// ---- Stock partagé entre les villes d'un joueur (décision du 30 octobre 2026) ----
+// Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, héros, soins et fondation
+// puisent d'abord dans la ville de l'action, puis dans les autres villes du joueur (celle qui en a le plus d'abord).
+// Le marché, les transports, les convois, l'entretien, le pillage et les raids restent propres à chaque ville.
+
+// Verrouille toutes les villes du joueur, toujours dans le même ordre (id), pour éviter les interblocages ;
+// renvoie leurs stocks et plafonds
+async function lockPlayerCities(tx, playerId) {
+  const rows = await tx.$queryRaw`
+    SELECT id, wood, stone, iron, food, "maxStorage", "maxFoodStorage", "isCapital"
+    FROM "City" WHERE "playerId" = ${playerId} ORDER BY id FOR UPDATE`;
+  return rows.map(r => ({ id: r.id, isCapital: !!r.isCapital, wood: Number(r.wood) || 0, stone: Number(r.stone) || 0, iron: Number(r.iron) || 0, food: Number(r.food) || 0, maxStorage: Number(r.maxStorage) || 0, maxFoodStorage: Number(r.maxFoodStorage) || 0 }));
+}
+
+// Répartition d'un prix sur les villes (pur, testable) : la ville `cityId` d'abord, puis les autres par stock décroissant.
+// Renvoie { ok, missing, takenByCity: { [id]: { wood, stone, iron, food } } } ; `missing` = ce qui manque au total
+function planDebit(cities, cityId, cost) {
+  const takenByCity = {}, missing = {};
+  for (const r of RESOURCES) {
+    let need = amount(cost, r);
+    if (!need) continue;
+    const order = [...cities].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : (b[r] - a[r]) || (a.id < b.id ? -1 : 1)));
+    for (const c of order) {
+      if (need <= 0) break;
+      const take = Math.min(need, Math.max(0, Math.floor(c[r])));
+      if (take <= 0) continue;
+      (takenByCity[c.id] ||= { wood: 0, stone: 0, iron: 0, food: 0 })[r] += take;
+      need -= take;
+    }
+    if (need > 0) missing[r] = need;
+  }
+  return { ok: Object.keys(missing).length === 0, missing, takenByCity };
+}
+
+// Débite un prix sur le stock de toutes les villes du joueur (rien n'est changé si la somme ne suffit pas).
+// `cities` : résultat de lockPlayerCities si l'appelant l'a déjà fait (sinon les villes sont verrouillées ici).
+async function debitPlayer(tx, playerId, cityId, cost, cities = null) {
+  const list = cities || await lockPlayerCities(tx, playerId);
+  const plan = planDebit(list, cityId, cost);
+  if (!plan.ok) {
+    const capacity = { wood: 0, stone: 0, iron: 0, food: 0 };
+    for (const c of list) { capacity.wood += c.maxStorage; capacity.stone += c.maxStorage; capacity.iron += c.maxStorage; capacity.food += c.maxFoodStorage; }
+    const tooSmall = RESOURCES.filter(r => amount(cost, r) > capacity[r]);
+    return { ...plan, tooSmall };
+  }
+  for (const [id, t] of Object.entries(plan.takenByCity)) {
+    if (!(await debitCity(tx, id, t))) throw new Error('debitPlayer: stock changé sous verrou');   // ne doit pas arriver
+    const c = list.find(x => x.id === id);
+    if (c) for (const r of RESOURCES) c[r] -= t[r];
+  }
+  return { ...plan, tooSmall: [] };
+}
+
+// Message clair quand la somme des villes ne suffit pas
+const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
+function missingMessage(result) {
+  if (result.tooSmall?.length) return `Stockage trop petit (${result.tooSmall.map(r => RES_FR[r]).join(', ')}) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie)`;
+  const parts = RESOURCES.filter(r => result.missing?.[r] > 0).map(r => `${Math.ceil(result.missing[r]).toLocaleString('fr-FR')} de ${RES_FR[r]}`);
+  return parts.length ? `Ressources insuffisantes : il manque ${parts.join(', ')} (toutes vos villes comprises)` : 'Ressources insuffisantes';
+}
+
+// Crédite la ville, puis verse le surplus dans les autres villes du joueur selon la place libre ;
+// renvoie { credited: { [id]: gain }, lost: { wood, stone, iron, food } } (ce qui n'a tenu nulle part)
+async function creditPlayer(tx, playerId, cityId, gain, cities = null) {
+  const list = cities || await lockPlayerCities(tx, playerId);
+  const credited = {}, lost = { wood: 0, stone: 0, iron: 0, food: 0 };
+  for (const r of RESOURCES) {
+    let left = amount(gain, r);
+    if (!left) continue;
+    const capOf = (c) => (r === 'food' ? c.maxFoodStorage : c.maxStorage);
+    const order = [...list].sort((a, b) => (a.id === cityId ? -1 : b.id === cityId ? 1 : (capOf(b) - b[r]) - (capOf(a) - a[r])));
+    for (const c of order) {
+      if (left <= 0) break;
+      const room = Math.max(0, Math.floor(capOf(c) - c[r]));
+      const put = Math.min(left, room);
+      if (put <= 0) continue;
+      (credited[c.id] ||= { wood: 0, stone: 0, iron: 0, food: 0 })[r] += put;
+      c[r] += put;
+      left -= put;
+    }
+    lost[r] = left;
+  }
+  for (const [id, g] of Object.entries(credited)) await creditCity(tx, id, g);
+  return { credited, lost };
 }
 
 // Takes up to `want` of each resource, never below zero; returns what was actually taken
@@ -94,4 +181,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, plunderCity, claimNode, takeFromNode, transition, isId };
+module.exports = { RESOURCES, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, missingMessage, plunderCity, claimNode, takeFromNode, transition, isId };

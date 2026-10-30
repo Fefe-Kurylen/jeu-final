@@ -72,7 +72,12 @@ const config = {
     manualHours: 48,                      // invasion lancée par l'équipe
     // Âge du monde (décision du 30 octobre 2026) : mult = min(ageMax, 1 + ageFactorPerWeek × max(0, semaine − ageFromWeek)),
     // fixé au lancement de l'invasion ; au niveau L, × mult^((L − 1)/4) sur la puissance des étages et les ressources du trésor
-    ageFactorPerWeek: 0.35, ageFromWeek: 3, ageMax: 6
+    ageFactorPerWeek: 0.35, ageFromWeek: 3, ageMax: 6,
+    // Force des donjons réglée sur les joueurs (décision du 30 octobre 2026, rapport économie, recommandation 9) : au
+    // lancement, puissance médiane des joueurs actifs (vus dans les activeDays derniers jours, puissance > 0) ;
+    // avant-poste du niveau 1 = max(minOutpost, médiane × outpostPctOfMedian %), puis × levelFactor par niveau
+    // (étages ×1 / ×2 / ×4). Moins de minPlayers joueurs mesurés : formule de l'âge du monde ci-dessus. Le trésor garde l'âge du monde.
+    powerRef: { activeDays: 7, minPlayers: 5, outpostPctOfMedian: 50, minOutpost: 3000, levelFactor: 1.8 }
   },
 
   world: {
@@ -85,14 +90,19 @@ const config = {
     wonderMaxLevel: 100,
     planNeededAbove: 50,
     // coût et durée d'un niveau : base × facteur^(niveau − 1) ; tiré du stock de la Merveille (convois de l'alliance)
-    wonderCostBase: { wood: 50000, stone: 50000, iron: 50000, food: 15000 },
+    // ×5 (décision du 30 octobre 2026, rapport économie, recommandation 7) : la Merveille entière ≈ 2,15 G
+    wonderCostBase: { wood: 250000, stone: 250000, iron: 250000, food: 75000 },
     wonderCostFactor: 1.05,
     wonderTimeBaseSec: 3600,
     wonderTimeFactor: 1.025,
     wonderLevelsLostPerAssault: 2,
     immortalWaveHours: 12,       // les Immortels attaquent chaque Ville Merveille toutes les 12 h
-    immortalSitePower: 600000,   // puissance de la garnison d'un site (un camp barbare de niveau 3 ≈ 3 000 à 10 000)
-    immortalPlanPower: 900000
+    // Immortels ×5 (décision du 30 octobre 2026, rapport économie, recommandation 8) : garnison d'un site, d'un plan,
+    // et vague contre une Ville Merveille = immortalWaveBase × niveau^immortalWaveExp (3,93 M au niveau 50, 10 M au niveau 100)
+    immortalSitePower: 3000000,
+    immortalPlanPower: 4500000,
+    immortalWaveBase: 20000,
+    immortalWaveExp: 1.35
   },
 
   // Héros (décision du 27 octobre 2026) : résurrection au Domus payée selon le niveau du héros
@@ -204,7 +214,13 @@ const config = {
     maxRunning: 2,
     maxQueued: 2,
     costMultiplierBase: 1.28,   // was 1.5 → L20 = ~100x base (Travian-like)
-    timeMultiplierBase: 1.2     // was 1.8 → L20 = ~32x base (Travian-like)
+    timeMultiplierBase: 1.2,    // was 1.8 → L20 = ~32x base (Travian-like)
+    // Décision du 30 octobre 2026 (rapport économie, recommandations 3 et 4) : les champs coûtent ×1,45 par niveau ;
+    // les champs et le Bâtiment principal prennent ×1,30 de temps par niveau. Calcul : utils/calculations.js buildCostFor / buildSecondsFor
+    fieldCostMultiplier: 1.45,
+    fieldCostKeys: ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE'],
+    slowTimeMultiplier: 1.30,
+    slowTimeKeys: ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL']
   },
 
   // Recruit (GDD v4 values)
@@ -316,7 +332,8 @@ const config = {
 
   // Army
   army: {
-    upkeepPerTier: { base: 5, intermediate: 10, elite: 15, siege: 15 },  // GDD economy_config.json
+    // GDD : 5 / 10 / 15 ; décision du 30 octobre 2026 (rapport économie, recommandation 5) : 5 / 9 / 13, engins 15
+    upkeepPerTier: { base: 5, intermediate: 9, elite: 13, siege: 15 },
     starvationIntervalHours: 1,    // famine façon Travian (décision du 28 octobre 2026) : vérifiée une fois par heure
     famineAlertHours: 6,           // alerte quand le grenier sera vide dans moins de 6 h
     siegeUpkeepPct: { attacker: 10, defender: -10 }   // GDD economy_config.upkeep.siegeModifiersPct
@@ -329,7 +346,14 @@ const config = {
     maxRate: 0.70,
     baseHealMinutes: 30,
     bedsPerLevel: 200,   // lits de la Tente de soins par niveau (GDD : capacité limitée, surplus en file d'attente)
-    healLevelReduction: 0.95
+    healLevelReduction: 0.95,
+    // Soins payants et plus lents (décision du 30 octobre 2026, rapport économie, recommandation 6) :
+    // prix = 30 % du recrutement de l'unité ; durée par unité = 10 % de son temps de formation de base × 0,95^(Tente − 1) ;
+    // soin immédiat en or par unité selon le palier ; les blessés en attente paient l'entretien
+    healCostPct: 30,
+    healTimePctOfTraining: 10,
+    instantHealGoldPerTier: { base: 1, intermediate: 2, elite: 3, siege: 3 },
+    woundedPayUpkeep: true
   },
 
   // City tiers follow the Main Hall level (October 2026: the main building makes the walls evolve); the Wall building keeps

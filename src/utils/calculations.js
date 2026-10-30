@@ -192,7 +192,23 @@ function getArmyCarryCapacity(units, unitsData, hero = null) {
   return Math.floor(total * (1 + require('./heroEffects').talent(hero, 'carryPct') / 100));
 }
 
+// Coût et durée d'un niveau de bâtiment (décision du 30 octobre 2026) : les champs coûtent ×1,45 par niveau, le reste
+// ×1,28 ; les champs et le Bâtiment principal prennent ×1,30 de temps par niveau, le reste ×1,2. Seul endroit du calcul.
+function buildCostFor(buildingDef, level) {
+  const B = config.build;
+  const base = buildingDef?.costL1 || { wood: 100, stone: 100, iron: 80, food: 50 };
+  const growth = (B.fieldCostKeys || []).includes(buildingDef?.key) ? B.fieldCostMultiplier : B.costMultiplierBase;
+  const m = Math.pow(growth, Math.max(0, level - 1));
+  return { wood: Math.floor((base.wood || 0) * m), stone: Math.floor((base.stone || 0) * m), iron: Math.floor((base.iron || 0) * m), food: Math.floor((base.food || 0) * m) };
+}
+function buildSecondsFor(buildingDef, level) {
+  const B = config.build;
+  const growth = (B.slowTimeKeys || []).includes(buildingDef?.key) ? B.slowTimeMultiplier : B.timeMultiplierBase;
+  return Math.floor((buildingDef?.timeL1Sec || 60) * Math.pow(growth, Math.max(0, level - 1)));
+}
+
 module.exports = {
+  buildCostFor, buildSecondsFor,
   mainHallLevelOf,
   lerpExp,
   getProductionAtLevel,

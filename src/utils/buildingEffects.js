@@ -92,6 +92,15 @@ const effects = {
   settlerCost: () => defOf('RESIDENCE')?.effects?.settlerCost || { wood: 0, stone: 0, iron: 0, food: 0 },
   cityFoundationTimeSec: () => effectOf('RESIDENCE', 'cityFoundationTimeSec', 86400),
   secondaryCityBonusPct: () => effectOf('RESIDENCE', 'secondaryCityBonusPct', 20),
+  // Bâtiments « capitale seulement » (décision du 30 octobre 2026 : une seule suffit, bonus général pour le joueur) :
+  // les effets d'une ville se calculent avec SES bâtiments, sauf ceux réservés à la capitale, lus dans la capitale.
+  // withCapital(bâtiments de la ville, bâtiments de la capitale) → liste à passer aux autres fonctions de ce fichier
+  withCapital: (cityBuildings, capitalBuildings) => {
+    if (!capitalBuildings || capitalBuildings === cityBuildings) return cityBuildings || [];
+    const own = (cityBuildings || []).filter(b => !defOf(b.key)?.effects?.capitalOnly);
+    const fromCapital = (capitalBuildings || []).filter(b => defOf(b.key)?.effects?.capitalOnly);
+    return own.concat(fromCapital);
+  },
   // Buildings reserved to the capital or to secondary cities (data flags)
   capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
   notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
