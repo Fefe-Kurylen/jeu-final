@@ -2,7 +2,8 @@
 // Arbre de technologies façon Travian : petits bonus par niveau, une recherche à la fois (une seconde en attente),
 // niveau d'une technologie limité par celui de l'Académie. L'état (niveaux, file, disponibilité et coûts dans la
 // ville courante) vient du serveur (/api/research) ; les formules reproduites ici (fiches, coûts affichés) sont celles
-// de src/utils/techEffects.js.
+// de src/utils/techEffects.js. Académie et Temple grec sont ceux de la capitale ; le prix vient de toutes les villes
+// (décision du 30 octobre 2026).
 let technologiesData = { rules: {}, branches: [], technologies: [] };
 let research = { levels: {}, queue: [], rules: {}, city: null };
 
@@ -49,7 +50,7 @@ function techCostAt(tech, level) {
 }
 function techTimeReductionPct() {
   let total = 0;
-  for (const b of (currentCity?.buildings || [])) {
+  for (const b of effectBuildings(currentCity)) {
     const per = window.buildingsData?.find(d => d.key === b.key)?.effects?.researchTimeReductionPctPerLevel;
     if (per) total += b.level * per;
   }
@@ -87,12 +88,12 @@ function techCardHtml(t, a, level) {
   const max = techMaxLevel(t);
   const next = a?.nextLevel || null;
   const cost = a?.cost || null;
-  const canPay = !!cost && !!currentCity && TECH_RESOURCES.every(r => (currentCity[r] || 0) >= (cost[r] || 0));
+  const canPay = canPayCost(cost);   // stock de toutes les villes
   const blocker = a ? a.blocker : 'Chargement…';
   const startable = !!a && !blocker && canPay;
   const reason = blocker || (cost && !canPay ? 'Ressources insuffisantes' : '');
   const costHtml = cost
-    ? TECH_RESOURCES.map(r => `<span class="tc-cost ${(currentCity?.[r] || 0) >= (cost[r] || 0) ? 'ok' : 'missing'}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('')
+    ? TECH_RESOURCES.map(r => `<span class="tc-cost ${stockOf(r) >= (cost[r] || 0) ? 'ok' : 'missing'}">${resIconHtml(r)} ${formatNum(cost[r] || 0)}</span>`).join('')
     : '<span class="tc-cost">Niveau maximum atteint</span>';
   return `<div class="tech-card${level >= max ? ' maxed' : ''}" data-tech="${t.key}">
     <div class="tc-head">${techIconHtml(t.key)}<span class="tc-name">${escapeHtml(t.name)}</span>${infoBtnHtml('tech', t.key, 'info-btn-sm')}<span class="tc-level">niv. ${level}/${max}</span></div>
@@ -112,7 +113,7 @@ function renderResearchTab() {
   const avail = Object.fromEntries((city?.technologies || []).map(a => [a.key, a]));
   const rules = research?.rules || technologiesData.rules || {};
   const queue = research?.queue || [];
-  const academyLevel = city?.academyLevel ?? (currentCity?.buildings || []).reduce((m, b) => (b.key === 'ACADEMY' && b.level > m ? b.level : m), 0);
+  const academyLevel = city?.academyLevel ?? effectBuildings(currentCity).reduce((m, b) => (b.key === 'ACADEMY' && b.level > m ? b.level : m), 0);
   const head = `<div class="research-head"><p>Académie niveau <strong>${academyLevel}</strong> : une technologie ne dépasse jamais ce niveau. Temps de recherche <strong>−${fmtTechPct(city?.timeReductionPct ?? techTimeReductionPct())} %</strong> (Académie, Temple grec). File : <strong>${queue.length}/${rules.maxQueue || 2}</strong>, une recherche à la fois.</p></div>`;
   const queueHtml = queue.length ? `<div class="research-queue">${queue.map(q => {
     const t = techByKey(q.techKey);

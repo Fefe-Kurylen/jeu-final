@@ -184,14 +184,17 @@ async function withBastion(allianceIds, fn) {
   } finally { restore(); }
 }
 
-test('marche : Cartographie, Bastion actif et Irrigation de la ville de l\'armée s\'additionnent', async () => {
+// Irrigation « capitale seulement » (décision du 30 octobre 2026) : celle de la capitale, chargée avec le propriétaire
+// (fx.CAPITAL_BUILDINGS), accélère toutes les armées du joueur ; celle d'une colonie ne compte pas
+test('marche : Cartographie, Bastion actif et Irrigation de la capitale s\'additionnent', async () => {
   await withBastion(['AL1'], async () => {
     const irrigation = fx.marchSpeedBonusPct(IRRIGATION_20);
     assert.ok(irrigation > 0);
-    const owner = (allianceId) => ({ technologies: [], alliance: allianceId ? { allianceId } : null });
+    const owner = (allianceId, capital = []) => ({ technologies: [], alliance: allianceId ? { allianceId } : null, cities: [{ buildings: capital }] });
     assert.equal(armiesRouter.speedTechPct({ owner: owner(null), city: { buildings: [] } }), 0);
-    assert.equal(armiesRouter.speedTechPct({ owner: owner(null), city: { buildings: IRRIGATION_20 } }), irrigation);
-    assert.equal(armiesRouter.speedTechPct({ owner: owner('AL1'), city: { buildings: IRRIGATION_20 } }), irrigation + config.bastion.bonuses.armySpeedPct);
+    assert.equal(armiesRouter.speedTechPct({ owner: owner(null), city: { buildings: IRRIGATION_20 } }), 0, 'l\'Irrigation de la ville de l\'armée ne compte pas');
+    assert.equal(armiesRouter.speedTechPct({ owner: owner(null, IRRIGATION_20), city: { buildings: [] } }), irrigation);
+    assert.equal(armiesRouter.speedTechPct({ owner: owner('AL1', IRRIGATION_20), city: null }), irrigation + config.bastion.bonuses.armySpeedPct);
     assert.equal(armiesRouter.speedTechPct({ owner: owner('AL1'), city: null }), config.bastion.bonuses.armySpeedPct);
   });
 });
@@ -210,8 +213,8 @@ test('récolte et transport : charge complète (héros, civilisation, Marché, B
   });
 });
 
-// ---- convoi d'un échange du marché : l'Irrigation de la ville de départ compte, bâtiments chargés ou relus ----
-test('marché : le convoi d\'un échange marche plus vite depuis une ville irriguée', async () => {
+// ---- convoi d'un échange du marché : l'Irrigation de la capitale du joueur compte, relue dans la transaction ----
+test('marché : le convoi d\'un échange marche plus vite quand la capitale est irriguée', async () => {
   const Terrain = require('../../frontend/js/shared/terrain.js');
   Terrain.setWorldSeed(0);
   const restore = swapPrisma({
@@ -221,13 +224,12 @@ test('marché : le convoi d\'un échange marche plus vite depuis une ville irrig
   try {
     const unit = unitsData.find(u => u.key === 'EGY_INF_ESCLAVE');
     const army = { ownerId: 'p1', units: [{ unitKey: unit.key, tier: unit.tier, count: 10 }], hero: null };
-    const to = { x: 12, y: 0 };
-    const plain = await MS.travelSecondsBetween(army, { id: 'c1', x: 0, y: 0, buildings: [] }, to, 'EGYPT', []);
-    const irrigated = await MS.travelSecondsBetween(army, { id: 'c1', x: 0, y: 0, buildings: IRRIGATION_20 }, to, 'EGYPT', []);
-    let asked = null;   // ville sans bâtiments chargés : l'Irrigation est relue dans la transaction
-    const reread = await MS.travelSecondsBetween(army, { id: 'c1', x: 0, y: 0 }, to, 'EGYPT', [], { cityBuilding: { findMany: async (q) => { asked = q.where; return IRRIGATION_20; } } });
+    const to = { x: 12, y: 0 }, from = { id: 'c1', x: 0, y: 0, buildings: IRRIGATION_20 };   // l'Irrigation de la colonie ne compte pas
+    let asked = null;
+    const capitalDb = (buildings) => ({ city: { findFirst: async (q) => { asked = q.where; return { buildings }; } } });
+    const plain = await MS.travelSecondsBetween(army, from, to, 'EGYPT', [], capitalDb([]));
+    const irrigated = await MS.travelSecondsBetween(army, { ...from, buildings: [] }, to, 'EGYPT', [], capitalDb(IRRIGATION_20));
     assert.ok(irrigated < plain, `${irrigated} < ${plain}`);
-    assert.equal(reread, irrigated);
-    assert.equal(asked.cityId, 'c1');
+    assert.deepEqual(asked, { playerId: 'p1', isCapital: true });
   } finally { restore(); }
 });

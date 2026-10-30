@@ -66,7 +66,7 @@ async function renderHordeNodePanel(tile, content) {
     ${d.destroyed ? '<p class="bastion-fallen">Donjon détruit : le trésor a été partagé.</p>' : ''}
     <div class="horde-floors">${floors}</div>
     ${!d.destroyed && garrison ? `<p><small>Garnison de l'étage :</small><br>${garrison}</p>` : ''}
-    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource, ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
+    <p class="diplo-help">Trésor du donjon, partagé selon les dégâts : ${formatNum(d.treasure.wood)} de chaque ressource (rangées dans votre capitale, puis dans vos autres villes s'il n'y a plus de place), ${formatNum(d.treasure.gold)} or, ${formatNum(d.treasure.alliancePoints)} points d'alliance ; ${Math.round(d.treasure.itemChance * 100)} % de chance d'objet pour le héros du dernier coup. Les étages se battent dans l'ordre ; un donjon ne s'attaque qu'en rassemblement d'alliance ; une attaque repoussée use quand même la garnison.</p>
     ${rallies}
     <h4>${resIconHtml('ranking')} Dégâts</h4>${contrib}
     ${d.inAlliance && d.myAlliancePoints ? `<p><small>Votre alliance : ${formatNum(d.myAlliancePoints)} points sur ${formatNum(d.totalPoints)}</small></p>` : ''}
@@ -86,13 +86,14 @@ async function invasionCardHtml() {
   const inv = s.invasion;
   if (!s.active) {
     return `<div class="world-card"><h4>${resIconHtml('skull')} Invasions barbares</h4>
-      <p>Chaque week-end, du vendredi 18 h au dimanche 23 h, des donjons de hordes apparaissent sur la carte : abattez leurs trois étages avec votre alliance pour partager leur trésor. Les hordes n'attaquent pas les villes. À partir de la 4e semaine du monde, les donjons et les ressources de leur trésor grossissent chaque semaine.</p>
+      <p>Chaque week-end, du vendredi 18 h au dimanche 23 h, des donjons de hordes apparaissent sur la carte : abattez leurs trois étages avec votre alliance pour partager leur trésor. Les hordes n'attaquent pas les villes. Leur force se règle, au lancement, sur celle des joueurs actifs ; à partir de la 4e semaine du monde, les ressources de leur trésor grossissent chaque semaine.</p>
       ${s.nextStart ? `<p><strong>Prochaine invasion</strong> : ${new Date(s.nextStart).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>` : ''}
       ${inv?.endedAt ? `<p><small>Dernière invasion : ${inv.destroyed} donjon${inv.destroyed > 1 ? 's' : ''} détruit${inv.destroyed > 1 ? 's' : ''} sur ${inv.total}${inv.alliances[0] ? ` · meilleure alliance [${escapeHtml(inv.alliances[0].tag)}]` : ''}</small></p>` : ''}</div>`;
   }
   return `<div class="world-card invasion-live"><h4>${resIconHtml('skull')} Invasion barbare en cours</h4>
     <p>Fin <span class="qd-timer" data-ends-at="${inv.endsAt}">${formatTime(inv.endsAt)}</span> · ${inv.destroyed} donjon${inv.destroyed > 1 ? 's' : ''} détruit${inv.destroyed > 1 ? 's' : ''} sur ${inv.total}${inv.myPoints ? ` · vos dégâts : ${formatNum(inv.myPoints)} pts` : ''}</p>
-    ${Number(inv.ageMult) > 1 ? `<p><small>Âge du monde : les donjons de niveau 5 sont ${String(+Number(inv.ageMult).toFixed(2)).replace('.', ',')} fois plus forts, leur trésor en ressources aussi (un peu moins aux niveaux 2 à 4, rien au niveau 1).</small></p>` : ''}
+    ${inv.basePower ? `<p><small>Donjons réglés sur la force des joueurs actifs : l'avant-poste du niveau 1 a ${formatNum(inv.basePower)} de puissance, chaque niveau au-dessus est plus fort.</small></p>` : ''}
+    ${Number(inv.ageMult) > 1 ? `<p><small>Âge du monde : ${inv.basePower ? 'le trésor en ressources des donjons de niveau 5 est' : 'les donjons de niveau 5 sont'} ${String(+Number(inv.ageMult).toFixed(2)).replace('.', ',')} fois plus ${inv.basePower ? 'gros' : 'forts, leur trésor en ressources aussi'} (un peu moins aux niveaux 2 à 4, rien au niveau 1).</small></p>` : ''}
     <div class="invasion-levels">${inv.byLevel.map(l => `<span><strong>Niv. ${l.level}</strong> ${l.left} restant${l.left > 1 ? 's' : ''} sur ${l.total}</span>`).join('')}</div>
     ${!inv.inAlliance ? '<p class="diplo-help">Rejoignez une alliance pour attaquer les donjons.</p>' : ''}
     ${inv.hordes.length ? `<div class="profile-actions"><button class="btn btn-primary btn-sm" onclick="invasionGoNearest()">${resIconHtml('map')} Donjon le plus proche</button></div>` : ''}

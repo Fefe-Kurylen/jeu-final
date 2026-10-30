@@ -1217,9 +1217,10 @@ if (MAIL_LOG) {
 // A secondary city that loses its last life is destroyed; a capital cannot be taken: it flees near the edge of the map
 // with all its armies. The camps are inserted with their hour already over to keep the suite short.
 {
-  const assault = (owner, homeCityId, city, unitKey, count) => {
+  // seuls les engins abîment le mur (décision du 30 octobre 2026, D6) : il en faut assez pour percer un mur intact
+  const assault = (owner, homeCityId, city, unitKey, count, engines = 10) => {
     // the army and its units in one statement: a tick never sees the army without its units
-    const id = sql(`WITH a AS (INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${owner}','${homeCityId}','Assaut final',${city.x},${city.y},${city.x},${city.y},'BESIEGING','ASSAULT','${city.id}',now()-interval '40 minutes',now()-interval '1 second') RETURNING id) INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) SELECT gen_random_uuid(), a.id, u.k, u.t, u.c FROM a, (VALUES ('${unitKey}','elite',${count}), ('${siegeKey}','siege',10)) AS u(k,t,c) RETURNING "armyId"`).split('\n')[0];   // no siege without engines
+    const id = sql(`WITH a AS (INSERT INTO "Army"(id,"ownerId","cityId",name,x,y,"targetX","targetY",status,"missionType","targetCityId","departedAt","arrivalAt") VALUES (gen_random_uuid(),'${owner}','${homeCityId}','Assaut final',${city.x},${city.y},${city.x},${city.y},'BESIEGING','ASSAULT','${city.id}',now()-interval '40 minutes',now()-interval '1 second') RETURNING id) INSERT INTO "ArmyUnit"(id,"armyId","unitKey",tier,count) SELECT gen_random_uuid(), a.id, u.k, u.t, u.c FROM a, (VALUES ('${unitKey}','elite',${count}), ('${siegeKey}','siege',${engines})) AS u(k,t,c) RETURNING "armyId"`).split('\n')[0];   // no siege without engines
     return id;
   };
   const colonyRow = sql(`SELECT id||'|'||x||'|'||y FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital" LIMIT 1`);
@@ -1239,8 +1240,8 @@ if (MAIL_LOG) {
     // same player whose hour is over fight together; the pillage never takes more than a quarter of the unprotected stock
     sql(`UPDATE "City" SET "wallStructure"=1, "wallHp"="wallMaxHp", wood=20000, stone=20000, iron=20000, food=20000 WHERE id='${cityB.id}'`);
     const before = Number(sql(`SELECT wood FROM "City" WHERE id='${cityB.id}'`));
-    const c1 = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 3000);
-    const c2 = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 2000);
+    const c1 = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 3000, 80);
+    const c2 = assault(A.player.id, cityA.id, cityB, unitKeyFor('ROME', 'INFANTRY', 'elite'), 2000, 80);
     await waitTick('allied camps fought together', () => sql(`SELECT status FROM "Army" WHERE id='${c1}'`) === 'RETURNING' && sql(`SELECT status FROM "Army" WHERE id='${c2}'`) === 'RETURNING');
     const lv = sql(`SELECT (loot->'lives'->>'before')||'>'||(loot->'lives'->>'after')||'/'||(loot->'lives'->>'total')||':'||(loot->>'camps') FROM "BattleReport" WHERE "playerId"='${A.player.id}' AND loot->>'type'='ATTACK' AND x=${bx0} AND y=${by0} ORDER BY "createdAt" DESC LIMIT 1`);
     assert('a won battle takes a life, both camps in one battle', lv === '4>3/4:2', lv);

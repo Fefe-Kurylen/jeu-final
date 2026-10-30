@@ -30,8 +30,15 @@ test('technology data: four branches, unique keys, known effects, existing prere
 test('research cost and time grow with the level; Academy and Greek Temple shorten the time up to the cap', () => {
   const t = T.techOf('AGRONOMY');
   const config = require('../../src/config');
-  assert.equal(T.RULES.costGrowth, config.build.costMultiplierBase, 'research costs follow the construction curve');
-  assert.equal(T.RULES.timeGrowth, config.build.timeMultiplierBase, 'research times follow the construction curve');
+  // la recherche suit la courbe de base des bâtiments (×1,28 en coût, ×1,2 en temps), pas celle des champs et du Bâtiment
+  // principal (×1,45 en coût, ×1,30 en temps : décision du 30 octobre 2026, recommandations 3 et 4 du rapport économie)
+  assert.equal(T.RULES.costGrowth, config.build.costMultiplierBase, 'research costs follow the base construction curve');
+  assert.equal(T.RULES.timeGrowth, config.build.timeMultiplierBase, 'research times follow the base construction curve');
+  assert.ok(config.build.fieldCostMultiplier > T.RULES.costGrowth && config.build.slowTimeMultiplier > T.RULES.timeGrowth, 'the slow field curves do not apply to research');
+  const { buildCostFor, buildSecondsFor } = require('../../src/utils/calculations');
+  const academy = require('../../src/config/gamedata').buildingsData.find(b => b.key === 'ACADEMY');
+  assert.equal(buildSecondsFor(academy, 10), Math.floor(academy.timeL1Sec * Math.pow(T.RULES.timeGrowth, 9)), 'the Academy itself keeps the base curve');
+  assert.equal(buildCostFor(academy, 10).wood, Math.floor(academy.costL1.wood * Math.pow(T.RULES.costGrowth, 9)));
   let prevCost = 0, prevTime = 0;
   for (let L = 1; L <= T.maxLevelOf(t); L++) {
     const c = T.researchCost(t, L), total = T.RESOURCES.reduce((s, r) => s + c[r], 0);

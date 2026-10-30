@@ -1,6 +1,7 @@
 // ========== VILLES SECONDAIRES (colons, fondation) ==========
 // GDD : la Résidence de la capitale forme des colons (1 au niveau 10, 2 au 15, 3 au 20) ; une armée emmène un colon et
-// 3 000 de chaque ressource sur un point de ressource libre, la ville est fondée 24 h après l'arrivée et produit +20 %.
+// 3 000 de chaque ressource (prises dans la capitale d'abord, puis dans les autres villes : stock partagé, décision du
+// 30 octobre 2026) sur un point de ressource libre, la ville est fondée 24 h après l'arrivée et produit +20 %.
 // Les règles affichées sont celles du serveur (routes/cities.js, routes/armies.js, utils/buildingEffects.js).
 const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 3, mainHallMax: 20 };
 // Plafond du Bâtiment principal hors capitale (règle du serveur : config.city.secondaryMainHallMaxLevel, transmise par /api/world/info)
@@ -50,7 +51,7 @@ function colonyTabHtml(level) {
       <p>Villes secondaires : <strong>${colonies.length}</strong>${colonies.length ? ' (' + colonies.map(c => escapeHtml(c.name)).join(', ') + ')' : ''} · colons prêts dans la capitale : <strong>${available}</strong> · en route : <strong>${settlersTravelling()}</strong> · en formation : <strong>${training.length}</strong></p>
       ${training.length ? `<div class="research-queue">${training.map(q => `<div class="research-queue-item running"><span class="rq-name">Colon en formation</span><span class="rq-state"><span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span></span><button type="button" class="btn-small" onclick="cancelRecruit('${q.id}')" title="Annuler" aria-label="Annuler">✕</button></div>`).join('')}</div>` : ''}
       <button type="button" class="btn-primary" ${canTrain ? '' : 'disabled'} onclick="trainSettler()">${canTrain ? `Former un colon${forWonder ? ' pour la Ville Merveille' : ''} (${trainH} h)` : !currentCity?.isCapital ? 'Capitale seulement' : slots === 0 ? 'Résidence niveau 10 requise' : 'Tous les colons sont engagés'}</button>
-      <p class="research-empty" style="margin-top:8px">Pour fonder une ville : une armée de la capitale emmène un colon et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource sur un point de ressource libre (bulle du point sur la carte, « Fonder une ville »). La fondation dure ${foundH} h sur place ; la colonie produit +${bonus} %. Le colon est perdu si l'armée est battue en chemin.</p>
+      <p class="research-empty" style="margin-top:8px">Pour fonder une ville : une armée de la capitale emmène un colon et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource (prises dans la capitale, puis dans vos autres villes) sur un point de ressource libre (bulle du point sur la carte, « Fonder une ville »). La fondation dure ${foundH} h sur place ; la colonie produit +${bonus} %. Le colon est perdu si l'armée est battue en chemin.</p>
     </div>`;
 }
 
@@ -75,7 +76,7 @@ function foundCityAt(nodeId, x, y) {
   const fx = residenceEffects();
   document.getElementById('modal-body').innerHTML = `
     <h3>${settlerPortrait('unit-ico-sm') || settlerIcon()} Fonder une ville en (${x}, ${y})</h3>
-    <p>Un colon part avec l'armée choisie et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource de la capitale ; la ville est prête ${Math.round((fx.cityFoundationTimeSec || 86400) / 3600)} h après l'arrivée. Le point ne doit plus avoir de tribu ni d'armée.</p>
+    <p>Un colon part avec l'armée choisie et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource (prises dans la capitale, puis dans vos autres villes) ; la ville est prête ${Math.round((fx.cityFoundationTimeSec || 86400) / 3600)} h après l'arrivée. Le point ne doit plus avoir de tribu ni d'armée.</p>
     <label style="display:block; margin:10px 0 5px;">Armée :</label>
     <select id="found-army-select" style="width:100%; padding:8px; margin-bottom:10px;">${candidates.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${(a.units || []).reduce((s, u) => s + u.count, 0)} unités)</option>`).join('')}</select>
     <label style="display:block; margin:10px 0 5px;">Nom de la ville (facultatif) :</label>

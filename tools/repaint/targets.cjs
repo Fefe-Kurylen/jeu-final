@@ -95,7 +95,7 @@ const TEXTURE_ROLE = {
   grass_lawn: 'sol de l\'enceinte en prairie', grass_dark: 'sous-bois, lisières', grass_dry: 'alentours de la ville en prairie', grass_flowers: 'prairie fleurie', grass_hills: 'carte du monde (prairie)',
   dirt_packed: 'terre battue, plaza hunnique', mud: 'boue', gravel: 'gravier', sand_ripples: 'sol de l\'enceinte en désert, carte', sand_rocky: 'alentours en désert', cracked_earth: 'terre craquelée',
   snow_fresh: 'sol de l\'enceinte en neige', snow_trampled: 'avenues et plaza en neige', tundra: 'alentours en neige, carte',
-  water_lake: 'étangs de la ville, lacs de la carte', water_deep: 'mers et grands lacs', water_river: 'rivières', water_shallow: 'oasis, rives, douves', ice: 'lacs gelés, douves en neige',
+  water_lake: 'étangs de la ville, lacs de la carte', water_deep: 'mers et grands lacs', water_river: 'rivières', water_shallow: 'oasis, rives', ice: 'lacs gelés',
   plaza_ROME: 'plaza de Rome', plaza_GAUL: 'plaza de Gaule', plaza_GREEK: 'plaza de Grèce', plaza_EGYPT: 'plaza d\'Égypte', plaza_HUN: 'plaza des Huns', plaza_SULTAN: 'plaza du Sultanat',
   cobble: 'avenues de la ville', flagstone: 'dallages', road_dirt: 'route hors de la ville', road_paved: 'routes de la carte', path_sand: 'pistes du désert',
   soil_tilled: 'champs vides', wheat: 'fermes développées', orchard: 'vergers'
@@ -121,7 +121,7 @@ for (const c of CIVS) add(`ui/crest_${c}.webp`, 'icon', `Blason de ${CIV_FR[c]}`
 // ---- villes secondaires, tribus, chantiers (octobre 2026 ; docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § S10-S15) ----
 // Chantiers : chaque bâtiment en construction, par civilisation ; le guide de composition est le rendu 3D du bâtiment fini
 // (même emprise, même cadrage) ; les champs en chantier par biome ; l'enceinte en chantier
-const SITE_SKIP = ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WALL', 'MOAT'];
+const SITE_SKIP = ['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'WALL'];
 for (const c of CIVS) for (const b of buildingsData) {
   if (SITE_SKIP.includes(b.key) || (b.faction && b.faction !== c)) continue;
   EXTRAS.push({ file: `buildings/${c}/${b.key}_site.webp`, cat: 'buildings', frame: 'building', fit: 'canvas', guide: true, guideFile: `buildings/${c}/${b.key}.webp`, site: true, role: `Chantier « ${b.name} » de ${CIV_FR[c]} : à la place du bâtiment pendant sa première construction (techniques de chantier de ${CIV_FR[c]})` });
@@ -146,11 +146,10 @@ for (const b of ['forest', 'desert', 'snow']) add(`scenes/vignette-tribe-${b}.we
 add('ui/tribe.webp', 'icon', 'Icône « tribu locale » (bulle du point, rapports, listes)');
 
 // ---- le tour complet (octobre 2026 ; docs/GUIDE-COMPLEMENTS-ANIMATIONS.md § S16-S20, A12-A18) ----
-// Ville fidèle à sa civilisation : ornements de plaza, drapeaux peints, douves ; vie de la ville : gens des champs, animaux,
+// Ville fidèle à sa civilisation : ornements de plaza, drapeaux peints ; vie de la ville : gens des champs, animaux,
 // bâtiments vivants, fumées peintes
 for (const c of CIVS) for (const k of ['statue', 'fountain', 'stall']) add(`props/plaza_${c}_${k}.webp`, 'prop', `Ornement de plaza de ${CIV_FR[c]} : ${k === 'statue' ? 'statue' : k === 'fountain' ? 'fontaine ou puits' : 'étal de marché'} (autour du Bâtiment principal)`);
 for (const c of CIVS) anim(`props/flagp_${c}`, 8, 'prop', `Drapeau peint de ${CIV_FR[c]} (remplace le drapeau 3D animé)`);
-for (const c of CIVS) for (const k of ['seg_x', 'seg_z', 'corner']) add(`walls/${c}/moat_${k}.webp`, 'building', `Douves de ${CIV_FR[c]} au pied de l'enceinte : ${k === 'corner' ? 'angle' : 'tronçon'} (bâtiment Douves, à brancher à la livraison)`);
 for (const k of ['farmer', 'lumberjack', 'quarryman', 'miner']) anim(`props/${k}`, 4, 'prop', `${({ farmer: 'Paysan qui fauche', lumberjack: 'Bûcheron qui abat un arbre', quarryman: 'Carrier qui taille un bloc', miner: 'Mineur à la pioche' })[k]} (champs de la ville)`);
 for (const k of ['chicken', 'dog', 'goat', 'cat']) anim(`props/animal_${k}`, 4, 'prop', `${({ chicken: 'Poule', dog: 'Chien', goat: 'Chèvre', cat: 'Chat' })[k]} qui se promène dans la ville`);
 for (const k of ['barracks_drill', 'market_crowd', 'stable_horse', 'workshop_hammer', 'bakery_smoke', 'watchtower_beacon']) anim(`anim/${k}`, 4, 'fx', `Bâtiment vivant : ${({ barracks_drill: 'soldats à l\'exercice devant la Caserne', market_crowd: 'badauds et marchands au Marché', stable_horse: 'cheval qui piaffe à l\'Écurie', workshop_hammer: 'marteau et copeaux à l\'Atelier', bakery_smoke: 'fumée et lueur du four de la Boulangerie', watchtower_beacon: 'feu de veille au sommet de la Tour de guet' })[k]}`);

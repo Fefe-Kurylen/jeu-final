@@ -284,7 +284,7 @@ function renderSpyReportCard(report, opts = {}) {
         <div class="spy-section"><h4>${resIconHtml('defense')} Défenses</h4><div class="spy-defenses">
           <span>Mur niveau ${df.wallLevel || 0}${df.wallLevel ? ` · ${formatNum(df.wallHp || 0)} / ${formatNum(df.wallMaxHp || 0)} PV` : ''}</span>
           <span>Santé de la muraille ${df.structurePct ?? 100} %</span>
-          <span>Douves niveau ${df.moatLevel || 0}</span><span>Tour de guet niveau ${df.watchtowerLevel || 0}</span>
+          <span>Tour de guet de la capitale niveau ${df.watchtowerLevel || 0}</span>
           <span>Cachette niveau ${df.hideoutLevel || 0} (${df.hideoutPct || 0} % caché)</span><span>Bonus de défense +${df.defenseBonusPct || 0} %</span>
           ${df.sieged ? '<span>Ville assiégée</span>' : ''}</div></div>
         <div class="spy-section"><h4>${resIconHtml('attack')} Troupes</h4>${troops(report.armies)}</div>${shareBtn}</div>`;
@@ -374,7 +374,7 @@ function getBuildingName(key) {
     MAIN_HALL: 'Bâtiment principal', BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier',
     WAREHOUSE: 'Dépôt', SILO: 'Silo', MARKET: 'Marché', ACADEMY: 'Académie',
     FARM: 'Ferme', LUMBER: 'Bûcheron', QUARRY: 'Carrière', IRON_MINE: 'Mine de fer',
-    WALL: 'Mur', MOAT: 'Douves', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',
+    WALL: 'Mur', HIDEOUT: 'Cachette', HEALING_TENT: 'Tente de soins',
     RALLY_POINT: 'Place de rassemblement', FORGE: 'Forge', HERO_MANSION: 'Domus du Héros',
     MILL: 'Moulin', BAKERY: 'Boulangerie', SAWMILL: 'Scierie', STONEMASON: 'Tailleur de Pierre',
     FOUNDRY: 'Fonderie', GREAT_SILO: 'Grand Silo', GREAT_WAREHOUSE: 'Grand Dépôt',

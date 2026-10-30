@@ -26,7 +26,6 @@ function classify(files, painted) {
       fam('Enceinte : courtines, murets et tours, 3 paliers × 6 civilisations', f => /^walls\/[A-Z]+\/\d_/.test(f), 'autour de la ville (palier du Bâtiment principal)', '§ 3.3', '★★★'),
       fam('Portes de la ville par civilisation', f => /^walls\/[A-Z]+\/gate\.webp$/.test(f), 'arête sud-est de l\'enceinte', 'guide § S1', '★★★'),
       fam('Enceinte en chantier', f => /^walls\/[A-Z]+\/site_/.test(f), 'Mur en travaux', 'guide § S10', '★☆☆'),
-      fam('Douves par civilisation', f => /^walls\/[A-Z]+\/moat_/.test(f), 'bâtiment Douves (à brancher)', 'guide § S16', '★☆☆'),
       fam('Ornements de plaza par civilisation (statue, fontaine, étal)', f => /^props\/plaza_/.test(f), 'autour du Bâtiment principal', 'guide § S16', '★★☆'),
       fam('Villageois de chaque civilisation (homme, femme), marche 6 phases', f => /^props\/villager_/.test(f), 'avenues et plaza', 'guide § A1', '★★★'),
       fam('Gens des champs au travail', f => /^props\/(farmer|lumberjack|quarryman|miner)_/.test(f), 'anneau des champs', 'guide § A12', '★★☆'),

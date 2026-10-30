@@ -231,13 +231,14 @@ function renderBuildings(filter) {
     const rbEffectiveMax = b.key === 'MAIN_HALL' ? b.maxLevel : Math.min(b.maxLevel, rbMainHallLevel);
     const canBuild = nextLevel <= rbEffectiveMax;
     const blockedByMainHall = !canBuild && level < b.maxLevel && b.key !== 'MAIN_HALL';
+    const cost = getBuildCost(b, nextLevel);   // prix du niveau suivant, comme le serveur
 
     return `
       <div class="card">
         <h3>${buildingIconHtml(b.key)} ${b.name} ${infoBtnHtml('building', b.key)}</h3>
         <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
         <div class="stats">
-          Coût: ${resIconHtml('wood')}${formatNum(b.costL1?.wood || 50)} ${resIconHtml('stone')}${formatNum(b.costL1?.stone || 50)} ${resIconHtml('iron')}${formatNum(b.costL1?.iron || 50)} ${resIconHtml('food')}${formatNum(b.costL1?.food || 50)}
+          Coût: ${RES_KEYS.map(r => `${resIconHtml(r)}${formatNum(cost[r])}`).join(' ')}
         </div>
         ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--red-light);">${resIconHtml('clock')} File de construction pleine (${buildQueueMax()}/${buildQueueMax()})</p>` :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
@@ -355,18 +356,14 @@ function showUnitDetail(unitKey) {
   // Use per-unit GDD costs from units data (class-specific + tier multiplier)
   const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
 
-  // Upkeep (GDD economy_config.json values)
-  const foodUpkeep = unit.tier === 'base' ? 5 : unit.tier === 'intermediate' ? 10 : unit.tier === 'elite' ? 15 : 15;
+  const foodUpkeep = unitUpkeep(unit);
 
   // Training time from GDD data
   const trainTime = unit.recruitTimeSec || 360;
   
-  // Helper function to check and color resources
+  // Helper function to check and color resources (stock de toutes les villes : le recrutement y puise)
   const getResourceClass = (needed, available) => needed <= available ? 'res-available' : 'res-missing';
-  const wood = currentCity?.wood || 0;
-  const stone = currentCity?.stone || 0;
-  const iron = currentCity?.iron || 0;
-  const food = currentCity?.food || 0;
+  const wood = stockOf('wood'), stone = stockOf('stone'), iron = stockOf('iron'), food = stockOf('food');
   
   // Check if can afford 1 unit
   const canAffordOne = wood >= unitCost.wood && stone >= unitCost.stone && iron >= unitCost.iron && food >= unitCost.food;

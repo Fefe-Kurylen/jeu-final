@@ -407,7 +407,7 @@ function showTechInfoModal(techKey) {
   const level = player?.techLevels?.[t.key] || 0;
   const max = techMaxLevel(t);
   const rules = technologiesData?.rules || {};
-  const academyLevel = (currentCity?.buildings || []).reduce((m, b) => (b.key === 'ACADEMY' && b.level > m ? b.level : m), 0);
+  const academyLevel = effectBuildings(currentCity).reduce((m, b) => (b.key === 'ACADEMY' && b.level > m ? b.level : m), 0);   // celle de la capitale
   const prereq = (t.prereq || []).map(p => {
     const pt = techByKey(p.key);
     const ok = (player?.techLevels?.[p.key] || 0) >= p.level;
@@ -428,8 +428,8 @@ function showTechInfoModal(techKey) {
         ${sheetKv('Niveau', `${level} / ${max}`)}
         ${sheetKv('Par niveau', escapeHtml(techPerLevelText(t)))}
         ${sheetKv('Au maximum', escapeHtml(techEffectText(t, max)))}
-        ${sheetKv('Où', `Académie (niveau ${academyLevel} dans cette ville) : une technologie ne dépasse pas le niveau de l'Académie`)}
-        ${sheetKv('Temps de recherche', `−${fmtTechPct(techTimeReductionPct())} % dans cette ville (Académie, Temple grec, plafond ${rules.timeReductionMaxPct || 60} %)`)}
+        ${sheetKv('Où', `Académie de la capitale (niveau ${academyLevel}) : une technologie ne dépasse pas le niveau de l'Académie`)}
+        ${sheetKv('Temps de recherche', `−${fmtTechPct(techTimeReductionPct())} % (Académie et Temple grec de la capitale, plafond ${rules.timeReductionMaxPct || 60} %)`)}
       </div>
       ${prereq ? `<div class="sheet-section sheet-fn-tech"><h4>${resIconHtml('list')} Prérequis</h4><ul class="sheet-prereqs">${prereq}</ul></div>` : ''}
       <div class="sheet-section"><h4>${resIconHtml('clock')} Niveaux</h4>
