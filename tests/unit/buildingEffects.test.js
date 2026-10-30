@@ -15,11 +15,9 @@ test('construction and training time reductions follow the data and are capped',
   assert.equal(fx.trainTimeReductionPct([b('WORKSHOP', 5)], 'SIEGE'), 20);
 });
 
-test('defence, protected storage, gold, upkeep, production, transport', () => {
+test('defence, gold, upkeep, production, transport', () => {
   assert.equal(fx.defenseBonusPct([b('FORGE', 10), b('GALLIC_BREWERY', 5)]), 10);
-  const prot = fx.protectedStorage([b('GREAT_WAREHOUSE', 1), b('GREAT_SILO', 20)]);
-  assert.equal(prot.wood, 3600); assert.equal(prot.food, 600000); assert.equal(prot.iron, prot.wood);
-  assert.deepEqual(fx.protectedStorage([]), { wood: 0, stone: 0, iron: 0, food: 0 });
+  assert.equal(fx.protectedStorage, undefined, 'le Grand dépôt et le Grand silo ne protègent plus rien (seule la cachette)');
   assert.equal(fx.goldPerDay([b('TREASURE_CHAMBER', 1)]), 10);
   assert.equal(fx.goldPerDay([b('TREASURE_CHAMBER', 20)]), 200);
   assert.ok(fx.goldPerDay([b('TREASURE_CHAMBER', 10)]) > 10 && fx.goldPerDay([b('TREASURE_CHAMBER', 10)]) < 200);

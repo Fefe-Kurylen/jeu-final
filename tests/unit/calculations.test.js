@@ -29,6 +29,21 @@ test('storage curve: level 0 gives nothing, level 20 gives the data cap, in betw
   for (let l = 1; l <= 20; l++) { const s = calc.getStorageAtLevel('WAREHOUSE', l, buildingsData); assert.ok(s > prev); prev = s; }
 });
 
+test('Grand dépôt et Grand silo : 3 fois un dépôt ou un silo de même niveau, ajoutés au stockage de la ville', () => {
+  // même courbe exponentielle, 3 fois plus haute : à l'arrondi près
+  for (let l = 1; l <= 20; l++) {
+    assert.ok(Math.abs(calc.getStorageAtLevel('GREAT_WAREHOUSE', l, buildingsData) - 3 * calc.getStorageAtLevel('WAREHOUSE', l, buildingsData)) <= 2, `GW${l}`);
+    assert.ok(Math.abs(calc.getStorageAtLevel('GREAT_SILO', l, buildingsData) - 3 * calc.getStorageAtLevel('SILO', l, buildingsData)) <= 2, `GS${l}`);
+  }
+  assert.equal(calc.getStorageAtLevel('GREAT_WAREHOUSE', 20, buildingsData), 480000);
+  assert.equal(calc.getStorageAtLevel('GREAT_SILO', 1, buildingsData), 3600);
+  const b = (key, level) => ({ key, level });
+  assert.deepEqual(calc.cityStorageCaps([b('WAREHOUSE', 20), b('GREAT_WAREHOUSE', 20), b('MAIN_HALL', 20)]), { maxStorage: 640000, maxFoodStorage: 1000 });
+  assert.deepEqual(calc.cityStorageCaps([b('SILO', 20), b('GREAT_SILO', 20)]), { maxStorage: 1000, maxFoodStorage: 640000 });
+  assert.deepEqual(calc.cityStorageCaps([]), { maxStorage: 1000, maxFoodStorage: 1000 }, 'jamais sous 1000');
+  assert.deepEqual(calc.cityStorageCaps([b('WAREHOUSE', 1), b('SILO', 1)]), { maxStorage: 1200, maxFoodStorage: 1200 });
+});
+
 test('travel time: never below one second, slower units take longer, hero speed helps up to 5%', () => {
   const inf = unitsData.find(u => u.class === 'INFANTRY' && u.tier === 'base');
   const cav = unitsData.find(u => u.class === 'CAVALRY' && u.tier === 'base');

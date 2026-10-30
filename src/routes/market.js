@@ -12,7 +12,6 @@ const { isAmount } = require('../utils/validation');
 const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength } = require('../utils/pathfinding');
-// Blockade: no goods leave or enter a besieged city through the market either (offers hold goods in escrow)
 
 // When a real mail provider is configured, trading with other players needs a verified address
 // (the cheapest barrier against throw-away accounts feeding a main one)
@@ -31,6 +30,7 @@ async function hasMarket(tx, cityId) {
   return !!market;
 }
 const NO_MARKET = { error: 'Construisez un Marché (niveau 1 minimum) pour commercer', status: 400 };
+// Blocus : par le marché non plus, aucune marchandise n'entre ni ne sort d'une ville assiégée (les offres gardent la leur)
 const besieged = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 
 // Locks several cities in a fixed order so two crossed trades can never deadlock
@@ -80,7 +80,9 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
       const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction), T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct'));
+      // vitesse : Cartographie, Bastion d'alliance et Irrigation de la ville de départ, comme /army/:id/transport
+      const speedPct = T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct') + (await require('../services/bastionService').speedPct(req.user.playerId)) + fx.marchSpeedBonusPct(cityBuildings);
+      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction), speedPct);
       const arrivalAt = new Date(Date.now() + travelTime * 1000);
       const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
       if (!ok) throw new Error('army busy');
@@ -151,7 +153,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       if (!(await hasMarket(tx, buyerCity.id))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       if (!(await getRelation(req.user.playerId, offer.sellerId, tx)).canTransport) return { error: 'Impossible de commercer avec un ennemi', status: 403 };
-      const sellerCity = offer.cityId ? await tx.city.findUnique({ where: { id: offer.cityId }, include: { player: { include: { technologies: true } } } }) : null;
+      const sellerCity = offer.cityId ? await tx.city.findUnique({ where: { id: offer.cityId }, include: { player: { include: { technologies: true } }, buildings: { select: { key: true, level: true } } } }) : null;
       if (!sellerCity) return { error: 'La ville du vendeur n\'existe plus', status: 400 };
       if ((await besieged(tx, buyerCity.id)) || (await besieged(tx, sellerCity.id))) return { error: 'Ville assiégée : aucun convoi ne passe', status: 400 };
       const sellerArmy = offer.armyId ? await tx.army.findFirst({ where: { id: offer.armyId, status: 'MARKET' }, include: { units: true, hero: { include: { items: true } } } }) : null;
@@ -162,14 +164,17 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
       const [sellerTax, buyerTax] = await Promise.all([MS.p2pTaxPct(tx, sellerCity.id), MS.p2pTaxPct(tx, buyerCity.id)]);
       const toBuyer = MS.afterTax(offer.sellAmount, sellerTax), toSeller = MS.afterTax(offer.buyAmount, buyerTax);
       const now = new Date();
-      const tSeller = await MS.travelSecondsBetween(sellerArmy, sellerCity, buyerCity, sellerCity.player.faction, sellerCity.player.technologies);
-      const tBuyer = await MS.travelSecondsBetween(pick.army, buyerCity, sellerCity, buyerCity.player.faction, buyerCity.player.technologies);
+      const tSeller = await MS.travelSecondsBetween(sellerArmy, sellerCity, buyerCity, sellerCity.player.faction, sellerCity.player.technologies, tx);
+      const tBuyer = await MS.travelSecondsBetween(pick.army, buyerCity, sellerCity, buyerCity.player.faction, buyerCity.player.technologies, tx);
       const carry = (r, n) => ({ carryWood: r === 'wood' ? n : 0, carryStone: r === 'stone' ? n : 0, carryIron: r === 'iron' ? n : 0, carryFood: r === 'food' ? n : 0 });
       if (!(await transition(tx, 'army', sellerArmy.id, 'MARKET', { status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: buyerCity.x, targetY: buyerCity.y, targetCityId: buyerCity.id, departedAt: now, arrivalAt: new Date(now.getTime() + tSeller * 1000), ...carry(offer.sellResource, toBuyer) }))) throw new Error('offer raced');
       if (!(await transition(tx, 'army', pick.army.id, 'IDLE', { status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: sellerCity.x, targetY: sellerCity.y, targetCityId: sellerCity.id, departedAt: now, arrivalAt: new Date(now.getTime() + tBuyer * 1000), ...carry(offer.buyResource, toSeller) }))) throw new Error('offer raced');
       const ok = await transition(tx, 'marketOffer', offer.id, 'ACTIVE', { status: 'COMPLETED', buyerId: req.user.playerId, buyerCityId: buyerCity.id, acceptedAt: now });
       if (!ok) throw new Error('offer raced');
-      return { message: `Échange conclu : vos ${toSeller} ${MS.RES_FR[offer.buyResource]} partent avec ${pick.army.name}, ${toBuyer} ${MS.RES_FR[offer.sellResource]} arrivent dans ${Math.max(1, Math.round(tSeller / 60))} min`, toBuyer, toSeller, sellerTax, buyerTax, arrivalAt: new Date(now.getTime() + tSeller * 1000), offer, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name };
+      // pas de refus : ce qui ne tiendra pas dans l'entrepôt à l'arrivée repartira chez le vendeur, l'acheteur est prévenu
+      const room = MS.roomFor(await tx.city.findUnique({ where: { id: buyerCity.id }, select: { [offer.sellResource]: true, maxStorage: true, maxFoodStorage: true } }), offer.sellResource);
+      const warning = toBuyer > room ? `Attention : ${buyerCity.name} n'a de place que pour ${room} ${MS.RES_FR[offer.sellResource]} en ce moment ; ce qui ne tiendra pas à l'arrivée repartira chez le vendeur.` : null;
+      return { message: `Échange conclu : vos ${toSeller} ${MS.RES_FR[offer.buyResource]} partent avec ${pick.army.name}, ${toBuyer} ${MS.RES_FR[offer.sellResource]} arrivent dans ${Math.max(1, Math.round(tSeller / 60))} min${warning ? `. ${warning}` : ''}`, warning, toBuyer, toSeller, sellerTax, buyerTax, arrivalAt: new Date(now.getTime() + tSeller * 1000), offer, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     const { offer, buyerName, buyerCityName, ...out } = result;
@@ -280,7 +285,7 @@ router.delete('/routes/:id', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/market/npc-trade — 3:2 exchange with the NPC merchant, needs a Market building
+// POST /api/market/npc-trade — échange avec le marchand PNJ (taxe selon le niveau du Marché, data serverMarketTax*)
 router.post('/npc-trade', auth, async (req, res) => {
   try {
     const { cityId, giveResource, receiveResource, giveAmount } = req.body || {};

@@ -16,7 +16,7 @@ router.get('/me', auth, async (req, res) => {
       // les membres d'alliance de /api/alliance/mine
       include: {
         cities: { select: { id: true, name: true, x: true, y: true, isCapital: true } },
-        hero: { include: { items: true } },
+        hero: { include: { items: { where: { slot: { not: 'inventory' } } } } },   // objets portés seulement : le sac vient de /api/hero
         stats: true,
         alliance: { select: { allianceId: true, role: true, alliance: { select: { id: true, name: true, tag: true } } } },
         expeditions: { where: { status: { in: ['AVAILABLE', 'IN_PROGRESS'] } }, orderBy: { createdAt: 'desc' } },

@@ -33,7 +33,7 @@ router.post('/events', optionalAuth, rateLimit(60, 'analytics'), async (req, res
 });
 
 // GET /api/analytics/funnel?days=7 — comptes d'événements par type (clé d'administration requise)
-router.get('/funnel', rateLimit(5, 'admin'), async (req, res) => {
+router.get('/funnel', rateLimit(5, 'funnel'), async (req, res) => {
   try {
     const key = process.env.ADMIN_KEY;
     if (!key || !safeEqual(req.headers['x-admin-key'], key)) return res.status(401).json({ error: 'Unauthorized' });

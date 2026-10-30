@@ -8,7 +8,7 @@
 // - La ville espionnée est prévenue selon sa Tour de guet : niv. 5 « un espion est venu », niv. 10 l'heure, niv. 15 qui.
 //   Plus d'interception.
 // - Ressources et troupes : les troupes présentes et la partie des ressources qu'un pillage pourrait prendre (hors
-//   cachette et réserves protégées), arrondie à la centaine. Défenses et troupes : les troupes, le mur (niveau, santé),
+//   cachette, seule protection depuis le 30 octobre 2026), arrondie à la centaine. Défenses et troupes : les troupes, le mur (niveau, santé),
 //   les douves, la Tour de guet, la cachette et le bonus de défense. Point : stock exact, tribu ou armées qui récoltent ;
 //   le point garde son stock exact affiché pour l'espion pendant 1 h.
 // ============================================================
@@ -60,7 +60,7 @@ async function recruit(playerId, slot) {
 
 // Envoie un espion libre depuis une de ses villes vers une ville (mission RESOURCES | DEFENSES) ou un point (NODE)
 async function send(playerId, { fromCityId, targetCityId, targetNodeId, mission }) {
-  const from = await prisma.city.findFirst({ where: { id: fromCityId || undefined, playerId }, orderBy: { isCapital: 'desc' }, select: { id: true, name: true, x: true, y: true, player: { select: { faction: true, technologies: true } } } });
+  const from = await prisma.city.findFirst({ where: { id: fromCityId || undefined, playerId }, orderBy: { isCapital: 'desc' }, select: { id: true, name: true, x: true, y: true, player: { select: { faction: true, technologies: true } }, buildings: { where: { key: 'EGYPTIAN_IRRIGATION' }, select: { key: true, level: true } } } });
   if (!from) throw httpError(400, 'Choisissez une de vos villes de départ');
   let target, kind;
   if (targetNodeId) {
@@ -75,7 +75,7 @@ async function send(playerId, { fromCityId, targetCityId, targetNodeId, mission 
     kind = mission;
   }
   const len = await routeLength(from.x, from.y, target.x, target.y, from.player.faction);   // lève NO_ROUTE s'il n'y a pas de chemin
-  const travel = calculateTravelTime(from.x, from.y, target.x, target.y, S.speed, from.player.faction, factionsData, len, T.techPct(from.player.technologies, 'armySpeedBonusPct'));
+  const travel = calculateTravelTime(from.x, from.y, target.x, target.y, S.speed, from.player.faction, factionsData, len, T.techPct(from.player.technologies, 'armySpeedBonusPct') + fx.marchSpeedBonusPct(from.buildings));   // + Irrigation de la ville de départ
   const now = new Date(), arrivalAt = new Date(now.getTime() + travel * 1000);
   const free = await prisma.spy.findFirst({ where: { playerId, status: 'IDLE' }, orderBy: { slot: 'asc' } });
   if (!free) throw httpError(400, (await prisma.spy.count({ where: { playerId } })) ? 'Vos espions sont tous en mission' : 'Recrutez d\'abord un espion (Tour de guet niveau 5)');
@@ -112,7 +112,7 @@ async function troopsIn(city) {
   }));
 }
 
-const levelOf = (buildings, key) => (buildings || []).filter(b => b.key === key).reduce((m, b) => Math.max(m, b.level), 0);
+const { levelOf } = fx;
 function hideoutShare(city) {
   let p = levelOf(city.buildings, 'HIDEOUT') * config.hideout.protectionPerLevel;
   const { getFactionBonus } = require('../utils/calculations');
@@ -137,9 +137,9 @@ async function cityReport(spy, owner) {
     base.buildings = ['WALL', 'MOAT', 'WATCHTOWER', 'HIDEOUT'].map(k => ({ key: k, level: levelOf(city.buildings, k) })).filter(b => b.level > 0);
     base.resources = {};
   } else {
-    // la partie des ressources qu'un pillage pourrait prendre : hors cachette et réserves protégées, à la centaine près
-    const share = 1 - hideoutShare(city), protectedStock = fx.protectedStorage(city.buildings);
-    base.resources = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Math.max(0, (city[r] || 0) - (protectedStock[r] || 0)) * share / 100) * 100)]));
+    // la partie des ressources qu'un pillage pourrait prendre : hors cachette (seule protection), à la centaine près
+    const share = 1 - hideoutShare(city);
+    base.resources = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Math.max(0, city[r] || 0) * share / 100) * 100)]));
     base.buildings = [];
     data = { mission: 'RESOURCES', visible: 'pillable' };
   }
@@ -209,4 +209,4 @@ async function nodeIntelFor(playerId, nodeIds = null) {
   return out;
 }
 
-module.exports = { spiesOf, recruit, send, recall, processSpies, nodeIntelFor, watchtowerLevelOf, httpError };
+module.exports = { spiesOf, recruit, send, recall, processSpies, nodeIntelFor };

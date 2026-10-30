@@ -47,6 +47,20 @@ async function relationsOf(allianceId, tx = prisma) {
   return out;
 }
 
+// Prédicats purs sur des lignes AllianceMember { playerId, allianceId } déjà lues (une requête pour tout un camp) :
+// « même alliance que `me` » (jamais vrai sans alliance), et les joueurs de `ownerIds` hors de l'alliance de `me` (combat
+// forcé d'une armée qui rentre dans sa ville assiégée, quelle que soit la diplomatie)
+function sameAllianceAs(rows, me) {
+  const mine = rows.find(r => r.playerId === me)?.allianceId || null;
+  return (id) => !!mine && rows.find(r => r.playerId === id)?.allianceId === mine;
+}
+function outsideAlliance(rows, me, ownerIds) {
+  const same = sameAllianceAs(rows, me);
+  return ownerIds.filter(id => id !== me && !same(id));
+}
+// Les lignes AllianceMember de ces joueurs (doublons et vides ignorés)
+const allianceRowsOf = (playerIds, db = prisma) => db.allianceMember.findMany({ where: { playerId: { in: [...new Set(playerIds.filter(Boolean))] } }, select: { playerId: true, allianceId: true } });
+
 async function allyIdsOf(allianceId, tx = prisma) {
   return [...(await relationsOf(allianceId, tx))].filter(([, e]) => e.status === 'ALLY').map(([id]) => id);
 }
@@ -57,4 +71,4 @@ const setRow = (tx, allianceId, targetAllianceId, status) => tx.allianceDiplomac
   create: { allianceId, targetAllianceId, status }
 });
 
-module.exports = { MAX_ALLIES, pairStatus, getRelation, relationsOf, allyIdsOf, setRow };
+module.exports = { MAX_ALLIES, pairStatus, getRelation, relationsOf, allyIdsOf, setRow, sameAllianceAs, outsideAlliance, allianceRowsOf };

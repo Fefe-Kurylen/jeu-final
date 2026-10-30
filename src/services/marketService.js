@@ -53,10 +53,19 @@ async function pickTransportArmy(db, city, playerId, faction, amount, armyId = n
   return fit;
 }
 
-async function travelSecondsBetween(army, from, to, faction, technologies) {
+// Trajet d'un convoi d'échange depuis sa ville `from` : Cartographie, Bastion d'alliance et Irrigation de cette ville
+// (bâtiments de `from` s'ils sont chargés, sinon relus par `db`)
+async function travelSecondsBetween(army, from, to, faction, technologies, db = prisma) {
   const len = await routeLength(from.x, from.y, to.x, to.y, faction);
-  const speedPct = T.techPct(technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId));
+  const speedPct = T.techPct(technologies, 'armySpeedBonusPct') + (await require('./bastionService').speedPct(army.ownerId)) + (await require('./armyService').cityMarchPct(db, from));
   return getArmyTravelTime(army.units, from.x, from.y, to.x, to.y, faction, army.hero, len, speedPct);
+}
+
+// Place libre d'une ville pour une ressource (entrepôt, ou silo pour la nourriture)
+function roomFor(city, res) {
+  if (!city) return 0;
+  const cap = res === 'food' ? city.maxFoodStorage : city.maxStorage;
+  return Math.max(0, Math.floor((cap || 0) - (city[res] || 0)));
 }
 
 // L'armée réservée d'une offre redevient libre
@@ -163,4 +172,4 @@ async function processTradeRoutes(now = new Date()) {
   return { routes: routes.length, convoys: convoys.length };
 }
 
-module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, routeCadenceUntil, RES_FR };
+module.exports = { p2pTaxPct, afterTax, tradeCapacity, pickTransportArmy, travelSecondsBetween, roomFor, releaseOfferArmy, cancelOffersOfCity, expireOffers, processTradeRoutes, sendRouteConvoy, routePct, routeCadenceUntil, RES_FR };

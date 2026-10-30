@@ -123,7 +123,7 @@ async function runTickSteps(now, TICK_HOURS, step) {
   await step('flags', () => cleanupOrphanedFlags());
   await step('population', () => updatePopulation(now));
   await step('tribeRespawn', () => processTribeRespawn(now));
-  await step('regen', () => processResourceRegen(now, TICK_HOURS));
+  await step('regen', () => processResourceRegen(now));
   await step('purge', () => purgeOldRecords(now));
 }
 
@@ -134,4 +134,4 @@ function startGameLoop() {
   return setInterval(gameTick, config.tick.intervalMs);
 }
 
-module.exports = { gameTick, startGameLoop, releaseTickLease, runTickSteps };
+module.exports = { startGameLoop, releaseTickLease, runTickSteps };

@@ -3,7 +3,7 @@
 // et /api/friends (amis : demande à accepter). Logique dans src/services/chatService.js.
 // ============================================================
 const express = require('express');
-const { sendError } = require('../utils/httpError');
+const { sendFail: fail } = require('../utils/httpError');   // message métier (status + expose) ou 500 générique
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const rateLimit = require('../middleware/rateLimit');
@@ -14,7 +14,6 @@ const { notify } = require('../services/pushService');
 
 const router = express.Router();
 const friends = express.Router();
-const fail = (res, e) => (e.status && e.expose ? res.status(e.status).json({ error: e.message }) : sendError(res, e));
 const me = (req) => prisma.player.findUnique({ where: { id: req.user.playerId }, select: { id: true, name: true, chatLang: true, chatAutoTranslate: true, chatMutedUntil: true } });
 
 // GET /api/chat/overview — canaux, conversations, non lus, demandes d'amis, réglages de traduction
@@ -155,7 +154,7 @@ router.delete('/blocks/:playerId', auth, async (req, res) => {
 });
 
 // ---- modération (clé d'administration, en-tête x-admin-key) ----
-const admin = [rateLimit(30, 'admin'), (req, res, next) => {
+const admin = [rateLimit(30, 'chatadmin'), (req, res, next) => {
   const key = process.env.ADMIN_KEY;
   if (!key || !safeEqual(req.headers['x-admin-key'], key)) return res.status(401).json({ error: 'Unauthorized' });
   next();

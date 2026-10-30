@@ -16,8 +16,9 @@ test('règles décidées : 15 membres, coût, 3 jours, 7 jours de répit, 10 ass
   assert.deepEqual(B.bonuses, { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 });
 });
 
-test('mur bouclier : 50 fois un mur de niveau 20', () => {
-  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 50);
+test('mur bouclier : 10 fois un mur de niveau 20', () => {
+  assert.equal(config.bastion.wallMultiplier, 10);
+  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 10);
 });
 
 test('vies : elles remontent de 0 à 10 en 72 h, jamais au-delà', () => {

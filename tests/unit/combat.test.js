@@ -69,6 +69,52 @@ test('raid resolution: Rome\'s +10 % unit defence counts on the defence share on
   assert.ok(Math.abs(romeDef.defenderPower / plainDef.defenderPower - share) < 1e-9);
 });
 
+test('battle engine (GDD, option B): a hit deals ATK × coef × triangle, the defence is part of the target\'s solidity', () => {
+  const C = config.combat.battleTierCoefficients;
+  assert.deepEqual(C, { base: 1, intermediate: 1.35, elite: 1.9, siege: 0.75 });
+  assert.deepEqual(config.combat.tierCoefficients, { base: 1, intermediate: 1.25, elite: 1.55, siege: 0.75 });   // puissance : inchangés
+  assert.equal(config.combat.minDamageRatio, undefined);
+  const legion = unit('ROME', 'INFANTRY', 'elite'), romeArc = unit('ROME', 'ARCHER', 'base');
+  // morts du 1er round sur une cible très nombreuse : n × 0,18 × ATK × coef × triangle / (END + 0,55 × DEF × coef)
+  const firstKills = (a, n, t) => resolveCombatDetailed([group(a, n)], [group(t, 100000)], 0, 0, 'A', 'B').rounds[0].attackerKills[0]?.killed || 0;
+  const solid = (u) => u.stats.endurance + config.combat.defenseDamageMult * u.stats.defense * C[u.tier];
+  const expected = (a, n, t, tri = 1) => Math.floor(n * config.combat.roundDamageFactor * a.stats.attack * C[a.tier] * tri / solid(t));
+  // un milicien blesse un légionnaire à proportion de son attaque (ni soustraction de la défense, ni plancher)
+  assert.equal(firstKills(romeInf, 1000, legion), expected(romeInf, 1000, legion));
+  assert.ok(firstKills(romeInf, 1000, legion) > 0);
+  assert.equal(firstKills(legion, 1000, romeInf), expected(legion, 1000, romeInf));
+  // triangle +50 % : la cavalerie sur les archers ; pas de bonus de la cavalerie sur l'infanterie
+  for (const k of ['INFANTRY_vs_CAVALRY', 'CAVALRY_vs_ARCHER', 'ARCHER_vs_INFANTRY']) assert.equal(config.combat.triangle[k], 1.5);
+  assert.equal(firstKills(romeCav, 1000, romeArc), expected(romeCav, 1000, romeArc, 1.5));
+  assert.equal(firstKills(romeCav, 1000, romeInf), expected(romeCav, 1000, romeInf, 1));
+});
+
+test('battle engine: wall and moat raise the defenders\' solidity, not the blows they take', () => {
+  const legion = unit('ROME', 'INFANTRY', 'elite'), C = config.combat.battleTierCoefficients;
+  const kills = (wall, moat) => resolveCombatDetailed([group(romeInf, 1000)], [group(legion, 100000)], wall, moat, 'A', 'B').rounds[0].attackerKills[0].killed;
+  const m = (1 + 20 * config.combat.wallBonusPerLevel) + (1 + 10 * config.combat.moatBonusPerLevel) - 1;   // mur + douves, chacun une fois
+  const solid = legion.stats.endurance + config.combat.defenseDamageMult * legion.stats.defense * C.elite * m;
+  assert.equal(kills(20, 10), Math.floor(1000 * config.combat.roundDamageFactor * romeInf.stats.attack / solid));
+  assert.ok(kills(20, 10) < kills(0, 0));
+});
+
+test('battle engine: at equal cost each tier is worth about its price (no tier crushes the one below)', () => {
+  const cost = (u) => Object.values(u.recruitCost).reduce((a, b) => a + b, 0);
+  const mixed = (f, t) => ['INFANTRY', 'ARCHER', 'CAVALRY'].map(c => { const u = unit(f, c, t); return group(u, Math.round(80000 / cost(u))); });
+  const lostValue = (fin) => fin.reduce((s, u) => s + u.killed * cost(unitsData.find(x => x.key === u.key)), 0);
+  // indice d'échange (ressources détruites / perdues), moyenne géométrique des deux rôles
+  const exchange = (A, B) => {
+    const r1 = resolveCombatDetailed(A, B, 0, 0, 'A', 'B'), r2 = resolveCombatDetailed(B, A, 0, 0, 'B', 'A');
+    return Math.sqrt(((lostValue(r1.defenderFinalUnits) + 1) / (lostValue(r1.attackerFinalUnits) + 1)) * ((lostValue(r2.attackerFinalUnits) + 1) / (lostValue(r2.defenderFinalUnits) + 1)));
+  };
+  for (const f of ['ROME', 'GAUL', 'GREEK']) {
+    for (const [hi, lo] of [['intermediate', 'base'], ['elite', 'intermediate'], ['elite', 'base']]) {
+      const x = exchange(mixed(f, hi), mixed(f, lo));
+      assert.ok(x > 0.6 && x < 1.6, `${f} ${hi}/${lo}: ${x.toFixed(2)}`);
+    }
+  }
+});
+
 test('hero combat bonus is capped at +5%', () => {
   assert.equal(heroBonus(null, 'attack'), 1);
   assert.equal(heroBonus({ attack: 4 }, 'attack'), 1 + 4 * config.combat.heroBonusPerPoint);

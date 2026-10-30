@@ -100,8 +100,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     const token = signToken(created.account, created.player.id);
     res.json({ token, player: { id: created.player.id, name, faction: factionKey }, emailVerificationRequired: config.email.enforce });
   } catch (e) {
-    console.error('Register error:', e);
-    sendError(res, e);
+    sendError(res, e, 'register');
   }
 });
 

@@ -5,34 +5,23 @@ const { notify } = require('../../services/pushService');
 const buildingName = (key) => buildingsData.find(b => b.key === key)?.name || key;
 const config = require('../../config');
 const { buildingsData } = require('../../config/gamedata');
-const { getStorageAtLevel } = require('../../utils/calculations');
+const { getStorageAtLevel, getFactionBonus, cityStorageCaps, STORAGE_KEYS, BASE_STORAGE } = require('../../utils/calculations');
 const { lockCity } = require('../../utils/db');
 const { updatePlayerPopulation } = require('./worldProcessor');
-const { getFactionBonus } = require('../../utils/calculations');
 const { factionsData } = require('../../config/gamedata');
 
-const BASE_STORAGE = 1000;
-
-// Recalcule maxStorage / maxFoodStorage d'une ville à partir de ses bâtiments
+// Recalcule maxStorage / maxFoodStorage d'une ville à partir de ses bâtiments (dépôts, silos, Grand dépôt, Grand silo)
 async function syncCityStorage(cityId, db = prisma) {
-  const buildings = await db.cityBuilding.findMany({ where: { cityId, key: { in: ['WAREHOUSE', 'SILO'] } }, select: { key: true, level: true } });
-  let storage = 0, foodStorage = 0;
-  for (const b of buildings) {
-    if (b.key === 'WAREHOUSE') storage += getStorageAtLevel('WAREHOUSE', b.level, buildingsData);
-    else foodStorage += getStorageAtLevel('SILO', b.level, buildingsData);
-  }
-  await db.city.update({
-    where: { id: cityId },
-    data: { maxStorage: Math.max(BASE_STORAGE, storage), maxFoodStorage: Math.max(BASE_STORAGE, foodStorage) }
-  });
+  const buildings = await db.cityBuilding.findMany({ where: { cityId, key: { in: Object.keys(STORAGE_KEYS) } }, select: { key: true, level: true } });
+  await db.city.update({ where: { id: cityId }, data: cityStorageCaps(buildings, buildingsData) });
 }
 
 // Répare le stockage de TOUTES les villes (appelé une fois au démarrage)
 async function syncAllCityStorage() {
   const { Prisma } = require('@prisma/client');
   const rows = [];
-  for (const key of ['WAREHOUSE', 'SILO']) {
-    for (let lvl = 1; lvl <= 25; lvl++) rows.push(Prisma.sql`(${key}, ${lvl}, ${getStorageAtLevel(key, lvl, buildingsData)})`);
+  for (const [key, kind] of Object.entries(STORAGE_KEYS)) {
+    for (let lvl = 1; lvl <= 25; lvl++) rows.push(Prisma.sql`(${key}, ${lvl}, ${getStorageAtLevel(key, lvl, buildingsData)}, ${kind})`);
   }
   const table = Prisma.join(rows);
   const updated = await prisma.$executeRaw`
@@ -41,10 +30,10 @@ async function syncAllCityStorage() {
       "maxFoodStorage" = GREATEST(${BASE_STORAGE}, COALESCE(st.f, 0))
     FROM (
       SELECT cb."cityId",
-        SUM(CASE WHEN cb.key = 'WAREHOUSE' THEN t.cap ELSE 0 END) AS w,
-        SUM(CASE WHEN cb.key = 'SILO'      THEN t.cap ELSE 0 END) AS f
+        SUM(CASE WHEN t.kind = 'storage'     THEN t.cap ELSE 0 END) AS w,
+        SUM(CASE WHEN t.kind = 'foodStorage' THEN t.cap ELSE 0 END) AS f
       FROM "CityBuilding" cb
-      JOIN (VALUES ${table}) AS t(key, level, cap) ON t.key = cb.key AND t.level = cb.level
+      JOIN (VALUES ${table}) AS t(key, level, cap, kind) ON t.key = cb.key AND t.level = cb.level
       GROUP BY cb."cityId"
     ) AS st
     WHERE c.id = st."cityId"
@@ -113,8 +102,8 @@ async function processBuilds(now, { playerId = null } = {}) {
             while (usedSlots.has(newSlot)) newSlot++;
             await tx.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newSlot, level: b.targetLevel } });
           }
-          // Storage follows the warehouse / silo levels, wall HP follows the wall level
-          if (b.buildingKey === 'WAREHOUSE' || b.buildingKey === 'SILO') await syncCityStorage(b.cityId, tx);
+          // Storage follows the warehouse / silo levels (Great Warehouse and Great Silo too), wall HP follows the wall level
+          if (STORAGE_KEYS[b.buildingKey]) await syncCityStorage(b.cityId, tx);
           if (b.buildingKey === 'WALL') await syncWallHp(b.cityId, b.targetLevel, tx);
           const city = await tx.city.findUnique({ where: { id: b.cityId }, select: { playerId: true, name: true } });
           if (city) await updatePlayerPopulation(tx, city.playerId);

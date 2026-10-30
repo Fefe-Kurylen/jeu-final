@@ -26,27 +26,36 @@ function triangleBonus(attackerClass, defenderClass) {
 const unitDef = (u) => unitsData.find(x => x.key === (u.unitKey || u.key));
 
 // mods: { atk, def, hp } multipliers applied to every unit of the side
+// Coefficients de BATAILLE (1 / 1,35 / 1,9, GDD) sur l'attaque et la défense ; l'endurance n'en a pas
 function makeSide(units, mods) {
-  const TIER = config.combat.tierCoefficients;
+  const TIER = config.combat.battleTierCoefficients;
   return units.map(u => {
     const def = unitDef(u);
     const tier = u.tier || def?.tier || 'base';
     const coeff = TIER[tier] || 1;
-    return {
+    const side = {
       key: u.unitKey || u.key, name: def?.name || u.unitKey || u.key, initial: u.count, count: u.count, tier,
       unitClass: def?.class || 'INFANTRY', faction: def?.faction || null,
       atk: (def?.stats?.attack || 30) * coeff * mods.atk,
       def: (def?.stats?.defense || 30) * coeff * mods.def,
-      hp: (def?.stats?.endurance || 50) * mods.hp,
+      end: (def?.stats?.endurance || 50), hpMult: mods.hp,
       carry: 0
     };
+    side.hp = solidity(side);
+    return side;
   });
 }
 
-// Damage one unit of `a` deals to one unit of `t`: ATK × triangle − 0.55 × DEF, never below 20% of ATK (GDD)
+// Solidité d'une unité (moteur du GDD) : END + 0,55 × DEF, DEF portant déjà coefficient, bonus, mur et douves ;
+// « réduction des pertes » (Rome) la multiplie
+function solidity(u) {
+  return (u.end + config.combat.defenseDamageMult * u.def) * u.hpMult;
+}
+
+// Dégâts d'un coup d'une unité de `a` sur `t` : ATK × triangle, sans soustraction de la défense (GDD) ; la défense de
+// la cible est dans sa solidité
 function hitDamage(a, t) {
-  const raw = a.atk * triangleBonus(a.unitClass, t.unitClass);
-  return Math.max(raw - config.combat.defenseDamageMult * t.def, raw * config.combat.minDamageRatio);
+  return a.atk * triangleBonus(a.unitClass, t.unitClass);
 }
 
 // One side strikes: each group spends its attackers on the enemy by targeting priority
@@ -130,9 +139,10 @@ function resolveCombat(attackerUnits, defenderUnits, defenderWallLevel = 0, atta
 // Detailed round-by-round combat used for city attacks (replayable)
 // techMods: { attacker: { atk, def }, defender: { atk, def } } multipliers from the players' technologies (1 when absent)
 // wall: { hp, maxHp } — the wall as a shield (sieges, décision d'octobre 2026): while it stands, every blow of the
-// attacker falls on it (siege engines strike it far harder than soldiers) and the defenders take nothing; its defence
-// bonus fades with the hit points it has left; once it is down, the blows reach the soldiers. The attacker wins only
-// if the wall is down. Without `wall`, the wall is a plain defence bonus (raids, simulations).
+// attacker falls on it (seuls les engins l'abîment, config.combat.siege.wallShield) and the defenders take nothing; its
+// defence bonus fades with the hit points it has left; once it is down, the blows reach the soldiers and the battle goes
+// on for roundsAfterBreach more rounds at least. The attacker wins only if the wall is down and he beats the defenders.
+// Without `wall`, the wall is a plain defence bonus (raids, simulations).
 function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moatLevel = 0, attackerName, defenderName, attackerHero = null, defenderHero = null, attackerFaction = null, defenderFaction = null, defenseBonusPct = 0, techMods = null, wall = null) {
   // Wall: +1%/level to the defenders' defense (the Egyptian wallHealth bonus raises the wall's hit points instead);
   // moat: +0.5%/level to the defenders' attack and defense. Each applied once.
@@ -152,11 +162,14 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
     def: (1 + defenseBonusPct / 100) * fb(defenderFaction, 'cityDefense') * fb(defenderFaction, 'unitDefense') * heroBonus(defenderHero, 'defense') * (techMods?.defender?.def || 1),
     hp: fb(defenderFaction, 'siegeLossReduction')
   });
-  // the wall and moat part of the defence, recomputed each round (the wall's bonus fades as it is battered)
+  // the wall and moat part of the defence, recomputed each round (the wall's bonus fades as it is battered) : il entre
+  // dans la solidité des défenseurs
   for (const d of defenders) d.def0 = d.def;
-  const applyWallDefense = () => { const m = wallBonusNow() + moatBonus - 1; for (const d of defenders) d.def = d.def0 * m; };
+  const applyWallDefense = () => { const m = wallBonusNow() + moatBonus - 1; for (const d of defenders) { d.def = d.def0 * m; d.hp = solidity(d); } };
   applyWallDefense();
   const W = config.combat.siege.wallShield;
+  // brèche : le mur tombé, le combat dure encore roundsAfterBreach rounds au moins (l'attaquant doit battre les défenseurs)
+  let lastRound = config.combat.maxRounds;
 
   const attackerInitialUnits = attackers.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
   const defenderInitialUnits = defenders.map(u => ({ key: u.key, name: u.name, count: u.initial, tier: u.tier }));
@@ -164,7 +177,7 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
   const aByKey = byKey(attackers), dByKey = byKey(defenders);
   const rounds = [];
 
-  for (let round = 1; round <= config.combat.maxRounds; round++) {
+  for (let round = 1; round <= lastRound; round++) {
     const wallUp = shield && shield.hp > 0;
     if (attackers.every(u => u.count <= 0) || (defenders.every(u => u.count <= 0) && !wallUp)) break;
     applyWallDefense();
@@ -180,6 +193,7 @@ function resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel = 0, moat
       wallDamage = Math.min(dmg, shield.hp);
       const rest = dmg > shield.hp && dmg > 0 ? 1 - shield.hp / dmg : 0;
       shield.hp = Math.max(0, shield.hp - dmg);
+      if (shield.hp <= 0) lastRound = Math.max(lastRound, round + (config.combat.siege.roundsAfterBreach || 0));
       strikers = snapA.map(a => ({ ...a, count: a.count * rest }));
     }
     const attackerDamage = totalDamage(strikers, snapD) + wallDamage;

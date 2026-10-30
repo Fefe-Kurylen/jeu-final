@@ -9,16 +9,33 @@ function lerpExp(a, b, t) {
   return a * Math.pow(b / a, Math.max(0, Math.min(1, t)));
 }
 
-// Capacité de stockage donnée par un WAREHOUSE (storage) ou SILO (foodStorage) à un niveau
-// Même courbe exponentielle que la production, basée sur effects.storageL1/L20 de buildings.json
+// Bâtiments de stockage : dépôts (bois, pierre, fer) et silos (nourriture). Le Grand dépôt et le Grand silo ajoutent
+// chacun 3 fois un dépôt ou un silo de même niveau (décision du 30 octobre 2026, façon Travian) ; ils ne protègent rien.
+const STORAGE_KEYS = { WAREHOUSE: 'storage', GREAT_WAREHOUSE: 'storage', SILO: 'foodStorage', GREAT_SILO: 'foodStorage' };
+const BASE_STORAGE = 1000;   // capacité d'une ville sans dépôt ni silo
+
+// Capacité de stockage donnée par un bâtiment de stockage à un niveau
+// Même courbe exponentielle que la production, basée sur effects.storageL1/L20 (foodStorageL1/L20) de buildings.json
 function getStorageAtLevel(buildingKey, level, buildingsData) {
   const def = buildingsData.find(b => b.key === buildingKey);
-  const prefix = buildingKey === 'SILO' ? 'foodStorage' : 'storage';
+  const prefix = STORAGE_KEYS[buildingKey] || 'storage';
   const L1 = def?.effects?.[prefix + 'L1'] || 1200;
   const L20 = def?.effects?.[prefix + 'L20'] || 160000;
   if (level <= 0) return 0;
   if (level >= 20) return L20;
   return Math.round(lerpExp(L1, L20, (level - 1) / 19));
+}
+
+// maxStorage / maxFoodStorage d'une ville d'après ses bâtiments (somme des dépôts, somme des silos, jamais sous 1000)
+function cityStorageCaps(buildings, buildingsData = require('../config/gamedata').buildingsData) {
+  let storage = 0, foodStorage = 0;
+  for (const b of buildings || []) {
+    const kind = STORAGE_KEYS[b.key];
+    if (!kind) continue;
+    const cap = getStorageAtLevel(b.key, b.level, buildingsData);
+    if (kind === 'foodStorage') foodStorage += cap; else storage += cap;
+  }
+  return { maxStorage: Math.max(BASE_STORAGE, storage), maxFoodStorage: Math.max(BASE_STORAGE, foodStorage) };
 }
 
 // Get resource production at a given building level
@@ -180,6 +197,9 @@ module.exports = {
   lerpExp,
   getProductionAtLevel,
   getStorageAtLevel,
+  STORAGE_KEYS,
+  BASE_STORAGE,
+  cityStorageCaps,
   getFactionBonus,
   getCityTier,
   getCityTierName,

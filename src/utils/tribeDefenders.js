@@ -63,6 +63,28 @@ function targetSoldiers(level, resourcePercent = 1.0, difficulty = 1) {
   return Math.max(floor, Math.floor(expectedSoldiers(level, resourcePercent) * Math.max(0.1, difficulty)));
 }
 
+// Camp d'or : défenseurs plus forts de 40 %, au combat (bonus de défense de resolveCombat) comme dans la puissance affichée
+const GOLD_CAMP_BONUS_PCT = 40;
+const campBonusPct = (resourceType) => (resourceType === 'GOLD' ? GOLD_CAMP_BONUS_PCT : 0);
+
+// Unités d'un camp (tribu ou Immortels) telles qu'elles combattent : clés anciennes converties, palier de chaque unité
+const LEGACY_KEYS = { warrior: 'GRE_INF_HOPLITE', archer: 'GRE_ARC_TOXOTE', cavalry: 'GRE_CAV_GREC', elite: 'GRE_INF_SPARTIATE' };
+function campUnits(defenderUnits) {
+  const { unitsData } = require('../config/gamedata');
+  return Object.entries(defenderUnits || {}).filter(([, count]) => count > 0).map(([key, count]) => {
+    const unitKey = LEGACY_KEYS[key] || key;
+    return { unitKey, count, tier: unitsData.find(u => u.key === unitKey)?.tier || 'base' };
+  });
+}
+
+// Puissance d'un camp, sur l'échelle de la puissance d'une armée (GET /api/army/:id -> power) : la carte montre ce que le
+// combat utilise
+function campPower(defenderUnits, resourceType = null) {
+  const { unitsData } = require('../config/gamedata');
+  const { calculateArmyPower } = require('./calculations');
+  return Math.round(calculateArmyPower(campUnits(defenderUnits), unitsData) * (1 + campBonusPct(resourceType) / 100));
+}
+
 // faction: keep the camp's people when it is reinforced; random otherwise. difficulty: campDifficultyAt(x, y) of the node.
 // Each camp also varies by ± config.map.camps.variationPct (the « stars » of the GDD).
 function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, faction = null, difficulty = 1) {
@@ -108,18 +130,14 @@ function generateTribeDefenders(level, isGold = false, resourcePercent = 1.0, fa
     units[factionUnits.cavalry.elite] = Math.floor(eliteCount * cavRatio);
   }
 
-  // Power on the same scale as an army's power (GET /api/army/:id -> power), so the map shows what the fight uses
-  const { unitsData } = require('../config/gamedata');
-  const { calculateArmyPower } = require('./calculations');
-  const power = Math.round(calculateArmyPower(Object.entries(units).map(([unitKey, count]) => ({ unitKey, count, tier: unitsData.find(u => u.key === unitKey)?.tier || 'base' })), unitsData) * (isGold ? 1.4 : 1));
-
-  return { power, units, faction };
+  return { power: campPower(units, isGold ? 'GOLD' : null), units, faction };
 }
 
 module.exports = {
-  FACTIONS_LIST,
-  FACTION_UNITS,
   generateTribeDefenders,
+  campUnits,
+  campPower,
+  campBonusPct,
   expectedSoldiers,
   targetSoldiers,
   campDifficultyAt,

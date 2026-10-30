@@ -31,7 +31,12 @@ const config = {
     helpPoints: 10,
     helpPointsDailyCap: 300,
     helpRequestMaxAgeDays: 7,
-    healRequestEveryHours: 6
+    healRequestEveryHours: 6,
+    maxMembers: 60,                              // décision du 30 octobre 2026 : 60 membres au plus (adhésion et invitation)
+    // Défi de la semaine (décision du 30 octobre 2026) : points d'alliance par membre pour les 3 premières ; seuls comptent
+    // (score et récompense) les membres arrivés avant le vendredi 0 h de la semaine, heure de Paris (1 = lundi … 5 = vendredi)
+    challengeRewardPoints: [750, 500, 250],
+    challengeJoinDeadline: { day: 5, hour: 0 }
   },
 
   // Espions (décision du 26 octobre 2026, GDD espionage_config) : 2 par compte, Tour de guet niv. 5 puis 10, 20 puis
@@ -46,7 +51,7 @@ const config = {
 
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
-  // plus dur (mur bouclier 50 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
+  // plus dur (mur bouclier 10 fois un mur 20 depuis le 30 octobre 2026, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 5 000 joueurs ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
@@ -64,7 +69,10 @@ const config = {
     treasure: { resources: 8000, gold: 40, alliancePoints: 30, resourceFactor: 2.5, goldFactor: 2 },   // par ressource, au niveau 1
     itemChance: [0.15, 0.25, 0.35, 0.5, 0.7],                               // objet rare au dernier coup, par niveau
     itemTier: ['COMMON', 'COMMON', 'RARE', 'EPIC', 'EPIC'],
-    manualHours: 48                       // invasion lancée par l'équipe
+    manualHours: 48,                      // invasion lancée par l'équipe
+    // Âge du monde (décision du 30 octobre 2026) : mult = min(ageMax, 1 + ageFactorPerWeek × max(0, semaine − ageFromWeek)),
+    // fixé au lancement de l'invasion ; au niveau L, × mult^((L − 1)/4) sur la puissance des étages et les ressources du trésor
+    ageFactorPerWeek: 0.35, ageFromWeek: 3, ageMax: 6
   },
 
   world: {
@@ -89,7 +97,10 @@ const config = {
 
   // Héros (décision du 27 octobre 2026) : résurrection au Domus payée selon le niveau du héros
   hero: {
-    reviveCostPerLevel: { wood: 250, stone: 250, iron: 250, food: 150 }
+    reviveCostPerLevel: { wood: 250, stone: 250, iron: 250, food: 150 },
+    // XP (décision du 30 octobre 2026) : 100 XP pour le niveau 2, puis × 1,25 par niveau (au lieu de × 1,5)
+    xpFirstLevel: 100,
+    xpLevelFactor: 1.25
   },
 
   bastion: {
@@ -97,7 +108,7 @@ const config = {
     cost: { wood: 500000, stone: 500000, iron: 500000, food: 250000 },
     buildDays: 3,
     cooldownDays: 7,
-    wallMultiplier: 50,
+    wallMultiplier: 10,                         // mur bouclier : 10 fois un mur 20 (décision du 30 octobre 2026, 50 avant)
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     wallReferenceLevel: 20,
     assaults: 10,
@@ -141,7 +152,7 @@ const config = {
     // Resource nodes: base stock by level (× 0.8-1.2 at seed), max = base × maxFactor, refilled in regenHours
     resourceNode: { baseAmountByLevel: { 1: 1500, 2: 4000, 3: 8000 }, maxFactor: 1.5, regenHours: 4 },
     // Camps (tribes): size × difficulty from the edge of the map (new players) to the centre (end game), ± variation between camps
-    camps: { difficultyEdge: 0.5, difficultyCenter: 1.3, variationPct: 20 }
+    camps: { difficultyEdge: 0.5, difficultyCenter: 1.3, variationPct: 20, goldDefenseBonusPct: 40 }   // camp d'or : +40 % au combat comme à l'affichage (décision du 30 octobre 2026)
   },
 
   // Rate limiting (keyed by player once authenticated, by IP otherwise — mobile carriers share IPs)
@@ -224,8 +235,9 @@ const config = {
   combat: {
     maxRounds: 15,
     roundDamageFactor: 0.18,     // fraction of the damage applied per round (otherwise mutual annihilation in 1-2 rounds)
-    defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT: damage per hit = ATK × mods − 0.55 × DEF
-    minDamageRatio: 0.2,         // a hit always deals at least 20% of the raw attack
+    // Moteur de bataille du GDD (option B, décision du 30 octobre 2026) : un coup fait ATK × coef × triangle, sans
+    // soustraction ni plancher ; la solidité d'une unité vaut END + 0,55 × DEF × coef (mur et douves comptent dans DEF)
+    defenseDamageMult: 0.55,     // GDD DAMAGE_DEF_MULT : poids de la défense dans la solidité
     targetingPriority: ['elite', 'intermediate', 'base', 'siege'],
     // Siège (décision du 25 octobre 2026) : l'armée qui attaque une ville campe 1 h devant elle, puis le combat démarre
     // tout seul. Pendant l'heure, la ville vit normalement ; n'importe quel joueur peut attaquer le camp. Au combat, le
@@ -236,8 +248,9 @@ const config = {
       minEngines: 1,                  // pas de siège sans au moins un engin
       wallShield: {
         engineMult: 1,                // coups d'un engin sur le mur : toute sa force...
-        soldierMult: 0.1              // ...ceux d'un soldat : un dixième (un engin frappe le mur 10 fois plus fort)
-      }
+        soldierMult: 0                // ...ceux d'un soldat : rien, seuls les engins abîment le mur (GDD onlySiegeEnginesDamageWall, 30 octobre 2026)
+      },
+      roundsAfterBreach: 5            // le mur tombé, le combat dure encore 5 rounds au moins (décision du 30 octobre 2026)
     },
     // Rencontres (décision du 25 octobre 2026) : deux armées de joueurs ennemis déclarés sur la même case au même moment se
     // battent, même en marche ; les positions sont échantillonnées toutes les sampleSeconds entre deux ticks
@@ -266,12 +279,16 @@ const config = {
     loserLossRate: 0.30,         // GDD raid rule: the fight stops once a side is below 70%
     raidLootPctOfCarry: 0.30,    // GDD: a raid carries away at most 30% of the army's capacity
     raidCooldownHours: 24,       // GDD: one raid per target city per attacker per 24h
-    tierCoefficients: { base: 1.0, intermediate: 1.25, elite: 1.55, siege: 0.75 },  // équilibrage oct. 2026 : l'élite vaut plus par unité d'entretien (docs/EQUILIBRAGE.md)
-    // Combat triangle (GDD combat_config.json), applied per attacker class / target class pair
+    // Coefficients de palier. PUISSANCE (pillages, camps, rencontres, hordes, affichage) : (ATK + DEF) × coef, équilibrage
+    // d'oct. 2026 (docs/EQUILIBRAGE.md). BATAILLE (combat détaillé) : ceux du GDD, sur ATK et DEF (docs/RAPPORT-UNITES.md, option B)
+    tierCoefficients: { base: 1.0, intermediate: 1.25, elite: 1.55, siege: 0.75 },
+    battleTierCoefficients: { base: 1.0, intermediate: 1.35, elite: 1.9, siege: 0.75 },
+    // Triangle (GDD combat_config.json), par classe qui frappe / classe frappée : +50 % depuis le 30 octobre 2026 (+20 % dans
+    // le GDD ; sans cela la cavalerie, plus chère, ne bat plus les archers)
     triangle: {
-      INFANTRY_vs_CAVALRY: 1.20,
-      CAVALRY_vs_ARCHER: 1.20,
-      ARCHER_vs_INFANTRY: 1.20
+      INFANTRY_vs_CAVALRY: 1.50,
+      CAVALRY_vs_ARCHER: 1.50,
+      ARCHER_vs_INFANTRY: 1.50
     }
   },
 

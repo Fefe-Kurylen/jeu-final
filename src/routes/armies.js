@@ -10,26 +10,34 @@ const { validateCoordinates, cleanText, isAmount } = require('../utils/validatio
 const { calculateArmyPower, countSiegeEngines, getArmyTravelTime, getArmyCarryCapacity, getFactionBonus, pointAlongPath } = require('../utils/calculations');
 const T = require('../utils/techEffects');
 const bastionBonus = () => require('../services/bastionService');
-// Cartographie (technologie) + Bastion d'alliance actif (+5 %, décision du 26 octobre 2026)
-const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct') + bastionBonus().speedPctSync(army?.owner?.alliance?.allianceId);
-const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx } = require('../services/armyService');
-const { getRelation } = require('../services/diplomacyService');
+// Cartographie (technologie) + Bastion d'alliance actif (+5 %, décision du 26 octobre 2026) + Irrigation égyptienne de la
+// ville de l'armée (bâtiment chargé par loadArmy)
+const speedTechPct = (army) => T.techPct(army?.owner?.technologies, 'armySpeedBonusPct') + bastionBonus().speedPctSync(army?.owner?.alliance?.allianceId) + fx.marchSpeedBonusPct(army?.city?.buildings);
+const { resolveTribeCombat, resolveNodeHolderCombat, raidCooldownWhere, depositCarryTx, MARCH_BUILDINGS } = require('../services/armyService');
+const { getRelation, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { footprintFree, cityAtCellWhere } = require('../utils/spawn');
 const { lockArmy, lockCity, debitCity, transition, isId, claimNode } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
-// Camp owners not in the player's own alliance (forced homecoming fight, whatever the declared diplomacy)
-async function campsOutsideAlliance(playerId, ownerIds, db = prisma) {
-  const rows = await db.allianceMember.findMany({ where: { playerId: { in: [playerId, ...ownerIds] } }, select: { playerId: true, allianceId: true } });
-  const mine = rows.find(r => r.playerId === playerId)?.allianceId || null;
-  return ownerIds.filter(id => id !== playerId && !(mine && rows.find(r => r.playerId === id)?.allianceId === mine));
-}
+// Propriétaires de camps hors de l'alliance du joueur (combat forcé du retour, quelle que soit la diplomatie déclarée) :
+// même prédicat que le siège vu par routes/cities.js
+const campsOutsideAlliance = async (playerId, ownerIds, db = prisma) => outsideAlliance(await allianceRowsOf([playerId, ...ownerIds], db), playerId, ownerIds);
 
 const OUTBOUND = ['MOVING', 'ATTACKING', 'RAIDING', 'SPYING', 'TRANSPORTING', 'SUPPORTING'];
 
+// Héros avec ses objets portés seulement (le sac ne sert ni au combat ni à la charge, il vient de /api/hero)
+const HERO_EQUIPPED = { include: { items: { where: { slot: { not: 'inventory' } } } } };
+// L'armée, ses unités, son propriétaire (technologies, alliance), son héros et sa ville (avec l'Irrigation pour la marche)
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
-  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, hero: { include: { items: true } }, ...include } });
+  db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } } } }, hero: HERO_EQUIPPED, city: { include: { buildings: MARCH_BUILDINGS } }, ...include } });
+
+// Charge d'une armée qui transporte ou récolte : unités et héros, civilisation, Marché / Comptoir / Avant-poste de sa ville
+// (`cityBuildings`), Bastion d'alliance ; la même que harvestProcessor applique à la récolte
+const transportCapacity = (army, cityBuildings) => Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero)
+  * (1 + getFactionBonus(army.owner?.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100)
+  * bastionBonus().carryMultSync(army.owner?.alliance?.allianceId));
+const cityBuildingsOf = (db, cityId) => (cityId ? db.cityBuilding.findMany({ where: { cityId }, select: { key: true, level: true } }) : []);
 
 // Travel times follow the route around mountains and water; both throw { code: 'NO_ROUTE' } when there is none
 const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY, army.owner?.faction), speedTechPct(army));
@@ -134,7 +142,7 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
   if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
   await lockCity(tx, probe.cityId);
-  const army = await loadArmy(armyId, playerId, { city: true }, tx);
+  const army = await loadArmy(armyId, playerId, {}, tx);
   if (!army) return { error: 'Armée non trouvée', status: 404 };
   if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
   if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
@@ -298,7 +306,7 @@ router.post('/:id/unassign-hero', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/army/:id/adjust-unit (delta-based, used by frontend)
+// POST /api/army/:id/adjust-unit (par incréments ; utilisé par les tests et la simulation, le client passe par set-unit)
 router.post('/:id/adjust-unit', auth, async (req, res) => {
   try {
     const { unitKey, delta } = req.body;
@@ -465,7 +473,7 @@ router.post('/:id/raid-resource', auth, async (req, res) => {
   try {
     const { resourceNodeId } = req.body;
     if (!isId(resourceNodeId)) return res.status(400).json({ error: 'ID de ressource requis' });
-    const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true });
+    const army = await loadArmy(req.params.id, req.user.playerId);
     const err = readyToLeave(army, 'attaquer');
     if (err) return res.status(err.status).json({ error: err.error });
     { const camp = await campBlocksExit(army); if (camp) return res.status(400).json({ error: camp }); }
@@ -534,7 +542,7 @@ router.post('/:id/found-city', auth, async (req, res) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
       if (probe?.cityId) await lockCity(tx, probe.cityId);
       await lockArmy(tx, req.params.id);
-      const army = await loadArmy(req.params.id, req.user.playerId, { hero: { include: { items: true } }, city: true }, tx);
+      const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       const err = readyToLeave(army, 'fonder une ville');
       if (err) return { error: err.error, status: err.status };
       { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }
@@ -622,7 +630,7 @@ router.post('/:id/collect-resource', auth, async (req, res) => {
         await tx.army.update({ where: { id: army.id }, data: { status: 'MOVING', targetX: node.x, targetY: node.y, targetResourceId: node.id, arrivalAt, departedAt: new Date(), missionType: 'MOVE_TO_HARVEST', harvestResourceType: node.resourceType } });
         return { message: 'Armée en route pour collecter', travelTime, arrivalAt };
       }
-      const carryCapacity = getArmyCarryCapacity(army.units, unitsData, army.hero);
+      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army.cityId));   // capacité complète, celle de la récolte
       // The node is taken conditionally: free, or already held by one's own or allied armies (shared harvest)
       if (!(await claimNode(tx, node.id, { playerId: req.user.playerId, allianceId: army.owner?.alliance?.allianceId || null }))) return { error: 'Une armée adverse récolte déjà ce point : attaquez-la', status: 409 };
       await tx.army.update({ where: { id: army.id }, data: { status: 'HARVESTING', x: node.x, y: node.y, targetX: node.x, targetY: node.y, targetResourceId: node.id, missionType: 'HARVEST', harvestResourceType: node.resourceType } });
@@ -647,7 +655,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (campCityId) await lockCity(tx, campCityId);
       else if (RECALL_EN_ROUTE.includes(probe?.status) && probe.cityId) await lockCity(tx, probe.cityId);   // a mission recalled on its home tile unloads there
       await lockArmy(tx, req.params.id);
-      const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
+      const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       if (!army) return { error: 'Armee non trouvee', status: 404 };
       if (!army.city) return { error: 'Armee sans ville d\'origine', status: 400 };
       if (army.status === 'RETURNING') return { message: 'Armée déjà sur le chemin du retour', arrivalAt: army.arrivalAt };
@@ -717,15 +725,14 @@ router.post('/:id/transport', auth, async (req, res) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
       if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
       await lockCity(tx, probe.cityId);
-      const army = await loadArmy(req.params.id, req.user.playerId, { city: true }, tx);
+      const army = await loadArmy(req.params.id, req.user.playerId, {}, tx);
       const err = readyToLeave(army, 'transporter');
       if (err) return { error: err.error, status: err.status };
+      { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }   // assiégée, la ville ne laisse sortir que contre le camp
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
       if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
-      const cityBuildings = await tx.cityBuilding.findMany({ where: { cityId: army.city.id }, select: { key: true, level: true } });
-      const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * bastionBonus().carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
-      const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
+      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army.city.id));
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
       const travelTime = await travelTo(army, targetCity.x, targetCity.y);
@@ -777,7 +784,7 @@ router.post('/send', auth, async (req, res) => {
 // GET /api/army/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true, hero: { include: { items: true } } } });
+    const army = await prisma.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, include: { units: true, city: true, hero: HERO_EQUIPPED } });
     if (!army) return res.status(404).json({ error: 'Armee non trouvee' });
     res.json({ ...army, power: calculateArmyPower(army.units, unitsData) });
   } catch (e) { sendError(res, e); }
@@ -786,7 +793,7 @@ router.get('/:id', auth, async (req, res) => {
 // GET /api/armies
 router.get('/', auth, async (req, res) => {
   try {
-    const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: { include: { items: true } } } });
+    const armies = await prisma.army.findMany({ where: { ownerId: req.user.playerId }, include: { units: true, city: true, hero: HERO_EQUIPPED } });
     res.json(armies.map(a => ({ ...a, power: calculateArmyPower(a.units, unitsData) })));
   } catch (e) { sendError(res, e); }
 });

@@ -11,11 +11,11 @@ const T = require('../../utils/techEffects');   // technologies des joueurs (att
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
-const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx } = require('../../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx, raidCooldownWhere, cityMarchPct, MARCH_BUILDINGS } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
-const { raidCooldownWhere } = require('../../services/armyService');
+const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
 const { creditCity, plunderCity, lockCity, claimNode } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
@@ -102,7 +102,7 @@ async function setArmyIdle(armyId, extraData = {}) {
 // Sends the army back to its city at the speed of its surviving units (owner faction and hero bonuses applied).
 // An army with no unit left has nothing to march with: it is put back in its city immediately.
 async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = null) {
-  const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId } }) : null;
+  const homeCity = army.cityId ? await prisma.city.findUnique({ where: { id: army.cityId }, include: { buildings: MARCH_BUILDINGS } }) : null;
   if (!homeCity) {
     await setArmyIdle(army.id, extraData);
     return;
@@ -116,7 +116,7 @@ async function sendArmyHome(army, fromX, fromY, extraData = {}, fixedSpeed = nul
   const faction = army.owner?.faction;
   const route = await findRoute(fromX, fromY, homeCity.x, homeCity.y, army.owner?.faction).catch(() => null);
   const distance = route ? route.length : null;
-  const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId));   // + Bastion d'alliance
+  const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + (await cityMarchPct(prisma, homeCity));   // + Bastion d'alliance, Irrigation
   const travelTime = fixedSpeed
     ? calculateTravelTime(fromX, fromY, homeCity.x, homeCity.y, fixedSpeed, faction, factionsData, distance, speedPct)
     : getArmyTravelTime(units, fromX, fromY, homeCity.x, homeCity.y, faction, army.hero, distance, speedPct);
@@ -175,7 +175,7 @@ async function handleRaidResource(army) {
     if (!fresh) return { won: false, gone: true, losses: 0, loot: {} };
     const result = fresh.hasDefenders ? await resolveTribeCombat(army, fresh, army.ownerId, tx) : fresh.hasPlayerArmy ? await resolveNodeHolderCombat(army, fresh, army.ownerId, tx) : { success: true, free: true };
     const loot = result.success && !result.shared ? await collectResourceLoot(army, fresh, army.ownerId, tx, result.reportId || null) : {};
-    return { won: result.success, fight: !result.free && !result.shared, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot, reportId: result.reportId || null, notices: result.notices || [] };
+    return { won: result.success, fight: !result.free && !result.shared && !result.blocked, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot, reportId: result.reportId || null, notices: result.notices || [] };
   }, TX);
   for (const n of outcome.notices || []) notify(...n);
   const won = outcome.won;
@@ -309,20 +309,6 @@ function reportResult(reportOwnerIsAttacker, attackerWon) {
   return reportOwnerIsAttacker === attackerWon ? 'WIN' : 'LOSE';
 }
 
-// Losses are applied per unit row with the survival ratio of its unit type
-function survivalRatio(finalUnits, key) {
-  const r = finalUnits.find(u => u.key === key);
-  return r && r.initial > 0 ? r.remaining / r.initial : 0;
-}
-
-async function applyLosses(tx, units, finalUnits) {
-  for (const unit of units) {
-    const newCount = Math.round(unit.count * survivalRatio(finalUnits, unit.unitKey));
-    if (newCount <= 0) await tx.armyUnit.deleteMany({ where: { id: unit.id } });
-    else if (newCount !== unit.count) await tx.armyUnit.update({ where: { id: unit.id }, data: { count: newCount } });
-  }
-}
-
 // The target city as it stands at the moment of the fight, read under its row lock so that no
 // unit transfer, recruit or other battle changes it between the read and the write of the losses.
 const CITY_FOR_BATTLE = { armies: { include: { units: true, hero: { include: { items: true } } } }, buildings: true, player: true };
@@ -349,15 +335,8 @@ async function alliedOwners(tx, a, b) {
   return a === b || !(await getRelation(a, b, tx)).canAttack;
 }
 
-// Ligne d'unités fusionnées par type (plusieurs camps peuvent amener le même type)
-function mergeUnits(rows) {
-  const m = {};
-  for (const u of rows) if (u.count > 0) (m[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
-  return Object.values(m);
-}
-
 // End of the camp hour: the camps of allied owners due now fight the city together (décision du 25 octobre 2026). The
-// wall is a shield (combatService), a won battle pillages a quarter of the unprotected stock within what the armies carry
+// wall is a shield (combatService), a won battle pillages a quarter of the stock outside the hideout within what the armies carry
 // and takes a life from the city; at the last life the city falls (after this transaction). Every camp goes home after.
 async function handleAttack(army, now) {
   const battle = await prisma.$transaction(async (tx) => {
@@ -393,7 +372,7 @@ async function handleAttack(army, now) {
     const HS = require('../../services/heroService');
     await HS.fallIfWiped(tx, HS.fought([...group.map(g => ({ ...g, units: rowsOf.get(g.id) })), ...defenders]), now);
     const campMinutes = army.departedAt ? Math.round((now - new Date(army.departedAt)) / 60000) : 0;
-    // Won: a quarter of the unprotected stock within what the armies carry, and a life (with its share of the wall's hit points)
+    // Won: a quarter of the stock outside the hideout within what the armies carry, and a life (with its share of the wall's hit points)
     let pillaged = null, structure = null;
     if (result.attackerWon) {
       const survivors = new Map(group.map(g => [g.id, rowsOf.get(g.id).map(u => ({ unitKey: u.unitKey, count: Math.round(u.count * survivalRatio(result.attackerFinalUnits, u.unitKey)) }))]));
@@ -617,7 +596,7 @@ async function handleRaid(army, now) {
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // Technologies: Art de la guerre (attacker's power), Discipline (defender's power)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { moatLevel, attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct: fx.defenseBonusPct(targetCity.buildings), attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
 
     // appliquées, rapport et classements comptent les mêmes pertes
     const atkLosses = raidLosses(attackerUnits, result.attackerLossRate), defLosses = raidLosses(defenderUnits, result.defenderLossRate);
@@ -634,10 +613,9 @@ async function handleRaid(army, now) {
       let hideoutProtection = (hideout?.level || 0) * config.hideout.protectionPerLevel;
       hideoutProtection *= (1 + getFactionBonus(targetCity.player.faction, 'hideoutCapacity', factionsData) / 100);
       hideoutProtection = Math.min(hideoutProtection, config.hideout.maxProtection);
-      // Great Warehouse / Great Silo: an absolute amount no raid can touch, on top of the hideout share
-      const protectedStock = fx.protectedStorage(targetCity.buildings);
+      // seule la cachette protège (le Grand dépôt et le Grand silo ne sont que du stockage, décision du 30 octobre 2026)
       const available = {};
-      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = Math.max(0, (targetCity[r] - protectedStock[r]) * (1 - hideoutProtection) * config.hideout.raidStealRate);
+      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = Math.max(0, targetCity[r] * (1 - hideoutProtection) * config.hideout.raidStealRate);
       const totalAvailable = Object.values(available).reduce((s, v) => s + v, 0);
       const want = {};
       for (const r of Object.keys(available)) want[r] = totalAvailable > 0 ? Math.floor(Math.min(available[r], budget * available[r] / totalAvailable)) : 0;

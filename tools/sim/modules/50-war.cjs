@@ -819,7 +819,7 @@ async function bastionOps(ctx, v, S, g) {
   const units = [...leader.units];
   for (const p of parts.filter(x => x !== leader).sort((a, b) => dist(a.cap, leader.cap) - dist(b.cap, leader.cap))) {
     if (joined >= capacity || S.left < 2 || joined >= 9) break;
-    const late = (u) => v.now + travelSec(u, p.cap, leader.cap) * 1000 > launchAt - 5 * 60000;
+    const late = (u) => v.now + travelSec(u, p.cap, leader.cap) * 1.3 * 1000 > launchAt - 5 * 60000;   // marge : la route contourne parfois bien plus le relief
     let go = merge(p.army.units, p.eng);
     const withEng = p.eng.length && !late(go);
     if (!withEng) { go = rows(p.army.units); if (late(go)) continue; }   // n'arriverait pas à temps

@@ -6,8 +6,8 @@
 //   chantier ; actif, il donne à tous les membres +10 % de production, +5 % de vitesse des armées, +10 % de transport.
 // - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense) ; pendant un siège, aucune n'entre.
 // - Les autres l'attaquent avec des engins de siège : camp d'1 h, puis combat contre la garnison derrière un mur bouclier
-//   50 fois plus solide qu'un mur 20 ; chaque assaut gagné lui ôte une vie sur 10 (les vies remontent en 72 h). À la
-//   dernière, il est rasé : plus de bonus, garnison renvoyée, 7 jours avant d'en rebâtir un.
+//   10 fois plus solide qu'un mur 20 (décision du 30 octobre 2026) ; chaque assaut gagné lui ôte une vie sur 10 (les vies
+//   remontent en 72 h). À la dernière, il est rasé : plus de bonus, garnison renvoyée, 7 jours avant d'en rebâtir un.
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
@@ -17,7 +17,7 @@ const { routeLength } = require('../utils/pathfinding');
 const { footprintFree, lockPlacement } = require('../utils/spawn');
 const { transition, debitCity, lockCity } = require('../utils/db');
 const { resolveCombatDetailed, heroCombatStats } = require('./combatService');
-const { relationsOf, getRelation } = require('./diplomacyService');
+const { relationsOf, getRelation, sameAllianceAs, allianceRowsOf } = require('./diplomacyService');
 const { notify } = require('./pushService');
 const T = require('../utils/techEffects');
 const fx = require('../utils/buildingEffects');
@@ -25,7 +25,7 @@ const { mergeUnits, applyLosses } = require('../utils/armyUnits');
 
 const B = config.bastion;
 const RES = ['wood', 'stone', 'iron', 'food'];
-const httpError = (status, message) => Object.assign(new Error(message), { status, expose: true });
+const { httpError } = require('../utils/httpError');
 const wallMaxHp = () => config.combat.wallHpPerLevel * B.wallReferenceLevel * B.wallMultiplier;
 
 // Vies actuelles (elles remontent de 0 à 1 en regenHours depuis la dernière valeur écrite)
@@ -119,9 +119,10 @@ async function loadReadyArmy(tx, playerId, armyId) {
   if (army.city?.isSieged && army.x === army.city.x && army.y === army.city.y) throw httpError(400, 'Ville assiégée : vos armées ne sortent que pour attaquer le camp ennemi');
   return army;
 }
+// Cartographie, Bastion actif et Irrigation de la ville de l'armée (bâtiments chargés par loadReadyArmy / ARMY_FULL)
 async function travelSeconds(army, b) {
   const len = await routeLength(army.x, army.y, b.x, b.y, army.owner?.faction);
-  return getArmyTravelTime(army.units, army.x, army.y, b.x, b.y, army.owner?.faction, army.hero, len, T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await speedPct(army.ownerId)));
+  return getArmyTravelTime(army.units, army.x, army.y, b.x, b.y, army.owner?.faction, army.hero, len, T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city?.buildings));
 }
 
 async function relationTo(playerAllianceId, bastionAllianceId) {
@@ -370,11 +371,11 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const b = await tx.bastion.findUnique({ where: { id: army.targetBastionId || '' }, include: { alliance: { select: { id: true, tag: true, name: true } } } });
     if (!b || !['BUILDING', 'ACTIVE'].includes(b.status)) return { gone: true };
     const others = await tx.army.findMany({ where: { status: 'BESIEGING', targetBastionId: b.id, claimedAt: null, arrivalAt: { lte: now }, id: { not: army.id } }, include: { units: true, owner: true, hero: { include: { items: true } } } });
-    const myAlliance = (await tx.allianceMember.findUnique({ where: { playerId: army.ownerId }, select: { allianceId: true } }))?.allianceId || null;
+    // camps du même joueur ou de la même alliance : un seul assaut (alliances lues en une requête)
+    const sameAlliance = sameAllianceAs(await allianceRowsOf([army.ownerId, ...others.map(o => o.ownerId)], tx), army.ownerId);
     const group = [army];
     for (const o of others) {
-      const oa = (await tx.allianceMember.findUnique({ where: { playerId: o.ownerId }, select: { allianceId: true } }))?.allianceId || null;
-      if (o.ownerId !== army.ownerId && !(myAlliance && oa === myAlliance)) continue;
+      if (o.ownerId !== army.ownerId && !sameAlliance(o.ownerId)) continue;
       if ((await tx.army.updateMany({ where: { id: o.id, status: 'BESIEGING', claimedAt: null }, data: { claimedAt: now } })).count === 1) group.push(o);
     }
     const rowsOf = new Map();

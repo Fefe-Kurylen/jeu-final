@@ -33,11 +33,8 @@ const effects = {
   trainTimeReductionPct: (buildings, unitClass) => sumPct(buildings, TRAIN_BUILDINGS[unitClass] || ['BARRACKS'], 'trainTimeReductionPctPerLevel', 60),
   // City defence: Forge 0.5 %/level everywhere, Gallic Brewery 1 %/level (max 50 %)
   defenseBonusPct: (buildings) => cap(levelOf(buildings, 'FORGE') * effectOf('FORGE', 'globalDefenseBonusPctPerLevel') + levelOf(buildings, 'GALLIC_BREWERY') * effectOf('GALLIC_BREWERY', 'siegeDefenseBonusPctPerLevel'), 50),
-  // Resources a raid can never take: Great Warehouse (wood/stone/iron) and Great Silo (food)
-  protectedStorage: (buildings) => {
-    const w = curve('GREAT_WAREHOUSE', 'protectedStorage', levelOf(buildings, 'GREAT_WAREHOUSE'));
-    return { wood: w, stone: w, iron: w, food: curve('GREAT_SILO', 'protectedFoodStorage', levelOf(buildings, 'GREAT_SILO')) };
-  },
+  // Grand dépôt et Grand silo : du stockage (utils/calculations.js cityStorageCaps), plus aucune réserve protégée ;
+  // seule la cachette protège du pillage (config.hideout)
   // Treasure Chamber: gold per day
   goldPerDay: (buildings) => curve('TREASURE_CHAMBER', 'goldProdPerDay', levelOf(buildings, 'TREASURE_CHAMBER')),
   goldPerDayAtLevel: (level) => curve('TREASURE_CHAMBER', 'goldProdPerDay', level),

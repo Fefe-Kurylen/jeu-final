@@ -7,12 +7,12 @@ const { Prisma } = require('@prisma/client');
 const config = require('../../config');
 const { unitsData, factionsData } = require('../../config/gamedata');
 const fx = require('../../utils/buildingEffects');
-const { getFactionBonus } = require('../../utils/calculations');
-const { getArmyTravelTime } = require('../../utils/calculations');
+const { getFactionBonus, getArmyTravelTime } = require('../../utils/calculations');
 const T = require('../../utils/techEffects');
 const { talent } = require('../../utils/heroEffects');
 const { generateTribeDefenders, targetSoldiers, campDifficultyAt, tribeFactionOf } = require('../../utils/tribeDefenders');
 const { findRoute } = require('../../utils/pathfinding');
+const { MARCH_BUILDINGS } = require('../../services/armyService');
 
 // Carry capacity per unit key, sent once as a VALUES table
 let _carryTableSql = null;
@@ -34,7 +34,7 @@ async function leaveNode(army, node) {
   const reset = { harvestResourceType: null, targetResourceId: null, claimedAt: null };
   if (army.city && army.units.length > 0) {
     const route = await findRoute(army.x, army.y, army.city.x, army.city.y, army.owner?.faction).catch(() => null);
-    const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId));   // + Bastion d'alliance, comme sendArmyHome
+    const speedPct = T.techPct(army.owner?.technologies, 'armySpeedBonusPct') + (await require('../../services/bastionService').speedPct(army.ownerId)) + fx.marchSpeedBonusPct(army.city.buildings);   // + Bastion d'alliance, Irrigation, comme sendArmyHome
     const travelTime = getArmyTravelTime(army.units, army.x, army.y, army.city.x, army.city.y, army.owner?.faction, army.hero, route ? route.length : null, speedPct);
     await prisma.army.update({ where: { id: army.id }, data: { status: 'RETURNING', targetX: army.city.x, targetY: army.city.y, missionType: 'RETURN', arrivalAt: new Date(Date.now() + travelTime * 1000), departedAt: new Date(), ...reset } });
   } else {
@@ -95,7 +95,7 @@ async function processHarvesting(now) {
   const leavers = all.filter(a => !busy.has(a.id));
   for (const { id } of leavers) {
     try {
-      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: true, owner: { include: { technologies: true } }, hero: { include: { items: true } } } });
+      const army = await prisma.army.findUnique({ where: { id }, include: { units: true, city: { include: { buildings: MARCH_BUILDINGS } }, owner: { include: { technologies: true } }, hero: { include: { items: true } } } });
       if (!army || army.status !== 'HARVESTING') continue;
       const node = army.targetResourceId ? await prisma.resourceNode.findUnique({ where: { id: army.targetResourceId } }) : null;
       await leaveNode(army, node);
@@ -147,4 +147,4 @@ async function processTribeRespawn(now) {
   }
 }
 
-module.exports = { processHarvesting, processTribeRespawn, reinforceTribes };
+module.exports = { processHarvesting, processTribeRespawn };

@@ -9,7 +9,7 @@ const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
 const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf } = require('../utils/calculations');
 const { lockCity, debitCity, creditCity, isId } = require('../utils/db');
-const { getRelation } = require('../services/diplomacyService');
+const { getRelation, sameAllianceAs, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
 const fx = require('../utils/buildingEffects');
@@ -463,10 +463,10 @@ router.get('/:id/siege', auth, async (req, res) => {
     const campOwners = [...new Set(camp.map(a => a.ownerId))].filter(id => id !== req.user.playerId);
     for (const id of campOwners) if ((await getRelation(req.user.playerId, id)).canAttack) voluntary.add(id);
     // alliances du joueur, de la ville et du camp lues une fois : combat forcé et délai avant la bataille
-    const members = await prisma.allianceMember.findMany({ where: { playerId: { in: [req.user.playerId, city.playerId, ...camp.map(a => a.ownerId)] } }, select: { playerId: true, allianceId: true } });
-    const myAlliance = members.find(m => m.playerId === req.user.playerId)?.allianceId || null;
-    const sameAlliance = (id) => !!myAlliance && members.find(m => m.playerId === id)?.allianceId === myAlliance;
-    if (city.playerId === req.user.playerId) for (const id of campOwners) if (!sameAlliance(id)) forced.add(id);
+    // (même règle que campsOutsideAlliance de routes/armies.js : prédicats partagés de diplomacyService)
+    const members = await allianceRowsOf([req.user.playerId, city.playerId, ...camp.map(a => a.ownerId)]);
+    const sameAlliance = sameAllianceAs(members, req.user.playerId);
+    if (city.playerId === req.user.playerId) for (const id of outsideAlliance(members, req.user.playerId, campOwners)) forced.add(id);
     const wallLevel = city.buildings[0]?.level || 0;
     // the time left before the battle is for the players concerned and their alliances only (décision du 25 octobre 2026)
     const isConcerned = (ids) => ids.some(id => id === req.user.playerId || sameAlliance(id));

@@ -18,8 +18,8 @@ Object.setPrototypeOf(global.Date, OrigDate);
 // --- MODULES ---
 const config = require('./src/config');
 const prisma = require('./src/config/database');
-const { unitsData, buildingsData, factionsData } = require('./src/config/gamedata');
-const { getProductionAtLevel } = require('./src/utils/calculations');
+const { unitsData, buildingsData } = require('./src/config/gamedata');
+const { getProductionAtLevel, cityStorageCaps } = require('./src/utils/calculations');
 
 // Override tick config: each tick = 6 hours of game time (faster simulation)
 const TICK_HOURS = 6.0;
@@ -38,7 +38,7 @@ const { processHealedUnits } = require('./src/services/woundedService');
 const { processResourceProduction, processUpkeep, processResourceRegen } = require('./src/game/processors/resourceProcessor');
 const { processBuilds } = require('./src/game/processors/buildProcessor');
 const { processRecruits } = require('./src/game/processors/recruitProcessor');
-const { processExpeditions, generateNewExpeditions } = require('./src/game/processors/expeditionProcessor');
+const { processExpeditions } = require('./src/game/processors/expeditionProcessor');
 const { processArmyMovements } = require('./src/game/processors/armyProcessor');
 const { processHarvesting, processTribeRespawn } = require('./src/game/processors/harvestProcessor');
 const { updatePopulation } = require('./src/game/processors/worldProcessor');
@@ -46,7 +46,6 @@ const { updatePopulation } = require('./src/game/processors/worldProcessor');
 // --- CONSTANTS ---
 const FACTIONS = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const TOTAL_TICKS = 2920; // 17520 hours / 6 hours per tick
-const TOTAL_HOURS = 17520;
 const NAMES = { ROME:'Marcus Aurelius', GAUL:'Vercingétorix', GREEK:'Leonidas', EGYPT:'Cléopâtre', HUN:'Attila', SULTAN:'Saladin' };
 
 // BUILD_ORDER: priority-based with economy-first strategy
@@ -118,15 +117,6 @@ function getUpkeep(armies) {
     }
   }
   return upkeep;
-}
-
-// Get resource production for a type
-function getResourceProd(buildings, type) {
-  const map = {LUMBER:'wood',QUARRY:'stone',IRON_MINE:'iron',FARM:'food'};
-  let prod = type === 'FARM' ? 10 : 5;
-  const b = buildings.find(b => b.key === type);
-  if (b) prod += getProductionAtLevel(type, b.level, buildingsData);
-  return prod;
 }
 
 const stats = {};
@@ -232,7 +222,7 @@ async function simulate() {
       if (tick % 2 === 0) {
         await processHarvesting(now);
         await processTribeRespawn(now);
-        await processResourceRegen(now, TICK_HOURS * 2);
+        await processResourceRegen(now);
       }
     } catch (e) {
       // silently continue
@@ -577,23 +567,10 @@ async function aiAction(player, hour, now, tick, players) {
     } catch(e) {}
   }
 
-  // === Update storage capacity based on buildings (exponential like game data) ===
+  // === Update storage capacity based on buildings (dépôts, silos, Grand dépôt, Grand silo : comme le serveur) ===
   if (tick % 4 === 0) {
     try {
-      const wh = city.buildings.find(b => b.key === 'WAREHOUSE');
-      const silo = city.buildings.find(b => b.key === 'SILO');
-      const whLevel = wh?.level || 0;
-      const siloLevel = silo?.level || 0;
-      // Storage: storageL1=1200, storageL20=160000 (exponential interpolation from game data)
-      const calcStorage = (level) => {
-        if (level <= 0) return 1000;
-        if (level >= 20) return 160000;
-        const L1 = 1200, L20 = 160000;
-        const t = (level - 1) / 19;
-        return Math.round(L1 * Math.pow(L20/L1, t));
-      };
-      const maxStorage = calcStorage(whLevel);
-      const maxFoodStorage = calcStorage(siloLevel);
+      const { maxStorage, maxFoodStorage } = cityStorageCaps(city.buildings, buildingsData);
       if (maxStorage !== city.maxStorage || maxFoodStorage !== city.maxFoodStorage) {
         await prisma.city.update({where:{id:city.id},data:{maxStorage, maxFoodStorage}});
       }

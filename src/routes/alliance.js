@@ -7,7 +7,18 @@ const { validateAllianceTag, cleanText } = require('../utils/validation');
 const { getRelation, relationsOf, allyIdsOf, setRow, MAX_ALLIES } = require('../services/diplomacyService');
 const { notify } = require('../services/pushService');
 const fx = require('../utils/buildingEffects');
+const config = require('../config');
 const { embassyLevelOf } = require('../services/allianceHelpService');
+
+// Verrou de la ligne Alliance (adhésion, dissolution) : deux adhésions simultanées se suivent, la seconde compte la
+// première ; une adhésion ne passe pas pendant que le chef dissout l'alliance
+const lockAlliance = (tx, allianceId) => tx.$queryRaw`SELECT id FROM "Alliance" WHERE id = ${allianceId} FOR UPDATE`;
+// Plafond de membres (décision du 30 octobre 2026 : 60) : message de refus, ou null
+async function allianceFull(db, allianceId) {
+  const max = config.alliance.maxMembers;
+  const members = await db.allianceMember.count({ where: { allianceId } });
+  return members >= max ? `Alliance complète (${max} membres au plus)` : null;
+}
 
 // Un joueur n'est plus dans son alliance (départ, exclusion, dissolution) : ses demandes d'aide se ferment, ses renforts
 // chez les membres et les alliés rentrent, et ceux des autres qui le protégeaient aussi
@@ -32,7 +43,7 @@ router.get('/mine', auth, async (req, res) => {
   try {
     // entre membres, chacun voit la dernière connexion des autres (GDD membership.memberListFields), arrondie par le client
     const member = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true, lastSeenAt: true } } }, orderBy: { joinedAt: 'asc' } } } } } });
-    res.json(member ? { role: member.role, alliance: member.alliance, serverTime: new Date() } : null);
+    res.json(member ? { role: member.role, alliance: member.alliance, serverTime: new Date(), maxMembers: config.alliance.maxMembers } : null);
   } catch (e) { sendError(res, e); }
 });
 
@@ -71,6 +82,7 @@ router.post('/invite', auth, async (req, res) => {
     const target = playerName ? await prisma.player.findUnique({ where: { name: playerName }, include: { alliance: true } }) : null;
     if (!target) return res.status(404).json({ error: 'Joueur introuvable' });
     if (target.alliance) return res.status(400).json({ error: 'Ce joueur est déjà dans une alliance' });
+    { const full = await allianceFull(prisma, myMember.allianceId); if (full) return res.status(400).json({ error: `${full} : impossible d'inviter` }); }
     await prisma.allianceInvite.upsert({
       where: { allianceId_playerId: { allianceId: myMember.allianceId, playerId: target.id } },
       update: {}, create: { allianceId: myMember.allianceId, playerId: target.id }
@@ -96,6 +108,7 @@ router.post('/invites/:id/decline', auth, async (req, res) => {
 router.post('/:id/join', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await lockAlliance(tx, req.params.id);
       const alliance = await tx.alliance.findUnique({ where: { id: req.params.id } });
       if (!alliance) return { error: 'Alliance non trouvee', status: 404 };
       const existing = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId } });
@@ -104,6 +117,8 @@ router.post('/:id/join', auth, async (req, res) => {
       if (!invite) return { error: 'Cette alliance recrute sur invitation', status: 403 };
       const needed = fx.allianceJoinLevel();
       if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour rejoindre une alliance`, status: 400 };
+      // 60 membres au plus, comptés sous le verrou de l'alliance
+      { const full = await allianceFull(tx, alliance.id); if (full) return { error: `${full} : un membre doit partir avant que vous puissiez entrer`, status: 400 }; }
       await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
       await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
       return { message: 'Alliance rejointe' };
@@ -119,6 +134,7 @@ router.post('/leave', auth, async (req, res) => {
       const member = await tx.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: true } });
       if (!member) return { error: 'Vous n\'etes pas dans une alliance', status: 400 };
       if (member.role === 'LEADER') {
+        await lockAlliance(tx, member.allianceId);   // aucune adhésion entre le compte et la dissolution
         const otherMembers = await tx.allianceMember.count({ where: { allianceId: member.allianceId, NOT: { playerId: req.user.playerId } } });
         if (otherMembers > 0) return { error: 'Transferez le leadership avant de partir', status: 400 };
         await tx.allianceDiplomacy.deleteMany({ where: { OR: [{ allianceId: member.allianceId }, { targetAllianceId: member.allianceId }] } });
@@ -324,3 +340,4 @@ router.get('/player/:targetPlayerId', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.allianceFull = allianceFull;
