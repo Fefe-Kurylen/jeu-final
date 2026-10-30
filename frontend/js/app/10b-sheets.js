@@ -113,11 +113,12 @@ function armyTilesPerHour(speed, faction, city) {
   return { tilesPerHour: speed * SHEET_RULES.tilesPerHourFactor * (1 + civ / 100) * (1 + extra / 100), civ, extra };
 }
 
-// Temps de formation d'une unité dans la ville courante (réductions des bâtiments d'entraînement, max 60 %)
-function unitTrainTimeInCity(unit) {
+// Temps de formation d'une unité dans une ville (la ville courante par défaut ; réductions de ses bâtiments
+// d'entraînement, max 60 %, comme fx.trainTimeReductionPct du serveur)
+function unitTrainTimeInCity(unit, city = currentCity) {
   const keys = SHEET_RULES.trainBuildings[unit.class] || ['BARRACKS'];
   let pct = 0;
-  for (const b of (currentCity?.buildings || [])) {
+  for (const b of (city?.buildings || [])) {
     if (!keys.includes(b.key)) continue;
     pct += b.level * (sheetBuildings().find(d => d.key === b.key)?.effects?.trainTimeReductionPctPerLevel || 0);
   }

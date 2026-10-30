@@ -4819,3 +4819,64 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
   align-self: center; flex: none; margin: 0 auto 8px; padding: 2px 12px; min-height: 0 !important; background: rgba(0,0,0,.25); color: #e8d5a8; border: 1px solid #8b6914;
   border-radius: 10px; font-size: 11px; cursor: pointer;
 }
+
+/* ========== COLONIES (décision du 30 octobre 2026) : gisement, Mur sur l'enceinte, lieu de formation, « Mes villes »,
+   « Sites libres » ========== */
+.site-badge {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 10px; white-space: nowrap;
+  font-size: 11px; font-weight: 600; color: var(--text-light); background: rgba(201,162,39,.18); border: 1px solid var(--gold-dark);
+}
+.site-badge img.ico { width: 14px; height: 14px; }
+.site-line { color: #e8c547; font-weight: 600; }
+/* pastille du gisement sur la vue de la ville (colonie) */
+.city-site-badge { position: absolute; top: 8px; left: 8px; z-index: 5; padding: 0; margin: 0; min-height: 0; background: none; border: 0; box-shadow: none; cursor: pointer; }
+.city-site-badge .site-badge { padding: 3px 10px; font-size: 12px; color: #f5e6c8; background: rgba(20,14,8,.8); border-color: #c9a227; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+/* liste de construction d'une colonie : les bâtiments de la capitale sur une ligne repliée */
+.build-folded { margin: 10px 0 4px; padding: 8px 10px; border: 1px dashed var(--gold-dark); border-radius: 6px; font-size: 12px; color: var(--text-muted); }
+.build-folded summary { cursor: pointer; font-weight: 600; color: var(--text-light); }
+.build-folded summary img.ico { width: 16px; height: 16px; vertical-align: middle; }
+.build-folded p { margin: 6px 0 0; line-height: 1.4; }
+/* Caserne / Écurie de la capitale : lieu de formation */
+.recruit-place { margin: 10px 0; padding: 8px 10px; border: 1px solid var(--gold-dark); border-radius: 6px; background: rgba(201,162,39,.08); }
+.recruit-place label { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 6px; }
+.recruit-place label img.ico { width: 18px; height: 18px; }
+.recruit-place select { width: 100%; padding: 8px; font-size: 14px; }
+.recruit-place .tier-info { margin: 6px 0 0; }
+/* « Mes villes » : une ligne par ville */
+.my-cities .mv-totals { padding: 10px 12px; border: 1px solid var(--gold); border-radius: 6px; background: rgba(201,162,39,.12); }
+.mv-totals-title { font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 4px; }
+.mv-totals-stocks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.mv-totals img.ico, .mv-row img.ico { width: 16px; height: 16px; vertical-align: middle; }
+.mv-food { margin-top: 4px; font-size: 12px; }
+.mv-food small { color: var(--text-muted); }
+.village-list-item.mv-row { flex-direction: column; align-items: stretch; gap: 6px; }
+.mv-row.mv-threat { border-color: var(--red-light); }
+.mv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mv-stocks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.mv-stock { display: grid; grid-template-columns: 16px 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; font-size: 11px; }
+.mv-stock img.ico { grid-row: 1 / span 2; }
+.mv-stock .storage-bar { height: 8px; }
+.mv-stock .mv-amount { grid-column: 2; color: var(--text-light); }
+.mv-stock .mv-when { grid-column: 2; color: var(--text-muted); }
+.mv-lines { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-light); }
+.mv-idle, .mv-attack, .mv-warn { color: var(--red-light); font-weight: 600; }
+.mv-full { color: #e8c547; font-weight: 600; }
+.mv-lives { font-size: 12px; }
+@media (max-width: 600px) {
+  .mv-stocks { grid-template-columns: 1fr; }
+  .btn-free-sites span { display: none; }
+}
+/* « Sites libres » de la carte */
+.btn-free-sites { display: inline-flex; align-items: center; gap: 6px; }
+.free-sites .fs-intro { font-size: 12px; color: var(--text-muted); margin: 0 0 8px; }
+.fs-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.fs-chip { padding: 4px 10px; min-height: 0; border-radius: 12px; font-size: 12px; cursor: pointer; background: var(--bg-medium); color: var(--text-light); border: 1px solid var(--border-dark); }
+.fs-chip.active { border-color: var(--gold); background: rgba(201,162,39,.25); color: #f5e6c8; }
+.fs-chip img.ico { width: 14px; height: 14px; vertical-align: middle; }
+.fs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.fs-row { padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 6px; background: var(--bg-medium); }
+.fs-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fs-info, .fs-central { font-size: 12px; margin-top: 4px; color: var(--text-light); }
+.fs-info img.ico, .fs-central img.ico { width: 14px; height: 14px; vertical-align: middle; }
+.fs-central { color: #e8c547; }
+.fs-actions { display: flex; gap: 6px; margin-top: 6px; }

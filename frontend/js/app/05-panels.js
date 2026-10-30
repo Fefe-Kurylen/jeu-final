@@ -619,6 +619,38 @@ function openFieldBuildPanel(slotNum) {
 }
 
 // ========== RECRUITMENT PANEL (via Military Buildings) ==========
+// « Lieu de formation » (décision du 30 octobre 2026) : depuis la Caserne / l'Écurie de la capitale, le joueur forme dans la
+// capitale ou dans une colonie qui a sa Grande caserne / Grande écurie. Le palier des unités et le temps de formation sont
+// ceux du bâtiment du lieu choisi ; la commande part sur la ville choisie (POST /api/city/:id/recruit) et les unités
+// arrivent dans la capitale. Le dernier lieu choisi est gardé d'une ouverture à l'autre.
+const COLONY_TRAINER = { BARRACKS: 'GREAT_BARRACKS', STABLE: 'GREAT_STABLE' };
+let recruitPlaceCityId = null;
+const trainerLevelIn = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
+// Lieux de formation d'un bâtiment de la capitale : [{ city, key, level }] (niveau 0 : la colonie n'a pas le bâtiment) ;
+// aucun hors de la capitale, ni pour l'Atelier
+function recruitPlaces(buildingKey) {
+  const trainer = COLONY_TRAINER[buildingKey];
+  if (!trainer || !currentCity?.isCapital) return [];
+  return [{ city: currentCity, key: buildingKey, level: trainerLevelIn(currentCity, buildingKey) }]
+    .concat(secondaryCities().map(c => ({ city: c, key: trainer, level: trainerLevelIn(c, trainer) })));
+}
+function selectRecruitPlace(cityId, buildingKey, buildingLevel, slotNum) {
+  recruitPlaceCityId = cityId;
+  openRecruitmentPanel(buildingKey, buildingLevel, slotNum);
+}
+function recruitPlaceHtml(places, place, buildingKey, buildingLevel, slotNum) {
+  if (places.length < 2) return '';
+  const label = (p) => `${escapeHtml(p.city.name)}${p.city.isCapital ? ' (capitale)' : ''} : ${p.level ? `${getBuildingName(p.key)} niv. ${p.level}` : `pas de ${getBuildingName(p.key)}`}`;
+  return `
+      <div class="recruit-place">
+        <label for="recruit-place-select">${resIconHtml('city')} Lieu de formation</label>
+        <select id="recruit-place-select" onchange="selectRecruitPlace(this.value, '${buildingKey}', ${buildingLevel}, ${slotNum})">
+          ${places.map(p => `<option value="${escapeHtml(p.city.id)}"${p === place ? ' selected' : ''}${p.level ? '' : ' disabled'}>${label(p)}</option>`).join('')}
+        </select>
+        <p class="tier-info">Le palier des unités et le temps de formation viennent du bâtiment du lieu choisi ; les unités arrivent dans la capitale.</p>
+      </div>`;
+}
+
 function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   const panel = document.getElementById('build-panel');
   const content = document.getElementById('build-panel-content');
@@ -636,9 +668,13 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   overlay.classList.add('fade-in');
 
   // Building configurations. Une Grande caserne / Grande écurie de colonie forme comme la Caserne / l'Écurie : mêmes
-  // classes, mêmes seuils de palier, même file côté serveur (routes/cities.js RECRUIT_BUILDING) ; les unités rejoignent la capitale
+  // classes, même file côté serveur (routes/cities.js RECRUIT_BUILDING) ; les unités rejoignent la capitale
   const QUEUE_KEY = { GREAT_BARRACKS: 'BARRACKS', GREAT_STABLE: 'STABLE' };
   const baseKey = QUEUE_KEY[buildingKey] || buildingKey;
+  // lieu de formation : la ville affichée, ou depuis la capitale celle choisie (dont le bâtiment donne palier et temps)
+  const places = recruitPlaces(buildingKey);
+  const place = places.find(p => p.city.id === recruitPlaceCityId && p.level > 0) || places[0] || { city: currentCity, key: buildingKey, level: buildingLevel };
+  const trainerKey = place.key, trainerLevel = place.level;
   const buildingNames = { BARRACKS: 'Caserne', STABLE: 'Écurie', WORKSHOP: 'Atelier', GREAT_BARRACKS: 'Grande caserne', GREAT_STABLE: 'Grande écurie' };
   const buildingIcons = { BARRACKS: '<img class="ico" src="assets/images/3d/ui/attack.webp" alt="">', STABLE: '<img class="ico" src="assets/images/3d/ui/horse.webp" alt="">', WORKSHOP: '<img class="ico" src="assets/images/3d/ui/settings.webp" alt="">' };
   buildingIcons.GREAT_BARRACKS = buildingIcons.BARRACKS; buildingIcons.GREAT_STABLE = buildingIcons.STABLE;
@@ -650,17 +686,18 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   const classes = allowedClasses[baseKey] || [];
 
-  // Unlock thresholds come from building data, like on the server (intermediate L7, elite L15, siege: workshop L5)
-  const bDef = buildingsData.find(b => b.key === baseKey);
+  // Unlock thresholds come from the data of the building that trains, like on the server (intermediate L7, elite L15,
+  // siege: workshop L5) : Caserne / Écurie de la capitale, ou Grande caserne / Grande écurie de la colonie
+  const bDef = buildingsData.find(b => b.key === trainerKey);
   const unlockInter = bDef?.effects?.unlockIntermediateTier || 7;
   const unlockElite = bDef?.effects?.unlockEliteTier || 15;
   const siegeMin = 5;
   const availableUnits = unitsData.filter(u => {
     if (u.faction !== player?.faction) return false;
     if (!classes.includes(u.class)) return false;
-    if (u.class === 'SIEGE') return buildingLevel >= siegeMin;
-    if (u.tier === 'intermediate' && buildingLevel < unlockInter) return false;
-    if (u.tier === 'elite' && buildingLevel < unlockElite) return false;
+    if (u.class === 'SIEGE') return trainerLevel >= siegeMin;
+    if (u.tier === 'intermediate' && trainerLevel < unlockInter) return false;
+    if (u.tier === 'elite' && trainerLevel < unlockElite) return false;
     return true;
   });
 
@@ -671,8 +708,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
     unitsByClass[u.class].push(u);
   });
 
-  // Batches queue up one after another on the server: a running batch never blocks a new order
-  const currentQueue = currentCity?.recruitQueue?.filter(q => q.buildingKey === baseKey) || [];
+  // Batches queue up one after another on the server: a running batch never blocks a new order (file du lieu choisi)
+  const currentQueue = place.city?.recruitQueue?.filter(q => q.buildingKey === baseKey) || [];
 
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel}) ${infoBtnHtml('building', buildingKey)}`;
 
@@ -690,7 +727,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           ${infoBtnHtml('unit', u.key, 'info-btn-corner')}
           <span class="tier-badge" style="background: ${tierColor}">${u.tier.charAt(0).toUpperCase()}</span>
         </div>
-        <div class="unit-recruit-body" onclick="openUnitRecruitModal('${u.key}', '${buildingKey}')">
+        <div class="unit-recruit-body" onclick="openUnitRecruitModal('${u.key}', '${trainerKey}', '${escapeHtml(place.city.id)}')">
           <h5>${u.name}</h5>
           <div class="unit-mini-stats">
             <span><img class="ico" src="assets/images/3d/ui/attack.webp" alt="">${u.stats?.attack}</span>
@@ -745,16 +782,18 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <p class="building-level">Niveau ${buildingLevel}</p>
           <p class="tier-info">
             ${buildingKey === 'WORKSHOP' ? (buildingLevel < siegeMin ? `Engins de siège dès le niveau ${siegeMin}` : `Engins de siège disponibles · une armée en emmène ${buildingLevel * 5} au plus`) :
-              buildingLevel < unlockInter ? `Unités de base (intermédiaires au niveau ${unlockInter})` :
-              buildingLevel < unlockElite ? `Base + Intermédiaires (élite au niveau ${unlockElite})` :
-              'Toutes les unités'}
+              trainerLevel < unlockInter ? `Unités de base (intermédiaires au niveau ${unlockInter})` :
+              trainerLevel < unlockElite ? `Base + Intermédiaires (élite au niveau ${unlockElite})` :
+              'Toutes les unités'}${place.city === currentCity ? '' : ` · ${getBuildingName(trainerKey)} niv. ${trainerLevel} à ${escapeHtml(place.city.name)}`}
           </p>
-          ${currentCity && !currentCity.isCapital ? '<p class="tier-info">Les unités formées ici rejoignent la garnison de la capitale.</p>' : ''}
+          ${place.city && !place.city.isCapital ? `<p class="tier-info">Formation à ${escapeHtml(place.city.name)} : les unités arrivent dans la capitale.</p>` : ''}
         </div>
         <button class="upgrade-building-btn" onclick="closeBuildPanel(); openBuildPanelUpgrade('${buildingKey}', ${slotNum})">
           ${resIconHtml('build')} Améliorer
         </button>
       </div>
+
+      ${recruitPlaceHtml(places, place, buildingKey, buildingLevel, slotNum)}
 
       <!-- Current recruitment queue -->
       ${currentQueue.length > 0 ? `
@@ -789,10 +828,11 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
   panel.style.display = 'flex';
 }
 
-// Open unit recruit modal (from recruitment panel)
-function openUnitRecruitModal(unitKey, buildingKey) {
+// Open unit recruit modal (from recruitment panel). `cityId` : le lieu de formation (la ville affichée par défaut)
+function openUnitRecruitModal(unitKey, buildingKey, cityId = currentCity?.id) {
   const unit = unitsData.find(u => u.key === unitKey);
   if (!unit) return;
+  const place = (cities || []).find(c => c.id === cityId) || currentCity;
   
   closeBuildPanel();
   
@@ -802,8 +842,8 @@ function openUnitRecruitModal(unitKey, buildingKey) {
   // Use per-unit GDD costs from units data (class-specific + tier multiplier)
   const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
 
-  // Training time from GDD data
-  const baseTime = unit.recruitTimeSec || 360;
+  // Temps de formation d'une unité au lieu choisi (réductions de son bâtiment et des technologies, 10b-sheets.js)
+  const baseTime = unitTrainTimeInCity(unit, place).seconds;
 
   const foodUpkeep = unitUpkeep(unit);
 
@@ -880,12 +920,13 @@ function openUnitRecruitModal(unitKey, buildingKey) {
       </div>
       
       <div class="recruit-section">
-        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter</h4>
+        <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter${place?.isCapital ? '' : ` à ${escapeHtml(place?.name || '')}`}</h4>
+        ${place?.isCapital ? '' : '<p class="tier-info">Les unités formées ici arrivent dans la capitale.</p>'}
         <div class="recruit-row">
           <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input"
                  data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 
                  data-iron="${unitCost.iron}" data-food="${unitCost.food}">
-          <button id="recruit-btn" onclick="recruitFromBuilding('${unit.key}', '${buildingKey}')" 
+          <button id="recruit-btn" onclick="recruitFromBuilding('${unit.key}', '${buildingKey}', '${escapeHtml(place?.id || '')}')" 
                   class="recruit-action-btn ${canAffordOne ? '' : 'disabled'}">
             Recruter
           </button>
@@ -934,8 +975,8 @@ function openUnitRecruitModal(unitKey, buildingKey) {
 // Global action guard to prevent double-click on any resource-modifying action
 let _actionInProgress = false;
 
-// Recruit from building
-async function recruitFromBuilding(unitKey, buildingKey) {
+// Recruit from building, dans la ville `cityId` (lieu de formation ; la ville affichée par défaut)
+async function recruitFromBuilding(unitKey, buildingKey, cityId = currentCity?.id) {
   if (_actionInProgress) return;
   const countInput = document.getElementById('recruit-count');
   const count = parseInt(countInput?.value);
@@ -943,9 +984,10 @@ async function recruitFromBuilding(unitKey, buildingKey) {
     showToast('Nombre invalide (1 à 10 000)', 'error');
     return;
   }
+  const place = (cities || []).find(c => c.id === cityId) || currentCity;
   _actionInProgress = true;
   try {
-    const res = await fetch(`${API}/api/city/${currentCity.id}/recruit`, {
+    const res = await fetch(`${API}/api/city/${place.id}/recruit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ unitKey, count, buildingKey })
@@ -955,7 +997,7 @@ async function recruitFromBuilding(unitKey, buildingKey) {
     closeModal();
     
     if (res.ok) {
-      showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé!`, 'success');
+      showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé${place.isCapital ? '' : ` à ${place.name} : les unités arriveront dans la capitale`} !`, 'success');
       await loadCities();
       renderCity();
     } else {
