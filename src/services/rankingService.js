@@ -1,8 +1,8 @@
 // ============================================================
 // Classements (décision du 27 octobre 2026, GDD world_config.server.rankings : population, attaque, défense, alliance)
-// - Points de combat façon Travian : un ennemi tué vaut son entretien en nourriture (base 5, intermédiaire 10, élite et
-//   siège 15, GDD) ; l'attaquant gagne des points d'attaque, le défenseur des points de défense, partagés entre les
-//   joueurs d'un même camp selon le nombre de soldats engagés. Pillage : ressources prises aux autres joueurs.
+// - Points de combat façon Travian : un ennemi tué vaut son entretien en nourriture (config.army.upkeepPerTier) ;
+//   l'attaquant gagne des points d'attaque, le défenseur des points de défense, partagés entre les joueurs d'un même
+//   camp selon le nombre de soldats engagés. Pillage : ressources prises aux autres joueurs.
 // - Semaine (lundi 0 h, heure de Paris) : top 10 en attaque, défense, pillage et progression de population ; top 3 des
 //   alliances en attaque et en défense. Les classés reçoivent une médaille honorifique, gardée sur leur profil.
 // ============================================================
@@ -19,7 +19,7 @@ function pointsOf(losses) {
   let p = 0;
   for (const l of losses || []) {
     const n = l.killed ?? Math.max(0, (l.initial || 0) - (l.remaining || 0));
-    if (n > 0) p += n * (UPKEEP[tierOf(l.key || l.unitKey)] || 5);
+    if (n > 0) p += n * (UPKEEP[tierOf(l.key || l.unitKey)] || UPKEEP.base);
   }
   return Math.round(p);
 }

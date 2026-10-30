@@ -1086,7 +1086,7 @@ model Rally {
   targetX      Int
   targetY      Int
   waitMinutes  Int
-  capacity     Int // armées au plus (Place de rassemblement du lanceur), la sienne comprise
+  capacity     Int // armées au plus (Place de rassemblement de la capitale du lanceur), la sienne comprise
   status       String    @default("GATHERING") // GATHERING, MARCHING, DONE, CANCELLED
   launchAt     DateTime // fin de l'attente
   arrivalAt    DateTime? // arrivée au donjon

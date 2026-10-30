@@ -16,7 +16,8 @@ async function syncCityStorage(cityId, db = prisma) {
   await db.city.update({ where: { id: cityId }, data: cityStorageCaps(buildings, buildingsData) });
 }
 
-// Répare le stockage de TOUTES les villes (appelé une fois au démarrage)
+// Répare le stockage de TOUTES les villes (appelé une fois au démarrage) ; une ville sans dépôt ni silo (Grand dépôt retiré
+// d'une capitale, décision du 30 octobre 2026) revient à la capacité de base. Un stock au-dessus du plafond est gardé.
 async function syncAllCityStorage() {
   const { Prisma } = require('@prisma/client');
   const rows = [];
@@ -29,12 +30,13 @@ async function syncAllCityStorage() {
       "maxStorage"     = GREATEST(${BASE_STORAGE}, COALESCE(st.w, 0)),
       "maxFoodStorage" = GREATEST(${BASE_STORAGE}, COALESCE(st.f, 0))
     FROM (
-      SELECT cb."cityId",
+      SELECT ci.id AS "cityId",
         SUM(CASE WHEN t.kind = 'storage'     THEN t.cap ELSE 0 END) AS w,
         SUM(CASE WHEN t.kind = 'foodStorage' THEN t.cap ELSE 0 END) AS f
-      FROM "CityBuilding" cb
-      JOIN (VALUES ${table}) AS t(key, level, cap, kind) ON t.key = cb.key AND t.level = cb.level
-      GROUP BY cb."cityId"
+      FROM "City" ci
+      LEFT JOIN "CityBuilding" cb ON cb."cityId" = ci.id
+      LEFT JOIN (VALUES ${table}) AS t(key, level, cap, kind) ON t.key = cb.key AND t.level = cb.level
+      GROUP BY ci.id
     ) AS st
     WHERE c.id = st."cityId"
       AND (c."maxStorage" <> GREATEST(${BASE_STORAGE}, COALESCE(st.w, 0))

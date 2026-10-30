@@ -7,6 +7,16 @@ const config = require('../config');
 const { levelsFrom } = require('../utils/techEffects');
 const { getRelation } = require('../services/diplomacyService');
 
+// Règles d'économie que le client applique comme le serveur (décision du 30 octobre 2026) : coût et durée d'un niveau
+// (utils/calculations.js buildCostFor / buildSecondsFor), entretien par palier, blessés et soins ; lues dans la
+// configuration, jamais recopiées dans le client
+const pick = (obj, keys) => Object.fromEntries(keys.map(k => [k, obj[k]]));
+const ECONOMY = {
+  build: pick(config.build, ['costMultiplierBase', 'timeMultiplierBase', 'fieldCostMultiplier', 'fieldCostKeys', 'slowTimeMultiplier', 'slowTimeKeys']),
+  upkeepPerTier: config.army.upkeepPerTier,
+  wounded: pick(config.wounded, ['baseRate', 'bonusPerHealingLevel', 'maxRate', 'bedsPerLevel', 'healCostPct', 'healTimePctOfTraining', 'healLevelReduction', 'instantHealGoldPerTier', 'woundedPayUpkeep'])
+};
+
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
   try {
@@ -30,7 +40,7 @@ router.get('/me', auth, async (req, res) => {
     // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
     const questsClaimable = await require('../services/questService').claimableCount(player.id).catch(() => 0);   // pastille du bouton Quêtes
     const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
-    res.json({ ...rest, techLevels, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
+    res.json({ ...rest, techLevels, economy: ECONOMY, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
   } catch (e) {
     sendError(res, e);
   }

@@ -97,9 +97,10 @@ async function isEnded() {
 const IMMORTAL_MIX = [['SUL_INF_PALAIS', 0.45], ['SUL_ARC_PERSE', 0.3], ['SUL_CAV_MAMELOUK', 0.25]];
 // Vagues contre une Ville Merveille (décision du 30 octobre 2026) : seuls les engins abîment le mur (GDD
 // onlySiegeEnginesDamageWall). Comme les Natars de Travian, qui viennent avec béliers et catapultes, les Immortels amènent
-// des mangonneaux : 15 % de la puissance de la vague, pris sur ses soldats. Un mur 20 sans défenseurs tient jusqu'au
-// niveau 6 de la Merveille ; il tombe au 7e round au niveau 12, au 4e au niveau 20, dès le 1er au niveau 100, et les
-// défenseurs doivent alors battre la vague (avec les soldats seuls à × 0,1 sur le mur, avant le 30 octobre : jusqu'au 11).
+// des mangonneaux : 15 % de la puissance de la vague, pris sur ses soldats. Vague × 5 (rapport économie, recommandation 8) :
+// un mur 20 sans défenseurs tient jusqu'au niveau 2 de la Merveille ; il tombe au 2e round au niveau 12, dès le 1er à
+// partir du niveau 20, et les défenseurs doivent alors battre la vague (avant la vague × 5 : jusqu'au niveau 6 ; avec les
+// soldats seuls à × 0,1 sur le mur : jusqu'au 11).
 const WAVE_SIEGE_SHARE = 0.15;
 const WAVE_MIX = [...IMMORTAL_MIX.map(([key, share]) => [key, share * (1 - WAVE_SIEGE_SHARE)]), ['SUL_SIEGE_MANGONNEAU', WAVE_SIEGE_SHARE]];
 // chaque unité à son palier (élite, engin de siège)
@@ -111,8 +112,8 @@ function immortalUnits(power, mix = IMMORTAL_MIX) {
   return units;
 }
 const immortalPower = (units) => Math.round(calculateArmyPower(immortalLines(units), unitsData));
-// une vague contre une Merveille de ce niveau : de plus en plus forte
-const wavePower = (wonderLevel) => Math.round(4000 * Math.pow(wonderLevel, 1.35));
+// une vague contre une Merveille de ce niveau : immortalWaveBase × niveau^immortalWaveExp (3,93 M au niveau 50, 10 M au 100)
+const wavePower = (wonderLevel) => Math.round(W.immortalWaveBase * Math.pow(wonderLevel, W.immortalWaveExp));
 const waveUnits = (wonderLevel) => immortalUnits(wavePower(wonderLevel), WAVE_MIX);
 
 // emplacements libres autour du centre, sur un anneau, pour un point (et pour une ville 2 × 2 sur les sites)
