@@ -703,7 +703,7 @@ Guide § T2, T4, T5, T6.
 - A2 — props/flame_<0..3>.png, props/brazier_<0..3>.png — 8 images — cases 512×768 — flammes des torches et braseros
 - A3 — props/worker_<CIV>_<0..3>.png — 24 images — cases 512×768 — chantier : ouvrier au marteau de chaque civilisation (échafaudages : compléments fixes § S11)
 - A4 — anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png — 14 images — cases 512×512 — moulin, forge, fonderie
-- A5 — map/units/<hoplite|archer|cavalry|catapult|hero>_<CIV>_walk.png, merchant_walk.png, settler_walk.png, spy_walk.png (découpées en _walk_<0..5>) — 198 images — cases 33 planches de 1536×1024 (6 poses de 512×512 en 3 × 2) — cycles de marche sur la carte (armées de chaque civilisation, héros, marchand, cortège de colons, espion)
+- A5 — map/units/<hoplite|archer|cavalry|catapult|hero>_<CIV>_walk.png, merchant_walk.png, settler_walk.png, spy_walk.png (découpées en _walk_<0..5>) — 198 images — cases 33 planches de 1536×1024 (6 poses de 512×512 en 3 × 2) — cycles de marche sur la carte (armées de chaque civilisation, héros, charrette des armées de transport, cortège de colons, espion)
 - A6 — map/units/<classe>_attack_<0..2>.png, <classe>_hit_<0..1>.png, fx/arrow.png, fx/stone.png, fx/impact_<0..2>.png — 25 images — cases 512×512 — replay de bataille
 - A7 — map/fx/battle_<0..3>.png, map/fx/fire_<0..3>.png, map/fx/campfire_<0..3>.png — 12 images — cases 512×512 — combat, ville en feu, feu de camp
 - A8 — ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png — 16 images — cases 512×512 — effets d'interface

@@ -81,7 +81,7 @@ Peints : ROME/3_seg_x, ROME/3_seg_x_low, ROME/3_seg_z, ROME/3_seg_z_low, ROME/3_
 | Ressources `map/resources/<wood|stone|iron|food|gold>_<forest|desert|snow>_<1|2|3>.png` (PROMPTS-CARTE.md) | 45 | 0 | **45** | 1024², cadre mapobject | points de ressource : un visuel par ressource, terrain et richesse, sans couleur de civilisation |
 | Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png` | 15 | 0 | **15** | 1024², cadre mapobject | camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu'à la réapparition ; sans eux, l'icône de ressource reste |
 | Sol, forêts, rochers, montagnes, ponts, gués, décor `map/world/…` (carte de référence, liste et prompts : docs/PROMPTS-CARTE.md) | 124 | 0 | **124** | 1024², cadres mapobject / texture | fond et relief de la carte du monde (remplace `map/terrain/…`) |
-| Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png` | 29 | 0 | **29** | 1024², cadre mapobject | marqueurs des armées et marchands en déplacement |
+| Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png` | 29 | 0 | **29** | 1024², cadre mapobject | marqueurs des armées en déplacement (charrette pour les armées de transport) |
 
 ### 3.5 Unités et héros
 
@@ -126,7 +126,7 @@ quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). Fiches d�
 | Porte de la ville par civilisation `walls/<CIV>/gate.png` (neige reportée) | 6 | 1024², cadre building | le vantail de la porte sud-est est dessiné par le code ; une porte peinte par style d'architecture serait plus belle |
 | Chantier (échafaudage) en trois tailles `props/scaffold_<1|2|3>.png` | 3 | 1024², cadre building | aujourd'hui le bâtiment en travaux clignote avec un marteau ; un échafaudage posé dessus fait plus « Rise of Kingdoms » |
 | Panneau « construire ici » `props/sign_build.png` | 1 | 1024², cadre prop | l'emplacement libre est un losange pointillé avec un « + » dessiné par le code |
-| Cycle de marche des unités de carte (4 images par classe + marchand), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |
+| Cycle de marche des unités de carte (4 images par classe + charrette de transport), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |
 | Poses de combat (frappe, garde) par classe pour le replay de bataille | 8 | 1024², cadre figure | replay plus lisible |
 | Projectiles et impacts du replay : flèche, pierre de catapulte, éclat d'impact, nuage de poussière | 4 | 256², sans guide | aujourd'hui tracés par le code (traits et ronds) |
 | Emblème (blason) de chaque civilisation `ui/crest_<CIV>.png` | 6 | 1024², cadre icon | choix de civilisation, alliance, étiquettes de carte ; aujourd'hui on réutilise le buste du héros |
