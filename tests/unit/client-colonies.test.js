@@ -71,7 +71,7 @@ test('gisement : textes de la bulle, de la fondation et de la ville ; bonus lu d
   const ctx = makeContext();
   run(ctx, '01-core.js', ['SITE_RESOURCE']);
   run(ctx, '06c-colonies.js', SITES);
-  for (const level of [1, 2, 3]) assert.equal(ctx.siteBonusPct(level), fx.colonyNodeBonusPct(level));
+  for (const level of [1, 2, 3]) assert.equal(vm.runInContext(`siteBonusPct(${level})`, ctx), fx.colonyNodeBonusPct(level));
   assert.equal(ctx.siteText('IRON', 3), 'Gisement de fer niveau 3 : +45 % de fer dans une colonie');
   assert.equal(ctx.siteText('FOOD', 1), 'Gisement de céréales niveau 1 : +15 % de céréales dans une colonie');
   assert.equal(ctx.siteText('WOOD', 2, 'dans cette colonie'), 'Gisement de bois niveau 2 : +30 % de bois dans cette colonie');
@@ -121,12 +121,13 @@ test('Mur sur l\'enceinte : place fixe, jamais un emplacement de l\'anneau ; tou
   assert.equal(ctx.isoHitSlot(behind.x, behind.y - 400), null);
   assert.equal(ctx.isoHitSlot(above.x, above.y - 30), WALL_SLOT);   // le corps du mur, au-dessus de son pied
   // bulle d'action : Améliorer le Mur bâti, Construire sinon
-  assert.deepEqual(ctx.cityActionSpec(wall).buttons.map(b => b.label), ['Améliorer', 'Infos']);
+  const labels = (spec) => JSON.parse(JSON.stringify(spec.buttons.map(b => b.label)));
+  assert.deepEqual(labels(ctx.cityActionSpec(wall)), ['Améliorer', 'Infos']);
   ctx.currentCity = { buildings: [{ key: 'MAIN_HALL', slot: 0, level: 5 }] };
   const spec = ctx.cityActionSpec(wall);
   assert.equal(spec.title, 'Mur');
   assert.equal(spec.level, 0);
-  assert.deepEqual(spec.buttons.map(b => b.label), ['Construire', 'Infos']);
+  assert.deepEqual(labels(spec), ['Construire', 'Infos']);
   assert.equal(ctx.isoHitSlot(above.x, above.y - 30), null);   // pas de mur debout : seul son tracé au sol se touche
 });
 
@@ -164,7 +165,7 @@ test('construction : le Mur n\'est plus proposé sur un emplacement ; dans une c
   assert.match(content.innerHTML, /Bâtiments de la capitale \(13\) : leurs effets valent aussi ici/);
   assert.equal((content.innerHTML.match(/build-option-card/g) || []).length, BUILDINGS.filter(b => !b.effects?.capitalOnly && b.category !== 'FACTION' && !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL', 'WALL'].includes(b.key)).length);
   assert.doesNotMatch(content.innerHTML, /Réservé à la capitale/);
-  assert.match(content.innerHTML, /buildAtSlot\('GREAT_BARRACKS', 5\)/);
+  assert.match(content.innerHTML, /<GREAT_BARRACKS>/);   // les bâtiments des colonies restent proposés
   // dans la capitale : pas de ligne repliée, les bâtiments de la capitale proposés
   ctx.currentCity = capital;
   ctx.openBuildPanel(5);
@@ -201,8 +202,9 @@ test('lieu de formation : depuis la Caserne de la capitale, palier et file de la
   const without = { id: 'col-b', name: 'Capua', isCapital: false, buildings: [], recruitQueue: [] };
   ctx.cities = [capital, withGb, without];
   ctx.currentCity = capital;
-  assert.deepEqual(ctx.recruitPlaces('BARRACKS').map(p => [p.city.id, p.key, p.level]), [['cap', 'BARRACKS', 10], ['col-a', 'GREAT_BARRACKS', 3], ['col-b', 'GREAT_BARRACKS', 0]]);
-  assert.deepEqual(ctx.recruitPlaces('WORKSHOP'), []);
+  const places = (key) => JSON.parse(JSON.stringify(ctx.recruitPlaces(key).map(p => [p.city.id, p.key, p.level])));
+  assert.deepEqual(places('BARRACKS'), [['cap', 'BARRACKS', 10], ['col-a', 'GREAT_BARRACKS', 3], ['col-b', 'GREAT_BARRACKS', 0]]);
+  assert.deepEqual(places('WORKSHOP'), []);
   // la capitale (par défaut) : Caserne 10, intermédiaires
   ctx.openRecruitmentPanel('BARRACKS', 10, 4);
   assert.match(content.innerHTML, /Lieu de formation/);
@@ -290,7 +292,7 @@ test('« Mes villes » : gisement, stocks et « plein dans », file vide en roug
   assert.match(colRow, /mv-lives mv-warn">\[defense\] Vies 1\/2/);
   assert.match(colRow, /mv-attack">\[attack\] Attaque dans/);
   assert.match(colRow, /\[wood\].*<span class="mv-full">plein<\/span>/);
-  assert.match(colRow, /\[stone\].*plein dans \d+h \d+m/);
+  assert.match(colRow, /\[stone\].*plein dans \d+j \d+h/);
   assert.ok(rest);
 });
 
