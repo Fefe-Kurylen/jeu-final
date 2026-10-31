@@ -7,7 +7,7 @@ const path = require('path');
 const vm = require('vm');
 // Client de la revue des bâtiments (décisions du 31 octobre 2026, SPEC-BATIMENTS.md) : scène de la ville à la taille de son
 // anneau (capitale 18 parcelles, colonie 12), Mur des colonies au niveau 15, or des unités d'élite, Bâtiment principal 20
-// partout, cachette en quantité fixe, marchands du marché, Grandes casernes et Forge. Le code du navigateur tourne dans un
+// partout, cachette en quantité fixe, marché porté par des armées, Grandes casernes et Forge. Le code du navigateur tourne dans un
 // contexte vm, avec un faux DOM réduit ; les nombres viennent des données et de la configuration, comme sur le serveur.
 let acorn = null;
 try { acorn = require('acorn'); } catch (e) { /* acorn vient avec eslint (dépendance de dev) */ }
@@ -52,7 +52,7 @@ function makeContext(extra = {}) {
   return ctx;
 }
 const CORE = ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'unitUpkeep', 'effectBuildings', 'buildingEffectOf', 'levelIn', 'buildingMaxLevelIn',
-  'buildingCapIn', 'hideoutAmountAt', 'forgeBonusPct', 'recruitPrice', 'recruitShortfall', 'recruitCostHtml', 'lerpExp', 'TIER_COLORS'];
+  'buildingCapIn', 'hideoutPctX100', 'hideoutPctAt', 'hideoutAmountIn', 'forgeBonusPct', 'recruitPrice', 'recruitShortfall', 'recruitCostHtml', 'lerpExp', 'TIER_COLORS'];
 const stock = { wood: 1e6, stone: 1e6, iron: 1e6, food: 1e6, maxStorage: 2e6, maxFoodStorage: 2e6 };
 
 // ---------- décision 13 : la scène de la ville à la taille de son anneau ----------
@@ -130,10 +130,10 @@ function panelContext(extra = {}) {
   const overlay = { style: {}, classList: { add() {} } };
   const ctx = makeContext({ document: { getElementById: id => els[id] || null, querySelector: s => (s === '.build-panel-overlay' ? overlay : null) }, getBuildingEffect: () => null, ...extra });
   run(ctx, '01-core.js', CORE);
-  run(ctx, '04-buildings-render.js', ['getBuildingAtSlot', 'merchantsAt', 'visionRadiusAt', 'allianceMaxMembersAt']);
+  run(ctx, '04-buildings-render.js', ['getBuildingAtSlot', 'visionRadiusAt', 'allianceMaxMembersAt']);
   run(ctx, '04b-iso-scene.js', ['cityWallSlot']);
   run(ctx, '05-panels.js', ['selectedBuildSlot', 'openBuildPanel', 'getBuildCost', 'getCityBuildTimeReductionPct', 'getBuildTime', 'formatDuration', 'getBuildingBonus',
-    'hideoutTabHtml', 'merchantRulesHtml', 'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription',
+    'hideoutTabHtml', 'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription',
     'getBuildingShortDescription', 'COLONY_TRAINER', 'recruitPlaceCityId', 'trainerLevelIn', 'recruitPlaces', 'selectRecruitPlace', 'recruitPlaceHtml', 'openRecruitmentPanel',
     'openUnitRecruitModal', 'watchRecruitTotal']);
   run(ctx, '06b-research.js', ['fmtTechPct']);
@@ -206,7 +206,8 @@ test('alliance pleine : le chef n\'est invité à monter son Ambassade que si el
   run(ctx, '09-social.js', ['allianceFullHtml']);
   assert.equal(ctx.allianceFullHtml(20, 21), '');
   assert.equal(ctx.allianceFullHtml(5, undefined), '');
-  assert.match(ctx.allianceFullHtml(21, fx.allianceMaxMembers(7)), /Alliance complète : le chef peut monter son Ambassade/);
+  assert.equal(fx.allianceMaxMembers(7), 35);   // 5 membres par niveau (décision du 31 octobre 2026, rapport de vérification)
+  assert.match(ctx.allianceFullHtml(35, fx.allianceMaxMembers(7)), /Alliance complète : le chef peut monter son Ambassade/);
   // au plafond général (Ambassade 20 du chef, config.alliance.maxMembers) : rien à monter
   const cap = fx.allianceMaxMembers(20);
   assert.equal(cap, config.alliance.maxMembers);
@@ -313,27 +314,33 @@ test('Grandes casernes et écuries : leurs niveaux s\'additionnent pour la forma
   assert.equal(ctx.unitTrainTimeInCity(legionary, capital).pct, fx.trainTimeReductionPct(capital.buildings, 'INFANTRY', fx.capitalTrainBoostPct(ctx.cities, 'INFANTRY')));
   assert.equal(ctx.unitTrainTimeInCity(legionary, a).boostPct, 0);   // dans une colonie : sa Grande caserne seulement
   ctx.openRecruitmentPanel('BARRACKS', 10, 4);
-  assert.match(els['build-panel-content'].innerHTML, /Grande Caserne de vos colonies \(niveaux additionnés : 20\) : −10 % de temps de formation ici/);
+  // 0,75 % par niveau (décision du 31 octobre 2026, rapport de vérification)
+  assert.match(els['build-panel-content'].innerHTML, /Grande Caserne de vos colonies \(niveaux additionnés : 20\) : −15 % de temps de formation ici/);
   ctx.openRecruitmentPanel('STABLE', 3, 5);
-  assert.match(els['build-panel-content'].innerHTML, /Grande Écurie de vos colonies \(niveaux additionnés : 4\) : −2 %/);
+  assert.match(els['build-panel-content'].innerHTML, /Grande Écurie de vos colonies \(niveaux additionnés : 4\) : −3 %/);
 });
 
 // ---------- décisions 2, 5, 6, 7, 8, 11 : textes des bâtiments ----------
-test('Forge (attaque et défense), cachette (quantité fixe), Place de rassemblement, Tour de guet, Ambassade, Chambre au Trésor', { skip }, () => {
+test('Forge (attaque et défense), cachette (part du stockage), Place de rassemblement, Tour de guet, Ambassade, Chambre au Trésor', { skip }, () => {
   const { ctx, els } = panelContext();
-  const capital = { id: 'cap', name: 'Roma', isCapital: true, wood: 20000, stone: 100, iron: 0, food: 5000, buildings: [{ key: 'MAIN_HALL', slot: 0, level: 20 }, { key: 'FORGE', slot: 3, level: 12 },
-    { key: 'HIDEOUT', slot: 6, level: 10 }, { key: 'RALLY_POINT', slot: 7, level: 9 }, { key: 'WATCHTOWER', slot: 8, level: 4 }, { key: 'EMBASSY', slot: 9, level: 7 }], buildQueue: [], playerStock: stock };
+  const buildings = [{ key: 'MAIN_HALL', slot: 0, level: 20 }, { key: 'FORGE', slot: 3, level: 12 }, { key: 'HIDEOUT', slot: 6, level: 10 }, { key: 'RALLY_POINT', slot: 7, level: 9 },
+    { key: 'WATCHTOWER', slot: 8, level: 4 }, { key: 'EMBASSY', slot: 9, level: 7 }, { key: 'WAREHOUSE', slot: 10, level: 15 }];
+  const capital = { id: 'cap', name: 'Roma', isCapital: true, wood: 20000, stone: 100, iron: 0, food: 5000, ...calc.cityStorageCaps(buildings), buildings, buildQueue: [], playerStock: stock };
   ctx.cities = [capital];
   ctx.currentCity = capital;
   assert.equal(ctx.forgeBonusPct('attack'), fx.forgeAttackPct(capital.buildings));
   assert.equal(ctx.forgeBonusPct('defense'), fx.forgeDefensePct(capital.buildings));
   ctx.citySlots = capital.buildings.map(b => ({ slot: b.slot, fixed: b.slot === 0, fixedKey: b.slot === 0 ? 'MAIN_HALL' : undefined }));
-  // cachette : ce qui est à l'abri et ce qui peut être pillé, ressource par ressource
+  // cachette (décision du 31 octobre 2026, rapport de vérification) : 1,5 % du stockage de la ville par niveau, ce qui est à
+  // l'abri et ce qui peut être pillé, ressource par ressource (stockage du dépôt pour le bois, de base pour les céréales)
   ctx.openBuildPanel(6);
   const hidden = fx.hideoutAmount(capital.buildings, 'ROME');
-  assert.match(els['build-panel-content'].innerHTML, new RegExp(`<strong>${hidden}</strong> de chaque ressource à l'abri`));
-  assert.match(els['build-panel-content'].innerHTML, new RegExp(`bois :</span><span>${hidden} à l'abri · ${20000 - hidden} pillables`));
-  assert.match(els['build-panel-content'].innerHTML, /pierre :<\/span><span>100 à l'abri · 0 pillable/);
+  assert.equal(hidden.wood, Math.floor(capital.maxStorage * 0.15));
+  assert.equal(hidden.food, 150);   // pas de silo : 15 % des 1 000 de base
+  assert.match(els['build-panel-content'].innerHTML, /<strong>15 %<\/strong> du stockage de la ville à l'abri des pillards pour chaque ressource/);
+  assert.match(els['build-panel-content'].innerHTML, new RegExp(`bois :</span><span>${hidden.wood} à l'abri sur ${hidden.wood} · ${20000 - hidden.wood} pillables`));
+  assert.match(els['build-panel-content'].innerHTML, new RegExp(`pierre :</span><span>100 à l'abri sur ${hidden.stone} · 0 pillable<`));
+  assert.match(els['build-panel-content'].innerHTML, /nourriture :<\/span><span>150 à l'abri sur 150 · 4850 pillables/);
   assert.match(els['build-panel-content'].innerHTML, /L'or ne se pille jamais/);
   // Place de rassemblement : la taille des rassemblements que l'on lance
   ctx.openBuildPanel(7);
@@ -343,7 +350,7 @@ test('Forge (attaque et défense), cachette (quantité fixe), Place de rassemble
   assert.match(els['build-panel-content'].innerHTML, new RegExp(`qu'à ${fx.visionRadius(4)} cases de chacune de vos villes`));
   // Ambassade : la taille de l'alliance suit celle du chef
   ctx.openBuildPanel(9);
-  assert.match(els['build-panel-content'].innerHTML, /3 membres par niveau/);
+  assert.match(els['build-panel-content'].innerHTML, /5 membres par niveau/);
 });
 
 test('fiches : fonctions des bâtiments revus, coût en or et Forge sur la fiche d\'une unité d\'élite', { skip }, () => {
@@ -352,7 +359,7 @@ test('fiches : fonctions des bâtiments revus, coût en or et Forge sur la fiche
   run(ctx, '01-core.js', CORE);
   run(ctx, '06b-research.js', ['fmtTechPct']);
   run(ctx, '07-army.js', ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'rallyMaxArmiesAt']);
-  run(ctx, '04-buildings-render.js', ['merchantsAt', 'visionRadiusAt', 'allianceMaxMembersAt']);
+  run(ctx, '04-buildings-render.js', ['visionRadiusAt', 'allianceMaxMembersAt']);
   run(ctx, '05-panels.js', ['COLONY_TRAINER', 'formatDuration']);
   run(ctx, '10b-sheets.js', ['SHEET_RULES', 'SHEET_TIER_NAMES', 'SHEET_CLASS_NAMES', 'SHEET_FACTION_NAMES', 'SHEET_MAP_UNIT', 'sheetKey', 'sheetUnits', 'sheetBuildings', 'sheetUnitGallery', 'sheetCostHtml', 'sheetKv',
     'unitSheetRequirement', 'capitalTrainBoost', 'unitTrainTimeInCity', 'showUnitInfoModal', 'buildingFunctions']);
@@ -360,16 +367,21 @@ test('fiches : fonctions des bâtiments revus, coût en or et Forge sur la fiche
   const fxOf = (key) => BUILDINGS.find(b => b.key === key).effects;
   const fns = (key) => JSON.parse(JSON.stringify(ctx.buildingFunctions(key, fxOf(key)))).map(([label]) => label);
   assert.ok(fns('FORGE').some(l => /Attaque et défense de toutes vos troupes, dans tous les combats \(\+0,5 % et \+0,5 % par niveau\)/.test(l)));
-  assert.ok(fns('HIDEOUT').some(l => l.includes(`(${fx.hideoutAmount([{ key: 'HIDEOUT', level: 1 }], 'ROME')} au niveau 1, ${fx.hideoutAmount([{ key: 'HIDEOUT', level: 20 }], 'ROME')} au niveau 20)`)));
+  assert.ok(fns('HIDEOUT').some(l => l.includes('(1,5 % par niveau, 30 % au niveau 20)')));
   assert.ok(fns('MILL').some(l => l === 'Céréales +2,5 % par niveau'));
   assert.ok(fns('WALL').some(l => l === `Niveau ${fxOf('WALL').colonyMaxLevel} au plus dans une colonie`));
   assert.ok(fns('RALLY_POINT').some(l => l.includes(`(${fx.rallyMaxArmies(20)} au niveau 20)`)));
-  assert.ok(fns('EMBASSY').some(l => /3 membres par niveau/.test(l)));
+  assert.ok(fns('EMBASSY').some(l => /5 membres par niveau/.test(l)));
   assert.ok(fns('TREASURE_CHAMBER').some(l => /ne peut jamais être pillé/.test(l)));
   assert.ok(fns('TREASURE_CHAMBER').some(l => l === `Or chaque jour (${fx.goldPerDayAtLevel(1)} au niveau 1, ${fx.goldPerDayAtLevel(20)} au niveau 20)`));
-  assert.ok(fns('SULTAN_DESERT_OUTPOST').some(l => l === `Charge des marchands, des armées de transport et des récoltes (+${fxOf('SULTAN_DESERT_OUTPOST').armyTransportCapacityBonusPctPerLevel} % par niveau)`));
-  assert.ok(fns('MARKET').some(l => /Un marchand par niveau \(20 au niveau 20\)/.test(l)));
-  assert.ok(fns('GREAT_BARRACKS').some(l => /Caserne de la capitale \(−0,5 % par niveau ; les niveaux de toutes vos Grandes casernes s'additionnent\)/.test(l)));
+  assert.ok(fns('SULTAN_DESERT_OUTPOST').some(l => l === `Charge des armées de transport et des récoltes (+${fxOf('SULTAN_DESERT_OUTPOST').armyTransportCapacityBonusPctPerLevel} % par niveau)`));
+  assert.ok(fns('MARKET').some(l => /portés par vos armées selon la charge de leurs troupes/.test(l)) && !fns('MARKET').some(l => /marchand par niveau/.test(l)));
+  // taxe des échanges : la base vient du serveur (player.economy.market), la baisse par niveau des données
+  ctx.player.economy.market = { p2pTaxPctBase: config.market.p2pTaxPctBase, treasureTaxReductionPctPerLevel: config.market.treasureTaxReductionPctPerLevel };
+  assert.ok(fns('TRADE_OFFICE').some(l => l.startsWith(`Taxe des échanges entre joueurs (${config.market.p2pTaxPctBase} % de base, −${fxOf('TRADE_OFFICE').p2pTaxReductionPctPerLevel} % par niveau) et charge des armées de transport`)));
+  assert.ok(fns('TREASURE_CHAMBER').some(l => l === 'Taxe des échanges entre joueurs réduite (−0,25 % par niveau)'));
+  assert.ok(fns('GREAT_BARRACKS').some(l => /Caserne de la capitale \(−0,75 % par niveau ; les niveaux de toutes vos Grandes casernes s'additionnent\)/.test(l)));
+  assert.ok(fns('HERO_MANSION').some(l => /Seule une expédition menée par le héros rapporte de l'or/.test(l)));
   assert.ok(fns('WATCHTOWER').some(l => l.includes(`${fxOf('WATCHTOWER').visionRangeL1} cases plus ${fxOf('WATCHTOWER').visionRangePerLevel} par niveau`)));
   // fiche d'une unité d'élite : l'or en plus des ressources, et la Forge de la capitale
   const capital = { id: 'cap', name: 'Roma', isCapital: true, buildings: [{ key: 'BARRACKS', slot: 4, level: 20 }, { key: 'FORGE', slot: 3, level: 10 }], playerStock: stock };
@@ -382,55 +394,78 @@ test('fiches : fonctions des bâtiments revus, coût en or et Forge sur la fiche
   assert.match(sheet, /Forge de la capitale.*\+5 % d'attaque · \+5 % de défense/);
 });
 
-// ---------- décision 3 : les marchands du marché ----------
-test('marchands : libres / total, marchands nécessaires et refus comme le serveur, trajet aller et retour', { skip }, () => {
-  const els = { 'market-merchants': { innerHTML: '' } };
+// ---------- plus de marchands (décision du 31 octobre 2026, rapport de vérification) : des armées portent le marché ----------
+test('marché : armées libres et leur charge, l\'armée qui partira (la plus petite qui suffit, comme le serveur) et ses refus', { skip }, async () => {
+  const els = { 'send-army': { innerHTML: '', value: '' }, 'send-help': { innerHTML: '' }, 'send-wood': { value: '700' } };
   const ctx = makeContext({ document: { getElementById: id => els[id] || null }, fetchJson: async () => ({}) });
-  run(ctx, '05-panels.js', ['formatDuration']);
-  run(ctx, '06b-research.js', ['fmtTechPct']);
-  run(ctx, '11b-market-trade.js', ['marketState', 'merchantsFor', 'merchantSeconds', 'noMerchantsText', 'merchantsText', 'renderMerchantsBar', 'merchantNeedHtml', 'deliveryTimesText']);
-  const ev = (code) => vm.runInContext(code, ctx);   // les const du fichier ne sont pas des propriétés du contexte
-  const capacity = MS.merchantCapacity('ROME', []);
-  ev(`marketState = { merchants: { total: 5, free: 2, capacity: ${capacity}, speed: ${MS.merchantSpeed('ROME')} } }`);
-  ctx.renderMerchantsBar();
-  assert.match(els['market-merchants'].innerHTML, new RegExp(`Marchands : <strong>2 libres / 5</strong> · ${capacity} ressources chacun · vitesse ${MS.merchantSpeed('ROME')}`));
-  for (const amount of [1, capacity, capacity + 1, 3 * capacity]) assert.equal(ev(`merchantsFor(${amount}, ${capacity})`), MS.merchantsFor(amount, capacity), `${amount}`);
-  // deux marchands libres : 2 × charge passe, une ressource de plus non (même refus que le serveur)
-  assert.match(ev(`merchantNeedHtml(${2 * capacity})`), /^2 marchands sur 2 libres/);
-  assert.equal(ev(`merchantNeedHtml(${2 * capacity + 1})`), '<span class="missing">Pas assez de marchands libres (2 libres, 3 nécessaires)</span>');
-  assert.equal(ev('merchantNeedHtml(0)'), '');
-  // trajet : en ligne droite à la vitesse des marchands, comme calculateTravelTime ; le retour dure autant
-  ctx.currentCity = { x: 0, y: 0 };
-  const seconds = calc.calculateTravelTime(0, 0, 30, 40, MS.merchantSpeed('ROME'));
-  assert.equal(ev(`merchantSeconds(currentCity, 30, 40, ${MS.merchantSpeed('ROME')})`), seconds);
-  assert.match(ev('merchantNeedHtml(10, { x: 30, y: 40 })'), /aller : au moins .*, retour des marchands : autant/);
-  assert.match(ev(`deliveryTimesText({ merchantsUsed: 1, arrivalAt: '2026-10-31T13:00:00Z', returnAt: '2026-10-31T14:00:00Z' })`), /arrivée dans bientôt, marchands de retour dans bientôt/);
-  // sans Marché dans la capitale : aucun marchand
-  ev('marketState = { merchants: { total: 0, free: 0, capacity: 500, speed: 80 } }');
-  ctx.renderMerchantsBar();
-  assert.match(els['market-merchants'].innerHTML, /construisez la Place du marché dans la capitale/);
+  run(ctx, '01-core.js', ['RES_KEYS']);
+  run(ctx, '11b-market-trade.js', ['marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'refreshSendForm', 'updateSendHelp']);
+  const ev = (code) => vm.runInContext(code, ctx);   // les let et const du fichier ne sont pas des propriétés du contexte
+  ev('marketState = { armies: [{ id: \'a1\', name: \'Petite\', capacity: 600 }, { id: \'a2\', name: \'Grande\', capacity: 6000 }] }');
+  assert.equal(ev('transportNeedHtml(0)'), '');
+  assert.match(ev('transportNeedHtml(600)'), /^Petite · 600 de charge : elle porte les 600 ressources, puis rentre$/);
+  assert.match(ev('transportNeedHtml(601)'), /^Grande · 6000 de charge/);
+  assert.match(ev('transportNeedHtml(10, \'a2\')'), /^Grande/, 'l\'armée choisie');
+  ev('marketState.armies.unshift({ id: \'h\', name: \'Héros\', capacity: 600, hero: true })');
+  assert.match(ev('transportNeedHtml(600)'), /^Petite/, 'sans le héros quand une autre armée suffit, comme le serveur');
+  assert.match(ev('fillArmySelect(\'send-army\'), document.getElementById(\'send-army\').innerHTML'), /Héros · 600 de charge · avec le héros/);
+  ev('marketState.armies.shift()');
+  // même refus que le serveur (marketService.pickTransportArmy)
+  const server = await MS.pickTransportArmy({ army: { findMany: async () => [{ id: 'a2', units: [{ unitKey: 'X', count: 1 }] }] }, cityBuilding: { findMany: async () => [] }, city: { findMany: async () => [] } }, { id: 'c', x: 0, y: 0 }, null, 'ROME', 1e9);
+  assert.equal(ev('transportNeedHtml(6001)'), `<span class="missing">${server.error.replace(/\d+ à porter, \d+ au mieux/, '6001 à porter, 6000 au mieux')}</span>`);
+  ctx.refreshSendForm();
+  assert.equal(els['send-army'].innerHTML, '<option value="">Choix automatique</option><option value="a1">Petite · 600 de charge</option><option value="a2">Grande · 6000 de charge</option>');
+  assert.match(els['send-help'].innerHTML, /^Grande/, '700 : la petite ne suffit pas');
+  ev('marketState = { armies: [] }');
+  ctx.refreshSendForm();
+  assert.equal(els['send-army'].innerHTML, '<option value="">Aucune armée libre en ville</option>');
+  assert.match(els['send-help'].innerHTML, /Aucune armée libre en ville pour transporter/);
+  assert.match(ev('deliveryTimesText({ armyId: \'a2\', arrivalAt: \'2026-10-31T13:00:00Z\', returnAt: \'2026-10-31T14:00:00Z\' })'), /arrivée dans bientôt, retour de l'armée dans bientôt/);
 });
 
-test('marché : les offres partent sans armée ; la taxe vient du Comptoir de la capitale (plus de « meilleur Comptoir des colonies »)', { skip }, async () => {
+test('marché : l\'offre réserve l\'armée choisie ; taxe du Comptoir et de la Chambre au Trésor de la capitale ; accepter envoie l\'armée choisie', { skip }, async () => {
   const posted = [];
-  const els = { 'market-offer-help': { innerHTML: '' }, 'market-offer-merchants': { innerHTML: '' }, 'market-sell-amount': { value: '1200' } };
+  const els = { 'market-offer-help': { innerHTML: '' }, 'market-offer-transport': { innerHTML: '' }, 'market-sell-amount': { value: '1200' }, 'market-offer-army': { innerHTML: '', value: '' } };
   const ctx = makeContext({
     document: { getElementById: id => els[id] || null }, fetchJson: async () => ({}), closeModal() {}, showToast: (m) => { ctx.toast = m; }, _actionInProgress: false,
-    fetch: async (url, opts) => { posted.push({ url, body: JSON.parse(opts.body) }); return { ok: true, json: async () => ({ message: 'Échange conclu', merchantsUsed: 1, arrivalAt: 'x', returnAt: 'y' }) }; },
-    API: '', token: 't', loadMarket: async () => {}, loadCities: async () => {}
+    fetch: async (url, opts) => { posted.push({ url, body: JSON.parse(opts.body) }); return { ok: true, json: async () => ({ message: 'Échange conclu', armyId: 'a2', arrivalAt: 'x', returnAt: 'y' }) }; },
+    API: '', token: 't', loadMarket: async () => {}, loadCities: async () => {}, loadArmies: async () => {}
   });
+  ctx.player.economy.market = { p2pTaxPctBase: config.market.p2pTaxPctBase, treasureTaxReductionPctPerLevel: config.market.treasureTaxReductionPctPerLevel, offerHours: config.market.offerHours };
   run(ctx, '01-core.js', ['buildingEffectOf']);
-  run(ctx, '05-panels.js', ['formatDuration']);
   run(ctx, '06b-research.js', ['fmtTechPct']);
-  run(ctx, '11b-market-trade.js', ['marketState', 'merchantsFor', 'merchantSeconds', 'noMerchantsText', 'merchantsText', 'merchantNeedHtml', 'deliveryTimesText', 'refreshOfferForm', 'updateOfferMerchants']);
+  run(ctx, '11b-market-trade.js', ['MARKET_RES', 'marketState', 'marketArmies', 'armyLabel', 'transportNeedHtml', 'fillArmySelect', 'deliveryTimesText', 'refreshOfferForm', 'updateOfferHelp', 'openAcceptOffer']);
   run(ctx, '11-market.js', ['confirmAcceptOffer']);
-  vm.runInContext('marketState = { taxPct: 7.5, basePct: 10, offerHours: 48, merchants: { total: 3, free: 3, capacity: 500, speed: 80 } }', ctx);
+  vm.runInContext(`marketState = { taxPct: 27.5, basePct: ${config.market.p2pTaxPctBase}, offerHours: 48, armies: [{ id: 'a1', name: 'Petite', capacity: 600 }, { id: 'a2', name: 'Grande', capacity: 6000 }] }`, ctx);
   ctx.refreshOfferForm();
-  assert.match(els['market-offer-help'].innerHTML, /<strong>7,5 %<\/strong> depuis cette ville \(10 % de base, −1 % par niveau du Comptoir de la capitale/);
-  assert.doesNotMatch(els['market-offer-help'].innerHTML, /colonies/);
-  assert.match(els['market-offer-merchants'].innerHTML, /^3 marchands sur 3 libres/);
-  ctx.currentCity = { id: 'c1' };
-  await ctx.confirmAcceptOffer('o1');
-  assert.deepEqual({ ...posted[0].body }, { cityId: 'c1' });   // plus d'armée
-  assert.match(ctx.toast, /Échange conclu · arrivée dans/);
+  assert.match(els['market-offer-help'].innerHTML, /<strong>27,5 %<\/strong> depuis cette ville \(30 % de base, −1 % par niveau du Comptoir de la capitale, −0,25 % par niveau de la Chambre au Trésor\)/);
+  assert.equal(els['market-offer-transport'].innerHTML, 'Grande · 6000 de charge : elle attend en ville avec les 1200 ressources jusqu\'à l\'échange', 'l\'armée d\'une offre attend d\'abord');
+  assert.match(els['market-offer-army'].innerHTML, /Choix automatique/);
+  // accepter : seules les armées qui portent la contrepartie sont proposées
+  let modal = null;
+  ctx.openSheetModal = (title, html) => { modal = html; };
+  ctx.currentCity = { id: 'c1', name: 'Rome' };
+  ctx.openAcceptOffer({ id: 'o1', buyAmount: 800, buyResource: 'iron', sellAmount: 1000, sellResource: 'wood', city: { name: 'Massalia' } });
+  assert.match(modal, /<option value="a2">Grande · 6000 de charge<\/option>/);
+  assert.doesNotMatch(modal, /value="a1"/);
+  assert.doesNotMatch(modal, /marchand/);
+  await ctx.confirmAcceptOffer('o1', 'a2');
+  assert.deepEqual({ ...posted[0].body }, { cityId: 'c1', armyId: 'a2' });
+  assert.match(ctx.toast, /Échange conclu · arrivée dans bientôt, retour de l'armée dans bientôt/);
+});
+
+test('armée du marché : celle d\'une offre attend en ville, celle d\'un échange conclu livre ; aucune des deux ne se rappelle', { skip }, () => {
+  const ctx = makeContext({ unitsData: [], heroPortraitHtml: () => '', unitIconHtml: () => '', sheetKey: k => k, siegeTimeLeft: () => '', serverNow: () => Date.now() });
+  run(ctx, '07-army.js', ['renderArmyCardNew']);
+  const card = (army) => ctx.renderArmyCardNew(1, { id: 'a1', name: 'Armée 1', units: [], power: 0, ...army }, false, null);
+  const offer = card({ status: 'MARKET', missionType: 'MARKET_OFFER' });
+  assert.match(offer, /Offre du marché/);
+  assert.match(offer, /Attend en ville avec les marchandises d'une offre/);
+  assert.match(offer, /showMarketTab\('offers'\)/, 'le bouton mène aux offres, où l\'on annule pour libérer l\'armée');
+  assert.doesNotMatch(offer, /returnArmy/);
+  const delivery = card({ status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: 12, targetY: -4 });
+  assert.match(delivery, /Livraison d'un échange/);
+  assert.match(delivery, /\(12, -4\)/);
+  assert.doesNotMatch(delivery, /returnArmy/, 'un échange conclu se livre des deux côtés : pas de rappel (routes/armies.js le refuse aussi)');
+  assert.match(card({ status: 'TRANSPORTING', missionType: 'TRANSPORT', targetX: 1, targetY: 2 }), /returnArmy\('a1'\)/, 'un simple envoi se rappelle');
 });

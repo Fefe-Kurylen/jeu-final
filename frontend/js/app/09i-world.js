@@ -75,7 +75,7 @@ async function openWonderPanel(cityId) {
     ${w.buildEndsAt ? `<p>${resIconHtml('build')} Niveau ${w.level + 1} en construction : <span class="qd-timer" data-ends-at="${w.buildEndsAt}">${formatTime(w.buildEndsAt)}</span></p>` : ''}
     <h4>Stock du chantier</h4>
     <div class="wonder-stock">${BASTION_RES.map(([k, l]) => `<span>${resIconHtml(k)} ${formatNum(w.stock[k] || 0)}${next ? ` <small>/ ${formatNum(next.cost[k])}</small>` : ''}</span>`).join('')}</div>
-    <p class="diplo-help">Les membres de l'alliance remplissent ce stock en envoyant leurs convois à la Ville Merveille (sans plafond).</p>
+    <p class="diplo-help">${resIconHtml('army')} L'armée est le vrai moyen de ravitailler la Merveille : chaque membre de l'alliance envoie une armée de transport vers la Ville Merveille (Marché › Envoyer). Elle porte autant que la charge de ses troupes, livre tout au chantier (sans plafond), puis rentre. Plus l'armée est grande, plus elle porte.</p>
     ${next ? `<p>Niveau ${next.level} : ${formatDuration(next.seconds)}${next.needsPlan ? ` · ${w.hasPlan ? `${resIconHtml('star')} plan détenu par l'alliance` : `${resIconHtml('lock')} il faut un plan de construction dans l'alliance`}` : ''}</p>` : '<p><strong>Merveille achevée.</strong></p>'}
     ${w.nextWaveAt ? `<p class="diplo-help">${resIconHtml('attack')} Prochaine vague d'Immortels : <span class="qd-timer" data-ends-at="${w.nextWaveAt}">${formatTime(w.nextWaveAt)}</span>. Un assaut perdu fait perdre des niveaux ; la ville ne peut pas être rasée.</p>` : ''}
     <div class="profile-actions">
@@ -146,14 +146,18 @@ function openJoinWorld() {
   joinShown = true;
   const factions = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
   const label = { ROME: 'Rome', GAUL: 'Gaule', GREEK: 'Grèce', EGYPT: 'Égypte', HUN: 'Huns', SULTAN: 'Sultanat' };
+  // côté de la carte (décision du 31 octobre 2026) : le même choix qu'à l'inscription (index.html, selectSide de 01-core.js)
+  const sideChoice = ['.side-hint', '.side-grid'].map(sel => document.querySelector(sel)?.outerHTML || '').join('');
   openSheetModal('Un nouveau monde', `
-    <p>Un nouveau monde a commencé. Vous gardez votre compte, vos achats, vos cosmétiques, vos médailles et vos titres ; choisissez votre civilisation pour recevoir votre capitale.</p>
+    <p>Un nouveau monde a commencé. Vous gardez votre compte, vos achats, vos cosmétiques, vos médailles et vos titres ; choisissez votre civilisation et votre côté de la carte pour recevoir votre capitale.</p>
     <div class="join-factions">${factions.map(f => `<label class="support-option"><input type="radio" name="join-faction" value="${f}" ${f === (player?.faction || 'ROME') ? 'checked' : ''}> ${typeof heroPortraitHtml === 'function' ? heroPortraitHtml(f, 'hero-ico-sm') : ''} <strong>${label[f]}</strong></label>`).join('')}</div>
+    ${sideChoice}
     <div class="profile-actions"><button class="btn btn-primary" onclick="confirmJoinWorld()">Rejoindre le monde</button></div>`);
 }
 async function confirmJoinWorld() {
   const faction = document.querySelector('input[name="join-faction"]:checked')?.value || 'ROME';
-  const ok = await allianceRequestNoReload('/api/world/join', 'POST', { faction });
-  if (ok) { closeModal(); joinShown = false; await showGame(); }   // la capitale existe : le jeu démarre comme à la connexion
+  const side = document.getElementById('reg-side')?.value || 'RANDOM';   // selectSide le note là, comme à l'inscription
+  const ok = await allianceRequestNoReload('/api/world/join', 'POST', { faction, side });
+  if (ok) { closeModal(); joinShown = false; noteSideFallback(side, ok.side); await showGame(); }   // la capitale existe : le jeu démarre comme à la connexion
   else joinShown = false;
 }

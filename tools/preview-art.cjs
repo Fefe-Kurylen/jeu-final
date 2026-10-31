@@ -34,7 +34,7 @@ const FACTION_BUILDING = { ROME: 'ROMAN_THERMAE', GAUL: 'GALLIC_BREWERY', GREEK:
   for (let i = 0; res.status === 503 && i < 30; i++) { await new Promise(r => setTimeout(r, 2000)); res = await fetch(`${API}/api/world/info`); }
   const info = res.ok ? await res.json() : {};
   if (!Number.isInteger(info.worldSeed)) throw new Error(`graine de la carte introuvable (${API}/api/world/info répond ${res.status})`);
-  T.setWorldSeed(info.worldSeed);
+  T.setWorldSeed(info.worldSeed, info.worldGenerator ?? info.terrainVersion);   // le générateur de sa carte (374 ou 420 cases)
   if (info.terrainSignature && info.terrainSignature !== T.signature) throw new Error('ce serveur dessine une autre carte que ce code (version différente)');
   const uid = Math.floor(Math.random() * 1e6);
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `preview${uid}@t.fr`, password: 'Test1234!', name: `Preview${uid}`, faction }) })).json();

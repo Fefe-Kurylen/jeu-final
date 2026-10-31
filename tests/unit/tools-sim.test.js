@@ -18,7 +18,7 @@ test('simulate-colonies: one engine for every tier, wall breach and Bastion figu
   const out = run('simulate-colonies.cjs');
   assert.match(out, /\| Ville Fortifiée \| niveau 20\+ \| [^|]+\| [^|]+\| 1 \|/);
   assert.match(out, /\| niveau 20 \| 20\s000 \| [^|]+\| 110 \/ 165 \/ 330 \|/);   // séparateur des milliers : espace fine
-  assert.match(out, /Bastion \(10 × mur 20\) \| 200\s000 \|/);
+  assert.match(out, /Bastion \(5 × mur 20\) \| 100\s000 \|/);   // mur bouclier : 5 fois un mur 20 (décision du 31 octobre 2026)
   assert.match(out, /3\s000 soldats \+ 150 engins \| brèche round \d+, l'attaquant gagne/);
   // rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement lue dans les données, Mur sur l'enceinte,
   // anneau à la taille des bâtiments possibles (capitale 18, colonie 12), plafonds Bâtiment principal 20 et Mur de colonie 15
@@ -41,9 +41,11 @@ test('simulate-factions: city attacks use the wall shield and the engines of eac
   assert.match(out, /Mur 10 en bouclier \(10000 PV, 12500 pour l'Égypte\)/);
   assert.match(out, /SULTAN attaque : ATT .* r4/);
   assert.match(out, /Sultanat : dégâts d'un engin au mur ×1\.25 : 15\.19 PV par round/);
-  // cachette en quantité fixe par niveau (décision du 31 octobre 2026), bonus de la Gaule en multiplicateur
+  // cachette : part du stockage de la ville par niveau (décision du 31 octobre 2026, rapport de vérification), bonus de la
+  // Gaule en multiplicateur (36 % au niveau 20)
   const fx = require('../../src/utils/buildingEffects');
-  assert.match(out, new RegExp(`Gaule +: cachette L5/L10/L15/L20 : ${[5, 10, 15, 20].map(l => fx.hideoutAmount([{ key: 'HIDEOUT', level: l }], 'GAUL')).join('/')} par ressource`));
+  assert.match(out, new RegExp(`Gaule +: cachette L5/L10/L15/L20 : ${[5, 10, 15, 20].map(l => fx.hideoutPct(l, 'GAUL')).join('/')} % du stockage`));
+  assert.match(out, /Gaule +: cachette L5\/L10\/L15\/L20 : 9\/18\/27\/36 % du stockage/);
 });
 
 test('simulate-tribes: gold camps fight with their +40 %', () => {

@@ -15,6 +15,17 @@ function rollItem(lootTier) {
 }
 const { calculateArmyPower } = require('../../utils/calculations');
 const { awardHeroXp } = require('../../services/heroXpService');
+const { talent } = require('../../utils/heroEffects');
+
+// Or d'une expédition gagnée (décision du 31 octobre 2026, config.expedition.gold) : seulement quand le héros la mène ;
+// chance `chance`, montant tiré autour de base + perDifficulty × difficulté (± spread), + talent Chasseur de trésors.
+// `hero` : le héros de l'armée (null sans héros : pas d'or) ; `rand` : tirage entre 0 et 1 (tests)
+function rollGold(hero, difficulty, rand = Math.random) {
+  const G = config.expedition.gold;
+  if (!hero || rand() >= G.chance) return 0;
+  const mean = G.base + G.perDifficulty * difficulty;
+  return Math.round(mean * (1 - G.spread + 2 * G.spread * rand()) * (1 + talent(hero, 'expeditionLootPct') / 100));
+}
 
 async function processExpeditions(now) {
   await prisma.expedition.updateMany({ where: { status: 'AVAILABLE', expiresAt: { lte: now } }, data: { status: 'EXPIRED' } });
@@ -35,9 +46,9 @@ async function processExpeditions(now) {
         let item = null;
         if (won) {
           xpGained = Math.max(5, Math.floor(exp.enemyPower * 0.25));
-          const lootChance = { COMMON: 0.5, RARE: 0.3, EPIC: 0.15, LEGENDARY: 0.05 }[exp.lootTier] || 0.5;
-          if (Math.random() < lootChance) lootGained = { gold: Math.floor((50 + Math.random() * 100 * exp.difficulty) * (1 + require('../../utils/heroEffects').talent(army?.hero, 'expeditionLootPct') / 100)) };   // talent Chasseur de trésors
-          // Only a hero on the expedition brings an item back
+          // Only a hero on the expedition brings gold or an item back
+          const gold = rollGold(army?.heroId ? army.hero : null, exp.difficulty);
+          if (gold > 0) lootGained = { gold };
           item = army?.heroId ? rollItem(exp.lootTier) : null;
           if (item) lootGained = { ...(lootGained || {}), item: item.key, itemName: item.name };
         }
@@ -96,4 +107,4 @@ async function generateNewExpeditions() {
   `;
 }
 
-module.exports = { processExpeditions, generateNewExpeditions };
+module.exports = { processExpeditions, generateNewExpeditions, rollGold };

@@ -329,12 +329,12 @@ async function startServer() {
       if (IS_TICK_WORKER) startGameLoop();
       else {
         console.log('[CLUSTER] Worker HTTP (pas de game loop)');
-        // monde suivant ouvert par le worker de tick (écran d'administration) : la nouvelle carte est relue ici
-        const Terrain = require('../frontend/js/shared/terrain.js');
+        // monde suivant ouvert par le worker de tick (écran d'administration) : la nouvelle carte (graine et générateur) est
+        // relue ici
+        const { syncWorldSeed } = require('./services/wonderService');
         setInterval(async () => {
           try {
-            const row = await prisma.worldConfig.findUnique({ where: { id: 1 }, select: { seed: true, generator: true } });
-            if (row && row.seed !== Terrain.worldSeed) { Terrain.setWorldSeed(row.seed, row.generator); console.log(`[MONDE] nouvelle carte relue (graine ${row.seed})`); }
+            syncWorldSeed(await prisma.worldConfig.findUnique({ where: { id: 1 }, select: { seed: true, generator: true } }));
           } catch (e) { /* base indisponible : on réessaiera */ }
         }, 15000).unref();
       }

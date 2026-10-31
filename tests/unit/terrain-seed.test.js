@@ -1,5 +1,8 @@
-// Carte tirée au hasard pour chaque serveur (décision du 26 octobre 2026) : tout le terrain se déduit de la graine du monde.
+// Carte tirée au hasard pour chaque serveur (décision du 26 octobre 2026) : tout le terrain se déduit de la graine du monde
+// et du générateur de sa carte (2 : carte de référence ; 3 : cartes au hasard en 374 × 374 ; 4 : nouveaux mondes en
+// 420 × 420, décision du 31 octobre 2026).
 // - graine 0 = la carte de référence du serveur déjà ouvert, au bit près (sinon ses villes se retrouveraient dans l'eau) ;
+// - les cartes des mondes déjà ouverts (générateurs 2 et 3) ne bougent pas quand un nouveau générateur arrive ;
 // - une graine donne toujours la même carte (le client et le serveur la recalculent chacun de leur côté) ;
 // - toute graine donne une carte jouable (terre d'un seul tenant, biomes à leur place, rivières traversables) ;
 // - les cartes au hasard n'utilisent que des calculs identiques sur tous les moteurs JavaScript (serveur Node, téléphone).
@@ -20,10 +23,12 @@ function fingerprint() {
   return h.toString(16);
 }
 
-// Empreintes de référence : la graine 0 est la carte du serveur ouvert (25 octobre 2026) ; les deux autres gardent les
-// cartes au hasard stables d'une version à l'autre (un serveur déjà ouvert sur une graine ne doit pas voir sa carte bouger).
-// Une empreinte qui change = la génération a changé : il faut alors une nouvelle TERRAIN_VERSION et minClientVersion.
+// Empreintes de référence : la graine 0 est la carte du serveur ouvert (25 octobre 2026) ; les autres gardent les cartes au
+// hasard stables d'une version à l'autre (un serveur déjà ouvert sur une graine ne doit pas voir sa carte bouger), pour le
+// générateur 3 (mondes ouverts avant le 31 octobre 2026) comme pour le 4 (nouveaux mondes).
+// Une empreinte qui change = la génération a changé : il faut alors un nouveau générateur (TERRAIN_VERSION, minClientVersion).
 const GOLDEN = { 0: '44c69566', 123456: '609f1bed', 2147483646: '4f86b4c9' };
+const GOLDEN_4 = { 0: '5294e4bd', 123456: '3807ef73', 2147483646: '40863c9b' };
 
 test('graine 0 : exactement la carte de référence du serveur ouvert', () => {
   T.setWorldSeed(0);
@@ -40,13 +45,46 @@ test('graine 0 : exactement la carte de référence du serveur ouvert', () => {
 
 test('une graine donne toujours la même carte, même après en avoir changé', () => {
   for (const seed of [123456, 2147483646]) {
-    T.setWorldSeed(seed);
-    assert.equal(fingerprint(), GOLDEN[seed], `graine ${seed}`);
+    T.setWorldSeed(seed, 3);
+    assert.equal(fingerprint(), GOLDEN[seed], `graine ${seed}, générateur 3 : la carte d'un monde ouvert avant le 31 octobre ne bouge pas`);
+    assert.equal(T.WORLD_SIZE, 374);
   }
-  T.setWorldSeed(0); T.setWorldSeed(123456);
+  for (const seed of [0, 123456, 2147483646]) {
+    T.setWorldSeed(seed, 4);
+    assert.equal(fingerprint(), GOLDEN_4[seed], `graine ${seed}, générateur 4`);
+  }
+  T.setWorldSeed(0); T.setWorldSeed(123456, 3);
   assert.equal(fingerprint(), GOLDEN[123456], 'revenir sur une graine redonne sa carte');
   assert.notEqual(GOLDEN[123456], GOLDEN[0]);
   assert.equal(T.minClientVersion, 3);
+  T.setWorldSeed(123456);
+  assert.equal(T.generator, 4, 'une graine donnée seule : le générateur des nouveaux mondes');
+  assert.equal(fingerprint(), GOLDEN_4[123456]);
+  assert.equal(T.minClientVersion, 4);
+});
+
+test('taille de la carte selon le générateur : 374 pour les mondes ouverts avant le 31 octobre 2026, 420 pour les nouveaux', () => {
+  T.setWorldSeed(0);
+  assert.deepEqual([T.WORLD_SIZE, T.MIN_COORD, T.MAX_COORD], [374, -187, 186]);
+  T.setWorldSeed(77, 3);
+  assert.deepEqual([T.WORLD_SIZE, T.MIN_COORD, T.MAX_COORD], [374, -187, 186]);
+  T.setWorldSeed(77, 4);
+  assert.deepEqual([T.WORLD_SIZE, T.MIN_COORD, T.MAX_COORD], [420, -210, 209]);
+  assert.equal(T.NEW_GENERATOR, 4);
+  assert.ok(T.inWorld(209, -210) && !T.inWorld(210, 0), 'les bornes suivent la carte');
+  // la disposition grandit avec la carte : lacs et chaînes jusqu'au-delà de l'ancien bord intérieur, rivières plus longues
+  const L = T.layout();
+  assert.equal(L.rivers.length, 8); assert.equal(L.lakes.length, 6); assert.equal(L.ranges.length, 4);
+  for (const r of L.rivers) assert.ok(r.length >= Math.round(150 * 420 / 374) && r.length <= Math.round(230 * 420 / 374), `rivière de ${r.length} cases`);
+  for (const l of L.lakes) assert.ok(Math.abs(l.cx) <= 152 && Math.abs(l.cy) <= 152 && l.radius >= 6 && l.radius <= 12);
+  // même graine, autre générateur : une autre carte (setWorldSeed le voit)
+  assert.equal(T.setWorldSeed(77, 3), true);
+  assert.equal(T.WORLD_SIZE, 374);
+  // la recherche de chemin suit la taille (tableaux de travail refaits)
+  T.setWorldSeed(77, 4);
+  const far = [[-200, -200], [200, 200]].map(([x, y]) => { for (let r = 0; r < 30; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (T.isMainland(x + dx, y + dy)) return [x + dx, y + dy]; return null; });
+  const path = T.findPath(far[0][0], far[0][1], far[1][0], far[1][1]);
+  assert.ok(path && path.length > 400, 'un trajet d\'un coin à l\'autre de la carte de 420');
 });
 
 test('setWorldSeed : graine normalisée, rien ne change pour la même graine, epoch suit chaque changement', () => {
@@ -81,7 +119,9 @@ for (const start of [1, 42, 77, 31337, 2147483620, RANDOM_SEED]) {
     assert.ok(p, `aucune carte jouable en 25 graines à partir de ${start}`);
     const { seed, st } = p;
     T.setWorldSeed(seed);
-    assert.ok(st.biomeEnclave <= 150, `pas d'île de biome au-delà de 150 cases (${st.biomeEnclave}, graine ${seed})`);
+    const enclaveMax = Math.round(150 * (T.WORLD_SIZE / 374) ** 2);   // 150 cases sur la carte de 374, à l'échelle
+    assert.equal(T.WORLD_SIZE, 420, 'une graine seule : la carte des nouveaux mondes');
+    assert.ok(st.biomeEnclave <= enclaveMax, `pas d'île de biome au-delà de ${enclaveMax} cases (${st.biomeEnclave}, graine ${seed})`);
     assert.ok(st.mainland >= 0.97, `presque toute la terre d'un seul tenant (${st.mainland})`);
     assert.ok(st.crossingsPerRiver.every(n => n >= 2), 'chaque rivière se traverse au moins deux fois');
     // biomes à leur place : neige au nord (x + y petit), désert au sud
@@ -166,10 +206,18 @@ test('les chaînes de montagnes d\'une carte au hasard ne se touchent pas', () =
 test('générateur et empreinte : une carte faite par un autre générateur est refusée, l\'empreinte suit la carte', () => {
   T.setWorldSeed(0);
   assert.equal(T.generator, 2); assert.equal(T.signature, '3bd4567c');
-  T.setWorldSeed(123456);
+  T.setWorldSeed(123456, 3);
   assert.equal(T.generator, 3); assert.equal(T.signature, '41114dc9');
-  assert.throws(() => T.setWorldSeed(5, 4), /générateur 4/, 'un générateur inconnu');
+  assert.throws(() => T.setWorldSeed(5, 5), /générateur 5/, 'un générateur inconnu');
   assert.throws(() => T.setWorldSeed(0, 3), /générateur 3/, 'la carte de référence n\'est pas une carte au hasard');
+  assert.throws(() => T.setWorldSeed(5, 2), /générateur 2/, 'seule la graine 0 a une carte de référence');
   assert.equal(T.worldSeed, 123456, 'un refus ne change pas la carte en cours');
+  assert.equal(T.generator, 3);
   T.setWorldSeed(5, 3); assert.equal(T.worldSeed, 5);
+  T.setWorldSeed(123456, 4);
+  assert.equal(T.generator, 4); assert.equal(T.signature, 'aa1c2dcd');
+  // graine 0 d'un monde neuf : une carte au hasard du générateur 4, pas la carte de référence
+  T.setWorldSeed(0, 4);
+  assert.equal(T.generator, 4); assert.equal(T.WORLD_SIZE, 420); assert.equal(T.signature, '7bab3516');
+  assert.notDeepEqual(T.layout().lakes[0], { cx: -60, cy: -30, radius: 8 });
 });

@@ -105,9 +105,11 @@ async function prepareNextWorld() {
   return { number };
 }
 
-// Rejoindre le monde en cours (après un nouveau monde) : le joueur choisit sa civilisation, reçoit sa capitale
-async function joinWorld(playerId, faction) {
-  const { lockPlacement } = require('../utils/spawn');
+// Rejoindre le monde en cours (après un nouveau monde) : le joueur choisit sa civilisation et son côté de la carte ('N', 'E',
+// 'S', 'W' ou 'RANDOM', comme à l'inscription : décision du 31 octobre 2026), reçoit sa capitale. Réponse : { message,
+// cityId, side }, side = le côté où la capitale est posée (un autre si le sien est plein)
+async function joinWorld(playerId, faction, side = 'RANDOM') {
+  const { lockPlacement, sideAt } = require('../utils/spawn');
   const WS = require('./wonderService');
   // monde suivant en préparation : 503, le joueur réessaie dans un instant ; inscriptions closes : 403
   const refuse = (reason) => Object.assign(new Error(reason), { status: reason === WS.PREPARING ? 503 : 403, expose: true });
@@ -122,8 +124,8 @@ async function joinWorld(playerId, faction) {
     if (!player) throw Object.assign(new Error('Joueur introuvable'), { status: 404, expose: true });
     if (await tx.city.count({ where: { playerId } })) throw Object.assign(new Error('Vous êtes déjà dans ce monde'), { status: 400, expose: true });
     await tx.player.update({ where: { id: playerId }, data: { faction } });
-    const city = await require('./startService').createStart(tx, { playerId, name: player.name });
-    return { message: `Bienvenue dans ce nouveau monde : ${city.name} vous attend en (${city.x}, ${city.y})`, cityId: city.id };
+    const city = await require('./startService').createStart(tx, { playerId, name: player.name, side });
+    return { message: `Bienvenue dans ce nouveau monde : ${city.name} vous attend en (${city.x}, ${city.y})`, cityId: city.id, side: sideAt(city.x, city.y) };
   }, { timeout: 20000 });
 }
 

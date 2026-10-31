@@ -9,7 +9,8 @@
 //   joueur. Au-delà du niveau 50, une alliance ne monte sa Merveille que si l'un de ses membres détient un plan. Un assaut
 //   gagné contre la capitale d'un détenteur emporte ses plans.
 // - La Merveille monte de 1 à 100 : le propriétaire lance chaque niveau, payé par le stock du chantier (sans plafond),
-//   que remplissent les convois des membres vers la Ville Merveille ; coût et durée grimpent à chaque niveau.
+//   que remplissent les armées de transport des membres vers la Ville Merveille ; coût et durée grimpent à chaque niveau
+//   (coût divisé par deux le 31 octobre 2026 : ≈ 1,08 G en tout).
 // - Les Immortels attaquent chaque Ville Merveille toutes les 12 h (de plus en plus fort), mangonneaux compris : seuls les
 //   engins abîment le mur ; un assaut gagné par eux ou par un rival lui ôte des niveaux. La Ville Merveille ne peut pas
 //   être rasée.
@@ -66,10 +67,11 @@ async function worldState(now = new Date()) {
 const PREPARING = 'Le monde suivant se prépare : réessayez dans un instant.';
 const preparing = (row) => !row || !row.readyAt || !!row.resetRequestedAt;
 // Worker HTTP (mode cluster) : il relit la graine toutes les 15 s (src/server.js) ; avant de placer une capitale, sa carte
-// est remise sur celle de la base. false si ce code ne sait pas la dessiner.
+// est remise sur celle de la base. false si ce code ne sait pas la dessiner. Même graine mais autre générateur (WORLD_SEED=0 :
+// carte de référence de 374 puis graine 0 du générateur des nouveaux mondes, en 420) : une autre carte, relue aussi.
 function syncWorldSeed(row) {
-  if (!row || row.seed === Terrain.worldSeed) return true;
-  try { Terrain.setWorldSeed(row.seed, row.generator); console.log(`[MONDE] nouvelle carte relue (graine ${row.seed})`); return true; }
+  if (!row || (row.seed === Terrain.worldSeed && row.generator === Terrain.generator)) return true;
+  try { Terrain.setWorldSeed(row.seed, row.generator); console.log(`[MONDE] nouvelle carte relue (graine ${row.seed}, générateur ${row.generator})`); return true; }
   catch (e) { console.warn('[MONDE] graine illisible :', e.message); return false; }
 }
 // inscription possible ? null si oui, sinon la raison. db = la transaction de l'inscription, sous lockPlacement : le
@@ -97,10 +99,11 @@ async function isEnded() {
 const IMMORTAL_MIX = [['SUL_INF_PALAIS', 0.45], ['SUL_ARC_PERSE', 0.3], ['SUL_CAV_MAMELOUK', 0.25]];
 // Vagues contre une Ville Merveille (décision du 30 octobre 2026) : seuls les engins abîment le mur (GDD
 // onlySiegeEnginesDamageWall). Comme les Natars de Travian, qui viennent avec béliers et catapultes, les Immortels amènent
-// des mangonneaux : 15 % de la puissance de la vague, pris sur ses soldats. Vague × 5 (rapport économie, recommandation 8) :
-// un mur 20 sans défenseurs tient jusqu'au niveau 2 de la Merveille ; il tombe au 2e round au niveau 12, dès le 1er à
-// partir du niveau 20, et les défenseurs doivent alors battre la vague (avant la vague × 5 : jusqu'au niveau 6 ; avec les
-// soldats seuls à × 0,1 sur le mur : jusqu'au 11).
+// des mangonneaux : 15 % de la puissance de la vague, pris sur ses soldats. La Ville Merveille n'est pas une capitale : son
+// Mur s'arrête au niveau 15 (WALL.effects.colonyMaxLevel). Avec la base de 14 500 (décision du 31 octobre 2026, réglée
+// pour une alliance de 15 à 20 joueurs) : un mur 15 sans défenseurs tient jusqu'au niveau 2 de la Merveille ; il tombe au
+// 2e round au niveau 10, dès le 1er à partir du niveau 16, et les défenseurs doivent alors battre la vague (base 20 000 :
+// jusqu'au niveau 1, au 2e round au niveau 8, au 1er dès le 13).
 const WAVE_SIEGE_SHARE = 0.15;
 const WAVE_MIX = [...IMMORTAL_MIX.map(([key, share]) => [key, share * (1 - WAVE_SIEGE_SHARE)]), ['SUL_SIEGE_MANGONNEAU', WAVE_SIEGE_SHARE]];
 // chaque unité à son palier (élite, engin de siège)
@@ -112,7 +115,7 @@ function immortalUnits(power, mix = IMMORTAL_MIX) {
   return units;
 }
 const immortalPower = (units) => Math.round(calculateArmyPower(immortalLines(units), unitsData));
-// une vague contre une Merveille de ce niveau : immortalWaveBase × niveau^immortalWaveExp (3,93 M au niveau 50, 10 M au 100)
+// une vague contre une Merveille de ce niveau : immortalWaveBase × niveau^immortalWaveExp (2,85 M au niveau 50, 7,27 M au 100)
 const wavePower = (wonderLevel) => Math.round(W.immortalWaveBase * Math.pow(wonderLevel, W.immortalWaveExp));
 const waveUnits = (wonderLevel) => immortalUnits(wavePower(wonderLevel), WAVE_MIX);
 
@@ -368,7 +371,7 @@ async function processWonders(now = new Date()) {
   if (!row.sitesSpawnedAt && st.day >= st.settings.wonderSitesDay) {
     const ok = await prisma.worldConfig.updateMany({ where: { id: 1, sitesSpawnedAt: null }, data: { sitesSpawnedAt: now } });
     if (ok.count) {
-      const n = await spawnNodes('WONDER', W.wonderSites, 12, 30, W.immortalSitePower);
+      const n = await spawnNodes('WONDER', W.wonderSites, ...W.wonderSiteRing, W.immortalSitePower);
       await announce('🏛️ Les sites de Merveille sont apparus', `${n} sites de Merveille sont apparus au centre du monde, gardés par les Immortels. L'alliance qui montera la première sa Merveille au niveau ${W.wonderMaxLevel} gagnera ce monde.`, { to: 'map', tab: 'map', x: 0, y: 0 });
       console.log(`[MONDE] ${n} sites de Merveille posés (jour ${st.day})`);
     }
@@ -376,7 +379,7 @@ async function processWonders(now = new Date()) {
   if (!row.plansSpawnedAt && st.day >= st.settings.wonderPlansDay) {
     const ok = await prisma.worldConfig.updateMany({ where: { id: 1, plansSpawnedAt: null }, data: { plansSpawnedAt: now } });
     if (ok.count) {
-      const n = await spawnNodes('PLAN', W.wonderPlans, 35, 55, W.immortalPlanPower);
+      const n = await spawnNodes('PLAN', W.wonderPlans, ...W.wonderPlanRing, W.immortalPlanPower);
       await announce('📜 Les plans de construction sont apparus', `${n} plans de construction sont gardés par les Immortels autour du centre : au-delà du niveau ${W.planNeededAbove}, une alliance ne monte sa Merveille que si l'un de ses membres en détient un.`, { to: 'map', tab: 'map', x: 0, y: 0 });
     }
   }

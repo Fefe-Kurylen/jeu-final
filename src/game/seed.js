@@ -2,10 +2,13 @@
 const prisma = require('../config/database');
 const config = require('../config');
 const { generateTribeDefenders, campDifficultyAt } = require('../utils/tribeDefenders');
+const { cityGroundOk, CITY_GAP, findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
 const Terrain = require('../../frontend/js/shared/terrain.js');
+const { getBiome } = require('../utils/biome');   // le biome de la carte affichée (terrain partagé avec le client)
 
-// Un point de ressource se pose sur la terre ferme (ni rivière, ni lac, ni pont, ni gué) et au bord de la terre ferme
-// principale, pour qu'une armée puisse l'atteindre (une montagne ou des rochers sous le point restent franchissables)
+// Un point déjà en base se tient sur la terre ferme (ni rivière, ni lac, ni pont, ni gué) et au bord de la terre ferme
+// principale, pour qu'une armée puisse l'atteindre (une montagne ou des rochers sous le point restent franchissables) :
+// règle des mondes semés avant le 31 octobre 2026, que syncResourceNodesWithTerrain garde
 const WET = { water: 1, frozen: 1, oasis: 1, river: 1, bridge: 1, ford: 1 };
 function nodeSpotOk(x, y) {
   if (!Terrain.inWorld(x, y) || WET[Terrain.getTerrainType(x, y).feature]) return false;
@@ -13,82 +16,58 @@ function nodeSpotOk(x, y) {
   return false;
 }
 
-const BASE_WORLD_SIZE = config.map.baseWorldSize;
+const RES_TYPES = ['WOOD', 'STONE', 'IRON', 'FOOD'];
 
-async function seedResourceNodes() {
-  const worldSize = BASE_WORLD_SIZE;
-  const half = Math.floor(worldSize / 2);
-  const RES_TOTAL = Math.min(5000, Math.floor(worldSize * worldSize * 0.035));
-  const GOLD_TOTAL = Math.floor(RES_TOTAL * 0.13);
-  const BATCH = 500;
-
-  const used = new Set();
-  const existingCities = await prisma.city.findMany({ select: { x: true, y: true } });
-  // a city covers 2 × 2 cells, with a free ring around them
-  existingCities.forEach(c => { for (let dx = -1; dx <= 2; dx++) for (let dy = -1; dy <= 2; dy++) used.add(`${c.x + dx},${c.y + dy}`); });
-
-  const resTypes = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-  // Formule partagée avec le client (frontend/js/map.js) pour une étiquette cohérente avec le terrain affiché
-  const { getBiome } = require('../utils/biome');
-  const biomes = getBiome;
-  const centerRadius = half * config.map.centerRadiusPct / 100;   // cercle du centre, le même que les sites libres
+// Points d'un monde neuf, sans la base (décision du 31 octobre 2026, rapport de vérification) : un point seulement là où une
+// ville 2 × 2 tient (cityGroundOk, comme à la fondation), à 3 cases au moins de tout autre point et des villes déjà posées :
+// chaque gisement reste fondable, même à côté d'une colonie. Les cases de la carte sont prises dans un ordre tiré au hasard.
+// Niveau : plus de niveau 3 dans le cercle du centre. Renvoie [{ x, y, resourceType, level }], les ressources puis l'or.
+// cities : [{ x, y }] déjà sur la carte ; random : tirage (Math.random, ou un tirage fixé pour les mesures).
+function planResourceNodes({ cities = [], random = Math.random } = {}) {
+  const S = config.map.nodeSeeding;
+  const size = Terrain.WORLD_SIZE, min = Terrain.MIN_COORD;
+  const resTotal = Math.min(S.max, Math.floor(size * size * S.perCell));
+  const goldTotal = Math.floor(resTotal * S.goldPct / 100);
+  const centerRadius = Math.floor(size / 2) * config.map.centerRadiusPct / 100;   // cercle du centre, le même que les sites libres
   const pickLevel = (x, y) => {
-    const d = Math.sqrt(x * x + y * y);
-    const r = Math.random();
-    if (d < centerRadius) return r < 0.6 ? 3 : r < 0.85 ? 2 : 1;
+    const r = random();
+    if (Math.sqrt(x * x + y * y) < centerRadius) return r < 0.6 ? 3 : r < 0.85 ? 2 : 1;
     return r < 0.55 ? 1 : r < 0.9 ? 2 : 3;
   };
-
-  let totalInserted = 0, goldCount = 0, batch = [], attempts = 0;
-
-  while (totalInserted + batch.length < RES_TOTAL && attempts < RES_TOTAL * 3) {
-    attempts++;
-    const x = Math.floor(Math.random() * worldSize) - half;
-    const y = Math.floor(Math.random() * worldSize) - half;
-    const key = `${x},${y}`;
-    if (used.has(key) || !nodeSpotOk(x, y)) continue;
-    used.add(key);
-    const level = pickLevel(x, y);
-    const type = resTypes[Math.floor(Math.random() * 4)];
-    const RN = config.map.resourceNode;
-    const baseAmt = RN.baseAmountByLevel[level] || RN.baseAmountByLevel[1];
-    const amount = Math.floor(baseAmt * (0.8 + Math.random() * 0.4));
-    const tribe = generateTribeDefenders(level, false, 1.0, null, campDifficultyAt(x, y));
-    batch.push({ x, y, resourceType: type, level, biome: biomes(x, y), amount, maxAmount: Math.floor(amount * RN.maxFactor), regenRate: Math.max(1, Math.floor(amount * RN.maxFactor / RN.regenHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 30 + level * 30 });
-    if (batch.length >= BATCH) {
-      await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
-      totalInserted += batch.length;
-      batch = [];
-    }
+  const taken = new Set(cities.map(c => c.x + ',' + c.y));
+  const crowded = (x, y) => {
+    for (let dy = 1 - CITY_GAP; dy < CITY_GAP; dy++) for (let dx = 1 - CITY_GAP; dx < CITY_GAP; dx++) if (taken.has((x + dx) + ',' + (y + dy))) return true;
+    return false;
+  };
+  // toutes les cases dans un ordre au hasard (Fisher-Yates)
+  const order = new Int32Array(size * size).map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+  const nodes = [];
+  for (let k = 0; k < order.length && nodes.length < resTotal + goldTotal; k++) {
+    const x = min + (order[k] % size), y = min + Math.floor(order[k] / size);
+    if (crowded(x, y) || !cityGroundOk(x, y)) continue;
+    taken.add(x + ',' + y);
+    const resourceType = nodes.length < resTotal ? RES_TYPES[Math.floor(random() * RES_TYPES.length)] : 'GOLD';
+    nodes.push({ x, y, resourceType, level: pickLevel(x, y) });
   }
+  return nodes;
+}
 
-  attempts = 0;
-  while (goldCount < GOLD_TOTAL && attempts < GOLD_TOTAL * 3) {
-    attempts++;
-    const x = Math.floor(Math.random() * worldSize) - half;
-    const y = Math.floor(Math.random() * worldSize) - half;
-    const key = `${x},${y}`;
-    if (used.has(key) || !nodeSpotOk(x, y)) continue;
-    used.add(key);
-    const level = pickLevel(x, y);
+async function seedResourceNodes() {
+  const BATCH = 500;
+  const existingCities = await prisma.city.findMany({ select: { x: true, y: true } });
+  const RN = config.map.resourceNode, GN = config.map.goldNode;
+  const rows = planResourceNodes({ cities: existingCities }).map(({ x, y, resourceType, level }) => {
+    const gold = resourceType === 'GOLD';
+    const tribe = generateTribeDefenders(level, gold, 1.0, null, campDifficultyAt(x, y));
+    const base = { x, y, resourceType, level, biome: getBiome(x, y), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units };
     // GDD: gold nodes hold a small stock (10 / 20 / 30 by level) that refills in 12 h; no random spread
-    const amount = config.map.goldNode.lootByLevel[level] || 10;
-    const tribe = generateTribeDefenders(level, true, 1.0, null, campDifficultyAt(x, y));
-    batch.push({ x, y, resourceType: 'GOLD', level, biome: biomes(x, y), amount, maxAmount: amount, regenRate: Math.max(1, Math.round(amount / config.map.goldNode.intervalHours)), hasDefenders: true, defenderPower: tribe.power, defenderUnits: tribe.units, respawnMinutes: 60 + level * 60 });
-    goldCount++;
-    if (batch.length >= BATCH) {
-      await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
-      totalInserted += batch.length;
-      batch = [];
-    }
-  }
-
-  if (batch.length > 0) {
-    await prisma.resourceNode.createMany({ data: batch, skipDuplicates: true });
-    totalInserted += batch.length;
-  }
-
-  console.log(`[SEED] ${totalInserted} resource nodes generated (${goldCount} gold)`);
+    if (gold) { const amount = GN.lootByLevel[level] || GN.lootByLevel[1]; return { ...base, amount, maxAmount: amount, regenRate: Math.max(1, Math.round(amount / GN.intervalHours)), respawnMinutes: 60 + level * 60 }; }
+    const amount = Math.floor((RN.baseAmountByLevel[level] || RN.baseAmountByLevel[1]) * (0.8 + Math.random() * 0.4));
+    return { ...base, amount, maxAmount: Math.floor(amount * RN.maxFactor), regenRate: Math.max(1, Math.floor(amount * RN.maxFactor / RN.regenHours)), respawnMinutes: 30 + level * 30 };
+  });
+  for (let i = 0; i < rows.length; i += BATCH) await prisma.resourceNode.createMany({ data: rows.slice(i, i + BATCH), skipDuplicates: true });
+  console.log(`[SEED] ${rows.length} resource nodes generated (${rows.filter(r => r.resourceType === 'GOLD').length} gold), carte ${Terrain.WORLD_SIZE} × ${Terrain.WORLD_SIZE}`);
 }
 
 // Au démarrage : les points déjà en base suivent le terrain actuel (carte de référence, 25 octobre 2026). Le biome est
@@ -129,7 +108,6 @@ async function syncResourceNodesWithTerrain() {
 // qui chevauche une autre ville (villes posées avant le 25 octobre 2026). Une colonie emmène son point de ressource.
 // Pas tant qu'une de ses armées est dehors, qu'une armée est en route vers elle ou qu'elle est assiégée.
 async function rescueTrappedCities() {
-  const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
   const { invalidateObjectCells } = require('../utils/pathfinding');
   const { notify } = require('../services/pushService');
   // une armée sort-elle de la ville ? même règle que les trajets (cases de la ville libres, couronne libre sauf au-dessus de
@@ -190,4 +168,4 @@ async function rescueTrappedCities() {
 
 // version du tirage des points de ressource (notée sur la table) : une version plus haute retire les points au démarrage
 const RESEED_VERSION = 3;
-module.exports = { seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities, RESEED_VERSION };
+module.exports = { planResourceNodes, seedResourceNodes, syncResourceNodesWithTerrain, rescueTrappedCities, RESEED_VERSION };

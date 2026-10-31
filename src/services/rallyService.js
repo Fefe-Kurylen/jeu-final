@@ -1,7 +1,8 @@
 // ============================================================
 // Rassemblement d'alliance contre un donjon d'invasion (façon Rise of Kingdoms, décision du 29 octobre 2026)
 // - Un donjon ne s'attaque qu'en rassemblement. Un membre le lance depuis sa ville avec une de ses armées et choisit
-//   l'attente (5, 10, 30 ou 60 min). Les membres de son alliance y envoient une armée (une par joueur), qui marche jusqu'à
+//   l'attente (config.rally.waitMinutes : 5, 10, 30, 60, 120 ou 180 min, décision du 31 octobre 2026). Les membres de son
+//   alliance y envoient une armée (une par joueur), qui marche jusqu'à
 //   la ville du lanceur ; elle doit y arriver avant le départ. Taille (décision du 31 octobre 2026) : la Place de
 //   rassemblement de la capitale du lanceur en permet 5 + 1 par niveau (25 au niveau 20, fx.rallyMaxArmies), la sienne
 //   comprise.
@@ -11,7 +12,8 @@
 //   son armée.
 // - Aussi contre un Bastion ennemi (décision du 29 octobre 2026, jamais contre une ville) : il faut au moins un engin de
 //   siège dans le groupe au départ, sinon le rassemblement est annulé. Devant le Bastion, tout le groupe campe 1 h comme
-//   un siège normal, puis un seul assaut mené par le héros du lanceur (bastionService.handleBastionBattle).
+//   un siège normal, puis un seul assaut mené par le héros du lanceur (bastionService.handleBastionBattle) : celui du
+//   rassemblement seul, sans les autres camps (décision du 31 octobre 2026).
 // - Aussi contre les Immortels d'un site ou d'un plan de Merveille gardé (décision du 30 octobre 2026), comme pour un
 //   donjon : à l'arrivée, un seul combat de groupe (wonderService.attackImmortalsGroup) mené par le héros de l'armée du
 //   lanceur ; la prise suit les règles d'une armée seule et revient au lanceur (le plan est à lui, le site est libre 24 h).
@@ -28,7 +30,9 @@ const fx = require('../utils/buildingEffects');
 const { notify } = require('./pushService');
 const { unitCount } = require('./rankingService');
 
-const WAITS = [5, 10, 30, 60];
+const WAITS = config.rally.waitMinutes;
+// une attente dite simplement : « 30 min », « 2 h »
+const waitText = (minutes) => (minutes % 60 ? `${minutes} min` : `${minutes / 60} h`);
 const TX = { timeout: 20000 };
 const { httpError: err } = require('../utils/httpError');
 // Armées au plus dans un rassemblement, selon la Place de rassemblement (de la capitale) du lanceur
@@ -83,7 +87,7 @@ const targetLabel = (rally) => KIND_LABEL[kindOf(rally)] || 'la cible';
 
 async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const wait = Number(waitMinutes);
-  if (!WAITS.includes(wait)) throw err(400, 'Attente : 5, 10, 30 ou 60 minutes');
+  if (!WAITS.includes(wait)) throw err(400, `Attente : ${WAITS.slice(0, -1).join(', ')} ou ${WAITS[WAITS.length - 1]} minutes`);
   const member = await prisma.allianceMember.findUnique({ where: { playerId } });
   if (!member) throw err(403, 'Seuls les joueurs en alliance peuvent lancer un rassemblement');
   const target = bastionId ? await bastionTarget(member.allianceId, bastionId) : await nodeTarget(nodeId);
@@ -100,8 +104,8 @@ async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   // les membres de l'alliance sont prévenus
   const members = await prisma.allianceMember.findMany({ where: { allianceId: member.allianceId, playerId: { not: playerId } }, select: { playerId: true } });
   const leader = army.owner?.name || 'Un membre';
-  for (const m of members) notify(m.playerId, 'rally', '⚔️ Rassemblement d\'alliance', `${leader} rassemble l'alliance contre ${target.label} en (${target.x}, ${target.y}) : départ dans ${wait} min depuis sa ville. Envoyez une armée !${target.bastionId ? ' Il faut au moins un engin de siège dans le groupe.' : ''}`, { to: 'alliance', sub: 'rallies' });
-  return { message: `Rassemblement lancé : départ dans ${wait} min (${capacity} armées au plus)${target.bastionId ? ' — au moins un engin de siège dans le groupe' : ''}`, rally, maxArmies: capacity };
+  for (const m of members) notify(m.playerId, 'rally', '⚔️ Rassemblement d\'alliance', `${leader} rassemble l'alliance contre ${target.label} en (${target.x}, ${target.y}) : départ dans ${waitText(wait)} depuis sa ville. Envoyez une armée !${target.bastionId ? ' Il faut au moins un engin de siège dans le groupe.' : ''}`, { to: 'alliance', sub: 'rallies' });
+  return { message: `Rassemblement lancé : départ dans ${waitText(wait)} (${capacity} armées au plus)${target.bastionId ? ' — au moins un engin de siège dans le groupe' : ''}`, rally, maxArmies: capacity };
 }
 
 // ---- rejoindre ----
@@ -307,8 +311,9 @@ async function fightImmortals(rally, armies, ids) {
 }
 
 // ---- arrivée devant un Bastion : tout le groupe campe 1 h, puis un seul assaut (bastionService.handleBastionBattle) ----
-// L'armée du lanceur finit de camper la première (1 ms plus tôt) et entraîne les autres armées du camp de son alliance ;
-// c'est toujours le héros de l'armée du lanceur qui mène l'assaut et donne ses bonus (aucun si elle a été rappelée).
+// L'armée du lanceur finit de camper la première (1 ms plus tôt) et entraîne les autres armées de ce rassemblement, elles
+// seules (rallyId gardé) ; c'est toujours le héros de l'armée du lanceur qui mène l'assaut et donne ses bonus (aucun si
+// elle a été rappelée).
 async function campAtBastion(rally, armies) {
   const { sendArmyHome } = require('../game/processors/armyProcessor');
   const now = new Date();

@@ -14,6 +14,7 @@ const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');   // technologies (Ingénierie, Entraînement)
+const { protectedUntil } = require('../utils/colonyProtection');
 const { processBuilds, promoteQueued } = require('../game/processors/buildProcessor');
 const { processRecruits } = require('../game/processors/recruitProcessor');
 
@@ -116,7 +117,8 @@ router.get('/', auth, async (req, res) => {
       const cityTier = getCityTier(mainHallLevel);
       return {
         ...city, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), foodBalance: balance.get(city.id) || null, playerStock,
-        site: fx.citySite(city, nodeOf.get(city.id)), lives: { total: assaultsToFall(city, owner?.faction), left: assaultsLeft(city, owner?.faction) }
+        site: fx.citySite(city, nodeOf.get(city.id)), lives: { total: assaultsToFall(city, owner?.faction), left: assaultsLeft(city, owner?.faction) },
+        protectedUntil: protectedUntil(city)   // colonie neuve : fin de sa protection (décision du 31 octobre 2026), sinon null
       };
     });
     res.json(citiesWithTier);

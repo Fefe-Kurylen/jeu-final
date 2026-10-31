@@ -1,4 +1,4 @@
-// Routes et services (décisions du 30 octobre 2026 et retouches de l'audit) : plafond de 60 membres d'alliance compté
+// Routes et services (décisions du 30 et du 31 octobre 2026, retouches de l'audit) : plafond de 100 membres d'alliance compté
 // sous le verrou de l'alliance, invitation refusée quand elle est pleine, prédicats d'alliance partagés, place libre d'une
 // ville, erreurs métier, marche (Irrigation, Bastion) et charge complète d'une armée, convoi du marché.
 // Aucune requête réelle : le client Prisma est remplacé le temps de chaque test.
@@ -34,7 +34,7 @@ function swapPrisma(tables) {
   return () => Object.assign(prisma, saved);
 }
 
-// ---- alliance : 60 membres au plus (D3), plafond de l'Ambassade du chef (tests/unit/batiments-routes.test.js) ----
+// ---- alliance : 100 membres au plus (décision du 31 octobre 2026), plafond de l'Ambassade du chef (tests/unit/batiments-routes.test.js) ----
 // Base factice : chaque lecture laisse passer les autres requêtes (setImmediate), et `SELECT … FOR UPDATE` sur la ligne
 // Alliance est tenu jusqu'à la fin de la transaction, comme dans PostgreSQL
 function fakeAllianceDb({ alliances, members, invites, players = [] }) {
@@ -52,7 +52,7 @@ function fakeAllianceDb({ alliances, members, invites, players = [] }) {
       deleteMany: async ({ where }) => { const n = invites.length; for (let i = n - 1; i >= 0; i--) if (invites[i].playerId === where.playerId) invites.splice(i, 1); return { count: n - invites.length }; },
       upsert: async ({ create }) => { invites.push({ ...create }); return create; }
     },
-    cityBuilding: { findMany: async () => [{ level: 20 }] },   // Ambassade suffisante (celle du chef, m0 : 60 membres)
+    cityBuilding: { findMany: async () => [{ level: 20 }] },   // Ambassade suffisante (celle du chef, m0 : 100 membres)
     player: { findUnique: async ({ where }) => players.find(p => p.name === where.name) || null }
   };
   const $transaction = async (fn) => {
@@ -76,11 +76,11 @@ function fakeAllianceDb({ alliances, members, invites, players = [] }) {
 }
 const membersOf = (allianceId, n) => Array.from({ length: n }, (_, i) => ({ allianceId, playerId: `m${i}`, role: i ? 'MEMBER' : 'LEADER' }));
 
-test('alliance : 60 membres au plus (décision du 30 octobre 2026)', () => {
-  assert.equal(config.alliance.maxMembers, 60);
+test('alliance : 100 membres au plus (décision du 31 octobre 2026, rapport de vérification ; avant 60)', () => {
+  assert.equal(config.alliance.maxMembers, 100);
 });
 
-test('alliance : trois adhésions simultanées à 58 membres, deux entrent, la troisième est refusée sous le verrou', async () => {
+test('alliance : trois adhésions simultanées à 98 membres, deux entrent, la troisième est refusée sous le verrou', async () => {
   const members = membersOf('A1', config.alliance.maxMembers - 2);
   const invites = ['p1', 'p2', 'p3'].map(playerId => ({ allianceId: 'A1', playerId }));
   const db = fakeAllianceDb({ alliances: [{ id: 'A1', name: 'Rome', tag: 'ROM', leaderId: 'm0' }], members, invites });
@@ -93,13 +93,13 @@ test('alliance : trois adhésions simultanées à 58 membres, deux entrent, la t
     }));
     assert.deepEqual(out.map(r => r.statusCode).sort(), [200, 200, 400]);
     const refused = out.find(r => r.statusCode === 400);
-    assert.match(refused.body.error, /Alliance complète \(60 membres au plus\)/);
+    assert.match(refused.body.error, /Alliance complète \(100 membres au plus\)/);
     assert.equal(members.filter(m => m.allianceId === 'A1').length, config.alliance.maxMembers);
     assert.equal(db.lockLog.length, 3, 'chaque adhésion prend le verrou de la ligne Alliance');
   } finally { db.restore(); }
 });
 
-test('alliance : invitation refusée quand l\'alliance est pleine, acceptée à 59 membres', async () => {
+test('alliance : invitation refusée quand l\'alliance est pleine, acceptée à 99 membres', async () => {
   const invite = handlerOf(allianceRouter, 'post', '/invite');
   const players = [{ id: 'p9', name: 'Titus', alliance: null }];
   {
@@ -109,7 +109,7 @@ test('alliance : invitation refusée quand l\'alliance est pleine, acceptée à 
       const res = fakeRes();
       await invite({ user: { playerId: 'm0' }, body: { playerName: 'Titus' } }, res);
       assert.equal(res.statusCode, 400);
-      assert.match(res.body.error, /Alliance complète \(60 membres au plus\) : impossible d'inviter/);
+      assert.match(res.body.error, /Alliance complète \(100 membres au plus\) : impossible d'inviter/);
       assert.equal(invites.length, 0);
     } finally { db.restore(); }
   }
@@ -213,21 +213,35 @@ test('récolte et transport : charge complète (héros, civilisation, Marché, B
   });
 });
 
-// ---- marchands (décision du 31 octobre 2026) : vitesse de leur civilisation, sans les bonus de marche des armées ----
-test('marché : les marchands marchent à la vitesse de leur civilisation (Gaule la plus rapide), sur la vraie route, aller = retour', async () => {
+// ---- armées du marché (plus de marchands, décision du 31 octobre 2026) : même charge et même marche que les transports ----
+test('marché : la charge d\'une armée d\'échange est celle d\'un transport (civilisation, Marché, Bastion)', async () => {
+  await withBastion(['AL1'], async () => {
+    const restore = swapPrisma({ allianceMember: { findUnique: async () => ({ allianceId: 'AL1' }) } });
+    try {
+      const unit = unitsData.find(u => u.key === 'EGY_INF_ESCLAVE');
+      const army = { units: [{ unitKey: unit.key, tier: unit.tier, count: 100 }], hero: null, owner: { faction: 'EGYPT', alliance: { allianceId: 'AL1' } } };
+      const market = [{ key: 'MARKET', level: 10 }];
+      assert.equal(MS.tradeCapacity(army, await MS.transportMult(market, 'EGYPT', 'p1')), armiesRouter.transportCapacity(army, market));
+    } finally { restore(); }
+  });
+});
+
+test('marché : l\'armée d\'un échange marche plus vite quand la capitale est irriguée (relue dans la transaction)', async () => {
   const Terrain = require('../../frontend/js/shared/terrain.js');
   Terrain.setWorldSeed(0);
-  const restore = swapPrisma({ city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] } });   // aucune case d'objet sur la carte
+  const restore = swapPrisma({
+    city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] },   // aucune case d'objet sur la carte
+    allianceMember: { findUnique: async () => null }                                   // pas de Bastion
+  });
   try {
-    const from = { id: 'c1', x: 0, y: 0 }, to = { x: 12, y: 0 };
-    const gaul = await MS.merchantSeconds(from, to, 'GAUL'), sultan = await MS.merchantSeconds(from, to, 'SULTAN');
-    assert.ok(gaul < sultan, `${gaul} < ${sultan}`);
-    const { routeLength } = require('../../src/utils/pathfinding');
-    const { calculateTravelTime } = require('../../src/utils/calculations');
-    assert.equal(gaul, calculateTravelTime(0, 0, 12, 0, MS.merchantSpeed('GAUL'), null, null, await routeLength(0, 0, 12, 0, 'GAUL')), 'ni bonus de civilisation, ni Irrigation, ni technologie');
-    // sans chemin terrestre : refus, sauf pour une route commerciale (ligne droite)
-    const water = { x: 10, y: 0 };
-    await assert.rejects(MS.merchantSeconds(from, water, 'ROME'), (e) => e.code === 'NO_ROUTE');
-    assert.equal(await MS.merchantSeconds(from, water, 'ROME', true), calculateTravelTime(0, 0, 10, 0, MS.merchantSpeed('ROME')));
+    const unit = unitsData.find(u => u.key === 'EGY_INF_ESCLAVE');
+    const army = { ownerId: 'p1', units: [{ unitKey: unit.key, tier: unit.tier, count: 10 }], hero: null };
+    const to = { x: 12, y: 0 }, from = { id: 'c1', x: 0, y: 0, buildings: IRRIGATION_20 };   // l'Irrigation de la colonie ne compte pas
+    let asked = null;
+    const capitalDb = (buildings) => ({ city: { findMany: async (q) => { asked = q.where; return [{ isCapital: true, buildings }]; } }, playerTechnology: { findMany: async () => [] } });
+    const plain = await MS.travelSeconds(army, from, to, 'EGYPT', capitalDb([]));
+    const irrigated = await MS.travelSeconds(army, { ...from, buildings: [] }, to, 'EGYPT', capitalDb(IRRIGATION_20));
+    assert.ok(irrigated < plain, `${irrigated} < ${plain}`);
+    assert.deepEqual(asked, { playerId: 'p1' });
   } finally { restore(); }
 });

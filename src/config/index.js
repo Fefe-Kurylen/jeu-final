@@ -2,6 +2,10 @@
 // Centralized config to avoid magic numbers scattered across code
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+// Terrain partagé avec le client : la taille de la carte du monde en cours (config.map) en vient
+const Terrain = require('../../frontend/js/shared/terrain.js');
+// Longueur donnée pour la carte de référence de 374 cases, à la taille de la carte en cours
+const onMapSize = (cells) => Math.round(cells * Terrain.WORLD_SIZE / Terrain.REFERENCE_SIZE);
 
 const config = {
   // Server
@@ -32,9 +36,14 @@ const config = {
     helpPointsDailyCap: 300,
     helpRequestMaxAgeDays: 7,
     healRequestEveryHours: 6,
-    maxMembers: 60,                              // décision du 30 octobre 2026 : 60 membres au plus (adhésion et invitation)
+    // 100 membres au plus (adhésion et invitation) : décision du 31 octobre 2026 (rapport de vérification), avant 60. La fin de
+    // partie reste réglée pour 15 à 20 joueurs : un rassemblement garde 25 armées au plus
+    maxMembers: 100,
     // Défi de la semaine (décision du 30 octobre 2026) : points d'alliance par membre pour les 3 premières ; seuls comptent
-    // (score et récompense) les membres arrivés avant le vendredi 0 h de la semaine, heure de Paris (1 = lundi … 5 = vendredi)
+    // (score et récompense) les membres arrivés avant le vendredi 0 h de la semaine, heure de Paris (1 = lundi … 5 = vendredi).
+    // Score = total des membres ÷ max(membres, challengeMinMembers) : décision du 31 octobre 2026 (rapport de vérification),
+    // la plus grosse alliance ne gagne plus à coup sûr
+    challengeMinMembers: 20,
     challengeRewardPoints: [750, 500, 250],
     challengeJoinDeadline: { day: 5, hour: 0 }
   },
@@ -51,7 +60,8 @@ const config = {
 
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
-  // plus dur (mur bouclier 10 fois un mur 20 depuis le 30 octobre 2026, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
+  // plus dur (mur bouclier 5 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un. Un assaut = un
+  // rassemblement ou une armée seule ; garnison de 25 armées au plus (décision du 31 octobre 2026, rapport de vérification)
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
@@ -61,12 +71,20 @@ const config = {
     startDay: 5, startHour: 18,          // vendredi 18 h (heure de Paris)
     endHour: 23,                         // dimanche 23 h (fin = vendredi + 2 jours)
     counts: { 1: 15, 2: 12, 3: 8, 4: 5, 5: 3 },                            // donjons par niveau
-    rings: { 1: [150, 178], 2: [120, 150], 3: [90, 120], 4: [55, 90], 5: [22, 55] },   // distance au centre : bords → niveau 1, centre → niveau 5
+    // distance au centre : bords → niveau 1, centre → niveau 5 ; cases de la carte de 374, à la taille de la carte en cours
+    // (× 420 / 374 sur les nouvelles cartes, décision du 31 octobre 2026)
+    ringsRef: { 1: [150, 178], 2: [120, 150], 3: [90, 120], 4: [55, 90], 5: [22, 55] },
+    get rings() { return Object.fromEntries(Object.entries(this.ringsRef).map(([level, [a, b]]) => [level, [onMapSize(a), onMapSize(b)]])); },
+    // pose d'un donjon (services/hordeService.js placeLevel) : essais par donjon et par règle ; à clearCells cases au moins
+    // des autres donjons, sites et plans, et d'abord des villes ; sur une carte pleine, sinon comme une ville (décision du
+    // 31 octobre 2026, rapport de vérification)
+    placement: { tries: 120, clearCells: 4 },
     floors: ['Avant-poste', 'Remparts', 'Chef de la horde'],
     floorTier: ['base', 'intermediate', 'elite'],
     floorPowerMult: [1, 2, 4],
     basePower: 15000, levelFactor: 2.5,  // puissance de l'avant-poste au niveau 1, × 2,5 par niveau
-    treasure: { resources: 8000, gold: 40, alliancePoints: 30, resourceFactor: 2.5, goldFactor: 2 },   // par ressource, au niveau 1
+    // par ressource, au niveau 1 ; or 200 au niveau 1 (avant 40) : décision du 31 octobre 2026 (rapport de vérification)
+    treasure: { resources: 8000, gold: 200, alliancePoints: 30, resourceFactor: 2.5, goldFactor: 2 },
     itemChance: [0.15, 0.25, 0.35, 0.5, 0.7],                               // objet rare au dernier coup, par niveau
     itemTier: ['COMMON', 'COMMON', 'RARE', 'EPIC', 'EPIC'],
     manualHours: 48,                      // invasion lancée par l'équipe
@@ -77,6 +95,9 @@ const config = {
     // lancement, puissance médiane des joueurs actifs (vus dans les activeDays derniers jours, puissance > 0) ;
     // avant-poste du niveau 1 = max(minOutpost, médiane × outpostPctOfMedian %), puis × levelFactor par niveau
     // (étages ×1 / ×2 / ×4). Moins de minPlayers joueurs mesurés : formule de l'âge du monde ci-dessus. Le trésor garde l'âge du monde.
+    // Vérifié pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026, rapport de vérification ; vrai moteur, armées
+    // de la simulation au jour 175, +15 % de recherches et de Forge) : chef du niveau 1 battu par 2 joueurs, du niveau 4 par
+    // 11, du niveau 5 par 19 (20 joueurs y suffisent 97 fois sur 100, un rassemblement plein d'une alliance de 20) : inchangé
     powerRef: { activeDays: 7, minPlayers: 5, outpostPctOfMedian: 50, minOutpost: 3000, levelFactor: 1.8 }
   },
 
@@ -87,21 +108,32 @@ const config = {
     wonderPlansDay: Number(process.env.WONDER_PLANS_DAY) || 150,
     wonderSites: 12,             // sites de Merveille autour du centre
     wonderPlans: 13,             // plans de construction (nécessaires au-delà du niveau 50)
+    // anneaux (distance au centre, en cases) où apparaissent les sites et les plans, les mêmes sur toute taille de carte : le
+    // cœur du monde reste aussi serré. Place mesurée sur la carte de 420 avec 2 000 joueurs et leurs colonies : chaque site
+    // et chaque plan trouve sa case (décision du 31 octobre 2026, tools/measure-map-capacity.cjs)
+    wonderSiteRing: [12, 30],
+    wonderPlanRing: [35, 55],
     wonderMaxLevel: 100,
     planNeededAbove: 50,
-    // coût et durée d'un niveau : base × facteur^(niveau − 1) ; tiré du stock de la Merveille (convois de l'alliance)
-    // ×5 (décision du 30 octobre 2026, rapport économie, recommandation 7) : la Merveille entière ≈ 2,15 G
-    wonderCostBase: { wood: 250000, stone: 250000, iron: 250000, food: 75000 },
+    // coût et durée d'un niveau : base × facteur^(niveau − 1) ; tiré du stock de la Merveille, rempli par les armées de
+    // transport de l'alliance. Coût divisé par deux (décision du 31 octobre 2026, rapport de vérification, M6 ; avant
+    // 250 000 / 250 000 / 250 000 / 75 000) : la Merveille entière ≈ 1,08 G (niveaux 1 à 50 : 86 M)
+    wonderCostBase: { wood: 125000, stone: 125000, iron: 125000, food: 37500 },
     wonderCostFactor: 1.05,
     wonderTimeBaseSec: 3600,
     wonderTimeFactor: 1.025,
     wonderLevelsLostPerAssault: 2,
     immortalWaveHours: 12,       // les Immortels attaquent chaque Ville Merveille toutes les 12 h
-    // Immortels ×5 (décision du 30 octobre 2026, rapport économie, recommandation 8) : garnison d'un site, d'un plan,
-    // et vague contre une Ville Merveille = immortalWaveBase × niveau^immortalWaveExp (3,93 M au niveau 50, 10 M au niveau 100)
+    // Immortels (décision du 30 octobre 2026, rapport économie, recommandation 8) : garnison d'un site, d'un plan, et vague
+    // contre une Ville Merveille = immortalWaveBase × niveau^immortalWaveExp. Réglés pour une alliance de 15 à 20 joueurs
+    // (décision du 31 octobre 2026, rapport de vérification ; vrai moteur et armées de la simulation, jours 120 à 175) :
+    // un site se prend avec 47 à 35 % de son armée de 15 à 20 joueurs (3 M, inchangé), un plan avec 74 à 55 % (65 % à 17 ;
+    // 5,75 M, avant 4,5 M : 58 à 43 %), et derrière le mur 15 de la Ville Merveille elle tient le niveau 100 avec 92 à 70 %
+    // de son armée (85 % à 17 joueurs, 78 % à 18 ; base 14 500, avant 20 000 : 2,85 M au niveau 50, 7,27 M au niveau 100 ;
+    // avant, 16 joueurs plafonnaient au niveau 86 avec toute leur armée)
     immortalSitePower: 3000000,
-    immortalPlanPower: 4500000,
-    immortalWaveBase: 20000,
+    immortalPlanPower: 5750000,
+    immortalWaveBase: 14500,
     immortalWaveExp: 1.35
   },
 
@@ -118,13 +150,26 @@ const config = {
     cost: { wood: 500000, stone: 500000, iron: 500000, food: 250000 },
     buildDays: 3,
     cooldownDays: 7,
-    wallMultiplier: 10,                         // mur bouclier : 10 fois un mur 20 (décision du 30 octobre 2026, 50 avant)
+    // Mur bouclier : 5 fois un mur 20, soit 100 000 PV (décision du 31 octobre 2026, rapport de vérification ; 10 avant, 50 avant
+    // le 30 octobre). Mesure (vrai moteur, armées de la simulation au jour 150, 65 engins par armée avec l'Atelier 20) : sans
+    // garnison, 8 armées suffisent (6 sous un chef du Sultanat) ; un rassemblement plein de 25 armées gagne une fois sur deux
+    // contre une garnison de 14 armées comme les siennes. Contre 25 armées égales, il ne gagne jamais, quel que soit le mur
+    // (4 % à ×1, 0 % de ×2 à ×10) : tant que le mur tient, les défenseurs ne prennent aucun coup
+    wallMultiplier: 5,
+    // Garnison : 25 armées au plus, comme un rassemblement plein (décision du 31 octobre 2026, rapport de vérification)
+    maxGarrisonArmies: 25,
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     wallReferenceLevel: 20,
     assaults: 10,
     regenHours: 72,
     maxDistanceFromMember: 40,
     bonuses: { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 }
+  },
+
+  // Rassemblement d'alliance (services/rallyService.js) : attentes possibles avant le départ, en minutes ; 120 et 180 ajoutées
+  // pour les alliances dispersées (décision du 31 octobre 2026, rapport de vérification, M5)
+  rally: {
+    waitMinutes: [5, 10, 30, 60, 120, 180]
   },
 
   // Achats intégrés : vérifiés côté serveur auprès de RevenueCat (clé secrète), avantages de l'abonnement « Plus »
@@ -148,15 +193,29 @@ const config = {
   },
 
   // Map
+  // Taille de la carte : celle du monde en cours, fixée par le générateur de sa carte (frontend/js/shared/terrain.js,
+  // SIZE_BY_GENERATOR, partagé avec le client) : 374 × 374 pour les mondes ouverts avant le 31 octobre 2026, 420 × 420 pour
+  // les nouveaux (décision du 31 octobre 2026, rapport de vérification : 2 000 joueurs à 2 colonies, mesure dans
+  // tools/measure-map-capacity.cjs). Les longueurs « Ref » sont données pour la carte de 374 cases et suivent la taille.
   map: {
-    baseWorldSize: 374,
-    minCoord: -187,
-    maxCoord: 186,
-    expansionPerPlayer: 10,
-    // Carte d'un serveur neuf (base vide) : WORLD_SEED de 0 (carte de référence) à 2147483646, vide = tirée au hasard ;
-    // ignorée dès que le monde a sa carte (src/game/world.js). 0 est une graine valable : pas de parseInt || défaut.
+    get worldSize() { return Terrain.WORLD_SIZE; },
+    get minCoord() { return Terrain.MIN_COORD; },
+    get maxCoord() { return Terrain.MAX_COORD; },
+    // Carte d'un serveur neuf (base vide) : WORLD_SEED de 0 à 2147483646, vide = tirée au hasard ; ignorée dès que le monde
+    // a sa carte (src/game/world.js). 0 est une graine valable : pas de parseInt || défaut.
     worldSeed: process.env.WORLD_SEED === undefined || process.env.WORLD_SEED === '' ? null : process.env.WORLD_SEED,
-    spawnEdgeDelta: 100,
+    // Bande de départ des capitales le long des bords : 100 cases sur la carte de 374 (112 sur celle de 420)
+    spawnEdgeDeltaRef: 100,
+    get spawnEdgeDelta() { return onMapSize(this.spawnEdgeDeltaRef); },
+    // Pose d'une capitale (utils/spawn.js) : essais par côté et par règle (3 cases au moins d'un gisement où fonder, puis la
+    // règle d'avant)
+    spawn: { tries: 300 },
+    // Semis des points d'un monde neuf (décision du 31 octobre 2026, rapport de vérification ; src/game/seed.js) : un point
+    // seulement là où une ville 2 × 2 tient, à 3 cases au moins des autres points et des villes (chaque gisement reste
+    // fondable, même à côté d'une colonie voisine) ; côté² × perCell points de ressource (au plus max), plus goldPct % de
+    // camps d'or : 6 000 gisements et 780 camps d'or sur la carte de 420 (avant : 4 895 sur celle de 374, plafond 5 000,
+    // posés n'importe où sur la terre ferme, dont 65 % fondables)
+    nodeSeeding: { perCell: 0.035, max: 6000, goldPct: 13 },
     // Cercle du centre, disputé : rayon en % de la demi-largeur de la carte de base ; la plupart des gisements de niveau 3 et
     // les sites de Merveille y sont (semis des points, src/game/seed.js) ; drapeau « central » des sites libres (routes/map.js)
     centerRadiusPct: 35,
@@ -182,20 +241,14 @@ const config = {
   market: {
     maxRatio: 3,                 // 1:3 ... 3:1 between the two sides of an offer
     maxActiveOffers: 10,
-    requireBuilding: true,       // MARKET level >= 1 to post / accept offers and to send resources
-    // décision du 27 octobre 2026 (GDD economy_config.market)
+    requireBuilding: true,       // MARKET level >= 1 (Marché de la capitale) to post / accept offers and to send resources
+    // décision du 27 octobre 2026 (GDD economy_config.market) ; plus de marchands ni de routes entre ses villes (décision du
+    // 31 octobre 2026, rapport de vérification) : les échanges et les envois sont portés par des armées
     offerHours: 48,              // une offre non prise revient au vendeur
-    p2pTaxPctBase: 10,           // taxe des échanges entre joueurs, −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au Trésor
-    treasureTaxReductionPctPerLevel: 0.25,
-    routes: { intervalHours: 2, pctOfStoragePer24h: 100, maxPerPlayer: 10 },   // routes entre ses villes : 100 % du stockage en 24 h au plus
-    // Marchands façon Travian (décision du 31 octobre 2026) : autant de marchands que de niveaux du Marché de la capitale
-    // (MARKET.effects.merchantsPerLevel) ; toutes les livraisons du marché passent par eux (échanges, envois, routes), un
-    // marchand est occupé à l'aller ET au retour. Charge d'un marchand selon la civilisation, × (1 + bonus de transport du
-    // Comptoir et du Poste du Désert de la capitale) ; vitesse selon la civilisation (même échelle que la vitesse des unités)
-    merchants: {
-      capacity: { ROME: 500, GAUL: 750, GREEK: 600, EGYPT: 750, HUN: 500, SULTAN: 1000 },
-      speed: { GAUL: 100, HUN: 90, ROME: 80, EGYPT: 80, GREEK: 75, SULTAN: 65 }
-    }
+    // taxe des échanges entre joueurs : 30 % (avant 10 %), −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au
+    // Trésor, soit 5 % avec les deux au niveau 20 (décision du 31 octobre 2026, rapport de vérification)
+    p2pTaxPctBase: 30,
+    treasureTaxReductionPctPerLevel: 0.25
   },
 
   // Generic input bounds
@@ -220,6 +273,10 @@ const config = {
     // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
     foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
     maxSecondaryCities: 2,   // décision du 31 octobre 2026 : 2 colonies par joueur (+ la Ville Merveille, hors quota)
+    // Colonie neuve protégée (décision du 31 octobre 2026, rapport de vérification) : ni attaque, ni raid, ni siège pendant
+    // 72 h après sa fondation (City.createdAt) ; les espions passent, ses armées sortent librement. Ni la capitale ni la
+    // Ville Merveille (utils/colonyProtection.js)
+    newColonyProtectionHours: 72,
     fieldSlots: {
       LUMBER: [101, 102, 103, 104],
       QUARRY: [105, 106, 107, 108],
@@ -266,9 +323,10 @@ const config = {
     maxBatchesPerBuilding: 5,    // recruit batches waiting in one building (each batch is paid up front)
     // Or des unités d'élite (décision du 31 octobre 2026) : de l'or par unité EN PLUS des ressources, par palier (les
     // engins et les autres paliers n'en demandent pas) ; pour compenser, le prix en ressources de l'élite est multiplié
-    // par eliteResourceCostMult (utils/calculations.js recruitCostFor / recruitGoldFor). Valeurs à fixer à l'équilibrage
-    goldPerUnit: { elite: 1 },
-    eliteResourceCostMult: 0.95
+    // par eliteResourceCostMult (utils/calculations.js recruitCostFor / recruitGoldFor). 2 or et ressources × 0,85 : décision
+    // du 31 octobre 2026 (rapport de vérification, § 5), avant 1 or et × 0,95
+    goldPerUnit: { elite: 2 },
+    eliteResourceCostMult: 0.85
   },
 
   // Combat (GDD combat_config.json + formulas)
@@ -334,7 +392,12 @@ const config = {
   // Expeditions
   expedition: {
     powerDivisor: 7,             // army power / 7 ≈ 10 per base unit, 20 per intermediate, 35 per elite
-    lossPctPerDifficulty: 0.02   // 2% of each unit group lost per difficulty level
+    lossPctPerDifficulty: 0.02,  // 2% of each unit group lost per difficulty level
+    // Or d'une expédition gagnée (décision du 31 octobre 2026, rapport de vérification) : SEULEMENT si le héros la mène.
+    // chance de trouver de l'or ; montant tiré entre (1 − spread) et (1 + spread) × (base + perDifficulty × difficulté),
+    // soit 20 / 30 / 40 / 50 en moyenne quand il tombe : 10 / 15 / 20 / 25 or espérés pour les difficultés 1 à 4 (avant
+    // 50 / 75 / 60 / 37,5, sans héros). Le talent Chasseur de trésors s'y ajoute (processors/expeditionProcessor.js)
+    gold: { chance: 0.5, base: 10, perDifficulty: 10, spread: 0.5 }
   },
 
   // Tick (game loop)
@@ -386,8 +449,9 @@ const config = {
     { minMainHall: 20, tier: 3, name: 'Ville Fortifiée' }
   ],
 
-  // Hideout: the amount sheltered per level is in data/buildings.json (HIDEOUT.effects.hideoutL1 / hideoutL20, décision
-  // du 31 octobre 2026) ; a raid carries away at most half of what is outside the hideout
+  // Cachette : la part du stockage de la ville mise à l'abri par niveau est dans data/buildings.json
+  // (HIDEOUT.effects.hideoutStoragePctPerLevel, décision du 31 octobre 2026, rapport de vérification) ; un raid emporte au
+  // plus la moitié de ce qui dépasse la cachette
   hideout: {
     raidStealRate: 0.5
   },

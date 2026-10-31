@@ -10,15 +10,18 @@ const WEEK_CATS = [['ATTACK', 'Attaquants', 'attack'], ['DEFENSE', 'Défenseurs'
 const MEDAL_LABEL = { ATTACK: 'Attaquants', DEFENSE: 'Défenseurs', LOOT: 'Pilleurs', CLIMB: 'Progression', ALLIANCE_ATTACK: 'Alliances en attaque', ALLIANCE_DEFENSE: 'Alliances en défense',
   CHALLENGE_ATTACK: 'Défi Assaut', CHALLENGE_DEFENSE: 'Défi Rempart', CHALLENGE_LOOT: 'Défi Butin', CHALLENGE_CLIMB: 'Défi Bâtisseurs', CHALLENGE_HELP: 'Défi Entraide', CHALLENGE_DUNGEON: 'Défi Chasseurs de hordes' };
 
-// Défi d'alliance de la semaine (GDD « compétitions alliances », décision du 29 octobre 2026) : thème, classement, place
+// Défi d'alliance de la semaine (GDD « compétitions alliances », décision du 29 octobre 2026) : thème, classement, place.
+// Score par membre depuis le 31 octobre 2026 : total ÷ max(membres comptés, c.minMembers), à 0,1 près
+const challengeScore = (v) => (v >= 1000 ? formatNum(v) : fmtTechPct(v));
 function challengeCardHtml(c, { compact = false } = {}) {
   if (!c) return '';
   const rows = c.rows.slice(0, compact ? 3 : 10);
+  const unit = `${escapeHtml(c.unit)} par membre`;
   return `<div class="world-card challenge-card">
     <h4>${resIconHtml('medal')} Défi d'alliance de la semaine : « ${escapeHtml(c.label)} »</h4>
-    <p class="diplo-help">Classement des alliances selon les ${escapeHtml(c.what)}. Fin <span class="qd-timer" data-ends-at="${c.endsAt}">${formatTime(c.endsAt)}</span> (lundi 0 h). Les 3 premières gagnent ${c.rewards.join(' / ')} points d'alliance pour chaque membre et une médaille.${c.joinDeadline ? ` Seuls les membres arrivés avant le ${new Date(c.joinDeadline).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })} (heure de Paris) comptent et sont récompensés.` : ''}</p>
-    ${c.me?.inAlliance ? `<div class="ranking-me">Votre alliance : ${c.me.rank ? `<strong>${c.me.rank}${c.me.rank === 1 ? 're' : 'e'}</strong> · ${formatNum(c.me.value)} ${escapeHtml(c.unit)}` : 'pas encore classée'}${c.me.eligible === false ? ' · arrivé après la limite, vous ne comptez pas cette semaine' : ''}</div>` : '<p class="diplo-help">Rejoignez une alliance pour participer.</p>'}
-    <div class="ranking-list">${rows.length ? rows.map(r => rowHtml(r.rank, `[${escapeHtml(r.tag)}] ${escapeHtml(r.name)}`, r.value, c.unit, { me: r.mine, onclick: typeof openAllianceSheet === 'function' ? `openAllianceSheet('${chatSafeId(r.allianceId)}')` : '' })).join('') : '<div class="empty-state">Aucune alliance classée pour l\'instant</div>'}</div>
+    <p class="diplo-help">Classement des alliances selon les ${escapeHtml(c.what)}, divisés par le nombre de membres${c.minMembers ? ` (${c.minMembers} au moins : une alliance plus petite compte comme si elle en avait ${c.minMembers})` : ''}. Fin <span class="qd-timer" data-ends-at="${c.endsAt}">${formatTime(c.endsAt)}</span> (lundi 0 h). Les 3 premières gagnent ${c.rewards.join(' / ')} points d'alliance pour chaque membre et une médaille.${c.joinDeadline ? ` Seuls les membres arrivés avant le ${new Date(c.joinDeadline).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })} (heure de Paris) comptent et sont récompensés.` : ''}</p>
+    ${c.me?.inAlliance ? `<div class="ranking-me">Votre alliance : ${c.me.rank ? `<strong>${c.me.rank}${c.me.rank === 1 ? 're' : 'e'}</strong> · ${challengeScore(c.me.value)} ${unit}` : 'pas encore classée'}${c.me.eligible === false ? ' · arrivé après la limite, vous ne comptez pas cette semaine' : ''}</div>` : '<p class="diplo-help">Rejoignez une alliance pour participer.</p>'}
+    <div class="ranking-list">${rows.length ? rows.map(r => rowHtml(r.rank, `[${escapeHtml(r.tag)}] ${escapeHtml(r.name)}`, r.value, unit, { me: r.mine, fmt: challengeScore, onclick: typeof openAllianceSheet === 'function' ? `openAllianceSheet('${chatSafeId(r.allianceId)}')` : '' })).join('') : '<div class="empty-state">Aucune alliance classée pour l\'instant</div>'}</div>
   </div>`;
 }
 async function loadChallengeCard(boxId, opts) {
@@ -33,11 +36,11 @@ function medalIcon(rank) {
   return f ? `<img class="ico" src="assets/images/3d/ui/${f}.webp" alt="">` : `<span class="rank-num">${rank}</span>`;
 }
 const chips = (list, current, onclick) => `<div class="ranking-chips">${list.map(([k, l, ico]) => `<button class="chip ${k === current ? 'active' : ''}" onclick="${onclick}('${k}')">${resIconHtml(ico)} ${l}</button>`).join('')}</div>`;
-const rowHtml = (rank, name, value, unit, { me = false, onclick = '' } = {}) => `
+const rowHtml = (rank, name, value, unit, { me = false, onclick = '', fmt = formatNum } = {}) => `
   <div class="ranking-row ${me ? 'me' : ''}" ${onclick ? `onclick="${onclick}"` : ''}>
     <span class="ranking-position ${rank <= 3 ? 'top' + rank : ''}">${medalIcon(rank)}</span>
     <span class="ranking-name">${name}</span>
-    <span class="ranking-value">${formatNum(value || 0)} ${unit}</span>
+    <span class="ranking-value">${fmt(value || 0)} ${unit}</span>
   </div>`;
 const playerName = (r) => `${r.allianceTag || r.alliance?.alliance?.tag ? `[${escapeHtml(r.allianceTag || r.alliance.alliance.tag)}] ` : ''}${escapeHtml(r.name)}`;
 

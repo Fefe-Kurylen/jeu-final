@@ -20,6 +20,7 @@ const { lockArmy, lockCity, debitCity, lockPlayerCities, debitPlayer, missingMes
 const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
+const { protectionRefusal } = require('../utils/colonyProtection');
 // Propriétaires de camps hors de l'alliance du joueur (combat forcé du retour, quelle que soit la diplomatie déclarée) :
 // même prédicat que le siège vu par routes/cities.js
 const campsOutsideAlliance = async (playerId, ownerIds, db = prisma) => outsideAlliance(await allianceRowsOf([playerId, ...ownerIds], db), playerId, ownerIds);
@@ -63,12 +64,15 @@ async function campBlocksExit(army, db = prisma) {
   return 'Ville assiégée : vos armées ne sortent que pour attaquer le camp ennemi (« Briser le siège »)';
 }
 
-// Returns an error message when `army` may not run `mission` (ATTACK|RAID) against `targetCity`
+// Returns an error message when `army` may not run `mission` (ATTACK|RAID) against `targetCity` (the full City row)
 // `db` is the transaction client when called inside one (no extra pool connection while the transaction holds one)
 async function checkHostileTarget(army, targetCity, mission, db = prisma) {
   if (targetCity.playerId === army.ownerId) return 'Vous ne pouvez pas cibler vos propres villes';
   const relation = await getRelation(army.ownerId, targetCity.playerId, db);
   if (!relation.canAttack) return relation.status === 'SAME_ALLIANCE' ? 'Impossible d\'attaquer un membre de votre alliance' : 'Impossible d\'attaquer une alliance alliée';
+  // colonie neuve : ni attaque, ni raid, ni siège pendant 72 h après sa fondation (décision du 31 octobre 2026)
+  const shielded = protectionRefusal(targetCity);
+  if (shielded) return shielded;
   // no siege without at least one siege engine (décision du 25 octobre 2026: no tier minimum, no escort, no cap)
   if (mission === 'ATTACK' && countSiegeEngines(army.units, unitsData) < config.combat.siege.minEngines) return 'Pas de siège sans engin : il faut au moins 1 engin de siège dans l\'armée.';
   if (mission === 'RAID') {
@@ -811,3 +815,4 @@ module.exports = router;
 // calculs de marche et de charge, pour les tests
 module.exports.speedTechPct = speedTechPct;
 module.exports.transportCapacity = transportCapacity;
+module.exports.checkHostileTarget = checkHostileTarget;   // refus d'une attaque ou d'un raid (colonie neuve protégée), pour les tests

@@ -46,13 +46,13 @@ function makeContext(extra = {}) {
 }
 const run = (ctx, file, names) => vm.runInContext(pick(src(file), names), ctx);
 const CORE = ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'effectBuildings', 'buildingEffectOf', 'levelIn', 'buildingMaxLevelIn', 'buildingCapIn',
-  'hideoutAmountAt', 'forgeBonusPct', 'recruitPrice', 'recruitShortfall', 'recruitCostHtml', 'SITE_RESOURCE', 'getCityProduction', 'cityProductionMultiplier', 'lerpExp', 'getProductionAtLevel', 'TIER_COLORS'];
+  'hideoutPctX100', 'hideoutPctAt', 'hideoutAmountIn', 'forgeBonusPct', 'recruitPrice', 'recruitShortfall', 'recruitCostHtml', 'SITE_RESOURCE', 'getCityProduction', 'cityProductionMultiplier', 'lerpExp', 'getProductionAtLevel', 'TIER_COLORS'];
 // Ce que lisent les textes des bâtiments (getBuildingEffect calcule tous ses textes à chaque appel)
 function runEffectTexts(ctx) {
   run(ctx, '06b-research.js', ['fmtTechPct']);
   run(ctx, '07-army.js', ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'rallyMaxArmiesAt']);
   run(ctx, '12-misc-init.js', ['npcTaxPct']);
-  run(ctx, '04-buildings-render.js', ['merchantsAt', 'visionRadiusAt', 'allianceMaxMembersAt', 'getBuildingEffect']);
+  run(ctx, '04-buildings-render.js', ['visionRadiusAt', 'allianceMaxMembersAt', 'getBuildingEffect']);
 }
 const SITES = ['residenceEffects', 'SITE_NAMES', 'siteBonusPct', 'siteOtherPct', 'siteText', 'siteBadgeHtml', 'capitalCity', 'byFounding', 'secondaryCities'];
 
@@ -157,7 +157,7 @@ function panelContext(extra = {}) {
   run(ctx, '04-buildings-render.js', ['getBuildingAtSlot']);
   run(ctx, '04b-iso-scene.js', ['cityWallSlot']);
   run(ctx, '05-panels.js', ['selectedBuildSlot', 'openBuildPanel', 'getBuildCost', 'getCityBuildTimeReductionPct', 'getBuildTime', 'formatDuration', 'getBuildingBonus',
-    'hideoutTabHtml', 'merchantRulesHtml', 'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription',
+    'hideoutTabHtml', 'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription',
     'getBuildingShortDescription', 'COLONY_TRAINER', 'recruitPlaceCityId', 'trainerLevelIn', 'recruitPlaces', 'selectRecruitPlace', 'recruitPlaceHtml', 'openRecruitmentPanel', 'openFieldBuildPanel']);
   run(ctx, '06b-research.js', ['fmtTechPct']);
   run(ctx, '10b-sheets.js', ['SHEET_RULES', 'capitalTrainBoost']);
@@ -280,13 +280,13 @@ test('« Mes villes » : gisement, stocks et « plein dans », file vide en roug
   const ctx = makeContext({ showModal: (title, html) => { modal = { title, html }; }, showToast() {} });
   run(ctx, '01-core.js', CORE);
   run(ctx, '05-panels.js', ['formatDuration']);
-  run(ctx, '06c-colonies.js', [...SITES, 'lastEndOf', 'countdownHtml', 'stockBarHtml', 'myCityRowHtml', 'myCitiesTotalsHtml', 'openVillageList']);
+  run(ctx, '06c-colonies.js', [...SITES, 'lastEndOf', 'countdownHtml', 'stockBarHtml', 'myCityRowHtml', 'myCitiesTotalsHtml', 'openVillageList', 'PROTECTION_TEXT', 'protectionEndMs', 'protectionHtml']);
   const playerStock = { ...stock, wood: 5000, foodBalance: { production: 100, consumption: 300, net: -200, hoursLeft: 10 } };
   const capital = { id: 'cap', name: 'Roma', isCapital: true, x: 0, y: 0, wood: 100, stone: 100, iron: 100, food: 400, maxStorage: 1000, maxFoodStorage: 1000, buildings: [],
     buildQueue: [], recruitQueue: [{ count: 12, endsAt: '2026-10-30T14:00:00Z' }], foodBalance: { production: 10, consumption: 210, net: -200 }, lives: { total: 4, left: 4 }, site: null, playerStock };
   const colony = { id: 'col', name: 'Ostia', isCapital: false, x: 10, y: 10, wood: 1000, stone: 500, iron: 0, food: 0, maxStorage: 1000, maxFoodStorage: 1000, buildings: [{ key: 'LUMBER', level: 1 }],
     buildQueue: [{ endsAt: '2026-10-30T13:00:00Z' }, { endsAt: '2026-10-30T15:00:00Z' }], recruitQueue: [], foodBalance: { production: 12, consumption: 0, net: 12 },
-    lives: { total: 2, left: 1 }, site: { type: 'IRON', level: 3, bonusPct: 30, otherPct: -30 }, playerStock };
+    lives: { total: 2, left: 1 }, site: { type: 'IRON', level: 3, bonusPct: 30, otherPct: -30 }, playerStock, protectedUntil: '2026-10-31T12:00:00.000Z' };
   ctx.cities = [colony, capital];
   ctx.currentCity = capital;
   ctx.armies = [{ status: 'IDLE', x: 10, y: 10, units: [{ count: 100 }, { count: 20 }] }, { status: 'MOVING', x: 10, y: 10, units: [{ count: 5 }] }, { status: 'IDLE', x: 0, y: 0, units: [] }];
@@ -316,6 +316,12 @@ test('« Mes villes » : gisement, stocks et « plein dans », file vide en roug
   assert.match(colRow, /mv-attack">\[attack\] Attaque dans/);
   assert.match(colRow, /\[wood\].*<span class="mv-full">plein<\/span>/);
   assert.match(colRow, /\[stone\].*plein dans \d+j \d+h/);
+  // colonie neuve protégée (décision du 31 octobre 2026) : décompte jusqu'à la fin de la protection donnée par le serveur
+  assert.match(colRow, /class="protect-badge"[^>]*>\[defense\] Protégée encore <span class="qd-timer" data-ends-at="2026-10-31T12:00:00.000Z">/);
+  assert.doesNotMatch(capRow, /protect-badge/);
+  colony.protectedUntil = '2026-10-30T11:00:00.000Z';   // déjà finie
+  ctx.openVillageList();
+  assert.doesNotMatch(modal.html, /protect-badge/);
   assert.ok(rest);
 });
 
@@ -382,7 +388,7 @@ test('textes : Résidence (colons, bonus du gisement), Comptoir (capitale seulem
   run(ctx, '10b-sheets.js', ['SHEET_RULES', 'buildingFunctions']);
   const fxOf = (key) => BUILDINGS.find(b => b.key === key).effects;
   const office = fxOf('TRADE_OFFICE');
-  assert.equal(ctx.getBuildingEffect('TRADE_OFFICE', 10), `Taxe des échanges: -${10 * office.p2pTaxReductionPctPerLevel}% · charge des marchands et des armées de transport: +${10 * office.armyTransportCapacityBonusPctPerLevel}% · pour toutes vos villes`);
+  assert.equal(ctx.getBuildingEffect('TRADE_OFFICE', 10), `Taxe des échanges: -${10 * office.p2pTaxReductionPctPerLevel}% · charge des armées de transport: +${10 * office.armyTransportCapacityBonusPctPerLevel}% · pour toutes vos villes`);
   assert.match(ctx.getBuildingEffect('RESIDENCE', 10), new RegExp(`gisement d'une colonie : \\+${fx.colonyNodeBonusPct(1)} % par niveau`));
   const fns = (key) => JSON.parse(JSON.stringify(ctx.buildingFunctions(key, fxOf(key))));
   const residence = fns('RESIDENCE');
@@ -390,7 +396,7 @@ test('textes : Résidence (colons, bonus du gisement), Comptoir (capitale seulem
   assert.ok(residence.some(([label]) => label.includes(`+${fx.colonyNodeBonusPct(1)} % par niveau sur sa ressource`) && label.includes('−30 % sur les trois autres')));
   // la règle « meilleur Comptoir des colonies pour toutes les villes » est retirée : un seul Comptoir, dans la capitale
   assert.ok(fns('TRADE_OFFICE').every(([label]) => !/colonies/.test(label)));
-  assert.ok(fns('TRADE_OFFICE').some(([label]) => /charge des marchands/.test(label)));
+  assert.ok(fns('TRADE_OFFICE').some(([label]) => /charge des armées de transport/.test(label)) && fns('TRADE_OFFICE').every(([label]) => !/marchand/.test(label)));
   const gb = fxOf('GREAT_BARRACKS');
   assert.deepEqual(fns('GREAT_BARRACKS').filter(([label]) => /intermédiaires|élite/.test(label)).map(([, at]) => at), [gb.unlockIntermediateTier, gb.unlockEliteTier]);
   assert.ok(fns('GREAT_STABLE').some(([label]) => /Lieu de formation/.test(label)));
@@ -429,7 +435,7 @@ test('armées d\'une colonie : sans garnison, aucune unité n\'est comptée en g
 test('ordre des villes : la capitale puis les colonies dans l\'ordre de leur fondation (« Mes villes », lieu de formation)', { skip }, () => {
   let modal = null;
   const { ctx, content } = panelContext({ showModal: (title, html) => { modal = { title, html }; }, showToast() {} });
-  run(ctx, '06c-colonies.js', ['lastEndOf', 'countdownHtml', 'stockBarHtml', 'myCityRowHtml', 'myCitiesTotalsHtml', 'openVillageList']);
+  run(ctx, '06c-colonies.js', ['lastEndOf', 'countdownHtml', 'stockBarHtml', 'myCityRowHtml', 'myCitiesTotalsHtml', 'openVillageList', 'PROTECTION_TEXT', 'protectionEndMs', 'protectionHtml']);
   const city = (id, name, createdAt, extra = {}) => ({ id, name, createdAt, isCapital: false, x: 0, y: 0, buildings: [], buildQueue: [], recruitQueue: [], playerStock: stock, ...extra });
   // l'ordre rendu par le serveur change au fil des mises à jour de la base : il ne compte pas
   ctx.cities = [

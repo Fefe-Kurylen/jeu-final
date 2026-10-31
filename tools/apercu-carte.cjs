@@ -5,10 +5,13 @@
 //   node tools/apercu-carte.cjs --seed=123456            -> docs/img/cartes/carte-123456.png
 //   node tools/apercu-carte.cjs --seeds=0,11,22 --out=dossier
 //   node tools/apercu-carte.cjs --random=4               -> 4 graines au hasard (celles qu'un serveur neuf pourrait tirer)
-//   node tools/apercu-carte.cjs --server=https://…       -> la carte d'un serveur en service (sa graine, lue dans /api/world/info)
+//   node tools/apercu-carte.cjs --server=https://…       -> la carte d'un serveur en service (sa graine et son générateur, lus
+//                                                           dans /api/world/info)
+//   --generator=<n> : le générateur de la carte (2 : carte de référence, graine 0 ; 3 : cartes au hasard de 374 × 374 des
+//   mondes ouverts avant le 31 octobre 2026 ; 4 : cartes de 420 × 420 des nouveaux mondes). Sans lui : 2 pour la graine 0,
+//   4 pour les autres.
 //
-// Graine 0 : la carte de référence (celle du serveur déjà ouvert). Les poches de terre qu'aucune armée ne peut atteindre
-// sont assombries (ni ville ni point de ressource n'y est posé).
+// Les poches de terre qu'aucune armée ne peut atteindre sont assombries (ni ville ni point de ressource n'y est posé).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +22,7 @@ const arg = (k) => { const a = process.argv.find(x => x.startsWith(`--${k}=`)); 
 const outDir = path.resolve(arg('out') || path.join(__dirname, '..', 'docs', 'img', 'cartes'));
 const scale = Math.max(1, Math.min(4, Number(arg('scale') || 2)));
 let seeds = [];
+let generator = arg('generator') !== null ? Number(arg('generator')) : undefined;
 // une graine valable : un entier de 0 à Terrain.MAX_SEED, comme WORLD_SEED pour le serveur (sinon il la refuserait)
 const seedOf = (v) => {
   const n = Number(v);
@@ -39,9 +43,10 @@ async function main() {
     const info = await res.json();
     if (!Number.isInteger(info.worldSeed)) throw new Error('ce serveur ne publie pas de graine (version d\'avant les cartes au hasard : carte de référence, graine 0)');
     seeds.push(info.worldSeed);
+    generator = info.worldGenerator ?? info.terrainVersion;   // un serveur d'avant le 31 octobre 2026 : sa version du terrain
     serverSignature = info.terrainSignature || null;
   }
-  if (!seeds.length) { console.log('Usage : node tools/apercu-carte.cjs --seed=<n> | --seeds=a,b,c | --random=<nombre> | --server=<url> [--out=dossier] [--scale=1..4]'); process.exit(0); }
+  if (!seeds.length) { console.log('Usage : node tools/apercu-carte.cjs --seed=<n> | --seeds=a,b,c | --random=<nombre> | --server=<url> [--generator=2|3|4] [--out=dossier] [--scale=1..4]'); process.exit(0); }
 
 const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 const FEATURE = {
@@ -64,7 +69,7 @@ function png(w, h, rgb) {
 }
 
 function render(seed) {
-  Terrain.setWorldSeed(seed);
+  Terrain.setWorldSeed(seed, generator);
   const N = Terrain.WORLD_SIZE, W = 2 * N * scale, H = N * scale;
   const rgb = Buffer.alloc(W * H * 3);
   const colorAt = new Map();
@@ -95,7 +100,7 @@ function render(seed) {
   const st = Terrain.worldStats();
   if (serverSignature && seed === seeds[seeds.length - 1] && Terrain.signature !== serverSignature) console.warn(`  ⚠ empreinte ${Terrain.signature} au lieu de ${serverSignature} : ce serveur ne dessine pas la même carte que ce code (version différente)`);
   const pct = (v) => (v * 100).toFixed(1) + ' %';
-  console.log(`graine ${seed}${seed === 0 ? ' (carte de référence)' : ''} -> ${path.relative(process.cwd(), file)}`);
+  console.log(`graine ${seed}${Terrain.generator === 2 ? ' (carte de référence)' : ''}, générateur ${Terrain.generator}, ${Terrain.WORLD_SIZE} × ${Terrain.WORLD_SIZE} -> ${path.relative(process.cwd(), file)}`);
   console.log(`  ${Terrain.worldStatsOk(st) ? 'jouable' : 'REFUSÉE par le contrôle'} : neige ${pct(st.snow)}, désert ${pct(st.desert)}, tempéré ${pct(st.temperate)} ; terre ferme d'un seul tenant ${pct(st.mainland)} ; ${st.rivers} rivières, ${st.crossings} passages (${st.bridges} ponts) ; ${st.lakes} lacs, ${st.ranges} chaînes`);
   }
 }

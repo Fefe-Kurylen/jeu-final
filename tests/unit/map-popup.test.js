@@ -13,7 +13,8 @@ const skip = acorn ? false : 'acorn absent';
 const FRONT = path.join(__dirname, '..', '..', 'frontend');
 const mapSrc = fs.readFileSync(path.join(FRONT, 'js/map.js'), 'utf8');
 const invasionSrc = fs.readFileSync(path.join(FRONT, 'js/app/09k-invasion.js'), 'utf8');
-const POPUP = ['mapPopupAnchor', 'mapPanelSeq', 'openMapPopupAt', 'setMapPopupExpanded', 'positionMapPopup', 'toggleMapPopupDetails', 'closeMapPanel', 'showMapInfoPanel', 'showMapInfoPanelWithDiplomacy'];
+const POPUP = ['mapPopupAnchor', 'mapPanelSeq', 'openMapPopupAt', 'setMapPopupExpanded', 'positionMapPopup', 'toggleMapPopupDetails', 'closeMapPanel', 'showMapInfoPanel', 'showMapInfoPanelWithDiplomacy', 'mapProtectionLine'];
+const coloniesSrc = fs.readFileSync(path.join(FRONT, 'js/app/06c-colonies.js'), 'utf8');
 
 // les déclarations de premier niveau de map.js qui portent ces noms
 function pick(src, names) {
@@ -98,6 +99,27 @@ test('the diplomacy answer for the current target fills the popup', { skip }, as
   assert.match(content.innerHTML, /Bravo/);
   assert.match(content.innerHTML, /Attaquer/);
   assert.doesNotMatch(content.innerHTML, /Chargement/);
+});
+
+// colonie neuve protégée (décision du 31 octobre 2026) : la fenêtre donne le temps restant, Attaquer et Raid sont grisés
+test('a protected new colony shows its remaining protection and refuses attack and raid buttons', { skip }, async () => {
+  const { ctx, content } = makeContext();
+  ctx.serverNow = () => Date.parse('2026-10-31T12:00:00Z');
+  vm.runInContext(pick(coloniesSrc, ['PROTECTION_TEXT', 'protectionEndMs', 'protectionHtml', 'countdownHtml']), ctx);
+  ctx.fetch = async () => diploAnswer;
+  const colony = { ...enemyCity, isCapital: false, protectedUntil: '2026-11-02T12:00:00.000Z' };
+  ctx.showMapInfoPanel(5, 5, colony);
+  await flush();
+  assert.match(content.innerHTML, /class="protect-line">.*Protégée encore <span class="qd-timer" data-ends-at="2026-11-02T12:00:00.000Z">/);
+  assert.match(content.innerHTML, /<button class="btn btn-danger" disabled title="Colonie neuve protégée[^"]*">\[attack\] Attaquer<\/button>/);
+  assert.match(content.innerHTML, /<button class="btn btn-raid" disabled title="Colonie neuve protégée[^"]*">\[bolt\] Raid<\/button>/);
+  assert.doesNotMatch(content.innerHTML, /attackFromMap|raidFromMap/);
+  assert.match(content.innerHTML, /Espionner/);   // les espions passent
+  // protection finie : boutons ordinaires
+  ctx.showMapInfoPanel(5, 5, { ...colony, protectedUntil: '2026-10-31T11:00:00.000Z' });
+  await flush();
+  assert.doesNotMatch(content.innerHTML, /protect-line/);
+  assert.match(content.innerHTML, /attackFromMap\('city-b'/);
 });
 
 test('the « Détails » label is reset when a new popup opens or the popup closes', { skip }, () => {

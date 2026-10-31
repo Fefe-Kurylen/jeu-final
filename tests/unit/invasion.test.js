@@ -35,6 +35,9 @@ test('trésor : croît avec le niveau, objet plus probable au centre', () => {
   assert.equal(t1.wood, invasion.treasure.resources);
   assert.ok(t5.wood > t1.wood * 30 && t5.gold > t1.gold && t5.alliancePoints > t1.alliancePoints);
   assert.ok(t5.itemChance > t1.itemChance);
+  // or du trésor : 200 au niveau 1, × 2 par niveau (décision du 31 octobre 2026, rapport de vérification ; avant 40)
+  assert.equal(invasion.treasure.gold, 200);
+  assert.deepEqual([1, 2, 3, 4, 5].map(l => H.treasureFor(l).gold), [200, 400, 800, 1600, 3200]);
 });
 
 // ---- base factice : le client Prisma est remplacé le temps d'un test (aucune requête réelle) ----
@@ -261,4 +264,14 @@ test('trésor : les villes d\'un joueur sont verrouillées avant sa ligne (même
   };
   await H.destroyHorde(tx, { id: 'h1', invasionId: 'i1', level: 1 }, { id: 'n1', x: 0, y: 0 }, 'a', null);
   assert.deepEqual(calls, ['lock a', 'pay a', 'lock b', 'pay b']);
+});
+
+test('donjons pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026) : chef du niveau 1 ≈ 2 joueurs médians, du niveau 4 ≈ 10, du niveau 5 ≈ 20', () => {
+  // mesuré avec le vrai moteur et les armées de la simulation (verif2/endgame.cjs) : 2, 11 et 19 joueurs ; ici, la même
+  // règle sur des joueurs tous médians, avec +15 % (recherches 20 : +5 %, Forge 20 : +10 %)
+  const median = 100000, bp = H.outpostPower(Array(P.minPlayers).fill(median));
+  const players = (level) => H.floorPower(level, 3, 1, bp) / (median * 1.15);
+  assert.ok(players(1) > 1 && players(1) <= 2, String(players(1)));
+  assert.ok(players(4) > 9 && players(4) <= 11, String(players(4)));
+  assert.ok(players(5) > 17 && players(5) <= 20, String(players(5)));
 });

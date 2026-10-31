@@ -19,18 +19,21 @@ test('construction and training time reductions follow the data and are capped',
 });
 
 // ---- revue des bâtiments (décisions du 31 octobre 2026) ----
-test('Grandes casernes et Grandes écuries : leurs niveaux s\'additionnent pour la formation dans la capitale (0,5 %/niveau)', () => {
+test('Grandes casernes et Grandes écuries : leurs niveaux s\'additionnent pour la formation dans la capitale (0,75 %/niveau)', () => {
   const cities = [{ buildings: [b('BARRACKS', 20)] }, { buildings: [b('GREAT_BARRACKS', 20), b('GREAT_STABLE', 10)] }, { buildings: [b('GREAT_BARRACKS', 20)] }];
   const per = fx.effectOf('GREAT_BARRACKS', 'capitalTrainTimeReductionPctPerLevel');
-  assert.equal(per, 0.5);
+  assert.equal(per, 0.75, 'décision du 31 octobre 2026 (rapport de vérification)');
+  assert.equal(fx.effectOf('GREAT_STABLE', 'capitalTrainTimeReductionPctPerLevel'), 0.75);
+  assert.equal(fx.capitalTrainBoostPct(cities, 'INFANTRY'), 30, 'deux Grandes casernes 20 (deux colonies) : 30 %');
   assert.equal(fx.capitalTrainBoostPct(cities, 'INFANTRY'), 40 * per);
   assert.equal(fx.capitalTrainBoostPct(cities, 'ARCHER'), 40 * per);
   assert.equal(fx.capitalTrainBoostPct(cities, 'CAVALRY'), 10 * fx.effectOf('GREAT_STABLE', 'capitalTrainTimeReductionPctPerLevel'));
   assert.equal(fx.capitalTrainBoostPct(cities, 'SIEGE'), 0, 'les engins : l\'Atelier seul');
   assert.equal(fx.capitalTrainBoostPct([], 'INFANTRY'), 0);
-  // Caserne 20 (10 %) + 3 Grandes casernes 20 (30 %) = 40 %
+  // Caserne 20 (10 %) + 2 Grandes casernes 20 (30 %) = 40 % ; 3 (45 %) : 55 %, sous le plafond de 60 %
+  assert.equal(fx.trainTimeReductionPct([b('BARRACKS', 20)], 'INFANTRY', fx.capitalTrainBoostPct(cities, 'INFANTRY')), 40);
   const three = [1, 2, 3].map(() => ({ buildings: [b('GREAT_BARRACKS', 20)] }));
-  assert.equal(fx.trainTimeReductionPct([b('BARRACKS', 20)], 'INFANTRY', fx.capitalTrainBoostPct(three, 'INFANTRY')), 40);
+  assert.equal(fx.trainTimeReductionPct([b('BARRACKS', 20)], 'INFANTRY', fx.capitalTrainBoostPct(three, 'INFANTRY')), 55);
 });
 
 test('Forge : attaque et défense de toutes les troupes (0,5 %/niveau chacune) ; la défense des villes garde la Brasserie', () => {
@@ -41,36 +44,52 @@ test('Forge : attaque et défense de toutes les troupes (0,5 %/niveau chacune) ;
   assert.equal(fx.defenseBonusPct([b('FORGE', 10), b('GALLIC_BREWERY', 5)]), 5, 'la Forge compte à part, dans tous les combats');
 });
 
-test('Cachette : une quantité fixe de chaque ressource selon le niveau (240 → 32 000, courbe du stockage), plus pour la Gaule', () => {
-  const { lerpExp, getFactionBonus } = require('../../src/utils/calculations');
-  const { factionsData } = require('../../src/config/gamedata');
-  assert.equal(fx.hideoutAmount([], 'ROME'), 0);
-  assert.equal(fx.hideoutAmount([b('HIDEOUT', 1)], 'ROME'), 240);
-  assert.equal(fx.hideoutAmount([b('HIDEOUT', 20)], 'ROME'), 32000);
-  assert.equal(fx.hideoutAmount([b('HIDEOUT', 10)], 'ROME'), Math.round(lerpExp(240, 32000, 9 / 19)));
-  for (let l = 1; l < 20; l++) assert.ok(fx.hideoutAmount([b('HIDEOUT', l + 1)], 'HUN') > fx.hideoutAmount([b('HIDEOUT', l)], 'HUN'), `niveau ${l + 1}`);
-  const gaul = 1 + getFactionBonus('GAUL', 'hideoutCapacity', factionsData) / 100;
-  assert.ok(gaul > 1, 'la Gaule a un bonus de cachette');
-  assert.equal(fx.hideoutAmount([b('HIDEOUT', 20)], 'GAUL'), Math.floor(32000 * gaul));
-  // ce qu'un pillard peut prendre : ce qui dépasse, par ressource
-  assert.deepEqual(fx.outsideHideout({ wood: 1000, stone: 100, iron: 240.7, food: 5000 }, 240), { wood: 760, stone: 0, iron: 0, food: 4760 });
+// Cachette (décision du 31 octobre 2026, rapport de vérification) : 1,5 % du stockage de la ville par niveau pour chaque
+// ressource (dépôts pour le bois, la pierre et le fer ; silos pour les céréales), 30 % au niveau 20, Gaule × 1,2 (36 %)
+test('Cachette : 1,5 % du stockage de la ville par niveau (30 % au niveau 20), plus pour la Gaule ; capitale et colonie pleine', () => {
+  const each = (n, food = n) => ({ wood: n, stone: n, iron: n, food });
+  assert.equal(fx.effectOf('HIDEOUT', 'hideoutStoragePctPerLevel'), 1.5);
+  assert.equal(fx.effectOf('HIDEOUT', 'hideoutL20'), 0, 'ancienne quantité fixe retirée');
+  assert.deepEqual(fx.hideoutAmount([], 'ROME'), each(0));
+  assert.equal(fx.hideoutPct(20, 'ROME'), 30);
+  assert.equal(fx.hideoutPct(20, 'GAUL'), 36);
+  assert.equal(fx.hideoutPct(0, 'GAUL'), 0);
+  // capitale : Dépôt 20 et Silo 20 (160 000 chacun)
+  const capital = [b('WAREHOUSE', 20), b('SILO', 20)];
+  // colonie pleine : Dépôt 20 + Grand dépôt 20, Silo 20 + Grand silo 20 (640 000 chacun)
+  const colony = [b('WAREHOUSE', 20), b('GREAT_WAREHOUSE', 20), b('SILO', 20), b('GREAT_SILO', 20)];
+  const at = (buildings, level, faction) => fx.hideoutAmount([...buildings, b('HIDEOUT', level)], faction);
+  for (const [level, cap, col, capGaul, colGaul] of [[3, 7200, 28800, 8640, 34560], [10, 24000, 96000, 28800, 115200], [15, 36000, 144000, 43200, 172800], [20, 48000, 192000, 57600, 230400]]) {
+    assert.deepEqual(at(capital, level, 'ROME'), each(cap), `capitale, niveau ${level}`);
+    assert.deepEqual(at(colony, level, 'HUN'), each(col), `colonie pleine, niveau ${level}`);
+    assert.deepEqual(at(capital, level, 'GAUL'), each(capGaul), `capitale gauloise, niveau ${level}`);
+    assert.deepEqual(at(colony, level, 'GAUL'), each(colGaul), `colonie gauloise, niveau ${level}`);
+  }
+  // dépôts et silos à part : chaque ressource suit son propre stockage
+  const mixed = at([b('WAREHOUSE', 20), b('GREAT_WAREHOUSE', 20), b('SILO', 20)], 20, 'ROME');
+  assert.deepEqual(mixed, each(192000, 48000));
+  // ville sans dépôt ni silo : la part de la capacité de base (1 000)
+  assert.deepEqual(at([], 10, 'ROME'), each(150));
+  for (let l = 1; l < 20; l++) assert.ok(at(capital, l + 1, 'EGYPT').wood > at(capital, l, 'EGYPT').wood, `niveau ${l + 1}`);
+  // ce qu'un pillard peut prendre : ce qui dépasse, par ressource ; un petit stock est entièrement à l'abri
+  assert.deepEqual(fx.outsideHideout({ wood: 1000, stone: 100, iron: 240.7, food: 5000 }, each(240, 4000)), { wood: 760, stone: 0, iron: 0, food: 1000 });
 });
 
-test('Marché et Comptoir réservés à la capitale ; marchands : un par niveau du Marché, charge + Comptoir et Poste du Désert', () => {
+test('Marché et Comptoir réservés à la capitale ; plus de marchands : Marché, Comptoir et Poste du Désert chargent les armées de transport', () => {
   assert.ok(fx.capitalOnly('MARKET') && fx.capitalOnly('TRADE_OFFICE') && !fx.notInCapital('TRADE_OFFICE'));
-  assert.equal(fx.merchantCount([]), 0);
-  assert.equal(fx.merchantCount([b('MARKET', 12)]), 12);
-  assert.equal(fx.merchantCapacityBonusPct([b('TRADE_OFFICE', 10), b('SULTAN_DESERT_OUTPOST', 5)]), 15);
-  assert.equal(fx.merchantCapacityBonusPct([b('MARKET', 20)]), 0, 'le Marché donne des marchands, pas de la charge');
+  assert.equal(fx.effectOf('MARKET', 'merchantsPerLevel'), 0, 'décision du 31 octobre 2026 (rapport de vérification)');
+  assert.equal(fx.transportBonusPct([b('MARKET', 2), b('TRADE_OFFICE', 10), b('SULTAN_DESERT_OUTPOST', 5)]), 2 * 5 + 10 + 5);
 });
 
-test('Place de rassemblement : 5 armées + 1 par niveau dans un rassemblement ; Ambassade du chef : 3 membres par niveau, 60 au plus', () => {
+test('Place de rassemblement : 5 armées + 1 par niveau dans un rassemblement ; Ambassade du chef : 5 membres par niveau, 100 au plus', () => {
   assert.equal(fx.rallyMaxArmies(0), 5);
   assert.equal(fx.rallyMaxArmies(1), 6);
   assert.equal(fx.rallyMaxArmies(20), 25);
+  // décision du 31 octobre 2026 (rapport de vérification) : alliances jusqu'à 100 membres
   assert.equal(fx.allianceMaxMembers(0), 0);
-  assert.equal(fx.allianceMaxMembers(7), 21, 'niveau où l\'on fonde une alliance');
-  assert.equal(fx.allianceMaxMembers(20), 60);
+  assert.equal(fx.allianceMaxMembers(7), 35, 'niveau où l\'on fonde une alliance');
+  assert.equal(fx.allianceMaxMembers(20), 100);
+  assert.equal(require('../../src/config').alliance.maxMembers, 100);
   assert.equal(fx.allianceMaxMembers(25), require('../../src/config').alliance.maxMembers, 'jamais au-dessus du plafond général');
 });
 

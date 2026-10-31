@@ -15,25 +15,35 @@
   // Version du terrain : à augmenter à chaque changement de la génération OU des règles de passage et de coût (isBlocked,
   // moveCost, findPath, cases des villes) ; le serveur la publie dans /api/world/info, une version du jeu qui embarque un
   // autre terrain se recharge ou demande sa mise à jour. 2 = carte de référence du 25 octobre 2026 ; 3 = carte tirée de la
-  // graine du serveur (la graine 0 redonne exactement la carte 2).
-  const TERRAIN_VERSION = 3;
+  // graine du serveur (la graine 0 redonne exactement la carte 2) ; 4 = cartes plus grandes des nouveaux mondes.
+  const TERRAIN_VERSION = 4;
   // Générateur d'une carte : la version du terrain qui l'a tirée, gardée en base avec la graine (WorldConfig.generator).
-  // 2 = la carte de référence (graine 0) ; 3 = les cartes tirées au hasard. Une future façon de générer les cartes prendra
-  // le numéro 4 sans toucher aux mondes déjà ouverts : chaque monde garde le générateur qui a fait sa carte. C'est aussi la
-  // plus ancienne version du terrain qui la dessine à l'identique (un client plus ancien se met à jour).
-  const generatorFor = (seed) => (seed ? 3 : 2);
-  const canDraw = (seed, generator) => generator === generatorFor(seed);
-  const WORLD_SIZE = 374;
-  const MIN_COORD = -Math.floor(WORLD_SIZE / 2);          // -187
-  const MAX_COORD = MIN_COORD + WORLD_SIZE - 1;           // +186
-  const BIOME_SCALE = 36;   // taille caractéristique d'une tache de biome (cases)
+  // 2 = la carte de référence (graine 0) ; 3 = les cartes tirées au hasard en 374 × 374 ; 4 = les cartes des nouveaux
+  // mondes, plus grandes pour tenir 2 000 joueurs (décision du 31 octobre 2026, rapport de vérification), toute graine, 0
+  // comprise. Chaque monde garde le générateur qui a fait sa carte : ses villes ne bougent jamais. C'est aussi la plus
+  // ancienne version du terrain qui la dessine à l'identique (un client plus ancien se met à jour).
+  const NEW_GENERATOR = 4;
+  // Côté de la carte (cases) selon son générateur. 374 : la carte de référence (Travian : 401). 420 : 2 000 joueurs à 2
+  // colonies avec de la marge, même si tous choisissent le même côté (mesures : tools/measure-map-capacity.cjs).
+  const SIZE_BY_GENERATOR = { 2: 374, 3: 374, 4: 420 };
+  // Générateur d'une graine donnée seule (sans le générateur de son monde) : 0 = la carte de référence, sinon celui des
+  // nouveaux mondes
+  const generatorFor = (seed) => (seed ? NEW_GENERATOR : 2);
+  const canDraw = (seed, generator) => (generator === 2 ? !seed : generator === 3 ? !!seed : generator === NEW_GENERATOR);
+  // Dimensions de la carte en cours (setSize) : la disposition (rivières, lacs, chaînes, bande des biomes) est donnée pour
+  // la carte de référence de 374 cases et grandit avec la carte (SCALE = 1 pour les générateurs 2 et 3)
+  const REFERENCE_SIZE = 374;
+  let WORLD_SIZE = REFERENCE_SIZE, MIN_COORD = -187, MAX_COORD = 186, SCALE = 1, CELLS = WORLD_SIZE * WORLD_SIZE;
+  const BIOME_SCALE_REF = 36;   // taille caractéristique d'une tache de biome (cases), × SCALE (setSize)
+  let BIOME_SCALE = BIOME_SCALE_REF;
   const HILL_SCALE = 7;     // régions de collines où les montagnes se regroupent
 
   // ---- graine du monde ----
   // WORLD_SEED : entier de 0 à 2 147 483 646 ; NOISE_OFFSET : décalage ajouté à toutes les graines de bruit (0 pour la
   // graine 0, d'où la carte de référence intacte) ; epoch : augmente à chaque changement de graine (les caches du client
   // qui gardent du terrain s'y fient pour se vider).
-  let WORLD_SEED = 0, NOISE_OFFSET = 0, epoch = 0;
+  // GEN : générateur de la carte en cours ; LEGACY : carte de référence (bruit sinus, disposition dessinée à la main)
+  let WORLD_SEED = 0, NOISE_OFFSET = 0, epoch = 0, GEN = 2, LEGACY = true;
   const MAX_SEED = 2147483646;
   const normalizeSeed = (seed) => { const n = Math.trunc(Number(seed)); return Number.isFinite(n) ? Math.abs(n) % (MAX_SEED + 1) : 0; };
   // hachage entier (graine -> 32 bits bien mélangés) et générateur pseudo-aléatoire (mulberry32) pour tirer la disposition
@@ -57,7 +67,7 @@
   // bruit du monde, de 0 à 1 ; avec une graine autre que 0, chaque graine de bruit change selon la graine du monde (les
   // coordonnées non entières, celles du décor dessiné à l'écran, gardent le sinus décalé)
   function seededRandom(x, y, seed = 12345) {
-    if (WORLD_SEED !== 0 && Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(seed)) return intRandom(x, y, seed);
+    if (!LEGACY && Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(seed)) return intRandom(x, y, seed);
     return sinRandom(x, y, seed + NOISE_OFFSET);
   }
   // sin(π d) et cos(π d) par l'arithmétique de base seulement (même résultat partout), pour le tracé des cartes au hasard
@@ -83,8 +93,10 @@
   // Biomes du GDD (world_config.map.biomes, décision du 25 octobre 2026) : le nord est enneigé, le sud désertique, le reste
   // tempéré ('forest'). Nord et sud se lisent sur l'écran isométrique : le haut de la carte est le côté où x + y est petit.
   // La frontière ondule (bruit) pour un tracé naturel ; environ 20 % de neige, 20 % de désert, 60 % de tempéré.
-  const BIOME_EDGE = 138;     // |x + y| au-delà duquel commence la neige (nord) ou le désert (sud)
-  const BIOME_WOBBLE = 45;    // amplitude de l'ondulation de la frontière (cases)
+  // Valeurs de la carte de référence, × SCALE sur une carte plus grande (setSize) : la même frontière, agrandie
+  const BIOME_EDGE_REF = 138, BIOME_WOBBLE_REF = 45;
+  let BIOME_EDGE = BIOME_EDGE_REF;     // |x + y| au-delà duquel commence la neige (nord) ou le désert (sud)
+  let BIOME_WOBBLE = BIOME_WOBBLE_REF; // amplitude de l'ondulation de la frontière (cases)
   const latitudeAt = (x, y) => x + y + (smoothNoise(x, y, 77777) - 0.5) * 2 * BIOME_WOBBLE + (valueNoise(x, y, 77001, 11) - 0.5) * 24;
   function getBiome(x, y) {
     const latitude = latitudeAt(x, y);
@@ -112,7 +124,7 @@
   // Le cours de la rivière r depuis sa source (dir en unités de π)
   function riverPath(src, r) {
     let rx = src.sx, ry = src.sy, dir = src.dir;
-    const exact = WORLD_SEED !== 0;   // cartes au hasard : trigonométrie identique sur tous les moteurs
+    const exact = !LEGACY;   // cartes au hasard : trigonométrie identique sur tous les moteurs
     const pts = [];
     for (let i = 0; i < src.length; i++) {
       pts.push([rx, ry]);
@@ -125,7 +137,7 @@
   }
   function traceRivers() {
     riverTiles.clear(); crossingAxis.clear(); crossings.length = 0;
-    const seeded = WORLD_SEED !== 0;
+    const seeded = !LEGACY;
     for (let r = 0; r < RIVER_SOURCES.length; r++) {
       const src = RIVER_SOURCES[r];
       const pts = riverPath(src, r);
@@ -202,9 +214,10 @@
     return false;
   }
 
-  // Disposition tirée au hasard d'une graine (toute graine sauf 0) : autant de rivières, de lacs et de chaînes que sur la
-  // carte de référence, de tailles comparables, répartis sur tout le monde. Les rivières partent d'un bord vers l'intérieur,
-  // lacs et chaînes sont tenus à distance les uns des autres ; les biomes gardent leur place (neige au nord, désert au sud).
+  // Disposition tirée au hasard d'une graine (générateurs 3 et 4) : autant de rivières, de lacs et de chaînes que sur la
+  // carte de référence, de tailles comparables (× SCALE sur une carte plus grande), répartis sur tout le monde. Les rivières
+  // partent d'un bord vers l'intérieur, lacs et chaînes sont tenus à distance les uns des autres ; les biomes gardent leur
+  // place (neige au nord, désert au sud).
   function randomLayout(seed) {
     const rng = mulberry32(hash32(seed));
     const pick = (a, b) => a + rng() * (b - a);
@@ -227,15 +240,15 @@
     for (let tries = 0; rivers.length < LEGACY_RIVERS.length && tries < 400; tries++) {
       const side = sides[rivers.length], u = pick(-0.88, 0.88), along = u * E;
       const [sx, sy] = side === 0 ? [-E, along] : side === 1 ? [E, along] : side === 2 ? [along, -E] : [along, E];
-      if (rivers.some(o => dist(o.sx, o.sy, sx, sy) < 60)) continue;
+      if (rivers.some(o => dist(o.sx, o.sy, sx, sy) < 60 * SCALE)) continue;
       // vers l'intérieur (en unités de π, comme dir : 0 = +x, 1 = −x, 0,5 = +y, −0,5 = −y), penchée vers le centre selon la
       // place de la source le long du bord, à ±0,2 π près
       const inward = side === 0 ? -u * 0.25 : side === 1 ? 1 + u * 0.25 : side === 2 ? 0.5 + u * 0.25 : -0.5 - u * 0.25;
-      const cand = { sx: Math.round(sx), sy: Math.round(sy), dir: Math.round((inward + pick(-0.2, 0.2)) * 100) / 100, length: Math.round(pick(150, 230)), meander: 1 + Math.floor(rng() * 997) * 13 };
+      const cand = { sx: Math.round(sx), sy: Math.round(sy), dir: Math.round((inward + pick(-0.2, 0.2)) * 100) / 100, length: Math.round(pick(150 * SCALE, 230 * SCALE)), meander: 1 + Math.floor(rng() * 997) * 13 };
       // une rivière qui ressort vite du monde ou longe le bord est redessinée
       const pts = riverPath(cand, rivers.length);
       const nearEdge = pts.filter(([x, y]) => Math.min(x - MIN_COORD, MAX_COORD - x, y - MIN_COORD, MAX_COORD - y) < 14).length;
-      if (pts.length < 120 || nearEdge > pts.length * 0.2) continue;
+      if (pts.length < 120 * SCALE || nearEdge > pts.length * 0.2) continue;
       // une rivière peut en rejoindre une autre (un confluent), pas la croiser ni la longer à plusieurs reprises
       let entries = 0, inside = false;
       for (const [x, y] of pts) {
@@ -249,9 +262,9 @@
     }
     const lakes = [];
     for (let tries = 0; lakes.length < LEGACY_LAKES.length && tries < 400; tries++) {
-      const cx = Math.round(pick(-135, 135)), cy = Math.round(pick(-135, 135));
-      if (lakes.some(o => dist(o.cx, o.cy, cx, cy) < 50)) continue;
-      lakes.push({ cx, cy, radius: Math.round(pick(5, 10.99)) });
+      const cx = Math.round(pick(-135 * SCALE, 135 * SCALE)), cy = Math.round(pick(-135 * SCALE, 135 * SCALE));
+      if (lakes.some(o => dist(o.cx, o.cy, cx, cy) < 50 * SCALE)) continue;
+      lakes.push({ cx, cy, radius: Math.round(pick(5 * SCALE, 10.99 * SCALE)) });
     }
     // distance entre deux segments (chaînes) : 0 s'ils se croisent, sinon la plus courte des distances bout-segment
     const pointSeg = (px, py, s) => { const dx = s.ex - s.sx, dy = s.ey - s.sy, L = dx * dx + dy * dy; const t = L ? Math.max(0, Math.min(1, ((px - s.sx) * dx + (py - s.sy) * dy) / L)) : 0; return dist(px, py, s.sx + t * dx, s.sy + t * dy); };
@@ -260,11 +273,11 @@
       ? 0 : Math.min(pointSeg(a.sx, a.sy, b), pointSeg(a.ex, a.ey, b), pointSeg(b.sx, b.sy, a), pointSeg(b.ex, b.ey, a));
     const ranges = [];
     for (let tries = 0; ranges.length < LEGACY_RANGES.length && tries < 400; tries++) {
-      const mx = pick(-120, 120), my = pick(-120, 120), ang = rng(), half = pick(45, 65);   // ang en unités de π
+      const mx = pick(-120 * SCALE, 120 * SCALE), my = pick(-120 * SCALE, 120 * SCALE), ang = rng(), half = pick(45 * SCALE, 65 * SCALE);   // ang en unités de π
       const clamp = (v) => Math.max(MIN_COORD + 8, Math.min(MAX_COORD - 8, Math.round(v)));
-      const cand = { sx: clamp(mx - cosPi(ang) * half), sy: clamp(my - sinPi(ang) * half), ex: clamp(mx + cosPi(ang) * half), ey: clamp(my + sinPi(ang) * half), width: 3 + Math.floor(rng() * 3) };
+      const cand = { sx: clamp(mx - cosPi(ang) * half), sy: clamp(my - sinPi(ang) * half), ex: clamp(mx + cosPi(ang) * half), ey: clamp(my + sinPi(ang) * half), width: Math.round((3 + Math.floor(rng() * 3)) * SCALE) };
       // deux chaînes ne se touchent pas : un mur d'un seul tenant ou une vallée en cul-de-sac couperait la carte
-      if (ranges.some(o => segDist(cand, o) < cand.width + o.width + 12)) continue;
+      if (ranges.some(o => segDist(cand, o) < cand.width + o.width + 12 * SCALE)) continue;
       ranges.push(cand);
     }
     return { rivers, lakes, ranges };
@@ -459,18 +472,33 @@
     return mainland[(y - MIN_COORD) * WORLD_SIZE + (x - MIN_COORD)] === 1;
   }
 
+  // Dimensions de la carte d'un générateur : côté, coordonnées de −côté/2 à côté/2 − 1, échelle de la disposition
+  function setSize(size) {
+    if (size !== WORLD_SIZE) { pfSeen = null; pfStamp = 0; }   // tableaux de travail des chemins : à la nouvelle taille
+    WORLD_SIZE = size;
+    MIN_COORD = -Math.floor(size / 2);
+    MAX_COORD = MIN_COORD + size - 1;
+    SCALE = size / REFERENCE_SIZE;
+    CELLS = size * size;
+    BIOME_EDGE = BIOME_EDGE_REF * SCALE;
+    BIOME_WOBBLE = BIOME_WOBBLE_REF * SCALE;
+    BIOME_SCALE = BIOME_SCALE_REF * SCALE;
+  }
+
   // Change de carte : toute la disposition et tous les caches sont refaits pour la graine donnée. Le serveur l'appelle au
-  // démarrage avec la graine gardée en base, le client dès qu'il connaît celle du serveur (avant de dessiner la carte).
-  // Renvoie true si la carte a changé.
+  // démarrage avec la graine et le générateur gardés en base, le client dès qu'il connaît ceux du serveur (avant de
+  // dessiner la carte). Sans générateur : celui d'une graine seule (generatorFor). Renvoie true si la carte a changé.
   function setWorldSeed(seed, generator) {
     const s = normalizeSeed(seed);
+    const g = generator === undefined || generator === null ? generatorFor(s) : Number(generator);
     // une carte faite par un autre générateur que ceux que ce code sait refaire : refusée (elle ne serait pas la même)
-    if (generator !== undefined && generator !== null && !canDraw(s, Number(generator))) throw new Error(`carte de la graine ${s} faite par le générateur ${generator} : ce code ne sait dessiner que le générateur ${generatorFor(s)}`);
-    if (s === WORLD_SEED && LAKES) return false;
-    WORLD_SEED = s;
+    if (!canDraw(s, g)) throw new Error(`carte de la graine ${s} faite par le générateur ${generator} : ce code ne sait pas la dessiner (générateurs 2 pour la graine 0, 3 pour les autres, ${NEW_GENERATOR} pour toutes)`);
+    if (s === WORLD_SEED && g === GEN && LAKES) return false;
+    WORLD_SEED = s; GEN = g; LEGACY = g === 2;
+    setSize(SIZE_BY_GENERATOR[g]);
     NOISE_OFFSET = s ? 1000 + (hash32(s) % 49000) : 0;
     WORLD_MIX = s ? hash32(s ^ 0x5bd1e995) | 0 : 0;
-    const L = s ? randomLayout(s) : { rivers: LEGACY_RIVERS, lakes: LEGACY_LAKES, ranges: LEGACY_RANGES };
+    const L = LEGACY ? { rivers: LEGACY_RIVERS, lakes: LEGACY_LAKES, ranges: LEGACY_RANGES } : randomLayout(s);
     RIVER_SOURCES = L.rivers; LAKES = L.lakes; RANGES = L.ranges;
     cache.clear(); groundCache.clear(); variantCache.clear(); mainland = null;
     traceRivers();
@@ -488,7 +516,7 @@
     if (signatureCache) return signatureCache;
     let h = 0x811c9dc5 >>> 0;
     const mix = (v) => { const t = String(v); for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } h ^= 0x2c; h = Math.imul(h, 0x01000193) >>> 0; };
-    mix(WORLD_SEED); mix(generatorFor(WORLD_SEED));
+    mix(WORLD_SEED); mix(GEN);
     for (const r of RIVER_SOURCES) { mix(r.sx); mix(r.sy); mix(r.dir); mix(r.length); mix(r.meander || 0); }
     for (const l of LAKES) { mix(l.cx); mix(l.cy); mix(l.radius); }
     for (const r of RANGES) { mix(r.sx); mix(r.sy); mix(r.ex); mix(r.ey); mix(r.width); }
@@ -540,11 +568,13 @@
   }
   // Une carte jouable : presque toute la terre d'un seul tenant, des biomes dans leurs proportions et d'un seul tenant (pas
   // d'île de neige au milieu du tempéré au-delà de quelques cases), chaque rivière traversable
-  const BIOME_ENCLAVE_MAX = 150;
+  // (seuils de la carte de référence, × SCALE² sur une carte plus grande)
+  const BIOME_ENCLAVE_MAX = 150, MAINLAND_TEMPERATE_MIN = 40000;
   function worldStatsOk(st) {
+    const area = SCALE * SCALE;
     return st.mainland >= 0.9 && st.snow >= 0.1 && st.snow <= 0.3 && st.desert >= 0.1 && st.desert <= 0.3 &&
-      st.mainlandTemperateCells >= 40000 && st.rivers === LEGACY_RIVERS.length && st.crossingsPerRiver.every(n => n >= 2) &&
-      (st.biomeEnclave === undefined || st.biomeEnclave <= BIOME_ENCLAVE_MAX);
+      st.mainlandTemperateCells >= MAINLAND_TEMPERATE_MIN * area && st.rivers === LEGACY_RIVERS.length && st.crossingsPerRiver.every(n => n >= 2) &&
+      (st.biomeEnclave === undefined || st.biomeEnclave <= BIOME_ENCLAVE_MAX * area);
   }
   const layout = () => ({ seed: WORLD_SEED, rivers: RIVER_SOURCES.map(r => ({ ...r })), lakes: LAKES.map(l => ({ ...l })), ranges: RANGES.map(r => ({ ...r })) });
 
@@ -554,7 +584,6 @@
   // maxExpansions par défaut : tout le monde (un trajet d'un bord à l'autre de la carte explore plus de 100 000 cases).
   // Les tableaux de travail sont gardés d'un appel à l'autre (marqués par un numéro d'appel) ; chaque case n'est testée
   // qu'une fois par appel (passage, coût), ce qui ne change rien au chemin trouvé.
-  const CELLS = WORLD_SIZE * WORLD_SIZE;
   const POCKET_FLOOD_MAX = 5000;   // cases au plus pour reconnaître une poche fermée autour d'une destination
   let pfStamp = 0, pfSeen = null, pfClosed, pfG, pfCame, pfBlk, pfCost;
   function pfBuffers() {
@@ -683,7 +712,8 @@
 
   return {
     get worldSeed() { return WORLD_SEED; }, get epoch() { return epoch; }, MAX_SEED, setWorldSeed, worldStats, worldStatsOk, layout,
-    get generator() { return generatorFor(WORLD_SEED); }, get minClientVersion() { return generatorFor(WORLD_SEED); },
+    get generator() { return GEN; }, get minClientVersion() { return GEN; }, NEW_GENERATOR, SIZE_BY_GENERATOR, REFERENCE_SIZE,
+    get WORLD_SIZE() { return WORLD_SIZE; }, get MIN_COORD() { return MIN_COORD; }, get MAX_COORD() { return MAX_COORD; },
     get signature() { return signature(); }, generatorFor,
-    TERRAIN_VERSION, cityCells, GROUND_LAYERS, groundAt, groundVariantAt, valueNoise, WORLD_SIZE, MIN_COORD, MAX_COORD, seededRandom, getBiome, riverAt, crossingAxisAt, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, inWorld, isBlocked, isMainland, findPath, pathLengths, pointAlongPath };
+    TERRAIN_VERSION, cityCells, GROUND_LAYERS, groundAt, groundVariantAt, valueNoise, seededRandom, getBiome, riverAt, crossingAxisAt, computeTerrainType, getTerrainType, BLOCKED, WATER, FOREST, moveCost, inWorld, isBlocked, isMainland, findPath, pathLengths, pointAlongPath };
 });

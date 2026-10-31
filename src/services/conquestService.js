@@ -23,8 +23,8 @@ function assaultsToFall(city, faction) {
 const assaultsLeft = (city, faction) => Math.max(0, Math.round((city.wallStructure ?? 1) * assaultsToFall(city, faction)));   // vies restantes
 
 // Pillage d'un combat gagné (décision du 25 octobre 2026) : pillagePct % du stock hors cachette (seule la cachette protège,
-// décision du 30 octobre 2026 ; une quantité fixe de chaque ressource selon son niveau depuis le 31 octobre 2026), dans la
-// limite de ce que les armées portent ; ce qu'elles ne portent pas reste à la ville. Plusieurs camps alliés se partagent le
+// décision du 30 octobre 2026 ; 1,5 % du stockage de la ville par niveau pour chaque ressource depuis le 31 octobre 2026),
+// dans la limite de ce que les armées portent ; ce qu'elles ne portent pas reste à la ville. Plusieurs camps alliés se partagent le
 // butin selon leur capacité. `survivors` : Map armyId -> unités restantes. Dans la transaction.
 async function pillage(tx, city, armies, survivors) {
   const outside = fx.outsideHideout(city, fx.hideoutAmount(city.buildings, city.player.faction));

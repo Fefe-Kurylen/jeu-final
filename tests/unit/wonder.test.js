@@ -66,10 +66,23 @@ test('titres du Panthéon', () => {
 // ---- vagues : seuls les engins abîment le mur (décision du 30 octobre 2026) ----
 const { resolveCombatDetailed } = require('../../src/services/combatService');
 const { unitsData } = require('../../src/config/gamedata');
-test('vagues d\'Immortels × 5 (recommandation 8) : immortalWaveBase × niveau^immortalWaveExp, réglée dans la configuration', () => {
+test('vagues d\'Immortels : immortalWaveBase × niveau^immortalWaveExp, réglée dans la configuration (base 14 500 depuis le 31 octobre 2026)', () => {
   assert.equal(W.wavePower(1), world.immortalWaveBase);
   assert.equal(W.wavePower(50), Math.round(world.immortalWaveBase * Math.pow(50, world.immortalWaveExp)));
-  assert.ok(Math.abs(W.wavePower(50) - 3.93e6) < 0.01e6 && Math.abs(W.wavePower(100) - 10.0e6) < 0.05e6, `${W.wavePower(50)} / ${W.wavePower(100)}`);
+  assert.equal(world.immortalWaveBase, 14500);
+  assert.equal(world.immortalWaveExp, 1.35);
+  assert.ok(Math.abs(W.wavePower(50) - 2.85e6) < 0.01e6 && Math.abs(W.wavePower(100) - 7.27e6) < 0.01e6, `${W.wavePower(50)} / ${W.wavePower(100)}`);
+});
+
+test('fin de partie réglée pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026) : site 3 M, plan 5,75 M, Merveille à moitié prix', () => {
+  assert.equal(world.immortalSitePower, 3000000);
+  assert.equal(world.immortalPlanPower, 5750000);
+  assert.deepEqual(world.wonderCostBase, { wood: 125000, stone: 125000, iron: 125000, food: 37500 });
+  assert.equal(world.wonderCostFactor, 1.05);
+  // la Merveille entière : ≈ 1,08 G (avant 2,15 G)
+  let total = 0;
+  for (let l = 1; l <= world.wonderMaxLevel; l++) total += Object.values(W.levelCost(l)).reduce((t, n) => t + n, 0);
+  assert.ok(Math.abs(total - 1.077e9) < 0.005e9, String(total));
 });
 
 test('vagues d\'Immortels : 15 % de mangonneaux, la puissance de la vague inchangée', () => {
@@ -87,21 +100,37 @@ test('vagues d\'Immortels : 15 % de mangonneaux, la puissance de la vague inchan
   assert.ok(!('SUL_SIEGE_MANGONNEAU' in W.immortalUnits(world.immortalSitePower)));
 });
 
+// le Mur d'une Ville Merveille (pas une capitale) s'arrête à WALL.effects.colonyMaxLevel : 15
+const fx = require('../../src/utils/buildingEffects');
+const WONDER_WALL = fx.maxLevelIn('WALL', false);
+const wonderWallHp = require('../../src/config').combat.wallHpPerLevel * WONDER_WALL;
 test('vagues d\'Immortels : sans engins un mur ne tombe jamais ; avec, il tient tôt et tombe plus tard', () => {
-  const wall = { hp: 20000, maxHp: 20000 };   // mur 20
+  assert.equal(WONDER_WALL, 15);
+  const wall = { hp: wonderWallHp, maxHp: wonderWallHp };   // mur 15, le plus haut d'une Ville Merveille
   const defenders = (power) => [['ROM_INF_LEGIONNAIRE', 0.4], ['ROM_ARC_ELITE', 0.3], ['ROM_CAV_LOURDE', 0.3]].map(([unitKey, s]) => ({ unitKey, tier: 'elite', count: Math.round(power * s / 220) }));
-  const fight = (atk, level) => resolveCombatDetailed(atk, defenders(W.wavePower(level) * 0.5), 20, 'Immortels', 'D', null, null, 'SULTAN', 'ROME', 0, null, { ...wall });
+  const fight = (atk, level) => resolveCombatDetailed(atk, defenders(W.wavePower(level) * 0.5), WONDER_WALL, 'Immortels', 'D', null, null, 'SULTAN', 'ROME', 0, null, { ...wall });
   // l'ancienne vague (soldats seuls) : le mur reste debout quelle que soit sa force, la Merveille ne perdrait jamais de niveau
   const soldiersOnly = fight(W.immortalLines(W.immortalUnits(W.wavePower(60))), 60);
-  assert.equal(soldiersOnly.wallHpEnd, 20000);
+  assert.equal(soldiersOnly.wallHpEnd, wonderWallHp);
   assert.equal(soldiersOnly.attackerWon, false);
-  // avec ses mangonneaux : le mur 20 tient au niveau 1, tombe au niveau 30 face à une défense faible
+  // avec ses mangonneaux : le mur tient au niveau 1, tombe au niveau 30 face à une défense faible
   const early = fight(W.immortalLines(W.waveUnits(1)), 1);
   assert.ok(early.wallHpEnd > 0);
   assert.equal(early.attackerWon, false);
   const late = fight(W.immortalLines(W.waveUnits(30)), 30);
   assert.equal(late.wallHpEnd, 0);
   assert.equal(late.attackerWon, true);
+});
+
+test('vagues (base 14 500, décision du 31 octobre 2026) contre le mur 15 d\'une Ville Merveille sans défenseurs : il tient jusqu\'au niveau 2, tombe au 2e round au niveau 10, au 1er dès le 16', () => {
+  const fight = (level) => resolveCombatDetailed(W.immortalLines(W.waveUnits(level)), [], WONDER_WALL, 'Immortels', 'D', null, null, 'SULTAN', 'GREEK', 0, null, { hp: wonderWallHp, maxHp: wonderWallHp });
+  const fallRound = (level) => fight(level).rounds.findIndex(r => r.wallHp === 0) + 1;   // 0 : debout à la fin
+  assert.equal(fight(2).attackerWon, false);
+  assert.equal(fight(3).attackerWon, true);
+  assert.ok(fallRound(9) > 2);
+  assert.equal(fallRound(10), 2);
+  assert.ok(fallRound(15) > 1);
+  assert.equal(fallRound(16), 1);
 });
 
 // ---- base factice : le client Prisma est remplacé le temps d'un test (aucune requête réelle) ----
@@ -116,8 +145,8 @@ function stubPrisma(models) {
 
 test('vague contre une Ville Merveille murée : le mur tombe sous les mangonneaux, la Merveille perd un niveau', async () => {
   const writes = [], reports = [];
-  const city = { id: 'c1', name: 'Merveille', x: 1, y: 2, playerId: 'p1', isWonder: true, wonderLevel: 30, wallMaxHp: 20000, wallHp: 20000, wallStructure: 1,
-    buildings: [{ key: 'WALL', level: 20 }], player: { name: 'Aulus', faction: 'ROME' },
+  const city = { id: 'c1', name: 'Merveille', x: 1, y: 2, playerId: 'p1', isWonder: true, wonderLevel: 30, wallMaxHp: wonderWallHp, wallHp: wonderWallHp, wallStructure: 1,
+    buildings: [{ key: 'WALL', level: WONDER_WALL }], player: { name: 'Aulus', faction: 'ROME' },
     armies: [{ x: 1, y: 2, status: 'IDLE', units: [{ id: 'u1', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 50 }] }] };
   const tx = {
     $queryRaw: async () => [],

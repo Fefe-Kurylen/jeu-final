@@ -9,9 +9,9 @@
 //   niv. 15 qui. Plus d'interception. La Tour de guet est un bâtiment « capitale seulement » (décision du 30 octobre 2026) :
 //   celle de la capitale compte pour les espions et les alertes de toutes les villes du joueur.
 // - Ressources et troupes : les troupes présentes et la partie des ressources qu'un pillage pourrait prendre (hors
-//   cachette, seule protection depuis le 30 octobre 2026 ; quantité fixe par ressource depuis le 31 octobre 2026), arrondie à
-//   la centaine. Défenses et troupes : les troupes, le mur (niveau, santé), la Tour de guet, la cachette (quantité cachée
-//   par ressource) et le bonus de défense (Forge et Brasserie de la capitale). Point : stock exact, tribu ou armées qui
+//   cachette, seule protection depuis le 30 octobre 2026 ; 1,5 % du stockage de la ville par niveau depuis le 31 octobre
+//   2026), arrondie à la centaine. Défenses et troupes : les troupes, le mur (niveau, santé), la Tour de guet, la cachette
+//   (part du stockage et quantité cachée de chaque ressource) et le bonus de défense (Forge et Brasserie de la capitale). Point : stock exact, tribu ou armées qui
 //   récoltent ; le point garde son stock exact affiché pour l'espion pendant 1 h.
 // ============================================================
 const prisma = require('../config/database');
@@ -129,7 +129,7 @@ async function cityReport(spy, owner) {
     const wallLevel = wallLevelOf(city.buildings);
     data = { mission: 'DEFENSES', defenses: {
       wallLevel, wallHp: Math.round(wallHpNow(city)), wallMaxHp: city.wallMaxHp || 0, structurePct: Math.round(Math.max(0, Math.min(1, city.wallStructure ?? 1)) * 100),
-      watchtowerLevel: tower, hideoutLevel: levelOf(city.buildings, 'HIDEOUT'), hideoutAmount: hidden,
+      watchtowerLevel: tower, hideoutLevel: levelOf(city.buildings, 'HIDEOUT'), hideoutPct: fx.hideoutPct(levelOf(city.buildings, 'HIDEOUT'), city.player?.faction), hideoutAmount: hidden,
       defenseBonusPct: Math.round(fx.defenseBonusPct(buildings) + fx.forgeDefensePct(buildings)), sieged: !!city.isSieged
     } };
     base.buildings = ['WALL', 'WATCHTOWER', 'HIDEOUT'].map(k => ({ key: k, level: levelOf(buildings, k) })).filter(b => b.level > 0);

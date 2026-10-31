@@ -269,9 +269,9 @@ function buildingFunctions(key, fx) {
     FORGE: [[`Attaque et défense de toutes vos troupes, dans tous les combats (+${fmtTechPct(fx.attackBonusPctPerLevel)} % et +${fmtTechPct(fx.defenseBonusPctPerLevel)} % par niveau)`, 1]],
     FARM: [['Production de céréales', 1]], LUMBER: [['Production de bois', 1]], QUARRY: [['Production de pierre', 1]], IRON_MINE: [['Production de fer', 1]],
     SILO: [['Capacité de stockage des céréales', 1]], WAREHOUSE: [['Capacité de stockage du bois, de la pierre et du fer', 1]],
-    HIDEOUT: [[`Une quantité fixe de chaque ressource à l'abri des pillages (${formatNum(hideoutAmountAt(1))} au niveau 1, ${formatNum(hideoutAmountAt(20))} au niveau 20) : la seule protection`, 1, 'panel']],
+    HIDEOUT: [[`Une part du stockage de la ville à l'abri des pillages pour chaque ressource (${fmtTechPct(hideoutPctAt(1))} % par niveau, ${fmtTechPct(hideoutPctAt(20))} % au niveau 20) : la seule protection`, 1, 'panel']],
     HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés de toutes vos villes (ils rejoignent la capitale)', 1, 'panel']],
-    MARKET: [['Échanges immédiats avec le marchand du serveur, depuis toutes vos villes', 1, tab('market')], [`Un marchand par niveau (${merchantsAt(20)} au niveau 20) : ils portent les échanges entre joueurs, les envois et les routes commerciales, occupés à l'aller et au retour`, 1, tab('market')],
+    MARKET: [['Échanges immédiats avec le marchand du serveur, depuis toutes vos villes', 1, tab('market')], ['Échanges avec les autres joueurs et envois de ressources, portés par vos armées selon la charge de leurs troupes', 1, tab('market')],
       [`Armées de transport plus chargées (+${fmtTechPct(fx.playerTransportBonusPctPerLevel)} % par niveau)`, 1]],
     WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Seuls les engins de siège l\'abîment', 1], ['Bâti sur l\'enceinte, hors des emplacements : touchez l\'enceinte dans la ville', 1],
       [`Niveau ${fx.colonyMaxLevel} au plus dans une colonie`, 1]],
@@ -285,18 +285,19 @@ function buildingFunctions(key, fx) {
       [`Cavalerie formée plus vite dans l'Écurie de la capitale (−${fmtTechPct(fx.capitalTrainTimeReductionPctPerLevel)} % par niveau ; les niveaux de toutes vos Grandes écuries s'additionnent)`, 1]],
     EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')],
       [`Taille de l'alliance dont vous êtes le chef : ${fx.allianceMembersPerLevel} membres par niveau (${allianceMaxMembersAt(20)} au niveau 20)`, fx.createAllianceLevel || 7], ['Aide d\'alliance', null]],
-    TREASURE_CHAMBER: [[`Or chaque jour (${formatNum(fx.goldProdPerDayL1)} au niveau 1, ${formatNum(fx.goldProdPerDayL20)} au niveau 20)`, 1, tab('inventory')], ['Votre or ne peut jamais être pillé : il n\'est pas dans le stock des villes', 1]],
-    HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')]],
+    TREASURE_CHAMBER: [[`Or chaque jour (${formatNum(fx.goldProdPerDayL1)} au niveau 1, ${formatNum(fx.goldProdPerDayL20)} au niveau 20)`, 1, tab('inventory')], ['Votre or ne peut jamais être pillé : il n\'est pas dans le stock des villes', 1],
+      ...(player?.economy?.market ? [[`Taxe des échanges entre joueurs réduite (−${fmtTechPct(player.economy.market.treasureTaxReductionPctPerLevel)} % par niveau)`, 1, tab('market')]] : [])],
+    HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')], ['Seule une expédition menée par le héros rapporte de l\'or et des objets', 1, tab('hero')]],
     WATCHTOWER: [[`Armées des autres joueurs visibles autour de chacune de vos villes (${fx.visionRangeL1} cases plus ${fx.visionRangePerLevel} par niveau ; le reste de la carte se voit partout)`, 1, tab('map')], ['Alertes des attaques en approche, pour toutes vos villes', 1, tab('reports')], ['Attaquant révélé', fx.alertArmyWhoWhenLevel || 10], ['Effectifs révélés', fx.alertArmyDetailsLevel || 15], ['Premier espion (20 or)', 5, tab('army')], ['Deuxième espion (200 or)', 10, tab('army')], ['Passage des espions ennemis', 5], ['Heure des espions ennemis', 10], ['Nom des espions ennemis', 15]],
     RESIDENCE: [['Construction plus rapide (−0,25 % par niveau)', 1], ['Colons pour fonder des colonies (1 au niveau 10, 2 au niveau 20)', 10, 'panel'],
       [`Une colonie se spécialise selon son gisement : +${fx.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa ressource, ${String(fx.colonyOtherResourcesPct).replace('-', '−')} % sur les trois autres`, 10]],
-    TRADE_OFFICE: [[`Taxe des échanges entre joueurs (−${fx.p2pTaxReductionPctPerLevel} % par niveau) et charge des marchands et des armées de transport (+${fx.armyTransportCapacityBonusPctPerLevel} % par niveau)`, 1, tab('market')]],
+    TRADE_OFFICE: [[`Taxe des échanges entre joueurs (${player?.economy?.market ? `${player.economy.market.p2pTaxPctBase} % de base, ` : ''}−${fx.p2pTaxReductionPctPerLevel} % par niveau) et charge des armées de transport (+${fx.armyTransportCapacityBonusPctPerLevel} % par niveau)`, 1, tab('market')]],
     ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
     GALLIC_BREWERY: [['Défense de toutes vos villes (+1 % par niveau)', 1]],
     GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide (−1 % par niveau)', 1]],
     EGYPTIAN_IRRIGATION: [['Production de toutes vos villes (+1 % par niveau)', 1], ['Vitesse de marche de toutes vos armées et de vos espions (+0,5 % par niveau)', 1]],
     HUN_WAR_TENT: [['Entretien réduit (−0,5 % par niveau)', 1], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
-    SULTAN_DESERT_OUTPOST: [[`Entretien réduit (−${fmtTechPct(fx.upkeepReductionPctPerLevel)} % par niveau)`, 1], [`Charge des marchands, des armées de transport et des récoltes (+${fmtTechPct(fx.armyTransportCapacityBonusPctPerLevel)} % par niveau)`, 1]]
+    SULTAN_DESERT_OUTPOST: [[`Entretien réduit (−${fmtTechPct(fx.upkeepReductionPctPerLevel)} % par niveau)`, 1], [`Charge des armées de transport et des récoltes (+${fmtTechPct(fx.armyTransportCapacityBonusPctPerLevel)} % par niveau)`, 1]]
   };
   return F[key] || [];
 }

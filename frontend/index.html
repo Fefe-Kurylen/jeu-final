@@ -87,6 +87,18 @@
                         </div>
                         <input type="hidden" id="reg-faction" value="">
                     </div>
+                    <div class="form-group">
+                        <label id="reg-side-label">Côté de la carte</label>
+                        <p class="side-hint">Rejoignez vos amis du même côté (le nord est enneigé, le sud désertique).</p>
+                        <div class="side-grid" role="radiogroup" aria-labelledby="reg-side-label">
+                            <button type="button" class="side-option" role="radio" aria-checked="false" data-side="N" onclick="selectSide('N')">Nord</button>
+                            <button type="button" class="side-option" role="radio" aria-checked="false" data-side="E" onclick="selectSide('E')">Est</button>
+                            <button type="button" class="side-option" role="radio" aria-checked="false" data-side="S" onclick="selectSide('S')">Sud</button>
+                            <button type="button" class="side-option" role="radio" aria-checked="false" data-side="W" onclick="selectSide('W')">Ouest</button>
+                            <button type="button" class="side-option selected" role="radio" aria-checked="true" data-side="RANDOM" onclick="selectSide('RANDOM')">Au hasard</button>
+                        </div>
+                        <input type="hidden" id="reg-side" value="RANDOM">
+                    </div>
                     <button onclick="register()" class="btn-primary btn-large">Fonder mon Empire</button>
                     <p class="auth-link">Déjà conquérant ? <a href="#" onclick="showLogin(); return false;">Se connecter</a></p>
                 </div>
@@ -205,7 +217,7 @@
                 <div id="tab-fields" class="tab">
                 </div>
                 <div id="tab-city" class="tab active">
-                    <div class="view-canvas-container"><canvas id="city-canvas"></canvas><button type="button" id="city-site-badge" class="city-site-badge" style="display:none" onclick="showCitySiteInfo()"></button><div class="canvas-tooltip" id="city-tooltip" style="display:none"></div><div id="city-actions" class="city-actions" style="display:none" role="group" aria-label="Actions du bâtiment"></div></div>
+                    <div class="view-canvas-container"><canvas id="city-canvas"></canvas><button type="button" id="city-site-badge" class="city-site-badge" style="display:none" onclick="showCitySiteInfo()"></button><button type="button" id="city-protection-badge" class="city-protection-badge" style="display:none" onclick="showCityProtectionInfo()"></button><div class="canvas-tooltip" id="city-tooltip" style="display:none"></div><div id="city-actions" class="city-actions" style="display:none" role="group" aria-label="Actions du bâtiment"></div></div>
                 </div>
                 <div id="tab-map" class="tab">
                     <div class="map-view">
@@ -327,13 +339,12 @@
                             <button class="toolbar-btn active" onclick="showMarketTab('send')"><img class="ico" src="assets/images/3d/ui/send.webp" alt=""> Envoyer</button>
                             <button class="toolbar-btn" onclick="showMarketTab('offers')"><img class="ico" src="assets/images/3d/ui/list.webp" alt=""> Offres</button>
                             <button class="toolbar-btn" onclick="showMarketTab('npc')"><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand</button>
-                            <button class="toolbar-btn" onclick="showMarketTab('routes')"><img class="ico" src="assets/images/3d/ui/map.webp" alt=""> Routes</button>
                         </div>
                         <div id="market-content" class="market-content">
-                            <div id="market-merchants" class="market-merchants" aria-live="polite"></div>
                             <div id="market-section-send" class="market-section">
                                 <h3>Envoyer des ressources</h3>
-                                <div class="send-form" oninput="updateSendMerchants()">
+                                <p class="diplo-help">Une armée de la ville porte les ressources à la ville d'un autre joueur (ou à une Ville Merveille), selon la charge de ses troupes, puis rentre. Vos villes partagent leur stock : rien à envoyer entre elles.</p>
+                                <div class="send-form" oninput="updateSendHelp()">
                                     <div class="form-row"><label>Destination</label><div class="coord-pair"><input type="number" id="send-target-x" placeholder="X" inputmode="numeric" pattern="-?[0-9]*"><span class="coord-sep">|</span><input type="number" id="send-target-y" placeholder="Y" inputmode="numeric" pattern="-?[0-9]*"></div></div>
                                     <div class="resources-input">
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
@@ -341,7 +352,8 @@
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span><input type="number" id="send-iron" value="0" min="0" inputmode="numeric"></div>
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span><input type="number" id="send-food" value="0" min="0" inputmode="numeric"></div>
                                     </div>
-                                    <p class="diplo-help" id="send-merchants"></p>
+                                    <div class="form-row"><label>Armée</label><select id="send-army" aria-label="Armée de transport"></select></div>
+                                    <p class="diplo-help" id="send-help" aria-live="polite"></p>
                                     <button onclick="sendResources()" class="btn-primary">Envoyer</button>
                                 </div>
                             </div>
@@ -350,17 +362,17 @@
                                 <div class="market-create-offer">
                                     <h4>Créer une offre</h4>
                                     <div class="offer-form">
-                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue" oninput="updateOfferMerchants()"></div>
+                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue" oninput="updateOfferHelp()"></div>
                                         <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">Bois</option><option value="stone" selected>Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-buy-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité demandée"></div>
-                                        <p class="diplo-help" id="market-offer-merchants"></p>
-                                        <p class="diplo-help" id="market-offer-help">Vos marchands attendent en ville avec les marchandises jusqu'à l'échange (48 h au plus) ; à l'échange, les marchands de chaque côté partent, et une taxe est prélevée sur ce qu'ils portent.</p>
+                                        <div class="offer-form-row"><label>Armée</label><select id="market-offer-army" aria-label="Armée de transport" onchange="updateOfferHelp()"></select></div>
+                                        <p class="diplo-help" id="market-offer-transport" aria-live="polite"></p>
+                                        <p class="diplo-help" id="market-offer-help">L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (48 h au plus) ; à l'échange, chaque côté envoie une armée, et une taxe est prélevée sur ce qu'elle porte.</p>
                                         <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
                                     </div>
                                 </div>
                                 <div id="market-offers" class="offers-section"></div>
                             </div>
                             <div id="market-section-npc" class="market-section" style="display:none"></div>
-                            <div id="market-section-routes" class="market-section" style="display:none"><div id="market-routes-box"><p class="empty-state">Chargement…</p></div></div>
                         </div>
                     </div>
                 </div>

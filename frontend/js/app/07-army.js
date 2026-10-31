@@ -207,6 +207,8 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'FOUNDING': { icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', label: 'Fondation', cls: 'moving' },
     'SUPPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'Renfort en route', cls: 'moving' },
     'STATIONED': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'En renfort', cls: 'idle' },
+    // armée réservée par une offre du marché : elle attend en ville avec les marchandises (11-market.js)
+    'MARKET': { icon: '<img class="ico" src="assets/images/3d/ui/market.webp" alt="">', label: 'Offre du marché', cls: 'idle' },
     // rassemblement d'alliance contre un donjon (09l-rally.js)
     'RALLY_JOIN': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rejoint un rassemblement', cls: 'moving' },
     'RALLY_WAIT': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rassemblement (attente)', cls: 'idle' },
@@ -294,6 +296,12 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <span class="destination-badge" title="L'armée campe 1 h devant la ville, puis le combat démarre tout seul ; le mur sert de bouclier et seuls vos engins l'abîment ; l'armée rentre ensuite chez elle">Combat dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
+        ` : army.status === 'MARKET' ? `
+          <button class="army-btn secondary" onclick="showTab('market'); showMarketTab('offers')" title="Annulez l'offre au marché pour libérer l'armée">${resIconHtml('market')} Voir l'offre</button>
+          <span class="destination-badge">Attend en ville avec les marchandises d'une offre</span>
+        ` : army.status === 'TRANSPORTING' && army.missionType === 'MARKET_DELIVERY' ? `
+          <span class="destination-badge" title="Armée d'un échange du marché : elle livre puis rentre toute seule, on ne peut pas la rappeler">${resIconHtml('market')} Livraison d'un échange</span>
+          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler

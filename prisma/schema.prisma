@@ -75,8 +75,6 @@ model Player {
   cities                 City[]
   armies                 Army[]
   hero                   Hero?
-  tradeRoutes            TradeRoute[]
-  tradeConvoys           TradeConvoy[]
   stats                  PlayerStats?
   ownedReports           BattleReport[]        @relation("ReportOwner")
   sentReports            BattleReport[]        @relation("Attacker")
@@ -468,7 +466,7 @@ model MarketOffer {
   buyAmount    Int
   status       String    @default("ACTIVE")
   createdAt    DateTime  @default(now())
-  merchants    Int       @default(0) // marchands du vendeur réservés avec les marchandises tant que l'offre est active (décision du 31 octobre 2026)
+  armyId       String?   // armée du vendeur réservée avec les marchandises tant que l'offre est active (statut MARKET)
   expiresAt    DateTime? // une offre non prise revient au vendeur au bout de 48 h
   buyerCityId  String?
   acceptedAt   DateTime?
@@ -608,7 +606,7 @@ model Expedition {
 model WorldConfig {
   id                 Int       @id @default(1)
   seed               Int
-  generator          Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard), toujours écrite
+  generator          Int // version du terrain qui a tiré la carte (2 = référence, 3 = cartes au hasard en 374 × 374, 4 = nouveaux mondes en 420 × 420), toujours écrite
   readyAt            DateTime? // monde prêt (points de ressource posés) : le serveur ouvre ; le jour 1 du monde
   createdAt          DateTime  @default(now())
   // cycle du serveur (décision du 28 octobre 2026)
@@ -941,54 +939,6 @@ model Bastion {
   alliance Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
 
   @@index([x, y])
-}
-
-// Route commerciale automatique entre deux villes du même joueur (GDD market.internalRoutesBetweenOwnCities, décision du
-// 27 octobre 2026) : toutes les 2 h, un convoi part avec une part du stockage de la ville de départ, 100 % au plus en 24 h
-model TradeRoute {
-  id         String   @id @default(uuid())
-  playerId   String
-  fromCityId String
-  toCityId   String
-  wood       Boolean  @default(false)
-  stone      Boolean  @default(false)
-  iron       Boolean  @default(false)
-  food       Boolean  @default(false)
-  active     Boolean  @default(true)
-  nextSendAt DateTime @default(now())
-  createdAt  DateTime @default(now())
-
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@index([active, nextSendAt])
-  @@index([playerId])
-}
-
-// Marchands en route (décision du 31 octobre 2026, services/marketService.js) : toute livraison du marché (route commerciale,
-// envoi, échange entre joueurs) ; `playerId` possède les marchands. Les marchandises sont livrées à arrivalAt (ce qui ne
-// tient pas reste chargé), puis les marchands rentrent à fromCityId pour returnAt ; la ligne disparaît au retour.
-model TradeConvoy {
-  id          String    @id @default(uuid())
-  playerId    String
-  routeId     String?
-  kind        String    @default("ROUTE") // ROUTE (route commerciale), SEND (envoi), TRADE (échange entre joueurs)
-  fromCityId  String
-  toCityId    String
-  wood        Int       @default(0)
-  stone       Int       @default(0)
-  iron        Int       @default(0)
-  food        Int       @default(0)
-  merchants   Int       @default(0) // marchands occupés jusqu'au retour
-  departedAt  DateTime  @default(now())
-  arrivalAt   DateTime
-  deliveredAt DateTime? // livré : les marchands rentrent avec ce qui n'a pas tenu
-  returnAt    DateTime
-
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@index([arrivalAt])
-  @@index([returnAt])
-  @@index([playerId])
 }
 
 // Plan de construction d'une Merveille (jour 150) : pris aux Immortels, nécessaire à l'alliance au-delà du niveau 50 ;

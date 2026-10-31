@@ -50,7 +50,7 @@ const EFFECT = {
   WORKSHOP: (L) => `Entraînement −${L * 4} %${L >= 5 ? ' · engins de siège' : ' · (engins dès le niv. 5)'}`,
   ACADEMY: (L) => `Construction −${L} % (plafond commun 60 %)`,
   FORGE: (L) => `Attaque et défense de toutes vos troupes +${pct(fx.forgeAttackPct(at('FORGE', L)))} %, dans tous les combats`,
-  HIDEOUT: (L) => `${fmt(fx.hideoutAmount(at('HIDEOUT', L), null))} de chaque ressource à l'abri des pillages (Gaule × ${pct(1 + getFactionBonus('GAUL', 'hideoutCapacity', factionsData) / 100)})`,
+  HIDEOUT: (L) => `${pct(fx.hideoutPct(L, null))} % du stockage de la ville à l'abri des pillages pour chaque ressource (Gaule × ${pct(1 + getFactionBonus('GAUL', 'hideoutCapacity', factionsData) / 100)})`,
   HEALING_TENT: (L) => `${Math.min(70, 30 + L * 3)} % des pertes récupérées en blessés`,
   MARKET: (L) => `${fx.merchantCount(at('MARKET', L))} marchand(s) · taxe du marchand du serveur ${fx.npcMarketTaxPct(L)} % · armées de transport +${L * eff('MARKET', 'playerTransportBonusPctPerLevel')} %`,
   WALL: (L) => `Défense +${L} % · ${fmt(L * config.combat.wallHpPerLevel)} PV de mur · réparation +${L} % · sur l'enceinte · colonie : niveau ${fx.maxLevelIn('WALL', false)} au plus`,

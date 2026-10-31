@@ -19,18 +19,23 @@ const safeStorage = (() => {
   };
 })();
 // Carte du serveur (décision du 26 octobre 2026) : chaque serveur a la sienne, tirée d'une graine qu'il publie dans
-// /api/world/info. La dernière graine connue de ce serveur est gardée pour dessiner tout de suite la bonne carte au
-// prochain lancement, avant même la réponse du serveur (et hors ligne).
+// /api/world/info avec le générateur de la carte (sa taille en dépend : 374 × 374 avant le 31 octobre 2026, 420 × 420
+// depuis). La dernière graine connue de ce serveur (« graine:générateur ») est gardée pour dessiner tout de suite la bonne
+// carte au prochain lancement, avant même la réponse du serveur (et hors ligne).
 const WORLD_SEED_KEY = 'world-seed:' + (API || (typeof location !== 'undefined' ? location.origin : ''));
 let worldSeedKnown = false;      // la graine de ce serveur est connue (réponse du serveur ou dernière visite)
 let worldSeedConfirmed = false;  // le serveur l'a donnée pendant cette session (sinon on la redemande en arrière-plan)
 (function restoreWorldSeed() {
   const saved = safeStorage.getItem(WORLD_SEED_KEY);
-  if (saved !== null && saved !== '' && typeof Terrain !== 'undefined' && Terrain.setWorldSeed) { Terrain.setWorldSeed(Number(saved)); worldSeedKnown = true; }
+  if (saved === null || saved === '' || typeof Terrain === 'undefined' || !Terrain.setWorldSeed) return;
+  // une graine seule : gardée par une version d'avant le 31 octobre 2026, quand toute carte venait du générateur 2 (graine 0)
+  // ou 3 (les autres)
+  const [seed, generator] = String(saved).split(':').map(Number);
+  try { Terrain.setWorldSeed(seed, Number.isInteger(generator) ? generator : (seed ? 3 : 2)); worldSeedKnown = true; } catch (e) { /* carte d'un autre générateur : le serveur la redonnera */ }
 })();
-// Applique la graine du serveur ; si la carte change (premier lancement, autre serveur), tout ce qui garde du terrain est
-// refait et la vue en cours redessinée
-function applyWorldSeed(seed, signature) {
+// Applique la graine et le générateur du serveur ; si la carte change (premier lancement, autre serveur), tout ce qui garde
+// du terrain est refait et la vue en cours redessinée. Un générateur que ce terrain ne sait pas dessiner : mise à jour.
+function applyWorldSeed(seed, signature, generator) {
   if (typeof seed !== 'number') return;
   if (typeof Terrain === 'undefined' || !Terrain.setWorldSeed) {
     // terrain d'une version d'avant les cartes au hasard (fichier resté en cache) : il dessine bien la carte de référence ;
@@ -39,9 +44,10 @@ function applyWorldSeed(seed, signature) {
     if (seed !== 0) onTerrainOutdated();
     return;
   }
-  safeStorage.setItem(WORLD_SEED_KEY, String(seed));
+  let changed;
+  try { changed = Terrain.setWorldSeed(seed, generator); } catch (e) { onTerrainOutdated(); return; }
+  safeStorage.setItem(WORLD_SEED_KEY, `${seed}:${Terrain.generator}`);
   worldSeedKnown = true;
-  const changed = Terrain.setWorldSeed(seed);
   // même graine mais pas la même carte (version du jeu ou moteur JavaScript différent) : on le signale sans bloquer
   if (signature && Terrain.signature !== signature && !applyWorldSeed._warned) {
     applyWorldSeed._warned = true;
@@ -49,7 +55,8 @@ function applyWorldSeed(seed, signature) {
     if (typeof track === 'function') track('terrain_mismatch', { seed, client: Terrain.signature, server: signature, version: Terrain.TERRAIN_VERSION });
   }
   if (!changed) return;
-  console.log(`🌍 Carte du serveur : graine ${seed}`);
+  console.log(`🌍 Carte du serveur : graine ${seed}, ${Terrain.WORLD_SIZE} × ${Terrain.WORLD_SIZE}`);
+  if (typeof updateWorldSize === 'function') updateWorldSize();   // bornes de la carte (map.js)
   if (typeof onWorldTerrainChanged === 'function') onWorldTerrainChanged();
 }
 // Polyfill roundRect (iOS < 16)
@@ -187,14 +194,20 @@ function buildingCapIn(key, city) {
   const max = buildingMaxLevelIn(key, city);
   return key === 'MAIN_HALL' ? max : Math.min(max, Math.max(1, levelIn(city?.buildings, 'MAIN_HALL')));
 }
-// Cachette (décision du 31 octobre 2026, façon Travian) : quantité de CHAQUE ressource à l'abri des pillards à ce niveau
-// (HIDEOUT.effects.hideoutL1 → hideoutL20, même courbe que le stockage), × bonus de cachette de la civilisation (Gaule),
-// comme fx.hideoutAmount du serveur
-function hideoutAmountAt(level, faction = player?.faction) {
-  if (level <= 0) return 0;
-  const l1 = buildingEffectOf('HIDEOUT', 'hideoutL1'), l20 = buildingEffectOf('HIDEOUT', 'hideoutL20', l1);
-  const base = level >= 20 ? l20 : Math.round(lerpExp(l1, l20, (level - 1) / 19));
-  return Math.floor(base * (1 + factionBonusPct(faction, 'hideoutCapacity') / 100));
+// Cachette (décision du 31 octobre 2026, rapport de vérification) : chaque niveau met à l'abri des pillards
+// HIDEOUT.effects.hideoutStoragePctPerLevel (1,5 %) du stockage de la ville pour chaque ressource (30 % au niveau 20),
+// × bonus de cachette de la civilisation (Gaule), comme fx.hideoutPct / fx.hideoutAmount du serveur. En centièmes de % :
+// un nombre exact, divisé une seule fois
+const hideoutPctX100 = (level, faction) => Math.max(0, Math.floor(Number(level) || 0)) * buildingEffectOf('HIDEOUT', 'hideoutStoragePctPerLevel') * (100 + factionBonusPct(faction, 'hideoutCapacity'));
+// Part du stockage (%) à l'abri à ce niveau
+function hideoutPctAt(level, faction = player?.faction) {
+  return hideoutPctX100(level, faction) / 100;
+}
+// Quantité à l'abri dans une ville { maxStorage, maxFoodStorage } à ce niveau : { wood, stone, iron, food }
+function hideoutAmountIn(city, level, faction = player?.faction) {
+  const x100 = hideoutPctX100(level, faction);
+  const goods = Math.floor((city?.maxStorage || 1000) * x100 / 10000);
+  return { wood: goods, stone: goods, iron: goods, food: Math.floor((city?.maxFoodStorage || 1000) * x100 / 10000) };
 }
 // Forge de la capitale (décision du 31 octobre 2026) : % d'attaque ('attack') ou de défense ('defense') pour toutes les troupes
 // du joueur, dans tous les combats ; 50 % au plus comme fx.forgeAttackPct / fx.forgeDefensePct du serveur
@@ -421,6 +434,22 @@ function selectFaction(faction) {
   document.getElementById('reg-faction').value = faction;
 }
 
+// Côté de la carte où naît la capitale (décision du 31 octobre 2026) : 'N', 'E', 'S', 'W' ou 'RANDOM'
+function selectSide(side) {
+  document.querySelectorAll('.side-option').forEach(el => {
+    const on = el.dataset.side === side;
+    el.classList.toggle('selected', on);
+    el.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  document.getElementById('reg-side').value = side;
+}
+// Côté choisi plein : la capitale est posée sur un autre (réponse de l'inscription ou de « Rejoindre le nouveau monde »)
+function noteSideFallback(asked, got) {
+  if (!asked || asked === 'RANDOM' || !got || got === asked || typeof showToast !== 'function') return;
+  const name = (s) => document.querySelector(`.side-option[data-side="${s}"]`)?.textContent || s;
+  showToast(`Plus de place côté ${name(asked)} : votre capitale est côté ${name(got)}.`, 'info');
+}
+
 async function login() {
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-password').value;
@@ -451,6 +480,7 @@ async function register() {
   const name = document.getElementById('reg-name').value;
   const password = document.getElementById('reg-password').value;
   const faction = document.getElementById('reg-faction').value;
+  const side = document.getElementById('reg-side')?.value || 'RANDOM';
   
   if (!faction) {
     showAuthError('Choisissez une faction');
@@ -461,7 +491,7 @@ async function register() {
     const res = await fetch(`${API}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, password, faction })
+      body: JSON.stringify({ email, name, password, faction, side })
     });
     const data = await res.json();
     
@@ -469,7 +499,8 @@ async function register() {
       token = data.token;
       safeStorage.setItem('token', token);
       showGame();
-      if (typeof track === 'function') track('register_success', { faction: document.getElementById('reg-faction')?.value || '' });
+      noteSideFallback(side, data.player?.side);
+      if (typeof track === 'function') track('register_success', { faction: document.getElementById('reg-faction')?.value || '', side });
     } else {
       showAuthError(data.error || 'Erreur d\'inscription');
     }
@@ -692,9 +723,10 @@ async function loadWorldInfo() {
     }
     if (res.ok) {
       const info = await res.json();
-      applyWorldSeed(typeof info.worldSeed === 'number' ? info.worldSeed : 0, info.terrainSignature);   // un serveur d'avant les cartes au hasard joue la carte de référence
+      // un serveur d'avant les cartes au hasard joue la carte de référence ; un serveur d'avant le 31 octobre 2026 ne donne pas
+      // le générateur, mais sa version du terrain demandée est ce générateur (2 ou 3)
+      applyWorldSeed(typeof info.worldSeed === 'number' ? info.worldSeed : 0, info.terrainSignature, info.worldGenerator ?? info.terrainVersion);
       worldSeedConfirmed = true;
-      updateWorldSize(info.playerCount, info.worldSize);
       if (info.factions) { window.factionsData = info.factions; applyFactionBonusTexts(); }
       if (info.rules) window.worldRules = info.rules;   // paliers de ville par Bâtiment principal, plafond hors capitale, colonies
       // terrainVersion : la version du terrain qu'il faut pour dessiner la carte de ce serveur
@@ -994,6 +1026,7 @@ function renderCity() {
   updateFamineBanner(hoursToEmpty, netFood);
   if (typeof updateWonderBar === 'function') updateWonderBar();
   updateCitySiteBadge();
+  updateCityProtectionBadge();   // colonie neuve protégée (06c-colonies.js)
 
   // Update attack notification
   updateAttackNotification();

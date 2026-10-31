@@ -1,6 +1,7 @@
 // Économie (décisions du 30 octobre 2026, rapport économie) : stock partagé entre les villes d'un joueur (répartition d'une
 // dépense et d'un remboursement, message de ce qui manque), coût et durée d'un niveau (champs ×1,45 en coût, champs et
-// Bâtiment principal ×1,30 en temps), recrutement, plafonds des quêtes et des routes sans les Grands, soins payants.
+// Bâtiment principal ×1,30 en temps), recrutement, plafonds des quêtes sans les Grands, soins payants, marché porté par des
+// armées (plus de marchands ni de routes entre ses villes, décision du 31 octobre 2026).
 // Aucune requête réelle : les transactions sont factices.
 require('./_env');
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://unit:unit@localhost:5432/unit';   // le client Prisma est créé, jamais interrogé
@@ -219,10 +220,9 @@ test('emplacements de l\'anneau : 18 dans la capitale, 12 dans une colonie ou la
   assert.equal(colony, config.city.ringSlots.colony);
 });
 
-// ---- plafonds des quêtes et des routes sans les Grands (recommandation 12, option A) ----
-test('quêtes et routes : plafonds calculés sur le Dépôt et le Silo seuls, sans le Grand dépôt ni le Grand silo', () => {
+// ---- plafonds des quêtes sans les Grands (recommandation 12, option A) ----
+test('quêtes : plafonds calculés sur le Dépôt et le Silo seuls, sans le Grand dépôt ni le Grand silo', () => {
   const q = require('../../src/services/questService');
-  const MS = require('../../src/services/marketService');
   const plain = [{ key: 'WAREHOUSE', level: 20 }, { key: 'SILO', level: 10 }];
   const great = [...plain, { key: 'GREAT_WAREHOUSE', level: 20 }, { key: 'GREAT_SILO', level: 20 }];
   assert.deepEqual(calc.storageCapsWithoutGreat(great), calc.cityStorageCaps(plain));
@@ -231,9 +231,6 @@ test('quêtes et routes : plafonds calculés sur le Dépôt et le Silo seuls, sa
   assert.equal(cap.wood, calc.getStorageAtLevel('WAREHOUSE', 20, buildingsData) / 2, 'la moitié du plus grand dépôt');
   assert.equal(cap.food, calc.getStorageAtLevel('SILO', 10, buildingsData) / 2);
   assert.deepEqual(q.rewardCap([{ buildings: [] }]), { wood: 500, stone: 500, iron: 500, food: 500 }, 'sans dépôt : la réserve de base');
-  const send = MS.routeSendCap(great);
-  assert.equal(send.other, Math.floor(calc.getStorageAtLevel('WAREHOUSE', 20, buildingsData) * MS.routePct()));
-  assert.equal(send.food, Math.floor(calc.getStorageAtLevel('SILO', 10, buildingsData) * MS.routePct()));
   assert.equal(q.buildCost('FARM', 12).wood, calc.buildCostFor(def('FARM'), 12).wood, 'les récompenses suivent le prix réel');
 });
 
@@ -346,164 +343,161 @@ test('soins : la fin d\'un soin vient après les soins en cours ; la liste des b
   } finally { Object.assign(prisma, saved); }
 });
 
-// ---- marchands (décision du 31 octobre 2026) : toutes les livraisons du marché, occupés à l'aller et au retour ----
+// ---- marché porté par des armées (décision du 31 octobre 2026) : plus de marchands ni de routes entre ses villes ----
 const Terrain = require('../../frontend/js/shared/terrain.js');
-// Le trajet des marchands lit les villes et les points de la carte (pathfinding.getObjectCells) : ici une carte sans villes
-// ni points, aucune requête réelle
+const MS = require('../../src/services/marketService');
+const { factionsData } = require('../../src/config/gamedata');
+// Le trajet lit les villes et les points de la carte (pathfinding.getObjectCells), le Bastion l'alliance du joueur : ici une
+// carte sans villes ni points, sans alliance ; aucune requête réelle
 async function onEmptyMap(fn) {
   const prisma = require('../../src/config/database');
-  const saved = { city: prisma.city, resourceNode: prisma.resourceNode };
-  Object.assign(prisma, { city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] } });
+  const saved = { city: prisma.city, resourceNode: prisma.resourceNode, allianceMember: prisma.allianceMember };
+  Object.assign(prisma, { city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] }, allianceMember: { findUnique: async () => null } });
+  Terrain.setWorldSeed(0);
   try { return await fn(); } finally { Object.assign(prisma, saved); }
 }
-// transaction factice du marché : villes, offres et convois de marchands en mémoire ; chaque écriture SQL est notée
-function marketDb({ cities = {}, convoys = [], offers = [], players = {}, capital = [] } = {}) {
-  const log = [];
-  const sum = (rows) => rows.reduce((t, r) => t + (r.merchants || 0), 0);
-  const tx = {
-    log, convoys, offers,
-    $executeRaw: async (strings, ...values) => { log.push([strings.join('?').trim().split(/\s+/).slice(0, 2).join(' '), ...values]); return 1; },
-    $queryRaw: async (strings, ...values) => {
-      const sql = strings.join('?');
-      if (sql.includes('DELETE FROM "TradeConvoy"')) { const k = convoys.findIndex(c => c.id === values[0] && c.deliveredAt); if (k < 0) return []; const [c] = convoys.splice(k, 1); return [c]; }
-      // marchands occupés : convois du joueur et ses offres actives, dans la même requête (comme PostgreSQL : un BigInt)
-      if (sql.includes('AS busy')) { log.push(['busy', ...values]); return [{ busy: BigInt(sum(convoys.filter(c => c.playerId === values[0])) + sum(offers.filter(o => o.sellerId === values[1] && o.status === 'ACTIVE'))) }]; }
-      log.push(['lock', values[0]]); return [];
+// transaction factice du marché : stock des villes débité et crédité comme debitCity / creditCity, armées, offres ; les
+// verrous sont notés dans l'ordre
+function marketDb({ cities = {}, armies = [], offers = [], capital = [] } = {}) {
+  const locks = [];
+  const match = (row, where) => Object.entries(where).every(([k, v]) => row[k] === v);
+  return {
+    locks, cities, armies, offers,
+    $queryRaw: async (strings, ...values) => { locks.push(values[0]); return []; },
+    $executeRaw: async (strings, ...values) => {
+      const c = cities[values[4]];
+      if (!c) return 0;
+      if (strings.join('?').includes('GREATEST')) { db.RESOURCES.forEach((r, i) => { c[r] = Math.max(c[r], Math.min(c[r] + values[i], r === 'food' ? c.maxFoodStorage : c.maxStorage)); }); return 1; }
+      if (db.RESOURCES.some((r, i) => c[r] < values[i])) return 0;
+      db.RESOURCES.forEach((r, i) => { c[r] -= values[i]; });
+      return 1;
     },
-    city: {
-      findUnique: async ({ where }) => cities[where.id] || null,
-      findFirst: async ({ where }) => Object.values(cities).find(c => (where.id ? c.id === where.id : true) && (where.playerId ? c.playerId === where.playerId : true) && (where.isCapital ? c.isCapital : true)) || null,
-      findMany: async () => [{ isCapital: true, buildings: capital }]
-    },
-    player: { findUnique: async ({ where }) => players[where.id] || null },
-    allianceMember: { findUnique: async () => null },
-    tradeConvoy: {
-      create: async ({ data }) => { const c = { id: `cv${convoys.length + 1}`, deliveredAt: null, ...data }; convoys.push(c); return c; },
-      updateMany: async ({ where, data }) => { const c = convoys.find(x => x.id === where.id && x.deliveredAt === null); if (!c) return { count: 0 }; Object.assign(c, data); return { count: 1 }; },
-      update: async ({ where, data }) => Object.assign(convoys.find(x => x.id === where.id), data)
+    city: { findUnique: async ({ where }) => cities[where.id] || null, findMany: async () => [{ isCapital: true, buildings: capital }] },
+    cityBuilding: { findMany: async () => [] },
+    playerTechnology: { findMany: async () => [] },
+    army: {
+      findMany: async ({ where }) => armies.filter(a => match(a, where)),
+      findFirst: async ({ where }) => armies.find(a => match(a, where)) || null,
+      updateMany: async ({ where, data }) => { const a = armies.find(x => match(x, where)); if (!a) return { count: 0 }; Object.assign(a, data); return { count: 1 }; }
     },
     marketOffer: {
       create: async ({ data }) => { const o = { id: `o${offers.length + 1}`, ...data }; offers.push(o); return o; },
-      updateMany: async ({ where, data }) => { const o = offers.find(x => x.id === where.id && x.status === where.status); if (!o) return { count: 0 }; Object.assign(o, data); return { count: 1 }; },
-      findMany: async ({ where }) => offers.filter(o => o.cityId === where.cityId && o.status === where.status)
+      updateMany: async ({ where, data }) => { const o = offers.find(x => match(x, where)); if (!o) return { count: 0 }; Object.assign(o, data); return { count: 1 }; },
+      findMany: async ({ where }) => offers.filter(o => match(o, where))
     }
   };
-  return tx;
 }
-const MS = require('../../src/services/marketService');
-const MC = config.market.merchants;
+const SLAVE = unitsData.find(u => u.key === 'EGY_INF_ESCLAVE');
+const marketArmy = (id, count, extra = {}) => ({ id, name: `Armée ${id}`, ownerId: 'p1', cityId: 'a', status: 'IDLE', isGarrison: false, x: 0, y: 0, units: [{ unitKey: SLAVE.key, tier: SLAVE.tier, count }], hero: null, ...extra });
+const marketCity = (id, playerId, x, stock = 0) => ({ id, playerId, name: `Ville ${id}`, x, y: 0, buildings: [], wood: stock, stone: stock, iron: stock, food: stock, maxStorage: 100000, maxFoodStorage: 100000 });
 
-test('marchands : autant que de niveaux du Marché de la capitale ; charge selon la civilisation (+ Comptoir et Poste du Désert) ; occupés en route et dans les offres', async () => {
-  Terrain.setWorldSeed(0);
-  const tx = marketDb({ capital: [{ key: 'MARKET', level: 10 }, { key: 'TRADE_OFFICE', level: 10 }], convoys: [{ playerId: 'p1', merchants: 3 }, { playerId: 'p2', merchants: 9 }], offers: [{ sellerId: 'p1', status: 'ACTIVE', merchants: 2 }, { sellerId: 'p1', status: 'COMPLETED', merchants: 5 }], players: { p1: { faction: 'GAUL' } } });
-  const st = await MS.merchantState(tx, 'p1');
-  assert.deepEqual(st, { total: 10, busy: 5, free: 5, capacity: Math.floor(MC.capacity.GAUL * 1.1), speed: MC.speed.GAUL });
-  assert.deepEqual(tx.log.filter(([k]) => k === 'busy'), [['busy', 'p1', 'p1']], 'convois et offres comptés dans une seule requête (une seule photo de la base)');
-  assert.equal(MS.merchantCapacity('SULTAN', [{ key: 'SULTAN_DESERT_OUTPOST', level: 20 }]), Math.floor(MC.capacity.SULTAN * 1.2), 'Poste du Désert : +1 % par niveau');
-  assert.ok(MC.speed.GAUL === Math.max(...Object.values(MC.speed)) && MC.speed.SULTAN === Math.min(...Object.values(MC.speed)), 'la Gaule la plus rapide, le Sultanat le plus lent');
-  assert.equal(MS.merchantsFor(1, 500), 1);
-  assert.equal(MS.merchantsFor(1001, 500), 3);
-  // refus clair quand il en manque
-  const r = await MS.reserveMerchants(tx, 'p1', 6 * st.capacity, 'GAUL');
-  assert.deepEqual([r.error, r.status], ['Pas assez de marchands libres (5 libres, 6 nécessaires)', 400]);
-  assert.ok(tx.log.some(([sql, key]) => sql === 'SELECT pg_advisory_xact_lock(hashtext(?))' && key === 'merchants:p1'), 'verrou des marchands du joueur');
-  assert.equal((await MS.reserveMerchants(tx, 'p1', st.capacity * 5, 'GAUL')).needed, 5);
+test('marché : plus de marchands ni de routes, taxe des échanges 30 % (5 % avec Comptoir 20 et Chambre au Trésor 20)', async () => {
+  assert.equal(config.market.merchants, undefined);
+  assert.equal(config.market.routes, undefined);
+  assert.equal(def('MARKET').effects.merchantsPerLevel, undefined);
+  for (const k of ['MARKET', 'TRADE_OFFICE', 'SULTAN_DESERT_OUTPOST']) assert.doesNotMatch(def(k).description, /marchands/, k);
+  assert.equal(config.market.p2pTaxPctBase, 30);
+  const tax = (capital) => MS.p2pTaxPct({ city: { findUnique: async () => ({ playerId: 'p1', buildings: [] }), findMany: async () => [{ isCapital: true, buildings: capital }] } }, 'a');
+  assert.equal(await tax([]), 30);
+  assert.equal(await tax([{ key: 'TRADE_OFFICE', level: 20 }, { key: 'TREASURE_CHAMBER', level: 20 }]), 5);
+  assert.equal(await tax([{ key: 'TRADE_OFFICE', level: 7 }]), 23, 'chaque niveau du Comptoir compte');
+  // la même règle sans requête (outils de simulation) : 30 → 25 (Chambre 20) → 5 (les deux au 20), jamais sous 0
+  assert.deepEqual([[], [{ key: 'TREASURE_CHAMBER', level: 20 }], [{ key: 'TRADE_OFFICE', level: 20 }, { key: 'TREASURE_CHAMBER', level: 20 }], [{ key: 'TRADE_OFFICE', level: 40 }]].map(MS.p2pTaxPctOf), [30, 25, 5, 0]);
+  assert.equal(MS.afterTax(1000, 30), 700);
 });
 
-test('envoi par marchands : stock de la ville débité, marchands occupés jusqu\'au retour (aller + retour), refus s\'il en manque', () => onEmptyMap(async () => {
-  Terrain.setWorldSeed(0);
-  const from = { id: 'a', playerId: 'p1', x: 0, y: 0, wood: 5000, stone: 0, iron: 0, food: 0 };
-  const to = { id: 'b', playerId: 'p2', x: 12, y: 0 };
-  const tx = marketDb({ cities: { a: from, b: to }, capital: [{ key: 'MARKET', level: 2 }] });
-  const now = new Date('2026-10-31T12:00:00Z');
-  const out = await MS.sendResources(tx, { playerId: 'p1', faction: 'ROME', fromCity: from, toCity: to, resources: { wood: MC.capacity.ROME + 1 }, now });
-  assert.equal(out.merchantsUsed, 2);
-  const secs = (out.arrivalAt - now) / 1000;
-  assert.ok(secs > 0 && out.returnAt - now === 2 * secs * 1000, 'le retour dure autant que l\'aller');
-  assert.deepEqual(Object.keys(out).sort(), ['arrivalAt', 'merchantsUsed', 'returnAt']);
-  assert.equal(tx.convoys.length, 1);
-  assert.deepEqual([tx.convoys[0].kind, tx.convoys[0].merchants, tx.convoys[0].wood, tx.convoys[0].fromCityId, tx.convoys[0].toCityId], ['SEND', 2, MC.capacity.ROME + 1, 'a', 'b']);
-  assert.ok(tx.log.some(([sql, ...v]) => sql === 'UPDATE "City"' && v.includes('a')), 'stock de la ville de départ débité');
-  // plus un seul marchand libre : refusé, rien n'est écrit
-  const again = await MS.sendResources(tx, { playerId: 'p1', faction: 'ROME', fromCity: from, toCity: to, resources: { wood: 10 }, now });
-  assert.equal(again.error, 'Pas assez de marchands libres (0 libres, 1 nécessaires)');
-  assert.equal(tx.convoys.length, 1);
-  assert.equal((await MS.sendResources(tx, { playerId: 'p1', faction: 'ROME', fromCity: from, toCity: to, resources: {}, now })).status, 400);
+test('marché : armées libres de la ville et leur charge (civilisation, Marché, Comptoir et Poste du Désert de la capitale), la plus petite qui suffit', () => onEmptyMap(async () => {
+  const home = marketCity('a', 'p1', 0);
+  const capital = [{ key: 'MARKET', level: 10 }, { key: 'TRADE_OFFICE', level: 5 }, { key: 'SULTAN_DESERT_OUTPOST', level: 4 }];
+  const armies = [marketArmy('big', 100), marketArmy('small', 10), marketArmy('hero', 5, { heroId: 'h1' }), marketArmy('garrison', 500, { isGarrison: true }), marketArmy('away', 500, { x: 9 }), marketArmy('busy', 500, { status: 'MARKET' }), marketArmy('empty', 0)];
+  const tx = marketDb({ cities: { a: home }, capital, armies });
+  assert.equal(fx.transportBonusPct(capital), 10 * 5 + 5 + 4, 'Marché +5 %, Comptoir +1 %, Poste du Désert +1 % par niveau');
+  const mult = (1 + calc.getFactionBonus('EGYPT', 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(capital) / 100);
+  const cap = (n) => Math.floor(calc.getArmyCarryCapacity([{ unitKey: SLAVE.key, count: n }], unitsData) * mult);
+  assert.equal(await MS.transportMult(capital, 'EGYPT', 'p1'), mult);
+  const free = await MS.freeTransportArmies(tx, home, 'p1', 'EGYPT');
+  assert.deepEqual(free.map(f => [f.army.id, f.capacity]), [['hero', cap(5)], ['small', cap(10)], ['big', cap(100)]], 'en ville, hors garnison, avec des soldats, la plus petite d\'abord');
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', cap(5))).army.id, 'small', 'sans le héros quand une autre armée suffit (une offre la retient 48 h)');
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', cap(10))).army.id, 'small');
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', cap(10) + 1)).army.id, 'big');
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', 1, 'big')).army.id, 'big', 'l\'armée choisie');
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', cap(100) + 1)).error, `Capacité de transport insuffisante : ${cap(100) + 1} à porter, ${cap(100)} au mieux`);
+  assert.equal((await MS.pickTransportArmy(tx, home, 'p1', 'EGYPT', 1, 'busy')).error, 'Cette armée n\'est pas libre en ville');
+  assert.match((await MS.pickTransportArmy(marketDb({ cities: { a: home } }), home, 'p1', 'EGYPT', 1)).error, /^Aucune armée libre en ville/);
 }));
 
-test('offre : marchands du vendeur réservés avec les marchandises ; échange : chaque côté part avec ses marchands, taxe déduite', () => onEmptyMap(async () => {
-  Terrain.setWorldSeed(0);
-  const seller = { id: 'a', playerId: 'p1', x: 0, y: 0, wood: 5000, stone: 0, iron: 0, food: 0, buildings: [] };
-  const buyer = { id: 'b', playerId: 'p2', x: 12, y: 0, wood: 0, stone: 0, iron: 3000, food: 0, buildings: [] };
-  const tx = marketDb({ cities: { a: seller, b: buyer }, capital: [{ key: 'MARKET', level: 5 }] });
-  const created = await MS.createOffer(tx, { playerId: 'p1', faction: 'ROME', city: seller, sellResource: 'wood', sellAmount: 1200, buyResource: 'iron', buyAmount: 900 });
-  assert.deepEqual([created.merchantsUsed, created.offer.merchants, created.offer.status, created.arrivalAt], [3, 3, 'ACTIVE', null]);
-  assert.equal((await MS.merchantState(tx, 'p1', 'ROME')).free, 2, 'les marchands de l\'offre attendent');
-  const deal = await MS.acceptOffer(tx, { offer: created.offer, buyerId: 'p2', buyerFaction: 'GAUL', buyerCity: buyer, sellerCity: seller, sellerFaction: 'ROME' });
+test('envoi à un joueur : stock de la ville débité, une armée part avec la cargaison (retour aussi long que l\'aller) ; refus sans rien écrire', () => onEmptyMap(async () => {
+  const from = marketCity('a', 'p1', 0, 5000), to = marketCity('b', 'p2', 12);
+  const tx = marketDb({ cities: { a: from, b: to }, armies: [marketArmy('small', 10), marketArmy('big', 100)] });
+  const small = Math.floor(calc.getArmyCarryCapacity([{ unitKey: SLAVE.key, count: 10 }], unitsData) * (1 + calc.getFactionBonus('EGYPT', 'transportCapacity', factionsData) / 100));
+  const now = new Date('2026-10-31T12:00:00Z');
+  const out = await MS.sendResources(tx, { playerId: 'p1', faction: 'EGYPT', fromCity: from, toCity: to, resources: { wood: small, iron: 1 }, now });
+  assert.deepEqual(Object.keys(out).sort(), ['armyId', 'armyName', 'arrivalAt', 'returnAt', 'travelTime']);
+  assert.equal(out.armyId, 'big', 'la plus petite armée qui porte tout');
+  assert.ok(out.travelTime > 0 && out.arrivalAt - now === out.travelTime * 1000 && out.returnAt - now === 2 * out.travelTime * 1000);
+  const big = tx.armies.find(a => a.id === 'big');
+  assert.deepEqual([big.status, big.missionType, big.targetCityId, big.carryWood, big.carryIron, big.carryStone], ['TRANSPORTING', 'TRANSPORT', 'b', small, 1, 0]);
+  assert.deepEqual([from.wood, from.iron], [5000 - small, 4999]);
+  assert.deepEqual(tx.locks, ['a'], 'la ville de départ verrouillée');
+  // trop lourd pour l'armée restante : rien ne bouge
+  assert.equal((await MS.sendResources(tx, { playerId: 'p1', faction: 'EGYPT', fromCity: from, toCity: to, resources: { wood: small + 1 }, now })).error, `Capacité de transport insuffisante : ${small + 1} à porter, ${small} au mieux`);
+  assert.equal((await MS.sendResources(tx, { playerId: 'p1', faction: 'EGYPT', fromCity: from, toCity: to, resources: {}, now })).status, 400);
+  // pas assez de stock dans la ville : refusé, l'armée reste
+  const empty = marketCity('a', 'p1', 0, 0);
+  const poor = marketDb({ cities: { a: empty, b: to }, armies: [marketArmy('small', 10)] });
+  assert.deepEqual(await MS.sendResources(poor, { playerId: 'p1', faction: 'EGYPT', fromCity: empty, toCity: to, resources: { food: 1 }, now }), { error: 'Ressources insuffisantes', status: 400 });
+  assert.equal(poor.armies[0].status, 'IDLE');
+}));
+
+test('offre : l\'armée du vendeur attend avec les marchandises ; échange : chaque armée part avec sa part moins la taxe ; retrait : tout est rendu', () => onEmptyMap(async () => {
+  const seller = marketCity('a', 'p1', 0, 5000), buyer = marketCity('b', 'p2', 12, 5000);
+  const tx = marketDb({ cities: { a: seller, b: buyer }, armies: [marketArmy('s1', 100), marketArmy('s2', 100), marketArmy('b1', 100, { ownerId: 'p2', cityId: 'b', x: 12 })] });
+  const now = new Date('2026-10-31T12:00:00Z');
+  const created = await MS.createOffer(tx, { playerId: 'p1', faction: 'EGYPT', city: seller, sellResource: 'wood', sellAmount: 1200, buyResource: 'iron', buyAmount: 900, now });
+  assert.deepEqual([created.armyId, created.offer.armyId, created.offer.status, created.offer.expiresAt - now], ['s1', 's1', 'ACTIVE', config.market.offerHours * 3600000]);
+  assert.deepEqual([tx.armies[0].status, tx.armies[0].missionType, seller.wood], ['MARKET', 'MARKET_OFFER', 3800], 'l\'armée attend en ville, les marchandises sont prises');
+  const deal = await MS.acceptOffer(tx, { offer: created.offer, buyerId: 'p2', buyerFaction: 'EGYPT', buyerCity: buyer, sellerCity: seller, sellerFaction: 'EGYPT', now });
   const tax = config.market.p2pTaxPctBase;
-  assert.deepEqual([deal.toBuyer, deal.toSeller, deal.seller.merchantsUsed, deal.buyer.merchantsUsed], [Math.floor(1200 * (1 - tax / 100)), Math.floor(900 * (1 - tax / 100)), 3, 2]);
-  assert.equal(created.offer.status, 'COMPLETED');
-  assert.deepEqual(tx.convoys.map(c => [c.playerId, c.kind, c.fromCityId, c.toCityId, c.merchants]), [['p1', 'TRADE', 'a', 'b', 3], ['p2', 'TRADE', 'b', 'a', 2]]);
-  assert.equal((await MS.merchantState(tx, 'p1', 'ROME')).free, 2, 'les mêmes marchands, désormais en route');
-  await assert.rejects(MS.acceptOffer(tx, { offer: created.offer, buyerId: 'p2', buyerFaction: 'GAUL', buyerCity: buyer, sellerCity: seller, sellerFaction: 'ROME' }), /offer raced/);
-  // offre retirée : marchandises rendues, marchands libres
-  const other = await MS.createOffer(tx, { playerId: 'p1', faction: 'ROME', city: seller, sellResource: 'wood', sellAmount: 100, buyResource: 'iron', buyAmount: 100 });
+  assert.deepEqual([deal.toBuyer, deal.toSeller, deal.sellerTax, deal.buyerTax], [Math.floor(1200 * (1 - tax / 100)), Math.floor(900 * (1 - tax / 100)), tax, tax]);
+  assert.deepEqual([deal.seller.armyId, deal.buyer.armyId, created.offer.status, buyer.iron], ['s1', 'b1', 'COMPLETED', 4100]);
+  const [s1, , b1] = tx.armies;
+  assert.deepEqual([s1.status, s1.missionType, s1.targetCityId, s1.carryWood], ['TRANSPORTING', 'MARKET_DELIVERY', 'b', deal.toBuyer]);
+  assert.deepEqual([b1.status, b1.missionType, b1.targetCityId, b1.carryIron], ['TRANSPORTING', 'MARKET_DELIVERY', 'a', deal.toSeller]);
+  assert.ok(deal.buyer.returnAt > deal.buyer.arrivalAt, 'l\'acheteur sait quand son armée rentre');
+  // offre déjà prise : l'armée du vendeur est partie
+  const again = await MS.acceptOffer(tx, { offer: created.offer, buyerId: 'p2', buyerFaction: 'EGYPT', buyerCity: buyer, sellerCity: seller, sellerFaction: 'EGYPT', now });
+  assert.deepEqual([again.error, again.status], ['L\'armée du vendeur n\'est plus disponible', 409]);
+  // offre retirée : marchandises rendues, armée libre
+  const other = await MS.createOffer(tx, { playerId: 'p1', faction: 'EGYPT', city: seller, sellResource: 'stone', sellAmount: 100, buyResource: 'iron', buyAmount: 100, now });
+  assert.equal(tx.armies[1].status, 'MARKET');
   assert.equal(await MS.closeOffer(tx, other.offer, 'CANCELLED'), true);
+  assert.deepEqual([tx.armies[1].status, tx.armies[1].missionType, seller.stone, other.offer.status], ['IDLE', null, 5000, 'CANCELLED']);
   assert.equal(await MS.closeOffer(tx, other.offer, 'CANCELLED'), false, 'déjà fermée');
-  assert.equal((await MS.merchantState(tx, 'p1', 'ROME')).free, 2);
 }));
 
-test('arrivée des marchands : livrés jusqu\'au plafond de la ville, le reste rentre avec eux ; au retour il entre dans la ville de départ et les marchands sont libres', async () => {
-  const prisma = require('../../src/config/database');
-  const cities = { a: { id: 'a', playerId: 'p1', name: 'A', isCapital: true, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 5000, maxFoodStorage: 5000 }, b: { id: 'b', playerId: 'p1', name: 'B', wood: 900, stone: 0, iron: 0, food: 0, maxStorage: 1000, maxFoodStorage: 1000 } };
+test('échange : une armée partie entre-temps annule tout ; celle de l\'acheteur « army busy » (409 Armée déjà en mission), celle du vendeur « offer raced »', () => onEmptyMap(async () => {
   const now = new Date('2026-10-31T12:00:00Z');
-  const convoy = { id: 'cv1', playerId: 'p1', kind: 'ROUTE', fromCityId: 'a', toCityId: 'b', wood: 300, stone: 0, iron: 0, food: 0, merchants: 1, departedAt: new Date(now - 60000), arrivalAt: now, returnAt: new Date(now.getTime() + 60000), deliveredAt: null };
-  const tx = marketDb({ cities, convoys: [convoy] });
-  const saved = { tradeRoute: prisma.tradeRoute, tradeConvoy: prisma.tradeConvoy, $transaction: prisma.$transaction };
-  Object.assign(prisma, {
-    tradeRoute: { findMany: async () => [] },
-    tradeConvoy: { findMany: async ({ where }) => tx.convoys.filter(c => (where.deliveredAt === null ? !c.deliveredAt && c.arrivalAt <= where.arrivalAt.lte : !!c.deliveredAt && c.returnAt <= where.returnAt.lte)) },
-    $transaction: async (fn) => fn(tx)
-  });
-  try {
-    await MS.processTradeRoutes(now);
-    assert.ok(convoy.deliveredAt, 'livré');
-    assert.deepEqual([convoy.wood, tx.convoys.length], [200, 1], '100 tiennent à B, 200 restent chargés ; les marchands rentrent');
-    assert.ok(tx.log.some(([sql, ...v]) => sql === 'UPDATE "City"' && v.at(-1) === 'b' && v.includes(100)), '100 crédités à B');
-    assert.deepEqual(tx.log.filter(([k]) => k === 'lock').map(([, id]) => id), ['b'], 'seule la ville d\'arrivée est verrouillée à la livraison');
-    await MS.processTradeRoutes(new Date(now.getTime() + 60000));
-    assert.equal(tx.convoys.length, 0, 'rentrés : marchands libres');
-    assert.ok(tx.log.some(([sql, ...v]) => sql === 'UPDATE "City"' && v.at(-1) === 'a' && v.includes(200)), 'les 200 reviennent à A');
-  } finally { Object.assign(prisma, saved); }
-});
+  // une autre requête vient de faire partir l'armée `gone` : sa transition échoue, la transaction de l'appelant est annulée
+  async function race(gone) {
+    const seller = marketCity('a', 'p1', 0, 5000), buyer = marketCity('b', 'p2', 12, 5000);
+    const tx = marketDb({ cities: { a: seller, b: buyer }, armies: [marketArmy('s1', 100), marketArmy('b1', 100, { ownerId: 'p2', cityId: 'b', x: 12 })] });
+    const { offer } = await MS.createOffer(tx, { playerId: 'p1', faction: 'EGYPT', city: seller, sellResource: 'wood', sellAmount: 1000, buyResource: 'iron', buyAmount: 800, now });
+    const update = tx.army.updateMany;
+    tx.army.updateMany = async (q) => (q.where.id === gone ? { count: 0 } : update(q));
+    return MS.acceptOffer(tx, { offer, buyerId: 'p2', buyerFaction: 'EGYPT', buyerCity: buyer, sellerCity: seller, sellerFaction: 'EGYPT', now });
+  }
+  await assert.rejects(race('b1'), /^Error: army busy$/);
+  await assert.rejects(race('s1'), /^Error: offer raced$/);
+  const route = require('fs').readFileSync(require('path').join(__dirname, '../../src/routes/market.js'), 'utf8');
+  const accept = route.slice(route.indexOf('router.post(\'/offer/:id/accept\''), route.indexOf('router.delete(\'/offer/:id\''));
+  assert.match(accept, /e\.message === 'army busy'\) return res\.status\(409\)\.json\(\{ error: 'Armée déjà en mission' \}\)/);
+}));
 
-test('arrivée chez un ennemi ou dans une ville disparue : rien n\'est livré, tout rentre ; la Ville Merveille prend tout', async () => {
-  const cities = { w: { id: 'w', playerId: 'p1', name: 'Merveille', isWonder: true, wood: 0, maxStorage: 10, maxFoodStorage: 10 } };
-  const tx = marketDb({ cities, convoys: [
-    { id: 'cv1', playerId: 'p1', kind: 'SEND', fromCityId: 'a', toCityId: 'gone', wood: 500, stone: 0, iron: 0, food: 0, merchants: 1, deliveredAt: null },
-    { id: 'cv2', playerId: 'p1', kind: 'ROUTE', fromCityId: 'a', toCityId: 'w', wood: 5000, stone: 0, iron: 0, food: 0, merchants: 10, deliveredAt: null }
-  ] });
+test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'acceptation), marchandises rendues, armée libre', async () => {
   const prisma = require('../../src/config/database');
-  const saved = { $transaction: prisma.$transaction };
-  const deposits = [];
-  tx.city.update = async (q) => { deposits.push(q); return {}; };
-  prisma.$transaction = async (fn) => fn(tx);
-  try {
-    const gone = await MS.deliverConvoy(tx.convoys[0]);
-    assert.deepEqual([gone.open, tx.convoys[0].wood], [false, 500], 'tout rentre');
-    const wonder = await MS.deliverConvoy(tx.convoys[1]);
-    assert.equal(wonder.open, true);
-    assert.equal(deposits.length, 1, 'au stock du chantier de la Merveille, sans plafond');
-    assert.equal(tx.convoys[1].wood, 0, 'rien ne reste chargé');
-    assert.equal(await MS.deliverConvoy(tx.convoys[1]), null, 'livré une seule fois');
-  } finally { Object.assign(prisma, saved); }
-});
-
-test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'acceptation), marchandises rendues, marchands libres', async () => {
-  const prisma = require('../../src/config/database');
-  const cities = { a: { id: 'a', playerId: 'p1', wood: 0, maxStorage: 5000, maxFoodStorage: 5000 } };
-  const offer = { id: 'o1', sellerId: 'p1', cityId: 'a', sellResource: 'wood', sellAmount: 700, buyResource: 'iron', buyAmount: 500, status: 'ACTIVE', merchants: 2, expiresAt: new Date(0) };
-  const tx = marketDb({ cities, offers: [offer], capital: [{ key: 'MARKET', level: 5 }], players: { p1: { faction: 'ROME' } } });
+  const home = marketCity('a', 'p1', 0, 0);
+  const offer = { id: 'o1', sellerId: 'p1', cityId: 'a', sellResource: 'wood', sellAmount: 700, buyResource: 'iron', buyAmount: 500, status: 'ACTIVE', armyId: 's1', expiresAt: new Date(0) };
+  const tx = marketDb({ cities: { a: home }, offers: [offer], armies: [marketArmy('s1', 100, { status: 'MARKET', missionType: 'MARKET_OFFER' })] });
   const saved = { marketOffer: prisma.marketOffer, $transaction: prisma.$transaction, notification: prisma.notification };
   Object.assign(prisma, {
     marketOffer: { findMany: async () => tx.offers.filter(o => o.status === 'ACTIVE' && o.expiresAt <= new Date()) },
@@ -511,18 +505,31 @@ test('offre expirée : verrou de l\'offre puis de sa ville (même ordre que l\'a
     notification: { create: async () => ({ id: 'n1' }) }
   });
   try {
-    assert.equal((await MS.merchantState(tx, 'p1')).free, 3, 'les marchands de l\'offre attendent');
     assert.equal(await MS.expireOffers(new Date()), 1);
-    assert.deepEqual(tx.log.filter(([k]) => k === 'lock').map(([, id]) => id), ['o1', 'a'], 'l\'offre puis la ville');
-    assert.equal(offer.status, 'EXPIRED');
-    assert.ok(tx.log.some(([sql, ...v]) => sql === 'UPDATE "City"' && v.at(-1) === 'a' && v.includes(700)), 'les 700 de bois reviennent dans la ville');
-    assert.equal((await MS.merchantState(tx, 'p1')).free, 5, 'marchands libres');
+    assert.deepEqual(tx.locks, ['o1', 'a'], 'l\'offre puis la ville');
+    assert.deepEqual([offer.status, home.wood, tx.armies[0].status, tx.armies[0].missionType], ['EXPIRED', 700, 'IDLE', null]);
     assert.equal(await MS.expireOffers(new Date()), 0, 'déjà rendue');
   } finally { Object.assign(prisma, saved); }
 });
 
-test('route commerciale : la charge se réduit à ce que les marchands libres portent ; sans marchand libre, rien ne part', () => {
-  assert.deepEqual(MS.fitLoad({ wood: 600, stone: 0, iron: 0, food: 400 }, 2000), { wood: 600, stone: 0, iron: 0, food: 400 });
-  assert.deepEqual(MS.fitLoad({ wood: 600, stone: 0, iron: 0, food: 400 }, 500), { wood: 300, stone: 0, iron: 0, food: 200 });
-  assert.deepEqual(MS.fitLoad({ wood: 600, stone: 0, iron: 0, food: 400 }, 0), { wood: 0, stone: 0, iron: 0, food: 0 });
+test('migration 0033 : marchands et routes retirés, armée réservée de nouveau sur les offres, marchandises rendues jusqu\'au plafond, rejouable', () => {
+  const sql = require('fs').readFileSync(require('path').join(__dirname, '../../prisma/migrations/0033_sans_marchands/migration.sql'), 'utf8');
+  assert.match(sql, /ALTER TABLE "MarketOffer" ADD COLUMN IF NOT EXISTS "armyId" TEXT;/);
+  assert.match(sql, /UPDATE "MarketOffer" SET status = 'CANCELLED' WHERE status = 'ACTIVE' AND "armyId" IS NULL;/);
+  assert.ok(sql.indexOf('LEAST(c.wood  + o.wood,  c."maxStorage")') < sql.indexOf('SET status = \'CANCELLED\''), 'marchandises rendues avant l\'annulation');
+  // remboursements comme creditCity (utils/db.js) : jamais un stock qui baisse, jamais au-dessus du dépôt ou du silo
+  for (const t of ['o', 't']) {
+    for (const r of ['wood', 'stone', 'iron']) assert.match(sql, new RegExp(`${r}\\s+= GREATEST\\(c\\.${r},\\s+LEAST\\(c\\.${r}\\s+\\+ ${t}\\.${r},\\s+c\\."maxStorage"\\)\\)`), `${t}.${r}`);
+    assert.match(sql, new RegExp(`food\\s+= GREATEST\\(c\\.food,\\s+LEAST\\(c\\.food\\s+\\+ ${t}\\.food,\\s+c\\."maxFoodStorage"\\)\\)`), `${t}.food`);
+  }
+  assert.doesNotMatch(sql, /= c\.(wood|stone|iron|food) \+/, 'aucun remboursement sans plafond');
+  assert.match(sql, /ALTER TABLE "MarketOffer" DROP COLUMN IF EXISTS "merchants";/);
+  assert.match(sql, /UPDATE "Army" SET status = 'IDLE', "missionType" = NULL\s+WHERE status = 'MARKET' AND id NOT IN \(SELECT "armyId" FROM "MarketOffer" WHERE status = 'ACTIVE' AND "armyId" IS NOT NULL\);/);
+  assert.match(sql, /IF to_regclass\('"TradeConvoy"'\) IS NOT NULL THEN[\s\S]+FROM "TradeConvoy" v[\s\S]+DROP TABLE "TradeConvoy";/, 'chargement des marchands rendu avant de supprimer la table');
+  assert.match(sql, /DROP TABLE IF EXISTS "TradeRoute";/);
+  // chaque instruction se rejoue : rien n'est créé ou supprimé sans IF (NOT) EXISTS hors du bloc gardé
+  for (const line of sql.split('\n').filter(l => /^(ALTER|DROP|CREATE)/.test(l))) assert.match(line, /IF (NOT )?EXISTS/, line);
+  const schema = require('fs').readFileSync(require('path').join(__dirname, '../../prisma/schema.prisma'), 'utf8');
+  assert.doesNotMatch(schema, /model Trade(Route|Convoy)|merchants/);
+  assert.match(schema, /armyId\s+String\?/);
 });

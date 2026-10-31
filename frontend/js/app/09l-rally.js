@@ -4,7 +4,14 @@
 // jamais contre une ville : lancer depuis le panneau de la cible (armée + attente),
 // rejoindre, quitter, partir plus tôt, annuler ; liste dans le panneau de la cible et dans Alliance › Rassemblements. Serveur : src/services/rallyService.js, src/routes/rally.js.
 // ============================================================
-const RALLY_WAITS = [5, 10, 30, 60];
+// Attentes possibles avant le départ, en minutes : celles du serveur (GET /api/rallies → waits, config.rally.waitMinutes :
+// 5, 10, 30, 60, 120 ou 180 depuis le 31 octobre 2026), gardées à chaque lecture de la liste des rassemblements
+let rallyWaits = null;
+async function loadRallyWaits() {
+  if (!rallyWaits) { try { rallyWaits = (await fetchJson('/api/rallies')).waits || null; } catch (e) { /* réessayé à la prochaine ouverture */ } }
+  return rallyWaits;
+}
+const rallyWaitLabel = (w) => (w % 60 ? `${w} min` : `${w / 60} h`);
 // cibles d'un rassemblement (kind renvoyé par /api/rallies : HORDE, BASTION, WONDER, PLAN) : the = la cible, at = où le groupe arrive
 const RALLY_TARGETS = {
   HORDE: { the: 'le donjon', at: 'au donjon' },
@@ -58,13 +65,16 @@ function ralliesHtml(list, { compact = false } = {}) {
 // ---- lancer ----
 // kind : 'HORDE' (donjon d'invasion, par défaut), 'BASTION' (Bastion ennemi : level porte alors le tag de son alliance),
 // 'WONDER' ou 'PLAN' (site ou plan de Merveille gardé par les Immortels)
-function openRallyLaunch(targetId, x, y, level, kind = 'HORDE') {
+async function openRallyLaunch(targetId, x, y, level, kind = 'HORDE') {
   const list = rallyArmies();
   if (!list.length) { showToast('Aucune armée libre dans ses murs', 'error'); return; }
+  const waits = await loadRallyWaits();
+  if (!waits?.length) { showToast('Rassemblements indisponibles pour le moment', 'error'); return; }
+  const preset = waits[Math.min(1, waits.length - 1)];   // proposée d'abord : la deuxième attente (10 min)
   if (!RALLY_TARGETS[kind]) kind = 'HORDE';
   const gather = 'Les membres de votre alliance envoient leurs armées dans votre ville ; à la fin de l\'attente, toutes celles arrivées partent ensemble';
   const intro = {
-    BASTION: `Bastion [${escapeHtml(level || '?')}] en (${x}, ${y}). ${gather}, campent 1 h devant le Bastion puis livrent un seul assaut, mené par votre héros. Il faut au moins un engin de siège dans le groupe au départ.`,
+    BASTION: `Bastion [${escapeHtml(level || '?')}] en (${x}, ${y}). ${gather}, campent 1 h devant le Bastion puis livrent un seul assaut, mené par votre héros : celui de votre rassemblement seul, les autres camps livrent le leur. Il faut au moins un engin de siège dans le groupe au départ.`,
     WONDER: `Site de Merveille en (${x}, ${y}), gardé par les Immortels. ${gather} et livrent un seul combat contre la garnison, mené par votre héros. Victoire : le site est libéré, à vous d'y fonder la Ville Merveille avec un colon.`,
     PLAN: `Plan de construction en (${x}, ${y}), gardé par les Immortels. ${gather} et livrent un seul combat contre la garnison, mené par votre héros. Victoire : le plan revient à votre capitale.`,
     HORDE: `Donjon barbare${level ? ` de niveau ${level}` : ''} en (${x}, ${y}). ${gather} et livrent un seul combat.`
@@ -74,8 +84,8 @@ function openRallyLaunch(targetId, x, y, level, kind = 'HORDE') {
     <label class="admin-field"><span>Votre armée (elle mène le rassemblement)</span>
       <select id="rally-army">${list.map(a => `<option value="${chatSafeId(a.id)}">${escapeHtml(armyOptionLabel(a))}</option>`).join('')}</select></label>
     <label class="admin-field"><span>Attente avant le départ</span>
-      <select id="rally-wait">${RALLY_WAITS.map(w => `<option value="${w}" ${w === 10 ? 'selected' : ''}>${w} min</option>`).join('')}</select></label>
-    <p class="diplo-help">Votre Place de rassemblement (niveau ${rallyPointLevel()}) fixe la taille du rassemblement : <strong>${rallyMaxArmiesAt(rallyPointLevel())} armées au plus</strong>, la vôtre comprise (${rallyMaxArmiesAt(20)} au niveau 20). Vous pouvez partir plus tôt ou annuler tant que le rassemblement attend.</p>
+      <select id="rally-wait">${waits.map(w => `<option value="${w}" ${w === preset ? 'selected' : ''}>${rallyWaitLabel(w)}</option>`).join('')}</select></label>
+    <p class="diplo-help">Votre Place de rassemblement (niveau ${rallyPointLevel()}) fixe la taille du rassemblement : <strong>${rallyMaxArmiesAt(rallyPointLevel())} armées au plus</strong>, la vôtre comprise (${rallyMaxArmiesAt(20)} au niveau 20). Une longue attente laisse le temps aux membres éloignés d'arriver. Vous pouvez partir plus tôt ou annuler tant que le rassemblement attend.</p>
     <div class="profile-actions"><button class="btn btn-danger" onclick="confirmRallyLaunch('${chatSafeId(targetId)}', '${kind}')">${resIconHtml('rally')} Lancer le rassemblement</button><button class="btn btn-secondary" onclick="closeModal()">Annuler</button></div>`);
 }
 async function confirmRallyLaunch(targetId, kind = 'HORDE') {
@@ -115,13 +125,18 @@ async function renderAllianceRallies(box) {
   if (!box) return;
   let d;
   try { d = await fetchJson('/api/rallies'); } catch (e) { box.innerHTML = '<p class="empty-state">Rassemblements indisponibles.</p>'; return; }
+  rallyWaits = d.waits || rallyWaits;
   box.innerHTML = `<h3>${resIconHtml('rally')} Rassemblements</h3>
     <p class="diplo-help">Pendant les invasions barbares (chaque week-end), un donjon ne s'attaque qu'en rassemblement. Un Bastion ennemi peut aussi être assiégé en rassemblement (au moins un engin de siège dans le groupe), et les Immortels qui gardent un site ou un plan de Merveille combattus de même. Lancez-en un depuis le panneau de la cible sur la carte, ou rejoignez celui d'un membre.${d.maxArmies ? ` Ceux que vous lancez réunissent ${d.maxArmies} armées au plus (votre Place de rassemblement).` : ''}</p>
     ${ralliesHtml(d.rallies)}`;
 }
 // le bloc des rassemblements de son alliance contre une cible (panneau de la carte) : param = nodeId ou bastionId
 async function targetRalliesHtml(param, id) {
-  try { const d = await fetchJson(`/api/rallies?${param}=${encodeURIComponent(id)}`); return d.rallies.length ? `<h4>${resIconHtml('rally')} Rassemblements de votre alliance</h4>${ralliesHtml(d.rallies, { compact: true })}` : ''; }
+  try {
+    const d = await fetchJson(`/api/rallies?${param}=${encodeURIComponent(id)}`);
+    rallyWaits = d.waits || rallyWaits;
+    return d.rallies.length ? `<h4>${resIconHtml('rally')} Rassemblements de votre alliance</h4>${ralliesHtml(d.rallies, { compact: true })}` : '';
+  }
   catch (e) { return ''; }
 }
 function hordeRalliesHtml(nodeId) { return targetRalliesHtml('nodeId', nodeId); }   // un donjon, un site ou un plan de Merveille

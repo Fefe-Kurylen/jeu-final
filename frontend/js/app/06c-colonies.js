@@ -53,6 +53,27 @@ function showCitySiteInfo() {
   const site = currentCity?.site;
   if (site) showToast(siteText(site.type, site.level, 'dans cette colonie', site.bonusPct), 'info');
 }
+
+// ---- Colonie neuve protégée (décision du 31 octobre 2026) ----
+// Le serveur donne la fin de la protection d'une colonie neuve (GET /api/cities et la carte : protectedUntil, null sinon) :
+// jusque-là, ni attaque, ni raid, ni siège ; les espions passent et ses armées sortent librement
+const PROTECTION_TEXT = 'Colonie neuve : ni attaque, ni raid, ni siège contre elle pendant ses premières heures (les espions passent). Ses armées sortent librement. Bâtissez son mur et laissez-y une armée avant la fin.';
+// Fin de la protection (ms, heure du serveur), 0 si la ville n'est pas ou plus protégée
+const protectionEndMs = (city) => { const t = city?.protectedUntil ? new Date(city.protectedUntil).getTime() : 0; return t > serverNow() ? t : 0; };
+// « Protégée encore 2h 10m » (décompte qui avance tout seul), '' sans protection
+function protectionHtml(city) {
+  const end = protectionEndMs(city);
+  return end ? `<span class="protect-badge" title="${escapeHtml(PROTECTION_TEXT)}">${resIconHtml('defense')} Protégée encore ${countdownHtml(end)}</span>` : '';
+}
+// Pastille de la protection sur la vue de la ville (colonie neuve seulement) ; la toucher explique la règle
+function updateCityProtectionBadge() {
+  const el = document.getElementById('city-protection-badge');
+  if (!el) return;
+  const html = protectionHtml(currentCity);
+  el.style.display = html ? '' : 'none';
+  if (html && el.dataset.until !== String(currentCity?.protectedUntil)) { el.innerHTML = html; el.dataset.until = String(currentCity?.protectedUntil); }
+}
+function showCityProtectionInfo() { showToast(PROTECTION_TEXT, 'info'); }
 function settlerSlotsFor(level) {
   const fx = residenceEffects();
   if (level >= 20) return fx.unlockSettlerL20 || 2;
@@ -193,6 +214,7 @@ function myCityRowHtml(city, nowMs) {
         <span class="village-pop">${escapeHtml(city.cityTierName || '')}</span>
         ${siteBadgeHtml(city.site)}
         ${livesHtml}
+        ${protectionHtml(city)}
         ${attackHtml}
       </div>
       <div class="mv-stocks">${stocks}</div>

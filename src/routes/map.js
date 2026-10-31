@@ -9,14 +9,11 @@ const { bannerImage } = require('../services/allianceShopService');
 const { getCityTier, getCityTierName, mainHallLevelOf, getArmyTravelTime } = require('../utils/calculations');
 const fx = require('../utils/buildingEffects');
 const Vision = require('../services/visionService');
-const { footprintFree } = require('../utils/spawn');
+const { protectedUntil } = require('../utils/colonyProtection');
+const { footprintFree, SIDES } = require('../utils/spawn');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
-const BASE_WORLD_SIZE = config.map.baseWorldSize;
-const EXPANSION_PER_PLAYER = config.map.expansionPerPlayer;
 const MAX_PLAYERS = config.world.maxPlayers;
-const MIN_COORD = config.map.minCoord;
-const MAX_COORD = config.map.maxCoord;
 
 // Sprite de carte d'une armée en mouvement : marchand pour les transports, sinon la classe
 // de l'unité la plus nombreuse (hoplite / archer / cavalry / catapult)
@@ -30,12 +27,6 @@ function mainUnitSprite(army, units) {
   return (best && CLASS_SPRITE[UNIT_CLASS[best.unitKey]]) || 'hoplite';
 }
 
-async function getWorldSize() {
-  const playerCount = await prisma.player.count();
-  const expansion = Math.min(playerCount, MAX_PLAYERS) * EXPANSION_PER_PLAYER;
-  const worldSize = BASE_WORLD_SIZE + Math.floor(Math.sqrt(expansion * 100));
-  return { worldSize, playerCount, minCoord: MIN_COORD, maxCoord: MAX_COORD };
-}
 
 router.get('/world/info', async (req, res) => {
   // Rules the client displays (never computed client-side): city tiers by Main Hall level, colonies per player
@@ -45,11 +36,14 @@ router.get('/world/info', async (req, res) => {
   try {
     // monde suivant tout juste ouvert : la carte de ce processus suit celle de la base avant d'être annoncée au client
     { const WS = require('../services/wonderService'); const row = await WS.worldRow(); if (!WS.preparing(row)) WS.syncWorldSeed(row); }
-    const { worldSize, playerCount, minCoord, maxCoord } = await getWorldSize();
-    const resourceCount = await prisma.resourceNode.count();
+    // taille de la carte de ce monde (son générateur : 374 avant le 31 octobre 2026, 420 depuis), lue dans le terrain
+    const { worldSize, minCoord, maxCoord } = config.map;
+    const [playerCount, resourceCount] = await Promise.all([prisma.player.count(), prisma.resourceNode.count()]);
     // Faction bonuses as the game applies them (data/factions.json): the client shows them on the sign-up cards and in building texts
     const factions = Object.fromEntries(Object.entries(factionsData).map(([k, f]) => [k, { name: f.name, bonuses: (f.bonuses || []).map(b => ({ type: b.type, value: b.value, description: b.description })) }]));
-    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules, terrainVersion: Terrain.minClientVersion, worldSeed: Terrain.worldSeed, terrainSignature: Terrain.signature });   // version du terrain qu'il faut au client pour dessiner cette carte ; empreinte de la carte à comparer à la sienne
+    // générateur de la carte (le client dessine la graine avec lui), version du terrain qu'il faut au client pour la dessiner,
+    // empreinte de la carte à comparer à la sienne ; côtés au choix à l'inscription
+    res.json({ worldSize, playerCount, maxPlayers: MAX_PLAYERS, center: 0, minCoord, maxCoord, totalTiles: worldSize * worldSize, resourceNodes: resourceCount, factions, rules, sides: SIDES, terrainVersion: Terrain.minClientVersion, worldSeed: Terrain.worldSeed, worldGenerator: Terrain.generator, terrainSignature: Terrain.signature });
   } catch (e) { sendError(res, e); }
 });
 
@@ -78,8 +72,9 @@ router.get('/map/viewport', auth, async (req, res) => {
     const liteMode = r > 60; // vue d'ensemble : villes seulement (pas de noeuds/armées) pour garder un payload léger
 
     // Validate parsed coordinates
-    const centerX = isNaN(x) ? 0 : Math.max(MIN_COORD, Math.min(MAX_COORD, x));
-    const centerY = isNaN(y) ? 0 : Math.max(MIN_COORD, Math.min(MAX_COORD, y));
+    const { minCoord, maxCoord } = config.map;
+    const centerX = isNaN(x) ? 0 : Math.max(minCoord, Math.min(maxCoord, x));
+    const centerY = isNaN(y) ? 0 : Math.max(minCoord, Math.min(maxCoord, y));
 
     const qx = Math.round(centerX / VIEWPORT_Q) * VIEWPORT_Q, qy = Math.round(centerY / VIEWPORT_Q) * VIEWPORT_Q;
     const qr = r + VIEWPORT_Q / 2;   // couvre toujours la zone demandée (le centre bouge d'au plus 5)
@@ -145,7 +140,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     const [cities, nodes, movingArmies] = await Promise.all([
       prisma.city.findMany({
       where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallStructure: true, isWonder: true, wonderLevel: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, nameplate: true, banner: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
+      select: { id: true, name: true, x: true, y: true, isCapital: true, isSieged: true, wallStructure: true, isWonder: true, wonderLevel: true, createdAt: true, playerId: true, buildings: { where: { key: { in: ['WALL', 'MAIN_HALL'] } }, select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, population: true, nameplate: true, banner: true, alliance: { select: { alliance: { select: { id: true, tag: true } } } } } } }
     }),
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
@@ -175,7 +170,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       const allianceInfo = city.player?.alliance?.alliance;
       // vies perdues (le mur en a perdu la même part) : la fumée qui s'élève de la ville se voit de loin, par tranches de 10 %
       const wallDamage = Math.max(0, Math.min(100, Math.round((1 - (city.wallStructure ?? 1)) * 10) * 10));
-      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null, nameplate: city.player?.nameplate || null, banner: bannerImage(city.player?.banner) }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), isWonder: city.isWonder || false, wonderLevel: city.wonderLevel || 0 };
+      return { id: city.id, name: city.name, x: city.x, y: city.y, isCapital: city.isCapital, isSieged: city.isSieged, wallDamage, siegedBy: city.isSieged ? siegedBy[city.id] || null : null, playerId: city.playerId, player: { id: city.player?.id, name: city.player?.name, faction: city.player?.faction, population: city.player?.population || 0, allianceId: allianceInfo?.id || null, allianceTag: allianceInfo?.tag || null, nameplate: city.player?.nameplate || null, banner: bannerImage(city.player?.banner) }, wallLevel, mainHallLevel, cityTier, cityTierName: getCityTierName(cityTier), isWonder: city.isWonder || false, wonderLevel: city.wonderLevel || 0, protectedUntil: protectedUntil(city) };   // colonie neuve protégée : fin de la protection, sinon null
     });
 
     // Who holds each node (harvesting armies), and a stock shown by quarters only (GDD: the exact state needs a spy)
@@ -195,8 +190,8 @@ async function loadViewport(centerX, centerY, r, liteMode) {
 
 // ---- Filtre « Sites libres » (décision du 30 octobre 2026) ----
 // Cercle du centre, disputé : la plupart des gisements de niveau 3 et les sites de Merveille y sont (même cercle que le semis
-// des points, src/game/seed.js)
-const CENTER_RADIUS = Math.floor(BASE_WORLD_SIZE / 2) * config.map.centerRadiusPct / 100;
+// des points, src/game/seed.js), à la taille de la carte de ce monde
+const centerRadius = () => Math.floor(config.map.worldSize / 2) * config.map.centerRadiusPct / 100;
 const FREE_SITES_LIMIT = 30, FREE_SITES_MAX = 100;
 
 // Les gisements où le joueur peut fonder une colonie (bois, pierre, fer ou céréales : ni or, ni plan, ni donjon, ni site de
@@ -227,11 +222,12 @@ async function freeSitesFor(playerId, limit) {
   }
   const escort = unitsData.filter(u => u.faction === owner.faction && u.class === 'INFANTRY' && u.tier === 'base').map(u => ({ unitKey: u.key, count: 1 }));
   const speedPct = require('./armies').speedTechPct({ owner });
+  const radius = centerRadius();
   return free.map(n => ({
     id: n.id, x: n.x, y: n.y, type: n.resourceType, level: n.level, bonusPct: fx.colonyNodeBonusPct(n.level), otherPct: fx.colonyOtherResourcesPct(),
     travelSec: getArmyTravelTime(escort, capital.x, capital.y, n.x, n.y, owner.faction, null, null, speedPct),
     tribePower: n.hasDefenders ? n.defenderPower : 0,
-    central: Math.hypot(n.x, n.y) < CENTER_RADIUS
+    central: Math.hypot(n.x, n.y) < radius
   }));
 }
 

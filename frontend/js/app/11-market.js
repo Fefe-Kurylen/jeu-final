@@ -6,7 +6,7 @@
 // ========== MARCHÉ ==========
 let marketOffers = [];
 
-// Offres de tous les joueurs, et marchands du joueur (bandeau en tête du marché, 11b-market-trade.js)
+// Offres de tous les joueurs, et armées libres de la ville affichée avec leur charge (11b-market-trade.js)
 async function loadMarket() {
   const state = typeof loadMarketState === 'function' ? loadMarketState() : null;
   try {
@@ -21,6 +21,8 @@ async function loadMarket() {
     console.error('Error loading market:', e);
   }
   await state;
+  // formulaires d'envoi et d'offre : armées libres de la ville affichée (11b-market-trade.js)
+  if (typeof refreshSendForm === 'function') { refreshSendForm(); refreshOfferForm(); }
 }
 
 function renderMarketOffers() {
@@ -36,6 +38,8 @@ function renderMarketOffers() {
   
   container.innerHTML = marketOffers.map(offer => {
     const isMyOffer = offer.sellerId === player?.id;
+    // son offre : l'armée qui attend en ville avec les marchandises
+    const waiting = isMyOffer && offer.armyId ? (armies || []).find(a => a.id === offer.armyId)?.name || 'votre armée' : null;
     return `
       <div class="market-offer ${isMyOffer ? 'my-offer' : ''}">
         <div class="offer-seller">${isMyOffer ? '<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> Votre offre' : `<img class="ico" src="assets/images/3d/ui/player.webp" alt=""> ${escapeHtml(offer.player?.name || 'Inconnu')}`}</div>
@@ -44,7 +48,7 @@ function renderMarketOffers() {
           <span class="offer-arrow">→</span>
           <span class="offer-buy">${resourceIcons[offer.buyResource]} ${formatNum(offer.buyAmount)}</span>
         </div>
-        <div class="offer-ratio">Ratio 1:${(offer.buyAmount / offer.sellAmount).toFixed(2)}${offer.city ? ` · depuis ${escapeHtml(offer.city.name)} (${offer.city.x}, ${offer.city.y})${currentCity ? `, ${Math.round(Math.hypot(offer.city.x - currentCity.x, offer.city.y - currentCity.y))} cases` : ''}` : ''}${isMyOffer && offer.merchants ? ` · ${offer.merchants} marchand${offer.merchants > 1 ? 's' : ''} en attente` : ''}${offer.expiresAt ? ` · expire dans <span class="qd-timer" data-ends-at="${offer.expiresAt}">${formatTime(offer.expiresAt)}</span>` : ''}</div>
+        <div class="offer-ratio">Ratio 1:${(offer.buyAmount / offer.sellAmount).toFixed(2)}${offer.city ? ` · depuis ${escapeHtml(offer.city.name)} (${offer.city.x}, ${offer.city.y})${currentCity ? `, ${Math.round(Math.hypot(offer.city.x - currentCity.x, offer.city.y - currentCity.y))} cases` : ''}` : ''}${waiting ? ` · ${escapeHtml(waiting)} attend avec les marchandises` : ''}${offer.expiresAt ? ` · expire dans <span class="qd-timer" data-ends-at="${offer.expiresAt}">${formatTime(offer.expiresAt)}</span>` : ''}</div>
         <div class="offer-actions">
           ${isMyOffer 
             ? `<button class="btn btn-danger btn-small" onclick="cancelMarketOffer('${offer.id}')">Annuler</button>`
@@ -78,16 +82,16 @@ async function createMarketOffer() {
     const res = await fetch(`${API}/api/market/offer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ sellResource, sellAmount, buyResource, buyAmount, cityId: currentCity?.id })
+      body: JSON.stringify({ sellResource, sellAmount, buyResource, buyAmount, cityId: currentCity?.id, armyId: document.getElementById('market-offer-army')?.value || undefined })
     });
     
     if (res.ok) {
       showToast((await res.json().catch(() => ({}))).message || 'Offre créée', 'success');
       document.getElementById('market-sell-amount').value = '';
       document.getElementById('market-buy-amount').value = '';
-      await loadMarket();   // marchands réservés par l'offre
+      if (typeof loadArmies === 'function') await loadArmies();   // l'armée réservée par l'offre
+      await loadMarket();
       await loadCities();
-      if (typeof refreshOfferForm === 'function') refreshOfferForm();
     } else {
       const data = await res.json();
       showToast(data.error || 'Erreur', 'error');
@@ -99,26 +103,27 @@ async function createMarketOffer() {
   }
 }
 
-// Accepter : les marchands de la ville portent la contrepartie (confirmation : 11b-market-trade.js)
+// Accepter : choisir l'armée de la ville qui portera la contrepartie (11b-market-trade.js)
 function acceptMarketOffer(offerId) {
   const offer = marketOffers.find(o => o.id === offerId);
   if (offer && typeof openAcceptOffer === 'function') return openAcceptOffer(offer);
-  return confirmAcceptOffer(offerId);
+  return confirmAcceptOffer(offerId, null);
 }
-async function confirmAcceptOffer(offerId) {
+async function confirmAcceptOffer(offerId, armyId) {
   if (_actionInProgress) return;
   _actionInProgress = true;
   try {
     const res = await fetch(`${API}/api/market/offer/${offerId}/accept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ cityId: currentCity?.id })
+      body: JSON.stringify({ cityId: currentCity?.id, armyId: armyId || undefined })
     });
     
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
       showToast(`${data.message || 'Échange conclu'}${typeof deliveryTimesText === 'function' ? deliveryTimesText(data) : ''}`, data.warning ? 'warning' : 'success');
       if (typeof closeModal === 'function') closeModal();
+      if (typeof loadArmies === 'function') loadArmies();
       await loadMarket();
       await loadCities();
     } else {
@@ -142,7 +147,8 @@ async function cancelMarketOffer(offerId) {
     });
     
     if (res.ok) {
-      showToast((await res.json().catch(() => ({}))).message || 'Offre annulée : marchandises rendues, marchands libres', 'success');
+      showToast((await res.json().catch(() => ({}))).message || 'Offre annulée : marchandises rendues, armée libre', 'success');
+      if (typeof loadArmies === 'function') loadArmies();
       await loadMarket();
       await loadCities();
     } else {
@@ -254,6 +260,13 @@ function renderSpyReports() {
 }
 
 // Une carte de rapport d'espionnage ; opts.shared : rapport partagé dans la messagerie (pas de bouton « Partager »)
+// Cachette vue par un espion : part du stockage et quantité à l'abri par ressource (décision du 31 octobre 2026) ; un rapport
+// écrit avant donne une seule quantité pour chaque ressource
+function spyHideoutText(df) {
+  const h = df.hideoutAmount;
+  if (h && typeof h === 'object') return `${df.hideoutPct ? `${fmtTechPct(df.hideoutPct)} % du stockage : ` : ''}${formatNum(h.wood || 0)} de bois, de pierre et de fer, ${formatNum(h.food || 0)} de céréales à l'abri`;
+  return `${formatNum(h || 0)} de chaque ressource à l'abri`;
+}
 function renderSpyReportCard(report, opts = {}) {
   const resourceIcons = { wood: resIconHtml('wood'), stone: resIconHtml('stone'), iron: resIconHtml('iron'), food: resIconHtml('food') };
   const shareBtn = !opts.shared && report.id && report.targetType !== 'COUNTER_SPY' && report.targetType !== 'SPY_ALERT' ? `<div class="report-actions"><button class="btn btn-secondary" onclick="openSharePicker({ type: 'spy', reportId: '${String(report.id).replace(/[^\w-]/g, '')}' })">${resIconHtml('send')} Partager</button></div>` : '';
@@ -287,7 +300,7 @@ function renderSpyReportCard(report, opts = {}) {
           <span>Mur niveau ${df.wallLevel || 0}${df.wallLevel ? ` · ${formatNum(df.wallHp || 0)} / ${formatNum(df.wallMaxHp || 0)} PV` : ''}</span>
           <span>Santé de la muraille ${df.structurePct ?? 100} %</span>
           <span>Tour de guet de la capitale niveau ${df.watchtowerLevel || 0}</span>
-          <span>Cachette niveau ${df.hideoutLevel || 0} (${formatNum(df.hideoutAmount || 0)} de chaque ressource à l'abri)</span><span>Bonus de défense +${df.defenseBonusPct || 0} % (Forge et Brasserie de la capitale)</span>
+          <span>Cachette niveau ${df.hideoutLevel || 0} (${spyHideoutText(df)})</span><span>Bonus de défense +${df.defenseBonusPct || 0} % (Forge et Brasserie de la capitale)</span>
           ${df.sieged ? '<span>Ville assiégée</span>' : ''}</div></div>
         <div class="spy-section"><h4>${resIconHtml('attack')} Troupes</h4>${troops(report.armies)}</div>${shareBtn}</div>`;
     }
@@ -442,10 +455,9 @@ function showMarketTab(subTab) {
   const section = document.getElementById(`market-section-${subTab}`);
   if (section) section.style.display = 'block';
 
-  if (subTab === 'offers') loadMarket().then(() => typeof refreshOfferForm === 'function' && refreshOfferForm());
+  if (subTab === 'offers') loadMarket();
   if (subTab === 'npc') showNpcMerchant();
-  if (subTab === 'routes' && typeof loadTradeRoutes === 'function') loadTradeRoutes();
-  if (subTab === 'send' && typeof loadMarketState === 'function') loadMarketState().then(() => updateSendMerchants());
+  if (subTab === 'send' && typeof loadMarketState === 'function') loadMarketState().then(() => refreshSendForm());
 }
 
 function filterBuildings(category) {

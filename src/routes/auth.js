@@ -11,7 +11,7 @@ const auth = require('../middleware/auth');
 const { deleteAccount } = require('../services/accountService');
 const { consume, sendVerificationMail, sendResetMail } = require('../services/authTokens');
 const { noteCityCells } = require('../utils/pathfinding');
-const { lockPlacement } = require('../utils/spawn');
+const { lockPlacement, parseSide, sideAt, SIDE_ERROR } = require('../utils/spawn');
 const path = require('path');
 const fs = require('fs');
 
@@ -37,10 +37,13 @@ async function clearFailures(email) {
   try { await rateLimit.clearShared(lockKey(email)); } catch (e) { /* idem */ }
 }
 
-// POST /api/auth/register
+// POST /api/auth/register { email, password, name, faction, side } — side : côté de la carte où poser la capitale, 'N' | 'E' |
+// 'S' | 'W' | 'RANDOM' (par défaut, décision du 31 octobre 2026) ; un côté plein envoie sur les autres. Réponse : { token,
+// player: { id, name, faction, side } }, side = le côté où la capitale est posée
 router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), async (req, res) => {
   try {
     const { email, password, name, faction } = req.body || {};
+    const side = parseSide(req.body?.side);
 
     if (!email || !password || !name || !faction) {
       return res.status(400).json({ error: 'Tous les champs sont requis' });
@@ -50,6 +53,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     if (!validateName(name)) return res.status(400).json({ error: 'Pseudo: 3-20 caractères alphanumériques' });
     { const bad = require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }   // noms choquants ou de l'équipe refusés (décision du 29 octobre 2026)
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Faction invalide' });
+    if (!side) return res.status(400).json({ error: SIDE_ERROR });
     // cycle du serveur (décision du 28 octobre 2026) : inscriptions ouvertes 60 jours, 2 000 joueurs, monde pas terminé
     const WS = require('../services/wonderService');
     // monde suivant en préparation : 503, réessayer dans un instant ; inscriptions closes : 403
@@ -78,7 +82,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
           if (closed) return { closed };
           const account = await tx.account.create({ data: { email: normalizedEmail, passwordHash: hash } });
           const player = await tx.player.create({ data: { accountId: account.id, name, faction: factionKey, gold: 0 } });
-          const city = await require('../services/startService').createStart(tx, { playerId: player.id, name });
+          const city = await require('../services/startService').createStart(tx, { playerId: player.id, name, side });
           return { account, player, city };
         }, { timeout: 20000 });
       } catch (e) {
@@ -98,7 +102,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     sendVerificationMail(created.account, name).catch(e => console.error('[MAIL] verification:', e.message));
 
     const token = signToken(created.account, created.player.id);
-    res.json({ token, player: { id: created.player.id, name, faction: factionKey }, emailVerificationRequired: config.email.enforce });
+    res.json({ token, player: { id: created.player.id, name, faction: factionKey, side: sideAt(created.city.x, created.city.y) }, emailVerificationRequired: config.email.enforce });
   } catch (e) {
     sendError(res, e, 'register');
   }

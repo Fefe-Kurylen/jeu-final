@@ -115,9 +115,9 @@ function clientContext(cities, currentCity) {
     showToast: () => {}, showTab: () => {}
   };
   vm.createContext(ctx);
-  vm.runInContext(pick('01-core.js', ['effectBuildings', 'buildingEffectOf', 'levelIn', 'buildingMaxLevelIn', 'buildingCapIn', 'hideoutAmountAt', 'factionBonusPct', 'lerpExp']), ctx);
+  vm.runInContext(pick('01-core.js', ['effectBuildings', 'buildingEffectOf', 'levelIn', 'buildingMaxLevelIn', 'buildingCapIn', 'hideoutPctX100', 'hideoutPctAt', 'hideoutAmountIn', 'factionBonusPct', 'lerpExp']), ctx);
   vm.runInContext(pick('06b-research.js', ['fmtTechPct']), ctx);
-  vm.runInContext(pick('04-buildings-render.js', ['merchantsAt', 'allianceMaxMembersAt']), ctx);
+  vm.runInContext(pick('04-buildings-render.js', ['allianceMaxMembersAt']), ctx);
   vm.runInContext(pick('10b-sheets.js', ['SHEET_FACTION_NAMES', 'SHEET_CATEGORY_NAMES', 'SHEET_RULES', 'sheetKey', 'sheetUnits', 'sheetBuildings', 'buildingFunctions', 'sheetFunctionsHtml', 'showBuildingInfoModal']), ctx);
   vm.runInContext(pick('07-army.js', ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'rallyMaxArmiesAt', 'getMaxArmies']), ctx);
   return ctx;

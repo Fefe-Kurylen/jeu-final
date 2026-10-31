@@ -367,30 +367,23 @@ function storageTabHtml(buildingKey, level) {
         `;
 }
 
-// Onglet de la cachette (décision du 31 octobre 2026, façon Travian) : une quantité fixe de chaque ressource de la ville est
-// à l'abri des pillards (raid, pillage d'un siège) ; le reste peut être pris
+// Onglet de la cachette (décision du 31 octobre 2026, rapport de vérification) : une part du stockage de la ville est à
+// l'abri des pillards pour chaque ressource (raid, pillage d'un siège) ; le reste peut être pris
 function hideoutTabHtml(level) {
-  const hidden = hideoutAmountAt(level);
+  const hidden = hideoutAmountIn(currentCity, level);
   const rows = RES_KEYS.map(r => {
     const stock = Math.floor(currentCity?.[r] || 0);
-    return `<div class="storage-row"><span>${resIconHtml(r)} ${RES_NAMES[r]} :</span><span>${formatNum(Math.min(stock, hidden))} à l'abri · ${formatNum(Math.max(0, stock - hidden))} pillable${stock - hidden > 1 ? 's' : ''}</span></div>`;
+    return `<div class="storage-row"><span>${resIconHtml(r)} ${RES_NAMES[r]} :</span><span>${formatNum(Math.min(stock, hidden[r]))} à l'abri sur ${formatNum(hidden[r])} · ${formatNum(Math.max(0, stock - hidden[r]))} pillable${stock - hidden[r] > 1 ? 's' : ''}</span></div>`;
   }).join('');
   const civ = factionBonusPct(player?.faction, 'hideoutCapacity');
   return `
           <div class="special-tab-content">
             <h4>${resIconHtml('lock')} Cachette</h4>
-            <p>Niveau ${level} : <strong>${formatNum(hidden)}</strong> de chaque ressource à l'abri des pillards${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}.</p>
+            <p>Niveau ${level} : <strong>${fmtTechPct(hideoutPctAt(level))} %</strong> du stockage de la ville à l'abri des pillards pour chaque ressource${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}. Un stock plus petit est entièrement à l'abri ; monter le dépôt ou le silo agrandit aussi la cachette.</p>
             <div class="storage-bars">${rows}</div>
             <p class="info-note">Seule la cachette protège du pillage. L'or ne se pille jamais : il n'est pas dans le stock des villes.</p>
           </div>
         `;
-}
-// Marchands (décision du 31 octobre 2026) : un par niveau du Marché de la capitale, charge et vitesse selon la civilisation
-// (avec le Comptoir et le Poste du Désert), occupés à l'aller et au retour (player.economy.market.merchants, /api/player/me)
-function merchantRulesHtml() {
-  const m = player?.economy?.market?.merchants;
-  if (!m) return '';
-  return `<p class="info-note">${resIconHtml('item_crate')} ${m.total} marchand${m.total > 1 ? 's' : ''} · ${formatNum(m.capacity)} ressources par marchand · vitesse ${m.speed}. Ils portent toutes les livraisons du marché (offres, envois, routes) et restent occupés à l'aller comme au retour ; le marchand du serveur n'en demande pas.</p>`;
 }
 
 // Helper: Get special tabs for specific building types
@@ -407,7 +400,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Place du marché</h4>
             <p>${getBuildingBonus(buildingKey, level)}</p>
-            ${merchantRulesHtml()}
+            <p class="info-note">${resIconHtml('item_crate')} Vos armées portent les échanges et les envois de ressources aux autres joueurs, selon la charge de leurs troupes ; le marchand du serveur échange tout de suite, sans armée. Vos villes partagent leur stock : rien à transporter entre elles.</p>
             <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
           </div>
         `

@@ -41,6 +41,7 @@ async function sendResources() {
       },
       body: JSON.stringify({
         fromCityId: currentCity.id,
+        armyId: document.getElementById('send-army')?.value || undefined,
         targetX,
         targetY,
         resources: { wood, stone, iron, food }
@@ -49,11 +50,12 @@ async function sendResources() {
 
     const data = await res.json();
     if (res.ok) {
-      // des marchands partent (décision du 31 octobre 2026) : arrivée des ressources, puis retour des marchands
+      // une armée de la ville part (décision du 31 octobre 2026) : arrivée des ressources, puis retour de l'armée
       showToast(`${data.message || 'Ressources envoyées'}${deliveryTimesText(data)}`, 'success');
       for (const r of RES_KEYS) { const el = document.getElementById(`send-${r}`); if (el) el.value = 0; }
       loadCities();
-      loadMarketState().then(() => updateSendMerchants());
+      loadArmies();
+      loadMarketState().then(() => refreshSendForm());
     } else {
       showToast(data.error || 'Erreur', 'error');
     }
@@ -160,7 +162,7 @@ function showNpcMerchant() {
     <div class="npc-merchant">
       <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand du serveur</h3>
       <p style="color:var(--text-muted);margin-bottom:12px;">
-        Échangez tout de suite les ressources de cette ville entre elles, sans marchand. Taxe : <strong>${npcTaxPct()} %</strong> (un point de moins par niveau du Marché de la capitale, 5 % au plus bas)
+        Échangez tout de suite les ressources de cette ville entre elles, sans armée. Taxe : <strong>${npcTaxPct()} %</strong> (un point de moins par niveau du Marché de la capitale, 5 % au plus bas)
       </p>
 
       <div class="npc-exchange-form">

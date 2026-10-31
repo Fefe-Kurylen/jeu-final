@@ -74,7 +74,7 @@ test('combat : un camp de plusieurs joueurs (renforts, rassemblement, garnison) 
   assert.deepEqual(await combatPct(db, 'p1', null, [army('p1', 0)]), { atk: 0, def: 0 });
 });
 
-// ---- 2. Cachette : une quantité fixe de chaque ressource ----
+// ---- 2. Cachette : une part du stockage de la ville pour chaque ressource (décision du 31 octobre 2026, rapport de vérification) ----
 test('pillage d\'un siège : pillagePct % de ce qui dépasse la cachette de la ville, dans la limite de ce que portent les armées', async () => {
   const taken = [];
   const tx = {
@@ -82,8 +82,12 @@ test('pillage d\'un siège : pillagePct % de ce qui dépasse la cachette de la v
     $queryRaw: async (strings, ...values) => { taken.push(values.slice(1, 5)); return [{ wood: values[1], stone: values[2], iron: values[3], food: values[4] }]; },
     army: { update: async () => ({}) }
   };
-  const hidden = fx.hideoutAmount([{ key: 'HIDEOUT', level: 20 }], 'ROME');
-  const city = { id: 'c1', buildings: [{ key: 'HIDEOUT', level: 20 }], player: { faction: 'ROME' }, wood: hidden + 10000, stone: hidden - 1, iron: 0, food: hidden + 400 };
+  // dépôt 20 (160 000) et silo 10 : la cachette 20 garde 30 % de chacun
+  const buildings = [{ key: 'HIDEOUT', level: 20 }, { key: 'WAREHOUSE', level: 20 }, { key: 'SILO', level: 10 }];
+  const hidden = fx.hideoutAmount(buildings, 'ROME');
+  assert.equal(hidden.wood, 48000);
+  assert.ok(hidden.food < hidden.wood, 'céréales : la part du silo');
+  const city = { id: 'c1', buildings, player: { faction: 'ROME' }, wood: hidden.wood + 10000, stone: hidden.stone - 1, iron: 0, food: hidden.food + 400 };
   const armies = [{ id: 'a1', ownerId: 'p2', owner: { faction: 'ROME' }, hero: null }];
   const survivors = new Map([['a1', [{ unitKey: 'ROM_CAV_AUXILIAIRE', count: 10000 }]]]);   // de quoi tout porter
   const out = await pillage(tx, city, armies, survivors);
@@ -92,16 +96,17 @@ test('pillage d\'un siège : pillagePct % de ce qui dépasse la cachette de la v
   assert.equal(out.taken.wood, Math.floor(10000 * pct));
   // sans cachette : tout le stock est exposé
   taken.length = 0;
-  await pillage(tx, { ...city, buildings: [] }, armies, survivors);
-  assert.equal(taken[0][0], Math.floor((hidden + 10000) * pct));
+  await pillage(tx, { ...city, buildings: buildings.filter(b => b.key !== 'HIDEOUT') }, armies, survivors);
+  assert.equal(taken[0][0], Math.floor((hidden.wood + 10000) * pct));
 });
 
-test('rapport d\'espion : ressources hors cachette (quantité fixe, à la centaine) ; défenses : quantité cachée, Brasserie et Forge de la capitale', async () => {
+test('rapport d\'espion : ressources hors cachette (part du stockage, à la centaine) ; défenses : part et quantité cachées, Brasserie et Forge de la capitale', async () => {
   const prisma = require('../../src/config/database');
   const S = require('../../src/services/spyService');
-  const hidden = fx.hideoutAmount([{ key: 'HIDEOUT', level: 10 }], 'GAUL');
+  const buildings = [{ key: 'HIDEOUT', level: 10 }, { key: 'WAREHOUSE', level: 12 }, { key: 'SILO', level: 8 }];
+  const hidden = fx.hideoutAmount(buildings, 'GAUL');
   const city = { id: 'c1', name: 'Alésia', x: 3, y: 4, playerId: 'p2', wallMaxHp: 0, wallStructure: 1, isSieged: false,
-    wood: hidden + 1234, stone: hidden - 10, iron: 0, food: hidden + 99, buildings: [{ key: 'HIDEOUT', level: 10 }],
+    wood: hidden.wood + 1234, stone: hidden.stone - 10, iron: 0, food: hidden.food + 99, buildings,
     player: { id: 'p2', name: 'Vercingétorix', faction: 'GAUL', cities: [{ isCapital: true, buildings: [{ key: 'FORGE', level: 10 }, { key: 'GALLIC_BREWERY', level: 4 }] }] } };
   const reports = [];
   const spy = (mission) => ({ id: `s-${mission}`, playerId: 'p1', status: 'OUT', mission, targetCityId: 'c1', departedAt: new Date(Date.now() - 60000), arrivalAt: new Date(Date.now() - 1000), player: { id: 'p1', name: 'César' } });
@@ -122,8 +127,8 @@ test('rapport d\'espion : ressources hors cachette (quantité fixe, à la centai
     reports.length = 0;
     await S.processSpies(new Date());
     const d = reports[0].data.defenses;
-    assert.equal(d.hideoutAmount, hidden, 'quantité cachée par ressource (bonus de la Gaule compris)');
-    assert.equal(d.hideoutPct, undefined, 'plus de pourcentage');
+    assert.deepEqual(d.hideoutAmount, hidden, 'quantité cachée par ressource (bonus de la Gaule compris)');
+    assert.equal(d.hideoutPct, 18, 'part du stockage : 10 × 1,5 % × 1,2 (Gaule)');
     assert.equal(d.defenseBonusPct, Math.round(fx.defenseBonusPct([{ key: 'GALLIC_BREWERY', level: 4 }]) + fx.forgeDefensePct([{ key: 'FORGE', level: 10 }])), 'Brasserie et Forge de la capitale');
   } finally { Object.assign(prisma, saved); }
 });

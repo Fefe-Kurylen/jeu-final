@@ -225,9 +225,8 @@ function cityTooltipHtml(slotNum) {
 }
 
 // Effets par niveau lus dans les données, comme utils/buildingEffects.js du serveur (décisions du 31 octobre 2026) :
-// marchands du Marché (fx.merchantCount), rayon où la Tour de guet montre les armées des autres joueurs (fx.visionRadius),
+// rayon où la Tour de guet montre les armées des autres joueurs (fx.visionRadius),
 // membres d'une alliance selon l'Ambassade du chef, jamais plus que le plafond général du serveur (fx.allianceMaxMembers)
-const merchantsAt = (level) => level * buildingEffectOf('MARKET', 'merchantsPerLevel', 1);
 const visionRadiusAt = (level) => buildingEffectOf('WATCHTOWER', 'visionRangeL1') + buildingEffectOf('WATCHTOWER', 'visionRangePerLevel') * level;
 const allianceMaxMembersAt = (level) => Math.min(Number(player?.economy?.alliance?.maxMembers) || Infinity, level * buildingEffectOf('EMBASSY', 'allianceMembersPerLevel'));
 
@@ -251,9 +250,9 @@ function getBuildingEffect(key, level) {
     // Defence : la Forge donne attaque et défense à toutes les troupes, dans tous les combats (décision du 31 octobre 2026)
     'FORGE': `Toutes vos troupes, dans tous les combats: +${per('FORGE', 'attackBonusPctPerLevel')}% d'attaque et +${per('FORGE', 'defenseBonusPctPerLevel')}% de défense`,
     'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (1 + factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) / 100)))} PV${factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'wallHealth', 25)} % de bonus de civilisation)` : ''} · seuls les engins l'abîment`,
-    // la cachette seule protège du pillage, une quantité fixe par ressource (décision du 31 octobre 2026, Gaule : davantage) ;
+    // la cachette seule protège du pillage, une part du stockage de la ville (décision du 31 octobre 2026, Gaule : davantage) ;
     // Grand silo et Grand dépôt : du stockage
-    'HIDEOUT': `À l'abri des pillages: ${formatNum(hideoutAmountAt(level))} de chaque ressource`,
+    'HIDEOUT': (() => { const h = hideoutAmountIn(currentCity, level); return `À l'abri des pillages: ${fmtTechPct(hideoutPctAt(level))}% du stockage · ${formatNum(h.wood)} bois, pierre et fer, ${formatNum(h.food)} céréales ici`; })(),
     'GREAT_SILO': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_SILO'))} (3 × un silo)`,
     'GREAT_WAREHOUSE': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_WAREHOUSE'))} (3 × un dépôt)`,
     'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
@@ -264,11 +263,11 @@ function getBuildingEffect(key, level) {
     'LUMBER': `Bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
     'QUARRY': `Pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
     'IRON_MINE': `Fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
-    // Economy : Marché et Comptoir de la capitale, pour toutes les villes ; les marchands portent les livraisons du marché
+    // Economy : Marché et Comptoir de la capitale, pour toutes les villes ; des armées portent les échanges et les envois
     'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level, 'WAREHOUSE'))}`,
     'SILO': `Capacité: ${formatNum(getStorageAtLevel(level, 'SILO'))}`,
-    'MARKET': `${plural(merchantsAt(level), 'marchand')} · taxe du marchand du serveur: ${npcTaxPct(level)}% · armées de transport: +${per('MARKET', 'playerTransportBonusPctPerLevel')}%`,
-    'TRADE_OFFICE': `Taxe des échanges: -${per('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel')}% · charge des marchands et des armées de transport: +${per('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')}% · pour toutes vos villes`,
+    'MARKET': `Taxe du marchand du serveur: ${npcTaxPct(level)}% · armées de transport: +${per('MARKET', 'playerTransportBonusPctPerLevel')}%`,
+    'TRADE_OFFICE': `Taxe des échanges: -${per('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel')}% · charge des armées de transport: +${per('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')}% · pour toutes vos villes`,
     'MILL': `Céréales: +${per('MILL', 'foodProdBonusPctL1')}%`,
     'BAKERY': `Céréales: +${per('BAKERY', 'foodProdBonusPctL1')}%`,
     'SAWMILL': `Bois: +${per('SAWMILL', 'woodProdBonusPctL1')}%`,
@@ -286,7 +285,7 @@ function getBuildingEffect(key, level) {
     'GREEK_TEMPLE': `Blessés au lieu de morts: +${(level * 0.5).toFixed(1)}%`,
     'EGYPTIAN_IRRIGATION': `Production de toutes vos villes: +${level}% · marche des armées: +${+(level * 0.5).toFixed(1)}%`,
     'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}% · blessés +${(level * 0.5).toFixed(1)}%`,
-    'SULTAN_DESERT_OUTPOST': `Entretien: -${per('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')}% · charge des marchands, des armées de transport et des récoltes: +${per('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel')}%`
+    'SULTAN_DESERT_OUTPOST': `Entretien: -${per('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')}% · charge des armées de transport et des récoltes: +${per('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel')}%`
   };
   return effects[key] || null;
 }

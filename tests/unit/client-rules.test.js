@@ -56,12 +56,12 @@ test('stockage : dépôt, silo, Grand dépôt et Grand silo comme le serveur (3 
 
 // Ce que lisent les textes des bâtiments (getBuildingEffect calcule tous ses textes à chaque appel)
 function runEffectTexts(ctx) {
-  vm.runInContext(pick(src('01-core.js'), ['STORAGE_PREFIX', 'getStorageAtLevel', 'effectBuildings', 'buildingEffectOf', 'levelIn', 'hideoutAmountAt', 'lerpExp']), ctx);
+  vm.runInContext(pick(src('01-core.js'), ['STORAGE_PREFIX', 'getStorageAtLevel', 'effectBuildings', 'buildingEffectOf', 'levelIn', 'hideoutPctX100', 'hideoutPctAt', 'hideoutAmountIn', 'lerpExp']), ctx);
   vm.runInContext(pick(src('06c-colonies.js'), ['residenceEffects', 'siteBonusPct', 'siteOtherPct']), ctx);   // bonus du gisement (Résidence)
   vm.runInContext(pick(src('06b-research.js'), ['fmtTechPct']), ctx);
   vm.runInContext(pick(src('07-army.js'), ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'rallyMaxArmiesAt']), ctx);
   vm.runInContext(pick(src('12-misc-init.js'), ['npcTaxPct']), ctx);
-  vm.runInContext(pick(src('04-buildings-render.js'), ['merchantsAt', 'visionRadiusAt', 'allianceMaxMembersAt', 'getBuildingEffect']), ctx);
+  vm.runInContext(pick(src('04-buildings-render.js'), ['visionRadiusAt', 'allianceMaxMembersAt', 'getBuildingEffect']), ctx);
 }
 
 test('effets affichés : Grand dépôt et Grand silo stockent, la cachette seule protège, mur et bâtiments de faction', { skip }, () => {
@@ -71,25 +71,34 @@ test('effets affichés : Grand dépôt et Grand silo stockent, la cachette seule
   assert.match(ctx.getBuildingEffect('GREAT_WAREHOUSE', 20), /Capacité: \+480000/);
   assert.match(ctx.getBuildingEffect('GREAT_SILO', 20), /Capacité: \+480000/);
   for (const k of ['GREAT_WAREHOUSE', 'GREAT_SILO']) assert.doesNotMatch(ctx.getBuildingEffect(k, 10), /abri|piller/);
-  // cachette (décision du 31 octobre 2026) : une quantité fixe de chaque ressource, comme fx.hideoutAmount du serveur
-  for (const L of [1, 7, 10, 20]) assert.equal(ctx.hideoutAmountAt(L, 'EGYPT'), fx.hideoutAmount([{ key: 'HIDEOUT', level: L }], 'EGYPT'), `cachette ${L}`);
-  assert.equal(ctx.hideoutAmountAt(1, 'EGYPT'), 240);
-  assert.equal(ctx.hideoutAmountAt(20, 'EGYPT'), 32000);
-  assert.equal(ctx.hideoutAmountAt(0, 'EGYPT'), 0);
-  assert.equal(ctx.getBuildingEffect('HIDEOUT', 10), `À l'abri des pillages: ${ctx.hideoutAmountAt(10)} de chaque ressource`);
+  // cachette (décision du 31 octobre 2026, rapport de vérification) : 1,5 % du stockage de la ville par niveau pour chaque
+  // ressource, comme fx.hideoutPct / fx.hideoutAmount du serveur (la ville donne son stockage : maxStorage, maxFoodStorage)
+  const { cityStorageCaps } = require('../../src/utils/calculations');
+  const cityOf = (buildings) => ({ ...cityStorageCaps(buildings), buildings });
+  const full = [{ key: 'WAREHOUSE', level: 20 }, { key: 'GREAT_WAREHOUSE', level: 20 }, { key: 'SILO', level: 20 }, { key: 'GREAT_SILO', level: 12 }];
+  for (const L of [0, 1, 3, 7, 10, 15, 20]) {
+    const b = [...full, { key: 'HIDEOUT', level: L }];
+    assert.equal(ctx.hideoutPctAt(L, 'EGYPT'), fx.hideoutPct(L, 'EGYPT'), `part ${L}`);
+    assert.deepEqual({ ...ctx.hideoutAmountIn(cityOf(b), L, 'EGYPT') }, fx.hideoutAmount(b, 'EGYPT'), `cachette ${L}`);
+  }
+  assert.equal(ctx.hideoutPctAt(20, 'EGYPT'), 30);
+  assert.equal(ctx.hideoutPctAt(0, 'EGYPT'), 0);
+  ctx.currentCity = cityOf([{ key: 'WAREHOUSE', level: 20 }, { key: 'SILO', level: 20 }]);
+  assert.equal(ctx.getBuildingEffect('HIDEOUT', 10), 'À l\'abri des pillages: 15% du stockage · 24000 bois, pierre et fer, 24000 céréales ici');
+  ctx.currentCity = null;
   assert.doesNotMatch(ctx.getBuildingEffect('WALL', 10), /réparation/);
   assert.match(ctx.getBuildingEffect('EGYPTIAN_IRRIGATION', 20), /marche des armées: \+10%/);
-  // Poste du Désert : charge des convois (marchands compris), des transports et des récoltes, entretien ; lus dans les données
-  assert.equal(ctx.getBuildingEffect('SULTAN_DESERT_OUTPOST', 20), 'Entretien: -10% · charge des marchands, des armées de transport et des récoltes: +20%');
+  // Poste du Désert : charge des armées de transport et des récoltes, entretien ; lus dans les données (plus de marchands)
+  assert.equal(ctx.getBuildingEffect('SULTAN_DESERT_OUTPOST', 20), 'Entretien: -10% · charge des armées de transport et des récoltes: +20%');
   // Gaule : la cachette garde son bonus de civilisation, en multiplicateur (comme le serveur)
   ctx.player = { faction: 'GAUL' };
   const { factionsData } = require('../../src/config/gamedata');
   ctx.factionBonusPct = (f, type) => (factionsData[f]?.bonuses || []).find(b => b.type === type)?.value || 0;
-  for (const L of [1, 10, 20]) assert.equal(ctx.hideoutAmountAt(L), fx.hideoutAmount([{ key: 'HIDEOUT', level: L }], 'GAUL'), `cachette gauloise ${L}`);
-  assert.ok(ctx.hideoutAmountAt(20) > 32000);
+  for (const L of [1, 10, 20]) assert.equal(ctx.hideoutPctAt(L), fx.hideoutPct(L, 'GAUL'), `cachette gauloise ${L}`);
+  assert.equal(ctx.hideoutPctAt(20), 36);
 });
 
-test('effets affichés : bonus à 2,5 % par niveau, Forge attaque et défense, Grandes casernes, rassemblement, Ambassade, Tour de guet, marchands', { skip }, () => {
+test('effets affichés : bonus à 2,5 % par niveau, Forge attaque et défense, Grandes casernes, rassemblement, Ambassade, Tour de guet, Marché', { skip }, () => {
   const fx = require('../../src/utils/buildingEffects');
   const ctx = makeContext({ getProductionAtLevel: () => 0 });
   runEffectTexts(ctx);
@@ -98,20 +107,22 @@ test('effets affichés : bonus à 2,5 % par niveau, Forge attaque et défense, G
     assert.equal(ctx.getBuildingEffect(key, 5), `${res}: +12,5%`);
   }
   assert.equal(ctx.getBuildingEffect('FORGE', 20), 'Toutes vos troupes, dans tous les combats: +10% d\'attaque et +10% de défense');
-  assert.match(ctx.getBuildingEffect('GREAT_BARRACKS', 20), /infanterie et archers de la capitale: -10%/);
-  assert.match(ctx.getBuildingEffect('GREAT_STABLE', 4), /cavalerie de la capitale: -2%/);
+  // Grandes casernes et écuries : 0,75 % par niveau pour la capitale (décision du 31 octobre 2026, rapport de vérification)
+  assert.match(ctx.getBuildingEffect('GREAT_BARRACKS', 20), /infanterie et archers de la capitale: -15%/);
+  assert.match(ctx.getBuildingEffect('GREAT_STABLE', 4), /cavalerie de la capitale: -3%/);
   // rassemblement : 5 + niveau (fx.rallyMaxArmies) ; armées en campagne inchangées
   for (const L of [1, 10, 20]) assert.match(ctx.getBuildingEffect('RALLY_POINT', L), new RegExp(`rassemblement d'alliance: ${fx.rallyMaxArmies(L)} armées au plus`));
   assert.match(ctx.getBuildingEffect('RALLY_POINT', 20), /Armées en campagne par ville: 5/);
-  // Ambassade du chef : 3 membres par niveau, plafond général du serveur (player.economy.alliance)
+  // Ambassade du chef : 5 membres par niveau, plafond général du serveur (player.economy.alliance), 100 au niveau 20
   const config = require('../../src/config');
   ctx.player = { faction: 'EGYPT', economy: { alliance: { maxMembers: config.alliance.maxMembers } } };
   for (const L of [7, 20]) assert.match(ctx.getBuildingEffect('EMBASSY', L), new RegExp(`chef d'alliance: ${fx.allianceMaxMembers(L)} membres au plus`));
+  assert.match(ctx.getBuildingEffect('EMBASSY', 20), /chef d'alliance: 100 membres au plus/);
   // Tour de guet : rayon où les armées des autres joueurs se voient (fx.visionRadius)
   assert.match(ctx.getBuildingEffect('WATCHTOWER', 10), new RegExp(`vues à ${fx.visionRadius(10)} cases de vos villes`));
-  // Marché : un marchand par niveau, taxe du marchand du serveur (fx.npcMarketTaxPct)
-  assert.match(ctx.getBuildingEffect('MARKET', 1), new RegExp(`^1 marchand · taxe du marchand du serveur: ${fx.npcMarketTaxPct(1)}%`));
-  assert.match(ctx.getBuildingEffect('MARKET', 12), new RegExp(`^12 marchands · taxe du marchand du serveur: ${fx.npcMarketTaxPct(12)}%`));
+  // Marché : taxe du marchand du serveur (fx.npcMarketTaxPct) et charge des armées de transport ; plus de marchands
+  assert.match(ctx.getBuildingEffect('MARKET', 1), new RegExp(`^Taxe du marchand du serveur: ${fx.npcMarketTaxPct(1)}% · armées de transport: \\+${fx.effectOf('MARKET', 'playerTransportBonusPctPerLevel')}%$`));
+  assert.match(ctx.getBuildingEffect('MARKET', 12), new RegExp(`^Taxe du marchand du serveur: ${fx.npcMarketTaxPct(12)}%`));
   assert.match(ctx.getBuildingEffect('TREASURE_CHAMBER', 20), /Or: 200 par jour · l'or ne peut pas être pillé/);
   assert.match(ctx.getBuildingEffect('TREASURE_CHAMBER', 10), new RegExp(`Or: ${fx.goldPerDayAtLevel(10)} par jour`));
 });
@@ -144,13 +155,15 @@ test('marche : Irrigation (0,5 %/niveau), technologies et Bastion, comme calcula
 });
 
 test('rassemblement : site et plan de Merveille (lancement par nodeId, libellés de la liste)', { skip }, async () => {
-  const posted = [];
+  const posted = [], fetched = [];
+  const { waitMinutes } = require('../../src/config').rally;
   const ctx = makeContext({
     allianceRequestNoReload: async (url, method, body) => { posted.push({ url, method, body }); return true; },
+    fetchJson: async (url) => { fetched.push(url); return { rallies: [], waits: waitMinutes }; },   // GET /api/rallies
     document: { getElementById: (id) => ({ 'rally-army': { value: 'a1' }, 'rally-wait': { value: '10' } }[id] || null), querySelector: () => null },
     closeModal() {}, loadArmies() {}, openSheetModal: (title, html) => { ctx.lastModal = html; }
   });
-  vm.runInContext(pick(src('09l-rally.js'), ['RALLY_TARGETS', 'rallyKind', 'rallyWhat', 'ralliesHtml', 'rallyArmies', 'armyOptionLabel', 'RALLY_WAITS', 'openRallyLaunch', 'confirmRallyLaunch', 'refreshRallyViews']), ctx);
+  vm.runInContext(pick(src('09l-rally.js'), ['RALLY_TARGETS', 'rallyKind', 'rallyWhat', 'ralliesHtml', 'rallyArmies', 'armyOptionLabel', 'rallyWaits', 'loadRallyWaits', 'rallyWaitLabel', 'openRallyLaunch', 'confirmRallyLaunch', 'refreshRallyViews']), ctx);
   vm.runInContext(pick(src('01-core.js'), ['effectBuildings', 'buildingEffectOf']), ctx);
   vm.runInContext(pick(src('07-army.js'), ['rallyPointLevel', 'rallyMaxArmiesAt']), ctx);
   await ctx.confirmRallyLaunch('node-w', 'WONDER');
@@ -168,16 +181,22 @@ test('rassemblement : site et plan de Merveille (lancement par nodeId, libellés
   // la fenêtre de lancement d'un site de Merveille envoie le kind WONDER
   ctx.armies = [{ id: 'a1', name: 'Armée', status: 'IDLE', cityId: 'c1', x: 0, y: 0, units: [{ count: 5 }] }];
   ctx.cities = [{ id: 'c1', name: 'Memphis', x: 0, y: 0 }];
-  ctx.openRallyLaunch('node-w', 3, 4, null, 'WONDER');
+  await ctx.openRallyLaunch('node-w', 3, 4, null, 'WONDER');
   assert.match(ctx.lastModal, /Site de Merveille en \(3, 4\), gardé par les Immortels/);
   assert.match(ctx.lastModal, /confirmRallyLaunch\('node-w', 'WONDER'\)/);
-  ctx.openRallyLaunch('node-p', 3, 4, null, 'PLAN');
+  // attentes du serveur (décision du 31 octobre 2026 : 5, 10, 30, 60, 120, 180 min), lues une fois ; 10 min par défaut
+  assert.deepEqual(fetched, ['/api/rallies']);
+  assert.deepEqual([...ctx.lastModal.matchAll(/<option value="(\d+)"/g)].map(m => Number(m[1])), waitMinutes);
+  assert.match(ctx.lastModal, /<option value="10" selected>10 min<\/option>/);
+  assert.match(ctx.lastModal, /<option value="120" >2 h<\/option><option value="180" >3 h<\/option>/);
+  await ctx.openRallyLaunch('node-p', 3, 4, null, 'PLAN');
+  assert.deepEqual(fetched, ['/api/rallies']);   // gardées
   assert.match(ctx.lastModal, /le plan revient à votre capitale/);
   // taille (décision du 31 octobre 2026) : la Place de rassemblement de la capitale du lanceur, 5 + 1 par niveau
   const fx = require('../../src/utils/buildingEffects');
   ctx.cities = [{ id: 'c1', name: 'Memphis', x: 0, y: 0, isCapital: true, buildings: [{ key: 'RALLY_POINT', level: 8 }] }, { id: 'c2', name: 'Thèbes', x: 9, y: 9, isCapital: false, buildings: [] }];
   ctx.currentCity = ctx.cities[1];   // vue d'une colonie : la Place de la capitale compte
-  ctx.openRallyLaunch('node-w', 3, 4, null, 'WONDER');
+  await ctx.openRallyLaunch('node-w', 3, 4, null, 'WONDER');
   assert.match(ctx.lastModal, new RegExp(`niveau 8\\) fixe la taille du rassemblement : <strong>${fx.rallyMaxArmies(8)} armées au plus</strong>`));
   // les vues rendent maxArmies : un rassemblement plein ne se rejoint plus
   const gathering = { ...base, status: 'GATHERING', launchAt: '2026-10-31T12:00:00Z', maxArmies: 2 };

@@ -65,7 +65,7 @@
     {
       "key": "MARKET",
       "name": "Place du marché",
-      "description": "Réservée à la capitale, elle sert toutes vos villes : échanges avec les autres joueurs et le marchand du serveur, dont la taxe baisse à chaque niveau. Chaque niveau donne un marchand : les marchands portent les ressources des échanges, des envois et des routes commerciales, et restent occupés à l'aller comme au retour. Chaque niveau augmente aussi la charge des armées de transport.",
+      "description": "Réservée à la capitale, elle sert toutes vos villes : échanges avec le marchand du serveur, dont la taxe baisse à chaque niveau, et avec les autres joueurs. Vos armées portent les échanges et les envois de ressources aux autres joueurs, selon la charge de leurs troupes. Chaque niveau augmente la charge des armées de transport.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -98,7 +98,6 @@
       "timeL20Sec": 86400,
       "effects": {
         "capitalOnly": true,
-        "merchantsPerLevel": 1,
         "serverMarketTaxPctBase": 30,
         "serverMarketTaxReductionPctPerLevel": 1.0,
         "playerTransportBonusPctPerLevel": 5.0
@@ -472,7 +471,7 @@
     {
       "key": "HIDEOUT",
       "name": "Cachette",
-      "description": "Cache secrète : à chaque niveau, une quantité fixe de chaque ressource est à l'abri des pillards (240 au niveau 1, 32 000 au niveau 20). La cachette de la Gaule en cache davantage.",
+      "description": "Cache secrète : chaque niveau met à l'abri des pillards 1,5 % du stockage de la ville pour chaque ressource (dépôts pour le bois, la pierre et le fer, silos pour les céréales), soit 30 % au niveau 20. Un petit stock sous cette quantité est entièrement à l'abri. La cachette de la Gaule en cache davantage.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -496,8 +495,7 @@
       "timeL1Sec": 180,
       "timeL20Sec": 86400,
       "effects": {
-        "hideoutL1": 240,
-        "hideoutL20": 32000
+        "hideoutStoragePctPerLevel": 1.5
       }
     },
     {
@@ -658,9 +656,9 @@
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
         "trainTimeReductionPctPerLevel": 4.0,
-        "capitalTrainTimeReductionPctPerLevel": 0.5
+        "capitalTrainTimeReductionPctPerLevel": 0.75
       },
-      "description": "Seconde caserne, dans une colonie : forme l'infanterie et les archers (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit leur temps de formation de 4 % par niveau. Demande une Caserne au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis la Caserne de la capitale. Chaque niveau accélère aussi de 0,5 % la formation de l'infanterie et des archers dans la Caserne de la capitale : les niveaux de toutes vos Grandes casernes s'additionnent."
+      "description": "Seconde caserne, dans une colonie : forme l'infanterie et les archers (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit leur temps de formation de 4 % par niveau. Demande une Caserne au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis la Caserne de la capitale. Chaque niveau accélère aussi de 0,75 % la formation de l'infanterie et des archers dans la Caserne de la capitale : les niveaux de toutes vos Grandes casernes s'additionnent."
     },
     {
       "key": "GREAT_STABLE",
@@ -680,9 +678,9 @@
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
         "trainTimeReductionPctPerLevel": 4.0,
-        "capitalTrainTimeReductionPctPerLevel": 0.5
+        "capitalTrainTimeReductionPctPerLevel": 0.75
       },
-      "description": "Seconde écurie, dans une colonie : forme la cavalerie (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit son temps de formation de 4 % par niveau. Demande une Écurie au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis l'Écurie de la capitale. Chaque niveau accélère aussi de 0,5 % la formation de la cavalerie dans l'Écurie de la capitale : les niveaux de toutes vos Grandes écuries s'additionnent."
+      "description": "Seconde écurie, dans une colonie : forme la cavalerie (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit son temps de formation de 4 % par niveau. Demande une Écurie au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis l'Écurie de la capitale. Chaque niveau accélère aussi de 0,75 % la formation de la cavalerie dans l'Écurie de la capitale : les niveaux de toutes vos Grandes écuries s'additionnent."
     },
     {
       "key": "EMBASSY",
@@ -700,13 +698,13 @@
         "capitalOnly": true,
         "joinAllianceLevel": 5,
         "createAllianceLevel": 7,
-        "allianceMembersPerLevel": 3,
+        "allianceMembersPerLevel": 5,
         "maxAllianceHelpReceivedL1": 0,
         "maxAllianceHelpReceivedL5": 5,
         "maxAllianceHelpReceivedL20": 20,
         "allianceHelpReductionPct": 1
       },
-      "description": "Permet de rejoindre (niveau 5) ou de fonder (niveau 7) une alliance. Le niveau de l'Ambassade du chef fixe la taille de l'alliance : 3 membres par niveau (21 au niveau 7, 60 au niveau 20). Chaque aide reçue réduit le temps de construction de 1 %."
+      "description": "Permet de rejoindre (niveau 5) ou de fonder (niveau 7) une alliance. Le niveau de l'Ambassade du chef fixe la taille de l'alliance : 5 membres par niveau (35 au niveau 7, 100 au niveau 20). Chaque aide reçue réduit le temps de construction de 1 %."
     },
     {
       "key": "TREASURE_CHAMBER",
@@ -876,7 +874,7 @@
         "p2pTaxReductionPctPerLevel": 1.0,
         "armyTransportCapacityBonusPctPerLevel": 1.0
       },
-      "description": "Réservé à la capitale, il vaut pour toutes vos villes : réduit la taxe des échanges entre joueurs de 1 % par niveau et augmente de 1 % par niveau la charge des marchands et des armées de transport."
+      "description": "Réservé à la capitale, il vaut pour toutes vos villes : réduit la taxe des échanges entre joueurs de 1 % par niveau et augmente de 1 % par niveau la charge des armées de transport."
     },
     {
       "key": "ROMAN_THERMAE",
@@ -1001,7 +999,7 @@
         "armyTransportCapacityBonusPctPerLevel": 1.0,
         "upkeepReductionPctPerLevel": 0.5
       },
-      "description": "Bâtiment exclusif Sultanat. Augmente de 1 % par niveau la charge des marchands, des armées de transport et des récoltes, et réduit la consommation de nourriture des unités de 0,5 % par niveau."
+      "description": "Bâtiment exclusif Sultanat. Augmente de 1 % par niveau la charge des armées de transport et des récoltes, et réduit la consommation de nourriture des unités de 0,5 % par niveau."
     }
   ]
 }

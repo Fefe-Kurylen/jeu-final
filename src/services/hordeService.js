@@ -144,31 +144,41 @@ function treasureFor(level, mult = 1) {
 }
 
 // ---- début et fin d'une invasion ----
+// Les donjons d'un niveau sur son anneau (config.invasion.rings), un par secteur. Un donjon reste à placement.clearCells
+// cases au moins des autres donjons, des sites et des plans, et d'abord des villes (lisible sur la carte). Sur une carte
+// pleine (2 000 joueurs et leurs 4 000 colonies, surtout près des bords), il n'y a plus de place ainsi pour la moitié des
+// donjons des niveaux 1 et 2 : il se pose alors comme une ville, une case libre autour (décision du 31 octobre 2026, rapport
+// de vérification ; mesure : tools/measure-map-capacity.cjs).
 async function placeLevel(invasionId, level, count, mult = 1, basePower = null) {
   const [rMin, rMax] = I.rings[level];
+  const { tries: TRIES, clearCells: C } = I.placement;
   const { footprintFree } = require('../utils/spawn');
+  const around = (x, y) => ({ x: { gte: x - C, lte: x + C }, y: { gte: y - C, lte: y + C } });
   let made = 0;
   for (let k = 0; k < count; k++) {
     const angle0 = (2 * Math.PI * (k + level * 0.37)) / count;
-    for (let tries = 0; tries < 120; tries++) {
-      const r = rMin + Math.random() * (rMax - rMin);
-      const a = angle0 + (Math.random() - 0.5) * (Math.PI / count);
-      const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r);
-      if (!Terrain.inWorld(x, y) || !Terrain.isMainland(x, y)) continue;
-      if (!(await footprintFree(x, y, {}).catch(() => false))) continue;
-      // un donjon reste à 4 cases au moins des villes et des autres donjons (lisible sur la carte)
-      if (await prisma.city.findFirst({ where: { x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
-      if (await prisma.resourceNode.findFirst({ where: { resourceType: { in: ['HORDE', 'WONDER', 'PLAN'] }, x: { gte: x - 4, lte: x + 4 }, y: { gte: y - 4, lte: y + 4 } }, select: { id: true } })) continue;
-      const floors = floorsFor(level, mult, basePower);
-      try {
-        await prisma.$transaction(async (tx) => {
-          const node = await tx.resourceNode.create({ data: { x, y, resourceType: 'HORDE', level, amount: 0, maxAmount: 0, regenRate: 0, biome: Terrain.getTerrainType(x, y).biome || 'forest', hasDefenders: true, defenderUnits: floors[0].units, defenderPower: floors[0].power, respawnMinutes: 0 } });
-          await tx.horde.create({ data: { invasionId, nodeId: node.id, x, y, level, floors } });
-        });
-        made++;
-        break;
-      } catch (e) { /* case prise : on essaie ailleurs */ }
+    let placed = false;
+    for (const clearOfCities of [true, false]) {
+      for (let tries = 0; tries < TRIES && !placed; tries++) {
+        const r = rMin + Math.random() * (rMax - rMin);
+        const a = angle0 + (Math.random() - 0.5) * (Math.PI / count);
+        const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r);
+        if (!Terrain.inWorld(x, y) || !Terrain.isMainland(x, y)) continue;
+        if (!(await footprintFree(x, y, {}).catch(() => false))) continue;
+        if (clearOfCities && (await prisma.city.findFirst({ where: around(x, y), select: { id: true } }))) continue;
+        if (await prisma.resourceNode.findFirst({ where: { resourceType: { in: ['HORDE', 'WONDER', 'PLAN'] }, ...around(x, y) }, select: { id: true } })) continue;
+        const floors = floorsFor(level, mult, basePower);
+        try {
+          await prisma.$transaction(async (tx) => {
+            const node = await tx.resourceNode.create({ data: { x, y, resourceType: 'HORDE', level, amount: 0, maxAmount: 0, regenRate: 0, biome: Terrain.getTerrainType(x, y).biome || 'forest', hasDefenders: true, defenderUnits: floors[0].units, defenderPower: floors[0].power, respawnMinutes: 0 } });
+            await tx.horde.create({ data: { invasionId, nodeId: node.id, x, y, level, floors } });
+          });
+          placed = true;
+        } catch (e) { /* case prise : on essaie ailleurs */ }
+      }
+      if (placed) break;
     }
+    if (placed) made++;
   }
   return made;
 }
@@ -387,4 +397,4 @@ async function hordeView(nodeId, playerId) {
   };
 }
 
-module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, ageMultFor, levelAgeMult, outpostPower, measuredBasePower, floorsFor, floorPower, treasureFor, garrison, powerOf, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };
+module.exports = { attackHordeGroup, destroyHorde, weekendWindow, nextWindowStart, parisParts, parisToUtc, ageMultFor, levelAgeMult, outpostPower, measuredBasePower, floorsFor, floorPower, treasureFor, garrison, powerOf, placeLevel, startInvasion, endInvasion, processInvasions, attackHorde, announceOutcome, activeInvasion, invasionState, hordeView };

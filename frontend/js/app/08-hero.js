@@ -139,7 +139,7 @@ async function loadHero() {
           <!-- Expeditions -->
           <div class="hero-expeditions">
             <h4 class="equipment-title"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> Expéditions</h4>
-            <p style="font-size:12px;color:var(--text-muted)">Envoyez une armée (hors garnison) en expédition : XP pour le héros qui l'accompagne, or en récompense, quelques pertes selon la difficulté.</p>
+            <p style="font-size:12px;color:var(--text-muted)">Envoyez une armée (hors garnison) en expédition : quelques pertes selon la difficulté. Seul le héros rapporte quelque chose : de l'expérience, parfois de l'or (davantage quand l'expédition est difficile) et parfois un objet. Sans le héros, une expédition ne rapporte rien.</p>
             <div id="expeditions-available" class="expeditions-grid"><p style="color:var(--text-muted)">Chargement…</p></div>
             <h4 class="equipment-title" style="margin-top:12px">Historique</h4>
             <div id="expeditions-history"></div>
@@ -442,6 +442,8 @@ async function renameHero() {
 }
 
 // ========== EXPEDITIONS ==========
+// Armées qui peuvent partir en expédition, comme le serveur les accepte : prêtes, hors garnison, avec des troupes, dans leur ville
+const expeditionArmies = () => armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0 && a.city && a.x === a.city.x && a.y === a.city.y);
 async function loadExpeditions() {
   let res;
   try {
@@ -460,7 +462,7 @@ async function loadExpeditions() {
     const available = expeditions.filter(e => e.status === 'AVAILABLE');
     const inProgress = expeditions.filter(e => e.status === 'IN_PROGRESS');
     const history = expeditions.filter(e => e.status === 'COMPLETED' || e.status === 'EXPIRED');
-    const sendable = armies.filter(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
+    const sendable = expeditionArmies();
     
     availableEl.innerHTML = [
       ...inProgress.map(e => `
@@ -491,8 +493,11 @@ async function loadExpeditions() {
   }
 }
 
+// Armée envoyée : celle du héros d'abord (seul le héros rapporte de l'or et des objets, décision du 31 octobre 2026), sinon
+// une armée prête de la ville affichée, sinon une autre
 async function startExpedition(id) {
-  const army = armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0 && a.cityId === currentCity?.id) || armies.find(a => a.status === 'IDLE' && !a.isGarrison && a.units?.length > 0);
+  const ready = expeditionArmies();
+  const army = ready.find(a => a.heroId) || ready.find(a => a.cityId === currentCity?.id) || ready[0];
   if (!army) {
     showToast('Aucune armée disponible', 'error');
     return;

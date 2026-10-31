@@ -2,9 +2,10 @@
 // (30 octobre 2026) et les Bastions ennemis (décision du 29 octobre 2026, services/rallyService.js)
 // GET  /api/rallies?nodeId=&bastionId=   rassemblements de mon alliance en cours (tous, ou ceux d'une cible) ; kind :
 //                                        HORDE, WONDER, PLAN ou BASTION ; maxArmies : armées au plus dans un
-//                                        rassemblement que je lance (Place de rassemblement de ma capitale)
-// POST /api/rallies { armyId, nodeId | bastionId, waitMinutes }   lancer (attente 5, 10, 30 ou 60 min) ; nodeId : un
-//                                        donjon, un site ou un plan de Merveille gardé
+//                                        rassemblement que je lance (Place de rassemblement de ma capitale) ; waits :
+//                                        attentes possibles en minutes (config.rally.waitMinutes)
+// POST /api/rallies { armyId, nodeId | bastionId, waitMinutes }   lancer (attente : une de `waits`, 5, 10, 30, 60, 120 ou
+//                                        180 min) ; nodeId : un donjon, un site ou un plan de Merveille gardé
 // POST /api/rallies/:id/join { armyId }               envoyer une armée
 // POST /api/rallies/:id/leave                         retirer son armée
 // POST /api/rallies/:id/cancel                        annuler (le lanceur)

@@ -6,7 +6,9 @@
 //
 // - Un monde déjà peuplé (joueurs, villes ou points de ressource) garde la carte de référence : graine 0.
 // - Un serveur neuf prend WORLD_SEED s'il est donné, sinon tire une graine au hasard parmi celles qui donnent une carte
-//   jouable (Terrain.worldStatsOk : terre d'un seul tenant, biomes dans leurs proportions, rivières traversables).
+//   jouable (Terrain.worldStatsOk : terre d'un seul tenant, biomes dans leurs proportions, rivières traversables). Sa carte
+//   est faite par le générateur des nouveaux mondes (Terrain.NEW_GENERATOR : 420 × 420 depuis le 31 octobre 2026, pour
+//   2 000 joueurs), graine 0 comprise ; un monde déjà ouvert garde le générateur et la taille de sa carte.
 // - La graine n'est jamais changée ensuite : elle déplacerait toute la carte sous les villes. Pour une autre carte, on
 //   ouvre un nouveau serveur (base vide). Une carte faite par un générateur que ce code ne sait pas refaire arrête le
 //   serveur (sinon il « sauverait » les villes en les déplaçant toutes).
@@ -22,7 +24,8 @@ const Terrain = require('../../frontend/js/shared/terrain.js');
 let ready = false;
 const MAX_TRIES = 25;   // graines essayées avant de garder la meilleure (en pratique la première convient presque toujours)
 
-// WORLD_SEED : entier de 0 (carte de référence) à Terrain.MAX_SEED ; tout le reste est ignoré
+// WORLD_SEED : entier de 0 à Terrain.MAX_SEED (0 : la carte de référence d'un monde déjà peuplé, la graine 0 du générateur
+// des nouveaux mondes sinon) ; tout le reste est ignoré
 function envSeed() {
   const raw = config.map.worldSeed;
   if (raw === null || raw === undefined || raw === '') return null;
@@ -31,12 +34,12 @@ function envSeed() {
   return n;
 }
 
-// Une graine au hasard qui donne une carte jouable
+// Une graine au hasard qui donne une carte jouable (générateur des nouveaux mondes)
 function pickRandomSeed() {
   let best = null;
   for (let i = 0; i < MAX_TRIES; i++) {
     const seed = crypto.randomInt(1, Terrain.MAX_SEED + 1);
-    Terrain.setWorldSeed(seed);
+    Terrain.setWorldSeed(seed, Terrain.NEW_GENERATOR);
     const stats = Terrain.worldStats();
     if (Terrain.worldStatsOk(stats)) return { seed, stats, tries: i + 1 };
     if (!best || stats.mainland > best.stats.mainland) best = { seed, stats, tries: i + 1 };
@@ -48,22 +51,22 @@ function pickRandomSeed() {
 function describe(seed) {
   const st = Terrain.worldStats();   // tout le monde parcouru (0,3 s) : seulement dans le processus qui prépare la base
   const pct = (v) => Math.round(v * 100) + ' %';
-  return `graine ${seed}${seed === 0 ? ' (carte de référence)' : ''} : neige ${pct(st.snow)}, désert ${pct(st.desert)}, terre d'un seul tenant ${pct(st.mainland)}, ${st.rivers} rivières, ${st.crossings} passages`;
+  return `graine ${seed}${Terrain.generator === 2 ? ' (carte de référence)' : ''}, générateur ${Terrain.generator}, ${Terrain.WORLD_SIZE} × ${Terrain.WORLD_SIZE} : neige ${pct(st.snow)}, désert ${pct(st.desert)}, terre d'un seul tenant ${pct(st.mainland)}, ${st.rivers} rivières, ${st.crossings} passages`;
 }
 
 const fatal = (msg) => Object.assign(new Error(msg), { fatal: true });
 
-// Les villes et les points d'un monde peuplé tiennent-ils sur la carte de cette graine ? Sur sa vraie carte, aucune ville
-// n'a les pieds dans l'eau ni sur le relief (le démarrage les en sort) et aucun point n'est dans l'eau ; sur une autre
-// carte, une bonne part tombe mal. Sert quand un monde peuplé n'a pas (ou plus) de graine en base.
-async function fitsSeed(seed) {
-  Terrain.setWorldSeed(seed);
+// Les villes et les points d'un monde peuplé tiennent-ils sur la carte de cette graine et de ce générateur ? Sur sa vraie
+// carte, aucune ville n'a les pieds dans l'eau ni sur le relief (le démarrage les en sort) et aucun point n'est dans l'eau ;
+// sur une autre carte, une bonne part tombe mal. Sert quand un monde peuplé n'a pas (ou plus) de graine en base.
+async function fitsSeed(seed, generator) {
+  Terrain.setWorldSeed(seed, generator);
   const [cities, nodes] = await Promise.all([prisma.city.findMany({ select: { x: true, y: true } }), prisma.resourceNode.findMany({ select: { x: true, y: true } })]);
   const badCell = (x, y) => { const f = Terrain.getTerrainType(x, y).feature; return !Terrain.inWorld(x, y) || Terrain.BLOCKED[f] || f === 'bridge' || f === 'ford'; };
   const badCities = cities.filter(c => !Terrain.isMainland(c.x, c.y) || Terrain.cityCells(c.x, c.y).some(([x, y]) => badCell(x, y))).length;
   const wetNodes = nodes.filter(n => !Terrain.inWorld(n.x, n.y) || Terrain.WATER[Terrain.getTerrainType(n.x, n.y).feature]).length;
   const ok = badCities <= Math.max(2, cities.length * 0.02) && wetNodes <= Math.max(5, nodes.length * 0.02);
-  return { ok, cities: cities.length, badCities, nodes: nodes.length, wetNodes };
+  return { ok, generator, cities: cities.length, badCities, nodes: nodes.length, wetNodes };
 }
 
 // La table WorldConfig pas encore créée (le worker de tick applique encore les migrations) : on attend comme pour la ligne
@@ -91,23 +94,25 @@ async function loadWorldSeed({ setup = true } = {}) {
     }
     // Pas encore de graine : un monde déjà peuplé garde sa carte, un monde neuf reçoit la sienne
     const [cities, nodes, players] = await Promise.all([prisma.city.count(), prisma.resourceNode.count(), prisma.player.count()]);
-    let seed, why, readyAt = null;
+    let seed, why, readyAt = null, generator = Terrain.NEW_GENERATOR;
     // des joueurs sans ville (comptes gardés pour le monde suivant, décision du 28 octobre 2026) ne fixent pas la carte
     if (cities + nodes > 0) {
       // monde ouvert avant les cartes au hasard (carte de référence), ou dont la graine s'est perdue : on ne la remplace que
       // si ses villes et ses points tiennent sur la carte choisie (WORLD_SEED pour rendre sa graine à un monde, sinon 0),
-      // car le démarrage déplacerait sinon toutes les villes « coincées »
+      // car le démarrage déplacerait sinon toutes les villes « coincées ». Sa carte a pu être faite avant le 31 octobre 2026
+      // (générateur 2 pour la graine 0, 3 pour les autres) ou après (générateur des nouveaux mondes) : la première qui tient
       const candidate = envSeed() ?? 0;
-      const fit = await fitsSeed(candidate);
+      let fit = null;
+      for (const g of [candidate ? 3 : 2, Terrain.NEW_GENERATOR]) { fit = await fitsSeed(candidate, g); if (fit.ok) break; }
       if (!fit.ok) throw fatal(`[MONDE] Ce monde a ${players} joueurs et ${cities} villes mais pas de graine en base, et il ne tient pas sur la carte de la graine ${candidate} (${fit.badCities} villes sur l'eau ou le relief, ${fit.wetNodes} points dans l'eau) : ce n'est pas sa carte. Restaurer la ligne WorldConfig d'une sauvegarde, ou démarrer avec WORLD_SEED=<sa graine> (ligne [MONDE] du journal de son premier démarrage).`);
-      seed = candidate; readyAt = new Date();
-      why = `monde déjà peuplé (${players} joueurs, ${cities} villes, ${nodes} points), qui tient sur cette carte${candidate === 0 ? ' (carte de référence)' : ' (WORLD_SEED)'}`;
+      seed = candidate; generator = fit.generator; readyAt = new Date();
+      why = `monde déjà peuplé (${players} joueurs, ${cities} villes, ${nodes} points), qui tient sur cette carte${generator === 2 ? ' (carte de référence)' : ` (générateur ${generator})`}`;
     }
     else if (envSeed() !== null) { seed = envSeed(); why = 'WORLD_SEED'; }
     else { const p = pickRandomSeed(); seed = p.seed; why = `tirée au hasard (${p.tries} essai${p.tries > 1 ? 's' : ''})`; }
     // un autre processus a pu l'écrire entre-temps : la première écrite l'emporte, puis on relit
     // numéro du monde : le suivant du dernier monde terminé (Panthéon), 1 pour le premier
-    const inserted = await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt", "number") VALUES (1, ${seed}, ${Terrain.generatorFor(seed)}, ${readyAt}, (SELECT COALESCE(MAX("world"), 0) + 1 FROM "HallOfFame")) ON CONFLICT ("id") DO NOTHING`;
+    const inserted = await prisma.$executeRaw`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt", "number") VALUES (1, ${seed}, ${generator}, ${readyAt}, (SELECT COALESCE(MAX("world"), 0) + 1 FROM "HallOfFame")) ON CONFLICT ("id") DO NOTHING`;
     const populated = readyAt !== null;   // monde déjà peuplé : sa graine est notée, ce n'est pas une nouvelle carte
     console.log(!inserted ? '[MONDE] un autre processus a écrit la graine en même temps : la sienne est gardée'
       : populated ? `[MONDE] graine ${seed} notée pour ce monde : ${why}` : `[MONDE] nouvelle carte, graine ${seed} : ${why}`);

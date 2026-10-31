@@ -4,9 +4,11 @@
 //   ville), à 40 cases au plus d'une ville de l'alliance.
 // - Les membres y apportent les ressources par convois (500 000 bois, pierre, fer, 250 000 nourriture), puis 3 jours de
 //   chantier ; actif, il donne à tous les membres +10 % de production, +5 % de vitesse des armées, +10 % de transport.
-// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense) ; pendant un siège, aucune n'entre.
+// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 25 armées au plus comme un rassemblement
+//   plein (décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
 // - Les autres l'attaquent avec des engins de siège : camp d'1 h, puis combat contre la garnison derrière un mur bouclier
-//   10 fois plus solide qu'un mur 20 (décision du 30 octobre 2026) ; chaque assaut gagné lui ôte une vie sur 10 (les vies
+//   5 fois plus solide qu'un mur 20 (décision du 31 octobre 2026, 10 fois avant) ; un assaut = un rassemblement ou une
+//   armée seule, comme un fort barbare de Rise of Kingdoms ; chaque assaut gagné lui ôte une vie sur 10 (les vies
 //   remontent en 72 h). À la dernière, il est rasé : plus de bonus, garnison renvoyée, 7 jours avant d'en rebâtir un.
 // ============================================================
 const prisma = require('../config/database');
@@ -17,7 +19,7 @@ const { routeLength } = require('../utils/pathfinding');
 const { footprintFree, lockPlacement } = require('../utils/spawn');
 const { transition, debitCity, lockCity } = require('../utils/db');
 const { resolveCombatDetailed, heroCombatStats } = require('./combatService');
-const { relationsOf, getRelation, sameAllianceAs, allianceRowsOf } = require('./diplomacyService');
+const { relationsOf, getRelation } = require('./diplomacyService');
 const { notify } = require('./pushService');
 const T = require('../utils/techEffects');
 const fx = require('../utils/buildingEffects');
@@ -66,18 +68,27 @@ const publicBastion = (b, extra = {}) => b && ({
   id: b.id, allianceId: b.allianceId, x: b.x, y: b.y, status: b.status,
   delivered: { wood: b.wood, stone: b.stone, iron: b.iron, food: b.food }, cost: B.cost,
   buildEndsAt: b.buildEndsAt, structurePct: Math.round(structureNow(b) * 100), lives: livesOf(structureNow(b)), assaults: B.assaults, wallMaxHp: wallMaxHp(),
+  maxGarrisonArmies: B.maxGarrisonArmies,
   isSieged: b.isSieged, activatedAt: b.activatedAt, destroyedAt: b.destroyedAt, cooldownUntil: b.cooldownUntil, ...extra
 });
+// règles que le client affiche (onglet Alliance › Bastion, panneau d'un Bastion sur la carte), même sans alliance
+const RULES = { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, maxDistance: B.maxDistanceFromMember, wallMultiplier: B.wallMultiplier, wallReferenceLevel: B.wallReferenceLevel, maxGarrisonArmies: B.maxGarrisonArmies };
+
+// Armées de la garnison d'un Bastion : celles qui y sont, celles en route pour y entrer et une sortie en cours (elle y
+// revient victorieuse)
+const garrisonWhere = (bastionId) => ({ targetBastionId: bastionId, OR: [{ status: 'STATIONED' }, { status: { in: ['SUPPORTING', 'ATTACKING'] }, missionType: { in: ['BASTION_GARRISON', 'BASTION_SORTIE'] } }] });
+const GARRISON_FULL = `Garnison du Bastion complète : ${B.maxGarrisonArmies} armées au plus, celles en route comprises`;
 
 async function bastionFor(playerId) {
   const m = await prisma.allianceMember.findUnique({ where: { playerId }, include: { alliance: { include: { bastion: true, _count: { select: { members: true } } } } } });
-  if (!m) return { inAlliance: false };
+  if (!m) return { inAlliance: false, rules: RULES };
   const b = m.alliance.bastion;
-  const garrison = b ? await prisma.army.findMany({ where: { status: { in: ['STATIONED', 'SUPPORTING'] }, targetBastionId: b.id }, include: { units: true, owner: { select: { id: true, name: true } } } }) : [];
+  // la garnison comptée comme au plafond (garrisonWhere) : dedans, en route, en sortie
+  const garrison = b ? await prisma.army.findMany({ where: garrisonWhere(b.id), include: { units: true, owner: { select: { id: true, name: true } } } }) : [];
   const convoys = b ? await prisma.army.count({ where: { status: 'TRANSPORTING', missionType: 'BASTION_SUPPLY', targetBastionId: b.id } }) : 0;
   return {
     inAlliance: true, role: m.role, canPlace: ['LEADER', 'OFFICER'].includes(m.role), members: m.alliance._count.members, minMembers: B.minMembers,
-    rules: { cost: B.cost, buildDays: B.buildDays, cooldownDays: B.cooldownDays, bonuses: B.bonuses, assaults: B.assaults, regenHours: B.regenHours, maxDistance: B.maxDistanceFromMember },
+    rules: RULES,
     bastion: publicBastion(b, { convoys, garrison: garrison.map(a => ({ id: a.id, name: a.name, owner: a.owner, status: a.status, units: a.units.filter(u => u.count > 0).map(u => ({ key: u.unitKey, count: u.count })) })) })
   };
 }
@@ -163,6 +174,9 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
       if (rel !== 'SAME' && rel !== 'ALLY') throw httpError(403, 'Seuls les membres de l\'alliance et ses alliés tiennent garnison au Bastion');
       if (b.status === 'FUNDING') throw httpError(400, 'Le Bastion n\'est encore qu\'un chantier : apportez d\'abord les ressources');
       if (b.isSieged) throw httpError(400, 'Bastion assiégé : aucune troupe n\'entre pendant le siège');
+      // 25 armées au plus (décision du 31 octobre 2026), comptées sous le verrou du Bastion (après celui de la ville)
+      await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${b.id} FOR UPDATE`;
+      if ((await tx.army.count({ where: garrisonWhere(b.id) })) >= B.maxGarrisonArmies) throw httpError(400, GARRISON_FULL);
       if (!(await transition(tx, 'army', army.id, 'IDLE', { ...base, status: 'SUPPORTING', missionType: 'BASTION_GARRISON' }))) throw httpError(409, 'Armée déjà en mission');
       return { message: `Armée en route pour la garnison du Bastion (${Math.max(1, Math.round(travel / 60))} min)`, travelTime: travel, arrivalAt };
     }
@@ -318,12 +332,27 @@ async function handleSupplyArrival(army, sendArmyHome) {
 async function handleGarrisonArrival(army, sendArmyHome) {
   const b = await prisma.bastion.findUnique({ where: { id: army.targetBastionId || '' } });
   const rel = b ? await relationTo((await prisma.allianceMember.findUnique({ where: { playerId: army.ownerId }, select: { allianceId: true } }))?.allianceId || null, b.allianceId) : null;
-  if (!b || b.status === 'DESTROYED' || b.status === 'FUNDING' || b.isSieged || (rel !== 'SAME' && rel !== 'ALLY')) {
-    notify(army.ownerId, 'battle', '↩️ Garnison refusée', `${army.name} n'a pas pu entrer dans le Bastion${b?.isSieged ? ' (assiégé)' : ''} : elle rentre.`, { to: 'army', armyId: army.id });
+  let why = null;
+  if (!b || (rel !== 'SAME' && rel !== 'ALLY')) why = 'gone';
+  else {
+    // entrée sous le verrou du Bastion, état relu (un camp a pu s'installer entre-temps) : 25 armées au plus à l'intérieur
+    // (décision du 31 octobre 2026)
+    why = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${b.id} FOR UPDATE`;
+      const now = await tx.bastion.findUnique({ where: { id: b.id }, select: { status: true, isSieged: true } });
+      if (!now || now.status === 'DESTROYED' || now.status === 'FUNDING') return 'gone';
+      if (now.isSieged) return 'sieged';
+      const inside = await tx.army.count({ where: { targetBastionId: b.id, id: { not: army.id }, OR: [{ status: 'STATIONED' }, { status: 'ATTACKING', missionType: 'BASTION_SORTIE' }] } });
+      if (inside >= B.maxGarrisonArmies) return 'full';
+      await tx.army.update({ where: { id: army.id }, data: { status: 'STATIONED', x: b.x, y: b.y, arrivalAt: null, claimedAt: null } });
+      return null;
+    });
+  }
+  if (why) {
+    notify(army.ownerId, 'battle', '↩️ Garnison refusée', `${army.name} n'a pas pu entrer dans le Bastion${why === 'sieged' ? ' (assiégé)' : why === 'full' ? ` (garnison complète : ${B.maxGarrisonArmies} armées au plus)` : ''} : elle rentre.`, { to: 'army', armyId: army.id });
     await sendHome(army, sendArmyHome);
     return;
   }
-  await prisma.army.update({ where: { id: army.id }, data: { status: 'STATIONED', x: b.x, y: b.y, arrivalAt: null, claimedAt: null } });
   notify(army.ownerId, 'alliance', '🛡️ Garnison du Bastion', `${army.name} tient garnison au Bastion (+${B.bonuses.garrisonDefensePct} % de défense).`, { to: 'army', armyId: army.id });
 }
 
@@ -332,7 +361,8 @@ async function refreshSieged(db, bastionId) {
   await db.bastion.updateMany({ where: { id: bastionId }, data: { isSieged: camps > 0 } });
 }
 
-// Une armée arrive devant le bastion : elle campe 1 h (ou rejoint un camp allié déjà là), puis le combat démarre
+// Une armée arrive devant le bastion : elle campe 1 h, puis livre son assaut, seule (handleBastionBattle : les autres camps,
+// même de son alliance, livrent le leur)
 async function handleAttackArrival(army, sendArmyHome) {
   const b = await prisma.bastion.findUnique({ where: { id: army.targetBastionId || '' } });
   const rel = b ? await relationTo((await prisma.allianceMember.findUnique({ where: { playerId: army.ownerId }, select: { allianceId: true } }))?.allianceId || null, b.allianceId) : null;
@@ -367,20 +397,30 @@ function garrisonFaction(defenders) {
 // Un rassemblement dont le groupe campe devant ce Bastion : parti (DONE) et dirigé vers lui
 const campingRally = (rally, bastionId) => !!rally && rally.status === 'DONE' && rally.targetBastionId === bastionId;
 
+// Qui livre l'assaut quand le camp de `army` a fini son heure (décision du 31 octobre 2026, rapport de vérification) : un
+// assaut = un rassemblement (25 armées au plus, la taille fixée par la Place de rassemblement du lanceur) ou une armée
+// seule. Les armées du rassemblement qui campe devant ce Bastion combattent ensemble, réservées ici (claimedAt) ; toute
+// autre armée, même de la même alliance et finissant au même instant, livre son propre assaut. rally : celui qui campe
+// devant ce Bastion, ou null (armée seule, ou ancien rallyId ignoré)
+async function assaultGroup(tx, army, bastionId, now) {
+  const found = army.rallyId ? await tx.rally.findUnique({ where: { id: army.rallyId }, select: { id: true, leaderId: true, status: true, targetBastionId: true } }) : null;
+  const rally = campingRally(found, bastionId) ? found : null;
+  const group = [army];
+  if (!rally) return { group, rally };
+  const mates = await tx.army.findMany({ where: { status: 'BESIEGING', targetBastionId: bastionId, rallyId: rally.id, claimedAt: null, id: { not: army.id } }, include: { units: true, owner: true, hero: { include: { items: true } } } });
+  for (const o of mates) {
+    if ((await tx.army.updateMany({ where: { id: o.id, status: 'BESIEGING', claimedAt: null }, data: { claimedAt: now } })).count === 1) group.push(o);
+  }
+  return { group, rally };
+}
+
 // L'heure du camp est passée : assaut contre la garnison derrière le mur bouclier
 async function handleBastionBattle(army, now, sendArmyHome) {
   const outcome = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${army.targetBastionId || ''} FOR UPDATE`;
     const b = await tx.bastion.findUnique({ where: { id: army.targetBastionId || '' }, include: { alliance: { select: { id: true, tag: true, name: true } } } });
     if (!b || !['BUILDING', 'ACTIVE'].includes(b.status)) return { gone: true };
-    const others = await tx.army.findMany({ where: { status: 'BESIEGING', targetBastionId: b.id, claimedAt: null, arrivalAt: { lte: now }, id: { not: army.id } }, include: { units: true, owner: true, hero: { include: { items: true } } } });
-    // camps du même joueur ou de la même alliance : un seul assaut (alliances lues en une requête)
-    const sameAlliance = sameAllianceAs(await allianceRowsOf([army.ownerId, ...others.map(o => o.ownerId)], tx), army.ownerId);
-    const group = [army];
-    for (const o of others) {
-      if (o.ownerId !== army.ownerId && !sameAlliance(o.ownerId)) continue;
-      if ((await tx.army.updateMany({ where: { id: o.id, status: 'BESIEGING', claimedAt: null }, data: { claimedAt: now } })).count === 1) group.push(o);
-    }
+    const { group, rally } = await assaultGroup(tx, army, b.id, now);
     const rowsOf = new Map();
     for (const g of group) rowsOf.set(g.id, await tx.armyUnit.findMany({ where: { armyId: g.id } }));
     const defenders = await tx.army.findMany({ where: { status: 'STATIONED', targetBastionId: b.id }, include: { units: true, owner: true, hero: { include: { items: true } } } });
@@ -389,20 +429,14 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     const attackerName = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
     const defHero = require('./heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // rassemblement : c'est le héros de l'armée qui a lancé le rassemblement qui mène l'assaut (et donne ses bonus) ;
-    // si cette armée n'est plus là, aucun héros. Hors rassemblement : le héros de l'armée dont le camp finit le premier.
-    // Seul compte un rassemblement qui campe devant ce Bastion (un ancien rallyId resté sur une armée est ignoré).
+    // si cette armée n'est plus là, aucun héros. Armée seule : son héros.
     let leadHero = army.hero || null, leadOwnerId = army.ownerId;
-    const rallyIds = [...new Set(group.map(g => g.rallyId).filter(Boolean))];
-    if (rallyIds.length) {
-      const rallies = await tx.rally.findMany({ where: { id: { in: rallyIds } }, select: { id: true, leaderId: true, status: true, targetBastionId: true } });
-      const rally = rallyIds.map(id => rallies.find(r => r.id === id)).find(r => campingRally(r, b.id));
-      if (rally) {
-        const lead = group.find(g => g.rallyId === rally.id && g.ownerId === rally.leaderId);
-        leadHero = lead?.hero || null;
-        if (lead) leadOwnerId = lead.ownerId;
-      }
-      await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
+    if (rally) {
+      const lead = group.find(g => g.ownerId === rally.leaderId);
+      leadHero = lead?.hero || null;
+      if (lead) leadOwnerId = lead.ownerId;
     }
+    if (army.rallyId) await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     // technologies du chef de l'assaut ; Forge de chaque joueur des deux camps, selon ses soldats (décision du 31 octobre 2026)
     const { combatPct, combatMult } = require('./armyService');
     const atkBonus = combatMult(await combatPct(tx, leadOwnerId, await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } }), group.map(g => ({ ownerId: g.ownerId, units: rowsOf.get(g.id) }))));
@@ -510,4 +544,4 @@ async function bastionsIn(x0, x1, y0, y1) {
   return rows.map(r => ({ id: r.id, x: r.x, y: r.y, status: r.status, allianceId: r.allianceId, allianceTag: r.alliance.tag, allianceName: r.alliance.name, faction: leaders.find(l => l.id === r.alliance.leaderId)?.faction || 'ROME', structurePct: Math.round(structureNow(r) * 100), lives: livesOf(structureNow(r)), isSieged: r.isSieged, buildEndsAt: r.buildEndsAt }));
 }
 
-module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, campingRally, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };
+module.exports = { relationTo, breakSiege, handleBreakArrival, livesOf, refreshSieged, campingRally, assaultGroup, garrisonWhere, activeSync, speedPctSync, carryMultSync, bastionFor, place, send, handleSupplyArrival, handleGarrisonArrival, handleAttackArrival, handleBastionBattle, processBastions, bastionsIn, hasBonus, speedPct, carryMult, activeAllianceIds, structureNow, wallMaxHp, httpError };

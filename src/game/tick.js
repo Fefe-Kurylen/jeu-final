@@ -117,7 +117,7 @@ async function runTickSteps(now, TICK_HOURS, step) {
   await step('wonders', () => require('../services/wonderService').processWonders(now));   // sites et plans, niveaux de Merveille, vagues des Immortels
   await step('invasions', () => require('../services/hordeService').processInvasions(now));   // invasions barbares du week-end
   await step('rallies', () => require('../services/rallyService').processRallies(now));   // rassemblements d'alliance (donjons, Bastions)
-  await step('market', async () => { await require('../services/marketService').expireOffers(now); await require('../services/marketService').processTradeRoutes(now); });   // offres de 48 h, routes commerciales
+  await step('market', () => require('../services/marketService').expireOffers(now));   // offres de 48 h (plus de routes commerciales)
   await step('harvest', () => processHarvesting(now));
 
   await step('flags', () => cleanupOrphanedFlags());

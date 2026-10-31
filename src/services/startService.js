@@ -1,10 +1,11 @@
 // Départ d'un joueur dans le monde : capitale au bord de la carte, Bâtiment principal, héros, garnison, 3 expéditions.
 // Sert à l'inscription et à « Rejoindre le nouveau monde » (décision du 28 octobre 2026). À appeler sous lockPlacement(tx).
+// side : côté de la carte choisi ('N', 'E', 'S', 'W' ou 'RANDOM', décision du 31 octobre 2026), les autres s'il est plein.
 const { findFreeSpawn, gatherArmiesOnBlock } = require('../utils/spawn');
 const { createExpedition } = require('./expeditionService');
 
-async function createStart(tx, { playerId, name }) {
-  const { x, y } = await findFreeSpawn({ db: tx });
+async function createStart(tx, { playerId, name, side = 'RANDOM' }) {
+  const { x, y } = await findFreeSpawn({ db: tx, side });
   await tx.playerStats.upsert({ where: { playerId }, update: {}, create: { playerId } });
   const city = await tx.city.create({ data: { playerId, name: `Capitale de ${name}`, x, y, isCapital: true, wood: 500, stone: 500, iron: 500, food: 500 } });
   await gatherArmiesOnBlock(tx, x, y);

@@ -3,7 +3,7 @@
 // server and the client (frontend/js/app/04-buildings-render.js) read the same numbers.
 const config = require('../config');
 const { buildingsData, factionsData } = require('../config/gamedata');
-const { lerpExp, getFactionBonus } = require('./calculations');
+const { lerpExp, getFactionBonus, cityStorageCaps } = require('./calculations');
 
 const defOf = (key) => buildingsData.find(b => b.key === key);
 const effectOf = (key, name, fallback = 0) => { const v = defOf(key)?.effects?.[name]; return typeof v === 'number' ? v : fallback; };
@@ -42,6 +42,9 @@ const TRAIN_BUILDINGS = { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BA
 // et accélèrent la formation de leur classe dans la Caserne ou l'Écurie de la capitale
 const CAPITAL_TRAIN_BOOST = { INFANTRY: 'GREAT_BARRACKS', ARCHER: 'GREAT_BARRACKS', CAVALRY: 'GREAT_STABLE' };
 const TRAIN_TIME_MAX_PCT = 60;
+// Part du stockage mise à l'abri par la cachette, en centièmes de % (niveau × 1,5 × (100 + bonus de la civilisation)) : un
+// nombre exact, divisé une seule fois ensuite, sans erreur d'arrondi
+const hideoutPctX100 = (level, faction) => Math.max(0, Math.floor(Number(level) || 0)) * effectOf('HIDEOUT', 'hideoutStoragePctPerLevel') * (100 + (getFactionBonus(faction, 'hideoutCapacity', factionsData) || 0));
 
 const effects = {
   // Construction time: Main Hall 2.5 %/level, Academy 1 %, Residence 0.25 % (max 60 %)
@@ -50,7 +53,8 @@ const effects = {
   // capital), max 60 % in all
   trainTimeReductionPct: (buildings, unitClass, boostPct = 0) => cap(rawPct(buildings, TRAIN_BUILDINGS[unitClass] || ['BARRACKS'], 'trainTimeReductionPctPerLevel') + boostPct, TRAIN_TIME_MAX_PCT),
   // Formation dans la capitale accélérée par les Grandes casernes / Grandes écuries de TOUTES les villes du joueur
-  // [{ buildings }] : somme de leurs niveaux × capitalTrainTimeReductionPctPerLevel (0,5 %), dans le plafond de 60 %
+  // [{ buildings }] : somme de leurs niveaux × capitalTrainTimeReductionPctPerLevel (0,75 % depuis le 31 octobre 2026, rapport
+  // de vérification : 30 % avec deux bâtiments au niveau 20), dans le plafond de 60 %
   capitalTrainBoostPct: (cities, unitClass) => {
     const key = CAPITAL_TRAIN_BOOST[unitClass];
     return key ? (cities || []).reduce((t, c) => t + levelOf(c.buildings, key), 0) * effectOf(key, 'capitalTrainTimeReductionPctPerLevel') : 0;
@@ -62,12 +66,21 @@ const effects = {
   // troupes du joueur, dans tous les combats (services/armyService.js combatPct ; max 50 %)
   forgeAttackPct: (buildings) => sumPct(buildings, ['FORGE'], 'attackBonusPctPerLevel', 50),
   forgeDefensePct: (buildings) => sumPct(buildings, ['FORGE'], 'defenseBonusPctPerLevel', 50),
-  // Cachette (décision du 31 octobre 2026, façon Travian) : quantité de CHAQUE ressource à l'abri des pillards selon son
-  // niveau (hideoutL1 → hideoutL20, même courbe que le stockage), × bonus de cachette de la civilisation (Gaule). Seule la
-  // cachette protège : le Grand dépôt et le Grand silo ne sont que du stockage. Raid, pillage d'un siège, rapport d'espion
-  hideoutAmount: (buildings, faction) => Math.floor(curve('HIDEOUT', 'hideout', levelOf(buildings, 'HIDEOUT')) * (1 + (getFactionBonus(faction, 'hideoutCapacity', factionsData) || 0) / 100)),
+  // Cachette (décision du 31 octobre 2026, rapport de vérification) : chaque niveau met à l'abri hideoutStoragePctPerLevel
+  // (1,5 %) du stockage de la ville pour CHAQUE ressource (dépôts et Grand dépôt pour le bois, la pierre et le fer ; silos et
+  // Grand silo pour les céréales), soit 30 % au niveau 20, × bonus de cachette de la civilisation (Gaule × 1,2 : 36 %). Un
+  // stock plus petit est entièrement à l'abri. Seule la cachette protège. Raid, pillage d'un siège, rapport d'espion.
+  // Part du stockage (%) à ce niveau :
+  hideoutPct: (level, faction) => hideoutPctX100(level, faction) / 100,
+  // …et quantité à l'abri de chaque ressource dans la ville de ces bâtiments : { wood, stone, iron, food }
+  hideoutAmount: (buildings, faction) => {
+    const x100 = hideoutPctX100(levelOf(buildings, 'HIDEOUT'), faction);
+    const { maxStorage, maxFoodStorage } = cityStorageCaps(buildings);
+    const goods = Math.floor(maxStorage * x100 / 10000);
+    return { wood: goods, stone: goods, iron: goods, food: Math.floor(maxFoodStorage * x100 / 10000) };
+  },
   // Ce qu'un pillard peut prendre d'un stock : ce qui dépasse la cachette, par ressource
-  outsideHideout: (stock, hidden) => Object.fromEntries(['wood', 'stone', 'iron', 'food'].map(r => [r, Math.max(0, Math.floor(Number(stock?.[r]) || 0) - hidden)])),
+  outsideHideout: (stock, hidden) => Object.fromEntries(['wood', 'stone', 'iron', 'food'].map(r => [r, Math.max(0, Math.floor(Number(stock?.[r]) || 0) - (Number(hidden?.[r]) || 0))])),
   // Treasure Chamber: gold per day
   goldPerDay: (buildings) => curve('TREASURE_CHAMBER', 'goldProdPerDay', levelOf(buildings, 'TREASURE_CHAMBER')),
   goldPerDayAtLevel: (level) => curve('TREASURE_CHAMBER', 'goldProdPerDay', level),
@@ -97,8 +110,9 @@ const effects = {
   embassyLevel: (buildings) => levelOf(buildings, 'EMBASSY'),
   allianceCreateLevel: () => effectOf('EMBASSY', 'createAllianceLevel', 7),
   allianceJoinLevel: () => effectOf('EMBASSY', 'joinAllianceLevel', 5),
-  // Taille d'une alliance (décision du 31 octobre 2026) : 3 membres par niveau de l'Ambassade du CHEF (21 au niveau 7, où
-  // l'on peut fonder), jamais plus que config.alliance.maxMembers (60) ; s'il baisse, personne n'est exclu
+  // Taille d'une alliance (décision du 31 octobre 2026, rapport de vérification) : 5 membres par niveau de l'Ambassade du
+  // CHEF (35 au niveau 7, où l'on peut fonder ; 100 au niveau 20), jamais plus que config.alliance.maxMembers (100) ; s'il
+  // baisse, personne n'est exclu
   allianceMaxMembers: (leaderEmbassyLevel) => Math.min(config.alliance.maxMembers, Math.max(0, Math.floor(Number(leaderEmbassyLevel) || 0)) * effectOf('EMBASSY', 'allianceMembersPerLevel')),
   // Aide d'alliance (décision du 26 octobre 2026) : aides reçues au plus par demande selon l'Ambassade, en ligne droite
   // entre les paliers de la donnée (niv. 1 : 0, niv. 5 : 5, niv. 20 : 20) ; chaque aide retire 1 % du temps restant

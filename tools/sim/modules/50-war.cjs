@@ -381,7 +381,7 @@ async function spyTurn(bot, ctx, v, m, B, cap) {
 }
 
 // ---------- raids sur les villes ennemies ----------
-// le rapport d'espion « Ressources » montre déjà ce qui dépasse la cachette (quantité fixe par ressource) ; la Forge du
+// le rapport d'espion « Ressources » montre déjà ce qui dépasse la cachette (part du stockage, par ressource) ; la Forge du
 // pillard compte dans son attaque, celle du défenseur dans le bonus de défense du rapport « Défenses »
 function raidEstimate(v, side, bot, att, target) {
   const e = intelOf(side, target.id);

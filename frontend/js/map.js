@@ -11,20 +11,14 @@ let mapHoveredTile = null;
 let mapSelectedTile = null;
 
 // ========== WORLD COORDINATE SYSTEM ==========
-// Map uses centered coordinates: -187 to +186 (374x374)
-// Center of map is (0, 0) - richest resources
-// Players spawn on EDGES (borders of the map)
-const BASE_WORLD_SIZE = 374;
-const MIN_COORD = -Math.floor(BASE_WORLD_SIZE / 2);  // -187
-const MAX_COORD = MIN_COORD + BASE_WORLD_SIZE - 1;   // +186
-let WORLD_SIZE = BASE_WORLD_SIZE;
-
-// Update world size based on player count
-function updateWorldSize(playerCount, serverWorldSize) {
-  if (serverWorldSize && serverWorldSize > WORLD_SIZE) {
-    WORLD_SIZE = serverWorldSize;
-  }
-  console.log(`🗺️ World: ${WORLD_SIZE}x${WORLD_SIZE} (coords ${MIN_COORD} to ${MAX_COORD}) - ${playerCount} players`);
+// Coordonnées centrées : (0, 0) au centre (les ressources les plus riches), les joueurs apparaissent près des bords.
+// Taille : celle de la carte du serveur dans le terrain partagé (shared/terrain.js, selon le générateur de la carte :
+// 374 × 374 pour les mondes ouverts avant le 31 octobre 2026, 420 × 420 pour les nouveaux), relue quand la carte change.
+let WORLD_SIZE = Terrain.WORLD_SIZE, MIN_COORD = Terrain.MIN_COORD, MAX_COORD = Terrain.MAX_COORD;
+function updateWorldSize() {
+  WORLD_SIZE = Terrain.WORLD_SIZE; MIN_COORD = Terrain.MIN_COORD; MAX_COORD = Terrain.MAX_COORD;
+  mapOffsetX = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetX));
+  mapOffsetY = Math.max(MIN_COORD, Math.min(MAX_COORD, mapOffsetY));
 }
 
 // ========== ISOMETRIC MAP SYSTEM - Rise of Kingdoms Style ==========
@@ -562,7 +556,8 @@ async function loadMap() {
             siegedBy: c.siegedBy || null,
             wallDamage: c.wallDamage || 0,
             population: c.player?.population || 0,
-            isWonder: !!c.isWonder, wonderLevel: c.wonderLevel || 0   // Ville Merveille (décision du 28 octobre 2026)
+            isWonder: !!c.isWonder, wonderLevel: c.wonderLevel || 0,   // Ville Merveille (décision du 28 octobre 2026)
+            protectedUntil: c.protectedUntil || null   // colonie neuve protégée (décision du 31 octobre 2026)
           });
         });
       }
@@ -650,7 +645,8 @@ async function loadMap() {
             cityTier: c.cityTier || (typeof cityTierFromMainHall === 'function' ? cityTierFromMainHall(c.mainHallLevel || 1) : 1),
             isSieged: !!c.isSieged,
             wallDamage: wallLevel > 0 && c.wallMaxHp > 0 ? Math.max(0, Math.min(100, Math.round((1 - (c.wallHp ?? c.wallMaxHp) / c.wallMaxHp) * 10) * 10)) : 0,
-            population: player?.population || 0
+            population: player?.population || 0,
+            protectedUntil: c.protectedUntil || null   // colonie neuve protégée (GET /api/cities)
           });
         }
       });
@@ -1353,6 +1349,8 @@ function drawCityLabels(x, y, tw, th, tile, isMyCity, isAlly, siegeAnimated = fa
 
   // Ville assiégée : anneau rouge en pointillés autour de la ville et emblème d'épées (en attendant le campement peint)
   if (tile.isSieged && !siegeAnimated) drawSiegeMarker(x, y, citySize);
+  // Colonie neuve protégée (décision du 31 octobre 2026) : anneau bleu et bouclier tant que dure la protection
+  if (typeof protectionEndMs === 'function' && protectionEndMs(tile)) drawProtectionMarker(x, y, citySize);
   // Mur abîmé par un siège : fumée (et feu au-delà de 50 %) jusqu'à ce que le mur soit réparé ; l'animation de siège a la sienne
   if ((tile.wallDamage || 0) >= 10 && !siegeAnimated) drawDamagedCitySmoke(x, y, citySize, tile.wallDamage, tile.id);
   if (tile.isSieged && tile.siegedBy) drawSiegeBanner(x, y, citySize, tile.siegedBy);
@@ -1444,6 +1442,21 @@ function drawSiegeMarker(x, y, size) {
   if (icon) mapCtx.drawImage(icon, ix - r * 0.8, iy - r * 0.8, r * 1.6, r * 1.6);
   mapCtx.restore();
 }
+
+// Colonie neuve protégée : anneau bleu continu autour de la ville et pastille de bouclier (à droite, l'emblème du siège est à gauche)
+function drawProtectionMarker(x, y, size) {
+  mapCtx.save();
+  mapCtx.strokeStyle = 'rgba(90,160,220,0.85)'; mapCtx.lineWidth = 2.5;
+  mapCtx.beginPath(); mapCtx.ellipse(x, y + size * 0.05, size * 0.7, size * 0.36, 0, 0, Math.PI * 2); mapCtx.stroke();
+  const r = Math.max(8, size * 0.16), ix = x + size * 0.5, iy = y - size * 0.45;
+  mapCtx.fillStyle = '#1d4f80'; mapCtx.strokeStyle = '#d8ecff'; mapCtx.lineWidth = 1.2;
+  mapCtx.beginPath(); mapCtx.arc(ix, iy, r, 0, Math.PI * 2); mapCtx.fill(); mapCtx.stroke();
+  const icon = typeof getSprite === 'function' ? getSprite('assets/images/3d/ui/defense.webp') : null;
+  if (icon) mapCtx.drawImage(icon, ix - r * 0.8, iy - r * 0.8, r * 1.6, r * 1.6);
+  mapCtx.restore();
+}
+// Ligne « Protégée encore … » d'une fenêtre de ville (colonie neuve, 06c-colonies.js), '' sinon
+const mapProtectionLine = (tile) => (typeof protectionHtml === 'function' && protectionEndMs(tile) ? `<p class="protect-line">${protectionHtml(tile)}</p>` : '');
 
 // Draw isometric city with culture-specific style and walls
 function drawIsoCity(x, y, tw, th, tile) {
@@ -2182,7 +2195,7 @@ function armyRoute(army) {
     for (const v of _armyRoutePending.values()) if (v.key === key) { mapMovingOnScreen = true; return straight; }   // déjà demandé
     const id = ++_armyRouteSeq;
     _armyRoutePending.set(id, { key, straight });
-    worker.postMessage({ id, seed: Terrain.worldSeed, from: [army.x, army.y], to: [army.targetX, army.targetY], objects: [...base.entries(), ...extra.entries()], faction });
+    worker.postMessage({ id, seed: Terrain.worldSeed, generator: Terrain.generator, from: [army.x, army.y], to: [army.targetX, army.targetY], objects: [...base.entries(), ...extra.entries()], faction });
     mapMovingOnScreen = true;
     return straight;
   }
@@ -2436,7 +2449,7 @@ function renderMinimap() {
   minimapCtx.fillStyle = '#1a2a1a';
   minimapCtx.fillRect(0, 0, w, h);
   
-  // Draw objects (world coords are centered: -187 to +186)
+  // Draw objects (world coords are centered on 0, MIN_COORD to MAX_COORD)
   const centerX = w / 2;
   const centerY = h / 2;
   mapData.forEach(tile => {
@@ -2881,6 +2894,7 @@ function showMapInfoPanel(x, y, tile) {
         <p>Position: (${x}, ${y})</p>
         <p style="color:#4caf50">Votre ville</p>
         ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
+        ${mapProtectionLine(tile)}
         <div class="panel-actions">
           <button class="btn btn-primary" onclick="goToCity('${tile.id}')">${resIconHtml('home')} Visiter</button>
           ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
@@ -3043,6 +3057,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
   
   const statusColor = statusColors[diplomacyStatus] || '#9e9e9e';
   const statusLabel = statusLabels[diplomacyStatus] || 'Inconnu';
+  const shielded = typeof protectionEndMs === 'function' && !!protectionEndMs(tile);   // colonie neuve protégée : ni attaque ni raid
   
   content.innerHTML = `
     <h3>${tile.isCapital ? resIconHtml('crown') : resIconHtml('city')} ${escapeHtml(tile.name || 'Ville')}</h3>
@@ -3050,6 +3065,7 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
     <p>Propriétaire: <strong>${escapeHtml(tile.playerName || 'Inconnu')}</strong></p>
     <p>Statut: <span style="color:${statusColor};font-weight:bold">${statusLabel}</span></p>
     ${tile.isSieged ? `<p style="color:#e53935;font-weight:bold">${resIconHtml('attack')} Ville assiégée</p>` : ''}
+    ${mapProtectionLine(tile)}
     ${tile.isWonder ? `<p class="wonder-line">${resIconHtml('crown')} <strong>Ville Merveille</strong> : niveau ${tile.wonderLevel || 0} / 100 ${typeof openWonderPanel === 'function' ? `<button class="btn btn-secondary btn-sm" onclick="closeMapPanel(); openWonderPanel('${String(tile.id).replace(/[^\w-]/g, '')}')">Voir</button>` : ''}</p>` : ''}
     <div class="panel-actions player-actions">
       ${tile.isSieged ? `<button class="btn btn-danger" onclick="closeMapPanel(); openBreakSiege('${tile.id}')">${resIconHtml('attack')} Briser le siège</button>` : ''}
@@ -3058,7 +3074,10 @@ async function showMapInfoPanelWithDiplomacy(x, y, tile, hasArmy, panel, content
       ${mapShareButton(tile.x, tile.y)}
       ${(diplomacyStatus === 'ALLY' || diplomacyStatus === 'SAME_ALLIANCE') && typeof openSupportPicker === 'function' ? `<button class="btn btn-primary" onclick="closeMapPanel(); openSupportPicker('${String(tile.id).replace(/[^\w-]/g, '')}', ${chatJsArg(tile.name || 'Ville')}, ${!!tile.isSieged})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('defense')} Renforcer</button>` : ''}
       <button class="btn btn-warning" onclick="closeMapPanel(); openSpyMission({ cityId: '${String(tile.id).replace(/[^\w-]/g, '')}', label: ${chatJsArg(tile.name || 'cette ville')} })">${resIconHtml('spy')} Espionner</button>
-      ${canAttack ? `
+      ${canAttack && shielded ? `
+        <button class="btn btn-danger" disabled title="Colonie neuve protégée : ni attaque ni siège pour l'instant">${resIconHtml('attack')} Attaquer</button>
+        <button class="btn btn-raid" disabled title="Colonie neuve protégée : pas de raid pour l'instant">${resIconHtml('bolt')} Raid</button>
+      ` : canAttack ? `
         <button class="btn btn-danger" onclick="attackFromMap('${tile.id}', ${x}, ${y})" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('attack')} Attaquer</button>
         <button class="btn btn-raid" onclick="raidFromMap('${tile.id}')" ${!hasArmy ? 'disabled' : ''}>${resIconHtml('bolt')} Raid</button>
       ` : `

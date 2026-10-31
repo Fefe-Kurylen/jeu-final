@@ -21,6 +21,7 @@ const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
 const { footprintFree, cityAtCellWhere, lockPlacement, gatherArmiesOnBlock } = require('../../utils/spawn');
+const { protectedUntil, remainingText } = require('../../utils/colonyProtection');
 
 const MOVING_STATUSES = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING'];   // SUPPORTING: renfort allié en marche   // FOUNDING: arrivalAt = end of the foundation ; BESIEGING: arrivalAt = end of the camp hour (battle)
 const TX = { timeout: 15000 };
@@ -173,11 +174,15 @@ async function handleRaidResource(army) {
     // Tribe first; otherwise the army of another player holding the node; a free node is simply taken
     const fresh = await tx.resourceNode.findUnique({ where: { id: node.id } });
     if (!fresh) return { won: false, gone: true, losses: 0, loot: {} };
+    // une colonie a été fondée sur le point pendant la marche : pas de combat, l'armée fait demi-tour (une colonie neuve est
+    // protégée, décision du 31 octobre 2026 ; ensuite, elle ne s'attaque que comme une ville)
+    if (fresh.cityId) return { won: false, colony: true, losses: 0, loot: {} };
     const result = fresh.hasDefenders ? await resolveTribeCombat(army, fresh, army.ownerId, tx) : fresh.hasPlayerArmy ? await resolveNodeHolderCombat(army, fresh, army.ownerId, tx) : { success: true, free: true };
     const loot = result.success && !result.shared ? await collectResourceLoot(army, fresh, army.ownerId, tx, result.reportId || null) : {};
     return { won: result.success, fight: !result.free && !result.shared && !result.blocked, holder: !fresh.hasDefenders && fresh.hasPlayerArmy, losses: result.combatResult?.attackerLosses || 0, loot, reportId: result.reportId || null, notices: result.notices || [] };
   }, TX);
   for (const n of outcome.notices || []) notify(...n);
+  if (outcome.colony) notify(army.ownerId, 'battle', '↩️ Attaque annulée', `${army.name} fait demi-tour : une colonie a été fondée en (${node.x}, ${node.y}) pendant sa marche.`, { to: 'map', x: node.x, y: node.y });
   const won = outcome.won;
   const lootText = Object.entries(outcome.loot || {}).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
   if (outcome.fight) {
@@ -491,6 +496,9 @@ async function startSiege(army, now) {
     const city = await tx.city.findUnique({ where: { id: army.targetCityId }, include: { player: { select: { id: true, name: true, alliance: { select: { allianceId: true } } } } } });
     if (!city) return { turned: 'city' };
     if (!(await getRelation(army.ownerId, city.playerId, tx)).canAttack) return { turned: 'diplomacy', city };
+    // colonie neuve encore protégée (décision du 31 octobre 2026) : pas de siège, l'armée fait demi-tour
+    const until = protectedUntil(city, now);
+    if (until) return { turned: 'protected', city, until };
     const units = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     if (engineCount(units) < config.combat.siege.minEngines) return { turned: 'engines', city };
     let fightAt = campEnd(now), joined = false;
@@ -505,9 +513,9 @@ async function startSiege(army, now) {
   if (started.turned) {
     await sendArmyHome(army, army.targetX, army.targetY);
     const { city } = started;
-    const why = started.turned === 'diplomacy' ? 'vos deux camps sont désormais alliés' : started.turned === 'engines' ? 'elle n\'a plus d\'engin de siège' : 'la ville n\'existe plus';
+    const why = { diplomacy: 'vos deux camps sont désormais alliés', engines: 'elle n\'a plus d\'engin de siège', protected: `la colonie est protégée encore ${remainingText(started.until, now)}` }[started.turned] || 'la ville n\'existe plus';
     notify(army.ownerId, 'battle', '🏰 Attaque annulée', `${army.name} fait demi-tour devant ${city?.name || 'la ville'} : ${why}.`, { to: 'army', armyId: army.id });
-    if (city && started.turned === 'diplomacy') notify(city.playerId, 'battle', '🏰 Attaque annulée', `L'armée de ${army.owner?.name || 'un joueur'} en route vers ${city.name} a fait demi-tour : vos deux camps sont désormais alliés.`, { to: 'map', x: city.x, y: city.y, cityId: city.id });
+    if (city && (started.turned === 'diplomacy' || started.turned === 'protected')) notify(city.playerId, 'battle', '🏰 Attaque annulée', `L'armée de ${army.owner?.name || 'un joueur'} en route vers ${city.name} a fait demi-tour : ${started.turned === 'protected' ? 'votre colonie neuve est encore protégée' : 'vos deux camps sont désormais alliés'}.`, { to: 'map', x: city.x, y: city.y, cityId: city.id });
     return;
   }
   const { city, fightAt, joined } = started;
@@ -593,6 +601,9 @@ async function handleRaid(army, now) {
     const targetCity = await lockTargetCity(tx, army.targetCityId);
     if (!targetCity) return null;
     if (!(await getRelation(army.ownerId, targetCity.playerId, tx)).canAttack) return { turned: true, targetCity };   // alliance signée pendant la marche
+    // colonie neuve encore protégée (décision du 31 octobre 2026) : pas de raid, l'armée fait demi-tour
+    const until = protectedUntil(targetCity, now);
+    if (until) return { shielded: until, targetCity };
     if (await raidedRecently(tx, army.ownerId, targetCity, now)) return { skipped: true, targetCity };
     const attackerUnits = await tx.armyUnit.findMany({ where: { armyId: army.id } });
     const defenders = defendingArmies(targetCity);
@@ -617,8 +628,8 @@ async function handleRaid(army, now) {
       const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * require('../../services/bastionService').carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
       const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier * (1 + require('../../utils/heroEffects').talent(army.hero, 'lootPct') / 100);   // talent Pillard
       const budget = carry * config.combat.raidLootPctOfCarry;
-      // seule la cachette protège, une quantité fixe de chaque ressource (le Grand dépôt et le Grand silo ne sont que du
-      // stockage) ; un raid emporte au plus raidStealRate de ce qui dépasse
+      // seule la cachette protège : une part du stockage de la ville pour chaque ressource (1,5 % par niveau, décision du
+      // 31 octobre 2026) ; un raid emporte au plus raidStealRate de ce qui dépasse
       const outside = fx.outsideHideout(targetCity, fx.hideoutAmount(targetCity.buildings, targetCity.player.faction));
       const available = {};
       for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = outside[r] * config.hideout.raidStealRate;
@@ -667,6 +678,12 @@ async function handleRaid(army, now) {
   if (raid.turned) {
     notify(army.ownerId, 'battle', '↩️ Raid annulé', `${army.name} ne peut plus attaquer ${raid.targetCity.name} (alliance) : elle rentre.`, { to: 'army', armyId: army.id });
     notify(raid.targetCity.playerId, 'battle', '↩️ Raid annulé', `L'armée de ${army.owner?.name || 'l\'ennemi'} renonce au raid sur ${raid.targetCity.name} (alliance) et repart.`, { to: 'map', x: raid.targetCity.x, y: raid.targetCity.y, cityId: raid.targetCity.id });
+    await sendArmyHome(army, army.targetX, army.targetY);
+    return;
+  }
+  if (raid.shielded) {
+    notify(army.ownerId, 'battle', '↩️ Raid annulé', `${army.name} fait demi-tour devant ${raid.targetCity.name} : la colonie est protégée encore ${remainingText(raid.shielded, now)}.`, { to: 'army', armyId: army.id });
+    notify(raid.targetCity.playerId, 'battle', '↩️ Raid annulé', `L'armée de ${army.owner?.name || 'l\'ennemi'} renonce au raid sur ${raid.targetCity.name} : votre colonie neuve est encore protégée.`, { to: 'map', x: raid.targetCity.x, y: raid.targetCity.y, cityId: raid.targetCity.id });
     await sendArmyHome(army, army.targetX, army.targetY);
     return;
   }
@@ -727,7 +744,7 @@ async function handleTransport(army, now) {
   // Ville Merveille : tout va au stock du chantier, sans plafond (décision du 28 octobre 2026)
   if (targetCity.isWonder) await require('../../services/wonderService').depositToWonder(prisma, targetCity.id, load);
   else {
-    // ce qui ne tient pas dans l'entrepôt d'arrivée revient à la ville de départ (comme les convois des routes commerciales)
+    // ce qui ne tient pas dans l'entrepôt d'arrivée repart avec l'armée vers sa ville
     kept = await prisma.$transaction(async (tx) => {
       await lockCity(tx, targetCity.id);
       const fresh = await tx.city.findUnique({ where: { id: targetCity.id }, select: { wood: true, stone: true, iron: true, food: true, maxStorage: true, maxFoodStorage: true } });
@@ -739,7 +756,12 @@ async function handleTransport(army, now) {
     }, TX);
   }
   const back = Object.fromEntries(Object.keys(load).map(r => [r, (load[r] || 0) - kept[r]]));
-  const over = resText(back);
+  const got = resText(kept), over = resText(back);
+  // livraison chez un autre joueur (échange du marché, envoi, Ville Merveille) : il est prévenu
+  if (targetCity.playerId !== army.ownerId) {
+    const who = `Le convoi de ${army.owner?.name || 'votre partenaire'}`;
+    notify(targetCity.playerId, 'market', '📦 Marchandises livrées', got ? `${who} a livré ${got} à ${targetCity.name}${over ? ` (entrepôt plein : ${over} repartent)` : ''}.` : `${who} n'a rien pu livrer à ${targetCity.name} : l'entrepôt est plein.`, { to: 'city', cityId: targetCity.id });
+  }
   if (over) notify(army.ownerId, 'market', '📦 Entrepôt plein', `${targetCity.name} n'avait pas la place pour ${over} : ${army.name} les ramène.`, { to: 'army', armyId: army.id });
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }

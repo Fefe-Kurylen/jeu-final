@@ -14,8 +14,9 @@ test('taille : 5 armées + 1 par niveau de la Place de rassemblement du lanceur 
   for (let l = 0; l < 20; l++) assert.equal(R.capacityFor(l), fx.rallyMaxArmies(l), `niveau ${l}`);
   for (let l = 1; l < 20; l++) assert.ok(R.capacityFor(l + 1) > R.capacityFor(l));
 });
-test('attentes possibles : 5, 10, 30 ou 60 minutes', () => {
-  assert.deepEqual(R.WAITS, [5, 10, 30, 60]);
+test('attentes possibles : 5, 10, 30, 60, 120 ou 180 minutes (décision du 31 octobre 2026), lues dans la configuration', () => {
+  assert.deepEqual(R.WAITS, [5, 10, 30, 60, 120, 180]);
+  assert.equal(R.WAITS, require('../../src/config').rally.waitMinutes);
 });
 
 // ---- base factice : le client Prisma est remplacé le temps d'un test (aucune requête réelle) ----
@@ -250,8 +251,13 @@ test('lancer : un site ou un plan de Merveille gardé s\'attaque en rassemblemen
     await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'w2', waitMinutes: 10 }), (e) => e.status === 400 && /déjà vaincus/.test(e.message));
     await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'w3', waitMinutes: 10 }), (e) => e.status === 400 && /Ville Merveille/.test(e.message));
     await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'n9', waitMinutes: 10 }), (e) => e.status === 404);
-    const plan = await R.launch('p1', { armyId: 'a2', nodeId: 'pl1', waitMinutes: 5 });
+    // attentes de 2 h et 3 h (décision du 31 octobre 2026) ; une attente hors de la liste est refusée
+    await assert.rejects(R.launch('p1', { armyId: 'a2', nodeId: 'pl1', waitMinutes: 45 }), (e) => e.status === 400 && e.message === 'Attente : 5, 10, 30, 60, 120 ou 180 minutes');
+    const before = Date.now();
+    const plan = await R.launch('p1', { armyId: 'a2', nodeId: 'pl1', waitMinutes: 180 });
     assert.equal(plan.rally.targetKind, 'PLAN');
+    assert.equal(plan.rally.waitMinutes, 180);
+    assert.ok(Math.abs(new Date(plan.rally.launchAt).getTime() - before - 180 * 60000) < 5000);
   } finally { db.restore(); }
 });
 

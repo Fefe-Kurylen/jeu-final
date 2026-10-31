@@ -1,7 +1,8 @@
 // Cycle du serveur et Merveille (décision du 28 octobre 2026, services/wonderService.js, hallOfFameService.js)
 // GET  /api/world/state            calendrier du monde (jour, inscriptions, phases de la Merveille, fin)
 // GET  /api/world/hall-of-fame     Panthéon des mondes terminés
-// POST /api/world/join { faction } rejoindre le monde en cours (comptes gardés d'un monde précédent)
+// POST /api/world/join { faction, side } rejoindre le monde en cours (comptes gardés d'un monde précédent) ; side comme à
+//                                  l'inscription : 'N' | 'E' | 'S' | 'W' | 'RANDOM' (par défaut)
 // GET  /api/wonder                 les Villes Merveille du monde, ses plans
 // GET  /api/wonder/:cityId         une Ville Merveille (niveau, stock, prochain niveau)
 // POST /api/wonder/:cityId/build   lancer le niveau suivant
@@ -14,6 +15,7 @@ const WS = require('../services/wonderService');
 const HF = require('../services/hallOfFameService');
 const { isId } = require('../utils/db');
 const { validateFaction } = require('../utils/validation');
+const { parseSide, SIDE_ERROR } = require('../utils/spawn');
 
 const fail = (res, e) => sendFail(res, e, { context: 'wonder' });
 
@@ -27,7 +29,9 @@ router.post('/world/join', auth, async (req, res) => {
   try {
     const faction = String(req.body?.faction || '').toUpperCase();
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Civilisation invalide' });
-    res.json(await HF.joinWorld(req.user.playerId, faction));
+    const side = parseSide(req.body?.side);
+    if (!side) return res.status(400).json({ error: SIDE_ERROR });
+    res.json(await HF.joinWorld(req.user.playerId, faction, side));
   } catch (e) { if (e.message === WS.PREPARING) res.set('Retry-After', '10'); fail(res, e); }   // monde suivant en préparation
 });
 
