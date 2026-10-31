@@ -137,10 +137,11 @@ row(['---', '---', '---', '---']);
 for (const L of [0, 1, 2, 3]) row([L ? `niveau ${L}` : 'aucun', L ? `+${fx.colonyNodeBonusPct(L)} %` : '—', fmt(woodAt(fx.colonyNodeBonusPct(L))), fmt(foodAt(fx.colonyNodeBonusPct(L)))]);
 const capital20 = 3 * (fields20('LUMBER', nLumber) + 5) + fields20('FARM', nFarms) + 10;
 const colony20 = 3 * woodAt(0) + foodAt(0);
-const account = capital20 + 3 * colony20;
-const gain = (L, food) => 3 * ((food ? foodAt : woodAt)(fx.colonyNodeBonusPct(L)) - (food ? foodAt : woodAt)(0));
+const nCol = config.city.maxSecondaryCities;
+const account = capital20 + nCol * colony20;
+const gain = (L, food) => nCol * ((food ? foodAt : woodAt)(fx.colonyNodeBonusPct(L)) - (food ? foodAt : woodAt)(0));
 const share = (x) => (x / account * 100).toFixed(1).replace('.', ',');
-console.log(`\nCompte complet (capitale + 3 colonies, tout au niveau 20) : ${fmt(account)} par heure (capitale ${fmt(capital20)}, chaque colonie ${fmt(colony20)}). Bonus de gisement (${perNode} % par niveau, RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel, ni pour la capitale ni pour la Ville Merveille) : 3 gisements de niveau 2 de bois, pierre ou fer +${share(gain(2))} %, de niveau 3 +${share(gain(3))} % ; 3 gisements de céréales de niveau 3 +${share(gain(3, true))} %.`);
+console.log(`\nCompte complet (capitale + ${nCol} colonies, config.city.maxSecondaryCities, tout au niveau 20) : ${fmt(account)} par heure (capitale ${fmt(capital20)}, chaque colonie ${fmt(colony20)}). Bonus de gisement (${perNode} % par niveau, RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel, ni pour la capitale ni pour la Ville Merveille) : ${nCol} gisements de niveau 2 de bois, pierre ou fer +${share(gain(2))} %, de niveau 3 +${share(gain(3))} % ; ${nCol} gisements de céréales de niveau 3 +${share(gain(3, true))} %.`);
 // emplacements : le Bâtiment principal (0), les champs (101-118) et le Mur (enceinte) sont hors de l'anneau ; un seul bâtiment
 // de civilisation par joueur
 const RING_OUT = new Set(['MAIN_HALL', 'WALL', ...Object.keys(config.city.fieldSlots)]);

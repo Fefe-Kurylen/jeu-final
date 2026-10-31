@@ -216,7 +216,7 @@ async function freeSitesFor(playerId, limit) {
   const escort = unitsData.filter(u => u.faction === owner.faction && u.class === 'INFANTRY' && u.tier === 'base').map(u => ({ unitKey: u.key, count: 1 }));
   const speedPct = require('./armies').speedTechPct({ owner });
   return free.map(n => ({
-    id: n.id, x: n.x, y: n.y, type: n.resourceType, level: n.level, bonusPct: fx.colonyNodeBonusPct(n.level),
+    id: n.id, x: n.x, y: n.y, type: n.resourceType, level: n.level, bonusPct: fx.colonyNodeBonusPct(n.level), otherPct: fx.colonyOtherResourcesPct(),
     travelSec: getArmyTravelTime(escort, capital.x, capital.y, n.x, n.y, owner.faction, null, null, speedPct),
     tribePower: n.hasDefenders ? n.defenderPower : 0,
     central: Math.hypot(n.x, n.y) < CENTER_RADIUS

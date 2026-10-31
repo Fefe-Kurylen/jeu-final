@@ -1,4 +1,4 @@
-# État des systèmes de jeu (octobre 2026, mis à jour le 30 octobre 2026 au soir)
+# État des systèmes de jeu (octobre 2026, mis à jour le 31 octobre 2026)
 
 Ce qui existe, ce qui manque, et les images ou animations à produire. Référence : Travian pour les mécaniques, Rise of Kingdoms pour la lisibilité et le mouvement.
 
@@ -33,8 +33,11 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` (ce que devient ch
   automatique** entre les villes (idée abandonnée).
 - **Se paient sur la somme des stocks de toutes les villes** : constructions, recrutements (troupes, colons), recherche,
   soins des blessés, résurrection du héros, fondation d'une ville. Le prix est pris d'abord dans la ville de l'action (la
-  capitale pour les soins, le héros et la fondation), puis, ressource par ressource, dans la ville qui en a le plus. Toutes
-  les villes du joueur sont verrouillées au début de la dépense, toujours dans le même ordre.
+  capitale pour les soins, le héros et la fondation), puis, ressource par ressource, dans la ville **la plus pleine par
+  rapport à son plafond** (Dépôt pour le bois, la pierre et le fer, Silo pour les céréales ; à égalité la plus riche ;
+  décision du 30 octobre 2026 : moins de production perdue contre un plafond entre deux connexions). Toutes les villes du
+  joueur sont verrouillées au début de la dépense, toujours dans le même ordre ; si ce verrou croise celui du tick
+  (interblocage rare), la dépense est rejouée jusqu'à 3 fois (`withDeadlockRetry`).
 - **Refus** seulement si la somme ne suffit pas, avec ce qui manque : « Ressources insuffisantes : il manque 1 200 de bois
   et 300 de fer (toutes vos villes comprises) ». Un prix plus gros que le stockage de toutes les villes réunies : « Stockage
   trop petit (bois) : il faut plus de capacité (Dépôt ou Silo, ou Grand dépôt / Grand silo dans une colonie) »
@@ -68,13 +71,15 @@ troupes se paie sur tous les greniers (« Entretien et famine »).
 | Colonies seulement | Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie, Comptoir de commerce, Grand dépôt, Grand silo, Grande caserne, Grande écurie |
 | Supprimé | Douves : données, combat, rapport d'espion, client et outils ; la migration `0030_placement_moat` efface les Douves et les bâtiments mal placés, avec leurs chantiers |
 
-- 19 emplacements autour du Bâtiment principal : une capitale a au plus 18 bâtiments possibles, une colonie 15.
+- 19 emplacements autour du Bâtiment principal ; le **Mur est sur l'enceinte** (emplacement 20, décision du 30 octobre
+  2026) : une capitale a au plus 17 bâtiments possibles dans l'anneau (2 emplacements libres), une colonie 14 (5 libres).
 - **Un bâtiment de la capitale vaut pour tout le joueur** (« une seule suffit », `fx.withCapital`) : nombre d'armées de
   chaque ville (Place de rassemblement), lits et vitesse des soins (Tente de soins, Thermes), alertes et vision (Tour de
   guet), défense (Forge, Brasserie), recherche et réduction du temps de construction (Académie, Résidence), production de
   l'Irrigation dans toutes les villes, vitesse de marche (Irrigation), entretien (Tente de guerre, Avant-poste du désert),
   transport (Avant-poste du désert), taxe des échanges (Chambre au Trésor). Un bâtiment des colonies n'agit que sur sa
-  colonie (Moulin, Scierie, Comptoir…). Un prérequis « capitale seulement » d'un bâtiment de colonie se lit dans la
+  colonie (Moulin, Scierie…), sauf le **Comptoir de commerce** : le meilleur Comptoir des villes du joueur vaut pour toutes,
+  capitale comprise, sans somme des niveaux (`effects.bestLevelForAllCities`, décision du 30 octobre 2026). Un prérequis « capitale seulement » d'un bâtiment de colonie se lit dans la
   capitale (Caserne 20 pour la Grande caserne, Chambre au Trésor 5 pour le Grand dépôt et le Grand silo).
 
 **Coûts et temps de construction** (recommandations 3 et 4 ; `calculations.buildCostFor` / `buildSecondsFor`, seul endroit
@@ -349,11 +354,13 @@ client `frontend/js/app/11-market.js` et `11b-market-trade.js`) :
   un convoi vers un joueur devenu ennemi en route rentre avec sa cargaison. L'acheteur est averti avant d'accepter si sa ville
   n'a pas la place de tout recevoir.
 - **Taxe des échanges** (GDD) : **10 %** de ce que transporte chaque convoi, **−1 % par niveau du Comptoir de
-  Commerce** de la ville qui envoie (une colonie : le Comptoir est un bâtiment des colonies depuis le 30 octobre 2026),
-  **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au plus bas 0 %).
+  Commerce** (bâtiment des colonies ; le meilleur Comptoir des villes du joueur vaut pour toutes ses villes, capitale
+  comprise, sans somme : décision du 30 octobre 2026), **−0,25 % par niveau de la Chambre au Trésor** de sa capitale (au
+  plus bas 0 %).
 - **Stock propre à chaque ville** (30 octobre 2026) : le marché, les envois et les routes prennent et livrent dans la ville
   choisie, jamais dans les autres (le stock partagé ne vaut que pour les dépenses). La capacité d'une armée de transport
-  compte le Marché et le Comptoir de sa ville et l'Avant-poste du désert de la capitale ; sa vitesse, l'Irrigation de la capitale.
+  compte le Marché de sa ville, le meilleur Comptoir des villes du joueur et l'Avant-poste du désert de la capitale ; sa
+  vitesse, l'Irrigation de la capitale.
 - **Offres de 48 h** : une offre non prise revient au vendeur (marchandises dans la ville, armée libre), il est prévenu.
   Annuler une offre fait de même ; la chute ou le déplacement de la ville aussi.
 - **Routes commerciales entre ses villes** (Marché → Routes) : ville de départ (avec un Marché), ville d'arrivée,
@@ -394,7 +401,8 @@ Décisions du 28 et du 30 octobre 2026 (`src/game/processors/resourceProcessor.j
   un soin** (`config.wounded.woundedPayUpkeep`), moins les réductions des bâtiments de faction de la capitale (Tente de
   guerre hunnique, Avant-poste du désert) et de la technologie Intendance, 50 % au plus. Les blessés au lit ne mangent pas.
 - **Tous les greniers paient** (§ 1 bis) : à chaque tick, chaque ville paie d'abord ses propres troupes avec son grenier ;
-  ce qui manque est pris dans les autres villes du joueur, celle qui a le plus de nourriture d'abord. Une seule requête SQL
+  ce qui manque est pris dans les autres villes du joueur, la plus pleine par rapport à son Silo d'abord (comme les
+  dépenses, décision du 30 octobre 2026). Une seule requête SQL
   pour tous les joueurs, écrite en différence (une écriture en même temps n'est pas perdue).
 - **Siège** (GDD `upkeep.siegeModifiersPct`) : une armée qui campe devant une ville coûte **+10 %** ; les armées à
   l'arrêt dans leur ville assiégée coûtent **−10 %**.
@@ -403,9 +411,11 @@ Décisions du 28 et du 30 octobre 2026 (`src/game/processors/resourceProcessor.j
   **blessés qui attendent** meurent en premier, puis **les plus gourmands** (siège et élite, puis intermédiaires, puis
   base), dans toutes les armées de toutes ses villes, en mission comprises. La nourriture est relue sous le verrou de toutes
   ses villes avant la moindre mort. Une armée qui meurt entièrement de faim perd son héros (il tombe).
-- **Alertes** : une notification par joueur quand ses greniers seront vides dans **moins de 6 h** (une toutes les 6 h au
-  plus, notée sur la capitale), puis à chaque heure de famine avec les pertes. Bandeau rouge sous la barre de ressources
-  (« Greniers bientôt vides … dans toutes vos villes ») ; le minuteur de la nourriture compte jusqu'aux greniers vides.
+- **Alertes** : une notification par joueur quand ses greniers seront vides dans **moins de 12 h**
+  (`config.army.famineAlertHours`, 6 h jusqu'au 30 octobre 2026 ; une toutes les 12 h au plus, notée sur la capitale), puis
+  à chaque heure de famine avec les pertes. Bandeau rouge sous la barre de ressources, au même seuil (`GET /api/player/me`
+  → `economy.famineAlertHours`) : « Greniers bientôt vides … dans toutes vos villes » ; le minuteur de la nourriture compte
+  jusqu'aux greniers vides.
 - **Affichage** : le bilan vient du serveur, réductions et siège compris : `GET /api/cities` → `foodBalance` (la ville) et
   `playerStock.foodBalance` (tout le joueur : production, consommation, bilan, heures avant les greniers vides) ; le client
   affiche le bilan du joueur.
@@ -562,7 +572,10 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
   si la défense tombe, la Merveille perd **1 niveau**. Comme seuls les engins abîment le mur (D6), chaque vague amène des
   **mangonneaux pour 15 % de sa puissance** (règle retenue le 30 octobre 2026, comme les Natars de Travian qui viennent avec
   béliers et catapultes) : un mur 20 sans défenseurs ne tient seul que jusqu'au niveau 2 de la Merveille, puis tombe au 2e
-  round au niveau 12 et dès le 1er à partir du niveau 20 ; les défenseurs doivent battre la vague. Une vague ne laisse pas
+  round au niveau 12 et dès le 1er à partir du niveau 20 ; les défenseurs doivent battre la vague : ce sont, comme contre
+  un joueur, les armées du propriétaire stationnées dans la Ville Merveille et les renforts alliés qui y sont postés (la
+  Ville Merveille n'a pas de garnison propre ; corrigé le 30 octobre 2026 : avant, la vague ne voyait aucun défenseur et
+  frappait une ville vide). Une vague ne laisse pas
   de dégâts au mur (ce n'est pas un siège). Un assaut ennemi victorieux lui ôte **2 niveaux** (au lieu des
   dégâts de rempart) ; la Ville Merveille ne peut pas être rasée.
 - **Fin du monde** : au niveau 100, le monde s'arrête (le jeu se lit mais ne se joue plus : réponses 423 aux actions).
@@ -812,58 +825,128 @@ même temps ; le niveau suivant attend la fin du précédent, même si une file 
 | Résidence (colons) | En place depuis octobre 2026 (colons, fondation, bonus de colonie) | Voir la section « Villes secondaires » |
 | Irrigation (vitesse de marche), Poste du Désert (taxe entre villes), Comptoir (`p2pTax`) | En place : la taxe des échanges du Comptoir depuis le marché du 27 octobre 2026 ; la vitesse de marche de l'Irrigation depuis le 30 octobre 2026, dans tous les trajets partis de la ville (armées, retours, espions, convois du marché, ravitaillement du Bastion) et dans l'estimation du client. La « taxe entre villes » du Poste du Désert n'existe plus dans les données : les envois entre ses propres villes restent sans taxe | Voir `docs/BACKLOG.md` |
 
-## Villes secondaires (octobre 2026)
+## Villes secondaires : le rôle des colonies (décisions des 30 et 31 octobre 2026)
 
-Le GDD est appliqué tel quel (`data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
-`FOUND_SECONDARY_CITY`) :
+La **capitale est la tête** (armée, recherche, héros, alliance, or) ; les **colonies font tourner l'économie et nourrissent
+l'armée**. Les réponses du propriétaire au questionnaire sur les colonies sont en tête de `docs/RAPPORT-COLONIES.md` (seules
+elles comptent, l'étude proposait davantage) ; les chiffres à régler plus tard sont dans `docs/EQUILIBRAGE.md` § 15. Base du
+GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json` `FOUND_SECONDARY_CITY`.
 
-- **Colons** : la Résidence, réservée à la capitale (Hôtel de ville 5), forme des colons gratuits en 3 h
-  (`POST /api/city/:id/settlers`) : 1 colon au niveau 10, 2 au niveau 15, 3 au niveau 20, chaque colon valant une ville
-  secondaire (villes existantes + colons prêts + colons en route + colons en formation ≤ places). Le colon attend dans la
+**Fonder une colonie**
+- **Colons** : la Résidence, réservée à la capitale (Bâtiment principal 5), forme des colons gratuits en 3 h
+  (`POST /api/city/:id/settlers`) : **1 colon au niveau 10, 2 au niveau 20** ; **2 colonies au plus** depuis le 31 octobre
+  2026 (`config.city.maxSecondaryCities`, `RESIDENCE.effects.unlockSettlerL10/L15/L20` ; 3 avant). Chaque colon vaut une
+  colonie (villes existantes + colons prêts + colons en route + colons en formation ≤ places). Le colon attend dans la
   capitale (`City.settlers`), onglet « Colons » de la Résidence. La **Ville Merveille ne compte pas** dans ces places (hors
   quota, décision du 28 octobre 2026, à la formation comme à la fondation) ; quand toutes les places sont prises par des
   colonies fondées et qu'aucun colon n'attend, la Résidence forme **un colon de plus** pour la Ville Merveille, si le joueur
-  n'en a pas encore (30 octobre 2026). L'onglet Colons ne compte pas non plus la Ville Merveille parmi les colonies.
+  n'en a pas encore.
+- **Choisir le site** : filtre **« Sites libres »** de la carte (`GET /api/map/free-sites?limit=`, 100 au plus, gardé 15 s
+  par joueur) : les gisements de bois, de pierre, de fer ou de céréales où l'on peut fonder (ni or, ni plan, ni donjon, ni
+  site de Merveille ; ni ville, ni armée, ni colon en route ; la place d'une ville 2 × 2), du plus proche au plus lointain
+  de la capitale, avec `{ id, x, y, type, level, bonusPct, travelSec, tribePower, central }`. Le temps de marche est en ligne
+  droite, affiché « au moins » (le vrai trajet contourne le relief et l'eau) ; `central` signale le cercle du centre,
+  disputé (`config.map.centerRadiusPct` = 35 % de la demi-carte, le même cercle que le semis des gisements de niveau 3).
+  Filtres par ressource et niveau ; une tribu se chasse avant de fonder. La bulle d'un gisement et le panneau de fondation
+  donnent aussi son bonus : « Gisement de fer niveau 3 : +45 % de fer dans une colonie ».
 - **Fondation** (`POST /api/army/:id/found-city { resourceNodeId, name }`) : une armée de la capitale (unités obligatoires)
-  emmène un colon et 3 000 de chaque ressource, pris dans toutes les villes du joueur, la capitale d'abord (30 octobre 2026),
-  vers un point de ressource libre (ni tribu, ni armée, ni ville). À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la
-  ville naît ensuite sur la case du point avec son Hôtel de ville niveau 1, une ligne de garnison vide et les 3 000 de chaque
-  ressource (le stock de départ reste disponible même au-dessus
-  du dépôt de 1 000 : la production ne fait jamais baisser un stock), et l'armée rentre. Si le point n'est plus libre à
-  l'arrivée, l'armée rentre avec le colon et les ressources.
-- **Vulnérabilité** : pendant les 24 h, l'armée fondatrice tient le point comme une récolteuse et peut être attaquée
-  (« Attaquer l'armée qui tient le point ») ; battue, elle rentre **sans le colon** (règle `settlerVulnerable`). Un rappel
-  volontaire ramène le colon et les ressources.
-- **Le point sous la ville** : il garde `cityId`, disparaît de la carte et des tirages (pas de récolte, de régénération, de
-  renfort de tribu ni de réapparition) ; il redevient libre, tribu comprise, quand la ville disparaît (suppression du compte).
-- **Bonus** : une ville secondaire produit +20 % (SQL de production et affichage client).
-- **Placement** (décision du 30 octobre 2026, tableau dans « Économie, placement et stock partagé ») : la capitale garde le
-  militaire et tout ce qui agit pour le joueur entier (Place de rassemblement, Académie, Tente de soins, Tour de guet,
-  Caserne, Écurie, Atelier, Forge, Ambassade, Chambre au Trésor, Domus, Résidence, bâtiment de la civilisation) ; une
-  colonie est une ville d'économie (Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie, Comptoir, Grand dépôt, Grand
-  silo) et peut former des troupes avec une Grande caserne ou une Grande écurie (prérequis Caserne 20 / Écurie 20 lus dans la
-  capitale), jamais d'engins de siège. Marché, Dépôt, Silo, Cachette et Mur partout. Refus serveur et mention dans la liste
-  de construction.
-- **Stock et troupes d'une colonie** (§ 1 bis) : son stock reste à elle (pillage, raids, marché), mais il paie aussi les
-  constructions, recrutements, recherches et soins de toutes les villes du joueur, et son grenier nourrit toutes ses
-  troupes. Les unités formées dans la colonie et les blessés guéris rejoignent la garnison de la capitale ; une colonie
-  n'est défendue que par les armées qu'on y envoie.
-- **Niveaux** : le Bâtiment principal d'une ville secondaire s'arrête au niveau 20 (`config.city.secondaryMainHallMaxLevel`,
-  la capitale seule monte à 30) ; comme il plafonne tous les autres bâtiments, une colonie ne dépasse 20 nulle part. Le GDD
-  ne chiffre pas ce plafond : décision d'octobre 2026, à ajuster en jouant.
-- **Paliers de ville et murailles** (décision d'octobre 2026) : le palier Village / Ville / Ville Fortifiée et l'aspect de
-  l'enceinte dans la scène de ville et sur la carte suivent le **niveau du Bâtiment principal** (1-9, 10-19, 20+ ;
-  `config.cityTiers`), plus le niveau du Mur. Le palier ne fixe plus le minimum d'engins de l'attaquant (1 / 10 / 20
-  jusqu'au 25 octobre 2026 ; 1 engin suffit désormais). Le Mur garde son rôle défensif (bonus, points de vie que seuls les
-  engins abattent) et reste nécessaire pour qu'une enceinte soit dessinée.
-- **Interface** : onglet « Colons » (places, colons prêts / en route / en formation, file, formation), bouton « Fonder une
-  ville » dans la bulle d'un point libre (choix de l'armée, nom), statut « Fondation » et nombre de colons sur la carte
-  d'armée, « Ville en fondation par … » dans la bulle du point, sélecteur de villes. Icône du colon à produire
-  (`ui/settler`, guide § S9), repli sur l'icône de ville en attendant ; cortège, campement de fondation, colonie et portrait du colon : guide § S12.
-- **Limites** : trois villes secondaires au plus (`config.city.maxSecondaryCities`) ; pas de déplacement de capitale ni de
-  conquête de colonie (`docs/BACKLOG.md`).
-- **Chantiers** : les sprites peints de bâtiment en construction, d'échafaudage par civilisation et de champ en chantier
-  (`docs/GRAPHISMES-MANQUANTS.md` § 1) sont branchés dans la scène de ville ; sans image livrée, le bâtiment clignote comme avant.
+  emmène un colon et 3 000 de chaque ressource, pris dans toutes les villes du joueur (la capitale d'abord), vers un point
+  libre. À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec son
+  Bâtiment principal niveau 1 et les 3 000 de chaque ressource (gardés même au-dessus du Dépôt de 1 000 : une ville qui
+  reçoit ne baisse jamais), **sans garnison** (plus de ligne « Garnison » vide depuis le 30 octobre 2026), et l'armée rentre.
+  Pas de champs, de Dépôt ni de Silo offerts (refusé). Si le point n'est plus libre à l'arrivée, l'armée rentre avec le colon
+  et les ressources.
+- **Vulnérabilité** : pendant les 24 h, l'armée fondatrice tient le point comme une récolteuse et peut être attaquée ;
+  battue, elle rentre **sans le colon** (règle `settlerVulnerable`). Un rappel volontaire ramène le colon et les ressources.
+- **Le point sous la ville** garde `cityId`, disparaît de la carte, des sites libres et des tirages (récolte,
+  régénération, tribus) ; il redevient libre, tribu comprise, quand la ville disparaît (colonie rasée, compte supprimé).
+
+**Ce qu'une colonie apporte**
+- **Production** : **+20 %** sur tout (`RESIDENCE.effects.secondaryCityBonusPct`) et le **bonus de gisement : +15 % par
+  niveau du gisement** (1 à 3) sur **sa seule ressource** (`RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel`, décision 1) :
+  il s'ajoute aux bâtiments de production de cette ressource (Scierie, Tailleur de pierre, Fonderie, Moulin + Boulangerie)
+  avant le +20 %. Ni la capitale ni la Ville Merveille n'en ont. Un seul calcul, `resourceProcessor.productionSql` (tick,
+  bilan de nourriture, alerte « dépôt plein ») ; `GET /api/cities` donne `site: { type, level, bonusPct }` (null pour la
+  capitale et la Ville Merveille), repris par le badge du gisement dans la ville, la ligne du gisement sur les champs de sa
+  ressource et l'aperçu de production du client.
+- **Grenier de l'armée et stockage** : le Moulin et la Boulangerie n'existent qu'en colonie ; chaque colonie ajoute son
+  Dépôt, son Silo et ses Grands dépôt et silo à la capacité du joueur (un gros prix ne passe que si le stockage de toutes
+  ses villes le tient). Son stock reste à elle (pillage, raids, marché, transports) mais paie aussi les constructions,
+  recrutements, recherches, soins, héros et fondations de toutes les villes, et son grenier nourrit toutes les troupes.
+- **Formation rapide** : la Grande caserne et la Grande écurie (colonies seulement ; prérequis Caserne 20 / Écurie 20 lus
+  dans la capitale) forment pour le joueur. **Le palier des unités se lit sur le bâtiment de la colonie** (niveaux 1 / 7 /
+  15, `unlockBaseTier` / `unlockIntermediateTier` / `unlockEliteTier` de ses données), jamais sur la Caserne de la capitale
+  (décision 7) ; le temps aussi (−4 % par niveau) ; jamais d'engins de siège hors de la capitale. **Toutes les unités
+  formées arrivent dans la garnison de la capitale.** On recrute pour une colonie depuis la capitale : « **Lieu de
+  formation** » dans la Caserne et l'Écurie de la capitale (la capitale, puis chaque colonie avec sa Grande caserne ou sa
+  Grande écurie, dans l'ordre de fondation), ou en touchant la Grande caserne / Grande écurie de la colonie (« Recruter ») :
+  même route, `POST /api/city/<id de la colonie>/recruit`. Un lot lancé ainsi s'annule depuis le panneau de la capitale.
+  **Pas de relance automatique** des lots.
+- **Comptoir de commerce** : le meilleur Comptoir des colonies vaut pour **toutes les villes du joueur**, capitale comprise
+  (taxe des échanges et transport), sans somme des niveaux (`TRADE_OFFICE.effects.bestLevelForAllCities`).
+
+**Ce qu'une colonie n'a pas**
+- **Pas de garnison propre** (§ 1 bis) : de nouvelles unités n'y arrivent jamais seules (formées ou soignées, elles vont à
+  la capitale) ; une colonie n'est défendue que par les armées qu'on y envoie et les renforts alliés. Une armée rattachée à
+  une colonie peut se créer (la Place de rassemblement de la capitale fixe le nombre d'armées de chaque ville) mais pas se
+  remplir (refus clair) ; vide, on peut la dissoudre.
+- **Bâtiments de la capitale** : Place de rassemblement, Académie, Tente de soins, Tour de guet, Caserne, Écurie, Atelier,
+  Forge, Ambassade, Chambre au Trésor, Domus, Résidence, bâtiment de la civilisation. Leurs effets valent dans toutes les
+  villes ; dans la liste de construction d'une colonie, ces lignes sont repliées en une seule (« Bâtiments de la capitale
+  (13) : leurs effets valent aussi ici »).
+- **Défense** : **2 vies** (Égypte 3), contre 4 (5) pour une capitale ; ni vie en plus au Mur 20, ni Fort (décision 3) ;
+  une colonie tombée est rasée. Raids, pillage, siège et cachette restent propres à chaque ville.
+- **Refusé** (décisions 2 à 5) : bâtiment de faction de colonie, ordres groupés par type de champ, gouverneur automatique ;
+  idées gardées pour plus tard dans `docs/BACKLOG.md`.
+
+**Emplacements et Mur sur l'enceinte** (décision 6)
+- Bâtiment principal sur l'emplacement 0, 18 champs sur 101-118, **Mur sur l'enceinte** à sa place fixe, l'emplacement 20
+  (`config.city.wallSlot`, donné au client par `GET /api/player/me` → `economy.city`), et **19 emplacements** dans
+  l'anneau : capitale 17 bâtiments possibles (2 libres), colonie 14 (5 libres). Le serveur place le Mur sur l'emplacement 20
+  quel que soit l'emplacement envoyé et refuse tout autre bâtiment sur cet emplacement ; le client construit et ouvre le Mur
+  en touchant l'enceinte (dessinée selon le Bâtiment principal et le niveau du Mur), la liste d'un emplacement ne le propose
+  plus. La migration `0031_colonies` a passé les Murs et les chantiers de Mur sur l'emplacement 20 (un bâtiment qui s'y
+  trouvait a rejoint un emplacement libre de l'anneau).
+
+**Aide au suivi, sans changer les règles** (« éviter la micro-gestion »)
+- **Vue « Mes villes »** : une ligne par ville (capitale d'abord, puis l'ordre de fondation) : gisement, 4 stocks avec
+  « plein dans X h », file de construction avec « File vide » en rouge, recrutement, armées stationnées, vies, attaque ou
+  siège en approche ; en tête, les totaux du joueur et le bilan de nourriture commun. Tout vient de `GET /api/cities`, qui
+  rend les villes dans cet ordre fixe.
+- **Alertes** (notification dans le jeu, et sur le téléphone si les notifications sont activées) : « **File de construction
+  vide à [ville]** » quand le dernier chantier d'une ville se termine (une par ville toutes les 6 h au plus,
+  `config.city.idleAlertHours`, `City.idleAlertAt`) ; « **[ville] : dépôt plein dans 1 h** » quand une ressource atteindra
+  son plafond dans moins de `config.city.storageAlertLeadHours` heure (une par ville toutes les 12 h au plus,
+  `config.city.storageAlertHours`, `City.storageAlertAt` ; une ressource déjà pleine ne prévient plus, et un Silo plein
+  que l'entretien garde juste sous son plafond compte comme plein) ; **famine 12 h à l'avance** sur le total du joueur (« Entretien et famine »). Le téléphone ne reçoit qu'une
+  notification d'un même type par minute et par joueur ; le fil du jeu les garde toutes.
+- **Ordre de prélèvement** (décision 8) : après la ville de l'action, la ville la plus pleine par rapport à son plafond
+  paie d'abord, pour les dépenses et pour le manque d'entretien (« Économie, placement et stock partagé »).
+
+**Niveaux, paliers et murailles**
+- Le Bâtiment principal d'une colonie s'arrête au niveau 20 (`config.city.secondaryMainHallMaxLevel`, la capitale seule
+  monte à 30) ; comme il plafonne tous les autres bâtiments, une colonie ne dépasse 20 nulle part. Rien ne change pour
+  l'instant : le propriétaire veut revoir le niveau maximum de tous les bâtiments pendant l'équilibrage (`docs/BACKLOG.md`).
+- Le palier Village / Ville / Ville Fortifiée et l'aspect de l'enceinte suivent le **niveau du Bâtiment principal** (1-9,
+  10-19, 20+ ; `config.cityTiers`), plus le niveau du Mur. Le palier ne fixe plus le minimum d'engins de l'attaquant (1 engin
+  suffit). Le Mur garde son rôle défensif (bonus, points de vie que seuls les engins abattent).
+
+**Migration `0031_colonies`** (idempotente, sans remboursement : le monde n'est pas encore ouvert) : colonnes des alertes,
+Murs sur l'emplacement 20 ; et ménage après la migration `0030` (Académie et Tente de soins réservées à la capitale) : les
+recherches lancées depuis une colonie sont retirées avec les niveaux suivants de la même technologie (la recherche suivante
+du joueur démarre au tick), les soins en cours dans une colonie s'arrêtent (ses blessés repassent en attente d'un soin, à
+relancer depuis la Tente de la capitale).
+
+**Interface** : onglet « Colons » (places, colons prêts / en route / en formation, file, formation), « Sites libres » sur
+la carte, bouton « Fonder une ville » dans la bulle d'un point libre (choix de l'armée, nom, bonus du gisement), statut
+« Fondation » et nombre de colons sur la carte d'armée, « Ville en fondation par … » dans la bulle du point, badge du
+gisement dans la ville, vue « Mes villes », sélecteur de villes. Icône du colon à produire (`ui/settler`, guide § S9) ;
+cortège, campement de fondation, colonie et portrait du colon : guide § S12. Les sprites de chantier par civilisation
+(`docs/GRAPHISMES-MANQUANTS.md` § 1) sont branchés dans la scène de ville.
+
+**Limites** : 2 colonies au plus (plus la Ville Merveille) ; pas de déplacement volontaire de la capitale ni de conquête
+de colonie (`docs/BACKLOG.md`). Gisements : environ 3 300 ont la place d'une ville à l'ouverture d'un monde, pour 2 000
+joueurs qui en voudraient 4 000 (analyse dans `docs/BACKLOG.md`).
 
 ## Interface
 

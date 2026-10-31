@@ -87,14 +87,15 @@ test('économie : une colonie bâtit avec le stock de la capitale ; un prix trop
   assert.ok(Stock.fits(rich, tc20, 6) && Stock.canPay(rich, tc20));
 });
 
-test('Résidence 20 et troisième colonie : le stockage de toutes les villes compte, pas le grenier de la capitale moins 6 h', async () => {
+test('Résidence 20 et dernière colonie : le stockage de toutes les villes compte, pas le grenier de la capitale moins 6 h', async () => {
   const silo20 = { maxStorage: 160000, maxFoodStorage: 160000 };
   const res20 = buildCostFor(buildingsData.find(b => b.key === 'RESIDENCE'), 20);
+  // la Résidence 20 donne le dernier colon (2 colonies depuis le 31 octobre 2026, lu dans les données)
+  assert.ok(fx.settlerSlots(20) === config.city.maxSecondaryCities && fx.settlerSlots(19) === config.city.maxSecondaryCities - 1);
   const cap = city({ id: 'a', isCapital: true, ...silo20, buildings: [{ key: 'MAIN_HALL', level: 20, slot: 0 }, { key: 'RESIDENCE', level: 19, slot: 4 }, { key: 'SILO', level: 20, slot: 5 }, { key: 'WAREHOUSE', level: 20, slot: 6 }], wood: 60000, stone: 60000, iron: 60000, food: 90000 });
   const c1 = city({ id: 'b', ...silo20, wood: 30000, stone: 10000, iron: 10000, food: 60000 });
-  const c2 = city({ id: 'c', ...silo20, wood: 1000, stone: 1000, iron: 1000, food: 1000 });
   // 6 000 céréales par heure : la capitale seule n'a jamais plus de 160 000 − 36 000 = 124 000 en main (< 130 668)
-  const cities = withBalance([cap, c1, c2], { production: 7000, consumption: 6000, net: 1000 });
+  const cities = withBalance([cap, c1], { production: 7000, consumption: 6000, net: 1000 });
   assert.ok(res20.food > 160000 - 6000 * 6);
   const posted = [];
   const bot = botWith(cities, { post: async (p, body) => { posted.push([p, body]); return { ok: true, data: { cost: res20, queueItem: { slot: 4 } } }; } });
@@ -109,11 +110,10 @@ test('Résidence 20 et troisième colonie : le stockage de toutes les villes com
 test('Résidence : un Silo 20 de la capitale qui ne suffit pas fait monter celui d\'une colonie', async () => {
   const cap = city({ id: 'a', isCapital: true, maxStorage: 160000, maxFoodStorage: 160000, buildings: [{ key: 'MAIN_HALL', level: 20, slot: 0 }, { key: 'RESIDENCE', level: 19, slot: 4 }, { key: 'SILO', level: 20, slot: 5 }], wood: 90000, stone: 90000, iron: 90000, food: 90000 });
   const col = city({ id: 'b', maxStorage: 3600, maxFoodStorage: 1200, buildings: [{ key: 'MAIN_HALL', level: 8, slot: 0 }, { key: 'SILO', level: 1, slot: 2 }] });
-  const col2 = city({ id: 'c', maxStorage: 3600, maxFoodStorage: 1200, buildings: [{ key: 'MAIN_HALL', level: 8, slot: 0 }, { key: 'SILO', level: 3, slot: 2 }] });
   const posted = [];
-  const bot = botWith(withBalance([cap, col, col2], { production: 7000, consumption: 6000, net: 1000 }), { post: async (p, body) => { posted.push([p, body]); return { ok: true, data: {} }; } });
+  const bot = botWith(withBalance([cap, col], { production: 7000, consumption: 6000, net: 1000 }), { post: async (p, body) => { posted.push([p, body]); return { ok: true, data: {} }; } });
   await military.residence(bot, ctx(), { left: 3 }, { k: {} }, cap);
-  assert.deepEqual(posted, [['/api/cities/b/build', { buildingKey: 'SILO' }]], 'le Silo le plus bas, dans une colonie');
+  assert.deepEqual(posted, [['/api/cities/b/build', { buildingKey: 'SILO' }]], 'le Silo de la colonie');
 });
 
 test('soins des joueurs automatiques : soin payant lancé dans la ville des blessés, sur le stock de toutes les villes', async () => {

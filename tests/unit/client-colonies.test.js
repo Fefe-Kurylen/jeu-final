@@ -46,22 +46,24 @@ function makeContext(extra = {}) {
 }
 const run = (ctx, file, names) => vm.runInContext(pick(src(file), names), ctx);
 const CORE = ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'effectBuildings', 'SITE_RESOURCE', 'getCityProduction', 'cityProductionMultiplier', 'lerpExp', 'getProductionAtLevel', 'TIER_COLORS'];
-const SITES = ['residenceEffects', 'SITE_NAMES', 'siteBonusPct', 'siteText', 'siteBadgeHtml', 'capitalCity', 'byFounding', 'secondaryCities'];
+const SITES = ['residenceEffects', 'SITE_NAMES', 'siteBonusPct', 'siteOtherPct', 'siteText', 'siteBadgeHtml', 'capitalCity', 'byFounding', 'secondaryCities'];
 
-test('gisement : +15 % par niveau sur sa seule ressource dans l\'aperçu de production, comme le serveur', { skip }, () => {
+test('gisement : +10 % par niveau sur sa ressource, −30 % sur les autres dans l\'aperçu de production, comme le serveur', { skip }, () => {
   const { getProductionAtLevel: serverProd } = require('../../src/utils/calculations');
   const ctx = makeContext();
   run(ctx, '01-core.js', CORE);
   const fields = [1, 2, 3, 4].map(i => ({ key: 'IRON_MINE', slot: 108 + i, level: 10 })).concat([{ key: 'LUMBER', slot: 101, level: 10 }, { key: 'FOUNDRY', slot: 3, level: 5 }]);
-  const site = { type: 'IRON', level: 3, bonusPct: fx.colonyNodeBonusPct(3) };
-  assert.equal(site.bonusPct, 45);
+  const site = { type: 'IRON', level: 3, bonusPct: fx.colonyNodeBonusPct(3), otherPct: fx.colonyOtherResourcesPct() };
+  assert.equal(site.bonusPct, 30);
+  assert.equal(site.otherPct, -30);
   const colony = { id: 'c1', isCapital: false, buildings: fields, site };
   const prod = ctx.getCityProduction(colony);
   const ironFields = 4 * serverProd('IRON_MINE', 10, BUILDINGS), woodFields = serverProd('LUMBER', 10, BUILDINGS);
   const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
-  // fer : Fonderie 5 (+25 %) et gisement niveau 3 (+45 %), puis +20 % des colonies ; le bois n'a que le bonus des colonies
-  assert.ok(Math.abs(prod.iron - (ironFields * (1 + (25 + 45) / 100) + 5) * colonyMult) < 1e-9);
-  assert.ok(Math.abs(prod.wood - (woodFields + 5) * colonyMult) < 1e-9);
+  // fer : Fonderie 5 (+25 %) et gisement niveau 3 (+30 %) ; le bois perd 30 % (gisement de fer) ; plus de bonus général des colonies
+  assert.equal(colonyMult, 1);
+  assert.ok(Math.abs(prod.iron - (ironFields * (1 + (25 + 30) / 100) + 5) * colonyMult) < 1e-9);
+  assert.ok(Math.abs(prod.wood - (woodFields * (1 - 30 / 100) + 5) * colonyMult) < 1e-9);
   // sans gisement (capitale, Ville Merveille) : pas de bonus
   const plain = ctx.getCityProduction({ ...colony, site: null });
   assert.ok(Math.abs(plain.iron - (ironFields * 1.25 + 5) * colonyMult) < 1e-9);
@@ -72,9 +74,9 @@ test('gisement : textes de la bulle, de la fondation et de la ville ; bonus lu d
   run(ctx, '01-core.js', ['SITE_RESOURCE']);
   run(ctx, '06c-colonies.js', SITES);
   for (const level of [1, 2, 3]) assert.equal(vm.runInContext(`siteBonusPct(${level})`, ctx), fx.colonyNodeBonusPct(level));
-  assert.equal(ctx.siteText('IRON', 3), 'Gisement de fer niveau 3 : +45 % de fer dans une colonie');
-  assert.equal(ctx.siteText('FOOD', 1), 'Gisement de céréales niveau 1 : +15 % de céréales dans une colonie');
-  assert.equal(ctx.siteText('WOOD', 2, 'dans cette colonie'), 'Gisement de bois niveau 2 : +30 % de bois dans cette colonie');
+  assert.equal(ctx.siteText('IRON', 3), 'Gisement de fer niveau 3 : +30 % de fer, −30 % des autres ressources dans une colonie');
+  assert.equal(ctx.siteText('FOOD', 1), 'Gisement de céréales niveau 1 : +10 % de céréales, −30 % des autres ressources dans une colonie');
+  assert.equal(ctx.siteText('WOOD', 2, 'dans cette colonie'), 'Gisement de bois niveau 2 : +20 % de bois, −30 % des autres ressources dans cette colonie');
   for (const type of ['GOLD', 'PLAN', 'WONDER', 'HORDE']) assert.equal(ctx.siteText(type, 3), '');   // on n'y fonde pas de colonie
   assert.match(ctx.siteBadgeHtml({ type: 'STONE', level: 2, bonusPct: 30 }), /\[stone\] pierre niv\. 2 · \+30 %/);
   assert.equal(ctx.siteBadgeHtml(null), '');   // capitale
@@ -92,7 +94,7 @@ test('fondation : le panneau annonce le bonus du gisement choisi (rien pour un s
   ctx.currentCity = ctx.cities[0];
   ctx.armies = [{ id: 'a1', name: 'Légion', status: 'IDLE', cityId: 'c0', x: 0, y: 0, units: [{ count: 10 }] }];
   ctx.foundCityAt('n1', 5, 6, 'IRON', 3);
-  assert.match(body.innerHTML, /Gisement de fer niveau 3 : \+45 % de fer dans une colonie/);
+  assert.match(body.innerHTML, /Gisement de fer niveau 3 : \+30 % de fer, −30 % des autres ressources dans une colonie/);
   ctx.foundCityAt('w1', 0, 0);   // site de Merveille (09i-world.js)
   assert.doesNotMatch(body.innerHTML, /Gisement/);
 });
@@ -263,7 +265,7 @@ test('« Mes villes » : gisement, stocks et « plein dans », file vide en roug
     buildQueue: [], recruitQueue: [{ count: 12, endsAt: '2026-10-30T14:00:00Z' }], foodBalance: { production: 10, consumption: 210, net: -200 }, lives: { total: 4, left: 4 }, site: null, playerStock };
   const colony = { id: 'col', name: 'Ostia', isCapital: false, x: 10, y: 10, wood: 1000, stone: 500, iron: 0, food: 0, maxStorage: 1000, maxFoodStorage: 1000, buildings: [{ key: 'LUMBER', level: 1 }],
     buildQueue: [{ endsAt: '2026-10-30T13:00:00Z' }, { endsAt: '2026-10-30T15:00:00Z' }], recruitQueue: [], foodBalance: { production: 12, consumption: 0, net: 12 },
-    lives: { total: 2, left: 1 }, site: { type: 'IRON', level: 3, bonusPct: 45 }, playerStock };
+    lives: { total: 2, left: 1 }, site: { type: 'IRON', level: 3, bonusPct: 30, otherPct: -30 }, playerStock };
   ctx.cities = [colony, capital];
   ctx.currentCity = capital;
   ctx.armies = [{ status: 'IDLE', x: 10, y: 10, units: [{ count: 100 }, { count: 20 }] }, { status: 'MOVING', x: 10, y: 10, units: [{ count: 5 }] }, { status: 'IDLE', x: 0, y: 0, units: [] }];
@@ -285,7 +287,7 @@ test('« Mes villes » : gisement, stocks et « plein dans », file vide en roug
   assert.doesNotMatch(capRow, /Attaque dans/);   // l'attaque est déjà passée
   assert.match(capRow, /\[food\].*vide dans 2h 0m/);   // 400 de nourriture, −200/h
   assert.match(colRow, /Ostia/);
-  assert.match(colRow, /title="Gisement de fer niveau 3 : \+45 % de fer dans cette colonie">\[iron\] fer niv\. 3 · \+45 %/);
+  assert.match(colRow, /title="Gisement de fer niveau 3 : \+30 % de fer, −30 % des autres ressources dans cette colonie">\[iron\] fer niv\. 3 · \+30 %/);
   assert.match(colRow, /2 chantiers · file vide dans/);
   assert.doesNotMatch(colRow, /mv-idle/);
   assert.match(colRow, /1 armée · 120 soldats/);
@@ -303,14 +305,14 @@ test('« Sites libres » : filtres par ressource et niveau, bonus, trajet, tribu
   run(ctx, '05-panels.js', ['formatDuration']);
   run(ctx, '06c-colonies.js', [...SITES, 'FREE_SITES_FETCH', 'freeSites', 'setFreeSitesFilter', 'freeSiteRowHtml', 'renderFreeSites']);
   vm.runInContext(`freeSites.list = ${JSON.stringify([
-    { id: 'n1', x: 3, y: 4, type: 'IRON', level: 3, bonusPct: 45, travelSec: 7800, tribePower: 0, central: true },
-    { id: 'n2', x: 8, y: 1, type: 'WOOD', level: 1, bonusPct: 15, travelSec: 9000, tribePower: 350, central: false },
+    { id: 'n1', x: 3, y: 4, type: 'IRON', level: 3, bonusPct: 30, otherPct: -30, travelSec: 7800, tribePower: 0, central: true },
+    { id: 'n2', x: 8, y: 1, type: 'WOOD', level: 1, bonusPct: 10, otherPct: -30, travelSec: 9000, tribePower: 350, central: false },
     { id: 'n3', x: 9, y: 9, type: 'IRON', level: 2, bonusPct: 30, travelSec: 9600, tribePower: 0, central: false }
   ])}`, ctx);
   ctx.renderFreeSites();
   assert.equal(modal.title, 'Sites libres');
   assert.equal((modal.html.match(/class="fs-row"/g) || []).length, 3);
-  assert.match(modal.html, /fer niv\. 3 · \+45 %/);
+  assert.match(modal.html, /fer niv\. 3 · \+30 %/);
   assert.match(modal.html, /au moins 2h 10m depuis la capitale/);   // en ligne droite : le vrai trajet contourne le relief
   assert.match(modal.html, /foundCityAt\('n1', 3, 4, 'IRON', 3\)/);
   assert.doesNotMatch(modal.html, /foundCityAt\('n2'/);   // tribu encore là : la chasser d'abord
@@ -353,7 +355,7 @@ test('quête « Muraille » : le guide mène à l\'enceinte, jamais à un emplac
 
 test('textes : Résidence (colons, bonus du gisement), Comptoir (le meilleur vaut pour toutes les villes), Grande caserne (son palier)', { skip }, () => {
   const ctx = makeContext({ getProductionAtLevel: () => 0, getStorageAtLevel: () => 0, showTab() {} });
-  run(ctx, '06c-colonies.js', ['residenceEffects', 'siteBonusPct']);
+  run(ctx, '06c-colonies.js', ['residenceEffects', 'siteBonusPct', 'siteOtherPct']);
   run(ctx, '04-buildings-render.js', ['getBuildingEffect']);
   run(ctx, '10b-sheets.js', ['SHEET_RULES', 'buildingFunctions']);
   const fxOf = (key) => BUILDINGS.find(b => b.key === key).effects;
@@ -363,7 +365,7 @@ test('textes : Résidence (colons, bonus du gisement), Comptoir (le meilleur vau
   const fns = (key) => JSON.parse(JSON.stringify(ctx.buildingFunctions(key, fxOf(key))));
   const residence = fns('RESIDENCE');
   assert.ok(residence.every(([, at]) => at !== null), 'les colons ne sont plus « à venir »');
-  assert.ok(residence.some(([label]) => label.includes(`son gisement +${fx.colonyNodeBonusPct(1)} % par niveau`) && label.includes(`+${fx.secondaryCityBonusPct()} %`)));
+  assert.ok(residence.some(([label]) => label.includes(`+${fx.colonyNodeBonusPct(1)} % par niveau sur sa ressource`) && label.includes('−30 % sur les trois autres')));
   assert.ok(fns('TRADE_OFFICE').some(([label]) => /meilleur Comptoir de vos colonies vaut pour toutes vos villes/.test(label)));
   const gb = fxOf('GREAT_BARRACKS');
   assert.deepEqual(fns('GREAT_BARRACKS').filter(([label]) => /intermédiaires|élite/.test(label)).map(([, at]) => at), [gb.unlockIntermediateTier, gb.unlockEliteTier]);
@@ -374,12 +376,12 @@ test('textes : Résidence (colons, bonus du gisement), Comptoir (le meilleur vau
 test('champ d\'une colonie : le panneau rappelle le bonus du gisement sur sa ressource', { skip }, () => {
   const { ctx, content } = panelContext();
   run(ctx, '03-fields-render.js', ['FIELD_RESOURCE_ICON', 'getFieldBuildingAtSlot']);
-  const colony = { id: 'c1', isCapital: false, buildings: [{ key: 'MAIN_HALL', slot: 0, level: 10 }, { key: 'IRON_MINE', slot: 112, level: 3 }], buildQueue: [], playerStock: stock, site: { type: 'IRON', level: 2, bonusPct: 30 } };
+  const colony = { id: 'c1', isCapital: false, buildings: [{ key: 'MAIN_HALL', slot: 0, level: 10 }, { key: 'IRON_MINE', slot: 112, level: 3 }], buildQueue: [], playerStock: stock, site: { type: 'IRON', level: 2, bonusPct: 20, otherPct: -30 } };
   ctx.cities = [colony];
   ctx.currentCity = colony;
   ctx.citySlots = [{ slot: 112, isField: true, fieldType: 'IRON_MINE' }, { slot: 101, isField: true, fieldType: 'LUMBER' }];
   ctx.openFieldBuildPanel(112);
-  assert.match(content.innerHTML, /site-line">\[iron\] Gisement de fer niveau 2 : \+30 % de fer dans cette colonie/);
+  assert.match(content.innerHTML, /site-line">\[iron\] Gisement de fer niveau 2 : \+20 % de fer, −30 % des autres ressources dans cette colonie/);
   ctx.openFieldBuildPanel(101);   // un Bûcheron (à bâtir) : pas le bonus du fer
   assert.doesNotMatch(content.innerHTML, /Gisement/);
   ctx.currentCity = { ...colony, site: null };   // capitale : pas de gisement

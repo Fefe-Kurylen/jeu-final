@@ -32,11 +32,14 @@ function stub(over) {
 const city = (id, stock, { cap = 10000, foodCap = cap } = {}) => ({ id, wood: stock, stone: stock, iron: stock, food: stock, maxStorage: cap, maxFoodStorage: foodCap });
 
 // ---- 1. bonus de gisement ----
-test('gisement : +15 % par niveau sur sa seule ressource, dans une colonie seulement (donnée de la Résidence)', () => {
-  assert.equal(buildingsData.find(b => b.key === 'RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel, 15);
+test('gisement : +10 % par niveau sur sa ressource, −30 % sur les autres, dans une colonie seulement (donnée de la Résidence)', () => {
+  const res = buildingsData.find(b => b.key === 'RESIDENCE').effects;
+  assert.equal(res.colonyNodeBonusPctPerNodeLevel, 10);
+  assert.equal(res.colonyOtherResourcesPct, -30);
+  assert.equal(res.secondaryCityBonusPct, 0, 'plus de +20 % pour toutes les colonies');
   const colony = { isCapital: false, isWonder: false };
   for (const type of ['WOOD', 'STONE', 'IRON', 'FOOD']) {
-    for (const level of [1, 2, 3]) assert.deepEqual(fx.citySite(colony, { resourceType: type, level }), { type, level, bonusPct: 15 * level }, `${type} ${level}`);
+    for (const level of [1, 2, 3]) assert.deepEqual(fx.citySite(colony, { resourceType: type, level }), { type, level, bonusPct: 10 * level, otherPct: -30 }, `${type} ${level}`);
   }
   assert.equal(fx.citySite({ isCapital: true }, { resourceType: 'IRON', level: 3 }), null, 'pas de bonus pour la capitale');
   assert.equal(fx.citySite({ isCapital: false, isWonder: true }, { resourceType: 'WONDER', level: 3 }), null, 'ni pour la Ville Merveille');
@@ -47,12 +50,14 @@ test('gisement : +15 % par niveau sur sa seule ressource, dans une colonie seule
 
 test('gisement dans le tick : une ligne par ville, ajouté aux bâtiments de production, une seule source pour production et bilan', async () => {
   const site = RP.productionSql();
-  assert.match(site.sql, /FROM "ResourceNode" rn JOIN "City" ci ON ci\.id = rn\."cityId" AND NOT ci\."isCapital" AND NOT ci\."isWonder"\s+GROUP BY rn\."cityId"/,
+  assert.match(site.sql, /FROM "ResourceNode" rn JOIN "City" ci ON ci\.id = rn\."cityId" AND NOT ci\."isCapital" AND NOT ci\."isWonder"[\s\S]*?GROUP BY rn\."cityId"/,
     'regroupé par ville : jamais une ville en double dans la jointure');
+  assert.match(site.sql, /THEN rn\.level \* \?::float ELSE \?::float END/, 'sa ressource × niveau, les autres −30 %');
+  assert.ok(site.values.includes(fx.colonyOtherResourcesPct()));
   for (const [col, r] of [['wb', 'w'], ['sb', 's'], ['ib', 'i'], ['fb', 'f']]) assert.match(site.sql, new RegExp(`COALESCE\\(p\\.${col}, 0\\) \\+ COALESCE\\(site\\.${r}, 0\\) AS ${col}`));
   for (const type of ['WOOD', 'STONE', 'IRON', 'FOOD']) assert.ok(site.values.includes(type), type);
   assert.ok(site.values.includes(fx.colonyNodeBonusPct(1)));
-  assert.match(site.sql, /CASE WHEN ct\."isCapital" THEN 1 ELSE \? END/, 'puis le bonus des colonies, gardé');
+  assert.match(site.sql, /CASE WHEN ct\."isCapital" THEN 1 ELSE \? END/, 'bonus général des colonies (0 depuis le 31 octobre 2026)');
   // le bilan de nourriture lit la même production : le gisement n'y est joint qu'une fois
   const balance = RP.foodBalanceSql().sql;
   assert.equal(balance.split('FROM "ResourceNode"').length - 1, 1);

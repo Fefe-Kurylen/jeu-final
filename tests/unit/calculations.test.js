@@ -87,11 +87,12 @@ test('secondary cities (GDD): settlers by Residence level, foundation time, colo
   assert.equal(fx.settlerSlots(0), 0);
   assert.equal(fx.settlerSlots(9), 0);
   assert.equal(fx.settlerSlots(10), 1);
-  assert.equal(fx.settlerSlots(15), 2);
-  assert.equal(fx.settlerSlots(20), 3);
+  assert.equal(fx.settlerSlots(15), 1);   // 2 colonies par joueur (31 octobre 2026) : la 2e au niveau 20
+  assert.equal(fx.settlerSlots(20), 2);
+  assert.equal(config.city.maxSecondaryCities, 2);
   assert.equal(fx.settlerTrainTimeSec(), 10800);
   assert.equal(fx.cityFoundationTimeSec(), 86400);
-  assert.equal(fx.secondaryCityBonusPct(), 20);
+  assert.equal(fx.secondaryCityBonusPct(), 0);   // la spécialité vient du gisement (31 octobre 2026)
   assert.ok(fx.capitalOnly('RESIDENCE') && fx.capitalOnly('EMBASSY') && !fx.capitalOnly('MARKET'));
   assert.ok(fx.notInCapital('GREAT_BARRACKS') && !fx.notInCapital('BARRACKS'));
   assert.deepEqual(config.city.foundationTransport, { wood: 3000, stone: 3000, iron: 3000, food: 3000 });

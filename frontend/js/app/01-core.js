@@ -187,10 +187,11 @@ function getCityProduction(city) {
     if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
     if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
   });
-  // gisement de la colonie : son bonus (city.site.bonusPct, donné par le serveur) s'ajoute à ceux des bâtiments de
-  // production, sur sa seule ressource ; ni la capitale ni la Ville Merveille n'en ont (site null)
+  // spécialité de la colonie (décision du 31 octobre 2026) : sa ressource gagne city.site.bonusPct (10 % par niveau du
+  // gisement), les trois autres perdent city.site.otherPct (−30 %), en plus des bâtiments de production ; ni la capitale
+  // ni la Ville Merveille n'en ont (site null)
   const siteRes = SITE_RESOURCE[city?.site?.type];
-  if (siteRes) bonus[siteRes] += Number(city.site.bonusPct) || 0;
+  if (siteRes) for (const r of Object.keys(bonus)) bonus[r] += r === siteRes ? (Number(city.site.bonusPct) || 0) : (Number(city.site.otherPct) || 0);
   const base = {
     wood: 5 + fields.wood * (1 + bonus.wood / 100),
     stone: 5 + fields.stone * (1 + bonus.stone / 100),
@@ -202,11 +203,12 @@ function getCityProduction(city) {
   if (serverFood > 0 && Math.round(base.food * mult) !== serverFood) mult = serverFood / base.food;
   return { wood: base.wood * mult, stone: base.stone * mult, iron: base.iron * mult, food: serverFood > 0 ? serverFood : base.food * mult };
 }
-// Multiplicateur de production connu du client : ville secondaire (+20 %, Résidence), Plus (+5 %), Irrigation égyptienne
+// Multiplicateur de production connu du client : ville secondaire (Résidence, 0 % depuis le 31 octobre 2026), Plus (+5 %), Irrigation égyptienne
 // de la capitale (+1 %/niveau, 50 % au plus, pour toutes les villes), Agronomie (technologies du joueur)
 function cityProductionMultiplier(city) {
   const effect = (key, name, fallback) => Number(window.buildingsData?.find(b => b.key === key)?.effects?.[name]) || fallback;
-  const colony = city && city.isCapital === false ? 1 + effect('RESIDENCE', 'secondaryCityBonusPct', 20) / 100 : 1;
+  const colonyPct = Number(window.buildingsData?.find(b => b.key === 'RESIDENCE')?.effects?.secondaryCityBonusPct ?? 0);   // 0 depuis le 31 octobre 2026
+  const colony = city && city.isCapital === false ? 1 + colonyPct / 100 : 1;
   const plus = player?.premiumUntil && new Date(player.premiumUntil).getTime() > serverNow() ? 1.05 : 1;
   const irrigation = effectBuildings(city).reduce((s, b) => s + (b.key === 'EGYPTIAN_IRRIGATION' ? b.level : 0), 0) * effect('EGYPTIAN_IRRIGATION', 'globalProductionBonusPctPerLevel', 1);
   const tech = typeof techPctClient === 'function' ? techPctClient('productionBonusPct') : 0;

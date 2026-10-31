@@ -57,7 +57,7 @@ test('stockage : dépôt, silo, Grand dépôt et Grand silo comme le serveur (3 
 test('effets affichés : Grand dépôt et Grand silo stockent, la cachette seule protège, mur et bâtiments de faction', { skip }, () => {
   const ctx = makeContext({ getProductionAtLevel: () => 0 });
   vm.runInContext(pick(src('01-core.js'), ['STORAGE_PREFIX', 'getStorageAtLevel']), ctx);
-  vm.runInContext(pick(src('06c-colonies.js'), ['residenceEffects', 'siteBonusPct']), ctx);   // bonus du gisement (Résidence)
+  vm.runInContext(pick(src('06c-colonies.js'), ['residenceEffects', 'siteBonusPct', 'siteOtherPct']), ctx);   // bonus du gisement (Résidence)
   vm.runInContext(pick(src('04-buildings-render.js'), ['getBuildingEffect']), ctx);
   assert.match(ctx.getBuildingEffect('GREAT_WAREHOUSE', 20), /Capacité: \+480000/);
   assert.match(ctx.getBuildingEffect('GREAT_SILO', 20), /Capacité: \+480000/);
@@ -156,7 +156,7 @@ test('panneau d\'un site ou d\'un plan gardé : bouton « Rassemblement » pour 
 
 test('colons : la Ville Merveille n\'est pas une colonie, un colon de plus pour elle', { skip }, () => {
   const ctx = makeContext({ settlerPortrait: () => '', settlerIcon: () => '', formatNum: n => String(n) });
-  vm.runInContext(pick(src('06c-colonies.js'), ['COLONY_RULES', 'residenceEffects', 'siteBonusPct', 'settlerSlotsFor', 'byFounding', 'secondaryCities', 'settlersTravelling', 'colonyTabHtml']), ctx);
+  vm.runInContext(pick(src('06c-colonies.js'), ['COLONY_RULES', 'residenceEffects', 'siteBonusPct', 'siteOtherPct', 'settlerSlotsFor', 'byFounding', 'secondaryCities', 'settlersTravelling', 'colonyTabHtml']), ctx);
   const capital = { id: 'c0', isCapital: true, settlers: 0, recruitQueue: [] };
   ctx.cities = [capital, { id: 'c1', isCapital: false, name: 'A' }, { id: 'w', isCapital: false, isWonder: true, name: 'Merveille' }];
   ctx.currentCity = capital;

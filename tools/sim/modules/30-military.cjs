@@ -365,7 +365,7 @@ function settlerUse(bot, cap) {
 // la Résidence jusqu'au niveau du colon suivant ; avant elle, le stockage qu'il faut pour la payer (et pour les 3 000 de
 // chaque ressource d'une fondation), et le Bâtiment principal qui plafonne ce stockage. Le prix se paie sur toutes les
 // villes : c'est leur stockage réuni qui compte, moins l'entretien d'un pas pour la nourriture (Stock.room). Avant ce calcul,
-// le grenier de la seule capitale moins 6 h d'entretien ne tenait jamais la Résidence 20 : pas de troisième colonie.
+// le grenier de la seule capitale moins 6 h d'entretien ne tenait jamais la Résidence 20 : pas de dernière colonie.
 async function residence(bot, ctx, B, m, cap) {
   if (B.left <= 0) return;
   if (lvl(cap, 'MAIN_HALL') < 10) return;
@@ -616,7 +616,7 @@ async function tidy(bot, ctx, B, m) {
     if (!isHome(a, city) || m.col?.a === a.id || m.col?.b === a.id) continue;
     const n = countOf(a.units);
     const mine = bot.armies.filter(x => m.own.includes(x.id) && x.cityId === a.cityId).length;
-    // trois colonies fondées : l'armée d'escorte n'a plus d'usage, elle rentre dans la garnison (une fois)
+    // toutes les colonies fondées : l'armée d'escorte n'a plus d'usage, elle rentre dans la garnison (une fois)
     const done = city.isCapital && bot.cities.filter(c => !c.isCapital && !c.isWonder).length >= config.city.maxSecondaryCities && !(m.k.disbanded > 0) && a.id === m.own.filter(id => bot.armies.some(x => x.id === id && x.cityId === a.cityId)).slice(-1)[0];
     if (!done && (n === 0 || n >= 5 || mine < 2)) continue;
     if (mine < 2 || a.heroId) continue;

@@ -4,7 +4,8 @@ Vérification de ce que le jeu applique réellement (code serveur) contre ce que
 courbes. Chiffres tirés de `data/*.json` et `src/config/index.js` ; calculs reproductibles avec les commandes du § 6.
 Mise à jour du 30 octobre 2026 : décisions d'équilibrage D1 à D12 du propriétaire (§ 13) et chiffres refaits avec les
 outils sur le moteur actuel (§ 2, 7, 8, 9, 11, 12) ; le soir, décisions sur l'économie, le placement des bâtiments et le
-stock partagé entre les villes (§ 14).
+stock partagé entre les villes (§ 14). Mise à jour du 31 octobre 2026 : rôle des colonies (décisions du 30 octobre, puis
+2 colonies par joueur et 2 000 joueurs par serveur), chiffres à régler plus tard (§ 15).
 
 ## 1. Bonus de civilisation : définis, appliqués, et où
 
@@ -343,16 +344,16 @@ Valeurs du GDD, appliquées sans changement (`data/buildings.json` RESIDENCE, `c
 | Élément | Valeur | Ce que ça coûte au joueur |
 |---|---|---|
 | Résidence (capitale, Hôtel de ville 5) | niveau 1 : 700 bois, 500 pierre, 300 fer, 1 200 nourriture, 33 min ; courbes ×1,28 / ×1,2 | niveau 10 cumulé ≈ 104 000 ressources et 14 h de chantier ; niveau 15 ≈ 382 000 et 40 h ; niveau 20 ≈ 1 334 000 et 103 h |
-| Colons | 1 au niveau 10, 2 au 15, 3 au 20 (3 colonies au plus) ; formation 3 h, gratuite, un à la fois | la Résidence est le vrai prix de la colonie |
+| Colons | 1 au niveau 10, 2 au niveau 20 (2 colonies au plus depuis le 31 octobre 2026 ; avant 1 / 2 / 3 aux niveaux 10 / 15 / 20) ; formation 3 h, gratuite, un à la fois | la Résidence est le vrai prix de la colonie |
 | Fondation | 3 000 de chaque ressource transportées (prises sur toutes les villes, la capitale d'abord) + 24 h sur place, l'armée immobilisée | 12 000 ressources, ≈ 2 jours de production des champs de départ |
-| Colonie | Hôtel de ville 1, ligne de garnison vide (les unités formées vont à la capitale), 3 000 de chaque, +20 % de production | base 6 / 6 / 6 / 12 par heure avant les champs |
+| Colonie | Bâtiment principal 1, sans garnison (les unités formées vont à la capitale), 3 000 de chaque, +20 % de production, et le bonus de son gisement (§ 15) | base 6 / 6 / 6 / 12 par heure avant les champs |
 
 Lecture : la première colonie arrive quand la capitale a déjà une Résidence 10, soit environ au moment où ses champs de
 niveau 8 à 10 produisent 1 000 à 1 500 de chaque ressource par heure ; les 12 000 de la fondation représentent alors moins
 d'une journée. Le +20 % d'une colonie développée comme la capitale (4 champs de niveau 10 par ressource ≈ 1 400/h) vaut
 ≈ 280/h par ressource, soit le prix de la fondation en ≈ 11 h de production de la colonie elle-même ; la Résidence 10
 (104 000) est amortie en ≈ 4 jours par ce seul bonus, sans compter les champs supplémentaires. Le rythme reste celui de
-Travian : première colonie après plusieurs jours, troisième après plusieurs semaines (Résidence 20 ≈ 1,3 M).
+Travian : première colonie après plusieurs jours, deuxième (la dernière) après plusieurs semaines (Résidence 20 ≈ 1,3 M).
 
 Risques : le colon est perdu si l'armée fondatrice est battue sur le point pendant les 24 h ; les 12 000 ressources
 rentrent avec l'armée si elle n'est pas battue. Rien n'est changé aux autres systèmes : les restrictions de bâtiments
@@ -391,9 +392,10 @@ Une colonie au Bâtiment principal 20 est aussi une Ville Fortifiée ; sans Mur,
 | niveau 20 | 18 005 | 21 606 | +3 601/h | 1 996 600 |
 
 Aux champs de niveau 10, le bonus seul rapporte 1 124 ressources de plus par heure : la fondation (12 000) est amortie en
-11 h, la Résidence 10 (104 201) en 3,9 j ; sans le bonus, une colonie reste une seconde ville complète. Trois colonies
-plafonnées à 20 valent donc 3 × 1,2 = 3,6 capitales en production, pour quatre fois les champs à payer : le jeu récompense
-l'expansion comme Travian, sans effet multiplicateur caché. La colonie est une ville économique ; le cœur militaire reste la
+11 h, la Résidence 10 (104 201) en 3,9 j ; sans le bonus, une colonie reste une seconde ville complète. Deux colonies
+plafonnées à 20 (le maximum depuis le 31 octobre 2026) valent donc 2 × 1,2 = 2,4 capitales en production, plus leur
+gisement (§ 15), pour trois fois les champs à payer : le jeu récompense l'expansion comme Travian, sans effet
+multiplicateur caché. La colonie est une ville économique ; le cœur militaire reste la
 capitale (Caserne, Écurie, Atelier, Forge, Résidence, Ambassade, Chambre au trésor, Domus), et les Grandes caserne et
 écurie n'ouvrent le recrutement en colonie qu'après plusieurs semaines. Les simulations précédentes (civilisations,
 recherche, camps) ne dépendent pas de ces règles et restent valables.
@@ -492,10 +494,10 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` ; règles détaill
 
 | Sujet | Règle appliquée | Où | Chiffres |
 |---|---|---|---|
-| Stock | Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, soins, héros et fondation se paient sur la somme des villes (ville de l'action d'abord, puis la plus riche) ; pas de convoi automatique | `src/utils/db.js` (`debitPlayer`, `creditPlayer`) | refus : « il manque … (toutes vos villes comprises) » |
+| Stock | Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, soins, héros et fondation se paient sur la somme des villes (ville de l'action d'abord, puis la plus pleine par rapport à son plafond, § 15) ; pas de convoi automatique | `src/utils/db.js` (`debitPlayer`, `creditPlayer`) | refus : « il manque … (toutes vos villes comprises) » |
 | Entretien | Tous les greniers paient : chaque ville ses troupes d'abord, le manque pris dans les autres ; famine seulement greniers tous vides | `resourceProcessor.processUpkeep` | — |
 | Unités | Toute unité formée ou soignée apparaît dans la capitale ; pas de garnison propre dans les colonies | `recruitProcessor`, `woundedService` | — |
-| Placement | 18 bâtiments « capitale seulement » (effets pour tout le joueur), 10 « colonies seulement », 10 partout ; Douves supprimées | `data/buildings.json`, migration `0030` | capitale 18 bâtiments au plus, colonie 15 (19 emplacements) |
+| Placement | 18 bâtiments « capitale seulement » (effets pour tout le joueur), 10 « colonies seulement », 10 partout ; Douves supprimées | `data/buildings.json`, migration `0030` | 19 emplacements ; depuis le Mur sur l'enceinte (§ 15) : capitale 17 bâtiments dans l'anneau, colonie 14 |
 | Coûts (rec. 3) | Champs × 1,45 par niveau, le reste × 1,28 | `config.build.fieldCostMultiplier` | 18 champs 1 → 20 : 17,0 M par ville (2,24 M avant) ; remboursement d'un champ 60 h au niveau 10, 276 h au niveau 20 |
 | Temps (rec. 4) | Champs et Bâtiment principal × 1,30 par niveau, le reste et la recherche × 1,2 | `config.build.slowTimeMultiplier` | champ 1 → 20 : 26 h brutes ; Bâtiment principal 1 → 30 : 437 h brutes |
 | Entretien (rec. 5) | 5 / 9 / 13, engins 15 ; 8 fiches retouchées (endurance seule) | `config.army.upkeepPerTier`, `data/units.json` | tableau ci-dessous |
@@ -546,3 +548,65 @@ simulation longue (`tools/sim`) suivent le placement des données, paient sur le
 (`tools/sim/stock.cjs`, même répartition que le serveur), bâtissent Grand dépôt et Grand silo dans les colonies, la
 Chambre au Trésor jusqu'au niveau 20 et la Tente de soins jusqu'au 20, paient leurs soins et comptent l'entretien sur tous
 leurs greniers.
+
+## 15. Rôle des colonies : chiffres à régler plus tard (décisions des 30 et 31 octobre 2026)
+
+Décisions du propriétaire en tête de `docs/RAPPORT-COLONIES.md` ; règles détaillées dans `docs/ETAT-DES-SYSTEMES.md`
+(« Villes secondaires »). Le propriétaire veut équilibrer ensuite : chaque chiffre est dans les données ou la config.
+Chiffres refaits par `node tools/simulate-colonies.cjs` (section 5).
+
+| Sujet | Valeur aujourd'hui | Où le régler | Remarque |
+|---|---|---|---|
+| Bonus de gisement | +15 % par niveau du gisement (1 à 3), sur sa seule ressource, colonies seulement | `RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel` | s'ajoute aux bâtiments de production avant le +20 % ; tableau ci-dessous |
+| Bonus d'une colonie | +20 % sur tout | `RESIDENCE.effects.secondaryCityBonusPct` | inchangé |
+| Nombre de colonies | 2 au plus (1er colon à la Résidence 10, 2e à la Résidence 20) ; Ville Merveille hors quota | `config.city.maxSecondaryCities`, `RESIDENCE.effects.unlockSettlerL10/L15/L20` | 3 jusqu'au 31 octobre 2026 |
+| Joueurs par serveur | 2 000 | `config.world.maxPlayers` | 5 000 jusqu'au 31 octobre 2026 ; compte pour l'offre de gisements |
+| Fondation | 3 000 de chaque ressource, 24 h sur place ; colon gratuit en 3 h | `config.city.foundationTransport`, `RESIDENCE.effects.cityFoundationTimeSec`, `settlerTrainTimeSec` | inchangé |
+| Emplacements | anneau de 19 ; Mur sur l'enceinte, emplacement 20 | `config.city.maxSlot`, `config.city.wallSlot` | capitale 17 bâtiments dans l'anneau (2 libres), colonie 14 (5 libres) |
+| Recrutement en colonie | Grande caserne / Grande écurie : paliers 1 / 7 / 15, temps −4 % par niveau ; prérequis Caserne 20 / Écurie 20 de la capitale | `GREAT_BARRACKS` / `GREAT_STABLE` : `unlockBaseTier`, `unlockIntermediateTier`, `unlockEliteTier`, `trainTimeReductionPctPerLevel`, `prereq` | unités vers la capitale ; pas d'engins (`config.recruit.siegeWorkshopLevel` vaut pour l'Atelier de la capitale) |
+| Comptoir de commerce | −1 point de taxe et +1 % de transport par niveau ; le meilleur des villes du joueur vaut partout | `TRADE_OFFICE.effects` (`p2pTaxReductionPctPerLevel`, `armyTransportCapacityBonusPctPerLevel`, `bestLevelForAllCities`) | Comptoir 20 : taxe −20 points, transport +20 % dans toutes les villes |
+| Vies d'une colonie | 2 (Égypte 3) ; capitale 4 (5) | `config.combat.fall.assaults`, `extraAssaults` | ni vie en plus au Mur 20, ni Fort (décision 3) |
+| Bâtiment principal d'une colonie | 20 au plus (capitale 30) | `config.city.secondaryMainHallMaxLevel` | rien ne change maintenant ; revue de tous les niveaux maximum à faire (`docs/BACKLOG.md`) |
+| Alerte « File de construction vide » | au plus une par ville toutes les 6 h | `config.city.idleAlertHours` | quand le dernier chantier d'une ville finit |
+| Alerte « dépôt plein dans 1 h » | prévient 1 h avant ; au plus une par ville toutes les 12 h | `config.city.storageAlertLeadHours`, `config.city.storageAlertHours` | bois, pierre, fer contre le Dépôt ; céréales (production moins entretien) contre le Silo |
+| Alerte de famine | 12 h avant les greniers vides, sur le total du joueur ; au plus une toutes les 12 h | `config.army.famineAlertHours` | 6 h jusqu'au 30 octobre 2026 ; le bandeau du client lit le même chiffre |
+| Notifications sur le téléphone | une par type et par joueur toutes les 60 s | `config.push.throttleMs` (pas d'entrée pour `build_idle` et `storage_full` : 60 s par défaut) | le fil du jeu garde toutes les alertes |
+| Cercle du centre | 35 % de la demi-largeur de la carte de base | `config.map.centerRadiusPct` | gisements de niveau 3 surtout là (60 % des points du cercle contre 10 % ailleurs) ; drapeau « centre disputé » des sites libres |
+| Ordre de prélèvement | après la ville de l'action, la plus pleine par rapport à son plafond (à égalité la plus riche) ; même ordre pour le manque d'entretien | règle du code (`utils/db.js` `planDebit`, `resourceProcessor.processUpkeep`) | pas un chiffre ; l'ancien ordre « la plus riche » est perdu |
+
+**Production d'une colonie selon son gisement** (champs au niveau 20, bâtiments de production au niveau 5, +20 % compris) :
+
+| Gisement | Bonus sur sa ressource | Bois par heure (4 Bûcherons, Scierie 5) | Céréales par heure (6 Fermes, Moulin 5 + Boulangerie 5) |
+|---|---|---|---|
+| aucun | — | 27 006 | 48 612 |
+| niveau 1 | +15 % | 30 246 | 53 472 |
+| niveau 2 | +30 % | 33 486 | 58 332 |
+| niveau 3 | +45 % | 36 726 | 63 192 |
+
+Sur tout le compte (capitale + 2 colonies au niveau 20 : 340 285 par heure, la capitale 81 025, chaque colonie 129 630),
+deux gisements de niveau 2 de bois, de pierre ou de fer ajoutent **+3,8 %**, de niveau 3 **+5,7 %** ; deux gisements de
+céréales de niveau 3 **+8,6 %** (6 Fermes contre 4 champs des autres ressources). L'équilibre des champs tient ; la course
+aux gisements de céréales de niveau 3 est le risque à surveiller (repli possible : un chiffre plus bas pour les céréales,
+ce qui demanderait une clé par ressource).
+
+**Offre de gisements** (mesure du 31 octobre 2026, même tirage que `src/game/seed.js` sur trois cartes, sans base) : le
+semis pose 4 895 points de bois, pierre, fer et céréales (et 636 d'or), sans en ajouter quand le monde grandit. Environ
+**3 300** ont la place d'une ville 2 × 2 à l'ouverture (3 221 à 3 327 selon la carte, avant les capitales), dont 430 à 490
+de niveau 3 (140 à 190 dans le cercle du centre). Pour 2 000 joueurs à 2 colonies, il en faudrait 4 000 : assez pour les
+premiers venus, pas pour tous. Rien n'est changé dans le semis (pas de correctif évident et sûr) : à décider avant
+l'ouverture (`docs/BACKLOG.md`).
+
+**À mesurer en simulation** (la simulation longue n'a pas été refaite pour ce lot : pas de serveur ni de base) :
+- le rythme des deux colonies avec 2 connexions par jour, et les gisements que choisissent les joueurs ;
+- la course aux gisements de céréales de niveau 3 ;
+- la pression des raids sur des colonies riches, sans garnison et à 2 vies ;
+- les vagues d'Immortels contre la Ville Merveille, qui combattent désormais les armées du propriétaire stationnées et les
+  renforts alliés (avant le 30 octobre 2026, elles frappaient une ville vide) : l'équilibre de la fin de partie change.
+
+**Outils** : les joueurs automatiques de la simulation longue (`tools/sim`) choisissent le site de leur colonie dans les
+« Sites libres » (type et niveau du gisement, la ressource qui leur manque d'abord : céréales quand l'armée mange presque
+tout, sinon la plus basse ; un type déjà tenu par une colonie compte moins), bâtissent le Mur sur l'enceinte, montent
+l'Écurie 20 puis les Grandes caserne et écurie jusqu'à l'élite et recrutent avec elles (palier de la colonie, unités vers la
+capitale) ; leur stock suit le même ordre de prélèvement que le serveur. Le rapport de la simulation compte les gisements
+choisis et le jour de chaque colonie ; deux contrôles s'ajoutent (Mur hors de l'enceinte, garnison dans une colonie).
+`simulate-2years.js` pose aussi le Mur sur l'emplacement 20.

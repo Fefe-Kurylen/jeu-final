@@ -233,7 +233,7 @@ function getBuildingEffect(key, level) {
     // Construction and training
     'MAIN_HALL': `Construction: -${Math.min(60, level * 2.5).toFixed(1)}% de temps${level * 2.5 >= 60 ? ' (plafond 60 %)' : ''}`,
     'ACADEMY': `Construction: -${(level * 1).toFixed(0)}% de temps`,
-    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps · colons aux niv. 10, 15 et 20 · gisement d'une colonie : +${siteBonusPct(1)} % par niveau`,
+    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps · colons aux niv. 10 et 20 · gisement d'une colonie : +${siteBonusPct(1)} % par niveau sur sa ressource, ${String(siteOtherPct()).replace('-', '−')} % sur les autres`,
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,

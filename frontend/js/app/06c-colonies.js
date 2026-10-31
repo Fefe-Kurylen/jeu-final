@@ -22,16 +22,19 @@ function settlerPortrait(cls = 'unit-ico') { const p = `busts/SETTLER_${player?.
 const residenceEffects = () => (window.buildingsData?.find(b => b.key === 'RESIDENCE')?.effects) || {};
 
 // ---- Gisement d'une colonie (décision du 30 octobre 2026) ----
-// Une colonie fondée sur un gisement de bois, de pierre, de fer ou de céréales produit, sur cette seule ressource, un bonus
-// par niveau du gisement (1 à 3 ; RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel), en plus du bonus des colonies. Ni la
-// capitale ni la Ville Merveille n'en ont. Le serveur donne le gisement de chaque ville (GET /api/cities : site) et celui
+// Une colonie fondée sur un gisement de bois, de pierre, de fer ou de céréales se spécialise (décision du 31 octobre 2026) :
+// sa ressource gagne un bonus par niveau du gisement (1 à 3 ; RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel, 10 %), les
+// trois autres perdent RESIDENCE.effects.colonyOtherResourcesPct (−30 %). Ni la capitale ni la Ville Merveille n'en ont. Le serveur donne le gisement de chaque ville (GET /api/cities : site) et celui
 // des sites libres ; pour un point de la carte, le bonus se calcule avec la même donnée.
 const SITE_NAMES = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'céréales' };
 const siteBonusPct = (level) => (Number(level) || 0) * (Number(residenceEffects().colonyNodeBonusPctPerNodeLevel) || 0);
-// « Gisement de fer niveau 3 : +45 % de fer dans une colonie » ('' pour un point où l'on ne fonde pas : or, plan…)
-function siteText(type, level, where = 'dans une colonie', pct = siteBonusPct(level)) {
+const siteOtherPct = () => Number(residenceEffects().colonyOtherResourcesPct) || 0;
+// « Gisement de fer niveau 3 : +30 % de fer, −30 % des autres ressources dans une colonie » ('' pour un point où l'on ne
+// fonde pas : or, plan…)
+function siteText(type, level, where = 'dans une colonie', pct = siteBonusPct(level), other = siteOtherPct()) {
   const name = SITE_NAMES[SITE_RESOURCE[type]];
-  return name ? `Gisement de ${name} niveau ${level} : +${pct} % de ${name} ${where}` : '';
+  if (!name) return '';
+  return `Gisement de ${name} niveau ${level} : +${pct} % de ${name}${other ? `, ${String(other).replace('-', '−')} % des autres ressources` : ''} ${where}`;
 }
 // Pastille courte du gisement d'une ville (« Mes villes », sites libres) : icône, ressource, niveau, bonus ; texte complet en info-bulle
 function siteBadgeHtml(site, where = 'dans cette colonie') {
@@ -75,7 +78,7 @@ function colonyTabHtml(level) {
   const available = currentCity?.settlers || 0;
   const used = colonies.length + available + settlersTravelling() + training.length;
   const fx = residenceEffects();
-  const trainH = Math.round((fx.settlerTrainTimeSec || 10800) / 3600), foundH = Math.round((fx.cityFoundationTimeSec || 86400) / 3600), bonus = fx.secondaryCityBonusPct || 20;
+  const trainH = Math.round((fx.settlerTrainTimeSec || 10800) / 3600), foundH = Math.round((fx.cityFoundationTimeSec || 86400) / 3600);
   const sitePct = siteBonusPct(1);
   // un colon de plus pour la Ville Merveille quand toutes les places sont des colonies fondées et qu'aucun colon n'attend
   const forWonder = used >= slots && colonies.length >= slots && used === colonies.length && !(cities || []).some(c => c.isWonder);
@@ -88,7 +91,7 @@ function colonyTabHtml(level) {
       <p>Villes secondaires : <strong>${colonies.length}</strong>${colonies.length ? ' (' + colonies.map(c => escapeHtml(c.name)).join(', ') + ')' : ''} · colons prêts dans la capitale : <strong>${available}</strong> · en route : <strong>${settlersTravelling()}</strong> · en formation : <strong>${training.length}</strong></p>
       ${training.length ? `<div class="research-queue">${training.map(q => `<div class="research-queue-item running"><span class="rq-name">Colon en formation</span><span class="rq-state"><span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span></span><button type="button" class="btn-small" onclick="cancelRecruit('${q.id}')" title="Annuler" aria-label="Annuler">✕</button></div>`).join('')}</div>` : ''}
       <button type="button" class="btn-primary" ${canTrain ? '' : 'disabled'} onclick="trainSettler()">${canTrain ? `Former un colon${forWonder ? ' pour la Ville Merveille' : ''} (${trainH} h)` : !currentCity?.isCapital ? 'Capitale seulement' : slots === 0 ? 'Résidence niveau 10 requise' : 'Tous les colons sont engagés'}</button>
-      <p class="research-empty" style="margin-top:8px">Pour fonder une ville : une armée de la capitale emmène un colon et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource (prises dans la capitale, puis dans vos autres villes) sur un point de ressource libre (bulle du point sur la carte, « Fonder une ville »). La fondation dure ${foundH} h sur place ; la colonie produit +${bonus} %, et son gisement lui donne encore +${sitePct} % par niveau du gisement (1 à 3) sur sa seule ressource. Le colon est perdu si l'armée est battue en chemin. Le bouton « Sites libres » de la carte liste les gisements où fonder.</p>
+      <p class="research-empty" style="margin-top:8px">Pour fonder une ville : une armée de la capitale emmène un colon et ${formatNum(COLONY_RULES.foundationTransport)} de chaque ressource (prises dans la capitale, puis dans vos autres villes) sur un point de ressource libre (bulle du point sur la carte, « Fonder une ville »). La fondation dure ${foundH} h sur place ; la colonie se spécialise selon son gisement : +${sitePct} % par niveau du gisement (1 à 3) sur sa ressource, ${String(siteOtherPct()).replace('-', '−')} % sur les trois autres. Le colon est perdu si l'armée est battue en chemin. Le bouton « Sites libres » de la carte liste les gisements où fonder.</p>
     </div>`;
 }
 

@@ -45,6 +45,8 @@ function sharedBuildings(cities) {
 // Ressource que donne un gisement à la colonie fondée dessus (bonus de gisement) ; or, Merveille… : aucune
 const NODE_RESOURCE = { WOOD: 'wood', STONE: 'stone', IRON: 'iron', FOOD: 'food' };
 const colonyNodeBonusPct = (nodeLevel) => Math.max(0, Math.floor(Number(nodeLevel) || 0)) * effectOf('RESIDENCE', 'colonyNodeBonusPctPerNodeLevel');
+// …et les trois autres ressources de la colonie perdent ce pourcentage (décision du 31 octobre 2026 : −30 %)
+const colonyOtherResourcesPct = () => effectOf('RESIDENCE', 'colonyOtherResourcesPct', 0);
 const TRAIN_BUILDINGS = { INFANTRY: ['BARRACKS', 'GREAT_BARRACKS'], ARCHER: ['BARRACKS', 'GREAT_BARRACKS'], CAVALRY: ['STABLE', 'GREAT_STABLE'], SIEGE: ['WORKSHOP'] };
 
 const effects = {
@@ -112,16 +114,17 @@ const effects = {
   settlerTrainTimeSec: () => effectOf('RESIDENCE', 'settlerTrainTimeSec', 10800),
   settlerCost: () => defOf('RESIDENCE')?.effects?.settlerCost || { wood: 0, stone: 0, iron: 0, food: 0 },
   cityFoundationTimeSec: () => effectOf('RESIDENCE', 'cityFoundationTimeSec', 86400),
-  secondaryCityBonusPct: () => effectOf('RESIDENCE', 'secondaryCityBonusPct', 20),
+  secondaryCityBonusPct: () => effectOf('RESIDENCE', 'secondaryCityBonusPct', 0),   // 0 depuis le 31 octobre 2026 : la spécialité vient du gisement
   // Bonus de gisement d'une colonie (décision du 30 octobre 2026) : +15 % par niveau du gisement (1-3) sur la seule
   // ressource du gisement, en plus du bonus des colonies ; rien pour la capitale ni la Ville Merveille (pas de gisement
   // de bois, pierre, fer ou céréales). Le tick l'applique en SQL (resourceProcessor) avec les mêmes données.
   colonyNodeBonusPct,
+  colonyOtherResourcesPct,
   NODE_RESOURCE,
   // Gisement d'une ville pour l'affichage : { type, level, bonusPct }, null pour la capitale, la Ville Merveille ou une
   // ville sans gisement. `node` : le point de ressource dont cityId est la ville
   citySite: (city, node) => (!city || city.isCapital || city.isWonder || !node || !NODE_RESOURCE[node.resourceType]
-    ? null : { type: node.resourceType, level: node.level, bonusPct: colonyNodeBonusPct(node.level) }),
+    ? null : { type: node.resourceType, level: node.level, bonusPct: colonyNodeBonusPct(node.level), otherPct: colonyOtherResourcesPct() }),
   // Bâtiments partagés par toutes les villes du joueur (décision du 30 octobre 2026) : ceux « capitale seulement » (une
   // seule suffit, bonus général pour le joueur) sont lus dans la capitale ; pour le Comptoir, le meilleur niveau des
   // villes du joueur vaut partout. withCapital(bâtiments de la ville, bâtiments partagés) → liste à passer aux autres

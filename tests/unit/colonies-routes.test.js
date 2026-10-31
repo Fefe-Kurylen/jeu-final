@@ -225,7 +225,7 @@ test('GET /api/cities : gisement de chaque colonie (aucun pour la capitale ni la
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
     const by = Object.fromEntries(res.body.map(c => [c.id, c]));
     const perLevel = buildingsData.find(b => b.key === 'RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel;
-    assert.deepEqual(by.col.site, { type: 'IRON', level: 3, bonusPct: 3 * perLevel });
+    assert.deepEqual(by.col.site, { type: 'IRON', level: 3, bonusPct: 3 * perLevel, otherPct: fx.colonyOtherResourcesPct() });
     assert.equal(by.cap.site, null);
     assert.equal(by.won.site, null);
     const colonyLives = assaultsToFall({ isCapital: false }, 'EGYPT');

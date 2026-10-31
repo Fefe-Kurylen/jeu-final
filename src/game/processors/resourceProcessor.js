@@ -58,26 +58,28 @@ function effectPctSql(pairs, only = () => Prisma.empty) {
     GROUP BY e."cityId"`;
 }
 
-// Bonus de gisement des colonies (décision du 30 octobre 2026, fx.colonyNodeBonusPct) : niveau du gisement × 15 points
-// de % sur sa seule ressource, ajoutés à ceux des bâtiments de production (Scierie…), avant le bonus des colonies ; rien
-// pour la capitale ni la Ville Merveille. Une ligne par ville (GROUP BY : jamais une ville en double dans les jointures)
+// Spécialité des colonies selon leur gisement (décision du 31 octobre 2026, fx.colonyNodeBonusPct / colonyOtherResourcesPct) :
+// niveau du gisement × 10 points de % sur sa ressource, −30 points sur les trois autres, ajoutés à ceux des bâtiments de
+// production (Scierie…) ; rien pour la capitale ni la Ville Merveille. Une ligne par ville (GROUP BY : jamais une ville
+// en double dans les jointures)
 const NODE_TYPE = Object.fromEntries(Object.entries(fx.NODE_RESOURCE).map(([type, r]) => [r, type]));   // wood -> WOOD
 function siteBonusSql(only) {
-  const pct = (r) => Prisma.sql`MAX(CASE WHEN rn."resourceType" = ${NODE_TYPE[r]} THEN rn.level ELSE 0 END) * ${fx.colonyNodeBonusPct(1)}::float`;
+  const pct = (r) => Prisma.sql`MAX(CASE WHEN rn."resourceType" = ${NODE_TYPE[r]} THEN rn.level * ${fx.colonyNodeBonusPct(1)}::float ELSE ${fx.colonyOtherResourcesPct()}::float END)`;
   return Prisma.sql`
     SELECT rn."cityId", ${pct('wood')} AS w, ${pct('stone')} AS s, ${pct('iron')} AS i, ${pct('food')} AS f
     FROM "ResourceNode" rn JOIN "City" ci ON ci.id = rn."cityId" AND NOT ci."isCapital" AND NOT ci."isWonder"
+      AND rn."resourceType" IN (${Prisma.join(Object.keys(fx.NODE_RESOURCE))})
     ${only('rn."cityId"')}
     GROUP BY rn."cityId"`;
 }
 
 // Production par heure de chaque ville, une ligne par ville ; seul calcul de la production (tick, bilan de nourriture,
 // alerte « dépôt plein ») : (champs × (1 + bâtiments de production + gisement) + base 5/5/5/10) × abonnement Plus ×
-// Irrigation de la capitale (50 % au plus) × Agronomie × colonie (+20 %) × Bastion d'alliance.
+// Irrigation de la capitale (50 % au plus) × Agronomie × colonie (secondaryCityBonusPct, 0 depuis le 31 octobre 2026) × Bastion.
 // `only(colonne)` : filtre des villes demandées (bilan de nourriture)
 function productionSql(only = () => Prisma.empty) {
   const prodTechTable = techTableSql('productionBonusPct');   // Agronomie : +0,5 %/niveau sur tous les champs (data/technologies.json)
-  const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;   // GDD: a secondary city produces +20 %
+  const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;   // 0 depuis le 31 octobre 2026 (la spécialité vient du gisement)
   return Prisma.sql`
     SELECT x."cityId",
       (x.w * (1 + x.wb / 100.0) + 5)  * x.mult AS wood,
