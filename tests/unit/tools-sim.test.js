@@ -20,10 +20,16 @@ test('simulate-colonies: one engine for every tier, wall breach and Bastion figu
   assert.match(out, /\| niveau 20 \| 20\s000 \| [^|]+\| 110 \/ 165 \/ 330 \|/);   // séparateur des milliers : espace fine
   assert.match(out, /Bastion \(10 × mur 20\) \| 200\s000 \|/);
   assert.match(out, /3\s000 soldats \+ 150 engins \| brèche round \d+, l'attaquant gagne/);
-  // rôle des colonies (décisions du 30 octobre 2026) : +15 % par niveau du gisement, Mur sur l'enceinte (17 / 14 dans l'anneau)
-  assert.match(out, /\| niveau 1 \| \+15 % \| 30\s246 \| 53\s472 \|/);
-  assert.match(out, /\| niveau 3 \| \+45 % \| 36\s726 \| 63\s192 \|/);
+  // rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement lue dans les données, Mur sur l'enceinte
+  // (17 / 14 bâtiments dans l'anneau)
+  const fx = require('../../src/utils/buildingEffects');
+  const signed = (v) => (v < 0 ? `−${-v}` : `\\+${v}`);
+  for (const L of [1, 2, 3]) assert.match(out, new RegExp(`\\| niveau ${L} \\| ${signed(fx.colonyNodeBonusPct(L))} % / ${signed(fx.colonyOtherResourcesPct())} % \\|( [\\d\\s]+\\|){4} [\\d\\s]+ / [\\d\\s]+ \\|`));
   assert.match(out, /Capitale : 17 bâtiments possibles dans l'anneau \(2 libres\) ; colonie : 14 \(5 libres\)/);
+  // la taxe des échanges ne descend pas sous 0 : le Comptoir qui l'annule se lit dans la config et les données
+  const config = require('../../src/config');
+  const zeroAt = Math.ceil(config.market.p2pTaxPctBase / fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1));
+  assert.match(out, new RegExp(`\\(${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${zeroAt}\\)`));
 });
 
 test('simulate-factions: city attacks use the wall shield and the engines of each civilisation', () => {

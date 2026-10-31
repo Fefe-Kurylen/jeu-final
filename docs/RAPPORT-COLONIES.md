@@ -9,7 +9,7 @@ idées refusées gardées pour plus tard : `docs/BACKLOG.md`.
 
 | N° | Question de l'étude | Réponse | Ce qui est fait |
 |---|---|---|---|
-| 1 | Bonus de gisement | **Oui, +15 % par niveau du gisement** (1 à 3) | Sur la seule ressource du gisement (bois, pierre, fer ou céréales), en plus du +20 % des colonies, gardé. Ni la capitale ni la Ville Merveille. Affiché avant de fonder (bulle du gisement, panneau de fondation, « Sites libres ») et dans la ville. Donnée : `RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel` = 15 |
+| 1 | Bonus de gisement | **Oui, +15 % par niveau du gisement** (1 à 3), en plus du +20 % des colonies ; **remplacé le 31 octobre 2026** par la spécialité du gisement (plus bas) | Aujourd'hui : +10 % par niveau du gisement sur sa ressource (bois, pierre, fer ou céréales), −30 % sur les trois autres ; le +20 % de toutes les colonies est retiré. Ni la capitale ni la Ville Merveille. Affiché avant de fonder (bulle du gisement, panneau de fondation, « Sites libres ») et dans la ville. Données : `RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel` = 10, `colonyOtherResourcesPct` = −30, `secondaryCityBonusPct` = 0 |
 | 2 | Bâtiment de faction de colonie | **Non** | Aucun nouveau bâtiment |
 | 3 | Défense en plus (vie en plus au Mur 20, ou un Fort) | **Non** | Une colonie garde ses 2 vies (Égypte 3) |
 | 4 | Ordres groupés par type de champ | **Non** | Un ordre par champ, comme avant |
@@ -35,9 +35,15 @@ Aussi, pour « éviter la micro-gestion » (aide au suivi, sans changer les règ
 **Ne pas faire** : colonie fondée avec ses champs, son Dépôt et son Silo offerts ; ordres groupés ; bâtiments de faction de
 colonie ; Fort ; vie en plus ; gouverneur ; relance automatique du recrutement.
 
-**Mise à jour du 31 octobre 2026** (décisions suivantes du propriétaire) : **2 colonies par joueur** au plus (la Résidence
-forme le 1er colon au niveau 10 et le 2e au niveau 20 ; la Ville Merveille reste hors quota) et **2 000 joueurs par serveur**
-(avant 5 000). L'étude ci-dessous raisonne encore avec 3 colonies et 5 000 joueurs.
+**Mise à jour du 31 octobre 2026** (décisions suivantes du propriétaire) :
+- **2 colonies par joueur** au plus (la Résidence forme le 1er colon au niveau 10 et le 2e au niveau 20 ; la Ville Merveille
+  reste hors quota) ;
+- **2 000 joueurs par serveur** (avant 5 000) ;
+- **la colonie se spécialise selon son gisement** : +10 % par niveau du gisement sur sa ressource, −30 % sur les trois
+  autres ; le +20 % de toutes les colonies est retiré (`RESIDENCE.effects` : `colonyNodeBonusPctPerNodeLevel`,
+  `colonyOtherResourcesPct`, `secondaryCityBonusPct`). Cela remplace le chiffre de la réponse 1.
+
+L'étude ci-dessous raisonne encore avec 3 colonies, 5 000 joueurs, le +20 % des colonies et +15 % par niveau du gisement.
 
 ## Rapport de l'étude (30 octobre 2026, pour mémoire)
 

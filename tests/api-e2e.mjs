@@ -1119,7 +1119,7 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     await waitTick('settler ready in the capital', () => sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1');
     // « Sites libres » (décision du 30 octobre 2026) : gisements de bois, pierre, fer ou céréales où l'on peut fonder (ni
     // ville, ni armée, place pour la ville), du plus proche au plus lointain depuis la capitale, avec le bonus du gisement
-    const NODE_BONUS = BUILDINGS.find(b => b.key === 'RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel;
+    const RES_FX = BUILDINGS.find(b => b.key === 'RESIDENCE').effects, NODE_BONUS = RES_FX.colonyNodeBonusPctPerNodeLevel;
     await call('free sites without a token -> 401', 'GET', '/api/map/free-sites', null, null, 401);
     const sites = await call('free sites (12 nearest)', 'GET', '/api/map/free-sites?limit=12', tA);
     {
@@ -1127,7 +1127,7 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       const shapeOk = Array.isArray(sites) && sites.length > 0 && sites.length <= 12 && sites.every(st => typeof st.id === 'string' && Number.isInteger(st.x) && Number.isInteger(st.y)
         && ['WOOD', 'STONE', 'IRON', 'FOOD'].includes(st.type) && st.level >= 1 && st.level <= 3 && st.bonusPct === st.level * NODE_BONUS
         && Number.isFinite(st.travelSec) && st.travelSec > 0 && st.tribePower >= 0 && typeof st.central === 'boolean');
-      assert('free sites: id, x, y, type, level, bonus (+15 % per level), travel time, tribe strength, centre flag', shapeOk, JSON.stringify(sites?.[0]));
+      assert('free sites: id, x, y, type, level, bonus (per node level, from the data), travel time, tribe strength, centre flag', shapeOk, JSON.stringify(sites?.[0]));
       assert('free sites: sorted from the nearest to the farthest from the capital', Array.isArray(sites) && sites.every((st, i) => i === 0 || far(sites[i - 1]) <= far(st) + 1e-9));
       const ids = (sites || []).map(st => `'${st.id}'`).join(',') || "''";
       assert('free sites: free nodes only (no city, no army on them)', sql(`SELECT count(*) FROM "ResourceNode" WHERE id IN (${ids}) AND "cityId" IS NULL AND NOT "hasPlayerArmy"`) === String(sites?.length));
@@ -1159,7 +1159,7 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     { // gisement et vies de chaque ville (décision du 30 octobre 2026) : le bonus du gisement de la colonie, rien pour la capitale
       const cap0 = citiesNow?.find(c => c.isCapital), col0 = citiesNow?.find(c => !c.isCapital);
       const [nodeType, nodeLevel] = sql(`SELECT "resourceType"||'|'||level FROM "ResourceNode" WHERE id='${freeNode[0]}'`).split('|');
-      assert('cities: the colony shows its node (type, level, +15 % per level on that resource), the capital none', cap0?.site === null && col0?.site?.type === nodeType && col0.site.level === Number(nodeLevel) && col0.site.bonusPct === Number(nodeLevel) * NODE_BONUS, JSON.stringify({ capital: cap0?.site, colony: col0?.site, nodeType, nodeLevel }));
+      assert('cities: the colony shows its node (type, level, bonus on that resource and malus on the others, from the data), the capital none', cap0?.site === null && col0?.site?.type === nodeType && col0.site.level === Number(nodeLevel) && col0.site.bonusPct === Number(nodeLevel) * NODE_BONUS && col0.site.otherPct === (RES_FX.colonyOtherResourcesPct || 0), JSON.stringify({ capital: cap0?.site, colony: col0?.site, nodeType, nodeLevel }));
       const siegeCol = await call('siege info of the colony (its lives)', 'GET', `/api/city/${colony[0]}/siege`, tA);
       assert('cities: lives of each city, as on the siege screen; a colony has fewer than the capital', col0?.lives?.total === siegeCol?.livesTotal && col0.lives.left === siegeCol?.livesLeft && col0.lives.total < cap0?.lives?.total, JSON.stringify({ colony: col0?.lives, capital: cap0?.lives, siege: [siegeCol?.livesTotal, siegeCol?.livesLeft] }));
       const sitesAfter = await call('free sites after the foundation', 'GET', '/api/map/free-sites?limit=13', tA);
@@ -1283,7 +1283,9 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       sql(`UPDATE "City" SET food=50000, "maxFoodStorage"=100000 WHERE id='${colony[0]}'`);
       sql(`UPDATE "City" SET food=9000 WHERE id='${tertia}'`);
       const RPo = createRequire(import.meta.url)('../src/game/processors/resourceProcessor.js');
-      await RPo.processUpkeep(0.1);   // 6 minutes d'entretien (le contrôle de l'heure a déjà tourné dans ce processus)
+      // une minute d'entretien, pour tous les joueurs de la base comme au tick (le contrôle de l'heure a déjà tourné dans ce
+      // processus : pas de famine ici)
+      await RPo.processUpkeep(1 / 60);
       const tFood = stockOf(tertia).food, cFood = stockOf(colony[0]).food;
       assert('drawing order: the upkeep shortfall is taken from the fullest granary first', tFood < 9000 && cFood >= 50000, `third city ${tFood}, colony ${cFood}`);
       sql(`DELETE FROM "City" WHERE id='${tertia}'`);
@@ -1304,7 +1306,8 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       // bâtiment ne la prend
       const wall = await call('build WALL asking for ring slot 4: placed on the enclosure', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'WALL', slot: 4 });
       assert('the Wall never takes a ring slot: it goes on its fixed slot', !!ECO?.city?.wallSlot && wall?.queueItem?.slot === ECO.city.wallSlot, JSON.stringify(wall?.queueItem));
-      await call('build HIDEOUT on the Wall slot -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'HIDEOUT', slot: ECO?.city?.wallSlot }, 400);
+      const onWall = await call('build HIDEOUT on the Wall slot -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'HIDEOUT', slot: ECO?.city?.wallSlot }, 400);
+      assert('the Wall slot is refused to any other building (outside the ring)', /Emplacement invalide/.test(onWall?.error || ''), onWall?.error);
       if (wall?.queueItem?.id) await call('cancel the Wall', 'DELETE', `/api/city/${colony[0]}/build/${wall.queueItem.id}`, tA);
     }
     assert('colony with Main Hall 20 is a Ville Fortifiée', (await call('cities A (colony tier)', 'GET', '/api/cities', tA))?.find(c => c.id === colony[0])?.cityTierName === 'Ville Fortifiée');

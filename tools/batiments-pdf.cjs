@@ -56,7 +56,7 @@ const EFFECT = {
   TREASURE_CHAMBER: (L) => `${curve(10, 200, L)} or par jour`,
   HERO_MANSION: () => 'Accès au héros depuis la ville',
   WATCHTOWER: (L) => `${L >= 10 ? '2 espions' : L >= 5 ? '1 espion' : 'Espion au niv. 5'} · alerte des attaques sur toutes les villes${L >= 15 ? ' avec attaquant et effectifs' : L >= 10 ? ' avec attaquant' : ''}`,
-  RESIDENCE: (L) => `Construction −${pct(L * 0.25)} % · colonie : gisement +${def('RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa ressource`,
+  RESIDENCE: (L) => `Construction −${pct(L * 0.25)} % · colonie : gisement +${def('RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa ressource, ${String(def('RESIDENCE').effects.colonyOtherResourcesPct || 0).replace('-', '−')} % sur les autres`,
   TRADE_OFFICE: (L) => `Taxe des échanges −${pct(L * def('TRADE_OFFICE').effects.p2pTaxReductionPctPerLevel)} points · transport par armée +${pct(L * def('TRADE_OFFICE').effects.armyTransportCapacityBonusPctPerLevel)} % · le meilleur Comptoir vaut pour toutes les villes`,
   ROMAN_THERMAE: (L) => `Soins −${pct(L * 1.5)} % de temps · blessés +${pct(L * 0.5)} %`,
   GALLIC_BREWERY: (L) => `Défense de toutes les villes +${L} %`,

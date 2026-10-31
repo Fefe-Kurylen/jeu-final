@@ -177,7 +177,8 @@ test('site d\'une colonie : le bonus de gisement qui sert le joueur, la marche e
   const bot = botWith(withBalance([cap], { production: 1000, consumption: 900, net: 100 }));
   // l'armée mange presque tout : les céréales d'abord ; la pierre est la ressource la plus basse
   assert.deepEqual(military.siteWish(bot), { WOOD: 1, STONE: 1.5, IRON: 1, FOOD: 2 });
-  const site = (id, type, level, x, tribePower = 0) => ({ id, type, level, bonusPct: fx.colonyNodeBonusPct(level), x, y: 0, tribePower, travelSec: x * 100, central: false });
+  // comme GET /api/map/free-sites (le bonus vient du serveur : 15 % par niveau dans cet exemple)
+  const site = (id, type, level, x, tribePower = 0) => ({ id, type, level, bonusPct: 15 * level, x, y: 0, tribePower, travelSec: x * 100, central: false });
   const sites = [
     site('wood1', 'WOOD', 1, 8),
     site('food3', 'FOOD', 3, 14, 1000),

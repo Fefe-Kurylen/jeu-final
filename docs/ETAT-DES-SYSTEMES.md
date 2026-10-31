@@ -79,8 +79,9 @@ troupes se paie sur tous les greniers (« Entretien et famine »).
   l'Irrigation dans toutes les villes, vitesse de marche (Irrigation), entretien (Tente de guerre, Avant-poste du désert),
   transport (Avant-poste du désert), taxe des échanges (Chambre au Trésor). Un bâtiment des colonies n'agit que sur sa
   colonie (Moulin, Scierie…), sauf le **Comptoir de commerce** : le meilleur Comptoir des villes du joueur vaut pour toutes,
-  capitale comprise, sans somme des niveaux (`effects.bestLevelForAllCities`, décision du 30 octobre 2026). Un prérequis « capitale seulement » d'un bâtiment de colonie se lit dans la
-  capitale (Caserne 20 pour la Grande caserne, Chambre au Trésor 5 pour le Grand dépôt et le Grand silo).
+  capitale comprise, sans somme des niveaux (`effects.bestLevelForAllCities`, décision du 30 octobre 2026). Un prérequis
+  « capitale seulement » d'un bâtiment de colonie se lit dans la capitale (Caserne 20 pour la Grande caserne, Chambre au
+  Trésor 5 pour le Grand dépôt et le Grand silo).
 
 **Coûts et temps de construction** (recommandations 3 et 4 ; `calculations.buildCostFor` / `buildSecondsFor`, seul endroit
 du calcul, repris par les quêtes, le client et les outils) : les champs (Ferme, Bûcheron, Carrière, Mine de fer) coûtent
@@ -848,7 +849,7 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
   droite, affiché « au moins » (le vrai trajet contourne le relief et l'eau) ; `central` signale le cercle du centre,
   disputé (`config.map.centerRadiusPct` = 35 % de la demi-carte, le même cercle que le semis des gisements de niveau 3).
   Filtres par ressource et niveau ; une tribu se chasse avant de fonder. La bulle d'un gisement et le panneau de fondation
-  donnent aussi son bonus : « Gisement de fer niveau 3 : +45 % de fer dans une colonie ».
+  donnent aussi la spécialité qu'il apporterait (bonus sur sa ressource, baisse sur les trois autres).
 - **Fondation** (`POST /api/army/:id/found-city { resourceNodeId, name }`) : une armée de la capitale (unités obligatoires)
   emmène un colon et 3 000 de chaque ressource, pris dans toutes les villes du joueur (la capitale d'abord), vers un point
   libre. À l'arrivée le point est réservé (`FOUNDING`, 24 h) ; la ville naît ensuite sur la case du point avec son
@@ -862,13 +863,15 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
   régénération, tribus) ; il redevient libre, tribu comprise, quand la ville disparaît (colonie rasée, compte supprimé).
 
 **Ce qu'une colonie apporte**
-- **Production** : **+20 %** sur tout (`RESIDENCE.effects.secondaryCityBonusPct`) et le **bonus de gisement : +15 % par
-  niveau du gisement** (1 à 3) sur **sa seule ressource** (`RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel`, décision 1) :
-  il s'ajoute aux bâtiments de production de cette ressource (Scierie, Tailleur de pierre, Fonderie, Moulin + Boulangerie)
-  avant le +20 %. Ni la capitale ni la Ville Merveille n'en ont. Un seul calcul, `resourceProcessor.productionSql` (tick,
-  bilan de nourriture, alerte « dépôt plein ») ; `GET /api/cities` donne `site: { type, level, bonusPct }` (null pour la
-  capitale et la Ville Merveille), repris par le badge du gisement dans la ville, la ligne du gisement sur les champs de sa
-  ressource et l'aperçu de production du client.
+- **Production : la spécialité du gisement** (décision 1 du 30 octobre 2026, revue le 31 octobre) : **+10 % par niveau du
+  gisement** (1 à 3) sur **sa ressource** (`RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel`) et **−30 % sur les trois
+  autres** (`RESIDENCE.effects.colonyOtherResourcesPct`), ajoutés aux bâtiments de production de chaque ressource (Scierie,
+  Tailleur de pierre, Fonderie, Moulin + Boulangerie). Le bonus de toutes les colonies est à 0 depuis le 31 octobre 2026
+  (`RESIDENCE.effects.secondaryCityBonusPct` ; avant : +20 % sur tout, et +15 % par niveau du gisement le 30 octobre). Ni la
+  capitale ni la Ville Merveille n'ont de gisement. Un seul calcul, `resourceProcessor.productionSql` (tick, bilan de
+  nourriture, alerte « dépôt plein ») ; `GET /api/cities` donne `site: { type, level, bonusPct, otherPct }` (null pour la
+  capitale et la Ville Merveille), repris par le badge du gisement dans la ville, la ligne du gisement sur les champs et
+  l'aperçu de production du client. Le joueur choisit donc son gisement selon la ressource qui lui manque.
 - **Grenier de l'armée et stockage** : le Moulin et la Boulangerie n'existent qu'en colonie ; chaque colonie ajoute son
   Dépôt, son Silo et ses Grands dépôt et silo à la capacité du joueur (un gros prix ne passe que si le stockage de toutes
   ses villes le tient). Son stock reste à elle (pillage, raids, marché, transports) mais paie aussi les constructions,
@@ -918,8 +921,9 @@ GDD : `data/buildings.json` RESIDENCE, `GDD_MASTER/systems/resource_points.json`
   `config.city.idleAlertHours`, `City.idleAlertAt`) ; « **[ville] : dépôt plein dans 1 h** » quand une ressource atteindra
   son plafond dans moins de `config.city.storageAlertLeadHours` heure (une par ville toutes les 12 h au plus,
   `config.city.storageAlertHours`, `City.storageAlertAt` ; une ressource déjà pleine ne prévient plus, et un Silo plein
-  que l'entretien garde juste sous son plafond compte comme plein) ; **famine 12 h à l'avance** sur le total du joueur (« Entretien et famine »). Le téléphone ne reçoit qu'une
-  notification d'un même type par minute et par joueur ; le fil du jeu les garde toutes.
+  que l'entretien garde juste sous son plafond compte comme plein) ; **famine 12 h à l'avance** sur le total du joueur
+  (« Entretien et famine »). Le téléphone ne reçoit qu'une notification d'un même type par minute et par joueur ; le fil du
+  jeu les garde toutes.
 - **Ordre de prélèvement** (décision 8) : après la ville de l'action, la ville la plus pleine par rapport à son plafond
   paie d'abord, pour les dépenses et pour le manque d'entretien (« Économie, placement et stock partagé »).
 

@@ -4,12 +4,12 @@
 //     palier et ce que coûte le Bâtiment principal pour y arriver (le palier ne fixe plus le minimum d'engins de siège) ;
 //  2. percer le mur : seuls les engins l'abîment (décision du 30 octobre 2026) ; engins pour une brèche selon le niveau du
 //     mur et le Bastion, puis combats de siège réels (Rome contre une ville gauloise, moteur services/combatService.js) ;
-//  3. économie d'une colonie : production d'une ville secondaire (+20 %) contre la capitale à développement égal, prix
-//     de la fondation et de la Résidence, amortissement ; bâtiments réservés aux colonies, stock partagé ;
+//  3. économie d'une colonie : production d'une ville secondaire spécialisée par son gisement contre la capitale à
+//     développement égal, prix de la fondation et de la Résidence ; bâtiments réservés aux colonies, stock partagé ;
 //  4. militaire hors capitale : la Grande caserne demande Caserne 20 dans la capitale ; coût et délai de ce verrou ; les
 //     unités formées rejoignent la capitale (décision du 30 octobre 2026) ;
-//  5. rôle des colonies (décisions du 30 octobre 2026) : bonus de gisement par niveau, poids sur tout le compte,
-//     emplacements avec le Mur sur l'enceinte.
+//  5. rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement par niveau, poids sur tout le
+//     compte, emplacements avec le Mur sur l'enceinte.
 // Coûts et temps des bâtiments : utils/calculations.js buildCostFor / buildSecondsFor (les mêmes que le serveur).
 //   node tools/simulate-colonies.cjs
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -92,21 +92,30 @@ row(['---', '---', '---', '---']);
 for (const [s, e] of [[1000, 1], [1000, 20], [1000, 100], [1000, 200], [3000, 50], [3000, 150]]) row([`${fmt(s)} soldats + ${e} engin${e > 1 ? 's' : ''}`, siegeFight(s, e, 10, 1), siegeFight(s, e, 20, 1), siegeFight(s, e, 20, 0.5)]);
 
 // ---------- 3. économie d'une colonie ----------
-console.log('\n## 3. Économie d\'une ville secondaire (+20 %)\n');
-const bonus = 1 + fx.secondaryCityBonusPct() / 100;
+console.log('\n## 3. Économie d\'une ville secondaire (spécialité du gisement)\n');
+// Production d'une ressource, comme resourceProcessor.productionSql : (champs × (1 + bâtiments de production + gisement)
+// + base) × bonus des colonies ; dans une colonie, le gisement donne colonyNodeBonusPct(niveau) à sa ressource et
+// colonyOtherResourcesPct aux trois autres (décision du 31 octobre 2026) ; la capitale n'a ni l'un ni l'autre
+const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
+const sitePct = (own, L) => (own ? fx.colonyNodeBonusPct(L) : fx.colonyOtherResourcesPct());
+const signed = (v) => (v < 0 ? `−${-v}` : `+${v}`);
+const capitalRes = (fields, base, buildPct = 0) => fields * (1 + buildPct / 100) + base;
+const colonyRes = (fields, base, buildPct, own, L) => (fields * (1 + (buildPct + sitePct(own, L)) / 100) + base) * colonyMult;
 const cap = config.city.secondaryMainHallMaxLevel;
-row(['Champs (4 par ressource)', 'Capitale, par ressource et par heure', 'Colonie (+20 %)', 'Gain de la colonie', 'Coût cumulé des 16 champs']);
+console.log(`Bonus de toutes les colonies : ${fx.secondaryCityBonusPct()} % ; gisement : ${signed(fx.colonyNodeBonusPct(1))} % par niveau sur sa ressource, ${signed(fx.colonyOtherResourcesPct())} % sur les trois autres (sans bâtiments de production ici).\n`);
+row(['Champs (4 par ressource)', 'Capitale, par ressource et par heure', 'Colonie : sa ressource (gisement 1 / 2 / 3)', 'Colonie : chacune des 3 autres', 'Coût cumulé des 16 champs']);
 row(['---', '---', '---', '---', '---']);
 for (const L of [5, 10, 15, 20]) {
-  const perRes = 4 * getProductionAtLevel('LUMBER', L, buildingsData) + 5;
+  const f = 4 * getProductionAtLevel('LUMBER', L, buildingsData);
   const fields = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].reduce((t, k) => t + 4 * cumul(k, 1, L).total, 0);
-  row([`niveau ${L}`, fmt(perRes), fmt(perRes * bonus), `+${fmt(perRes * (bonus - 1))}/h`, fmt(fields)]);
+  row([`niveau ${L}`, fmt(capitalRes(f, 5)), [1, 2, 3].map(n => fmt(colonyRes(f, 5, 0, true, n))).join(' / '), fmt(colonyRes(f, 5, 0, false)), fmt(fields)]);
 }
 const found = sum(config.city.foundationTransport);
 const res10 = cumul('RESIDENCE', 1, 10), res15 = cumul('RESIDENCE', 1, 15), res20 = cumul('RESIDENCE', 1, 20);
 console.log(`\nFondation : ${fmt(found)} ressources transportées ; Résidence 10 : ${fmt(res10.total)} (${h(res10.timeH)}), 15 : ${fmt(res15.total)} (${h(res15.timeH)}), 20 : ${fmt(res20.total)} (${h(res20.timeH)}).`);
-const gain10 = 4 * (4 * getProductionAtLevel('LUMBER', 10, buildingsData) + 5) * (bonus - 1);
-console.log(`Une colonie aux champs de niveau 10 rend ${fmt(gain10)} ressources de plus par heure que la même ville sans bonus : la fondation (${fmt(found)}) est amortie par le seul bonus en ${h(found / gain10)}, la Résidence 10 en ${h(res10.total / gain10)} ; sans le bonus, une colonie reste une seconde ville complète (ses champs produisent comme ceux de la capitale).`);
+const f10 = 4 * getProductionAtLevel('LUMBER', 10, buildingsData);
+const col10 = colonyRes(f10, 5, 0, true, 2) + 3 * colonyRes(f10, 5, 0, false), cap10 = 4 * capitalRes(f10, 5);
+console.log(`Une colonie aux champs de niveau 10 sur un gisement de niveau 2 produit ${fmt(col10)} par heure en tout (la capitale au même niveau : ${fmt(cap10)}) : la fondation (${fmt(found)}) en vaut ${h(found / col10)}, la Résidence 10 ${h(res10.total / col10)}. Elle donne surtout beaucoup d'une ressource : le joueur choisit son gisement selon ce qui lui manque.`);
 console.log(`Plafond : Bâtiment principal ${cap} au plus dans une colonie (30 dans la capitale) ; les autres bâtiments s'arrêtent à 20 de toute façon, le plafond n'enlève donc rien à la production, il réserve à la capitale les niveaux 21-30 du Bâtiment principal (population, réduction de temps déjà plafonnée à 60 % dès 24).`);
 // placement (décision du 30 octobre 2026) : lu dans les données (effects.capitalOnly / effects.notInCapital)
 const names = (keep) => buildingsData.filter(b => !b.faction && keep(b.key)).map(b => b.name).join(', ');
@@ -120,32 +129,35 @@ const gb1 = costAt('GREAT_BARRACKS', 1), gs1 = costAt('GREAT_STABLE', 1);
 console.log(`Caserne, Écurie et Atelier sont réservés à la capitale (GDD : « hors capitale », Grandes caserne et écurie). La Grande caserne d'une colonie demande Caserne 20 dans la capitale : ${fmt(b20.total)} ressources et ${h(b20.timeH)} de chantier cumulés ; la Grande écurie demande Écurie 20 : ${fmt(s20.total)} et ${h(s20.timeH)}.`);
 console.log(`Grande caserne niveau 1 : ${fmt(sum(gb1))} ressources ; Grande écurie niveau 1 : ${fmt(sum(gs1))}. Les engins de siège ne se fabriquent que dans la capitale.`);
 console.log(`Toute unité formée rejoint la garnison de la capitale, celles d'une Grande caserne de colonie comprises (le temps de formation reste celui du bâtiment de la colonie) ; une colonie n'est défendue que par les armées qu'on y envoie.`);
-console.log(`Lecture : une colonie est d'abord une ville économique (+20 %, Moulin, Scierie, Grand dépôt…) ; ses Grandes caserne et écurie ajoutent une file de formation une fois la capitale au bout de ses casernes, soit après plusieurs semaines ; la capitale reste le cœur militaire (Forge, Atelier, Résidence, Ambassade, Chambre au Trésor, Domus).`);
+console.log(`Lecture : une colonie est d'abord une ville économique (gisement, Moulin, Scierie, Grand dépôt…) ; ses Grandes caserne et écurie ajoutent une file de formation une fois la capitale au bout de ses casernes, soit après plusieurs semaines ; la capitale reste le cœur militaire (Forge, Atelier, Résidence, Ambassade, Chambre au Trésor, Domus).`);
 
 // ---------- 5. rôle des colonies ----------
-// Production d'une colonie aux champs de niveau 20, comme resourceProcessor.productionSql : (champs × (1 + bâtiments de
-// production + gisement) + base) × 1,2 ; bonus des bâtiments de production lus dans les données (Scierie, Moulin…)
-console.log('\n## 5. Rôle des colonies : bonus de gisement et emplacements (décisions du 30 octobre 2026)\n');
-const perNode = fx.colonyNodeBonusPct(1);
+// Production d'une colonie aux champs de niveau 20 et bâtiments de production au niveau 5 (bonus par niveau lus dans les
+// données : Scierie, Tailleur de pierre, Fonderie, Moulin + Boulangerie), avec la même formule que la section 3
+console.log('\n## 5. Rôle des colonies : spécialité du gisement et emplacements (décisions des 30 et 31 octobre 2026)\n');
 const prodPct = (k, e) => Number(def(k)?.effects?.[e]) || 5;
-const fields20 = (k, n) => n * getProductionAtLevel(k, 20, buildingsData);
-const nFarms = config.city.fieldSlots.FARM.length, nLumber = config.city.fieldSlots.LUMBER.length;
-const woodAt = (node) => (fields20('LUMBER', nLumber) * (1 + (5 * prodPct('SAWMILL', 'woodProdBonusPctL1') + node) / 100) + 5) * bonus;
-const foodAt = (node) => (fields20('FARM', nFarms) * (1 + (5 * prodPct('MILL', 'foodProdBonusPctL1') * 2 + node) / 100) + 10) * bonus;
-row(['Gisement', 'Bonus sur sa ressource', `Bois par heure (${nLumber} Bûcherons 20, Scierie 5)`, `Céréales par heure (${nFarms} Fermes 20, Moulin 5 + Boulangerie 5)`]);
-row(['---', '---', '---', '---']);
-for (const L of [0, 1, 2, 3]) row([L ? `niveau ${L}` : 'aucun', L ? `+${fx.colonyNodeBonusPct(L)} %` : '—', fmt(woodAt(fx.colonyNodeBonusPct(L))), fmt(foodAt(fx.colonyNodeBonusPct(L)))]);
-const capital20 = 3 * (fields20('LUMBER', nLumber) + 5) + fields20('FARM', nFarms) + 10;
-const colony20 = 3 * woodAt(0) + foodAt(0);
+const PROD = {
+  wood: { field: 'LUMBER', base: 5, pct: 5 * prodPct('SAWMILL', 'woodProdBonusPctL1') },
+  stone: { field: 'QUARRY', base: 5, pct: 5 * prodPct('STONEMASON', 'stoneProdBonusPctL1') },
+  iron: { field: 'IRON_MINE', base: 5, pct: 5 * prodPct('FOUNDRY', 'ironProdBonusPctL1') },
+  food: { field: 'FARM', base: 10, pct: 2 * 5 * prodPct('MILL', 'foodProdBonusPctL1') }
+};
+const fields20 = (r) => config.city.fieldSlots[PROD[r].field].length * getProductionAtLevel(PROD[r].field, 20, buildingsData);
+const colony20 = (r, site, L) => colonyRes(fields20(r), PROD[r].base, PROD[r].pct, r === site, L);
+const colonyTotal = (site, L) => Object.keys(PROD).reduce((t, r) => t + colony20(r, site, L), 0);
+row(['Gisement', 'Sa ressource / les 3 autres', 'Bois par heure (gisement de bois)', 'Céréales par heure (gisement de céréales)', 'Pierre et fer par heure (gisement de bois)', 'Céréales par heure (gisement de bois)', 'Total de la colonie (gisement de bois / de céréales)']);
+row(['---', '---', '---', '---', '---', '---', '---']);
+for (const L of [1, 2, 3]) row([`niveau ${L}`, `${signed(fx.colonyNodeBonusPct(L))} % / ${signed(fx.colonyOtherResourcesPct())} %`, fmt(colony20('wood', 'wood', L)), fmt(colony20('food', 'food', L)), fmt(colony20('stone', 'wood', L)), fmt(colony20('food', 'wood', L)), `${fmt(colonyTotal('wood', L))} / ${fmt(colonyTotal('food', L))}`]);
+const capital20 = Object.keys(PROD).reduce((t, r) => t + capitalRes(fields20(r), PROD[r].base), 0);
 const nCol = config.city.maxSecondaryCities;
-const account = capital20 + nCol * colony20;
-const gain = (L, food) => nCol * ((food ? foodAt : woodAt)(fx.colonyNodeBonusPct(L)) - (food ? foodAt : woodAt)(0));
-const share = (x) => (x / account * 100).toFixed(1).replace('.', ',');
-console.log(`\nCompte complet (capitale + ${nCol} colonies, config.city.maxSecondaryCities, tout au niveau 20) : ${fmt(account)} par heure (capitale ${fmt(capital20)}, chaque colonie ${fmt(colony20)}). Bonus de gisement (${perNode} % par niveau, RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel, ni pour la capitale ni pour la Ville Merveille) : ${nCol} gisements de niveau 2 de bois, pierre ou fer +${share(gain(2))} %, de niveau 3 +${share(gain(3))} % ; ${nCol} gisements de céréales de niveau 3 +${share(gain(3, true))} %.`);
+console.log(`\nCapitale (ni gisement ni bâtiments de production) : ${fmt(capital20)} par heure. Compte complet (capitale + ${nCol} colonies, config.city.maxSecondaryCities, tout au niveau 20) : avec ${nCol} gisements de niveau 3 de bois ${fmt(capital20 + nCol * colonyTotal('wood', 3))} par heure, avec ${nCol} gisements de niveau 3 de céréales ${fmt(capital20 + nCol * colonyTotal('food', 3))} par heure. Données : RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel (${fx.colonyNodeBonusPct(1)}), colonyOtherResourcesPct (${fx.colonyOtherResourcesPct()}), secondaryCityBonusPct (${fx.secondaryCityBonusPct()}) ; ni la capitale ni la Ville Merveille n'ont de gisement.`);
 // emplacements : le Bâtiment principal (0), les champs (101-118) et le Mur (enceinte) sont hors de l'anneau ; un seul bâtiment
 // de civilisation par joueur
 const RING_OUT = new Set(['MAIN_HALL', 'WALL', ...Object.keys(config.city.fieldSlots)]);
 const ring = (keep) => buildingsData.filter(b => !b.faction && !RING_OUT.has(b.key) && keep(b.key)).length;
 const capRing = ring(k => !fx.notInCapital(k)) + 1, colRing = ring(k => !fx.capitalOnly(k));
 console.log(`Emplacements : le Mur est sur l'enceinte (emplacement ${config.city.wallSlot}), hors des ${config.city.maxSlot} emplacements de l'anneau. Capitale : ${capRing} bâtiments possibles dans l'anneau (${config.city.maxSlot - capRing} libres) ; colonie : ${colRing} (${config.city.maxSlot - colRing} libres).`);
-console.log(`Comptoir de commerce : le meilleur Comptoir des colonies vaut pour toutes les villes du joueur, capitale comprise, sans somme des niveaux (Comptoir 20 : taxe des échanges −${20 * fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1)} points, transport +${20 * fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} %).`);
+// la taxe ne descend pas sous 0 (marketService.p2pTaxPct) : le niveau du Comptoir qui l'annule à lui seul
+const officeTaxPct = fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1);
+const taxZeroAt = Math.ceil(config.market.p2pTaxPctBase / officeTaxPct);
+console.log(`Comptoir de commerce : le meilleur Comptoir des colonies vaut pour toutes les villes du joueur, capitale comprise, sans somme des niveaux : taxe des échanges −${officeTaxPct} point par niveau (${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${taxZeroAt}), transport +${fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} % par niveau (+${20 * fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} % au Comptoir 20).`);
