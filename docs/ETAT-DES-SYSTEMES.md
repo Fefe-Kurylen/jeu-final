@@ -539,7 +539,7 @@ Décisions du 28 octobre 2026 (`src/services/wonderService.js`, `src/services/ha
 
 - **Un monde a une fin**, façon Travian : il se termine quand une **Merveille atteint le niveau 100**. Les Natars de
   Travian s'appellent ici les **Immortels** (armée d'élite du Sultanat : fantassins du palais, archers perses, mamelouks).
-- **Inscriptions** ouvertes **2 mois** (60 jours après l'ouverture du monde), **5 000 joueurs** au plus ; ensuite
+- **Inscriptions** ouvertes **2 mois** (60 jours après l'ouverture du monde), **2 000 joueurs** au plus (décision du 31 octobre 2026, avant 5 000) ; ensuite
   l'inscription répond « inscriptions closes » et le joueur attend le monde suivant.
 - **Calendrier** : jour 120, **12 sites de Merveille** apparaissent sur la carte, gardés par les Immortels ; jour 150,
   **13 plans de construction** apparaissent, eux aussi gardés. Tous les joueurs sont prévenus. Onglet Classement →

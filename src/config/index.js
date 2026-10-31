@@ -52,7 +52,7 @@ const config = {
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
   // plus dur (mur bouclier 10 fois un mur 20 depuis le 30 octobre 2026, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un
-  // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 5 000 joueurs ; fin par
+  // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
   // donjons de hordes apparaissent sur la carte ; contenu d'alliance (aucune attaque contre les joueurs). Donjon à 3 étages
@@ -82,7 +82,7 @@ const config = {
 
   world: {
     registrationDays: Number(process.env.WORLD_REGISTRATION_DAYS) || 60,
-    maxPlayers: 5000,
+    maxPlayers: 2000,   // décision du 31 octobre 2026 : 2 000 joueurs par serveur (avant 5 000)
     wonderSitesDay: Number(process.env.WONDER_SITES_DAY) || 120,
     wonderPlansDay: Number(process.env.WONDER_PLANS_DAY) || 150,
     wonderSites: 12,             // sites de Merveille autour du centre
@@ -157,6 +157,9 @@ const config = {
     // ignorée dès que le monde a sa carte (src/game/world.js). 0 est une graine valable : pas de parseInt || défaut.
     worldSeed: process.env.WORLD_SEED === undefined || process.env.WORLD_SEED === '' ? null : process.env.WORLD_SEED,
     spawnEdgeDelta: 100,
+    // Cercle du centre, disputé : rayon en % de la demi-largeur de la carte de base ; la plupart des gisements de niveau 3 et
+    // les sites de Merveille y sont (semis des points, src/game/seed.js) ; drapeau « central » des sites libres (routes/map.js)
+    centerRadiusPct: 35,
     // Gold nodes (GDD resource_points.json): a small stock of gold per level that refills in 12 h, guarded like the others
     goldNode: { lootByLevel: { 1: 10, 2: 20, 3: 30 }, intervalHours: 12 },
     // Resource nodes: base stock by level (× 0.8-1.2 at seed), max = base × maxFactor, refilled in regenHours

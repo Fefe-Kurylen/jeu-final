@@ -311,7 +311,7 @@ test('« Sites libres » : filtres par ressource et niveau, bonus, trajet, tribu
   assert.equal(modal.title, 'Sites libres');
   assert.equal((modal.html.match(/class="fs-row"/g) || []).length, 3);
   assert.match(modal.html, /fer niv\. 3 · \+45 %/);
-  assert.match(modal.html, /2h 10m depuis la capitale/);
+  assert.match(modal.html, /au moins 2h 10m depuis la capitale/);   // en ligne droite : le vrai trajet contourne le relief
   assert.match(modal.html, /foundCityAt\('n1', 3, 4, 'IRON', 3\)/);
   assert.doesNotMatch(modal.html, /foundCityAt\('n2'/);   // tribu encore là : la chasser d'abord
   assert.match(modal.html, /tribu : force 350, à chasser avant de fonder/);

@@ -50,7 +50,7 @@ router.post('/register', rateLimit(config.rateLimit.maxRegister, 'register'), as
     if (!validateName(name)) return res.status(400).json({ error: 'Pseudo: 3-20 caractères alphanumériques' });
     { const bad = require('../utils/nameFilter').nameProblem(name); if (bad) return res.status(400).json({ error: bad, badName: true }); }   // noms choquants ou de l'équipe refusés (décision du 29 octobre 2026)
     if (!validateFaction(faction)) return res.status(400).json({ error: 'Faction invalide' });
-    // cycle du serveur (décision du 28 octobre 2026) : inscriptions ouvertes 60 jours, 5 000 joueurs, monde pas terminé
+    // cycle du serveur (décision du 28 octobre 2026) : inscriptions ouvertes 60 jours, 2 000 joueurs, monde pas terminé
     const WS = require('../services/wonderService');
     // monde suivant en préparation : 503, réessayer dans un instant ; inscriptions closes : 403
     const closedReply = (closed) => (closed === WS.PREPARING ? res.set('Retry-After', '10').status(503) : res.status(403)).json({ error: closed, registrationClosed: true });

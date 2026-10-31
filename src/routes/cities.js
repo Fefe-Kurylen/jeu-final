@@ -84,8 +84,10 @@ const scaleCost = (cost, rate) => Object.fromEntries(Object.entries(cost).map(([
 router.get('/', auth, async (req, res) => {
   try {
     await settleDueQueues(req.user.playerId);
+    // la capitale d'abord, puis les colonies dans l'ordre de leur fondation : un ordre fixe d'une lecture à l'autre
     const cities = await prisma.city.findMany({
       where: { playerId: req.user.playerId },
+      orderBy: [{ isCapital: 'desc' }, { createdAt: 'asc' }],
       include: { buildings: true, buildQueue: { orderBy: { startedAt: 'asc' } }, recruitQueue: { orderBy: { startedAt: 'asc' } }, armies: { include: { units: true } } }
     });
     // bilan de nourriture calculé par le serveur (réductions d'entretien, siège), le même que le tick

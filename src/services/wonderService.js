@@ -1,7 +1,7 @@
 // ============================================================
 // Cycle du serveur et Merveille (décision du 28 octobre 2026, GDD world_config.server ; façon Travian, Natars renommés
 // « Immortels »)
-// - Calendrier : jour 1 = ouverture du monde (WorldConfig.readyAt). Inscriptions pendant 60 jours, 5 000 joueurs au plus.
+// - Calendrier : jour 1 = ouverture du monde (WorldConfig.readyAt). Inscriptions pendant 60 jours, 2 000 joueurs au plus.
 // - Jour 120 : 12 sites de Merveille au centre, gardés chacun par une très forte garnison d'Immortels (points de ressource
 //   de type WONDER). Une armée qui la bat laisse le site libre 24 h : un joueur d'une alliance y fonde une ville avec ses
 //   colons, qui devient sa Ville Merveille (une par joueur, hors du compte des colonies). Sinon les Immortels reviennent.

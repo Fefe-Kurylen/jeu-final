@@ -184,7 +184,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
 // ---- Filtre « Sites libres » (décision du 30 octobre 2026) ----
 // Cercle du centre, disputé : la plupart des gisements de niveau 3 et les sites de Merveille y sont (même cercle que le semis
 // des points, src/game/seed.js)
-const CENTER_RADIUS = Math.floor(BASE_WORLD_SIZE / 2) * (config.map.centerRadiusPct ?? 35) / 100;
+const CENTER_RADIUS = Math.floor(BASE_WORLD_SIZE / 2) * config.map.centerRadiusPct / 100;
 const FREE_SITES_LIMIT = 30, FREE_SITES_MAX = 100;
 
 // Les gisements où le joueur peut fonder une colonie (bois, pierre, fer ou céréales : ni or, ni plan, ni donjon, ni site de

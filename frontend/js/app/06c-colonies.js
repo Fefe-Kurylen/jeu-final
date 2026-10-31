@@ -215,7 +215,8 @@ function openVillageList() {
 
 // ========== « SITES LIBRES » (décision du 30 octobre 2026) ==========
 // Les gisements où fonder une colonie, du plus proche au plus lointain de la capitale (GET /api/map/free-sites) : ressource,
-// niveau, bonus dans une colonie, temps de marche depuis la capitale, force de la tribu à chasser d'abord, et un
+// niveau, bonus dans une colonie, temps de marche depuis la capitale (en ligne droite : « au moins », le vrai trajet contourne
+// le relief et l'eau), force de la tribu à chasser d'abord, et un
 // avertissement pour le cercle du centre, disputé. Filtres : ressource et niveau du gisement.
 const FREE_SITES_FETCH = 100;   // le serveur en rend au plus 100 (routes/map.js)
 const freeSites = { list: [], type: '', minLevel: 0 };
@@ -241,7 +242,7 @@ function freeSiteRowHtml(s) {
   return `
     <div class="fs-row">
       <div class="fs-main">${siteBadgeHtml(s, 'dans une colonie')} <span class="village-coords">(${s.x}|${s.y})</span></div>
-      <div class="fs-info">${resIconHtml('clock')} ${formatDuration(s.travelSec)} depuis la capitale · ${tribe ? `${resIconHtml('defense')} tribu : force ${formatNum(s.tribePower)}, à chasser avant de fonder` : 'pas de tribu'}</div>
+      <div class="fs-info">${resIconHtml('clock')} au moins ${formatDuration(s.travelSec)} depuis la capitale · ${tribe ? `${resIconHtml('defense')} tribu : force ${formatNum(s.tribePower)}, à chasser avant de fonder` : 'pas de tribu'}</div>
       ${s.central ? `<div class="fs-central">${resIconHtml('attack')} Centre de la carte : site disputé, vos voisins le visent aussi</div>` : ''}
       <div class="fs-actions">
         <button type="button" class="btn-secondary btn-small" onclick="closeModal(); showTab('map'); centerMapOn(${s.x}, ${s.y})">Voir</button>

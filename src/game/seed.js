@@ -31,10 +31,11 @@ async function seedResourceNodes() {
   // Formule partagée avec le client (frontend/js/map.js) pour une étiquette cohérente avec le terrain affiché
   const { getBiome } = require('../utils/biome');
   const biomes = getBiome;
+  const centerRadius = half * config.map.centerRadiusPct / 100;   // cercle du centre, le même que les sites libres
   const pickLevel = (x, y) => {
     const d = Math.sqrt(x * x + y * y);
     const r = Math.random();
-    if (d < half * 0.35) return r < 0.6 ? 3 : r < 0.85 ? 2 : 1;
+    if (d < centerRadius) return r < 0.6 ? 3 : r < 0.85 ? 2 : 1;
     return r < 0.55 ? 1 : r < 0.9 ? 2 : 3;
   };
 
