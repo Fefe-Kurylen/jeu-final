@@ -4,10 +4,10 @@
 //   ville), à 40 cases au plus d'une ville de l'alliance.
 // - Les membres y apportent les ressources par convois (500 000 bois, pierre, fer, 250 000 nourriture), puis 3 jours de
 //   chantier ; actif, il donne à tous les membres +10 % de production, +5 % de vitesse des armées, +10 % de transport.
-// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 25 armées au plus comme un rassemblement
-//   plein (décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
+// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 17 armées au plus, celles en route
+//   comprises (config.bastion.maxGarrisonArmies, décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
 // - Les autres l'attaquent avec des engins de siège : camp d'1 h, puis combat contre la garnison derrière un mur bouclier
-//   5 fois plus solide qu'un mur 20 (décision du 31 octobre 2026, 10 fois avant) ; un assaut = un rassemblement ou une
+//   3 fois plus solide qu'un mur 20 (décision du 31 octobre 2026, 10 fois avant) ; un assaut = un rassemblement ou une
 //   armée seule, comme un fort barbare de Rise of Kingdoms ; chaque assaut gagné lui ôte une vie sur 10 (les vies
 //   remontent en 72 h). À la dernière, il est rasé : plus de bonus, garnison renvoyée, 7 jours avant d'en rebâtir un.
 // ============================================================
@@ -174,7 +174,7 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
       if (rel !== 'SAME' && rel !== 'ALLY') throw httpError(403, 'Seuls les membres de l\'alliance et ses alliés tiennent garnison au Bastion');
       if (b.status === 'FUNDING') throw httpError(400, 'Le Bastion n\'est encore qu\'un chantier : apportez d\'abord les ressources');
       if (b.isSieged) throw httpError(400, 'Bastion assiégé : aucune troupe n\'entre pendant le siège');
-      // 25 armées au plus (décision du 31 octobre 2026), comptées sous le verrou du Bastion (après celui de la ville)
+      // maxGarrisonArmies au plus (décision du 31 octobre 2026), comptées sous le verrou du Bastion (après celui de la ville)
       await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${b.id} FOR UPDATE`;
       if ((await tx.army.count({ where: garrisonWhere(b.id) })) >= B.maxGarrisonArmies) throw httpError(400, GARRISON_FULL);
       if (!(await transition(tx, 'army', army.id, 'IDLE', { ...base, status: 'SUPPORTING', missionType: 'BASTION_GARRISON' }))) throw httpError(409, 'Armée déjà en mission');
@@ -335,8 +335,8 @@ async function handleGarrisonArrival(army, sendArmyHome) {
   let why = null;
   if (!b || (rel !== 'SAME' && rel !== 'ALLY')) why = 'gone';
   else {
-    // entrée sous le verrou du Bastion, état relu (un camp a pu s'installer entre-temps) : 25 armées au plus à l'intérieur
-    // (décision du 31 octobre 2026)
+    // entrée sous le verrou du Bastion, état relu (un camp a pu s'installer entre-temps) : maxGarrisonArmies au plus à
+    // l'intérieur (décision du 31 octobre 2026)
     why = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${b.id} FOR UPDATE`;
       const now = await tx.bastion.findUnique({ where: { id: b.id }, select: { status: true, isSieged: true } });

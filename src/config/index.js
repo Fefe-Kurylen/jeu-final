@@ -60,8 +60,8 @@ const config = {
 
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
-  // plus dur (mur bouclier 5 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un. Un assaut = un
-  // rassemblement ou une armée seule ; garnison de 25 armées au plus (décision du 31 octobre 2026, rapport de vérification)
+  // plus dur (mur bouclier 3 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un. Un assaut = un
+  // rassemblement ou une armée seule ; garnison de 17 armées au plus (décision du 31 octobre 2026, rapport de vérification)
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
@@ -150,14 +150,15 @@ const config = {
     cost: { wood: 500000, stone: 500000, iron: 500000, food: 250000 },
     buildDays: 3,
     cooldownDays: 7,
-    // Mur bouclier : 5 fois un mur 20, soit 100 000 PV (décision du 31 octobre 2026, rapport de vérification ; 10 avant, 50 avant
-    // le 30 octobre). Mesure (vrai moteur, armées de la simulation au jour 150, 65 engins par armée avec l'Atelier 20) : sans
-    // garnison, 8 armées suffisent (6 sous un chef du Sultanat) ; un rassemblement plein de 25 armées gagne une fois sur deux
-    // contre une garnison de 14 armées comme les siennes. Contre 25 armées égales, il ne gagne jamais, quel que soit le mur
-    // (4 % à ×1, 0 % de ×2 à ×10) : tant que le mur tient, les défenseurs ne prennent aucun coup
-    wallMultiplier: 5,
-    // Garnison : 25 armées au plus, comme un rassemblement plein (décision du 31 octobre 2026, rapport de vérification)
-    maxGarrisonArmies: 25,
+    // Mur bouclier et garnison façon fort barbare de Rise of Kingdoms (décision du 31 octobre 2026, rapport de vérification,
+    // choix du propriétaire après la mesure) : mur 3 fois un mur 20, soit 60 000 PV (10 avant, 50 avant le 30 octobre), et
+    // 17 armées au plus en garnison, celles en route comprises. Mesure (vrai moteur, armées de la simulation au jour 150,
+    // 65 engins par armée avec l'Atelier 20) : un rassemblement plein de 25 armées prend une vie une fois sur deux (52 %)
+    // à une garnison pleine de 17 armées comme les siennes ; sans garnison, 5 armées suffisent (4 sous un chef du
+    // Sultanat). Contre 25 armées égales il ne gagnait jamais, quel que soit le mur (4 % à ×1, 0 % de ×2 à ×10) : tant que
+    // le mur tient, les défenseurs ne prennent aucun coup
+    wallMultiplier: 3,
+    maxGarrisonArmies: 17,
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     wallReferenceLevel: 20,
     assaults: 10,

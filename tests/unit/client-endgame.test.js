@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-// Fin de partie côté client (décisions du 31 octobre 2026, rapport de vérification) : panneaux du Bastion (garnison de 25
+// Fin de partie côté client (décisions du 31 octobre 2026, rapport de vérification) : panneaux du Bastion (garnison de 17
 // armées au plus, mur et vies lus dans les règles du serveur, un assaut = un rassemblement ou une armée seule) et fiche de
 // la Merveille (l'armée est le vrai moyen de la ravitailler). Le code du navigateur tourne dans un contexte vm.
 let acorn = null;
@@ -42,7 +42,7 @@ function makeContext(state, extra = {}) {
 const garrisonArmy = (i) => ({ id: `g${i}`, name: `Armée ${i}`, owner: { id: 'p2', name: 'Bo' }, status: 'STATIONED', units: [{ key: 'ROM_INF_MILICIEN', count: 10 }] });
 const bastionView = (n) => ({ id: 'b1', status: 'ACTIVE', x: 4, y: 5, lives: 10, assaults: B.assaults, maxGarrisonArmies: B.maxGarrisonArmies, isSieged: false, garrison: Array.from({ length: n }, (_, i) => garrisonArmy(i)), delivered: {}, cost: B.cost });
 
-test('onglet Alliance › Bastion : garnison « n / 25 armées », envoi impossible quand elle est complète', { skip }, async () => {
+test('onglet Alliance › Bastion : garnison « n / 17 armées », envoi impossible quand elle est complète', { skip }, async () => {
   for (const [n, full] of [[B.maxGarrisonArmies - 1, false], [B.maxGarrisonArmies, true]]) {
     const ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: bastionView(n) });
     const box = { innerHTML: '' };
@@ -51,6 +51,15 @@ test('onglet Alliance › Bastion : garnison « n / 25 armées », envoi impossi
     assert.equal(/openBastionSend\('b1', 'GARRISON'\)/.test(box.innerHTML), !full);
     assert.equal(box.innerHTML.includes(`Garnison complète : ${B.maxGarrisonArmies} armées au plus, celles en route comprises`), full);
   }
+  // les armées comptées par le serveur (garrisonWhere) : en route et en sortie sont dites
+  const view = bastionView(2);
+  view.garrison[0].status = 'SUPPORTING';
+  view.garrison[1].status = 'ATTACKING';
+  const ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: view });
+  const box = { innerHTML: '' };
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, /Armée 0 <small>Bo · en route<\/small>/);
+  assert.match(box.innerHTML, /Armée 1 <small>Bo · en sortie<\/small>/);
 });
 
 test('carte : un Bastion ennemi montre le mur, les vies et la garnison au plus du serveur ; un assaut = un rassemblement ou une armée', { skip }, async () => {

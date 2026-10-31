@@ -18,7 +18,7 @@ test('simulate-colonies: one engine for every tier, wall breach and Bastion figu
   const out = run('simulate-colonies.cjs');
   assert.match(out, /\| Ville Fortifiée \| niveau 20\+ \| [^|]+\| [^|]+\| 1 \|/);
   assert.match(out, /\| niveau 20 \| 20\s000 \| [^|]+\| 110 \/ 165 \/ 330 \|/);   // séparateur des milliers : espace fine
-  assert.match(out, /Bastion \(5 × mur 20\) \| 100\s000 \|/);   // mur bouclier : 5 fois un mur 20 (décision du 31 octobre 2026)
+  assert.match(out, /Bastion \(3 × mur 20\) \| 60\s000 \|/);   // mur bouclier : 3 fois un mur 20 (décision du 31 octobre 2026)
   assert.match(out, /3\s000 soldats \+ 150 engins \| brèche round \d+, l'attaquant gagne/);
   // rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement lue dans les données, Mur sur l'enceinte,
   // anneau à la taille des bâtiments possibles (capitale 18, colonie 12), plafonds Bâtiment principal 20 et Mur de colonie 15

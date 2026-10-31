@@ -257,6 +257,7 @@ test('lancer : un site ou un plan de Merveille gardé s\'attaque en rassemblemen
     const plan = await R.launch('p1', { armyId: 'a2', nodeId: 'pl1', waitMinutes: 180 });
     assert.equal(plan.rally.targetKind, 'PLAN');
     assert.equal(plan.rally.waitMinutes, 180);
+    assert.match(plan.message, /départ dans 3 h /);
     assert.ok(Math.abs(new Date(plan.rally.launchAt).getTime() - before - 180 * 60000) < 5000);
   } finally { db.restore(); }
 });

@@ -1,5 +1,5 @@
 // Bastion d'alliance (décision du 26 octobre 2026) : règles de config, vies qui remontent, mur bouclier, bonus sans Bastion ;
-// un assaut = un rassemblement ou une armée seule, garnison de 25 armées au plus (décision du 31 octobre 2026)
+// un assaut = un rassemblement ou une armée seule, garnison de 17 armées au plus (décision du 31 octobre 2026)
 require('./_env');
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://unit:unit@localhost:5432/unit';   // le client Prisma est créé, jamais interrogé
 const test = require('node:test');
@@ -17,11 +17,11 @@ test('règles décidées : 15 membres, coût, 3 jours, 7 jours de répit, 10 ass
   assert.deepEqual(B.bonuses, { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 });
 });
 
-test('mur bouclier : 5 fois un mur de niveau 20 (décision du 31 octobre 2026, 10 avant), garnison de 25 armées au plus', () => {
-  assert.equal(config.bastion.wallMultiplier, 5);
-  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 5);
-  assert.equal(bastion.wallMaxHp(), 100000);
-  assert.equal(config.bastion.maxGarrisonArmies, 25);
+test('mur bouclier : 3 fois un mur de niveau 20 (décision du 31 octobre 2026, 10 avant), garnison de 17 armées au plus', () => {
+  assert.equal(config.bastion.wallMultiplier, 3);
+  assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 3);
+  assert.equal(bastion.wallMaxHp(), 60000);
+  assert.equal(config.bastion.maxGarrisonArmies, 17);
 });
 
 test('vies : elles remontent de 0 à 10 en 72 h, jamais au-delà', () => {
@@ -118,7 +118,7 @@ test('assaut (décision du 31 octobre 2026) : un rassemblement ou une armée seu
   } finally { db.restore(); }
 });
 
-test('garnison : 25 armées au plus, celles en route et une sortie en cours comprises (décision du 31 octobre 2026)', async () => {
+test('garnison : 17 armées au plus, celles en route et une sortie en cours comprises (décision du 31 octobre 2026)', async () => {
   const where = bastion.garrisonWhere('b1');
   const row = (status, missionType, targetBastionId = 'b1') => ({ status, missionType, targetBastionId });
   assert.ok(matches(row('STATIONED', 'BASTION_GARRISON'), where));
@@ -128,7 +128,7 @@ test('garnison : 25 armées au plus, celles en route et une sortie en cours comp
   assert.ok(!matches(row('BESIEGING', 'BASTION_ATTACK'), where), 'un camp ennemi');
   assert.ok(!matches(row('TRANSPORTING', 'BASTION_SUPPLY'), where), 'un ravitaillement');
   assert.ok(!matches(row('STATIONED', 'BASTION_GARRISON', 'b2'), where), 'un autre Bastion');
-  // à l'arrivée : refusée quand 25 armées sont déjà dedans, elle rentre ; acceptée à 24
+  // à l'arrivée : refusée quand 17 armées sont déjà dedans, elle rentre ; acceptée à 16
   const B = config.bastion;
   for (const [inside, enters] of [[B.maxGarrisonArmies, false], [B.maxGarrisonArmies - 1, true]]) {
     const armies = Array.from({ length: inside }, (_, i) => ({ id: `g${i}`, ownerId: 'p2', status: 'STATIONED', missionType: 'BASTION_GARRISON', targetBastionId: 'b1' }));
@@ -140,12 +140,12 @@ test('garnison : 25 armées au plus, celles en route et une sortie en cours comp
       await new Promise(r => setImmediate(r));
       assert.equal(db.army('new').status, enters ? 'STATIONED' : 'SUPPORTING', `${inside} armées dedans`);
       assert.deepEqual(home, enters ? [] : ['new']);
-      if (!enters) assert.ok(db.notes.some(n => /garnison complète : 25 armées au plus/.test(n.body)), JSON.stringify(db.notes));
+      if (!enters) assert.ok(db.notes.some(n => n.body.includes(`garnison complète : ${B.maxGarrisonArmies} armées au plus`)), JSON.stringify(db.notes));
     } finally { db.restore(); }
   }
 });
 
-test('envoi en garnison : refusé quand 25 armées y sont ou y vont, accepté à 24', async () => {
+test('envoi en garnison : refusé quand 17 armées y sont ou y vont, accepté à 16', async () => {
   require('../../frontend/js/shared/terrain.js').setWorldSeed(0);   // la carte de référence (calcul du trajet)
   const B = config.bastion;
   for (const [taken, ok] of [[B.maxGarrisonArmies, false], [B.maxGarrisonArmies - 1, true]]) {
@@ -158,7 +158,7 @@ test('envoi en garnison : refusé quand 25 armées y sont ou y vont, accepté à
     try {
       const send = bastion.send('p1', 'b1', { armyId: 'a1', mission: 'GARRISON' });
       if (ok) { await send; assert.equal(db.army('a1').status, 'SUPPORTING'); }
-      else await assert.rejects(send, (e) => e.status === 400 && e.message === 'Garnison du Bastion complète : 25 armées au plus, celles en route comprises');
+      else await assert.rejects(send, (e) => e.status === 400 && e.message === 'Garnison du Bastion complète : 17 armées au plus, celles en route comprises');
     } finally { db.restore(); }
   }
 });
@@ -168,8 +168,41 @@ test('vue du Bastion : les règles (mur, vies, garnison au plus) même sans alli
   try {
     const v = await bastion.bastionFor('p1');
     assert.equal(v.inAlliance, false);
-    assert.equal(v.rules.maxGarrisonArmies, 25);
+    assert.equal(v.rules.maxGarrisonArmies, 17);
     assert.equal(v.rules.wallMultiplier, config.bastion.wallMultiplier);
     assert.equal(v.rules.assaults, config.bastion.assaults);
+  } finally { db.restore(); }
+});
+
+test('vue du Bastion : la garnison listée est celle que compte le plafond (dedans, en route, en sortie)', async () => {
+  const unit = [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 10 }];
+  const army = (id, status, missionType, extra = {}) => ({ id, name: id, ownerId: 'p2', owner: { id: 'p2', name: 'Bo' }, status, missionType, targetBastionId: 'b1', units: unit, ...extra });
+  const b = { id: 'b1', allianceId: 'A1', status: 'ACTIVE', isSieged: true, x: 5, y: 5, structure: 1, structureAt: new Date() };
+  const db = fakeDb({
+    armies: [army('dedans', 'STATIONED', 'BASTION_GARRISON'), army('en-route', 'SUPPORTING', 'BASTION_GARRISON'), army('sortie', 'ATTACKING', 'BASTION_SORTIE'),
+      army('camp', 'BESIEGING', 'BASTION_ATTACK', { ownerId: 'p9' }), army('ailleurs', 'STATIONED', 'BASTION_GARRISON', { targetBastionId: 'b2' })],
+    members: [{ playerId: 'p1', allianceId: 'A1', role: 'MEMBER', alliance: { bastion: b, _count: { members: 16 } } }]
+  });
+  try {
+    const v = await bastion.bastionFor('p1');
+    assert.deepEqual(v.bastion.garrison.map(g => [g.id, g.status]), [['dedans', 'STATIONED'], ['en-route', 'SUPPORTING'], ['sortie', 'ATTACKING']]);
+    assert.equal(v.bastion.maxGarrisonArmies, config.bastion.maxGarrisonArmies);
+  } finally { db.restore(); }
+});
+
+test('garnison : à l\'arrivée, l\'état du Bastion est relu sous son verrou (un camp installé entre-temps la renvoie)', async () => {
+  const db = fakeDb({
+    armies: [{ id: 'new', ownerId: 'p1', name: 'Cohorte', status: 'SUPPORTING', missionType: 'BASTION_GARRISON', targetBastionId: 'b1', targetX: 5, targetY: 5, x: 5, y: 5 }],
+    bastions: [{ id: 'b1', allianceId: 'A1', status: 'ACTIVE', isSieged: false, x: 5, y: 5 }],
+    members: [{ playerId: 'p1', allianceId: 'A1' }]
+  });
+  db.tx.bastion = table([{ id: 'b1', allianceId: 'A1', status: 'ACTIVE', isSieged: true, x: 5, y: 5 }]);   // relu sous le verrou : assiégé
+  const home = [];
+  try {
+    await bastion.handleGarrisonArrival(db.army('new'), async (army) => { home.push(army.id); });
+    await new Promise(r => setImmediate(r));
+    assert.equal(db.army('new').status, 'SUPPORTING');
+    assert.deepEqual(home, ['new']);
+    assert.ok(db.notes.some(n => n.body.includes('(assiégé)')), JSON.stringify(db.notes));
   } finally { db.restore(); }
 });
