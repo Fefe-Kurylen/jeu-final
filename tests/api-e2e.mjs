@@ -2250,8 +2250,9 @@ if (MAIL_LOG) {
   const C1 = await mk('Certator'), C2 = await mk('Aemulus');
   const tag = `D${uid % 1000}`;
   const al = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Agon${uid}','${tag}','${C1?.player?.id}') RETURNING id`).split('\n')[0];
-  // arrivés avant la limite du vendredi 0 h (sinon le test échoue le vendredi, le samedi et le dimanche)
-  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role,"joinedAt") VALUES (gen_random_uuid(),'${al}','${C1?.player?.id}','LEADER',now() - interval '8 days'), (gen_random_uuid(),'${al}','${C2?.player?.id}','MEMBER',now() - interval '8 days')`);
+  // arrivés avant la limite du vendredi 0 h de la semaine en cours ET de la semaine passée clôturée plus bas (2020) :
+  // seuls ces membres comptent et sont payés
+  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role,"joinedAt") VALUES (gen_random_uuid(),'${al}','${C1?.player?.id}','LEADER','2019-12-01'), (gen_random_uuid(),'${al}','${C2?.player?.id}','MEMBER','2019-12-01')`);
   const week = sql(`SELECT to_char(date_trunc('week', (now() AT TIME ZONE 'Europe/Paris')), 'YYYY-MM-DD')`);
   // de quoi être premier sur les thèmes tirés des classements de la semaine
   for (const p of [C1, C2]) sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","defensePoints",loot,"popStart") VALUES (gen_random_uuid(),'${p?.player?.id}','${week}',9000000,9000000,900000000,0) ON CONFLICT ("playerId",week) DO UPDATE SET "attackPoints"=9000000,"defensePoints"=9000000,loot=900000000,"popStart"=0`);
@@ -2260,7 +2261,7 @@ if (MAIL_LOG) {
   assert('challenge: a theme, its label, the rewards and the end of the week', !!ch?.theme && !!ch?.label && ch?.rewards?.length === 3 && new Date(ch.endsAt) > new Date(), JSON.stringify(ch).slice(0, 160));
   if (['ATTACK', 'DEFENSE', 'LOOT', 'CLIMB'].includes(ch?.theme)) assert('challenge: our alliance leads the live ranking', ch.rows[0]?.tag === tag && ch.rows[0].mine === true && ch.me?.rank === 1, JSON.stringify(ch.rows?.[0]));
   else assert('challenge: a theme without data yet leaves our alliance unranked', ch?.me?.inAlliance === true);
-  // clôture d'une semaine passée dont le thème est Assaut : 300 points d'alliance par membre et une médaille
+  // clôture d'une semaine passée dont le thème est Assaut : les points d'alliance du 1er (config) par membre et une médaille
   const { createRequire } = await import('module');
   const req = createRequire(import.meta.url);
   const CS = req('../src/services/challengeService.js');
@@ -2271,7 +2272,7 @@ if (MAIL_LOG) {
   for (const p of [C1, C2]) sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","popStart") VALUES (gen_random_uuid(),'${p?.player?.id}','${pastKey}',5000,0)`);
   const ap0 = Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`));
   const closed = await CS.close(pastKey);
-  assert('challenge: closing the week rewards the winning alliance', closed?.theme === 'ATTACK' && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)) === ap0 + 300, `${ap0} -> ${sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)}`);
+  assert('challenge: closing the week rewards the winning alliance', closed?.theme === 'ATTACK' && Number(sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)) === ap0 + CS.REWARD_POINTS[0], `${ap0} -> ${sql(`SELECT "alliancePoints" FROM "Player" WHERE id='${C2?.player?.id}'`)}`);
   assert('challenge: an alliance medal for the winner', sql(`SELECT count(*) FROM "Medal" WHERE "allianceId"='${al}' AND week='${pastKey}' AND category='CHALLENGE_ATTACK' AND rank=1`) === '1');
   const md = await call('challenge: the medal shows on the alliance medals', 'GET', '/api/ranking/medals', C2?.token);
   assert('challenge: listed with the alliance medals', !!md?.allianceMedals?.some(m => m.category === 'CHALLENGE_ATTACK'));
