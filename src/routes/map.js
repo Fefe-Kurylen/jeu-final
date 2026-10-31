@@ -8,6 +8,7 @@ const config = require('../config');
 const { bannerImage } = require('../services/allianceShopService');
 const { getCityTier, getCityTierName, mainHallLevelOf, getArmyTravelTime } = require('../utils/calculations');
 const fx = require('../utils/buildingEffects');
+const Vision = require('../services/visionService');
 const { footprintFree } = require('../utils/spawn');
 const Terrain = require('../../frontend/js/shared/terrain.js');
 
@@ -99,27 +100,18 @@ router.get('/map/viewport', auth, async (req, res) => {
 //   depuis moins d'1 h (sinon le point dit seulement qu'il est occupé) ; un point espionné donne son stock exact.
 // La colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de son alliance, une valeur tirée de
 // l'armée pour les autres (l'effectif ne se lit qu'avec un espion).
-// Où est une armée à l'instant `now` : en ligne droite de son départ à sa cible selon l'heure (le chemin réel contourne le
-// relief, de peu) ; une armée arrêtée (camp, récolte, fondation) a sa case de départ sur sa cible
-function armyPositionAt(a, now) {
-  if (a.targetX === null || a.targetX === undefined || a.targetY === null || a.targetY === undefined || !a.arrivalAt) return { x: a.x, y: a.y };
-  const end = new Date(a.arrivalAt).getTime(), start = a.departedAt ? new Date(a.departedAt).getTime() : end;
-  const f = end > start ? Math.max(0, Math.min(1, (now - start) / (end - start))) : (now >= end ? 1 : 0);
-  return { x: a.x + (a.targetX - a.x) * f, y: a.y + (a.targetY - a.y) * f };
-}
 async function viewFor(me, shared, now = Date.now()) {
-  const { cityOwner, bastionAlliance = {}, armies: all, resourceNodes = [], ...rest } = shared;
-  const [member, myCities] = await Promise.all([
+  const { cityOwner, bastionAlliance = {}, armies: all = [], resourceNodes = [], ...rest } = shared;
+  if (!all.length && !resourceNodes.length) return { ...rest, resourceNodes, armies: [] };   // vue d'ensemble : rien à trier
+  // ses villes et le rayon de la Tour de guet de sa capitale (bâtiment « capitale seulement ») autour de chacune d'elles
+  const [member, vision] = await Promise.all([
     prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }),
-    prisma.city.findMany({ where: { playerId: me }, select: { x: true, y: true, isCapital: true, buildings: { where: { key: 'WATCHTOWER' }, select: { level: true } } } })
+    Vision.visionOf(prisma, me)
   ]);
   const myAlliance = member?.allianceId || null;
-  // Tour de guet « capitale seulement » : son rayon vaut autour de chacune des villes du joueur
-  const radius = fx.visionRadius(fx.levelOf(myCities.find(c => c.isCapital)?.buildings, 'WATCHTOWER'));
-  const seen = (p) => myCities.some(c => Math.hypot(p.x - c.x, p.y - c.y) <= radius);
   const friend = (playerId, allianceId) => playerId === me || (!!myAlliance && allianceId === myAlliance);
   const concerns = (a) => { const o = cityOwner[a.targetCityId]; if (o && friend(o.id, o.alliance)) return true; return !!a.targetBastionId && !!myAlliance && bastionAlliance[a.targetBastionId] === myAlliance; };
-  const armies = (all || []).filter(a => friend(a.ownerId, a.ownerAllianceId) || seen(armyPositionAt(a, now))).map(({ realSquads, ownerAllianceId, ...a }) => ({
+  const armies = all.filter(a => friend(a.ownerId, a.ownerAllianceId) || Vision.seesArmy(vision, a, now)).map(({ realSquads, ownerAllianceId, ...a }) => ({
     ...a,
     ...(a.status === 'BESIEGING' && !friend(a.ownerId, ownerAllianceId) && !concerns(a) ? { arrivalAt: null } : {}),
     squads: friend(a.ownerId, ownerAllianceId) ? realSquads : 1 + ([...String(a.id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % 3)
@@ -129,13 +121,25 @@ async function viewFor(me, shared, now = Date.now()) {
     const intel = await require('../services/spyService').nodeIntelFor(me, nodes.map(n => n.id)).catch(() => ({}));
     nodes = nodes.map(n => {
       const spied = intel[n.id];
-      const holders = (n.holders || []).filter(h => spied || friend(h.playerId, h.allianceId) || seen(n));
+      const holders = (n.holders || []).filter(h => spied || friend(h.playerId, h.allianceId) || Vision.sees(vision, n));
       const hidden = (n.holders || []).length - holders.length;
       return { ...n, holders, hiddenHolders: hidden, ...(spied ? { amount: spied.amount, spiedAt: spied.at, spied: { tribe: spied.tribe, holders: spied.holders } } : {}) };
     });
   }
   return { ...rest, resourceNodes: nodes, armies };
 }
+
+// Armées dont le trajet peut passer dans la zone [x0, x1] × [y0, y1] : le rectangle de leur case à leur cible la touche.
+// Départ ou arrivée dans la zone, mais aussi une marche qui la traverse sans s'y arrêter : dans le rayon de vision, elle se
+// voit (décision du 31 octobre 2026). Une armée sans cible ne compte que par sa case (comparer NULL ne vaut jamais vrai)
+const pathTouches = (x0, x1, y0, y1) => ({
+  AND: [
+    { OR: [{ x: { lte: x1 } }, { targetX: { lte: x1 } }] },
+    { OR: [{ x: { gte: x0 } }, { targetX: { gte: x0 } }] },
+    { OR: [{ y: { lte: y1 } }, { targetY: { lte: y1 } }] },
+    { OR: [{ y: { gte: y0 } }, { targetY: { gte: y0 } }] }
+  ]
+});
 
 async function loadViewport(centerX, centerY, r, liteMode) {
     const [cities, nodes, movingArmies] = await Promise.all([
@@ -147,10 +151,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
         where: {
           status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH'] },   // RALLY_* : rassemblement (vu de son alliance, des autres dans leur rayon de vision)
-          OR: [
-            { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
-            { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
-          ]
+          ...pathTouches(centerX - r, centerX + r, centerY - r, centerY + r)
         },
         select: { id: true, name: true, x: true, y: true, targetX: true, targetY: true, targetCityId: true, targetBastionId: true, status: true, missionType: true, arrivalAt: true, departedAt: true, ownerId: true, heroId: true, owner: { select: { name: true, faction: true } }, units: { select: { unitKey: true, count: true } } }
       })

@@ -4,14 +4,11 @@ const { sendError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
-const { unitsData, factionsData } = require('../config/gamedata');
-const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus } = require('../utils/calculations');
-const T = require('../utils/techEffects');
 const { getRelation } = require('../services/diplomacyService');
 const { isAmount } = require('../utils/validation');
-const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, transition, isId, buildingsWithCapital } = require('../utils/db');
+const { RESOURCES, lockCity, lockOffer, debitCity, creditCity, isId, capitalBuildingsOf } = require('../utils/db');
 const fx = require('../utils/buildingEffects');
-const { routeLength } = require('../utils/pathfinding');
+const MS = require('../services/marketService');
 
 // When a real mail provider is configured, trading with other players needs a verified address
 // (the cheapest barrier against throw-away accounts feeding a main one)
@@ -23,13 +20,18 @@ async function tradeAllowed(tx, playerId) {
 
 const tradeRouter = express.Router();
 
-// Trading needs a Market in the city (Travian rule; also the first barrier against multi-account feeding)
-async function hasMarket(tx, cityId) {
+// Le Marché n'existe que dans la capitale et sert toutes les villes du joueur (décision du 31 octobre 2026) : il faut celui
+// de la capitale pour commercer depuis n'importe laquelle de ses villes (première barrière contre les comptes qui en
+// nourrissent un autre). Ses marchands portent toutes les livraisons du marché (services/marketService.js)
+async function hasMarket(db, playerId) {
   if (!config.market.requireBuilding) return true;
-  const market = await tx.cityBuilding.findFirst({ where: { cityId, key: 'MARKET', level: { gte: 1 } }, select: { id: true } });
-  return !!market;
+  return fx.levelOf(await capitalBuildingsOf(db, playerId), 'MARKET') >= 1;
 }
-const NO_MARKET = { error: 'Construisez un Marché (niveau 1 minimum) pour commercer', status: 400 };
+const NO_MARKET = { error: 'Construisez un Marché dans la capitale (niveau 1 minimum) pour commercer', status: 400 };
+// « 3 marchands », « 1 marchand »
+const merchantsText = (n) => `${n} marchand${n > 1 ? 's' : ''}`;
+// Marchands du joueur pour le client : { total, free, capacity, speed }
+const merchantsView = ({ total, free, capacity, speed }) => ({ total, free, capacity, speed });
 // Blocus : par le marché non plus, aucune marchandise n'entre ni ne sort d'une ville assiégée (les offres gardent la leur)
 const besieged = async (db, cityId) => (await db.army.count({ where: { status: 'BESIEGING', targetCityId: cityId } })) > 0;
 
@@ -43,11 +45,12 @@ router.get('/', auth, async (req, res) => {
   try {
     const offers = await prisma.marketOffer.findMany({ where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' }, take: 200, include: { seller: { select: { id: true, name: true } } } });
     const cities = new Map((await prisma.city.findMany({ where: { id: { in: offers.map(o => o.cityId).filter(Boolean) } }, select: { id: true, name: true, x: true, y: true } })).map(c => [c.id, c]));
-    res.json(offers.map(({ seller, armyId, ...o }) => ({ ...o, player: seller, city: cities.get(o.cityId) || null })));
+    res.json(offers.map(({ seller, ...o }) => ({ ...o, player: seller, city: cities.get(o.cityId) || null })));
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/trade/send (mounted at /api): a field army of the city carries the goods
+// POST /api/trade/send (mounted at /api) { fromCityId, targetX, targetY, resources } : les marchands du joueur portent les
+// ressources de sa ville vers une autre ville (à lui ou à un autre joueur), puis rentrent ; { merchantsUsed, arrivalAt, returnAt }
 tradeRouter.post('/trade/send', auth, async (req, res) => {
   try {
     const { fromCityId, resources } = req.body || {};
@@ -62,52 +65,37 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     if (targetCity.id === fromCityId) return res.status(400).json({ error: 'Choisissez une autre ville' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
-    if (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: targetCity.id } })) return res.status(400).json({ error: 'Ville assiégée : aucun convoi ne passe tant que l\'armée ennemie est devant elle' });
+    if (await prisma.army.count({ where: { status: 'BESIEGING', targetCityId: targetCity.id } })) return res.status(400).json({ error: 'Ville assiégée : aucun marchand ne passe tant que l\'armée ennemie est devant elle' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } } } });
+      const sourceCity = await tx.city.findFirst({ where: { id: fromCityId, playerId: req.user.playerId }, include: { player: { select: { faction: true } } } });
       if (!sourceCity) return { error: 'Ville source introuvable', status: 404 };
       await lockCity(tx, sourceCity.id);
-      // blocus : aucun convoi ne sort non plus d'une ville assiégée (même règle que les échanges et les routes)
-      if (await besieged(tx, sourceCity.id)) return { error: 'Ville assiégée : aucun convoi ne sort tant que l\'armée ennemie est devant elle', status: 400 };
-      if (!(await hasMarket(tx, sourceCity.id))) return NO_MARKET;
+      // blocus : aucun marchand ne sort non plus d'une ville assiégée (même règle que les échanges et les routes)
+      if (await besieged(tx, sourceCity.id)) return { error: 'Ville assiégée : aucun marchand ne sort tant que l\'armée ennemie est devant elle', status: 400 };
+      if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
-      const candidates = await tx.army.findMany({ where: { cityId: sourceCity.id, ownerId: req.user.playerId, status: 'IDLE', isGarrison: false }, include: { units: true, hero: { include: { items: true } } } });
-      const army = candidates.find(a => a.units.length > 0 && a.x === sourceCity.x && a.y === sourceCity.y);
-      if (!army) return { error: 'Aucune armée disponible pour transporter (créez une armée au point de ralliement)', status: 400 };
-      // Marché et Comptoir de la ville, Avant-poste du désert de la capitale (bâtiment « capitale seulement »)
-      const cityBuildings = await buildingsWithCapital(tx, { ...sourceCity, buildings: await tx.cityBuilding.findMany({ where: { cityId: sourceCity.id }, select: { key: true, level: true } }) });
-      const transportMultiplier = (1 + getFactionBonus(sourceCity.player.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100) * (await require('../services/bastionService').carryMult(req.user.playerId));   // + Bastion d'alliance
-      const carryCapacity = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * transportMultiplier);
-      if (wood + stone + iron + food > carryCapacity) return { error: `Capacite insuffisante (max ${carryCapacity})`, status: 400 };
-      if (!(await debitCity(tx, sourceCity.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
-      // vitesse : Cartographie, Bastion d'alliance et Irrigation de la capitale (elle accélère tous les convois du joueur)
-      const speedPct = T.techPct(sourceCity.player.technologies, 'armySpeedBonusPct') + (await require('../services/bastionService').speedPct(req.user.playerId)) + (await require('../services/armyService').playerMarchPct(tx, req.user.playerId));
-      const travelTime = getArmyTravelTime(army.units, sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction, army.hero, await routeLength(sourceCity.x, sourceCity.y, targetCity.x, targetCity.y, sourceCity.player.faction), speedPct);
-      const arrivalAt = new Date(Date.now() + travelTime * 1000);
-      const ok = await transition(tx, 'army', army.id, 'IDLE', { status: 'TRANSPORTING', targetX: targetCity.x, targetY: targetCity.y, targetCityId: targetCity.id, arrivalAt, departedAt: new Date(), missionType: 'TRANSPORT', carryWood: wood, carryStone: stone, carryIron: iron, carryFood: food });
-      if (!ok) throw new Error('army busy');
-      return { message: `Ressources envoyees vers ${targetCity.name}`, travelTime, arrivalAt };
+      const sent = await MS.sendResources(tx, { playerId: req.user.playerId, faction: sourceCity.player.faction, fromCity: sourceCity, toCity: targetCity, resources: { wood, stone, iron, food } });
+      if (sent.error) return sent;
+      return { message: `${merchantsText(sent.merchantsUsed)} en route vers ${targetCity.name}`, ...sent, travelTime: Math.round((sent.arrivalAt.getTime() - Date.now()) / 1000) };
     });
 
     if (result.error) return res.status(result.status || 400).json(result);
     require('../services/questService').bumpLater(req.user.playerId, 'trade_sent', 1);   // quêtes
     res.json(result);
   } catch (e) {
-    if (e.message === 'army busy') return res.status(409).json({ error: 'Armée déjà en mission' });
     if (e.code === 'NO_ROUTE') return res.status(400).json({ error: e.message });
     sendError(res, e);
   }
 });
 
-// ---- échanges entre joueurs, livrés par armées de transport (décision du 27 octobre 2026, services/marketService.js) ----
-const MS = require('../services/marketService');
+// ---- échanges entre joueurs, livrés par les marchands (décisions du 27 et du 31 octobre 2026, services/marketService.js) ----
 
-// POST /api/market/offer { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId? }
-// L'armée de transport du vendeur est réservée (elle attend en ville avec les marchandises) jusqu'à l'échange ou 48 h
+// POST /api/market/offer { sellResource, sellAmount, buyResource, buyAmount, cityId }
+// Les marchands du vendeur sont réservés (ils attendent en ville avec les marchandises) jusqu'à l'échange ou 48 h
 router.post('/offer', auth, async (req, res) => {
   try {
-    const { sellResource, sellAmount, buyResource, buyAmount, cityId, armyId } = req.body || {};
+    const { sellResource, sellAmount, buyResource, buyAmount, cityId } = req.body || {};
     if (!sellResource || !sellAmount || !buyResource || !buyAmount) return res.status(400).json({ error: 'Paramètres manquants' });
     if (!RESOURCES.includes(sellResource) || !RESOURCES.includes(buyResource)) return res.status(400).json({ error: 'Ressource invalide' });
     if (sellResource === buyResource) return res.status(400).json({ error: 'Choisissez des ressources differentes' });
@@ -115,71 +103,61 @@ router.post('/offer', auth, async (req, res) => {
     const ratio = Math.max(sellAmount / buyAmount, buyAmount / sellAmount);
     if (ratio > config.market.maxRatio) return res.status(400).json({ error: `Ratio limité à 1:${config.market.maxRatio}` });
     if (!isId(cityId)) return res.status(400).json({ error: 'Ville requise' });
-    if (armyId !== undefined && armyId !== null && !isId(armyId)) return res.status(400).json({ error: 'Armée invalide' });
     const result = await prisma.$transaction(async (tx) => {
-      const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { select: { faction: true } }, buildings: { select: { key: true, level: true } } } });
+      const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { select: { faction: true } } } });
       if (!city) return { error: 'Ville non trouvée', status: 404 };
       await lockCity(tx, city.id);
-      if (!(await hasMarket(tx, city.id))) return NO_MARKET;
+      if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       const active = await tx.marketOffer.count({ where: { sellerId: req.user.playerId, status: 'ACTIVE' } });
       if (active >= config.market.maxActiveOffers) return { error: `Maximum ${config.market.maxActiveOffers} offres actives`, status: 400 };
-      const pick = await MS.pickTransportArmy(tx, city, req.user.playerId, city.player.faction, sellAmount, armyId || null);
-      if (pick.error) return { error: pick.error, status: 400 };
-      if (!(await debitCity(tx, city.id, { [sellResource]: sellAmount }))) return { error: `Ressources insuffisantes (${sellResource}: ${Math.floor(city[sellResource])})`, status: 400 };
-      if (!(await transition(tx, 'army', pick.army.id, 'IDLE', { status: 'MARKET', missionType: 'MARKET_OFFER' }))) return { error: 'Armée déjà en mission', status: 409 };
-      const offer = await tx.marketOffer.create({ data: { sellerId: req.user.playerId, cityId: city.id, sellResource, sellAmount, buyResource, buyAmount, status: 'ACTIVE', armyId: pick.army.id, expiresAt: new Date(Date.now() + config.market.offerHours * 3600000) } });
-      return { message: `Offre créée : ${pick.army.name} attend en ville avec les marchandises (48 h au plus)`, offer, taxPct: await MS.p2pTaxPct(tx, city.id) };
+      const made = await MS.createOffer(tx, { playerId: req.user.playerId, faction: city.player.faction, city, sellResource, sellAmount, buyResource, buyAmount });
+      if (made.error) return made;
+      return { message: `Offre créée : ${merchantsText(made.merchantsUsed)} attendent en ville avec les marchandises (${config.market.offerHours} h au plus)`, ...made, taxPct: await MS.p2pTaxPct(tx, city.id) };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/market/offer/:id/accept { cityId, armyId? } : les deux armées partent, chacune avec ce qu'elle livre moins la taxe
+// POST /api/market/offer/:id/accept { cityId } : les marchands des deux côtés partent, chacun avec ce qu'il livre moins la
+// taxe ; pour l'acheteur, { merchantsUsed (les siens), arrivalAt (ses marchandises arrivent), returnAt (ses marchands rentrent) }
 router.post('/offer/:id/accept', auth, async (req, res) => {
   try {
-    const { cityId, armyId } = req.body || {};
+    const { cityId } = req.body || {};
     if (!isId(cityId)) return res.status(400).json({ error: 'Ville requise' });
-    if (armyId !== undefined && armyId !== null && !isId(armyId)) return res.status(400).json({ error: 'Armée invalide' });
     const result = await prisma.$transaction(async (tx) => {
       await lockOffer(tx, req.params.id);
       const offer = await tx.marketOffer.findUnique({ where: { id: req.params.id } });
       if (!offer) return { error: 'Offre non trouvée', status: 404 };
       if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
       if (offer.sellerId === req.user.playerId) return { error: 'Vous ne pouvez pas accepter votre propre offre', status: 400 };
-      const buyerCity = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { include: { technologies: true } }, buildings: { select: { key: true, level: true } } } });
+      const buyerCity = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, include: { player: { select: { name: true, faction: true } } } });
       if (!buyerCity) return { error: 'Ville acheteur non trouvée', status: 404 };
       await lockCities(tx, [buyerCity.id, offer.cityId]);
-      if (!(await hasMarket(tx, buyerCity.id))) return NO_MARKET;
+      if (!(await hasMarket(tx, req.user.playerId))) return NO_MARKET;
       const blocked = await tradeAllowed(tx, req.user.playerId); if (blocked) return blocked;
       if (!(await getRelation(req.user.playerId, offer.sellerId, tx)).canTransport) return { error: 'Impossible de commercer avec un ennemi', status: 403 };
-      const sellerCity = offer.cityId ? await tx.city.findUnique({ where: { id: offer.cityId }, include: { player: { include: { technologies: true } }, buildings: { select: { key: true, level: true } } } }) : null;
+      const sellerCity = offer.cityId ? await tx.city.findUnique({ where: { id: offer.cityId }, include: { player: { select: { faction: true } } } }) : null;
       if (!sellerCity) return { error: 'La ville du vendeur n\'existe plus', status: 400 };
-      if ((await besieged(tx, buyerCity.id)) || (await besieged(tx, sellerCity.id))) return { error: 'Ville assiégée : aucun convoi ne passe', status: 400 };
-      const sellerArmy = offer.armyId ? await tx.army.findFirst({ where: { id: offer.armyId, status: 'MARKET' }, include: { units: true, hero: { include: { items: true } } } }) : null;
-      if (!sellerArmy) return { error: 'Le convoi du vendeur n\'est plus disponible', status: 409 };
-      const pick = await MS.pickTransportArmy(tx, buyerCity, req.user.playerId, buyerCity.player.faction, offer.buyAmount, armyId || null);
-      if (pick.error) return { error: pick.error, status: 400 };
-      if (!(await debitCity(tx, buyerCity.id, { [offer.buyResource]: offer.buyAmount }))) return { error: `Ressources insuffisantes (${offer.buyResource})`, status: 400 };
-      const [sellerTax, buyerTax] = await Promise.all([MS.p2pTaxPct(tx, sellerCity.id), MS.p2pTaxPct(tx, buyerCity.id)]);
-      const toBuyer = MS.afterTax(offer.sellAmount, sellerTax), toSeller = MS.afterTax(offer.buyAmount, buyerTax);
-      const now = new Date();
-      const tSeller = await MS.travelSecondsBetween(sellerArmy, sellerCity, buyerCity, sellerCity.player.faction, sellerCity.player.technologies, tx);
-      const tBuyer = await MS.travelSecondsBetween(pick.army, buyerCity, sellerCity, buyerCity.player.faction, buyerCity.player.technologies, tx);
-      const carry = (r, n) => ({ carryWood: r === 'wood' ? n : 0, carryStone: r === 'stone' ? n : 0, carryIron: r === 'iron' ? n : 0, carryFood: r === 'food' ? n : 0 });
-      if (!(await transition(tx, 'army', sellerArmy.id, 'MARKET', { status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: buyerCity.x, targetY: buyerCity.y, targetCityId: buyerCity.id, departedAt: now, arrivalAt: new Date(now.getTime() + tSeller * 1000), ...carry(offer.sellResource, toBuyer) }))) throw new Error('offer raced');
-      if (!(await transition(tx, 'army', pick.army.id, 'IDLE', { status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: sellerCity.x, targetY: sellerCity.y, targetCityId: sellerCity.id, departedAt: now, arrivalAt: new Date(now.getTime() + tBuyer * 1000), ...carry(offer.buyResource, toSeller) }))) throw new Error('offer raced');
-      const ok = await transition(tx, 'marketOffer', offer.id, 'ACTIVE', { status: 'COMPLETED', buyerId: req.user.playerId, buyerCityId: buyerCity.id, acceptedAt: now });
-      if (!ok) throw new Error('offer raced');
-      // pas de refus : ce qui ne tiendra pas dans l'entrepôt à l'arrivée repartira chez le vendeur, l'acheteur est prévenu
+      if ((await besieged(tx, buyerCity.id)) || (await besieged(tx, sellerCity.id))) return { error: 'Ville assiégée : aucun marchand ne passe', status: 400 };
+      const deal = await MS.acceptOffer(tx, { offer, buyerId: req.user.playerId, buyerFaction: buyerCity.player.faction, buyerCity, sellerCity, sellerFaction: sellerCity.player.faction });
+      if (deal.error) return deal;
+      const { toBuyer, toSeller, sellerTax, buyerTax, seller, buyer } = deal;
+      // pas de refus : ce qui ne tiendra pas dans l'entrepôt à l'arrivée repartira avec les marchands du vendeur, l'acheteur est prévenu
       const room = MS.roomFor(await tx.city.findUnique({ where: { id: buyerCity.id }, select: { [offer.sellResource]: true, maxStorage: true, maxFoodStorage: true, isWonder: true } }), offer.sellResource);
       const warning = toBuyer > room ? `Attention : ${buyerCity.name} n'a de place que pour ${room} ${MS.RES_FR[offer.sellResource]} en ce moment ; ce qui ne tiendra pas à l'arrivée repartira chez le vendeur.` : null;
-      return { message: `Échange conclu : vos ${toSeller} ${MS.RES_FR[offer.buyResource]} partent avec ${pick.army.name}, ${toBuyer} ${MS.RES_FR[offer.sellResource]} arrivent dans ${Math.max(1, Math.round(tSeller / 60))} min${warning ? `. ${warning}` : ''}`, warning, toBuyer, toSeller, sellerTax, buyerTax, arrivalAt: new Date(now.getTime() + tSeller * 1000), offer, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name };
+      const minutes = Math.max(1, Math.round((seller.arrivalAt.getTime() - Date.now()) / 60000));
+      return {
+        message: `Échange conclu : ${merchantsText(buyer.merchantsUsed)} partent avec vos ${toSeller} ${MS.RES_FR[offer.buyResource]}, ${toBuyer} ${MS.RES_FR[offer.sellResource]} arrivent dans ${minutes} min${warning ? `. ${warning}` : ''}`,
+        warning, toBuyer, toSeller, sellerTax, buyerTax, merchantsUsed: buyer.merchantsUsed, arrivalAt: seller.arrivalAt, returnAt: buyer.returnAt,
+        offer, sellerReturnAt: seller.returnAt, buyerName: buyerCity.player.name, buyerCityName: buyerCity.name
+      };
     });
     if (result.error) return res.status(result.status || 400).json(result);
-    const { offer, buyerName, buyerCityName, ...out } = result;
-    require('../services/pushService').notify(offer.sellerId, 'market', '🤝 Offre acceptée', `${buyerName} accepte votre offre : ${out.toBuyer} ${MS.RES_FR[offer.sellResource]} partent vers ${buyerCityName}, ${out.toSeller} ${MS.RES_FR[offer.buyResource]} sont en route vers vous.`, { to: 'city', cityId: offer.cityId });
+    const { offer, sellerReturnAt, buyerName, buyerCityName, ...out } = result;
+    const back = Math.max(1, Math.round((sellerReturnAt.getTime() - Date.now()) / 60000));
+    require('../services/pushService').notify(offer.sellerId, 'market', '🤝 Offre acceptée', `${buyerName} accepte votre offre : vos marchands partent vers ${buyerCityName} avec ${out.toBuyer} ${MS.RES_FR[offer.sellResource]} (de retour dans ${back} min), ${out.toSeller} ${MS.RES_FR[offer.buyResource]} sont en route vers vous.`, { to: 'city', cityId: offer.cityId });
     res.json(out);
   } catch (e) {
     if (e.message === 'offer raced') return res.status(409).json({ error: 'Offre déjà prise' });
@@ -188,7 +166,7 @@ router.post('/offer/:id/accept', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/market/offer/:id : marchandises rendues, armée libérée
+// DELETE /api/market/offer/:id : marchandises rendues, marchands libres
 router.delete('/offer/:id', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -197,11 +175,9 @@ router.delete('/offer/:id', auth, async (req, res) => {
       if (!offer) return { error: 'Offre non trouvée', status: 404 };
       if (offer.sellerId !== req.user.playerId) return { error: 'Non autorisé', status: 403 };
       if (offer.status !== 'ACTIVE') return { error: 'Offre inactive', status: 400 };
-      const ok = await transition(tx, 'marketOffer', offer.id, 'ACTIVE', { status: 'CANCELLED' });
-      if (!ok) throw new Error('offer raced');
-      if (offer.cityId) await creditCity(tx, offer.cityId, { [offer.sellResource]: offer.sellAmount });
-      await MS.releaseOfferArmy(tx, offer);
-      return { message: 'Offre annulée : marchandises rendues, armée libre' };
+      if (offer.cityId) await lockCity(tx, offer.cityId);
+      if (!(await MS.closeOffer(tx, offer, 'CANCELLED'))) throw new Error('offer raced');
+      return { message: `Offre annulée : marchandises rendues, ${merchantsText(offer.merchants)} de nouveau libre${offer.merchants > 1 ? 's' : ''}`, merchantsFreed: offer.merchants };
     });
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
@@ -211,28 +187,34 @@ router.delete('/offer/:id', auth, async (req, res) => {
   }
 });
 
-// GET /api/market/tax?cityId= : taxe des convois qui partent de cette ville
-router.get('/tax', auth, async (req, res) => {
+// GET /api/market/state?cityId= (aussi /api/market/tax) : taxe des échanges qui partent de cette ville (Comptoir et Chambre
+// au Trésor de la capitale) et marchands du joueur { total, free, capacity, speed } (Marché de la capitale)
+router.get(['/state', '/tax'], auth, async (req, res) => {
   try {
     const cityId = String(req.query.cityId || '');
     if (!isId(cityId)) return res.status(400).json({ error: 'Ville requise' });
     const city = await prisma.city.findFirst({ where: { id: cityId, playerId: req.user.playerId }, select: { id: true } });
     if (!city) return res.status(404).json({ error: 'Ville non trouvée' });
-    res.json({ taxPct: await MS.p2pTaxPct(prisma, city.id), basePct: config.market.p2pTaxPctBase, offerHours: config.market.offerHours });
+    const [taxPct, merchants] = await Promise.all([MS.p2pTaxPct(prisma, city.id), MS.merchantState(prisma, req.user.playerId)]);
+    res.json({ taxPct, basePct: config.market.p2pTaxPctBase, offerHours: config.market.offerHours, merchants: merchantsView(merchants) });
   } catch (e) { sendError(res, e); }
 });
 
 // ---- routes commerciales entre ses propres villes (décision du 27 octobre 2026) ----
+// GET /api/market/routes : ses routes, ses marchands en route (envois, échanges et routes : aller et retour), la charge
+// d'un envoi par ville et ses marchands { total, free, capacity, speed }
 router.get('/routes', auth, async (req, res) => {
   try {
-    const [routes, convoys, cities] = await Promise.all([
+    const [routes, convoys, cities, merchants] = await Promise.all([
       prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId }, orderBy: { createdAt: 'asc' } }),
       prisma.tradeConvoy.findMany({ where: { playerId: req.user.playerId }, orderBy: { arrivalAt: 'asc' } }),
-      prisma.city.findMany({ where: { playerId: req.user.playerId }, select: { id: true, name: true, buildings: { select: { key: true, level: true } } } })
+      prisma.city.findMany({ where: { playerId: req.user.playerId }, select: { id: true, name: true, buildings: { select: { key: true, level: true } } } }),
+      MS.merchantState(prisma, req.user.playerId)
     ]);
     const pct = MS.routePct();
-    // charge d'un envoi : celle des convois (Dépôt et Silo de la ville seuls, sans les Grands : recommandation 12)
-    res.json({ routes, convoys, perSend: Object.fromEntries(cities.map(c => [c.id, MS.routeSendCap(c.buildings)])), rules: { ...config.market.routes, pctPerSend: Math.round(pct * 10000) / 100 } });
+    // charge d'un envoi : une part du Dépôt et du Silo de la ville seuls, sans les Grands (recommandation 12), dans la limite
+    // de ce que portent les marchands libres
+    res.json({ routes, convoys, merchants: merchantsView(merchants), perSend: Object.fromEntries(cities.map(c => [c.id, MS.routeSendCap(c.buildings)])), rules: { ...config.market.routes, pctPerSend: Math.round(pct * 10000) / 100 } });
   } catch (e) { sendError(res, e); }
 });
 // Une seule route active par ville de départ et par ressource : 1/12 du stockage toutes les 2 h vaut pour la ville
@@ -252,7 +234,7 @@ router.post('/routes', auth, async (req, res) => {
     if (!RESOURCES.some(r => pick[r])) return res.status(400).json({ error: 'Choisissez au moins une ressource' });
     const mine = await prisma.city.count({ where: { id: { in: [fromCityId, toCityId] }, playerId: req.user.playerId } });
     if (mine !== 2) return res.status(403).json({ error: 'Une route relie deux de vos villes' });
-    if (!(await hasMarket(prisma, fromCityId))) return res.status(400).json(NO_MARKET);
+    if (!(await hasMarket(prisma, req.user.playerId))) return res.status(400).json(NO_MARKET);
     const routes = await prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId } });
     if (routes.length >= config.market.routes.maxPerPlayer) return res.status(400).json({ error: `Maximum ${config.market.routes.maxPerPlayer} routes` });
     const clash = routeClash(routes, fromCityId, pick);
@@ -260,7 +242,7 @@ router.post('/routes', auth, async (req, res) => {
     const nextSendAt = await nextRouteSend(fromCityId, pick);
     const route = await prisma.tradeRoute.create({ data: { playerId: req.user.playerId, fromCityId, toCityId, ...pick, nextSendAt } });
     const waitMin = Math.ceil((nextSendAt.getTime() - Date.now()) / 60000);
-    res.json({ message: `Route créée : un convoi part toutes les ${config.market.routes.intervalHours} h${waitMin > 1 ? `, le premier dans ${waitMin} min (cadence de la ville de départ)` : ''}`, route });
+    res.json({ message: `Route créée : des marchands partent toutes les ${config.market.routes.intervalHours} h${waitMin > 1 ? `, les premiers dans ${waitMin} min (cadence de la ville de départ)` : ''}`, route });
   } catch (e) { sendError(res, e); }
 });
 router.post('/routes/:id/toggle', auth, async (req, res) => {
@@ -273,7 +255,7 @@ router.post('/routes/:id/toggle', auth, async (req, res) => {
     }
     const clash = routeClash(await prisma.tradeRoute.findMany({ where: { playerId: req.user.playerId, fromCityId: route.fromCityId, active: true } }), route.fromCityId, route, route.id);
     if (clash) return res.status(clash.status).json(clash);
-    // la reprise garde l'heure prévue du convoi suivant (une pause ne remet pas la cadence à zéro)
+    // la reprise garde l'heure prévue de l'envoi suivant (une pause ne remet pas la cadence à zéro)
     const nextSendAt = await nextRouteSend(route.fromCityId, route, new Date(route.nextSendAt).getTime());
     await prisma.tradeRoute.update({ where: { id: route.id }, data: { active: true, nextSendAt } });
     res.json({ message: 'Route reprise', active: true });
@@ -283,11 +265,12 @@ router.delete('/routes/:id', auth, async (req, res) => {
   try {
     const gone = await prisma.tradeRoute.deleteMany({ where: { id: req.params.id, playerId: req.user.playerId } });
     if (!gone.count) return res.status(404).json({ error: 'Route introuvable' });
-    res.json({ message: 'Route supprimée (les convois en chemin arrivent quand même)' });
+    res.json({ message: 'Route supprimée (les marchands en chemin livrent quand même)' });
   } catch (e) { sendError(res, e); }
 });
 
-// POST /api/market/npc-trade — échange avec le marchand PNJ (taxe selon le niveau du Marché, data serverMarketTax*)
+// POST /api/market/npc-trade — échange immédiat avec le marchand du serveur, dans n'importe quelle ville du joueur, sans
+// marchand ; taxe selon le niveau du Marché de la capitale (data serverMarketTax*)
 router.post('/npc-trade', auth, async (req, res) => {
   try {
     const { cityId, giveResource, receiveResource, giveAmount } = req.body || {};
@@ -299,10 +282,10 @@ router.post('/npc-trade', auth, async (req, res) => {
       const city = await tx.city.findFirst({ where: { id: cityId, playerId: req.user.playerId } });
       if (!city) return { error: 'Ville non trouvee', status: 404 };
       await lockCity(tx, city.id);
-      const market = await tx.cityBuilding.findFirst({ where: { cityId: city.id, key: 'MARKET' }, select: { level: true } });
-      if (!market || market.level < 1) return { error: 'Construisez un marche (niveau 1 minimum)', status: 400 };
+      const marketLevel = fx.levelOf(await capitalBuildingsOf(tx, req.user.playerId), 'MARKET');
+      if (marketLevel < 1) return { error: 'Construisez un Marché dans la capitale (niveau 1 minimum)', status: 400 };
       // NPC merchant tax: 30 % at level 1, one point less per level (data: serverMarketTax*)
-      const taxPct = fx.npcMarketTaxPct(market.level);
+      const taxPct = fx.npcMarketTaxPct(marketLevel);
       const receiveAmount = Math.floor(giveAmount * (1 - taxPct / 100));
       if (receiveAmount <= 0) return { error: 'Quantite trop faible', status: 400 };
       const fresh = await tx.city.findUnique({ where: { id: city.id } });

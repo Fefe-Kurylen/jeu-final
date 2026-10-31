@@ -62,7 +62,7 @@
                             <div class="faction-option" data-faction="GAUL" onclick="selectFaction('GAUL')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GAUL_bust.webp" alt=""></span>
                                 <span class="faction-name">Gaule</span>
-                                <span class="faction-bonus">+15 % cachette · +20 % défense chez soi</span>
+                                <span class="faction-bonus">+20 % cachette · +20 % défense chez soi</span>
                             </div>
                             <div class="faction-option" data-faction="GREEK" onclick="selectFaction('GREEK')">
                                 <span class="faction-icon"><img class="faction-ico" src="assets/images/3d/heroes/GREEK_bust.webp" alt=""></span>
@@ -330,9 +330,10 @@
                             <button class="toolbar-btn" onclick="showMarketTab('routes')"><img class="ico" src="assets/images/3d/ui/map.webp" alt=""> Routes</button>
                         </div>
                         <div id="market-content" class="market-content">
+                            <div id="market-merchants" class="market-merchants" aria-live="polite"></div>
                             <div id="market-section-send" class="market-section">
                                 <h3>Envoyer des ressources</h3>
-                                <div class="send-form">
+                                <div class="send-form" oninput="updateSendMerchants()">
                                     <div class="form-row"><label>Destination</label><div class="coord-pair"><input type="number" id="send-target-x" placeholder="X" inputmode="numeric" pattern="-?[0-9]*"><span class="coord-sep">|</span><input type="number" id="send-target-y" placeholder="Y" inputmode="numeric" pattern="-?[0-9]*"></div></div>
                                     <div class="resources-input">
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""></span><input type="number" id="send-wood" value="0" min="0" inputmode="numeric"></div>
@@ -340,6 +341,7 @@
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""></span><input type="number" id="send-iron" value="0" min="0" inputmode="numeric"></div>
                                         <div class="res-input"><span><img class="ico" src="assets/images/3d/ui/food.webp" alt=""></span><input type="number" id="send-food" value="0" min="0" inputmode="numeric"></div>
                                     </div>
+                                    <p class="diplo-help" id="send-merchants"></p>
                                     <button onclick="sendResources()" class="btn-primary">Envoyer</button>
                                 </div>
                             </div>
@@ -348,10 +350,10 @@
                                 <div class="market-create-offer">
                                     <h4>Créer une offre</h4>
                                     <div class="offer-form">
-                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue"></div>
+                                        <div class="offer-form-row"><label>Je vends</label><select id="market-sell-resource"><option value="wood">Bois</option><option value="stone">Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-sell-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité vendue" oninput="updateOfferMerchants()"></div>
                                         <div class="offer-form-row"><label>Je demande</label><select id="market-buy-resource"><option value="wood">Bois</option><option value="stone" selected>Pierre</option><option value="iron">Fer</option><option value="food">Nourriture</option></select><input type="number" id="market-buy-amount" placeholder="Quantité" min="1" inputmode="numeric" aria-label="Quantité demandée"></div>
-                                        <div class="offer-form-row"><label>Convoi</label><select id="market-offer-army" aria-label="Armée de transport"></select></div>
-                                        <p class="diplo-help" id="market-offer-help">L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (48 h au plus) ; à l'échange, chaque côté envoie son armée et une taxe est prélevée sur ce qu'elle transporte.</p>
+                                        <p class="diplo-help" id="market-offer-merchants"></p>
+                                        <p class="diplo-help" id="market-offer-help">Vos marchands attendent en ville avec les marchandises jusqu'à l'échange (48 h au plus) ; à l'échange, les marchands de chaque côté partent, et une taxe est prélevée sur ce qu'ils portent.</p>
                                         <button onclick="createMarketOffer()" class="btn-primary">Publier l'offre</button>
                                     </div>
                                 </div>

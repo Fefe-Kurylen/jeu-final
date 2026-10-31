@@ -139,7 +139,7 @@ async function razeCity(cityId, byArmyId) {
       }
     }
     // market offers of the city are cancelled; the goods held for them go to the capital
-    await require('./marketService').cancelOffersOfCity(tx, city.id, capital?.id || null);   // armées réservées libérées
+    await require('./marketService').cancelOffersOfCity(tx, city.id, capital?.id || null);   // leurs marchands sont libres
     // the resource node comes back: no city on it, a tribe will settle again later
     await tx.resourceNode.updateMany({ where: { cityId: city.id }, data: { cityId: null, hasPlayerArmy: false, lastDefeat: new Date(), lastArmyDeparture: new Date() } });
     await tx.city.delete({ where: { id: city.id } });

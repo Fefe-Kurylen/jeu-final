@@ -30,16 +30,18 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const { ringSlotsOf } = require(path.join(ROOT, 'src/utils/calculations'));
 let CS = null;
 const combat = () => (CS ||= require(path.join(ROOT, 'src/services/combatService')));   // formules pures : estimation d'une bataille
 const Stock = require('../stock.cjs');   // stock partagé : engins et bâtiments se paient sur toutes les villes du joueur
+const { spareGold } = require('./30-military.cjs');   // l'or au-dessus de ce que le joueur garde pour l'élite
 
 const RES = ['wood', 'stone', 'iron', 'food'];
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
 const TIER = config.combat.tierCoefficients;
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
 const OST = 'Ost';
-const RESERVED_NAMES = new Set(['Convoi', 'Caravane']);
+const RESERVED_NAMES = new Set(['Convoi']);   // le convoi du Bastion (20-alliance.cjs)
 const CALLS = 6;                 // appels par tour de joueur
 const STEP_CALLS = 40;           // appels par pas pour les alertes et le conseil (tous joueurs confondus)
 const RAID_RANGE = 80;           // un raid ne va pas plus loin (cases)
@@ -69,7 +71,14 @@ const atHomeIn = (a, city) => !!a && !!city && a.status === 'IDLE' && !a.claimed
 const merge = (...lists) => { const m = {}; for (const l of lists) for (const u of rows(l)) (m[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count; return Object.values(m); };
 const scale = (units, f) => rows(units).map(u => ({ ...u, count: Math.ceil(u.count * f) })).filter(u => u.count > 0);
 const factionUnit = (faction, cls) => unitsData.find(u => u.faction === faction && u.class === cls) || null;
-const rallyCapacity = (rp) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rp) - 1) * 12 / 19)));
+// Forge de la capitale (décision du 31 octobre 2026) : +0,5 % d'attaque et de défense par niveau pour toutes les troupes du
+// joueur ; un groupe de plusieurs joueurs a la moyenne de leurs Forges selon leurs soldats (services/armyService.js combatPct).
+// parts : [{ b: joueur, units }] → multiplicateurs de l'attaquant pour combatService.resolveCombatDetailed
+function forgeMods(parts) {
+  const n = parts.reduce((t, p) => t + soldiersOf(p.units), 0) || 1;
+  const avg = (f) => parts.reduce((t, p) => t + f(p.b.capital?.buildings || []) * soldiersOf(p.units), 0) / n;
+  return { attacker: { atk: 1 + avg(fx.forgeAttackPct) / 100, def: 1 + avg(fx.forgeDefensePct) / 100 } };
+}
 
 // connecté à ce pas : le joueur joue un pas sur deux (bot.turn), comme le harnais
 const online = (ctx, b) => !!b.mem?.alwaysOn || (ctx.step + (b.turn || 0)) % 2 === 0;
@@ -357,7 +366,7 @@ async function spyTurn(bot, ctx, v, m, B, cap) {
   if (m.sp !== undefined && m.sp < want && B.left > 1) {
     const slot = m.sp + 1;
     const cost = config.spies.goldCost[slot - 1];
-    if ((bot.me?.gold || 0) >= cost + 10) {
+    if (spareGold(bot) >= cost + 10) {
       B.left--;
       const r = await call(bot, m, 'POST', '/api/spies/recruit', { slot });
       if (r.ok) { m.sp = slot; if (bot.me) bot.me.gold -= cost; bump(m, 'spiesRecruited'); ctx.event('spy_recruited', { who: bot.name, slot, gold: cost, day: v.day }); }
@@ -372,11 +381,13 @@ async function spyTurn(bot, ctx, v, m, B, cap) {
 }
 
 // ---------- raids sur les villes ennemies ----------
-function raidEstimate(v, side, att, target) {
+// le rapport d'espion « Ressources » montre déjà ce qui dépasse la cachette (quantité fixe par ressource) ; la Forge du
+// pillard compte dans son attaque, celle du défenseur dans le bonus de défense du rapport « Défenses »
+function raidEstimate(v, side, bot, att, target) {
   const e = intelOf(side, target.id);
   if (!e || ageH(v, e.troopsAt) > SPY_FRESH_H || ageH(v, e.resAt) > SPY_FRESH_H) return null;
   const defenders = scale(merge(e.troops || []), 1.2);   // la garnison a pu grandir depuis le rapport
-  const r = combat().resolveCombat(att, defenders, wallLevelOf(target), null, null, { defenderFaction: target.player?.faction, defenseBonusPct: e.wall?.defBonus || 0 });
+  const r = combat().resolveCombat(att, defenders, wallLevelOf(target), null, null, { defenderFaction: target.player?.faction, attackerBonusPct: fx.forgeAttackPct(bot.capital?.buildings || []), defenseBonusPct: e.wall?.defBonus || 0 });
   if (!r.attackerWon || r.attackerPower < 1.4 * r.defenderPower) return null;
   const carry = rows(att).reduce((t, u) => t + (UNIT[u.unitKey].stats?.transport || 50) * u.count, 0) * config.combat.raidLootPctOfCarry;
   const pill = RES.reduce((t, k) => t + (e.res?.[k] || 0), 0) * config.hideout.raidStealRate;
@@ -398,7 +409,7 @@ async function raidTurn(bot, ctx, v, m, B, cap) {
   for (const c of enemyCities(v, bot)) {
     const d = dist(c, city);
     if (d > RAID_RANGE || d < 1 || inFlight.has(c.id) || (m.raid[c.id] ?? -99) > ctx.step - 5) continue;
-    const est = raidEstimate(v, side, att, c);
+    const est = raidEstimate(v, side, bot, att, c);
     if (!est || est.loot < 1500) continue;
     const score = est.loot / (d + 10);
     if (!best || score > best.score) best = { c, score, est };
@@ -579,13 +590,15 @@ async function supports(ctx, v) {
 // l'alliance doit combattre avant celle-ci ({ structure, troops } d'après la bataille simulée de cette vague).
 const livesOfCity = (c) => (c.isCapital ? config.combat.fall.assaults.capital : config.combat.fall.assaults.secondary) + (config.combat.fall.extraAssaults[String(c.player?.faction || '').toUpperCase()] || 0);
 const REGEN_STEP = (h) => h / config.combat.fall.regenHours;
-function simulateSiege(v, target, intel, attackers, attackerFaction, state = null) {
+// parts : les armées de la vague [{ b, units }] (leurs Forges comptent), la civilisation du premier
+function simulateSiege(v, target, intel, parts, state = null) {
+  const attackers = parts.flatMap(p => p.units);
   const wallLevel = intel?.wall?.level ?? wallLevelOf(target);
   const maxHp = intel?.wall?.maxHp || wallLevel * config.combat.wallHpPerLevel;
   const seen = Math.round((target.wallStructure ?? 1) * 10) / 10;   // la fumée sur la carte, par dixièmes
   const structure = state ? Math.min(1, state.structure) : Math.min(1, seen + (seen < 1 ? REGEN_STEP(2 * STEP_H) : 0));
   const defenders = scale(merge(state ? state.troops : (intel?.troops || [])), 1.3);
-  const res = combat().resolveCombatDetailed(merge(attackers), defenders, wallLevel, 'a', 'd', null, null, attackerFaction, target.player?.faction || null, intel?.wall?.defBonus || 0, null, wallLevel > 0 ? { hp: maxHp * structure, maxHp } : null);
+  const res = combat().resolveCombatDetailed(merge(attackers), defenders, wallLevel, 'a', 'd', null, null, parts[0].b.faction, target.player?.faction || null, intel?.wall?.defBonus || 0, forgeMods(parts), wallLevel > 0 ? { hp: maxHp * structure, maxHp } : null);
   // l'état de la ville après cette bataille, si elle est gagnée : une vie de moins, la garnison qui reste
   const n = livesOfCity(target);
   const after = Math.max(0, structure - 1 / n);
@@ -699,7 +712,7 @@ async function council(ctx, v, S, g) {
     const ch = []; let p = 0, sm = null;
     for (const c of pool.slice(0, WAVE_MAX)) {
       ch.push(c); p += powerOf(c.units);
-      sm = simulateSiege(v, target, intel, ch.flatMap(x => x.units), ch[0].b.faction, state);
+      sm = simulateSiege(v, target, intel, ch, state);
       if (sm.won && p >= need) return { ch, sim: sm, power: p };
     }
     return null;
@@ -808,7 +821,8 @@ async function bastionOps(ctx, v, S, g) {
   bump(lm, 'ralliesLed');
   const rally = r.data.rally;
   const launchAt = new Date(rally.launchAt).getTime();
-  const capacity = rally.capacity || rallyCapacity(lvl(leader.cap, 'RALLY_POINT'));
+  // taille du rassemblement (décision du 31 octobre 2026) : la Place de rassemblement du lanceur, 5 armées + 1 par niveau
+  const capacity = r.data.maxArmies || fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
   let joined = 1;
   const units = [...leader.units];
   for (const p of parts.filter(x => x !== leader).sort((a, b) => dist(a.cap, leader.cap) - dist(b.cap, leader.cap))) {
@@ -963,7 +977,7 @@ async function workshop(bot, ctx) {
     if (!(def?.prereq || []).every(p => lvl(cap, p.key) >= p.level)) return;
     const used = new Set([...(cap.buildings || []).map(b => b.slot), ...queue.map(q => q.slot)]);
     let free = 0;
-    for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) free++;
+    for (let s = 1; s <= ringSlotsOf(cap); s++) if (!used.has(s)) free++;
     if (!free) return;
   }
   const c = Stock.buildCost('WORKSHOP', cur + 1);

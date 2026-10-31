@@ -7,10 +7,14 @@ const ROOT = path.join(__dirname, '..', '..');
 const { calculateArmyPower } = require(path.join(ROOT, 'src/utils/calculations'));
 const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const config = require(path.join(ROOT, 'src/config'));
+const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 
 // placement (décision du 30 octobre 2026), lu dans les données : bâtiments de la capitale seulement, des colonies seulement
 const CAPITAL_ONLY = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
 const COLONY_ONLY = buildingsData.filter(b => b.effects?.notInCapital).map(b => b.key);
+// niveau maximum de chaque bâtiment dans la capitale et dans une colonie (Bâtiment principal 20 partout, Mur d'une colonie
+// 15 : décisions du 31 octobre 2026), lu dans les données comme le serveur (fx.maxLevelIn)
+const MAX_LEVEL = { keys: buildingsData.map(b => b.key), capital: buildingsData.map(b => fx.maxLevelIn(b.key, true)), colony: buildingsData.map(b => fx.maxLevelIn(b.key, false)) };
 const MOVING = ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH', 'BESIEGING'];
 
 async function invariants(prisma, clock) {
@@ -35,7 +39,11 @@ async function invariants(prisma, clock) {
   await add('Bastion assiégé sans camp', `SELECT b.id FROM "Bastion" b WHERE b."isSieged" AND NOT EXISTS (SELECT 1 FROM "Army" a WHERE a.status = 'BESIEGING' AND a."targetBastionId" = b.id)`);
   await add('camp devant une cible qui n\'est pas marquée assiégée', `SELECT a.id, a."targetCityId", a."targetBastionId" FROM "Army" a LEFT JOIN "City" c ON c.id = a."targetCityId" LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'BESIEGING' AND a."claimedAt" IS NULL AND ((c.id IS NOT NULL AND NOT c."isSieged") OR (b.id IS NOT NULL AND NOT b."isSieged"))`);
   await add('garnison d\'un Bastion disparu ou rasé', `SELECT a.id FROM "Army" a LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'STATIONED' AND a."targetBastionId" IS NOT NULL AND (b.id IS NULL OR b.status = 'DESTROYED')`);
-  await add('alliance au-delà du nombre de membres permis', `SELECT "allianceId", count(*)::int AS n FROM "AllianceMember" GROUP BY 1 HAVING count(*) > $1`, config.alliance.maxMembers);   // 60 (décision du 30 octobre 2026)
+  // 60 au plus (décision du 30 octobre 2026) ; la taille selon l'Ambassade du chef (31 octobre 2026) ne fait que bloquer
+  // les entrées : un changement de chef n'exclut personne, l'alliance peut donc la dépasser un temps
+  await add('alliance au-delà du nombre de membres permis', `SELECT "allianceId", count(*)::int AS n FROM "AllianceMember" GROUP BY 1 HAVING count(*) > $1`, config.alliance.maxMembers);
+  // taille d'un rassemblement fixée à son lancement par la Place de rassemblement du lanceur (5 + niveau)
+  await add('rassemblement au-delà de sa taille', `SELECT r.id, r.capacity, count(a.id)::int AS n FROM "Rally" r JOIN "Army" a ON a."rallyId" = r.id AND a.status IN ('RALLY_JOIN','RALLY_WAIT','RALLY_MARCH') GROUP BY r.id, r.capacity HAVING count(a.id) > r.capacity`);
   await add('or ou points d\'alliance négatifs', `SELECT id, name, gold, "alliancePoints" FROM "Player" WHERE gold < 0 OR "alliancePoints" < 0`);
   await add('armée d\'une ville qui n\'est pas à son propriétaire', `SELECT a.id, a.name, a.status FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."ownerId" <> c."playerId"`);
   await add('plusieurs capitales', `SELECT "playerId", count(*)::int AS n FROM "City" WHERE "isCapital" GROUP BY 1 HAVING count(*) > 1`);
@@ -46,6 +54,10 @@ async function invariants(prisma, clock) {
   await add('bâtiment mal placé (capitale / colonie) ou disparu des données', `SELECT b."cityId", b.key, c."isCapital" FROM "CityBuilding" b JOIN "City" c ON c.id = b."cityId" WHERE (c."isCapital" AND b.key = ANY($1)) OR (NOT c."isCapital" AND b.key = ANY($2)) OR NOT (b.key = ANY($3))`, COLONY_ONLY, CAPITAL_ONLY, buildingsData.map(b => b.key));
   // Mur sur l'enceinte (décision du 30 octobre 2026) : toujours à sa place fixe, qu'aucun autre bâtiment ne prend
   await add('Mur hors de l\'enceinte, ou autre bâtiment sur la place du Mur', `SELECT "cityId", key, slot FROM "CityBuilding" WHERE (key = 'WALL') <> (slot = $1) UNION ALL SELECT "cityId", "buildingKey", slot FROM "BuildQueueItem" WHERE ("buildingKey" = 'WALL') <> (slot = $1)`, config.city.wallSlot);
+  // anneau à la taille de la ville (décision du 31 octobre 2026) : 18 emplacements dans la capitale, 12 dans une colonie ou
+  // la Ville Merveille ; le Mur et les champs sont hors de l'anneau
+  await add('bâtiment hors de l\'anneau de sa ville', `SELECT x."cityId", x.key, x.slot, c."isCapital" FROM (SELECT "cityId", key, slot FROM "CityBuilding" UNION ALL SELECT "cityId", "buildingKey", slot FROM "BuildQueueItem") x JOIN "City" c ON c.id = x."cityId" WHERE x.slot > CASE WHEN c."isCapital" THEN $1 ELSE $2 END AND x.slot <> $3 AND x.slot < $4`, config.city.ringSlots.capital, config.city.ringSlots.colony, config.city.wallSlot, Math.min(...Object.values(config.city.fieldSlots).flat()));
+  await add('bâtiment au-dessus de son niveau maximum (Bâtiment principal 20, Mur d\'une colonie 15)', `SELECT b."cityId", b.key, b.level, c."isCapital" FROM "CityBuilding" b JOIN "City" c ON c.id = b."cityId" JOIN unnest($1::text[], $2::int[], $3::int[]) AS m(key, cap, col) ON m.key = b.key WHERE b.level > CASE WHEN c."isCapital" THEN m.cap ELSE m.col END`, MAX_LEVEL.keys, MAX_LEVEL.capital, MAX_LEVEL.colony);
   // pas de garnison propre dans les colonies (§ 1 bis) : une colonie fondée n'en reçoit pas
   await add('garnison dans une colonie', `SELECT a.id, a."cityId" FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."isGarrison" AND NOT c."isCapital"`);
   await add('bâtiment au-dessus du Bâtiment principal', `SELECT b."cityId", b.key, b.level, m.level AS hall FROM "CityBuilding" b JOIN "CityBuilding" m ON m."cityId" = b."cityId" AND m.key = 'MAIN_HALL' WHERE b.key <> 'MAIN_HALL' AND b.level > m.level`);

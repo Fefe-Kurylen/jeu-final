@@ -6,21 +6,30 @@ const auth = require('../middleware/auth');
 const config = require('../config');
 const { levelsFrom } = require('../utils/techEffects');
 const { getRelation } = require('../services/diplomacyService');
+const { capitalBuildingsOf } = require('../utils/db');
+const fx = require('../utils/buildingEffects');
+const MS = require('../services/marketService');
 
 // Règles d'économie que le client applique comme le serveur (décision du 30 octobre 2026) : coût et durée d'un niveau
 // (utils/calculations.js buildCostFor / buildSecondsFor), entretien par palier, blessés et soins, emplacements de la ville
-// (anneau : ringSlots { capital, colony } depuis le 31 octobre 2026, Mur sur l'enceinte : wallSlot), or des unités d'élite
-// (recruit.goldPerUnit par palier), seuil de l'alerte de famine (bandeau du client et notification du serveur ensemble) ;
-// lues dans la configuration, jamais recopiées dans le client
+// (anneau : ringSlots { capital, colony } depuis le 31 octobre 2026, Mur sur l'enceinte : wallSlot), seuil de l'alerte de
+// famine (bandeau du client et notification du serveur ensemble) ; lues dans la configuration, jamais recopiées dans le
+// client (le prix des unités, or des unités d'élite compris, vient du catalogue /api/units : calculations.withRecruitPrice)
 const pick = (obj, keys) => Object.fromEntries(keys.map(k => [k, obj[k]]));
 const ECONOMY = {
   build: pick(config.build, ['costMultiplierBase', 'timeMultiplierBase', 'fieldCostMultiplier', 'fieldCostKeys', 'slowTimeMultiplier', 'slowTimeKeys']),
   city: pick(config.city, ['ringSlots', 'wallSlot']),
-  recruit: pick(config.recruit, ['goldPerUnit']),
+  alliance: pick(config.alliance, ['maxMembers']),   // plafond général de la taille d'une alliance (Ambassade du chef : 3 par niveau)
   upkeepPerTier: config.army.upkeepPerTier,
   famineAlertHours: config.army.famineAlertHours,
   wounded: pick(config.wounded, ['baseRate', 'bonusPerHealingLevel', 'maxRate', 'bedsPerLevel', 'healCostPct', 'healTimePctOfTraining', 'healLevelReduction', 'instantHealGoldPerTier', 'woundedPayUpkeep'])
 };
+// Marchands (décision du 31 octobre 2026) : charge et vitesse de chaque civilisation (config.market.merchants), puis ceux du
+// joueur : nombre (Marché de la capitale), charge avec le Comptoir et le Poste du Désert de sa capitale, vitesse
+function merchantsOf(faction, capitalBuildings) {
+  const M = config.market.merchants;
+  return { capacityByFaction: M.capacity, speedByFaction: M.speed, total: fx.merchantCount(capitalBuildings), capacity: MS.merchantCapacity(faction, capitalBuildings), speed: MS.merchantSpeed(faction) };
+}
 
 // GET /api/player/me
 router.get('/me', auth, async (req, res) => {
@@ -45,7 +54,8 @@ router.get('/me', auth, async (req, res) => {
     // demandes d'aide d'alliance que le joueur peut aider (pastille de l'onglet Alliance)
     const questsClaimable = await require('../services/questService').claimableCount(player.id).catch(() => 0);   // pastille du bouton Quêtes
     const allianceHelpPending = rest.alliance ? await require('../services/allianceHelpService').pendingCount(player.id).catch(() => 0) : 0;
-    res.json({ ...rest, techLevels, economy: ECONOMY, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
+    const economy = { ...ECONOMY, market: { merchants: merchantsOf(player.faction, await capitalBuildingsOf(prisma, player.id)) } };
+    res.json({ ...rest, techLevels, economy, allianceHelpPending, questsClaimable, emailVerified: !!account?.emailVerifiedAt, emailVerificationRequired: config.email.enforce, role: account?.role || 'PLAYER', titles: Array.isArray(account?.titles) ? account.titles : [] });   // role : écran d'administration (décision du 29 octobre 2026)
   } catch (e) {
     sendError(res, e);
   }

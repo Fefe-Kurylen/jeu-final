@@ -8,39 +8,64 @@
 // (le dessin des sprites reste dans 03/04).
 // ============================================================
 
-// ---------- Grille ----------
-// Cellules de la ville : slot -> (gx, gy). Ordre : centre, anneau intérieur (8), anneau extérieur (11).
-const ISO_CITY_CELLS = {
-  0: [0, 0],
-  1: [0, -1], 2: [1, -1], 3: [1, 0], 4: [1, 1], 5: [0, 1], 6: [-1, 1], 7: [-1, 0], 8: [-1, -1],
-  9: [0, -2], 10: [1, -2], 11: [2, -1], 12: [2, 0], 13: [2, 1], 14: [1, 2], 15: [0, 2], 16: [-1, 2], 17: [-2, 1], 18: [-2, 0], 19: [-2, -1]
-};
-// Champs (slots clients 101-118 = emplacements serveur) : troisième anneau, à l'intérieur de l'enceinte, par type
-const R_FIELD = 3;
-const ISO_FIELD_CELLS = {
-  1: [-1, -R_FIELD], 2: [0, -R_FIELD], 3: [1, -R_FIELD], 4: [2, -R_FIELD],                 // LUMBER : fond droit
-  5: [R_FIELD, -2], 6: [R_FIELD, -1], 7: [R_FIELD, 0], 8: [R_FIELD, 1],                    // QUARRY : côté droit
-  9: [-R_FIELD, -2], 10: [-R_FIELD, -1], 11: [-R_FIELD, 0], 12: [-R_FIELD, 1],             // IRON_MINE : côté gauche
-  13: [R_FIELD, 2], 14: [2, R_FIELD], 15: [1, R_FIELD], 16: [0, R_FIELD], 17: [-1, R_FIELD], 18: [-2, R_FIELD]   // FARM : devant
-};
+// ---------- Plans de ville (décision du 31 octobre 2026 : autant de parcelles que de bâtiments possibles) ----------
+// La ville dessine une parcelle par emplacement de son anneau (ringSlotCount : capitale 18, colonie et Ville Merveille 12),
+// sans parcelle vide en trop : le plus petit plan qui les loge, avec son enceinte et sa plaza. Chaque plan donne, en
+// cellules de grille (gx, gy) :
+// - ring : les cellules de l'anneau, emplacement 1, 2… (le Bâtiment principal est au centre, emplacement 0) ;
+// - fields : les 18 champs dans l'enceinte (emplacements 101-118 du serveur : 4 Bûcherons au fond à droite, 4 Carrières à
+//   droite, 4 Mines de fer à gauche, 6 Fermes devant) ;
+// - spare : les cellules libres, plantées de bosquets (les cellules de l'anneau sans emplacement s'y ajoutent) ;
+// - wall, plaza : demi-côté de l'enceinte et de la plaza pavée autour du Bâtiment principal ;
+// - lane : décalage des couloirs laissés entre les parcelles, où passent les avenues (0,5 quand les parcelles sont sur la
+//   grille entière, 0 quand elles sont aux demi-cellules) ; la porte s'ouvre dans l'axe de l'avenue ;
+// - segments : tronçons de courtine par côté (impair quand l'avenue est sur l'axe, pour qu'un tronçon s'ouvre en face).
+const ISO_PLANS = [
+  // colonie : 12 bâtiments en un seul anneau aux demi-cellules, les champs au rang suivant ; enceinte et plaza plus petites
+  {
+    ring: [[-0.5, -1.5], [0.5, -1.5], [1.5, -1.5], [1.5, -0.5], [1.5, 0.5], [1.5, 1.5], [0.5, 1.5], [-0.5, 1.5], [-1.5, 1.5], [-1.5, 0.5], [-1.5, -0.5], [-1.5, -1.5]],
+    fields: [[-1.5, -2.5], [-0.5, -2.5], [0.5, -2.5], [1.5, -2.5], [2.5, -1.5], [2.5, -0.5], [2.5, 0.5], [2.5, 1.5], [-2.5, -1.5], [-2.5, -0.5], [-2.5, 0.5], [-2.5, 1.5],
+      [2.5, 2.5], [1.5, 2.5], [0.5, 2.5], [-0.5, 2.5], [-1.5, 2.5], [-2.5, 2.5]],
+    spare: [[-2.5, -2.5], [2.5, -2.5]],
+    wall: 3.35, plaza: 0.6, lane: 0, segments: 7
+  },
+  // capitale : 8 bâtiments autour du Bâtiment principal puis 11 au deuxième rang, les champs au troisième
+  {
+    ring: [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -2], [1, -2], [2, -1], [2, 0], [2, 1], [1, 2], [0, 2], [-1, 2], [-2, 1], [-2, 0], [-2, -1]],
+    fields: [[-1, -3], [0, -3], [1, -3], [2, -3], [3, -2], [3, -1], [3, 0], [3, 1], [-3, -2], [-3, -1], [-3, 0], [-3, 1], [3, 2], [2, 3], [1, 3], [0, 3], [-1, 3], [-2, 3]],
+    spare: [[-1, -2], [-2.7, -2.7], [-2, -3], [2.7, -2.7], [2.7, 2.7], [-3, 2], [-2.7, 2.7]],
+    wall: 3.85, plaza: 0.7, lane: 0.5, segments: 8
+  }
+];
 const ISO_FIELD_TYPE = (slot) => slot <= 4 ? 'LUMBER' : slot <= 8 ? 'QUARRY' : slot <= 12 ? 'IRON_MINE' : 'FARM';
-// Cellules libres (anneau extérieur et coins du troisième anneau) : bosquets
-const ISO_SPARE_CELLS = [[-1, -2], [-2.7, -2.7], [-2, -3], [2.7, -2.7], [2.7, 2.7], [-3, 2], [-2.7, 2.7]];
-const R_WALL = 3.85;      // l'enceinte entoure bâtiments et champs
-const R_PLAZA = 0.7;      // plaza pavée autour du Bâtiment principal
 const ISO_MAIN_HALL_SCALE = 1.35;   // le Bâtiment principal domine la ville
-// Enceinte : 8 tronçons par côté ; la porte, sur l'arête sud-est (bord inférieur droit du losange), s'ouvre sur
-// l'avenue qui passe entre les rangées 0 et 1 de la grille (à 0,5 cellule de l'axe).
-// Toute la géométrie liée à la porte (avenues, route, couloir du décor, buissons, torches) passe par le repère
-// « porte » : `along` = position le long de l'arête de la porte, `depth` = profondeur vers cette arête
-// (R_WALL sur l'arête). Changer ISO_GATE_SIDE ('SE' ou 'SW') bascule toute la ville d'un côté à l'autre.
+// Plan de la ville affichée et ce qui s'en déduit : cellule de chaque emplacement de l'anneau (cells, 0 : le Bâtiment
+// principal) et de chaque champ (fields, 1-18), bosquets, rang des champs, porte. Toute la géométrie liée à la porte
+// (avenues, route, couloir du décor, buissons, torches) passe par le repère « porte » : `along` = position le long de
+// l'arête de la porte, `depth` = profondeur vers cette arête (wall sur l'arête). La porte, sur l'arête sud-est (bord
+// inférieur droit du losange), s'ouvre au tronçon gateIndex (compté dans le sens croissant de `along`, de -wall à +wall),
+// centré sur gatePos, en face de l'avenue
+const isoGridCache = new Map();
+function isoGrid(city = currentCity) {
+  const count = ringSlotCount(city);
+  let g = isoGridCache.get(count);
+  if (g) return g;
+  const plan = ISO_PLANS.find(p => p.ring.length >= count) || ISO_PLANS.at(-1);
+  const n = Math.min(count, plan.ring.length);
+  const cells = { 0: [0, 0] };
+  plan.ring.slice(0, n).forEach((c, i) => { cells[i + 1] = c; });
+  const gateIndex = Math.round((plan.wall + plan.lane) / (2 * plan.wall) * plan.segments - 0.5);
+  g = {
+    ...plan, cells, fields: Object.fromEntries(plan.fields.map((c, i) => [i + 1, c])), spare: plan.spare.concat(plan.ring.slice(n)),
+    fieldRing: Math.max(...plan.fields.map(([x, y]) => Math.max(Math.abs(x), Math.abs(y)))),
+    gateIndex, gatePos: -plan.wall + 2 * plan.wall * (gateIndex + 0.5) / plan.segments
+  };
+  isoGridCache.set(count, g);
+  return g;
+}
+// Changer ISO_GATE_SIDE ('SE' ou 'SW') bascule toute la ville d'un côté à l'autre
 const ISO_GATE_SIDE = 'SE';
-const ISO_WALL_SEGMENTS = 8;
-const ISO_GATE_ALONG = 0.5;
-// tronçon ouvert, compté dans le sens croissant de `along` (de -R_WALL à +R_WALL), et position de la porte sur l'arête
-const ISO_GATE_INDEX = Math.round((R_WALL + ISO_GATE_ALONG) / (2 * R_WALL) * ISO_WALL_SEGMENTS - 0.5);
-const ISO_GATE_POS = -R_WALL + 2 * R_WALL * (ISO_GATE_INDEX + 0.5) / ISO_WALL_SEGMENTS;
-// Repère « porte » -> grille (gx, gy) : au sud-est la porte est sur l'arête gx = R_WALL, au sud-ouest sur gy = R_WALL
+// Repère « porte » -> grille (gx, gy) : au sud-est la porte est sur l'arête gx = wall, au sud-ouest sur gy = wall
 function isoGateGrid(along, depth) { return ISO_GATE_SIDE === 'SE' ? [depth, along] : [along, depth]; }
 // Grille (gx, gy) -> repère « porte » { along, depth }
 function isoGateFrame(gx, gy) { return ISO_GATE_SIDE === 'SE' ? { along: gy, depth: gx } : { along: gx, depth: gy }; }
@@ -63,10 +88,11 @@ function isoShowBadges(hovered) { return !!hovered || isoCellW >= ISO_BADGE_MIN_
 function isoBadgeSpec(x, y, hw, hh) { const r = Math.max(6.5, Math.min(10, isoCellW * 0.11)); return { x: x + hw * 0.62, y: y + hh * 0.35, radius: r }; }
 
 function isoSceneExtent(view) {
-  // demi-largeur (cellules) et marges verticales (cellules) de la scène à cadrer
+  // demi-largeur (cellules) et marges verticales (cellules) de la scène à cadrer : celles du plus grand plan (la capitale),
+  // pour que les parcelles gardent la même taille d'une ville à l'autre et qu'une colonie paraisse plus petite
   void view;   // une seule scène désormais (la vue « champs » cadre la même ville)
-  const tight = cityViewW < 500;
-  return { hw: R_WALL + (tight ? 0.12 : 0.35), top: R_WALL * 0.5 + 0.95, bottom: R_WALL * 0.5 + 0.35 };
+  const R = ISO_PLANS.at(-1).wall, tight = cityViewW < 500;
+  return { hw: R + (tight ? 0.12 : 0.35), top: R * 0.5 + 0.95, bottom: R * 0.5 + 0.35 };
 }
 function isoLayout(view) {
   const e0 = isoSceneExtent(view);
@@ -86,12 +112,13 @@ function clampCam(view) {
   cityCam.y = Math.max(-ly, Math.min(ly, cityCam.y));
 }
 function resetCityCamera() { cityCam.x = 0; cityCam.y = 0; cityCam.zoom = 1; cityCam.auto = true; }
-// Cellule (gx, gy) d'un emplacement : anneau 0-19, champ 101-118, Mur (sa place sur l'enceinte : la porte)
+// Cellule (gx, gy) d'un emplacement : anneau (0 au centre), champ 101-118, Mur (sa place sur l'enceinte : la porte)
 function isoSlotCell(slot) {
   if (slot === cityWallSlot()) return isoGateCell(0);
-  return slot >= 100 ? ISO_FIELD_CELLS[slot - 100] : ISO_CITY_CELLS[slot];
+  const G = isoGrid();
+  return slot >= 100 ? G.fields[slot - 100] : G.cells[slot];
 }
-// Recentre la vue sur un emplacement (bâtiment 0-19, champ 101-118 ou Mur), zoome si besoin et ouvre sa bulle d'action :
+// Recentre la vue sur un emplacement (bâtiment de l'anneau, champ 101-118 ou Mur), zoome si besoin et ouvre sa bulle d'action :
 // « Voir dans la ville » des fiches, façon Rise of Kingdoms
 function focusCitySlot(slot, zoom = 1.7) {
   if (!cityCanvas) return false;
@@ -110,29 +137,31 @@ function focusCitySlot(slot, zoom = 1.7) {
 }
 
 // ---------- Emplacements (contrat citySlots conservé : slot, x, y, size, fixed, isField, fieldType…) ----------
-// Une seule liste : les bâtiments (slots 0-19), les champs (slots 101-118, numérotation du serveur) et le Mur (wall : sa
-// place fixe sur l'enceinte, ancrée à la porte ; on la touche sur toute l'enceinte, voir isoOnEnclosure)
+// Une seule liste : le Bâtiment principal (slot 0) et les emplacements de l'anneau de la ville (1 à ringSlotCount), les
+// champs (slots 101-118, numérotation du serveur) et le Mur (wall : sa place fixe sur l'enceinte, ancrée à la porte ; on la
+// touche sur toute l'enceinte, voir isoOnEnclosure)
 function calculateCitySlots() {
   if (!cityCanvas) return;
   const { W, cx, cy } = isoLayout('city');
+  const G = isoGrid();
   isoCellW = W;
   citySlots = [];
-  for (const [slot, [gx, gy]] of Object.entries(ISO_CITY_CELLS)) {
+  for (const [slot, [gx, gy]] of Object.entries(G.cells)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
     const k = s === 0 ? ISO_MAIN_HALL_SCALE : 1;
-    // size : le sprite (1,7 × size = 1,22 W) pose son losange de parcelle (100/130 de sa largeur = 0,94 W) sur la cellule
-    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.7 * k, hw: W * ISO_PLOT / 2 * k, hh: W * ISO_PLOT / 4 * k, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined, ring: s === 0 ? 'center' : s <= 8 ? 'inner' : 'outer' });
+    // size : le sprite (1,7 × size) pose son losange de parcelle (100/130 de sa largeur = ISO_PLOT × W) sur la cellule
+    citySlots.push({ slot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.7 * k, hw: W * ISO_PLOT / 2 * k, hh: W * ISO_PLOT / 4 * k, fixed: s === 0, fixedKey: s === 0 ? 'MAIN_HALL' : undefined });
   }
-  for (const [slot, [gx, gy]] of Object.entries(ISO_FIELD_CELLS)) {
+  for (const [slot, [gx, gy]] of Object.entries(G.fields)) {
     const p = isoPos(gx, gy, W, cx, cy);
     const s = Number(slot);
-    citySlots.push({ slot: 100 + s, fieldSlot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s), ring: 3 });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
+    citySlots.push({ slot: 100 + s, fieldSlot: s, gx, gy, x: p.x, y: p.y, size: W * ISO_PLOT / SPRITE_PLOT_W / 1.5, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, isField: true, fieldType: ISO_FIELD_TYPE(s) });   // sprite 1,5 × size : losange de parcelle = ISO_PLOT × W
   }
   const wallSlot = cityWallSlot();
   if (wallSlot !== null) {
     const [gx, gy] = isoGateCell(0), p = isoPos(gx, gy, W, cx, cy);
-    citySlots.push({ slot: wallSlot, wall: true, fixedKey: 'WALL', gx, gy, x: p.x, y: p.y, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, ring: 'wall', layout: { W, cx, cy } });
+    citySlots.push({ slot: wallSlot, wall: true, fixedKey: 'WALL', gx, gy, x: p.x, y: p.y, hw: W * ISO_PLOT / 2, hh: W * ISO_PLOT / 4, layout: { W, cx, cy } });
   }
 }
 
@@ -165,18 +194,19 @@ const ISO_DECALS = {
 function drawIsoDecals(ctx, W, cx, cy, biome) {
   const names = ISO_DECALS[biome] || ISO_DECALS.forest;
   if (!names.some(n => paintedSet.has(`decals/${n}.webp`))) return;
+  const G = isoGrid(), plots = Object.values(G.cells).concat(Object.values(G.fields));
   for (let gx = -5; gx <= 5; gx++) for (let gy = -5; gy <= 5; gy++) {
     const seed = (gx + 30) * 71 + (gy + 30) * 17 + 2400;
     if (isoSeeded(seed) > 0.42) continue;
     const px = gx + 0.5 + (isoSeeded(seed + 1) - 0.5) * 0.5, py = gy + 0.5 + (isoSeeded(seed + 2) - 0.5) * 0.5;
-    const inside = Math.max(Math.abs(px), Math.abs(py)) < R_WALL - 0.3;
+    const inside = Math.max(Math.abs(px), Math.abs(py)) < G.wall - 0.3;
     if (inside) {
       const f = isoGateFrame(px, py);
-      if (Math.abs(f.along - ISO_GATE_POS) < 0.25 || Math.abs(f.depth - 0.5) < 0.25) continue;   // avenues
-      if (Math.abs(px) + Math.abs(py) < R_PLAZA + 0.5) continue;                           // plaza
-      const onPlot = Object.values(ISO_CITY_CELLS).concat(Object.values(ISO_FIELD_CELLS)).some(([cx2, cy2]) => Math.abs(px - cx2) < 0.45 && Math.abs(py - cy2) < 0.45);
+      if (Math.abs(f.along - G.gatePos) < 0.25 || Math.abs(f.depth - G.lane) < 0.25) continue;   // avenues
+      if (Math.abs(px) + Math.abs(py) < G.plaza + 0.5) continue;                           // plaza
+      const onPlot = plots.some(([cx2, cy2]) => Math.abs(px - cx2) < 0.45 && Math.abs(py - cy2) < 0.45);
       if (onPlot) continue;
-    } else if (Math.max(Math.abs(px), Math.abs(py)) > R_WALL + 3.5) continue;
+    } else if (Math.max(Math.abs(px), Math.abs(py)) > G.wall + 3.5) continue;
     const name = names[Math.floor(isoSeeded(seed + 3) * names.length)];
     const p = isoPos(px, py, W, cx, cy);
     drawDecal(ctx, name, p.x, p.y, W * (0.35 + isoSeeded(seed + 4) * 0.3), 0.9);
@@ -211,7 +241,7 @@ function drawIsoTerrain(ctx, biome, night) {
 
 // Sol de l'enceinte : le biome en plus clair et plus vif (herbe entretenue, sable ratissé, neige tassée), liseré au pied des murs
 function drawIsoGround(ctx, cx, cy, W, biome, night) {
-  const hw = R_WALL * W * ISO_SP, hh = hw / 2;
+  const hw = isoGrid().wall * W * ISO_SP, hh = hw / 2;
   ctx.save();
   ctx.shadowColor = night ? 'rgba(0,0,0,0.6)' : 'rgba(20,12,4,0.35)'; ctx.shadowBlur = W * 0.4; ctx.shadowOffsetY = W * 0.08;
   // ombre portée du sol de l'enceinte, teintée par le biome (visible seulement par l'ouverture de la porte)
@@ -229,7 +259,7 @@ function drawIsoGround(ctx, cx, cy, W, biome, night) {
 
 // Plaza pavée autour du Bâtiment principal
 function drawIsoPlaza(ctx, cx, cy, W, night) {
-  const hw = R_PLAZA * W * ISO_SP, hh = hw / 2;
+  const hw = isoGrid().plaza * W * ISO_SP, hh = hw / 2;
   isoDiamondPath(ctx, cx, cy, hw, hh);
   const g = ctx.createRadialGradient(cx, cy - hh * 0.2, W * 0.2, cx, cy, hw);
   g.addColorStop(0, night ? '#4a4034' : '#dccba2'); g.addColorStop(1, night ? '#2e2618' : '#b89c70');
@@ -247,10 +277,11 @@ function drawIsoPlaza(ctx, cx, cy, W, night) {
 // dans les couloirs laissés entre les parcelles (à 0,5 cellule des deux axes), dans le repère de la porte
 function isoAvenueLanes(W, cx, cy) {
   const P = (along, depth) => { const [gx, gy] = isoGateGrid(along, depth); return isoPos(gx, gy, W, cx, cy); };
+  const { wall: R, plaza, lane, gatePos } = isoGrid();
   return [
-    [P(ISO_GATE_POS, R_WALL + 0.12), P(ISO_GATE_POS, R_PLAZA * 0.8)],      // de la porte à la plaza
-    [P(ISO_GATE_POS, -R_PLAZA * 0.8), P(ISO_GATE_POS, -R_WALL + 0.62)],    // de la plaza vers le fond
-    [P(-R_WALL + 0.62, 0.5), P(R_WALL - 0.62, 0.5)]                        // transversale
+    [P(gatePos, R + 0.12), P(gatePos, plaza * 0.8)],      // de la porte à la plaza
+    [P(gatePos, -plaza * 0.8), P(gatePos, -R + 0.62)],    // de la plaza vers le fond
+    [P(-R + 0.62, lane), P(R - 0.62, lane)]               // transversale
   ];
 }
 function drawIsoAvenues(ctx, cx, cy, W, night) {
@@ -295,7 +326,7 @@ function isoWallItems(ctx, cx, cy, W, night) {
   const img = {};
   for (const n of ['seg_x', 'seg_x_low', 'seg_z', 'seg_z_low', 'tower']) img[n] = getSprite(wallSpriteUrl(n, tier));
   if (Object.values(img).some(i => !i)) return [];
-  const R = R_WALL, N = ISO_WALL_SEGMENTS, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
+  const G = isoGrid(), R = G.wall, N = G.segments, L = 2 * R / N;   // un tronçon couvre L cellules ; le sprite représente une cellule et est mis à l'échelle
   const variant = spriteVariant(false);
   const faction = player?.faction || 'ROME';
   const items = [];
@@ -304,7 +335,7 @@ function isoWallItems(ctx, cx, cy, W, night) {
     const sprite = img[`seg_${along}${high ? '' : '_low'}`];
     const sw = W * ISO_SP * L / SPRITE_PLOT_W * 1.03;
     for (let k = 0; k < N; k++) {
-      if (gate && k === ISO_GATE_INDEX) continue;   // l'ouverture de la porte
+      if (gate && k === G.gateIndex) continue;   // l'ouverture de la porte
       const t = (k + 0.5) / N;
       const g = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
       const p = isoPos(g[0], g[1], W, cx, cy);
@@ -314,7 +345,7 @@ function isoWallItems(ctx, cx, cy, W, night) {
   };
   edge([-R, R], [-R, -R], true, 'z');    // arrière gauche (le long de iy)
   edge([-R, -R], [R, -R], true, 'x');    // arrière droit (le long de ix)
-  // Faces avant (murets bas) : celle de la porte, parcourue dans le sens croissant de `along` (tronçon ISO_GATE_INDEX
+  // Faces avant (murets bas) : celle de la porte, parcourue dans le sens croissant de `along` (tronçon gateIndex
   // ouvert), et l'autre face avant ; tronçons « z » le long de gy, « x » le long de gx
   const gateAxis = ISO_GATE_SIDE === 'SE' ? 'z' : 'x', otherAxis = ISO_GATE_SIDE === 'SE' ? 'x' : 'z';
   edge(isoGateGrid(-R, R), isoGateGrid(R, R), false, gateAxis, true);   // face de la porte (sud-est)
@@ -340,10 +371,10 @@ function isoWallItems(ctx, cx, cy, W, night) {
 
 // La porte de la ville est sur l'arête sud-est de l'enceinte (bord inférieur droit du losange), dans l'axe de
 // l'avenue ; `along` décale le long de cette arête (en cellules, + vers le coin sud)
-function isoGateCell(along = 0) { return isoGateGrid(ISO_GATE_POS + along, R_WALL); }
+function isoGateCell(along = 0) { const G = isoGrid(); return isoGateGrid(G.gatePos + along, G.wall); }
 // Vantail de bois cintré, à plat dans le plan de l'arête (côtés verticaux à l'écran)
 function drawIsoGateDoor(ctx, x, y, W, gw, night) {
-  const half = isoPos(...isoGateGrid(gw / 2 * 0.86, R_WALL), W, 0, 0), zero = isoPos(...isoGateGrid(0, R_WALL), W, 0, 0);
+  const R = isoGrid().wall, half = isoPos(...isoGateGrid(gw / 2 * 0.86, R), W, 0, 0), zero = isoPos(...isoGateGrid(0, R), W, 0, 0);
   const dx = half.x - zero.x, dy = half.y - zero.y;   // demi-vecteur le long de l'arête (vers le sud)
   const h = W * 0.8;
   ctx.save();
@@ -421,14 +452,15 @@ function isoRoadSampler(cx, cy, W) {
 function isoLandscape(view, W, cx, cy) {
   const props = biomeScene(cityBiome()).props;
   const out = [], water = [];
-  const rMin = Math.ceil(R_WALL) + 1, rMax = rMin + 2;
+  const { wall: R, gatePos } = isoGrid();
+  const rMin = Math.ceil(R) + 1, rMax = rMin + 2;
   const roadDist = isoRoadSampler(cx, cy, W);   // rien n'est posé sur la route, même là où elle s'écarte de l'axe de la porte
   for (let gx = -rMax; gx <= rMax; gx++) for (let gy = -rMax; gy <= rMax; gy++) {
     const r = Math.max(Math.abs(gx), Math.abs(gy));
     if (r < rMin || r > rMax) continue;
     // la route sort par la porte vers le sud-est : on laisse ce couloir libre (repère de la porte)
     const f = isoGateFrame(gx, gy);
-    if (f.depth > R_WALL && Math.abs(f.along - ISO_GATE_POS) <= 1 && f.depth - f.along > R_WALL) continue;
+    if (f.depth > R && Math.abs(f.along - gatePos) <= 1 && f.depth - f.along > R) continue;
     const seed = (gx + 50) * 97 + (gy + 50) * 13;
     const roll = isoSeeded(seed);
     const feature = isoMapFeatureAt(gx, gy);
@@ -499,8 +531,9 @@ function isoInnerDecor(W, cx, cy, biome) {
   const out = [];
   const pick = (arr, seed) => arr[Math.floor(isoSeeded(seed) * arr.length)];
   const push = (gx, gy, kind, h, depthOff = 0) => { const p = isoPos(gx, gy, W, cx, cy); out.push({ x: p.x, y: p.y, kind, h, depth: gx + gy + depthOff }); };
+  const G = isoGrid();
   // 1) bosquets sur les cellules libres
-  for (const [gx, gy] of ISO_SPARE_CELLS) {
+  for (const [gx, gy] of G.spare) {
     const seed = Math.round((gx + 20) * 31 + (gy + 20) * 7);
     push(gx, gy + 0.08, pick(d.tree, seed), W * (0.95 + isoSeeded(seed + 1) * 0.25));
     push(gx - 0.32, gy + 0.22, pick(d.tree, seed + 2), W * 0.7, 0.05);
@@ -509,22 +542,22 @@ function isoInnerDecor(W, cx, cy, biome) {
   }
   // 2) rangée au pied des murs : arbres derrière (fond), buissons devant (pour ne pas cacher les champs) ; devant
   // la porte, un passage est laissé libre
-  const rb = R_WALL - 0.42;
-  for (let a = -3.1; a <= 3.1; a += 0.5) {
+  const rb = G.wall - 0.42, ra = G.wall - 0.75;
+  for (let a = -ra; a <= ra; a += 0.5) {
     const seed = Math.round(a * 10) + 500;
     const j = (k) => (isoSeeded(seed + k) - 0.5) * 0.25;
     push(a + j(1), -rb + j(2), pick(d.tree, seed), W * (0.72 + isoSeeded(seed + 3) * 0.3));
     push(-rb + j(4), a + j(5), pick(d.tree, seed + 6), W * (0.72 + isoSeeded(seed + 7) * 0.3));
-    const atGate = Math.abs(a - ISO_GATE_POS) <= 0.85;
+    const atGate = Math.abs(a - G.gatePos) <= 0.85;
     if (!(atGate && ISO_GATE_SIDE === 'SE')) push(rb + j(8), a + j(9), pick(d.small, seed + 10), W * 0.34);    // avant droit (sud-est)
     if (!(atGate && ISO_GATE_SIDE === 'SW')) push(a + j(11), rb + j(12), pick(d.small, seed + 13), W * 0.34);  // avant gauche (sud-ouest)
   }
-  // 3) interstices entre parcelles
-  for (let gx = -3; gx <= 2; gx++) for (let gy = -3; gy <= 2; gy++) {
-    if (gx === 0 || gy === 0) continue;   // couloirs des avenues
-    const px = gx + 0.5, py = gy + 0.5;
-    if (Math.abs(px) + Math.abs(py) < R_PLAZA + 0.7) continue;
-    const seed = (gx + 10) * 53 + (gy + 10) * 11 + 900;
+  // 3) interstices entre parcelles : croisements des couloirs (décalés de G.lane), jusqu'aux champs, hors avenues et plaza
+  const last = G.fieldRing - 0.5;
+  for (let px = -last; px <= last; px++) for (let py = -last; py <= last; py++) {
+    if (px === G.lane || py === G.lane) continue;   // couloirs des avenues
+    if (Math.abs(px) + Math.abs(py) < G.plaza + 0.7) continue;
+    const seed = (px - G.lane + 10) * 53 + (py - G.lane + 10) * 11 + 900;
     if (isoSeeded(seed) > 0.5) continue;
     const kind = isoSeeded(seed + 1) < 0.2 ? pick(d.tree, seed + 2) : pick(d.small, seed + 2);
     const tree = d.tree.includes(kind);
@@ -590,6 +623,12 @@ function drawIsoNight(ctx, lit, view = null) {
 // Mur sur l'enceinte (décision du 30 octobre 2026) : il a sa place fixe hors de l'anneau (config.city.wallSlot, transmis par
 // /api/player/me) ; on le bâtit et on l'ouvre en touchant l'enceinte, jamais sur un emplacement de l'anneau
 function cityWallSlot() { return player?.economy?.city?.wallSlot ?? null; }
+// Emplacements de l'anneau d'une ville (décision du 31 octobre 2026 : autant que de bâtiments possibles), comme ringSlotsOf
+// du serveur : config.city.ringSlots transmis par /api/player/me, capitale 18, colonie ou Ville Merveille 12
+function ringSlotCount(city = currentCity) {
+  const rs = player?.economy?.city?.ringSlots || {};
+  return Number(city?.isCapital ? rs.capital : rs.colony) || ISO_PLANS.at(-1).ring.length;
+}
 function cityWallLevel() { return (currentCity?.buildings || []).find(b => b.key === 'WALL')?.level || 0; }
 function cityMainHallLevel() { return (currentCity?.buildings || []).reduce((m, b) => (b.key === 'MAIN_HALL' && b.level > m ? b.level : m), 1); }
 
@@ -784,7 +823,7 @@ function renderCityStatic(ctx, W, cx, cy, night, biome) {
 // Place du Mur sur l'enceinte : sans Mur, le tracé de l'enceinte en pointillé et un « + » à la porte (le toucher pour le
 // bâtir) ; enceinte surlignée quand on la touche ; chantier et badge de niveau au-dessus de la porte
 function isoEnclosurePath(ctx, s) {
-  const { W, cx, cy } = s.layout, R = R_WALL;
+  const { W, cx, cy } = s.layout, R = isoGrid().wall;
   const pts = [[-R, -R], [R, -R], [R, R], [-R, R]].map(([gx, gy]) => isoPos(gx, gy, W, cx, cy));
   ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath();
 }
@@ -881,7 +920,7 @@ function isoOnEnclosure(s, mx, my) {
   const { W, cx, cy } = s.layout;
   const a = (mx - cx) / (W * ISO_SP / 2), b = (my - cy) / (W * ISO_SP / 4);   // a = gx - gy, b = gx + gy
   const gx = (a + b) / 2, gy = (b - a) / 2;
-  return Math.abs(Math.max(Math.abs(gx), Math.abs(gy)) - R_WALL) <= ISO_WALL_HIT;
+  return Math.abs(Math.max(Math.abs(gx), Math.abs(gy)) - isoGrid().wall) <= ISO_WALL_HIT;
 }
 function isoHitSlot(mx, my) {
   // 1) la parcelle au sol sous le curseur (prévisible, comme Travian), puis l'enceinte au sol ; 2) sinon le corps d'un

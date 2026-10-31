@@ -964,7 +964,6 @@ model TradeRoute {
   @@index([playerId])
 }
 
-// Convoi d'une route commerciale en chemin
 // Marchands en route (décision du 31 octobre 2026, services/marketService.js) : toute livraison du marché (route commerciale,
 // envoi, échange entre joueurs) ; `playerId` possède les marchands. Les marchandises sont livrées à arrivalAt (ce qui ne
 // tient pas reste chargé), puis les marchands rentrent à fromCityId pour returnAt ; la ligne disparaît au retour.
@@ -983,7 +982,7 @@ model TradeConvoy {
   departedAt  DateTime  @default(now())
   arrivalAt   DateTime
   deliveredAt DateTime? // livré : les marchands rentrent avec ce qui n'a pas tenu
-  returnAt    DateTime?
+  returnAt    DateTime
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 

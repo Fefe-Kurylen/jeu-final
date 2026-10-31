@@ -169,11 +169,10 @@ function cityTooltipHtml(slotNum) {
     const building = getFieldBuildingAtSlot(slot.slot, slot.fieldType);
     const level = building?.level || 0;
     const production = level > 0 ? getProductionAtLevel(slot.fieldType, level) : 0;
-    const cvMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-    const cvMainHallLevel = cvMainHall?.level || 1;
-    const cvFieldDef = buildingsData?.find(b => b.key === slot.fieldType);
-    const cvFieldMax = cvFieldDef?.maxLevel || 20;
-    const cvEffectiveMax = Math.min(cvFieldMax, cvMainHallLevel);
+    // maximum du champ et plafond du Bâtiment principal de la ville, comme pour les autres bâtiments (01-core.js)
+    const cvMainHallLevel = Math.max(1, levelIn(currentCity?.buildings, 'MAIN_HALL'));
+    const cvFieldMax = buildingMaxLevelIn(slot.fieldType, currentCity);
+    const cvEffectiveMax = buildingCapIn(slot.fieldType, currentCity);
 
     return `
       <h4><span class="tt-icon">${fieldIcons[slot.fieldType] || resIconHtml('fields')}</span> ${fieldNames[slot.fieldType] || 'Ressource'}</h4>
@@ -188,10 +187,10 @@ function cityTooltipHtml(slotNum) {
 
   if (building) {
     const def = buildingsData?.find(b => b.key === building.key);
-    const maxLevel = def?.maxLevel || 20;
-    const ttMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-    const ttMainHallLevel = ttMainHall?.level || 1;
-    const ttEffectiveMax = building.key === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, ttMainHallLevel);
+    // maximum dans cette ville (Mur d'une colonie : 15) et plafond du Bâtiment principal
+    const maxLevel = buildingMaxLevelIn(building.key, currentCity);
+    const ttMainHallLevel = Math.max(1, levelIn(currentCity?.buildings, 'MAIN_HALL'));
+    const ttEffectiveMax = buildingCapIn(building.key, currentCity);
     const production = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(building.key) ? getProductionAtLevel(building.key, building.level) : 0;
     const effect = getBuildingEffect(building.key, building.level);
 
@@ -215,7 +214,7 @@ function cityTooltipHtml(slotNum) {
     const level = mainHall?.level || 1;
     return `
       <h4><span class="tt-icon">${resIconHtml('city')}</span> Bâtiment principal</h4>
-      <p class="tt-level">Niveau ${level}/20</p>
+      <p class="tt-level">Niveau ${level}/${buildingMaxLevelIn('MAIN_HALL', currentCity)}</p>
       <p class="tt-hint">Cliquez pour améliorer</p>
     `;
   }
@@ -225,10 +224,19 @@ function cityTooltipHtml(slotNum) {
   `;
 }
 
+// Effets par niveau lus dans les données, comme utils/buildingEffects.js du serveur (décisions du 31 octobre 2026) :
+// marchands du Marché (fx.merchantCount), rayon où la Tour de guet montre les armées des autres joueurs (fx.visionRadius),
+// membres d'une alliance selon l'Ambassade du chef, jamais plus que le plafond général du serveur (fx.allianceMaxMembers)
+const merchantsAt = (level) => level * buildingEffectOf('MARKET', 'merchantsPerLevel', 1);
+const visionRadiusAt = (level) => buildingEffectOf('WATCHTOWER', 'visionRangeL1') + buildingEffectOf('WATCHTOWER', 'visionRangePerLevel') * level;
+const allianceMaxMembersAt = (level) => Math.min(Number(player?.economy?.alliance?.maxMembers) || Infinity, level * buildingEffectOf('EMBASSY', 'allianceMembersPerLevel'));
+
 // Helper pour obtenir l'effet d'un bâtiment (38 bâtiments)
 function getBuildingEffect(key, level) {
-  const curve = (l1, l20) => (level <= 0 ? 0 : level >= 20 ? l20 : Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19)));
-  const office = window.buildingsData?.find(b => b.key === 'TRADE_OFFICE')?.effects || {};
+  // effets (L1, L20) sur la même courbe que le stockage, comme curve() du serveur
+  const curve = (k, prefix) => { const l1 = buildingEffectOf(k, prefix + 'L1'), l20 = buildingEffectOf(k, prefix + 'L20', l1); return level <= 0 ? 0 : level >= 20 ? l20 : Math.round(lerpExp(l1, l20, (level - 1) / 19)); };
+  const per = (k, name) => fmtTechPct(level * buildingEffectOf(k, name));   // « 2,5 » : un effet par niveau, en %
+  const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
   const effects = {
     // Construction and training
     'MAIN_HALL': `Construction: -${Math.min(60, level * 2.5).toFixed(1)}% de temps${level * 2.5 >= 60 ? ' (plafond 60 %)' : ''}`,
@@ -237,37 +245,40 @@ function getBuildingEffect(key, level) {
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
-    'GREAT_BARRACKS': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
-    'GREAT_STABLE': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
-    // Defence
-    'FORGE': `Défense de toutes vos villes: +${(level * 0.5).toFixed(1)}%`,
+    // Grandes casernes et écuries (décision du 31 octobre 2026) : aussi la formation dans la capitale, niveaux additionnés
+    'GREAT_BARRACKS': `Entraînement: -${per('GREAT_BARRACKS', 'trainTimeReductionPctPerLevel')}% de temps · infanterie et archers de la capitale: -${per('GREAT_BARRACKS', 'capitalTrainTimeReductionPctPerLevel')}%`,
+    'GREAT_STABLE': `Entraînement: -${per('GREAT_STABLE', 'trainTimeReductionPctPerLevel')}% de temps · cavalerie de la capitale: -${per('GREAT_STABLE', 'capitalTrainTimeReductionPctPerLevel')}%`,
+    // Defence : la Forge donne attaque et défense à toutes les troupes, dans tous les combats (décision du 31 octobre 2026)
+    'FORGE': `Toutes vos troupes, dans tous les combats: +${per('FORGE', 'attackBonusPctPerLevel')}% d'attaque et +${per('FORGE', 'defenseBonusPctPerLevel')}% de défense`,
     'WALL': `Défense: +${level}% · ${formatNum(Math.round(level * 1000 * (1 + factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) / 100)))} PV${factionBonusPct(player?.faction, 'wallHealth', player?.faction === 'EGYPT' ? 25 : 0) ? ` (dont +${factionBonusPct(player?.faction, 'wallHealth', 25)} % de bonus de civilisation)` : ''} · seuls les engins l'abîment`,
-    // la cachette seule protège du pillage (Gaule : +15 %, 20 % au plus) ; Grand silo et Grand dépôt : du stockage
-    'HIDEOUT': `Ressources à l'abri des pillages: ${+Math.min(20, level * (1 + factionBonusPct(player?.faction, 'hideoutCapacity', player?.faction === 'GAUL' ? 15 : 0) / 100)).toFixed(1)}%`,
+    // la cachette seule protège du pillage, une quantité fixe par ressource (décision du 31 octobre 2026, Gaule : davantage) ;
+    // Grand silo et Grand dépôt : du stockage
+    'HIDEOUT': `À l'abri des pillages: ${formatNum(hideoutAmountAt(level))} de chaque ressource`,
     'GREAT_SILO': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_SILO'))} (3 × un silo)`,
     'GREAT_WAREHOUSE': `Capacité: +${formatNum(getStorageAtLevel(level, 'GREAT_WAREHOUSE'))} (3 × un dépôt)`,
     'HEALING_TENT': `Blessés récupérés: ${Math.min(70, 30 + level * 3)}% des pertes`,
-    'WATCHTOWER': `${level >= 10 ? '2 espions' : level >= 5 ? '1 espion' : 'Espion au niv. 5'} · espions ennemis : ${level >= 15 ? 'qui et quand' : level >= 10 ? 'quand' : level >= 5 ? 'passage' : 'niv. 5'} · attaquant révélé niv. 10, effectifs niv. 15`,
+    // la carte se voit partout ; les armées des autres joueurs, seulement dans ce rayon autour de vos villes
+    'WATCHTOWER': `${level >= 10 ? '2 espions' : level >= 5 ? '1 espion' : 'Espion au niv. 5'} · espions ennemis : ${level >= 15 ? 'qui et quand' : level >= 10 ? 'quand' : level >= 5 ? 'passage' : 'niv. 5'} · attaquant révélé niv. 10, effectifs niv. 15 · armées des autres joueurs vues à ${visionRadiusAt(level)} cases de vos villes`,
     // Resource fields
     'FARM': `Céréales: +${formatNum(getProductionAtLevel('FARM', level))}/h`,
     'LUMBER': `Bois: +${formatNum(getProductionAtLevel('LUMBER', level))}/h`,
     'QUARRY': `Pierre: +${formatNum(getProductionAtLevel('QUARRY', level))}/h`,
     'IRON_MINE': `Fer: +${formatNum(getProductionAtLevel('IRON_MINE', level))}/h`,
-    // Economy
+    // Economy : Marché et Comptoir de la capitale, pour toutes les villes ; les marchands portent les livraisons du marché
     'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level, 'WAREHOUSE'))}`,
     'SILO': `Capacité: ${formatNum(getStorageAtLevel(level, 'SILO'))}`,
-    'MARKET': `Taxe du marchand: ${Math.max(5, 30 - Math.max(0, level - 1))}% · convois +${level * 5}%`,
-    // le meilleur Comptoir des colonies vaut pour toutes les villes du joueur (décision du 30 octobre 2026)
-    'TRADE_OFFICE': `Taxe des échanges: -${level * (office.p2pTaxReductionPctPerLevel || 0)}% · transport: +${level * (office.armyTransportCapacityBonusPctPerLevel || 0)}% · pour toutes vos villes`,
-    'MILL': `Céréales: +${level * 5}%`,
-    'BAKERY': `Céréales: +${level * 5}%`,
-    'SAWMILL': `Bois: +${level * 5}%`,
-    'STONEMASON': `Pierre: +${level * 5}%`,
-    'FOUNDRY': `Fer: +${level * 5}%`,
-    'TREASURE_CHAMBER': `Or: ${curve(10, 200)} par jour`,
+    'MARKET': `${plural(merchantsAt(level), 'marchand')} · taxe du marchand du serveur: ${npcTaxPct(level)}% · armées de transport: +${per('MARKET', 'playerTransportBonusPctPerLevel')}%`,
+    'TRADE_OFFICE': `Taxe des échanges: -${per('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel')}% · charge des marchands et des armées de transport: +${per('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel')}% · pour toutes vos villes`,
+    'MILL': `Céréales: +${per('MILL', 'foodProdBonusPctL1')}%`,
+    'BAKERY': `Céréales: +${per('BAKERY', 'foodProdBonusPctL1')}%`,
+    'SAWMILL': `Bois: +${per('SAWMILL', 'woodProdBonusPctL1')}%`,
+    'STONEMASON': `Pierre: +${per('STONEMASON', 'stoneProdBonusPctL1')}%`,
+    'FOUNDRY': `Fer: +${per('FOUNDRY', 'ironProdBonusPctL1')}%`,
+    // l'or du joueur n'est pas dans le stock des villes : il ne se pille jamais
+    'TREASURE_CHAMBER': `Or: ${curve('TREASURE_CHAMBER', 'goldProdPerDay')} par jour · l'or ne peut pas être pillé`,
     // Military and social
-    'RALLY_POINT': `Armées en campagne par ville: ${level <= 0 ? 0 : Math.min(5, 1 + Math.floor(level / 5))}`,
-    'EMBASSY': `Alliance: rejoindre dès le niv. 5, fonder dès le niv. 7`,
+    'RALLY_POINT': `Armées en campagne par ville: ${maxArmiesAtRallyLevel(level)} · rassemblement d'alliance: ${rallyMaxArmiesAt(level)} armées au plus`,
+    'EMBASSY': `Alliance: rejoindre dès le niv. ${buildingEffectOf('EMBASSY', 'joinAllianceLevel', 5)}, fonder dès le niv. ${buildingEffectOf('EMBASSY', 'createAllianceLevel', 7)} · chef d'alliance: ${allianceMaxMembersAt(level)} membres au plus`,
     'HERO_MANSION': 'Accès au héros depuis la ville (pas de bonus par niveau)',
     // Faction buildings
     'ROMAN_THERMAE': `Soins: -${(level * 1.5).toFixed(1)}% de temps · blessés +${(level * 0.5).toFixed(1)}%`,
@@ -275,7 +286,7 @@ function getBuildingEffect(key, level) {
     'GREEK_TEMPLE': `Blessés au lieu de morts: +${(level * 0.5).toFixed(1)}%`,
     'EGYPTIAN_IRRIGATION': `Production de toutes vos villes: +${level}% · marche des armées: +${+(level * 0.5).toFixed(1)}%`,
     'HUN_WAR_TENT': `Entretien: -${(level * 0.5).toFixed(1)}% · blessés +${(level * 0.5).toFixed(1)}%`,
-    'SULTAN_DESERT_OUTPOST': `Entretien: -${(level * 0.5).toFixed(1)}% · transport: +${level}%`
+    'SULTAN_DESERT_OUTPOST': `Entretien: -${per('SULTAN_DESERT_OUTPOST', 'upkeepReductionPctPerLevel')}% · charge des marchands, des armées de transport et des récoltes: +${per('SULTAN_DESERT_OUTPOST', 'armyTransportCapacityBonusPctPerLevel')}%`
   };
   return effects[key] || null;
 }

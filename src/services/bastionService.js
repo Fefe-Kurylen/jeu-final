@@ -108,8 +108,8 @@ async function place(playerId, x, y) {
 }
 
 // ---- envoyer une armée vers le bastion (ravitaillement, garnison, siège) ----
-// l'armée avec sa ville (Marché) et les bâtiments partagés de son joueur (Irrigation et Poste du désert de la capitale,
-// meilleur Comptoir de ses villes)
+// l'armée avec sa ville et les bâtiments « capitale seulement » de son joueur (Marché, Comptoir, Irrigation et Poste du
+// désert de la capitale)
 const ARMY_FULL = { units: true, city: { include: { buildings: { select: { key: true, level: true } } } }, hero: { include: { items: true } }, owner: { include: { technologies: true, alliance: { select: { allianceId: true } }, cities: fx.CAPITAL_BUILDINGS } } };
 async function loadReadyArmy(tx, playerId, armyId) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
@@ -150,7 +150,7 @@ async function send(playerId, bastionId, { armyId, mission, resources }) {
       const load = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Number(resources?.[r]) || 0))]));
       const total = RES.reduce((t, r) => t + load[r], 0);
       if (total <= 0) throw httpError(400, 'Entrez des ressources à envoyer');
-      // Marché de la ville, meilleur Comptoir des villes du joueur, Poste du désert de la capitale
+      // Marché, Comptoir et Poste du désert de la capitale
       const mult = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(fx.withCapital(army.city?.buildings, fx.capitalOf(army.owner))) / 100) * (await carryMult(playerId));
       const cap = Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero) * mult);
       if (total > cap) throw httpError(400, `Capacité insuffisante (max ${cap})`);
@@ -364,23 +364,6 @@ function garrisonFaction(defenders) {
   return { faction: null, def };
 }
 
-// Forge des défenseurs (décision du 31 octobre 2026) : chacun a celle de sa capitale ; la garnison mêlée prend la moyenne
-// selon les soldats de chacun, comme la défense des civilisations ci-dessus. Multiplicateurs { atk, def }
-async function garrisonForge(tx, defenders) {
-  const { combatPct, combatMult } = require('./armyService');
-  const men = new Map();   // joueur -> soldats
-  for (const d of defenders) {
-    const n = d.units.reduce((s, u) => s + Math.max(0, u.count), 0);
-    if (n > 0) men.set(d.ownerId, (men.get(d.ownerId) || 0) + n);
-  }
-  let total = 0, atk = 0, def = 0;
-  for (const [ownerId, n] of men) {
-    const m = combatMult(await combatPct(tx, ownerId, null));
-    total += n; atk += n * m.atk; def += n * m.def;
-  }
-  return total ? { atk: atk / total, def: def / total } : { atk: 1, def: 1 };
-}
-
 // Un rassemblement dont le groupe campe devant ce Bastion : parti (DONE) et dirigé vers lui
 const campingRally = (rally, bastionId) => !!rally && rally.status === 'DONE' && rally.targetBastionId === bastionId;
 
@@ -420,11 +403,11 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       }
       await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     }
-    // technologies et Forge du chef de l'assaut ; Forge des défenseurs (garrisonForge)
+    // technologies du chef de l'assaut ; Forge de chaque joueur des deux camps, selon ses soldats (décision du 31 octobre 2026)
     const { combatPct, combatMult } = require('./armyService');
-    const atkBonus = combatMult(await combatPct(tx, leadOwnerId, await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } })));
+    const atkBonus = combatMult(await combatPct(tx, leadOwnerId, await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } }), group.map(g => ({ ownerId: g.ownerId, units: rowsOf.get(g.id) }))));
     const garrison = garrisonFaction(defenders);
-    const forge = await garrisonForge(tx, defenders);
+    const forge = combatMult(await combatPct(tx, null, null, defenders));
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, attackerName, `Bastion [${b.alliance.tag}]`,
       heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
       { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: maxHp * structure, maxHp });

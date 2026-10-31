@@ -213,23 +213,21 @@ test('récolte et transport : charge complète (héros, civilisation, Marché, B
   });
 });
 
-// ---- convoi d'un échange du marché : l'Irrigation de la capitale du joueur compte, relue dans la transaction ----
-test('marché : le convoi d\'un échange marche plus vite quand la capitale est irriguée', async () => {
+// ---- marchands (décision du 31 octobre 2026) : vitesse de leur civilisation, sans les bonus de marche des armées ----
+test('marché : les marchands marchent à la vitesse de leur civilisation (Gaule la plus rapide), sur la vraie route, aller = retour', async () => {
   const Terrain = require('../../frontend/js/shared/terrain.js');
   Terrain.setWorldSeed(0);
-  const restore = swapPrisma({
-    city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] },   // aucune case d'objet sur la carte
-    allianceMember: { findUnique: async () => null }                                   // pas de Bastion
-  });
+  const restore = swapPrisma({ city: { findMany: async () => [] }, resourceNode: { findMany: async () => [] } });   // aucune case d'objet sur la carte
   try {
-    const unit = unitsData.find(u => u.key === 'EGY_INF_ESCLAVE');
-    const army = { ownerId: 'p1', units: [{ unitKey: unit.key, tier: unit.tier, count: 10 }], hero: null };
-    const to = { x: 12, y: 0 }, from = { id: 'c1', x: 0, y: 0, buildings: IRRIGATION_20 };   // l'Irrigation de la colonie ne compte pas
-    let asked = null;
-    const capitalDb = (buildings) => ({ city: { findMany: async (q) => { asked = q.where; return [{ isCapital: true, buildings }]; } } });
-    const plain = await MS.travelSecondsBetween(army, from, to, 'EGYPT', [], capitalDb([]));
-    const irrigated = await MS.travelSecondsBetween(army, { ...from, buildings: [] }, to, 'EGYPT', [], capitalDb(IRRIGATION_20));
-    assert.ok(irrigated < plain, `${irrigated} < ${plain}`);
-    assert.deepEqual(asked, { playerId: 'p1' });
+    const from = { id: 'c1', x: 0, y: 0 }, to = { x: 12, y: 0 };
+    const gaul = await MS.merchantSeconds(from, to, 'GAUL'), sultan = await MS.merchantSeconds(from, to, 'SULTAN');
+    assert.ok(gaul < sultan, `${gaul} < ${sultan}`);
+    const { routeLength } = require('../../src/utils/pathfinding');
+    const { calculateTravelTime } = require('../../src/utils/calculations');
+    assert.equal(gaul, calculateTravelTime(0, 0, 12, 0, MS.merchantSpeed('GAUL'), null, null, await routeLength(0, 0, 12, 0, 'GAUL')), 'ni bonus de civilisation, ni Irrigation, ni technologie');
+    // sans chemin terrestre : refus, sauf pour une route commerciale (ligne droite)
+    const water = { x: 10, y: 0 };
+    await assert.rejects(MS.merchantSeconds(from, water, 'ROME'), (e) => e.code === 'NO_ROUTE');
+    assert.equal(await MS.merchantSeconds(from, water, 'ROME', true), calculateTravelTime(0, 0, 10, 0, MS.merchantSpeed('ROME')));
   } finally { restore(); }
 });

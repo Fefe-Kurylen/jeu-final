@@ -37,7 +37,7 @@ function makeContext(extra = {}) {
     console, window: { buildingsData: BUILDINGS }, buildingsData: BUILDINGS, unitsData: UNITS,
     resIconHtml: n => `[${n}]`, escapeHtml: s => String(s), formatNum: n => String(Math.floor(n)), formatTime: () => 'bientôt',
     serverNow: () => Date.parse('2026-10-30T12:00:00Z'), techPctClient: () => 0, factionBonusPct: (f, t, fallback = 0) => fallback,
-    player: { faction: 'ROME', economy: { city: { maxSlot: 19, wallSlot: WALL_SLOT }, build: require('../../src/config').build } },
+    player: { faction: 'ROME', gold: 0, economy: { city: { ringSlots: require('../../src/config').city.ringSlots, wallSlot: WALL_SLOT }, build: require('../../src/config').build } },
     currentCity: null, cities: [], armies: [], incomingAttacks: [],
     ...extra
   };
@@ -45,7 +45,15 @@ function makeContext(extra = {}) {
   return ctx;
 }
 const run = (ctx, file, names) => vm.runInContext(pick(src(file), names), ctx);
-const CORE = ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'effectBuildings', 'SITE_RESOURCE', 'getCityProduction', 'cityProductionMultiplier', 'lerpExp', 'getProductionAtLevel', 'TIER_COLORS'];
+const CORE = ['RES_KEYS', 'RES_NAMES', 'playerStock', 'stockOf', 'canPayCost', 'costShortfall', 'effectBuildings', 'buildingEffectOf', 'levelIn', 'buildingMaxLevelIn', 'buildingCapIn',
+  'hideoutAmountAt', 'forgeBonusPct', 'recruitPrice', 'recruitShortfall', 'recruitCostHtml', 'SITE_RESOURCE', 'getCityProduction', 'cityProductionMultiplier', 'lerpExp', 'getProductionAtLevel', 'TIER_COLORS'];
+// Ce que lisent les textes des bâtiments (getBuildingEffect calcule tous ses textes à chaque appel)
+function runEffectTexts(ctx) {
+  run(ctx, '06b-research.js', ['fmtTechPct']);
+  run(ctx, '07-army.js', ['maxArmiesAtRallyLevel', 'rallyPointLevel', 'rallyMaxArmiesAt']);
+  run(ctx, '12-misc-init.js', ['npcTaxPct']);
+  run(ctx, '04-buildings-render.js', ['merchantsAt', 'visionRadiusAt', 'allianceMaxMembersAt', 'getBuildingEffect']);
+}
 const SITES = ['residenceEffects', 'SITE_NAMES', 'siteBonusPct', 'siteOtherPct', 'siteText', 'siteBadgeHtml', 'capitalCity', 'byFounding', 'secondaryCities'];
 
 test('gisement : +10 % par niveau sur sa ressource, −30 % sur les autres dans l\'aperçu de production, comme le serveur', { skip }, () => {
@@ -60,13 +68,16 @@ test('gisement : +10 % par niveau sur sa ressource, −30 % sur les autres dans 
   const prod = ctx.getCityProduction(colony);
   const ironFields = 4 * serverProd('IRON_MINE', 10, BUILDINGS), woodFields = serverProd('LUMBER', 10, BUILDINGS);
   const colonyMult = 1 + fx.secondaryCityBonusPct() / 100;
-  // fer : Fonderie 5 (+25 %) et gisement niveau 3 (+30 %) ; le bois perd 30 % (gisement de fer) ; plus de bonus général des colonies
+  // fer : Fonderie 5 (2,5 % par niveau depuis le 31 octobre 2026 : +12,5 %, comme resourceProcessor) et gisement niveau 3
+  // (+30 %) ; le bois perd 30 % (gisement de fer) ; plus de bonus général des colonies
+  const foundry = 5 * BUILDINGS.find(b => b.key === 'FOUNDRY').effects.ironProdBonusPctL1;
+  assert.equal(foundry, 12.5);
   assert.equal(colonyMult, 1);
-  assert.ok(Math.abs(prod.iron - (ironFields * (1 + (25 + 30) / 100) + 5) * colonyMult) < 1e-9);
+  assert.ok(Math.abs(prod.iron - (ironFields * (1 + (foundry + 30) / 100) + 5) * colonyMult) < 1e-9);
   assert.ok(Math.abs(prod.wood - (woodFields * (1 - 30 / 100) + 5) * colonyMult) < 1e-9);
   // sans gisement (capitale, Ville Merveille) : pas de bonus
   const plain = ctx.getCityProduction({ ...colony, site: null });
-  assert.ok(Math.abs(plain.iron - (ironFields * 1.25 + 5) * colonyMult) < 1e-9);
+  assert.ok(Math.abs(plain.iron - (ironFields * (1 + foundry / 100) + 5) * colonyMult) < 1e-9);
 });
 
 test('gisement : textes de la bulle, de la fondation et de la ville ; bonus lu dans les données', { skip }, () => {
@@ -102,8 +113,8 @@ test('fondation : le panneau annonce le bonus du gisement choisi (rien pour un s
 test('Mur sur l\'enceinte : place fixe, jamais un emplacement de l\'anneau ; toucher l\'enceinte ouvre le Mur', { skip }, () => {
   const ctx = makeContext({ getBuildingName: k => (k === 'WALL' ? 'Mur' : k), art: p => p, openBuildPanel() {}, showBuildingInfoModal() {} });
   run(ctx, '04-buildings-render.js', ['getBuildingAtSlot']);
-  run(ctx, '04b-iso-scene.js', ['ISO_CITY_CELLS', 'R_FIELD', 'ISO_FIELD_CELLS', 'R_WALL', 'ISO_GATE_SIDE', 'ISO_WALL_SEGMENTS', 'ISO_GATE_ALONG', 'ISO_GATE_INDEX', 'ISO_GATE_POS',
-    'isoGateGrid', 'isoGateCell', 'ISO_SP', 'isoPos', 'isoSlotCell', 'cityWallSlot', 'cityWallLevel', 'ISO_WALL_HIT', 'isoOnEnclosure', 'isoHitSlot', 'cityActionSpec']);
+  run(ctx, '04b-iso-scene.js', ['ISO_PLANS', 'isoGridCache', 'isoGrid', 'ringSlotCount', 'ISO_GATE_SIDE', 'isoGateGrid', 'isoGateCell', 'ISO_SP', 'isoPos', 'isoSlotCell', 'cityWallSlot',
+    'cityWallLevel', 'ISO_WALL_HIT', 'isoOnEnclosure', 'isoHitSlot', 'cityActionSpec']);
   // un Mur d'avant la migration resté sur l'emplacement 7 n'occupe plus l'anneau
   ctx.currentCity = { buildings: [{ key: 'MAIN_HALL', slot: 0, level: 5 }, { key: 'WALL', slot: WALL_SLOT, level: 4 }, { key: 'MARKET', slot: 3, level: 1 }] };
   assert.equal(ctx.getBuildingAtSlot(WALL_SLOT).level, 4);
@@ -116,7 +127,7 @@ test('Mur sur l\'enceinte : place fixe, jamais un emplacement de l\'anneau ; tou
   const wall = { slot: WALL_SLOT, wall: true, fixedKey: 'WALL', layout, hw: 37, hh: 18.5 };
   ctx.citySlots = [wall];
   const at = (gx, gy) => vm.runInContext(`isoPos(${gx}, ${gy}, 100, 400, 300)`, ctx);
-  const R = vm.runInContext('R_WALL', ctx);
+  const R = vm.runInContext('isoGrid().wall', ctx);
   for (const [gx, gy] of [[R, 0.5], [-R, 0], [0, -R], [1, R + 0.3]]) { const p = at(gx, gy); assert.equal(ctx.isoHitSlot(p.x, p.y), WALL_SLOT, `${gx},${gy}`); }
   const centre = at(0, 0), behind = at(-R, -R + 2), above = at(-R, 0);
   assert.equal(ctx.isoHitSlot(centre.x, centre.y), null);
@@ -146,8 +157,10 @@ function panelContext(extra = {}) {
   run(ctx, '04-buildings-render.js', ['getBuildingAtSlot']);
   run(ctx, '04b-iso-scene.js', ['cityWallSlot']);
   run(ctx, '05-panels.js', ['selectedBuildSlot', 'openBuildPanel', 'getBuildCost', 'getCityBuildTimeReductionPct', 'getBuildTime', 'formatDuration', 'getBuildingBonus',
-    'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription', 'getBuildingShortDescription',
-    'COLONY_TRAINER', 'recruitPlaceCityId', 'trainerLevelIn', 'recruitPlaces', 'selectRecruitPlace', 'recruitPlaceHtml', 'openRecruitmentPanel', 'openFieldBuildPanel']);
+    'hideoutTabHtml', 'merchantRulesHtml', 'getBuildingSpecialTabs', 'checkBuildingPrerequisites', 'BUILD_MAX_RUNNING', 'buildQueuedMax', 'buildQueueMax', 'isBuildQueueFull', 'getBuildingDescription',
+    'getBuildingShortDescription', 'COLONY_TRAINER', 'recruitPlaceCityId', 'trainerLevelIn', 'recruitPlaces', 'selectRecruitPlace', 'recruitPlaceHtml', 'openRecruitmentPanel', 'openFieldBuildPanel']);
+  run(ctx, '06b-research.js', ['fmtTechPct']);
+  run(ctx, '10b-sheets.js', ['SHEET_RULES', 'capitalTrainBoost']);
   run(ctx, '06c-colonies.js', SITES);
   return { ctx, content: els['build-panel-content'] };
 }
@@ -162,9 +175,12 @@ test('construction : le Mur n\'est plus proposé sur un emplacement ; dans une c
   ctx.currentCity = colony;
   ctx.openBuildPanel(5);
   assert.doesNotMatch(content.innerHTML, /buildAtSlot\('WALL'/);
+  // Place du marché et Comptoir de commerce compris depuis le 31 octobre 2026
   const capitalOnly = BUILDINGS.filter(b => b.effects?.capitalOnly && (b.category !== 'FACTION' || b.faction === 'ROME'));
-  assert.equal(capitalOnly.length, 13);
-  assert.match(content.innerHTML, /Bâtiments de la capitale \(13\) : leurs effets valent aussi ici/);
+  assert.equal(capitalOnly.length, 15);
+  assert.ok(['MARKET', 'TRADE_OFFICE'].every(k => capitalOnly.some(b => b.key === k)));
+  assert.match(content.innerHTML, /Bâtiments de la capitale \(15\) : leurs effets valent aussi ici/);
+  assert.doesNotMatch(content.innerHTML, /buildAtSlot\('(MARKET|TRADE_OFFICE)'/);
   assert.equal((content.innerHTML.match(/build-option-card/g) || []).length, BUILDINGS.filter(b => !b.effects?.capitalOnly && b.category !== 'FACTION' && !['FARM', 'LUMBER', 'QUARRY', 'IRON_MINE', 'MAIN_HALL', 'WALL'].includes(b.key)).length);
   assert.doesNotMatch(content.innerHTML, /Réservé à la capitale/);
   assert.match(content.innerHTML, /<GREAT_BARRACKS>/);   // les bâtiments des colonies restent proposés
@@ -237,7 +253,8 @@ test('lieu de formation : la commande va à la ville choisie, temps du bâtiment
     API: '', token: 't', closeModal() {}, showToast: (m) => { ctx.toast = m; }, loadCities: async () => {}, renderCity() {}, getUnitName: k => k
   });
   run(ctx, '05-panels.js', ['_actionInProgress', 'recruitFromBuilding']);
-  run(ctx, '10b-sheets.js', ['SHEET_RULES', 'sheetBuildings', 'unitTrainTimeInCity']);
+  run(ctx, '01-core.js', ['buildingEffectOf', 'levelIn']);
+  run(ctx, '10b-sheets.js', ['SHEET_RULES', 'sheetBuildings', 'capitalTrainBoost', 'unitTrainTimeInCity']);
   const capital = { id: 'cap', name: 'Roma', isCapital: true, buildings: [{ key: 'BARRACKS', level: 10 }] };
   const colony = { id: 'col-a', name: 'Ostia', isCapital: false, buildings: [{ key: 'GREAT_BARRACKS', level: 10 }] };
   ctx.cities = [capital, colony];
@@ -248,10 +265,14 @@ test('lieu de formation : la commande va à la ville choisie, temps du bâtiment
   assert.match(ctx.toast, /à Ostia : les unités arriveront dans la capitale/);
   await ctx.recruitFromBuilding('ROM_INF_MILICIEN', 'BARRACKS');
   assert.equal(posted[1].url, '/api/city/cap/recruit');
-  // temps : la Grande caserne de la colonie (4 %/niveau), comme fx.trainTimeReductionPct du serveur
+  // temps : la Grande caserne de la colonie (4 %/niveau), comme fx.trainTimeReductionPct du serveur ; dans la capitale, la
+  // Caserne et les Grandes casernes de toutes les villes (décision du 31 octobre 2026, fx.capitalTrainBoostPct)
   const unit = UNITS.find(u => u.key === 'ROM_INF_MILICIEN');
   assert.equal(ctx.unitTrainTimeInCity(unit, colony).pct, fx.trainTimeReductionPct(colony.buildings, 'INFANTRY'));
-  assert.equal(ctx.unitTrainTimeInCity(unit, capital).pct, fx.trainTimeReductionPct(capital.buildings, 'INFANTRY'));
+  const boost = fx.capitalTrainBoostPct(ctx.cities, 'INFANTRY');
+  assert.ok(boost > 0);
+  assert.equal(ctx.unitTrainTimeInCity(unit, capital).pct, fx.trainTimeReductionPct(capital.buildings, 'INFANTRY', boost));
+  assert.equal(ctx.unitTrainTimeInCity(unit, capital).boostPct, boost);
 });
 
 test('« Mes villes » : gisement, stocks et « plein dans », file vide en rouge, recrutement, armées, vies, attaque, totaux', { skip }, () => {
@@ -353,20 +374,23 @@ test('quête « Muraille » : le guide mène à l\'enceinte, jamais à un emplac
   assert.match(ctx.toast, /Aucun emplacement libre/);
 });
 
-test('textes : Résidence (colons, bonus du gisement), Comptoir (le meilleur vaut pour toutes les villes), Grande caserne (son palier)', { skip }, () => {
+test('textes : Résidence (colons, bonus du gisement), Comptoir (capitale seulement), Grande caserne (son palier)', { skip }, () => {
   const ctx = makeContext({ getProductionAtLevel: () => 0, getStorageAtLevel: () => 0, showTab() {} });
+  run(ctx, '01-core.js', CORE);
   run(ctx, '06c-colonies.js', ['residenceEffects', 'siteBonusPct', 'siteOtherPct']);
-  run(ctx, '04-buildings-render.js', ['getBuildingEffect']);
+  runEffectTexts(ctx);
   run(ctx, '10b-sheets.js', ['SHEET_RULES', 'buildingFunctions']);
   const fxOf = (key) => BUILDINGS.find(b => b.key === key).effects;
   const office = fxOf('TRADE_OFFICE');
-  assert.equal(ctx.getBuildingEffect('TRADE_OFFICE', 10), `Taxe des échanges: -${10 * office.p2pTaxReductionPctPerLevel}% · transport: +${10 * office.armyTransportCapacityBonusPctPerLevel}% · pour toutes vos villes`);
+  assert.equal(ctx.getBuildingEffect('TRADE_OFFICE', 10), `Taxe des échanges: -${10 * office.p2pTaxReductionPctPerLevel}% · charge des marchands et des armées de transport: +${10 * office.armyTransportCapacityBonusPctPerLevel}% · pour toutes vos villes`);
   assert.match(ctx.getBuildingEffect('RESIDENCE', 10), new RegExp(`gisement d'une colonie : \\+${fx.colonyNodeBonusPct(1)} % par niveau`));
   const fns = (key) => JSON.parse(JSON.stringify(ctx.buildingFunctions(key, fxOf(key))));
   const residence = fns('RESIDENCE');
   assert.ok(residence.every(([, at]) => at !== null), 'les colons ne sont plus « à venir »');
   assert.ok(residence.some(([label]) => label.includes(`+${fx.colonyNodeBonusPct(1)} % par niveau sur sa ressource`) && label.includes('−30 % sur les trois autres')));
-  assert.ok(fns('TRADE_OFFICE').some(([label]) => /meilleur Comptoir de vos colonies vaut pour toutes vos villes/.test(label)));
+  // la règle « meilleur Comptoir des colonies pour toutes les villes » est retirée : un seul Comptoir, dans la capitale
+  assert.ok(fns('TRADE_OFFICE').every(([label]) => !/colonies/.test(label)));
+  assert.ok(fns('TRADE_OFFICE').some(([label]) => /charge des marchands/.test(label)));
   const gb = fxOf('GREAT_BARRACKS');
   assert.deepEqual(fns('GREAT_BARRACKS').filter(([label]) => /intermédiaires|élite/.test(label)).map(([, at]) => at), [gb.unlockIntermediateTier, gb.unlockEliteTier]);
   assert.ok(fns('GREAT_STABLE').some(([label]) => /Lieu de formation/.test(label)));

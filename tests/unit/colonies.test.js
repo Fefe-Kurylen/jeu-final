@@ -1,5 +1,5 @@
 // Rôle des colonies (décisions du 30 octobre 2026, lot serveur) : bonus de gisement, prélèvement dans la ville la plus
-// pleine, meilleur Comptoir pour toutes les villes, Mur sur l'enceinte (emplacement fixe), alertes d'aide au suivi, pas de
+// pleine, Comptoir de la capitale (31 octobre 2026), Mur sur l'enceinte (emplacement fixe), alertes d'aide au suivi, pas de
 // garnison dans une nouvelle colonie, migration 0031, relance d'une transaction après un interblocage.
 // Aucune requête réelle : le client Prisma est remplacé le temps d'un test.
 require('./_env');
@@ -85,24 +85,21 @@ test('dépense : après la ville de l\'action, la ville la plus pleine par rappo
   assert.deepEqual(Object.keys(noCap.takenByCity), ['z']);
 });
 
-// ---- Comptoir : le meilleur des villes du joueur, pour toutes, sans somme ----
-test('Comptoir : le meilleur niveau des villes du joueur vaut partout, capitale comprise, sans somme', async () => {
-  assert.ok(fx.sharedKey('TRADE_OFFICE') && !fx.capitalOnly('TRADE_OFFICE'), 'partagé sans être réservé à la capitale');
+// ---- Comptoir : réservé à la capitale depuis le 31 octobre 2026 (la règle « meilleur Comptoir des colonies » est retirée) ----
+test('Comptoir : celui de la capitale vaut pour toutes les villes ; ceux restés dans une colonie ne comptent plus', async () => {
+  assert.ok(fx.capitalOnly('TRADE_OFFICE') && !fx.notInCapital('TRADE_OFFICE'));
   const cities = [
-    { isCapital: true, buildings: [{ key: 'FORGE', level: 5 }, { key: 'TREASURE_CHAMBER', level: 4 }] },
-    { isCapital: false, buildings: [{ key: 'TRADE_OFFICE', level: 3 }] },
-    { isCapital: false, buildings: [{ key: 'TRADE_OFFICE', level: 6 }] }
+    { isCapital: false, buildings: [{ key: 'TRADE_OFFICE', level: 9 }] },
+    { isCapital: true, buildings: [{ key: 'FORGE', level: 5 }, { key: 'TREASURE_CHAMBER', level: 4 }, { key: 'TRADE_OFFICE', level: 6 }] }
   ];
   const shared = fx.capitalOf({ cities });
   assert.deepEqual(shared, [{ key: 'FORGE', level: 5 }, { key: 'TREASURE_CHAMBER', level: 4 }, { key: 'TRADE_OFFICE', level: 6 }]);
-  const colony = [{ key: 'MARKET', level: 2 }, { key: 'TRADE_OFFICE', level: 3 }];
-  const pct = (k) => fx.effectOf(k, k === 'MARKET' ? 'playerTransportBonusPctPerLevel' : 'armyTransportCapacityBonusPctPerLevel');
-  assert.equal(fx.transportBonusPct(fx.withCapital(colony, shared)), 2 * pct('MARKET') + 6 * pct('TRADE_OFFICE'), 'le 6, pas 3 + 6');
-  assert.equal(fx.transportBonusPct(fx.withCapital([], shared)), 6 * pct('TRADE_OFFICE'), 'la capitale aussi');
-  // taxe des échanges : meilleur Comptoir des villes et Chambre au Trésor de la capitale
+  const pct = fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel');
+  assert.equal(fx.transportBonusPct(fx.withCapital([{ key: 'TRADE_OFFICE', level: 9 }], shared)), 6 * pct, 'le 6 de la capitale, jamais le 9 de la colonie');
+  // taxe des échanges : Comptoir et Chambre au Trésor de la capitale
   const tx = {
     city: {
-      findUnique: async () => ({ playerId: 'p1', buildings: [{ key: 'TRADE_OFFICE', level: 3 }] }),
+      findUnique: async () => ({ playerId: 'p1', buildings: [{ key: 'TRADE_OFFICE', level: 9 }] }),
       findMany: async ({ where }) => { assert.deepEqual(where, { playerId: 'p1' }); return cities; }
     }
   };
@@ -110,7 +107,7 @@ test('Comptoir : le meilleur niveau des villes du joueur vaut partout, capitale 
   assert.equal(await MS.p2pTaxPct(tx, 'col'), Math.round(expected * 100) / 100);
 });
 
-test('Comptoir dans la récolte : le meilleur niveau des villes du joueur (MAX), le Poste du désert de la capitale seulement', async () => {
+test('transport dans la récolte : Marché, Comptoir et Poste du désert lus dans la capitale du joueur (somme des niveaux × pct)', async () => {
   const H = require('../../src/game/processors/harvestProcessor');
   const reads = [];
   const s = stub({
@@ -119,20 +116,29 @@ test('Comptoir dans la récolte : le meilleur niveau des villes du joueur (MAX),
   });
   try { await H.processHarvesting(new Date()); } finally { s.restore(); }
   const q = reads[0];
-  assert.match(q.sql, /SELECT c\."playerId", MAX\(cb\.level\) AS level, MAX\(r\.pct\) AS pct FROM "CityBuilding" cb JOIN "City" c ON c\.id = cb\."cityId"\s+JOIN \(VALUES [^)]*\)[^A]*AS r\(key, pct, capital\) ON r\.key = cb\.key AND \(c\."isCapital" OR NOT r\.capital\)\s+GROUP BY c\."playerId", r\.key/);
+  assert.match(q.sql, /SELECT c\."playerId", SUM\(cb\.level \* r\.pct\) AS pct FROM "CityBuilding" cb JOIN "City" c ON c\.id = cb\."cityId" AND c\."isCapital"\s+JOIN \(VALUES [^)]*\)[^A]*AS r\(key, pct\) ON r\.key = cb\.key\s+GROUP BY c\."playerId"/);
+  assert.doesNotMatch(q.sql, /MAX\(cb\.level\)/, 'plus de « meilleur niveau des villes »');
   for (const k of ['MARKET', 'TRADE_OFFICE', 'SULTAN_DESERT_OUTPOST']) assert.ok(q.values.includes(k), k);
 });
 
 // ---- 6. Mur sur l'enceinte ----
-test('Mur : emplacement fixe hors de l\'anneau et des champs ; jamais pris par un autre bâtiment', () => {
+test('Mur : emplacement fixe hors de l\'anneau et des champs ; un nouveau bâtiment reste dans l\'anneau de sa ville (18 / 12)', () => {
   const wall = config.city.wallSlot;
   assert.equal(wall, 20);
-  assert.ok(wall > config.city.maxSlot && wall < Math.min(...Object.values(config.city.fieldSlots).flat()));
-  const ring = Array.from({ length: config.city.maxSlot }, (_, i) => ({ slot: i + 1 }));
-  assert.equal(BP.newBuildingSlot({ buildingKey: 'WALL', slot: 7 }, []), wall, 'le Mur va sur l\'enceinte, quel que soit l\'emplacement du chantier');
-  assert.equal(BP.newBuildingSlot({ buildingKey: 'MARKET', slot: 19 }, ring), wall + 1, 'un autre bâtiment passe l\'emplacement du Mur');
-  assert.equal(BP.newBuildingSlot({ buildingKey: 'SILO', slot: null }, [{ slot: 1 }, { slot: 2 }]), 3);
-  assert.equal(BP.newBuildingSlot({ buildingKey: 'SILO', slot: 5 }, [{ slot: 1 }]), 5);
+  const { capital: capRing, colony: colRing } = config.city.ringSlots;
+  assert.ok(wall > capRing && wall > colRing && wall < Math.min(...Object.values(config.city.fieldSlots).flat()));
+  const capital = { isCapital: true }, colony = { isCapital: false };
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'WALL', slot: 7 }, [], colony), wall, 'le Mur va sur l\'enceinte, quel que soit l\'emplacement du chantier');
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'SILO', slot: null }, [{ slot: 1 }, { slot: 2 }], colony), 3);
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'SILO', slot: 5 }, [{ slot: 1 }], colony), 5);
+  // emplacement du chantier pris, ou hors de l'anneau de la ville : le premier libre de l'anneau
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'SILO', slot: 5 }, [{ slot: 1 }, { slot: 5 }], colony), 2);
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'MILL', slot: colRing + 1 }, [{ slot: 1 }], colony), 2, 'une colonie s\'arrête à 12');
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'FORGE', slot: capRing }, [], capital), capRing, 'la capitale va jusqu\'à 18');
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'FORGE', slot: wall }, [], capital), 1, 'jamais la place du Mur');
+  // un champ et le Bâtiment principal gardent la leur
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'FARM', slot: 113 }, [], colony), 113);
+  assert.equal(BP.newBuildingSlot({ buildingKey: 'MAIN_HALL', slot: 0 }, [], colony), 0);
 });
 
 test('migration 0031 : colonnes des alertes, Mur et chantiers de Mur sur l\'emplacement 20, recherches et soins des colonies retirés', () => {

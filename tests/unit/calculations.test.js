@@ -93,18 +93,20 @@ test('secondary cities (GDD): settlers by Residence level, foundation time, colo
   assert.equal(fx.settlerTrainTimeSec(), 10800);
   assert.equal(fx.cityFoundationTimeSec(), 86400);
   assert.equal(fx.secondaryCityBonusPct(), 0);   // la spécialité vient du gisement (31 octobre 2026)
-  assert.ok(fx.capitalOnly('RESIDENCE') && fx.capitalOnly('EMBASSY') && !fx.capitalOnly('MARKET'));
+  assert.ok(fx.capitalOnly('RESIDENCE') && fx.capitalOnly('EMBASSY') && fx.capitalOnly('MARKET'));   // Marché : capitale seulement (31 octobre 2026)
   assert.ok(fx.notInCapital('GREAT_BARRACKS') && !fx.notInCapital('BARRACKS'));
   assert.deepEqual(config.city.foundationTransport, { wood: 3000, stone: 3000, iron: 3000, food: 3000 });
 });
 
-test('city tier follows the Main Hall level (Village 1-9, Ville 10-19, Ville Fortifiée 20+), colony cap and capital-only recruitment buildings', () => {
+test('city tier follows the Main Hall level (Village 1-9, Ville 10-19, Ville Fortifiée 20), Main Hall 20 everywhere and capital-only recruitment buildings', () => {
   const { getCityTier, getCityTierName, mainHallLevelOf } = require('../../src/utils/calculations');
-  assert.deepEqual([0, 1, 9, 10, 19, 20, 30].map(getCityTier), [1, 1, 1, 2, 2, 3, 3]);
+  assert.deepEqual([0, 1, 9, 10, 19, 20].map(getCityTier), [1, 1, 1, 2, 2, 3]);
   assert.equal(getCityTierName(getCityTier(10)), 'Ville');
   assert.equal(mainHallLevelOf([{ key: 'WALL', level: 15 }, { key: 'MAIN_HALL', level: 7 }]), 7);
   assert.equal(mainHallLevelOf([]), 1);
-  assert.equal(config.city.secondaryMainHallMaxLevel, 20);
+  // Bâtiment principal : niveau 20 partout, capitale comprise (31 octobre 2026) ; plus de plafond à part pour les colonies
+  assert.equal(require('../../src/config/gamedata').buildingsData.find(b => b.key === 'MAIN_HALL').maxLevel, 20);
+  assert.equal(config.city.secondaryMainHallMaxLevel, undefined);
   const fx = require('../../src/utils/buildingEffects');
   assert.ok(fx.capitalOnly('BARRACKS') && fx.capitalOnly('STABLE') && fx.capitalOnly('WORKSHOP') && fx.notInCapital('GREAT_BARRACKS'));
 });

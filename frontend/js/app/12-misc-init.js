@@ -49,8 +49,11 @@ async function sendResources() {
 
     const data = await res.json();
     if (res.ok) {
-      showToast('Ressources envoyées!', 'success');
+      // des marchands partent (décision du 31 octobre 2026) : arrivée des ressources, puis retour des marchands
+      showToast(`${data.message || 'Ressources envoyées'}${deliveryTimesText(data)}`, 'success');
+      for (const r of RES_KEYS) { const el = document.getElementById(`send-${r}`); if (el) el.value = 0; }
       loadCities();
+      loadMarketState().then(() => updateSendMerchants());
     } else {
       showToast(data.error || 'Erreur', 'error');
     }
@@ -155,9 +158,9 @@ function showNpcMerchant() {
 
   container.innerHTML = `
     <div class="npc-merchant">
-      <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand itinérant</h3>
+      <h3><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Marchand du serveur</h3>
       <p style="color:var(--text-muted);margin-bottom:12px;">
-        Échangez vos ressources entre elles. Taxe du marchand : <strong>${npcTaxPct()} %</strong> (un point de moins par niveau du Marché, 5 % au plus bas)
+        Échangez tout de suite les ressources de cette ville entre elles, sans marchand. Taxe : <strong>${npcTaxPct()} %</strong> (un point de moins par niveau du Marché de la capitale, 5 % au plus bas)
       </p>
 
       <div class="npc-exchange-form">
@@ -195,11 +198,10 @@ function showNpcMerchant() {
   `;
 }
 
-// Taxe du marchand itinérant, comme le serveur (npcMarketTaxPct) : 30 % au Marché niv. 1, −1 % par niveau, 5 % au moins
-function npcTaxPct() {
-  const level = (currentCity?.buildings || []).find(b => b.key === 'MARKET')?.level || 1;
-  const fx = window.buildingsData?.find(b => b.key === 'MARKET')?.effects || {};
-  return Math.max(5, (fx.serverMarketTaxPctBase ?? 30) - Math.max(0, level - 1) * (fx.serverMarketTaxReductionPctPerLevel ?? 1));
+// Taxe du marchand du serveur, comme le serveur (npcMarketTaxPct) : 30 % au Marché niv. 1, −1 % par niveau, 5 % au moins ;
+// le Marché de la capitale (le seul, décision du 31 octobre 2026) vaut pour toutes les villes
+function npcTaxPct(level = levelIn(effectBuildings(currentCity), 'MARKET') || 1) {
+  return Math.max(5, buildingEffectOf('MARKET', 'serverMarketTaxPctBase', 30) - Math.max(0, level - 1) * buildingEffectOf('MARKET', 'serverMarketTaxReductionPctPerLevel', 1));
 }
 
 function updateNpcPreview() {

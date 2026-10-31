@@ -361,9 +361,10 @@ async function handleAttack(army, now) {
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
     // Brasserie gauloise de la capitale du défenseur : elle défend toutes ses villes
     const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));
-    // Technologies (Art de la guerre, Discipline) and Forge of both players (the leading camp's for the attackers); Médecine below
+    // Technologies (Art de la guerre, Discipline) du joueur du camp en tête et du joueur de la ville ; Forge de chaque joueur
+    // de chaque camp, selon ses soldats (camps alliés, renforts) ; Médecine plus bas
     const [atkTech, defTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, atkTech), combatPct(tx, targetCity.playerId, defTech)]);
+    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, atkTech, group.map(g => ({ ownerId: g.ownerId, units: rowsOf.get(g.id) }))), combatPct(tx, targetCity.playerId, defTech, defenders)]);
     const techMods = { attacker: combatMult(atkBonus), defender: combatMult(defBonus) };
     const ownerNames = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
     const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, ownerNames, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, defenseBonusPct, techMods, wall);
@@ -596,9 +597,10 @@ async function handleRaid(army, now) {
     const wallLevel = wallLevelOf(targetCity.buildings);
     const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));   // Brasserie de la capitale
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
-    // Technologies and Forge: Art de la guerre and Forge attack (attacker's power), Discipline and Forge defence (defender's power)
+    // Attaque du pillard : Art de la guerre et Forge ; défense : Discipline du joueur de la ville et Forge de chaque joueur
+    // qui défend, selon ses soldats (renforts)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, raidAtkTech), combatPct(tx, targetCity.playerId, raidDefTech)]);
+    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, raidAtkTech), combatPct(tx, targetCity.playerId, raidDefTech, defenders)]);
     const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def });
 
     // appliquées, rapport et classements comptent les mêmes pertes

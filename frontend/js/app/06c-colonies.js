@@ -1,12 +1,10 @@
 // ========== VILLES SECONDAIRES (colons, fondation, gisements, « Mes villes », « Sites libres ») ==========
-// GDD : la Résidence de la capitale forme des colons (1 au niveau 10, 2 au 15, 3 au 20) ; une armée emmène un colon et
-// 3 000 de chaque ressource (prises dans la capitale d'abord, puis dans les autres villes : stock partagé, décision du
-// 30 octobre 2026) sur un point de ressource libre, la ville est fondée 24 h après l'arrivée et produit +20 %, plus le
-// bonus de son gisement sur sa ressource.
+// GDD : la Résidence de la capitale forme des colons (données unlockSettlerL10 / L15 / L20 : 1 au niveau 10, 2 au 20 depuis
+// le 31 octobre 2026, 2 colonies par joueur) ; une armée emmène un colon et 3 000 de chaque ressource (prises dans la capitale
+// d'abord, puis dans les autres villes : stock partagé, décision du 30 octobre 2026) sur un point de ressource libre, la
+// ville est fondée 24 h après l'arrivée et se spécialise selon son gisement.
 // Les règles affichées sont celles du serveur (routes/cities.js, routes/armies.js, utils/buildingEffects.js).
-const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 2, mainHallMax: 20 };
-// Plafond du Bâtiment principal hors capitale (règle du serveur : config.city.secondaryMainHallMaxLevel, transmise par /api/world/info)
-function colonyMainHallMax() { return Number(window.worldRules?.secondaryMainHallMaxLevel) || COLONY_RULES.mainHallMax; }
+const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 2 };
 // Palier de ville (Village / Ville / Ville Fortifiée) d'après le niveau du Bâtiment principal, comme le serveur
 function cityTierFromMainHall(level) {
   const tiers = (window.worldRules?.cityTiers || [{ minMainHall: 0, tier: 1 }, { minMainHall: 10, tier: 2 }, { minMainHall: 20, tier: 3 }]);
@@ -57,8 +55,8 @@ function showCitySiteInfo() {
 }
 function settlerSlotsFor(level) {
   const fx = residenceEffects();
-  if (level >= 20) return fx.unlockSettlerL20 || 3;
-  if (level >= 15) return fx.unlockSettlerL15 || 2;
+  if (level >= 20) return fx.unlockSettlerL20 || 2;
+  if (level >= 15) return fx.unlockSettlerL15 || 1;
   if (level >= 10) return fx.unlockSettlerL10 || 1;
   return 0;
 }
@@ -83,11 +81,14 @@ function colonyTabHtml(level) {
   // un colon de plus pour la Ville Merveille quand toutes les places sont des colonies fondées et qu'aucun colon n'attend
   const forWonder = used >= slots && colonies.length >= slots && used === colonies.length && !(cities || []).some(c => c.isWonder);
   const canTrain = currentCity?.isCapital && slots > 0 && (used < slots || forWonder);
-  const nextLevel = slots >= 3 ? null : slots === 2 ? 20 : slots === 1 ? 15 : 10;
+  // paliers de la Résidence qui donnent un colon de plus (données 10, 15, 20), dans la limite des colonies, comme le serveur
+  const max = COLONY_RULES.maxSecondaryCities;
+  const steps = [10, 15, 20].filter((L, i, all) => Math.min(max, settlerSlotsFor(L)) > (i ? Math.min(max, settlerSlotsFor(all[i - 1])) : 0));
+  const nextLevel = steps.find(L => Math.min(max, settlerSlotsFor(L)) > slots);
   return `
     <div class="special-tab-content">
       <h4>${settlerPortrait('unit-ico-sm') || settlerIcon()} Colons et villes secondaires</h4>
-      <p>Résidence niveau <strong>${level}</strong> : <strong>${slots}</strong> colon${slots > 1 ? 's' : ''} (1 au niveau 10, 2 au niveau 15, 3 au niveau 20)${nextLevel ? ` · le suivant au niveau ${nextLevel}` : ''}.</p>
+      <p>Résidence niveau <strong>${level}</strong> : <strong>${slots}</strong> colon${slots > 1 ? 's' : ''} (${steps.map(L => `${Math.min(max, settlerSlotsFor(L))} au niveau ${L}`).join(', ')})${nextLevel ? ` · le suivant au niveau ${nextLevel}` : ''}.</p>
       <p>Villes secondaires : <strong>${colonies.length}</strong>${colonies.length ? ' (' + colonies.map(c => escapeHtml(c.name)).join(', ') + ')' : ''} · colons prêts dans la capitale : <strong>${available}</strong> · en route : <strong>${settlersTravelling()}</strong> · en formation : <strong>${training.length}</strong></p>
       ${training.length ? `<div class="research-queue">${training.map(q => `<div class="research-queue-item running"><span class="rq-name">Colon en formation</span><span class="rq-state"><span class="qd-timer" data-ends-at="${q.endsAt}">${formatTime(q.endsAt)}</span></span><button type="button" class="btn-small" onclick="cancelRecruit('${q.id}')" title="Annuler" aria-label="Annuler">✕</button></div>`).join('')}</div>` : ''}
       <button type="button" class="btn-primary" ${canTrain ? '' : 'disabled'} onclick="trainSettler()">${canTrain ? `Former un colon${forWonder ? ' pour la Ville Merveille' : ''} (${trainH} h)` : !currentCity?.isCapital ? 'Capitale seulement' : slots === 0 ? 'Résidence niveau 10 requise' : 'Tous les colons sont engagés'}</button>

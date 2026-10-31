@@ -222,28 +222,30 @@ function renderBuildings(filter) {
     buildings = buildings.filter(b => b.category === filter);
   }
   
-  const rbMainHall = currentCity?.buildings?.find(cb => cb.key === 'MAIN_HALL');
-  const rbMainHallLevel = rbMainHall?.level || 1;
-
   grid.innerHTML = buildings.map(b => {
-    const existing = currentCity?.buildings?.find(cb => cb.key === b.key);
+    // un bâtiment « capitale seulement » vu d'une colonie : celui de la capitale (effectBuildings)
+    const existing = (b.effects?.capitalOnly ? effectBuildings(currentCity) : currentCity?.buildings || []).find(cb => cb.key === b.key);
     const level = existing?.level || 0;
     const nextLevel = level + 1;
-    const rbEffectiveMax = b.key === 'MAIN_HALL' ? b.maxLevel : Math.min(b.maxLevel, rbMainHallLevel);
-    const canBuild = nextLevel <= rbEffectiveMax;
-    const blockedByMainHall = !canBuild && level < b.maxLevel && b.key !== 'MAIN_HALL';
+    // réservé à l'autre type de ville (Place du marché et Comptoir : capitale seulement depuis le 31 octobre 2026)
+    const elsewhere = currentCity?.isCapital ? (b.effects?.notInCapital && 'Colonies seulement') : (b.effects?.capitalOnly && 'Capitale seulement : son effet vaut aussi ici');
+    // maximum dans cette ville (Mur d'une colonie : 15), jamais plus haut que le Bâtiment principal
+    const rbEffectiveMax = buildingCapIn(b.key, currentCity);
+    const canBuild = !elsewhere && nextLevel <= rbEffectiveMax;
+    const blockedByMainHall = !elsewhere && !canBuild && level < buildingMaxLevelIn(b.key, currentCity) && b.key !== 'MAIN_HALL';
     const cost = getBuildCost(b, nextLevel);   // prix du niveau suivant, comme le serveur
 
     return `
       <div class="card">
         <h3>${buildingIconHtml(b.key)} ${b.name} ${infoBtnHtml('building', b.key)}</h3>
-        <p>Niveau actuel: ${level} / ${rbEffectiveMax}</p>
+        <p>Niveau actuel: ${level}${elsewhere ? '' : ` / ${rbEffectiveMax}`}</p>
         <div class="stats">
           Coût: ${RES_KEYS.map(r => `<span class="${stockOf(r) >= cost[r] ? '' : 'missing'}">${resIconHtml(r)}${formatNum(cost[r])}</span>`).join(' ')}
         </div>
-        ${isBuildQueueFull() ? `<p style="padding:10px;color:var(--red-light);">${resIconHtml('clock')} File de construction pleine (${buildQueueMax()}/${buildQueueMax()})</p>` :
+        ${elsewhere ? `<p style="padding:10px;color:var(--text-muted);">${resIconHtml('lock')} ${elsewhere}</p>` :
+          isBuildQueueFull() ? `<p style="padding:10px;color:var(--red-light);">${resIconHtml('clock')} File de construction pleine (${buildQueueMax()}/${buildQueueMax()})</p>` :
           canBuild ? `<button onclick="build('${b.key}')">Construire Niv.${nextLevel}</button>` :
-          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">${resIconHtml('lock')} Bat. principal Niv.${rbMainHallLevel} requis</p>` :
+          blockedByMainHall ? `<p style="padding:10px;color:#e67e22;">${resIconHtml('lock')} Bât. principal Niv.${nextLevel} requis</p>` :
           '<p style="padding:10px;color:var(--gold);">Niveau max</p>'}
       </div>
     `;
@@ -356,20 +358,13 @@ function showUnitDetail(unitKey) {
   const modal = document.getElementById('modal');
   const tierColor = TIER_COLORS[unit.tier] || '#aaa';
   
-  // Use per-unit GDD costs from units data (class-specific + tier multiplier)
-  const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
-
   const foodUpkeep = unitUpkeep(unit);
 
   // Training time from GDD data
   const trainTime = unit.recruitTimeSec || 360;
   
-  // Helper function to check and color resources (stock de toutes les villes : le recrutement y puise)
-  const getResourceClass = (needed, available) => needed <= available ? 'res-available' : 'res-missing';
-  const wood = stockOf('wood'), stone = stockOf('stone'), iron = stockOf('iron'), food = stockOf('food');
-  
-  // Check if can afford 1 unit
-  const canAffordOne = wood >= unitCost.wood && stone >= unitCost.stone && iron >= unitCost.iron && food >= unitCost.food;
+  // prix d'une unité (catalogue /api/units) : stock de toutes les villes, et or du joueur pour l'élite
+  const canAffordOne = !recruitShortfall(unit);
   
   document.getElementById('modal-body').innerHTML = `
     <div class="unit-detail-modal">
@@ -433,15 +428,10 @@ function showUnitDetail(unitKey) {
         </div>
       </div>
       
-      <!-- Coûts d'entraînement (avec couleurs selon ressources) -->
+      <!-- Coûts d'entraînement (avec couleurs selon ressources ; or des unités d'élite) -->
       <div class="unit-costs">
         <h4>${resIconHtml('gold')} Coût par unité</h4>
-        <div class="cost-row">
-          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}">${resIconHtml('wood')} ${unitCost.wood}</span>
-          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}">${resIconHtml('stone')} ${unitCost.stone}</span>
-          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}">${resIconHtml('iron')} ${unitCost.iron}</span>
-          <span class="cost-item ${getResourceClass(unitCost.food, food)}">${resIconHtml('food')} ${unitCost.food}</span>
-        </div>
+        <div class="cost-row">${recruitCostHtml(unit)}</div>
       </div>
       
       <!-- Temps et consommation -->
@@ -473,9 +463,7 @@ function showUnitDetail(unitKey) {
       <div class="recruit-section">
         <h4>${resIconHtml('medal')} Recruter</h4>
         <div class="recruit-row">
-          <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input" 
-                 data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 
-                 data-iron="${unitCost.iron}" data-food="${unitCost.food}">
+          <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input">
           <button id="recruit-btn" onclick="recruit('${unit.key}')" class="recruit-action-btn ${canAffordOne ? '' : 'disabled'}">
             Recruter
           </button>
@@ -485,39 +473,7 @@ function showUnitDetail(unitKey) {
     </div>
   `;
   
-  // Update total cost and button state on input change
-  const updateRecruitTotal = () => {
-    const input = document.getElementById('recruit-count');
-    const totalDiv = document.getElementById('recruit-total');
-    const btn = document.getElementById('recruit-btn');
-    if (!input || !totalDiv || !btn) return;
-    
-    const count = Math.max(1, parseInt(input.value) || 1);
-    const totalWood = unitCost.wood * count;
-    const totalStone = unitCost.stone * count;
-    const totalIron = unitCost.iron * count;
-    const totalFood = unitCost.food * count;
-    
-    const canAfford = wood >= totalWood && stone >= totalStone && iron >= totalIron && food >= totalFood;
-    
-    totalDiv.innerHTML = `
-      <span class="cost-label">Coût total:</span>
-      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}">${resIconHtml('wood')} ${formatNum(totalWood)}</span>
-      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}">${resIconHtml('stone')} ${formatNum(totalStone)}</span>
-      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}">${resIconHtml('iron')} ${formatNum(totalIron)}</span>
-      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}">${resIconHtml('food')} ${formatNum(totalFood)}</span>
-    `;
-    
-    btn.classList.toggle('disabled', !canAfford);
-    btn.title = canAfford ? '' : costShortfall({ wood: totalWood, stone: totalStone, iron: totalIron, food: totalFood });
-  };
-  
-  setTimeout(() => {
-    updateRecruitTotal();
-    const input = document.getElementById('recruit-count');
-    if (input) input.oninput = updateRecruitTotal;
-  }, 50);
-  
+  setTimeout(() => watchRecruitTotal(unit), 50);   // coût total sous le nombre saisi (05-panels.js)
   modal.style.display = 'flex';
 }
 
@@ -544,7 +500,7 @@ async function recruit(unitKey) {
 
     if (res.ok) {
       showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé !${currentCity.isCapital ? '' : ' Les unités rejoindront la capitale.'}`, 'success');
-      await loadCities();
+      await Promise.all([loadCities(), data.gold ? loadPlayer() : null]);   // l'or des unités d'élite est parti
       renderCity();
     } else {
       showToast(data.error || 'Erreur', 'error');

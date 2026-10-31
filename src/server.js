@@ -64,6 +64,7 @@ const SKIP_DB_SETUP = !IS_TICK_WORKER;   // seul le worker de tick prépare la b
 const config = require('./config');
 const prisma = require('./config/database');
 const { buildingsData, unitsData, factionsData } = require('./config/gamedata');
+const { withRecruitPrice } = require('./utils/calculations');
 const { Prisma } = require('@prisma/client');   // Prisma.sql / Prisma.join for the data repair queries
 const cacheControl = require('./middleware/cache');
 const rateLimit = require('./middleware/rateLimit');
@@ -116,7 +117,10 @@ app.use('/api/', rateLimit(config.rateLimit.maxApi, 'api'));
 
 // ========== STATIC DATA (cached) ==========
 app.get('/api/buildings', cacheControl(3600), (req, res) => res.json(buildingsData));
-app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsData));
+// catalogue des unités avec le prix que le serveur demande (or des unités d'élite et leur prix en ressources baissé,
+// décision du 31 octobre 2026 : utils/calculations.js withRecruitPrice), calculé une fois
+const unitsCatalog = unitsData.map(withRecruitPrice);
+app.get('/api/units', cacheControl(3600), (req, res) => res.json(unitsCatalog));
 
 // ========== MONDE TERMINÉ ==========
 // Une Merveille a atteint le niveau 100 (décision du 28 octobre 2026) : le monde se lit encore (GET), mais ne se joue plus

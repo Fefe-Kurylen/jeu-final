@@ -20,13 +20,12 @@ function getCarryTableSql() {
   _carryTableSql = Prisma.join(unitsData.map(u => Prisma.sql`(${u.key}, ${u.stats?.carry || u.stats?.transport || 50}::int)`));
   return _carryTableSql;
 }
-// Transport bonuses, as for raids and convoys: civilization (Egypt, Sultanate), Market of the home city, and the buildings
-// shared by all the player's cities (fx.withCapital) : Desert Outpost of the capital (« capitale seulement ») and best Trade
-// Office of his cities (le plus haut niveau, sans somme). Rows (key, pct, capitalOnly)
+// Transport bonuses, as for the transport armies: civilization (Egypt, Sultanate), and the buildings of the home city, or of
+// the capital for those reserved to it (fx.withCapital : Market, Trade Office, Desert Outpost). Rows (key, pct)
 const factionTransportSql = () => Prisma.join(Object.keys(factionsData).map(f => Prisma.sql`(${f}, ${getFactionBonus(f, 'transportCapacity', factionsData) || 0}::float)`));
 const transportBuildingsSql = (shared) => {
-  const rows = fx.transportBonusKeys().filter(([k]) => fx.sharedKey(k) === shared);
-  return rows.length ? Prisma.join(rows.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float, ${fx.capitalOnly(k)}::boolean)`)) : Prisma.sql`(NULL::text, 0::float, false)`;
+  const rows = fx.transportBonusKeys().filter(([k]) => fx.capitalOnly(k) === shared);
+  return rows.length ? Prisma.join(rows.map(([k, pct]) => Prisma.sql`(${k}, ${pct}::float)`)) : Prisma.sql`(NULL::text, 0::float)`;
 };
 
 async function leaveNode(army, node) {
@@ -64,12 +63,10 @@ async function processHarvesting(now) {
       LEFT JOIN "AllianceMember" am ON am."playerId" = a."ownerId"
       LEFT JOIN "Bastion" bst ON bst."allianceId" = am."allianceId" AND bst.status = 'ACTIVE'   -- Bastion d'alliance : +10 % de transport
       LEFT JOIN (VALUES ${factionTransportSql()}) AS fb(faction, pct) ON fb.faction = pl.faction
-      LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql(false)}) AS r(key, pct, capital) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
-      LEFT JOIN (SELECT s."playerId", SUM(s.level * s.pct) AS pct FROM (
-          SELECT c."playerId", MAX(cb.level) AS level, MAX(r.pct) AS pct FROM "CityBuilding" cb JOIN "City" c ON c.id = cb."cityId"
-          JOIN (VALUES ${transportBuildingsSql(true)}) AS r(key, pct, capital) ON r.key = cb.key AND (c."isCapital" OR NOT r.capital)
-          GROUP BY c."playerId", r.key) s
-        GROUP BY s."playerId") AS tc ON tc."playerId" = a."ownerId"
+      LEFT JOIN (SELECT cb."cityId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN (VALUES ${transportBuildingsSql(false)}) AS r(key, pct) ON r.key = cb.key GROUP BY cb."cityId") AS tb ON tb."cityId" = a."cityId"
+      LEFT JOIN (SELECT c."playerId", SUM(cb.level * r.pct) AS pct FROM "CityBuilding" cb JOIN "City" c ON c.id = cb."cityId" AND c."isCapital"
+          JOIN (VALUES ${transportBuildingsSql(true)}) AS r(key, pct) ON r.key = cb.key
+        GROUP BY c."playerId") AS tc ON tc."playerId" = a."ownerId"
       LEFT JOIN (VALUES ${heroSql}) AS hm(army_id, mult) ON hm.army_id = a.id   -- talents de transport du héros
       WHERE a.status = 'HARVESTING' AND a."missionType" = 'HARVEST'
       GROUP BY a.id, fb.pct, tb.pct, tc.pct, hm.mult

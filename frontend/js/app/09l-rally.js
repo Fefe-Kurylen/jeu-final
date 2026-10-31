@@ -43,11 +43,12 @@ function ralliesHtml(list, { compact = false } = {}) {
     const actions = [];
     if (gathering && r.mine) actions.push(`<button class="btn btn-primary btn-sm" onclick="rallyAction('${id}', 'launch')">Partir maintenant</button>`, `<button class="btn btn-secondary btn-sm" onclick="rallyAction('${id}', 'cancel')">Annuler</button>`);
     else if (gathering && r.joined) actions.push(`<button class="btn btn-secondary btn-sm" onclick="rallyAction('${id}', 'leave')">Retirer mon armée</button>`);
-    else if (gathering && r.armies.length < r.capacity) actions.push(`<button class="btn btn-primary btn-sm" onclick="openRallyJoin('${id}')">${resIconHtml('rally')} Rejoindre</button>`);
+    else if (gathering && r.armies.length < r.maxArmies) actions.push(`<button class="btn btn-primary btn-sm" onclick="openRallyJoin('${id}')">${resIconHtml('rally')} Rejoindre</button>`);
+    else if (gathering) actions.push(`<span class="rally-full">Rassemblement complet (${r.maxArmies} armées au plus)</span>`);
     return `<div class="rally-card ${r.mine ? 'mine' : ''}">
       <div class="rally-head">${resIconHtml('rally')} <strong>Rassemblement de ${escapeHtml(r.leader)}</strong>
         <small>${compact ? '' : `${what} · `}${timer}</small></div>
-      <div class="rally-meta">${r.armies.length} / ${r.capacity} armées · puissance ${formatNum(r.power)}</div>
+      <div class="rally-meta" title="Taille fixée par la Place de rassemblement du lanceur">${r.armies.length} / ${r.maxArmies} armées · puissance ${formatNum(r.power)}</div>
       <ul class="rally-armies">${r.armies.map(a => `<li class="${a.mine ? 'me' : ''}">${escapeHtml(a.owner)} <small>${formatNum(a.units)} soldats · ${a.status === 'RALLY_JOIN' ? `en route, arrivée <span class="qd-timer" data-ends-at="${a.arrivalAt}">${formatTime(a.arrivalAt)}</span>` : a.status === 'RALLY_WAIT' ? 'arrivée' : `en marche vers ${target.the}`}</small></li>`).join('')}</ul>
       ${actions.length ? `<div class="profile-actions">${actions.join('')}</div>` : ''}
     </div>`;
@@ -74,7 +75,7 @@ function openRallyLaunch(targetId, x, y, level, kind = 'HORDE') {
       <select id="rally-army">${list.map(a => `<option value="${chatSafeId(a.id)}">${escapeHtml(armyOptionLabel(a))}</option>`).join('')}</select></label>
     <label class="admin-field"><span>Attente avant le départ</span>
       <select id="rally-wait">${RALLY_WAITS.map(w => `<option value="${w}" ${w === 10 ? 'selected' : ''}>${w} min</option>`).join('')}</select></label>
-    <p class="diplo-help">Votre Place de rassemblement fixe le nombre d'armées (3 au niveau 1, 15 au niveau 20, la vôtre comprise). Vous pouvez partir plus tôt ou annuler tant que le rassemblement attend.</p>
+    <p class="diplo-help">Votre Place de rassemblement (niveau ${rallyPointLevel()}) fixe la taille du rassemblement : <strong>${rallyMaxArmiesAt(rallyPointLevel())} armées au plus</strong>, la vôtre comprise (${rallyMaxArmiesAt(20)} au niveau 20). Vous pouvez partir plus tôt ou annuler tant que le rassemblement attend.</p>
     <div class="profile-actions"><button class="btn btn-danger" onclick="confirmRallyLaunch('${chatSafeId(targetId)}', '${kind}')">${resIconHtml('rally')} Lancer le rassemblement</button><button class="btn btn-secondary" onclick="closeModal()">Annuler</button></div>`);
 }
 async function confirmRallyLaunch(targetId, kind = 'HORDE') {
@@ -115,7 +116,7 @@ async function renderAllianceRallies(box) {
   let d;
   try { d = await fetchJson('/api/rallies'); } catch (e) { box.innerHTML = '<p class="empty-state">Rassemblements indisponibles.</p>'; return; }
   box.innerHTML = `<h3>${resIconHtml('rally')} Rassemblements</h3>
-    <p class="diplo-help">Pendant les invasions barbares (chaque week-end), un donjon ne s'attaque qu'en rassemblement. Un Bastion ennemi peut aussi être assiégé en rassemblement (au moins un engin de siège dans le groupe), et les Immortels qui gardent un site ou un plan de Merveille combattus de même. Lancez-en un depuis le panneau de la cible sur la carte, ou rejoignez celui d'un membre.</p>
+    <p class="diplo-help">Pendant les invasions barbares (chaque week-end), un donjon ne s'attaque qu'en rassemblement. Un Bastion ennemi peut aussi être assiégé en rassemblement (au moins un engin de siège dans le groupe), et les Immortels qui gardent un site ou un plan de Merveille combattus de même. Lancez-en un depuis le panneau de la cible sur la carte, ou rejoignez celui d'un membre.${d.maxArmies ? ` Ceux que vous lancez réunissent ${d.maxArmies} armées au plus (votre Place de rassemblement).` : ''}</p>
     ${ralliesHtml(d.rallies)}`;
 }
 // le bloc des rassemblements de son alliance contre une cible (panneau de la carte) : param = nodeId ou bastionId

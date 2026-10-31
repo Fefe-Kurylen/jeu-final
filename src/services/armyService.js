@@ -20,13 +20,35 @@ const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders'
 // tous les convois et tous les espions du joueur, d'où qu'ils partent (une requête ; `db` = prisma ou la transaction)
 const playerMarchPct = async (db, playerId) => (playerId ? fx.marchSpeedBonusPct(await capitalBuildingsOf(db, playerId)) : 0);
 
-// Bonus de combat d'un joueur, en points de % (décision du 31 octobre 2026) : ses technologies (Art de la guerre,
-// Discipline) et la Forge de sa capitale (+0,5 % d'attaque et +0,5 % de défense par niveau pour toutes ses troupes, dans
-// tous les combats : attaque, défense, renfort, camps, donjons, Immortels, Bastion). `technologies` : ses lignes
-// PlayerTechnology (null : la Forge seule) ; une requête
-async function combatPct(db, playerId, technologies) {
+// Forge de la capitale d'un joueur (décision du 31 octobre 2026) : +0,5 % d'attaque et +0,5 % de défense par niveau pour
+// toutes ses troupes, dans tous les combats ; en points de % { atk, def } ; une requête
+async function forgeOf(db, playerId) {
   const capital = playerId ? await capitalBuildingsOf(db, playerId) : [];
-  return { atk: techPct(technologies, 'attackBonusPct') + fx.forgeAttackPct(capital), def: techPct(technologies, 'defenseBonusPct') + fx.forgeDefensePct(capital) };
+  return { atk: fx.forgeAttackPct(capital), def: fx.forgeDefensePct(capital) };
+}
+// Forge d'un camp où combattent les troupes de plusieurs joueurs (renforts, rassemblement, camps alliés, garnison d'un
+// Bastion) : chacun garde la sienne, le camp prend la moyenne selon les soldats de chacun. `armies` : [{ ownerId, units }] ;
+// une requête par joueur
+async function sideForgePct(db, armies) {
+  const men = new Map();   // joueur -> soldats
+  for (const a of armies || []) {
+    const n = (a.units || []).reduce((s, u) => s + Math.max(0, u.count || 0), 0);
+    if (n > 0 && a.ownerId) men.set(a.ownerId, (men.get(a.ownerId) || 0) + n);
+  }
+  let total = 0, atk = 0, def = 0;
+  for (const [ownerId, n] of men) {
+    const f = await forgeOf(db, ownerId);
+    total += n; atk += n * f.atk; def += n * f.def;
+  }
+  return total ? { atk: atk / total, def: def / total } : { atk: 0, def: 0 };
+}
+// Bonus de combat d'un camp, en points de % : les technologies (Art de la guerre, Discipline) du joueur qui le mène et la
+// Forge, dans tous les combats (attaque, défense, renfort, camps, donjons, Immortels, Bastion). `technologies` : ses lignes
+// PlayerTechnology (null : la Forge seule). `armies` : les armées du camp quand plusieurs joueurs peuvent y combattre
+// (sideForgePct) ; sans elles, la Forge de `playerId` (une requête)
+async function combatPct(db, playerId, technologies, armies = null) {
+  const forge = armies ? await sideForgePct(db, armies) : await forgeOf(db, playerId);
+  return { atk: techPct(technologies, 'attackBonusPct') + forge.atk, def: techPct(technologies, 'defenseBonusPct') + forge.def };
 }
 // Multiplicateurs du moteur de bataille détaillé (combatService.resolveCombatDetailed, techMods)
 const combatMult = (pct) => ({ atk: 1 + pct.atk / 100, def: 1 + pct.def / 100 });
@@ -150,8 +172,8 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
   const lead = holders[0];
   const atkTech = await tx.playerTechnology.findMany({ where: { playerId } });
-  // technologies et Forge : l'attaque de l'attaquant, la défense du premier défenseur
-  const [atkBonus, defBonus] = await Promise.all([combatPct(tx, playerId, atkTech), combatPct(tx, lead.ownerId, lead.owner?.technologies)]);
+  // l'attaque de l'attaquant (technologies et Forge) ; la défense des défenseurs : technologies du premier, Forge de chacun
+  const [atkBonus, defBonus] = await Promise.all([combatPct(tx, playerId, atkTech), combatPct(tx, lead.ownerId, lead.owner?.technologies, holders)]);
   const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(require('./heroService').leadingHero(holders)), {   // un héros sans soldats ne combat pas
     fieldBattle: true, attackerFaction: army.owner?.faction, defenderFaction: lead.owner?.faction, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def
   });

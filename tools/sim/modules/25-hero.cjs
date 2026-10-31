@@ -25,6 +25,7 @@ const { itemsData, unitsData, buildingsData } = require(path.join(ROOT, 'src/con
 const HE = require(path.join(ROOT, 'src/utils/heroEffects'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const Stock = require('../stock.cjs');   // résurrection et Domus : payés sur toutes les villes du joueur, la capitale d'abord
+const { spareGold } = require('./30-military.cjs');   // l'or au-dessus de ce que le joueur garde pour l'élite
 let nameProblem = () => null;
 try { nameProblem = require(path.join(ROOT, 'src/utils/nameFilter')).nameProblem; } catch (e) { /* filtre absent : le serveur jugera */ }
 
@@ -227,7 +228,7 @@ async function talents(bot, ctx, B, m, hero) {
     else if (!m.rs2 && m.b === 'c' && (m.k.deaths || 0) >= 2) { to = 'g'; flag = 'rs2'; }
     if (to) {
       const price = (hero.talentResets || 0) > 0 ? HE.catalog.resetGold : 0;
-      if (!price || (bot.me?.gold || 0) >= price + 50) {
+      if (!price || spareGold(bot) >= price + 50) {
         B.left--;
         const r = await bot.post('/api/hero/talents/reset');
         m[flag] = 1;

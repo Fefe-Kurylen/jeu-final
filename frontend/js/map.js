@@ -2964,7 +2964,7 @@ function showMapInfoPanel(x, y, tile) {
           <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} ${holders.some(h => h.founding) ? 'Ville en fondation par' : 'Tenu par'}</strong> ${[...new Set(holders.map(h => h.name || 'un joueur'))].map(escapeHtml).join(', ')}${heldByOthers ? ' (adversaire)' : ' (vous ou votre alliance)'}</p>
         </div>` : (tile.hiddenHolders || 0) > 0 ? `
         <div style="margin: 8px 0; padding: 8px; background: rgba(244,67,54,0.12); border-radius: 4px; border-left: 3px solid #f44;">
-          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Occupé</strong> par une armée d'un autre joueur : envoyez un espion pour savoir qui et avec quelles troupes.</p>
+          <p style="margin: 0; font-size: 12px;"><strong>${resIconHtml('army')} Occupé</strong> par une armée d'un autre joueur, hors de vue de votre Tour de guet : envoyez un espion pour savoir qui et avec quelles troupes.</p>
         </div>` : '';
     const spiedHtml = tile.spied ? `<p class="spied-note">${resIconHtml('spy')} Espionné il y a ${Math.max(1, Math.round((Date.now() - new Date(tile.spiedAt)) / 60000))} min : stock exact ${formatNum(tile.amount)}${(tile.spied.holders || []).length ? ` · tenu par ${tile.spied.holders.map(h => `${escapeHtml(h.owner)} (${h.units.reduce((t, u) => t + u.count, 0)} soldats)`).join(', ')}` : ''}</p>` : '';
     content.innerHTML = `

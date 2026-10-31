@@ -184,7 +184,9 @@ async function manageTurn(bot, ctx, S, w, m, al) {
   const P = ctx.prisma;
   const group = ctx.byGroup(bot.group);
   let used = 0;
-  // invitations : les joueurs du groupe sans alliance et pas encore invités
+  // invitations : les joueurs du groupe sans alliance et pas encore invités, tant que l'alliance a de la place. Taille
+  // (décision du 31 octobre 2026) : 3 membres par niveau de l'Ambassade du chef (GET /api/alliance/mine : maxMembers) ;
+  // pleine, le chef monte son Ambassade d'un niveau
   const ids = group.map(b => b.playerId).filter(id => id && id !== bot.playerId);
   if (ids.length) {
     const [inAlliance, invited] = await Promise.all([
@@ -192,12 +194,17 @@ async function manageTurn(bot, ctx, S, w, m, al) {
       P.allianceInvite.findMany({ where: { allianceId: al.id, playerId: { in: ids } }, select: { playerId: true } })
     ]);
     const skip = new Set([...inAlliance, ...invited].map(r => r.playerId));
-    for (const b of group) {
-      if (used >= 2) break;
-      if (!b.playerId || b === bot || skip.has(b.playerId)) continue;
-      const r = await S.post('/api/alliance/invite', { playerName: b.name });
-      used++;
-      if (!r.ok) break;
+    const wanted = group.filter(b => b.playerId && b !== bot && !skip.has(b.playerId));
+    if (wanted.length) {
+      const mine = await S.get('/api/alliance/mine');
+      const room = mine.ok && mine.data ? (mine.data.maxMembers || 0) - (mine.data.alliance?.members || []).length - invited.length : 0;
+      if (room <= 0 && mine.ok && al.role === 'LEADER' && (await pushEmbassy(bot, S, levelIn(bot.capital, 'EMBASSY') + 1))) ctx.event('alliance_embassy_for_room', { tag: al.tag, by: bot.name, maxMembers: mine.data.maxMembers });
+      for (const b of wanted.slice(0, Math.max(0, room))) {
+        if (used >= 2) break;
+        const r = await S.post('/api/alliance/invite', { playerName: b.name });
+        used++;
+        if (!r.ok) break;
+      }
     }
   }
   // une petite alliance tente un solitaire une fois par monde (il refusera)

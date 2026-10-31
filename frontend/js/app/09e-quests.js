@@ -159,6 +159,9 @@ function questGoTo(key) {
     return;
   }
   if (go.building) {
+    // un bâtiment de la capitale (Place du marché comprise depuis le 31 octobre 2026) se bâtit dans la capitale : on y va
+    const capital = (cities || []).find(c => c.isCapital);
+    if (capital && currentCity?.id !== capital.id && window.buildingsData?.find(x => x.key === go.building)?.effects?.capitalOnly) selectCity(capital.id);
     showTab('city');
     const b = (currentCity?.buildings || []).filter(x => x.key === go.building).sort((a, c) => c.level - a.level)[0];
     const slots = typeof citySlots !== 'undefined' ? citySlots : [];

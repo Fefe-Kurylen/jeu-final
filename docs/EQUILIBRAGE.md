@@ -14,10 +14,10 @@ stock partagé entre les villes (§ 14). Mise à jour du 31 octobre 2026 : rôle
 | Rome | +10 % défense des unités | tout combat (attaque de ville, pillage, tribu) | ✅ |
 | Rome | −15 % pertes en siège (subies ou infligées) | combats de ville et de Bastion : solidité des unités romaines × 1,15, qu'elles attaquent ou défendent ; pas en pillage ni contre les camps (combats par la puissance) | ✅ conforme à « en siège » |
 | Gaule | +20 % défense chez soi | défense de ses villes, tout combat ; depuis le 30 octobre 2026, son mur encaisse aussi 1/1,2 des coups des engins | ✅ |
-| Gaule | +15 % cachette | part des ressources protégée des pillages (plafond 20 %) | ✅ |
+| Gaule | +20 % cachette | quantité cachée de chaque ressource × 1,2 (cachette en quantité fixe par niveau depuis le 31 octobre 2026 ; avant : +15 % d'une part plafonnée à 20 %) | ✅ |
 | Grèce | −15 % temps de construction | chaque construction | ✅ |
 | Grèce | +15 % blessés au lieu de morts | taux de blessés après combat (+15 points, plafond 70 %) | ✅ |
-| Égypte | +20 % transport | butin des pillages, envoi par armée, convois marchands | ✅ |
+| Égypte | +20 % transport | butin des pillages, envoi par armée (les marchands ont leur propre charge depuis le 31 octobre 2026 : 750 pour l'Égypte) | ✅ |
 | Égypte | +25 % santé des murs | points de vie du mur (1 250 PV/niv. au lieu de 1 000), en construction comme à la réparation ; **corrigé** en octobre : portait auparavant sur le bonus de défense du mur | ✅ après correction |
 | Huns | +20 % vitesse des armées | tout déplacement | ✅ |
 | Huns | +10 % attaque en siège | attaques de ville et de Bastion, engins compris (dégâts au mur) | ✅ |
@@ -129,10 +129,14 @@ armée depuis le 25 octobre 2026 ✅.
   ajoute à la ville trois fois la capacité d'un dépôt (d'un silo) de même niveau, 3 600 au niveau 1 et 480 000 au niveau 20
   (`storageL1/L20`, `foodStorageL1/L20` dans `data/buildings.json`) ; Dépôt 20 + Grand Dépôt 20 = 160 000 + 480 000 = 640 000.
   Pas de nouveau plafond de coût : les derniers niveaux, qui dépassaient la capacité d'un dépôt 20, deviennent payables. **Seule
-  la cachette protège du pillage** (1 % par niveau, 20 % au plus, Gaule +15 %) : raids, pillage de siège et rapport d'espion.
+  la cachette protège du pillage** : raids, pillage de siège et rapport d'espion. Depuis le 31 octobre 2026, une **quantité
+  fixe de chaque ressource** par niveau (façon Travian) : 240 au niveau 1, 2 436 au niveau 10, 32 000 au niveau 20, soit
+  20 % d'un Dépôt de même niveau (`HIDEOUT.effects.hideoutL1/hideoutL20`, même courbe que le stockage) ; Gaule × 1,2.
+- **Bâtiments de bonus limités au niveau 5** (Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie) : +2,5 % par
+  niveau depuis le 31 octobre 2026 (+12,5 % au niveau 5 ; Moulin + Boulangerie +25 %), la moitié d'avant.
 - Formation : Caserne et Écurie −0,5 % de temps par niveau, comme le GDD (décision du 30 octobre 2026, D2 : inchangé).
-- Temps cumulés bruts (sans réduction) depuis le 30 octobre 2026 : Bâtiment principal 1 → 20 en 31,5 h et 1 → 30 en 437 h
-  (59 h avant) ; un champ 1 → 20 en 26 h (8 h avant). Les réductions de temps (60 % au plus) divisent ces durées par 2,5.
+- Temps cumulés bruts (sans réduction) depuis le 30 octobre 2026 : Bâtiment principal 1 → 20 en 31,5 h (il s'arrête au niveau
+  20 partout depuis le 31 octobre 2026 ; 1 → 30 prenait 437 h) ; un champ 1 → 20 en 26 h (8 h avant). Les réductions de temps (60 % au plus) divisent ces durées par 2,5.
   Dates attendues pour un joueur (`docs/RAPPORT-ECONOMIE.md` § 4.4, réglage V7b) : champs au niveau 20 vers les jours 48 à 67
   selon le rythme de connexion, capitale complète vers les jours 63 à 98. ✅
 - Nourriture : six fermes niveau 10 nourrissent ≈ 420 unités de base ; niveau 20, ≈ 5 400. Cohérent avec les files de recrutement.
@@ -200,7 +204,9 @@ bâtiment de 30 min) et +15 points de blessés (le plafond de 70 % est atteint d
 et mur à 1 250 PV par niveau (103 coups de catapulte par niveau au lieu de 83) ; Huns 100 cases en 41,7 min au lieu de 50, et
 leurs sapeurs frappent le mur ×1,10 (12,62 PV par round au lieu de 11,47) ; Sultanat 15,19 PV de mur par engin et par round
 au lieu de 12,15 (66 coups par niveau au lieu de 83) ; Gaule cachette ×1,15 (5,8 / 11,5 / 17,3 / 20 % aux niveaux 5, 10, 15,
-20, plafond 20 %) et mur gaulois à 99 coups par niveau au lieu de 83.
+20, plafond 20 %) et mur gaulois à 99 coups par niveau au lieu de 83. (Depuis le 31 octobre 2026, la cachette protège une
+quantité fixe et la Gaule en cache × 1,2 : 806 / 2 923 / 10 596 / 38 400 de chaque ressource aux niveaux 5, 10, 15, 20 ;
+`node tools/simulate-factions.cjs`.)
 
 **Verdict : acceptable, appliqué** (`data/factions.json`, cartes d'inscription et textes du Mur et de la Tente de soins lus
 depuis les données du serveur). À garder à l'œil : Rome reste la civilisation la plus complète (meilleure attaquante, bonne
@@ -370,7 +376,7 @@ Règles appliquées, chiffrées par `node tools/simulate-colonies.cjs` (refait l
 | Règle | Source | Effet |
 |---|---|---|
 | Caserne, Écurie, Atelier réservés à la capitale ; Grandes caserne / écurie seulement en colonie, prérequis (Caserne 20, Écurie 20) lus dans la capitale | GDD (descriptions « hors capitale ») | une colonie ne forme des troupes qu'après Caserne 20 dans la capitale : 360 734 ressources et 4,3 j de chantier cumulés ; jamais d'engins de siège hors capitale ; les recrues rejoignent la capitale (30 octobre 2026) |
-| Bâtiment principal 20 au plus en colonie (30 dans la capitale) | décision (le GDD ne chiffre pas) | aucun effet sur la production (les autres bâtiments s'arrêtent à 20) ; les niveaux 21-30 restent le privilège de la capitale (population, réduction de temps déjà plafonnée) |
+| Bâtiment principal 20 au plus en colonie (30 dans la capitale jusqu'au 31 octobre 2026 ; depuis, 20 partout : § 16) | décision (le GDD ne chiffre pas) | aucun effet sur la production (les autres bâtiments s'arrêtent à 20) ; les niveaux 21-30 de la capitale n'apportaient que de la population (réduction de temps déjà plafonnée) et ont été retirés |
 | Palier de ville et enceinte fixés par le Bâtiment principal (1-9 Village, 10-19 Ville, 20+ Ville Fortifiée) ; plus de minimum d'engins par palier depuis le 25 octobre 2026 | décision (« le Bâtiment principal fait évoluer les murailles ») | voir ci-dessous |
 
 **Paliers de ville.** Ancienne règle : Ville = Mur 10 (15 442 ressources, 13 h), Ville Fortifiée = Mur 15 (56 525, 36 h).
@@ -458,7 +464,7 @@ Décisions du propriétaire, appliquées le 30 octobre 2026 ; le détail des rè
 |---|---|---|---|
 | D1 | Grand Dépôt et Grand Silo = stockage (3 × un dépôt ou un silo de même niveau), plus de réserve protégée ; seule la cachette protège | `data/buildings.json`, `calculations.cityStorageCaps` | § 4 : 3 600 → 480 000 ; Dépôt 20 + Grand Dépôt 20 = 640 000 |
 | D2 | Formation à la Caserne et à l'Écurie : GDD gardé (−0,5 % par niveau) | — | inchangé |
-| D3 | Alliance : 60 membres au plus (adhésion sous verrou, invitation refusée quand elle est pleine) | `config.alliance.maxMembers` | 60 |
+| D3 | Alliance : 60 membres au plus (adhésion sous verrou, invitation refusée quand elle est pleine) ; depuis le 31 octobre 2026, 3 membres par niveau de l'Ambassade du chef dans cette limite (§ 16) | `config.alliance.maxMembers`, `EMBASSY.effects.allianceMembersPerLevel` | 60 |
 | D4 | Camps : défenseurs à leur palier et camps d'or à +40 % au combat ; rassemblements d'alliance contre les sites et plans de Merveille | `armyService`, `rallyService`, `wonderService` | § 9 |
 | D5 | Brèche : au moins 5 rounds de combat après la chute du mur | `config.combat.siege.roundsAfterBreach` | § 12 |
 | D6 | Seuls les engins abîment le mur ; mur du Bastion à 10 fois un mur 20 (50 avant) ; bonus des engins du Sultanat vérifié | `config.combat.siege`, `config.bastion.wallMultiplier` | § 12 : Bastion 200 000 PV |
@@ -499,9 +505,9 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` ; règles détaill
 | Stock | Chaque ville garde son stock et son plafond ; constructions, recrutements, recherche, soins, héros et fondation se paient sur la somme des villes (ville de l'action d'abord, puis la plus pleine par rapport à son plafond, § 15) ; pas de convoi automatique | `src/utils/db.js` (`debitPlayer`, `creditPlayer`) | refus : « il manque … (toutes vos villes comprises) » |
 | Entretien | Tous les greniers paient : chaque ville ses troupes d'abord, le manque pris dans les autres ; famine seulement greniers tous vides | `resourceProcessor.processUpkeep` | — |
 | Unités | Toute unité formée ou soignée apparaît dans la capitale ; pas de garnison propre dans les colonies | `recruitProcessor`, `woundedService` | — |
-| Placement | 18 bâtiments « capitale seulement » (effets pour tout le joueur), 10 « colonies seulement », 10 partout ; Douves supprimées | `data/buildings.json`, migration `0030` | 19 emplacements ; depuis le Mur sur l'enceinte (§ 15) : capitale 17 bâtiments dans l'anneau, colonie 14 |
+| Placement | 20 bâtiments « capitale seulement » (effets pour tout le joueur ; Marché et Comptoir depuis le 31 octobre 2026), 9 « colonies seulement », 9 partout ; Douves supprimées | `data/buildings.json`, migrations `0030` et `0032` | anneau de 18 emplacements dans la capitale, 12 dans une colonie ; Mur sur l'enceinte (§ 15 et 16) |
 | Coûts (rec. 3) | Champs × 1,45 par niveau, le reste × 1,28 | `config.build.fieldCostMultiplier` | 18 champs 1 → 20 : 17,0 M par ville (2,24 M avant) ; remboursement d'un champ 60 h au niveau 10, 276 h au niveau 20 |
-| Temps (rec. 4) | Champs et Bâtiment principal × 1,30 par niveau, le reste et la recherche × 1,2 | `config.build.slowTimeMultiplier` | champ 1 → 20 : 26 h brutes ; Bâtiment principal 1 → 30 : 437 h brutes |
+| Temps (rec. 4) | Champs et Bâtiment principal × 1,30 par niveau, le reste et la recherche × 1,2 | `config.build.slowTimeMultiplier` | champ 1 → 20 : 26 h brutes ; Bâtiment principal 1 → 20 : 31,5 h brutes (20 au plus depuis le 31 octobre 2026) |
 | Entretien (rec. 5) | 5 / 9 / 13, engins 15 ; 8 fiches retouchées (endurance seule) | `config.army.upkeepPerTier`, `data/units.json` | tableau ci-dessous |
 | Soins (rec. 6) | 30 % du prix de recrutement ; 10 % du temps de formation × 0,95^(Tente − 1) par unité, l'un après l'autre ; or 1 / 2 / 3 / 3 ; les blessés qui attendent mangent | `config.wounded`, `woundedService` | fantassin de base : 38 ressources, 13,6 s à la Tente 20 ; 4 000 lits ≈ 15 h |
 | Merveille (rec. 7) | × 5 | `config.world.wonderCostBase` | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 ; niveaux 1 à 50 : 173 M ; Merveille entière : 2,15 G |
@@ -564,11 +570,11 @@ Chiffres refaits par `node tools/simulate-colonies.cjs` (section 5).
 | Nombre de colonies | 2 au plus (1er colon à la Résidence 10, 2e à la Résidence 20) ; Ville Merveille hors quota | `config.city.maxSecondaryCities`, `RESIDENCE.effects.unlockSettlerL10/L15/L20` | 3 jusqu'au 31 octobre 2026 |
 | Joueurs par serveur | 2 000 | `config.world.maxPlayers` | 5 000 jusqu'au 31 octobre 2026 ; compte pour l'offre de gisements |
 | Fondation | 3 000 de chaque ressource, 24 h sur place ; colon gratuit en 3 h | `config.city.foundationTransport`, `RESIDENCE.effects.cityFoundationTimeSec`, `settlerTrainTimeSec` | inchangé |
-| Emplacements | anneau de 19 ; Mur sur l'enceinte, emplacement 20 | `config.city.maxSlot`, `config.city.wallSlot` | capitale 17 bâtiments dans l'anneau (2 libres), colonie 14 (5 libres) |
+| Emplacements | anneau de 18 dans la capitale, 12 dans une colonie (et la Ville Merveille) ; Mur sur l'enceinte, emplacement 20 | `config.city.ringSlots`, `config.city.wallSlot` | autant que de bâtiments possibles, aucun libre (31 octobre 2026 ; avant : 19 partout) |
 | Recrutement en colonie | Grande caserne / Grande écurie : paliers 1 / 7 / 15, temps −4 % par niveau ; prérequis Caserne 20 / Écurie 20 de la capitale | `GREAT_BARRACKS` / `GREAT_STABLE` : `unlockBaseTier`, `unlockIntermediateTier`, `unlockEliteTier`, `trainTimeReductionPctPerLevel`, `prereq` | unités vers la capitale ; pas d'engins (`config.recruit.siegeWorkshopLevel` vaut pour l'Atelier de la capitale) |
-| Comptoir de commerce | −1 point de taxe et +1 % de transport par niveau ; le meilleur des villes du joueur vaut partout | `TRADE_OFFICE.effects` (`p2pTaxReductionPctPerLevel`, `armyTransportCapacityBonusPctPerLevel`, `bestLevelForAllCities`), `config.market.p2pTaxPctBase` | la taxe (10 % de base) tombe à 0 dès le Comptoir 10 : les niveaux 11 à 20 ne donnent plus que du transport (+20 % au Comptoir 20) ; à revoir à l'équilibrage |
+| Comptoir de commerce | capitale seulement depuis le 31 octobre 2026 (§ 16) : −1 point de taxe et +1 % de charge des marchands et des transports par niveau | `TRADE_OFFICE.effects` (`p2pTaxReductionPctPerLevel`, `armyTransportCapacityBonusPctPerLevel`), `config.market.p2pTaxPctBase` | la taxe (10 % de base) tombe à 0 dès le Comptoir 10 : les niveaux 11 à 20 ne donnent plus que de la charge (+20 % au Comptoir 20) ; à revoir à l'équilibrage |
 | Vies d'une colonie | 2 (Égypte 3) ; capitale 4 (5) | `config.combat.fall.assaults`, `extraAssaults` | ni vie en plus au Mur 20, ni Fort (décision 3) |
-| Bâtiment principal d'une colonie | 20 au plus (capitale 30) | `config.city.secondaryMainHallMaxLevel` | rien ne change maintenant ; revue de tous les niveaux maximum à faire (`docs/BACKLOG.md`) |
+| Bâtiment principal | 20 au plus partout, capitale comprise (31 octobre 2026) ; Mur d'une colonie 15 | `MAIN_HALL.maxLevel`, `WALL.effects.colonyMaxLevel` | revue des autres niveaux maximum à faire (`docs/BACKLOG.md`) |
 | Alerte « File de construction vide » | au plus une par ville toutes les 6 h | `config.city.idleAlertHours` | quand le dernier chantier d'une ville finit |
 | Alerte « dépôt plein dans 1 h » | prévient 1 h avant ; au plus une par ville toutes les 12 h | `config.city.storageAlertLeadHours`, `config.city.storageAlertHours` | bois, pierre, fer contre le Dépôt ; céréales (production moins entretien) contre le Silo |
 | Alerte de famine | 12 h avant les greniers vides, sur le total du joueur ; au plus une toutes les 12 h | `config.army.famineAlertHours` | 6 h jusqu'au 30 octobre 2026 ; le bandeau du client lit le même chiffre |
@@ -581,13 +587,15 @@ Chiffres refaits par `node tools/simulate-colonies.cjs` (section 5).
 
 | Gisement | Sa ressource / les 3 autres | Bois par heure (gisement de bois) | Céréales par heure (gisement de céréales) | Pierre et fer par heure (gisement de bois) | Céréales par heure (gisement de bois) | Total de la colonie (gisement de bois / de céréales) |
 |---|---|---|---|---|---|---|
-| niveau 1 | +10 % / −30 % | 24 305 | 43 210 | 17 105 | 32 410 | 90 925 / 94 525 |
-| niveau 2 | +20 % / −30 % | 26 105 | 45 910 | 17 105 | 32 410 | 92 725 / 97 225 |
-| niveau 3 | +30 % / −30 % | 27 905 | 48 610 | 17 105 | 32 410 | 94 525 / 99 925 |
+| niveau 1 | +10 % / −30 % | 22 055 | 36 460 | 14 855 | 25 660 | 77 425 / 81 025 |
+| niveau 2 | +20 % / −30 % | 23 855 | 39 160 | 14 855 | 25 660 | 79 225 / 83 725 |
+| niveau 3 | +30 % / −30 % | 25 655 | 41 860 | 14 855 | 25 660 | 81 025 / 86 425 |
 
-La capitale (ni gisement ni bâtiments de production) produit 81 025 par heure au niveau 20. Un compte complet (capitale +
-2 colonies au niveau 20) fait 270 075 par heure avec deux gisements de bois de niveau 3, 280 875 avec deux gisements de
-céréales de niveau 3. Avec la règle du 30 octobre (+20 % pour toutes les colonies, +15 % par niveau du gisement), le même
+Chiffres avec les bâtiments de production à +2,5 % par niveau (bonus divisé par deux le 31 octobre 2026, § 16 ; avec +5 %
+par niveau, une colonie sur un gisement de bois de niveau 3 faisait 94 525 par heure). La capitale (ni gisement ni
+bâtiments de production) produit 81 025 par heure au niveau 20. Un compte complet (capitale + 2 colonies au niveau 20) fait
+243 075 par heure avec deux gisements de bois de niveau 3, 253 875 avec deux gisements de céréales de niveau 3 (270 075 et
+280 875 avant la division par deux). Avec la règle du 30 octobre (+20 % pour toutes les colonies, +15 % par niveau du gisement), le même
 compte faisait 340 285 par heure sans gisement, et les gisements y ajoutaient 4 à 9 % : la spécialité baisse la production
 totale d'une colonie (environ −27 %) mais la concentre sur une ressource. Le gisement de céréales donne le plus (6 Fermes
 contre 4 champs des autres ressources) : la course aux gisements de céréales de niveau 3 reste le risque à surveiller.
@@ -614,3 +622,59 @@ l'Écurie 20 puis les Grandes caserne et écurie jusqu'à l'élite et recrutent 
 capitale) ; leur stock suit le même ordre de prélèvement que le serveur. Le rapport de la simulation compte les gisements
 choisis et le jour de chaque colonie ; deux contrôles s'ajoutent (Mur hors de l'enceinte, garnison dans une colonie).
 `simulate-2years.js` pose aussi le Mur sur l'emplacement 20.
+
+## 16. Revue des bâtiments : chiffres à régler (décisions du 31 octobre 2026)
+
+Décisions du propriétaire, bâtiment par bâtiment : `docs/BATIMENTS-ROLES.md` ; règles détaillées : `docs/ETAT-DES-SYSTEMES.md`
+(« Revue des bâtiments »). Chaque chiffre est dans les données ou la config : le propriétaire équilibre ensuite.
+`node tools/batiments-pdf.cjs` refait le récapitulatif `docs/BATIMENTS.pdf` avec ces chiffres.
+
+| Sujet | Valeur aujourd'hui | Où le régler | Remarque |
+|---|---|---|---|
+| Bâtiment principal | niveau 20 au plus partout | `MAIN_HALL.maxLevel` | 1 → 20 : 296 491 ressources et 31,5 h brutes ; −50 % de temps de construction au niveau 20 (plafond commun 60 %) |
+| Cachette | 240 de chaque ressource au niveau 1 → 32 000 au niveau 20 (courbe du stockage) ; Gaule × 1,2 | `HIDEOUT.effects.hideoutL1`, `hideoutL20` ; `data/factions.json` GAUL `hideoutCapacity` | 20 % d'un Dépôt de même niveau ; un raid prend au plus la moitié de ce qui dépasse (`config.hideout.raidStealRate`), un siège gagné 25 % (`config.combat.fall.pillagePct`) |
+| Marchands : nombre | 1 par niveau du Marché de la capitale | `MARKET.effects.merchantsPerLevel` | 20 au Marché 20 |
+| Marchands : charge | Rome 500, Gaule 750, Grèce 600, Égypte 750, Huns 500, Sultanat 1 000 ; + Comptoir et Poste du Désert de la capitale, +1 % par niveau chacun | `config.market.merchants.capacity` | un Romain au Marché 20 porte 10 000 par voyage : moins que 1/12 d'un Dépôt 20 (13 333), une route commerciale est donc limitée par ses marchands |
+| Marchands : vitesse | Gaule 100, Huns 90, Rome 80, Égypte 80, Grèce 75, Sultanat 65 | `config.market.merchants.speed` | même échelle que les unités : 10 cases en 2,5 min (Gaule) à 3,9 min (Sultanat), contre 5 min pour une armée à vitesse 50 ; occupés à l'aller et au retour |
+| Comptoir de commerce | capitale ; taxe −1 point par niveau, charge +1 % par niveau | `TRADE_OFFICE.effects` | taxe nulle dès le niveau 10 (voir § 15) |
+| Taille des rassemblements | 5 armées + 1 par niveau de la Place de rassemblement du lanceur (25 au niveau 20) | `RALLY_POINT.effects.rallyMaxArmiesBase`, `rallyMaxArmiesPerLevel` | 3 à 15 avant ; la Place de rassemblement d'une alliance de 60 membres limite donc chaque rassemblement à 25 armées |
+| Forge | +0,5 % d'attaque et +0,5 % de défense par niveau (+10 % au niveau 20), 50 % au plus | `FORGE.effects.attackBonusPctPerLevel`, `defenseBonusPctPerLevel` | avant : défense des villes seulement ; un côté de plusieurs joueurs prend la moyenne de leurs Forges selon les soldats |
+| Vision des armées | 5 cases + 6 par niveau de la Tour de guet de la capitale, autour de chaque ville | `WATCHTOWER.effects.visionRangeL1`, `visionRangePerLevel` | 11 / 35 / 65 / 125 cases aux niveaux 1 / 5 / 10 / 20 ; une attaque se voit sur la carte en entrant dans le rayon (l'alerte, elle, est inchangée) |
+| Taille d'une alliance | 3 membres par niveau de l'Ambassade du chef, 60 au plus | `EMBASSY.effects.allianceMembersPerLevel`, `config.alliance.maxMembers` | 21 au niveau 7 (fondation), 30 au 10, 60 au 20 ; le Bastion demande 15 membres (Ambassade du chef 5) |
+| Bâtiments de bonus (niveau 5 au plus) | +2,5 % par niveau, +12,5 % au niveau 5 | `*ProdBonusPctL1`, `*ProdBonusPctL5` | la moitié d'avant : une colonie aux champs 20 produit 13,5 à 15 % de moins selon son gisement (§ 15) |
+| Grandes casernes et écuries pour la capitale | −0,5 % de temps de formation par niveau, niveaux de toutes les villes additionnés | `GREAT_BARRACKS` / `GREAT_STABLE` `capitalTrainTimeReductionPctPerLevel` | 2 colonies au niveau 20 : −20 % ; avec la Caserne 20 (−10 %), la formation dans la capitale prend 30 % de temps en moins, sous le plafond de 60 % |
+| Mur d'une colonie | 15 au plus (capitale 20) | `WALL.effects.colonyMaxLevel` | 15 000 PV de mur et +15 % de défense au plus ; il faut 75 % des engins d'un mur 20 pour une brèche (tableau du § 12) |
+| Anneau | capitale 18 emplacements, colonie 12 | `config.city.ringSlots` | autant que de bâtiments possibles : aucun choix de « bâtiment en trop » à faire |
+| Or des unités d'élite | 1 or par unité | `config.recruit.goldPerUnit` | la Chambre au Trésor donne 10 à 200 or par jour : de quoi payer 10 à 200 unités d'élite par jour, plus l'or des gisements d'or ; l'or sert aussi aux espions, aux soins immédiats et aux talents du héros |
+| Prix en ressources de l'élite | × 0,95 | `config.recruit.eliteResourceCostMult` | voir ci-dessous |
+
+**Élite contre intermédiaire** (moyenne des 54 unités de combat des six civilisations, prix du serveur avec × 0,95, sans
+l'or) :
+
+| Palier | Puissance pour 1 000 ressources (coefficients de puissance 1 / 1,25 / 1,55) | Puissance de bataille pour 1 000 ressources (1 / 1,35 / 1,9) | Puissance de bataille par céréale d'entretien |
+|---|---|---|---|
+| Base | 482 | 482 | 13,2 |
+| Intermédiaire | 541 | 584 | 16,0 |
+| Élite | 521 | 639 | 20,4 |
+
+Au moteur de bataille, l'élite reste la meilleure par ressource (+9 %) et par céréale (+28 %). Avec les coefficients de
+puissance (pillages, camps, rencontres, affichage), elle est 4 % sous l'intermédiaire par ressource : pour qu'elle l'égale
+aussi là, il faudrait un multiplicateur d'environ 0,91 au lieu de 0,95. À trancher avec l'or par unité, par la vérification
+d'équilibrage prévue par la décision 15.
+
+**À mesurer en simulation** (pas refaite pour ce lot : pas de serveur ni de base) : le débit du marché avec les marchands
+(offres prises, routes limitées par les marchands, Marché monté plus tôt), l'or disponible pour l'élite et sa part dans les
+armées, l'effet de la Cachette en quantité fixe sur les raids (les petites villes sont mieux protégées, les grosses moins),
+la taille réelle des rassemblements et des alliances, et l'effet de la vision sur les attaques (une armée ennemie ne se voit
+qu'à l'approche).
+
+**Outils** : les joueurs automatiques (`tools/sim`) suivent ces règles : anneau de 18 / 12 emplacements, Bâtiment principal
+20, Mur des colonies 15, Marché et Comptoir dans la capitale (plus de Comptoir ni de Marché en colonie), marchands (ils lisent
+leurs marchands libres une fois par tour, n'envoient jamais plus que ce qu'ils portent, et montent le Marché quand il en
+manque ; plus de « Caravane »), or de l'élite (un palier d'élite qu'ils ne peuvent pas payer attend, et ils gardent l'or d'un
+lot de 100 unités d'élite avant un soin à l'or, un espion ou un changement de talents), Grandes casernes pour la capitale,
+taille des rassemblements (`maxArmies`), taille d'alliance (le chef monte son Ambassade quand l'alliance est pleine), Forge
+dans leurs estimations de combat. Contrôles ajoutés à la simulation : bâtiment hors de l'anneau, bâtiment au-dessus de son
+niveau maximum, rassemblement au-delà de sa taille, offre sans marchand, plus de marchands occupés que le Marché n'en donne,
+marchands jamais arrivés ou jamais rentrés. `tools/simulate-colonies.cjs` et `tools/simulate-factions.cjs` impriment les
+nouveaux chiffres (emplacements, plafonds, marchands, cachette).

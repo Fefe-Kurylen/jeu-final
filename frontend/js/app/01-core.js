@@ -168,6 +168,58 @@ function effectBuildings(city = currentCity) {
   const capitalOnly = (key) => !!window.buildingsData?.find(b => b.key === key)?.effects?.capitalOnly;
   return (city.buildings || []).filter(b => !capitalOnly(b.key)).concat((capital.buildings || []).filter(b => capitalOnly(b.key)));
 }
+// Effet chiffré d'un bâtiment dans ses données (data/buildings.json, /api/buildings), comme fx.effectOf du serveur
+function buildingEffectOf(key, name, fallback = 0) {
+  const v = window.buildingsData?.find(b => b.key === key)?.effects?.[name];
+  return typeof v === 'number' ? v : fallback;
+}
+// Niveau le plus haut d'un bâtiment dans une liste de bâtiments (0 s'il n'y est pas), comme fx.levelOf du serveur
+const levelIn = (buildings, key) => (buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
+// Niveau maximum d'un bâtiment dans une ville, comme fx.maxLevelIn du serveur (décisions du 31 octobre 2026) : celui de sa
+// donnée (Bâtiment principal 20 partout) ; le Mur d'une colonie ou de la Ville Merveille s'arrête à WALL.effects.colonyMaxLevel
+function buildingMaxLevelIn(key, city) {
+  const max = window.buildingsData?.find(b => b.key === key)?.maxLevel || 20;
+  return key === 'WALL' && city && !city.isCapital ? Math.min(max, buildingEffectOf('WALL', 'colonyMaxLevel', max)) : max;
+}
+// Niveau que le bâtiment ne peut pas dépasser dans la ville en ce moment : son maximum, et jamais plus haut que le Bâtiment
+// principal de la ville (sauf lui-même)
+function buildingCapIn(key, city) {
+  const max = buildingMaxLevelIn(key, city);
+  return key === 'MAIN_HALL' ? max : Math.min(max, Math.max(1, levelIn(city?.buildings, 'MAIN_HALL')));
+}
+// Cachette (décision du 31 octobre 2026, façon Travian) : quantité de CHAQUE ressource à l'abri des pillards à ce niveau
+// (HIDEOUT.effects.hideoutL1 → hideoutL20, même courbe que le stockage), × bonus de cachette de la civilisation (Gaule),
+// comme fx.hideoutAmount du serveur
+function hideoutAmountAt(level, faction = player?.faction) {
+  if (level <= 0) return 0;
+  const l1 = buildingEffectOf('HIDEOUT', 'hideoutL1'), l20 = buildingEffectOf('HIDEOUT', 'hideoutL20', l1);
+  const base = level >= 20 ? l20 : Math.round(lerpExp(l1, l20, (level - 1) / 19));
+  return Math.floor(base * (1 + factionBonusPct(faction, 'hideoutCapacity') / 100));
+}
+// Forge de la capitale (décision du 31 octobre 2026) : % d'attaque ('attack') ou de défense ('defense') pour toutes les troupes
+// du joueur, dans tous les combats ; 50 % au plus comme fx.forgeAttackPct / fx.forgeDefensePct du serveur
+function forgeBonusPct(kind) {
+  const capital = (cities || []).find(c => c.isCapital);
+  return Math.min(50, levelIn(capital?.buildings, 'FORGE') * buildingEffectOf('FORGE', `${kind}BonusPctPerLevel`));
+}
+
+// Prix d'un recrutement : les ressources (stock de toutes les villes) et, pour les unités d'élite, l'or du joueur (décision du
+// 31 octobre 2026). Le catalogue /api/units donne le prix d'une unité tel que le serveur le demande (recruitCost, recruitGold)
+function recruitPrice(unit, count = 1) {
+  return { cost: Object.fromEntries(RES_KEYS.map(r => [r, (Number(unit?.recruitCost?.[r]) || 0) * count])), gold: (Number(unit?.recruitGold) || 0) * count };
+}
+// Ce qui manque pour recruter `count` unités, comme les refus du serveur (ressources, puis « Il faut N or ») ; '' s'il passe
+function recruitShortfall(unit, count = 1) {
+  const { cost, gold } = recruitPrice(unit, count);
+  return costShortfall(cost) || (gold > (Number(player?.gold) || 0) ? `Il faut ${formatNum(gold)} or pour recruter ces unités d'élite` : '');
+}
+// Les prix d'un recrutement, en rouge ce qui manque : les quatre ressources, puis l'or des unités d'élite ; `cls` : la classe de
+// chaque prix (cases du coût par unité, texte simple pour le coût total)
+function recruitCostHtml(unit, count = 1, cls = 'cost-item') {
+  const { cost, gold } = recruitPrice(unit, count);
+  const item = (key, need, have) => `<span class="${cls} ${need <= have ? 'res-available' : 'res-missing'}">${resIconHtml(key)} ${formatNum(need)}</span>`;
+  return RES_KEYS.map(r => item(r, cost[r], stockOf(r))).join('') + (gold ? item('gold', gold, Number(player?.gold) || 0) : '');
+}
 
 // Ressource d'un gisement (type d'un point de ressource où l'on peut fonder une colonie, décision du 30 octobre 2026)
 const SITE_RESOURCE = { WOOD: 'wood', STONE: 'stone', IRON: 'iron', FOOD: 'food' };
@@ -185,7 +237,8 @@ function getCityProduction(city) {
   const FIELD_KEYS = { LUMBER: 'wood', QUARRY: 'stone', IRON_MINE: 'iron', FARM: 'food' };
   (city?.buildings || []).forEach(b => {
     if (FIELD_KEYS[b.key]) fields[FIELD_KEYS[b.key]] += getProductionAtLevel(b.key, b.level);
-    if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * 5;
+    // bâtiments de bonus : <ressource>ProdBonusPctL1 % par niveau (2,5 % depuis le 31 octobre 2026), comme resourceProcessor
+    if (BONUS_KEYS[b.key]) bonus[BONUS_KEYS[b.key]] += b.level * buildingEffectOf(b.key, `${BONUS_KEYS[b.key]}ProdBonusPctL1`);
   });
   // spécialité de la colonie (décision du 31 octobre 2026) : sa ressource gagne city.site.bonusPct (10 % par niveau du
   // gisement), les trois autres perdent city.site.otherPct (−30 %), en plus des bâtiments de production ; ni la capitale

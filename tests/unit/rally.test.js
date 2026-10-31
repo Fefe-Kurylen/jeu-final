@@ -5,13 +5,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const R = require('../../src/services/rallyService');
 
-test('capacité : 3 armées au niveau 1 de la Place de rassemblement, 15 au niveau 20', () => {
-  assert.equal(R.capacityFor(0), 3);
-  assert.equal(R.capacityFor(1), 3);
-  assert.equal(R.capacityFor(10), 8);
-  assert.equal(R.capacityFor(20), 15);
-  assert.equal(R.capacityFor(25), 15);
-  for (let l = 1; l < 20; l++) assert.ok(R.capacityFor(l + 1) >= R.capacityFor(l));
+test('taille : 5 armées + 1 par niveau de la Place de rassemblement du lanceur (25 au niveau 20, décision du 31 octobre 2026)', () => {
+  const fx = require('../../src/utils/buildingEffects');
+  assert.equal(R.capacityFor(0), 5);
+  assert.equal(R.capacityFor(1), 6);
+  assert.equal(R.capacityFor(10), 15);
+  assert.equal(R.capacityFor(20), 25);
+  for (let l = 0; l < 20; l++) assert.equal(R.capacityFor(l), fx.rallyMaxArmies(l), `niveau ${l}`);
+  for (let l = 1; l < 20; l++) assert.ok(R.capacityFor(l + 1) > R.capacityFor(l));
 });
 test('attentes possibles : 5, 10, 30 ou 60 minutes', () => {
   assert.deepEqual(R.WAITS, [5, 10, 30, 60]);
@@ -305,8 +306,21 @@ test('liste : la nature de la cible (site, plan, donjon, Bastion) et la puissanc
   });
   try {
     const { rallies } = await R.listForPlayer('p1');
-    assert.deepEqual(rallies.map(r => [r.id, r.kind, r.guardPower]), [['r1', 'WONDER', 123456], ['r2', 'HORDE', null]]);
+    assert.deepEqual(rallies.map(r => [r.id, r.kind, r.guardPower, r.maxArmies]), [['r1', 'WONDER', 123456, 3], ['r2', 'HORDE', null, 3]]);
     assert.equal(R.kindOf({ targetBastionId: 'b1' }), 'BASTION');
+  } finally { db.restore(); }
+});
+
+test('rejoindre : refusé quand le rassemblement a déjà autant d\'armées que la Place de rassemblement du lanceur le permet', async () => {
+  const leader = cityRow('cA', 'p1', 0, -10), homeB = cityRow('cB', 'p2', 4, -12);
+  const db = fakeDb({
+    cities: [leader, homeB], rallies: [rallyRow({ capacity: 1, launchAt: new Date(Date.now() + 30 * 60000) })],
+    members: [{ playerId: 'p2', allianceId: 'A1' }],
+    armies: [armyRow('a1', 'p1', leader, waiting(leader, 'r1')), armyRow('b1', 'p2', homeB)]
+  });
+  try {
+    await assert.rejects(R.join('p2', 'r1', 'b1'), (e) => e.status === 400 && e.message === 'Rassemblement complet (1 armées au plus)');
+    assert.equal(db.army('b1').status, 'IDLE');
   } finally { db.restore(); }
 });
 
@@ -334,5 +348,7 @@ test('lancer : la capacité suit la Place de rassemblement de la capitale, même
   try {
     const out = await R.launch('p1', { armyId: 'a1', nodeId: 'w1', waitMinutes: 10 });
     assert.equal(out.rally.capacity, R.capacityFor(10));
+    assert.equal(out.maxArmies, R.capacityFor(10));
+    assert.match(out.message, new RegExp(`\\(${R.capacityFor(10)} armées au plus\\)`));
   } finally { db.restore(); }
 });

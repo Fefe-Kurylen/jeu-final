@@ -95,10 +95,11 @@ test('Irrigation de la capitale (capitale seulement) : vitesse de marche de tout
   // chargée avec le joueur (include fx.CAPITAL_BUILDINGS) : les bâtiments « capitale seulement » de sa capitale
   assert.equal(fx.marchSpeedBonusPct(fx.capitalOf({ cities: [{ buildings: [{ key: 'EGYPTIAN_IRRIGATION', level: 20 }] }] })), 10);
   assert.deepEqual(fx.capitalOf({}), []);
-  assert.equal(fx.CAPITAL_BUILDINGS.where, undefined, 'toutes ses villes (le meilleur Comptoir peut être dans n\'importe laquelle)');
+  assert.equal(fx.CAPITAL_BUILDINGS.where, undefined, 'toutes ses villes : la capitale se reconnaît à isCapital');
   assert.equal(fx.CAPITAL_BUILDINGS.select.isCapital, true);
+  // Marché et Comptoir « capitale seulement » depuis le 31 octobre 2026 ; les bâtiments des colonies restent dans leur ville
   const keys = fx.CAPITAL_BUILDINGS.select.buildings.where.key.in;
-  assert.ok(keys.includes('EGYPTIAN_IRRIGATION') && keys.includes('RALLY_POINT') && keys.includes('TRADE_OFFICE') && !keys.includes('MARKET') && !keys.includes('GREAT_WAREHOUSE'));
+  assert.ok(keys.includes('EGYPTIAN_IRRIGATION') && keys.includes('RALLY_POINT') && keys.includes('TRADE_OFFICE') && keys.includes('MARKET') && !keys.includes('GREAT_WAREHOUSE'));
 });
 
 test('stockage au démarrage : Grand dépôt et Grand silo comptent dans maxStorage / maxFoodStorage', async () => {

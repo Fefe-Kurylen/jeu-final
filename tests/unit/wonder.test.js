@@ -121,7 +121,7 @@ test('vague contre une Ville Merveille murée : le mur tombe sous les mangonneau
     armies: [{ x: 1, y: 2, status: 'IDLE', units: [{ id: 'u1', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 50 }] }] };
   const tx = {
     $queryRaw: async () => [],
-    city: { findUnique: async () => city, update: async ({ data }) => { writes.push(data); return { ...city, ...data }; } },
+    city: { findUnique: async () => city, update: async ({ data }) => { writes.push(data); return { ...city, ...data }; }, findMany: async () => [] },   // capitale sans Forge
     army: { findMany: async () => [] },
     armyUnit: { deleteMany: async () => ({}), update: async () => ({}) },
     battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
@@ -149,12 +149,17 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
   ];
   const tx = {
     $queryRaw: async () => [],
-    city: { findUnique: async () => city, update: async () => ({}) },
+    // Forge (décision du 31 octobre 2026) : chaque joueur qui défend la Ville Merveille a celle de sa capitale (p1 aucune,
+    // l'allié p2 au niveau 20)
+    city: { findUnique: async () => city, update: async () => ({}), findMany: async ({ where }) => { asked.push(where); return [{ isCapital: true, buildings: where.playerId === 'p2' ? [{ key: 'FORGE', level: 20 }] : [] }]; } },
     army: { findMany: async ({ where }) => { asked.push(where); return guests; } },
     armyUnit: { deleteMany: async ({ where }) => { hit.push(where.id); return {}; }, update: async ({ where }) => { hit.push(where.id); return {}; } },
     battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
   };
   const savedRecord = RK.recordCombat; RK.recordCombat = async () => {};
+  const CS = require('../../src/services/combatService');
+  const savedCombat = CS.resolveCombatDetailed, mods = [];
+  CS.resolveCombatDetailed = (...args) => { mods.push(args[10]); return savedCombat(...args); };
   const restore = stubPrisma({ $transaction: async (fn) => fn(tx), notification: { create: async () => ({ id: 'n' }) } });
   try {
     const out = await W.immortalWave({ id: 'w1', wonderLevel: 1 }, new Date());
@@ -163,17 +168,20 @@ test('vague contre une Ville Merveille sans troupes propres : les armées du jou
     assert.equal(reports[0].defenderUnits.reduce((n, u) => n + u.count, 0), 800, 'les 800 soldats présents, pas l\'armée en marche');
     assert.ok(!hit.includes('u0'), 'l\'armée en marche ne perd rien');
     assert.equal(out.won, true);
-  } finally { restore(); RK.recordCombat = savedRecord; }
+    // 400 soldats sans Forge et 400 renforts à Forge 20 (+10 %) : +5 % pour les défenseurs, rien pour les Immortels
+    assert.deepEqual(mods[0], { attacker: { atk: 1, def: 1 }, defender: { atk: 1.05, def: 1.05 } }, 'chaque joueur garde sa Forge, moyenne selon les soldats');
+  } finally { restore(); RK.recordCombat = savedRecord; CS.resolveCombatDetailed = savedCombat; }
 });
 
 // ---- rassemblement contre les Immortels d'un site ou d'un plan (décision du 30 octobre 2026) ----
 function groupTx({ node, armies, leader = { id: 'p1', name: 'Aulus' } }) {
-  const log = { reports: [], nodeUpdates: [], deleted: [], plans: [], unitWrites: [] };
+  const log = { reports: [], nodeUpdates: [], deleted: [], plans: [], unitWrites: [], forgeOf: [] };
   const tx = {
     $queryRaw: async () => (node ? [{ ...node }] : []),
     army: { findMany: async ({ where }) => armies.filter(a => where.id.in.includes(a.id)) },
     player: { findUnique: async ({ where }) => (leader && where.id === leader.id ? leader : null) },
     playerTechnology: { findMany: async () => [] },
+    city: { findMany: async ({ where }) => { log.forgeOf.push(where.playerId); return []; } },   // Forge de la capitale de chaque joueur
     armyUnit: { delete: async (q) => log.unitWrites.push(['delete', q.where.id]), update: async (q) => log.unitWrites.push(['update', q.where.id, q.data]) },
     battleReport: { create: async ({ data }) => { log.reports.push(data); return { id: `r${log.reports.length}` }; } },
     resourceNode: { update: async ({ data }) => { log.nodeUpdates.push(data); return {}; }, delete: async ({ where }) => { log.deleted.push(where.id); return {}; } },
@@ -211,6 +219,7 @@ test('rassemblement contre un plan : un seul combat de groupe, le plan revient a
   assert.equal(log.reports[1].attackerLosses.rate, rate);
   assert.equal(r.armies[0].lost, Math.floor(200 * rate));
   assert.equal(r.armies[1].lost, Math.floor(600 * rate));
+  assert.deepEqual(log.forgeOf, ['p1', 'p2'], 'technologies du lanceur, Forge de chaque joueur du rassemblement (moyenne selon les soldats)');
 });
 
 test('rassemblement contre un site : repoussé, les Immortels gardent leurs pertes ; site déjà libre = rien à combattre', async () => {

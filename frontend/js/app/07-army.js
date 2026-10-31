@@ -17,6 +17,15 @@ const rallyPointLevel = () => effectBuildings(currentCity).reduce((m, b) => (b.k
 function getMaxArmies() {
   return maxArmiesAtRallyLevel(rallyPointLevel());
 }
+// Taille d'un rassemblement d'alliance (décision du 31 octobre 2026) : la Place de rassemblement du lanceur en permet
+// rallyMaxArmiesBase + rallyMaxArmiesPerLevel × niveau, la sienne comprise (fx.rallyMaxArmies du serveur : 25 au niveau 20)
+const rallyMaxArmiesAt = (level) => buildingEffectOf('RALLY_POINT', 'rallyMaxArmiesBase') + buildingEffectOf('RALLY_POINT', 'rallyMaxArmiesPerLevel') * Math.max(0, level);
+// Forge de la capitale (décision du 31 octobre 2026) : son bonus d'attaque et de défense, dans tous les combats, sous la
+// force affichée d'une armée (la force elle-même reste attaque + défense des unités, comme le serveur)
+function forgeNoteHtml() {
+  const atk = forgeBonusPct('attack'), def = forgeBonusPct('defense');
+  return atk || def ? `<span class="forge-note" title="Forge de la capitale : vaut dans tous les combats (attaque, défense, renfort, camps, donjons, Bastion)">${resIconHtml('attack')} Forge : +${fmtTechPct(atk)} % d'attaque et +${fmtTechPct(def)} % de défense au combat</span>` : '';
+}
 
 function renderArmies() {
   const container = document.getElementById('armies-management');
@@ -55,6 +64,7 @@ function renderArmies() {
       <div class="header-left-info">
         <span class="rally-badge"><img class="ico" src="assets/images/3d/ui/rally.webp" alt=""> Rally Niv.${rallyLevel}</span>
         <span class="army-count-badge">${cityArmies.length}/${maxArmies} armées</span>
+        ${forgeNoteHtml()}
       </div>
       <div class="header-right-info">
         <span class="garrison-badge-compact"><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> ${totalGarrison} en garnison</span>
@@ -197,7 +207,6 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
     'FOUNDING': { icon: '<img class="ico" src="assets/images/3d/ui/city.webp" alt="">', label: 'Fondation', cls: 'moving' },
     'SUPPORTING': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'Renfort en route', cls: 'moving' },
     'STATIONED': { icon: '<img class="ico" src="assets/images/3d/ui/defense.webp" alt="">', label: 'En renfort', cls: 'idle' },
-    'MARKET': { icon: '<img class="ico" src="assets/images/3d/ui/market.webp" alt="">', label: 'Offre du marché', cls: 'idle' },
     // rassemblement d'alliance contre un donjon (09l-rally.js)
     'RALLY_JOIN': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rejoint un rassemblement', cls: 'moving' },
     'RALLY_WAIT': { icon: '<img class="ico" src="assets/images/3d/ui/rally.webp" alt="">', label: 'Rassemblement (attente)', cls: 'idle' },
@@ -285,9 +294,6 @@ function renderArmyCardNew(slotNum, army, isLocked, heroData) {
           <span class="destination-badge" title="L'armée campe 1 h devant la ville, puis le combat démarre tout seul ; le mur sert de bouclier et seuls vos engins l'abîment ; l'armée rentre ensuite chez elle">Combat dans ${siegeTimeLeft(new Date(army.arrivalAt) - serverNow())}</span>
         ` : army.status === 'EXPEDITION' ? `
           <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/expedition.webp" alt=""> En expédition, retour automatique</span>
-        ` : army.status === 'TRANSPORTING' && army.missionType === 'MARKET_DELIVERY' ? `
-          <span class="destination-badge" title="Convoi d'un échange du marché : il livre puis rentre tout seul, on ne peut pas le rappeler">${resIconHtml('market')} Livraison d'un échange</span>
-          <span class="destination-badge"><img class="ico" src="assets/images/3d/ui/pin.webp" alt=""> (${army.targetX ?? '?'}, ${army.targetY ?? '?'})</span>
         ` : `
           <button class="army-btn secondary" onclick="returnArmy('${army.id}')">
             ↩️ Rappeler
@@ -416,6 +422,7 @@ function openArmyComposition(armyId) {
         </div>
         <div class="comp-header-right">
           <span class="comp-power" id="comp-power"><img class="ico" src="assets/images/3d/ui/attack.webp" alt=""> ${formatNum(calculateArmyPower(army))}</span>
+          ${forgeNoteHtml()}
         </div>
       </div>
       

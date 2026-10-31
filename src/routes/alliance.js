@@ -92,7 +92,9 @@ router.post('/invite', auth, async (req, res) => {
     const target = playerName ? await prisma.player.findUnique({ where: { name: playerName }, include: { alliance: true } }) : null;
     if (!target) return res.status(404).json({ error: 'Joueur introuvable' });
     if (target.alliance) return res.status(400).json({ error: 'Ce joueur est déjà dans une alliance' });
-    { const full = await allianceFull(prisma, await prisma.alliance.findUnique({ where: { id: myMember.allianceId } })); if (full) return res.status(400).json({ error: `${full} : impossible d'inviter` }); }
+    // plafond de l'Ambassade du chef : on n'invite pas dans une alliance pleine
+    const alliance = await prisma.alliance.findUnique({ where: { id: myMember.allianceId } });
+    { const full = alliance && await allianceFull(prisma, alliance); if (full) return res.status(400).json({ error: `${full} : impossible d'inviter` }); }
     await prisma.allianceInvite.upsert({
       where: { allianceId_playerId: { allianceId: myMember.allianceId, playerId: target.id } },
       update: {}, create: { allianceId: myMember.allianceId, playerId: target.id }

@@ -20,8 +20,8 @@
       "bonuses": [
         {
           "type": "hideoutCapacity",
-          "value": 15,
-          "description": "+15% capacité de la cachette"
+          "value": 20,
+          "description": "+20 % de quantité cachée par la cachette"
         },
         {
           "type": "cityDefense",

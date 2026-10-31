@@ -61,7 +61,6 @@ function resolveSlot(buildingKey, slot, existing, city) {
   return null;
 }
 
-
 // Le palier des unités se lit sur le bâtiment qui les forme dans la ville (unlockBaseTier / unlockIntermediateTier /
 // unlockEliteTier, data/buildings.json), les engins sur l'Atelier (config.recruit.siegeWorkshopLevel)
 const TIER_UNLOCK = { base: 'unlockBaseTier', intermediate: 'unlockIntermediateTier', elite: 'unlockEliteTier' };
@@ -289,9 +288,9 @@ router.post('/:id/recruit', auth, async (req, res) => {
   }
 });
 
-// POST /api/city/:id/settlers — train a settler at the Residence of the capital (GDD: 1 at L10, 2 at L15, 3 at L20,
-// each settler founds one secondary city). Counted against the slots: existing secondary cities, settlers waiting,
-// settlers travelling with armies and settlers in training.
+// POST /api/city/:id/settlers — train a settler at the Residence of the capital (data unlockSettlerL10 / L15 / L20: 1 at
+// L10, 2 at L20 since the 31st of October 2026; each settler founds one secondary city). Counted against the slots:
+// existing secondary cities, settlers waiting, settlers travelling with armies and settlers in training.
 router.post('/:id/settlers', auth, async (req, res) => {
   try {
     const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
@@ -313,7 +312,8 @@ router.post('/:id/settlers', auth, async (req, res) => {
       // fondation d'une colonie le refuse alors) et qu'aucun colon n'attend
       const forWonder = used >= slots && colonies >= slots && pending === 0 && !(await tx.city.count({ where: { playerId: city.playerId, isWonder: true } }));
       if (used >= slots && !forWonder) {
-        const next = slots >= 3 ? null : slots === 2 ? 20 : 15;
+        // niveau de la Résidence qui donne un colon de plus (paliers 10, 15 et 20 de ses données), dans la limite des colonies
+        const next = [10, 15, 20].find(level => Math.min(config.city.maxSecondaryCities, fx.settlerSlots(level)) > slots);
         return { error: next ? `Tous vos colons sont engagés (${slots}) : Résidence niveau ${next} pour le suivant` : `Limite atteinte : ${slots} villes secondaires au plus`, status: 400 };
       }
       const cost = fx.settlerCost();

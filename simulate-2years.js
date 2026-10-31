@@ -19,7 +19,7 @@ Object.setPrototypeOf(global.Date, OrigDate);
 const config = require('./src/config');
 const prisma = require('./src/config/database');
 const { unitsData, buildingsData } = require('./src/config/gamedata');
-const { getProductionAtLevel, cityStorageCaps, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('./src/utils/calculations');
+const { getProductionAtLevel, cityStorageCaps, buildCostFor, buildSecondsFor, recruitCostFor, recruitGoldFor, baseTrainSecondsFor, ringSlotsOf } = require('./src/utils/calculations');
 const fx = require('./src/utils/buildingEffects');
 
 // Override tick config: each tick = 6 hours of game time (faster simulation)
@@ -367,6 +367,7 @@ async function aiAction(player, hour, now, tick, players) {
       // le Mur a sa place fixe sur l'enceinte (décision du 30 octobre 2026), hors de l'anneau
       let slot = o.k === 'WALL' ? config.city.wallSlot : city.buildings.find(b=>b.key===o.k)?.slot;
       if (!slot) { const used = new Set([...city.buildings.map(b=>b.slot),...city.buildQueue.map(q=>q.slot), config.city.wallSlot]); slot=1; while(used.has(slot)) slot++; }
+      if (o.k !== 'WALL' && slot > ringSlotsOf(city)) continue;   // anneau de la capitale plein (18 emplacements, décision du 31 octobre 2026)
       try {
         await prisma.$transaction(async tx => {
           await tx.city.update({where:{id:city.id},data:{wood:city.wood-cost.wood,stone:city.stone-cost.stone,iron:city.iron-cost.iron,food:city.food-cost.food}});
@@ -477,12 +478,15 @@ async function aiAction(player, hour, now, tick, players) {
     const uDef = unitsData.find(u => u.key === unitKey);
     const cost = recruitCostFor(uDef, count);   // prix et temps du serveur (routes/cities.js)
     if (!canAfford(city, cost)) break recruit_block;
+    const gold = recruitGoldFor(uDef, count);   // or des unités d'élite (décision du 31 octobre 2026), pris à la mise en file
 
     const totalTime = Math.ceil(baseTrainSecondsFor(uDef)) * count;
     const endsAt = new global.Date(simulatedTime + totalTime*1000);
 
     try {
       await prisma.$transaction(async tx => {
+        // « or ≥ prix », comme le serveur : sans assez d'or, rien n'est pris
+        if (gold && (await tx.player.updateMany({where:{id:player.id,gold:{gte:gold}},data:{gold:{decrement:gold}}})).count !== 1) throw new Error('or insuffisant');
         await tx.city.update({where:{id:city.id},data:{wood:city.wood-cost.wood,stone:city.stone-cost.stone,iron:city.iron-cost.iron,food:city.food-cost.food}});
         await tx.recruitQueueItem.create({data:{cityId:city.id,unitKey,count,buildingKey:'BARRACKS',startedAt:now,endsAt,status:'RUNNING'}});
       });

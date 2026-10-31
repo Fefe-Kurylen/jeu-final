@@ -192,10 +192,10 @@ async function attackImmortalsGroup(armyIds, nodeId, leaderId) {
     const captorId = leader ? leader.id : armies[0].ownerId;   // compte du lanceur supprimé : la première armée
     const defenders = campUnits(node.defenderUnits);
     const leadTech = lead ? await tx.playerTechnology.findMany({ where: { playerId: lead.ownerId } }) : [];
-    const leadBonus = lead ? await combatPct(tx, lead.ownerId, leadTech) : { atk: 0, def: 0 };   // technologies et Forge du lanceur
+    const groupBonus = await combatPct(tx, lead?.ownerId, leadTech, armies);   // technologies du lanceur, Forge de chacun
     // civilisation de chaque armée sur ses lignes (Rome : « +10 % défense » armée par armée)
     const allUnits = armies.flatMap(a => a.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count, faction: a.owner?.faction || null })));
-    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead?.hero || null), null, { attackerBonusPct: leadBonus.atk, defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
+    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead?.hero || null), null, { attackerBonusPct: groupBonus.atk, defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
     // les Immortels perdent leur part, comme devant une armée seule
     const killedImm = [];
     const remaining = {};
@@ -338,9 +338,10 @@ async function immortalWave(city, now) {
     for (const a of defenders) for (const u of a.units) if (u.count > 0) (merged[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
     const wallLevel = full.buildings.find(b => b.key === 'WALL')?.level || 0;
     const wall = wallLevel > 0 && full.wallMaxHp > 0 ? { hp: wallHpNow(full), maxHp: full.wallMaxHp } : null;
-    // la Forge de la capitale du joueur arme aussi ses défenseurs contre les Immortels (décision du 31 octobre 2026)
+    // la Forge arme aussi les défenseurs contre les Immortels (décision du 31 octobre 2026) : celle de chaque joueur, selon
+    // ses soldats (les armées du joueur et les renforts alliés)
     const { combatPct, combatMult } = require('./armyService');
-    const forge = combatMult(await combatPct(tx, full.playerId, null));
+    const forge = combatMult(await combatPct(tx, full.playerId, null, defenders));
     const result = resolveCombatDetailed(atk, Object.values(merged), wallLevel, 'Immortels', full.player.name, null, null, 'SULTAN', full.player.faction, 0, { attacker: { atk: 1, def: 1 }, defender: forge }, wall);
     const wallInfo = wall ? { wallHpStart: Math.round(result.wallHpStart), wallHpEnd: result.wallHpEnd, wallMaxHp: Math.round(wall.maxHp), wallBroken: result.wallHpEnd <= 0 } : {};
     const ratio = (key) => { const r = result.defenderFinalUnits.find(x => x.key === key); return r && r.initial > 0 ? r.remaining / r.initial : 1; };

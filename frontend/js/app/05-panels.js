@@ -33,12 +33,11 @@ function openBuildPanel(slotNum) {
     const key = building?.key || slot.fixedKey;
     const level = building?.level || (key === 'MAIN_HALL' ? 1 : 0);
     const def = buildingsData.find(b => b.key === key);
-    const maxLevel = def?.maxLevel || 20;
-    // Other buildings cannot exceed MAIN_HALL level
-    const mainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-    const mainHallLevel = mainHall?.level || 1;
-    const colonyCap = key === 'MAIN_HALL' && currentCity && currentCity.isCapital === false && typeof colonyMainHallMax === 'function' ? colonyMainHallMax() : Infinity;   // ville secondaire : Bâtiment principal 20 au plus
-    const effectiveMax = key === 'MAIN_HALL' ? Math.min(maxLevel, colonyCap) : Math.min(maxLevel, mainHallLevel);
+    // maximum dans cette ville (Bâtiment principal 20 partout, Mur d'une colonie 15) ; les autres bâtiments ne dépassent pas
+    // le Bâtiment principal
+    const maxLevel = buildingMaxLevelIn(key, currentCity);
+    const mainHallLevel = Math.max(1, levelIn(currentCity?.buildings, 'MAIN_HALL'));
+    const effectiveMax = buildingCapIn(key, currentCity);
     const canUpgrade = level < effectiveMax;
 
     // ===== MILITARY BUILDINGS - RECRUITMENT PANEL =====
@@ -144,7 +143,7 @@ function openBuildPanel(slotNum) {
           ` : `
             <div class="max-level-notice">
               <span class="max-icon">${level >= maxLevel ? '<img class="ico" src="assets/images/3d/ui/ranking.webp" alt="">' : '<img class="ico" src="assets/images/3d/ui/lock.webp" alt="">'}</span>
-              <p>${level >= maxLevel ? 'Niveau maximum atteint !' : key === 'MAIN_HALL' ? `Niveau ${effectiveMax} au plus dans une ville secondaire` : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
+              <p>${level >= maxLevel ? (maxLevel < (def?.maxLevel || 20) ? `Niveau ${maxLevel} au plus dans une colonie` : 'Niveau maximum atteint !') : `Limité par le Bâtiment principal (Niv.${mainHallLevel})`}</p>
               ${level < maxLevel ? `<p class="bonus-hint">Améliorez le Bâtiment principal pour débloquer les niveaux suivants</p>` : ''}
               <p class="bonus-max">${bonus}</p>
             </div>
@@ -368,6 +367,32 @@ function storageTabHtml(buildingKey, level) {
         `;
 }
 
+// Onglet de la cachette (décision du 31 octobre 2026, façon Travian) : une quantité fixe de chaque ressource de la ville est
+// à l'abri des pillards (raid, pillage d'un siège) ; le reste peut être pris
+function hideoutTabHtml(level) {
+  const hidden = hideoutAmountAt(level);
+  const rows = RES_KEYS.map(r => {
+    const stock = Math.floor(currentCity?.[r] || 0);
+    return `<div class="storage-row"><span>${resIconHtml(r)} ${RES_NAMES[r]} :</span><span>${formatNum(Math.min(stock, hidden))} à l'abri · ${formatNum(Math.max(0, stock - hidden))} pillable${stock - hidden > 1 ? 's' : ''}</span></div>`;
+  }).join('');
+  const civ = factionBonusPct(player?.faction, 'hideoutCapacity');
+  return `
+          <div class="special-tab-content">
+            <h4>${resIconHtml('lock')} Cachette</h4>
+            <p>Niveau ${level} : <strong>${formatNum(hidden)}</strong> de chaque ressource à l'abri des pillards${civ ? ` (dont +${civ} % de bonus de civilisation)` : ''}.</p>
+            <div class="storage-bars">${rows}</div>
+            <p class="info-note">Seule la cachette protège du pillage. L'or ne se pille jamais : il n'est pas dans le stock des villes.</p>
+          </div>
+        `;
+}
+// Marchands (décision du 31 octobre 2026) : un par niveau du Marché de la capitale, charge et vitesse selon la civilisation
+// (avec le Comptoir et le Poste du Désert), occupés à l'aller et au retour (player.economy.market.merchants, /api/player/me)
+function merchantRulesHtml() {
+  const m = player?.economy?.market?.merchants;
+  if (!m) return '';
+  return `<p class="info-note">${resIconHtml('item_crate')} ${m.total} marchand${m.total > 1 ? 's' : ''} · ${formatNum(m.capacity)} ressources par marchand · vitesse ${m.speed}. Ils portent toutes les livraisons du marché (offres, envois, routes) et restent occupés à l'aller comme au retour ; le marchand du serveur n'en demande pas.</p>`;
+}
+
 // Helper: Get special tabs for specific building types
 function getBuildingSpecialTabs(buildingKey, level, slotNum) {
   const tabs = [];
@@ -382,10 +407,15 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/market.webp" alt=""> Place du marché</h4>
             <p>${getBuildingBonus(buildingKey, level)}</p>
+            ${merchantRulesHtml()}
             <button class="btn-primary" onclick="showTab('market'); closeBuildPanel();">Accéder au marché</button>
           </div>
         `
       });
+      break;
+
+    case 'HIDEOUT':
+      tabs.push({ id: 'hideout', icon: resIconHtml('lock'), name: 'Cachette', content: hideoutTabHtml(level) });
       break;
 
     case 'ACADEMY':
@@ -416,6 +446,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
             <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Ambassade</h4>
             <p>Permet de créer ou rejoindre une alliance.</p>
             <p>${getBuildingBonus(buildingKey, level)}</p>
+            <p class="info-note">La taille d'une alliance suit l'Ambassade de son chef : ${fmtTechPct(buildingEffectOf('EMBASSY', 'allianceMembersPerLevel'))} membres par niveau. Si elle baisse (changement de chef), personne n'est exclu, mais personne n'entre plus tant que l'alliance est pleine.</p>
             <button class="btn-primary" onclick="showTab('alliance'); closeBuildPanel();">Accéder à l'alliance</button>
           </div>
         `
@@ -431,6 +462,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/target.webp" alt=""> Point de ralliement</h4>
             <p>Armées simultanées: <strong>${maxArmiesAtRallyLevel(level)}</strong> (+1 tous les 5 niveaux, 5 au niveau 20)</p>
+            <p>Rassemblement d'alliance que vous lancez : <strong>${rallyMaxArmiesAt(level)}</strong> armées au plus, la vôtre comprise (${buildingEffectOf('RALLY_POINT', 'rallyMaxArmiesBase')} + ${buildingEffectOf('RALLY_POINT', 'rallyMaxArmiesPerLevel')} par niveau).</p>
             <p>Gérez vos troupes et envoyez des missions depuis ici.</p>
             <button class="btn-primary" onclick="showTab('army'); closeBuildPanel();">Gérer les armées</button>
           </div>
@@ -468,7 +500,7 @@ function getBuildingSpecialTabs(buildingKey, level, slotNum) {
           <div class="special-tab-content">
             <h4><img class="ico" src="assets/images/3d/ui/city.webp" alt=""> Tour de guet</h4>
             <p>${getBuildingBonus(buildingKey, level)}</p>
-            <p class="info-note">Les attaques ennemies seront détectées à l'avance.</p>
+            <p class="info-note">Les attaques ennemies seront détectées à l'avance. La carte se voit partout ; les armées des autres joueurs ne se voient qu'à ${visionRadiusAt(level)} cases de chacune de vos villes (vos armées et celles de votre alliance, toujours).</p>
           </div>
         `
       });
@@ -714,15 +746,20 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   // Batches queue up one after another on the server: a running batch never blocks a new order (file du lieu choisi)
   const currentQueue = place.city?.recruitQueue?.filter(q => q.buildingKey === baseKey) || [];
+  // Or des unités d'élite (décision du 31 octobre 2026) : en plus des ressources, pris sur l'or du joueur à la mise en file
+  const eliteGold = recruitPrice(availableUnits.find(u => u.tier === 'elite')).gold;
+  const eliteGoldNote = eliteGold ? `<p class="tier-info">${resIconHtml('gold')} Unités d'élite : ${formatNum(eliteGold)} or par unité en plus des ressources (vous en avez ${formatNum(player?.gold || 0)}).</p>` : '';
+  // Formation dans la capitale accélérée par les Grandes casernes / Grandes écuries de toutes les villes (décision du 31 octobre 2026)
+  const boost = place.city?.isCapital ? capitalTrainBoost(classes[0]) : null;
+  const capitalBoostNote = boost?.pct ? `<p class="tier-info">${resIconHtml('clock')} ${getBuildingName(boost.key)} de vos colonies (niveaux additionnés : ${boost.levels}) : −${fmtTechPct(boost.pct)} % de temps de formation ici.</p>` : '';
 
   title.innerHTML = `<span class="building-detail-icon">${buildingIcons[buildingKey]}</span> ${buildingNames[buildingKey]} (Niv.${buildingLevel}) ${infoBtnHtml('building', buildingKey)}`;
 
-  // Helper function to render a unit card
+  // Helper function to render a unit card : prix d'une unité du catalogue /api/units (or des unités d'élite compris)
   const renderUnitCard = (u) => {
     const tierColor = TIER_COLORS[u.tier] || '#aaa';
-    // Use per-unit GDD costs from units data (class-specific + tier multiplier)
-    const unitCost = u.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
-    const canAfford = canPayCost(unitCost);
+    const { cost: unitCost, gold } = recruitPrice(u);
+    const canAfford = !recruitShortfall(u);
 
     return `
       <div class="unit-recruit-card">
@@ -741,6 +778,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
           <div class="unit-mini-cost ${canAfford ? '' : 'insufficient'}">
             <span><img class="ico" src="assets/images/3d/ui/wood.webp" alt="">${unitCost.wood}</span>
             <span><img class="ico" src="assets/images/3d/ui/iron.webp" alt="">${unitCost.iron}</span>
+            ${gold ? `<span title="Or par unité d'élite, en plus des ressources">${resIconHtml('gold')}${gold}</span>` : ''}
           </div>
         </div>
       </div>
@@ -791,6 +829,8 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
               'Toutes les unités'}${place.city === currentCity ? '' : ` · ${getBuildingName(trainerKey)} niv. ${trainerLevel} à ${escapeHtml(place.city.name)}`}
           </p>
           ${place.city && !place.city.isCapital ? `<p class="tier-info">Formation à ${escapeHtml(place.city.name)} : les unités arrivent dans la capitale.</p>` : ''}
+          ${eliteGoldNote}
+          ${capitalBoostNote}
         </div>
         <button class="upgrade-building-btn" onclick="closeBuildPanel(); openBuildPanelUpgrade('${buildingKey}', ${slotNum})">
           ${resIconHtml('build')} Améliorer
@@ -844,19 +884,13 @@ function openUnitRecruitModal(unitKey, buildingKey, cityId = currentCity?.id) {
   const modal = document.getElementById('modal');
   const tierColor = TIER_COLORS[unit.tier] || '#aaa';
   
-  // Use per-unit GDD costs from units data (class-specific + tier multiplier)
-  const unitCost = unit.recruitCost || { wood: 50, stone: 30, iron: 60, food: 30 };
-
   // Temps de formation d'une unité au lieu choisi (réductions de son bâtiment et des technologies, 10b-sheets.js)
   const baseTime = unitTrainTimeInCity(unit, place).seconds;
 
   const foodUpkeep = unitUpkeep(unit);
 
-  // stock de toutes les villes : le recrutement y puise
-  const wood = stockOf('wood'), stone = stockOf('stone'), iron = stockOf('iron'), food = stockOf('food');
-  
-  const getResourceClass = (needed, available) => needed <= available ? 'res-available' : 'res-missing';
-  const canAffordOne = wood >= unitCost.wood && stone >= unitCost.stone && iron >= unitCost.iron && food >= unitCost.food;
+  // prix d'une unité (catalogue /api/units) : stock de toutes les villes, et or du joueur pour l'élite
+  const canAffordOne = !recruitShortfall(unit);
   
   document.getElementById('modal-body').innerHTML = `
     <div class="unit-detail-modal">
@@ -903,12 +937,7 @@ function openUnitRecruitModal(unitKey, buildingKey, cityId = currentCity?.id) {
       
       <div class="unit-costs">
         <h4><img class="ico" src="assets/images/3d/ui/gold.webp" alt=""> Coût par unité</h4>
-        <div class="cost-row">
-          <span class="cost-item ${getResourceClass(unitCost.wood, wood)}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${unitCost.wood}</span>
-          <span class="cost-item ${getResourceClass(unitCost.stone, stone)}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${unitCost.stone}</span>
-          <span class="cost-item ${getResourceClass(unitCost.iron, iron)}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${unitCost.iron}</span>
-          <span class="cost-item ${getResourceClass(unitCost.food, food)}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${unitCost.food}</span>
-        </div>
+        <div class="cost-row">${recruitCostHtml(unit)}</div>
       </div>
       
       <div class="unit-info-row">
@@ -928,9 +957,7 @@ function openUnitRecruitModal(unitKey, buildingKey, cityId = currentCity?.id) {
         <h4><img class="ico" src="assets/images/3d/ui/medal.webp" alt=""> Recruter${place?.isCapital ? '' : ` à ${escapeHtml(place?.name || '')}`}</h4>
         ${place?.isCapital ? '' : '<p class="tier-info">Les unités formées ici arrivent dans la capitale.</p>'}
         <div class="recruit-row">
-          <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input"
-                 data-wood="${unitCost.wood}" data-stone="${unitCost.stone}" 
-                 data-iron="${unitCost.iron}" data-food="${unitCost.food}">
+          <input type="number" id="recruit-count" value="10" min="1" max="1000" class="recruit-input">
           <button id="recruit-btn" onclick="recruitFromBuilding('${unit.key}', '${buildingKey}', '${escapeHtml(place?.id || '')}')" 
                   class="recruit-action-btn ${canAffordOne ? '' : 'disabled'}">
             Recruter
@@ -941,40 +968,25 @@ function openUnitRecruitModal(unitKey, buildingKey, cityId = currentCity?.id) {
     </div>
   `;
   
-  // Update total cost dynamically
-  const updateRecruitTotal = () => {
-    const input = document.getElementById('recruit-count');
-    const totalDiv = document.getElementById('recruit-total');
-    const btn = document.getElementById('recruit-btn');
-    if (!input || !totalDiv || !btn) return;
-    
-    const count = Math.max(1, parseInt(input.value) || 1);
-    const totalWood = unitCost.wood * count;
-    const totalStone = unitCost.stone * count;
-    const totalIron = unitCost.iron * count;
-    const totalFood = unitCost.food * count;
-    
-    const canAfford = wood >= totalWood && stone >= totalStone && iron >= totalIron && food >= totalFood;
-    
-    totalDiv.innerHTML = `
-      <span class="cost-label">Coût total:</span>
-      <span class="${totalWood <= wood ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/wood.webp" alt=""> ${formatNum(totalWood)}</span>
-      <span class="${totalStone <= stone ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/stone.webp" alt=""> ${formatNum(totalStone)}</span>
-      <span class="${totalIron <= iron ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/iron.webp" alt=""> ${formatNum(totalIron)}</span>
-      <span class="${totalFood <= food ? 'res-available' : 'res-missing'}"><img class="ico" src="assets/images/3d/ui/food.webp" alt=""> ${formatNum(totalFood)}</span>
-    `;
-    
-    btn.classList.toggle('disabled', !canAfford);
-    btn.title = canAfford ? '' : costShortfall({ wood: totalWood, stone: totalStone, iron: totalIron, food: totalFood });
-  };
-  
-  setTimeout(() => {
-    updateRecruitTotal();
-    const input = document.getElementById('recruit-count');
-    if (input) input.oninput = updateRecruitTotal;
-  }, 50);
-  
+  setTimeout(() => watchRecruitTotal(unit), 50);
   modal.style.display = 'flex';
+}
+
+// Coût total d'un recrutement sous le nombre saisi (#recruit-count) : ressources et or, en rouge ce qui manque ; le bouton
+// (#recruit-btn) dit pourquoi il ne passe pas (modales de recrutement des panneaux et de l'onglet Armée)
+function watchRecruitTotal(unit) {
+  const update = () => {
+    const input = document.getElementById('recruit-count'), totalDiv = document.getElementById('recruit-total'), btn = document.getElementById('recruit-btn');
+    if (!input || !totalDiv || !btn) return;
+    const count = Math.max(1, parseInt(input.value) || 1);
+    const short = recruitShortfall(unit, count);
+    totalDiv.innerHTML = `<span class="cost-label">Coût total:</span>${recruitCostHtml(unit, count, '')}`;
+    btn.classList.toggle('disabled', !!short);
+    btn.title = short;
+  };
+  update();
+  const input = document.getElementById('recruit-count');
+  if (input) input.oninput = update;
 }
 
 // Global action guard to prevent double-click on any resource-modifying action
@@ -1003,7 +1015,7 @@ async function recruitFromBuilding(unitKey, buildingKey, cityId = currentCity?.i
     
     if (res.ok) {
       showToast(`Recrutement de ${count}x ${getUnitName(unitKey)} lancé${place.isCapital ? '' : ` à ${place.name} : les unités arriveront dans la capitale`} !`, 'success');
-      await loadCities();
+      await Promise.all([loadCities(), data.gold ? loadPlayer() : null]);   // l'or des unités d'élite est parti
       renderCity();
     } else {
       showToast(data.error || 'Erreur', 'error');
@@ -1025,12 +1037,13 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
   const building = currentCity?.buildings?.find(b => b.key === buildingKey);
   const level = building?.level || 1;
   const def = buildingsData.find(b => b.key === buildingKey);
-  const maxLevel = def?.maxLevel || 20;
+  const maxLevel = buildingMaxLevelIn(buildingKey, currentCity);
   // Other buildings cannot exceed MAIN_HALL level
-  const upMainHall = currentCity?.buildings?.find(b => b.key === 'MAIN_HALL');
-  const upMainHallLevel = upMainHall?.level || 1;
-  const upEffectiveMax = buildingKey === 'MAIN_HALL' ? maxLevel : Math.min(maxLevel, upMainHallLevel);
+  const upMainHallLevel = Math.max(1, levelIn(currentCity?.buildings, 'MAIN_HALL'));
+  const upEffectiveMax = buildingCapIn(buildingKey, currentCity);
   const canUpgrade = level < upEffectiveMax;
+  // paliers d'unités débloqués par ce bâtiment (ses données : intermédiaires au niveau 7, élite au niveau 15)
+  const unlockInter = def?.effects?.unlockIntermediateTier || 7, unlockElite = def?.effects?.unlockEliteTier || 15;
   const nextLevel = level + 1;
   
   let overlay = document.querySelector('.build-panel-overlay');
@@ -1073,11 +1086,11 @@ function openBuildPanelUpgrade(buildingKey, slotNum) {
           <div class="tier-item ${level >= 1 ? 'unlocked' : 'locked'}">
             <span>Niv. 1+</span> Base
           </div>
-          <div class="tier-item ${level >= (window.buildingsData?.find(b => b.key === 'BARRACKS')?.effects?.unlockIntermediateTier || 7) ? 'unlocked' : 'locked'}">
-            <span>Niv. ${window.buildingsData?.find(b => b.key === 'BARRACKS')?.effects?.unlockIntermediateTier || 7}+</span> Intermédiaire
+          <div class="tier-item ${level >= unlockInter ? 'unlocked' : 'locked'}">
+            <span>Niv. ${unlockInter}+</span> Intermédiaire
           </div>
-          <div class="tier-item ${level >= 15 ? 'unlocked' : 'locked'}">
-            <span>Niv. 15+</span> Elite
+          <div class="tier-item ${level >= unlockElite ? 'unlocked' : 'locked'}">
+            <span>Niv. ${unlockElite}+</span> Élite
           </div>
         </div>
       </div>
@@ -1415,7 +1428,7 @@ async function cancelRecruit(itemId, cityId = currentCity?.id) {
     const res = await fetch(`${API}/api/city/${cityId}/recruit/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json().catch(() => ({}));
     showToast(res.ok ? (data.message || 'Recrutement annulé') : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
-    if (res.ok) { await loadCities(); renderCity(); }
+    if (res.ok) { await Promise.all([loadCities(), data.gold ? loadPlayer() : null]); renderCity(); }   // une part de l'or des unités d'élite revient
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }
 

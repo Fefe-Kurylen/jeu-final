@@ -171,8 +171,6 @@ const effects = {
   // Buildings reserved to the capital or to secondary cities (data flags)
   capitalOnly: (key) => !!defOf(key)?.effects?.capitalOnly,
   notInCapital: (key) => !!defOf(key)?.effects?.notInCapital,
-  // Bâtiment partagé par toutes les villes du joueur : un bâtiment « capitale seulement »
-  sharedKey: (key) => CAPITAL_ONLY_KEYS.includes(key),
   levelOf
 };
 

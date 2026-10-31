@@ -173,7 +173,7 @@ async function openAllianceSheet(allianceId) {
   const role = { LEADER: 'Chef', OFFICER: 'Officier', MEMBER: 'Membre' };
   openSheetModal(`[${a.tag}] ${a.name}`, `
     <div class="alliance-sheet">
-      <p>${diploBadge(rel)} · ${a.members.length} membre${a.members.length > 1 ? "s" : ""}</p>
+      <p>${diploBadge(rel)} · ${a.members.length}${a.maxMembers ? ` / ${a.maxMembers}` : ''} membre${a.members.length > 1 ? "s" : ""}${a.maxMembers ? ' <small>(selon l\'Ambassade du chef)</small>' : ''}</p>
       ${a.description ? `<p class="diplo-help">${escapeHtml(a.description)}</p>` : ''}
       <p><strong>Alliés :</strong> ${list(a.allies || [])}</p>
       <p><strong>Ennemis :</strong> ${list(a.enemies || [])}</p>

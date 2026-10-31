@@ -8,13 +8,17 @@
 // Colonies (décisions du 30 octobre 2026) : une colonie recrute avec SA Grande caserne / Grande écurie (palier lu dans leurs
 // données, jamais la Caserne de la capitale), les recrues arrivent dans la capitale ; le site d'une colonie se choisit dans
 // les « Sites libres » (GET /api/map/free-sites) selon le type et le niveau du gisement, le bonus qui sert le joueur d'abord.
+// Revue des bâtiments (décisions du 31 octobre 2026) : une unité d'élite coûte de l'or en plus de ses ressources
+// (calculations.recruitGoldFor, payé à la mise en file) ; dès qu'une ville forme l'élite, le joueur garde de l'or pour un lot
+// (goldReserve) avant un soin à l'or, un espion ou un changement de talents. Dans la capitale, les Grandes casernes et
+// Grandes écuries de toutes ses villes accélèrent la formation (fx.capitalTrainBoostPct).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
-const { baseTrainSecondsFor } = require(path.join(ROOT, 'src/utils/calculations'));
+const { baseTrainSecondsFor, recruitGoldFor } = require(path.join(ROOT, 'src/utils/calculations'));
 const Stock = require('../stock.cjs');
 const Terrain = require(path.join(ROOT, 'frontend/js/shared/terrain.js'));   // le terrain que le client dessine (même graine)
 
@@ -37,6 +41,7 @@ const FREE_SITES = 40;           // sites libres demandés pour choisir une colo
 const SITE_TILE = 60;            // choix du site : une case de marche « coûte » autant que 60 de force de tribu…
 const SITE_BONUS = 25;           // … et un point de bonus de gisement voulu en « rapporte » 25 (niveau 3 voulu ≈ 37 cases)
 const CALLS_PER_TURN = 8;        // lectures comprises
+const ELITE_GOLD_UNITS = 100;    // or gardé pour un lot de 100 unités d'élite (quand une ville forme l'élite)
 const HOLD_STEPS = 8;            // une récolte est rappelée après 2 jours (la récolte du jeu ne suit pas le pas de 6 h)
 const DOCTRINE = {               // part de chaque classe dans l'armée, selon la civilisation
   ROME: { INFANTRY: 0.55, ARCHER: 0.25, CAVALRY: 0.2 }, GREEK: { INFANTRY: 0.5, ARCHER: 0.3, CAVALRY: 0.2 },
@@ -101,6 +106,11 @@ function unlockedUnits(city, faction) {
   });
 }
 
+// or que le joueur garde pour l'élite (le prix d'un lot de ELITE_GOLD_UNITS unités) quand une de ses villes la forme ; les
+// autres modules dépensent l'or au-dessus (soin à l'or, espions, talents du héros)
+const goldReserve = (bot) => ((bot.cities || []).some(c => unlockedUnits(c, bot.faction).some(u => u.tier === 'elite')) ? recruitGoldFor({ tier: 'elite' }, ELITE_GOLD_UNITS) : 0);
+const spareGold = (bot) => Math.max(0, (bot.me?.gold || 0) - goldReserve(bot));
+
 // soldats de chaque classe : armées du joueur et files de recrutement
 function classCounts(bot) {
   const by = { INFANTRY: 0, ARCHER: 0, CAVALRY: 0, SIEGE: 0 };
@@ -141,7 +151,11 @@ async function recruit(bot, ctx, B, m, city) {
 
   // la classe la plus en retard sur la doctrine (engins à part : quelques-uns pour le module de guerre)
   const doctrine = DOCTRINE[bot.faction] || DOCTRINE.ROME;
-  const fighters = units.filter(u => u.class !== 'SIEGE');
+  // l'or du joueur paie l'élite : un palier dont il ne peut pas payer 5 unités attend (le palier en dessous passe)
+  const gold = bot.me?.gold || 0;
+  const payable = (u) => recruitGoldFor(u, 5) <= gold;
+  if (units.some(u => !payable(u))) bump(m, 'eliteWaitGold');
+  const fighters = units.filter(u => u.class !== 'SIEGE' && payable(u));
   const classes = [...new Set(fighters.map(u => u.class))];
   const sumF = counts.INFANTRY + counts.ARCHER + counts.CAVALRY;
   let unit = null;
@@ -165,17 +179,24 @@ async function recruit(bot, ctx, B, m, city) {
   const one = Stock.recruitCost(unit, 1);
   const byRes = Math.min(...RES.map(r => (one[r] > 0 ? Math.floor(Math.max(0, stock[r] - (reserve[r] || 0)) * share(r) / one[r]) : Infinity)));
   const byFood = Math.floor(headroom / ((UPKEEP[unit.tier] || 5) * (1 - red)));
+  const goldPer = recruitGoldFor(unit, 1);
+  const byGold = goldPer > 0 ? Math.floor(gold / goldPer) : Infinity;
   // temps : le lot finit dans les 18 h (les lots d'un bâtiment passent l'un après l'autre) ; celui du bâtiment de la ville
-  // qui forme (Grande caserne d'une colonie comprise), même si les unités rejoignent la capitale
-  const perUnit = Math.max(1, baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100));
+  // qui forme (Grande caserne d'une colonie comprise), même si les unités rejoignent la capitale ; dans la capitale, avec
+  // les Grandes casernes / Grandes écuries de toutes les villes du joueur (comme routes/cities.js)
+  const boost = city.isCapital ? fx.capitalTrainBoostPct(bot.cities, unit.class) : 0;
+  const perUnit = Math.max(1, baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class, boost) / 100));
   const queueEnd = queue.reduce((t, q) => Math.max(t, new Date(q.endsAt).getTime()), ctx.clock.now());
   const byTime = Math.floor((18 * 3600000 - (queueEnd - ctx.clock.now())) / 1000 / perUnit);
-  const n = Math.min(byRes, byFood, byTime, unit.class === 'SIEGE' ? 2 : 300, 40 + 45 * halls - total);
+  const n = Math.min(byRes, byFood, byGold, byTime, unit.class === 'SIEGE' ? 2 : 300, 40 + 45 * halls - total);
   if (!(n >= (unit.class === 'SIEGE' ? 1 : 5))) { bump(m, n === byFood ? 'foodCap' : 'recruitWait'); return; }
   B.left--;
   const r = await bot.post(`/api/cities/${city.id}/recruit`, { unitKey: unit.key, count: n });
   if (!r.ok) { bump(m, 'recruitRefused'); return; }
   Stock.spend(bot, city, r.data?.cost || Stock.recruitCost(unit, n));
+  const paidGold = r.data?.gold ?? recruitGoldFor(unit, n);
+  if (bot.me) bot.me.gold = gold - paidGold;
+  if (paidGold) bump(m, 'eliteGold', paidGold);
   (city.recruitQueue ||= []).push(r.data?.queueItem || { unitKey: unit.key, count: n, buildingKey: bKey, endsAt: new Date(queueEnd + n * perUnit * 1000).toISOString() });
   bump(m, 'recruited', n); bump(m, 'batches'); bump(m, `t_${unit.tier}`, n); bump(m, `c_${unit.class}`, n);
 }
@@ -206,10 +227,11 @@ async function heal(bot, ctx, B, m, cap) {
     Stock.spend(bot, cap, h.data?.cost || w.healCost);   // payé dans la capitale d'abord (la tente y est)
     bump(m, 'healStarted', h.data?.started || w.healable);
   }
-  // 2. soin à l'or des blessés déjà au lit, quand il reste de l'or
+  // 2. soin à l'or des blessés déjà au lit, avec l'or au-dessus de la réserve de l'élite
   let gold = bot.me?.gold || 0;
+  const keep = 30 + goldReserve(bot);   // garder un peu d'or, et de quoi payer un lot d'élite
   for (const w of r.data.filter(x => x.count >= 1 && x.instantGold > 0).sort((a, b) => b.count - a.count).slice(0, 2)) {
-    if (B.left <= 0 || gold - 30 < w.instantGold) break;   // garder un peu d'or
+    if (B.left <= 0 || gold - keep < w.instantGold) break;
     B.left--;
     const h = await bot.post(`/api/cities/${w.cityId}/wounded/heal`, { unitKey: w.unitKey });
     if (!h.ok) { bump(m, 'healRefused'); break; }
@@ -636,7 +658,8 @@ function prepare(bot) {
 
 module.exports = {
   name: 'military',
-  residence, heal, unlockedUnits, siteWish, pickColonySite,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  residence, heal, recruit, unlockedUnits, siteWish, pickColonySite,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  spareGold,   // or au-dessus de la réserve de l'élite (modules du héros et de la guerre)
   // début du tour, avant l'économie (fichier 09-military-early.cjs) : un joueur qui prépare une colonie envoie son colon et
   // monte sa Résidence avant de dépenser le reste en constructions
   async early(bot, ctx) {

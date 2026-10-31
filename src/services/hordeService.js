@@ -226,10 +226,10 @@ async function attackHordeGroup(armyIds, nodeId) {
     const lead = armies[0];
     const defenders = Object.entries(node.defenderUnits || {}).filter(([, n]) => n > 0).map(([unitKey, count]) => ({ unitKey, count, tier: tierOf(unitKey) }));
     const leadTech = await tx.playerTechnology.findMany({ where: { playerId: lead.ownerId } });
-    const leadBonus = await require('./armyService').combatPct(tx, lead.ownerId, leadTech);   // technologies et Forge du lanceur
+    const groupBonus = await require('./armyService').combatPct(tx, lead.ownerId, leadTech, armies);   // technologies du lanceur, Forge de chacun
     // civilisation de chaque armée sur ses lignes : « +10 % défense » de Rome compté armée par armée
     const allUnits = armies.flatMap(a => a.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count, faction: a.owner?.faction || null })));
-    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead.hero), null, { attackerBonusPct: leadBonus.atk, winnerLossMultiplier: config.combat.tribeLossMultiplier });
+    const combat = resolveCombat(allUnits, defenders, 0, heroCombatStats(lead.hero), null, { attackerBonusPct: groupBonus.atk, winnerLossMultiplier: config.combat.tribeLossMultiplier });
     // part de chaque armée : la puissance qu'elle amène
     const powers = armies.map(a => calculateArmyPower(a.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), unitsData) || 1);
     const totalPower = powers.reduce((t, p) => t + p, 0) || 1;

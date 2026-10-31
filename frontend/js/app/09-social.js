@@ -14,6 +14,12 @@ function renderLoadError(el, retryFn) {
   if (el) el.innerHTML = `<div class="empty-state">Impossible de charger les données. <button class="btn btn-secondary" onclick="${retryFn}">Réessayer</button></div>`;
 }
 
+// Alliance pleine (taille fixée par l'Ambassade du chef, décision du 31 octobre 2026) : le chef n'est invité à monter son
+// Ambassade que si elle peut encore agrandir l'alliance (jamais au-delà du plafond général)
+function allianceFullHtml(count, maxMembers) {
+  if (!maxMembers || count < maxMembers) return '';
+  return `<p class="diplo-help">Alliance complète${maxMembers < allianceMaxMembersAt(buildingMaxLevelIn('EMBASSY')) ? ' : le chef peut monter son Ambassade pour accueillir plus de membres' : ''}.</p>`;
+}
 async function loadAlliance() {
   const content = document.getElementById('alliance-content');
   try {
@@ -36,7 +42,8 @@ async function loadAlliance() {
                   <div class="alliance-emblem"><img class="ico" src="assets/images/3d/ui/defense.webp" alt=""></div>
                   <div class="alliance-info">
                     <h3>[${escapeHtml(myAlliance.tag)}] ${escapeHtml(myAlliance.name)}</h3>
-                    <div class="alliance-tag">${myAlliance.members.length}${mine.maxMembers ? ` / ${mine.maxMembers}` : ''} membres · ${roleLabel(myRole)}</div>
+                    <div class="alliance-tag" title="La taille de l'alliance suit l'Ambassade du chef">${myAlliance.members.length}${mine.maxMembers ? ` / ${mine.maxMembers}` : ''} membres · ${roleLabel(myRole)}</div>
+                    ${allianceFullHtml(myAlliance.members.length, mine.maxMembers)}
                     ${myAlliance.description ? `<p style="font-size:12px;color:var(--text-muted)">${escapeHtml(myAlliance.description)}</p>` : ''}
                   </div>
                 </div>
@@ -108,7 +115,7 @@ async function loadAlliance() {
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">On rejoint une alliance sur invitation de l'un de ses officiers.</p>
       ${alliances.slice(0, 20).map(a => `
         <div class="member-row">
-          <span class="member-name"><a href="#" onclick="event.preventDefault(); openAllianceSheet('${chatSafeId(a.id)}')">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)}</a> (${a.members.length} membres)</span>
+          <span class="member-name"><a href="#" onclick="event.preventDefault(); openAllianceSheet('${chatSafeId(a.id)}')">[${escapeHtml(a.tag)}] ${escapeHtml(a.name)}</a> (${a.members.length}${a.maxMembers ? ` / ${a.maxMembers}` : ''} membres)</span>
         </div>
       `).join('') || '<p style="color:var(--text-muted)">Aucune alliance</p>'}
     `;

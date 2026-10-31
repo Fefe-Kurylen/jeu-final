@@ -30,7 +30,6 @@ const NAME = 'Chasse aux hordes';
 const MAX_CALLS = 7;
 const KEEP = 0.2;            // part des soldats laissée à la garnison
 const SLACK = 1.25;          // route réelle (contournements) face à la ligne droite
-const capacityFor = (rp) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rp) - 1) * 12 / 19)));   // rallyService
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const isSiege = (k) => UNIT[k]?.class === 'SIEGE';
 const fighters = (units) => (units || []).filter(u => u.count > 0 && UNIT[u.unitKey] && !isSiege(u.unitKey));
@@ -262,7 +261,7 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   // 1. rejoindre : le rassemblement à qui il manque le plus de puissance, que l'armée atteint avant le départ
   let best = null;
   for (const r of rallies) {
-    if (r.status !== 'GATHERING' || r.joined || r.mine || (r.armies || []).length >= r.capacity) continue;
+    if (r.status !== 'GATHERING' || r.joined || r.mine || (r.armies || []).length >= r.maxArmies) continue;
     const node = st.nodes.get(r.targetNodeId);
     if (!node) continue;
     const lc = await leaderCity(ctx, r.id);
@@ -296,9 +295,10 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   // 2. lancer : le donjon que l'alliance peut battre (le plus haut niveau, le plus avancé, le plus proche)
   const endsAt = ms(st.inv.endsAt);
   const o = usable.find(x => x.city.isCapital) || usable[0];
-  const rp = lvl(o.city, 'RALLY_POINT');
+  const rp = lvl(bot.capital, 'RALLY_POINT');   // celle de la capitale vaut pour toutes les villes (capitale seulement)
   if (!rp || B.left() < 3) return;
-  const capacity = capacityFor(rp);
+  // taille d'un rassemblement (décision du 31 octobre 2026) : la Place de rassemblement de la capitale du lanceur
+  const capacity = fx.rallyMaxArmies(rp);
   const joiners = expectedJoiners(bot, ctx, o.city, allianceId).slice(0, capacity - 1);
   const joinPot = joiners.reduce((t, x) => t + x.pot, 0) * 0.6;   // certains rejoindront un autre rassemblement
   const nt = nextTick(ctx);
@@ -345,7 +345,7 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   m.p.push(id); if (m.p.length > 8) m.p.shift();
   (m.f ||= {})[id] = target.n.floor;   // l'étage visé (un autre rassemblement peut l'abattre avant)
   bump(m, 'launched'); bump(m, `launchedL${target.n.level}`); if (o.borrow) bump(m, 'borrowed');
-  S.launched.push({ leader: bot.name, alliance: allianceId, id, nodeId: target.n.nodeId, need, march: p.march, solo, capacity: r.data.rally.capacity || capacity, launchAt: ms(r.data.rally.launchAt) });
+  S.launched.push({ leader: bot.name, alliance: allianceId, id, nodeId: target.n.nodeId, need, march: p.march, solo, capacity: r.data.maxArmies || capacity, launchAt: ms(r.data.rally.launchAt) });
   if (solo && B.left() > 0) {
     // assez fort seul : il part sans attendre
     const l = await B.call('POST', `/api/rallies/${id}/launch`);
@@ -380,7 +380,7 @@ async function responders(ctx) {
       if (!usable.length) continue;
       const lr = await B.call('GET', `/api/rallies?nodeId=${L.nodeId}`);
       const r = (lr.data?.rallies || []).find(x => x.id === L.id);
-      if (!r || r.status !== 'GATHERING' || r.joined || (r.armies || []).length >= r.capacity || r.power >= L.need * 2.5) continue;
+      if (!r || r.status !== 'GATHERING' || r.joined || (r.armies || []).length >= r.maxArmies || r.power >= L.need * 2.5) continue;
       const left = (ms(r.launchAt) - ctx.clock.now()) / 1000;
       const o = usable.filter(x => dist(x.city, lc) * x.spt * SLACK + 60 <= left - 30).sort((x, y) => y.pot - x.pot)[0];
       if (!o) continue;

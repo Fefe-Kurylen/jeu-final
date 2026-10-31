@@ -9,7 +9,8 @@
 //  4. militaire hors capitale : la Grande caserne demande Caserne 20 dans la capitale ; coût et délai de ce verrou ; les
 //     unités formées rejoignent la capitale (décision du 30 octobre 2026) ;
 //  5. rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement par niveau, poids sur tout le
-//     compte, emplacements avec le Mur sur l'enceinte.
+//     compte, emplacements avec le Mur sur l'enceinte (anneau de 18 emplacements dans la capitale, 12 dans une colonie),
+//     Marché et Comptoir de commerce dans la capitale seulement, avec les marchands.
 // Coûts et temps des bâtiments : utils/calculations.js buildCostFor / buildSecondsFor (les mêmes que le serveur).
 //   node tools/simulate-colonies.cjs
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -101,7 +102,6 @@ const sitePct = (own, L) => (own ? fx.colonyNodeBonusPct(L) : fx.colonyOtherReso
 const signed = (v) => (v < 0 ? `−${-v}` : `+${v}`);
 const capitalRes = (fields, base, buildPct = 0) => fields * (1 + buildPct / 100) + base;
 const colonyRes = (fields, base, buildPct, own, L) => (fields * (1 + (buildPct + sitePct(own, L)) / 100) + base) * colonyMult;
-const cap = config.city.secondaryMainHallMaxLevel;
 console.log(`Bonus de toutes les colonies : ${fx.secondaryCityBonusPct()} % ; gisement : ${signed(fx.colonyNodeBonusPct(1))} % par niveau sur sa ressource, ${signed(fx.colonyOtherResourcesPct())} % sur les trois autres (sans bâtiments de production ici).\n`);
 row(['Champs (4 par ressource)', 'Capitale, par ressource et par heure', 'Colonie : sa ressource (gisement 1 / 2 / 3)', 'Colonie : chacune des 3 autres', 'Coût cumulé des 16 champs']);
 row(['---', '---', '---', '---', '---']);
@@ -116,7 +116,7 @@ console.log(`\nFondation : ${fmt(found)} ressources transportées ; Résidence 1
 const f10 = 4 * getProductionAtLevel('LUMBER', 10, buildingsData);
 const col10 = colonyRes(f10, 5, 0, true, 2) + 3 * colonyRes(f10, 5, 0, false), cap10 = 4 * capitalRes(f10, 5);
 console.log(`Une colonie aux champs de niveau 10 sur un gisement de niveau 2 produit ${fmt(col10)} par heure en tout (la capitale au même niveau : ${fmt(cap10)}) : la fondation (${fmt(found)}) en vaut ${h(found / col10)}, la Résidence 10 ${h(res10.total / col10)}. Elle donne surtout beaucoup d'une ressource : le joueur choisit son gisement selon ce qui lui manque.`);
-console.log(`Plafond : Bâtiment principal ${cap} au plus dans une colonie (30 dans la capitale) ; les autres bâtiments s'arrêtent à 20 de toute façon, le plafond n'enlève donc rien à la production, il réserve à la capitale les niveaux 21-30 du Bâtiment principal (population, réduction de temps déjà plafonnée à 60 % dès 24).`);
+console.log(`Plafonds (décisions du 31 octobre 2026, fx.maxLevelIn) : Bâtiment principal ${fx.maxLevelIn('MAIN_HALL', false)} dans une colonie comme dans la capitale (${fx.maxLevelIn('MAIN_HALL', true)}) ; aucun bâtiment ne dépasse le Bâtiment principal de sa ville ; Mur ${fx.maxLevelIn('WALL', false)} dans une colonie (${fx.maxLevelIn('WALL', true)} dans la capitale), soit ${fmt(fx.maxLevelIn('WALL', false) * config.combat.wallHpPerLevel)} PV de mur au plus (tableau de la section 2).`);
 // placement (décision du 30 octobre 2026) : lu dans les données (effects.capitalOnly / effects.notInCapital)
 const names = (keep) => buildingsData.filter(b => !b.faction && keep(b.key)).map(b => b.name).join(', ');
 console.log(`Bâtiments des colonies seulement : ${names(fx.notInCapital)}. Bâtiments de la capitale seulement (leurs effets valent pour toutes les villes du joueur) : ${names(fx.capitalOnly)}, et le bâtiment de la civilisation.`);
@@ -156,8 +156,13 @@ console.log(`\nCapitale (ni gisement ni bâtiments de production) : ${fmt(capita
 const RING_OUT = new Set(['MAIN_HALL', 'WALL', ...Object.keys(config.city.fieldSlots)]);
 const ring = (keep) => buildingsData.filter(b => !b.faction && !RING_OUT.has(b.key) && keep(b.key)).length;
 const capRing = ring(k => !fx.notInCapital(k)) + 1, colRing = ring(k => !fx.capitalOnly(k));
-console.log(`Emplacements : le Mur est sur l'enceinte (emplacement ${config.city.wallSlot}), hors des ${config.city.maxSlot} emplacements de l'anneau. Capitale : ${capRing} bâtiments possibles dans l'anneau (${config.city.maxSlot - capRing} libres) ; colonie : ${colRing} (${config.city.maxSlot - colRing} libres).`);
+const RS = config.city.ringSlots;
+const free = (n) => `${n} libre${n > 1 ? 's' : ''}`;
+console.log(`Emplacements (config.city.ringSlots) : le Mur est sur l'enceinte (emplacement ${config.city.wallSlot}), hors de l'anneau. Capitale : ${capRing} bâtiments possibles dans ses ${RS.capital} emplacements (${free(RS.capital - capRing)}) ; colonie : ${colRing} dans ses ${RS.colony} emplacements (${free(RS.colony - colRing)}) ; la Ville Merveille suit la colonie.`);
 // la taxe ne descend pas sous 0 (marketService.p2pTaxPct) : le niveau du Comptoir qui l'annule à lui seul
 const officeTaxPct = fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1);
 const taxZeroAt = Math.ceil(config.market.p2pTaxPctBase / officeTaxPct);
-console.log(`Comptoir de commerce : le meilleur Comptoir des colonies vaut pour toutes les villes du joueur, capitale comprise, sans somme des niveaux : taxe des échanges −${officeTaxPct} point par niveau (${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${taxZeroAt}), transport +${fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} % par niveau (+${20 * fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} % au Comptoir 20).`);
+const officeLoad = fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1);
+const MC = config.market.merchants;
+const loads = Object.entries(MC.capacity).map(([f, c]) => `${f} ${fmt(c)}`).join(', ');
+console.log(`Place du marché et Comptoir de commerce : dans la capitale seulement, ils servent toutes les villes du joueur. Un marchand par niveau du Marché (${fx.merchantCount([{ key: 'MARKET', level: 20 }])} au niveau 20), occupé à l'aller comme au retour ; charge d'un marchand : ${loads}. Comptoir : taxe des échanges −${officeTaxPct} point par niveau (${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${taxZeroAt}), charge des marchands et des armées de transport +${officeLoad} % par niveau (+${20 * officeLoad} % au Comptoir 20).`);

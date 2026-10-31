@@ -16,6 +16,7 @@ const config = require(R + '/src/config');
 const { unitsData, factionsData } = require(R + '/src/config/gamedata');
 const { resolveCombat, resolveCombatDetailed } = require(R + '/src/services/combatService');
 const { calculateTravelTime, getFactionBonus, buildSecondsFor } = require(R + '/src/utils/calculations');
+const fx = require(R + '/src/utils/buildingEffects');
 const F = ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN'];
 const snap = JSON.parse(JSON.stringify(factionsData));
 const argv = process.argv.slice(2);
@@ -95,7 +96,8 @@ const WALL_HP = config.combat.wallHpPerLevel;
 const FMT = {
   buildTimeReduction: v => `temps de construction ×${(1 - v / 100).toFixed(2)} (bâtiment L1 30 min → 20 niveaux : ${(hours20 * (1 - v / 100)).toFixed(0)} h au lieu de ${hours20.toFixed(0)})`,
   woundedConversion: v => { const w = l => Math.min(config.wounded.maxRate, config.wounded.baseRate + l * config.wounded.bonusPerHealingLevel + v / 100); return `blessés tente L1/L5/L10 : ${pct(w(1))}/${pct(w(5))}/${pct(w(10))} (plafond ${pct(config.wounded.maxRate)})`; },
-  hideoutCapacity: v => { const h = l => Math.min(config.hideout.maxProtection, l * config.hideout.protectionPerLevel * (1 + v / 100)); return `cachette L5/L10/L15/L20 : ${pct(h(5))}/${pct(h(10))}/${pct(h(15))}/${pct(h(20))} (plafond ${pct(config.hideout.maxProtection)})`; },
+  // cachette (décision du 31 octobre 2026) : une quantité fixe de chaque ressource par niveau, × (1 + bonus) pour la Gaule
+  hideoutCapacity: (v, f) => { const h = l => fx.hideoutAmount([{ key: 'HIDEOUT', level: l }], f), base = l => fx.hideoutAmount([{ key: 'HIDEOUT', level: l }], null); return `cachette L5/L10/L15/L20 : ${[5, 10, 15, 20].map(h).join('/')} par ressource (${[5, 10, 15, 20].map(base).join('/')} sans bonus, ×${(1 + v / 100).toFixed(2)})`; },
   transportCapacity: v => `transport ×${(1 + v / 100).toFixed(2)} (butin des pillages, envois par armée, convois marchands)`,
   wallHealth: v => { const hp = Math.round(WALL_HP * (1 + v / 100)), hit = engineHit('ROME'); return `mur ${hp} PV/niv. (${WALL_HP} ailleurs) → un niveau tombe en ${Math.ceil(hp / hit)} coups d'engin au lieu de ${Math.ceil(WALL_HP / hit)} (${engineOf('ROME').name} : ${hit.toFixed(2)} PV par round ; un soldat ×${config.combat.siege.wallShield.soldierMult} : seuls les engins abîment le mur)`; },
   armySpeed: v => `100 cases à vitesse 50 en ${(t100 / (1 + v / 100) / 60).toFixed(1)} min (${(t100 / 60).toFixed(1)} min sans bonus)`,

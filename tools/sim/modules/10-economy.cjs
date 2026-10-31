@@ -3,7 +3,9 @@
 // Stock partagé (décision du 30 octobre 2026) : un chantier se paie sur la somme des villes du joueur (../stock.cjs) ;
 // chaque ville garde son propre stockage, il faut donc assez de place dans toutes les villes réunies pour un gros prix.
 // Le Mur se bâtit sur l'enceinte, à sa place fixe (config.city.wallSlot), comme le client : il ne prend pas d'emplacement
-// de l'anneau.
+// de l'anneau. Revue des bâtiments (décisions du 31 octobre 2026) : anneau de 18 emplacements dans la capitale, 12 dans
+// une colonie (calculations.ringSlotsOf) ; Bâtiment principal 20 partout ; Mur d'une colonie 15 (fx.maxLevelIn) ; Marché et
+// Comptoir de commerce dans la capitale seulement (drapeaux des données).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -11,6 +13,7 @@ const config = require(path.join(ROOT, 'src/config'));
 const { buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const T = require(path.join(ROOT, 'src/utils/techEffects'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const { ringSlotsOf } = require(path.join(ROOT, 'src/utils/calculations'));
 const Stock = require('../stock.cjs');
 
 const FIELDS = config.city.fieldSlots;   // { LUMBER: [101..], QUARRY: [...], IRON_MINE: [...], FARM: [...] }
@@ -24,10 +27,12 @@ const stepHours = (ctx) => Math.max(1, Number(ctx.OPT?.stepHours) || 1);
 
 // plan : [clé, niveau visé] ; FIELDS = tous les champs à ce niveau ; dans l'ordre, par étapes. Chaque ville en garde ce
 // que les données lui permettent (effects.capitalOnly / effects.notInCapital) : la capitale le militaire et les
-// bâtiments dont l'effet vaut pour tout le joueur (17 dans l'anneau au plus, le Mur est sur l'enceinte), une colonie
-// l'économie, les Grands dépôt et silo et les Grandes caserne et écurie (14 dans l'anneau au plus). Tente de soins : 5 pour
-// les Thermes, puis des lits pour les soins payants ; Chambre au Trésor : 5 pour les Grands dépôt et silo, puis jusqu'à
-// 20 ; Écurie 20 pour la Grande écurie des colonies.
+// bâtiments dont l'effet vaut pour tout le joueur, Marché et Comptoir compris (ses 18 emplacements, le Mur est sur
+// l'enceinte), une colonie l'économie, les Grands dépôt et silo et les Grandes caserne et écurie (ses 12 emplacements).
+// Tente de soins : 5 pour les Thermes, puis des lits pour les soins payants ; Chambre au Trésor : 5 pour les Grands dépôt
+// et silo, puis jusqu'à 20 (l'or paie aussi les unités d'élite) ; Écurie 20 pour la Grande écurie des colonies ; Marché 10
+// pour le Comptoir (plus de marchands et une charge plus grande). Un niveau visé au-delà du maximum de la ville (Mur d'une
+// colonie) s'arrête à ce maximum.
 function planFor(faction, capital) {
   const P = [
     ['FIELDS', 2], ['MAIN_HALL', 3], ['WAREHOUSE', 2], ['SILO', 2], ['RALLY_POINT', 1], ['FIELDS', 3], ['BARRACKS', 3], ['ACADEMY', 1], ['HERO_MANSION', 1],
@@ -37,15 +42,16 @@ function planFor(faction, capital) {
     [FACTION_BUILDING[faction], 5], ['MAIN_HALL', 13], ['FIELDS', 12], ['BARRACKS', 12], ['STABLE', 10], ['MARKET', 10], ['HERO_MANSION', 10], ['RALLY_POINT', 10], ['EMBASSY', 10], ['GREAT_WAREHOUSE', 5], ['GREAT_SILO', 5],
     ['BAKERY', 5], ['SAWMILL', 5], ['STONEMASON', 5], ['FOUNDRY', 5], ['MAIN_HALL', 16], ['FIELDS', 15], ['WAREHOUSE', 16], ['SILO', 16], ['ACADEMY', 15], ['FORGE', 12], ['WORKSHOP', 10], ['WALL', 14], ['HEALING_TENT', 15],
     ['TRADE_OFFICE', 5], [FACTION_BUILDING[faction], 12], ['MAIN_HALL', 20], ['FIELDS', 18], ['BARRACKS', 20], ['STABLE', 16], ['RALLY_POINT', 20], ['WAREHOUSE', 20], ['SILO', 20], ['ACADEMY', 20], ['GREAT_WAREHOUSE', 12], ['GREAT_SILO', 10],
-    ['GREAT_BARRACKS', 5], ['STABLE', 20], ['GREAT_STABLE', 5], ['WALL', 20], ['FIELDS', 20], ['MAIN_HALL', 25], ['TREASURE_CHAMBER', 15], ['HEALING_TENT', 20], [FACTION_BUILDING[faction], 20], ['GREAT_WAREHOUSE', 20], ['GREAT_SILO', 20],
-    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['MAIN_HALL', 30]
+    ['GREAT_BARRACKS', 5], ['STABLE', 20], ['GREAT_STABLE', 5], ['WALL', 20], ['FIELDS', 20], ['TREASURE_CHAMBER', 15], ['HEALING_TENT', 20], [FACTION_BUILDING[faction], 20], ['GREAT_WAREHOUSE', 20], ['GREAT_SILO', 20],
+    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['MARKET', 20], ['TRADE_OFFICE', 15]
   ];
-  return P.filter(([k]) => k === 'FIELDS' || k === 'MAIN_HALL' || (capital ? !fx.notInCapital(k) : !fx.capitalOnly(k)))
-    .map(([k, l]) => [k, !capital && k === 'MAIN_HALL' ? Math.min(l, config.city.secondaryMainHallMaxLevel || 20) : l]);
+  return P.filter(([k]) => k === 'FIELDS' || (capital ? !fx.notInCapital(k) : !fx.capitalOnly(k)))
+    .map(([k, l]) => [k, k === 'FIELDS' ? l : Math.min(l, fx.maxLevelIn(k, capital))]);
 }
 // le Bâtiment principal (emplacement 0), les champs (101-118) et le Mur (enceinte) ne prennent pas d'emplacement de l'anneau
 const needsRingSlot = (key) => key !== 'MAIN_HALL' && key !== 'WALL' && !FIELDS[key];
-const freeRingSlots = (city) => { const used = new Set([...(city.buildings || []).map(b => b.slot), ...(city.buildQueue || []).map(q => q.slot)]); let n = 0; for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) n++; return n; };
+// emplacements libres de l'anneau de la ville : 1 à 18 dans la capitale, 1 à 12 dans une colonie (comme routes/cities.js)
+const freeRingSlots = (city) => { const used = new Set([...(city.buildings || []).map(b => b.slot), ...(city.buildQueue || []).map(q => q.slot)]); let n = 0; for (let s = 1; s <= ringSlotsOf(city); s++) if (!used.has(s)) n++; return n; };
 
 const levelOf = (city, key, slot = null) => { const q = (city.buildQueue || []).filter(x => x.buildingKey === key && (slot === null || x.slot === slot)); const b = (city.buildings || []).filter(x => x.key === key && (slot === null || x.slot === slot)); const top = Math.max(0, ...b.map(x => x.level)); return Math.max(top, ...q.map(x => x.targetLevel)); };
 const builtLevel = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
@@ -59,14 +65,14 @@ function storageBuild(bot, city, blocked, hall, ctx) {
   const keys = food ? ['SILO', 'GREAT_SILO'] : ['WAREHOUSE', 'GREAT_WAREHOUSE'];
   for (const k of keys.filter(x => city.isCapital ? !fx.notInCapital(x) : !fx.capitalOnly(x))) {
     const l = levelOf(city, k);
-    if (l >= (def(k)?.maxLevel || 20) || l + 1 > hall) continue;
+    if (l >= fx.maxLevelIn(k, city.isCapital) || l + 1 > hall) continue;
     if (l === 0 && (!freeRingSlots(city) || !prereqOk(city, k, city.isCapital ? null : bot.capital))) continue;
     if ((city.buildQueue || []).some(q => q.buildingKey === k)) return null;   // déjà en chantier : on attend
     if (Stock.canPay(bot, Stock.buildCost(k, l + 1))) return { buildingKey: k };
     return null;
   }
   const mh = levelOf(city, 'MAIN_HALL');
-  if (mh < (city.isCapital ? 30 : config.city.secondaryMainHallMaxLevel || 20) && Stock.canPay(bot, Stock.buildCost('MAIN_HALL', mh + 1))) return { buildingKey: 'MAIN_HALL' };
+  if (mh < fx.maxLevelIn('MAIN_HALL', city.isCapital) && Stock.canPay(bot, Stock.buildCost('MAIN_HALL', mh + 1))) return { buildingKey: 'MAIN_HALL' };
   return null;
 }
 
@@ -94,7 +100,7 @@ function nextBuild(bot, city, ctx) {
     }
     if (!def(key) || (def(key).faction && def(key).faction !== bot.faction)) continue;
     const l = levelOf(city, key);
-    if (l >= target || l >= (def(key).maxLevel || 20)) continue;
+    if (l >= target || l >= fx.maxLevelIn(key, city.isCapital)) continue;
     if (key !== 'MAIN_HALL' && l + 1 > hall) continue;
     if (l === 0 && ((needsRingSlot(key) && !freeRingSlots(city)) || !prereqOk(city, key, city.isCapital ? null : capital))) continue;
     const c = Stock.buildCost(key, l + 1);
