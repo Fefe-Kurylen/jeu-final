@@ -2,13 +2,13 @@ const express = require('express');
 const { isPremium } = require('../services/entitlementService');
 const router = express.Router();
 const W = require('../services/woundedService');
-const { sendError, sendFail } = require('../utils/httpError');
+const { sendError, sendFail, httpError } = require('../utils/httpError');
 const prisma = require('../config/database');
 const auth = require('../middleware/auth');
 const config = require('../config');
 const { unitsData, buildingsData, factionsData } = require('../config/gamedata');
-const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf, buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
-const { lockPlayerCities, debitPlayer, creditPlayer, missingMessage, lostNote, stockTotals, capitalBuildingsOf, withDeadlockRetry, isId } = require('../utils/db');
+const { getCityTier, getCityTierName, getFactionBonus, mainHallLevelOf, buildCostFor, buildSecondsFor, recruitCostFor, recruitGoldFor, baseTrainSecondsFor, ringSlotsOf } = require('../utils/calculations');
+const { lockPlayerCities, debitPlayer, creditPlayer, debitGold, creditGold, capitalTrainBoostOf, missingMessage, lostNote, stockTotals, capitalBuildingsOf, withDeadlockRetry, isId } = require('../utils/db');
 const { getRelation, sameAllianceAs, outsideAlliance, allianceRowsOf } = require('../services/diplomacyService');
 const { engineCount } = require('../game/processors/siegeProcessor');
 const { assaultsToFall, assaultsLeft } = require('../services/conquestService');
@@ -42,8 +42,9 @@ const COLONY_RECRUIT_BUILDING = { INFANTRY: 'GREAT_BARRACKS', ARCHER: 'GREAT_BAR
 const maxBuildingLevel = (buildings, key) => buildings.reduce((m, b) => (b.key === key && b.level > m ? b.level : m), key === 'MAIN_HALL' ? 1 : 0);
 
 // Slot a building may occupy: fields live on typed slots (101-118), the Main Hall in the centre (0), the Wall on the
-// enclosure (config.city.wallSlot, décision du 30 octobre 2026) whatever the slot sent, everything else on a free ring slot
-// (1-19). The Wall never takes a ring slot, so it never counts among the used ones. Returns null when the request is invalid.
+// enclosure (config.city.wallSlot, décision du 30 octobre 2026) whatever the slot sent, everything else on a free ring slot:
+// 1 to 18 in the capital, 1 to 12 in a colony or the Wonder city (ringSlotsOf, décision du 31 octobre 2026). The Wall never
+// takes a ring slot, so it never counts among the used ones. Returns null when the request is invalid.
 function resolveSlot(buildingKey, slot, existing, city) {
   if (buildingKey === 'WALL') return config.city.wallSlot;
   if (existing) return existing.slot;
@@ -54,10 +55,12 @@ function resolveSlot(buildingKey, slot, existing, city) {
   if (queued) return queued.slot;
   const used = new Set(city.buildings.map(b => b.slot));
   city.buildQueue.forEach(q => used.add(q.slot));
-  if (slot !== null) return slot >= 1 && slot <= config.city.maxSlot && !used.has(slot) ? slot : null;
-  for (let s = 1; s <= config.city.maxSlot; s++) if (!used.has(s)) return s;
+  const ring = ringSlotsOf(city);
+  if (slot !== null) return slot >= 1 && slot <= ring && !used.has(slot) ? slot : null;
+  for (let s = 1; s <= ring; s++) if (!used.has(s)) return s;
   return null;
 }
+
 
 // Le palier des unités se lit sur le bâtiment qui les forme dans la ville (unlockBaseTier / unlockIntermediateTier /
 // unlockEliteTier, data/buildings.json), les engins sur l'Atelier (config.recruit.siegeWorkshopLevel)
@@ -79,6 +82,10 @@ function recruitBlocker(unit, city) {
 // verrou du tick (interblocage rare, withDeadlockRetry)
 const refused = (paid, cost) => ({ error: missingMessage(paid), status: 400, cost, missing: paid.missing });
 const scaleCost = (cost, rate) => Object.fromEntries(Object.entries(cost).map(([k, v]) => [k, Math.floor(v * rate)]));
+// Un recrutement annulé rend la moitié de ce qu'il a coûté (ressources, et or des unités d'élite)
+const RECRUIT_REFUND_RATE = 0.5;
+// Or des unités d'élite (décision du 31 octobre 2026, recruitGoldFor) : refus quand le joueur n'en a pas assez
+const goldRefusal = (gold) => `Il faut ${gold} or pour recruter ces unités d'élite`;
 
 // GET /api/cities
 router.get('/', auth, async (req, res) => {
@@ -158,10 +165,9 @@ router.post('/:id/build', auth, async (req, res) => {
       const inQueue = city.buildQueue.filter(b => b.buildingKey === buildingKey && b.slot === buildSlot).length;
       const targetLevel = (existing?.level || 0) + inQueue + 1;
 
-      const maxLevel = buildingDef.maxLevel || 20;
-      if (targetLevel > maxLevel) return { error: `Niveau max atteint (${maxLevel})`, status: 400 };
-      // A secondary city's Main Hall stops at 20 (the capital alone reaches 30): every other building follows through the cap below
-      if (buildingKey === 'MAIN_HALL' && !city.isCapital && targetLevel > config.city.secondaryMainHallMaxLevel) return { error: `Le Bâtiment principal d'une ville secondaire ne dépasse pas le niveau ${config.city.secondaryMainHallMaxLevel}`, status: 400 };
+      // niveau max de la donnée (Bâtiment principal 20 partout), Mur d'une colonie 15 (fx.maxLevelIn)
+      const maxLevel = fx.maxLevelIn(buildingKey, city.isCapital);
+      if (targetLevel > maxLevel) return { error: buildingKey === 'WALL' && !city.isCapital ? `Le Mur d'une colonie ne dépasse pas le niveau ${maxLevel}` : `Niveau max atteint (${maxLevel})`, status: 400 };
 
       if (targetLevel === 1) {
         // In a secondary city, a prerequisite on a capital-only building (Barracks 20 for the Great Barracks…) is met by the capital
@@ -245,16 +251,22 @@ router.post('/:id/recruit', auth, async (req, res) => {
       const recruitBuildingKey = RECRUIT_BUILDING[unit.class] || 'BARRACKS';
       if (city.recruitQueue.filter(q => q.buildingKey === recruitBuildingKey).length >= config.recruit.maxBatchesPerBuilding) return { error: `File de recrutement pleine (max ${config.recruit.maxBatchesPerBuilding} lots)`, status: 400 };
 
-      // Per-class base costs with tier multiplier (GDD formulas.json)
+      // Per-class base costs with tier multiplier (GDD formulas.json), and gold for elite units
       const cost = recruitCostFor(unit, count);
+      const gold = recruitGoldFor(unit, count);
+      if (gold > city.player.gold) return { error: goldRefusal(gold), status: 400, cost, gold };
       const paid = await debitPlayer(tx, city.playerId, city.id, cost, cities);
-      if (!paid.ok) return refused(paid, cost);
+      if (!paid.ok) return { ...refused(paid, cost), gold };
+      // « or ≥ prix » vérifié par la base : de l'or dépensé ailleurs entre-temps annule toute la transaction, ressources comprises
+      if (!(await debitGold(tx, city.playerId, gold))) throw httpError(400, goldRefusal(gold));
 
       // Per-class base time with tier multiplier (GDD unit_training_times.json), reduced by the buildings that train it in
-      // this city (Caserne de la capitale, Grande caserne d'une colonie : jamais celles d'une autre ville)
+      // this city (Caserne de la capitale, Grande caserne d'une colonie : jamais celles d'une autre ville) ; dans la capitale,
+      // les Grandes casernes / Grandes écuries de toutes les villes du joueur l'accélèrent aussi (décision du 31 octobre 2026)
       // Entraînement (technologie) : −1 % de temps de recrutement par niveau, après les bâtiments
       const techLevels = T.levelsFrom(await tx.playerTechnology.findMany({ where: { playerId: city.playerId } }));
-      const timePerUnit = Math.max(1, Math.round(baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class) / 100) * T.techReductionMult(techLevels, 'trainTimeReductionPct')));
+      const boostPct = city.isCapital ? await capitalTrainBoostOf(tx, city.playerId, unit.class) : 0;
+      const timePerUnit = Math.max(1, Math.round(baseTrainSecondsFor(unit) * (1 - fx.trainTimeReductionPct(city.buildings, unit.class, boostPct) / 100) * T.techReductionMult(techLevels, 'trainTimeReductionPct')));
       const totalTime = timePerUnit * count;
       // Batches in the same building train one after another, not in parallel
       const buildingKey = recruitBuildingKey;
@@ -267,13 +279,13 @@ router.post('/:id/recruit', auth, async (req, res) => {
       });
 
       // § 1 bis : toute unité formée apparaît dans la capitale (une colonie n'a pas de garnison propre)
-      return { message: city.isCapital ? 'Recrutement lancé' : `Recrutement lancé à ${city.name} : les unités rejoindront la garnison de la capitale`, queueItem, durationSec: totalTime, timePerUnit, cost };
+      return { message: city.isCapital ? 'Recrutement lancé' : `Recrutement lancé à ${city.name} : les unités rejoindront la garnison de la capitale`, queueItem, durationSec: totalTime, timePerUnit, cost, gold };
     }));
 
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);
   } catch (e) {
-    sendError(res, e);
+    sendFail(res, e);
   }
 });
 
@@ -351,7 +363,8 @@ router.delete('/:id/build/:itemId', auth, async (req, res) => {
 });
 
 // DELETE /api/city/:id/recruit/:itemId — cancel a recruit batch (troops or settler): half of its cost comes back (to the
-// city, then to the player's other cities, creditPlayer), the batches scheduled after it in the same building start earlier
+// city, then to the player's other cities, creditPlayer), half of the gold of elite units too; the batches scheduled after
+// it in the same building start earlier
 router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
   try {
     const result = await withDeadlockRetry(() => prisma.$transaction(async (tx) => {
@@ -364,8 +377,10 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
       if (removed.count !== 1) return { error: 'Recrutement déjà terminé', status: 409 };
       const unit = unitsData.find(u => u.key === item.unitKey);
       const paidCost = item.unitKey === 'SETTLER' ? scaleCost(fx.settlerCost(), item.count) : unit ? recruitCostFor(unit, item.count) : { wood: 0, stone: 0, iron: 0, food: 0 };
-      const refund = scaleCost(paidCost, 0.5);
+      const refund = scaleCost(paidCost, RECRUIT_REFUND_RATE);
       const { lost } = await creditPlayer(tx, req.user.playerId, city.id, refund, cities);
+      const gold = unit ? Math.floor(recruitGoldFor(unit, item.count) * RECRUIT_REFUND_RATE) : 0;
+      await creditGold(tx, req.user.playerId, gold);
       // the batches after it move up by the time it still occupied (all of it if it had not started, what was left of it
       // if it was training), start and end together: their own length, siege pauses included, is kept
       const nowMs = Date.now();
@@ -379,7 +394,7 @@ router.delete('/:id/recruit/:itemId', auth, async (req, res) => {
         const start = new Date(q.startedAt).getTime(), end = new Date(q.endsAt).getTime();
         await tx.recruitQueueItem.update({ where: { id: q.id }, data: { startedAt: new Date(Math.max(floor, start - shiftMs)), endsAt: new Date(Math.max(floor, end - shiftMs)) } });
       }
-      return { message: `Recrutement annulé${lostNote(lost)}`, refund, lost };
+      return { message: `Recrutement annulé${lostNote(lost)}`, refund, gold, lost };
     }));
     if (result.error) return res.status(result.status || 400).json(result);
     res.json(result);

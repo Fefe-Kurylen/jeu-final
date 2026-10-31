@@ -187,7 +187,15 @@ const config = {
     offerHours: 48,              // une offre non prise revient au vendeur
     p2pTaxPctBase: 10,           // taxe des échanges entre joueurs, −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au Trésor
     treasureTaxReductionPctPerLevel: 0.25,
-    routes: { intervalHours: 2, pctOfStoragePer24h: 100, convoySpeed: 60, maxPerPlayer: 10 }   // routes entre ses villes : 100 % du stockage en 24 h au plus
+    routes: { intervalHours: 2, pctOfStoragePer24h: 100, maxPerPlayer: 10 },   // routes entre ses villes : 100 % du stockage en 24 h au plus
+    // Marchands façon Travian (décision du 31 octobre 2026) : autant de marchands que de niveaux du Marché de la capitale
+    // (MARKET.effects.merchantsPerLevel) ; toutes les livraisons du marché passent par eux (échanges, envois, routes), un
+    // marchand est occupé à l'aller ET au retour. Charge d'un marchand selon la civilisation, × (1 + bonus de transport du
+    // Comptoir et du Poste du Désert de la capitale) ; vitesse selon la civilisation (même échelle que la vitesse des unités)
+    merchants: {
+      capacity: { ROME: 500, GAUL: 750, GREEK: 600, EGYPT: 750, HUN: 500, SULTAN: 1000 },
+      speed: { GAUL: 100, HUN: 90, ROME: 80, EGYPT: 80, GREEK: 75, SULTAN: 65 }
+    }
   },
 
   // Generic input bounds
@@ -196,10 +204,13 @@ const config = {
     maxRecruitCount: 10000
   },
 
-  // City layout: ring slots 1-19 (0 = Main Hall), typed field slots 101-118
+  // City layout: ring slots from 1 (0 = Main Hall), the Wall on the enclosure, typed field slots 101-118
   city: {
-    maxSlot: 19,
-    // Mur sur l'enceinte (décision du 30 octobre 2026) : sa place fixe, hors de l'anneau 1-19 et des champs 101-118
+    // Emplacements de l'anneau (décision du 31 octobre 2026, remplace les 19 emplacements d'avant) : autant que de bâtiments
+    // possibles, capitale 18 (emplacements 1 à 18), colonie 12 ; la Ville Merveille compte comme une colonie
+    // (utils/calculations.js ringSlotsOf)
+    ringSlots: { capital: 18, colony: 12 },
+    // Mur sur l'enceinte (décision du 30 octobre 2026) : sa place fixe, hors de l'anneau et des champs 101-118
     wallSlot: 20,
     // Alertes d'aide au suivi (décision du 30 octobre 2026) : « File de construction vide » au plus une fois par ville toutes
     // les 6 h ; « dépôt plein dans 1 h » au plus une fois par ville toutes les 12 h
@@ -209,8 +220,6 @@ const config = {
     // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
     foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
     maxSecondaryCities: 2,   // décision du 31 octobre 2026 : 2 colonies par joueur (+ la Ville Merveille, hors quota)
-    // Main Hall cap in a secondary city (the capital alone goes to 30); every other building is capped by the Main Hall
-    secondaryMainHallMaxLevel: 20,
     fieldSlots: {
       LUMBER: [101, 102, 103, 104],
       QUARRY: [105, 106, 107, 108],
@@ -254,7 +263,12 @@ const config = {
     // Tier time multipliers (GDD unit_training_times.json)
     tierTimeMultipliers: { base: 1.0, intermediate: 1.6, elite: 2.7, siege: 3.0 },
     siegeWorkshopLevel: 5,
-    maxBatchesPerBuilding: 5     // recruit batches waiting in one building (each batch is paid up front)
+    maxBatchesPerBuilding: 5,    // recruit batches waiting in one building (each batch is paid up front)
+    // Or des unités d'élite (décision du 31 octobre 2026) : de l'or par unité EN PLUS des ressources, par palier (les
+    // engins et les autres paliers n'en demandent pas) ; pour compenser, le prix en ressources de l'élite est multiplié
+    // par eliteResourceCostMult (utils/calculations.js recruitCostFor / recruitGoldFor). Valeurs à fixer à l'équilibrage
+    goldPerUnit: { elite: 1 },
+    eliteResourceCostMult: 0.95
   },
 
   // Combat (GDD combat_config.json + formulas)
@@ -372,10 +386,9 @@ const config = {
     { minMainHall: 20, tier: 3, name: 'Ville Fortifiée' }
   ],
 
-  // Hideout (GDD: 1% of the stock hidden per level, 20% max)
+  // Hideout: the amount sheltered per level is in data/buildings.json (HIDEOUT.effects.hideoutL1 / hideoutL20, décision
+  // du 31 octobre 2026) ; a raid carries away at most half of what is outside the hideout
   hideout: {
-    protectionPerLevel: 0.01,
-    maxProtection: 0.20,
     raidStealRate: 0.5
   },
 

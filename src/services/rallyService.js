@@ -2,8 +2,9 @@
 // Rassemblement d'alliance contre un donjon d'invasion (façon Rise of Kingdoms, décision du 29 octobre 2026)
 // - Un donjon ne s'attaque qu'en rassemblement. Un membre le lance depuis sa ville avec une de ses armées et choisit
 //   l'attente (5, 10, 30 ou 60 min). Les membres de son alliance y envoient une armée (une par joueur), qui marche jusqu'à
-//   la ville du lanceur ; elle doit y arriver avant le départ. Capacité : 3 armées à la Place de rassemblement niveau 1
-//   (celle de la capitale du lanceur), jusqu'à 15 au niveau 20, la sienne comprise.
+//   la ville du lanceur ; elle doit y arriver avant le départ. Taille (décision du 31 octobre 2026) : la Place de
+//   rassemblement de la capitale du lanceur en permet 5 + 1 par niveau (25 au niveau 20, fx.rallyMaxArmies), la sienne
+//   comprise.
 // - À la fin de l'attente (ou plus tôt si le lanceur le décide), les armées arrivées partent ensemble à la vitesse de la
 //   plus lente ; celles encore en route rentrent. Au donjon : un seul combat (hordeService.attackHordeGroup), puis chaque
 //   armée rentre chez elle. Le lanceur peut annuler tant que le rassemblement n'est pas parti ; un membre peut retirer
@@ -30,7 +31,9 @@ const { unitCount } = require('./rankingService');
 const WAITS = [5, 10, 30, 60];
 const TX = { timeout: 20000 };
 const { httpError: err } = require('../utils/httpError');
-const capacityFor = (rallyPointLevel) => Math.max(3, Math.min(15, 3 + Math.floor((Math.max(1, rallyPointLevel) - 1) * 12 / 19)));
+// Armées au plus dans un rassemblement, selon la Place de rassemblement (de la capitale) du lanceur
+const capacityFor = (rallyPointLevel) => fx.rallyMaxArmies(rallyPointLevel);
+const fullMessage = (capacity) => `Rassemblement complet (${capacity} armées au plus)`;
 
 async function travelSeconds(army, fromX, fromY, toX, toY) {
   const units = army.units.filter(u => u.count > 0);
@@ -86,7 +89,7 @@ async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const target = bastionId ? await bastionTarget(member.allianceId, bastionId) : await nodeTarget(nodeId);
   const army = await freeArmy(armyId, playerId);
   // Place de rassemblement de la capitale (bâtiment « capitale seulement ») : elle vaut pour toutes les villes du lanceur
-  const capacity = capacityFor(fx.levelOf(fx.capitalOf(army.owner), 'RALLY_POINT') || 1);
+  const capacity = capacityFor(fx.levelOf(fx.capitalOf(army.owner), 'RALLY_POINT'));
   const launchAt = new Date(Date.now() + wait * 60000);
   const rally = await prisma.$transaction(async (tx) => {
     const r = await tx.rally.create({ data: { allianceId: member.allianceId, leaderId: playerId, cityId: army.cityId, targetNodeId: target.nodeId || null, targetBastionId: target.bastionId || null, targetKind: target.kind, targetX: target.x, targetY: target.y, waitMinutes: wait, capacity, launchAt } });
@@ -98,7 +101,7 @@ async function launch(playerId, { armyId, nodeId, bastionId, waitMinutes }) {
   const members = await prisma.allianceMember.findMany({ where: { allianceId: member.allianceId, playerId: { not: playerId } }, select: { playerId: true } });
   const leader = army.owner?.name || 'Un membre';
   for (const m of members) notify(m.playerId, 'rally', '⚔️ Rassemblement d\'alliance', `${leader} rassemble l'alliance contre ${target.label} en (${target.x}, ${target.y}) : départ dans ${wait} min depuis sa ville. Envoyez une armée !${target.bastionId ? ' Il faut au moins un engin de siège dans le groupe.' : ''}`, { to: 'alliance', sub: 'rallies' });
-  return { message: `Rassemblement lancé : départ dans ${wait} min (${capacity} armées au plus)${target.bastionId ? ' — au moins un engin de siège dans le groupe' : ''}`, rally };
+  return { message: `Rassemblement lancé : départ dans ${wait} min (${capacity} armées au plus)${target.bastionId ? ' — au moins un engin de siège dans le groupe' : ''}`, rally, maxArmies: capacity };
 }
 
 // ---- rejoindre ----
@@ -109,7 +112,7 @@ async function join(playerId, rallyId, armyId) {
   if (!member || member.allianceId !== rally.allianceId) throw err(403, 'Ce rassemblement est celui d\'une autre alliance');
   const inRally = await prisma.army.findMany({ where: { rallyId: rally.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT'] } }, select: { ownerId: true } });
   if (inRally.some(a => a.ownerId === playerId)) throw err(400, 'Vous avez déjà une armée dans ce rassemblement');
-  if (inRally.length >= rally.capacity) throw err(400, `Rassemblement complet (${rally.capacity} armées)`);
+  if (inRally.length >= rally.capacity) throw err(400, fullMessage(rally.capacity));
   const army = await freeArmy(armyId, playerId);
   const leaderCity = await prisma.city.findUnique({ where: { id: rally.cityId } });
   if (!leaderCity) throw err(400, 'La ville du lanceur a disparu');
@@ -126,7 +129,7 @@ async function join(playerId, rallyId, armyId) {
     if (!r || r.status !== 'GATHERING') throw err(400, 'Ce rassemblement est déjà parti ou annulé');
     const inside = await tx.army.findMany({ where: { rallyId: rally.id, status: { in: ['RALLY_JOIN', 'RALLY_WAIT'] } }, select: { ownerId: true } });
     if (inside.some(a => a.ownerId === playerId)) throw err(400, 'Vous avez déjà une armée dans ce rassemblement');
-    if (inside.length >= rally.capacity) throw err(400, `Rassemblement complet (${rally.capacity} armées)`);
+    if (inside.length >= rally.capacity) throw err(400, fullMessage(rally.capacity));
     return tx.army.updateMany({ where: { id: army.id, status: 'IDLE' }, data });
   }, TX);
   if (ok.count !== 1) throw err(409, 'Armée déjà en mission');
@@ -373,7 +376,7 @@ async function listForPlayer(playerId, nodeId = null, bastionId = null) {
     out.push({
       id: r.id, status: r.status, leader: leader?.name || '?', mine: r.leaderId === playerId, targetNodeId: r.targetNodeId, targetBastionId: r.targetBastionId, kind, bastionTag: bastion?.alliance?.tag || null, x: r.targetX, y: r.targetY,
       level: horde?.level || null, floor: horde?.floor || null, guardPower: guard ? (guard.hasDefenders ? guard.defenderPower : 0) : null,   // WONDER, PLAN : puissance des Immortels
-      launchAt: r.launchAt, arrivalAt: r.arrivalAt, capacity: r.capacity, waitMinutes: r.waitMinutes,
+      launchAt: r.launchAt, arrivalAt: r.arrivalAt, maxArmies: r.capacity, waitMinutes: r.waitMinutes,
       joined: armies.some(a => a.ownerId === playerId),
       armies: armies.map(a => ({ id: a.id, owner: a.owner.name, mine: a.ownerId === playerId, status: a.status, arrivalAt: a.arrivalAt, units: unitCount(a.units), power: Math.round(calculateArmyPower(a.units, unitsData)) })),
       power: armies.reduce((t, a) => t + Math.round(calculateArmyPower(a.units, unitsData)), 0)

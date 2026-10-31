@@ -3,9 +3,9 @@
     {
       "key": "MAIN_HALL",
       "name": "Bâtiment principal",
-      "description": "Siège du pouvoir de la ville : chaque niveau réduit le temps de construction de tous les bâtiments et fixe le niveau maximal des autres bâtiments. Le seul bâtiment qui monte jusqu'au niveau 30.",
+      "description": "Siège du pouvoir de la ville : chaque niveau réduit le temps de construction de tous les bâtiments et fixe le niveau maximal des autres bâtiments. Il monte jusqu'au niveau 20, dans la capitale comme dans les colonies.",
       "category": "BASE",
-      "maxLevel": 30,
+      "maxLevel": 20,
       "prereq": [],
       "costL1": {
         "wood": 200,
@@ -13,14 +13,14 @@
         "iron": 150,
         "food": 50
       },
-      "costL30": {
-        "wood": 2500000,
-        "stone": 2600000,
-        "iron": 2400000,
-        "food": 1400000
+      "costL20": {
+        "wood": 21778,
+        "stone": 21778,
+        "iron": 16333,
+        "food": 5444
       },
       "timeL1Sec": 180,
-      "timeL30Sec": 2520000,
+      "timeL20Sec": 26314,
       "effects": {
         "buildTimeReductionPctPerLevel": 2.5
       }
@@ -28,7 +28,7 @@
     {
       "key": "RALLY_POINT",
       "name": "Place de rassemblement",
-      "description": "Les armées se rassemblent ici avant de partir. Son niveau détermine combien d'armées peuvent être en campagne en même temps.",
+      "description": "Les armées se rassemblent ici avant de partir. Son niveau détermine combien d'armées peuvent être en campagne en même temps, et la taille des rassemblements d'alliance que vous lancez : 5 armées plus 1 par niveau (25 au niveau 20). Réservée à la capitale, elle vaut pour toutes vos villes.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -53,6 +53,8 @@
       "timeL20Sec": 64800,
       "effects": {
         "capitalOnly": true,
+        "rallyMaxArmiesBase": 5,
+        "rallyMaxArmiesPerLevel": 1,
         "maxArmies": {
           "l1": 1,
           "l10": 3,
@@ -63,7 +65,7 @@
     {
       "key": "MARKET",
       "name": "Place du marché",
-      "description": "Place d'échanges avec les autres joueurs et le marchand itinérant. Chaque niveau abaisse la taxe du marchand et agrandit les convois.",
+      "description": "Réservée à la capitale, elle sert toutes vos villes : échanges avec les autres joueurs et le marchand du serveur, dont la taxe baisse à chaque niveau. Chaque niveau donne un marchand : les marchands portent les ressources des échanges, des envois et des routes commerciales, et restent occupés à l'aller comme au retour. Chaque niveau augmente aussi la charge des armées de transport.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -95,6 +97,8 @@
       "timeL1Sec": 1200,
       "timeL20Sec": 86400,
       "effects": {
+        "capitalOnly": true,
+        "merchantsPerLevel": 1,
         "serverMarketTaxPctBase": 30,
         "serverMarketTaxReductionPctPerLevel": 1.0,
         "playerTransportBonusPctPerLevel": 5.0
@@ -246,7 +250,7 @@
     {
       "key": "FORGE",
       "name": "Forge",
-      "description": "Affûte les armes et renforce les armures : chaque niveau augmente la défense de toutes les troupes qui défendent la ville.",
+      "description": "Affûte les armes et renforce les armures : chaque niveau donne +0,5 % d'attaque et +0,5 % de défense à toutes vos troupes, dans tous les combats. Réservée à la capitale, elle vaut pour toutes vos villes.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -271,7 +275,8 @@
       "timeL20Sec": 86400,
       "effects": {
         "capitalOnly": true,
-        "globalDefenseBonusPctPerLevel": 0.5
+        "attackBonusPctPerLevel": 0.5,
+        "defenseBonusPctPerLevel": 0.5
       }
     },
     {
@@ -467,7 +472,7 @@
     {
       "key": "HIDEOUT",
       "name": "Cachette",
-      "description": "Cache secrète qui soustrait une part des ressources aux pillards, jusqu'à 20 % au niveau 20.",
+      "description": "Cache secrète : à chaque niveau, une quantité fixe de chaque ressource est à l'abri des pillards (240 au niveau 1, 32 000 au niveau 20). La cachette de la Gaule en cache davantage.",
       "category": "INTERMEDIATE",
       "maxLevel": 20,
       "prereq": [
@@ -490,7 +495,10 @@
       },
       "timeL1Sec": 180,
       "timeL20Sec": 86400,
-      "effects": {}
+      "effects": {
+        "hideoutL1": 240,
+        "hideoutL20": 32000
+      }
     },
     {
       "key": "HEALING_TENT",
@@ -525,7 +533,7 @@
     {
       "key": "WALL",
       "name": "Mur",
-      "description": "Rempart de la ville, bâti sur l'enceinte : il ne prend aucun emplacement autour du Bâtiment principal. Il donne un bonus de défense aux troupes et doit être abattu par les engins de siège avant un assaut. Il se répare avec le temps.",
+      "description": "Rempart de la ville, bâti sur l'enceinte : il ne prend aucun emplacement autour du Bâtiment principal. Il donne un bonus de défense aux troupes et doit être abattu par les engins de siège avant un assaut. Il se répare avec le temps. Il monte jusqu'au niveau 20 dans la capitale, 15 dans une colonie.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -548,12 +556,13 @@
       },
       "timeL1Sec": 1800,
       "timeL20Sec": 172800,
-      "effects": {}
+      "effects": {
+        "colonyMaxLevel": 15
+      }
     },
     {
       "key": "MILL",
       "name": "Moulin",
-      "description": "Moulin à vent qui augmente la production de céréales de toute la ville (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -565,15 +574,14 @@
       "timeL5Sec": 19020,
       "effects": {
         "notInCapital": true,
-        "foodProdBonusPctL1": 5,
-        "foodProdBonusPctL5": 25
+        "foodProdBonusPctL1": 2.5,
+        "foodProdBonusPctL5": 12.5
       },
-      "description": "Augmente la production de céréales de toutes les fermes."
+      "description": "Augmente la production de céréales de la colonie de 2,5 % par niveau (12,5 % au niveau 5)."
     },
     {
       "key": "BAKERY",
       "name": "Boulangerie",
-      "description": "Fournil qui augmente encore la production de céréales (5 niveaux). Demande un Moulin au niveau 5.",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -587,10 +595,10 @@
       "timeL5Sec": 28380,
       "effects": {
         "notInCapital": true,
-        "foodProdBonusPctL1": 5,
-        "foodProdBonusPctL5": 25
+        "foodProdBonusPctL1": 2.5,
+        "foodProdBonusPctL5": 12.5
       },
-      "description": "Augmente la production de céréales. Cumulable avec le Moulin pour +50% total."
+      "description": "Augmente la production de céréales de la colonie de 2,5 % par niveau (12,5 % au niveau 5). Avec le Moulin : +25 % au total."
     },
     {
       "key": "GREAT_SILO",
@@ -649,9 +657,10 @@
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
-        "trainTimeReductionPctPerLevel": 4.0
+        "trainTimeReductionPctPerLevel": 4.0,
+        "capitalTrainTimeReductionPctPerLevel": 0.5
       },
-      "description": "Seconde caserne, dans une colonie : forme l'infanterie et les archers (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit leur temps de formation de 4 % par niveau. Demande une Caserne au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis la Caserne de la capitale."
+      "description": "Seconde caserne, dans une colonie : forme l'infanterie et les archers (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit leur temps de formation de 4 % par niveau. Demande une Caserne au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis la Caserne de la capitale. Chaque niveau accélère aussi de 0,5 % la formation de l'infanterie et des archers dans la Caserne de la capitale : les niveaux de toutes vos Grandes casernes s'additionnent."
     },
     {
       "key": "GREAT_STABLE",
@@ -670,14 +679,14 @@
         "unlockBaseTier": 1,
         "unlockIntermediateTier": 7,
         "unlockEliteTier": 15,
-        "trainTimeReductionPctPerLevel": 4.0
+        "trainTimeReductionPctPerLevel": 4.0,
+        "capitalTrainTimeReductionPctPerLevel": 0.5
       },
-      "description": "Seconde écurie, dans une colonie : forme la cavalerie (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit son temps de formation de 4 % par niveau. Demande une Écurie au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis l'Écurie de la capitale."
+      "description": "Seconde écurie, dans une colonie : forme la cavalerie (base au niveau 1, intermédiaires au niveau 7, élite au niveau 15) et réduit son temps de formation de 4 % par niveau. Demande une Écurie au niveau 20 dans la capitale. Les troupes formées rejoignent la capitale ; ce recrutement se lance aussi depuis l'Écurie de la capitale. Chaque niveau accélère aussi de 0,5 % la formation de la cavalerie dans l'Écurie de la capitale : les niveaux de toutes vos Grandes écuries s'additionnent."
     },
     {
       "key": "EMBASSY",
       "name": "Ambassade",
-      "description": "Siège de la diplomatie : permet de rejoindre une alliance au niveau 5 et d'en fonder une au niveau 7.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -691,17 +700,17 @@
         "capitalOnly": true,
         "joinAllianceLevel": 5,
         "createAllianceLevel": 7,
+        "allianceMembersPerLevel": 3,
         "maxAllianceHelpReceivedL1": 0,
         "maxAllianceHelpReceivedL5": 5,
         "maxAllianceHelpReceivedL20": 20,
         "allianceHelpReductionPct": 1
       },
-      "description": "Permet de rejoindre (niv.5) ou créer (niv.7) une alliance. Chaque aide reçue réduit le temps de construction de 1%."
+      "description": "Permet de rejoindre (niveau 5) ou de fonder (niveau 7) une alliance. Le niveau de l'Ambassade du chef fixe la taille de l'alliance : 3 membres par niveau (21 au niveau 7, 60 au niveau 20). Chaque aide reçue réduit le temps de construction de 1 %."
     },
     {
       "key": "TREASURE_CHAMBER",
       "name": "Chambre au Trésor",
-      "description": "Chambre forte qui frappe monnaie : produit de l'or chaque jour et conditionne le Grand Silo et le Grand Dépôt.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -716,12 +725,11 @@
         "goldProdPerDayL1": 10,
         "goldProdPerDayL20": 200
       },
-      "description": "Produit de l'or chaque jour. Ressource rare pour les transactions spéciales."
+      "description": "Produit de l'or chaque jour (10 au niveau 1, 200 au niveau 20), une ressource rare pour les actions spéciales. L'or du joueur ne peut jamais être pillé : il n'est pas dans le stock des villes."
     },
     {
       "key": "HERO_MANSION",
       "name": "Domus du Héros",
-      "description": "Demeure du héros : donne accès à son équipement et à ses expéditions depuis la ville.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -741,7 +749,6 @@
     {
       "key": "WATCHTOWER",
       "name": "Tour de Guet",
-      "description": "Guette l'horizon : prévient des attaques en approche, révèle l'attaquant au niveau 10 et ses effectifs au niveau 15, et déjoue les espions.",
       "category": "ADVANCED",
       "maxLevel": 20,
       "prereq": [
@@ -761,12 +768,11 @@
         "alertArmyWhoWhenLevel": 10,
         "alertArmyDetailsLevel": 15
       },
-      "description": "Débloque les espions (le 1er au niveau 5, le 2e au niveau 10) et prévient des espions ennemis : au niveau 5 leur passage, au niveau 10 l'heure, au niveau 15 qui. Annonce les attaques en approche."
+      "description": "Débloque les espions (le 1er au niveau 5, le 2e au niveau 10) et prévient des espions ennemis : au niveau 5 leur passage, au niveau 10 l'heure, au niveau 15 qui. Annonce les attaques en approche. La carte se voit partout, mais les armées des autres joueurs ne se voient qu'autour de vos villes : 5 cases plus 6 par niveau de la tour."
     },
     {
       "key": "FOUNDRY",
       "name": "Fonderie",
-      "description": "Fonderie qui augmente la production de fer de la ville (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -779,15 +785,14 @@
       "timeL5Sec": 32400,
       "effects": {
         "notInCapital": true,
-        "ironProdBonusPctL1": 5,
-        "ironProdBonusPctL5": 25
+        "ironProdBonusPctL1": 2.5,
+        "ironProdBonusPctL5": 12.5
       },
-      "description": "Augmente la production de fer de la ville de 5% par niveau."
+      "description": "Augmente la production de fer de la colonie de 2,5 % par niveau (12,5 % au niveau 5)."
     },
     {
       "key": "STONEMASON",
       "name": "Tailleur de Pierre",
-      "description": "Atelier du tailleur de pierre qui augmente la production de pierre (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -800,15 +805,14 @@
       "timeL5Sec": 32400,
       "effects": {
         "notInCapital": true,
-        "stoneProdBonusPctL1": 5,
-        "stoneProdBonusPctL5": 25
+        "stoneProdBonusPctL1": 2.5,
+        "stoneProdBonusPctL5": 12.5
       },
-      "description": "Augmente la production de pierre de la ville de 5% par niveau."
+      "description": "Augmente la production de pierre de la colonie de 2,5 % par niveau (12,5 % au niveau 5)."
     },
     {
       "key": "SAWMILL",
       "name": "Scierie",
-      "description": "Scierie qui augmente la production de bois (5 niveaux).",
       "category": "ADVANCED",
       "maxLevel": 5,
       "prereq": [
@@ -821,10 +825,10 @@
       "timeL5Sec": 32400,
       "effects": {
         "notInCapital": true,
-        "woodProdBonusPctL1": 5,
-        "woodProdBonusPctL5": 25
+        "woodProdBonusPctL1": 2.5,
+        "woodProdBonusPctL5": 12.5
       },
-      "description": "Augmente la production de bois de la ville de 5% par niveau."
+      "description": "Augmente la production de bois de la colonie de 2,5 % par niveau (12,5 % au niveau 5)."
     },
     {
       "key": "RESIDENCE",
@@ -868,17 +872,15 @@
       "timeL1Sec": 3600,
       "timeL20Sec": 259200,
       "effects": {
-        "notInCapital": true,
-        "bestLevelForAllCities": true,
+        "capitalOnly": true,
         "p2pTaxReductionPctPerLevel": 1.0,
         "armyTransportCapacityBonusPctPerLevel": 1.0
       },
-      "description": "Réduit la taxe des échanges entre joueurs de 1 % par niveau et augmente la capacité de transport des armées de 1 % par niveau. Le meilleur Comptoir de vos colonies vaut pour toutes vos villes, capitale comprise : les niveaux ne s'additionnent pas."
+      "description": "Réservé à la capitale, il vaut pour toutes vos villes : réduit la taxe des échanges entre joueurs de 1 % par niveau et augmente de 1 % par niveau la charge des marchands et des armées de transport."
     },
     {
       "key": "ROMAN_THERMAE",
       "name": "Thermes",
-      "description": "Bains publics de Rome : les blessés guérissent plus vite et davantage de soldats survivent à leurs blessures.",
       "category": "FACTION",
       "faction": "ROME",
       "maxLevel": 20,
@@ -900,7 +902,6 @@
     {
       "key": "GALLIC_BREWERY",
       "name": "Brasserie",
-      "description": "Brasserie de cervoise : rend les défenseurs gaulois plus coriaces face aux assauts.",
       "category": "FACTION",
       "faction": "GAUL",
       "maxLevel": 20,
@@ -921,7 +922,6 @@
     {
       "key": "GREEK_TEMPLE",
       "name": "Temple",
-      "description": "Temple des dieux de l'Olympe : davantage de soldats grecs reviennent blessés plutôt que morts.",
       "category": "FACTION",
       "faction": "GREEK",
       "maxLevel": 20,
@@ -943,7 +943,6 @@
     {
       "key": "EGYPTIAN_IRRIGATION",
       "name": "Poste d'Irrigation",
-      "description": "Canaux d'irrigation du Nil : augmentent toute la production de la ville.",
       "category": "FACTION",
       "faction": "EGYPT",
       "maxLevel": 20,
@@ -965,7 +964,6 @@
     {
       "key": "HUN_WAR_TENT",
       "name": "Tente de Guerre",
-      "description": "Tente du chef de guerre hun : réduit l'entretien des troupes et sauve davantage de blessés.",
       "category": "FACTION",
       "faction": "HUN",
       "maxLevel": 20,
@@ -987,7 +985,6 @@
     {
       "key": "SULTAN_DESERT_OUTPOST",
       "name": "Poste du Désert",
-      "description": "Poste caravanier du Sultanat : réduit l'entretien des troupes et facilite les échanges.",
       "category": "FACTION",
       "faction": "SULTAN",
       "maxLevel": 20,
@@ -1004,7 +1001,7 @@
         "armyTransportCapacityBonusPctPerLevel": 1.0,
         "upkeepReductionPctPerLevel": 0.5
       },
-      "description": "Bâtiment exclusif Sultanat. Augmente la capacité de transport des convois, des armées de transport et des récoltes de 1% par niveau et réduit la consommation de nourriture des unités de 0.5% par niveau."
+      "description": "Bâtiment exclusif Sultanat. Augmente de 1 % par niveau la charge des marchands, des armées de transport et des récoltes, et réduit la consommation de nourriture des unités de 0,5 % par niveau."
     }
   ]
 }

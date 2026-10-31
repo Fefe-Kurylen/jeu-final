@@ -162,16 +162,37 @@ function stockTotals(cities) {
 }
 
 // Bâtiments partagés par les villes d'un joueur (décision du 30 octobre 2026) : les effets d'une ville se calculent avec
-// ses bâtiments, ceux de la capitale réservés à la capitale et le meilleur Comptoir de ses villes (fx.withCapital) ;
-// une requête
+// ses bâtiments et ceux de la capitale réservés à la capitale (fx.withCapital) ; une requête
 async function capitalBuildingsOf(db, playerId) {
   if (!playerId) return [];   // sans joueur, Prisma ignorerait le filtre et rendrait les villes de n'importe qui
   const fx = require('./buildingEffects');
   return fx.capitalOf({ cities: await db.city.findMany({ where: { playerId }, ...fx.CAPITAL_BUILDINGS }) });
 }
-// `city` porte playerId et buildings ; la capitale aussi profite du meilleur Comptoir des colonies
+// `city` porte playerId et buildings
 async function buildingsWithCapital(db, city) {
   return require('./buildingEffects').withCapital(city.buildings || [], await capitalBuildingsOf(db, city.playerId));
+}
+// Formation d'une classe dans la capitale accélérée par les Grandes casernes / Grandes écuries de toutes les villes du joueur
+// (décision du 31 octobre 2026, fx.capitalTrainBoostPct), en % ; une requête (aucune pour les engins de siège)
+async function capitalTrainBoostOf(db, playerId, unitClass) {
+  const fx = require('./buildingEffects');
+  const key = fx.CAPITAL_TRAIN_BOOST[unitClass];
+  if (!playerId || !key) return 0;
+  const rows = await db.cityBuilding.findMany({ where: { key, city: { playerId } }, select: { key: true, level: true } });
+  return fx.capitalTrainBoostPct(rows.map(r => ({ buildings: [r] })), unitClass);
+}
+
+// Or du joueur (il n'est dans le stock d'aucune ville : jamais pillé). Débit conditionnel « or ≥ prix » : false, et rien
+// n'est changé, s'il n'en a pas assez ; le crédit sert aux remboursements (or des unités d'élite, décision du 31 octobre 2026)
+async function debitGold(tx, playerId, gold) {
+  const g = Math.max(0, Math.floor(Number(gold) || 0));
+  if (!g) return true;
+  const paid = await tx.player.updateMany({ where: { id: playerId, gold: { gte: g } }, data: { gold: { decrement: g } } });
+  return paid.count === 1;
+}
+async function creditGold(tx, playerId, gold) {
+  const g = Math.max(0, Math.floor(Number(gold) || 0));
+  if (g) await tx.player.update({ where: { id: playerId }, data: { gold: { increment: g } } });
 }
 
 // Toute unité formée ou soignée apparaît dans la capitale (décision du 30 octobre 2026, § 1 bis : pas de garnison propre
@@ -258,4 +279,4 @@ async function transition(tx, model, id, fromStatus, data) {
 
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64;
 
-module.exports = { RESOURCES, RES_FR, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, withDeadlockRetry, transition, isId };
+module.exports = { RESOURCES, RES_FR, lockCity, lockArmy, lockOffer, debitCity, creditCity, lockPlayerCities, planDebit, debitPlayer, creditPlayer, planCredit, missingMessage, lostNote, stockTotals, capitalBuildingsOf, buildingsWithCapital, capitalTrainBoostOf, debitGold, creditGold, capitalGarrisonId, addArmyUnits, plunderCity, claimNode, takeFromNode, withDeadlockRetry, transition, isId };

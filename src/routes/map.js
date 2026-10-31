@@ -37,8 +37,8 @@ async function getWorldSize() {
 }
 
 router.get('/world/info', async (req, res) => {
-  // Rules the client displays (never computed client-side): city tiers by Main Hall level, Main Hall cap of a secondary city
-  const rules = { cityTiers: config.cityTiers, secondaryMainHallMaxLevel: config.city.secondaryMainHallMaxLevel, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport,
+  // Rules the client displays (never computed client-side): city tiers by Main Hall level, colonies per player
+  const rules = { cityTiers: config.cityTiers, maxSecondaryCities: config.city.maxSecondaryCities, foundationTransport: config.city.foundationTransport,
     // siège et chute des villes (octobre 2026)
     siege: { campMinutes: config.combat.siege.campMinutes, minEngines: config.combat.siege.minEngines, engineWallMult: config.combat.siege.wallShield.engineMult, soldierWallMult: config.combat.siege.wallShield.soldierMult, fallAssaults: config.combat.fall.assaults, fallExtraAssaults: config.combat.fall.extraAssaults, wallHealthRegenHours: config.combat.fall.regenHours, pillagePct: config.combat.fall.pillagePct } };
   try {
@@ -90,20 +90,36 @@ router.get('/map/viewport', auth, async (req, res) => {
   } catch (e) { sendError(res, e); }
 });
 
-// Ce que le joueur voit (décisions des 25 et 26 octobre 2026, vision façon Travian) :
-// - les villes, les points et le relief partout ;
-// - les armées des autres seulement si elles sont à lui ou à son alliance, ou si elles vont vers (ou campent devant) une
-//   ville à lui ou à son alliance ; l'heure du combat d'un camp n'est donnée qu'aux joueurs concernés et à leurs alliances ;
-// - qui récolte un point : seulement ses armées, celles de son alliance, ou si le joueur a espionné le point depuis
-//   moins d'1 h (sinon le point dit seulement qu'il est occupé) ; un point espionné donne son stock exact.
+// Ce que le joueur voit (décisions des 25 et 26 octobre 2026, vision façon Travian ; Tour de guet le 31 octobre 2026) :
+// - les villes, les points, les camps, les Bastions, les Merveilles et le relief partout ;
+// - les armées des autres seulement dans le rayon de vision de la Tour de guet de sa capitale autour de chacune de ses
+//   villes ; les siennes et celles de son alliance partout. L'heure du combat d'un camp n'est donnée qu'aux joueurs
+//   concernés (la ville ou le Bastion visé est à eux ou à leur alliance) ;
+// - qui récolte un point : ses armées, celles de son alliance, un point dans son rayon de vision, ou un point espionné
+//   depuis moins d'1 h (sinon le point dit seulement qu'il est occupé) ; un point espionné donne son stock exact.
 // La colonne dessinée (1 à 3 groupes) suit la taille réelle pour ses armées et celles de son alliance, une valeur tirée de
 // l'armée pour les autres (l'effectif ne se lit qu'avec un espion).
-async function viewFor(me, shared) {
+// Où est une armée à l'instant `now` : en ligne droite de son départ à sa cible selon l'heure (le chemin réel contourne le
+// relief, de peu) ; une armée arrêtée (camp, récolte, fondation) a sa case de départ sur sa cible
+function armyPositionAt(a, now) {
+  if (a.targetX === null || a.targetX === undefined || a.targetY === null || a.targetY === undefined || !a.arrivalAt) return { x: a.x, y: a.y };
+  const end = new Date(a.arrivalAt).getTime(), start = a.departedAt ? new Date(a.departedAt).getTime() : end;
+  const f = end > start ? Math.max(0, Math.min(1, (now - start) / (end - start))) : (now >= end ? 1 : 0);
+  return { x: a.x + (a.targetX - a.x) * f, y: a.y + (a.targetY - a.y) * f };
+}
+async function viewFor(me, shared, now = Date.now()) {
   const { cityOwner, bastionAlliance = {}, armies: all, resourceNodes = [], ...rest } = shared;
-  const myAlliance = (await prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }))?.allianceId || null;
+  const [member, myCities] = await Promise.all([
+    prisma.allianceMember.findUnique({ where: { playerId: me }, select: { allianceId: true } }),
+    prisma.city.findMany({ where: { playerId: me }, select: { x: true, y: true, isCapital: true, buildings: { where: { key: 'WATCHTOWER' }, select: { level: true } } } })
+  ]);
+  const myAlliance = member?.allianceId || null;
+  // Tour de guet « capitale seulement » : son rayon vaut autour de chacune des villes du joueur
+  const radius = fx.visionRadius(fx.levelOf(myCities.find(c => c.isCapital)?.buildings, 'WATCHTOWER'));
+  const seen = (p) => myCities.some(c => Math.hypot(p.x - c.x, p.y - c.y) <= radius);
   const friend = (playerId, allianceId) => playerId === me || (!!myAlliance && allianceId === myAlliance);
   const concerns = (a) => { const o = cityOwner[a.targetCityId]; if (o && friend(o.id, o.alliance)) return true; return !!a.targetBastionId && !!myAlliance && bastionAlliance[a.targetBastionId] === myAlliance; };
-  const armies = (all || []).filter(a => friend(a.ownerId, a.ownerAllianceId) || concerns(a)).map(({ realSquads, ownerAllianceId, ...a }) => ({
+  const armies = (all || []).filter(a => friend(a.ownerId, a.ownerAllianceId) || seen(armyPositionAt(a, now))).map(({ realSquads, ownerAllianceId, ...a }) => ({
     ...a,
     ...(a.status === 'BESIEGING' && !friend(a.ownerId, ownerAllianceId) && !concerns(a) ? { arrivalAt: null } : {}),
     squads: friend(a.ownerId, ownerAllianceId) ? realSquads : 1 + ([...String(a.id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % 3)
@@ -113,7 +129,7 @@ async function viewFor(me, shared) {
     const intel = await require('../services/spyService').nodeIntelFor(me, nodes.map(n => n.id)).catch(() => ({}));
     nodes = nodes.map(n => {
       const spied = intel[n.id];
-      const holders = (n.holders || []).filter(h => spied || friend(h.playerId, h.allianceId));
+      const holders = (n.holders || []).filter(h => spied || friend(h.playerId, h.allianceId) || seen(n));
       const hidden = (n.holders || []).length - holders.length;
       return { ...n, holders, hiddenHolders: hidden, ...(spied ? { amount: spied.amount, spiedAt: spied.at, spied: { tribe: spied.tribe, holders: spied.holders } } : {}) };
     });
@@ -130,7 +146,7 @@ async function loadViewport(centerX, centerY, r, liteMode) {
       liteMode ? Promise.resolve([]) : prisma.resourceNode.findMany({ where: { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r }, cityId: null } }),
       liteMode ? Promise.resolve([]) : prisma.army.findMany({
         where: {
-          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH'] },   // RALLY_* : rassemblement (vu de son alliance, et de celle du Bastion visé)
+          status: { in: ['MOVING', 'ATTACKING', 'RAIDING', 'RETURNING', 'SPYING', 'TRANSPORTING', 'HARVESTING', 'FOUNDING', 'BESIEGING', 'SUPPORTING', 'RALLY_JOIN', 'RALLY_MARCH'] },   // RALLY_* : rassemblement (vu de son alliance, des autres dans leur rayon de vision)
           OR: [
             { x: { gte: centerX - r, lte: centerX + r }, y: { gte: centerY - r, lte: centerY + r } },
             { targetX: { gte: centerX - r, lte: centerX + r }, targetY: { gte: centerY - r, lte: centerY + r } }
@@ -142,16 +158,11 @@ async function loadViewport(centerX, centerY, r, liteMode) {
     // Civilisation de l'armée qui assiège chaque ville (sa bannière est plantée devant la ville)
     const siegedBy = {};
     for (const a of movingArmies) if (a.status === 'BESIEGING' && a.targetCityId && !siegedBy[a.targetCityId]) siegedBy[a.targetCityId] = a.owner?.faction || null;
-    // propriétaires des villes visées et alliances des armées : de quoi appliquer à chaque joueur ce qu'il voit (viewFor)
+    // propriétaires des villes et alliances des Bastions de la zone, alliances des armées : de quoi appliquer à chaque joueur
+    // ce qu'il voit (viewFor). Un camp se tient sur la case de la ville ou du Bastion qu'il assiège : toujours dans la zone
     const cityOwner = Object.fromEntries(cities.map(c => [c.id, { id: c.playerId, alliance: c.player?.alliance?.alliance?.id || null }]));
-    // villes visées hors de la zone affichée : il faut aussi savoir à qui elles sont (une armée qui marche sur ma ville se voit)
-    const farTargets = [...new Set(movingArmies.map(a => a.targetCityId).filter(id => id && !cityOwner[id]))];
-    // Bastions d'alliance de la zone, et alliance de chaque Bastion visé (une armée qui marche sur le Bastion de mon alliance se voit)
     const bastions = liteMode ? [] : await require('../services/bastionService').bastionsIn(centerX - r, centerX + r, centerY - r, centerY + r);
     const bastionAlliance = Object.fromEntries(bastions.map(b => [b.id, b.allianceId]));
-    const farBastions = [...new Set(movingArmies.map(a => a.targetBastionId).filter(id => id && !bastionAlliance[id]))];
-    if (farBastions.length) for (const b of await prisma.bastion.findMany({ where: { id: { in: farBastions } }, select: { id: true, allianceId: true } })) bastionAlliance[b.id] = b.allianceId;
-    if (farTargets.length) for (const c of await prisma.city.findMany({ where: { id: { in: farTargets } }, select: { id: true, playerId: true, player: { select: { alliance: { select: { allianceId: true } } } } } })) cityOwner[c.id] = { id: c.playerId, alliance: c.player?.alliance?.allianceId || null };
     const ownerAlliance = new Map(movingArmies.length ? (await prisma.allianceMember.findMany({ where: { playerId: { in: [...new Set(movingArmies.map(a => a.ownerId))] } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]) : []);
     // taille de la colonne dessinée sur la carte (1 à 3 groupes de soldats), comme on la voit de loin : pas l'effectif
     const squadsOf = (units) => { const n = (units || []).reduce((t, u) => t + (u.count || 0), 0); return n < 100 ? 1 : n < 500 ? 2 : 3; };
@@ -248,3 +259,4 @@ router.get('/items', (req, res) => {
 
 module.exports = router;
 module.exports.freeSitesFor = freeSitesFor;
+module.exports.viewFor = viewFor;

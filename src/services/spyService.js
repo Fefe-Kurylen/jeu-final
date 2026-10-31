@@ -9,9 +9,10 @@
 //   niv. 15 qui. Plus d'interception. La Tour de guet est un bâtiment « capitale seulement » (décision du 30 octobre 2026) :
 //   celle de la capitale compte pour les espions et les alertes de toutes les villes du joueur.
 // - Ressources et troupes : les troupes présentes et la partie des ressources qu'un pillage pourrait prendre (hors
-//   cachette, seule protection depuis le 30 octobre 2026), arrondie à la centaine. Défenses et troupes : les troupes, le mur (niveau, santé),
-//   la Tour de guet, la cachette et le bonus de défense. Point : stock exact, tribu ou armées qui récoltent ;
-//   le point garde son stock exact affiché pour l'espion pendant 1 h.
+//   cachette, seule protection depuis le 30 octobre 2026 ; quantité fixe par ressource depuis le 31 octobre 2026), arrondie à
+//   la centaine. Défenses et troupes : les troupes, le mur (niveau, santé), la Tour de guet, la cachette (quantité cachée
+//   par ressource) et le bonus de défense (Forge et Brasserie de la capitale). Point : stock exact, tribu ou armées qui
+//   récoltent ; le point garde son stock exact affiché pour l'espion pendant 1 h.
 // ============================================================
 const prisma = require('../config/database');
 const config = require('../config');
@@ -21,7 +22,7 @@ const { factionsData } = require('../config/gamedata');
 const { calculateTravelTime } = require('../utils/calculations');
 const { routeLength } = require('../utils/pathfinding');
 const { notify } = require('./pushService');
-const { capitalBuildingsOf } = require('../utils/db');
+const { capitalBuildingsOf, debitGold } = require('../utils/db');
 
 const S = config.spies;
 const { httpError } = require('../utils/httpError');
@@ -51,8 +52,7 @@ async function recruit(playerId, slot) {
   if (tower < S.unlockLevels[i]) throw httpError(400, `Tour de guet niveau ${S.unlockLevels[i]} requise pour ${i === 0 ? 'un premier' : 'un deuxième'} espion`);
   return prisma.$transaction(async (tx) => {
     if (await tx.spy.findUnique({ where: { playerId_slot: { playerId, slot: i + 1 } } })) throw httpError(400, 'Cet espion est déjà recruté');
-    const paid = await tx.player.updateMany({ where: { id: playerId, gold: { gte: S.goldCost[i] } }, data: { gold: { decrement: S.goldCost[i] } } });
-    if (paid.count !== 1) throw httpError(400, `Il faut ${S.goldCost[i]} or pour recruter cet espion`);
+    if (!(await debitGold(tx, playerId, S.goldCost[i]))) throw httpError(400, `Il faut ${S.goldCost[i]} or pour recruter cet espion`);
     const spy = await tx.spy.create({ data: { playerId, slot: i + 1 } });
     return { message: `Espion recruté (${S.goldCost[i]} or)`, spy: publicSpy(spy) };
   });
@@ -113,12 +113,6 @@ async function troopsIn(city) {
 }
 
 const { levelOf } = fx;
-function hideoutShare(city) {
-  let p = levelOf(city.buildings, 'HIDEOUT') * config.hideout.protectionPerLevel;
-  const { getFactionBonus } = require('../utils/calculations');
-  p *= 1 + (getFactionBonus(city.player?.faction, 'hideoutCapacity', factionsData) || 0) / 100;
-  return Math.min(p, config.hideout.maxProtection);
-}
 
 async function cityReport(spy, owner) {
   const city = await prisma.city.findUnique({ where: { id: spy.targetCityId || '' }, include: { buildings: { select: { key: true, level: true } }, player: { select: { id: true, name: true, faction: true, cities: fx.CAPITAL_BUILDINGS } } } });
@@ -126,6 +120,7 @@ async function cityReport(spy, owner) {
   // la ville avec les bâtiments « capitale seulement » de son joueur (Tour de guet, Forge, Brasserie)
   const buildings = fx.withCapital(city.buildings, fx.capitalOf(city.player));
   const tower = fx.watchtowerLevel(buildings);
+  const hidden = fx.hideoutAmount(city.buildings, city.player?.faction);   // la cachette de la ville, par ressource
   const armies = await troopsIn(city);
   const base = { playerId: spy.playerId, targetPlayerId: city.playerId, targetCityId: city.id, targetX: city.x, targetY: city.y, targetType: 'CITY', targetName: city.player?.name || null, cityName: city.name, success: true, armies };
   let data;
@@ -134,15 +129,15 @@ async function cityReport(spy, owner) {
     const wallLevel = wallLevelOf(city.buildings);
     data = { mission: 'DEFENSES', defenses: {
       wallLevel, wallHp: Math.round(wallHpNow(city)), wallMaxHp: city.wallMaxHp || 0, structurePct: Math.round(Math.max(0, Math.min(1, city.wallStructure ?? 1)) * 100),
-      watchtowerLevel: tower, hideoutLevel: levelOf(city.buildings, 'HIDEOUT'),
-      hideoutPct: Math.round(hideoutShare(city) * 100), defenseBonusPct: Math.round(fx.defenseBonusPct(buildings) || 0), sieged: !!city.isSieged
+      watchtowerLevel: tower, hideoutLevel: levelOf(city.buildings, 'HIDEOUT'), hideoutAmount: hidden,
+      defenseBonusPct: Math.round(fx.defenseBonusPct(buildings) + fx.forgeDefensePct(buildings)), sieged: !!city.isSieged
     } };
     base.buildings = ['WALL', 'WATCHTOWER', 'HIDEOUT'].map(k => ({ key: k, level: levelOf(buildings, k) })).filter(b => b.level > 0);
     base.resources = {};
   } else {
     // la partie des ressources qu'un pillage pourrait prendre : hors cachette (seule protection), à la centaine près
-    const share = 1 - hideoutShare(city);
-    base.resources = Object.fromEntries(RES.map(r => [r, Math.max(0, Math.floor(Math.max(0, city[r] || 0) * share / 100) * 100)]));
+    const pillable = fx.outsideHideout(city, hidden);
+    base.resources = Object.fromEntries(RES.map(r => [r, Math.floor(pillable[r] / 100) * 100]));
     base.buildings = [];
     data = { mission: 'RESOURCES', visible: 'pillable' };
   }

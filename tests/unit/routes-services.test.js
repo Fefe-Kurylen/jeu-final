@@ -34,7 +34,7 @@ function swapPrisma(tables) {
   return () => Object.assign(prisma, saved);
 }
 
-// ---- alliance : 60 membres au plus (D3) ----
+// ---- alliance : 60 membres au plus (D3), plafond de l'Ambassade du chef (tests/unit/batiments-routes.test.js) ----
 // Base factice : chaque lecture laisse passer les autres requêtes (setImmediate), et `SELECT … FOR UPDATE` sur la ligne
 // Alliance est tenu jusqu'à la fin de la transaction, comme dans PostgreSQL
 function fakeAllianceDb({ alliances, members, invites, players = [] }) {
@@ -52,7 +52,7 @@ function fakeAllianceDb({ alliances, members, invites, players = [] }) {
       deleteMany: async ({ where }) => { const n = invites.length; for (let i = n - 1; i >= 0; i--) if (invites[i].playerId === where.playerId) invites.splice(i, 1); return { count: n - invites.length }; },
       upsert: async ({ create }) => { invites.push({ ...create }); return create; }
     },
-    cityBuilding: { findMany: async () => [{ level: 20 }] },   // Ambassade suffisante
+    cityBuilding: { findMany: async () => [{ level: 20 }] },   // Ambassade suffisante (celle du chef, m0 : 60 membres)
     player: { findUnique: async ({ where }) => players.find(p => p.name === where.name) || null }
   };
   const $transaction = async (fn) => {
@@ -83,7 +83,7 @@ test('alliance : 60 membres au plus (décision du 30 octobre 2026)', () => {
 test('alliance : trois adhésions simultanées à 58 membres, deux entrent, la troisième est refusée sous le verrou', async () => {
   const members = membersOf('A1', config.alliance.maxMembers - 2);
   const invites = ['p1', 'p2', 'p3'].map(playerId => ({ allianceId: 'A1', playerId }));
-  const db = fakeAllianceDb({ alliances: [{ id: 'A1', name: 'Rome', tag: 'ROM' }], members, invites });
+  const db = fakeAllianceDb({ alliances: [{ id: 'A1', name: 'Rome', tag: 'ROM', leaderId: 'm0' }], members, invites });
   try {
     const join = handlerOf(allianceRouter, 'post', '/:id/join');
     const out = await Promise.all(['p1', 'p2', 'p3'].map(async (playerId) => {
@@ -104,7 +104,7 @@ test('alliance : invitation refusée quand l\'alliance est pleine, acceptée à 
   const players = [{ id: 'p9', name: 'Titus', alliance: null }];
   {
     const members = membersOf('A1', config.alliance.maxMembers), invites = [];
-    const db = fakeAllianceDb({ alliances: [{ id: 'A1' }], members, invites, players });
+    const db = fakeAllianceDb({ alliances: [{ id: 'A1', leaderId: 'm0' }], members, invites, players });
     try {
       const res = fakeRes();
       await invite({ user: { playerId: 'm0' }, body: { playerName: 'Titus' } }, res);
@@ -115,7 +115,7 @@ test('alliance : invitation refusée quand l\'alliance est pleine, acceptée à 
   }
   {
     const members = membersOf('A1', config.alliance.maxMembers - 1), invites = [];
-    const db = fakeAllianceDb({ alliances: [{ id: 'A1' }], members, invites, players });
+    const db = fakeAllianceDb({ alliances: [{ id: 'A1', leaderId: 'm0' }], members, invites, players });
     try {
       const res = fakeRes();
       await invite({ user: { playerId: 'm0' }, body: { playerName: 'Titus' } }, res);

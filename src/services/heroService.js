@@ -12,7 +12,7 @@ const prisma = require('../config/database');
 const config = require('../config');
 const HE = require('../utils/heroEffects');
 const { notify } = require('./pushService');
-const { lockPlayerCities, debitPlayer, missingMessage } = require('../utils/db');
+const { lockPlayerCities, debitPlayer, debitGold, missingMessage } = require('../utils/db');
 const { buildingsData } = require('../config/gamedata');
 const { httpError } = require('../utils/httpError');
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -64,10 +64,7 @@ async function resetTalents(playerId) {
     if (!hero) throw httpError(404, 'Héros non trouvé');
     if (!HE.spentPoints(hero)) throw httpError(400, 'Aucun talent à réinitialiser');
     const price = hero.talentResets > 0 ? HE.catalog.resetGold : 0;
-    if (price > 0) {
-      const paid = await tx.player.updateMany({ where: { id: playerId, gold: { gte: price } }, data: { gold: { decrement: price } } });
-      if (paid.count !== 1) throw httpError(400, `Il faut ${price} or pour réinitialiser les talents`);
-    }
+    if (!(await debitGold(tx, playerId, price))) throw httpError(400, `Il faut ${price} or pour réinitialiser les talents`);
     await tx.hero.update({ where: { id: hero.id }, data: { talents: {}, talentResets: { increment: 1 } } });
     return { message: price ? `Talents réinitialisés (${price} or)` : 'Talents réinitialisés (gratuit la première fois)', gold: price };
   });

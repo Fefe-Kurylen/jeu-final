@@ -9,12 +9,14 @@ const { getRelation } = require('../services/diplomacyService');
 
 // Règles d'économie que le client applique comme le serveur (décision du 30 octobre 2026) : coût et durée d'un niveau
 // (utils/calculations.js buildCostFor / buildSecondsFor), entretien par palier, blessés et soins, emplacements de la ville
-// (anneau 1-maxSlot, Mur sur l'enceinte : wallSlot), seuil de l'alerte de famine (bandeau du client et notification du
-// serveur ensemble) ; lues dans la configuration, jamais recopiées dans le client
+// (anneau : ringSlots { capital, colony } depuis le 31 octobre 2026, Mur sur l'enceinte : wallSlot), or des unités d'élite
+// (recruit.goldPerUnit par palier), seuil de l'alerte de famine (bandeau du client et notification du serveur ensemble) ;
+// lues dans la configuration, jamais recopiées dans le client
 const pick = (obj, keys) => Object.fromEntries(keys.map(k => [k, obj[k]]));
 const ECONOMY = {
   build: pick(config.build, ['costMultiplierBase', 'timeMultiplierBase', 'fieldCostMultiplier', 'fieldCostKeys', 'slowTimeMultiplier', 'slowTimeKeys']),
-  city: pick(config.city, ['maxSlot', 'wallSlot']),
+  city: pick(config.city, ['ringSlots', 'wallSlot']),
+  recruit: pick(config.recruit, ['goldPerUnit']),
   upkeepPerTier: config.army.upkeepPerTier,
   famineAlertHours: config.army.famineAlertHours,
   wounded: pick(config.wounded, ['baseRate', 'bonusPerHealingLevel', 'maxRate', 'bedsPerLevel', 'healCostPct', 'healTimePctOfTraining', 'healLevelReduction', 'instantHealGoldPerTier', 'woundedPayUpkeep'])

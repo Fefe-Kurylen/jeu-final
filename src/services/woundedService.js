@@ -14,7 +14,7 @@ const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getFactionBonus, recruitCostFor, baseTrainSecondsFor } = require('../utils/calculations');
-const { capitalBuildingsOf, debitPlayer, missingMessage, stockTotals, capitalGarrisonId, addArmyUnits } = require('../utils/db');
+const { capitalBuildingsOf, debitPlayer, debitGold, missingMessage, stockTotals, capitalGarrisonId, addArmyUnits } = require('../utils/db');
 const { httpError } = require('../utils/httpError');
 const fx = require('../utils/buildingEffects');
 
@@ -166,8 +166,7 @@ async function healNow(tx, playerId, cityId, unitKey) {
   if (!row) throw httpError(404, 'Pas de blessés de ce type');
   if (row.count <= 0) throw httpError(400, 'Seuls les blessés au lit se soignent à l\'or : lancez d\'abord leur soin');
   const gold = instantHealGold(unitOf(unitKey), row.count);
-  const paid = await tx.player.updateMany({ where: { id: playerId, gold: { gte: gold } }, data: { gold: { decrement: gold } } });
-  if (paid.count !== 1) throw httpError(400, `Pas assez d'or (${gold} requis)`);
+  if (!(await debitGold(tx, playerId, gold))) throw httpError(400, `Pas assez d'or (${gold} requis)`);
   if (!(await takeBeds(tx, row))) throw httpError(409, 'Ces blessés viennent de guérir');
   await addArmyUnits(tx, await capitalGarrisonId(tx, playerId, cityId), unitKey, row.count);
   return { healed: row.count, goldSpent: gold };

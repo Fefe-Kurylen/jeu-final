@@ -33,8 +33,8 @@ const HERO_EQUIPPED = { include: { items: { where: { slot: { not: 'inventory' } 
 const loadArmy = (id, playerId, include = {}, db = prisma) =>
   db.army.findFirst({ where: { id, ownerId: playerId }, include: { units: true, owner: { include: { technologies: true, alliance: { select: { allianceId: true } }, cities: fx.CAPITAL_BUILDINGS } }, hero: HERO_EQUIPPED, city: true, ...include } });
 
-// Charge d'une armée qui transporte ou récolte : unités et héros, civilisation, Marché / Comptoir de sa ville et
-// Avant-poste du désert de la capitale (`cityBuildings`), Bastion d'alliance ; la même que harvestProcessor applique à la récolte
+// Charge d'une armée qui transporte ou récolte : unités et héros, civilisation, bonus de transport des bâtiments de la
+// capitale (Marché, Comptoir, Poste du Désert : `cityBuildings`), Bastion d'alliance ; la même que harvestProcessor applique à la récolte
 const transportCapacity = (army, cityBuildings) => Math.floor(getArmyCarryCapacity(army.units, unitsData, army.hero)
   * (1 + getFactionBonus(army.owner?.faction, 'transportCapacity', factionsData) / 100) * (1 + fx.transportBonusPct(cityBuildings) / 100)
   * bastionBonus().carryMultSync(army.owner?.alliance?.allianceId));
@@ -743,8 +743,11 @@ router.post('/:id/transport', auth, async (req, res) => {
       { const camp = await campBlocksExit(army, tx); if (camp) return { error: camp, status: 400 }; }   // assiégée, la ville ne laisse sortir que contre le camp
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
-      if (config.market.requireBuilding && !(await tx.cityBuilding.findFirst({ where: { cityId: army.city.id, key: 'MARKET', level: { gte: 1 } }, select: { id: true } }))) return { error: 'Construisez un Marché (niveau 1 minimum) pour envoyer des ressources', status: 400 };
-      const carryCapacity = transportCapacity(army, await cityBuildingsOf(tx, army));
+      // le Marché est « capitale seulement » (décision du 31 octobre 2026) : celui de la capitale ouvre le transport depuis
+      // toutes les villes du joueur ; la mission d'armée ne prend pas de marchand
+      const cityBuildings = await cityBuildingsOf(tx, army);
+      if (config.market.requireBuilding && fx.levelOf(cityBuildings, 'MARKET') < 1) return { error: 'Construisez un Marché dans la capitale (niveau 1 minimum) pour envoyer des ressources', status: 400 };
+      const carryCapacity = transportCapacity(army, cityBuildings);
       if (wood + stone + iron + food > carryCapacity) return { error: `Capacité insuffisante (max ${carryCapacity})`, status: 400 };
       if (!(await debitCity(tx, army.city.id, { wood, stone, iron, food }))) return { error: 'Ressources insuffisantes', status: 400 };
       const travelTime = await travelTo(army, targetCity.x, targetCity.y);

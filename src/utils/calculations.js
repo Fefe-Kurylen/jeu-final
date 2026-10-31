@@ -207,21 +207,33 @@ function buildSecondsFor(buildingDef, level) {
   return Math.floor((buildingDef?.timeL1Sec || 60) * Math.pow(growth, Math.max(0, level - 1)));
 }
 
-// Recrutement (GDD formulas.json) : prix d'un lot = prix de la classe × multiplicateur du palier × nombre (arrondi au-dessus) ;
-// temps de formation de base d'une unité = temps de la classe × multiplicateur du palier (avant bâtiments et technologies)
+// Recrutement (GDD formulas.json) : prix d'une unité = prix de la classe × multiplicateur du palier, arrondi à l'unité ; les
+// unités d'élite coûtent en plus de l'or et, pour compenser, leurs ressources × eliteResourceCostMult (décision du
+// 31 octobre 2026). Prix d'un lot = prix d'une unité × nombre : le client (fiches, recrutement : /api/units, withRecruitPrice)
+// et le serveur comptent les mêmes nombres. Seul endroit du calcul (soins : 30 % de ce prix, services/woundedService.js).
 function recruitCostFor(unit, count) {
-  const classCosts = config.recruit.baseCosts[unit?.class] || config.recruit.baseCosts.INFANTRY;
-  const tierMult = config.recruit.tierCostMultipliers[unit?.tier] || 1;
-  return { wood: Math.ceil(classCosts.wood * tierMult * count), stone: Math.ceil(classCosts.stone * tierMult * count), iron: Math.ceil(classCosts.iron * tierMult * count), food: Math.ceil(classCosts.food * tierMult * count) };
+  const R = config.recruit;
+  const classCosts = R.baseCosts[unit?.class] || R.baseCosts.INFANTRY;
+  const mult = (R.tierCostMultipliers[unit?.tier] || 1) * (unit?.tier === 'elite' ? R.eliteResourceCostMult : 1);
+  return Object.fromEntries(['wood', 'stone', 'iron', 'food'].map(r => [r, Math.round(classCosts[r] * mult) * count]));
 }
+// Or d'un lot (config.recruit.goldPerUnit par palier : l'élite seulement), pris sur l'or du joueur à la mise en file ; un
+// recrutement annulé en rend la même part que des ressources
+const recruitGoldFor = (unit, count) => Math.ceil((config.recruit.goldPerUnit[unit?.tier] || 0) * count);
+// Une unité de data/units.json avec son prix tel que le serveur le demande (catalogue /api/units)
+const withRecruitPrice = (unit) => ({ ...unit, recruitCost: recruitCostFor(unit, 1), recruitGold: recruitGoldFor(unit, 1) });
 const baseTrainSecondsFor = (unit) => (config.recruit.baseTimeSec[unit?.class] || 360) * (config.recruit.tierTimeMultipliers[unit?.tier] || 1);
+
+// Emplacements de l'anneau d'une ville (décision du 31 octobre 2026) : 1 à 18 dans la capitale, 1 à 12 dans une colonie
+// ou la Ville Merveille (config.city.ringSlots)
+const ringSlotsOf = (city) => (city?.isCapital ? config.city.ringSlots.capital : config.city.ringSlots.colony);
 
 // Plafond des récompenses de quêtes et des routes commerciales (rapport économie, recommandation 12, option A) : le
 // stockage de la ville par le Dépôt et le Silo seuls, sans le Grand dépôt ni le Grand silo
 const storageCapsWithoutGreat = (buildings, buildingsData) => cityStorageCaps((buildings || []).filter(b => b.key === 'WAREHOUSE' || b.key === 'SILO'), buildingsData);
 
 module.exports = {
-  buildCostFor, buildSecondsFor, recruitCostFor, baseTrainSecondsFor, storageCapsWithoutGreat,
+  buildCostFor, buildSecondsFor, recruitCostFor, recruitGoldFor, withRecruitPrice, baseTrainSecondsFor, storageCapsWithoutGreat, ringSlotsOf,
   mainHallLevelOf,
   lerpExp,
   getProductionAtLevel,

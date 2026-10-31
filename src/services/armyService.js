@@ -20,6 +20,17 @@ const { campUnits, campPower, campBonusPct } = require('../utils/tribeDefenders'
 // tous les convois et tous les espions du joueur, d'où qu'ils partent (une requête ; `db` = prisma ou la transaction)
 const playerMarchPct = async (db, playerId) => (playerId ? fx.marchSpeedBonusPct(await capitalBuildingsOf(db, playerId)) : 0);
 
+// Bonus de combat d'un joueur, en points de % (décision du 31 octobre 2026) : ses technologies (Art de la guerre,
+// Discipline) et la Forge de sa capitale (+0,5 % d'attaque et +0,5 % de défense par niveau pour toutes ses troupes, dans
+// tous les combats : attaque, défense, renfort, camps, donjons, Immortels, Bastion). `technologies` : ses lignes
+// PlayerTechnology (null : la Forge seule) ; une requête
+async function combatPct(db, playerId, technologies) {
+  const capital = playerId ? await capitalBuildingsOf(db, playerId) : [];
+  return { atk: techPct(technologies, 'attackBonusPct') + fx.forgeAttackPct(capital), def: techPct(technologies, 'defenseBonusPct') + fx.forgeDefensePct(capital) };
+}
+// Multiplicateurs du moteur de bataille détaillé (combatService.resolveCombatDetailed, techMods)
+const combatMult = (pct) => ({ atk: 1 + pct.atk / 100, def: 1 + pct.def / 100 });
+
 // Fight against the tribe guarding a resource node. Runs inside `tx` so that two concurrent
 // raids on the same node from the same army cannot both be resolved.
 async function resolveTribeCombat(army, node, playerId, tx = prisma) {
@@ -30,11 +41,12 @@ async function resolveTribeCombat(army, node, playerId, tx = prisma) {
     return { success: true, combatResult: { winner: 'attacker', attackerLosses: 0, defenderLosses: 0 }, loot: null, message: 'Tribu absente - démarrage de la récolte' };
   }
 
-  // Art de la guerre (technologie) : bonus d'attaque du joueur
+  // Art de la guerre (technologie) et Forge de la capitale : bonus d'attaque du joueur
   const techRows = await tx.playerTechnology.findMany({ where: { playerId } });
+  const bonus = await combatPct(tx, playerId, techRows);
   // A camp is a static target: the winner loses less than in a raid on a city (config.combat.tribeLossMultiplier)
   // camp d'or : +40 % (config.map.camps.goldDefenseBonusPct) comme sa puissance affichée (campPower)
-  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null, { attackerFaction: army.owner?.faction, attackerBonusPct: techPct(techRows, 'attackBonusPct'), defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
+  const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), null, { attackerFaction: army.owner?.faction, attackerBonusPct: bonus.atk, defenseBonusPct: campBonusPct(node.resourceType), winnerLossMultiplier: config.combat.tribeLossMultiplier });
 
   let totalAttackerLosses = 0;
   const killed = [];
@@ -90,8 +102,8 @@ async function collectResourceLoot(army, node, playerId, tx = prisma, reportId =
   const fresh = await tx.army.findUnique({ where: { id: army.id }, include: { units: true, hero: true, owner: true } });
   if (!fresh) return {};
   const carrying = fresh.carryWood + fresh.carryStone + fresh.carryIron + fresh.carryFood + fresh.carryGold;
-  // Same transport bonuses as raids and convoys: civilization (Egypt, Sultanate), Market of the home city, best Trade Office
-  // of the player's cities and Desert Outpost of the capital
+  // Same transport bonuses as the transport armies: civilization (Egypt, Sultanate), Market, Trade Office and Desert Outpost
+  // of the capital
   const cityBuildings = fresh.cityId ? await tx.cityBuilding.findMany({ where: { cityId: fresh.cityId }, select: { key: true, level: true } }) : [];
   const buildings = fx.withCapital(cityBuildings, await capitalBuildingsOf(tx, fresh.ownerId));
   const transportMult = (1 + (getFactionBonus(fresh.owner?.faction, 'transportCapacity', factionsData) || 0) / 100) * (1 + fx.transportBonusPct(buildings) / 100) * (await require('./bastionService').carryMult(fresh.ownerId));   // + Bastion d'alliance
@@ -138,8 +150,10 @@ async function fieldBattle(tx, army, holders, playerId, place) {
   const defenderUnits = holders.flatMap(h => h.units.filter(u => u.count > 0).map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })));
   const lead = holders[0];
   const atkTech = await tx.playerTechnology.findMany({ where: { playerId } });
+  // technologies et Forge : l'attaque de l'attaquant, la défense du premier défenseur
+  const [atkBonus, defBonus] = await Promise.all([combatPct(tx, playerId, atkTech), combatPct(tx, lead.ownerId, lead.owner?.technologies)]);
   const combat = resolveCombat(army.units.map(u => ({ unitKey: u.unitKey, tier: u.tier, count: u.count })), defenderUnits, 0, heroCombatStats(army.hero), heroCombatStats(require('./heroService').leadingHero(holders)), {   // un héros sans soldats ne combat pas
-    fieldBattle: true, attackerFaction: army.owner?.faction, defenderFaction: lead.owner?.faction, attackerBonusPct: techPct(atkTech, 'attackBonusPct'), defenderBonusPct: techPct(lead.owner?.technologies, 'defenseBonusPct')
+    fieldBattle: true, attackerFaction: army.owner?.faction, defenderFaction: lead.owner?.faction, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def
   });
   const atkBefore = army.units.map(u => ({ unitKey: u.unitKey, count: u.count }));
   const engaged = require('./heroService').fought([army, ...holders]);   // héros des armées qui combattent avec des soldats
@@ -247,4 +261,4 @@ async function depositCarryTx(tx, armyId, cityId) {
   await tx.army.update({ where: { id: armyId }, data: { carryWood: 0, carryStone: 0, carryIron: 0, carryFood: 0, carryGold: 0, settlers: 0, woundedCarry: [] } });
 }
 
-module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle, depositCarryTx, playerMarchPct };
+module.exports = { raidCooldownWhere, resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, sendArmyHomeTx, fieldBattle, depositCarryTx, playerMarchPct, combatPct, combatMult };

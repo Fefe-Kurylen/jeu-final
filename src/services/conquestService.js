@@ -11,6 +11,7 @@ const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('..
 const { plunderCity, lockPlayerCities, creditPlayer } = require('../utils/db');
 const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
 const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
+const fx = require('../utils/buildingEffects');
 
 const F = () => config.combat.fall;
 const RES = ['wood', 'stone', 'iron', 'food'];
@@ -22,15 +23,13 @@ function assaultsToFall(city, faction) {
 const assaultsLeft = (city, faction) => Math.max(0, Math.round((city.wallStructure ?? 1) * assaultsToFall(city, faction)));   // vies restantes
 
 // Pillage d'un combat gagné (décision du 25 octobre 2026) : pillagePct % du stock hors cachette (seule la cachette protège,
-// décision du 30 octobre 2026), dans la limite de ce que les armées portent ; ce qu'elles ne portent pas reste à la ville.
-// Plusieurs camps alliés se partagent le butin selon leur capacité. `survivors` : Map armyId -> unités restantes. Dans la
-// transaction.
+// décision du 30 octobre 2026 ; une quantité fixe de chaque ressource selon son niveau depuis le 31 octobre 2026), dans la
+// limite de ce que les armées portent ; ce qu'elles ne portent pas reste à la ville. Plusieurs camps alliés se partagent le
+// butin selon leur capacité. `survivors` : Map armyId -> unités restantes. Dans la transaction.
 async function pillage(tx, city, armies, survivors) {
-  const hideout = city.buildings.find(b => b.key === 'HIDEOUT');
-  let shelter = (hideout?.level || 0) * config.hideout.protectionPerLevel * (1 + getFactionBonus(city.player.faction, 'hideoutCapacity', factionsData) / 100);
-  shelter = Math.min(shelter, config.hideout.maxProtection);
+  const outside = fx.outsideHideout(city, fx.hideoutAmount(city.buildings, city.player.faction));
   const want = {};
-  for (const r of RES) want[r] = Math.floor(Math.max(0, city[r] * (1 - shelter)) * F().pillagePct / 100);
+  for (const r of RES) want[r] = Math.floor(outside[r] * F().pillagePct / 100);
   const BS = require('./bastionService');
   const allianceOf = new Map((await tx.allianceMember.findMany({ where: { playerId: { in: armies.map(a => a.ownerId) } }, select: { playerId: true, allianceId: true } })).map(m => [m.playerId, m.allianceId]));
   const caps = armies.map(a => ({ a, cap: Math.max(0, Math.floor(getArmyCarryCapacity(survivors.get(a.id) || [], unitsData, a.hero) * (1 + getFactionBonus(a.owner?.faction, 'transportCapacity', factionsData) / 100) * BS.carryMultSync(allianceOf.get(a.ownerId)) * (1 + require('../utils/heroEffects').talent(a.hero, 'lootPct') / 100))) }));   // + Bastion d'alliance, talent Pillard

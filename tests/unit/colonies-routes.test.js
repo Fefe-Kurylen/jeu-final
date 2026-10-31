@@ -32,41 +32,19 @@ function swapPrisma(tables) {
 }
 const deadlock = () => Object.assign(new Error('Transaction failed due to a write conflict or a deadlock'), { code: 'P2034' });
 
-// ---- Mur sur l'enceinte (décision 6) ----
-const FIELDS = Object.keys(config.city.fieldSlots);
-const ringKeys = (faction, isCapital) => buildingsData.filter(d => !FIELDS.includes(d.key) && d.key !== 'MAIN_HALL' && d.key !== 'WALL'
-  && (!d.faction || d.faction === faction) && (isCapital ? !fx.notInCapital(d.key) : !fx.capitalOnly(d.key))).map(d => d.key);
+// ---- Mur sur l'enceinte (décision 6 ; emplacements de l'anneau par type de ville : tests/unit/batiments-routes.test.js) ----
 
 test('Mur : toujours sur l\'emplacement fixe de l\'enceinte, quel que soit l\'emplacement envoyé', () => {
   const wallSlot = config.city.wallSlot;
-  assert.ok(wallSlot > config.city.maxSlot && !Object.values(config.city.fieldSlots).flat().includes(wallSlot), 'hors de l\'anneau et des champs');
+  assert.ok(wallSlot > config.city.ringSlots.capital && !Object.values(config.city.fieldSlots).flat().includes(wallSlot), 'hors de l\'anneau et des champs');
   const city = { buildings: [{ key: 'MAIN_HALL', slot: 0, level: 5 }], buildQueue: [] };
-  for (const sent of [null, 1, 5, config.city.maxSlot, wallSlot, 101]) assert.equal(resolveSlot('WALL', sent, null, city), wallSlot, `emplacement envoyé : ${sent}`);
+  for (const sent of [null, 1, 5, config.city.ringSlots.capital, wallSlot, 101]) assert.equal(resolveSlot('WALL', sent, null, city), wallSlot, `emplacement envoyé : ${sent}`);
   // niveau suivant d'un Mur déjà bâti, ou encore dans la file
   const wall = { key: 'WALL', slot: wallSlot, level: 3 };
   assert.equal(resolveSlot('WALL', 4, wall, { ...city, buildings: [...city.buildings, wall] }), wallSlot);
   assert.equal(resolveSlot('WALL', null, null, { ...city, buildQueue: [{ buildingKey: 'WALL', slot: wallSlot }] }), wallSlot);
   // l'enceinte n'est pas un emplacement de l'anneau : aucun autre bâtiment n'y va
   assert.equal(resolveSlot('MARKET', wallSlot, null, city), null);
-});
-
-test('anneau : le Mur n\'y prend aucune place (capitale 17 bâtiments, 2 libres ; colonie 14, 5 libres)', () => {
-  for (const [isCapital, built, free] of [[true, 17, 2], [false, 14, 5]]) {
-    for (const faction of ['ROME', 'GAUL', 'GREEK', 'EGYPT', 'HUN', 'SULTAN']) {
-      const keys = ringKeys(faction, isCapital);
-      assert.equal(keys.length, built, `${faction} ${isCapital ? 'capitale' : 'colonie'}`);
-      const city = { buildings: [{ key: 'MAIN_HALL', slot: 0, level: 20 }, { key: 'WALL', slot: config.city.wallSlot, level: 20 }], buildQueue: [] };
-      for (const key of keys) {
-        const slot = resolveSlot(key, null, null, city);
-        assert.ok(slot >= 1 && slot <= config.city.maxSlot, `${key} sur l'anneau`);
-        city.buildings.push({ key, slot, level: 1 });
-      }
-      const used = new Set(city.buildings.map(b => b.slot));
-      const left = Array.from({ length: config.city.maxSlot }, (_, i) => i + 1).filter(s => !used.has(s));
-      assert.equal(left.length, free, `${faction} : emplacements libres`);
-      assert.equal(resolveSlot('WALL', left[0], null, city), config.city.wallSlot, 'le Mur ne prend jamais une place libre de l\'anneau');
-    }
-  }
 });
 
 // ---- Palier de recrutement d'une colonie (décision 7) ----

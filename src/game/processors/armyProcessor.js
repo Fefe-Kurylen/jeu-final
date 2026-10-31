@@ -11,7 +11,7 @@ const T = require('../../utils/techEffects');   // technologies des joueurs (att
 const { resolveCombat, resolveCombatDetailed, heroCombatStats } = require('../../services/combatService');
 const { calculateWoundedUnits, addWoundedUnits, carryWounded, depositCarriedWounded } = require('../../services/woundedService');
 const { awardHeroXp } = require('../../services/heroXpService');
-const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx, raidCooldownWhere, playerMarchPct } = require('../../services/armyService');
+const { resolveTribeCombat, resolveNodeHolderCombat, collectResourceLoot, fieldBattle, sendArmyHomeTx, depositCarryTx, raidCooldownWhere, playerMarchPct, combatPct, combatMult } = require('../../services/armyService');
 const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
@@ -359,11 +359,12 @@ async function handleAttack(army, now) {
     const wallLevel = wallLevelOf(targetCity.buildings);
     const wall = wallLevel > 0 ? { hp: wallHpNow(targetCity), maxHp: targetCity.wallMaxHp } : null;
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
-    // Forge et Brasserie gauloise de la capitale du défenseur : elles défendent toutes ses villes
+    // Brasserie gauloise de la capitale du défenseur : elle défend toutes ses villes
     const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));
-    // Technologies of both players (the leading camp's for the attackers): Art de la guerre, Discipline; Médecine below
+    // Technologies (Art de la guerre, Discipline) and Forge of both players (the leading camp's for the attackers); Médecine below
     const [atkTech, defTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const techMods = { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: T.techBonusMult(defTech, 'attackBonusPct'), def: T.techBonusMult(defTech, 'defenseBonusPct') } };
+    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, atkTech), combatPct(tx, targetCity.playerId, defTech)]);
+    const techMods = { attacker: combatMult(atkBonus), defender: combatMult(defBonus) };
     const ownerNames = [...new Set(group.map(g => g.owner?.name).filter(Boolean))].join(', ');
     const result = resolveCombatDetailed(attackerUnits, defenderUnits, wallLevel, ownerNames, targetCity.player.name, heroCombatStats(army.hero), heroCombatStats(defenderHero), army.owner.faction, targetCity.player.faction, defenseBonusPct, techMods, wall);
 
@@ -593,11 +594,12 @@ async function handleRaid(army, now) {
     const defenders = defendingArmies(targetCity);
     const defenderUnits = defenders.flatMap(a => a.units);
     const wallLevel = wallLevelOf(targetCity.buildings);
-    const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));   // Forge et Brasserie de la capitale
+    const defenseBonusPct = fx.defenseBonusPct(await buildingsWithCapital(tx, targetCity));   // Brasserie de la capitale
     const defenderHero = require('../../services/heroService').leadingHero(defenders);   // un héros sans soldats ne combat pas
-    // Technologies: Art de la guerre (attacker's power), Discipline (defender's power)
+    // Technologies and Forge: Art de la guerre and Forge attack (attacker's power), Discipline and Forge defence (defender's power)
     const [raidAtkTech, raidDefTech] = await Promise.all([tx.playerTechnology.findMany({ where: { playerId: army.ownerId } }), tx.playerTechnology.findMany({ where: { playerId: targetCity.playerId } })]);
-    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerBonusPct: T.techPct(raidAtkTech, 'attackBonusPct'), defenderBonusPct: T.techPct(raidDefTech, 'defenseBonusPct') });
+    const [atkBonus, defBonus] = await Promise.all([combatPct(tx, army.ownerId, raidAtkTech), combatPct(tx, targetCity.playerId, raidDefTech)]);
+    const result = resolveCombat(attackerUnits, defenderUnits, wallLevel, heroCombatStats(army.hero), heroCombatStats(defenderHero), { attackerFaction: army.owner.faction, defenderFaction: targetCity.player.faction, defenseBonusPct, attackerBonusPct: atkBonus.atk, defenderBonusPct: defBonus.def });
 
     // appliquées, rapport et classements comptent les mêmes pertes
     const atkLosses = raidLosses(attackerUnits, result.attackerLossRate), defLosses = raidLosses(defenderUnits, result.defenderLossRate);
@@ -610,13 +612,11 @@ async function handleRaid(army, now) {
       const transportMultiplier = (1 + getFactionBonus(army.owner.faction, 'transportCapacity', factionsData) / 100) * require('../../services/bastionService').carryMultSync(army.owner?.alliance?.allianceId);   // + Bastion d'alliance
       const carry = getArmyCarryCapacity(survivors.map(u => ({ unitKey: u.unitKey, count: u.newCount })), unitsData, army.hero) * transportMultiplier * (1 + require('../../utils/heroEffects').talent(army.hero, 'lootPct') / 100);   // talent Pillard
       const budget = carry * config.combat.raidLootPctOfCarry;
-      const hideout = targetCity.buildings.find(b => b.key === 'HIDEOUT');
-      let hideoutProtection = (hideout?.level || 0) * config.hideout.protectionPerLevel;
-      hideoutProtection *= (1 + getFactionBonus(targetCity.player.faction, 'hideoutCapacity', factionsData) / 100);
-      hideoutProtection = Math.min(hideoutProtection, config.hideout.maxProtection);
-      // seule la cachette protège (le Grand dépôt et le Grand silo ne sont que du stockage, décision du 30 octobre 2026)
+      // seule la cachette protège, une quantité fixe de chaque ressource (le Grand dépôt et le Grand silo ne sont que du
+      // stockage) ; un raid emporte au plus raidStealRate de ce qui dépasse
+      const outside = fx.outsideHideout(targetCity, fx.hideoutAmount(targetCity.buildings, targetCity.player.faction));
       const available = {};
-      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = Math.max(0, targetCity[r] * (1 - hideoutProtection) * config.hideout.raidStealRate);
+      for (const r of ['wood', 'stone', 'iron', 'food']) available[r] = outside[r] * config.hideout.raidStealRate;
       const totalAvailable = Object.values(available).reduce((s, v) => s + v, 0);
       const want = {};
       for (const r of Object.keys(available)) want[r] = totalAvailable > 0 ? Math.floor(Math.min(available[r], budget * available[r] / totalAvailable)) : 0;
@@ -734,11 +734,7 @@ async function handleTransport(army, now) {
     }, TX);
   }
   const back = Object.fromEntries(Object.keys(load).map(r => [r, (load[r] || 0) - kept[r]]));
-  const got = resText(kept), over = resText(back);
-  if (army.missionType === 'MARKET_DELIVERY' && targetCity.playerId !== army.ownerId) {   // échange du marché livré
-    const who = `Le convoi de ${army.owner?.name || 'votre partenaire'}`;
-    notify(targetCity.playerId, 'market', '📦 Marchandises livrées', got ? `${who} a livré ${got} à ${targetCity.name}${over ? ` (entrepôt plein : ${over} repartent)` : ''}.` : `${who} n'a rien pu livrer à ${targetCity.name} : l'entrepôt est plein.`, { to: 'city', cityId: targetCity.id });
-  }
+  const over = resText(back);
   if (over) notify(army.ownerId, 'market', '📦 Entrepôt plein', `${targetCity.name} n'avait pas la place pour ${over} : ${army.name} les ramène.`, { to: 'army', armyId: army.id });
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }

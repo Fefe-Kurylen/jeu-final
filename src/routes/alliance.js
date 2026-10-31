@@ -13,11 +13,16 @@ const { embassyLevelOf } = require('../services/allianceHelpService');
 // Verrou de la ligne Alliance (adhésion, dissolution) : deux adhésions simultanées se suivent, la seconde compte la
 // première ; une adhésion ne passe pas pendant que le chef dissout l'alliance
 const lockAlliance = (tx, allianceId) => tx.$queryRaw`SELECT id FROM "Alliance" WHERE id = ${allianceId} FOR UPDATE`;
-// Plafond de membres (décision du 30 octobre 2026 : 60) : message de refus, ou null
-async function allianceFull(db, allianceId) {
-  const max = config.alliance.maxMembers;
-  const members = await db.allianceMember.count({ where: { allianceId } });
-  return members >= max ? `Alliance complète (${max} membres au plus)` : null;
+// Plafond de membres (décision du 31 octobre 2026) : l'Ambassade du chef fixe le nombre de membres (fx.allianceMaxMembers),
+// jamais plus de config.alliance.maxMembers ; s'il baisse (changement de chef), personne n'est exclu, seules les entrées
+// attendent. Une alliance sans chef connu ne prend plus personne
+const maxMembersOf = async (db, alliance) => fx.allianceMaxMembers(alliance?.leaderId ? await embassyLevelOf(alliance.leaderId, db) : 0);
+// Message de refus quand l'alliance est pleine, ou null
+async function allianceFull(db, alliance) {
+  const max = await maxMembersOf(db, alliance);
+  const members = await db.allianceMember.count({ where: { allianceId: alliance.id } });
+  if (members < max) return null;
+  return `Alliance complète (${max} membres au plus${max < config.alliance.maxMembers ? ', selon l\'Ambassade du chef' : ''})`;
 }
 
 // Un joueur n'est plus dans son alliance (départ, exclusion, dissolution) : ses demandes d'aide se ferment, ses renforts
@@ -34,7 +39,12 @@ const memberInclude = { members: { include: { player: { select: { id: true, name
 router.get('/', auth, async (req, res) => {
   try {
     const alliances = await prisma.alliance.findMany({ include: memberInclude, orderBy: { createdAt: 'desc' }, take: 100 });
-    res.json(alliances);
+    // plafond de chaque alliance : les Ambassades de tous les chefs en une requête
+    const leaderIds = alliances.map(a => a.leaderId).filter(Boolean);
+    const embassies = leaderIds.length ? await prisma.cityBuilding.findMany({ where: { key: 'EMBASSY', city: { playerId: { in: leaderIds } } }, select: { level: true, city: { select: { playerId: true } } } }) : [];
+    const embassyOf = new Map();
+    for (const b of embassies) embassyOf.set(b.city.playerId, Math.max(embassyOf.get(b.city.playerId) || 0, b.level));
+    res.json(alliances.map(a => ({ ...a, maxMembers: fx.allianceMaxMembers(embassyOf.get(a.leaderId) || 0) })));
   } catch (e) { sendError(res, e); }
 });
 
@@ -43,7 +53,7 @@ router.get('/mine', auth, async (req, res) => {
   try {
     // entre membres, chacun voit la dernière connexion des autres (GDD membership.memberListFields), arrondie par le client
     const member = await prisma.allianceMember.findUnique({ where: { playerId: req.user.playerId }, include: { alliance: { include: { members: { include: { player: { select: { id: true, name: true, faction: true, population: true, lastSeenAt: true } } }, orderBy: { joinedAt: 'asc' } } } } } });
-    res.json(member ? { role: member.role, alliance: member.alliance, serverTime: new Date(), maxMembers: config.alliance.maxMembers } : null);
+    res.json(member ? { role: member.role, alliance: member.alliance, serverTime: new Date(), maxMembers: await maxMembersOf(prisma, member.alliance) } : null);
   } catch (e) { sendError(res, e); }
 });
 
@@ -82,7 +92,7 @@ router.post('/invite', auth, async (req, res) => {
     const target = playerName ? await prisma.player.findUnique({ where: { name: playerName }, include: { alliance: true } }) : null;
     if (!target) return res.status(404).json({ error: 'Joueur introuvable' });
     if (target.alliance) return res.status(400).json({ error: 'Ce joueur est déjà dans une alliance' });
-    { const full = await allianceFull(prisma, myMember.allianceId); if (full) return res.status(400).json({ error: `${full} : impossible d'inviter` }); }
+    { const full = await allianceFull(prisma, await prisma.alliance.findUnique({ where: { id: myMember.allianceId } })); if (full) return res.status(400).json({ error: `${full} : impossible d'inviter` }); }
     await prisma.allianceInvite.upsert({
       where: { allianceId_playerId: { allianceId: myMember.allianceId, playerId: target.id } },
       update: {}, create: { allianceId: myMember.allianceId, playerId: target.id }
@@ -117,8 +127,8 @@ router.post('/:id/join', auth, async (req, res) => {
       if (!invite) return { error: 'Cette alliance recrute sur invitation', status: 403 };
       const needed = fx.allianceJoinLevel();
       if ((await embassyLevelOf(req.user.playerId, tx)) < needed) return { error: `Ambassade niveau ${needed} requise pour rejoindre une alliance`, status: 400 };
-      // 60 membres au plus, comptés sous le verrou de l'alliance
-      { const full = await allianceFull(tx, alliance.id); if (full) return { error: `${full} : un membre doit partir avant que vous puissiez entrer`, status: 400 }; }
+      // plafond de l'Ambassade du chef, compté sous le verrou de l'alliance
+      { const full = await allianceFull(tx, alliance); if (full) return { error: `${full} : un membre doit partir avant que vous puissiez entrer`, status: 400 }; }
       await tx.allianceMember.create({ data: { allianceId: alliance.id, playerId: req.user.playerId, role: 'MEMBER' } });
       await tx.allianceInvite.deleteMany({ where: { playerId: req.user.playerId } });
       return { message: 'Alliance rejointe' };
@@ -328,7 +338,7 @@ router.get('/:id', auth, async (req, res) => {
     const rel = await relationsOf(alliance.id);
     const others = await prisma.alliance.findMany({ where: { id: { in: [...rel.keys()] } }, select: allianceCard });
     const byStatus = (st) => others.filter(o => rel.get(o.id)?.status === st);
-    res.json({ ...alliance, allies: byStatus('ALLY'), enemies: byStatus('ENEMY') });
+    res.json({ ...alliance, maxMembers: await maxMembersOf(prisma, alliance), allies: byStatus('ALLY'), enemies: byStatus('ENEMY') });
   } catch (e) { sendError(res, e); }
 });
 

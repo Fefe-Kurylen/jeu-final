@@ -5,7 +5,7 @@ const { notify } = require('../../services/pushService');
 const buildingName = (key) => buildingsData.find(b => b.key === key)?.name || key;
 const config = require('../../config');
 const { buildingsData } = require('../../config/gamedata');
-const { getStorageAtLevel, getFactionBonus, cityStorageCaps, STORAGE_KEYS, BASE_STORAGE } = require('../../utils/calculations');
+const { getStorageAtLevel, getFactionBonus, cityStorageCaps, ringSlotsOf, STORAGE_KEYS, BASE_STORAGE } = require('../../utils/calculations');
 const { lockCity } = require('../../utils/db');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { factionsData } = require('../../config/gamedata');
@@ -55,14 +55,16 @@ async function syncWallHp(cityId, wallLevel, db = prisma) {
 }
 
 // Emplacement d'un bâtiment qui sort de terre : le Mur a sa place fixe sur l'enceinte (config.city.wallSlot, décision du
-// 30 octobre 2026), les autres prennent celui du chantier, ou le suivant libre sans jamais prendre celui du Mur
-function newBuildingSlot(item, buildings) {
-  const wallSlot = config.city.wallSlot;
-  if (item.buildingKey === 'WALL') return wallSlot;
+// 30 octobre 2026), un champ (101-118) ou le Bâtiment principal (0) celle de son chantier, les autres celle du chantier si
+// elle est libre, sinon la première libre de l'anneau de la ville (1 à ringSlotsOf(city), décision du 31 octobre 2026)
+function newBuildingSlot(item, buildings, city) {
+  if (item.buildingKey === 'WALL') return config.city.wallSlot;
+  const ring = ringSlotsOf(city);
   const used = new Set(buildings.map(x => x.slot));
-  let slot = item.slot ?? 1;
-  while (used.has(slot) || slot === wallSlot) slot++;
-  return slot;
+  const wanted = item.slot ?? 1;
+  if (!used.has(wanted) && (wanted < 1 || wanted > config.city.wallSlot || wanted <= ring)) return wanted;
+  for (let s = 1; s <= ring; s++) if (!used.has(s)) return s;
+  return wanted;   // anneau plein (cas d'erreur) : la place du chantier, comme avant
 }
 
 // « File de construction vide à [ville] » (décision du 30 octobre 2026, aide au suivi) : quand le dernier chantier d'une
@@ -115,18 +117,18 @@ async function processBuilds(now, { playerId = null } = {}) {
           const taken = await tx.buildQueueItem.deleteMany({ where: { id: b.id, status: 'RUNNING' } });
           if (taken.count !== 1) return null;
           const freshBuildings = await tx.cityBuilding.findMany({ where: { cityId: b.cityId } });
+          const city = await tx.city.findUnique({ where: { id: b.cityId }, select: { playerId: true, name: true, isCapital: true } });
           const isFieldBuilding = ['LUMBER', 'QUARRY', 'IRON_MINE', 'FARM'].includes(b.buildingKey);
           const existing = isFieldBuilding ? freshBuildings.find(x => x.key === b.buildingKey && x.slot === b.slot) : freshBuildings.find(x => x.key === b.buildingKey);
           if (existing) {
             // A level never goes down because of a stale queue item
             if (existing.level < b.targetLevel) await tx.cityBuilding.update({ where: { id: existing.id }, data: { level: b.targetLevel } });
           } else {
-            await tx.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newBuildingSlot(b, freshBuildings), level: b.targetLevel } });
+            await tx.cityBuilding.create({ data: { cityId: b.cityId, key: b.buildingKey, slot: newBuildingSlot(b, freshBuildings, city), level: b.targetLevel } });
           }
           // Storage follows the warehouse / silo levels (Great Warehouse and Great Silo too), wall HP follows the wall level
           if (STORAGE_KEYS[b.buildingKey]) await syncCityStorage(b.cityId, tx);
           if (b.buildingKey === 'WALL') await syncWallHp(b.cityId, b.targetLevel, tx);
-          const city = await tx.city.findUnique({ where: { id: b.cityId }, select: { playerId: true, name: true } });
           if (city) await updatePlayerPopulation(tx, city.playerId);
           return city;
         });

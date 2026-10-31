@@ -364,6 +364,23 @@ function garrisonFaction(defenders) {
   return { faction: null, def };
 }
 
+// Forge des défenseurs (décision du 31 octobre 2026) : chacun a celle de sa capitale ; la garnison mêlée prend la moyenne
+// selon les soldats de chacun, comme la défense des civilisations ci-dessus. Multiplicateurs { atk, def }
+async function garrisonForge(tx, defenders) {
+  const { combatPct, combatMult } = require('./armyService');
+  const men = new Map();   // joueur -> soldats
+  for (const d of defenders) {
+    const n = d.units.reduce((s, u) => s + Math.max(0, u.count), 0);
+    if (n > 0) men.set(d.ownerId, (men.get(d.ownerId) || 0) + n);
+  }
+  let total = 0, atk = 0, def = 0;
+  for (const [ownerId, n] of men) {
+    const m = combatMult(await combatPct(tx, ownerId, null));
+    total += n; atk += n * m.atk; def += n * m.def;
+  }
+  return total ? { atk: atk / total, def: def / total } : { atk: 1, def: 1 };
+}
+
 // Un rassemblement dont le groupe campe devant ce Bastion : parti (DONE) et dirigé vers lui
 const campingRally = (rally, bastionId) => !!rally && rally.status === 'DONE' && rally.targetBastionId === bastionId;
 
@@ -403,11 +420,14 @@ async function handleBastionBattle(army, now, sendArmyHome) {
       }
       await tx.army.updateMany({ where: { id: { in: group.map(g => g.id) } }, data: { rallyId: null } });
     }
-    const atkTech = await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } });
+    // technologies et Forge du chef de l'assaut ; Forge des défenseurs (garrisonForge)
+    const { combatPct, combatMult } = require('./armyService');
+    const atkBonus = combatMult(await combatPct(tx, leadOwnerId, await tx.playerTechnology.findMany({ where: { playerId: leadOwnerId } })));
     const garrison = garrisonFaction(defenders);
+    const forge = await garrisonForge(tx, defenders);
     const result = resolveCombatDetailed(mergeUnits([...rowsOf.values()].flat()), mergeUnits(defenders.flatMap(d => d.units)), B.wallReferenceLevel, attackerName, `Bastion [${b.alliance.tag}]`,
       heroCombatStats(leadHero), heroCombatStats(defHero), (group.find(g => g.ownerId === leadOwnerId) || army).owner?.faction, garrison.faction, B.bonuses.garrisonDefensePct,
-      { attacker: { atk: T.techBonusMult(atkTech, 'attackBonusPct'), def: T.techBonusMult(atkTech, 'defenseBonusPct') }, defender: { atk: 1, def: garrison.def } }, { hp: maxHp * structure, maxHp });
+      { attacker: atkBonus, defender: { atk: forge.atk, def: garrison.def * forge.def } }, { hp: maxHp * structure, maxHp });
     for (const g of group) await applyLosses(tx, rowsOf.get(g.id), result.attackerFinalUnits);
     for (const d of defenders) await applyLosses(tx, d.units, result.defenderFinalUnits);
     const HS = require('./heroService');
