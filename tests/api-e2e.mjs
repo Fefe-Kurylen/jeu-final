@@ -1259,8 +1259,9 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     await call('D cannot collect a node being founded -> 409', 'POST', `/api/army/${ar.army.id}/collect-resource`, D.token, { resourceNodeId: freeNode[0] }, 409);
     sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${ga}'`);
     await waitTick('city founded', () => sql(`SELECT count(*) FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`) === '1', 90000);
-    const colony = sql(`SELECT id||'|'||name||'|'||x||'|'||y||'|'||wood::int FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`).split('|');
-    assert('colony stands on the node with the carried resources', colony[1] === `Colonia${uid}` && Number(colony[2]) === Number(freeNode[1]) && Number(colony[3]) === Number(freeNode[2]) && Number(colony[4]) >= 3000, colony.join(' '));
+    const colony = sql(`SELECT id||'|'||name||'|'||x||'|'||y||'|'||wood::int||'|'||"maxStorage" FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`).split('|');
+    // la colonie garde ce que son stockage tient (le reste part dans les autres villes du joueur) : jamais au-dessus
+    assert('colony stands on the node with the carried resources, within its storage', colony[1] === `Colonia${uid}` && Number(colony[2]) === Number(freeNode[1]) && Number(colony[3]) === Number(freeNode[2]) && Number(colony[4]) >= Math.min(3000, Number(colony[5])) && Number(colony[4]) <= Number(colony[5]), colony.join(' '));
     assert('node now belongs to the colony', sql(`SELECT "cityId" FROM "ResourceNode" WHERE id='${freeNode[0]}'`) === colony[0]);
     // pas de garnison propre dans une colonie (§ 1 bis) : la fondation n'en crée pas, aucune unité n'y arrive seule
     assert('colony has a main hall and no garrison of its own', sql(`SELECT count(*) FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE "cityId"='${colony[0]}' AND "isGarrison"`) === '0');

@@ -16,7 +16,7 @@ const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
-const { RES_FR, creditCity, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
+const { RES_FR, creditCity, creditPlayer, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
@@ -282,11 +282,14 @@ async function handleFoundComplete(army, now) {
     const wonder = node.resourceType === 'WONDER';   // site de Merveille pris aux Immortels : la Ville Merveille
     if (wonder && (await tx.city.count({ where: { playerId: army.ownerId, isWonder: true } }))) return null;
     const name = (fresh.harvestResourceType || '').trim() || (wonder ? `Merveille de ${fresh.owner?.name || 'joueur'}` : `Colonie de ${fresh.owner?.name || 'joueur'} ${colonies + 1}`);
+    const carry = { wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood };
     const city = await tx.city.create({ data: {
-      playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false, isWonder: wonder,
-      wood: fresh.carryWood, stone: fresh.carryStone, iron: fresh.carryIron, food: fresh.carryFood
+      playerId: army.ownerId, name, x: node.x, y: node.y, isCapital: false, isWonder: wonder, ...(wonder ? carry : {})
     } });
     await tx.cityBuilding.create({ data: { cityId: city.id, key: 'MAIN_HALL', slot: 0, level: 1 } });
+    // colonie : elle garde ce que son stockage tient, le reste va aux autres villes du joueur (chaque ville stocke dans
+    // son plafond, § 1 bis) ; la Ville Merveille prend tout, comme pour les livraisons
+    if (!wonder) await creditPlayer(tx, army.ownerId, city.id, carry);
     // pas de garnison : une colonie n'a pas de troupes propres, seules les armées qu'on y envoie la défendent (§ 1 bis)
     await gatherArmiesOnBlock(tx, node.x, node.y);
     // The node is the city's ground now: no tribe, no harvest, respawns if the city disappears
