@@ -192,10 +192,11 @@ const FREE_SITES_LIMIT = 30, FREE_SITES_MAX = 100;
 // place d'une ville 2 × 2 (comme à la fondation, routes/armies.js found-city). Chacun avec le bonus de sa ressource dans
 // une colonie (fx.colonyNodeBonusPct). Temps de marche à la vitesse de l'infanterie de base de sa civilisation, en ligne
 // droite, avec ses bonus de vitesse (technologie, Bastion, Irrigation de la capitale) : l'ordre des distances est celui des temps.
+// C'est un minimum : le vrai trajet (chemin A*, routes/armies.js travelTo) contourne le relief et l'eau, jamais plus court.
 async function freeSitesFor(playerId, limit) {
   const owner = await prisma.player.findUnique({
     where: { id: playerId },
-    include: { technologies: true, alliance: { select: { allianceId: true } }, cities: { ...fx.CAPITAL_BUILDINGS, select: { ...fx.CAPITAL_BUILDINGS.select, isCapital: true, x: true, y: true } } }
+    include: { technologies: true, alliance: { select: { allianceId: true } }, cities: { select: { ...fx.CAPITAL_BUILDINGS.select, x: true, y: true } } }
   });
   const capital = owner?.cities?.find(c => c.isCapital);
   if (!capital) return [];

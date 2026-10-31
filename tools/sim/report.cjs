@@ -65,6 +65,21 @@ function write(FILES, live) {
   L.push('', `Rassemblements : ${Object.entries(rallies).map(([k, v]) => `${k} ${v}`).join(', ') || 'aucun'}`);
   if (last) L.push(`Fin : ${last.world.cities} villes (${last.world.colonies} colonies), Merveille niveau ${last.world.wonder}, invasions ${last.world.invasions}, donjons détruits ${last.world.hordesDestroyed}, Bastions ${(last.world.bastions || []).map(b => `${b.status} ${b.n}`).join(', ') || 'aucun'}, médailles ${last.world.medals}`);
   L.push('');
+  // colonies (décisions du 30 octobre 2026) : gisements choisis par les joueurs automatiques (bonus de gisement) et jour de
+  // la 1re, 2e, 3e colonie de chacun
+  const founded = events.filter(e => e.kind === 'colony_founded');
+  if (founded.length) {
+    const bySite = {}, byRank = {};
+    for (const e of founded) {
+      const k = e.site ? `${e.site.type} niveau ${e.site.level}` : 'inconnu';
+      bySite[k] = (bySite[k] || 0) + 1;
+      (byRank[e.colonies] ||= []).push(e.day);
+    }
+    L.push('## Colonies', '');
+    L.push(table(['Gisement', 'Colonies fondées'], Object.entries(bySite).sort((a, b) => b[1] - a[1])));
+    L.push('', table(['Colonie du joueur', 'Fondées', 'Jour médian'], Object.entries(byRank).map(([k, d]) => [`n° ${k}`, d.length, d.sort((a, b) => a - b)[Math.floor(d.length / 2)]])));
+    L.push('');
+  }
   // classement final
   if (last) {
     L.push('## Joueurs à la fin', '');

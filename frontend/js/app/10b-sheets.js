@@ -91,17 +91,19 @@ function sheetCostHtml(cost, stock) {
 const sheetKv = (k, v) => `<div class="sheet-kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 
 // ========== UNITÉS ==========
-// Bâtiment d'entraînement et niveau exigé pour ce palier (mêmes seuils que routes/cities.js : données des bâtiments)
+// Bâtiment d'entraînement de la ville affichée et niveau exigé pour ce palier, comme routes/cities.js (recruitBlocker) :
+// la Caserne / l'Écurie / l'Atelier dans la capitale, la Grande caserne / Grande écurie d'une colonie avec son palier à
+// elle (décision du 30 octobre 2026) ; seuils lus dans les données de ce bâtiment
 function unitSheetRequirement(unit) {
-  const keys = SHEET_RULES.trainBuildings[unit.class] || ['BARRACKS'];
-  const fx = sheetBuildings().find(b => b.key === keys[0])?.effects || {};
+  const base = (SHEET_RULES.trainBuildings[unit.class] || ['BARRACKS'])[0];
+  const key = currentCity?.isCapital === false ? COLONY_TRAINER[base] || base : base;
+  const fx = sheetBuildings().find(b => b.key === key)?.effects || {};
   let level = fx.unlockBaseTier || 1;
   if (unit.class === 'SIEGE') level = SHEET_RULES.siegeWorkshopLevel;
   else if (unit.tier === 'intermediate') level = fx.unlockIntermediateTier || 7;
   else if (unit.tier === 'elite') level = fx.unlockEliteTier || 15;
-  const inCity = (currentCity?.buildings || []).filter(b => keys.includes(b.key));
-  const building = inCity.reduce((best, b) => (b.level > (best?.level || 0) ? b : best), null);
-  return { keys, level, building, ok: !!building && building.level >= level };
+  const building = (currentCity?.buildings || []).filter(b => b.key === key).reduce((best, b) => (b.level > (best?.level || 0) ? b : best), null);
+  return { key, level, building, ok: !!building && building.level >= level };
 }
 
 // Cases par heure d'une armée de cette vitesse (la plus lente de ses unités), comme calculations.js calculateTravelTime :
@@ -151,7 +153,7 @@ function showUnitInfoModal(unitKey) {
   const train = unitTrainTimeInCity(unit);
   const cost = unit.recruitCost || { wood: 0, stone: 0, iron: 0, food: 0 };
   const upkeep = unitUpkeep(unit);
-  const reqName = req.keys.map(k => getBuildingName(k)).join(' ou ');
+  const reqName = getBuildingName(req.key);
   const pct = SHEET_RULES.triangleBonusPct;
 
   let status = '', action = '';
@@ -256,16 +258,20 @@ function buildingFunctions(key, fx) {
     HIDEOUT: [['Ressources à l\'abri des pillages (1 % par niveau, max 20 %) : la seule protection', 1]],
     HEALING_TENT: [['Blessés récupérés après chaque combat (30 % + 3 % par niveau)', 1], ['Soigner les blessés de toutes vos villes (ils rejoignent la capitale)', 1, 'panel']],
     MARKET: [['Échanges avec le marchand itinérant', 1, tab('market')], ['Échanges entre joueurs', 1, tab('market')], ['Envoi de ressources par armée', 1, tab('army')], ['Convois plus grands (+5 % par niveau)', 1]],
-    WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Seuls les engins de siège l\'abîment', 1]],
+    WALL: [['Défense des troupes (+1 % par niveau) et points de mur (1 000 par niveau)', 1], ['Seuls les engins de siège l\'abîment', 1], ['Bâti sur l\'enceinte, hors des emplacements : touchez l\'enceinte dans la ville', 1]],
     MILL: [['Céréales +5 % par niveau', 1]], BAKERY: [['Céréales +5 % par niveau', 1]], SAWMILL: [['Bois +5 % par niveau', 1]], STONEMASON: [['Pierre +5 % par niveau', 1]], FOUNDRY: [['Fer +5 % par niveau', 1]],
     GREAT_SILO: [['Stockage des céréales (3 fois un silo de même niveau, en plus)', 1]], GREAT_WAREHOUSE: [['Stockage du bois, de la pierre et du fer (3 fois un dépôt de même niveau, en plus)', 1]],
-    GREAT_BARRACKS: [['Recruter infanterie et archers (les recrues rejoignent la capitale)', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]], GREAT_STABLE: [['Recruter la cavalerie (les recrues rejoignent la capitale)', 1, 'recruit'], ['Entraînement plus rapide (−4 % par niveau)', 1]],
+    // le palier des unités se lit sur la Grande caserne / Grande écurie de la colonie, jamais sur la capitale
+    GREAT_BARRACKS: [['Recruter infanterie et archers de base (les recrues rejoignent la capitale)', fx.unlockBaseTier || 1, 'recruit'], ['Unités intermédiaires', fx.unlockIntermediateTier || 7], ['Unités d\'élite', fx.unlockEliteTier || 15], ['Se lance aussi depuis la Caserne de la capitale (« Lieu de formation »)', 1], ['Entraînement plus rapide (−4 % par niveau)', 1]],
+    GREAT_STABLE: [['Recruter la cavalerie de base (les recrues rejoignent la capitale)', fx.unlockBaseTier || 1, 'recruit'], ['Cavalerie intermédiaire', fx.unlockIntermediateTier || 7], ['Cavalerie d\'élite', fx.unlockEliteTier || 15], ['Se lance aussi depuis l\'Écurie de la capitale (« Lieu de formation »)', 1], ['Entraînement plus rapide (−4 % par niveau)', 1]],
     EMBASSY: [['Rejoindre une alliance', fx.joinAllianceLevel || 5, tab('alliance')], ['Fonder une alliance', fx.createAllianceLevel || 7, tab('alliance')], ['Aide d\'alliance', null]],
     TREASURE_CHAMBER: [['Or chaque jour (10 → 200)', 1, tab('inventory')]],
     HERO_MANSION: [['Écran du héros : équipement, expéditions', 1, tab('hero')]],
     WATCHTOWER: [['Alertes des attaques en approche, pour toutes vos villes', 1, tab('reports')], ['Attaquant révélé', fx.alertArmyWhoWhenLevel || 10], ['Effectifs révélés', fx.alertArmyDetailsLevel || 15], ['Premier espion (20 or)', 5, tab('army')], ['Deuxième espion (200 or)', 10, tab('army')], ['Passage des espions ennemis', 5], ['Heure des espions ennemis', 10], ['Nom des espions ennemis', 15]],
-    RESIDENCE: [['Construction plus rapide (−0,25 % par niveau)', 1], ['Colons et villes secondaires', null]],
-    TRADE_OFFICE: [['Convois et transport par armée (+1 % par niveau)', 1]],
+    RESIDENCE: [['Construction plus rapide (−0,25 % par niveau)', 1], ['Colons pour fonder des colonies (1 au niveau 10, 2 au 15, 3 au 20)', 10, 'panel'],
+      [`Une colonie produit +${fx.secondaryCityBonusPct} %, et son gisement +${fx.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa seule ressource`, 10]],
+    TRADE_OFFICE: [[`Taxe des échanges entre joueurs (−${fx.p2pTaxReductionPctPerLevel} % par niveau) et transport par armée (+${fx.armyTransportCapacityBonusPctPerLevel} % par niveau)`, 1],
+      ['Le meilleur Comptoir de vos colonies vaut pour toutes vos villes, capitale comprise (les niveaux ne s\'additionnent pas)', 1]],
     ROMAN_THERMAE: [['Soins plus rapides (−1,5 % par niveau)', 1, 'panel'], ['Plus de blessés sauvés (+0,5 % par niveau)', 1]],
     GALLIC_BREWERY: [['Défense de toutes vos villes (+1 % par niveau)', 1]],
     GREEK_TEMPLE: [['Blessés au lieu de morts (+0,5 % par niveau)', 1], ['Recherche plus rapide (−1 % par niveau)', 1]],

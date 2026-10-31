@@ -569,6 +569,9 @@ function openFieldBuildPanel(slotNum) {
           </div>
           <p style="font-size:12px;color:#888"><img class="ico" src="assets/images/3d/ui/clock.webp" alt=""> ${formatDuration(time)}${inQueue > 0 ? ` · ${inQueue} amélioration(s) déjà en file` : ''}</p>`;
   const buttonLabel = queueFull ? `${resIconHtml('clock')} File pleine` : targetLevel > mainHallLevel ? `${resIconHtml('lock')} Bât. principal Niv.${targetLevel} requis` : !canAfford ? costShortfall(cost) : null;
+  // gisement de la colonie sur la ressource de ce champ : son bonus s'ajoute à la production de la ville
+  const site = currentCity?.site, fieldRes = FIELD_RESOURCE_ICON[fieldType];
+  const siteHtml = SITE_RESOURCE[site?.type] === fieldRes ? `<p class="site-line">${resIconHtml(fieldRes)} ${siteText(site.type, site.level, 'dans cette colonie', site.bonusPct)}</p>` : '';
 
   if (level > 0) {
     // Existing field - show upgrade
@@ -584,6 +587,7 @@ function openFieldBuildPanel(slotNum) {
         <p style="margin-top:10px;font-size:12px;color:#666">
           Production: +${getProductionAtLevel(fieldType, level)}/h
         </p>
+        ${siteHtml}
       </div>
       ${canUpgrade ? `
         <div class="upgrade-info">
@@ -608,6 +612,7 @@ function openFieldBuildPanel(slotNum) {
           <h4>${fieldNames[fieldType]}</h4>
           <p>Production de ${fieldType === 'FARM' ? 'nourriture' : fieldType === 'LUMBER' ? 'bois' : fieldType === 'QUARRY' ? 'pierre' : 'fer'}</p>
           <p style="font-size:11px;color:#888">+${getProductionAtLevel(fieldType, 1)}/h au niveau 1</p>
+          ${siteHtml}
           ${costHtml}
         </div>
         <button class="build-option-btn ${buttonLabel ? 'disabled' : ''}" ${buttonLabel ? 'disabled' : ''}>${buttonLabel || 'Construire'}</button>
@@ -669,8 +674,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
 
   // Building configurations. Une Grande caserne / Grande écurie de colonie forme comme la Caserne / l'Écurie : mêmes
   // classes, même file côté serveur (routes/cities.js RECRUIT_BUILDING) ; les unités rejoignent la capitale
-  const QUEUE_KEY = { GREAT_BARRACKS: 'BARRACKS', GREAT_STABLE: 'STABLE' };
-  const baseKey = QUEUE_KEY[buildingKey] || buildingKey;
+  const baseKey = Object.keys(COLONY_TRAINER).find(k => COLONY_TRAINER[k] === buildingKey) || buildingKey;
   // lieu de formation : la ville affichée, ou depuis la capitale celle choisie (dont le bâtiment donne palier et temps)
   const places = recruitPlaces(buildingKey);
   const place = places.find(p => p.city.id === recruitPlaceCityId && p.level > 0) || places[0] || { city: currentCity, key: buildingKey, level: buildingLevel };
@@ -804,6 +808,7 @@ function openRecruitmentPanel(buildingKey, buildingLevel, slotNum) {
               <div class="recruit-queue-item ${q.status === 'RUNNING' ? 'running' : 'queued'}">
                 <span class="queue-unit">${q.count}x ${getUnitName(q.unitKey)}</span>
                 <span class="queue-time">${q.status === 'RUNNING' ? formatTime(q.endsAt) : 'En attente'}</span>
+                <button type="button" class="qd-cancel" aria-label="Annuler (50 % remboursés)" title="Annuler (50 % remboursés)" onclick="closeBuildPanel(); cancelRecruit('${q.id}', '${escapeHtml(place.city.id)}')">×</button>
               </div>
             `).join('')}
           </div>
@@ -1402,11 +1407,12 @@ async function cancelBuild(itemId, running) {
     if (res.ok) { await loadCities(); renderCity(); }
   } catch (e) { showToast('Erreur réseau', 'error'); }
 }
-async function cancelRecruit(itemId) {
+// `cityId` : la ville du lot (un lot lancé depuis la capitale dans une colonie, « Lieu de formation », est dans la file de la colonie)
+async function cancelRecruit(itemId, cityId = currentCity?.id) {
   const ok = await confirmModal('Annuler ce recrutement ? La moitié des ressources sera remboursée.', { title: 'Annuler', okLabel: 'Annuler le recrutement', danger: true });
   if (!ok) return;
   try {
-    const res = await fetch(`${API}/api/city/${currentCity.id}/recruit/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${API}/api/city/${cityId}/recruit/${itemId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json().catch(() => ({}));
     showToast(res.ok ? (data.message || 'Recrutement annulé') : (data.error || 'Annulation impossible'), res.ok ? 'success' : 'error');
     if (res.ok) { await loadCities(); renderCity(); }

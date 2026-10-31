@@ -122,6 +122,7 @@ test('vague contre une Ville Merveille murée : le mur tombe sous les mangonneau
   const tx = {
     $queryRaw: async () => [],
     city: { findUnique: async () => city, update: async ({ data }) => { writes.push(data); return { ...city, ...data }; } },
+    army: { findMany: async () => [] },
     armyUnit: { deleteMany: async () => ({}), update: async () => ({}) },
     battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
   };
@@ -134,6 +135,34 @@ test('vague contre une Ville Merveille murée : le mur tombe sous les mangonneau
     assert.ok(writes.some(d => d.wonderLevel === 29));
     assert.equal(reports[0].loot.wallBroken, true);
     assert.ok(reports[0].attackerUnits.some(u => u.key === 'SUL_SIEGE_MANGONNEAU'));
+  } finally { restore(); RK.recordCombat = savedRecord; }
+});
+
+test('vague contre une Ville Merveille sans troupes propres : les armées du joueur venues de sa capitale et les renforts alliés la défendent', async () => {
+  const reports = [], asked = [], hit = [];
+  const city = { id: 'w1', name: 'Merveille', x: 1, y: 2, playerId: 'p1', isWonder: true, wonderLevel: 1, wallMaxHp: 0, wallHp: 0, wallStructure: 1,
+    buildings: [], player: { name: 'Aulus', faction: 'ROME' },
+    armies: [{ id: 'away', x: 9, y: 9, status: 'MOVING', units: [{ id: 'u0', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 500 }] }] };   // en marche : ne défend pas
+  const guests = [
+    { id: 'cap', ownerId: 'p1', cityId: 'capitale', x: 1, y: 2, status: 'IDLE', units: [{ id: 'u1', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 400 }] },
+    { id: 'ally', ownerId: 'p2', cityId: 'ailleurs', x: 1, y: 2, status: 'STATIONED', units: [{ id: 'u2', unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count: 400 }] }
+  ];
+  const tx = {
+    $queryRaw: async () => [],
+    city: { findUnique: async () => city, update: async () => ({}) },
+    army: { findMany: async ({ where }) => { asked.push(where); return guests; } },
+    armyUnit: { deleteMany: async ({ where }) => { hit.push(where.id); return {}; }, update: async ({ where }) => { hit.push(where.id); return {}; } },
+    battleReport: { create: async ({ data }) => { reports.push(data); return { id: 'r1' }; } }
+  };
+  const savedRecord = RK.recordCombat; RK.recordCombat = async () => {};
+  const restore = stubPrisma({ $transaction: async (fn) => fn(tx), notification: { create: async () => ({ id: 'n' }) } });
+  try {
+    const out = await W.immortalWave({ id: 'w1', wonderLevel: 1 }, new Date());
+    assert.deepEqual(asked[0].OR[0], { ownerId: 'p1', cityId: { not: 'w1' }, isGarrison: false, status: 'IDLE', x: 1, y: 2 }, 'ses armées des autres villes');
+    assert.deepEqual(asked[0].OR[1], { status: 'STATIONED', targetCityId: 'w1', NOT: { ownerId: 'p1' } }, 'les renforts alliés');
+    assert.equal(reports[0].defenderUnits.reduce((n, u) => n + u.count, 0), 800, 'les 800 soldats présents, pas l\'armée en marche');
+    assert.ok(!hit.includes('u0'), 'l\'armée en marche ne perd rien');
+    assert.equal(out.won, true);
   } finally { restore(); RK.recordCombat = savedRecord; }
 });
 

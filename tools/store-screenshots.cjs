@@ -28,11 +28,13 @@ async function seededAccount() {
   // Enrichit la ville quand une base locale est accessible (DATABASE_URL), sinon la ville de départ suffit
   const db = process.env.DATABASE_URL;
   if (db) {
+    // le Mur a sa place fixe sur l'enceinte (décision du 30 octobre 2026), donnée par le serveur
+    const wallSlot = (await (await fetch(`${API}/api/player/me`, { headers: { Authorization: `Bearer ${reg.token}` } })).json()).economy.city.wallSlot;
     const sql = q => execSync(`psql "${db}" -At -c ${JSON.stringify(q)}`, { encoding: 'utf8' }).trim();
     const cityId = sql(`SELECT id FROM "City" WHERE "playerId"='${reg.player.id}'`);
     sql(`UPDATE "City" SET wood=120000,stone=120000,iron=120000,food=120000,"maxStorage"=200000,"maxFoodStorage"=200000 WHERE id='${cityId}'`);
     sql(`UPDATE "CityBuilding" SET level=15 WHERE "cityId"='${cityId}' AND key='MAIN_HALL'`);
-    const b = [['BARRACKS', 1, 12], ['RALLY_POINT', 2, 8], ['MARKET', 3, 9], ['WAREHOUSE', 4, 14], ['SILO', 5, 14], ['ACADEMY', 6, 7], ['STABLE', 7, 8], ['WORKSHOP', 8, 5], ['FORGE', 9, 9], ['HEALING_TENT', 10, 4], ['WALL', 11, 12], ['HERO_MANSION', 12, 6], ['MILL', 13, 5], ['EMBASSY', 14, 3], ['WATCHTOWER', 15, 6], ['RESIDENCE', 16, 5], ['TREASURE_CHAMBER', 17, 3], ['ROMAN_THERMAE', 18, 4], ['BAKERY', 19, 4],
+    const b = [['BARRACKS', 1, 12], ['RALLY_POINT', 2, 8], ['MARKET', 3, 9], ['WAREHOUSE', 4, 14], ['SILO', 5, 14], ['ACADEMY', 6, 7], ['STABLE', 7, 8], ['WORKSHOP', 8, 5], ['FORGE', 9, 9], ['HEALING_TENT', 10, 4], ['WALL', wallSlot, 12], ['HERO_MANSION', 12, 6], ['MILL', 13, 5], ['EMBASSY', 14, 3], ['WATCHTOWER', 15, 6], ['RESIDENCE', 16, 5], ['TREASURE_CHAMBER', 17, 3], ['ROMAN_THERMAE', 18, 4], ['BAKERY', 19, 4],
       ['LUMBER', 101, 12], ['LUMBER', 102, 9], ['LUMBER', 103, 15], ['LUMBER', 104, 7], ['QUARRY', 105, 10], ['QUARRY', 106, 14], ['QUARRY', 107, 8], ['QUARRY', 108, 5], ['IRON_MINE', 109, 11], ['IRON_MINE', 110, 15], ['IRON_MINE', 111, 6], ['IRON_MINE', 112, 9], ['FARM', 113, 12], ['FARM', 114, 16], ['FARM', 115, 9], ['FARM', 116, 14], ['FARM', 117, 7], ['FARM', 118, 11]];
     for (const [k, slot, lvl] of b) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
     const gar = sql(`SELECT id FROM "Army" WHERE "cityId"='${cityId}' AND "isGarrison"`);

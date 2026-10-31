@@ -16,7 +16,9 @@ function fillOfferArmySelect() {
     : '<option value="">Aucune armée libre en ville</option>';
   if (currentCity) fetchJson(`/api/market/tax?cityId=${encodeURIComponent(currentCity.id)}`).then(t => {
     const help = document.getElementById('market-offer-help');
-    if (help) help.innerHTML = `L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (${t.offerHours} h au plus). À l'échange, chaque côté envoie son armée ; taxe sur ce qu'elle transporte : <strong>${String(t.taxPct).replace('.', ',')} %</strong> depuis cette ville (${t.basePct} % de base, −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au Trésor).`;
+    // le meilleur Comptoir des colonies vaut pour toutes les villes (décision du 30 octobre 2026) ; sa baisse par niveau vient des données
+    const office = String(window.buildingsData?.find(b => b.key === 'TRADE_OFFICE')?.effects?.p2pTaxReductionPctPerLevel ?? 1).replace('.', ',');
+    if (help) help.innerHTML = `L'armée choisie attend en ville avec les marchandises jusqu'à l'échange (${t.offerHours} h au plus). À l'échange, chaque côté envoie son armée ; taxe sur ce qu'elle transporte : <strong>${String(t.taxPct).replace('.', ',')} %</strong> depuis cette ville (${t.basePct} % de base, −${office} % par niveau du meilleur Comptoir de vos colonies, −0,25 % par niveau de la Chambre au Trésor).`;
   }).catch(() => {});
 }
 

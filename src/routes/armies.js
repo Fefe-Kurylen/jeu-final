@@ -140,7 +140,10 @@ async function transferUnits(tx, army, garrison, unitKey, newCount, currentInArm
 
 // Both rows are locked through the city: every unit transfer of a city is serialized
 const MARKET_BUSY = 'Armée réservée pour une offre du marché : annulez l\'offre pour la libérer';
-async function loadArmyAndGarrison(tx, armyId, playerId) {
+// Une colonie fondée depuis le 30 octobre 2026 n'a pas de garnison (pas de troupes propres, § 1 bis) : ses armées gardent
+// leurs troupes. `emptyOk` : une armée vide s'y passe de garnison (dissoudre une armée vide ne rend aucune troupe) ;
+// `garrison` vaut alors null.
+async function loadArmyAndGarrison(tx, armyId, playerId, { emptyOk = false } = {}) {
   const probe = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, select: { cityId: true } });
   if (!probe?.cityId) return { error: 'Armée non trouvée', status: 404 };
   await lockCity(tx, probe.cityId);
@@ -150,8 +153,10 @@ async function loadArmyAndGarrison(tx, armyId, playerId) {
   if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
-  // une colonie fondée depuis le 30 octobre 2026 n'a pas de garnison (pas de troupes propres, § 1 bis)
-  if (!garrison) return army.city?.isCapital ? { error: 'Garnison introuvable', status: 404 } : { error: 'Une colonie n\'a pas de garnison : ses armées gardent leurs troupes, les nouvelles troupes arrivent dans la capitale', status: 400 };
+  if (!garrison) {
+    if (army.city?.isCapital) return { error: 'Garnison introuvable', status: 404 };
+    if (!emptyOk || army.units.some(u => u.count > 0)) return { error: 'Une colonie n\'a pas de garnison : ses armées gardent leurs troupes, les nouvelles troupes arrivent dans la capitale', status: 400 };
+  }
   return { army, garrison };
 }
 
@@ -363,14 +368,15 @@ router.post('/:id/set-unit', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/army/:id/disband
+// DELETE /api/army/:id/disband — ses troupes rejoignent la garnison de sa ville ; une armée vide d'une colonie sans
+// garnison se dissout aussi (sinon elle resterait pour toujours)
 router.delete('/:id/disband', auth, async (req, res) => {
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const loaded = await loadArmyAndGarrison(tx, req.params.id, req.user.playerId);
+      const loaded = await loadArmyAndGarrison(tx, req.params.id, req.user.playerId, { emptyOk: true });
       if (loaded.error) return loaded;
       const { army, garrison } = loaded;
-      for (const unit of army.units) {
+      for (const unit of army.units.filter(u => u.count > 0)) {
         await tx.armyUnit.upsert({
           where: { armyId_unitKey: { armyId: garrison.id, unitKey: unit.unitKey } },
           update: { count: { increment: unit.count } },

@@ -7,7 +7,9 @@
 //  3. économie d'une colonie : production d'une ville secondaire (+20 %) contre la capitale à développement égal, prix
 //     de la fondation et de la Résidence, amortissement ; bâtiments réservés aux colonies, stock partagé ;
 //  4. militaire hors capitale : la Grande caserne demande Caserne 20 dans la capitale ; coût et délai de ce verrou ; les
-//     unités formées rejoignent la capitale (décision du 30 octobre 2026).
+//     unités formées rejoignent la capitale (décision du 30 octobre 2026) ;
+//  5. rôle des colonies (décisions du 30 octobre 2026) : bonus de gisement par niveau, poids sur tout le compte,
+//     emplacements avec le Mur sur l'enceinte.
 // Coûts et temps des bâtiments : utils/calculations.js buildCostFor / buildSecondsFor (les mêmes que le serveur).
 //   node tools/simulate-colonies.cjs
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -119,3 +121,30 @@ console.log(`Caserne, Écurie et Atelier sont réservés à la capitale (GDD : �
 console.log(`Grande caserne niveau 1 : ${fmt(sum(gb1))} ressources ; Grande écurie niveau 1 : ${fmt(sum(gs1))}. Les engins de siège ne se fabriquent que dans la capitale.`);
 console.log(`Toute unité formée rejoint la garnison de la capitale, celles d'une Grande caserne de colonie comprises (le temps de formation reste celui du bâtiment de la colonie) ; une colonie n'est défendue que par les armées qu'on y envoie.`);
 console.log(`Lecture : une colonie est d'abord une ville économique (+20 %, Moulin, Scierie, Grand dépôt…) ; ses Grandes caserne et écurie ajoutent une file de formation une fois la capitale au bout de ses casernes, soit après plusieurs semaines ; la capitale reste le cœur militaire (Forge, Atelier, Résidence, Ambassade, Chambre au Trésor, Domus).`);
+
+// ---------- 5. rôle des colonies ----------
+// Production d'une colonie aux champs de niveau 20, comme resourceProcessor.productionSql : (champs × (1 + bâtiments de
+// production + gisement) + base) × 1,2 ; bonus des bâtiments de production lus dans les données (Scierie, Moulin…)
+console.log('\n## 5. Rôle des colonies : bonus de gisement et emplacements (décisions du 30 octobre 2026)\n');
+const perNode = fx.colonyNodeBonusPct(1);
+const prodPct = (k, e) => Number(def(k)?.effects?.[e]) || 5;
+const fields20 = (k, n) => n * getProductionAtLevel(k, 20, buildingsData);
+const nFarms = config.city.fieldSlots.FARM.length, nLumber = config.city.fieldSlots.LUMBER.length;
+const woodAt = (node) => (fields20('LUMBER', nLumber) * (1 + (5 * prodPct('SAWMILL', 'woodProdBonusPctL1') + node) / 100) + 5) * bonus;
+const foodAt = (node) => (fields20('FARM', nFarms) * (1 + (5 * prodPct('MILL', 'foodProdBonusPctL1') * 2 + node) / 100) + 10) * bonus;
+row(['Gisement', 'Bonus sur sa ressource', `Bois par heure (${nLumber} Bûcherons 20, Scierie 5)`, `Céréales par heure (${nFarms} Fermes 20, Moulin 5 + Boulangerie 5)`]);
+row(['---', '---', '---', '---']);
+for (const L of [0, 1, 2, 3]) row([L ? `niveau ${L}` : 'aucun', L ? `+${fx.colonyNodeBonusPct(L)} %` : '—', fmt(woodAt(fx.colonyNodeBonusPct(L))), fmt(foodAt(fx.colonyNodeBonusPct(L)))]);
+const capital20 = 3 * (fields20('LUMBER', nLumber) + 5) + fields20('FARM', nFarms) + 10;
+const colony20 = 3 * woodAt(0) + foodAt(0);
+const account = capital20 + 3 * colony20;
+const gain = (L, food) => 3 * ((food ? foodAt : woodAt)(fx.colonyNodeBonusPct(L)) - (food ? foodAt : woodAt)(0));
+const share = (x) => (x / account * 100).toFixed(1).replace('.', ',');
+console.log(`\nCompte complet (capitale + 3 colonies, tout au niveau 20) : ${fmt(account)} par heure (capitale ${fmt(capital20)}, chaque colonie ${fmt(colony20)}). Bonus de gisement (${perNode} % par niveau, RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel, ni pour la capitale ni pour la Ville Merveille) : 3 gisements de niveau 2 de bois, pierre ou fer +${share(gain(2))} %, de niveau 3 +${share(gain(3))} % ; 3 gisements de céréales de niveau 3 +${share(gain(3, true))} %.`);
+// emplacements : le Bâtiment principal (0), les champs (101-118) et le Mur (enceinte) sont hors de l'anneau ; un seul bâtiment
+// de civilisation par joueur
+const RING_OUT = new Set(['MAIN_HALL', 'WALL', ...Object.keys(config.city.fieldSlots)]);
+const ring = (keep) => buildingsData.filter(b => !b.faction && !RING_OUT.has(b.key) && keep(b.key)).length;
+const capRing = ring(k => !fx.notInCapital(k)) + 1, colRing = ring(k => !fx.capitalOnly(k));
+console.log(`Emplacements : le Mur est sur l'enceinte (emplacement ${config.city.wallSlot}), hors des ${config.city.maxSlot} emplacements de l'anneau. Capitale : ${capRing} bâtiments possibles dans l'anneau (${config.city.maxSlot - capRing} libres) ; colonie : ${colRing} (${config.city.maxSlot - colRing} libres).`);
+console.log(`Comptoir de commerce : le meilleur Comptoir des colonies vaut pour toutes les villes du joueur, capitale comprise, sans somme des niveaux (Comptoir 20 : taxe des échanges −${20 * fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1)} points, transport +${20 * fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1)} %).`);

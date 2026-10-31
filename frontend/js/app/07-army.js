@@ -696,25 +696,11 @@ async function unassignHeroFromComposition(armyId) {
   openArmyComposition(armyId);
 }
 
-// Get garrison units (not in any army)
+// Unités en garnison de la ville affichée (hors armées) : celles de son armée « Garnison ». Une colonie n'en a pas
+// (décision du 30 octobre 2026 : pas de troupes propres en colonie, toute unité formée arrive dans la capitale) ; ses
+// armées ne sont jamais comptées comme garnison
 function getGarrisonUnits() {
-  // For now, get from the "garrison" army (slot 0) or first IDLE army in city
-  const garrisonArmy = armies.find(a => a.cityId === currentCity?.id && a.isGarrison);
-  if (garrisonArmy?.units) {
-    return garrisonArmy.units;
-  }
-  
-  // Fallback: aggregate all idle army units in city
-  const cityArmies = armies.filter(a => a.cityId === currentCity?.id && a.status === 'IDLE');
-  const unitMap = {};
-  cityArmies.forEach(army => {
-    army.units?.forEach(u => {
-      if (!unitMap[u.unitKey]) unitMap[u.unitKey] = 0;
-      unitMap[u.unitKey] += u.count;
-    });
-  });
-  
-  return Object.entries(unitMap).map(([unitKey, count]) => ({ unitKey, count }));
+  return armies.find(a => a.cityId === currentCity?.id && a.isGarrison)?.units || [];
 }
 
 // Create new army

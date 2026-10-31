@@ -1,15 +1,17 @@
 require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildingsData } = require('../../src/config/gamedata');
+const config = require('../../src/config');
+const { buildingsData, unitsData } = require('../../src/config/gamedata');
 const fx = require('../../src/utils/buildingEffects');
 const { buildCostFor } = require('../../src/utils/calculations');
 const Stock = require('../../tools/sim/stock.cjs');
 const economy = require('../../tools/sim/modules/10-economy.cjs');
 const military = require('../../tools/sim/modules/30-military.cjs');
 
-// Joueurs automatiques de la simulation longue (rapport économie, recommandation 15, et décision du 30 octobre 2026 :
-// stock partagé, placement des bâtiments, soins payants, unités formées dans la capitale)
+// Joueurs automatiques de la simulation longue (rapport économie, recommandation 15, et décisions du 30 octobre 2026 :
+// stock partagé, placement des bâtiments, soins payants, unités formées dans la capitale ; colonies : Mur sur l'enceinte,
+// palier des recrues lu sur la Grande caserne de la colonie, site choisi selon le gisement, ville la plus pleine d'abord)
 
 const keysOf = (plan) => [...new Set(plan.map(([k]) => k).filter(k => k !== 'FIELDS' && k !== 'MAIN_HALL'))];
 const ctx = (stepHours = 6) => ({ OPT: { stepHours }, step: 10 });
@@ -30,10 +32,16 @@ test('plan des joueurs automatiques : seulement les drapeaux des données, plus 
     assert.deepEqual(col.filter(fx.capitalOnly), [], `${faction} : rien de réservé à la capitale dans une colonie`);
     // la capitale garde Scierie & co aux colonies ; les colonies bâtissent les Grands dépôt et silo
     for (const k of ['GREAT_WAREHOUSE', 'GREAT_SILO', 'SAWMILL', 'STONEMASON', 'FOUNDRY', 'BAKERY', 'MILL', 'TRADE_OFFICE']) assert.ok(col.includes(k), `${faction} : ${k} dans une colonie`);
-    // les emplacements autour du Bâtiment principal : 19 (capitale 18 bâtiments au plus, colonie 15)
-    assert.ok(cap.filter(k => !buildingsData.find(b => b.key === k).faction || buildingsData.find(b => b.key === k).faction === faction).length <= 18);
-    assert.ok(col.length <= 15);
+    // 19 emplacements autour du Bâtiment principal, le Mur sur l'enceinte : capitale 17 bâtiments dans l'anneau, colonie 14
+    const ring = (keys) => keys.filter(k => k !== 'WALL' && (!buildingsData.find(b => b.key === k).faction || buildingsData.find(b => b.key === k).faction === faction));
+    assert.ok(cap.includes('WALL') && col.includes('WALL'), 'le Mur dans les deux plans');
+    assert.ok(ring(cap).length <= 17, `${faction} : ${ring(cap).length} bâtiments dans l'anneau de la capitale`);
+    assert.ok(ring(col).length <= 14, `${faction} : ${ring(col).length} bâtiments dans l'anneau d'une colonie`);
     assert.ok(economy.planFor(faction, false).every(([k, l]) => k !== 'MAIN_HALL' || l <= 20), 'Bâtiment principal 20 au plus dans une colonie');
+    // la Grande écurie demande l'Écurie 20 de la capitale ; les Grandes caserne et écurie montent jusqu'à l'élite
+    const topOf = (plan, k) => Math.max(0, ...plan.filter(([x]) => x === k).map(([, l]) => l));
+    assert.equal(topOf(economy.planFor(faction, true), 'STABLE'), 20);
+    for (const k of ['GREAT_BARRACKS', 'GREAT_STABLE']) assert.equal(topOf(economy.planFor(faction, false), k), buildingsData.find(b => b.key === k).effects.unlockEliteTier);
   }
   const rome = economy.planFor('ROME', true);
   const top = (k) => Math.max(...rome.filter(([x]) => x === k).map(([, l]) => l));
@@ -133,4 +141,64 @@ test('soins des joueurs automatiques : soin payant lancé dans la ville des bles
   assert.equal(m.k.healWaitRes, 1, 'un soin trop cher attend');
   assert.equal(cap.wood, 0); assert.equal(col.wood, 5000 - 800);   // la capitale d'abord (la tente y est), puis la colonie
   assert.equal(bot.me.gold, 90);
+});
+
+test('Mur des joueurs automatiques : sur l\'enceinte, même quand l\'anneau est plein', () => {
+  const at = (key, slot, level) => ({ key, slot, level });
+  const fields = Object.entries(config.city.fieldSlots).flatMap(([k, slots]) => slots.map(sl => at(k, sl, 5)));
+  // l'anneau plein : les 17 bâtiments possibles de la capitale, et deux de plus pour prendre les 19 emplacements
+  const ring = ['WAREHOUSE', 'SILO', 'RALLY_POINT', 'BARRACKS', 'ACADEMY', 'HERO_MANSION', 'HIDEOUT', 'EMBASSY', 'WATCHTOWER', 'HEALING_TENT', 'FORGE', 'MARKET', 'STABLE', 'RESIDENCE', 'WORKSHOP', 'TREASURE_CHAMBER', 'ROMAN_THERMAE', 'RALLY_POINT', 'FORGE']
+    .slice(0, config.city.maxSlot).map((k, i) => at(k, i + 1, 5));
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [at('MAIN_HALL', 0, 5), ...fields, ...ring], wood: 90000, stone: 90000, iron: 90000, food: 90000, maxStorage: 100000, maxFoodStorage: 100000 });
+  const bot = botWith(withBalance([cap], { production: 1000, consumption: 0, net: 1000 }));
+  assert.equal(ring.length, config.city.maxSlot, 'les 19 emplacements de l\'anneau sont pris');
+  assert.deepEqual(economy.nextBuild(bot, cap, ctx()), { buildingKey: 'WALL', slot: config.city.wallSlot });
+});
+
+test('recrutement des joueurs automatiques : le palier vient du bâtiment de la ville qui forme, comme le serveur', () => {
+  const keys = (c) => military.unlockedUnits(c, 'ROME').map(u => u.key).sort();
+  const romans = (pred) => unitsData.filter(u => u.faction === 'ROME' && pred(u)).map(u => u.key).sort();
+  const lvl = (key, level) => ({ key, level, slot: 1 });
+  const capital = (...b) => ({ isCapital: true, buildings: b });
+  const colony = (...b) => ({ isCapital: false, buildings: b });
+  const GB = buildingsData.find(b => b.key === 'GREAT_BARRACKS').effects;
+  assert.deepEqual(keys(capital(lvl('BARRACKS', 20))), romans(u => u.class === 'INFANTRY' || u.class === 'ARCHER'));
+  assert.deepEqual(keys(capital(lvl('WORKSHOP', config.recruit.siegeWorkshopLevel))), romans(u => u.class === 'SIEGE'));
+  assert.deepEqual(keys(capital(lvl('WORKSHOP', config.recruit.siegeWorkshopLevel - 1))), []);
+  // une colonie : SA Grande caserne seulement (la Caserne 20 de la capitale ne compte pas), jamais d'engins
+  assert.deepEqual(keys(colony(lvl('BARRACKS', 20), lvl('WORKSHOP', 20))), []);
+  assert.deepEqual(keys(colony(lvl('GREAT_BARRACKS', 1))), romans(u => (u.class === 'INFANTRY' || u.class === 'ARCHER') && u.tier === 'base'));
+  assert.deepEqual(keys(colony(lvl('GREAT_BARRACKS', GB.unlockIntermediateTier))), romans(u => (u.class === 'INFANTRY' || u.class === 'ARCHER') && u.tier !== 'elite'));
+  assert.deepEqual(keys(colony(lvl('GREAT_STABLE', GB.unlockEliteTier))), romans(u => u.class === 'CAVALRY'));
+});
+
+test('site d\'une colonie : le bonus de gisement qui sert le joueur, la marche et la tribu comptent', () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, wood: 5000, stone: 1000, iron: 5000, food: 5000, maxStorage: 10000, maxFoodStorage: 10000 });
+  const bot = botWith(withBalance([cap], { production: 1000, consumption: 900, net: 100 }));
+  // l'armée mange presque tout : les céréales d'abord ; la pierre est la ressource la plus basse
+  assert.deepEqual(military.siteWish(bot), { WOOD: 1, STONE: 1.5, IRON: 1, FOOD: 2 });
+  const site = (id, type, level, x, tribePower = 0) => ({ id, type, level, bonusPct: fx.colonyNodeBonusPct(level), x, y: 0, tribePower, travelSec: x * 100, central: false });
+  const sites = [
+    site('wood1', 'WOOD', 1, 8),
+    site('food3', 'FOOD', 3, 14, 1000),
+    site('iron3', 'IRON', 3, 6, 50000),      // camp hors de portée
+    site('stone2', 'STONE', 2, 3),           // trop près de la capitale
+    site('food3bis', 'FOOD', 3, 10)          // déjà raté
+  ];
+  const m = { ratio: 1.6, bad: ['food3bis'] };
+  assert.equal(military.pickColonySite(bot, m, cap, sites, 0)?.id, 'food3', 'un gisement de céréales de niveau 3 un peu plus loin');
+  // une colonie a déjà un gisement de céréales : une autre spécialité passe devant
+  bot.cities.push(city({ id: 'b', x: -60, y: -60, site: { type: 'FOOD', level: 2, bonusPct: 30 }, playerStock: cap.playerStock }));
+  assert.equal(military.siteWish(bot).FOOD, 1.5);
+  assert.equal(military.pickColonySite(bot, m, cap, sites, 0)?.id, 'wood1');
+  assert.equal(military.pickColonySite(bot, m, cap, [], 0), null);
+});
+
+test('stock partagé des joueurs automatiques : après la ville de l\'action, la plus pleine par rapport à son plafond', () => {
+  const a = city({ id: 'a', isCapital: true, wood: 100, maxStorage: 1000 });
+  const b = city({ id: 'b', wood: 5000, maxStorage: 10000 });   // la plus riche, pleine à 50 %
+  const c = city({ id: 'c', wood: 900, maxStorage: 1000 });     // pleine à 90 %
+  const bot = botWith(withBalance([a, b, c], { production: 0, consumption: 0, net: 0 }));
+  Stock.spend(bot, a, { wood: 600 });
+  assert.deepEqual([a.wood, b.wood, c.wood], [0, 5000, 400]);
 });

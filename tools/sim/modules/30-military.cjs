@@ -5,6 +5,9 @@
 // Chaque joueur fait au plus CALLS_PER_TURN appels par tour et vérifie les conditions avant d'appeler (peu de refus).
 // Décision du 30 octobre 2026 (§ 1 bis) : recrutement, soins, Résidence et fondation se paient sur le stock de toutes les
 // villes (../stock.cjs), l'entretien sur tous les greniers ; toute unité formée ou soignée rejoint la garnison de la capitale.
+// Colonies (décisions du 30 octobre 2026) : une colonie recrute avec SA Grande caserne / Grande écurie (palier lu dans leurs
+// données, jamais la Caserne de la capitale), les recrues arrivent dans la capitale ; le site d'une colonie se choisit dans
+// les « Sites libres » (GET /api/map/free-sites) selon le type et le niveau du gisement, le bonus qui sert le joueur d'abord.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -21,12 +24,18 @@ const UPKEEP = config.army.upkeepPerTier;
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
 const FOUND_COST = config.city.foundationTransport;
 const MAX_BATCHES = config.recruit.maxBatchesPerBuilding;
+// bâtiment qui forme chaque classe, comme le serveur (routes/cities.js recruitBlocker) : dans la capitale (et ligne de la
+// file de recrutement, la même dans une colonie), puis dans une colonie ; pas d'engins hors de la capitale
 const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE', SIEGE: 'WORKSHOP' };
+const COLONY_RECRUIT_BUILDING = { INFANTRY: 'GREAT_BARRACKS', ARCHER: 'GREAT_BARRACKS', CAVALRY: 'GREAT_STABLE' };
+const TIER_UNLOCK = { base: 'unlockBaseTier', intermediate: 'unlockIntermediateTier', elite: 'unlockEliteTier' };
 const HARVEST_TYPES = ['WOOD', 'STONE', 'IRON', 'FOOD', 'GOLD'];
-const COLONY_TYPES = ['WOOD', 'STONE', 'IRON', 'FOOD'];
-const RES_OF = { WOOD: 'wood', STONE: 'stone', IRON: 'iron', FOOD: 'food' };
+const RES_OF = fx.NODE_RESOURCE;   // { WOOD: 'wood', … } : la ressource d'un point (et d'un gisement de colonie)
 const SCAN_RADIUS = 22;          // points de ressource regardés autour de la ville (la carte du client)
 const RAID_RANGE = 20;           // une armée ne part pas plus loin
+const FREE_SITES = 40;           // sites libres demandés pour choisir une colonie (les plus proches de la capitale)
+const SITE_TILE = 60;            // choix du site : une case de marche « coûte » autant que 60 de force de tribu…
+const SITE_BONUS = 25;           // … et un point de bonus de gisement voulu en « rapporte » 25 (niveau 3 voulu ≈ 37 cases)
 const CALLS_PER_TURN = 8;        // lectures comprises
 const HOLD_STEPS = 8;            // une récolte est rappelée après 2 jours (la récolte du jeu ne suit pas le pas de 6 h)
 const DOCTRINE = {               // part de chaque classe dans l'armée, selon la civilisation
@@ -39,10 +48,6 @@ const TIERS = ['base', 'intermediate', 'elite'];
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
 const def = (k) => buildingsData.find(b => b.key === k);
 const effect = (k, e, d) => def(k)?.effects?.[e] ?? d;
-const UNLOCK = {
-  BARRACKS: [effect('BARRACKS', 'unlockIntermediateTier', 7), effect('BARRACKS', 'unlockEliteTier', 15)],
-  STABLE: [effect('STABLE', 'unlockIntermediateTier', 7), effect('STABLE', 'unlockEliteTier', 15)]
-};
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const queuedLvl = (city, key) => (city?.buildQueue || []).filter(q => q.buildingKey === key).reduce((m, q) => Math.max(m, q.targetLevel || 0), 0);
 const unitPower = (key) => { const u = UNIT[key]; return u ? ((u.stats?.attack || 0) + (u.stats?.defense || 0)) * (TIER_MULT[u.tier] || 1) : 0; };
@@ -69,22 +74,6 @@ async function scan(bot, ctx, B, city, maxAge = 3) {
 const tribeOn = (n) => !!n.hasDefenders && (n.defenderPower || 0) > 0;
 const someoneOn = (n) => !!n.hasPlayerArmy || (n.holders || []).length > 0 || (n.hiddenHolders || 0) > 0;
 
-// une ville couvre 2 × 2 cases : les trois cases voisines du point libres (relief, eau, villes, points, Bastions)
-function footprintOk(node, view) {
-  try {
-    if (!Terrain.isMainland(node.x, node.y)) return false;
-    for (const [cx, cy] of Terrain.cityCells(node.x, node.y)) {
-      if (!Terrain.inWorld(cx, cy)) return false;
-      const f = Terrain.getTerrainType(cx, cy).feature;
-      if (Terrain.BLOCKED[f] || f === 'bridge' || f === 'ford') return false;
-      if (view.nodes.some(o => o.id !== node.id && o.x === cx && o.y === cy)) return false;
-    }
-  } catch (e) { return false; }
-  if (view.cities.some(c => Math.abs(c.x - node.x) <= 2 && Math.abs(c.y - node.y) <= 2)) return false;
-  if (view.bastions.some(b => Math.abs(b.x - node.x) <= 2 && Math.abs(b.y - node.y) <= 2)) return false;
-  return true;
-}
-
 // ---------- état du joueur (mem : identifiants et compteurs seulement) ----------
 function memOf(bot) {
   const m = (bot.mem.mil ||= {});
@@ -100,15 +89,16 @@ const garrisonOf = (bot, city) => bot.armies.find(a => a.isGarrison && a.cityId 
 const cityOf = (bot, id) => bot.cities.find(c => c.id === id) || null;
 
 // ---------- recrutement ----------
+// unités que la ville peut former, comme le serveur : le palier se lit sur le bâtiment de LA ville qui forme (Caserne,
+// Écurie ou Atelier de la capitale ; Grande caserne ou Grande écurie d'une colonie), les engins sur l'Atelier
 function unlockedUnits(city, faction) {
-  const bar = Math.max(lvl(city, 'BARRACKS'), lvl(city, 'GREAT_BARRACKS'));
-  const st = Math.max(lvl(city, 'STABLE'), lvl(city, 'GREAT_STABLE'));
-  const ws = city.isCapital ? lvl(city, 'WORKSHOP') : 0;
-  const tierOk = (tier, level, [inter, elite]) => level >= 1 && (tier === 'base' || (tier === 'intermediate' && level >= inter) || (tier === 'elite' && level >= elite));
-  return unitsData.filter(u => u.faction === faction && (
-    ((u.class === 'INFANTRY' || u.class === 'ARCHER') && tierOk(u.tier, bar, UNLOCK.BARRACKS)) ||
-    (u.class === 'CAVALRY' && tierOk(u.tier, st, UNLOCK.STABLE)) ||
-    (u.class === 'SIEGE' && ws >= config.recruit.siegeWorkshopLevel)));
+  const trainer = city.isCapital ? RECRUIT_BUILDING : COLONY_RECRUIT_BUILDING;
+  return unitsData.filter(u => {
+    const key = u.faction === faction && trainer[u.class];
+    if (!key) return false;
+    const need = u.class === 'SIEGE' ? config.recruit.siegeWorkshopLevel : effect(key, TIER_UNLOCK[u.tier], 1);
+    return lvl(city, key) >= need;
+  });
 }
 
 // soldats de chaque classe : armées du joueur et files de recrutement
@@ -434,21 +424,36 @@ async function settlers(bot, ctx, B, m, cap) {
   bump(m, 'settlers');
 }
 
-// le point de la future colonie : libre de tout joueur, place pour la ville, assez loin des villes, la tribu la plus faible
-function pickColonySite(bot, m, cap, view, fieldPower) {
+// le gisement qui servirait le plus le joueur (poids par type) : les céréales quand ses troupes mangent presque toute sa
+// production (bilan de tous ses greniers), sinon la ressource la plus basse de ses villes réunies ; un type qu'il a déjà
+// dans une colonie compte moins (des spécialités différentes)
+function siteWish(bot) {
+  const wish = { WOOD: 1, STONE: 1, IRON: 1, FOOD: 1 };
+  const fb = Stock.foodBalance(bot);
+  if (fb && fb.production > 0 && fb.net < 0.25 * fb.production) wish.FOOD += 1;
+  const t = Stock.totals(bot);
+  const low = ['WOOD', 'STONE', 'IRON'].sort((a, b) => t[RES_OF[a]] - t[RES_OF[b]])[0];
+  wish[low] += 0.5;
+  for (const c of bot.cities) if (wish[c.site?.type]) wish[c.site.type] -= 0.5;
+  return wish;
+}
+
+// le site de la future colonie parmi les sites libres (GET /api/map/free-sites : place pour la ville, ni ville, ni armée, ni
+// colon en route) : assez loin de ses villes, un camp à sa portée, et le meilleur compromis entre la force de la tribu, la
+// marche et le bonus du gisement (bonusPct, déjà calculé par le serveur) pondéré par ce dont le joueur a besoin
+function pickColonySite(bot, m, cap, sites, fieldPower) {
+  const wish = siteWish(bot);
   let best = null;
-  for (const n of view.nodes) {
-    if (!COLONY_TYPES.includes(n.resourceType) || n.cityId || someoneOn(n) || (m.bad || []).includes(n.id)) continue;
-    const d = dist(n, cap);
+  for (const s of sites) {
+    if (!wish[s.type] || (m.bad || []).includes(s.id)) continue;
+    const d = dist(s, cap);
     if (d < 5 || d > RAID_RANGE) continue;
-    if (bot.cities.some(c => dist(c, n) < 6)) continue;
-    if (!footprintOk(n, view)) continue;
-    const dp = tribeOn(n) ? n.defenderPower : 0;
-    if (dp > Math.max(fieldPower / m.ratio, 12000)) continue;   // pas un camp hors de portée
-    const score = dp + d * 60;
-    if (!best || score < best.score) best = { n, score };
+    if (bot.cities.some(c => dist(c, s) < 6)) continue;
+    if (s.tribePower > Math.max(fieldPower / m.ratio, 12000)) continue;   // pas un camp hors de portée
+    const score = s.tribePower + d * SITE_TILE - s.bonusPct * wish[s.type] * SITE_BONUS;
+    if (!best || score < best.score) best = { s, score };
   }
-  return best?.n || null;
+  return best?.s || null;
 }
 
 // une case libre à côté du point (pas sur le bloc 2 × 2 de la future ville) : l'armée s'y poste avant de frapper
@@ -473,13 +478,14 @@ async function colony(bot, ctx, B, m, cap) {
   const col = m.col;
   if (!col) {
     if (!((cap.settlers || 0) > 0 || u.training > 0) || B.left <= 1) return;
-    const view = await scan(bot, ctx, B, cap, 1);
-    if (!view) return;
+    B.left--;
+    const r = await bot.get(`/api/map/free-sites?limit=${FREE_SITES}`);
+    if (!r.ok || !Array.isArray(r.data)) return;
     const field = bot.armies.filter(a => m.own.includes(a.id) && a.cityId === cap.id).reduce((t, a) => Math.max(t, powerOf(a.units)), 0);
     const garrisonPower = powerOf(garrisonOf(bot, cap)?.units);
-    const n = pickColonySite(bot, m, cap, view, field + 0.7 * garrisonPower);
-    if (!n) { bump(m, 'noColonySite'); return; }
-    m.col = { n: n.id, x: n.x, y: n.y, ph: tribeOn(n) ? 'clear' : 'ready', s: ctx.step, f: 0 };
+    const site = pickColonySite(bot, m, cap, r.data, field + 0.7 * garrisonPower);
+    if (!site) { bump(m, 'noColonySite'); return; }
+    m.col = { n: site.id, x: site.x, y: site.y, t: site.type, l: site.level, ph: site.tribePower > 0 ? 'clear' : 'ready', s: ctx.step, f: 0 };
     return;
   }
   const armyA = col.a ? bot.armies.find(a => a.id === col.a) : null;
@@ -496,8 +502,8 @@ async function colony(bot, ctx, B, m, cap) {
   if (col.ph === 'going') {
     if (bot.cities.some(c => c.x === col.x && c.y === col.y && !c.isCapital)) {
       const city = bot.cities.find(c => c.x === col.x && c.y === col.y);
-      bump(m, 'coloniesFounded');
-      ctx.event('colony_founded', { bot: bot.name, faction: bot.faction, city: city.name, x: col.x, y: col.y, colonies: bot.cities.filter(c => !c.isCapital).length });
+      bump(m, 'coloniesFounded'); if (col.l) bump(m, `siteLevel${col.l}`);
+      ctx.event('colony_founded', { bot: bot.name, faction: bot.faction, city: city.name, x: col.x, y: col.y, site: city.site || { type: col.t, level: col.l }, colonies: bot.cities.filter(c => !c.isCapital).length });
       delete m.col;
       return;
     }
@@ -630,7 +636,7 @@ function prepare(bot) {
 
 module.exports = {
   name: 'military',
-  residence, heal,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
+  residence, heal, unlockedUnits, siteWish, pickColonySite,   // pour les tests unitaires (tests/unit/sim-bots.test.js)
   // début du tour, avant l'économie (fichier 09-military-early.cjs) : un joueur qui prépare une colonie envoie son colon et
   // monte sa Résidence avant de dépenser le reste en constructions
   async early(bot, ctx) {
@@ -693,6 +699,8 @@ module.exports = {
       db = {
         tribeBattles: (await q(`SELECT result, count(*)::int AS n FROM "BattleReport" WHERE loot->>'type' = 'TRIBE' AND "playerId" = "attackerId" GROUP BY 1`)).map(r => `${r.result} ${r.n}`).join(', '),
         colonies: Number((await q(`SELECT count(*)::int AS n FROM "City" WHERE NOT "isCapital"`))[0]?.n || 0),
+        // gisements des colonies (bonus de gisement, décision du 30 octobre 2026) : type et niveau
+        colonySites: (await q(`SELECT rn."resourceType" AS t, rn.level AS l, count(*)::int AS n FROM "ResourceNode" rn JOIN "City" c ON c.id = rn."cityId" WHERE NOT c."isCapital" GROUP BY 1, 2 ORDER BY 1, 2`)).map(r => `${r.t}${r.l} ${r.n}`).join(', '),
         units: Number((await q(`SELECT coalesce(sum(count), 0)::int AS n FROM "ArmyUnit"`))[0]?.n || 0),
         fieldArmies: Number((await q(`SELECT count(*)::int AS n FROM "Army" WHERE NOT "isGarrison"`))[0]?.n || 0),
         harvesting: Number((await q(`SELECT count(*)::int AS n FROM "Army" WHERE status = 'HARVESTING'`))[0]?.n || 0),

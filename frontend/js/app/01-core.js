@@ -1257,10 +1257,13 @@ function updateStockTotals(maxRes, maxFood) {
   }
 }
 
-// Bandeau de famine (décision du 28 octobre 2026) : grenier vide dans moins de 6 h, ou vide (les troupes meurent de faim)
+// Bandeau de famine (décision du 28 octobre 2026) : greniers bientôt vides, ou vides (les troupes meurent de faim).
+// Seuil : celui de l'alerte du serveur (config.army.famineAlertHours, 12 h depuis le 30 octobre 2026, transmis par
+// /api/player/me), pour que le bandeau et la notification arrivent ensemble
+const famineAlertHours = () => Number(player?.economy?.famineAlertHours) || 12;
 function updateFamineBanner(hoursToEmpty, netFood) {
   let el = document.getElementById('famine-banner');
-  const show = hoursToEmpty !== null && hoursToEmpty < 6;
+  const show = hoursToEmpty !== null && hoursToEmpty < famineAlertHours();
   if (!show) { if (el) el.style.display = 'none'; return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'famine-banner'; el.className = 'famine-banner';

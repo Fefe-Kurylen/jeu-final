@@ -24,10 +24,11 @@ WHERE b.key = 'WALL' AND b.slot <> 20
 UPDATE "BuildQueueItem" SET slot = 20 WHERE "buildingKey" = 'WALL' AND slot <> 20;
 
 -- Académie et Tente de soins réservées à la capitale (migration 0030) : ce qui restait en cours dans une colonie est
--- retiré, sans remboursement. Les recherches lancées depuis une colonie disparaissent (la suivante du joueur démarre au
--- tick) ; les soins en cours dans une colonie s'arrêtent : ses blessés au lit repassent en attente d'un soin, qu'on
--- relance depuis la tente de la capitale.
-DELETE FROM "ResearchQueueItem" q USING "City" c WHERE c.id = q."cityId" AND NOT c."isCapital";
+-- retiré, sans remboursement. Les recherches lancées depuis une colonie disparaissent, avec les niveaux suivants de la
+-- même technologie qui en dépendent, où qu'ils attendent (la suivante du joueur démarre au tick) ; les soins en cours dans
+-- une colonie s'arrêtent : ses blessés au lit repassent en attente d'un soin, qu'on relance depuis la tente de la capitale.
+DELETE FROM "ResearchQueueItem" q USING "ResearchQueueItem" o JOIN "City" c ON c.id = o."cityId" AND NOT c."isCapital"
+WHERE q."playerId" = o."playerId" AND q."techKey" = o."techKey" AND q."targetLevel" >= o."targetLevel";
 UPDATE "WoundedUnit" w SET waiting = w.waiting + w.count, count = 0, "healsAt" = '9999-01-01 00:00:00'
 FROM "City" c
 WHERE c.id = w."cityId" AND NOT c."isCapital" AND w.count > 0;

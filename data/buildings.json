@@ -842,8 +842,8 @@
         "capitalOnly": true,
         "buildTimeReductionPctPerLevel": 0.25,
         "unlockSettlerL10": 1,
-        "unlockSettlerL15": 2,
-        "unlockSettlerL20": 3,
+        "unlockSettlerL15": 1,
+        "unlockSettlerL20": 2,
         "settlerTrainTimeSec": 10800,
         "settlerCost": { "wood": 0, "stone": 0, "iron": 0, "food": 0 },
         "settlerVulnerable": true,
@@ -851,7 +851,7 @@
         "secondaryCityBonusPct": 20,
         "colonyNodeBonusPctPerNodeLevel": 15
       },
-      "description": "Réduit le temps de construction de 0,25 % par niveau. Forme les colons (1 au niveau 10, 2 au niveau 15, 3 au niveau 20) qui fondent jusqu'à 3 colonies sur des gisements. Une colonie produit 20 % de plus, et son gisement lui donne encore +15 % par niveau du gisement (1 à 3) sur sa seule ressource : bois, pierre, fer ou céréales."
+      "description": "Réduit le temps de construction de 0,25 % par niveau. Forme les colons (1 au niveau 10, 2 au niveau 20) qui fondent jusqu'à 2 colonies sur des gisements. Une colonie produit 20 % de plus, et son gisement lui donne encore +15 % par niveau du gisement (1 à 3) sur sa seule ressource : bois, pierre, fer ou céréales."
     },
     {
       "key": "TRADE_OFFICE",

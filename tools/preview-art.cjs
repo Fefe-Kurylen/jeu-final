@@ -40,11 +40,13 @@ const FACTION_BUILDING = { ROME: 'ROMAN_THERMAE', GAUL: 'GALLIC_BREWERY', GREEK:
   const reg = await (await fetch(`${API}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `preview${uid}@t.fr`, password: 'Test1234!', name: `Preview${uid}`, faction }) })).json();
   if (!reg.token) throw new Error('register: ' + JSON.stringify(reg));
   const pid = reg.player.id, cityId = sql(`SELECT id FROM "City" WHERE "playerId"='${pid}'`);
+  // le Mur a sa place fixe sur l'enceinte (décision du 30 octobre 2026), donnée par le serveur
+  const wallSlot = (await (await fetch(`${API}/api/player/me`, { headers: { Authorization: `Bearer ${reg.token}` } })).json()).economy.city.wallSlot;
   const [bx, by] = coordsFor(biome);
   sql(`UPDATE "City" SET x=${bx}, y=${by}, wood=80000,stone=80000,iron=80000,food=80000,"maxStorage"=200000,"maxFoodStorage"=200000 WHERE id='${cityId}'`);
   sql(`UPDATE "Army" SET x=${bx}, y=${by} WHERE "cityId"='${cityId}'`);
   // les trois paliers visuels représentés : niveaux 3 (palier 1), 9 (palier 2), 16 (palier 3)
-  const b = [['RALLY_POINT', 1, 9], ['BARRACKS', 3, 16], ['MARKET', 5, 9], ['STABLE', 7, 3], ['WAREHOUSE', 9, 16], ['WALL', 11, 16], ['SILO', 13, 9], ['WORKSHOP', 15, 3], ['ACADEMY', 17, 9], ['HEALING_TENT', 19, 3], ['FORGE', 2, 16], ['EMBASSY', 4, 3], ['HERO_MANSION', 6, 9], ['WATCHTOWER', 8, 16], ['HIDEOUT', 10, 3], ['MILL', 12, 3], ['TREASURE_CHAMBER', 14, 9], ['RESIDENCE', 16, 16], [FACTION_BUILDING[faction] || 'TRADE_OFFICE', 18, 9]];
+  const b = [['RALLY_POINT', 1, 9], ['BARRACKS', 3, 16], ['MARKET', 5, 9], ['STABLE', 7, 3], ['WAREHOUSE', 9, 16], ['WALL', wallSlot, 16], ['SILO', 13, 9], ['WORKSHOP', 15, 3], ['ACADEMY', 17, 9], ['HEALING_TENT', 19, 3], ['FORGE', 2, 16], ['EMBASSY', 4, 3], ['HERO_MANSION', 6, 9], ['WATCHTOWER', 8, 16], ['HIDEOUT', 10, 3], ['MILL', 12, 3], ['TREASURE_CHAMBER', 14, 9], ['RESIDENCE', 16, 16], [FACTION_BUILDING[faction] || 'TRADE_OFFICE', 18, 9]];
   for (const [k, slot, lvl] of b) sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${lvl}) ON CONFLICT DO NOTHING`);
   const fields = { LUMBER: [101, 102, 103, 104], QUARRY: [105, 106, 107, 108], IRON_MINE: [109, 110, 111, 112], FARM: [113, 114, 115, 116, 117, 118] };
   let i = 0; for (const [k, slots] of Object.entries(fields)) for (const slot of slots) { i++; if (i % 6 === 0) continue; sql(`INSERT INTO "CityBuilding"(id,"cityId",key,slot,level) VALUES (gen_random_uuid(),'${cityId}','${k}',${slot},${[3, 9, 16][i % 3]}) ON CONFLICT DO NOTHING`); }

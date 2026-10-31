@@ -33,6 +33,8 @@ function production(k, L) {
   if (L10) return L <= 10 ? Math.round(lerpExp(L1, L10, (L - 1) / 9)) : Math.round(lerpExp(L10, L20, (L - 10) / 10));
   return Math.round(lerpExp(L1, L20, (L - 1) / 19));
 }
+// palier des unités qu'ouvre un bâtiment de formation à ce niveau (unlockIntermediateTier / unlockEliteTier des données)
+const tierOf = (k, L) => (L >= def(k).effects.unlockEliteTier ? 'élite' : L >= def(k).effects.unlockIntermediateTier ? 'intermédiaires' : 'unités de base');
 const EFFECT = {
   MAIN_HALL: (L) => `Construction −${pct(Math.min(60, L * 2.5))} %${L * 2.5 > 60 ? ' (plafond atteint)' : ''} · plafonne les autres bâtiments au niv. ${Math.min(20, L)}`,
   FARM: (L) => `+${fmt(production('FARM', L))} céréales/h`, LUMBER: (L) => `+${fmt(production('LUMBER', L))} bois/h`,
@@ -46,16 +48,16 @@ const EFFECT = {
   HIDEOUT: (L) => `${Math.min(L, 20)} % des ressources à l'abri des pillages`,
   HEALING_TENT: (L) => `${Math.min(70, 30 + L * 3)} % des pertes récupérées en blessés`,
   MARKET: (L) => `Taxe du marchand ${Math.max(5, 30 - Math.max(0, L - 1))} % · convois +${L * 5} %`,
-  WALL: (L) => `Défense +${L} % · ${fmt(L * 1000)} PV de mur · réparation +${L} %`,
+  WALL: (L) => `Défense +${L} % · ${fmt(L * 1000)} PV de mur · réparation +${L} % · sur l'enceinte (hors des ${config.city.maxSlot} emplacements)`,
   MILL: (L) => `Céréales +${L * 5} %`, BAKERY: (L) => `Céréales +${L * 5} %`, SAWMILL: (L) => `Bois +${L * 5} %`, STONEMASON: (L) => `Pierre +${L * 5} %`, FOUNDRY: (L) => `Fer +${L * 5} %`,
   GREAT_SILO: (L) => `Capacité +${fmt(storage('GREAT_SILO', L))} céréales (3 fois un silo)`, GREAT_WAREHOUSE: (L) => `Capacité +${fmt(storage('GREAT_WAREHOUSE', L))} (bois, pierre, fer ; 3 fois un dépôt)`,
-  GREAT_BARRACKS: (L) => `Recrute infanterie et archers dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} %`, GREAT_STABLE: (L) => `Recrute la cavalerie dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} %`,
+  GREAT_BARRACKS: (L) => `Recrute infanterie et archers dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} % · ${tierOf('GREAT_BARRACKS', L)}`, GREAT_STABLE: (L) => `Recrute la cavalerie dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} % · ${tierOf('GREAT_STABLE', L)}`,
   EMBASSY: (L) => L >= 7 ? 'Rejoindre et fonder une alliance' : L >= 5 ? 'Rejoindre une alliance (fonder au niv. 7)' : 'Alliance : rejoindre au niv. 5, fonder au niv. 7',
   TREASURE_CHAMBER: (L) => `${curve(10, 200, L)} or par jour`,
   HERO_MANSION: () => 'Accès au héros depuis la ville',
   WATCHTOWER: (L) => `${L >= 10 ? '2 espions' : L >= 5 ? '1 espion' : 'Espion au niv. 5'} · alerte des attaques sur toutes les villes${L >= 15 ? ' avec attaquant et effectifs' : L >= 10 ? ' avec attaquant' : ''}`,
-  RESIDENCE: (L) => `Construction −${pct(L * 0.25)} %`,
-  TRADE_OFFICE: (L) => `Convois marchands et transport par armée +${L} % de capacité`,
+  RESIDENCE: (L) => `Construction −${pct(L * 0.25)} % · colonie : gisement +${def('RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa ressource`,
+  TRADE_OFFICE: (L) => `Taxe des échanges −${pct(L * def('TRADE_OFFICE').effects.p2pTaxReductionPctPerLevel)} points · transport par armée +${pct(L * def('TRADE_OFFICE').effects.armyTransportCapacityBonusPctPerLevel)} % · le meilleur Comptoir vaut pour toutes les villes`,
   ROMAN_THERMAE: (L) => `Soins −${pct(L * 1.5)} % de temps · blessés +${pct(L * 0.5)} %`,
   GALLIC_BREWERY: (L) => `Défense de toutes les villes +${L} %`,
   GREEK_TEMPLE: (L) => `Blessés au lieu de morts +${pct(L * 0.5)} %`,

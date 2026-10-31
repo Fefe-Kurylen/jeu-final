@@ -1,7 +1,7 @@
 // Simulation longue — stock partagé entre les villes d'un joueur (décision du 30 octobre 2026, § 1 bis) : constructions,
 // recrutements, recherche, soins, héros et fondation se paient sur la somme des stocks de ses villes (la ville de
-// l'action d'abord, puis la plus riche) ; l'entretien puise dans tous ses greniers. Marché, transports, convois, pillage
-// et raids restent propres à chaque ville : les modules y lisent la ville seule.
+// l'action d'abord, puis la plus pleine par rapport à son Dépôt ou son Silo) ; l'entretien puise dans tous ses greniers.
+// Marché, transports, convois, pillage et raids restent propres à chaque ville : les modules y lisent la ville seule.
 // Les modules tiennent le compte entre deux lectures de GET /api/cities avec la répartition du serveur (utils/db.js).
 'use strict';
 const path = require('path');
@@ -36,7 +36,8 @@ function room(bot, r, stepHours) {
 // un prix qui tient dans ce que le joueur peut avoir en main (sinon il faut plus de stockage)
 const fits = (bot, cost, stepHours) => RES.every(r => (cost[r] || 0) <= room(bot, r, stepHours));
 
-// le serveur a pris `cost` pour une action dans `city` : on le retire des villes comme lui
+// le serveur a pris `cost` pour une action dans `city` : on le retire des villes comme lui (utils/db.js planDebit : la ville
+// de l'action, puis la plus pleine par rapport à son plafond)
 function spend(bot, city, cost) {
   const plan = planDebit(bot.cities, city.id, cost || {});
   for (const [id, taken] of Object.entries(plan.takenByCity)) {

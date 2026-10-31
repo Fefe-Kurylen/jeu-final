@@ -15,14 +15,13 @@ const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getArmyTravelTime, getArmyCarryCapacity, getFactionBonus, calculateTravelTime, storageCapsWithoutGreat } = require('../utils/calculations');
-const { debitCity, creditCity, lockCity, buildingsWithCapital, RESOURCES } = require('../utils/db');
+const { debitCity, creditCity, lockCity, buildingsWithCapital, RESOURCES, RES_FR } = require('../utils/db');
 const { routeLength } = require('../utils/pathfinding');
 const fx = require('../utils/buildingEffects');
 const T = require('../utils/techEffects');
 const { notify } = require('./pushService');
 
 const M = config.market;
-const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 
 // Taxe d'un convoi qui part de cette ville (en %) : le meilleur Comptoir des villes du joueur (décision du 30 octobre
 // 2026, sans somme) et la Chambre au Trésor de la capitale

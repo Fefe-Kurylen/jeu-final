@@ -326,9 +326,12 @@ async function immortalWave(city, now) {
   const atk = immortalLines(waveUnits(city.wonderLevel));
   const outcome = await prisma.$transaction(async (tx) => {
     await require('../utils/db').lockCity(tx, city.id);
-    const full = await tx.city.findUnique({ where: { id: city.id }, include: { buildings: true, player: true, armies: { where: { status: { in: ['IDLE', 'STATIONED'] } }, include: { units: true } } } });
+    const full = await tx.city.findUnique({ where: { id: city.id }, include: { buildings: true, player: true, armies: { include: { units: true } } } });
     if (!full || !full.isWonder || full.wonderLevel < 1) return null;
-    const defenders = full.armies.filter(a => a.x === full.x && a.y === full.y);
+    // ceux qui se tiennent dans la ville, comme contre un joueur : la Ville Merveille n'a pas de troupes propres (§ 1 bis),
+    // les armées que le joueur y envoie de ses autres villes et les renforts alliés stationnés la défendent
+    const AP = require('../game/processors/armyProcessor');
+    const defenders = AP.defendingArmies(await AP.withGuestDefenders(tx, full, { units: true }));
     const merged = {};
     for (const a of defenders) for (const u of a.units) if (u.count > 0) (merged[u.unitKey] ||= { unitKey: u.unitKey, tier: u.tier, count: 0 }).count += u.count;
     const wallLevel = full.buildings.find(b => b.key === 'WALL')?.level || 0;

@@ -137,7 +137,8 @@ test('migration 0031 : colonnes des alertes, Mur et chantiers de Mur sur l\'empl
   assert.match(sql, new RegExp(`UPDATE "CityBuilding" b SET slot = ${config.city.wallSlot}\\s+WHERE b\\.key = 'WALL' AND b\\.slot <> ${config.city.wallSlot}`));
   assert.match(sql, new RegExp(`UPDATE "BuildQueueItem" SET slot = ${config.city.wallSlot} WHERE "buildingKey" = 'WALL' AND slot <> ${config.city.wallSlot};`));
   assert.match(sql, /generate_series\(1, 19\)/, 'un bâtiment égaré sur l\'emplacement 20 rejoint l\'anneau');
-  assert.match(sql, /DELETE FROM "ResearchQueueItem" q USING "City" c WHERE c\.id = q\."cityId" AND NOT c\."isCapital";/);
+  assert.match(sql, /DELETE FROM "ResearchQueueItem" q USING "ResearchQueueItem" o JOIN "City" c ON c\.id = o\."cityId" AND NOT c\."isCapital"\s+WHERE q\."playerId" = o\."playerId" AND q\."techKey" = o\."techKey" AND q\."targetLevel" >= o\."targetLevel";/,
+    'une recherche lancée depuis une colonie part avec les niveaux suivants de la même technologie (ils en dépendent)');
   assert.match(sql, /UPDATE "WoundedUnit" w SET waiting = w\.waiting \+ w\.count, count = 0, "healsAt" = '9999-01-01 00:00:00'[\s\S]*NOT c\."isCapital" AND w\.count > 0;/);
   assert.equal(new Date('9999-01-01T00:00:00Z').getTime(), require('../../src/services/woundedService').NO_HEAL.getTime(), 'même échéance « personne au lit » que le serveur');
   assert.doesNotMatch(sql, /DROP|TRUNCATE/);
@@ -186,17 +187,27 @@ test('alerte « dépôt plein dans 1 h » : le texte nomme les ressources, la vi
   assert.equal(RP.storageAlertText({ name: 'Rome', food: true }), 'Rome : silo plein dans 1 h. Dépensez ou agrandissez le stockage.');
   const now = new Date('2026-10-30T12:00:00Z');
   const noted = [];
+  let asked = null;
   const s = stub({
     army: { findMany: async () => [] },
     $executeRaw: async () => 0,
-    $queryRaw: async (strings, ...values) => (sqlOf(strings, values).sql.includes('"storageAlertAt"')
-      ? [{ cityId: 'c1', playerId: 'p1', name: 'Colonie 1', wood: true, stone: false, iron: false, food: false }, { cityId: 'c2', playerId: 'p1', name: 'Colonie 2', wood: false, stone: true, iron: false, food: false }]
-      : []),
+    $queryRaw: async (strings, ...values) => {
+      const q = sqlOf(strings, values);
+      if (!q.sql.includes('"storageAlertAt"')) return [];
+      asked = q;
+      return [{ cityId: 'c1', playerId: 'p1', name: 'Colonie 1', wood: true, stone: false, iron: false, food: false }, { cityId: 'c2', playerId: 'p1', name: 'Colonie 2', wood: false, stone: true, iron: false, food: false }];
+    },
     city: { updateMany: async (q) => { noted.push(q); return { count: q.where.id === 'c1' ? 1 : 0 }; } }
   });
   try {
     RP.resetFamineClock();
     await RP.processUpkeep(1 / 120, now);
+    // un stock déjà plein ne compte pas ; le Silo plein, sous son plafond de l'entretien que la ville vient de payer à ce
+    // tick, non plus (sinon « silo plein dans 1 h » toutes les 12 h pour une ville qui a des troupes)
+    assert.match(asked.sql, /\(b\."prodWood" > 0 AND b\."wood" < b\."maxStorage"\s+AND b\."maxStorage" - b\."wood" <= b\."prodWood" \* \?::float\) AS wood/);
+    assert.match(asked.sql, /\(\(b\.prod - b\.cons\) > 0 AND \(b\.food \+ b\.cons \* \?::float \+ 1\) < b\."maxFoodStorage"/);
+    assert.ok(asked.values.includes(1 / 120), 'l\'entretien du tick qui vient d\'être payé');
+    assert.ok(asked.values.includes(config.city.storageAlertLeadHours));
     assert.deepEqual(noted.map(q => q.where.id), ['c1', 'c2']);
     assert.equal(noted[0].where.OR[1].storageAlertAt.lt.getTime(), now.getTime() - config.city.storageAlertHours * 3600000);
     assert.equal(s.notes.length, 1, 'Colonie 2 déjà prévenue entre-temps');

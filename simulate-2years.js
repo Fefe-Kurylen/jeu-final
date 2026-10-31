@@ -364,9 +364,9 @@ async function aiAction(player, hour, now, tick, players) {
       if (!cost || !canAfford(city, cost)) continue;
       const dur = getBuildTime(o.k, next);
       const endsAt = new global.Date(simulatedTime + dur*1000);
-      const isField = ['LUMBER','QUARRY','IRON_MINE','FARM'].includes(o.k);
-      let slot = isField ? (city.buildings.find(b=>b.key===o.k))?.slot : (city.buildings.find(b=>b.key===o.k))?.slot;
-      if (!slot) { const used = new Set([...city.buildings.map(b=>b.slot),...city.buildQueue.map(q=>q.slot)]); slot=1; while(used.has(slot)) slot++; }
+      // le Mur a sa place fixe sur l'enceinte (décision du 30 octobre 2026), hors de l'anneau
+      let slot = o.k === 'WALL' ? config.city.wallSlot : city.buildings.find(b=>b.key===o.k)?.slot;
+      if (!slot) { const used = new Set([...city.buildings.map(b=>b.slot),...city.buildQueue.map(q=>q.slot), config.city.wallSlot]); slot=1; while(used.has(slot)) slot++; }
       try {
         await prisma.$transaction(async tx => {
           await tx.city.update({where:{id:city.id},data:{wood:city.wood-cost.wood,stone:city.stone-cost.stone,iron:city.iron-cost.iron,food:city.food-cost.food}});

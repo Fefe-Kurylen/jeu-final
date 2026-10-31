@@ -57,6 +57,7 @@ test('stockage : dépôt, silo, Grand dépôt et Grand silo comme le serveur (3 
 test('effets affichés : Grand dépôt et Grand silo stockent, la cachette seule protège, mur et bâtiments de faction', { skip }, () => {
   const ctx = makeContext({ getProductionAtLevel: () => 0 });
   vm.runInContext(pick(src('01-core.js'), ['STORAGE_PREFIX', 'getStorageAtLevel']), ctx);
+  vm.runInContext(pick(src('06c-colonies.js'), ['residenceEffects', 'siteBonusPct']), ctx);   // bonus du gisement (Résidence)
   vm.runInContext(pick(src('04-buildings-render.js'), ['getBuildingEffect']), ctx);
   assert.match(ctx.getBuildingEffect('GREAT_WAREHOUSE', 20), /Capacité: \+480000/);
   assert.match(ctx.getBuildingEffect('GREAT_SILO', 20), /Capacité: \+480000/);
@@ -155,7 +156,7 @@ test('panneau d\'un site ou d\'un plan gardé : bouton « Rassemblement » pour 
 
 test('colons : la Ville Merveille n\'est pas une colonie, un colon de plus pour elle', { skip }, () => {
   const ctx = makeContext({ settlerPortrait: () => '', settlerIcon: () => '', formatNum: n => String(n) });
-  vm.runInContext(pick(src('06c-colonies.js'), ['COLONY_RULES', 'residenceEffects', 'siteBonusPct', 'settlerSlotsFor', 'secondaryCities', 'settlersTravelling', 'colonyTabHtml']), ctx);
+  vm.runInContext(pick(src('06c-colonies.js'), ['COLONY_RULES', 'residenceEffects', 'siteBonusPct', 'settlerSlotsFor', 'byFounding', 'secondaryCities', 'settlersTravelling', 'colonyTabHtml']), ctx);
   const capital = { id: 'c0', isCapital: true, settlers: 0, recruitQueue: [] };
   ctx.cities = [capital, { id: 'c1', isCapital: false, name: 'A' }, { id: 'w', isCapital: false, isWonder: true, name: 'Merveille' }];
   ctx.currentCity = capital;
@@ -211,8 +212,15 @@ test('économie : coût, durée, réduction de la capitale et entretien comme le
 test('famine : avec plusieurs villes, le bandeau porte sur tous les greniers (entretien généralisé, § 1 bis)', { skip }, () => {
   const banner = { style: {}, innerHTML: '' };
   const ctx = makeContext({ document: { getElementById: (id) => (id === 'famine-banner' ? banner : null) }, formatDuration: (s) => `${s} s`, currentCity: { name: 'Roma' } });
-  vm.runInContext(pick(src('01-core.js'), ['updateFamineBanner']), ctx);
+  vm.runInContext(pick(src('01-core.js'), ['famineAlertHours', 'updateFamineBanner']), ctx);
   ctx.cities = [{ id: 'c0' }, { id: 'c1' }];
+  // même seuil que l'alerte du serveur (config.army.famineAlertHours, transmis dans player.economy) : 12 h, plus 6 h
+  const config = require('../../src/config');
+  ctx.player = { economy: { famineAlertHours: config.army.famineAlertHours } };
+  ctx.updateFamineBanner(config.army.famineAlertHours - 1, -100);
+  assert.notEqual(banner.style.display, 'none');
+  ctx.updateFamineBanner(config.army.famineAlertHours + 1, -100);
+  assert.equal(banner.style.display, 'none');
   ctx.updateFamineBanner(3, -100);
   assert.match(banner.innerHTML, /Greniers bientôt vides<\/strong> : encore 10800 s de nourriture dans toutes vos villes \(-100\/h\)/);
   ctx.updateFamineBanner(0, -100);

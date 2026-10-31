@@ -162,10 +162,11 @@ function questGoTo(key) {
     showTab('city');
     const b = (currentCity?.buildings || []).filter(x => x.key === go.building).sort((a, c) => c.level - a.level)[0];
     const slots = typeof citySlots !== 'undefined' ? citySlots : [];
-    let slot = go.building === 'MAIN_HALL' ? 0 : b?.slot;
+    // places fixes : le Bâtiment principal au centre, le Mur sur l'enceinte (bâti ou non, son panneau propose de le construire)
+    let slot = go.building === 'MAIN_HALL' ? 0 : go.building === 'WALL' ? cityWallSlot() : b?.slot;
     let chain = [...citySel, ...(go.recruit ? ['.unit-recruit-body', '#recruit-btn'] : ['#build-panel .upgrade-btn:not([disabled])'])];
     if (slot === undefined || slot === null) {
-      const empty = slots.find(s => !s.isField && !s.fixed && !getBuildingAtSlot(s.slot));
+      const empty = slots.find(s => !s.isField && !s.fixed && !s.wall && !getBuildingAtSlot(s.slot));
       if (!empty) { showToast('Aucun emplacement libre dans cette ville', 'info'); return; }
       slot = empty.slot;
       chain = [...citySel, `#build-panel .build-option-card[onclick*="'${go.building}'"]`];

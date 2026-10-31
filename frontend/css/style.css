@@ -4842,6 +4842,8 @@ body.has-tutorial-bar .toast { bottom: calc(var(--bnav-h, 86px) + var(--tb-h, 70
 .recruit-place label img.ico { width: 18px; height: 18px; }
 .recruit-place select { width: 100%; padding: 8px; font-size: 14px; }
 .recruit-place .tier-info { margin: 6px 0 0; }
+/* file du lieu de formation : chaque lot s'annule depuis le panneau (bouton ×) */
+.recruit-queue-item { align-items: center; gap: 8px; }
 /* « Mes villes » : une ligne par ville */
 .my-cities .mv-totals { padding: 10px 12px; border: 1px solid var(--gold); border-radius: 6px; background: rgba(201,162,39,.12); }
 .mv-totals-title { font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 4px; }

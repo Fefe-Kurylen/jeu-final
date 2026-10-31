@@ -106,6 +106,9 @@ const meA = await call('player/me A', 'GET', '/api/player/me', tA);
 // règles de l'économie données au client (décision du 30 octobre 2026) : jamais recopiées en dur dans le client
 const ECO = meA?.economy;
 assert('player/me carries the economy rules (field ×1.45, slow time ×1.30, upkeep 5/9/13/15, paid healing)', ECO?.build?.fieldCostMultiplier === 1.45 && ECO.build.slowTimeKeys?.includes('MAIN_HALL') && ECO.upkeepPerTier?.elite === 13 && ECO.upkeepPerTier?.intermediate === 9 && ECO.wounded?.healCostPct === 30 && ECO.wounded?.instantHealGoldPerTier?.elite === 3, JSON.stringify(ECO));
+// rôle des colonies (décisions du 30 octobre 2026) : le Mur sur l'enceinte, hors des 19 emplacements de l'anneau et des
+// champs ; l'alerte de famine 12 h à l'avance
+assert('player/me carries the colony rules (Wall slot 20 outside ring 1-19 and fields 101-118, famine alert 12 h ahead)', ECO?.city?.maxSlot === 19 && ECO.city.wallSlot === 20 && ECO.famineAlertHours === 12, JSON.stringify({ city: ECO?.city, famineAlertHours: ECO?.famineAlertHours }));
 await call('player/:id (B profile)', 'GET', `/api/player/${B.player.id}`, tA);
 let citiesA = await call('cities A', 'GET', '/api/cities', tA);
 let citiesB = await call('cities B', 'GET', '/api/cities', tB);
@@ -291,9 +294,8 @@ await call('army attack B (70 soldiers and 10 engines are enough)', 'POST', `/ap
 await call('incoming attacks B', 'GET', '/api/city/incoming-attacks', tB);
 await call('attack own city -> 400', 'POST', `/api/army/${armyId}/attack`, tA, { targetCityId: cityA.id }, 400);
 const bUnitsBefore = Number(sql(`SELECT coalesce(sum(count),0) FROM "ArmyUnit" WHERE "armyId"='${garB}'`));
-// B gets a level-5 wall (5 000 HP) for the siege
-const wallSlotB = sql(`SELECT MIN(s) FROM generate_series(1,19) s WHERE s NOT IN (SELECT slot FROM "CityBuilding" WHERE "cityId"='${cityB.id}')`);
-addBuilding(cityB.id, 'WALL', Number(wallSlotB), 5);
+// B gets a level-5 wall (5 000 HP) for the siege, on its fixed slot on the enclosure (décision du 30 octobre 2026)
+addBuilding(cityB.id, 'WALL', ECO?.city?.wallSlot, 5);
 sql(`UPDATE "City" SET "wallHp"=5000, "wallMaxHp"=5000 WHERE id='${cityB.id}'`);
 sql(`UPDATE "Army" SET "arrivalAt"=now()-interval '1 second' WHERE id='${armyId}'`);
 // ---------- SIEGE ----------
@@ -1115,11 +1117,26 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     await call('second settler -> 400 (one slot at L10)', 'POST', `/api/city/${cityA.id}/settlers`, tA, {}, 400);
     sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE id='${st.queueItem.id}'`);
     await waitTick('settler ready in the capital', () => sql(`SELECT settlers FROM "City" WHERE id='${cityA.id}'`) === '1');
+    // « Sites libres » (décision du 30 octobre 2026) : gisements de bois, pierre, fer ou céréales où l'on peut fonder (ni
+    // ville, ni armée, place pour la ville), du plus proche au plus lointain depuis la capitale, avec le bonus du gisement
+    const NODE_BONUS = BUILDINGS.find(b => b.key === 'RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel;
+    await call('free sites without a token -> 401', 'GET', '/api/map/free-sites', null, null, 401);
+    const sites = await call('free sites (12 nearest)', 'GET', '/api/map/free-sites?limit=12', tA);
+    {
+      const far = (st) => Math.hypot(st.x - cityA.x, st.y - cityA.y);
+      const shapeOk = Array.isArray(sites) && sites.length > 0 && sites.length <= 12 && sites.every(st => typeof st.id === 'string' && Number.isInteger(st.x) && Number.isInteger(st.y)
+        && ['WOOD', 'STONE', 'IRON', 'FOOD'].includes(st.type) && st.level >= 1 && st.level <= 3 && st.bonusPct === st.level * NODE_BONUS
+        && Number.isFinite(st.travelSec) && st.travelSec > 0 && st.tribePower >= 0 && typeof st.central === 'boolean');
+      assert('free sites: id, x, y, type, level, bonus (+15 % per level), travel time, tribe strength, centre flag', shapeOk, JSON.stringify(sites?.[0]));
+      assert('free sites: sorted from the nearest to the farthest from the capital', Array.isArray(sites) && sites.every((st, i) => i === 0 || far(sites[i - 1]) <= far(st) + 1e-9));
+      const ids = (sites || []).map(st => `'${st.id}'`).join(',') || "''";
+      assert('free sites: free nodes only (no city, no army on them)', sql(`SELECT count(*) FROM "ResourceNode" WHERE id IN (${ids}) AND "cityId" IS NULL AND NOT "hasPlayerArmy"`) === String(sites?.length));
+    }
     // a colony needs its 2 × 2 block free (the node and the 3 cells beside it: no relief, water, crossing, city, node,
     // nor a foundation under way), on the main land (src/utils/spawn.js footprintFree)
     const foundable = (x, y) => Terrain.isMainland(x, y) && Terrain.cityCells(x, y).every(([cx, cy]) => { const f = Terrain.getTerrainType(cx, cy).feature; return Terrain.inWorld(cx, cy) && !Terrain.BLOCKED[f] && f !== 'bridge' && f !== 'ford'; })
       && sql(`SELECT (SELECT count(*) FROM "City" WHERE x BETWEEN ${x - 2} AND ${x + 2} AND y BETWEEN ${y - 2} AND ${y + 2}) + (SELECT count(*) FROM "ResourceNode" WHERE (x, y) IN ((${x + 1}, ${y}), (${x}, ${y + 1}), (${x + 1}, ${y + 1}))) + (SELECT count(*) FROM "Army" WHERE status='FOUNDING' AND "targetX" BETWEEN ${x - 2} AND ${x + 2} AND "targetY" BETWEEN ${y - 2} AND ${y + 2})`) === '0';
-    const freeNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType"<>'GOLD' AND "cityId" IS NULL AND id<>'${undefendedId}' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 80`).split('\n').filter(Boolean).map(r => r.split('|'))
+    const freeNode = sql(`SELECT id||'|'||x||'|'||y FROM "ResourceNode" WHERE NOT "hasPlayerArmy" AND "resourceType" IN ('WOOD','STONE','IRON','FOOD') AND "cityId" IS NULL AND id<>'${undefendedId}' ORDER BY abs(x-(${cityA.x}))+abs(y-(${cityA.y})) LIMIT 80`).split('\n').filter(Boolean).map(r => r.split('|'))
       .find(([, x, y]) => foundable(Number(x), Number(y)) && Terrain.findPath(cityA.x, cityA.y, Number(x), Number(y)));
     sql(`UPDATE "ResourceNode" SET "hasDefenders"=false, "defenderPower"=0 WHERE id='${freeNode[0]}'`);
     await call('found-city with B token on A army -> 404', 'POST', `/api/army/${ga}/found-city`, tB, { resourceNodeId: freeNode[0] }, 404);
@@ -1135,10 +1152,19 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     const colony = sql(`SELECT id||'|'||name||'|'||x||'|'||y||'|'||wood::int FROM "City" WHERE "playerId"='${A.player.id}' AND NOT "isCapital"`).split('|');
     assert('colony stands on the node with the carried resources', colony[1] === `Colonia${uid}` && Number(colony[2]) === Number(freeNode[1]) && Number(colony[3]) === Number(freeNode[2]) && Number(colony[4]) >= 3000, colony.join(' '));
     assert('node now belongs to the colony', sql(`SELECT "cityId" FROM "ResourceNode" WHERE id='${freeNode[0]}'`) === colony[0]);
-    // pas de garnison propre dans une colonie (§ 1 bis) : sa ligne « Garnison » reste vide, aucune unité n'y arrive seule
-    assert('colony has a main hall and an empty garrison', sql(`SELECT count(*) FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE "cityId"='${colony[0]}' AND "isGarrison"`) === '1');
+    // pas de garnison propre dans une colonie (§ 1 bis) : la fondation n'en crée pas, aucune unité n'y arrive seule
+    assert('colony has a main hall and no garrison of its own', sql(`SELECT count(*) FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`) === '1' && sql(`SELECT count(*) FROM "Army" WHERE "cityId"='${colony[0]}' AND "isGarrison"`) === '0');
     const citiesNow = await call('cities A (capital + colony)', 'GET', '/api/cities', tA);
     assert('two cities listed', Array.isArray(citiesNow) && citiesNow.length === 2);
+    { // gisement et vies de chaque ville (décision du 30 octobre 2026) : le bonus du gisement de la colonie, rien pour la capitale
+      const cap0 = citiesNow?.find(c => c.isCapital), col0 = citiesNow?.find(c => !c.isCapital);
+      const [nodeType, nodeLevel] = sql(`SELECT "resourceType"||'|'||level FROM "ResourceNode" WHERE id='${freeNode[0]}'`).split('|');
+      assert('cities: the colony shows its node (type, level, +15 % per level on that resource), the capital none', cap0?.site === null && col0?.site?.type === nodeType && col0.site.level === Number(nodeLevel) && col0.site.bonusPct === Number(nodeLevel) * NODE_BONUS, JSON.stringify({ capital: cap0?.site, colony: col0?.site, nodeType, nodeLevel }));
+      const siegeCol = await call('siege info of the colony (its lives)', 'GET', `/api/city/${colony[0]}/siege`, tA);
+      assert('cities: lives of each city, as on the siege screen; a colony has fewer than the capital', col0?.lives?.total === siegeCol?.livesTotal && col0.lives.left === siegeCol?.livesLeft && col0.lives.total < cap0?.lives?.total, JSON.stringify({ colony: col0?.lives, capital: cap0?.lives, siege: [siegeCol?.livesTotal, siegeCol?.livesLeft] }));
+      const sitesAfter = await call('free sites after the foundation', 'GET', '/api/map/free-sites?limit=13', tA);
+      assert('free sites: the node of the new colony is no longer listed', Array.isArray(sitesAfter) && !sitesAfter.some(st => st.id === freeNode[0]));
+    }
     { // stock partagé (décision du 30 octobre 2026) : chaque ville garde son stock, la liste des villes donne aussi le total
       const cap0 = citiesNow?.find(c => c.isCapital), col0 = citiesNow?.find(c => !c.isCapital), ps = col0?.playerStock;
       assert('cities carry the player total: stock, storage and the food balance of all cities', !!ps && RES.every(r => ps[r] === Math.floor(cap0[r]) + Math.floor(col0[r])) && ps.maxStorage === cap0.maxStorage + col0.maxStorage && ps.foodBalance?.consumption === (cap0.foodBalance?.consumption || 0) + (col0.foodBalance?.consumption || 0) && 'hoursLeft' in ps.foodBalance, JSON.stringify(ps));
@@ -1178,6 +1204,8 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
     { // § 1 bis : toute unité formée ou soignée apparaît dans la capitale ; la Grande caserne d'une colonie forme pour elle
       sql(`UPDATE "BuildQueueItem" SET "endsAt"=now()-interval '1 second' WHERE "cityId"='${colony[0]}'`);
       await call('cities A (settles the colony builds)', 'GET', '/api/cities', tA);
+      // aide au suivi (décision du 30 octobre 2026) : le dernier chantier de la colonie fini, « File de construction vide à … »
+      await waitTick('alert: empty build queue in the colony', () => Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND kind='build_idle' AND body LIKE 'File de construction vide à ${colony[1]}%'`)) >= 1, 20000);
       const capGar = () => Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" WHERE a."cityId"='${cityA.id}' AND a."isGarrison" AND u."unitKey"='${infKey}'`));
       const colGar = () => Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" WHERE a."cityId"='${colony[0]}' AND a."isGarrison"`));
       const g0 = capGar();
@@ -1185,11 +1213,25 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       assert('the colony recruit says the units join the capital', /capitale/.test(rc?.message || ''), rc?.message);
       sql(`UPDATE "RecruitQueueItem" SET "endsAt"=now()-interval '1 second' WHERE "cityId"='${colony[0]}'`);
       await waitTick('colony recruits trained', () => sql(`SELECT count(*) FROM "RecruitQueueItem" WHERE "cityId"='${colony[0]}'`) === '0');
-      assert('units trained in a colony appear in the capital garrison, none in the colony', capGar() - g0 === 3 && colGar() === 0, `capital +${capGar() - g0}, colony ${colGar()}`);
+      assert('units trained in a colony appear in the capital garrison, none in the colony (it has no garrison)', capGar() - g0 === 3 && colGar() === 0, `capital +${capGar() - g0}, colony ${colGar()}`);
       sql(`INSERT INTO "WoundedUnit"(id,"cityId","unitKey",count,waiting,"healsAt") VALUES (gen_random_uuid(),'${colony[0]}','${infKey}',4,0,now()-interval '1 second')`);
       const g1 = capGar();
       await waitTick('colony wounded healed', () => sql(`SELECT count(*) FROM "WoundedUnit" WHERE "cityId"='${colony[0]}'`) === '0');
       assert('healed units of a colony join the capital garrison', capGar() - g1 === 4 && colGar() === 0, `capital +${capGar() - g1}, colony ${colGar()}`);
+      // palier des recrues d'une colonie (décision du 30 octobre 2026) : SA Grande caserne (niveau 1 ici), jamais la Caserne 20
+      // de la capitale ; sans Grande écurie, pas de cavalerie ; jamais d'engins hors de la capitale
+      const GBD = BUILDINGS.find(b => b.key === 'GREAT_BARRACKS'), GSD = BUILDINGS.find(b => b.key === 'GREAT_STABLE');
+      const midKey = unitKeyFor('ROME', 'INFANTRY', 'intermediate');
+      const mid = await call('recruit an intermediate unit in the colony (Great Barracks 1, Barracks 20 in the capital) -> 400', 'POST', `/api/city/${colony[0]}/recruit`, tA, { unitKey: midKey, count: 1 }, 400);
+      assert('the tier of a colony recruit comes from its own Great Barracks', (mid?.error || '').includes(`${GBD.name} niveau ${GBD.effects.unlockIntermediateTier} nécessaire`), mid?.error);
+      const cav = await call('recruit cavalry in a colony without Great Stable -> 400', 'POST', `/api/city/${colony[0]}/recruit`, tA, { unitKey: unitKeyFor('ROME', 'CAVALRY', 'base'), count: 1 }, 400);
+      assert('no Great Stable in the colony: no cavalry there, whatever the capital has', (cav?.error || '').includes(`${GSD.name} nécessaire`), cav?.error);
+      const eng = await call('recruit siege engines in a colony -> 400', 'POST', `/api/city/${colony[0]}/recruit`, tA, { unitKey: unitKeyFor('ROME', 'SIEGE', 'siege'), count: 1 }, 400);
+      assert('siege engines are built in the capital only', /Atelier de la capitale/.test(eng?.error || ''), eng?.error);
+      sql(`UPDATE "CityBuilding" SET level=${GBD.effects.unlockIntermediateTier} WHERE "cityId"='${colony[0]}' AND key='GREAT_BARRACKS'`);
+      const mid2 = await call('recruit an intermediate unit for the colony (its Great Barracks at the tier), as the capital\'s « Lieu de formation » does', 'POST', `/api/city/${colony[0]}/recruit`, tA, { unitKey: midKey, count: 1 });
+      assert('the batch trains in the colony queue and its units will join the capital', mid2?.queueItem?.cityId === colony[0] && /capitale/.test(mid2?.message || ''), JSON.stringify(mid2)?.slice(0, 200));
+      if (mid2?.queueItem?.id) await call('cancel that batch', 'DELETE', `/api/city/${colony[0]}/recruit/${mid2.queueItem.id}`, tA);
     }
     { // entretien de tout le joueur (§ 1 bis) : chaque ville paie ses troupes, le manque est pris dans les autres greniers ;
       // famine seulement quand tous les greniers sont vides
@@ -1200,10 +1242,14 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       const unitsOfA = () => Number(sql(`SELECT coalesce(sum(u.count),0) FROM "ArmyUnit" u JOIN "Army" a ON a.id=u."armyId" WHERE a."ownerId"='${A.player.id}'`));
       const famines = () => Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND title LIKE '%Famine%'`));
       const u0 = unitsOfA(), f0 = famines();   // aucune mort ; un lot de recrues qui finit entre-temps peut en ajouter
+      // « [ville] : dépôt plein dans 1 h » (aide au suivi) : la colonie à 3 de bois de son Dépôt, sa production l'y amène dans
+      // l'heure ; le contrôle de l'heure qui suit l'entretien le voit
+      sql(`UPDATE "City" SET wood="maxStorage"-3, "storageAlertAt"=NULL WHERE id='${colony[0]}'`);
       RPu.resetFamineClock(); await RPu.processUpkeep(1 / 60);   // une minute d'entretien, puis le contrôle de l'heure
       await sleep(500);
       const colFood = Number(sql(`SELECT floor(food) FROM "City" WHERE id='${colony[0]}'`));
       assert('shared upkeep: the empty capital feeds its troops from the colony granary, nobody starves', consA > 0 && colFood < 50000 && unitsOfA() >= u0 && famines() === f0, `consumption ${consA}/h, colony food ${colFood}, units ${u0} -> ${unitsOfA()}`);
+      await waitTick('alert: the colony warehouse full within 1 h', () => Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${A.player.id}' AND kind='storage_full' AND body LIKE '${colony[1]} : dépôt plein dans%'`)) >= 1, 20000);
       sql(`UPDATE "City" SET food=50000 WHERE id='${cityA.id}'`);
     }
     { // un raid ne prend que dans la ville attaquée (stock propre à chaque ville) : B harcèle la colonie de A

@@ -327,3 +327,38 @@ test('armée dans une colonie sans garnison : refus clair au lieu de « Garnison
     assert.match(res.body.error, /colonie n'a pas de garnison/);
   } finally { restore(); }
 });
+
+// Dissoudre une armée dont la ville est une colonie sans garnison : vide, elle disparaît (sinon elle resterait pour
+// toujours) ; avec des troupes, refus clair (pas de garnison où les poser) ; la capitale garde son erreur
+function fakeDisbandDb(army) {
+  const deleted = [], upserts = [];
+  const tx = {
+    $queryRaw: async () => [],
+    army: { findFirst: async ({ where }) => (where.isGarrison ? null : army), delete: async ({ where }) => { deleted.push(where.id); } },
+    armyUnit: { upsert: async (q) => { upserts.push(q); }, deleteMany: async () => ({ count: 0 }) },
+    hero: { update: async () => ({}) }
+  };
+  return { deleted, upserts, restore: swapPrisma({ $transaction: async (fn) => fn(tx) }) };
+}
+test('dissoudre une armée d\'une colonie sans garnison : vide, elle disparaît ; avec des troupes, refus clair', async () => {
+  const disband = handlerOf(require('../../src/routes/armies'), 'delete', '/:id/disband');
+  const armyIn = (city, units) => ({ id: 'a1', ownerId: 'p1', cityId: city.id, isGarrison: false, status: 'IDLE', x: city.x, y: city.y, heroId: null, units, owner: { faction: 'ROME', technologies: [], alliance: null, cities: [] }, hero: null, city });
+  const colonyCity = { id: 'col', x: 10, y: 10, isCapital: false };
+  const cases = [
+    [armyIn(colonyCity, []), 200],
+    [armyIn(colonyCity, [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 0 }]), 200],
+    [armyIn(colonyCity, [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 4 }]), 400],
+    [armyIn({ id: 'cap', x: 0, y: 0, isCapital: true }, []), 404]
+  ];
+  for (const [army, status] of cases) {
+    const db = fakeDisbandDb(army);
+    try {
+      const res = fakeRes();
+      await disband({ params: { id: 'a1' }, user: { playerId: 'p1' } }, res);
+      assert.equal(res.statusCode, status, JSON.stringify(res.body));
+      assert.equal(db.upserts.length, 0, 'aucune troupe posée nulle part');
+      assert.deepEqual(db.deleted, status === 200 ? ['a1'] : []);
+      if (status === 400) assert.match(res.body.error, /colonie n'a pas de garnison/);
+    } finally { db.restore(); }
+  }
+});

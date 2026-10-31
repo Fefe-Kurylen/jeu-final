@@ -16,7 +16,7 @@ const { getRelation } = require('../../services/diplomacyService');
 const { refreshSiegeFlag, wallLevelOf, wallHpNow, campEnd, engineCount } = require('./siegeProcessor');
 const { pillage, wearWallStructure, applyFall } = require('../../services/conquestService');
 const { survivalRatio, applyLosses, mergeUnits } = require('../../utils/armyUnits');
-const { creditCity, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
+const { RES_FR, creditCity, plunderCity, lockCity, claimNode, buildingsWithCapital } = require('../../utils/db');
 const fx = require('../../utils/buildingEffects');
 const { updatePlayerPopulation } = require('./worldProcessor');
 const { findRoute, noteCityCells, isBlockedTile } = require('../../utils/pathfinding');
@@ -701,7 +701,6 @@ async function handleSpy(army, now) {
   await sendArmyHome(army, army.targetX, army.targetY, {}, 80);
 }
 
-const RES_FR = { wood: 'bois', stone: 'pierre', iron: 'fer', food: 'nourriture' };
 const resText = (r) => Object.keys(RES_FR).filter(k => r[k] > 0).map(k => `${r[k]} ${RES_FR[k]}`).join(', ');
 
 async function handleTransport(army, now) {
@@ -744,4 +743,4 @@ async function handleTransport(army, now) {
   await sendArmyHome(army, army.targetX, army.targetY, { carryWood: back.wood, carryStone: back.stone, carryIron: back.iron, carryFood: back.food });
 }
 
-module.exports = { processArmyMovements, sendArmyHome, raidLosses };   // sendArmyHome : rassemblements d'alliance (rallyService) ; raidLosses : tests
+module.exports = { processArmyMovements, sendArmyHome, raidLosses, withGuestDefenders, defendingArmies };   // sendArmyHome : rassemblements d'alliance (rallyService) ; défenseurs d'une ville : vagues d'Immortels (wonderService) ; raidLosses : tests

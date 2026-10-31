@@ -4,7 +4,7 @@
 // 30 octobre 2026) sur un point de ressource libre, la ville est fondée 24 h après l'arrivée et produit +20 %, plus le
 // bonus de son gisement sur sa ressource.
 // Les règles affichées sont celles du serveur (routes/cities.js, routes/armies.js, utils/buildingEffects.js).
-const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 3, mainHallMax: 20 };
+const COLONY_RULES = { foundationTransport: 3000, maxSecondaryCities: 2, mainHallMax: 20 };
 // Plafond du Bâtiment principal hors capitale (règle du serveur : config.city.secondaryMainHallMaxLevel, transmise par /api/world/info)
 function colonyMainHallMax() { return Number(window.worldRules?.secondaryMainHallMaxLevel) || COLONY_RULES.mainHallMax; }
 // Palier de ville (Village / Ville / Ville Fortifiée) d'après le niveau du Bâtiment principal, comme le serveur
@@ -60,8 +60,11 @@ function settlerSlotsFor(level) {
   return 0;
 }
 const capitalCity = () => (cities || []).find(c => c.isCapital) || null;
+// Ordre stable des villes (le serveur ne trie pas, et l'ordre de la base change au fil des mises à jour) : la capitale,
+// puis les autres dans l'ordre de leur fondation
+const byFounding = (a, b) => Number(!!b.isCapital) - Number(!!a.isCapital) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
 // la Ville Merveille n'est pas une colonie : hors quota (routes/cities.js, décision du 28 octobre 2026)
-const secondaryCities = () => (cities || []).filter(c => !c.isCapital && !c.isWonder);
+const secondaryCities = () => (cities || []).filter(c => !c.isCapital && !c.isWonder).sort(byFounding);
 const settlersTravelling = () => (armies || []).reduce((s, a) => s + (a.settlers || 0), 0);
 
 // Onglet « Colons » du panneau de la Résidence
@@ -206,7 +209,7 @@ function openVillageList() {
     return;
   }
   const now = serverNow();
-  const rows = [...cities].sort((a, b) => Number(!!b.isCapital) - Number(!!a.isCapital)).map(c => myCityRowHtml(c, now)).join('');
+  const rows = [...cities].sort(byFounding).map(c => myCityRowHtml(c, now)).join('');
   showModal('Mes villes', `<div class="village-list my-cities">${myCitiesTotalsHtml()}${rows}</div>`);
 }
 

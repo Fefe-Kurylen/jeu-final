@@ -228,11 +228,12 @@ function cityTooltipHtml(slotNum) {
 // Helper pour obtenir l'effet d'un bâtiment (38 bâtiments)
 function getBuildingEffect(key, level) {
   const curve = (l1, l20) => (level <= 0 ? 0 : level >= 20 ? l20 : Math.round(l1 * Math.pow(l20 / l1, (level - 1) / 19)));
+  const office = window.buildingsData?.find(b => b.key === 'TRADE_OFFICE')?.effects || {};
   const effects = {
     // Construction and training
     'MAIN_HALL': `Construction: -${Math.min(60, level * 2.5).toFixed(1)}% de temps${level * 2.5 >= 60 ? ' (plafond 60 %)' : ''}`,
     'ACADEMY': `Construction: -${(level * 1).toFixed(0)}% de temps`,
-    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps · colons aux niv. 10, 15 et 20`,
+    'RESIDENCE': `Construction: -${(level * 0.25).toFixed(2)}% de temps · colons aux niv. 10, 15 et 20 · gisement d'une colonie : +${siteBonusPct(1)} % par niveau`,
     'BARRACKS': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'STABLE': `Entraînement: -${(level * 0.5).toFixed(1)}% · élite au niv. 15`,
     'WORKSHOP': `Entraînement: -${(level * 4).toFixed(0)}% de temps`,
@@ -256,7 +257,8 @@ function getBuildingEffect(key, level) {
     'WAREHOUSE': `Capacité: ${formatNum(getStorageAtLevel(level, 'WAREHOUSE'))}`,
     'SILO': `Capacité: ${formatNum(getStorageAtLevel(level, 'SILO'))}`,
     'MARKET': `Taxe du marchand: ${Math.max(5, 30 - Math.max(0, level - 1))}% · convois +${level * 5}%`,
-    'TRADE_OFFICE': `Convois: +${level}% de capacité`,
+    // le meilleur Comptoir des colonies vaut pour toutes les villes du joueur (décision du 30 octobre 2026)
+    'TRADE_OFFICE': `Taxe des échanges: -${level * (office.p2pTaxReductionPctPerLevel || 0)}% · transport: +${level * (office.armyTransportCapacityBonusPctPerLevel || 0)}% · pour toutes vos villes`,
     'MILL': `Céréales: +${level * 5}%`,
     'BAKERY': `Céréales: +${level * 5}%`,
     'SAWMILL': `Bois: +${level * 5}%`,

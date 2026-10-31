@@ -205,7 +205,7 @@ const config = {
     storageAlertLeadHours: 1,
     // Founding a secondary city on a resource node (GDD): resources carried by the founding army, deposited in the new city
     foundationTransport: { wood: 3000, stone: 3000, iron: 3000, food: 3000 },
-    maxSecondaryCities: 3,
+    maxSecondaryCities: 2,   // décision du 31 octobre 2026 : 2 colonies par joueur (+ la Ville Merveille, hors quota)
     // Main Hall cap in a secondary city (the capital alone goes to 30); every other building is capped by the Main Hall
     secondaryMainHallMaxLevel: 20,
     fieldSlots: {

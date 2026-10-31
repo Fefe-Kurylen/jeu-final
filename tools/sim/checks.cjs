@@ -44,6 +44,10 @@ async function invariants(prisma, clock) {
   await add('recrutement en retard', `SELECT id, "cityId", "endsAt" FROM "RecruitQueueItem" WHERE "endsAt" < $1`, late).catch(() => {});
   await add('recherche en retard', `SELECT id, "playerId", "endsAt" FROM "ResearchQueueItem" WHERE "endsAt" < $1`, late);
   await add('bâtiment mal placé (capitale / colonie) ou disparu des données', `SELECT b."cityId", b.key, c."isCapital" FROM "CityBuilding" b JOIN "City" c ON c.id = b."cityId" WHERE (c."isCapital" AND b.key = ANY($1)) OR (NOT c."isCapital" AND b.key = ANY($2)) OR NOT (b.key = ANY($3))`, COLONY_ONLY, CAPITAL_ONLY, buildingsData.map(b => b.key));
+  // Mur sur l'enceinte (décision du 30 octobre 2026) : toujours à sa place fixe, qu'aucun autre bâtiment ne prend
+  await add('Mur hors de l\'enceinte, ou autre bâtiment sur la place du Mur', `SELECT "cityId", key, slot FROM "CityBuilding" WHERE (key = 'WALL') <> (slot = $1) UNION ALL SELECT "cityId", "buildingKey", slot FROM "BuildQueueItem" WHERE ("buildingKey" = 'WALL') <> (slot = $1)`, config.city.wallSlot);
+  // pas de garnison propre dans les colonies (§ 1 bis) : une colonie fondée n'en reçoit pas
+  await add('garnison dans une colonie', `SELECT a.id, a."cityId" FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."isGarrison" AND NOT c."isCapital"`);
   await add('bâtiment au-dessus du Bâtiment principal', `SELECT b."cityId", b.key, b.level, m.level AS hall FROM "CityBuilding" b JOIN "CityBuilding" m ON m."cityId" = b."cityId" AND m.key = 'MAIN_HALL' WHERE b.key <> 'MAIN_HALL' AND b.level > m.level`);
   await add('espion bloqué', `SELECT id, status, "arrivalAt", "returnAt" FROM "Spy" WHERE status <> 'IDLE' AND COALESCE("returnAt", "arrivalAt") < $1`, late).catch(() => {});
   return out.map(o => ({ ...o, sample: JSON.parse(JSON.stringify(o.sample, (k, v) => (typeof v === 'bigint' ? Number(v) : v))) }));

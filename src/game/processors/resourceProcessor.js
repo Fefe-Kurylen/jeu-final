@@ -227,9 +227,9 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
   const heroTable = await heroUpkeepTable();   // une seule fois par tick, pour toutes les requêtes
   // 1) Entretien du tick, une seule requête pour tous les joueurs : chaque ville paie ses troupes avec son grenier (paid) ;
   //    le manque de tout le joueur (somme des lack) est pris dans ce qui reste aux autres villes (spare), la plus pleine
-  //    d'abord (reste rapporté au plafond du Silo, comme les dépenses : utils/db.js planDebit) : chacune donne ce que les
-  //    villes passées avant elle n'ont pas couvert. Écrit en différence (c.food − taken) : une écriture concurrente n'est
-  //    pas perdue. Grenier vide et rien à donner : rien à écrire.
+  //    d'abord (reste rapporté au plafond du Silo, à égalité la plus riche, comme les dépenses : utils/db.js planDebit) :
+  //    chacune donne ce que les villes passées avant elle n'ont pas couvert. Écrit en différence (c.food − taken) : une
+  //    écriture concurrente n'est pas perdue. Grenier vide et rien à donner : rien à écrire.
   await prisma.$executeRaw`
     WITH own AS (
       SELECT b."cityId" AS id, b."playerId",
@@ -241,7 +241,7 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
     ), shared AS (
       SELECT id, paid + LEAST(spare, GREATEST(
           SUM(lack) OVER (PARTITION BY "playerId")
-          - COALESCE(SUM(spare) OVER (PARTITION BY "playerId" ORDER BY fill DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
+          - COALESCE(SUM(spare) OVER (PARTITION BY "playerId" ORDER BY fill DESC, spare DESC, id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
         0)) AS taken
       FROM own
     )
@@ -264,7 +264,7 @@ async function processUpkeep(TICK_HOURS, now = new Date()) {
       else await starve(r, now);
     } catch (e) { console.error('[STARVATION]', r.playerId, e.message); }
   }
-  await storageAlerts(heroTable, now).catch(e => console.error('[STORAGE ALERT]', e.message));
+  await storageAlerts(heroTable, now, TICK_HOURS).catch(e => console.error('[STORAGE ALERT]', e.message));
 }
 
 // Greniers du joueur vides dans moins de config.army.famineAlertHours heures (12, décision du 30 octobre 2026) : prévenu
@@ -331,18 +331,21 @@ async function starve(r, now) {
 
 // « [ville] : dépôt plein dans 1 h » (décision du 30 octobre 2026, aide au suivi) : une ressource qui atteindra son plafond
 // dans moins de config.city.storageAlertLeadHours heures (pas une déjà pleine : la ville a été prévenue avant) ; céréales :
-// production moins l'entretien des troupes de la ville. Au plus une alerte par ville toutes les storageAlertHours heures.
-const fullSoonSql = (stock, cap, gain) => Prisma.sql`(${Prisma.raw(gain)} > 0 AND ${Prisma.raw(stock)} < ${Prisma.raw(cap)}
-  AND ${Prisma.raw(cap)} - ${Prisma.raw(stock)} <= ${Prisma.raw(gain)} * ${config.city.storageAlertLeadHours}::float)`;
-async function storageAlerts(heroTable, now) {
+// production moins l'entretien des troupes de la ville. Un Silo plein reste sous son plafond de l'entretien que ses troupes
+// viennent de payer à ce tick (`tickHours`) : il compte comme plein, à une unité près (sinon l'alerte reviendrait toutes
+// les 12 h). Au plus une alerte par ville toutes les storageAlertHours heures.
+const fullSoonSql = (stock, cap, gain) => Prisma.sql`(${gain} > 0 AND ${stock} < ${cap}
+  AND ${cap} - ${stock} <= ${gain} * ${config.city.storageAlertLeadHours}::float)`;
+async function storageAlerts(heroTable, now, tickHours) {
   const cutoff = new Date(now.getTime() - config.city.storageAlertHours * 3600000);
+  const col = (name) => Prisma.raw(`b."${name}"`);
   const rows = await prisma.$queryRaw`
     SELECT * FROM (
       SELECT b."cityId", b."playerId", b.name,
-        ${fullSoonSql('b.wood', 'b."maxStorage"', 'b."prodWood"')} AS wood,
-        ${fullSoonSql('b.stone', 'b."maxStorage"', 'b."prodStone"')} AS stone,
-        ${fullSoonSql('b.iron', 'b."maxStorage"', 'b."prodIron"')} AS iron,
-        ${fullSoonSql('b.food', 'b."maxFoodStorage"', '(b.prod - b.cons)')} AS food
+        ${fullSoonSql(col('wood'), col('maxStorage'), col('prodWood'))} AS wood,
+        ${fullSoonSql(col('stone'), col('maxStorage'), col('prodStone'))} AS stone,
+        ${fullSoonSql(col('iron'), col('maxStorage'), col('prodIron'))} AS iron,
+        ${fullSoonSql(Prisma.sql`(b.food + b.cons * ${tickHours}::float + 1)`, col('maxFoodStorage'), Prisma.sql`(b.prod - b.cons)`)} AS food
       FROM (${foodBalanceSql(Prisma.sql`(c."storageAlertAt" IS NULL OR c."storageAlertAt" < ${cutoff})`, heroTable)}) AS b
     ) s
     WHERE s.wood OR s.stone OR s.iron OR s.food`;
