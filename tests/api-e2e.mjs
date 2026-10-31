@@ -1265,12 +1265,48 @@ sql(`UPDATE "City" SET wood=300, stone=5000, iron=5000, food=5000, "maxStorage"=
       assert('a raid takes only from the city it hits: the colony pays, the capital keeps its stock', (loot.wood || 0) > 0 && ['wood', 'stone', 'iron'].every(r => capR1[r] >= capR0[r] && colR0[r] - colR1[r] >= (loot[r] || 0) - 2), JSON.stringify({ loot, capR0, capR1, colR0, colR1 }));
       sql(`DELETE FROM "Army" WHERE id='${raiders}'`);
     }
-    // le Comptoir, bâtiment des colonies, baisse la taxe des convois de sa colonie (−1 % par niveau)
+    { // ordre de prélèvement (décision du 30 octobre 2026) : après la ville de l'action, la ville la plus pleine par rapport à
+      // son plafond (Dépôt, Silo), pas la plus riche ; de même pour le manque d'entretien. Une troisième ville, petite mais
+      // presque pleine, le temps du test
+      const ty = cityA.y > 0 ? cityA.y - 30 : cityA.y + 30;
+      const tertia = sql(`INSERT INTO "City"(id,"playerId",name,x,y,wood,stone,iron,food,"maxStorage","maxFoodStorage") SELECT gen_random_uuid(),'${A.player.id}','Tertia${uid}',g,${ty},8000,8000,8000,9000,10000,10000 FROM generate_series(${cityA.x - 20},${cityA.x + 20}) g WHERE NOT EXISTS (SELECT 1 FROM "City" c WHERE c.x=g AND c.y=${ty}) LIMIT 1 RETURNING id`).split('\n')[0];
+      sql(`UPDATE "City" SET wood=0, stone=50000, iron=50000, food=50000, "maxStorage"=100000 WHERE id='${colony[0]}'`);
+      sql(`UPDATE "City" SET wood=30000, "maxStorage"=100000 WHERE id='${cityA.id}'`);
+      const capW0 = stockOf(cityA.id).wood;
+      const mh = await call('build MAIN_HALL in a colony without wood (3 cities)', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'MAIN_HALL' });
+      const t1 = stockOf(tertia), c1 = stockOf(cityA.id);
+      assert('drawing order: after the colony, the city fullest for its Warehouse pays (8 000 / 10 000), not the richest (30 000 / 100 000)', mh?.cost?.wood > 0 && mh.cost.wood <= 8000 && Math.abs((8000 - t1.wood) - mh.cost.wood) <= 1 && c1.wood >= capW0, JSON.stringify({ cost: mh?.cost, tertia: t1, capital: c1 }));
+      if (mh?.queueItem?.id) await call('cancel that Main Hall', 'DELETE', `/api/city/${colony[0]}/build/${mh.queueItem.id}`, tA);
+      // manque d'entretien : la capitale sans nourriture, la colonie pleine à moitié (50 000 / 100 000), la troisième ville
+      // à 90 % (9 000 / 10 000) : c'est elle qui nourrit d'abord les troupes de la capitale
+      sql(`UPDATE "City" SET food=0 WHERE id='${cityA.id}'`);
+      sql(`UPDATE "City" SET food=50000, "maxFoodStorage"=100000 WHERE id='${colony[0]}'`);
+      sql(`UPDATE "City" SET food=9000 WHERE id='${tertia}'`);
+      const RPo = createRequire(import.meta.url)('../src/game/processors/resourceProcessor.js');
+      await RPo.processUpkeep(0.1);   // 6 minutes d'entretien (le contrôle de l'heure a déjà tourné dans ce processus)
+      const tFood = stockOf(tertia).food, cFood = stockOf(colony[0]).food;
+      assert('drawing order: the upkeep shortfall is taken from the fullest granary first', tFood < 9000 && cFood >= 50000, `third city ${tFood}, colony ${cFood}`);
+      sql(`DELETE FROM "City" WHERE id='${tertia}'`);
+      sql(`UPDATE "City" SET food=50000 WHERE id='${cityA.id}'`);
+      richCity(colony[0]);
+    }
+    // le Comptoir, bâtiment des colonies, baisse la taxe des échanges (−1 % par niveau) ; le meilleur Comptoir des villes du
+    // joueur vaut pour toutes, capitale comprise, sans somme des niveaux (décision du 30 octobre 2026)
+    const capTax0 = (await call('market tax of the capital without Trade Office', 'GET', `/api/market/tax?cityId=${cityA.id}`, tA))?.taxPct;
     addBuilding(colony[0], 'TRADE_OFFICE', 7, 4);
     assert('market: the Trade Office of a colony lowers the tax of its convoys (10 % − 4)', (await call('market tax of the colony with a Trade Office 4', 'GET', `/api/market/tax?cityId=${colony[0]}`, tA))?.taxPct === 6);
+    const capTax1 = (await call('market tax of the capital with the colony Trade Office 4', 'GET', `/api/market/tax?cityId=${cityA.id}`, tA))?.taxPct;
+    assert('market: the best Trade Office counts for every city, the capital included', Number.isFinite(capTax0) && capTax1 === Math.max(0, Math.round((capTax0 - 4) * 100) / 100), `${capTax0} -> ${capTax1}`);
     sql(`DELETE FROM "CityBuilding" WHERE "cityId"='${colony[0]}' AND key='TRADE_OFFICE'`);
     sql(`UPDATE "CityBuilding" SET level=20 WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`);
     await call('colony Main Hall above 20 -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'MAIN_HALL' }, 400);
+    { // Mur sur l'enceinte (décision du 30 octobre 2026) : sa place fixe quel que soit l'emplacement demandé ; aucun autre
+      // bâtiment ne la prend
+      const wall = await call('build WALL asking for ring slot 4: placed on the enclosure', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'WALL', slot: 4 });
+      assert('the Wall never takes a ring slot: it goes on its fixed slot', !!ECO?.city?.wallSlot && wall?.queueItem?.slot === ECO.city.wallSlot, JSON.stringify(wall?.queueItem));
+      await call('build HIDEOUT on the Wall slot -> 400', 'POST', `/api/city/${colony[0]}/build`, tA, { buildingKey: 'HIDEOUT', slot: ECO?.city?.wallSlot }, 400);
+      if (wall?.queueItem?.id) await call('cancel the Wall', 'DELETE', `/api/city/${colony[0]}/build/${wall.queueItem.id}`, tA);
+    }
     assert('colony with Main Hall 20 is a Ville Fortifiée', (await call('cities A (colony tier)', 'GET', '/api/cities', tA))?.find(c => c.id === colony[0])?.cityTierName === 'Ville Fortifiée');
     sql(`UPDATE "CityBuilding" SET level=1 WHERE "cityId"='${colony[0]}' AND key='MAIN_HALL'`);
     await call('build GREAT_BARRACKS in the capital -> 400 (colonies only)', 'POST', `/api/city/${cityA.id}/build`, tA, { buildingKey: 'GREAT_BARRACKS' }, 400);
@@ -1625,7 +1661,8 @@ if (MAIL_LOG) {
 }
 
 // ---------- FAMINE (décision du 28 octobre 2026) ----------
-// bilan de nourriture du serveur, alerte à 6 h, famine façon Travian (juste assez de morts, armées en mission comprises),
+// bilan de nourriture du serveur, alerte 12 h à l'avance (30 octobre 2026), famine façon Travian (juste assez de morts,
+// armées en mission comprises),
 // siège : +10 % pour le camp, −10 % pour la ville assiégée
 {
   const RP = createRequire(import.meta.url)('../src/game/processors/resourceProcessor.js');
@@ -1647,9 +1684,10 @@ if (MAIL_LOG) {
   const bs = await bal();
   sql(`UPDATE "City" SET "isSieged"=false WHERE id='${cityB.id}'`);
   assert('famine: a besieged city feeds its armies 10 % cheaper (not the one away)', Math.abs(bs.consumption - Math.round((400 * UP.base * 0.9 + 100 * UP.elite * 0.9 + 50 * UP.elite) * (1 - b0.reductionPct / 100))) <= 1, `${bs.consumption}`);
-  // alerte : greniers vides dans moins de config.army.famineAlertHours (3 h de réserve ici)
+  // alerte : greniers vides dans moins de config.army.famineAlertHours (12 h) ; 3/4 de ce délai de réserve ici (9 h : l'ancien
+  // seuil de 6 h ne prévenait pas encore)
   const deficit = b0.consumption - b0.production;
-  sql(`UPDATE "City" SET food=${Math.round(deficit * 3)}, "maxFoodStorage"=100000, "foodAlertAt"=NULL WHERE id='${cityB.id}'`);
+  sql(`UPDATE "City" SET food=${Math.round(deficit * (ECO?.famineAlertHours || 12) * 0.75)}, "maxFoodStorage"=200000, "foodAlertAt"=NULL WHERE id='${cityB.id}'`);
   RP.resetFamineClock(); await RP.processUpkeep(1 / 3600);
   await sleep(500);
   assert('famine: B is warned before the granaries run empty', Number(sql(`SELECT count(*) FROM "Notification" WHERE "playerId"='${B.player.id}' AND title LIKE '%Grenier bientôt vide%'`)) >= 1 && sql(`SELECT ("foodAlertAt" IS NOT NULL)::text FROM "City" WHERE id='${cityB.id}'`) === 'true');
