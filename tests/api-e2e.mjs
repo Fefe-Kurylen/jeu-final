@@ -2250,7 +2250,8 @@ if (MAIL_LOG) {
   const C1 = await mk('Certator'), C2 = await mk('Aemulus');
   const tag = `D${uid % 1000}`;
   const al = sql(`INSERT INTO "Alliance"(id,name,tag,"leaderId") VALUES (gen_random_uuid(),'Agon${uid}','${tag}','${C1?.player?.id}') RETURNING id`).split('\n')[0];
-  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role) VALUES (gen_random_uuid(),'${al}','${C1?.player?.id}','LEADER'), (gen_random_uuid(),'${al}','${C2?.player?.id}','MEMBER')`);
+  // arrivés avant la limite du vendredi 0 h (sinon le test échoue le vendredi, le samedi et le dimanche)
+  sql(`INSERT INTO "AllianceMember"(id,"allianceId","playerId",role,"joinedAt") VALUES (gen_random_uuid(),'${al}','${C1?.player?.id}','LEADER',now() - interval '8 days'), (gen_random_uuid(),'${al}','${C2?.player?.id}','MEMBER',now() - interval '8 days')`);
   const week = sql(`SELECT to_char(date_trunc('week', (now() AT TIME ZONE 'Europe/Paris')), 'YYYY-MM-DD')`);
   // de quoi être premier sur les thèmes tirés des classements de la semaine
   for (const p of [C1, C2]) sql(`INSERT INTO "PlayerWeekStats"(id,"playerId",week,"attackPoints","defensePoints",loot,"popStart") VALUES (gen_random_uuid(),'${p?.player?.id}','${week}',9000000,9000000,900000000,0) ON CONFLICT ("playerId",week) DO UPDATE SET "attackPoints"=9000000,"defensePoints"=9000000,loot=900000000,"popStart"=0`);
