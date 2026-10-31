@@ -6,6 +6,11 @@
 // de l'anneau. Revue des bâtiments (décisions du 31 octobre 2026) : anneau de 18 emplacements dans la capitale, 12 dans
 // une colonie (calculations.ringSlotsOf) ; Bâtiment principal 20 partout ; Mur d'une colonie 15 (fx.maxLevelIn) ; Marché et
 // Comptoir de commerce dans la capitale seulement (drapeaux des données).
+// Rapport de vérification du 31 octobre 2026 (§ 6.9) : le Mur d'une colonie est son premier chantier (162 vagues de siège
+// sur 180 n'avaient trouvé aucun mur) ; la Cachette monte plus haut (1,5 % du stockage par niveau : 30 % au niveau 20) ;
+// Forge et Atelier vont au niveau 20 (60 à 70 engins par joueur pour le Bastion et les sièges) ; la Place de rassemblement
+// monte plus tôt (une garde dans chaque colonie). Une Ville Merveille ne bâtit que son Mur (niveau 15 au plus) et le
+// Bâtiment principal qui le permet : elle reçoit les vagues d'Immortels toutes les 12 h.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -31,19 +36,27 @@ const stepHours = (ctx) => Math.max(1, Number(ctx.OPT?.stepHours) || 1);
 // l'enceinte), une colonie l'économie, les Grands dépôt et silo et les Grandes caserne et écurie (ses 12 emplacements).
 // Tente de soins : 5 pour les Thermes, puis des lits pour les soins payants ; Chambre au Trésor : 5 pour les Grands dépôt
 // et silo, puis jusqu'à 20 (l'or paie aussi les unités d'élite) ; Écurie 20 pour la Grande écurie des colonies ; Marché 10
-// pour le Comptoir (plus de marchands et une charge plus grande). Un niveau visé au-delà du maximum de la ville (Mur d'une
-// colonie) s'arrête à ce maximum.
-function planFor(faction, capital) {
+// pour le Comptoir (+5 % de charge des armées de transport par niveau). Un niveau visé au-delà du maximum de la ville (Mur
+// d'une colonie) s'arrête à ce maximum.
+
+// une colonie commence par son Mur (et le Bâtiment principal qui le permet : le Mur demande le Bâtiment principal 3) : une
+// colonie neuve n'est protégée que 72 h
+const COLONY_FIRST = [['MAIN_HALL', 3], ['WALL', 3], ['MAIN_HALL', 5], ['WALL', 5]];
+// la Ville Merveille : son Mur seulement (ses défenseurs sont les armées et les renforts qu'on y poste)
+const WONDER_PLAN = [['MAIN_HALL', 5], ['WALL', 5], ['MAIN_HALL', 10], ['WALL', 10], ['MAIN_HALL', 15], ['WALL', 15]];
+function planFor(faction, capital, wonder = false) {
+  if (wonder) return WONDER_PLAN.map(([k, l]) => [k, Math.min(l, fx.maxLevelIn(k, false))]);
   const P = [
+    ...(capital ? [] : COLONY_FIRST),
     ['FIELDS', 2], ['MAIN_HALL', 3], ['WAREHOUSE', 2], ['SILO', 2], ['RALLY_POINT', 1], ['FIELDS', 3], ['BARRACKS', 3], ['ACADEMY', 1], ['HERO_MANSION', 1],
     ['MAIN_HALL', 5], ['FIELDS', 5], ['WAREHOUSE', 5], ['SILO', 5], ['HIDEOUT', 3], ['WALL', 3], ['EMBASSY', 3], ['WATCHTOWER', 5], ['HEALING_TENT', 5], ['ACADEMY', 5], ['FORGE', 3], ['MILL', 5],
     ['MARKET', 3], ['MAIN_HALL', 8], ['FIELDS', 7], ['STABLE', 3], ['WAREHOUSE', 8], ['SILO', 8], ['BARRACKS', 7], ['RALLY_POINT', 5], ['RESIDENCE', 5], ['ACADEMY', 10],
-    ['MAIN_HALL', 10], ['FIELDS', 10], ['WORKSHOP', 3], ['WALL', 8], ['TREASURE_CHAMBER', 5], ['HEALING_TENT', 10], ['SAWMILL', 3], ['STONEMASON', 3], ['FOUNDRY', 3], ['WAREHOUSE', 12], ['SILO', 12],
-    [FACTION_BUILDING[faction], 5], ['MAIN_HALL', 13], ['FIELDS', 12], ['BARRACKS', 12], ['STABLE', 10], ['MARKET', 10], ['HERO_MANSION', 10], ['RALLY_POINT', 10], ['EMBASSY', 10], ['GREAT_WAREHOUSE', 5], ['GREAT_SILO', 5],
-    ['BAKERY', 5], ['SAWMILL', 5], ['STONEMASON', 5], ['FOUNDRY', 5], ['MAIN_HALL', 16], ['FIELDS', 15], ['WAREHOUSE', 16], ['SILO', 16], ['ACADEMY', 15], ['FORGE', 12], ['WORKSHOP', 10], ['WALL', 14], ['HEALING_TENT', 15],
-    ['TRADE_OFFICE', 5], [FACTION_BUILDING[faction], 12], ['MAIN_HALL', 20], ['FIELDS', 18], ['BARRACKS', 20], ['STABLE', 16], ['RALLY_POINT', 20], ['WAREHOUSE', 20], ['SILO', 20], ['ACADEMY', 20], ['GREAT_WAREHOUSE', 12], ['GREAT_SILO', 10],
-    ['GREAT_BARRACKS', 5], ['STABLE', 20], ['GREAT_STABLE', 5], ['WALL', 20], ['FIELDS', 20], ['TREASURE_CHAMBER', 15], ['HEALING_TENT', 20], [FACTION_BUILDING[faction], 20], ['GREAT_WAREHOUSE', 20], ['GREAT_SILO', 20],
-    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['MARKET', 20], ['TRADE_OFFICE', 15]
+    ['MAIN_HALL', 10], ['FIELDS', 10], ['WORKSHOP', 5], ['WALL', 8], ['HIDEOUT', 8], ['TREASURE_CHAMBER', 5], ['HEALING_TENT', 10], ['SAWMILL', 3], ['STONEMASON', 3], ['FOUNDRY', 3], ['WAREHOUSE', 12], ['SILO', 12],
+    [FACTION_BUILDING[faction], 5], ['MAIN_HALL', 13], ['FIELDS', 12], ['BARRACKS', 12], ['STABLE', 10], ['RALLY_POINT', 10], ['MARKET', 10], ['HERO_MANSION', 10], ['EMBASSY', 10], ['FORGE', 10], ['GREAT_WAREHOUSE', 5], ['GREAT_SILO', 5],
+    ['BAKERY', 5], ['SAWMILL', 5], ['STONEMASON', 5], ['FOUNDRY', 5], ['MAIN_HALL', 16], ['FIELDS', 15], ['WAREHOUSE', 16], ['SILO', 16], ['RALLY_POINT', 15], ['ACADEMY', 15], ['FORGE', 15], ['WORKSHOP', 12], ['WALL', 14], ['HIDEOUT', 12], ['HEALING_TENT', 15],
+    ['TRADE_OFFICE', 5], [FACTION_BUILDING[faction], 12], ['MAIN_HALL', 20], ['FIELDS', 18], ['BARRACKS', 20], ['STABLE', 16], ['RALLY_POINT', 20], ['WAREHOUSE', 20], ['SILO', 20], ['ACADEMY', 20], ['FORGE', 20], ['WORKSHOP', 20], ['GREAT_WAREHOUSE', 12], ['GREAT_SILO', 10],
+    ['GREAT_BARRACKS', 5], ['STABLE', 20], ['GREAT_STABLE', 5], ['WALL', 20], ['HIDEOUT', 16], ['FIELDS', 20], ['TREASURE_CHAMBER', 15], ['HEALING_TENT', 20], [FACTION_BUILDING[faction], 20], ['GREAT_WAREHOUSE', 20], ['GREAT_SILO', 20],
+    ['GREAT_BARRACKS', ELITE_TIER('GREAT_BARRACKS')], ['GREAT_STABLE', ELITE_TIER('GREAT_STABLE')], ['TREASURE_CHAMBER', 20], ['HIDEOUT', 20], ['MARKET', 20], ['TRADE_OFFICE', 15]
   ];
   return P.filter(([k]) => k === 'FIELDS' || (capital ? !fx.notInCapital(k) : !fx.capitalOnly(k)))
     .map(([k, l]) => [k, k === 'FIELDS' ? l : Math.min(l, fx.maxLevelIn(k, capital))]);
@@ -81,7 +94,7 @@ function nextBuild(bot, city, ctx) {
   const capital = bot.capital;
   // le serveur compare au Bâtiment principal déjà bâti (pas à celui de la file)
   const hall = Math.max(1, builtLevel(city, 'MAIN_HALL'));
-  const plan = planFor(bot.faction, city.isCapital);
+  const plan = planFor(bot.faction, city.isCapital, !!city.isWonder);
   const tooBig = (c) => !Stock.fits(bot, c, stepHours(ctx));
   let blockedByStorage = null;
   for (const [key, target] of plan) {
@@ -107,8 +120,8 @@ function nextBuild(bot, city, ctx) {
     if (tooBig(c)) { blockedByStorage ||= c; continue; }
     if (Stock.canPay(bot, c)) return key === 'WALL' ? { buildingKey: key, slot: config.city.wallSlot } : { buildingKey: key };
   }
-  // un chantier attend un stockage plus grand
-  return blockedByStorage ? storageBuild(bot, city, blockedByStorage, hall, ctx) : null;
+  // un chantier attend un stockage plus grand (jamais dans la Ville Merveille : le stock commun grandit ailleurs)
+  return blockedByStorage && !city.isWonder ? storageBuild(bot, city, blockedByStorage, hall, ctx) : null;
 }
 
 async function research(bot, ctx) {

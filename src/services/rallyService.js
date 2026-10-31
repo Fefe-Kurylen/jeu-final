@@ -51,6 +51,7 @@ async function freeArmy(armyId, playerId) {
   const army = await prisma.army.findFirst({ where: { id: String(armyId), ownerId: playerId }, include: ARMY_INCLUDE });
   if (!army) throw err(404, 'Armée non trouvée');
   if (army.isGarrison) throw err(400, 'La garnison ne quitte pas la ville : créez une armée au point de ralliement');
+  if (army.status === 'MARKET') throw err(400, require('./marketService').MARKET_BUSY);   // réservée par une offre du marché
   if (army.status !== 'IDLE') throw err(400, 'Armée déjà en mission');
   if (!unitCount(army.units)) throw err(400, 'Armée vide');
   if (!army.city || army.x !== army.city.x || army.y !== army.city.y) throw err(400, 'L\'armée doit être dans sa ville');

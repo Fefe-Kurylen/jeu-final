@@ -1,10 +1,16 @@
 // Rapport de la simulation longue (tools/sim/sim.cjs) : RAPPORT.md à partir de l'état, des mesures et des événements.
+// Décisions du 31 octobre 2026 (rapport de vérification) : une section par décision à juger (carte et colonies, or,
+// cachette, échanges par armée, rassemblements, Bastion, Merveille, invasions, quêtes), lue dans les mesures de chaque
+// semaine (checks.cjs, ledger.cjs) et les événements des modules.
 'use strict';
 const fs = require('fs');
 
 const readLines = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean) : []);
 const n = (x) => (typeof x === 'number' ? x.toLocaleString('fr-FR') : x ?? '');
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '---').join(' | ')} |`, ...rows.map(r => `| ${r.map(n).join(' | ')} |`)].join('\n');
+const kv = (o) => Object.entries(o || {}).map(([k, v]) => `${k} ${n(v)}`).join(', ') || '—';
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+const lastOf = (events, kind) => events.filter(e => e.kind === kind).slice(-1)[0] || null;
 
 function write(FILES, live) {
   const state = fs.existsSync(FILES.state) ? JSON.parse(fs.readFileSync(FILES.state, 'utf8')) : {};
@@ -63,7 +69,7 @@ function write(FILES, live) {
   const rallies = {};
   for (const m of metrics) for (const r of m.week?.rallies || []) rallies[r.status] = (rallies[r.status] || 0) + r.n;
   L.push('', `Rassemblements : ${Object.entries(rallies).map(([k, v]) => `${k} ${v}`).join(', ') || 'aucun'}`);
-  if (last) L.push(`Fin : ${last.world.cities} villes (${last.world.colonies} colonies), Merveille niveau ${last.world.wonder}, invasions ${last.world.invasions}, donjons détruits ${last.world.hordesDestroyed}, Bastions ${(last.world.bastions || []).map(b => `${b.status} ${b.n}`).join(', ') || 'aucun'}, médailles ${last.world.medals}`);
+  if (last) L.push(`Fin : ${last.world.cities} villes (${last.world.colonies} colonies), Merveille niveau ${last.world.wonder}, invasions ${last.world.invasions}, donjons détruits ${last.world.hordesDestroyed} (vivants dans l'invasion en cours : ${last.world.hordesAlive}), Bastions ${(last.world.bastions || []).map(b => `${b.status} ${b.n}`).join(', ') || 'aucun'}, médailles ${last.world.medals}`);
   L.push('');
   // colonies (décisions du 30 octobre 2026) : gisements choisis par les joueurs automatiques (bonus de gisement) et jour de
   // la 1re, 2e, 3e colonie de chacun
@@ -80,6 +86,7 @@ function write(FILES, live) {
     L.push('', table(['Colonie du joueur', 'Fondées', 'Jour médian'], Object.entries(byRank).map(([k, d]) => [`n° ${k}`, d.length, d.sort((a, b) => a - b)[Math.floor(d.length / 2)]])));
     L.push('');
   }
+  decisions(L, { metrics, events, CALLS, first: metrics[0], last });
   // classement final
   if (last) {
     L.push('## Joueurs à la fin', '');
@@ -89,6 +96,101 @@ function write(FILES, live) {
   const notable = events.filter(e => e.kind !== 'violation').slice(-60);
   if (notable.length) { L.push('', '## Derniers événements notables', '', ...notable.map(e => `- j${e.day} ${e.kind} ${JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !['at', 'day', 'kind'].includes(k)))).slice(0, 200)}`)); }
   fs.writeFileSync(FILES.report, L.join('\n') + '\n');
+}
+
+// ---------- les décisions du 31 octobre 2026 ----------
+function decisions(L, { metrics, events, CALLS, first, last }) {
+  const refusals = (re) => Object.entries(CALLS.refusals || {}).filter(([k]) => re.test(k)).reduce((t, [, v]) => t + v, 0);
+  const ev = (kind) => events.filter(e => e.kind === kind);
+  L.push('## Décisions du 31 octobre 2026 : ce que la simulation en montre', '');
+
+  // carte, côtés, colonies (D1, D2, D12)
+  L.push('### Carte, côtés, colonies (D1, D2, D12)', '');
+  const reg = ev('registered');
+  const sides = {};
+  for (const e of reg) { const k = `${e.asked} → ${e.side || '?'}`; sides[k] = (sides[k] || 0) + 1; }
+  L.push(`- Carte : ${n(last?.map?.size) || '?'} × ${n(last?.map?.size) || '?'}. Côtés à l'inscription (demandé → obtenu) : ${kv(sides)}. Capitales par côté à la fin : ${kv(last?.map?.capitalsBySide)}.`);
+  L.push(`- Gisements où une colonie peut encore être fondée : ${n(first?.map?.foundable?.total)} au début (niveaux ${kv(first?.map?.foundable?.byLevel)}), ${n(last?.map?.foundable?.total)} à la fin (niveaux ${kv(last?.map?.foundable?.byLevel)}).`);
+  const perPlayer = Object.entries(last?.map?.coloniesPerPlayer || {}).map(([k, v]) => `${n(v)} avec ${k} colonie${Number(k) > 1 ? 's' : ''}`).join(', ') || '—';
+  const siteLevels = Object.entries(last?.map?.colonySiteLevels || {}).map(([k, v]) => `niveau ${k} : ${n(v)}`).join(', ') || '—';
+  L.push(`- Joueurs à la fin : ${perPlayer}. Gisement des colonies debout : ${siteLevels}.`);
+  const fallen = ev('city_fallen');
+  L.push(`- Villes tombées : ${fallen.length} (${kv(fallen.reduce((o, e) => { o[e.fate || '?'] = (o[e.fate || '?'] || 0) + 1; return o; }, {}))}). Refus « Colonie protégée » (72 h) : ${n(refusals(/Colonie protégée/))} ; raids écartés d'eux-mêmes pour une colonie protégée : ${n(lastOf(events, 'war_summary')?.counters?.raidSkipProtected || 0)}.`);
+  const mil = lastOf(events, 'military_summary')?.counters || {};
+  L.push(`- Gardes des colonies : ${n(mil.guardsCreated || 0)} formées, ${n(mil.guardsPosted || 0)} départs vers une colonie, ${n(mil.guardRefills || 0)} retours pour se regarnir, ${n(mil.guardNoSlot || 0)} fois sans place à la Place de rassemblement.`, '');
+
+  // or (D4, D5, D17)
+  L.push('### Or (D4, D5, D17)', '');
+  const marks = [30, 60, 90, 120, 150, 180, 365, 730].filter(d => d <= (last?.day || 0) + 6);
+  const at = (d) => metrics.reduce((best, m) => (Math.abs(m.day - d) < Math.abs((best?.day ?? 1e9) - d) ? m : best), null);
+  const rowsGold = [...new Set(marks.map(d => at(d)).filter(m => m?.ledger))].map(m => [m.day, m.ledger.income.treasury, m.ledger.income.expeditions, m.ledger.income.invasion, m.ledger.income.other, m.ledger.spent.elite, m.ledger.spent.instantHeal, m.ledger.spent.spies + m.ledger.spent.talents, m.ledger.goldNow]);
+  L.push(rowsGold.length ? table(['Jour', 'Chambre au Trésor', 'Expéditions (héros)', 'Trésor des invasions', 'Autres sources', 'Élites', 'Soins à l\'or', 'Espions et talents', 'Or des joueurs'], rowsGold) : 'Pas de relevé.');
+  const lg = last?.ledger;
+  if (lg) L.push('', `Expéditions finies : ${n(lg.expeditions.done)}, dont ${n(lg.expeditions.withGold)} avec de l'or (seules celles menées par le héros en rapportent). Donjons détruits : ${kv(lg.invasionDestroyed)}. Cumuls depuis le début, tous joueurs ; « Autres sources » : la variation de l'or moins ce qui est compté (camps d'or, défi…).`);
+  L.push('');
+
+  // cachette (D15)
+  L.push('### Cachette (D15)', '');
+  const wk = lastOf(events, 'war_summary')?.counters || {};
+  L.push(`- Raids gagnés lus : ${n(wk.raidsWonCounted || 0)}. Stock des villes pillées avant le raid : ${n(wk.raidStockBefore || 0)} ; à l'abri dans la cachette : ${n(wk.raidSheltered || 0)} (${wk.raidStockBefore ? Math.round(100 * wk.raidSheltered / wk.raidStockBefore) : 0} %) ; butin : ${n(wk.raidLoot || 0)}. Niveau moyen de la cachette pillée : ${wk.raidsWonCounted ? (wk.raidHideoutLevels / wk.raidsWonCounted).toFixed(1) : '—'} (par niveau : ${kv(Object.fromEntries(Object.entries(wk).filter(([k]) => k.startsWith('raidHideout_')).map(([k, v]) => [k.slice(12), v])))}).`);
+  L.push(`- Cachettes à la fin : capitales ${kv(last?.totals?.hideout?.capital)} ; colonies ${kv(last?.totals?.hideout?.colony)}.`, '');
+
+  // échanges entre joueurs par armée (D7, D8)
+  L.push('### Échanges entre joueurs par armée (D7, D8)', '');
+  const mk = lastOf(events, 'market_summary');
+  L.push(`- Échanges conclus : ${n(last?.totals?.trades || 0)} pour ${n(last?.totals?.tradeVolume || 0)} ressources (offres expirées : ${n(last?.totals?.offersExpired || 0)}).`);
+  if (mk) {
+    const k = mk.counters || {};
+    L.push(`- Offres publiées ${n(k.posted || 0)} (caravane réservée, statut MARKET), acceptées ${n(k.accepted || 0)} (dont ${n(k.acceptBorrowedArmy || 0)} portées par une autre armée que la caravane, ${n(k.acceptAlly || 0)} d'un membre de l'alliance), prises par un autre au même instant ${n(k.acceptRaced || 0)}, retirées ${n((k.cancelStale || 0) + (k.cancelChanged || 0))}, expirées ${n(k.expired || 0)}.`);
+    L.push(`- Envois à un allié : ${n(k.aidSent || 0)} (${n(k.aidVolume || 0)} ressources) ; marchand du serveur : ${n(k.npcTrades || 0)} échanges. Caravanes formées : ${n(mk.caravans || 0)} ; armées qui attendent avec une offre : ${n(mk.armiesWaiting || 0)}, en livraison : ${n(mk.armiesDelivering || 0)}.`);
+  }
+  L.push(`- Refus « Vos villes partagent leur stock » : ${n(refusals(/partagent leur stock/))} ; refus « Armée réservée pour une offre du marché » : ${n(refusals(/réservée pour une offre/))}.`, '');
+
+  // rassemblements (D3)
+  L.push('### Rassemblements (D3)', '');
+  const ral = {};
+  for (const r of last?.endgame?.rallies || []) { const k = `${r.kind} ${r.wait} min`; ral[k] = (ral[k] || 0) + r.n; }
+  L.push(Object.keys(ral).length ? table(['Cible et attente', 'Rassemblements'], Object.entries(ral).sort((a, b) => b[1] - a[1])) : 'Aucun.', '');
+
+  // Bastion (D9)
+  L.push('### Bastion (D9)', '');
+  const br = ev('bastion_rally'), ba = ev('bastion_assault');
+  L.push(`- Rassemblements contre un Bastion : ${br.length} ; armées par rassemblement (médiane) ${n(median(br.map(e => e.armies)))}, engins (médiane) ${n(median(br.map(e => e.engines)))}, attente (médiane) ${n(median(br.map(e => e.wait)))} min, dégâts au mur attendus sans garnison (médiane) ${n(median(br.map(e => e.wallDamageEstimate)))} sur ${n(br[0]?.wallHp)}.`);
+  L.push(`- Assauts livrés : ${ba.length}, gagnés ${ba.filter(e => e.won).length} ; armées par assaut (médiane) ${n(median(ba.map(e => e.armies)))} ; dégâts au mur (médiane) ${n(median(ba.map(e => e.wallDamage).filter(x => x !== null)))} ; garnison restée après l'assaut (médiane) ${n(median(ba.map(e => e.garrisonAfter).filter(x => x !== null)))} armées. Bastions rasés : ${ev('bastion_destroyed').length}.`);
+  if (ba.length) L.push('', table(['Jour', 'Assaillants', 'Bastion', 'Armées', 'Gagné', 'Mur avant', 'Mur après', 'Vies', 'Garnison après'], ba.slice(-15).map(e => [e.day, String(e.by || '').slice(0, 40), e.bastion, e.armies, e.won ? 'oui' : 'non', e.wallHpStart, e.wallHpEnd, e.lives, e.garrisonAfter])));
+  L.push('', `- Camps devant un Bastion attaqués (mission BREAK) : ${ev('bastion_break_sent').length} envois ; combats gagnés ${n(wk.bastionBreak_won || 0)}, perdus ${n(wk.bastionBreak_lost || 0)}. Refus « Garnison du Bastion complète » : ${n(refusals(/Garnison du Bastion complète/))}.`);
+  L.push(`- Garnisons à la fin : ${(last?.endgame?.bastions || []).map(b => `${b.tag} ${b.status} ${b.garrison} armées, ${b.lives} vies`).join(' ; ') || 'aucun Bastion'}.`, '');
+
+  // Merveille (D10, D11)
+  L.push('### Merveille (D10, D11)', '');
+  const wr = ev('wonder_rally'), sum = lastOf(events, 'wonder_summary');
+  L.push(`- Colons du fondateur : ${ev('wonder_settler').length}. Rassemblements contre les Immortels : ${wr.length} (sites ${wr.filter(e => e.kind === 'WONDER').length}, plans ${wr.filter(e => e.kind === 'PLAN').length}, dont pour les user ${wr.filter(e => e.wear).length}) ; armées (médiane) ${n(median(wr.map(e => e.armies)))}, puissance du rassemblement / Immortels (médiane) ${median(wr.map(e => e.immortals ? e.power / e.immortals : 0))?.toFixed(2) ?? '—'}.`);
+  L.push(`- Sites libérés : ${ev('wonder_site_beaten').length} (premier au jour ${ev('wonder_site_beaten')[0]?.day ?? '—'}) ; Villes Merveille fondées : ${ev('wonder_city_founded').length} (${ev('wonder_city_founded').map(e => `${e.alliance} jour ${e.day}`).join(', ') || '—'}) ; plans pris : ${ev('wonder_plan_taken').length} (${ev('wonder_plan_taken').map(e => `${e.alliance} jour ${e.day}`).join(', ') || '—'}) ; rassemblements repoussés : ${ev('wonder_rally_repelled').length}.`);
+  const lv = ev('wonder_level');
+  L.push(`- Niveaux (jour atteint) : ${lv.map(e => `${e.alliance} ${e.level} (j${e.day})`).join(', ') || '—'}. Niveaux à la fin : ${(last?.endgame?.wonders || []).map(w => `${w.tag || '?'} ${w.level}`).join(', ') || '—'}.`);
+  if (sum) {
+    const k = sum.counters || {}, w = sum.world || {};
+    L.push(`- Livraisons par armée : ${n(k.deliveries || 0)} convois, ${n(k.delivered || 0)} ressources (caravane ${n(k.deliveredByCaravan || 0)}, convoi ${n(k.deliveredByConvoy || 0)}, armée de campagne ${n(k.deliveredByFieldArmy || 0)}) ; niveaux lancés ${n(k.levelsStarted || 0)} ; attentes du stock ${n(k.buildWaitStock || 0)}, d'un plan ${n(k.buildWaitPlan || 0)}.`);
+    L.push(`- Vagues d'Immortels : tenues ${n(w.wavesHeld || 0)}, perdues ${n(w.wavesLost || 0)} (niveaux perdus ${n(w.levelsLost || 0)}) ; gardes de la Merveille envoyées ${n(k.guardsSent || 0)} (Ost prêté ${n(k.ostToWonder || 0)}, sans place ${n(k.guardNoSlot || 0)}).`);
+  }
+  L.push('');
+
+  // invasions (D11, D17)
+  L.push('### Invasions (D11, D17)', '');
+  const inv = lastOf(events, 'invasion_summary');
+  if (inv) {
+    const w = inv.world || {}, b = inv.bots || {};
+    const by = (re) => Object.fromEntries(Object.entries(w).filter(([k]) => re.test(k)).map(([k, v]) => [k.replace(re, 'niveau '), v]));
+    L.push(`- Étages battus par niveau : ${kv(by(/^floorsL/))} ; donjons détruits par niveau : ${kv(by(/^destroyedL/))} ; étages usés (rassemblement d'usure repoussé, pertes gardées) : ${kv(by(/^woreL/))}.`);
+    L.push(`- Rassemblements lancés ${n(b.launched || 0)} (pour user un étage ${n(b.launchedToWear || 0)}), armées envoyées ${n(b.joined || 0)}, repoussés ${n(w.repelled || 0)} ; attentes : ${kv(Object.fromEntries(Object.entries(b).filter(([k]) => /^wait\d+$/.test(k)).map(([k, v]) => [`${k.slice(4)} min`, v])))}.`);
+    L.push(`- Trésor : ${n(w.treasureGold || 0)} or, ${n(w.treasureRes || 0)} de chaque ressource (par donjon détruit, avant partage).`);
+  } else L.push('Pas de point d\'étape des invasions.');
+  L.push('');
+
+  // quêtes
+  L.push('### Quêtes', '');
+  const q = lastOf(events, 'quest_summary')?.counters || {};
+  L.push(`- Récompenses prises : ${n(last?.totals?.quests || 0)} (tâches ${n(q.claimed_task || 0)}, tutoriel ${n(q.claimed_tutorial || 0)}, jour ${n(q.claimed_daily || 0)}, semaine ${n(q.claimed_weekly || 0)}, succès ${n(q.claimed_achievement || 0)}), ${n(q.volume || 0)} ressources ; attentes faute de place : ${n(q.waitRoom || 0)}.`, '');
 }
 
 module.exports = { write };

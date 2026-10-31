@@ -132,13 +132,16 @@ async function simulate() {
   // CLEAN DB
   _log('[SETUP] Nettoyage de la base de données...');
   await prisma.$executeRawUnsafe(`DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname='public') LOOP EXECUTE 'TRUNCATE TABLE "' || r.tablename || '" CASCADE'; END LOOP; END $$;`);
-  // La carte de la simulation : WORLD_SEED (0 = carte de référence par défaut), notée dans la base comme le ferait le serveur
+  // La carte de la simulation : WORLD_SEED (0 par défaut) tirée par le générateur des nouveaux mondes (420 × 420, décision
+  // du 31 octobre 2026), ou par WORLD_GENERATOR (2 : carte de référence de 374, 3 : cartes au hasard de 374), notée dans la
+  // base comme le ferait le serveur
+  const Terrain = require('./frontend/js/shared/terrain.js');
   {
-    const Terrain = require('./frontend/js/shared/terrain.js');
     const seed = Number.isInteger(Number(process.env.WORLD_SEED)) && process.env.WORLD_SEED !== '' ? Number(process.env.WORLD_SEED) : 0;
-    Terrain.setWorldSeed(seed);
+    const generator = process.env.WORLD_GENERATOR ? Number(process.env.WORLD_GENERATOR) : Terrain.NEW_GENERATOR;
+    Terrain.setWorldSeed(seed, generator);
     await prisma.$executeRawUnsafe(`INSERT INTO "WorldConfig" ("id", "seed", "generator", "readyAt") VALUES (1, ${Terrain.worldSeed}, ${Terrain.generator}, now()) ON CONFLICT ("id") DO UPDATE SET "seed" = EXCLUDED."seed", "generator" = EXCLUDED."generator", "readyAt" = EXCLUDED."readyAt"`).catch((e) => _log(`[SETUP] graine non notée en base (${e.message.split('\n')[0]}) : appliquer les migrations avant de lancer l'API sur cette base`));
-    _log(`[SETUP] Carte : graine ${Terrain.worldSeed}`);
+    _log(`[SETUP] Carte : graine ${Terrain.worldSeed}, générateur ${Terrain.generator}, ${Terrain.WORLD_SIZE} × ${Terrain.WORLD_SIZE}`);
   }
 
   // GENERATE WORLD (fewer nodes for speed)
@@ -146,8 +149,8 @@ async function simulate() {
   const resTypes = ['WOOD','STONE','IRON','FOOD'];
   const biomes = ['forest','desert','snow'];
   const nodes = [];
-  for (let x = -187; x <= 186; x += 6) {
-    for (let y = -187; y <= 186; y += 6) {
+  for (let x = Terrain.MIN_COORD; x <= Terrain.MAX_COORD; x += 6) {
+    for (let y = Terrain.MIN_COORD; y <= Terrain.MAX_COORD; y += 6) {
       if (Math.random() < 0.06) {
         const amt = 500 + Math.floor(Math.random()*2000);
         const dist = Math.sqrt(x*x+y*y);

@@ -11,7 +11,12 @@
 //   node tools/sim/sim.cjs                              # reprendre
 //   node tools/sim/sim.cjs --report                     # refaire le rapport à partir des mesures
 // Options : --days, --step=<heures>, --bots=<n>, --db=<nom>, --port=<n>, --out=<dossier>, --modules=a,b, --seed=<n>
+// Modules (noms pour --modules) : alliance, quests, war, market, military, economy, hero, invasion, wonder
 // Base : SIM_DATABASE_URL, sinon DATABASE_URL avec le nom de base remplacé par --db. JWT_SECRET pris de l'environnement.
+// Décisions du 31 octobre 2026 (rapport de vérification) : chaque joueur choisit son côté de la carte à l'inscription (les
+// membres d'une même alliance le même : des alliances de voisins) ; la carte de ce processus suit celle du serveur
+// (GET /api/world/info : graine et générateur, 420 × 420 pour un nouveau monde) au départ, à la reprise et chaque jour ; un
+// relevé de l'or (./ledger.cjs) est tenu chaque jour.
 // ============================================================
 'use strict';
 const path = require('path');
@@ -203,9 +208,17 @@ class Bot {
     if (what.includes('armies')) { const r = await this.get('/api/army'); if (r.ok) this.armies = r.data; }
     return this;
   }
-  toJSON() { return { email: this.email, password: this.password, name: this.name, faction: this.faction, group: this.group, role: this.role, playerId: this.playerId, turn: this.turn, admin: !!this.admin, mem: this.mem }; }
+  // monde suivant (après la Merveille 100) : le joueur revient avec sa civilisation et son côté de la carte
+  async joinWorld() {
+    const r = await this.post('/api/world/join', { faction: this.faction, side: SIDE_OF_GROUP[this.group] || 'RANDOM' });
+    return r.ok;
+  }
+  toJSON() { return { email: this.email, password: this.password, name: this.name, faction: this.faction, group: this.group, side: this.side, role: this.role, playerId: this.playerId, turn: this.turn, admin: !!this.admin, mem: this.mem }; }
 }
 
+// côté de la carte choisi à l'inscription (décision du 31 octobre 2026) : les membres d'une alliance se mettent du même côté.
+// A au nord, B à l'est (voisins de A, en guerre avec lui), C à l'ouest (voisins et alliés de A), les solitaires au hasard.
+const SIDE_OF_GROUP = { A: 'N', B: 'E', C: 'W', SOLO: 'RANDOM' };
 // groupes : deux grandes alliances rivales (Bastion : 15 membres au moins), une petite, des solitaires
 function groupFor(i, n) {
   const a = Math.min(16, Math.ceil(n * 0.42)), b = Math.min(15, Math.ceil(n * 0.4)), c = Math.max(0, Math.min(5, n - a - b - 2));
@@ -225,6 +238,8 @@ const MODULES = fs.readdirSync(MODULE_DIR).filter(f => f.endsWith('.cjs')).sort(
 
 // ---------- contrôles et mesures (lecture directe de la base) ----------
 const checks = require('./checks.cjs');
+const ledger = require('./ledger.cjs');
+const Terrain = require(path.join(ROOT, 'frontend/js/shared/terrain.js'));   // la carte partagée avec le client
 
 async function waitServer() {
   for (let i = 0; i < 600; i++) {
@@ -232,6 +247,16 @@ async function waitServer() {
     await new Promise(r => setTimeout(r, 500));
   }
   throw new Error('le serveur de simulation ne démarre pas');
+}
+
+// la carte de ce processus : celle du serveur (graine et générateur du monde), pour les contrôles de place et les modules
+// (bords, empreinte d'une ville) ; relue au départ, à la reprise et chaque jour (un monde suivant peut changer de carte)
+async function syncTerrain() {
+  const r = await http('GET', '/api/world/info', null);
+  if (!r.ok || r.data?.worldSeed === undefined) return false;
+  const changed = Terrain.setWorldSeed(r.data.worldSeed, r.data.worldGenerator);
+  if (changed) say(`carte : graine ${r.data.worldSeed}, générateur ${r.data.worldGenerator}, ${r.data.worldSize} × ${r.data.worldSize}`);
+  return true;
 }
 
 async function tick(hours) {
@@ -244,11 +269,12 @@ async function tick(hours) {
 }
 
 function saveState(bots, step) {
-  const s = { version: 1, simNow, startMs: STATE?.startMs ?? OPT.start, step, rng: rngState, opt: { stepHours: OPT.stepHours, days: OPT.days, bots: OPT.bots }, bots: bots.map(b => b.toJSON()), calls: CALLS, errors: [...ERRORS.entries()].map(([k, v]) => ({ key: k, ...v })), world: WORLD, savedAt: new RealDate().toISOString() };
+  const s = { version: 1, simNow, startMs: STATE?.startMs ?? OPT.start, step, rng: rngState, opt: { stepHours: OPT.stepHours, days: OPT.days, bots: OPT.bots }, bots: bots.map(b => b.toJSON()), calls: CALLS, errors: [...ERRORS.entries()].map(([k, v]) => ({ key: k, ...v })), world: WORLD, ledger: LEDGER, savedAt: new RealDate().toISOString() };
   fs.writeFileSync(FILES.state + '.tmp', JSON.stringify(s));
   fs.renameSync(FILES.state + '.tmp', FILES.state);
 }
 const WORLD = STATE?.world || { index: 1, endedAt: null, worlds: [] };
+const LEDGER = STATE?.ledger || ledger.empty();   // relevé de l'or, cumulé (./ledger.cjs)
 if (STATE?.errors) for (const e of STATE.errors) ERRORS.set(e.key, e);
 
 async function createBots() {
@@ -257,10 +283,13 @@ async function createBots() {
     const faction = FACTIONS[i % FACTIONS.length];
     const name = `${NAMES[i % NAMES.length]}${i >= NAMES.length ? i : ''}`;
     const b = new Bot({ email: `bot${i}@sim.test`, password: 'Simulation1!', name, faction, group: groupFor(i, OPT.bots), turn: i % 2, admin: i === 0 });
-    const r = await http('POST', '/api/auth/register', null, { email: b.email, password: b.password, name: b.name, faction });
+    const side = SIDE_OF_GROUP[b.group] || 'RANDOM';
+    const r = await http('POST', '/api/auth/register', null, { email: b.email, password: b.password, name: b.name, faction, side });
     record('POST', '/api/auth/register', r, b.name);
     if (!r.ok) throw new Error(`inscription de ${name} refusée : ${r.status} ${JSON.stringify(r.data)}`);
     b.token = r.data.token; b.playerId = r.data.player?.id;
+    b.side = r.data.player?.side || null;   // le côté où la capitale est vraiment posée (un côté plein renvoie au voisin)
+    event('registered', { bot: b.name, group: b.group, asked: side, side: b.side });
     bots.push(b);
   }
   // le premier joueur est aussi administrateur (écran d'administration, fin de monde, annonces)
@@ -273,6 +302,7 @@ async function main() {
   say(`démarrage : ${OPT.days} jours, pas de ${OPT.stepHours} h, ${OPT.bots} joueurs, base ${OPT.db}, sortie ${OPT.out}${STATE ? ` (reprise au pas ${STATE.step})` : ''}`);
   await waitServer();
   say('serveur prêt');
+  try { if (!(await syncTerrain())) say('carte : GET /api/world/info sans réponse, carte du serveur gardée'); } catch (e) { say(`carte : ${e.message}`); }
   let bots, step;
   if (STATE) {
     bots = STATE.bots.map(o => new Bot(o));
@@ -283,7 +313,7 @@ async function main() {
     step = 0;
     event('start', { bots: bots.length, modules: MODULES.map(m => m.name) });
   }
-  const ctx = { clock, OPT, DATA, prisma, bots, rand, pick, event, say, WORLD, http, record, byGroup: (g) => bots.filter(b => b.group === g) };
+  const ctx = { clock, OPT, DATA, prisma, bots, rand, pick, event, say, WORLD, http, record, LEDGER, byGroup: (g) => bots.filter(b => b.group === g) };
   for (const b of bots) b.ctx = ctx;
   if (!STATE) for (const m of MODULES) if (m.setup) for (const b of bots) { try { await m.setup(b, ctx); } catch (e) { console.error(`[SIM] setup ${m.name} ${b.name}:`, e); } }
   saveState(bots, step);
@@ -302,7 +332,11 @@ async function main() {
     for (const b of bots) {
       if (STOP) break;
       if ((step + b.turn) % 2 !== 0 && !b.mem.alwaysOn) continue;
-      try { await b.refresh(); } catch (e) { console.error(`[SIM] refresh ${b.name}:`, e); continue; }
+      try {
+        await b.refresh();
+        // monde suivant ouvert, plus aucune ville : le joueur le rejoint
+        if (Array.isArray(b.cities) && !b.cities.length && (await b.joinWorld())) await b.refresh();
+      } catch (e) { console.error(`[SIM] refresh ${b.name}:`, e); continue; }
       for (const m of MODULES) {
         if (m.every && step % m.every !== 0) continue;
         try { await m.act(b, ctx); } catch (e) { console.error(`[SIM] ${m.name} ${b.name}:`, e); }
@@ -312,9 +346,11 @@ async function main() {
     const day = clock.day();
     if (day !== lastDay) {
       lastDay = day;
+      try { await syncTerrain(); } catch (e) { console.error('[SIM] carte :', e); }
       try { const v = await checks.invariants(prisma, clock); if (v.length) for (const x of v) event('violation', x); } catch (e) { console.error('[SIM] contrôles :', e); }
+      try { await ledger.daily(prisma, clock, LEDGER, bots); } catch (e) { console.error('[SIM] relevé de l\'or :', e); }
       if (day % 7 === 0) {
-        try { const snap = await checks.snapshot(prisma, clock, bots); appendLine(FILES.metrics, { at: clock.iso(), day, step, ...snap }); } catch (e) { console.error('[SIM] mesures :', e); }
+        try { const snap = await checks.snapshot(prisma, clock, bots); appendLine(FILES.metrics, { at: clock.iso(), day, step, ...snap, ledger: ledger.view(LEDGER, bots) }); } catch (e) { console.error('[SIM] mesures :', e); }
         const el = (RealDate.now() - t0) / 1000;
         say(`jour ${day}/${OPT.days} · pas ${step}/${totalSteps} · tick ${Math.round(tickMs)} ms · ${CALLS.total} appels · ${CALLS.fails.length} erreurs 5xx · ${[...ERRORS.values()].reduce((t, e) => t + e.count, 0)} erreurs serveur · ${Math.round(el / ran * 1000)} ms/pas`);
       }

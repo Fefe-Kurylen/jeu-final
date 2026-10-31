@@ -21,6 +21,7 @@ const fx = require('../utils/buildingEffects');
 const { routeLength, findRoute, isBlockedTile } = require('../utils/pathfinding');
 const { refreshSiegeFlag } = require('../game/processors/siegeProcessor');
 const { protectionRefusal } = require('../utils/colonyProtection');
+const { OWN_CITIES_SHARE_STOCK, MARKET_BUSY } = require('../services/marketService');
 // Propriétaires de camps hors de l'alliance du joueur (combat forcé du retour, quelle que soit la diplomatie déclarée) :
 // même prédicat que le siège vu par routes/cities.js
 const campsOutsideAlliance = async (playerId, ownerIds, db = prisma) => outsideAlliance(await allianceRowsOf([playerId, ...ownerIds], db), playerId, ownerIds);
@@ -46,11 +47,23 @@ const cityBuildingsOf = async (db, army) => fx.withCapital(army.cityId ? await d
 const travelTo = async (army, toX, toY) => getArmyTravelTime(army.units, army.x, army.y, toX, toY, army.owner?.faction, army.hero, await routeLength(army.x, army.y, toX, toY, army.owner?.faction), speedTechPct(army));
 const noRoute = (res, e) => (e && e.code === 'NO_ROUTE' ? res.status(400).json({ error: e.message }) : null);
 const isHome = (army, city) => !!city && army.x === city.x && army.y === city.y;
+// armée réservée par une offre du marché (statut MARKET) : elle attend en ville avec les marchandises (MARKET_BUSY)
+// un échange conclu se livre des deux côtés : rappeler son armée rendrait ses marchandises en gardant celles de l'autre
+const TRADE_DELIVERY_BUSY = 'Armée d\'un échange conclu : elle livre puis rentre seule, on ne peut pas la rappeler';
+
+// Rappel refusé pour une armée du marché : réservée par une offre (elle attend en ville), ou en route pour livrer un
+// échange conclu (elle livre puis rentre seule) ; un simple transport se rappelle toujours
+const tradeRecallRefusal = (army) => {
+  if (army.status === 'MARKET') return MARKET_BUSY;
+  if (army.status === 'TRANSPORTING' && army.missionType === 'MARKET_DELIVERY') return TRADE_DELIVERY_BUSY;
+  return null;
+};
 
 // Common checks before a field army leaves: the garrison never leaves the city
 function readyToLeave(army, verb) {
   if (!army) return { status: 404, error: 'Armée non trouvée' };
   if (army.isGarrison) return { status: 400, error: 'La garnison ne quitte pas la ville : créez une armée au point de ralliement' };
+  if (army.status === 'MARKET') return { status: 400, error: MARKET_BUSY };
   if (army.status !== 'IDLE') return { status: 400, error: 'Armée déjà en mission' };
   if (army.units.length === 0) return { status: 400, error: army.heroId ? `Le héros nécessite au moins 1 soldat pour ${verb}` : 'Armée vide' };
   return null;
@@ -152,6 +165,7 @@ async function loadArmyAndGarrison(tx, armyId, playerId, { emptyOk = false } = {
   const army = await loadArmy(armyId, playerId, {}, tx);
   if (!army) return { error: 'Armée non trouvée', status: 404 };
   if (army.isGarrison) return { error: 'Impossible de modifier la garnison directement', status: 400 };
+  if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   const garrison = await tx.army.findFirst({ where: { cityId: army.cityId, isGarrison: true }, include: { units: true } });
   if (!garrison) {
@@ -258,6 +272,7 @@ async function lockHeroMove(tx, armyId, playerId) {
   const army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: { city: true } });
   if (!army) return { error: 'Armée non trouvée', status: 404 };
   if (army.cityId !== probe.cityId) return { error: 'Armée rattachée à une autre ville, réessayez', status: 409 };
+  if (army.status === 'MARKET') return { error: MARKET_BUSY, status: 400 };   // sa charge est promise à l'offre
   if (army.status !== 'IDLE' || !isHome(army, army.city)) return { error: 'Armée doit être en ville', status: 400 };
   return { army };
 }
@@ -281,6 +296,7 @@ router.post('/:id/assign-hero', auth, async (req, res) => {
         if (where && where.id !== army.cityId) return { error: `Le héros attend à ${where.name} : joignez-le à une armée de cette ville`, status: 400 };
       }
       // The hero can only switch between armies standing in the same city
+      if (armyWithHero?.status === 'MARKET') return { error: 'Le héros est dans une armée réservée pour une offre du marché : annulez l\'offre pour le libérer', status: 400 };
       if (armyWithHero && (armyWithHero.status !== 'IDLE' || armyWithHero.cityId !== army.cityId || !isHome(armyWithHero, armyWithHero.city))) {
         return { error: 'Héros déjà assigné à une autre armée hors de la ville', status: 400 };
       }
@@ -673,6 +689,7 @@ router.post('/:id/return', auth, async (req, res) => {
       if (!army.city) return { error: 'Armee sans ville d\'origine', status: 400 };
       if (army.status === 'RETURNING') return { message: 'Armée déjà sur le chemin du retour', arrivalAt: army.arrivalAt };
       if (army.status === 'EXPEDITION') return { error: 'Armée en expédition : impossible de la rappeler', status: 400 };
+      { const busy = tradeRecallRefusal(army); if (busy) return { error: busy, status: 400 }; }
       if (army.claimedAt) return { error: 'Arrivée en cours de résolution, réessayez dans quelques secondes', status: 409 };
 
       let fromX = army.x, fromY = army.y;
@@ -730,6 +747,8 @@ router.post('/:id/transport', auth, async (req, res) => {
     if (!targetCity) return res.status(404).json({ error: 'Ville cible non trouvée' });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
+    // stock commun entre ses villes (décision du 31 octobre 2026) : rien à transporter entre elles, sauf vers une Ville Merveille
+    if (targetCity.playerId === req.user.playerId && !targetCity.isWonder) return res.status(400).json({ error: OWN_CITIES_SHARE_STOCK });
 
     const result = await prisma.$transaction(async (tx) => {
       const probe = await tx.army.findFirst({ where: { id: req.params.id, ownerId: req.user.playerId }, select: { cityId: true } });
@@ -742,7 +761,7 @@ router.post('/:id/transport', auth, async (req, res) => {
       if (!army.city) return { error: 'Armée sans ville d\'origine', status: 400 };
       if (!isHome(army, army.city)) return { error: 'Armée doit être en ville pour charger des ressources', status: 400 };
       // le Marché est « capitale seulement » (décision du 31 octobre 2026) : celui de la capitale ouvre le transport depuis
-      // toutes les villes du joueur ; la mission d'armée ne prend pas de marchand
+      // toutes les villes du joueur
       const cityBuildings = await cityBuildingsOf(tx, army);
       if (config.market.requireBuilding && fx.levelOf(cityBuildings, 'MARKET') < 1) return { error: 'Construisez un Marché dans la capitale (niveau 1 minimum) pour envoyer des ressources', status: 400 };
       const carryCapacity = transportCapacity(army, cityBuildings);
@@ -816,3 +835,4 @@ module.exports = router;
 module.exports.speedTechPct = speedTechPct;
 module.exports.transportCapacity = transportCapacity;
 module.exports.checkHostileTarget = checkHostileTarget;   // refus d'une attaque ou d'un raid (colonie neuve protégée), pour les tests
+module.exports.readyToLeave = readyToLeave;   // contrôles avant tout départ (armée réservée au marché), pour les tests

@@ -1,4 +1,5 @@
 require('./_env');
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://unit:unit@localhost:5432/unit';   // marketService crée le client Prisma, jamais interrogé
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -31,9 +32,12 @@ test('simulate-colonies: one engine for every tier, wall breach and Bastion figu
   assert.match(out, /Bâtiment principal 20 dans une colonie comme dans la capitale \(20\) ; .* Mur 15 dans une colonie \(20 dans la capitale\)/);
   assert.match(out, /Place du marché et Comptoir de commerce : dans la capitale seulement/);
   assert.doesNotMatch(out, /meilleur Comptoir/);
-  // la taxe des échanges ne descend pas sous 0 : le Comptoir qui l'annule se lit dans la config et les données
-  const zeroAt = Math.ceil(config.market.p2pTaxPctBase / fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1));
-  assert.match(out, new RegExp(`\\(${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${zeroAt}\\)`));
+  // plus de marchands (décision du 31 octobre 2026) : taxe des échanges de base, puis avec le Comptoir 20 et la Chambre au
+  // Trésor 20, lue par la fonction du serveur
+  const { p2pTaxPctOf } = require('../../src/services/marketService');
+  assert.match(out, new RegExp(`\\(${p2pTaxPctOf([])} % de base, ${p2pTaxPctOf([{ key: 'TRADE_OFFICE', level: 20 }, { key: 'TREASURE_CHAMBER', level: 20 }])} % avec le Comptoir 20 et la Chambre au Trésor 20\\)`));
+  assert.match(out, /\(30 % de base, 5 % avec le Comptoir 20 et la Chambre au Trésor 20\)/);
+  assert.doesNotMatch(out, /marchands? par niveau|charge d'un marchand|charge des marchands/);
 });
 
 test('simulate-factions: city attacks use the wall shield and the engines of each civilisation', () => {

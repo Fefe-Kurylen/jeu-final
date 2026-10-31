@@ -2,14 +2,15 @@
 // Décision d'octobre 2026 : une ville ne change jamais de propriétaire. Chaque assaut gagné (après un siège) ôte une part de
 // la « santé de la muraille » (City.wallStructure, 1 = 100 %) et pille une part du stock. À 0 :
 //  - une ville secondaire est rasée (le point de ressource redevient libre) ;
-//  - une capitale ne peut pas être prise : elle est déplacée au hasard près du bord de la carte, santé remise à 100 %.
+//  - une capitale ne peut pas être prise : elle est déplacée au hasard près du bord de la carte, sur son côté (Nord, Est, Sud
+//    ou Ouest ; un voisin s'il est plein), santé remise à 100 %.
 
 const prisma = require('../config/database');
 const config = require('../config');
 const { unitsData, factionsData } = require('../config/gamedata');
 const { getFactionBonus, getArmyCarryCapacity, getArmyTravelTime } = require('../utils/calculations');
 const { plunderCity, lockPlayerCities, creditPlayer } = require('../utils/db');
-const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock } = require('../utils/spawn');
+const { findFreeSpawn, lockPlacement, gatherArmiesOnBlock, sideAt } = require('../utils/spawn');
 const { noteObjectCell, noteCityCells, forgetCityCells, routeLength } = require('../utils/pathfinding');
 const fx = require('../utils/buildingEffects');
 
@@ -96,7 +97,8 @@ async function razeCity(cityId, byArmyId) {
     const heroes = [];
     const ownerFaction = (await tx.player.findUnique({ where: { id: city.playerId }, select: { faction: true } }))?.faction || null;
     for (const a of city.armies) {
-      const atHome = a.isGarrison || (a.status === 'IDLE' && a.x === city.x && a.y === city.y);
+      // une armée réservée par une offre du marché (statut MARKET) attend en ville : elle tombe avec elle
+      const atHome = a.isGarrison || ((a.status === 'IDLE' || a.status === 'MARKET') && a.x === city.x && a.y === city.y);
       if (atHome) { if (a.heroId) heroes.push(a.heroId); await tx.army.delete({ where: { id: a.id } }); continue; }
       // away on a mission: it now belongs to the capital, on the lowest free slot there (beyond the Rally Point limit if
       // need be, so that it is never lost); an army on an expedition will come back to the capital
@@ -139,7 +141,7 @@ async function razeCity(cityId, byArmyId) {
       }
     }
     // market offers of the city are cancelled; the goods held for them go to the capital
-    await require('./marketService').cancelOffersOfCity(tx, city.id, capital?.id || null);   // leurs marchands sont libres
+    await require('./marketService').cancelOffersOfCity(tx, city.id, capital?.id || null);   // marchandises rendues à la capitale
     // the resource node comes back: no city on it, a tribe will settle again later
     await tx.resourceNode.updateMany({ where: { cityId: city.id }, data: { cityId: null, hasPlayerArmy: false, lastDefeat: new Date(), lastArmyDeparture: new Date() } });
     await tx.city.delete({ where: { id: city.id } });
@@ -149,15 +151,18 @@ async function razeCity(cityId, byArmyId) {
   }, { timeout: 15000 });
 }
 
-// Capitale tombée : déplacée sur un emplacement libre près du bord ; ses armées en ville la suivent, celles qui rentrent
-// sont redirigées ; santé de la muraille remise à 100 %, siège levé
+// Capitale tombée : déplacée sur un emplacement libre près du bord, de son côté de la carte ; ses armées en ville la
+// suivent, celles qui rentrent sont redirigées ; santé de la muraille remise à 100 %, siège levé
 async function relocateCapital(cityId, byArmyId) {
   return prisma.$transaction(async (tx) => {
     await lockPlacement(tx);   // first, before any row lock: the new place is chosen and taken under it
+    // ordre du marché (acceptation, retrait, expiration) : les offres de la ville, puis la ville ; jamais l'inverse
+    await tx.$queryRaw`SELECT id FROM "MarketOffer" WHERE "cityId" = ${cityId} AND status = 'ACTIVE' ORDER BY id FOR UPDATE`;
     await tx.$executeRaw`SELECT id FROM "City" WHERE id = ${cityId} FOR UPDATE`;
     const city = await tx.city.findUnique({ where: { id: cityId }, include: { armies: { include: { units: true } } } });
     if (!city || !city.isCapital || city.wallStructure > 0) return null;   // already moved by another executor
-    const pos = await findFreeSpawn({ db: tx });
+    // sur son côté de la carte (décision du 31 octobre 2026) : la capitale reste près de son alliance ; côté plein, un voisin
+    const pos = await findFreeSpawn({ db: tx, side: sideAt(city.x, city.y) });
     const from = { x: city.x, y: city.y };
     await tx.city.update({ where: { id: city.id }, data: { x: pos.x, y: pos.y, wallStructure: 1, wallHp: city.wallMaxHp || 0, isSieged: false } });
     await gatherArmiesOnBlock(tx, pos.x, pos.y);
@@ -242,4 +247,4 @@ async function applyFall(cityId, by = null) {
   return { kind: 'RAZED', ...razed };
 }
 
-module.exports = { assaultsToFall, assaultsLeft, pillage, wearWallStructure, applyFall };
+module.exports = { assaultsToFall, assaultsLeft, pillage, wearWallStructure, applyFall, razeCity, relocateCapital };   // les deux derniers pour les tests

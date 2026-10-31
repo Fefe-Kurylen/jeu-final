@@ -31,7 +31,7 @@
         { "key": "i_quartermaster", "name": "Quartier-maître", "maxRank": 5, "requires": 0, "effects": { "carryPct": 3 }, "description": "+3 % de capacité de transport de l'armée du héros par rang." },
         { "key": "i_pathfinder", "name": "Éclaireur", "maxRank": 3, "requires": 5, "effects": { "speedPct": 2 }, "description": "+2 % de vitesse de l'armée du héros par rang." },
         { "key": "i_explorer", "name": "Explorateur", "maxRank": 3, "requires": 5, "effects": { "expeditionTimePct": 5 }, "description": "−5 % de durée des expéditions du héros par rang." },
-        { "key": "i_treasure", "name": "Chasseur de trésors", "maxRank": 3, "requires": 10, "effects": { "expeditionLootPct": 5 }, "description": "+5 % d'or et de ressources rapportés d'expédition par rang." },
+        { "key": "i_treasure", "name": "Chasseur de trésors", "maxRank": 3, "requires": 10, "effects": { "expeditionLootPct": 5 }, "description": "+5 % d'or rapporté par le héros de ses expéditions, par rang." },
         { "key": "i_grand_steward", "name": "Grand intendant", "maxRank": 1, "requires": 14, "effects": { "carryPct": 5, "speedPct": 3 }, "description": "+5 % de transport et +3 % de vitesse de l'armée du héros." }
       ]
     }

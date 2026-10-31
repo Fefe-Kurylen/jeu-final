@@ -25,6 +25,11 @@ const T = require('../utils/techEffects');
 const { notify } = require('./pushService');
 
 const M = config.market;
+// refus d'un envoi ou d'un transport vers une de ses propres villes (sauf une Ville Merveille) : routes/market.js et routes/armies.js
+const OWN_CITIES_SHARE_STOCK = 'Vos villes partagent leur stock : rien à transporter entre elles';
+// refus de tout départ, rappel ou changement d'une armée réservée par une offre (statut MARKET) : routes/armies.js,
+// expéditions, rassemblements, Bastion
+const MARKET_BUSY = 'Armée réservée pour une offre du marché : annulez l\'offre pour la libérer';
 const loadOf = (o) => Object.fromEntries(RESOURCES.map(r => [r, Math.max(0, Math.floor(Number(o?.[r]) || 0))]));
 const totalOf = (o) => RESOURCES.reduce((t, r) => t + (o[r] || 0), 0);
 // chargement d'une armée (colonnes carry*)
@@ -183,6 +188,6 @@ async function expireOffers(now = new Date()) {
 }
 
 module.exports = {
-  p2pTaxPctOf, p2pTaxPct, afterTax, transportMult, tradeCapacity, freeTransportArmies, pickTransportArmy, travelSeconds, dispatchArmy,
+  OWN_CITIES_SHARE_STOCK, MARKET_BUSY, p2pTaxPctOf, p2pTaxPct, afterTax, transportMult, tradeCapacity, freeTransportArmies, pickTransportArmy, travelSeconds, dispatchArmy,
   sendResources, createOffer, acceptOffer, roomFor, closeOffer, cancelOffersOfCity, expireOffers
 };

@@ -22,8 +22,18 @@
 // renseignements des espions (garnison × 1,3) ; les camps de la vague arrivent au même tick et combattent ensemble. Les
 // renforts partent vers une ville alliée quand une attaque de siège y marche (avant l'arrivée du camp). Une alliance
 // s'en prend aussi, de loin en loin, au Bastion ennemi : rassemblement d'alliance (POST /api/rallies, les membres
-// rejoignent) ou siège seul (POST /api/bastion/:id/send ATTACK). Les issues (ville tombée, siège brisé, assaut du Bastion,
-// Bastion rasé) sont écrites dans events.jsonl ; un point d'étape chaque semaine.
+// rejoignent). Les issues (ville tombée, siège brisé, assaut du Bastion, Bastion rasé) sont écrites dans events.jsonl ; un
+// point d'étape chaque semaine.
+//
+// Rapport de vérification du 31 octobre 2026 (§ 6.9) et décisions qui suivent :
+// - un assaut de Bastion = un rassemblement (ou une armée seule) ; les joueurs automatiques passent toujours par un
+//   rassemblement, avec l'attente qu'il faut pour que les membres éloignés arrivent (jusqu'à 180 min), autant d'armées que
+//   la Place de rassemblement du lanceur en permet, et 60 à 70 engins par joueur (Atelier 20) ;
+// - l'alliance qui défend brise les camps devant son Bastion (mission BREAK) : une sortie de la garnison quand elle suffit
+//   seule, sinon des armées du dehors qui usent le camp l'une après l'autre ;
+// - une colonie neuve est protégée 72 h : ni raid ni siège contre elle (le refus 400 « Colonie protégée » est normal) ;
+// - ce que la cachette a mis à l'abri pendant les raids est compté (1,5 % du stockage par niveau) ;
+// - l'Ost est le rôle ost des emplacements partagés de la Place de rassemblement (../armies.cjs).
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
@@ -35,21 +45,28 @@ let CS = null;
 const combat = () => (CS ||= require(path.join(ROOT, 'src/services/combatService')));   // formules pures : estimation d'une bataille
 const Stock = require('../stock.cjs');   // stock partagé : engins et bâtiments se paient sur toutes les villes du joueur
 const { spareGold } = require('./30-military.cjs');   // l'or au-dessus de ce que le joueur garde pour l'élite
+const Armies = require('../armies.cjs');   // emplacements de la Place de rassemblement partagés entre les modules
+const { protectedUntil } = require(path.join(ROOT, 'src/utils/colonyProtection'));   // la protection que montre la carte
 
 const RES = ['wood', 'stone', 'iron', 'food'];
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
 const TIER = config.combat.tierCoefficients;
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
-const OST = 'Ost';
-const RESERVED_NAMES = new Set(['Convoi']);   // le convoi du Bastion (20-alliance.cjs)
+const OST = Armies.NAMES.ost;
+// armées d'autres rôles : le convoi du Bastion, les gardes des colonies et de la Ville Merveille, la caravane du marché,
+// l'armée de chasse des invasions
+const RESERVED_NAMES = new Set([Armies.NAMES.convoy, Armies.NAMES.guard, Armies.NAMES.wonder, Armies.NAMES.caravan, Armies.NAMES.hunt]);
 const CALLS = 6;                 // appels par tour de joueur
-const STEP_CALLS = 40;           // appels par pas pour les alertes et le conseil (tous joueurs confondus)
+const STEP_CALLS = 90;           // appels par pas pour le conseil et les rassemblements (tous joueurs confondus)
 const RAID_RANGE = 80;           // un raid ne va pas plus loin (cases)
 const SIEGE_HOURS = 4.5;         // une vague arrive avant le tick suivant (pas de 6 h)
 const SUPPORT_RANGE = 120;
 const WAVE_MAX = 6;              // armées par vague
 const SPY_FRESH_H = 30;          // un rapport sert pendant 30 h (raids) ; le conseil veut des défenses de moins de 24 h
-const BASTION_GAP = 40;          // pas entre deux opérations contre le Bastion ennemi (10 jours)
+const BASTION_GAP = 12;          // pas entre deux rassemblements contre le Bastion ennemi (3 jours ; une vie remonte en 7,2 h)
+const ENGINES_PER_WORKSHOP = 3.3;  // engins visés par niveau d'Atelier : 66 à l'Atelier 20 (60 à 70, rapport de vérification)
+const ENGINES_MAX = 70;
+const BREAKS_PER_TARGET = 4;     // armées au plus qui vont briser un même camp dans un pas
 let STEP_H = 6;                  // heures par pas (ctx.OPT.stepHours)
 
 // ---------- petites aides ----------
@@ -129,7 +146,7 @@ async function snapshot(ctx, fresh = false) {
     P.allianceMember.findMany({ select: { playerId: true, allianceId: true, role: true, alliance: { select: { tag: true } } } }),
     P.allianceDiplomacy.findMany({ select: { allianceId: true, targetAllianceId: true, status: true } }),
     // la carte : villes, mur (niveau et fumée des vies perdues), propriétaire et sa civilisation
-    P.city.findMany({ select: { id: true, name: true, x: true, y: true, playerId: true, isCapital: true, isSieged: true, isWonder: true, wallStructure: true, wallMaxHp: true, player: { select: { name: true, faction: true, population: true } }, buildings: { where: { key: { in: ['WALL', 'RALLY_POINT', 'WORKSHOP', 'WATCHTOWER'] } }, select: { key: true, level: true } } } }),
+    P.city.findMany({ select: { id: true, name: true, x: true, y: true, playerId: true, isCapital: true, isSieged: true, isWonder: true, createdAt: true, wallStructure: true, wallMaxHp: true, player: { select: { name: true, faction: true, population: true } }, buildings: { where: { key: { in: ['WALL', 'RALLY_POINT', 'WORKSHOP', 'WATCHTOWER'] } }, select: { key: true, level: true } } } }),
     // les camps devant les villes et les Bastions (un siège se voit : fenêtre de siège, soldats et engins)
     P.army.findMany({ where: { status: 'BESIEGING' }, select: { id: true, ownerId: true, targetCityId: true, targetBastionId: true, arrivalAt: true, claimedAt: true, units: { select: { unitKey: true, count: true } } } }),
     // les attaques en marche (vues par l'alliance visée sur la carte)
@@ -216,7 +233,7 @@ async function engineTurn(bot, ctx, v, m, B, cap) {
   if (ws < config.recruit.siegeWorkshopLevel) return;
   const unit = factionUnit(bot.faction, 'SIEGE');
   if (!unit) return;
-  const target = Math.min(30, 4 + 2 * ws);
+  const target = Math.min(ENGINES_MAX, Math.round(ENGINES_PER_WORKSHOP * ws));
   const queue = (cap.recruitQueue || []).filter(q => q.buildingKey === 'WORKSHOP');
   const have = bot.armies.reduce((t, a) => t + enginesOf(a.units), 0) + queue.reduce((t, q) => t + (isSiege(q.unitKey) ? q.count : 0), 0);
   if (have >= target || queue.length >= 2) return;
@@ -227,7 +244,7 @@ async function engineTurn(bot, ctx, v, m, B, cap) {
   const one = Stock.recruitCost(unit, 1);
   const t = Stock.totals(bot);
   const byRes = Math.min(...RES.map(r => Math.floor(Math.max(0, t[r] - (r === 'food' ? t.maxFoodStorage : t.maxStorage) * 0.25) / Math.max(1, one[r]))));
-  const n = Math.min(4, target - have, room, byRes);
+  const n = Math.min(10, target - have, room, byRes);
   if (!(n >= 1)) { bump(m, room < 1 ? 'engineWaitFood' : 'engineWaitRes'); return; }
   B.left--;
   const r = await call(bot, m, 'POST', `/api/cities/${cap.id}/recruit`, { unitKey: unit.key, count: n });
@@ -239,14 +256,6 @@ async function engineTurn(bot, ctx, v, m, B, cap) {
 
 // ---------- l'armée « Ost » ----------
 const garrisonOf = (armies, city) => (armies || []).find(a => a.isGarrison && a.cityId === city?.id) || null;
-function militaryNeed(bot, city) {
-  const mil = bot.mem.mil;
-  if (!mil || !city.isCapital) return 0;
-  const own = bot.armies.filter(a => !a.isGarrison && a.cityId === city.id && (mil.own || []).includes(a.id)).length;
-  const colonies = bot.cities.filter(c => !c.isCapital && !c.isWonder).length;
-  const founding = colonies < config.city.maxSecondaryCities && (!!mil.col || (city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER'));
-  return Math.max(0, (founding ? 2 : 1) - own);
-}
 function syncOst(bot, m) {
   let a = m.ost ? bot.armies.find(x => x.id === m.ost) : null;
   if (!a) a = bot.armies.find(x => !x.isGarrison && x.name === OST) || null;
@@ -257,19 +266,14 @@ async function ostTurn(bot, ctx, v, m, B, cap) {
   const role = roleOf(bot);
   if ((role !== 'warrior' && role !== 'raider') || B.left <= 1 || !lvl(cap, 'RALLY_POINT')) return;
   let ost = syncOst(bot, m);
+  m.wantOst = v.day >= 15;   // son emplacement passe avant la garde de la Merveille, la caravane et la chasse (../armies.cjs)
   if (!ost) {
     if (cap.isSieged || v.day < 15) return;
     const g = garrisonOf(bot.armies, cap);
     if (soldiersOf(g?.units) < 60) return;
-    const max = fx.maxArmies(cap.buildings || []);
-    const field = bot.armies.filter(a => !a.isGarrison && a.cityId === cap.id);
-    // les autres modules d'abord : armée de campagne (et celle d'une fondation), convoi du Bastion
-    const convoy = bot.me?.alliance && !field.some(a => a.name === 'Convoi') ? 1 : 0;
-    if (max - field.length - militaryNeed(bot, cap) - convoy <= 0) { bump(m, 'ostNoSlot'); m.noSlot = ctx.step; return; }
-    const used = new Set(field.map(a => a.slot));
-    let slot = null;
-    for (let s = max; s >= 1; s--) if (!used.has(s)) { slot = s; break; }
-    if (!slot) return;
+    // les autres rôles d'abord : armée de campagne (et celle d'une fondation), gardes des colonies, convoi du Bastion
+    const slot = Armies.freeSlot(bot, 'ost');
+    if (!slot) { bump(m, 'ostNoSlot'); m.noSlot = ctx.step; return; }
     B.left--;
     const r = await call(bot, m, 'POST', '/api/army/create', { cityId: cap.id, slot, name: OST });
     if (!r.ok || !r.data?.army) return;
@@ -320,6 +324,8 @@ async function ostTurn(bot, ctx, v, m, B, cap) {
 function enemyCities(v, bot) {
   return v.cities.filter(c => c.playerId !== bot.playerId && !c.isWonder && (bot.group === 'SOLO' ? v.canAttack(bot.playerId, c.playerId) : v.rel(bot.playerId, c.playerId) === 'ENEMY'));
 }
+// colonie neuve encore protégée à l'heure t (la carte montre la fin de la protection) : ni raid ni siège
+const shielded = (c, t) => !!protectedUntil(c, new Date(t));
 const SPIED = new Map();   // `${camp}:${cityId}` -> pas de la dernière mission envoyée (pas de doublons dans une alliance)
 function spyTarget(bot, ctx, v, m, cap) {
   const side = sideOf(v, bot.playerId);
@@ -369,7 +375,7 @@ async function spyTurn(bot, ctx, v, m, B, cap) {
     if (spareGold(bot) >= cost + 10) {
       B.left--;
       const r = await call(bot, m, 'POST', '/api/spies/recruit', { slot });
-      if (r.ok) { m.sp = slot; if (bot.me) bot.me.gold -= cost; bump(m, 'spiesRecruited'); ctx.event('spy_recruited', { who: bot.name, slot, gold: cost, day: v.day }); }
+      if (r.ok) { m.sp = slot; if (bot.me) bot.me.gold -= cost; bump(m, 'spiesRecruited'); bump(m, 'spyGold', cost); ctx.event('spy_recruited', { who: bot.name, slot, gold: cost, day: v.day }); }
       else m.sp = undefined;
     }
   }
@@ -409,6 +415,7 @@ async function raidTurn(bot, ctx, v, m, B, cap) {
   for (const c of enemyCities(v, bot)) {
     const d = dist(c, city);
     if (d > RAID_RANGE || d < 1 || inFlight.has(c.id) || (m.raid[c.id] ?? -99) > ctx.step - 5) continue;
+    if (shielded(c, v.now + travelSec(att, city, c) * 1000)) { bump(m, 'raidSkipProtected'); continue; }
     const est = raidEstimate(v, side, bot, att, c);
     if (!est || est.loot < 1500) continue;
     const score = est.loot / (d + 10);
@@ -440,7 +447,8 @@ async function recallTurn(bot, ctx, v, m, B) {
       const home = bot.cities.find(c => c.id === a.cityId);
       if (home && (a.x !== home.x || a.y !== home.y)) {
         const guarded = v.cities.find(c => c.x === a.x && c.y === a.y);
-        if (!guarded || !threatened(v, guarded.id)) why = 'guard';
+        // l'Ost posté dans sa Ville Merveille la défend contre les vagues d'Immortels (70-wonder.cjs) : il y reste
+        if (!guarded || (!guarded.isWonder && !threatened(v, guarded.id))) why = 'guard';
       }
     }
     if (!why) continue;
@@ -472,7 +480,7 @@ const campPowerSeen = (camps) => camps.reduce((t, c) => t + soldiersOf(c.units) 
 // ---------- alertes : sièges en cours (premier tour de chaque pas, juste après le tick) ----------
 const BREAKS = new Map();   // cible -> pas : deux armées au plus par cible et par pas
 async function alerts(ctx, v) {
-  const budget = { left: 14 };
+  const budget = { left: 20 };
   // villes assiégées
   const byCity = new Map();
   for (const c of v.camps) if (c.targetCityId && new Date(c.arrivalAt).getTime() > v.now + 60000) { if (!byCity.has(c.targetCityId)) byCity.set(c.targetCityId, []); byCity.get(c.targetCityId).push(c); }
@@ -511,26 +519,36 @@ async function alerts(ctx, v) {
     if (!helpers.length) { const K = stats(ctx); K.breakNobodyOnline = (K.breakNobodyOnline || 0) + 1; }
     if (!sent) for (const b of helpers) { const m = memOf(b, v); bump(m, 'breakTooWeak'); break; }
   }
-  // Bastions assiégés : sortie de la garnison, ou armée du dehors
+  // Bastions assiégés : l'alliance brise le camp (mission BREAK, rapport de vérification du 31 octobre 2026). Chaque armée se
+  // bat seule contre tout le camp, en terrain ouvert. Une sortie de la garnison quand elle suffit seule (vaincue, elle
+  // rentrerait à la capitale et la garnison serait plus faible pour l'assaut) ; sinon des armées du dehors (membres et
+  // alliés), les plus fortes d'abord, qui usent le camp l'une après l'autre quand elles pèsent ensemble nettement plus que lui.
   for (const b of v.bastions.filter(x => ['BUILDING', 'ACTIVE'].includes(x.status))) {
     const camps = v.camps.filter(c => c.targetBastionId === b.id && new Date(c.arrivalAt).getTime() > v.now + 60000);
     if (!camps.length || budget.left <= 0) continue;
     const fightAt = Math.min(...camps.map(c => new Date(c.arrivalAt).getTime()));
-    const need = campPowerSeen(camps) * 1.3;
-    const members = ctx.bots.filter(x => x.playerId && v.allianceOf.get(x.playerId) === b.allianceId && online(ctx, x));
-    const options = [];
+    const campP = campPowerSeen(camps);
+    const members = ctx.bots.filter(x => x.playerId && ['SAME', 'ALLY'].includes(v.allianceRel(v.allianceOf.get(x.playerId), b.allianceId)) && camps.some(c => v.canAttack(x.playerId, c.ownerId)) && online(ctx, x));
+    const sorties = [], outside = [];
     for (const x of members) {
-      for (const a of (v.armiesOf.get(x.playerId) || [])) if (a.status === 'STATIONED' && a.targetBastionId === b.id && !a.claimedAt && soldiersOf(a.units) > 0) options.push({ b: x, army: a, sortie: true, p: powerOf(a.units) });
+      for (const a of (v.armiesOf.get(x.playerId) || [])) if (a.status === 'STATIONED' && a.targetBastionId === b.id && !a.claimedAt && soldiersOf(a.units) > 0) sorties.push({ b: x, army: a, sortie: true, p: powerOf(a.units) });
       for (const r of readyArmies(v, x, c => !c.isSieged)) {
         if (v.now + travelSec(r.army.units, r.city, b) * 1000 > fightAt - 120000) continue;
-        options.push({ b: x, army: r.army, sortie: false, p: powerOf(r.army.units) });
+        outside.push({ b: x, army: r.army, sortie: false, p: powerOf(r.army.units) });
+        break;   // une armée par joueur
       }
     }
-    options.sort((p, q) => q.p - p.p);
+    sorties.sort((p, q) => q.p - p.p); outside.sort((p, q) => q.p - p.p);
+    let send = [];
+    if (sorties[0] && sorties[0].p >= 1.3 * campP) send = [sorties[0]];
+    else {
+      let sum = 0;
+      for (const o of outside) { if (send.length >= BREAKS_PER_TARGET || sum >= 1.3 * campP) break; send.push(o); sum += o.p; }
+      if (sum < 1.1 * campP) { if (members[0]) bump(memOf(members[0], v), 'bastionBreakTooWeak'); send = []; }
+    }
     let sent = 0;
-    for (const o of options) {
-      if (budget.left <= 0 || sent >= 1 || (BREAKS.get(b.id) || 0) >= 1) break;
-      if (o.p < need) { bump(memOf(o.b, v), 'bastionBreakTooWeak'); break; }
+    for (const o of send) {
+      if (budget.left <= 0 || (BREAKS.get(b.id) || 0) >= BREAKS_PER_TARGET) break;
       const m = memOf(o.b, v);
       budget.left--;
       const r = await call(o.b, m, 'POST', `/api/bastion/${b.id}/send`, { armyId: o.army.id, mission: 'BREAK' });
@@ -539,6 +557,7 @@ async function alerts(ctx, v) {
       sent++; BREAKS.set(b.id, (BREAKS.get(b.id) || 0) + 1);
       bump(m, o.sortie ? 'bastionSorties' : 'bastionBreaks');
     }
+    if (sent) ctx.event('bastion_break_sent', { bastion: v.tagOf.get(b.allianceId), camps: camps.length, campPower: Math.round(campP), armies: sent, sortie: send[0]?.sortie || false, power: Math.round(send.slice(0, sent).reduce((t, o) => t + o.p, 0)) });
   }
 }
 // armées qui peuvent sortir, y compris d'une ville assiégée (une sortie contre le camp est permise)
@@ -633,6 +652,7 @@ function chooseTarget(ctx, v, g, alId, enemies, wm) {
   let best = null;
   for (const c of v.cities) {
     if (c.isWonder || bad.has(c.id) || !enemies.has(v.allianceOf.get(c.playerId))) continue;
+    if (shielded(c, v.now + SIEGE_HOURS * 3600000)) continue;   // colonie neuve : 72 h de protection
     const near = caps.map(cp => dist(cp, c)).sort((a, b) => a - b);
     if (near.length < 2 || near[1] > 160) continue;   // deux guerriers au moins à portée
     const wallHp = wallLevelOf(c) * config.combat.wallHpPerLevel * (c.wallStructure ?? 1);
@@ -754,7 +774,15 @@ async function council(ctx, v, S, g) {
   ctx.event('siege_wave', { alliance: tag, city: target.name, owner: target.player?.name, capital: target.isCapital, wave: kind, armies: launched, power: Math.round(plan.power), foe, engines: eng, soldiers: sold, wall: sim.wallStart != null ? Math.round(sim.wallStart) : null, structure: Math.round(sim.structure * 100) / 100, predicted: sim.fall ? 'fall' : sim.won ? 'win' : 'loss' });
 }
 
-// ---------- le Bastion ennemi : rassemblement d'alliance ou siège seul, de loin en loin ----------
+// ---------- le Bastion ennemi : un rassemblement d'alliance tous les 3 jours environ ----------
+// Un assaut = un rassemblement ou une armée seule (décision du 31 octobre 2026, comme un fort barbare de Rise of Kingdoms) :
+// les joueurs automatiques passent par un rassemblement. Le lanceur : celui que le plus de membres peuvent rejoindre à temps
+// (puis la plus grande Place de rassemblement) ; l'attente : la plus courte des attentes permises (5 à 180 min) qui laisse
+// arriver ceux qui viennent ; autant d'armées que la Place de rassemblement du lanceur en permet (5 + niveau), chacune avec
+// les engins de sa garnison (60 à 70 à l'Atelier 20). Ceux qui jouent ce pas-ci rejoignent, les autres répondent parfois à
+// la notification. Il faut au moins un engin dans le groupe au départ.
+const WAITS = config.rally.waitMinutes;
+const NOTIF_ODDS = (wait) => (wait >= 120 ? 0.8 : 0.6);   // un membre qui ne joue pas ce pas-ci voit la notification à temps
 async function bastionOps(ctx, v, S, g) {
   const alId = groupAlliance(ctx, v, g);
   if (!alId || v.day < 30) return;
@@ -764,7 +792,7 @@ async function bastionOps(ctx, v, S, g) {
   if (!eb || !keeper) return;
   const wm = memOf(keeper, v);
   // rassemblement annoncé : les guerriers gardent leur armée en ville pendant les deux pas qui précèdent (pas de raid)
-  if ((wm.bo || 0) - ctx.step <= 2 && (wm.bo || 0) > ctx.step && (wm.bn || 0) % 2 === 0) wm.muster = wm.bo;
+  if ((wm.bo || 0) - ctx.step <= 2 && (wm.bo || 0) > ctx.step) wm.muster = wm.bo;
   if ((wm.bo || 0) > ctx.step || S.left < 4) return;
   if (v.incoming.some(x => x.targetBastionId === eb.id)) return;
   const tag = v.tagOf.get(alId), etag = v.tagOf.get(eb.allianceId);
@@ -779,8 +807,11 @@ async function bastionOps(ctx, v, S, g) {
     const eng = rows(garrisonOf(v.armiesOf.get(b.playerId), cap)?.units).filter(u => isSiege(u.unitKey));
     parts.push({ b, cap, army: ready.army, eng, units: merge(ready.army.units, eng) });
   }
-  const withEngines = parts.filter(p => enginesOf(p.units) > 0 && travelSec(p.units, p.cap, eb) < SIEGE_HOURS * 3600).sort((p, q) => dist(p.cap, eb) - dist(q.cap, eb));
-  if (!withEngines.length) { wm.bo = ctx.step + 8; return; }
+  const maxWait = Math.max(...WAITS) * 60;
+  // la marche jusqu'au lanceur, prudente (la route contourne parfois bien plus le relief)
+  const toLeader = (p, l) => travelSec(p.units, p.cap, l.cap) * 1.3 + 300;
+  const withEngines = parts.filter(p => enginesOf(p.units) > 0).sort((p, q) => dist(p.cap, eb) - dist(q.cap, eb));
+  if (!withEngines.length) { wm.bo = ctx.step + 8; bump(wm, 'bastionNoEngines'); return; }
   const loadEngines = async (p, m) => {
     for (const e of p.eng) {
       const cur = rows(p.army.units).find(u => u.unitKey === e.unitKey)?.count || 0;
@@ -790,60 +821,69 @@ async function bastionOps(ctx, v, S, g) {
     }
     return true;
   };
-  // la même formule que l'assaut (mur bouclier du Bastion) : ce que la troupe ferait au mur
+  // la même formule que l'assaut (mur bouclier du Bastion) : ce que la troupe ferait au mur sans garnison
   const wallMax = config.combat.wallHpPerLevel * config.bastion.wallReferenceLevel * config.bastion.wallMultiplier;
   const estimate = (units, faction) => { const r = combat().resolveCombatDetailed(merge(units), [], config.bastion.wallReferenceLevel, 'a', 'b', null, null, faction, null, config.bastion.bonuses.garrisonDefensePct, null, { hp: wallMax, maxHp: wallMax }); return Math.round(wallMax - r.wallHpEnd); };
-  const op = (wm.bn || 0) % 2 === 0 ? 'rally' : 'solo';
   wm.bn = (wm.bn || 0) + 1;
   wm.bo = ctx.step + BASTION_GAP;
-  if (op === 'solo') {
-    const p = withEngines.sort((a, b) => enginesOf(b.units) - enginesOf(a.units))[0];
-    const m = memOf(p.b, v);
-    if (!(await loadEngines(p, m))) return;
-    S.left--;
-    const r = await call(p.b, m, 'POST', `/api/bastion/${eb.id}/send`, { armyId: p.army.id, mission: 'ATTACK' });
-    if (!r.ok) return;
-    p.army.status = 'ATTACKING';
-    bump(m, 'bastionSieges');
-    ctx.event('bastion_siege', { alliance: tag, target: etag, by: p.b.name, engines: enginesOf(p.units), soldiers: soldiersOf(p.units), wallDamageEstimate: estimate(p.units, p.b.faction), wallHp: wallMax });
-    return;
-  }
-  // rassemblement : le lanceur (la plus grande Place de rassemblement parmi les plus proches), attente 60 min
-  // le lanceur : celui que le plus de membres peuvent rejoindre dans l'heure (puis la plus grande Place de rassemblement)
-  const reach = (l) => parts.filter(p => p !== l && v.now + travelSec(rows(p.army.units), p.cap, l.cap) * 1000 < v.now + 50 * 60000).length;
+  const reach = (l) => parts.filter(p => p !== l && toLeader(p, l) < maxWait).length;
   const leader = withEngines.slice(0, 8).map(l => ({ l, n: reach(l) })).sort((a, b) => (b.n - a.n) || (lvl(b.l.cap, 'RALLY_POINT') - lvl(a.l.cap, 'RALLY_POINT')))[0].l;
+  // taille du rassemblement (décision du 31 octobre 2026) : la Place de rassemblement du lanceur, 5 armées + 1 par niveau
+  const capacity = fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
+  const joiners = parts.filter(p => p !== leader).map(p => ({ p, t: toLeader(p, leader) })).filter(x => x.t < maxWait)
+    .sort((a, b) => a.t - b.t).slice(0, Math.max(0, capacity - 1));
+  const need = Math.max(0, ...joiners.map(x => x.t));
+  const wait = WAITS.find(w => w * 60 >= need) || Math.max(...WAITS);
   const lm = memOf(leader.b, v);
   if (!(await loadEngines(leader, lm))) return;
   S.left--;
-  const r = await call(leader.b, lm, 'POST', '/api/rallies', { armyId: leader.army.id, bastionId: eb.id, waitMinutes: 60 });
+  const r = await call(leader.b, lm, 'POST', '/api/rallies', { armyId: leader.army.id, bastionId: eb.id, waitMinutes: wait });
   if (!r.ok || !r.data?.rally?.id) return;
   leader.army.status = 'RALLY_WAIT';
-  bump(lm, 'ralliesLed');
+  bump(lm, 'ralliesLed'); bump(lm, `rallyWait${wait}`);
   const rally = r.data.rally;
   const launchAt = new Date(rally.launchAt).getTime();
-  // taille du rassemblement (décision du 31 octobre 2026) : la Place de rassemblement du lanceur, 5 armées + 1 par niveau
-  const capacity = r.data.maxArmies || fx.rallyMaxArmies(lvl(leader.cap, 'RALLY_POINT'));
+  const max = Math.min(capacity, r.data.maxArmies || capacity);
   let joined = 1;
   const units = [...leader.units];
-  for (const p of parts.filter(x => x !== leader).sort((a, b) => dist(a.cap, leader.cap) - dist(b.cap, leader.cap))) {
-    if (joined >= capacity || S.left < 2 || joined >= 9) break;
-    const late = (u) => v.now + travelSec(u, p.cap, leader.cap) * 1.3 * 1000 > launchAt - 5 * 60000;   // marge : la route contourne parfois bien plus le relief
-    let go = merge(p.army.units, p.eng);
-    const withEng = p.eng.length && !late(go);
-    if (!withEng) { go = rows(p.army.units); if (late(go)) continue; }   // n'arriverait pas à temps
+  for (const { p, t } of joiners) {
+    if (joined >= max || S.left < 2) break;
+    if (!online(ctx, p.b) && ctx.rand() >= NOTIF_ODDS(wait)) { bump(wm, 'bastionRallyMissed'); continue; }
+    if (v.now + t * 1000 > launchAt) continue;   // n'arriverait pas à temps
     const m = memOf(p.b, v);
-    if (withEng && !(await loadEngines(p, m))) continue;
+    if (!(await loadEngines(p, m))) continue;
     S.left--;
     const j = await call(p.b, m, 'POST', `/api/rallies/${rally.id}/join`, { armyId: p.army.id });
     if (!j.ok) continue;
     p.army.status = 'RALLY_JOIN';
-    joined++; units.push(...go);
+    joined++; units.push(...p.units);
     bump(m, 'ralliesJoined');
   }
-  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, armies: joined, capacity, engines: enginesOf(units), soldiers: soldiersOf(units), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax });
+  ctx.event('bastion_rally', { alliance: tag, target: etag, leader: leader.b.name, wait, armies: joined, capacity: max, engines: enginesOf(units), soldiers: soldiersOf(units), power: Math.round(powerOf(units)), wallDamageEstimate: estimate(units, leader.b.faction), wallHp: wallMax });
 }
 
 // ---------- issues des combats (rapports de bataille), événements et renseignements ----------
+// Cachette (décision du 31 octobre 2026 : 1,5 % du stockage par niveau, 30 % au niveau 20) : ce qu'elle a mis à l'abri
+// pendant un raid gagné, lu sur la ville pillée juste après le tick (son stock et son butin perdu, ses bâtiments)
+async function raidHideout(ctx, K, r) {
+  const cityId = r.loot?.cityId;
+  if (!cityId) return;
+  const c = await ctx.prisma.city.findUnique({ where: { id: cityId }, select: { wood: true, stone: true, iron: true, food: true, player: { select: { faction: true } }, buildings: { select: { key: true, level: true } } } }).catch(() => null);
+  if (!c) return;
+  const hide = fx.hideoutAmount(c.buildings, c.player?.faction);
+  const level = lvl(c, 'HIDEOUT');
+  let sheltered = 0, before = 0;
+  for (const k of RES) {
+    const had = (c[k] || 0) + (Number(r.loot?.[k]) || 0);
+    before += had; sheltered += Math.min(hide[k] || 0, had);
+  }
+  K.raidsWonCounted = (K.raidsWonCounted || 0) + 1;
+  K.raidSheltered = (K.raidSheltered || 0) + Math.round(sheltered);
+  K.raidStockBefore = (K.raidStockBefore || 0) + Math.round(before);
+  K.raidHideoutLevels = (K.raidHideoutLevels || 0) + level;
+  const band = level >= 15 ? '15+' : level >= 10 ? '10-14' : level >= 5 ? '5-9' : level >= 1 ? '1-4' : '0';
+  K[`raidHideout_${band}`] = (K[`raidHideout_${band}`] || 0) + 1;
+}
 let SCAN_AT = null;
 const FALLEN = new Set();
 async function bookkeeping(ctx, v) {
@@ -852,6 +892,9 @@ async function bookkeeping(ctx, v) {
   const reps = await ctx.prisma.battleReport.findMany({ where: { createdAt: { gt: since } }, select: { id: true, playerId: true, attackerId: true, defenderId: true, result: true, winner: true, loot: true, rounds: true, x: true, y: true, createdAt: true, defenderUnits: true, defenderLosses: true } });
   const K = stats(ctx);
   const seen = new Set();
+  // un assaut de rassemblement : un rapport par joueur du groupe, au même instant
+  const groupSize = new Map();
+  for (const r of reps) if (r.playerId === r.attackerId && (r.loot?.type || r.rounds?.type) === 'BASTION') { const k = `${r.x}:${r.y}:${new Date(r.createdAt).getTime()}`; groupSize.set(k, (groupSize.get(k) || 0) + 1); }
   for (const r of reps) {
     if (r.playerId !== r.attackerId) continue;   // l'exemplaire de l'attaquant
     const type = r.loot?.type || r.rounds?.type || null;
@@ -863,7 +906,10 @@ async function bookkeeping(ctx, v) {
     seen.add(dkey);
     K[`${type}_${won ? 'won' : 'lost'}`] = (K[`${type}_${won ? 'won' : 'lost'}`] || 0) + 1;
     const who = v.botOf.get(r.attackerId)?.name || r.loot?.attackerName;
-    if (type === 'RAID' && won) K.raidLoot = (K.raidLoot || 0) + RES.reduce((t, k) => t + (Number(r.loot?.[k]) || 0), 0);
+    if (type === 'RAID' && won) {
+      K.raidLoot = (K.raidLoot || 0) + RES.reduce((t, k) => t + (Number(r.loot?.[k]) || 0), 0);
+      await raidHideout(ctx, K, r);
+    }
     if (type === 'ATTACK') {
       const cityId = r.loot?.cityId;
       // la bataille renseigne aussi : la garnison qui reste, les vies du mur
@@ -894,9 +940,17 @@ async function bookkeeping(ctx, v) {
         if (keeper?.mem?.war && campAl && r.rounds?.cityId && groupAlliance(ctx, v, g) === campAl) keeper.mem.war.foe = Math.max(keeper.mem.war.foe || 0, Number(r.loot?.attackerPower) || 0);
       }
     }
-    if (type === 'SIEGE_BREAK' && won) ctx.event('siege_broken', { by: who, where: r.loot?.cityName, camp: r.loot?.defenderName, attackerPower: r.loot?.attackerPower, campPower: r.loot?.defenderPower });
+    if (type === 'SIEGE_BREAK') {
+      // un camp chassé devant un Bastion (mission BREAK) : compté à part
+      const bastionId = r.rounds?.bastionId || null;
+      if (bastionId) K[`bastionBreak_${won ? 'won' : 'lost'}`] = (K[`bastionBreak_${won ? 'won' : 'lost'}`] || 0) + 1;
+      if (won) ctx.event(bastionId ? 'bastion_siege_broken' : 'siege_broken', { by: who, where: r.loot?.cityName, camp: r.loot?.defenderName, attackerPower: r.loot?.attackerPower, campPower: r.loot?.defenderPower });
+    }
     if (type === 'BASTION') {
-      ctx.event('bastion_assault', { by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, lives: r.loot?.lives ? `${r.loot.lives.after}/${r.loot.lives.total}` : null });
+      // la garnison qui a défendu : les armées postées au Bastion après l'assaut (celles qui ont tout perdu sont parties)
+      const bastionId = r.loot?.bastionId || null;
+      const garrison = bastionId ? (await ctx.prisma.army.count({ where: { status: 'STATIONED', targetBastionId: bastionId } }).catch(() => null)) : null;
+      ctx.event('bastion_assault', { by: r.loot?.attackerName, bastion: r.loot?.defenderName, won, armies: groupSize.get(`${r.x}:${r.y}:${new Date(r.createdAt).getTime()}`) || 1, garrisonAfter: garrison, defenders: (r.defenderUnits || []).reduce((t, u) => t + (u.count || 0), 0), wallHpStart: r.loot?.wallHpStart, wallHpEnd: r.loot?.wallHpEnd, wallMaxHp: r.loot?.wallMaxHp, wallDamage: r.loot?.wallHpStart != null ? Math.round(r.loot.wallHpStart - (r.loot.wallHpEnd || 0)) : null, lives: r.loot?.lives ? `${r.loot.lives.after}/${r.loot.lives.total}` : null });
       if (r.loot?.lives?.fallen) ctx.event('bastion_destroyed', { by: r.loot?.attackerName, bastion: r.loot?.defenderName });
     }
   }
@@ -931,8 +985,9 @@ async function summary(ctx, v) {
   TIME.act = TIME.after = TIME.early = 0; TIME.steps = 0;
 }
 
-// ---------- début du tour (fichier 07-war-early.cjs, avant l'économie) : engins, et l'Atelier jusqu'au niveau 5 ----------
-// (les engins de siège s'y forment ; le plan de l'économie ne le monte qu'à 3 avant le Bâtiment principal 16)
+// ---------- début du tour (fichier 07-war-early.cjs, avant l'économie) : engins, et l'Atelier ----------
+// jusqu'au niveau 5 (les engins de siège s'y forment), puis jusqu'au niveau 20 dès le Bâtiment principal 16 (60 à 70 engins
+// par joueur pour le Bastion et les sièges, rapport de vérification du 31 octobre 2026)
 async function early(bot, ctx) {
   if (!bot.me || !bot.capital) return;
   const role = roleOf(bot);
@@ -945,7 +1000,8 @@ async function early(bot, ctx) {
   } catch (e) { fail(ctx, `engines ${bot.name}`, e); }
   await workshop(bot, ctx);
 }
-// la Place de rassemblement d'un niveau quand l'Ost n'a pas de place (niveau 5 : 2 armées, 10 : 3, 15 : 4)
+// la Place de rassemblement d'un niveau quand l'Ost n'a pas de place (niveau 5 : 2 armées, 10 : 3, 15 : 4, 20 : 5 ; les
+// gardes des colonies en prennent aussi)
 async function rallyPoint(bot, ctx) {
   const m = bot.mem.war;
   const cap = bot.capital;
@@ -953,7 +1009,7 @@ async function rallyPoint(bot, ctx) {
   const hall = lvl(cap, 'MAIN_HALL');
   const cur = Math.max(lvl(cap, 'RALLY_POINT'), queuedLvl(cap, 'RALLY_POINT'));
   const queue = cap.buildQueue || [];
-  if (!cur || cur >= 15 || cur + 1 > hall || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'RALLY_POINT')) return false;
+  if (!cur || cur >= fx.maxLevelIn('RALLY_POINT', true) || cur + 1 > hall || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'RALLY_POINT')) return false;
   const c = Stock.buildCost('RALLY_POINT', cur + 1);
   if (!Stock.canPay(bot, c, { margin: 1.1 })) return false;
   const r = await call(bot, m, 'POST', `/api/cities/${cap.id}/build`, { buildingKey: 'RALLY_POINT' });
@@ -970,7 +1026,8 @@ async function workshop(bot, ctx) {
   if (hall < 10) return;
   const cur = Math.max(lvl(cap, 'WORKSHOP'), queuedLvl(cap, 'WORKSHOP'));
   const queue = cap.buildQueue || [];
-  if (cur >= config.recruit.siegeWorkshopLevel || cur + 1 > hall || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'WORKSHOP')) return;
+  const goal = hall >= 16 ? fx.maxLevelIn('WORKSHOP', true) : config.recruit.siegeWorkshopLevel;
+  if (cur >= goal || cur + 1 > hall || queue.length >= MAX_QUEUE || queue.some(q => q.buildingKey === 'WORKSHOP')) return;
   if (cur === 0) {
     // un nouveau bâtiment : ses prérequis et une place libre autour du Bâtiment principal
     const def = buildingsData.find(b => b.key === 'WORKSHOP');
@@ -981,7 +1038,7 @@ async function workshop(bot, ctx) {
     if (!free) return;
   }
   const c = Stock.buildCost('WORKSHOP', cur + 1);
-  if (!Stock.canPay(bot, c, { margin: 1.15 })) return;
+  if (!Stock.canPay(bot, c, { margin: cur < config.recruit.siegeWorkshopLevel ? 1.15 : 1.5 })) return;   // au-delà du niveau 5, sans freiner le reste
   let v;
   try { v = await snapshot(ctx); } catch (e) { fail(ctx, 'snapshot', e); return; }
   if (v.ended) return;

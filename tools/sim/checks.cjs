@@ -1,6 +1,11 @@
 // Contrôles et mesures de la simulation longue (tools/sim/sim.cjs), lus directement dans la base de la simulation.
 // invariants() : ce qui ne doit jamais arriver (ressources négatives, armées bloquées, sièges sans camp…)
 // snapshot()   : l'état de chaque joueur et du monde, chaque semaine (progression, puissance, activité des systèmes)
+// Rapport de vérification du 31 octobre 2026 (§ 3) : la puissance se lit au palier de chaque unité, comme le jeu (élites et
+// engins à leur vraie valeur, l'outil la sous-estimait d'un facteur 1,44) ; les donjons vivants sont ceux de l'invasion en
+// cours. Mesures ajoutées pour juger les décisions du 31 octobre : gisements où une colonie peut encore être fondée,
+// colonies par joueur, capitales par côté de la carte, cachettes, garnisons des Bastions, rassemblements (cible et attente),
+// Merveille, quêtes, échanges entre joueurs.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
@@ -8,6 +13,9 @@ const { calculateArmyPower } = require(path.join(ROOT, 'src/utils/calculations')
 const { unitsData, buildingsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const config = require(path.join(ROOT, 'src/config'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const Terrain = require(path.join(ROOT, 'frontend/js/shared/terrain.js'));
+let SPAWN = null;
+const spawn = () => (SPAWN ||= require(path.join(ROOT, 'src/utils/spawn')));   // lecture seule : la place d'une ville
 
 // placement (décision du 30 octobre 2026), lu dans les données : bâtiments de la capitale seulement, des colonies seulement
 const CAPITAL_ONLY = buildingsData.filter(b => b.effects?.capitalOnly).map(b => b.key);
@@ -39,7 +47,7 @@ async function invariants(prisma, clock) {
   await add('Bastion assiégé sans camp', `SELECT b.id FROM "Bastion" b WHERE b."isSieged" AND NOT EXISTS (SELECT 1 FROM "Army" a WHERE a.status = 'BESIEGING' AND a."targetBastionId" = b.id)`);
   await add('camp devant une cible qui n\'est pas marquée assiégée', `SELECT a.id, a."targetCityId", a."targetBastionId" FROM "Army" a LEFT JOIN "City" c ON c.id = a."targetCityId" LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'BESIEGING' AND a."claimedAt" IS NULL AND ((c.id IS NOT NULL AND NOT c."isSieged") OR (b.id IS NOT NULL AND NOT b."isSieged"))`);
   await add('garnison d\'un Bastion disparu ou rasé', `SELECT a.id FROM "Army" a LEFT JOIN "Bastion" b ON b.id = a."targetBastionId" WHERE a.status = 'STATIONED' AND a."targetBastionId" IS NOT NULL AND (b.id IS NULL OR b.status = 'DESTROYED')`);
-  // 60 au plus (décision du 30 octobre 2026) ; la taille selon l'Ambassade du chef (31 octobre 2026) ne fait que bloquer
+  // config.alliance.maxMembers au plus (100, décision du 31 octobre 2026) ; la taille selon l'Ambassade du chef ne fait que bloquer
   // les entrées : un changement de chef n'exclut personne, l'alliance peut donc la dépasser un temps
   await add('alliance au-delà du nombre de membres permis', `SELECT "allianceId", count(*)::int AS n FROM "AllianceMember" GROUP BY 1 HAVING count(*) > $1`, config.alliance.maxMembers);
   // taille d'un rassemblement fixée à son lancement par la Place de rassemblement du lanceur (5 + niveau)
@@ -61,6 +69,8 @@ async function invariants(prisma, clock) {
   // pas de garnison propre dans les colonies (§ 1 bis) : une colonie fondée n'en reçoit pas
   await add('garnison dans une colonie', `SELECT a.id, a."cityId" FROM "Army" a JOIN "City" c ON c.id = a."cityId" WHERE a."isGarrison" AND NOT c."isCapital"`);
   await add('bâtiment au-dessus du Bâtiment principal', `SELECT b."cityId", b.key, b.level, m.level AS hall FROM "CityBuilding" b JOIN "CityBuilding" m ON m."cityId" = b."cityId" AND m.key = 'MAIN_HALL' WHERE b.key <> 'MAIN_HALL' AND b.level > m.level`);
+  // garnison d'un Bastion (décision du 31 octobre 2026) : maxGarrisonArmies au plus, celles en route et la sortie comprises
+  await add('garnison de Bastion au-delà du plafond', `SELECT "targetBastionId" AS b, count(*)::int AS n FROM "Army" WHERE "targetBastionId" IS NOT NULL AND (status = 'STATIONED' OR (status IN ('SUPPORTING', 'ATTACKING') AND "missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE'))) GROUP BY 1 HAVING count(*) > $1`, config.bastion.maxGarrisonArmies);
   await add('espion bloqué', `SELECT id, status, "arrivalAt", "returnAt" FROM "Spy" WHERE status <> 'IDLE' AND COALESCE("returnAt", "arrivalAt") < $1`, late).catch(() => {});
   return out.map(o => ({ ...o, sample: JSON.parse(JSON.stringify(o.sample, (k, v) => (typeof v === 'bigint' ? Number(v) : v))) }));
 }
@@ -70,7 +80,8 @@ async function snapshot(prisma, clock, bots) {
   const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
   const players = await prisma.player.findMany({ select: { id: true, name: true, faction: true, population: true, gold: true, alliancePoints: true, alliance: { select: { allianceId: true } }, hero: { select: { level: true, diedAt: true } } } });
   const cities = await prisma.city.findMany({ select: { id: true, playerId: true, isCapital: true, isWonder: true, wonderLevel: true, wood: true, stone: true, iron: true, food: true, buildings: { select: { key: true, level: true } } } });
-  const armies = await prisma.army.findMany({ select: { ownerId: true, status: true, units: { select: { unitKey: true, count: true } } } });
+  // le palier de chaque ligne compte dans la puissance (calculateArmyPower : élites et engins à leur vraie valeur)
+  const armies = await prisma.army.findMany({ select: { ownerId: true, status: true, units: { select: { unitKey: true, count: true, tier: true } } } });
   const techs = await q(`SELECT "playerId", sum(level)::int AS lv FROM "PlayerTechnology" GROUP BY 1`);
   const techBy = new Map(techs.map(t => [t.playerId, t.lv]));
   const groupOf = new Map(bots.map(b => [b.playerId, b.group]));
@@ -103,7 +114,8 @@ async function snapshot(prisma, clock, bots) {
     spyReports: await count(`SELECT count(*)::int AS n FROM "SpyReport" WHERE "createdAt" >= $1`, since).catch(() => 0),
     chat: await count(`SELECT count(*)::int AS n FROM "ChatMessage" WHERE "createdAt" >= $1`, since).catch(() => 0),
     helps: await count(`SELECT count(*)::int AS n FROM "AllianceHelp" WHERE "createdAt" >= $1`, since).catch(() => 0),
-    quests: await count(`SELECT count(*)::int AS n FROM "QuestClaim" WHERE "createdAt" >= $1`, since).catch(() => 0),
+    quests: await count(`SELECT count(*)::int AS n FROM "QuestClaim" WHERE "claimedAt" >= $1`, since).catch(() => 0),
+    tradeVolume: await count(`SELECT coalesce(sum("sellAmount" + "buyAmount"), 0)::int AS n FROM "MarketOffer" WHERE "acceptedAt" >= $1`, since),
     expeditions: await count(`SELECT count(*)::int AS n FROM "Expedition" WHERE status = 'COMPLETED' AND "createdAt" >= $1`, since).catch(() => 0)
   };
   const world = {
@@ -112,13 +124,90 @@ async function snapshot(prisma, clock, bots) {
     bastions: await q(`SELECT status, count(*)::int AS n FROM "Bastion" GROUP BY 1`),
     invasions: await count(`SELECT count(*)::int AS n FROM "Invasion"`),
     hordesDestroyed: await count(`SELECT count(*)::int AS n FROM "Horde" WHERE "destroyedAt" IS NOT NULL`),
-    hordesAlive: await count(`SELECT count(*)::int AS n FROM "Horde" WHERE "destroyedAt" IS NULL`),
+    // seulement les donjons de l'invasion en cours (les lignes des invasions finies ne sont jamais marquées détruites)
+    hordesAlive: await count(`SELECT count(*)::int AS n FROM "Horde" h JOIN "Invasion" i ON i.id = h."invasionId" WHERE i."endedAt" IS NULL AND h."destroyedAt" IS NULL`),
+    hordesDestroyedByLevel: await q(`SELECT level, count(*)::int AS n FROM "Horde" WHERE "destroyedAt" IS NOT NULL GROUP BY 1 ORDER BY 1`),
     worldNumber: Number((await q(`SELECT number FROM "WorldConfig" WHERE id = 1`))[0]?.number || 1),
     ended: !!(await q(`SELECT "endedAt" FROM "WorldConfig" WHERE id = 1`))[0]?.endedAt,
     alliances: await count(`SELECT count(*)::int AS n FROM "Alliance"`),
     medals: await count(`SELECT count(*)::int AS n FROM "Medal"`).catch(() => 0)
   };
-  return { players: per, factions, week, world };
+  return { players: per, factions, week, world, map: await mapView(prisma, cities, players), endgame: await endgameView(prisma), totals: await totalsView(prisma, cities) };
+}
+
+// ---------- la carte : place pour les colonies, colonies par joueur, capitales par côté ----------
+// Un gisement où une colonie peut encore être fondée : bois, pierre, fer ou céréales, libre, une ville 2 × 2 y tient (terre
+// ferme principale, ni relief, ni eau), ni ville, ni Bastion, ni fondation à moins de 3 cases, aucun autre point sur ses
+// 4 cases (les règles de la fondation, spawn.footprintFree, lues en mémoire pour toute la carte d'un coup).
+const COLONY_TYPES = Object.keys(fx.NODE_RESOURCE).filter(t => t !== 'GOLD');
+async function foundableNodes(prisma) {
+  const [nodes, cities, bastions, founding] = await Promise.all([
+    prisma.resourceNode.findMany({ select: { id: true, x: true, y: true, resourceType: true, level: true, cityId: true } }),
+    prisma.city.findMany({ select: { x: true, y: true } }),
+    prisma.bastion.findMany({ where: { status: { not: 'DESTROYED' } }, select: { x: true, y: true } }),
+    prisma.army.findMany({ where: { status: 'FOUNDING' }, select: { targetX: true, targetY: true, targetResourceId: true } })
+  ]);
+  const key = (x, y) => `${x},${y}`;
+  const nodeAt = new Map(nodes.map(n => [key(n.x, n.y), n.id]));
+  const blocks = new Map();
+  for (const b of [...cities, ...bastions]) blocks.set(key(b.x, b.y), null);
+  for (const f of founding) if (f.targetX !== null && f.targetY !== null) blocks.set(key(f.targetX, f.targetY), f.targetResourceId);
+  const gap = spawn().CITY_GAP - 1;
+  const blocked = (n) => {
+    for (let dx = -gap; dx <= gap; dx++) for (let dy = -gap; dy <= gap; dy++) {
+      const k = key(n.x + dx, n.y + dy);
+      if (blocks.has(k) && blocks.get(k) !== n.id) return true;
+    }
+    return false;
+  };
+  const out = { total: 0, byLevel: {}, free: 0 };
+  for (const n of nodes) {
+    if (!COLONY_TYPES.includes(n.resourceType) || n.cityId) continue;
+    out.free++;
+    if (!spawn().cityGroundOk(n.x, n.y) || blocked(n)) continue;
+    if (Terrain.cityCells(n.x, n.y).some(([cx, cy]) => { const id = nodeAt.get(key(cx, cy)); return id && id !== n.id; })) continue;
+    out.total++;
+    out.byLevel[n.level] = (out.byLevel[n.level] || 0) + 1;
+  }
+  return out;
+}
+async function mapView(prisma, cities, players) {
+  const colonies = {};
+  for (const p of players) { const n = cities.filter(c => c.playerId === p.id && !c.isCapital && !c.isWonder).length; colonies[n] = (colonies[n] || 0) + 1; }
+  const sides = {};
+  for (const c of cities.filter(x => x.isCapital)) { const s = spawn().sideAt(c.x, c.y); sides[s] = (sides[s] || 0) + 1; }
+  const sites = await prisma.$queryRawUnsafe(`SELECT rn.level, count(*)::int AS n FROM "ResourceNode" rn JOIN "City" c ON c.id = rn."cityId" WHERE NOT c."isCapital" AND NOT c."isWonder" GROUP BY 1 ORDER BY 1`);
+  return { size: config.map.worldSize, foundable: await foundableNodes(prisma), coloniesPerPlayer: colonies, capitalsBySide: sides, colonySiteLevels: Object.fromEntries(sites.map(r => [r.level, r.n])) };
+}
+
+// ---------- fin de partie : Bastions et leur garnison, rassemblements, Merveille ----------
+async function endgameView(prisma) {
+  const q = (sql, ...a) => prisma.$queryRawUnsafe(sql, ...a);
+  const garrison = await q(`SELECT a.tag, b.status, b.structure, (SELECT count(*)::int FROM "Army" x WHERE x."targetBastionId" = b.id AND (x.status = 'STATIONED' OR (x.status IN ('SUPPORTING', 'ATTACKING') AND x."missionType" IN ('BASTION_GARRISON', 'BASTION_SORTIE')))) AS garrison FROM "Bastion" b JOIN "Alliance" a ON a.id = b."allianceId"`);
+  const rallies = await q(`SELECT coalesce("targetKind", CASE WHEN "targetBastionId" IS NOT NULL THEN 'BASTION' ELSE 'HORDE' END) AS kind, "waitMinutes" AS wait, status, count(*)::int AS n FROM "Rally" GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`);
+  const wonders = await q(`SELECT c.name, c."wonderLevel" AS level, a.tag FROM "City" c LEFT JOIN "AllianceMember" m ON m."playerId" = c."playerId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE c."isWonder"`);
+  const plans = await q(`SELECT a.tag, count(*)::int AS n FROM "WonderPlan" p LEFT JOIN "AllianceMember" m ON m."playerId" = p."holderId" LEFT JOIN "Alliance" a ON a.id = m."allianceId" WHERE p."holderId" IS NOT NULL GROUP BY 1`);
+  const sites = await q(`SELECT "resourceType" AS kind, count(*)::int AS n, count(*) FILTER (WHERE "hasDefenders")::int AS guarded FROM "ResourceNode" WHERE "resourceType" IN ('WONDER', 'PLAN') GROUP BY 1`);
+  return { bastions: garrison.map(g => ({ tag: g.tag, status: g.status, lives: Math.round((g.structure ?? 1) * config.bastion.assaults), garrison: g.garrison })), rallies, wonders, plans, sites };
+}
+
+// ---------- cumuls : échanges entre joueurs, quêtes, cachettes ----------
+async function totalsView(prisma, cities) {
+  const one = async (sql) => Number((await prisma.$queryRawUnsafe(sql))[0]?.n || 0);
+  const hideout = { capital: {}, colony: {} };
+  for (const c of cities.filter(x => !x.isWonder)) {
+    const l = c.buildings.find(b => b.key === 'HIDEOUT')?.level || 0;
+    const band = l >= 15 ? '15+' : l >= 10 ? '10-14' : l >= 5 ? '5-9' : l >= 1 ? '1-4' : '0';
+    const h = hideout[c.isCapital ? 'capital' : 'colony'];
+    h[band] = (h[band] || 0) + 1;
+  }
+  return {
+    trades: await one(`SELECT count(*)::int AS n FROM "MarketOffer" WHERE status = 'COMPLETED'`),
+    tradeVolume: await one(`SELECT coalesce(sum("sellAmount" + "buyAmount"), 0)::bigint AS n FROM "MarketOffer" WHERE status = 'COMPLETED'`),
+    offersExpired: await one(`SELECT count(*)::int AS n FROM "MarketOffer" WHERE status = 'EXPIRED'`),
+    quests: await one(`SELECT count(*)::int AS n FROM "QuestClaim"`),
+    hideout
+  };
 }
 
 module.exports = { invariants, snapshot, MOVING };

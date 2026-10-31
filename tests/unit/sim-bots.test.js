@@ -10,12 +10,18 @@ const Stock = require('../../tools/sim/stock.cjs');
 const economy = require('../../tools/sim/modules/10-economy.cjs');
 const military = require('../../tools/sim/modules/30-military.cjs');
 const market = require('../../tools/sim/modules/40-market.cjs');
+const quests = require('../../tools/sim/modules/06-quests.cjs');
+const wonder = require('../../tools/sim/modules/70-wonder.cjs');
+const Armies = require('../../tools/sim/armies.cjs');
+const WS = require('../../src/services/wonderService');
 
 // Joueurs automatiques de la simulation longue (rapport économie, recommandation 15, et décisions du 30 octobre 2026 :
 // stock partagé, placement des bâtiments, soins payants, unités formées dans la capitale ; colonies : Mur sur l'enceinte,
 // palier des recrues lu sur la Grande caserne de la colonie, site choisi selon le gisement, ville la plus pleine d'abord ;
 // revue des bâtiments du 31 octobre 2026 : anneau de 18 / 12 emplacements, Bâtiment principal 20, Mur des colonies 15,
-// Marché et Comptoir dans la capitale, or des unités d'élite, marchands)
+// Marché et Comptoir dans la capitale, or des unités d'élite ; rapport de vérification du 31 octobre 2026 : échanges portés
+// par des armées, emplacements de la Place de rassemblement partagés, gardes des colonies, Mur d'abord en colonie, site
+// choisi d'après le niveau du gisement, quêtes, Merveille)
 
 const keysOf = (plan) => [...new Set(plan.map(([k]) => k).filter(k => k !== 'FIELDS' && k !== 'MAIN_HALL'))];
 const ctx = (stepHours = 6) => ({ OPT: { stepHours }, step: 10 });
@@ -202,27 +208,31 @@ test('recrutement des joueurs automatiques : le palier vient du bâtiment de la 
   assert.deepEqual(keys(colony(lvl('GREAT_STABLE', GB.unlockEliteTier))), romans(u => u.class === 'CAVALRY'));
 });
 
-test('site d\'une colonie : le bonus de gisement qui sert le joueur, la marche et la tribu comptent', () => {
+test('site d\'une colonie : le niveau du gisement compte d\'abord, puis la marche et la tribu rapportée à l\'armée du joueur', () => {
   const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, wood: 5000, stone: 1000, iron: 5000, food: 5000, maxStorage: 10000, maxFoodStorage: 10000 });
   const bot = botWith(withBalance([cap], { production: 1000, consumption: 900, net: 100 }));
   // l'armée mange presque tout : les céréales d'abord ; la pierre est la ressource la plus basse
   assert.deepEqual(military.siteWish(bot), { WOOD: 1, STONE: 1.5, IRON: 1, FOOD: 2 });
-  // comme GET /api/map/free-sites (le bonus vient du serveur : 15 % par niveau dans cet exemple)
-  const site = (id, type, level, x, tribePower = 0) => ({ id, type, level, bonusPct: 15 * level, x, y: 0, tribePower, travelSec: x * 100, central: false });
-  const sites = [
+  // comme GET /api/map/free-sites (le bonus vient du serveur : 10 % par niveau du gisement)
+  const site = (id, type, level, x, tribePower = 0) => ({ id, type, level, bonusPct: 10 * level, x, y: 0, tribePower, travelSec: x * 100, central: false });
+  const m = { ratio: 1.6, bad: ['food3bis'] };
+  const pick = (sites, field = 0) => military.pickColonySite(bot, m, cap, sites, field)?.id || null;
+  assert.equal(pick([
     site('wood1', 'WOOD', 1, 8),
     site('food3', 'FOOD', 3, 14, 1000),
     site('iron3', 'IRON', 3, 6, 50000),      // camp hors de portée
     site('stone2', 'STONE', 2, 3),           // trop près de la capitale
     site('food3bis', 'FOOD', 3, 10)          // déjà raté
-  ];
-  const m = { ratio: 1.6, bad: ['food3bis'] };
-  assert.equal(military.pickColonySite(bot, m, cap, sites, 0)?.id, 'food3', 'un gisement de céréales de niveau 3 un peu plus loin');
-  // une colonie a déjà un gisement de céréales : une autre spécialité passe devant
-  bot.cities.push(city({ id: 'b', x: -60, y: -60, site: { type: 'FOOD', level: 2, bonusPct: 30 }, playerStock: cap.playerStock }));
+  ]), 'food3', 'un gisement de céréales de niveau 3 un peu plus loin');
+  // rapport de vérification du 31 octobre 2026 : un gisement de niveau 3 dix cases plus loin passe devant un niveau 1
+  assert.equal(pick([site('wood1', 'WOOD', 1, 8), site('wood3', 'WOOD', 3, 18)]), 'wood3');
+  // une tribu au plus fort de ce que l'armée bat coûte cher ; la même tribu ne pèse presque rien pour une grosse armée
+  assert.equal(pick([site('wood1', 'WOOD', 1, 8), site('wood3', 'WOOD', 3, 18, 12000)]), 'wood1');
+  assert.equal(pick([site('wood1', 'WOOD', 1, 8), site('wood3', 'WOOD', 3, 18, 12000)], 1.6 * 120000), 'wood3');
+  // une colonie a déjà un gisement de céréales : les céréales comptent moins
+  bot.cities.push(city({ id: 'b', x: -60, y: -60, site: { type: 'FOOD', level: 2, bonusPct: 20 }, playerStock: cap.playerStock }));
   assert.equal(military.siteWish(bot).FOOD, 1.5);
-  assert.equal(military.pickColonySite(bot, m, cap, sites, 0)?.id, 'wood1');
-  assert.equal(military.pickColonySite(bot, m, cap, [], 0), null);
+  assert.equal(pick([]), null);
 });
 
 test('stock partagé des joueurs automatiques : après la ville de l\'action, la plus pleine par rapport à son plafond', () => {
@@ -275,33 +285,177 @@ test('recrutement des joueurs automatiques : l\'élite paie de l\'or, gardé pou
   assert.equal(rich.posted[0][1].count, Math.floor(18 * 3600 / perUnit));
 });
 
-test('marché des joueurs automatiques : jamais plus que ce que portent les marchands libres, le Marché monte quand ils manquent', async () => {
-  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'MAIN_HALL', level: 10, slot: 0 }, { key: 'MARKET', level: 3, slot: 1 }], wood: 9000, stone: 5000, iron: 1000, food: 5000, maxStorage: 10000, maxFoodStorage: 10000 });
-  const run = async (free) => {
+// Marché (décision du 31 octobre 2026, rapport de vérification) : plus de marchands ; une offre réserve la caravane (statut
+// MARKET), un échange part avec une armée libre de la ville (GET /api/market/state : leur charge), jamais une armée d'un
+// autre rôle (guerre, gardes)
+const unitsOf = (n) => [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: n }];
+const marketCity = () => city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'MAIN_HALL', level: 10, slot: 0 }, { key: 'MARKET', level: 3, slot: 1 }, { key: 'RALLY_POINT', level: 5, slot: 2 }], wood: 9000, stone: 5000, iron: 1000, food: 5000, maxStorage: 10000, maxFoodStorage: 10000 });
+const armyAt = (id, name, slot, extra = {}) => ({ id, name, slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false, units: unitsOf(20), ...extra });
+async function runMarket({ armies, state, offers = [] }) {
+  const calls = [];
+  const bot = botWith(withBalance([marketCity()], { production: 100, consumption: 0, net: 100 }), {
+    name: 'Marchand', playerId: 'p1', me: { faction: 'ROME', alliance: null }, armies, mem: { mil: { own: ['f1'] } },
+    get: async (p) => {
+      calls.push(['GET', p]);
+      if (p.startsWith('/api/market/state')) return { ok: true, data: { taxPct: 30, basePct: 30, offerHours: 48, armies: state } };
+      return { ok: true, data: p === '/api/market' ? offers : [] };
+    },
+    post: async (p, body) => { calls.push(['POST', p, body]); return { ok: true, data: p === '/api/market/offer' ? { offer: { id: 'o1' }, armyId: body.armyId, taxPct: 30 } : { toBuyer: 280, toSeller: 280, armyId: body.armyId } }; },
+    del: async (p) => { calls.push(['DELETE', p]); return { ok: true, data: {} }; }
+  });
+  const c = { ...ctx(), step: 20, clock: { now: () => Date.parse('2027-01-10T12:00:00Z'), day: () => 6 }, bots: [], event: () => {}, prisma: { allianceMember: { findUnique: async () => null } } };
+  c.bots.push(bot);
+  await market.act(bot, c);
+  return { bot, calls, posted: calls.filter(x => x[0] === 'POST') };
+}
+
+test('marché des joueurs automatiques : l\'offre réserve la caravane, jamais plus que sa charge', async () => {
+  const { bot, posted } = await runMarket({ armies: [armyAt('car', Armies.NAMES.caravan, 2)], state: [{ id: 'car', name: Armies.NAMES.caravan, capacity: 500, hero: false }] });
+  assert.equal(posted.length, 1, JSON.stringify(posted));
+  const [, p, body] = posted[0];
+  assert.equal(p, '/api/market/offer');
+  assert.deepEqual([body.sellResource, body.buyResource, body.cityId, body.armyId], ['wood', 'iron', 'a', 'car']);
+  assert.ok(body.sellAmount > 0 && body.sellAmount <= 500, JSON.stringify(body));
+  // l'armée attend en ville avec les marchandises : elle n'est plus libre
+  assert.equal(bot.armies[0].status, 'MARKET');
+  // caravane déjà réservée par une offre (statut MARKET, absente des armées libres) : pas de seconde offre
+  const busy = await runMarket({ armies: [armyAt('car', Armies.NAMES.caravan, 2, { status: 'MARKET' })], state: [] });
+  assert.equal(busy.posted.length, 0);
+});
+
+test('marché des joueurs automatiques : un échange part avec une armée libre qui porte la contrepartie, jamais l\'Ost', async () => {
+  const offer = { id: 'x1', sellerId: 'p2', status: 'ACTIVE', sellResource: 'iron', sellAmount: 400, buyResource: 'wood', buyAmount: 400, city: { x: 5, y: 5 }, createdAt: '2027-01-10T00:00:00Z', expiresAt: '2027-01-12T00:00:00Z' };
+  // la caravane attend avec une offre : l'armée de campagne au repos porte les 400 de bois (un aller-retour)
+  const armies = [armyAt('car', Armies.NAMES.caravan, 3, { status: 'MARKET' }), armyAt('f1', 'Armée 1', 1), armyAt('ost', Armies.NAMES.ost, 2)];
+  const ok = await runMarket({ armies, offers: [offer], state: [{ id: 'f1', name: 'Armée 1', capacity: 600, hero: false }, { id: 'ost', name: Armies.NAMES.ost, capacity: 5000, hero: false }] });
+  assert.deepEqual(ok.posted, [['POST', '/api/market/offer/x1/accept', { cityId: 'a', armyId: 'f1' }]]);
+  assert.equal(ok.bot.mem.mkt.k.accepted, 1);
+  assert.equal(ok.bot.armies.find(a => a.id === 'f1').status, 'TRANSPORTING');
+  // trop peu de charge : pas d'échange, même si l'Ost porterait tout
+  const small = await runMarket({ armies, offers: [offer], state: [{ id: 'f1', name: 'Armée 1', capacity: 300, hero: false }, { id: 'ost', name: Armies.NAMES.ost, capacity: 5000, hero: false }] });
+  assert.equal(small.posted.length, 0);
+  assert.equal(small.bot.mem.mkt.k.acceptNoArmy, 1);
+  // la plus petite armée qui suffit, sans le héros quand une autre suffit
+  const pick = market.pickArmy({ mem: { mil: { own: ['f1', 'f2'] } } }, { armies: [{ id: 'f1', name: 'A', capacity: 900, hero: true }, { id: 'f2', name: 'B', capacity: 1200, hero: false }] }, 800);
+  assert.equal(pick.id, 'f2');
+});
+
+test('marché des joueurs automatiques : la caravane se forme sur une place libre et prend des porteurs à la garnison', async () => {
+  const cap = marketCity();
+  const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
+  const calls = [];
+  const bot = botWith(withBalance([cap], { production: 100, consumption: 0, net: 100 }), {
+    name: 'Marchand', playerId: 'p1', me: { faction: 'ROME' }, armies: [garrison, armyAt('f1', 'Armée 1', 1)], mem: { mil: { own: ['f1'] } },
+    post: async (p, body) => { calls.push([p, body]); return { ok: true, data: p === '/api/army/create' ? { army: { id: 'car', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } : { newCount: body.count } }; }
+  });
+  await market.early(bot, { ...ctx(), step: 20 });
+  // Place de rassemblement 5 : 2 armées ; l'armée de campagne a la sienne, la caravane prend l'autre
+  assert.deepEqual(calls[0], ['/api/army/create', { cityId: 'a', slot: 2, name: Armies.NAMES.caravan }]);
+  // une charge d'environ 15 % du stockage (2 000 au moins) : 29 miliciens de 70
+  assert.deepEqual(calls[1], ['/api/army/car/set-unit', { unitKey: 'ROM_INF_MILICIEN', count: 29 }]);
+});
+
+test('emplacements de la Place de rassemblement : partagés par ordre de priorité entre les rôles', () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 10, slot: 2 }] });
+  const col = city({ id: 'b', x: 30, y: 30 });
+  const bot = botWith([cap, col], { armies: [{ id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', isGarrison: false }], mem: { mil: { own: ['f1'], guard: {} }, war: { wantOst: true } } });
+  assert.equal(fx.maxArmies(cap.buildings), 3);
+  // une colonie sans garde et un Ost voulu : 2 places attendues sur les 2 libres, rien pour la caravane
+  assert.equal(Armies.missing(bot, 'guard'), 1);
+  assert.equal(Armies.freeSlot(bot, 'caravan'), null);
+  assert.equal(Armies.freeSlot(bot, 'guard'), 3);
+  assert.equal(Armies.freeSlot(bot, 'ost'), 3);
+  // la garde formée : il reste la place de l'Ost, toujours rien pour la caravane
+  bot.armies.push({ id: 'g1', name: Armies.NAMES.guard, slot: 3, cityId: 'a', isGarrison: false });
+  bot.mem.mil.guard.b = 'g1';
+  assert.equal(Armies.freeSlot(bot, 'ost'), 2);
+  assert.equal(Armies.freeSlot(bot, 'caravan'), null);
+  // l'Ost formé : plus aucune place
+  bot.armies.push({ id: 'o1', name: Armies.NAMES.ost, slot: 2, cityId: 'a', isGarrison: false });
+  assert.equal(Armies.freeSlot(bot, 'hunt'), null);
+});
+
+test('garde d\'une colonie : formée dans la capitale, remplie depuis la garnison, puis postée dans la colonie', async () => {
+  const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, buildings: [{ key: 'RALLY_POINT', level: 5, slot: 2 }] });
+  const col = city({ id: 'b', x: 30, y: 30, createdAt: '2027-01-01T00:00:00Z' });
+  const garrison = { id: 'g', isGarrison: true, cityId: 'a', x: 0, y: 0, status: 'IDLE', units: unitsOf(400) };
+  const calls = [];
+  const m = { own: ['f1'], k: {} };
+  const bot = botWith([cap, col], {
+    armies: [garrison, { id: 'f1', name: 'Armée 1', slot: 1, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false, units: [] }], mem: { mil: m },
+    post: async (p, body) => { calls.push([p, body]); return { ok: true, data: p === '/api/army/create' ? { army: { id: 'g1', name: body.name, slot: body.slot, cityId: 'a', x: 0, y: 0, status: 'IDLE', isGarrison: false } } : { newCount: body.count } }; }
+  });
+  await military.guards(bot, { ...ctx(), step: 30 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls.map(c => c[0]), ['/api/army/create', '/api/army/g1/set-unit', '/api/army/g1/move']);
+  assert.deepEqual(calls[0][1], { cityId: 'a', slot: 2, name: Armies.NAMES.guard });
+  assert.deepEqual(calls[1][1], { unitKey: 'ROM_INF_MILICIEN', count: 60 });   // 15 % des 400 soldats du joueur
+  assert.deepEqual(calls[2][1], { x: 30, y: 30 });
+  assert.equal(m.guard.b, 'g1');
+  // en poste dans la colonie : rien à faire
+  bot.armies.find(a => a.id === 'g1').status = 'IDLE';
+  Object.assign(bot.armies.find(a => a.id === 'g1'), { x: 30, y: 30 });
+  calls.length = 0;
+  await military.guards(bot, { ...ctx(), step: 31 }, { left: 6 }, m, cap);
+  assert.deepEqual(calls, []);
+});
+
+test('économie des joueurs automatiques : le Mur d\'abord dans une colonie neuve ; la Ville Merveille ne bâtit que son Mur', () => {
+  const hall = (l) => ({ key: 'MAIN_HALL', level: l, slot: 0 });
+  const cap = city({ id: 'a', isCapital: true, buildings: [hall(10)], wood: 50000, stone: 50000, iron: 50000, food: 50000, maxStorage: 60000, maxFoodStorage: 60000 });
+  const col = city({ id: 'b', buildings: [hall(1)], maxStorage: 3600, maxFoodStorage: 3600 });
+  const bot = botWith(withBalance([cap, col], { production: 1000, consumption: 0, net: 1000 }));
+  // le Mur demande le Bâtiment principal 3 : il monte d'abord, puis le Mur passe avant les champs et le reste
+  assert.deepEqual(economy.nextBuild(bot, col, ctx()), { buildingKey: 'MAIN_HALL' });
+  col.buildings = [hall(3)];
+  assert.deepEqual(economy.nextBuild(bot, col, ctx()), { buildingKey: 'WALL', slot: config.city.wallSlot });
+  const plan = economy.planFor('ROME', false, true);
+  assert.deepEqual([...new Set(plan.map(([k]) => k))].sort(), ['MAIN_HALL', 'WALL']);
+  assert.equal(Math.max(...plan.filter(([k]) => k === 'WALL').map(([, l]) => l)), fx.maxLevelIn('WALL', false));
+  // Forge et Atelier jusqu'au niveau 20, la Cachette plus haut que 3 (rapport de vérification du 31 octobre 2026)
+  const top = (p, k) => Math.max(0, ...p.filter(([x]) => x === k).map(([, l]) => l));
+  const capital = economy.planFor('ROME', true);
+  assert.equal(top(capital, 'FORGE'), 20); assert.equal(top(capital, 'WORKSHOP'), 20); assert.equal(top(capital, 'HIDEOUT'), 20);
+  assert.equal(top(economy.planFor('ROME', false), 'HIDEOUT'), 20);
+});
+
+test('quêtes des joueurs automatiques : les récompenses prêtes, dans une ville qui a la place', () => {
+  const view = { tutorial: { current: { key: 't1', kind: 'tutorial', claimable: true, reward: { wood: 100 } } }, tasks: [{ key: 'x:1', kind: 'task', claimable: false }], daily: { quests: [{ key: 'd1', kind: 'daily', claimable: true, reward: { food: 50 } }], bonus: { key: 'd_bonus', kind: 'daily', bonus: true, claimable: true } }, weekly: { quests: [], bonus: null }, achievements: [] };
+  assert.deepEqual(quests.claimables(view).map(q => q.key), ['t1', 'd1', 'd_bonus']);
+  const cap = city({ id: 'a', isCapital: true, wood: 1150, maxStorage: 1200 });
+  const col = city({ id: 'b', wood: 0, maxStorage: 1200 });
+  const bot = botWith([col, cap]);
+  assert.equal(quests.cityFor(bot, { wood: 40 }).id, 'a', 'la capitale d\'abord');
+  assert.equal(quests.cityFor(bot, { wood: 100 }).id, 'b', 'sinon une ville qui a la place');
+  assert.equal(quests.cityFor(bot, { wood: 5000 }), null);
+});
+
+test('Merveille des joueurs automatiques : livraison selon le coût d\'un niveau, la capitale garde de quoi bâtir ; défense face à la vague suivante', () => {
+  const cap = city({ id: 'a', isCapital: true, wood: 90000, stone: 90000, iron: 40000, food: 30000, maxStorage: 100000, maxFoodStorage: 100000 });
+  const bot = botWith(withBalance([cap], { production: 1000, consumption: 0, net: 1000 }));
+  const load = wonder.deliveryLoad(bot, cap, 50000, 0);
+  const total = Object.values(load).reduce((t, v) => t + v, 0);
+  assert.ok(total <= 50000 && total >= 49000, JSON.stringify(load));
+  for (const r of ['wood', 'stone', 'iron', 'food']) assert.ok(cap[r] - load[r] >= 0.3 * 100000 - 10, `${r} : la capitale garde 30 %`);
+  assert.equal(load.food, 0, 'pas de céréales au-dessus de la réserve');
+  // la vague suivante : celle du niveau d'après, avec une marge
+  assert.equal(wonder.waveNeed(10), WS.wavePower(11) * 1.25);
+  assert.equal(wonder.waveNeed(0), WS.wavePower(1) * 1.25);
+});
+
+test('colon de la Ville Merveille : le module militaire ne le prend pas pour une colonie que la Résidence ne permet pas', async () => {
+  const run = async (residence) => {
+    const cap = city({ id: 'a', isCapital: true, x: 0, y: 0, settlers: 1, buildings: [{ key: 'MAIN_HALL', level: 15, slot: 0 }, { key: 'RESIDENCE', level: residence, slot: 3 }], wood: 500, stone: 500, iron: 500, food: 500, maxStorage: 1000, maxFoodStorage: 1000 });
+    const col = city({ id: 'b', x: 30, y: 30 });
     const calls = [];
-    const bot = botWith(withBalance([{ ...cap, buildings: [...cap.buildings], buildQueue: [] }], { production: 100, consumption: 0, net: 100 }), {
-      name: 'Marchand', playerId: 'p1', me: { faction: 'ROME', alliance: null },
-      get: async (p) => { calls.push(['GET', p]); return p.startsWith('/api/market/state') ? { ok: true, data: { taxPct: 10, merchants: { total: 3, free, capacity: 500, speed: 80 } } } : { ok: true, data: [] }; },
-      post: async (p, body) => { calls.push(['POST', p, body]); return { ok: true, data: p === '/api/market/offer' ? { offer: { id: 'o1' }, merchantsUsed: Math.ceil(body.sellAmount / 500), taxPct: 10 } : { cost: Stock.buildCost('MARKET', 4), queueItem: { slot: 1, targetLevel: 4 } } }; },
-      del: async () => ({ ok: true, data: {} })
+    const bot = botWith(withBalance([cap, col], { production: 100, consumption: 0, net: 100 }), {
+      get: async (p) => { calls.push(['GET', p]); return { ok: true, data: [] }; },
+      post: async (p, body) => { calls.push(['POST', p, body]); return { ok: false, status: 400, data: {} }; }
     });
-    const c = { ...ctx(), step: 20, clock: { now: () => Date.parse('2027-01-10T12:00:00Z'), day: () => 6 }, bots: [], event: () => {} };
-    c.bots.push(bot);
-    await market.act(bot, c);
-    return { bot, calls, c };
+    await military.early(bot, { ...ctx(), step: 40 });
+    return calls;
   };
-  // un marchand libre (500) : une offre de 500 au plus, sans armée
-  const one = await run(1);
-  const offer = one.calls.find(([, p]) => p === '/api/market/offer');
-  assert.ok(offer, JSON.stringify(one.calls));
-  assert.ok(offer[2].sellAmount > 0 && offer[2].sellAmount <= 500 && !('armyId' in offer[2]), JSON.stringify(offer[2]));
-  assert.deepEqual([offer[2].sellResource, offer[2].buyResource, offer[2].cityId], ['wood', 'iron', 'a']);
-  // tous en route : pas d'offre, et le Marché de la capitale monte au début du tour suivant
-  const none = await run(0);
-  assert.ok(!none.calls.some(([, p]) => p === '/api/market/offer'));
-  assert.equal(none.bot.mem.mkt.short, none.c.step);
-  none.bot.cities[0].wood = none.bot.cities[0].stone = none.bot.cities[0].iron = none.bot.cities[0].food = 9500;
-  await market.early(none.bot, { ...none.c, step: none.c.step + 1 });
-  assert.deepEqual(none.calls.at(-1), ['POST', '/api/cities/a/build', { buildingKey: 'MARKET' }]);
-  assert.equal(none.bot.mem.mkt.k.marketLevels, 1);
+  // Résidence 15 : une colonie au plus, déjà fondée ; le colon formé ensuite attend la Ville Merveille (70-wonder.cjs)
+  assert.ok(!(await run(15)).some(([, p]) => p.startsWith('/api/map/free-sites')));
+  // Résidence 20 : une seconde colonie est permise, le colon sert à la fonder
+  assert.ok((await run(20)).some(([, p]) => p.startsWith('/api/map/free-sites')));
 });

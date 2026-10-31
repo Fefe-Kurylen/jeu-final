@@ -1,0 +1,86 @@
+// Simulation longue — les armées de campagne d'un joueur et les emplacements de la Place de rassemblement.
+// Chaque module nomme ses armées ; la Place de la capitale donne autant d'emplacements à chaque ville (fx.maxArmies), et
+// une armée postée ailleurs (garde d'une colonie, garnison du Bastion, renfort de la Ville Merveille) garde l'emplacement
+// de sa ville. Les emplacements de la capitale se partagent par ordre de priorité : une armée d'un rôle ne se forme que s'il
+// reste une place une fois servis les rôles d'avant qui manquent encore.
+//   field  : armée de campagne du module militaire (récolte, tribus, expéditions du héros ; une seconde pendant une fondation)
+//   guard  : garde de chaque colonie (décision du 31 octobre 2026, rapport de vérification : une armée postée dans chaque
+//            colonie, les colonies n'ont pas de garnison)
+//   convoy : convoi du Bastion, puis sa garnison (20-alliance.cjs)
+//   ost    : armée des guerriers et des pillards (50-war.cjs)
+//   wonder : garde de la Ville Merveille de l'alliance (70-wonder.cjs)
+//   caravan: armée du marché (40-market.cjs : offres, échanges, envois)
+//   hunt   : armée de chasse des invasions, le week-end (60-invasion.cjs)
+// Une armée réservée par une offre du marché (statut MARKET) n'est pas libre : elle attend en ville avec les marchandises.
+'use strict';
+const path = require('path');
+const ROOT = path.join(__dirname, '..', '..');
+const config = require(path.join(ROOT, 'src/config'));
+const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+
+const NAMES = { ost: 'Ost', convoy: 'Convoi', caravan: 'Caravane', guard: 'Garde', hunt: 'Chasse aux hordes', wonder: 'Garde de la Merveille' };
+const ORDER = ['field', 'guard', 'convoy', 'ost', 'wonder', 'caravan', 'hunt'];
+
+const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
+const colonies = (bot) => (bot.cities || []).filter(c => !c.isCapital && !c.isWonder);
+const fieldArmies = (bot, city) => (bot.armies || []).filter(a => !a.isGarrison && a.cityId === city.id);
+const named = (bot, name) => (bot.armies || []).filter(a => !a.isGarrison && a.name === name);
+// armée chez elle, au repos (ni en mission, ni réservée par une offre du marché)
+const atHome = (a, city) => !!a && !!city && !a.isGarrison && a.status === 'IDLE' && !a.claimedAt && a.x === city.x && a.y === city.y && a.cityId === city.id;
+
+// armées de campagne voulues par le module militaire : une, deux pendant une fondation (colon prêt ou en formation)
+function militaryNeed(bot, city) {
+  const mil = bot.mem?.mil;
+  if (!mil || !city?.isCapital) return 0;
+  const own = fieldArmies(bot, city).filter(a => (mil.own || []).includes(a.id)).length;
+  const founding = colonies(bot).length < config.city.maxSecondaryCities && (!!mil.col || (city.settlers || 0) > 0 || (city.recruitQueue || []).some(q => q.unitKey === 'SETTLER'));
+  return Math.max(0, (founding ? 2 : 1) - own);
+}
+// colonies sans garde (l'armée qui y est postée, suivie dans bot.mem.mil.guard)
+function guardsMissing(bot) {
+  const g = bot.mem?.mil?.guard || {};
+  return colonies(bot).filter(c => !(bot.armies || []).some(a => a.id === g[c.id])).length;
+}
+
+// armées encore à former pour chaque rôle (dans la capitale)
+function missing(bot, role) {
+  const cap = bot.capital;
+  if (!cap) return 0;
+  const war = bot.mem?.war;
+  switch (role) {
+    case 'field': return militaryNeed(bot, cap);
+    case 'guard': return bot.mem?.mil ? guardsMissing(bot) : 0;
+    case 'convoy': return bot.mem?.al?.wantConvoy && !named(bot, NAMES.convoy).length ? 1 : 0;
+    case 'ost': return war?.wantOst && !named(bot, NAMES.ost).length ? 1 : 0;
+    case 'wonder': return bot.mem?.won?.wantGuard && !named(bot, NAMES.wonder).length ? 1 : 0;
+    case 'caravan': return lvl(cap, 'MARKET') >= 1 && !named(bot, NAMES.caravan).length ? 1 : 0;
+    default: return 0;
+  }
+}
+
+// armées que les rôles d'avant `role` attendent encore
+const ahead = (bot, role) => ORDER.slice(0, Math.max(0, ORDER.indexOf(role))).reduce((t, r) => t + missing(bot, r), 0);
+
+// une armée de ce rôle rend sa place : un rôle d'avant attend une armée et il ne reste aucune place libre (la caravane se
+// dissout quand l'Ost ou la garde de la Merveille n'a pas de place ; ses soldats rentrent dans la garnison)
+function mustYield(bot, role) {
+  const cap = bot.capital;
+  if (!cap) return false;
+  const free = fx.maxArmies(cap.buildings || []) - fieldArmies(bot, cap).length;
+  return ahead(bot, role) > Math.max(0, free);
+}
+
+// un emplacement libre de la capitale pour une armée de ce rôle (le plus haut : les premiers vont à l'armée de campagne),
+// ou null quand les rôles d'avant en ont encore besoin
+function freeSlot(bot, role, city = bot.capital) {
+  if (!city || !lvl(bot.capital, 'RALLY_POINT')) return null;
+  const max = fx.maxArmies(bot.capital.buildings || []);
+  const used = fieldArmies(bot, city);
+  const wait = city.isCapital ? ahead(bot, role) : 0;
+  if (max - used.length - wait <= 0) return null;
+  const taken = new Set(used.map(a => a.slot));
+  for (let s = max; s >= 1; s--) if (!taken.has(s)) return s;
+  return null;
+}
+
+module.exports = { NAMES, ORDER, atHome, militaryNeed, guardsMissing, missing, freeSlot, mustYield, named, fieldArmies, colonies };

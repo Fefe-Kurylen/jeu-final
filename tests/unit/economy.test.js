@@ -533,3 +533,197 @@ test('migration 0033 : marchands et routes retirés, armée réservée de nouvea
   assert.doesNotMatch(schema, /model Trade(Route|Convoy)|merchants/);
   assert.match(schema, /armyId\s+String\?/);
 });
+
+// ---- armées du marché dans routes/armies.js : ni départ, ni garnison, ni rappel tant que l'échange n'est pas fini ----
+const armiesRouter = require('../../src/routes/armies');
+const MARKET_BUSY = 'Armée réservée pour une offre du marché : annulez l\'offre pour la libérer';
+const routeOf = (router, method, routePath) => router.stack.find(l => l.route && l.route.path === routePath && l.route.methods[method]).route.stack.at(-1).handle;
+const replyOf = () => {
+  const r = { statusCode: 200, body: null };
+  r.status = (c) => { r.statusCode = c; return r; };
+  r.json = (b) => { r.body = b; return r; };
+  return r;
+};
+// l'armée vue par loadArmy (propriétaire, héros, ville) ; une seule armée dans la transaction factice
+const routedArmy = (extra = {}) => ({ ...marketArmy('s1', 100), owner: { faction: 'EGYPT', name: 'Vendeur', technologies: [], alliance: null, cities: [] }, city: { id: 'a', x: 0, y: 0, isCapital: true, name: 'Capitale' }, ...extra });
+function armyRouteDb(army) {
+  const prisma = require('../../src/config/database');
+  const updates = [];
+  const tx = {
+    $queryRaw: async () => [],
+    army: {
+      findFirst: async ({ where }) => (where.isGarrison ? { id: 'garrison', units: [] } : army),
+      update: async ({ data }) => { updates.push(data); Object.assign(army, data); return army; },
+      updateMany: async ({ data }) => { updates.push(data); Object.assign(army, data); return { count: 1 }; }
+    }
+  };
+  // bonus de vitesse du Bastion (lu en arrière-plan par speedPctSync) : aucune alliance
+  const saved = { $transaction: prisma.$transaction, army: prisma.army, bastion: prisma.bastion };
+  Object.assign(prisma, { $transaction: async (fn) => fn(tx), army: tx.army, bastion: { findMany: async () => [] } });
+  return { updates, restore: () => Object.assign(prisma, saved) };
+}
+
+test('armée réservée par une offre (MARKET) : aucun départ, refus clair ; une armée libre part', () => {
+  const { readyToLeave } = armiesRouter;
+  assert.deepEqual(readyToLeave(routedArmy({ status: 'MARKET', missionType: 'MARKET_OFFER' }), 'partir'), { status: 400, error: MARKET_BUSY });
+  assert.deepEqual(readyToLeave(routedArmy({ status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY' }), 'partir'), { status: 400, error: 'Armée déjà en mission' });
+  assert.equal(readyToLeave(routedArmy(), 'partir'), null);
+});
+
+test('rappel : refusé pour une armée réservée au marché ou qui livre un échange conclu ; un simple transport se rappelle', () => onEmptyMap(async () => {
+  const recall = routeOf(armiesRouter, 'post', '/:id/return');
+  const cases = [
+    [{ status: 'MARKET', missionType: 'MARKET_OFFER' }, 400, MARKET_BUSY],
+    [{ status: 'TRANSPORTING', missionType: 'MARKET_DELIVERY', targetX: 12, targetY: 0, targetCityId: 'b', departedAt: new Date(Date.now() - 60000), arrivalAt: new Date(Date.now() + 60000) }, 400, 'Armée d\'un échange conclu : elle livre puis rentre seule, on ne peut pas la rappeler'],
+    [{ status: 'TRANSPORTING', missionType: 'TRANSPORT', targetX: 12, targetY: 0, targetCityId: 'b', departedAt: new Date(Date.now() - 60000), arrivalAt: new Date(Date.now() + 60000) }, 200, null]
+  ];
+  for (const [state, status, error] of cases) {
+    const army = routedArmy(state);
+    const db = armyRouteDb(army);
+    try {
+      const res = replyOf();
+      await recall({ params: { id: 's1' }, user: { playerId: 'p1' } }, res);
+      assert.equal(res.statusCode, status, `${state.status} / ${state.missionType} : ${JSON.stringify(res.body)}`);
+      if (error) {
+        assert.equal(res.body.error, error);
+        assert.deepEqual(db.updates, [], 'rien n\'est écrit');
+        assert.equal(army.status, state.status);
+      } else {
+        assert.deepEqual([army.status, army.missionType], ['RETURNING', 'RETURN'], 'le transport rentre avec sa cargaison');
+      }
+    } finally { db.restore(); }
+  }
+}));
+
+test('armée réservée par une offre : ni troupes ajoutées ou retirées, ni dissolution, ni héros joint ou retiré (refus clair)', async () => {
+  for (const [method, routePath, body] of [['post', '/:id/adjust-unit', { unitKey: SLAVE.key, delta: 5 }], ['post', '/:id/set-unit', { unitKey: SLAVE.key, count: 5 }], ['delete', '/:id/disband', {}], ['post', '/:id/assign-hero', {}], ['post', '/:id/unassign-hero', {}]]) {
+    const army = routedArmy({ status: 'MARKET', missionType: 'MARKET_OFFER' });
+    const db = armyRouteDb(army);
+    try {
+      const res = replyOf();
+      await routeOf(armiesRouter, method, routePath)({ params: { id: 's1' }, body, user: { playerId: 'p1' } }, res);
+      assert.deepEqual([res.statusCode, res.body.error], [400, MARKET_BUSY], routePath);
+      assert.deepEqual(db.updates, []);
+    } finally { db.restore(); }
+  }
+});
+
+test('expédition : une armée réservée par une offre (MARKET) ne part pas, avec le même refus que tout départ', async () => {
+  const prisma = require('../../src/config/database');
+  const start = routeOf(require('../../src/routes/expeditions'), 'post', '/:id/start');
+  const saved = prisma.$transaction;
+  const tx = {
+    expedition: { findFirst: async () => ({ id: 'e1', duration: 3600, status: 'AVAILABLE' }) },
+    army: { findFirst: async () => ({ status: 'MARKET' }), findMany: async () => { throw new Error('aucune armée libre ne doit être cherchée'); } }
+  };
+  prisma.$transaction = async (fn) => fn(tx);
+  try {
+    const res = replyOf();
+    await start({ params: { id: 'e1' }, body: { armyId: 's1' }, user: { playerId: 'p1' } }, res);
+    assert.deepEqual([res.statusCode, res.body.error], [400, MARKET_BUSY]);
+  } finally { prisma.$transaction = saved; }
+});
+
+test('transport par armée : refusé vers une de ses villes (stock commun), comme /api/trade/send ; permis vers sa Ville Merveille', async () => {
+  const prisma = require('../../src/config/database');
+  const transport = routeOf(armiesRouter, 'post', '/:id/transport');
+  let target = null, opened = 0;
+  const saved = { city: prisma.city, $transaction: prisma.$transaction };
+  Object.assign(prisma, { city: { findUnique: async () => target }, $transaction: async () => { opened++; return { error: 'suite du transport', status: 418 }; } });
+  try {
+    target = { id: 'col', playerId: 'p1', name: 'Colonie', x: 12, y: 0, isWonder: false };
+    const res = replyOf();
+    await transport({ params: { id: 's1' }, body: { targetCityId: 'col', wood: 100 }, user: { playerId: 'p1' } }, res);
+    assert.deepEqual([res.statusCode, res.body.error, opened], [400, MS.OWN_CITIES_SHARE_STOCK, 0], 'refus avant toute transaction');
+    assert.equal(MS.OWN_CITIES_SHARE_STOCK, 'Vos villes partagent leur stock : rien à transporter entre elles');
+    target = { ...target, isWonder: true };
+    const wonder = replyOf();
+    await transport({ params: { id: 's1' }, body: { targetCityId: 'col', wood: 100 }, user: { playerId: 'p1' } }, wonder);
+    assert.deepEqual([wonder.statusCode, opened], [418, 1], 'sa Ville Merveille reçoit les transports de ses armées');
+  } finally { Object.assign(prisma, saved); }
+});
+
+// ---- chute d'une ville et marché (conquestService) ----
+// transaction factice de la chute : les requêtes SQL brutes sont notées dans l'ordre, les armées et les offres gardées en mémoire
+function fallDb({ cities, armies = [], offers = [] }) {
+  const sql = [], deleted = [], credits = [];
+  const match = (row, where) => Object.entries(where).every(([k, v]) => (v && typeof v === 'object' && !(v instanceof Date) ? true : row[k] === v));
+  const raw = (kind) => async (strings, ...values) => {
+    const text = strings.join('?');
+    sql.push(`${kind} ${text.replace(/\s+/g, ' ').trim()}`);
+    if (text.includes('UPDATE "City"')) credits.push({ cityId: values[4], gain: values.slice(0, 4) });
+    if (text.includes('FROM "City" WHERE "playerId"')) return Object.values(cities).map(c => ({ ...c }));
+    return kind === 'exec' ? 1 : [];
+  };
+  const tx = {
+    $queryRaw: raw('query'), $executeRaw: raw('exec'),
+    city: {
+      findUnique: async ({ where }) => (cities[where.id] ? { ...cities[where.id], armies: armies.filter(a => a.cityId === where.id) } : null),
+      findFirst: async ({ where }) => (where.isCapital ? Object.values(cities).find(c => c.isCapital && c.playerId === where.playerId) || null : null),
+      update: async ({ where, data }) => Object.assign(cities[where.id], data),
+      delete: async ({ where }) => { deleted.push(`city:${where.id}`); }
+    },
+    player: { findUnique: async () => ({ faction: 'ROME' }) },
+    hero: { updateMany: async () => ({ count: 0 }) },
+    bastion: { findFirst: async () => null },
+    resourceNode: { findFirst: async () => null, updateMany: async () => ({ count: 0 }) },
+    researchQueueItem: { findMany: async () => [], count: async () => 0, findFirst: async () => null },
+    army: {
+      findMany: async () => [],
+      findFirst: async () => null,
+      findUnique: async ({ where }) => armies.find(a => a.id === where.id) || null,
+      delete: async ({ where }) => { deleted.push(`army:${where.id}`); armies.splice(armies.findIndex(a => a.id === where.id), 1); },
+      update: async ({ where, data }) => Object.assign(armies.find(a => a.id === where.id), data),
+      updateMany: async ({ where, data }) => { const a = where.id && armies.find(x => match(x, where)); if (!a) return { count: 0 }; Object.assign(a, data); return { count: 1 }; },
+      count: async () => 0
+    },
+    marketOffer: {
+      findMany: async ({ where }) => offers.filter(o => match(o, where)),
+      updateMany: async ({ where, data }) => { const o = offers.find(x => match(x, where)); if (!o) return { count: 0 }; Object.assign(o, data); return { count: 1 }; }
+    }
+  };
+  const prisma = require('../../src/config/database');
+  const saved = prisma.$transaction;
+  prisma.$transaction = async (fn) => fn(tx);
+  return { sql, deleted, credits, armies, offers, restore: () => { prisma.$transaction = saved; } };
+}
+
+test('colonie rasée : l\'armée réservée par une offre tombe avec la ville, l\'offre est annulée et ses marchandises vont à la capitale', async () => {
+  const { razeCity } = require('../../src/services/conquestService');
+  const capital = { id: 'cap', playerId: 'p1', isCapital: true, x: -150, y: -150, wood: 0, stone: 0, iron: 0, food: 0, maxStorage: 1e6, maxFoodStorage: 1e6 };
+  const colony = { id: 'col', playerId: 'p1', name: 'Colonie', isCapital: false, wallStructure: 0, x: 20, y: 20 };
+  const armies = [
+    marketArmy('reserved', 50, { cityId: 'col', x: 20, y: 20, status: 'MARKET', missionType: 'MARKET_OFFER', slot: 1, name: 'Armée 1' }),
+    marketArmy('idle', 50, { cityId: 'col', x: 20, y: 20, slot: 2, name: 'Armée 2' }),
+    marketArmy('away', 50, { cityId: 'col', x: 40, y: 20, status: 'MOVING', missionType: 'MOVE', slot: 3, name: 'Armée 3' })
+  ];
+  const offers = [{ id: 'o1', sellerId: 'p1', cityId: 'col', sellResource: 'iron', sellAmount: 700, buyResource: 'wood', buyAmount: 500, status: 'ACTIVE', armyId: 'reserved' }];
+  const db = fallDb({ cities: { cap: capital, col: colony }, armies, offers });
+  try {
+    await razeCity('col', null);
+    assert.deepEqual(db.deleted.filter(d => d.startsWith('army:')).sort(), ['army:idle', 'army:reserved'], 'l\'armée réservée attendait en ville : elle tombe avec elle');
+    assert.deepEqual(db.armies.map(a => [a.id, a.cityId]), [['away', 'cap']], 'celle en mission passe à la capitale');
+    assert.deepEqual([offers[0].status, offers[0].cityId], ['CANCELLED', 'cap']);
+    assert.deepEqual(db.credits, [{ cityId: 'cap', gain: [0, 0, 700, 0] }], 'les marchandises de l\'offre vont à la capitale');
+    assert.match(db.sql[0], /FROM "MarketOffer" WHERE "cityId" = \? AND status = 'ACTIVE' ORDER BY id FOR UPDATE/, 'les offres d\'abord');
+  } finally { db.restore(); }
+});
+
+test('capitale tombée : les offres de la ville verrouillées avant la ville (ordre du marché) ; elle reste sur son côté de la carte', async () => {
+  const { relocateCapital } = require('../../src/services/conquestService');
+  const { sideAt } = require('../../src/utils/spawn');
+  Terrain.setWorldSeed(0);
+  for (const [x, y] of [[-150, -150], [150, -150], [150, 150], [-150, 150]]) {
+    const capital = { id: 'cap', playerId: 'p1', name: 'Capitale', isCapital: true, wallStructure: 0, wallMaxHp: 0, x, y };
+    const offers = [{ id: 'o1', sellerId: 'p1', cityId: 'cap', sellResource: 'wood', sellAmount: 300, buyResource: 'iron', buyAmount: 300, status: 'ACTIVE', armyId: 'reserved' }];
+    const db = fallDb({ cities: { cap: capital }, armies: [marketArmy('reserved', 50, { cityId: 'cap', x, y, status: 'MARKET', missionType: 'MARKET_OFFER' })], offers });
+    try {
+      const out = await relocateCapital('cap', null);
+      const offerLock = db.sql.findIndex(q => /FROM "MarketOffer" WHERE "cityId" = \? AND status = 'ACTIVE' ORDER BY id FOR UPDATE/.test(q));
+      const cityLock = db.sql.findIndex(q => /FROM "City" WHERE id = \? FOR UPDATE/.test(q));
+      assert.ok(offerLock >= 0 && cityLock > offerLock, `offres (${offerLock}) puis ville (${cityLock})`);
+      assert.equal(sideAt(out.to.x, out.to.y), sideAt(x, y), `capitale de (${x}, ${y}) replacée en (${out.to.x}, ${out.to.y})`);
+      assert.deepEqual([offers[0].status, db.armies[0].status, db.armies[0].x, db.armies[0].y], ['CANCELLED', 'IDLE', out.to.x, out.to.y], 'offre annulée, armée libre à la nouvelle place');
+    } finally { db.restore(); }
+  }
+});

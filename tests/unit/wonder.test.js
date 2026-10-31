@@ -66,12 +66,12 @@ test('titres du Panthéon', () => {
 // ---- vagues : seuls les engins abîment le mur (décision du 30 octobre 2026) ----
 const { resolveCombatDetailed } = require('../../src/services/combatService');
 const { unitsData } = require('../../src/config/gamedata');
-test('vagues d\'Immortels : immortalWaveBase × niveau^immortalWaveExp, réglée dans la configuration (base 14 500 depuis le 31 octobre 2026)', () => {
+test('vagues d\'Immortels : immortalWaveBase × niveau^immortalWaveExp, réglée dans la configuration (base 14 000 depuis le 31 octobre 2026)', () => {
   assert.equal(W.wavePower(1), world.immortalWaveBase);
   assert.equal(W.wavePower(50), Math.round(world.immortalWaveBase * Math.pow(50, world.immortalWaveExp)));
-  assert.equal(world.immortalWaveBase, 14500);
+  assert.equal(world.immortalWaveBase, 14000);
   assert.equal(world.immortalWaveExp, 1.35);
-  assert.ok(Math.abs(W.wavePower(50) - 2.85e6) < 0.01e6 && Math.abs(W.wavePower(100) - 7.27e6) < 0.01e6, `${W.wavePower(50)} / ${W.wavePower(100)}`);
+  assert.ok(Math.abs(W.wavePower(50) - 2.75e6) < 0.01e6 && Math.abs(W.wavePower(100) - 7.02e6) < 0.01e6, `${W.wavePower(50)} / ${W.wavePower(100)}`);
 });
 
 test('fin de partie réglée pour une alliance de 15 à 20 joueurs (décision du 31 octobre 2026) : site 3 M, plan 5,75 M, Merveille à moitié prix', () => {
@@ -122,15 +122,15 @@ test('vagues d\'Immortels : sans engins un mur ne tombe jamais ; avec, il tient 
   assert.equal(late.attackerWon, true);
 });
 
-test('vagues (base 14 500, décision du 31 octobre 2026) contre le mur 15 d\'une Ville Merveille sans défenseurs : il tient jusqu\'au niveau 2, tombe au 2e round au niveau 10, au 1er dès le 16', () => {
+test('vagues (base 14 000, décision du 31 octobre 2026) contre le mur 15 d\'une Ville Merveille sans défenseurs : il tient jusqu\'au niveau 2, tombe au 2e round au niveau 10, au 1er dès le 17', () => {
   const fight = (level) => resolveCombatDetailed(W.immortalLines(W.waveUnits(level)), [], WONDER_WALL, 'Immortels', 'D', null, null, 'SULTAN', 'GREEK', 0, null, { hp: wonderWallHp, maxHp: wonderWallHp });
   const fallRound = (level) => fight(level).rounds.findIndex(r => r.wallHp === 0) + 1;   // 0 : debout à la fin
   assert.equal(fight(2).attackerWon, false);
   assert.equal(fight(3).attackerWon, true);
   assert.ok(fallRound(9) > 2);
   assert.equal(fallRound(10), 2);
-  assert.ok(fallRound(15) > 1);
-  assert.equal(fallRound(16), 1);
+  assert.ok(fallRound(16) > 1);
+  assert.equal(fallRound(17), 1);
 });
 
 // ---- base factice : le client Prisma est remplacé le temps d'un test (aucune requête réelle) ----

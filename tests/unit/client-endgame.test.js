@@ -5,9 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-// Fin de partie côté client (décisions du 31 octobre 2026, rapport de vérification) : panneaux du Bastion (garnison de 17
-// armées au plus, mur et vies lus dans les règles du serveur, un assaut = un rassemblement ou une armée seule) et fiche de
-// la Merveille (l'armée est le vrai moyen de la ravitailler). Le code du navigateur tourne dans un contexte vm.
+// Fin de partie côté client (décisions du 31 octobre 2026, rapport de vérification) : panneaux du Bastion (garnison de 10
+// armées au plus, mur et vies lus dans les règles du serveur, un assaut = un rassemblement ou une armée seule, siège à
+// briser par la garnison, l'alliance et ses alliés) et fiche de la Merveille (l'armée est le vrai moyen de la ravitailler).
+// Le code du navigateur tourne dans un contexte vm.
 let acorn = null;
 try { acorn = require('acorn'); } catch (e) { /* acorn vient avec eslint (dépendance de dev) */ }
 const skip = acorn ? false : 'acorn absent';
@@ -42,7 +43,7 @@ function makeContext(state, extra = {}) {
 const garrisonArmy = (i) => ({ id: `g${i}`, name: `Armée ${i}`, owner: { id: 'p2', name: 'Bo' }, status: 'STATIONED', units: [{ key: 'ROM_INF_MILICIEN', count: 10 }] });
 const bastionView = (n) => ({ id: 'b1', status: 'ACTIVE', x: 4, y: 5, lives: 10, assaults: B.assaults, maxGarrisonArmies: B.maxGarrisonArmies, isSieged: false, garrison: Array.from({ length: n }, (_, i) => garrisonArmy(i)), delivered: {}, cost: B.cost });
 
-test('onglet Alliance › Bastion : garnison « n / 17 armées », envoi impossible quand elle est complète', { skip }, async () => {
+test('onglet Alliance › Bastion : garnison « n / 10 armées », envoi impossible quand elle est complète', { skip }, async () => {
   for (const [n, full] of [[B.maxGarrisonArmies - 1, false], [B.maxGarrisonArmies, true]]) {
     const ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: bastionView(n) });
     const box = { innerHTML: '' };
@@ -79,6 +80,35 @@ test('carte : un Bastion ennemi montre le mur, les vies et la garnison au plus d
   assert.match(modal, new RegExp(`La garnison compte ${B.maxGarrisonArmies} armées au plus, celles en route comprises`));
   ctx.openBastionSend('b1', 'ATTACK');
   assert.match(modal, /Elle livre son propre assaut, seule/);
+});
+
+test('Bastion assiégé : « Briser le siège » pour l\'alliance (onglet et carte) et pour un allié ; sortie de sa garnison ; armées de la garnison proposées', { skip }, async () => {
+  // onglet Alliance › Bastion : bouton, sortie de sa propre armée de garnison, et l'aide dit que le camp d'un rassemblement se brise aussi
+  const view = { ...bastionView(2), isSieged: true };
+  view.garrison[0].owner = { id: 'p1', name: 'Moi' };
+  const ctx = makeContext({ inAlliance: true, members: 16, minMembers: 15, rules: RULES, bastion: view }, { mapRelationOf: () => 'SAME_ALLIANCE' });
+  const box = { innerHTML: '' };
+  await ctx.renderBastionSection(box);
+  assert.match(box.innerHTML, /openBastionSend\('b1', 'BREAK'\)/);
+  assert.match(box.innerHTML, /bastionSortie\('b1', 'g0'\)/, 'sortie de sa propre armée de garnison');
+  assert.doesNotMatch(box.innerHTML, /bastionSortie\('b1', 'g1'\)/, 'pas celle d\'un autre joueur');
+  assert.match(box.innerHTML, /même celui d'un rassemblement/);
+  // carte : le bouton pour l'alliance du Bastion comme pour un allié, jamais sans siège
+  for (const rel of ['SAME_ALLIANCE', 'ALLY']) {
+    const map = makeContext({ inAlliance: true, rules: RULES }, { mapRelationOf: () => rel });
+    for (const isSieged of [true, false]) {
+      const content = { innerHTML: '', querySelector: () => null };
+      await map.renderBastionMapPanel({ id: 'b1', name: 'Bastion [DEF]', x: 4, y: 5, status: 'ACTIVE', lives: 7, isSieged, allianceTag: 'DEF', allianceName: 'Défenseurs' }, content);
+      assert.equal(/openBastionSend\('b1', 'BREAK'\)/.test(content.innerHTML), isSieged, `${rel}, assiégé : ${isSieged}`);
+    }
+  }
+  // choix de l'armée : celles de sa garnison dans ce Bastion (sortie) d'abord, puis celles en ville
+  ctx.armies = [{ id: 'a1', name: 'Cohorte', status: 'IDLE', units: [{ count: 5 }] }, { id: 'g0', name: 'Garde', status: 'STATIONED', targetBastionId: 'b1', units: [{ count: 5 }] }, { id: 'g9', name: 'Ailleurs', status: 'STATIONED', targetBastionId: 'b2', units: [{ count: 5 }] }];
+  let modal = '';
+  ctx.openSheetModal = (title, html) => { modal = html; };
+  ctx.openBastionSend('b1', 'BREAK');
+  assert.deepEqual([...modal.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]), ['g0', 'a1']);
+  assert.match(modal, /Garde — garnison du Bastion \(sortie\)/);
 });
 
 test('fiche de la Merveille : l\'armée est le vrai moyen de la ravitailler (armées de transport, sans plafond)', { skip }, async () => {

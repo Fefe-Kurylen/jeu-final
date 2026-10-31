@@ -16,7 +16,7 @@
     { "key": "t_recruit", "title": "Premiers soldats", "text": "Recrutez 5 soldats à la caserne.", "goal": { "type": "counterTotal", "counter": "units_recruited", "value": 5 }, "go": { "building": "BARRACKS", "recruit": true }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 300 } },
     { "key": "t_army", "title": "Une armée en campagne", "text": "Formez une armée à la Place de rassemblement et donnez-lui vos soldats.", "goal": { "type": "army" }, "go": { "tab": "army" }, "reward": { "wood": 150, "stone": 150, "iron": 150, "food": 150 } },
     { "key": "t_tribe", "title": "Chasser les tribus", "text": "Attaquez la tribu d'un point de ressource proche et gagnez le combat : son butin est à vous.", "goal": { "type": "reportWin", "kind": "TRIBE", "value": 1 }, "go": { "tab": "map", "tribe": true }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } },
-    { "key": "t_expedition", "title": "L'aventure du héros", "text": "Envoyez votre héros en expédition (onglet Héros) : il revient avec de l'expérience, de l'or et parfois un objet.", "goal": { "type": "counterTotal", "counter": "expedition_sent", "value": 1 }, "go": { "tab": "hero" }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } },
+    { "key": "t_expedition", "title": "L'aventure du héros", "text": "Envoyez votre héros en expédition (onglet Héros) : il revient avec de l'expérience, parfois de l'or et un objet.", "goal": { "type": "counterTotal", "counter": "expedition_sent", "value": 1 }, "go": { "tab": "hero" }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } },
     { "key": "t_embassy", "title": "Se faire des alliés", "text": "Construisez l'Ambassade : au niveau 5, elle permet de rejoindre une alliance.", "goal": { "type": "building", "building": "EMBASSY", "level": 1 }, "go": { "building": "EMBASSY" }, "reward": { "wood": 300, "stone": 300, "iron": 300, "food": 300 } }
   ],
 
@@ -58,7 +58,7 @@
       { "key": "d_help", "title": "Entraide", "text": "Aider {value} fois votre alliance", "counter": "help_given", "value": 5, "needs": "alliance" },
       { "key": "d_research", "title": "Érudit du jour", "text": "Terminer {value} recherche", "counter": "research_done", "value": 1, "needs": "academy" },
       { "key": "d_harvest", "title": "Récolte du jour", "text": "Récolter {value} ressources sur les points", "counter": "harvested", "value": 1000, "needs": "army" },
-      { "key": "d_trade", "title": "Marchand du jour", "text": "Envoyer {value} convoi de ressources", "counter": "trade_sent", "value": 1, "needs": "market" }
+      { "key": "d_trade", "title": "Convoi du jour", "text": "Envoyer {value} convoi de ressources", "counter": "trade_sent", "value": 1, "needs": "market" }
     ]
   },
 
@@ -76,7 +76,7 @@
       { "key": "w_help", "title": "Solidarité", "text": "Aider {value} fois votre alliance", "counter": "help_given", "value": 30, "needs": "alliance" },
       { "key": "w_research", "title": "Bibliothèque", "text": "Terminer {value} recherches", "counter": "research_done", "value": 3, "needs": "academy" },
       { "key": "w_harvest", "title": "Moisson", "text": "Récolter {value} ressources sur les points", "counter": "harvested", "value": 10000, "needs": "army" },
-      { "key": "w_trade", "title": "Route commerciale", "text": "Envoyer {value} convois de ressources", "counter": "trade_sent", "value": 5, "needs": "market" }
+      { "key": "w_trade", "title": "Convois de ressources", "text": "Envoyer {value} convois de ressources", "counter": "trade_sent", "value": 5, "needs": "market" }
     ]
   },
 

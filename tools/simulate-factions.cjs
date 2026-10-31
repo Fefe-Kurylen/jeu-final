@@ -99,7 +99,7 @@ const FMT = {
   // cachette (décision du 31 octobre 2026, rapport de vérification) : une part du stockage de la ville par niveau, × (1 + bonus)
   // pour la Gaule
   hideoutCapacity: (v, f) => { const h = l => fx.hideoutPct(l, f), base = l => fx.hideoutPct(l, null); return `cachette L5/L10/L15/L20 : ${[5, 10, 15, 20].map(h).join('/')} % du stockage (${[5, 10, 15, 20].map(base).join('/')} % sans bonus, ×${(1 + v / 100).toFixed(2)})`; },
-  transportCapacity: v => `transport ×${(1 + v / 100).toFixed(2)} (butin des pillages, envois par armée, convois marchands)`,
+  transportCapacity: v => `transport ×${(1 + v / 100).toFixed(2)} (butin des pillages, envois et échanges par armée)`,
   wallHealth: v => { const hp = Math.round(WALL_HP * (1 + v / 100)), hit = engineHit('ROME'); return `mur ${hp} PV/niv. (${WALL_HP} ailleurs) → un niveau tombe en ${Math.ceil(hp / hit)} coups d'engin au lieu de ${Math.ceil(WALL_HP / hit)} (${engineOf('ROME').name} : ${hit.toFixed(2)} PV par round ; un soldat ×${config.combat.siege.wallShield.soldierMult} : seuls les engins abîment le mur)`; },
   armySpeed: v => `100 cases à vitesse 50 en ${(t100 / (1 + v / 100) / 60).toFixed(1)} min (${(t100 / 60).toFixed(1)} min sans bonus)`,
   siegeAttack: (v, f) => `attaque en siège ×${(1 + v / 100).toFixed(2)}, engins compris (${engineHit(f, v).toFixed(2)} PV de mur par round au lieu de ${engineHit(f).toFixed(2)})`,

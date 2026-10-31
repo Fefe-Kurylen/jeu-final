@@ -174,7 +174,7 @@
       "effects": {
         "armySpeedBonusPct": 0.5
       },
-      "description": "Cartes, gués et relais : +0,5 % de vitesse de marche pour vos armées et convois par niveau."
+      "description": "Cartes, gués et relais : +0,5 % de vitesse de marche par niveau pour vos armées (transports et échanges compris) et vos espions."
     },
     {
       "key": "SUPPLY",

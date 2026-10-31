@@ -228,8 +228,8 @@ const baseTrainSecondsFor = (unit) => (config.recruit.baseTimeSec[unit?.class] |
 // ou la Ville Merveille (config.city.ringSlots)
 const ringSlotsOf = (city) => (city?.isCapital ? config.city.ringSlots.capital : config.city.ringSlots.colony);
 
-// Plafond des récompenses de quêtes et des routes commerciales (rapport économie, recommandation 12, option A) : le
-// stockage de la ville par le Dépôt et le Silo seuls, sans le Grand dépôt ni le Grand silo
+// Plafond des récompenses de quêtes (rapport économie, recommandation 12, option A) : le stockage de la ville par le Dépôt
+// et le Silo seuls, sans le Grand dépôt ni le Grand silo
 const storageCapsWithoutGreat = (buildings, buildingsData) => cityStorageCaps((buildings || []).filter(b => b.key === 'WAREHOUSE' || b.key === 'SILO'), buildingsData);
 
 module.exports = {

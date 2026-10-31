@@ -27,7 +27,12 @@ router.post('/:id/start', auth, async (req, res) => {
       const expedition = await tx.expedition.findFirst({ where: { id: req.params.id, playerId: req.user.playerId, status: 'AVAILABLE', expiresAt: { gt: new Date() } } });
       if (!expedition) return { error: 'Expedition non trouvee', status: 404 };
       const armyWhere = { ownerId: req.user.playerId, status: 'IDLE', isGarrison: false };
-      if (armyId) armyWhere.id = armyId;
+      if (armyId) {
+        armyWhere.id = armyId;
+        // armée réservée par une offre du marché : refus clair, comme pour tout départ (routes/armies.js)
+        const asked = await tx.army.findFirst({ where: { id: armyId, ownerId: req.user.playerId }, select: { status: true } });
+        if (asked?.status === 'MARKET') return { error: require('../services/marketService').MARKET_BUSY, status: 400 };
+      }
       const candidates = await tx.army.findMany({ where: armyWhere, include: { units: true, city: true, hero: true } });
       // Only an army standing in its city can leave on an expedition
       const army = candidates.find(a => a.units.length > 0 && a.city && a.x === a.city.x && a.y === a.city.y);

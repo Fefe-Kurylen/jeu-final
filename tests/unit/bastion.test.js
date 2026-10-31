@@ -1,5 +1,6 @@
 // Bastion d'alliance (décision du 26 octobre 2026) : règles de config, vies qui remontent, mur bouclier, bonus sans Bastion ;
-// un assaut = un rassemblement ou une armée seule, garnison de 17 armées au plus (décision du 31 octobre 2026)
+// un assaut = un rassemblement ou une armée seule, garnison de 10 armées au plus (décision du 31 octobre 2026) ; le camp
+// devant un Bastion se brise comme un siège de ville (renforts de l'alliance et de ses alliés, sortie de la garnison)
 require('./_env');
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://unit:unit@localhost:5432/unit';   // le client Prisma est créé, jamais interrogé
 const test = require('node:test');
@@ -17,11 +18,11 @@ test('règles décidées : 15 membres, coût, 3 jours, 7 jours de répit, 10 ass
   assert.deepEqual(B.bonuses, { productionPct: 10, armySpeedPct: 5, carryPct: 10, garrisonDefensePct: 10 });
 });
 
-test('mur bouclier : 3 fois un mur de niveau 20 (décision du 31 octobre 2026, 10 avant), garnison de 17 armées au plus', () => {
+test('mur bouclier : 3 fois un mur de niveau 20 (décision du 31 octobre 2026, 10 avant), garnison de 10 armées au plus', () => {
   assert.equal(config.bastion.wallMultiplier, 3);
   assert.equal(bastion.wallMaxHp(), config.combat.wallHpPerLevel * 20 * 3);
   assert.equal(bastion.wallMaxHp(), 60000);
-  assert.equal(config.bastion.maxGarrisonArmies, 17);
+  assert.equal(config.bastion.maxGarrisonArmies, 10);
 });
 
 test('vies : elles remontent de 0 à 10 en 72 h, jamais au-delà', () => {
@@ -62,6 +63,7 @@ const prisma = require('../../src/config/database');
 function matches(row, where = {}) {
   return Object.entries(where).every(([k, v]) => {
     if (k === 'OR') return v.some(w => matches(row, w));
+    if (k === 'NOT') return !matches(row, v);
     if (v !== null && typeof v === 'object' && !(v instanceof Date)) {
       if ('in' in v) return v.in.includes(row[k]);
       if ('not' in v) return (row[k] ?? null) !== v.not;
@@ -118,7 +120,7 @@ test('assaut (décision du 31 octobre 2026) : un rassemblement ou une armée seu
   } finally { db.restore(); }
 });
 
-test('garnison : 17 armées au plus, celles en route et une sortie en cours comprises (décision du 31 octobre 2026)', async () => {
+test('garnison : 10 armées au plus, celles en route et une sortie en cours comprises (décision du 31 octobre 2026)', async () => {
   const where = bastion.garrisonWhere('b1');
   const row = (status, missionType, targetBastionId = 'b1') => ({ status, missionType, targetBastionId });
   assert.ok(matches(row('STATIONED', 'BASTION_GARRISON'), where));
@@ -128,7 +130,7 @@ test('garnison : 17 armées au plus, celles en route et une sortie en cours comp
   assert.ok(!matches(row('BESIEGING', 'BASTION_ATTACK'), where), 'un camp ennemi');
   assert.ok(!matches(row('TRANSPORTING', 'BASTION_SUPPLY'), where), 'un ravitaillement');
   assert.ok(!matches(row('STATIONED', 'BASTION_GARRISON', 'b2'), where), 'un autre Bastion');
-  // à l'arrivée : refusée quand 17 armées sont déjà dedans, elle rentre ; acceptée à 16
+  // à l'arrivée : refusée quand 10 armées sont déjà dedans, elle rentre ; acceptée à 9
   const B = config.bastion;
   for (const [inside, enters] of [[B.maxGarrisonArmies, false], [B.maxGarrisonArmies - 1, true]]) {
     const armies = Array.from({ length: inside }, (_, i) => ({ id: `g${i}`, ownerId: 'p2', status: 'STATIONED', missionType: 'BASTION_GARRISON', targetBastionId: 'b1' }));
@@ -145,7 +147,7 @@ test('garnison : 17 armées au plus, celles en route et une sortie en cours comp
   }
 });
 
-test('envoi en garnison : refusé quand 17 armées y sont ou y vont, accepté à 16', async () => {
+test('envoi en garnison : refusé quand 10 armées y sont ou y vont, accepté à 9', async () => {
   require('../../frontend/js/shared/terrain.js').setWorldSeed(0);   // la carte de référence (calcul du trajet)
   const B = config.bastion;
   for (const [taken, ok] of [[B.maxGarrisonArmies, false], [B.maxGarrisonArmies - 1, true]]) {
@@ -158,7 +160,21 @@ test('envoi en garnison : refusé quand 17 armées y sont ou y vont, accepté à
     try {
       const send = bastion.send('p1', 'b1', { armyId: 'a1', mission: 'GARRISON' });
       if (ok) { await send; assert.equal(db.army('a1').status, 'SUPPORTING'); }
-      else await assert.rejects(send, (e) => e.status === 400 && e.message === 'Garnison du Bastion complète : 17 armées au plus, celles en route comprises');
+      else await assert.rejects(send, (e) => e.status === 400 && e.message === 'Garnison du Bastion complète : 10 armées au plus, celles en route comprises');
+    } finally { db.restore(); }
+  }
+});
+
+test('envoi au Bastion : une armée réservée par une offre du marché (MARKET) ne part pas, refus clair', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const city = { id: 'c1', x: 0, y: -10, isSieged: false, buildings: [] };
+  for (const mission of ['GARRISON', 'SUPPLY']) {
+    const armies = [{ id: 'a1', ownerId: 'p1', name: 'Cohorte', cityId: 'c1', city, isGarrison: false, status: 'MARKET', missionType: 'MARKET_OFFER', x: 0, y: -10, hero: null,
+      units: [{ unitKey: 'ROM_INF_MILICIEN', tier: 'base', count: 50 }], owner: { id: 'p1', faction: 'ROME', technologies: [], alliance: { allianceId: 'A1' }, cities: [] } }];
+    const db = fakeDb({ armies, bastions: [{ id: 'b1', allianceId: 'A1', status: mission === 'SUPPLY' ? 'FUNDING' : 'ACTIVE', isSieged: false, x: 4, y: -10, alliance: { tag: 'TAG', name: 'Alliance' } }], members: [{ playerId: 'p1', allianceId: 'A1' }] });
+    try {
+      await assert.rejects(bastion.send('p1', 'b1', { armyId: 'a1', mission, resources: { wood: 10 } }), (e) => e.status === 400 && e.message === require('../../src/services/marketService').MARKET_BUSY, mission);
+      assert.equal(db.army('a1').status, 'MARKET');
     } finally { db.restore(); }
   }
 });
@@ -168,7 +184,7 @@ test('vue du Bastion : les règles (mur, vies, garnison au plus) même sans alli
   try {
     const v = await bastion.bastionFor('p1');
     assert.equal(v.inAlliance, false);
-    assert.equal(v.rules.maxGarrisonArmies, 17);
+    assert.equal(v.rules.maxGarrisonArmies, 10);
     assert.equal(v.rules.wallMultiplier, config.bastion.wallMultiplier);
     assert.equal(v.rules.assaults, config.bastion.assaults);
   } finally { db.restore(); }
@@ -204,5 +220,103 @@ test('garnison : à l\'arrivée, l\'état du Bastion est relu sous son verrou (u
     assert.equal(db.army('new').status, 'SUPPORTING');
     assert.deepEqual(home, ['new']);
     assert.ok(db.notes.some(n => n.body.includes('(assiégé)')), JSON.stringify(db.notes));
+  } finally { db.restore(); }
+});
+
+// ---- briser le siège d'un Bastion (propriétaire, 31 octobre 2026 : « les assaillants peuvent être attaqués par les
+// renforts, comme les sièges ») : renforts de l'alliance et de ses alliés, sortie de la garnison, contre un rassemblement
+// ou une armée seule ----
+// Base factice plus large : unités des armées, diplomatie, rapports ; tout autre modèle lit vide et accepte les écritures
+// (classements, blessés, technologies)
+function breakDb({ armies = [], bastions = [], members = [], diplomacy = [], units = [] }) {
+  const base = fakeDb({ armies, bastions, members });
+  const reports = [];
+  const unitTable = {
+    findMany: async ({ where }) => units.filter(u => u.armyId === where.armyId).map(u => ({ ...u })),
+    update: async ({ where, data }) => { const u = units.find(x => x.id === where.id); if (u) u.count -= data.count.decrement; return u; },
+    deleteMany: async ({ where }) => { const i = units.findIndex(x => x.id === where.id); if (i >= 0) units.splice(i, 1); return { count: i >= 0 ? 1 : 0 }; }
+  };
+  const extra = { allianceDiplomacy: table(diplomacy), armyUnit: unitTable, battleReport: { create: async ({ data }) => { reports.push(data); return { id: `rep${reports.length}` }; } } };
+  const saved = Object.fromEntries(Object.keys(extra).map(k => [k, prisma[k]]));
+  Object.assign(prisma, extra);
+  const anyModel = { findMany: async () => [], findFirst: async () => null, findUnique: async () => null, count: async () => 0, aggregate: async () => ({ _sum: { count: 0 } }), create: async ({ data }) => ({ id: 'x', ...data }), update: async () => ({}), upsert: async () => ({}), updateMany: async () => ({ count: 0 }), deleteMany: async () => ({ count: 0 }) };
+  const tx = new Proxy({ ...base.tx, ...extra, $executeRaw: async () => 1, $executeRawUnsafe: async () => 1 }, { get: (t, k) => (k in t ? t[k] : anyModel) });
+  prisma.$transaction = (fn) => fn(tx);
+  return { ...base, tx, reports, units, restore: () => { Object.assign(prisma, saved); base.restore(); } };
+}
+// Bastion DEF (alliance A1, alliée de A2) assiégé par l'alliance E1 (alliée de A3) ; la carte de référence pour les trajets
+const BASTION = { id: 'b1', allianceId: 'A1', status: 'ACTIVE', isSieged: true, x: 4, y: -10, structure: 1, structureAt: new Date(), alliance: { id: 'A1', tag: 'DEF', name: 'Défenseurs' } };
+const MEMBERS = [['p1', 'A1'], ['p2', 'A2'], ['p7', 'E1'], ['p8', 'E1'], ['p9', 'E1'], ['p5', 'A3']].map(([playerId, allianceId]) => ({ playerId, allianceId }));
+const DIPLOMACY = [['A1', 'A2'], ['A2', 'A1'], ['E1', 'A3'], ['A3', 'E1']].map(([allianceId, targetAllianceId]) => ({ allianceId, targetAllianceId, status: 'ALLY' }));
+const home = (id, x) => ({ id, x, y: -10, isSieged: false, isCapital: true, buildings: [] });
+// camp d'un rassemblement (rallyId, plusieurs propriétaires) ou d'une armée seule, devant le Bastion
+const siegeCamp = (id, ownerId, count, rallyId = null) => ({ id, ownerId, name: id, status: 'BESIEGING', missionType: 'BASTION_ATTACK', targetBastionId: 'b1', rallyId, claimedAt: null, x: 4, y: -10, cityId: `c-${ownerId}`, city: home(`c-${ownerId}`, -20),
+  arrivalAt: new Date(Date.now() + 1800000), heroId: null, hero: null, owner: { id: ownerId, name: ownerId, faction: 'GAUL', technologies: [], alliance: { allianceId: 'E1' } }, units: [{ id: `u-${id}`, unitKey: 'GAU_INF_GUERRIER', tier: 'base', count }] });
+const breaker = (id, ownerId, count, extra = {}) => ({ id, ownerId, name: id, cityId: `c-${ownerId}`, city: home(`c-${ownerId}`, 0), isGarrison: false, status: 'IDLE', x: 0, y: -10, heroId: null, hero: null,
+  units: [{ id: `u-${id}`, armyId: id, unitKey: 'ROM_INF_LEGIONNAIRE', tier: 'elite', count }], owner: { id: ownerId, name: ownerId, faction: 'ROME', technologies: [], alliance: { allianceId: MEMBERS.find(m => m.playerId === ownerId).allianceId }, cities: [] }, ...extra });
+
+test('briser le siège : renforts de l\'alliance du Bastion et de ses alliés, sortie de la garnison ; jamais le camp lui-même ni ses alliés', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const cases = [
+    ['p1', breaker('a-p1', 'p1', 50), 'BASTION_BREAK', null],
+    ['p2', breaker('a-p2', 'p2', 50), 'BASTION_BREAK', null],
+    ['p2', breaker('g-p2', 'p2', 50, { status: 'STATIONED', missionType: 'BASTION_GARRISON', targetBastionId: 'b1', x: 4 }), 'BASTION_SORTIE', null],
+    ['p8', breaker('a-p8', 'p8', 50), null, 'Les armées qui assiègent ce Bastion sont de votre alliance ou d\'une alliance alliée'],
+    ['p5', breaker('a-p5', 'p5', 50), null, 'Les armées qui assiègent ce Bastion sont de votre alliance ou d\'une alliance alliée']
+  ];
+  for (const [playerId, army, missionType, refusal] of cases) {
+    const camp = [siegeCamp('lead', 'p7', 100, 'r1'), siegeCamp('mate', 'p8', 100, 'r1'), siegeCamp('mate2', 'p9', 100, 'r1')];
+    const db = breakDb({ armies: [...camp, army], bastions: [{ ...BASTION }], members: MEMBERS, diplomacy: DIPLOMACY });
+    try {
+      const send = bastion.send(playerId, 'b1', { armyId: army.id, mission: 'BREAK' });
+      if (refusal) { await assert.rejects(send, (e) => e.status === 400 && e.message === refusal, playerId); continue; }
+      const out = await send;
+      assert.deepEqual([db.army(army.id).status, db.army(army.id).missionType, db.army(army.id).targetBastionId], ['ATTACKING', missionType, 'b1'], `${playerId} ${army.id}`);
+      assert.equal(out.sortie, missionType === 'BASTION_SORTIE');
+      if (out.sortie) assert.equal(out.travelTime, config.bastion.sortieSeconds, 'la sortie frappe 30 s après');
+      // les trois propriétaires du camp du rassemblement sont prévenus
+      assert.deepEqual(db.notes.filter(n => n.kind === 'attack_incoming').map(n => n.playerId).sort(), ['p7', 'p8', 'p9']);
+    } finally { db.restore(); }
+  }
+});
+
+test('briser le siège gagné : le camp (rassemblement de plusieurs joueurs ou armée seule) rentre, le Bastion n\'est plus assiégé, l\'assaut n\'a pas lieu', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  for (const camp of [[siegeCamp('lead', 'p7', 30, 'r1'), siegeCamp('mate', 'p8', 30, 'r1'), siegeCamp('mate2', 'p9', 30, 'r1')], [siegeCamp('solo', 'p7', 30)]]) {
+    const army = breaker('a-p2', 'p2', 3000, { status: 'ATTACKING', missionType: 'BASTION_BREAK', targetBastionId: 'b1', targetX: 4, targetY: -10, x: 4 });
+    const db = breakDb({ armies: [...camp, army], bastions: [{ ...BASTION }], members: MEMBERS, diplomacy: DIPLOMACY, units: army.units.map(u => ({ ...u })) });
+    const sentHome = [];
+    try {
+      const stale = camp.map(c => ({ ...c }));   // lus par le tick avant le combat
+      await bastion.handleBreakArrival(army, new Date(), async (a) => { sentHome.push(a.id); });
+      for (const c of camp) {
+        const row = db.army(c.id);
+        assert.deepEqual([row.status, row.missionType, row.rallyId, row.targetBastionId], ['RETURNING', 'RETURN', null, null], `${c.id} rentre, sorti du rassemblement`);
+      }
+      assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).isSieged, false, 'plus de camp : plus de siège');
+      assert.deepEqual([db.army('a-p2').status, db.army('a-p2').x, db.army('a-p2').targetBastionId], ['IDLE', 4, null], 'le vainqueur garde le Bastion devant ses murs');
+      assert.deepEqual(sentHome, []);
+      assert.equal(db.reports.length, 1 + camp.length, 'un rapport par joueur');
+      // l'heure du camp passée, le tick (qui l'avait lu avant) n'en tire aucun assaut : le Bastion ne perd rien
+      for (const c of stale) await bastion.handleBastionBattle(c, new Date(), async (a) => { sentHome.push(a.id); });
+      assert.deepEqual(sentHome, [], 'aucune armée renvoyée une seconde fois');
+      assert.equal(db.reports.length, 1 + camp.length, 'aucun rapport d\'assaut');
+      assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).structure, 1, 'aucune vie perdue');
+      assert.ok(db.notes.some(n => n.playerId === 'p1' && n.title === '🏰 Siège du Bastion brisé'), 'l\'alliance du Bastion est prévenue');
+    } finally { db.restore(); }
+  }
+});
+
+test('briser le siège perdu : le camp du rassemblement reste et le Bastion reste assiégé ; l\'armée vaincue rentre', async () => {
+  require('../../frontend/js/shared/terrain.js').setWorldSeed(0);
+  const camp = [siegeCamp('lead', 'p7', 2000, 'r1'), siegeCamp('mate', 'p8', 2000, 'r1')];
+  const army = breaker('a-p1', 'p1', 5, { status: 'ATTACKING', missionType: 'BASTION_BREAK', targetBastionId: 'b1', targetX: 4, targetY: -10, x: 4 });
+  const db = breakDb({ armies: [...camp, army], bastions: [{ ...BASTION }], members: MEMBERS, diplomacy: DIPLOMACY, units: army.units.map(u => ({ ...u })) });
+  const sentHome = [];
+  try {
+    await bastion.handleBreakArrival(army, new Date(), async (a) => { sentHome.push(a.id); });
+    assert.deepEqual(camp.map(c => [db.army(c.id).status, db.army(c.id).rallyId]), [['BESIEGING', 'r1'], ['BESIEGING', 'r1']]);
+    assert.equal((await db.tx.bastion.findUnique({ where: { id: 'b1' } })).isSieged, true);
+    assert.deepEqual(sentHome, ['a-p1']);
   } finally { db.restore(); }
 });

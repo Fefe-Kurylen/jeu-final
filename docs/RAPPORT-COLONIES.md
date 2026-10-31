@@ -66,7 +66,7 @@ L'étude ci-dessous raisonne encore avec 3 colonies, 5 000 joueurs, le +20 % des
 - Construire, recruter, rechercher, soigner, le héros et fonder une ville se paient sur **la somme de toutes vos villes**. On prend d'abord dans la ville de l'action.
 - L'entretien des troupes se paie sur **la somme de tous les greniers**. La famine n'arrive que si ce total est vide.
 - Toute unité formée apparaît dans la capitale. Une colonie n'a pas de garnison propre : seules les armées qu'on y envoie la défendent.
-- Raids, pillage, siège, cachette, marché et transports restent propres à chaque ville. Les routes commerciales entre vos villes ne changent pas.
+- Raids, pillage, siège, cachette, marché et transports restent propres à chaque ville. Les routes commerciales entre vos villes ne changent pas. (Le 31 octobre 2026 au soir, décision D7 : routes et marchands retirés, rien ne circule plus entre vos villes, leur stock est commun.)
 - Les convois automatiques sont abandonnés. Tout ce qui ne servait qu'aux convois est retiré de ce projet.
 
 ### Le rôle des colonies
@@ -199,9 +199,9 @@ Dans toutes les villes, deux choses restent hors de l'anneau :
 ### Risques
 - **Course aux gisements de céréales de niveau 3.** Avec 6 fermes, le bonus y pèse plus lourd, et une colonie égyptienne peut monter à environ 72 900 céréales par heure. Solution de repli : seulement +10 % par niveau pour les céréales.
 - **Il risque de manquer de gisements.**
-  - La carte en crée au plus environ 4 900, dont 13 % d'or. Il en reste environ 4 260 où l'on peut fonder, dont environ 720 de niveau 3.
+  - Chiffre corrigé le 31 octobre 2026 (rapport de vérification) : la carte de 374 en créait environ 4 900 n'importe où sur la terre, mais seules 3 200 à 3 300 avaient la place d'une ville, et après 2 000 capitales il ne restait de quoi fonder qu'environ 1 800 colonies (environ 1 000 joueurs à 2 colonies, et non 4 260 sites fondables).
   - La carte n'en ajoute pas quand le monde grandit, alors que 5 000 joueurs × 3 colonies demanderaient 15 000 gisements.
-  - À vérifier avant l'ouverture.
+  - Réglé le 31 octobre 2026 au soir (décision D1) : un monde neuf a une carte de 420 × 420 et 6 000 gisements tous fondables, de quoi fonder les 4 000 colonies de 2 000 joueurs (`docs/CARTE-REFERENCE.md`).
 - **Les ordres groupés font avancer plus vite** les joueurs qui se connectent peu. Il faut relancer la simulation « 2 connexions par jour ».
 - **Les 6 bâtiments de faction de colonie sont difficiles à comparer**, surtout ceux de la Grèce, du Sultanat et de Rome. À vérifier en simulation.
 - **Des colonies riches sans garnison attirent les raids.** Les garde-fous :

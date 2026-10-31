@@ -61,7 +61,7 @@ const config = {
   // Bastion d'alliance (décision du 26 octobre 2026, GDD alliance_config.bastion) : 15 membres pour le bâtir, ressources
   // apportées par convois, 3 jours de chantier ; bonus de tous les membres tant qu'il tient ; il tombe comme une ville en
   // plus dur (mur bouclier 3 fois un mur 20, 10 vies qui remontent en 72 h) ; 7 jours avant d'en rebâtir un. Un assaut = un
-  // rassemblement ou une armée seule ; garnison de 17 armées au plus (décision du 31 octobre 2026, rapport de vérification)
+  // rassemblement ou une armée seule ; garnison de 10 armées au plus (décision du 31 octobre 2026, rapport de vérification)
   // Cycle du serveur (décision du 28 octobre 2026, GDD world_config.server) : inscriptions 2 mois, 2 000 joueurs (31 octobre 2026) ; fin par
   // une Merveille façon Travian gardée par les Immortels
   // Invasions barbares (décision du 29 octobre 2026) : chaque week-end, du vendredi 18 h au dimanche 23 h (Paris), des
@@ -128,12 +128,14 @@ const config = {
     // contre une Ville Merveille = immortalWaveBase × niveau^immortalWaveExp. Réglés pour une alliance de 15 à 20 joueurs
     // (décision du 31 octobre 2026, rapport de vérification ; vrai moteur et armées de la simulation, jours 120 à 175) :
     // un site se prend avec 47 à 35 % de son armée de 15 à 20 joueurs (3 M, inchangé), un plan avec 74 à 55 % (65 % à 17 ;
-    // 5,75 M, avant 4,5 M : 58 à 43 %), et derrière le mur 15 de la Ville Merveille elle tient le niveau 100 avec 92 à 70 %
-    // de son armée (85 % à 17 joueurs, 78 % à 18 ; base 14 500, avant 20 000 : 2,85 M au niveau 50, 7,27 M au niveau 100 ;
-    // avant, 16 joueurs plafonnaient au niveau 86 avec toute leur armée)
+    // 5,75 M, avant 4,5 M : 58 à 43 %). Vagues : base 14 000 (décision du 31 octobre 2026, rapport de vérification ; 20 000
+    // avant, puis 14 500 proposé) : derrière le mur 15 de la Ville Merveille, une alliance de 15 / 16 / 17 / 18 / 20 joueurs
+    // tient le niveau 100 avec 89 / 85 / 82 / 76 / 68 % de son armée, 80 % en moyenne comme visé (14 500 : 92 / 88 / 85 /
+    // 78 / 70 %) ; 2,75 M au niveau 50, 7,02 M au niveau 100 (avant, 16 joueurs plafonnaient au niveau 86 avec toute leur
+    // armée)
     immortalSitePower: 3000000,
     immortalPlanPower: 5750000,
-    immortalWaveBase: 14500,
+    immortalWaveBase: 14000,
     immortalWaveExp: 1.35
   },
 
@@ -152,13 +154,15 @@ const config = {
     cooldownDays: 7,
     // Mur bouclier et garnison façon fort barbare de Rise of Kingdoms (décision du 31 octobre 2026, rapport de vérification,
     // choix du propriétaire après la mesure) : mur 3 fois un mur 20, soit 60 000 PV (10 avant, 50 avant le 30 octobre), et
-    // 17 armées au plus en garnison, celles en route comprises. Mesure (vrai moteur, armées de la simulation au jour 150,
-    // 65 engins par armée avec l'Atelier 20) : un rassemblement plein de 25 armées prend une vie une fois sur deux (52 %)
-    // à une garnison pleine de 17 armées comme les siennes ; sans garnison, 5 armées suffisent (4 sous un chef du
-    // Sultanat). Contre 25 armées égales il ne gagnait jamais, quel que soit le mur (4 % à ×1, 0 % de ×2 à ×10) : tant que
-    // le mur tient, les défenseurs ne prennent aucun coup
+    // 10 armées au plus en garnison, celles en route et en sortie comprises (25 puis 17 proposées avant). Un rassemblement
+    // ne prend qu'une armée par joueur : une alliance de 15 à 20 membres n'aligne que 15 à 20 armées. Mesure (vrai moteur,
+    // armées de la simulation au jour 150, une armée = toute l'armée d'un joueur, 65 engins par armée avec l'Atelier 20,
+    // 300 tirages) : contre une garnison pleine de 10 armées comme les siennes, un rassemblement de 15 / 16 / 17 / 18 / 20
+    // armées prend une vie 4 / 19 / 50 / 83 / 100 % des fois (à 17 armées en garnison, 0 % jusqu'à 20 armées) ; sans
+    // garnison, 5 armées suffisent (4 sous un chef du Sultanat). Le camp devant le Bastion peut être attaqué par les renforts
+    // (mission « Briser le siège » de l'alliance et de ses alliés, sortie de la garnison), comme un siège de ville
     wallMultiplier: 3,
-    maxGarrisonArmies: 17,
+    maxGarrisonArmies: 10,
     sortieSeconds: 30,                          // sortie d'une armée de la garnison contre le camp ennemi : combat 30 s après (décision du 29 octobre 2026)
     wallReferenceLevel: 20,
     assaults: 10,

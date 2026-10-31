@@ -64,7 +64,7 @@ tradeRouter.post('/trade/send', auth, async (req, res) => {
     const targetCity = await prisma.city.findFirst({ where: require('../utils/spawn').cityAtCellWhere(targetX, targetY) });   // any of its 2 × 2 cells
     if (!targetCity) return res.status(404).json({ error: 'Aucune ville à ces coordonnées' });
     if (targetCity.id === fromCityId) return res.status(400).json({ error: 'Choisissez une autre ville' });
-    if (targetCity.playerId === req.user.playerId && !targetCity.isWonder) return res.status(400).json({ error: 'Vos villes partagent leur stock : rien à transporter entre elles' });
+    if (targetCity.playerId === req.user.playerId && !targetCity.isWonder) return res.status(400).json({ error: MS.OWN_CITIES_SHARE_STOCK });
     const relation = await getRelation(req.user.playerId, targetCity.playerId);
     if (!relation.canTransport) return res.status(403).json({ error: 'Impossible d\'envoyer des ressources à un ennemi' });
     if (await besieged(prisma, targetCity.id)) return res.status(400).json({ error: 'Ville assiégée : aucun convoi n\'entre tant que l\'armée ennemie est devant elle' });

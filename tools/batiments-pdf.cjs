@@ -52,24 +52,24 @@ const EFFECT = {
   FORGE: (L) => `Attaque et défense de toutes vos troupes +${pct(fx.forgeAttackPct(at('FORGE', L)))} %, dans tous les combats`,
   HIDEOUT: (L) => `${pct(fx.hideoutPct(L, null))} % du stockage de la ville à l'abri des pillages pour chaque ressource (Gaule × ${pct(1 + getFactionBonus('GAUL', 'hideoutCapacity', factionsData) / 100)})`,
   HEALING_TENT: (L) => `${Math.min(70, 30 + L * 3)} % des pertes récupérées en blessés`,
-  MARKET: (L) => `${fx.merchantCount(at('MARKET', L))} marchand(s) · taxe du marchand du serveur ${fx.npcMarketTaxPct(L)} % · armées de transport +${L * eff('MARKET', 'playerTransportBonusPctPerLevel')} %`,
+  MARKET: (L) => `Taxe du marchand du serveur ${fx.npcMarketTaxPct(L)} % · armées de transport +${pct(fx.transportBonusPct(at('MARKET', L)))} %`,
   WALL: (L) => `Défense +${L} % · ${fmt(L * config.combat.wallHpPerLevel)} PV de mur · réparation +${L} % · sur l'enceinte · colonie : niveau ${fx.maxLevelIn('WALL', false)} au plus`,
   MILL: (L) => `Céréales +${pct(L * L1Of('MILL'))} %`, BAKERY: (L) => `Céréales +${pct(L * L1Of('BAKERY'))} %`, SAWMILL: (L) => `Bois +${pct(L * L1Of('SAWMILL'))} %`, STONEMASON: (L) => `Pierre +${pct(L * L1Of('STONEMASON'))} %`, FOUNDRY: (L) => `Fer +${pct(L * L1Of('FOUNDRY'))} %`,
   GREAT_SILO: (L) => `Capacité +${fmt(storage('GREAT_SILO', L))} céréales (3 fois un silo)`, GREAT_WAREHOUSE: (L) => `Capacité +${fmt(storage('GREAT_WAREHOUSE', L))} (bois, pierre, fer ; 3 fois un dépôt)`,
   GREAT_BARRACKS: (L) => `Recrute infanterie et archers dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} % · ${tierOf('GREAT_BARRACKS', L)} · capitale −${pct(fx.capitalTrainBoostPct([{ buildings: at('GREAT_BARRACKS', L) }], 'INFANTRY'))} %`,
   GREAT_STABLE: (L) => `Recrute la cavalerie dans une colonie (les recrues rejoignent la capitale) · entraînement −${Math.min(60, L * 4)} % · ${tierOf('GREAT_STABLE', L)} · capitale −${pct(fx.capitalTrainBoostPct([{ buildings: at('GREAT_STABLE', L) }], 'CAVALRY'))} %`,
   EMBASSY: (L) => `${L >= fx.allianceCreateLevel() ? 'Rejoindre et fonder une alliance' : L >= fx.allianceJoinLevel() ? `Rejoindre une alliance (fonder au niv. ${fx.allianceCreateLevel()})` : `Alliance : rejoindre au niv. ${fx.allianceJoinLevel()}, fonder au niv. ${fx.allianceCreateLevel()}`} · chef : ${fx.allianceMaxMembers(L)} membres au plus`,
-  TREASURE_CHAMBER: (L) => `${fx.goldPerDayAtLevel(L)} or par jour · l'or ne se pille jamais`,
+  TREASURE_CHAMBER: (L) => { const tax = L * config.market.treasureTaxReductionPctPerLevel; return `${fx.goldPerDayAtLevel(L)} or par jour · l'or ne se pille jamais · taxe des échanges −${pct(tax)} point${tax >= 2 ? 's' : ''}`; },
   HERO_MANSION: () => 'Accès au héros depuis la ville',
   WATCHTOWER: (L) => `${L >= 10 ? '2 espions' : L >= 5 ? '1 espion' : 'Espion au niv. 5'} · alerte des attaques sur toutes les villes${L >= 15 ? ' avec attaquant et effectifs' : L >= 10 ? ' avec attaquant' : ''} · voit les armées à ${fx.visionRadius(L)} cases de chaque ville`,
   RESIDENCE: (L) => `Construction −${pct(L * 0.25)} % · colonie : gisement +${def('RESIDENCE').effects.colonyNodeBonusPctPerNodeLevel} % par niveau sur sa ressource, ${String(def('RESIDENCE').effects.colonyOtherResourcesPct || 0).replace('-', '−')} % sur les autres`,
-  TRADE_OFFICE: (L) => `Taxe des échanges −${pct(L * eff('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel'))} point${L > 1 ? 's' : ''} · charge des marchands et des armées de transport +${pct(fx.merchantCapacityBonusPct(at('TRADE_OFFICE', L)))} %`,
+  TRADE_OFFICE: (L) => `Taxe des échanges −${pct(L * eff('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel'))} point${L > 1 ? 's' : ''} · charge des armées de transport +${pct(fx.transportBonusPct(at('TRADE_OFFICE', L)))} %`,
   ROMAN_THERMAE: (L) => `Soins −${pct(L * 1.5)} % de temps · blessés +${pct(L * 0.5)} %`,
   GALLIC_BREWERY: (L) => `Défense de toutes les villes +${L} %`,
   GREEK_TEMPLE: (L) => `Blessés au lieu de morts +${pct(L * 0.5)} %`,
   EGYPTIAN_IRRIGATION: (L) => `Production de toutes les villes +${L} % · marche +${pct(L * 0.5)} %`,
   HUN_WAR_TENT: (L) => `Entretien −${pct(L * 0.5)} % · blessés +${pct(L * 0.5)} %`,
-  SULTAN_DESERT_OUTPOST: (L) => `Entretien −${pct(fx.upkeepReductionPct(at('SULTAN_DESERT_OUTPOST', L)))} % · charge des marchands, transports et récoltes +${pct(fx.merchantCapacityBonusPct(at('SULTAN_DESERT_OUTPOST', L)))} %`
+  SULTAN_DESERT_OUTPOST: (L) => `Entretien −${pct(fx.upkeepReductionPct(at('SULTAN_DESERT_OUTPOST', L)))} % · charge des transports et récoltes +${pct(fx.transportBonusPct(at('SULTAN_DESERT_OUTPOST', L)))} %`
 };
 // Placement (décision du 30 octobre 2026) : capitale seulement (bonus pour toutes les villes), colonies seulement, partout
 const WHERE = (d) => (d.effects?.capitalOnly ? 'Capitale<div class="k">bonus pour toutes les villes</div>' : d.effects?.notInCapital ? 'Colonies' : 'Partout');

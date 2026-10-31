@@ -119,7 +119,7 @@ ${row('Villes `map/cities/<rome|gaul|greek|egypt|hun|sultan|default|capital|capi
 ${row('Ressources `map/resources/<wood|stone|iron|food|gold>_<forest|desert|snow>_<1|2|3>.png` (PROMPTS-CARTE.md)', mapResWorld, '1024², cadre mapobject', 'points de ressource : un visuel par ressource, terrain et richesse, sans couleur de civilisation')}
 ${row('Camps barbares `map/camps/camp<1|2|3>[_desert|_snow].png`, `map/camps/ruins[_desert|_snow].png`', mapCamps, '1024², cadre mapobject', 'camp de la tribu sur le point de ressource (niveau et biome), ruines jusqu\'à la réapparition ; sans eux, l\'icône de ressource reste')}
 ${row('Sol, forêts, rochers, montagnes, ponts, gués, décor `map/world/…` (carte de référence, liste et prompts : docs/PROMPTS-CARTE.md)', mapWorld, '1024², cadres mapobject / texture', 'fond et relief de la carte du monde (remplace `map/terrain/…`)')}
-${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapobject', 'marqueurs des armées et marchands en déplacement')}
+${row('Armées en marche `map/units/<hoplite|archer|cavalry|catapult>[_<CIV>].png`, `map/units/merchant.png`', mapUnits, '1024², cadre mapobject', 'marqueurs des armées en déplacement (charrette pour les armées de transport)')}
 
 ### 3.5 Unités et héros
 
@@ -164,7 +164,7 @@ quelques glyphes vectoriels et les visuels hors jeu (boutique, natif). Fiches d�
 | Porte de la ville par civilisation \`walls/<CIV>/gate.png\` (neige reportée) | 6 | 1024², cadre building | le vantail de la porte sud-est est dessiné par le code ; une porte peinte par style d'architecture serait plus belle |
 | Chantier (échafaudage) en trois tailles \`props/scaffold_<1|2|3>.png\` | 3 | 1024², cadre building | aujourd'hui le bâtiment en travaux clignote avec un marteau ; un échafaudage posé dessus fait plus « Rise of Kingdoms » |
 | Panneau « construire ici » \`props/sign_build.png\` | 1 | 1024², cadre prop | l'emplacement libre est un losange pointillé avec un « + » dessiné par le code |
-| Cycle de marche des unités de carte (4 images par classe + marchand), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |
+| Cycle de marche des unités de carte (4 images par classe + charrette de transport), série neutre recolorée par faction | 20 | 64×64 ou 1024² recadré | animation de marche plus vivante sur la carte (le trottinement actuel est fait par le code) |
 | Poses de combat (frappe, garde) par classe pour le replay de bataille | 8 | 1024², cadre figure | replay plus lisible |
 | Projectiles et impacts du replay : flèche, pierre de catapulte, éclat d'impact, nuage de poussière | 4 | 256², sans guide | aujourd'hui tracés par le code (traits et ronds) |
 | Emblème (blason) de chaque civilisation \`ui/crest_<CIV>.png\` | 6 | 1024², cadre icon | choix de civilisation, alliance, étiquettes de carte ; aujourd'hui on réutilise le buste du héros |
@@ -309,7 +309,7 @@ const ANIM = [
   ['A2', 'props/flame_<0..3>.png, props/brazier_<0..3>.png', 8, '512×768', 'flammes des torches et braseros'],
   ['A3', 'props/worker_<CIV>_<0..3>.png', 24, '512×768', 'chantier : ouvrier au marteau de chaque civilisation (échafaudages : compléments fixes § S11)'],
   ['A4', 'anim/mill_sails_<0..5>.png, anim/sparks_<0..3>.png, anim/furnace_<0..3>.png', 14, '512×512', 'moulin, forge, fonderie'],
-  ['A5', 'map/units/<hoplite|archer|cavalry|catapult|hero>_<CIV>_walk.png, merchant_walk.png, settler_walk.png, spy_walk.png (découpées en _walk_<0..5>)', 198, '33 planches de 1536×1024 (6 poses de 512×512 en 3 × 2)', 'cycles de marche sur la carte (armées de chaque civilisation, héros, marchand, cortège de colons, espion)'],
+  ['A5', 'map/units/<hoplite|archer|cavalry|catapult|hero>_<CIV>_walk.png, merchant_walk.png, settler_walk.png, spy_walk.png (découpées en _walk_<0..5>)', 198, '33 planches de 1536×1024 (6 poses de 512×512 en 3 × 2)', 'cycles de marche sur la carte (armées de chaque civilisation, héros, charrette des armées de transport, cortège de colons, espion)'],
   ['A6', 'map/units/<classe>_attack_<0..2>.png, <classe>_hit_<0..1>.png, fx/arrow.png, fx/stone.png, fx/impact_<0..2>.png', 25, '512×512', 'replay de bataille'],
   ['A7', 'map/fx/battle_<0..3>.png, map/fx/fire_<0..3>.png, map/fx/campfire_<0..3>.png', 12, '512×512', 'combat, ville en feu, feu de camp'],
   ['A8', 'ui/fx_sparkle_<0..5>.png, ui/fx_levelup_<0..5>.png, ui/fx_coins_<0..3>.png', 16, '512×512', 'effets d\'interface'],

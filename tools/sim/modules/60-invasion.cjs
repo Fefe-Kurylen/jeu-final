@@ -15,20 +15,32 @@
 // - Issues suivies (étages vaincus, donjons détruits et trésor partagé, rassemblements repoussés ou annulés), événements
 //   invasion_start / invasion_end ; de temps en temps, l'administrateur (bot 0) lance une invasion manuelle en semaine
 //   (POST /api/admin/invasion/start) et parfois la termine plus tôt (/api/admin/invasion/end).
-// Au plus 7 appels par joueur et par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
+// Au plus 12 appels par joueur et par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
+//
+// Rapport de vérification du 31 octobre 2026 (§ 6.6 et § 6.9 : 0 donjon détruit, les joueurs automatiques n'attaquaient
+// qu'avec leurs 2 troupes les plus nombreuses, sans la garnison, et jamais pour user un étage) :
+// - l'armée de chasse prend toutes les troupes de la garnison (la ville en garde 10 %) ;
+// - usure : un étage garde ses pertes ; quand l'alliance n'a pas de quoi le battre, un rassemblement qui pèse au moins la
+//   moitié de l'étage part quand même l'user (sa défaite n'apprend rien à la marge) ;
+// - attente du rassemblement : la plus courte des attentes permises (5 à 180 min) qui laisse arriver les membres attendus ;
+// - l'armée de chasse est le rôle hunt des emplacements partagés de la Place de rassemblement (../armies.cjs), le dernier.
 'use strict';
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const config = require(path.join(ROOT, 'src/config'));
 const { unitsData } = require(path.join(ROOT, 'src/config/gamedata'));
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
+const Armies = require('../armies.cjs');
 
 const I = config.invasion;
 const TIER = config.combat.tierCoefficients;
 const UNIT = Object.fromEntries(unitsData.map(u => [u.key, u]));
-const NAME = 'Chasse aux hordes';
-const MAX_CALLS = 7;
-const KEEP = 0.2;            // part des soldats laissée à la garnison
+const NAME = Armies.NAMES.hunt;
+const MAX_CALLS = 12;
+const KEEP = 0.1;            // part des soldats laissée à la garnison
+const ATTRITION = 0.5;       // un rassemblement qui pèse la moitié de l'étage part l'user (les pertes de l'étage restent)
+const WAITS = config.rally.waitMinutes;
+const MAX_WAIT_S = Math.max(...WAITS) * 60;
 const SLACK = 1.25;          // route réelle (contournements) face à la ligne droite
 const lvl = (city, key) => (city?.buildings || []).reduce((m, b) => (b.key === key && b.level > m ? b.level : m), 0);
 const isSiege = (k) => UNIT[k]?.class === 'SIEGE';
@@ -109,13 +121,7 @@ const nextTick = (ctx) => ctx.OPT.start + (ctx.step + 1) * stepMs(ctx);
 const actsNow = (ctx, b) => (ctx.step + b.turn) % 2 === 0 || !!b.mem.alwaysOn;
 
 // ---------- armées ----------
-function freeSlot(bot, city) {
-  const max = fx.maxArmies(city.buildings || []);
-  const used = new Set(bot.armies.filter(a => !a.isGarrison && a.cityId === city.id).map(a => a.slot));
-  for (let s = max; s >= 1; s--) if (!used.has(s)) return s;
-  return null;
-}
-// ce que la garnison peut donner à l'armée : les deux troupes les plus nombreuses, la ville garde 20 % des soldats
+// ce que la garnison peut donner à l'armée : toutes ses troupes, la ville garde 10 % des soldats
 function takeRows(bot, army, city) {
   const g = garrisonOf(bot, city.id);
   const gRows = fighters(g?.units);
@@ -123,7 +129,7 @@ function takeRows(bot, army, city) {
   let want = Math.floor((countOf(g?.units) + have) * (1 - KEEP)) - have;
   if (want < 10) return [];
   const out = [];
-  for (const u of gRows.sort((a, b) => b.count - a.count).slice(0, 2)) {
+  for (const u of gRows.sort((a, b) => b.count - a.count)) {
     const take = Math.min(Math.floor(u.count * (1 - KEEP)), want);
     if (take < 5) continue;
     out.push({ unitKey: u.unitKey, tier: u.tier || UNIT[u.unitKey].tier, count: take });
@@ -149,16 +155,9 @@ function usableArmies(bot, m, estimate = false) {
   if (!cap || cap.isSieged) return [];
   const mil = bot.mem.mil || {};
   const milOwn = new Set(mil.own || []);
-  // un emplacement libre que l'armée de campagne du module militaire ne réclame pas (une seconde armée pour une fondation
-  // ou une grosse garnison) : l'armée de chasse s'y forme
-  if (lvl(cap, 'RALLY_POINT') && freeSlot(bot, cap) && countOf(garrisonOf(bot, cap.id)?.units) >= 40) {
-    const field = bot.armies.filter(a => !a.isGarrison && a.cityId === cap.id);
-    const free = fx.maxArmies(cap.buildings || []) - field.length;
-    const milHere = field.filter(a => milOwn.has(a.id)).length;
-    const founding = !!mil.col || (cap.settlers || 0) > 0 || (cap.recruitQueue || []).some(q => q.unitKey === 'SETTLER') || lvl(cap, 'RESIDENCE') >= 9;
-    const milWant = bot.mem.mil ? (founding || countOf(garrisonOf(bot, cap.id)?.units) >= 300 ? 2 : 1) : 0;
-    if (free - Math.max(0, milWant - milHere) >= 1) return [option(bot, null, cap, true)];
-  }
+  // un emplacement libre que les autres rôles n'attendent pas (../armies.cjs, la chasse vient en dernier) : l'armée de chasse
+  // s'y forme
+  if (Armies.freeSlot(bot, 'hunt') && countOf(garrisonOf(bot, cap.id)?.units) >= 40) return [option(bot, null, cap, true)];
   // pas d'emplacement libre : une armée de campagne au repos ; pendant une fondation, ni l'armée qui frappe le camp ni
   // celle du colon, et la capitale garde une armée au repos pour l'escorte (comme le module militaire)
   const reserved = new Set([mil.col?.a, mil.col?.b].filter(Boolean));
@@ -179,7 +178,7 @@ function usableArmies(bot, m, estimate = false) {
 async function ensureArmy(bot, B, m, o) {
   if (o.army) return o.army;
   if (!o.create || B.left() < 2) return null;
-  const slot = freeSlot(bot, o.city);
+  const slot = Armies.freeSlot(bot, 'hunt');
   if (!slot) return null;
   const r = await B.call('POST', '/api/army/create', { cityId: o.city.id, slot, name: NAME });
   if (!r.ok || !r.data?.army) return null;
@@ -222,9 +221,9 @@ function expectedJoiners(bot, ctx, city, allianceId) {
     let best = 0;
     for (const o of usableArmies(b, b.mem.inv || {}, true)) {
       const secs = dist(o.city, city) * o.spt * SLACK + 60;
-      if (secs < 3600 - 600 && o.pot > best) best = o.pot;   // ils se connectent quelques minutes plus tard
+      if (secs < MAX_WAIT_S - 600 && o.pot > best) best = o.pot;   // ils se connectent quelques minutes plus tard
     }
-    if (best > 0) out.push({ pot: best * (later ? 1 : NOTIF_ODDS), secs: dist(b.capital || city, city) * 37.5 * SLACK });
+    if (best > 0) out.push({ pot: best * (later ? 1 : NOTIF_ODDS), secs: dist(b.capital || city, city) * 37.5 * SLACK + 60 });
   }
   return out.sort((a, b) => b.pot - a.pot);
 }
@@ -306,16 +305,18 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
     const march = dist(o.city, n) * o.spt * SLACK * 1000;
     const solo = o.pot >= need && tickAfter(ctx, now + 120000 + march) < endsAt;
     const group = o.pot + joinPot >= need && tickAfter(ctx, nt + march) < endsAt;   // au pire, départ au prochain tick
-    return { solo, group, march };
+    // usure : le groupe pèse au moins la moitié de l'étage, l'étage gardera ses pertes
+    const wear = !group && o.pot + joinPot >= ATTRITION * need && tickAfter(ctx, nt + march) < endsAt;
+    return { solo, group, wear, march };
   };
   let target = null;
   for (const n of st.nodes.values()) {
     if (targeted.has(n.nodeId) || !(n.power > 0)) continue;
     const p = plan(n, n.power * g.margin);
-    if (!p.solo && !p.group) continue;
+    if (!p.solo && !p.group && !p.wear) continue;
     // le trésor au plus près : ce qu'il reste à abattre (étage en cours et suivants), un donjon presque fini d'abord, le
-    // plus haut niveau que l'alliance peut battre (objet plus probable au dernier coup)
-    const score = treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (n.floor === 3 ? 1.3 : 1) * (1 + 0.2 * (n.level - 1)) - p.march / 600000;
+    // plus haut niveau que l'alliance peut battre (objet plus probable au dernier coup) ; un étage à user vient après
+    const score = treasureOf(n.level).res * 1000 / Math.max(1, n.power + n.rest) * (n.floor === 3 ? 1.3 : 1) * (1 + 0.2 * (n.level - 1)) * (p.wear ? 0.5 : 1) - p.march / 600000;
     if (!target || score > target.score) target = { n, score };
   }
   if (!target) { bump(m, 'noTarget'); return; }
@@ -327,7 +328,7 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   const left = (v.data.floors || []).find(f => f.current)?.left ?? target.n.power;
   const need = Math.max(1, left) * g.margin;
   const p = plan(target.n, need);
-  if (!p.solo && !p.group) { bump(m, 'noTarget'); return; }
+  if (!p.solo && !p.group && !p.wear) { bump(m, 'noTarget'); return; }
   const army = await ensureArmy(bot, B, m, o);
   if (!army) return;
   if (o.rows.length) await fill(bot, B, m, o);
@@ -335,17 +336,20 @@ async function invasionTurn(bot, ctx, m, st, allianceId) {
   const power = powerOf(army.units);
   // assez fort seul : il part seul s'il n'attend personne, sinon une fois sur quatre (l'alliance se rassemble d'habitude)
   const solo = power >= need && p.solo && (joinPot < need * 0.25 || ctx.rand() < 0.25);
-  if (!solo && power + joinPot < need) { bump(m, 'tooWeak'); return; }
-  const close = joiners.length > 0 && joiners.every(x => x.secs < 1200);
-  const wait = solo ? 5 : (close && ctx.rand() < 0.2 ? 30 : 60);
+  const wear = !solo && power + joinPot < need;
+  if (wear && power + joinPot < ATTRITION * need) { bump(m, 'tooWeak'); return; }
+  // l'attente : la plus courte qui laisse arriver les membres attendus (30 min au moins pour un groupe, 180 au plus)
+  const reach = joiners.length ? Math.max(...joiners.map(x => x.secs)) + 600 : 0;
+  const wait = solo ? WAITS[0] : (WAITS.find(w => w >= 30 && w * 60 >= reach) || WAITS[WAITS.length - 1]);
   const r = await B.call('POST', '/api/rallies', { armyId: army.id, nodeId: target.n.nodeId, waitMinutes: wait });
   if (!r.ok || !r.data?.rally) { bump(m, 'launchRefused'); return; }
   army.status = 'RALLY_WAIT';
   const id = r.data.rally.id;
   m.p.push(id); if (m.p.length > 8) m.p.shift();
   (m.f ||= {})[id] = target.n.floor;   // l'étage visé (un autre rassemblement peut l'abattre avant)
-  bump(m, 'launched'); bump(m, `launchedL${target.n.level}`); if (o.borrow) bump(m, 'borrowed');
-  S.launched.push({ leader: bot.name, alliance: allianceId, id, nodeId: target.n.nodeId, need, march: p.march, solo, capacity: r.data.maxArmies || capacity, launchAt: ms(r.data.rally.launchAt) });
+  if (wear) (m.w ||= {})[id] = 1;      // rassemblement d'usure : sa défaite n'apprend rien à la marge
+  bump(m, 'launched'); bump(m, `launchedL${target.n.level}`); bump(m, `wait${wait}`); if (wear) bump(m, 'launchedToWear'); if (o.borrow) bump(m, 'borrowed');
+  S.launched.push({ leader: bot.name, alliance: allianceId, id, nodeId: target.n.nodeId, need, march: p.march, solo, wear, capacity: r.data.maxArmies || capacity, launchAt: ms(r.data.rally.launchAt) });
   if (solo && B.left() > 0) {
     // assez fort seul : il part sans attendre
     const l = await B.call('POST', `/api/rallies/${id}/launch`);
@@ -430,6 +434,8 @@ async function settleLaunched(ctx) {
       if (l.ok) { bump(m, 'launchedEarly'); if (armies.length > arrivedOf(armies).length) bump(m, 'leftBehind', armies.length - arrivedOf(armies).length); }
     } else if (total >= L.need && tickAfter(ctx, nextTick(ctx) + L.march) < endsAt) {
       bump(m, 'departAtTick');   // les retardataires sont nécessaires : départ au prochain tick
+    } else if (L.wear && total >= ATTRITION * L.need && tickAfter(ctx, nextTick(ctx) + L.march) < endsAt) {
+      bump(m, 'departToWear');   // usure : il part user l'étage au prochain tick
     } else {
       const c = await B.call('POST', `/api/rallies/${L.id}/cancel`);
       if (c.ok) { bump(m, 'cancelled'); m.p = m.p.filter(x => x !== L.id); if (m.f) delete m.f[L.id]; gbump(ctx, 'cancelledWeak'); }
@@ -452,12 +458,13 @@ async function trackOutcomes(ctx) {
   if (!owners.size) return;
   const rows = await ctx.prisma.rally.findMany({ where: { id: { in: [...owners.keys()] } }, select: { id: true, status: true, result: true, targetNodeId: true, targetX: true, targetY: true, allianceId: true, createdAt: true } });
   const seen = new Set(rows.map(r => r.id));
-  for (const [id, b] of owners) if (!seen.has(id)) { b.mem.inv.p = b.mem.inv.p.filter(x => x !== id); if (b.mem.inv.f) delete b.mem.inv.f[id]; }
+  for (const [id, b] of owners) if (!seen.has(id)) { b.mem.inv.p = b.mem.inv.p.filter(x => x !== id); if (b.mem.inv.f) delete b.mem.inv.f[id]; if (b.mem.inv.w) delete b.mem.inv.w[id]; }
   for (const r of rows) {
     const b = owners.get(r.id);
     const m = memOf(b);
     const planned = m.f?.[r.id];
-    const drop = () => { m.p = m.p.filter(x => x !== r.id); if (m.f) delete m.f[r.id]; };
+    const wore = !!m.w?.[r.id];
+    const drop = () => { m.p = m.p.filter(x => x !== r.id); if (m.f) delete m.f[r.id]; if (m.w) delete m.w[r.id]; };
     if (r.status === 'GATHERING' || r.status === 'MARCHING') { if (ctx.clock.now() - ms(r.createdAt) > 3 * 86400000) drop(); continue; }
     if (r.status === 'CANCELLED') {
       const why = String(r.result?.reason || '?');
@@ -473,10 +480,12 @@ async function trackOutcomes(ctx) {
     const base = { tag, leader: b.name, level: horde?.level || null, floor: res.floor, x: r.targetX, y: r.targetY, armies: res.armies, points: res.points };
     if (!res.won) {
       gbump(ctx, 'repelled');
-      // l'étage visé : la puissance demandée monte ; l'étage suivant (un autre rassemblement a abattu le visé juste avant) : non
-      if (planned === undefined || planned === res.floor) g.margin = Math.min(2, Math.round((g.margin + 0.05) * 100) / 100);
+      // usure voulue : l'étage garde ses pertes, la marge ne change pas ; l'étage visé : la puissance demandée monte ;
+      // l'étage suivant (un autre rassemblement a abattu le visé juste avant) : non
+      if (wore) { gbump(ctx, 'woreFloor'); gbump(ctx, `woreL${horde?.level || 0}`); }
+      else if (planned === undefined || planned === res.floor) g.margin = Math.min(2, Math.round((g.margin + 0.05) * 100) / 100);
       else gbump(ctx, 'repelledNextFloor');
-      ctx.event('rally_repelled', { ...base, margin: g.margin });
+      ctx.event('rally_repelled', { ...base, margin: g.margin, wear: wore });
       continue;
     }
     gbump(ctx, 'floorsCleared'); gbump(ctx, `floorsL${horde?.level || 0}`);

@@ -331,6 +331,19 @@ test('rejoindre : refusé quand le rassemblement a déjà autant d\'armées que 
   } finally { db.restore(); }
 });
 
+test('rejoindre : une armée réservée par une offre du marché (MARKET) est refusée, avec le même message que tout départ', async () => {
+  const leader = cityRow('cA', 'p1', 0, -10), homeB = cityRow('cB', 'p2', 4, -12);
+  const db = fakeDb({
+    cities: [leader, homeB], rallies: [rallyRow({ launchAt: new Date(Date.now() + 30 * 60000) })],
+    members: [{ playerId: 'p2', allianceId: 'A1' }],
+    armies: [armyRow('a1', 'p1', leader, waiting(leader, 'r1')), armyRow('b1', 'p2', homeB, { status: 'MARKET', missionType: 'MARKET_OFFER' })]
+  });
+  try {
+    await assert.rejects(R.join('p2', 'r1', 'b1'), (e) => e.status === 400 && e.message === require('../../src/services/marketService').MARKET_BUSY);
+    assert.deepEqual([db.army('b1').status, db.army('b1').rallyId], ['MARKET', null]);
+  } finally { db.restore(); }
+});
+
 // ---- route : erreurs métier et absence de chemin rendues au joueur ----
 test('route : une erreur métier garde son statut, l\'absence de chemin vers le lanceur donne 400', async () => {
   const router = require('../../src/routes/rally');

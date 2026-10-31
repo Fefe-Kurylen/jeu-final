@@ -16,7 +16,7 @@ const pick = (obj, keys) => Object.fromEntries(keys.map(k => [k, obj[k]]));
 const ECONOMY = {
   build: pick(config.build, ['costMultiplierBase', 'timeMultiplierBase', 'fieldCostMultiplier', 'fieldCostKeys', 'slowTimeMultiplier', 'slowTimeKeys']),
   city: pick(config.city, ['ringSlots', 'wallSlot']),
-  alliance: pick(config.alliance, ['maxMembers']),   // plafond général de la taille d'une alliance (Ambassade du chef : 3 par niveau)
+  alliance: pick(config.alliance, ['maxMembers']),   // plafond général de la taille d'une alliance ; l'Ambassade du chef en ouvre allianceMembersPerLevel par niveau (ses données)
   upkeepPerTier: config.army.upkeepPerTier,
   famineAlertHours: config.army.famineAlertHours,
   wounded: pick(config.wounded, ['baseRate', 'bonusPerHealingLevel', 'maxRate', 'bedsPerLevel', 'healCostPct', 'healTimePctOfTraining', 'healLevelReduction', 'instantHealGoldPerTier', 'woundedPayUpkeep']),

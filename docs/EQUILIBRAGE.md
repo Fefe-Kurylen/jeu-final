@@ -5,7 +5,10 @@ courbes. Chiffres tirés de `data/*.json` et `src/config/index.js` ; calculs rep
 Mise à jour du 30 octobre 2026 : décisions d'équilibrage D1 à D12 du propriétaire (§ 13) et chiffres refaits avec les
 outils sur le moteur actuel (§ 2, 7, 8, 9, 11, 12) ; le soir, décisions sur l'économie, le placement des bâtiments et le
 stock partagé entre les villes (§ 14). Mise à jour du 31 octobre 2026 : rôle des colonies (décisions du 30 octobre, puis
-2 colonies par joueur, 2 000 joueurs par serveur et la spécialité du gisement), chiffres à régler plus tard (§ 15).
+2 colonies par joueur, 2 000 joueurs par serveur et la spécialité du gisement), chiffres à régler plus tard (§ 15), revue des
+bâtiments (§ 16). **Le soir du 31 octobre 2026 : décisions du rapport de vérification (§ 17)**, qui remplacent les chiffres
+plus anciens des paragraphes précédents (cachette, marchands, taxe, élite, Ambassade, Grandes casernes, Bastion, Merveille,
+Immortels, trésor des invasions, carte et gisements).
 
 ## 1. Bonus de civilisation : définis, appliqués, et où
 
@@ -14,10 +17,10 @@ stock partagé entre les villes (§ 14). Mise à jour du 31 octobre 2026 : rôle
 | Rome | +10 % défense des unités | tout combat (attaque de ville, pillage, tribu) | ✅ |
 | Rome | −15 % pertes en siège (subies ou infligées) | combats de ville et de Bastion : solidité des unités romaines × 1,15, qu'elles attaquent ou défendent ; pas en pillage ni contre les camps (combats par la puissance) | ✅ conforme à « en siège » |
 | Gaule | +20 % défense chez soi | défense de ses villes, tout combat ; depuis le 30 octobre 2026, son mur encaisse aussi 1/1,2 des coups des engins | ✅ |
-| Gaule | +20 % cachette | quantité cachée de chaque ressource × 1,2 (cachette en quantité fixe par niveau depuis le 31 octobre 2026 ; avant : +15 % d'une part plafonnée à 20 %) | ✅ |
+| Gaule | +20 % cachette | part du stockage à l'abri × 1,2 (cachette à 1,5 % du stockage par niveau depuis le 31 octobre 2026 au soir : 36 % au niveau 20 pour la Gaule ; quantité fixe le matin, +15 % d'une part plafonnée à 20 % avant) | ✅ |
 | Grèce | −15 % temps de construction | chaque construction | ✅ |
 | Grèce | +15 % blessés au lieu de morts | taux de blessés après combat (+15 points, plafond 70 %) | ✅ |
-| Égypte | +20 % transport | butin des pillages, envoi par armée (les marchands ont leur propre charge depuis le 31 octobre 2026 : 750 pour l'Égypte) | ✅ |
+| Égypte | +20 % transport | butin des pillages, envois et échanges par armée (plus de marchands depuis le 31 octobre 2026 au soir) | ✅ |
 | Égypte | +25 % santé des murs | points de vie du mur (1 250 PV/niv. au lieu de 1 000), en construction comme à la réparation ; **corrigé** en octobre : portait auparavant sur le bonus de défense du mur | ✅ après correction |
 | Huns | +20 % vitesse des armées | tout déplacement | ✅ |
 | Huns | +10 % attaque en siège | attaques de ville et de Bastion, engins compris (dégâts au mur) | ✅ |
@@ -104,12 +107,13 @@ armée depuis le 25 octobre 2026 ✅.
 
 - 1 case toutes les 30 s à vitesse 50 (≈ 120 cases/h) ; cavalerie hunnique de base à 90 ≈ 216 cases/h, 259 avec le bonus de
   civilisation (+20 %).
-- Monde de 374 cases de côté : le traverser prend ≈ 3 h ; un voisin à 20 cases est à 10 min pour l'infanterie, 5 min pour la cavalerie.
+- Monde de 374 cases de côté (420 pour un monde neuf depuis le 31 octobre 2026 au soir, D1) : le traverser prend ≈ 3 h
+  (environ 3 h 20 à 420) ; un voisin à 20 cases est à 10 min pour l'infanterie, 5 min pour la cavalerie.
 - Le trajet suivi est le chemin réel (contournement des montagnes et de l'eau), l'armée va à la vitesse de son unité la plus lente. ✅
 - Bonus qui s'ajoutent : héros (jusqu'à +5 %, plus les talents), Cartographie (+10 % au niveau 20), Bastion d'alliance (+5 %),
   **Irrigation égyptienne de la ville de départ** (+0,5 % par niveau, +10 % au niveau 20) : depuis le 30 octobre 2026, elle
-  compte dans tous les trajets (armées, retours, espions, convois du marché, ravitaillement du Bastion) et dans l'estimation
-  du client. Les convois des routes commerciales gardent leur vitesse fixe.
+  compte dans tous les trajets (armées, retours, espions, armées d'échange et de transport, ravitaillement du Bastion) et
+  dans l'estimation du client. (Les marchands et les routes commerciales n'existent plus depuis le 31 octobre 2026 au soir.)
 - C'est un rythme rapide (Travian : 1 à 7 min par case). Il convient à des sessions mobiles courtes ; le délai de 24 h entre deux
   pillages d'une même ville empêche le harcèlement. Si l'on veut un rythme plus posé : les 30 s par case de
   `calculateTravelTime` (`src/utils/calculations.js`, repris par le client).
@@ -129,9 +133,10 @@ armée depuis le 25 octobre 2026 ✅.
   ajoute à la ville trois fois la capacité d'un dépôt (d'un silo) de même niveau, 3 600 au niveau 1 et 480 000 au niveau 20
   (`storageL1/L20`, `foodStorageL1/L20` dans `data/buildings.json`) ; Dépôt 20 + Grand Dépôt 20 = 160 000 + 480 000 = 640 000.
   Pas de nouveau plafond de coût : les derniers niveaux, qui dépassaient la capacité d'un dépôt 20, deviennent payables. **Seule
-  la cachette protège du pillage** : raids, pillage de siège et rapport d'espion. Depuis le 31 octobre 2026, une **quantité
-  fixe de chaque ressource** par niveau (façon Travian) : 240 au niveau 1, 2 436 au niveau 10, 32 000 au niveau 20, soit
-  20 % d'un Dépôt de même niveau (`HIDEOUT.effects.hideoutL1/hideoutL20`, même courbe que le stockage) ; Gaule × 1,2.
+  la cachette protège du pillage** : raids, pillage de siège et rapport d'espion. Depuis le 31 octobre 2026 au soir (D15,
+  § 17), elle garde **1,5 % du stockage de la ville par niveau** pour chaque ressource (Dépôt et Grand dépôt pour le bois, la
+  pierre et le fer, Silo et Grand silo pour les céréales) : 30 % au niveau 20, Gaule × 1,2
+  (`HIDEOUT.effects.hideoutStoragePctPerLevel`). Le matin du même jour, c'était une quantité fixe (240 → 32 000).
 - **Bâtiments de bonus limités au niveau 5** (Moulin, Boulangerie, Scierie, Tailleur de pierre, Fonderie) : +2,5 % par
   niveau depuis le 31 octobre 2026 (+12,5 % au niveau 5 ; Moulin + Boulangerie +25 %), la moitié d'avant.
 - Formation : Caserne et Écurie −0,5 % de temps par niveau, comme le GDD (décision du 30 octobre 2026, D2 : inchangé).
@@ -204,9 +209,9 @@ bâtiment de 30 min) et +15 points de blessés (le plafond de 70 % est atteint d
 et mur à 1 250 PV par niveau (103 coups de catapulte par niveau au lieu de 83) ; Huns 100 cases en 41,7 min au lieu de 50, et
 leurs sapeurs frappent le mur ×1,10 (12,62 PV par round au lieu de 11,47) ; Sultanat 15,19 PV de mur par engin et par round
 au lieu de 12,15 (66 coups par niveau au lieu de 83) ; Gaule cachette ×1,15 (5,8 / 11,5 / 17,3 / 20 % aux niveaux 5, 10, 15,
-20, plafond 20 %) et mur gaulois à 99 coups par niveau au lieu de 83. (Depuis le 31 octobre 2026, la cachette protège une
-quantité fixe et la Gaule en cache × 1,2 : 806 / 2 923 / 10 596 / 38 400 de chaque ressource aux niveaux 5, 10, 15, 20 ;
-`node tools/simulate-factions.cjs`.)
+20, plafond 20 %) et mur gaulois à 99 coups par niveau au lieu de 83. (Depuis le 31 octobre 2026 au soir, D15, la cachette
+garde 1,5 % du stockage de la ville par niveau et la Gaule × 1,2 : 9 / 18 / 27 / 36 % du stockage aux niveaux 5, 10, 15,
+20 ; `node tools/simulate-factions.cjs`.)
 
 **Verdict : acceptable, appliqué** (`data/factions.json`, cartes d'inscription et textes du Mur et de la Tente de soins lus
 depuis les données du serveur). À garder à l'œil : Rome reste la civilisation la plus complète (meilleure attaquante, bonne
@@ -429,7 +434,7 @@ visés en dernier) :
 | niveau 10 | 10 000 | 15 442 | 55 / 83 / 165 | 179 280, 3,5 j |
 | niveau 15 | 15 000 | 56 525 | 83 / 124 / 247 | 267 840, 5,2 j |
 | niveau 20 | 20 000 | 197 689 | 110 / 165 / 330 | 356 400, 6,9 j |
-| Bastion (10 × mur 20, D6) | 200 000 | — | 1 098 / 1 647 / 3 293 | 3,56 millions, à répartir entre les membres d'un rassemblement |
+| Bastion (3 × mur 20, D9 du 31 octobre 2026 au soir ; 10 × avant) | 60 000 | — | 330 / 494 / 988 | 1,07 million, à répartir entre les membres d'un rassemblement (200 000 PV et 3,56 millions à × 10) |
 
 Combats réels (même outil : Rome, Triarii et catapultes, contre une ville gauloise gardée par 600 Triarii gaulois et
 300 archers gaulois, sans héros ni technologie ; pertes de l'attaquant, engins compris / du défenseur) :
@@ -451,9 +456,9 @@ les attaques suivantes, dans les 48 h, trouvent un mur plus faible.
 
 **Vagues d'Immortels contre la Ville Merveille** (lot du 30 octobre 2026, `src/services/wonderService.js`) : comme seuls les
 engins abîment le mur, chaque vague amène des **mangonneaux du Sultanat pour 15 % de sa puissance**, pris sur ses soldats
-(comme les Natars de Travian, qui viennent avec béliers et catapultes). Un mur 20 sans défenseurs tient seul jusqu'à la
-Merveille niveau 6 ; il tombe au 7e round au niveau 12, au 4e au niveau 20, dès le 1er au niveau 100, et les défenseurs doivent
-alors battre la vague. À décider par le propriétaire : garder 15 % ou revenir vers 7 %, qui rendrait le seuil d'avant (mur
+(comme les Natars de Travian, qui viennent avec béliers et catapultes). Avant les Immortels × 5, un mur 20 sans défenseurs
+tenait seul jusqu'à la Merveille niveau 6 ; il tombait au 7e round au niveau 12, au 4e au niveau 20, dès le 1er au niveau 100.
+Chiffres en place (Mur 15 de la Ville Merveille, base 14 000) : § 17. À décider par le propriétaire : garder 15 % ou revenir vers 7 %, qui rendrait le seuil d'avant (mur
 seul jusqu'au niveau 11) ; avec 15 %, une vague de niveau 100 bat aussi des défenseurs qui valent 80 % de sa puissance.
 
 ## 13. Décisions d'équilibrage du 30 octobre 2026
@@ -464,10 +469,10 @@ Décisions du propriétaire, appliquées le 30 octobre 2026 ; le détail des rè
 |---|---|---|---|
 | D1 | Grand Dépôt et Grand Silo = stockage (3 × un dépôt ou un silo de même niveau), plus de réserve protégée ; seule la cachette protège | `data/buildings.json`, `calculations.cityStorageCaps` | § 4 : 3 600 → 480 000 ; Dépôt 20 + Grand Dépôt 20 = 640 000 |
 | D2 | Formation à la Caserne et à l'Écurie : GDD gardé (−0,5 % par niveau) | — | inchangé |
-| D3 | Alliance : 60 membres au plus (adhésion sous verrou, invitation refusée quand elle est pleine) ; depuis le 31 octobre 2026, 3 membres par niveau de l'Ambassade du chef dans cette limite (§ 16) | `config.alliance.maxMembers`, `EMBASSY.effects.allianceMembersPerLevel` | 60 |
+| D3 | Alliance : 60 membres au plus (adhésion sous verrou, invitation refusée quand elle est pleine) ; le 31 octobre 2026, 3 membres par niveau de l'Ambassade du chef dans cette limite (§ 16) ; le soir même, 5 par niveau et 100 au plus (§ 17) | `config.alliance.maxMembers`, `EMBASSY.effects.allianceMembersPerLevel` | 100 |
 | D4 | Camps : défenseurs à leur palier et camps d'or à +40 % au combat ; rassemblements d'alliance contre les sites et plans de Merveille | `armyService`, `rallyService`, `wonderService` | § 9 |
 | D5 | Brèche : au moins 5 rounds de combat après la chute du mur | `config.combat.siege.roundsAfterBreach` | § 12 |
-| D6 | Seuls les engins abîment le mur ; mur du Bastion à 10 fois un mur 20 (50 avant) ; bonus des engins du Sultanat vérifié | `config.combat.siege`, `config.bastion.wallMultiplier` | § 12 : Bastion 200 000 PV |
+| D6 | Seuls les engins abîment le mur ; mur du Bastion à 10 fois un mur 20 (50 avant ; 3 depuis le 31 octobre 2026 au soir, § 17) ; bonus des engins du Sultanat vérifié | `config.combat.siege`, `config.bastion.wallMultiplier` | § 12 : Bastion 60 000 PV (200 000 à × 10) |
 | D7 | Donjons d'invasion de plus en plus forts avec l'âge du monde | `config.invasion`, colonne `Invasion.ageMult` | tableau ci-dessous |
 | D8 | Défi de la semaine : 750 / 500 / 250 points par membre ; seuls comptent les membres arrivés avant le vendredi 0 h (Paris) | `config.alliance.challengeRewardPoints`, `challengeJoinDeadline` | — |
 | D9 | XP du héros : × 1,25 par niveau (× 1,5 avant), seuils des héros existants recalculés, XP gardée | `config.hero`, migration `0029` | tableau ci-dessous |
@@ -510,13 +515,13 @@ Décisions du propriétaire après `docs/RAPPORT-ECONOMIE.md` ; règles détaill
 | Temps (rec. 4) | Champs et Bâtiment principal × 1,30 par niveau, le reste et la recherche × 1,2 | `config.build.slowTimeMultiplier` | champ 1 → 20 : 26 h brutes ; Bâtiment principal 1 → 20 : 31,5 h brutes (20 au plus depuis le 31 octobre 2026) |
 | Entretien (rec. 5) | 5 / 9 / 13, engins 15 ; 8 fiches retouchées (endurance seule) | `config.army.upkeepPerTier`, `data/units.json` | tableau ci-dessous |
 | Soins (rec. 6) | 30 % du prix de recrutement ; 10 % du temps de formation × 0,95^(Tente − 1) par unité, l'un après l'autre ; or 1 / 2 / 3 / 3 ; les blessés qui attendent mangent | `config.wounded`, `woundedService` | fantassin de base : 38 ressources, 13,6 s à la Tente 20 ; 4 000 lits ≈ 15 h |
-| Merveille (rec. 7) | × 5 | `config.world.wonderCostBase` | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 ; niveaux 1 à 50 : 173 M ; Merveille entière : 2,15 G |
-| Immortels (rec. 8) | × 5 | `config.world.immortal*` | site 3 M, plan 4,5 M ; vague 20 000 × niveau^1,35 : 3,93 M au niveau 50, 10 M au niveau 100 |
+| Merveille (rec. 7) | × 5 (moitié prix depuis le 31 octobre 2026 au soir, § 17) | `config.world.wonderCostBase` | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 ; niveaux 1 à 50 : 173 M ; Merveille entière : 2,15 G (aujourd'hui 125 000 / … / 37 500, 86 M, 1,08 G) |
+| Immortels (rec. 8) | × 5 (réglés le 31 octobre 2026 au soir pour une alliance de 15 à 20 joueurs, § 17) | `config.world.immortal*` | site 3 M, plan 4,5 M ; vague 20 000 × niveau^1,35 : 3,93 M au niveau 50, 10 M au niveau 100 (aujourd'hui plan 5,75 M, vague 14 000 × niveau^1,35) |
 | Donjons (rec. 9) | Avant-poste du niveau 1 = max(3 000 ; 50 % de la puissance médiane des joueurs actifs), × 1,8 par niveau, étages × 1 / × 2 / × 4 ; ancienne formule sous 5 joueurs mesurés ; le trésor garde l'âge du monde | `config.invasion.powerRef`, `Invasion.basePower` | chef du niveau 1 = 2 joueurs médians ; du niveau 5 ≈ 21 |
 | Trésor (rec. 2) | Capitale d'abord, puis les autres villes ; la notification dit ce qui a été perdu faute de place | `hordeService.destroyHorde` | — |
 | Ciblage (rec. 10) | Coups de chaque round répartis sur toutes les lignes de soldats selon leur solidité totale ; engins visés après les soldats | `combatService.resolveCombatDetailed` | tableau ci-dessous |
 | Pillage (rec. 11) | GDD gardé (30 % de la capacité, un raid par jour sur une même ville et par attaquant) ; présenté comme du harcèlement | client, documents | — |
-| Plafonds (rec. 12) | Récompenses de quêtes et routes commerciales calculées sur le Dépôt et le Silo seuls | `questService.rewardCap`, `marketService.routeSendCap` | 80 000 par récompense au plus, 13 333 par envoi de route (Dépôt 20) |
+| Plafonds (rec. 12) | Récompenses de quêtes calculées sur le Dépôt et le Silo seuls (les routes commerciales n'existent plus depuis le 31 octobre 2026 au soir) | `questService.rewardCap` | 80 000 par ressource et par récompense au plus (320 000 en tout), soit **1,4 h** de production d'un compte complet (et non 20 minutes) |
 
 **Intermédiaire contre base, à entretien égal** (X = indice d'échange à céréale égale, R = contre une armée de référence ;
 mesure du lot B, `units-measure.cjs`) :
@@ -533,8 +538,9 @@ mesure du lot B, `units-measure.cjs`) :
 | Cavalier hun | 60 → 78 | −29,9 % → +20,7 % | −18,8 % → +7,5 % |
 
 Intermédiaires sous leur base : 8 lignes sur 18 avant, 3 après. Restent sous leur base, hors de la liste décidée : Archer
-gaulois (−1,9 %), Toxote (−11,1 %), Cavalier du désert du Sultanat (−31,0 %) ; il leur faudrait +1, +3 et +14 d'endurance
-(à décider, `docs/BACKLOG.md`). Quatre intermédiaires dépassent l'indice 1,25 de la règle D12 (Archer du désert égyptien,
+gaulois (−1,9 %), Toxote (−11,1 %), Cavalier du désert du Sultanat (−31,0 %) ; il leur faudrait +1, +3 et +14 d'endurance.
+Le propriétaire a refusé les 7 changements d'endurance proposés par le rapport de vérification (D6, 31 octobre 2026 au
+soir) : pas de changement. Quatre intermédiaires dépassent l'indice 1,25 de la règle D12 (Archer du désert égyptien,
 Archer du camp, Tireur du désert, Cavalier hun) : le test des fiches les excepte.
 
 **Armées mélangées contre une armée de base pure, à nourriture égale** (moteur avant → après la répartition des coups) :
@@ -547,8 +553,9 @@ Archer du camp, Tireur du désert, Cavalier hun) : le test des fiches les except
 Ces gains dépassent les « +11 à 29 % sauf les Huns » du rapport : la mesure du lot B ne montre pas d'exception hunnique. Les
 armées d'un seul palier ne changent pas.
 
-**Vagues d'Immortels** (mur 20 sans défenseurs, mangonneaux pour 15 % de la vague) : le mur tient jusqu'à la Merveille 2,
-tombe au 2e round au niveau 12 et dès le 1er round à partir du niveau 20 (il tenait jusqu'au niveau 6 avant le × 5).
+**Vagues d'Immortels** (mangonneaux pour 15 % de la vague) : la Ville Merveille n'est pas une capitale, son Mur s'arrête au
+niveau 15. Avec la base de 14 000 (§ 17), un mur 15 sans défenseurs tient jusqu'à la Merveille 2, tombe au 2e round au
+niveau 10 et dès le 1er round à partir du niveau 17 (il tenait jusqu'au niveau 6 avant le × 5).
 
 **Outils** : `tools/simulate-colonies.cjs`, `tools/simulate-research.cjs`, `tools/simulate-factions.cjs` et
 `simulate-2years.js` calculent coûts et temps avec `buildCostFor` / `buildSecondsFor`. Les joueurs automatiques de la
@@ -568,11 +575,11 @@ Chiffres refaits par `node tools/simulate-colonies.cjs` (section 5).
 | Spécialité du gisement | +10 % par niveau du gisement (1 à 3) sur sa ressource, −30 % sur les trois autres ; colonies seulement | `RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel`, `colonyOtherResourcesPct` | s'ajoute aux bâtiments de production de chaque ressource ; le 30 octobre : +15 % par niveau sans baisse des autres ; tableau ci-dessous |
 | Bonus de toutes les colonies | 0 | `RESIDENCE.effects.secondaryCityBonusPct` | +20 % sur tout jusqu'au 31 octobre 2026 |
 | Nombre de colonies | 2 au plus (1er colon à la Résidence 10, 2e à la Résidence 20) ; Ville Merveille hors quota | `config.city.maxSecondaryCities`, `RESIDENCE.effects.unlockSettlerL10/L15/L20` | 3 jusqu'au 31 octobre 2026 |
-| Joueurs par serveur | 2 000 | `config.world.maxPlayers` | 5 000 jusqu'au 31 octobre 2026 ; compte pour l'offre de gisements |
+| Joueurs par serveur | 2 000 | `config.world.maxPlayers` | 5 000 jusqu'au 31 octobre 2026 ; la carte et les gisements sont taillés pour eux depuis le soir même (§ 17, D1) |
 | Fondation | 3 000 de chaque ressource, 24 h sur place ; colon gratuit en 3 h | `config.city.foundationTransport`, `RESIDENCE.effects.cityFoundationTimeSec`, `settlerTrainTimeSec` | inchangé |
 | Emplacements | anneau de 18 dans la capitale, 12 dans une colonie (et la Ville Merveille) ; Mur sur l'enceinte, emplacement 20 | `config.city.ringSlots`, `config.city.wallSlot` | autant que de bâtiments possibles, aucun libre (31 octobre 2026 ; avant : 19 partout) |
 | Recrutement en colonie | Grande caserne / Grande écurie : paliers 1 / 7 / 15, temps −4 % par niveau ; prérequis Caserne 20 / Écurie 20 de la capitale | `GREAT_BARRACKS` / `GREAT_STABLE` : `unlockBaseTier`, `unlockIntermediateTier`, `unlockEliteTier`, `trainTimeReductionPctPerLevel`, `prereq` | unités vers la capitale ; pas d'engins (`config.recruit.siegeWorkshopLevel` vaut pour l'Atelier de la capitale) |
-| Comptoir de commerce | capitale seulement depuis le 31 octobre 2026 (§ 16) : −1 point de taxe et +1 % de charge des marchands et des transports par niveau | `TRADE_OFFICE.effects` (`p2pTaxReductionPctPerLevel`, `armyTransportCapacityBonusPctPerLevel`), `config.market.p2pTaxPctBase` | la taxe (10 % de base) tombe à 0 dès le Comptoir 10 : les niveaux 11 à 20 ne donnent plus que de la charge (+20 % au Comptoir 20) ; à revoir à l'équilibrage |
+| Comptoir de commerce | capitale seulement depuis le 31 octobre 2026 (§ 16) : −1 point de taxe et +1 % de charge des armées de transport par niveau | `TRADE_OFFICE.effects` (`p2pTaxReductionPctPerLevel`, `armyTransportCapacityBonusPctPerLevel`), `config.market.p2pTaxPctBase` | taxe de 30 % de base depuis le soir même (§ 17, D8) : chaque niveau compte, 10 % au Comptoir 20, 5 % avec la Chambre au Trésor 20 (avec 10 % de base, elle tombait à 0 dès le Comptoir 10) |
 | Vies d'une colonie | 2 (Égypte 3) ; capitale 4 (5) | `config.combat.fall.assaults`, `extraAssaults` | ni vie en plus au Mur 20, ni Fort (décision 3) |
 | Bâtiment principal | 20 au plus partout, capitale comprise (31 octobre 2026) ; Mur d'une colonie 15 | `MAIN_HALL.maxLevel`, `WALL.effects.colonyMaxLevel` | revue des autres niveaux maximum à faire (`docs/BACKLOG.md`) |
 | Alerte « File de construction vide » | au plus une par ville toutes les 6 h | `config.city.idleAlertHours` | quand le dernier chantier d'une ville finit |
@@ -600,12 +607,11 @@ compte faisait 340 285 par heure sans gisement, et les gisements y ajoutaient 4 
 totale d'une colonie (environ −27 %) mais la concentre sur une ressource. Le gisement de céréales donne le plus (6 Fermes
 contre 4 champs des autres ressources) : la course aux gisements de céréales de niveau 3 reste le risque à surveiller.
 
-**Offre de gisements** (mesure du 31 octobre 2026, même tirage que `src/game/seed.js` sur six cartes, sans base) : le
-semis pose 4 895 points de bois, pierre, fer et céréales (et 636 d'or), sans en ajouter quand le monde grandit. Environ
-**3 300** ont la place d'une ville 2 × 2 à l'ouverture (3 221 à 3 327 selon la carte, avant les capitales), dont 430 à 520
-de niveau 3 (dont 140 à 190 dans le cercle du centre). Pour 2 000 joueurs à 2 colonies, il en faudrait 4 000 : assez pour les
-premiers venus, pas pour tous. Rien n'est changé dans le semis (pas de correctif évident et sûr) : à décider avant
-l'ouverture (`docs/BACKLOG.md`).
+**Offre de gisements** (réglée le 31 octobre 2026 au soir, D1, § 17) : sur l'ancienne carte de 374, le semis posait
+4 895 points (et 636 d'or) n'importe où sur la terre ; environ 3 300 avaient la place d'une ville, et après 2 000 capitales il
+ne restait de quoi fonder que **1 770 à 1 836 colonies sur les 4 000** voulues (environ 1 000 joueurs à 2 colonies, et non
+« 4 900 gisements pour environ 2 450 joueurs »). Un monde neuf a désormais une carte de 420, **6 000 gisements tous
+fondables** et 780 points d'or : les 4 000 colonies de 2 000 joueurs se fondent sur les 5 cartes mesurées.
 
 **À mesurer en simulation** (la simulation longue n'a pas été refaite pour ce lot : pas de serveur ni de base) :
 - le rythme des deux colonies avec 2 connexions par jour, et les gisements que choisissent les joueurs ;
@@ -632,24 +638,22 @@ Décisions du propriétaire, bâtiment par bâtiment : `docs/BATIMENTS-ROLES.md`
 | Sujet | Valeur aujourd'hui | Où le régler | Remarque |
 |---|---|---|---|
 | Bâtiment principal | niveau 20 au plus partout | `MAIN_HALL.maxLevel` | 1 → 20 : 296 491 ressources et 31,5 h brutes ; −50 % de temps de construction au niveau 20 (plafond commun 60 %) |
-| Cachette | 240 de chaque ressource au niveau 1 → 32 000 au niveau 20 (courbe du stockage) ; Gaule × 1,2 | `HIDEOUT.effects.hideoutL1`, `hideoutL20` ; `data/factions.json` GAUL `hideoutCapacity` | 20 % d'un Dépôt de même niveau ; un raid prend au plus la moitié de ce qui dépasse (`config.hideout.raidStealRate`), un siège gagné 25 % (`config.combat.fall.pillagePct`) |
-| Marchands : nombre | 1 par niveau du Marché de la capitale | `MARKET.effects.merchantsPerLevel` | 20 au Marché 20 |
-| Marchands : charge | Rome 500, Gaule 750, Grèce 600, Égypte 750, Huns 500, Sultanat 1 000 ; + Comptoir et Poste du Désert de la capitale, +1 % par niveau chacun | `config.market.merchants.capacity` | un Romain au Marché 20 porte 10 000 par voyage : moins que 1/12 d'un Dépôt 20 (13 333), une route commerciale est donc limitée par ses marchands |
-| Marchands : vitesse | Gaule 100, Huns 90, Rome 80, Égypte 80, Grèce 75, Sultanat 65 | `config.market.merchants.speed` | même échelle que les unités : 10 cases en 2,5 min (Gaule) à 3,9 min (Sultanat), contre 5 min pour une armée à vitesse 50 ; occupés à l'aller et au retour |
-| Comptoir de commerce | capitale ; taxe −1 point par niveau, charge +1 % par niveau | `TRADE_OFFICE.effects` | taxe nulle dès le niveau 10 (voir § 15) |
-| Taille des rassemblements | 5 armées + 1 par niveau de la Place de rassemblement du lanceur (25 au niveau 20) | `RALLY_POINT.effects.rallyMaxArmiesBase`, `rallyMaxArmiesPerLevel` | 3 à 15 avant ; la Place de rassemblement d'une alliance de 60 membres limite donc chaque rassemblement à 25 armées |
+| Cachette | 1,5 % du stockage de la ville par niveau, pour chaque ressource (30 % au niveau 20) ; Gaule × 1,2 (§ 17, D15 ; le matin : 240 → 32 000) | `HIDEOUT.effects.hideoutStoragePctPerLevel` ; `data/factions.json` GAUL `hideoutCapacity` | un raid prend au plus la moitié de ce qui dépasse (`config.hideout.raidStealRate`), un siège gagné 25 % (`config.combat.fall.pillagePct`) |
+| Marchands | retirés le 31 octobre 2026 au soir (§ 17, D7) : des armées de transport portent les échanges et les envois | — | le matin : 1 par niveau du Marché, charge et vitesse par civilisation |
+| Comptoir de commerce | capitale ; taxe −1 point par niveau (30 % de base), charge des armées de transport +1 % par niveau | `TRADE_OFFICE.effects` | 10 % au Comptoir 20, 5 % avec la Chambre au Trésor 20 (voir § 15 et § 17) |
+| Taille des rassemblements | 5 armées + 1 par niveau de la Place de rassemblement du lanceur (25 au niveau 20) ; attentes de 5 à 180 min (§ 17, D3) | `RALLY_POINT.effects.rallyMaxArmiesBase`, `rallyMaxArmiesPerLevel`, `config.rally.waitMinutes` | 3 à 15 avant ; une alliance de 100 membres ne fait donc pas de plus gros rassemblement (25 armées), elle peut seulement en lancer plusieurs |
 | Forge | +0,5 % d'attaque et +0,5 % de défense par niveau (+10 % au niveau 20), 50 % au plus | `FORGE.effects.attackBonusPctPerLevel`, `defenseBonusPctPerLevel` | avant : défense des villes seulement ; un côté de plusieurs joueurs prend la moyenne de leurs Forges selon les soldats |
 | Vision des armées | 5 cases + 6 par niveau de la Tour de guet de la capitale, autour de chaque ville | `WATCHTOWER.effects.visionRangeL1`, `visionRangePerLevel` | 11 / 35 / 65 / 125 cases aux niveaux 1 / 5 / 10 / 20 ; une attaque se voit sur la carte en entrant dans le rayon (l'alerte, elle, est inchangée) |
-| Taille d'une alliance | 3 membres par niveau de l'Ambassade du chef, 60 au plus | `EMBASSY.effects.allianceMembersPerLevel`, `config.alliance.maxMembers` | 21 au niveau 7 (fondation), 30 au 10, 60 au 20 ; le Bastion demande 15 membres (Ambassade du chef 5) |
+| Taille d'une alliance | 5 membres par niveau de l'Ambassade du chef, 100 au plus (§ 17, D11 ; le matin : 3 et 60) | `EMBASSY.effects.allianceMembersPerLevel`, `config.alliance.maxMembers` | 35 au niveau 7 (fondation), 50 au 10, 100 au 20 ; le Bastion demande 15 membres (Ambassade du chef 3) |
 | Bâtiments de bonus (niveau 5 au plus) | +2,5 % par niveau, +12,5 % au niveau 5 | `*ProdBonusPctL1`, `*ProdBonusPctL5` | la moitié d'avant : une colonie aux champs 20 produit 13,5 à 15 % de moins selon son gisement (§ 15) |
-| Grandes casernes et écuries pour la capitale | −0,5 % de temps de formation par niveau, niveaux de toutes les villes additionnés | `GREAT_BARRACKS` / `GREAT_STABLE` `capitalTrainTimeReductionPctPerLevel` | 2 colonies au niveau 20 : −20 % ; avec la Caserne 20 (−10 %), la formation dans la capitale prend 30 % de temps en moins, sous le plafond de 60 % |
+| Grandes casernes et écuries pour la capitale | −0,75 % de temps de formation par niveau, niveaux de toutes les villes additionnés (§ 17, D13 ; le matin : 0,5) | `GREAT_BARRACKS` / `GREAT_STABLE` `capitalTrainTimeReductionPctPerLevel` | 2 colonies au niveau 20 : −30 % (le but visé) ; avec la Caserne 20 (−10 %), la formation dans la capitale prend 40 % de temps en moins, sous le plafond de 60 % |
 | Mur d'une colonie | 15 au plus (capitale 20) | `WALL.effects.colonyMaxLevel` | 15 000 PV de mur et +15 % de défense au plus ; il faut 75 % des engins d'un mur 20 pour une brèche (tableau du § 12) |
 | Anneau | capitale 18 emplacements, colonie 12 | `config.city.ringSlots` | autant que de bâtiments possibles : aucun choix de « bâtiment en trop » à faire |
-| Or des unités d'élite | 1 or par unité | `config.recruit.goldPerUnit` | la Chambre au Trésor donne 10 à 200 or par jour : de quoi payer 10 à 200 unités d'élite par jour, plus l'or des gisements d'or ; l'or sert aussi aux espions, aux soins immédiats et aux talents du héros |
-| Prix en ressources de l'élite | × 0,95 | `config.recruit.eliteResourceCostMult` | voir ci-dessous |
+| Or des unités d'élite | 2 or par unité (§ 17, D5 ; le matin : 1) | `config.recruit.goldPerUnit` | la Chambre au Trésor donne 10 à 200 or par jour : de quoi payer 5 à 100 unités d'élite par jour, plus l'or des gisements d'or, des expéditions menées par le héros et du trésor des invasions ; l'or sert aussi aux espions, aux soins immédiats et aux talents du héros |
+| Prix en ressources de l'élite | × 0,85 (§ 17, D5 ; le matin : × 0,95) | `config.recruit.eliteResourceCostMult` | voir ci-dessous et § 17 |
 
-**Élite contre intermédiaire** (moyenne des 54 unités de combat des six civilisations, prix du serveur avec × 0,95, sans
-l'or) :
+**Élite contre intermédiaire** (mesure du matin du 31 octobre 2026 : moyenne des 54 unités de combat des six civilisations,
+prix du serveur avec × 0,95, sans l'or ; avec × 0,85 depuis le soir, l'élite gagne encore environ 12 % par ressource, § 17) :
 
 | Palier | Puissance pour 1 000 ressources (coefficients de puissance 1 / 1,25 / 1,55) | Puissance de bataille pour 1 000 ressources (1 / 1,35 / 1,9) | Puissance de bataille par céréale d'entretien |
 |---|---|---|---|
@@ -662,19 +666,59 @@ puissance (pillages, camps, rencontres, affichage), elle est 4 % sous l'intermé
 aussi là, il faudrait un multiplicateur d'environ 0,91 au lieu de 0,95. À trancher avec l'or par unité, par la vérification
 d'équilibrage prévue par la décision 15.
 
-**À mesurer en simulation** (pas refaite pour ce lot : pas de serveur ni de base) : le débit du marché avec les marchands
-(offres prises, routes limitées par les marchands, Marché monté plus tôt), l'or disponible pour l'élite et sa part dans les
-armées, l'effet de la Cachette en quantité fixe sur les raids (les petites villes sont mieux protégées, les grosses moins),
-la taille réelle des rassemblements et des alliances, et l'effet de la vision sur les attaques (une armée ennemie ne se voit
-qu'à l'approche).
+**À mesurer en simulation** (nouvelle simulation décidée le 31 octobre 2026 au soir, D18) : le débit du marché porté par des
+armées, l'or disponible pour l'élite et sa part dans les armées, l'effet de la cachette à 1,5 % du stockage par niveau sur
+les raids (les petites villes moins protégées qu'avec la quantité fixe, les grosses bien plus), la taille réelle des
+rassemblements et des alliances, et l'effet de la vision sur les attaques (une armée ennemie ne se voit qu'à l'approche).
 
 **Outils** : les joueurs automatiques (`tools/sim`) suivent ces règles : anneau de 18 / 12 emplacements, Bâtiment principal
-20, Mur des colonies 15, Marché et Comptoir dans la capitale (plus de Comptoir ni de Marché en colonie), marchands (ils lisent
-leurs marchands libres une fois par tour, n'envoient jamais plus que ce qu'ils portent, et montent le Marché quand il en
-manque ; plus de « Caravane »), or de l'élite (un palier d'élite qu'ils ne peuvent pas payer attend, et ils gardent l'or d'un
+20, Mur des colonies 15, Marché et Comptoir dans la capitale (plus de Comptoir ni de Marché en colonie), échanges et envois
+par armée (plus de marchands ni de routes depuis le 31 octobre 2026 au soir), or de l'élite (un palier d'élite qu'ils ne peuvent pas payer attend, et ils gardent l'or d'un
 lot de 100 unités d'élite avant un soin à l'or, un espion ou un changement de talents), Grandes casernes pour la capitale,
 taille des rassemblements (`maxArmies`), taille d'alliance (le chef monte son Ambassade quand l'alliance est pleine), Forge
 dans leurs estimations de combat. Contrôles ajoutés à la simulation : bâtiment hors de l'anneau, bâtiment au-dessus de son
-niveau maximum, rassemblement au-delà de sa taille, offre sans marchand, plus de marchands occupés que le Marché n'en donne,
-marchands jamais arrivés ou jamais rentrés. `tools/simulate-colonies.cjs` et `tools/simulate-factions.cjs` impriment les
-nouveaux chiffres (emplacements, plafonds, marchands, cachette).
+niveau maximum, rassemblement au-delà de sa taille, armée d'échange ou de transport bloquée après son arrivée, armée réservée
+au marché sans offre active. `tools/simulate-colonies.cjs` et `tools/simulate-factions.cjs` impriment les nouveaux chiffres
+(emplacements, plafonds, taxe des échanges, cachette).
+
+## 17. Décisions du rapport de vérification (31 octobre 2026, au soir)
+
+Réponses du propriétaire aux 20 questions de `docs/RAPPORT-VERIFICATION-2026-10-31.md`, ce qui a été fait et pourquoi :
+`docs/DECISIONS-2026-10-31-SOIR.md` ; règles détaillées : `docs/ETAT-DES-SYSTEMES.md`. Chaque chiffre est dans
+`src/config/index.js` ou `data/*.json`, avec la mention « décision du 31 octobre 2026 (rapport de vérification) ». Les
+mesures de la fin de partie utilisent le vrai moteur de combat et les armées de la simulation du 31 octobre (jours 120 à
+175 ; une « armée médiane » = toute l'armée d'un joueur médian, environ 475 000 de puissance au jour 150 ; +15 % pour
+l'assaillant avec les recherches et la Forge 20, Forge 20 pour les défenseurs, 65 engins par armée assaillante avec
+l'Atelier 20).
+
+| | Sujet | Avant → maintenant | Où le régler | Pourquoi, et ce que donnent les chiffres |
+|---|---|---|---|---|
+| D1 | Carte et gisements | 374 × 374, 4 895 gisements n'importe où sur la terre (+ 636 d'or) → **420 × 420 pour un monde neuf, 6 000 gisements + 780 d'or (13 %)**, posés là où une ville tient, à 3 cases des autres ; capitales à 3 cases des gisements libres (repli : la règle d'avant) | `config.map.nodeSeeding`, `config.map.spawn.tries`, `Terrain.SIZE_BY_GENERATOR` | avant : 1 770 à 1 836 colonies sur 4 000 pour 2 000 joueurs (35 % des gisements infondables, un tiers des autres pris par les capitales) ; maintenant : 6 000 gisements fondables après 2 000 capitales et les 4 000 colonies fondées sur 5 graines ; 4 998 à 5 087 si tous choisissent le même côté (objectif 4 600). Bande de départ 100 → 112 cases, anneaux des donjons agrandis de 420/374. Mondes ouverts avant : inchangés |
+| D2 | Côté de la carte | au hasard → **au choix : Nord, Est, Sud, Ouest ou au hasard** (inscription et monde suivant) ; côté plein : un voisin, puis l'opposé | `src/utils/spawn.js` | pour former des alliances entre voisins : seuls 7 membres d'une alliance de 16 étaient à portée d'un rassemblement d'une heure |
+| D3 | Attentes des rassemblements | 5, 10, 30, 60 min → **5, 10, 30, 60, 120, 180 min** | `config.rally.waitMinutes` | une alliance dispersée rassemble plus de membres |
+| D4 | Or des expéditions | 50 + hasard × 100 × difficulté, sans héros (≈ 834 or par jour avec 15 armées, sans risque) → **seulement avec le héros**, une chance sur deux, 10 + 10 × difficulté en moyenne (± 50 %) : **10 / 15 / 20 / 25 or espérés** pour les difficultés 1 à 4 ; talent Chasseur de trésors compris | `config.expedition.gold` | l'or redevient rare : 50 à 200 or par jour avec un héros actif |
+| D5 | Prix de l'élite | 1 or, ressources × 0,95 → **2 or, ressources × 0,85** | `config.recruit.goldPerUnit.elite`, `eliteResourceCostMult` | l'élite était 2 % moins rentable que l'intermédiaire par ressource ; légionnaire romain 361 → 340 ressources, cavalerie lourde 462 → 435 ; soin immédiat inchangé (1 / 2 / 3 / 3 or) |
+| D6 | Unités intermédiaires | 7 endurances proposées → **pas de changement** (refus du propriétaire) | `data/units.json` | — |
+| D7 | Marchands et routes | 1 marchand par niveau du Marché (20 au niveau 20), routes entre ses villes → **retirés** ; échanges et envois entre joueurs par des armées de transport, à la charge de leurs troupes | `config.market` (plus de `merchants` ni `routes`), migration `0033_sans_marchands` | le stock du joueur est commun : rien à transporter entre ses villes. Charge d'une armée de transport × civilisation × (Marché +5 %, Comptoir +1 %, Poste du Désert +1 % par niveau ; Marché 10 + Comptoir 5 + Poste 4 = +59 %, les trois au niveau 20 = +140 %) × Bastion +10 % |
+| D8 | Taxe des échanges entre joueurs | 10 % de base (0 % dès le Comptoir 5 avec la Chambre au Trésor 20) → **30 % de base**, −1 % par niveau du Comptoir, −0,25 % par niveau de la Chambre au Trésor | `config.market.p2pTaxPctBase`, `treasureTaxReductionPctPerLevel` | chaque niveau du Comptoir compte : 30 % sans rien, 25 % avec la Chambre 20, 20 / 15 / 10 % avec le Comptoir 5 / 10 / 15 et la Chambre 20, **5 % avec les deux au niveau 20**, 23 % avec le Comptoir 7 seul ; un échange de 1 000 contre 1 000 sans bâtiment livre 700 de chaque côté. Le marchand du serveur (30 / 21 / 11 % aux Marchés 1 / 10 / 20, d'un seul côté) reste moins cher jusqu'au Comptoir 15 avec la Chambre 20 |
+| D9 | Bastion | mur 10 × un mur 20 (200 000 PV), garnison sans plafond, tous les camps d'une alliance finissant ensemble en un assaut → **mur 3 × un mur 20 (60 000 PV), garnison de 10 armées au plus (celles en route et en sortie comprises), un assaut = un rassemblement ou une armée seule** ; vies (10) et remontée (72 h) inchangées | `config.bastion.wallMultiplier`, `maxGarrisonArmies` | façon fort barbare de Rise of Kingdoms. Contre une garnison pleine de 25 armées médianes, un rassemblement plein de 25 ne gagnait jamais, quel que soit le mur (0 % de × 3 à × 10 ; 64 % sans mur). Un rassemblement ne prend qu'une armée par joueur : une alliance de 15 à 20 n'aligne que 15 à 20 armées. **Contre une garnison pleine de 10 armées médianes, un rassemblement de 15 / 16 / 17 / 18 / 20 armées prend une vie 4 / 19 / 50 / 83 / 100 % des fois** (contre 17 armées : 0 % jusqu'à 20 armées) ; sans garnison, **5 armées de 65 engins** suffisent (4 sous un chef du Sultanat). Le camp devant un Bastion peut être attaqué par les renforts (sortie de la garnison, « Briser le siège » du dehors), rassemblement compris |
+| D10 | Coût de la Merveille | 250 000 / 250 000 / 250 000 / 75 000 au niveau 1 → **125 000 / 125 000 / 125 000 / 37 500** (× 1,05 par niveau inchangé) | `config.world.wonderCostBase` | le transport fixait la fin du monde vers les jours 175 à 220 ; Merveille entière 2,15 G → **1,08 G** ; niveaux 1 à 50 : 173 M → **86 M** ; l'armée est le vrai moyen de la ravitailler |
+| D11 | Taille des alliances | 3 membres par niveau de l'Ambassade, 60 au plus → **5 par niveau, 100 au plus** | `EMBASSY.effects.allianceMembersPerLevel`, `config.alliance.maxMembers` | la fin de partie reste réglée pour 15 à 20 joueurs : les rassemblements gardent 25 armées au plus, une alliance de 100 ne frappe pas plus fort une même cible |
+| D11 | Défi de la semaine | total des membres → **total ÷ max(membres, 20)**, au dixième ; récompenses 750 / 500 / 250 inchangées | `config.alliance.challengeMinMembers` | la plus grosse alliance gagnait 12 semaines sur 18 |
+| D11 | Immortels : site | **3,0 M** (inchangé) | `config.world.immortalSitePower` | une alliance de 15 / 16 / 17 / 18 / 20 joueurs le prend avec 47 / 44 / 41 / 39 / 35 % de son armée (jour 120) |
+| D11 | Immortels : plan | 4,5 M → **5,75 M** | `config.world.immortalPlanPower` | avant 58 / 54 / 51 / 48 / 43 % de l'armée, hors de la cible ; maintenant **74 / 69 / 65 / 61 / 55 %** (65 % à 17 joueurs ; jour 150) |
+| D11 | Vagues contre la Ville Merveille | 20 000 × niveau^1,35 → **14 000 × niveau^1,35** (14 500 proposé d'abord) : 2,75 M au niveau 50, 7,02 M au niveau 100 | `config.world.immortalWaveBase`, `immortalWaveExp` | derrière le Mur 15 de la Ville Merveille (son Mur s'arrête au niveau 15), une alliance de 15 / 16 / 17 / 18 / 20 joueurs tient le niveau 100 avec **89 / 85 / 82 / 76 / 68 %** de son armée, 80 % en moyenne comme visé (avant, 16 joueurs plafonnaient au niveau 86 avec toute leur armée ; à 14 500 : 92 / 88 / 85 / 78 / 70 %). Un mur 15 seul tient jusqu'au niveau 2, tombe au 2e round au niveau 10, au 1er dès le 17 |
+| D11 | Donjons d'invasion | inchangés (avant-poste du niveau 1 = la moitié de la médiane, × 1,8 par niveau, étages × 1 / 2 / 4) | `config.invasion.powerRef` | médiane 466 000 : chef du niveau 1 (0,93 M) battu par 2 joueurs, du niveau 4 (5,44 M) par 11, du niveau 5 (9,79 M) par 19 : toutes les cibles sont tenues |
+| D12 | Colonies neuves | aucune protection → **72 h sans attaque, raid ni siège** après la fondation (espions permis) | `config.city.newColonyProtectionHours` | 54 colonies sur 125 rasées dans la simulation, 5 jours après leur fondation en médiane, presque toutes sans mur : 72 h laissent le temps de bâtir le Mur |
+| D13 | Grandes casernes et écuries pour la capitale | 0,5 → **0,75 % par niveau** | `capitalTrainTimeReductionPctPerLevel` | deux à 20 : 20 → **30 %** (le but) ; avec la Caserne 20 : 40 %, sous le plafond de 60 % |
+| D14 | Spécialité des gisements | **+10 % par niveau, gardé** | `RESIDENCE.effects.colonyNodeBonusPctPerNodeLevel` | — |
+| D15 | Cachette | quantité fixe (240 → 32 000, 20 % d'une capitale pleine et 5 % d'une colonie pleine au niveau 20) → **1,5 % du stockage de la ville par niveau**, pour chaque ressource ; Gaule × 1,2 | `HIDEOUT.effects.hideoutStoragePctPerLevel` | « on avait dit 30 % des ressources ». Capitale pleine (160 000) : 7 200 / 24 000 / 36 000 / 48 000 aux niveaux 3 / 10 / 15 / 20 (Gaule 8 640 / 28 800 / 43 200 / 57 600) ; colonie pleine (640 000) : 28 800 / 96 000 / 144 000 / 192 000. Au début, plus faible qu'avant : cachette 3 avec un Dépôt 5 garde 151 (402 avant), sans Dépôt 15 par niveau |
+| D16 | Chambre au Trésor | **inchangée** | — | — |
+| D17 | Trésor des invasions (or) | 40 × 2^(niveau − 1) → **200 × 2^(niveau − 1)** : 200 / 400 / 800 / 1 600 / 3 200 | `config.invasion.treasure.gold` | 3 520 or par semaine pour une alliance qui détruit les donjons 4 et 5 avant : un bonus symbolique ; maintenant il compte |
+
+**Phrases fausses corrigées** (rapport, § 3) : la carte de 374 ne tenait pas « 4 900 gisements, assez pour environ
+2 450 joueurs », mais environ 1 000 à 1 050 joueurs à 2 colonies ; un compte complet (capitale et 2 colonies au niveau 20)
+arrive vers les jours **114 à 154** (et non 84 à 132) avec les vraies dates de fondation ; une récompense de quête plafonnée
+vaut **1,4 h** de production d'un compte complet (et non 20 minutes) ; dans la simulation, les vraies premières fondations
+de colonies sont aux jours médians **52 et 79** (59 et 81 comptaient aussi les colonies refondées après avoir été rasées).
+

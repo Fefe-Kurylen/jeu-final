@@ -11,6 +11,8 @@
 // Un autre module qui a besoin du héros où il est (une attaque qui part, une défense) met bot.mem.heroHold = <pas> :
 // jusque-là ce module ne le déplace pas et ne l'envoie pas en expédition. Un héros qui mène une armée de campagne en
 // état (même choisie par un autre module) y reste.
+// Or des expéditions (décision du 31 octobre 2026, rapport de vérification) : seule une expédition menée par le héros en
+// rapporte ; le joueur part donc toujours avec l'armée que mène son héros (l'or rapporté est relevé par ../ledger.cjs).
 // Expéditions : le jeu en crée environ une par heure et par joueur actif (une chance de 30/3600 à chaque tick de 30 s,
 // src/game/processors/expeditionProcessor.js generateNewExpeditions, sans tenir compte des heures écoulées). La
 // simulation joue un seul tick par pas de 6 h : sans rattrapage il en apparaîtrait une par mois. afterStep rejoue donc
@@ -237,6 +239,7 @@ async function talents(bot, ctx, B, m, hero) {
           hero.talents = {}; hero.talentResets = (hero.talentResets || 0) + 1; m.b = to;
           if (price && bot.me) bot.me.gold -= price;
           bump(m, price ? 'resetsPaid' : 'resetsFree');
+          if (price) bump(m, 'resetGold', price);
         } else fail(m, r, 'resetRefused');
       } else bump(m, 'resetWaitGold');
     }

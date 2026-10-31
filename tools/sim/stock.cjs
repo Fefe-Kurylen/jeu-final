@@ -1,7 +1,8 @@
 // Simulation longue — stock partagé entre les villes d'un joueur (décision du 30 octobre 2026, § 1 bis) : constructions,
 // recrutements, recherche, soins, héros et fondation se paient sur la somme des stocks de ses villes (la ville de
 // l'action d'abord, puis la plus pleine par rapport à son Dépôt ou son Silo) ; l'entretien puise dans tous ses greniers.
-// Marché, transports, convois, pillage et raids restent propres à chaque ville : les modules y lisent la ville seule.
+// Offres du marché, envois par armée, pillage et raids restent propres à chaque ville : les modules y lisent la ville seule
+// (plus de transport entre ses propres villes, décision du 31 octobre 2026).
 // Les modules tiennent le compte entre deux lectures de GET /api/cities avec la répartition du serveur (utils/db.js).
 'use strict';
 const path = require('path');

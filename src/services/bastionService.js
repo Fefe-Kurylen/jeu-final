@@ -4,8 +4,8 @@
 //   ville), à 40 cases au plus d'une ville de l'alliance.
 // - Les membres y apportent les ressources par convois (500 000 bois, pierre, fer, 250 000 nourriture), puis 3 jours de
 //   chantier ; actif, il donne à tous les membres +10 % de production, +5 % de vitesse des armées, +10 % de transport.
-// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 17 armées au plus, celles en route
-//   comprises (config.bastion.maxGarrisonArmies, décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
+// - Les membres et les alliés y postent leurs armées (garnison, +10 % de défense), 10 armées au plus, celles en route et
+//   en sortie comprises (config.bastion.maxGarrisonArmies, décision du 31 octobre 2026) ; pendant un siège, aucune n'entre.
 // - Les autres l'attaquent avec des engins de siège : camp d'1 h, puis combat contre la garnison derrière un mur bouclier
 //   3 fois plus solide qu'un mur 20 (décision du 31 octobre 2026, 10 fois avant) ; un assaut = un rassemblement ou une
 //   armée seule, comme un fort barbare de Rise of Kingdoms ; chaque assaut gagné lui ôte une vie sur 10 (les vies
@@ -128,6 +128,7 @@ async function loadReadyArmy(tx, playerId, armyId) {
   if (probe.cityId) await lockCity(tx, probe.cityId);
   const army = await tx.army.findFirst({ where: { id: armyId, ownerId: playerId }, include: ARMY_FULL });
   if (army.isGarrison) throw httpError(400, 'La garnison ne quitte pas la ville : créez une armée au point de ralliement');
+  if (army.status === 'MARKET') throw httpError(400, require('./marketService').MARKET_BUSY);   // réservée par une offre du marché
   if (army.status !== 'IDLE') throw httpError(400, 'Armée déjà en mission');
   if (!army.units.some(u => u.count > 0)) throw httpError(400, 'Armée vide');
   if (army.city?.isSieged && army.x === army.city.x && army.y === army.city.y) throw httpError(400, 'Ville assiégée : vos armées ne sortent que pour attaquer le camp ennemi');
@@ -420,6 +421,9 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     await tx.$queryRaw`SELECT id FROM "Bastion" WHERE id = ${army.targetBastionId || ''} FOR UPDATE`;
     const b = await tx.bastion.findUnique({ where: { id: army.targetBastionId || '' }, include: { alliance: { select: { id: true, tag: true, name: true } } } });
     if (!b || !['BUILDING', 'ACTIVE'].includes(b.status)) return { gone: true };
+    // camp relu sous le verrou du Bastion : chassé entre-temps (siège brisé par une sortie ou des renforts, handleBreakArrival
+    // prend le même verrou), il est déjà sur le chemin du retour et ne livre plus d'assaut
+    if (!(await tx.army.count({ where: { id: army.id, status: 'BESIEGING', targetBastionId: b.id } }))) return { broken: true };
     const { group, rally } = await assaultGroup(tx, army, b.id, now);
     const rowsOf = new Map();
     for (const g of group) rowsOf.set(g.id, await tx.armyUnit.findMany({ where: { armyId: g.id } }));
@@ -474,6 +478,7 @@ async function handleBastionBattle(army, now, sendArmyHome) {
     return { b, group, result, destroyed, lives, reportIds };
   }, { timeout: 15000 });
   if (outcome.gone) { await sendHome(army, sendArmyHome, { rallyId: null }); return; }
+  if (outcome.broken) return;
   const { b, group, result, destroyed, lives, reportIds } = outcome;
   const tag = `[${b.alliance.tag}]`;
   for (const id of new Set(group.map(g => g.ownerId))) notify(id, 'battle', result.attackerWon ? '⚔️ Assaut réussi' : '⚔️ Assaut repoussé', destroyed ? `Le Bastion ${tag} est rasé !` : result.attackerWon ? `Le Bastion ${tag} perd une vie : il lui en reste ${lives.after} sur ${lives.total}.` : `La garnison du Bastion ${tag} a repoussé votre assaut.`, { to: 'report', reportId: reportIds[id], x: b.x, y: b.y });

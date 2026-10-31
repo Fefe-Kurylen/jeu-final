@@ -10,7 +10,7 @@
 //     unités formées rejoignent la capitale (décision du 30 octobre 2026) ;
 //  5. rôle des colonies (décisions des 30 et 31 octobre 2026) : spécialité du gisement par niveau, poids sur tout le
 //     compte, emplacements avec le Mur sur l'enceinte (anneau de 18 emplacements dans la capitale, 12 dans une colonie),
-//     Marché et Comptoir de commerce dans la capitale seulement, avec les marchands.
+//     Marché et Comptoir de commerce dans la capitale seulement ; échanges et envois portés par des armées.
 // Coûts et temps des bâtiments : utils/calculations.js buildCostFor / buildSecondsFor (les mêmes que le serveur).
 //   node tools/simulate-colonies.cjs
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
@@ -159,10 +159,9 @@ const capRing = ring(k => !fx.notInCapital(k)) + 1, colRing = ring(k => !fx.capi
 const RS = config.city.ringSlots;
 const free = (n) => `${n} libre${n > 1 ? 's' : ''}`;
 console.log(`Emplacements (config.city.ringSlots) : le Mur est sur l'enceinte (emplacement ${config.city.wallSlot}), hors de l'anneau. Capitale : ${capRing} bâtiments possibles dans ses ${RS.capital} emplacements (${free(RS.capital - capRing)}) ; colonie : ${colRing} dans ses ${RS.colony} emplacements (${free(RS.colony - colRing)}) ; la Ville Merveille suit la colonie.`);
-// la taxe ne descend pas sous 0 (marketService.p2pTaxPct) : le niveau du Comptoir qui l'annule à lui seul
+// taxe des échanges (marketService.p2pTaxPctOf) : de base, puis avec le Comptoir et la Chambre au Trésor au niveau 20
+const { p2pTaxPctOf } = require(path.join(__dirname, '..', 'src', 'services', 'marketService'));
 const officeTaxPct = fx.effectOf('TRADE_OFFICE', 'p2pTaxReductionPctPerLevel', 1);
-const taxZeroAt = Math.ceil(config.market.p2pTaxPctBase / officeTaxPct);
+const taxAt20 = p2pTaxPctOf([{ key: 'TRADE_OFFICE', level: 20 }, { key: 'TREASURE_CHAMBER', level: 20 }]);
 const officeLoad = fx.effectOf('TRADE_OFFICE', 'armyTransportCapacityBonusPctPerLevel', 1);
-const MC = config.market.merchants;
-const loads = Object.entries(MC.capacity).map(([f, c]) => `${f} ${fmt(c)}`).join(', ');
-console.log(`Place du marché et Comptoir de commerce : dans la capitale seulement, ils servent toutes les villes du joueur. Un marchand par niveau du Marché (${fx.merchantCount([{ key: 'MARKET', level: 20 }])} au niveau 20), occupé à l'aller comme au retour ; charge d'un marchand : ${loads}. Comptoir : taxe des échanges −${officeTaxPct} point par niveau (${config.market.p2pTaxPctBase} % de base, 0 dès le Comptoir ${taxZeroAt}), charge des marchands et des armées de transport +${officeLoad} % par niveau (+${20 * officeLoad} % au Comptoir 20).`);
+console.log(`Place du marché et Comptoir de commerce : dans la capitale seulement, ils servent toutes les villes du joueur. Plus de marchands ni de routes entre ses villes (stock commun) : des armées portent les échanges et les envois, selon la charge de leurs troupes. Comptoir : taxe des échanges −${officeTaxPct} point par niveau (${p2pTaxPctOf([])} % de base, ${taxAt20} % avec le Comptoir 20 et la Chambre au Trésor 20), charge des armées de transport +${officeLoad} % par niveau (+${20 * officeLoad} % au Comptoir 20).`);

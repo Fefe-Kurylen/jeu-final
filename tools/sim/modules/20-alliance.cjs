@@ -1,7 +1,10 @@
 // Simulation longue — alliance : fondation et recrutement sur invitation (Ambassade 7 pour fonder, 5 pour rejoindre),
 // officiers, aide d'alliance (demander, « Tout aider »), boutique d'alliance (achats, cosmétiques), messagerie (alliance,
 // global, privé, amis, demandes d'amis), diplomatie (A et B en guerre, A et C alliés), et Bastion : placement par le chef ou
-// un officier près des membres, convois de ravitaillement (armée « Convoi » chargée depuis la capitale), puis garnison.
+// un officier près des membres, convois de ravitaillement (armée « Convoi » chargée depuis la capitale), puis garnison
+// (config.bastion.maxGarrisonArmies armées au plus, celles en route comprises : le refus 400 « Garnison du Bastion
+// complète » est normal ; décision du 31 octobre 2026). Le convoi est le rôle convoy des emplacements partagés de la Place
+// de rassemblement (../armies.cjs).
 // Un peu de vie aussi : un membre de C part et revient, le chef de C passe la main, le chef de B exclut puis réinvite un
 // membre, un solitaire refuse une invitation. Les attaques contre le Bastion ennemi sont laissées au module de guerre.
 // Chaque joueur fait au plus 6 appels par tour pour ce module ; les conditions sont vérifiées avant d'appeler.
@@ -13,6 +16,7 @@ const { unitsData, factionsData } = require(path.join(ROOT, 'src/config/gamedata
 const fx = require(path.join(ROOT, 'src/utils/buildingEffects'));
 const { getFactionBonus } = require(path.join(ROOT, 'src/utils/calculations'));
 const Stock = require('../stock.cjs');   // stock partagé entre les villes du joueur (constructions et recrutements)
+const Armies = require('../armies.cjs');   // emplacements de la Place de rassemblement partagés entre les modules
 let spawnUtil = null;
 const spawn = () => (spawnUtil ||= require(path.join(ROOT, 'src/utils/spawn')));   // lecture seule : la case est-elle libre (ce que montre la carte)
 
@@ -20,7 +24,8 @@ const RES = ['wood', 'stone', 'iron', 'food'];
 const MAX_CALLS = 6;
 const MAX_QUEUE = config.build.maxRunning + config.build.maxQueued;
 const BASTION = config.bastion;
-const CONVOY_NAME = 'Convoi';
+const CONVOY_NAME = Armies.NAMES.convoy;
+const FULL_REST = 24;            // garnison complète : le convoi se dissout et ne se reforme qu'après 6 jours
 const RECRUIT_BUILDING = { INFANTRY: 'BARRACKS', ARCHER: 'BARRACKS', CAVALRY: 'STABLE' };
 const U = new Map(unitsData.map(u => [u.key, u]));
 const carryOfUnit = (key) => U.get(key)?.stats?.carry || U.get(key)?.stats?.transport || 50;
@@ -185,8 +190,8 @@ async function manageTurn(bot, ctx, S, w, m, al) {
   const group = ctx.byGroup(bot.group);
   let used = 0;
   // invitations : les joueurs du groupe sans alliance et pas encore invités, tant que l'alliance a de la place. Taille
-  // (décision du 31 octobre 2026) : 3 membres par niveau de l'Ambassade du chef (GET /api/alliance/mine : maxMembers) ;
-  // pleine, le chef monte son Ambassade d'un niveau
+  // (décision du 31 octobre 2026) : 5 membres par niveau de l'Ambassade du chef, 100 au plus (GET /api/alliance/mine :
+  // maxMembers) ; pleine, le chef monte son Ambassade d'un niveau
   const ids = group.map(b => b.playerId).filter(id => id && id !== bot.playerId);
   if (ids.length) {
     const [inAlliance, invited] = await Promise.all([
@@ -484,20 +489,16 @@ async function recruit(bot, S, city, unit, want) {
   return true;
 }
 
-// emplacement libre de la Place de rassemblement (le plus haut : les premiers restent aux armées de campagne)
-function freeSlot(bot, city) {
-  const max = fx.maxArmies(city.buildings || []);
-  const used = new Set(bot.armies.filter(a => !a.isGarrison && a.cityId === city.id).map(a => a.slot));
-  for (let s = max; s >= 1; s--) if (!used.has(s)) return s;
-  return null;
-}
+// emplacement libre de la Place de rassemblement pour le convoi (rôle convoy : après l'armée de campagne et les gardes des
+// colonies)
+const freeSlot = (bot) => Armies.freeSlot(bot, 'convoy');
 
 // l'armée du module dans la capitale (créée au besoin sur un emplacement libre)
 async function moduleArmy(bot, S, m, city) {
   let army = bot.armies.find(a => a.id === m.cv) || bot.armies.find(a => !a.isGarrison && a.name === CONVOY_NAME && a.cityId === city.id);
   if (army) { m.cv = army.id; return army; }
   if (S.left() < 2) return null;
-  const slot = freeSlot(bot, city);
+  const slot = freeSlot(bot);
   if (!slot) return null;
   const r = await S.post('/api/army/create', { cityId: city.id, slot, name: CONVOY_NAME });
   if (!r.ok || !r.data?.army) return null;
@@ -544,9 +545,11 @@ async function supplyTurn(bot, ctx, S, m, city, bastion) {
   const TARGET = 12000;   // charge visée par convoi
   let army = await moduleArmy(bot, S, m, city);
   let borrowed = false;
-  if (!army && !freeSlot(bot, city)) {
-    // toutes les places sont prises par les armées de campagne : l'une d'elles, au repos en ville, porte le convoi
-    army = bot.armies.filter(a => !a.isGarrison && a.cityId === city.id && atHome(a, city) && unitsTotal(a) > 0)
+  if (!army && !freeSlot(bot)) {
+    // toutes les places sont prises : l'armée de campagne, au repos en ville, porte le convoi (jamais une armée d'un autre
+    // rôle : guerre, gardes, caravane réservée par une offre)
+    const own = new Set(bot.mem.mil?.own || []);
+    army = bot.armies.filter(a => !a.isGarrison && a.cityId === city.id && own.has(a.id) && atHome(a, city) && unitsTotal(a) > 0)
       .sort((a, b) => carryCapacity(b, city, faction, false) - carryCapacity(a, city, faction, false))[0] || null;
     borrowed = !!army;
   }
@@ -613,6 +616,8 @@ async function garrisonTurn(bot, ctx, S, w, m, city, target, own) {
     }
     return;
   }
+  // garnison trouvée complète il y a peu : pas de convoi (sa place sert à un autre rôle), on retentera plus tard
+  if ((m.full || -99) > ctx.step - FULL_REST) return;
   const army = await moduleArmy(bot, S, m, city);
   if (!army || !atHome(army, city)) return;
   // compléter avec une partie des défenseurs de la ville (la moitié au plus de chaque type)
@@ -627,14 +632,23 @@ async function garrisonTurn(bot, ctx, S, w, m, city, target, own) {
     return;
   }
   if (S.left() < 1) return;
+  // garnison complète : le convoi se dissout (ses soldats rentrent dans la garnison de la ville) et rend sa place
+  const full = async () => {
+    m.full = ctx.step;
+    if (S.left() > 0 && army.id === m.cv) { const d = await S.del(`/api/army/${army.id}/disband`); if (d.ok) { m.cv = undefined; bot.armies = bot.armies.filter(a => a.id !== army.id); } }
+  };
   if (own) {
     if (S.left() < 2) return;
     const g = await S.get('/api/bastion');
     const b = g.ok ? g.data?.bastion : null;
     if (!b || b.id !== target.id || b.status === 'FUNDING' || b.status === 'DESTROYED' || b.isSieged) return;
+    // garnison complète (celles en route et la sortie en cours comprises, comme le compte du serveur) : il attend
+    if ((b.garrison || []).length >= (b.maxGarrisonArmies || BASTION.maxGarrisonArmies)) { m.fullSeen = (m.fullSeen || 0) + 1; await full(); return; }
   }
   const r = await S.post(`/api/bastion/${target.id}/send`, { armyId: army.id, mission: 'GARRISON' });
-  if (r.ok) { army.status = 'SUPPORTING'; m.gs = w.day; m.garrisons = (m.garrisons || 0) + 1; }
+  if (r.ok) { army.status = 'SUPPORTING'; m.gs = w.day; m.garrisons = (m.garrisons || 0) + 1; return; }
+  // refus normal : la garnison s'est remplie entre-temps (décision du 31 octobre 2026)
+  if (r.status === 400 && /Garnison du Bastion complète/.test(String(r.data?.error || ''))) { m.fullRefused = (m.fullRefused || 0) + 1; await full(); }
 }
 
 async function bastionTurn(bot, ctx, S, w, m, al) {
@@ -644,6 +658,9 @@ async function bastionTurn(bot, ctx, S, w, m, al) {
   const members = await P.allianceMember.count({ where: { allianceId: al.id } });
   const b = await P.bastion.findUnique({ where: { allianceId: al.id }, select: { id: true, status: true, isSieged: true, cooldownUntil: true, x: true, y: true } });
   const now = ctx.clock.now();
+  // le convoi garde sa place à la Place de rassemblement (../armies.cjs) : pour ravitailler le Bastion, puis pour sa garnison
+  const garrisoner = hash(bot.name) % 3 !== 0;
+  m.wantConvoy = (!b || b.status === 'DESTROYED') ? members >= BASTION.minMembers - 2 : b.status === 'FUNDING' || (garrisoner && (m.full || -99) <= ctx.step - FULL_REST);
   // placement (chef ou officier) : 15 membres, pas de Bastion debout, délai après une chute passé
   if (isManager(al.role) && members >= BASTION.minMembers && (!b || (b.status === 'DESTROYED' && (!b.cooldownUntil || new Date(b.cooldownUntil).getTime() <= now))) && (m.placeTry || 0) <= ctx.step && S.left() >= 3) {
     m.placeTry = ctx.step + 4;
@@ -670,8 +687,8 @@ async function bastionTurn(bot, ctx, S, w, m, al) {
     return;
   }
   if (b.status === 'FUNDING') { await supplyTurn(bot, ctx, S, m, city, b); return; }
-  // Bastion bâti ou en chantier : deux membres sur trois y postent une armée, les autres libèrent leur convoi
-  const garrisoner = hash(bot.name) % 3 !== 0;
+  // Bastion bâti ou en chantier : deux membres sur trois y postent une armée (la garnison a un plafond), les autres
+  // libèrent leur convoi
   if (garrisoner) { await garrisonTurn(bot, ctx, S, w, m, city, b, true); return; }
   const army = bot.armies.find(a => a.id === m.cv);
   if (army && atHome(army, city) && S.left() > 0) {

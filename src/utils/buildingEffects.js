@@ -90,10 +90,6 @@ const effects = {
   productionBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'globalProductionBonusPctPerLevel', 50),
   // Carrying capacity of transport armies: Market 5 %/level, Trade Office 1 %/level, Sultan Desert Outpost 1 %/level
   transportBonusPct: (buildings) => cap(levelOf(buildings, 'MARKET') * effectOf('MARKET', 'playerTransportBonusPctPerLevel') + rawPct(buildings, ['TRADE_OFFICE', 'SULTAN_DESERT_OUTPOST'], 'armyTransportCapacityBonusPctPerLevel'), 200),
-  // Marchands (décision du 31 octobre 2026) : autant que de niveaux du Marché de la capitale ; leur charge gagne le bonus de
-  // transport du Comptoir et du Poste du Désert de la capitale (services/marketService.js merchantState)
-  merchantCount: (buildings) => levelOf(buildings, 'MARKET') * effectOf('MARKET', 'merchantsPerLevel', 1),
-  merchantCapacityBonusPct: (buildings) => sumPct(buildings, ['TRADE_OFFICE', 'SULTAN_DESERT_OUTPOST'], 'armyTransportCapacityBonusPctPerLevel', 200),
   // Marche de toutes les armées et de tous les espions du joueur : Irrigation égyptienne de la capitale, 0,5 %/niveau
   marchSpeedBonusPct: (buildings) => sumPct(buildings, ['EGYPTIAN_IRRIGATION'], 'marchSpeedBonusPctPerLevel', 50),
   // Field armies allowed by the Rally Point: 1 at L1, 3 at L10, 5 at L20 (one more every 5 levels)

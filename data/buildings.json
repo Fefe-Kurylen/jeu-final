@@ -723,7 +723,7 @@
         "goldProdPerDayL1": 10,
         "goldProdPerDayL20": 200
       },
-      "description": "Produit de l'or chaque jour (10 au niveau 1, 200 au niveau 20), une ressource rare pour les actions spéciales. L'or du joueur ne peut jamais être pillé : il n'est pas dans le stock des villes."
+      "description": "Produit de l'or chaque jour (10 au niveau 1, 200 au niveau 20), une ressource rare pour les actions spéciales. L'or du joueur ne peut jamais être pillé : il n'est pas dans le stock des villes. Chaque niveau réduit aussi de 0,25 % la taxe des échanges entre joueurs."
     },
     {
       "key": "HERO_MANSION",

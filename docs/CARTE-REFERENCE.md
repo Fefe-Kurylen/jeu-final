@@ -33,6 +33,48 @@ Seule la disposition change d'un serveur à l'autre.
   Android voient la même carte, case pour case).
 - Les chiffres plus bas (73 cases de pont, 33 de gué, 382 points déplacés…) sont ceux de la carte de référence.
 
+## Une carte faite pour 2 000 joueurs (31 octobre 2026, au soir)
+
+Décisions D1 et D2 du rapport de vérification (`docs/DECISIONS-2026-10-31-SOIR.md`) : le propriétaire voulait une carte et
+des gisements qui tiennent **2 000 joueurs à 2 colonies chacun**.
+
+- **Taille** : **420 × 420 cases pour un monde neuf** (générateur 4, coordonnées −210 à 209) ; un monde ouvert avant le
+  31 octobre 2026 garde sa carte de **374 × 374** (générateur 2 pour la graine 0, 3 pour les autres), case pour case. La
+  disposition (rivières, lacs, chaînes de montagnes, frontière des biomes) est celle de 374 agrandie de 420 / 374 ; le
+  contrôle de jouabilité suit (terre tempérée d'un seul tenant ≥ 50 445 cases, enclaves de biome ≤ 189 cases). 17 graines
+  sur 30 passent ce contrôle (13 sur 30 à 374). Le serveur publie `worldSize`, `minCoord`, `maxCoord`, `worldGenerator` et
+  `sides` dans `/api/world/info` ; le jeu applique la graine **et** le générateur (`Terrain.setWorldSeed(graine,
+  générateur)`), le terrain est le même sur le serveur et sur le téléphone. Les longueurs liées à la taille suivent :
+  bande de départ 112 cases au lieu de 100, anneaux des donjons 168-200 / 135-168 / 101-135 / 62-101 / 25-62 au lieu de
+  150-178 / 120-150 / 90-120 / 55-90 / 22-55, cercle du centre de 73,5 cases ; les anneaux des sites (12-30) et des plans
+  (35-55) de Merveille ne changent pas (`config.world.wonderSiteRing`, `wonderPlanRing`).
+- **Gisements** : **6 000 gisements de bois, pierre, fer et céréales, et 780 points d'or (13 %)**, posés **seulement là
+  où une ville 2 × 2 tient** (terre ferme principale, ni relief, ni eau, ni pont, ni gué) et **à 3 cases au moins** de tout
+  autre point et de toute ville : chaque gisement reste fondable, même à côté d'une colonie (`config.map.nodeSeeding =
+  { perCell: 0.035, max: 6000, goldPct: 13 }`, `planResourceNodes` dans `src/game/seed.js`). Les niveaux suivent la même
+  règle qu'avant (plus de niveau 3 dans le cercle du centre). Un monde ouvert avant garde ses points.
+- **Capitales** : posées **à 3 cases au moins de tout gisement libre** où l'on pourrait fonder ; si aucune place n'est
+  trouvée ainsi (300 essais, `config.map.spawn.tries`), la règle d'avant (le gisement seulement hors des 4 cases de la
+  ville).
+- **Côté de la carte au choix** à l'inscription et en rejoignant le monde suivant : **Nord, Est, Sud, Ouest ou Au hasard**
+  (« Rejoignez vos amis du même côté »). Un côté est un quart du carré vu à l'écran : nord en haut (x < 0, y < 0, la
+  neige), est (x ≥ 0, y < 0), sud en bas (x ≥ 0, y ≥ 0, le désert), ouest (x < 0, y ≥ 0). La capitale naît dans la bande
+  de départ de ce quart ; côté plein : un des deux côtés voisins, puis l'opposé (la réponse donne le côté réel). Une
+  capitale tombée est reposée de son côté. Un côté inconnu est refusé (« Côté de la carte invalide : Nord, Est, Sud, Ouest
+  ou au hasard »).
+- **Pourquoi la carte de 374 ne suffisait pas** (mesuré sur les graines 0, 61029 et 123456 avec l'ancien code) : une ville
+  prend 2 × 2 cases et une case libre autour, elle ne tient que sur 70 % des cases ; l'ancien semis posait 4 895 gisements
+  n'importe où sur la terre, dont 35 % où aucune ville ne tient (9 % hors de la terre ferme principale, 15 % sur une case
+  bloquée, 10 % avec un autre point dessus) ; les capitales ignoraient les gisements et en rendaient un tiers infondables.
+  Après 2 000 capitales, il restait 2 146 à 2 217 gisements fondables, et seulement **1 770 à 1 836 colonies sur 4 000**
+  pouvaient être fondées. Avec les nouvelles règles, la carte de 374 tiendrait juste (4 890 gisements fondables), sans marge
+  (4 005 si tous les joueurs choisissent le même côté). 420 est la plus petite taille mesurée qui garde de la marge partout.
+- **Mesures à 420** (`node tools/measure-map-capacity.cjs --seeds=0,61029,123456,2147483646,31337`, le vrai code de semis,
+  de départ et de fondation sur une base en mémoire) : sur les 5 graines, les **6 000 gisements restent fondables après
+  2 000 capitales** (objectif : 4 600, soit 4 000 colonies et 15 % de marge), **les 4 000 colonies sont fondées**, et il
+  reste la place d'environ 5 100 villes de plus ; aucune capitale n'a besoin du repli ; tous les sites, plans et donjons se
+  posent sur la carte pleine. Pire cas, les 2 000 joueurs choisissent le Nord : 4 998 à 5 087 gisements fondables.
+
 ## Décisions (25 octobre 2026)
 
 - **Villes sur 2 × 2 cases**, comme dans l'image. Une ville secondaire se fonde sur un point de ressource dont les 3 cases
@@ -87,7 +129,7 @@ Seule la disposition change d'un serveur à l'autre.
 | 13 | Marche des armées | ✅ code, 🎨 images | Colonnes de 1 à 3 groupes, poussière, cycles de marche peints dès leur livraison (33 images de 6 poses, guide de planche `img/guides-carte/guide-armee-planche.png`), armées des autres joueurs en mouvement. |
 | 9 | Nouveau style | ✅ prompts | Style « diorama 3D stylisé » de la référence, sans contours ; référence de style : `img/carte-reference.jpg`. |
 | 10 | Découpage | ✅ | Sol en textures répétables, éléments posés sans socle (losange d'une case à 50 % de la largeur, centre à 75 %), villes 2 × 2 (90 %, 68 %). Guides de cadrage dans `img/guides-carte/`. |
-| 14 | Carte par serveur | ✅ | Graine tirée au hasard à la création d'un serveur, gardée en base et publiée au jeu ; graine 0 = carte de référence (serveur ouvert) ; contrôle de jouabilité ; aperçu des cartes avec `tools/apercu-carte.cjs`. |
+| 14 | Carte par serveur | ✅ | Graine tirée au hasard à la création d'un serveur, gardée en base et publiée au jeu ; graine 0 = carte de référence (serveur ouvert) ; contrôle de jouabilité ; aperçu des cartes avec `tools/apercu-carte.cjs` (`--generator`). Depuis le 31 octobre 2026 au soir : 420 × 420 pour un monde neuf, gisements posés là où une ville tient, côté de la carte au choix. |
 | 11 | Liste des images et prompts | ✅ | [PROMPTS-CARTE.md](PROMPTS-CARTE.md) : 470 images par ordre de priorité (sol 20, forêts 14, rochers et montagnes 43, ponts et gués 4, désert 9, eau 5, nuages 3, décor des cases 26, villes 32, villes assiégées 120, points de ressource 45, camps 15, armées 43, ville en feu 4, marche des armées 33 images de 6 poses ; plus tard : poses du replay 38, autres effets 16), aussi en tableau `prompts-carte.csv`. |
 
 Les points existants en base suivent le terrain au démarrage du serveur : biome recalculé, point tombé dans l'eau déplacé
@@ -103,8 +145,10 @@ ses villes et tous ses points seraient déplacés.
 | Graine de la carte du serveur (choix au premier démarrage, `WORLD_SEED`, table `WorldConfig`) | `src/game/world.js`, `prisma/migrations/0011_world_seed` |
 | Graine appliquée par le jeu (avant tout dessin, retenue pour le lancement suivant) | `frontend/js/app/01-core.js` (`applyWorldSeed`), `frontend/js/map-world.js` (`onWorldTerrainChanged`) |
 | Aperçu d'une carte, choix d'une graine | `tools/apercu-carte.cjs` |
+| Taille de la carte selon le générateur (374 ou 420) | `frontend/js/shared/terrain.js` (`SIZE_BY_GENERATOR`, `NEW_GENERATOR`), `src/config/index.js` (`config.map`) |
+| Mesure de la place pour 2 000 joueurs (gisements fondables, colonies, sites, donjons) | `tools/measure-map-capacity.cjs` |
 | Dessin du sol, de la grille et des éléments posés, images peintes de la carte | `frontend/js/map-world.js` |
 | Villes 2 × 2 sur la carte, sprites d'avant (repli) | `frontend/js/map.js` |
-| Place libre pour une ville, départ des joueurs | `src/utils/spawn.js` |
-| Points de ressource (génération, mise à jour au démarrage) | `src/game/seed.js` |
+| Place libre pour une ville, départ des joueurs, côtés de la carte | `src/utils/spawn.js` (`findFreeSpawn`, `parseSide`, `sideAt`) |
+| Points de ressource (génération là où une ville tient, mise à jour au démarrage) | `src/game/seed.js` (`planResourceNodes`) |
 | Liste des images, prompts, guides | `tools/repaint/map-world.cjs`, `tools/repaint/map-kit.cjs` |
