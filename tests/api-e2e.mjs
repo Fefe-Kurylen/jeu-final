@@ -1821,6 +1821,10 @@ if (MAIL_LOG) {
   const conv = mk(A.player.id, cityA.id, 'Convoi', [['ROM_INF_MILICIEN', 'base', 100]]);
   const gar = mk(A.player.id, cityA.id, 'Praesidium', [['ROM_INF_MILICIEN', 'base', 10]]);
   const siege = mk(B.player.id, cityB.id, 'Horde', [['HUN_SIEGE_SAPEUR', 'siege', 20000], ['HUN_CAV_ELITE', 'elite', 50000]]);
+  // B nourrit ses armées de test (70 000 soldats et plus) : sans grain, la famine les tuerait pendant la section et les
+  // camps devant le Bastion seraient vides (sortie sans combat, assaut sans soldats)
+  const nourrirB = () => sql(`UPDATE "City" SET food=GREATEST(food, 100000), "maxFoodStorage"=GREATEST("maxFoodStorage", 100000) WHERE id='${cityB.id}'`);
+  nourrirB();
   await call('bastion: no siege of a site without walls -> 400', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'ATTACK' }, 400);
   await call('bastion: no garrison before it is built -> 400', 'POST', `/api/bastion/${bId}/send`, tA, { armyId: gar, mission: 'GARRISON' }, 400);
   await call('bastion: an enemy cannot supply it -> 403', 'POST', `/api/bastion/${bId}/send`, tB, { armyId: siege, mission: 'SUPPLY', resources: { wood: 10 } }, 403);
@@ -1913,6 +1917,7 @@ if (MAIL_LOG) {
   assert('bastion: the winner from outside stays before the Bastion', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`) === `IDLE:${spot?.x}:${spot?.y}` && sql(`SELECT status FROM "Army" WHERE id='${camp2}'`) !== 'BESIEGING' && sql(`SELECT "isSieged"::text FROM "Bastion" WHERE id='${bId}'`) === 'false', sql(`SELECT status||':'||x||':'||y FROM "Army" WHERE id='${conv}'`));
   sql(`DELETE FROM "Army" WHERE id IN ('${camp1}','${camp2}')`);
   refill(gar, 10);
+  nourrirB();
   { // un assaut = un rassemblement ou une armée seule (D9) : deux camps du même joueur, hors rassemblement, qui finissent au
     // même instant livrent chacun leur assaut (avant : un seul assaut réuni, sans plafond d'armées)
     const reportsOfB = () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE "playerId"='${B.player.id}' AND loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`));
@@ -1957,6 +1962,7 @@ if (MAIL_LOG) {
   { // le camp d'un rassemblement devant un Bastion se brise comme un autre (D9, mise à jour finale du propriétaire) : une
     // sortie de la garnison le chasse, il ne livre pas d'assaut
     const bastionReports = () => Number(sql(`SELECT count(*) FROM "BattleReport" WHERE loot->>'type'='BASTION' AND loot->>'bastionId'='${bId}'`));
+    nourrirB();
     const agmen2 = mk(B.player.id, cityB.id, 'Agmen II', [['HUN_SIEGE_SAPEUR', 'siege', 5], ['HUN_INF_NOMADE', 'base', 50]]);
     const r2 = await call('bastion rally: B launches a second one', 'POST', '/api/rallies', tB, { armyId: agmen2, bastionId: bId, waitMinutes: 5 });
     await call('bastion rally: B leaves now (second rally)', 'POST', `/api/rallies/${r2?.rally?.id}/launch`, tB);
@@ -1973,6 +1979,7 @@ if (MAIL_LOG) {
   }
   sql(`UPDATE "Bastion" SET "isSieged"=false WHERE id='${bId}'`);
   // dernière vie : le Bastion est rasé, 7 jours avant d'en rebâtir un
+  nourrirB();
   sql(`UPDATE "Bastion" SET structure=0.1, "structureAt"=now(), "isSieged"=true WHERE id='${bId}'`);
   sql(`UPDATE "Army" SET status='BESIEGING', x=${spot?.x}, y=${spot?.y}, "targetBastionId"='${bId}', "missionType"='BASTION_ATTACK', "arrivalAt"=now()-interval '1 second', "claimedAt"=NULL WHERE id='${siege}'`);
   await waitTick('bastion razed', () => sql(`SELECT status FROM "Bastion" WHERE id='${bId}'`) === 'DESTROYED');
